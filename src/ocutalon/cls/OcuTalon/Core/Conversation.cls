@@ -4,6 +4,12 @@
 ///   - Item: dropped, with a warning, when it is not user provenance or has no ItemId, no text or no Session row (NFR-14), and
 ///     dropped silently when its ItemId or its ClientId already has a turn of the session. Otherwise it is saved as a queued
 ///     Turn, chat.message is published, and the session's next turn starts;
+///   - an Item that carries a file (FileRef, Story 25.3; Core.Files) is the one exception to the user-provenance rule: it is taken only with provenance
+///     untrusted, only when its FileRef is a file of the Item's own session (Core.Files.Describe), and it may have no text; every other drop stands.
+///     The Turn keeps the file as SentFile, {ref, name, mediaType, size} from the stored row and never from the Item, which marks the turn untrusted:
+///     ItemOf rebuilds the Item with provenance untrusted and the file fields, so that every decide and turn request of the Turn carries provenance
+///     untrusted, in which the gate lets only safe read-only tools run (AD-10, AD-14). When nothing reads a sent file (Reader, Core.Files.Readable),
+///     Begin concludes the turn with the fixed reply Core.Files.NoReaderText and sends neither request, so no model is called and no Decision is made;
 ///   - Core.Msg.RunTurns with a SessionRef starts that session's next turn; with an empty SessionRef (the sweep) it puts every
 ///     running turn back in its queue and sends itself one RunTurns for each session that has queued turns;
 ///   - starting a turn: under the session's queue lock, when no turn of the session is running, the head of the queue becomes
@@ -32,6 +38,9 @@
 ///     kept on the Turn as Citations and Memories (JSON) when they hold an entry of the documented shape; a malformed entry is
 ///     dropped, and bad JSON or a wrong shape adds nothing. They are read only from a usable reply, like the checks, and go with
 ///     the turn on chat.message and on the Outbound to Notify;
+///   - the same HostData's array learned (Story 41.15; at most MAXLEARNED, {memoryRef, text} entries that MemoryTools put there for a learned save,
+///     AD-21) is kept the same way on the Turn as Learned (JSON) and goes on the Outbound and, as the entries to show, on chat.message (the channels render the line under the reply):
+///     Conversation renders no text, and the reply text is never changed;
 ///   - finishing: the Turn is done and saved, then chat.message is published (it carries the turn's shown decision, cost and
 ///     check rows), an Outbound goes to Notify with the shown decision's Ref (Turn.ShownDecisionRef) and the check key and
 ///     rows, and RunTurns goes to Conversation itself when the session has a queued turn. A failed publish or send is logged
@@ -124,6 +133,9 @@ Parameter LOGSOURCES = "Conversation added no citations or memories: ";
 /// The most citations and the most memories a reply carries.
 Parameter MAXSOURCES = 5;
 
+/// The most learned saves a reply carries.
+Parameter MAXLEARNED = 3;
+
 /// The start of the warning when StartsSession could not read what it needs; the reason follows it.
 Parameter LOGSTART = "Conversation could not tell whether the turn starts a session, so it does: ";
 
@@ -139,6 +151,10 @@ Parameter DROPNOITEMID = "it has no ItemId";
 Parameter DROPNOTEXT = "it has no text";
 
 Parameter DROPNOSESSION = "it has no session";
+
+Parameter DROPFILEPROVENANCE = "its file is not marked untrusted";
+
+Parameter DROPNOFILE = "its file is not one of the session's files";
 
 /// The Ref of the Turn this instance runs.
 Property TurnRef As %String(MAXLEN = 22);
@@ -210,6 +226,12 @@ Method Take(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	Set turn.ItemId = item.ItemId
 	Set turn.ClientId = item.ClientId
 	Set turn.Text = item.Text
+	If item.FileRef '= "" {
+		Set file = ##class(OcuTalon.Core.Files).Describe(item.FileRef, item.SessionRef, .sc)
+		If $$$ISERR(sc) Quit sc
+		If '$IsObject(file) Quit $$$OK
+		Set turn.SentFile = file.%ToJSON()
+	}
 	Set turn.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	If $IsObject(..%PrimaryRequestHeader) {
 		Set turn.TraceHeaderId = ..%PrimaryRequestHeader.%Id()
@@ -234,13 +256,26 @@ Method Locate(turn As OcuTalon.Data.Turn) [ Private ]
 	Set turn.TraceItemIndexNoEvents = withoutEvents
 }
 
-/// Why the Item is not taken, "" when it is: untrusted provenance, no ItemId, no text or no Session row.
+/// Why the Item is not taken, "" when it is: untrusted provenance, no ItemId, no text or no Session row. An Item that carries a file is the one exception:
+/// it needs provenance untrusted and a file of its own session, and may have no text.
 Method Untrusted(item As OcuTalon.Msg.Item) As %String [ Private ]
 {
+	If item.FileRef '= "" Quit ..UntrustedFile(item)
 	If item.Provenance '= "user" Quit $Replace(..#DROPPROVENANCE, "{provenance}", item.Provenance)
 	If item.ItemId = "" Quit ..#DROPNOITEMID
 	If $ZStrip(item.Text, "<>WC") = "" Quit ..#DROPNOTEXT
 	If (item.SessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)) Quit ..#DROPNOSESSION
+	Quit ""
+}
+
+/// Why an Item that carries a file is not taken, "" when it is: provenance other than untrusted, no ItemId, no Session row, or a FileRef that is not a
+/// file of the Item's session. No text is needed, and the reason names no file.
+Method UntrustedFile(item As OcuTalon.Msg.Item) As %String [ Private ]
+{
+	If item.Provenance '= "untrusted" Quit ..#DROPFILEPROVENANCE
+	If item.ItemId = "" Quit ..#DROPNOITEMID
+	If (item.SessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(item.SessionRef)) Quit ..#DROPNOSESSION
+	If '$IsObject(##class(OcuTalon.Core.Files).Describe(item.FileRef, item.SessionRef)) Quit ..#DROPNOFILE
 	Quit ""
 }
 
@@ -351,11 +386,15 @@ Method Begin(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 	Set sc = $$$OK
 	Try {
 		Do ..Join(turn)
-		Set sc = ..Send(..#DECIDE, ..Request(turn, "decide"), 1, "decide")
-		If $$$ISERR(sc) {
-			$$$LOGSTATUS(sc)
-			Set ..CallError = sc
-			Set sc = ..Decided("")
+		If (turn.SentFile '= "") && '..Reader() {
+			Set sc = ..Conclude(turn, ##class(OcuTalon.Core.Files).NoReaderText(##class(%DynamicAbstractObject).%FromJSON(turn.SentFile).name), "")
+		} Else {
+			Set sc = ..Send(..#DECIDE, ..Request(turn, "decide"), 1, "decide")
+			If $$$ISERR(sc) {
+				$$$LOGSTATUS(sc)
+				Set ..CallError = sc
+				Set sc = ..Decided("")
+			}
 		}
 	} Catch exception {
 		$$$LOGERROR(exception.DisplayString())
@@ -390,10 +429,11 @@ ClassMethod ItemOf(turn As OcuTalon.Data.Turn) As OcuTalon.Msg.Item [ Private ]
 	Set item.ItemId = turn.ItemId
 	Set item.SessionRef = turn.SessionRef
 	Set item.Channel = turn.Channel
-	Set item.Provenance = "user"
+	Set item.Provenance = $Select(turn.SentFile '= "": "untrusted", 1: "user")
 	Set item.Text = turn.Text
 	Set item.FromGuide = turn.FromGuide
 	Set item.ClientId = turn.ClientId
+	If turn.SentFile '= "" Do ##class(OcuTalon.Core.Files).SetItem(item, ##class(%DynamicAbstractObject).%FromJSON(turn.SentFile))
 	Quit item
 }
 
@@ -494,6 +534,13 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 	Quit $IsObject(last) && last.SessionRotated
 }
 
+/// 1 when something reads a sent file (Core.Files.Readable): a file turn runs through Decide; without a reader it is answered with a fixed reply and no model
+/// request. A seam for the tests.
+Method Reader() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Files).Readable()
+}
+
 /// 1 when the decision has a usage row of the session (Ownership.DecisionServed): the turn's request reached a model; sc is the status of the read. A seam for the tests.
 ClassMethod Served(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %Boolean [ Private ]
 {
@@ -560,8 +607,8 @@ Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %
 	Quit ##class(OcuTalon.Checks.Render).Render(results, .rows)
 }
 
-/// The citations and memories of a usable reply: the arrays citations and memories of HostData, when it is a JSON object, are kept
-/// on the turn as Citations and Memories (JSON arrays) with the entries of the documented shape only, at most MAXSOURCES each. A
+/// The citations, memories and learned saves of a usable reply: the arrays citations, memories and learned of HostData, when it is a JSON object, are kept
+/// on the turn as Citations, Memories and Learned (JSON arrays) with the entries of the documented shape only, at most MAXSOURCES (MAXLEARNED for learned) each. A
 /// field is set only when an entry is kept. Bad JSON, a wrong shape or an error add nothing; the turn ends normally in every case.
 Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 {
@@ -571,8 +618,10 @@ Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 		If $ClassName(data) '= "%Library.DynamicObject" Quit
 		Set citations = ..Kept(data, "citations", $ListBuild("documentRef", "document", "section", "passage"), "chunkIndex")
 		Set memories = ..Kept(data, "memories", $ListBuild("memoryRef", "text", "savedAt"), "")
+		Set learned = ..Kept(data, "learned", $ListBuild("memoryRef", "text"), "", ..#MAXLEARNED)
 		If citations '= "" Set turn.Citations = citations
 		If memories '= "" Set turn.Memories = memories
+		If learned '= "" Set turn.Learned = learned
 	} Catch exception {
 		$$$LOGWARNING(..#LOGSOURCES_exception.DisplayString())
 	}
@@ -580,14 +629,15 @@ Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 
 /// The entries of the array member of data as a JSON array: an entry is kept when it is an object whose strings (a list of
 /// names) are strings and whose number (a name, or "" for none) is a number; it is cut down to those members, in that order.
-/// At most MAXSOURCES entries are kept. "" when the member is not an array or no entry is kept.
-Method Kept(data As %DynamicObject, member As %String, strings As %List, number As %String) As %String [ Private ]
+/// At most cap entries are kept (MAXSOURCES when no cap is given). "" when the member is not an array or no entry is kept.
+Method Kept(data As %DynamicObject, member As %String, strings As %List, number As %String, cap As %Integer = "") As %String [ Private ]
 {
+	If cap = "" Set cap = ..#MAXSOURCES
 	If data.%GetTypeOf(member) '= "array" Quit ""
 	Set array = data.%Get(member)
 	Set kept = []
 	For i = 0:1:array.%Size() - 1 {
-		If kept.%Size() >= ..#MAXSOURCES Quit
+		If kept.%Size() >= cap Quit
 		If array.%GetTypeOf(i) '= "object" Continue
 		Set element = array.%Get(i)
 		Set entry = {}, valid = 1
@@ -714,6 +764,7 @@ Method Tell(turn As OcuTalon.Data.Turn) [ Private ]
 		Set outbound.CheckRows = turn.CheckRows
 		Set outbound.Citations = turn.Citations
 		Set outbound.Memories = turn.Memories
+		Set outbound.Learned = turn.Learned
 		If turn.ReplyCatalogKey '= "" {
 			Set outbound.CatalogKey = turn.ReplyCatalogKey
 			Set outbound.Slots = {"fallbackReason": (turn.FallbackReason)}.%ToJSON()

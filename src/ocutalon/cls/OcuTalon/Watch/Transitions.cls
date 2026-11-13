@@ -2,8 +2,8 @@
 /// a move does. Next gives 1 for an accepted move and 0 for a refused one, and the target state, the open variant and which request gets an Execute.
 ///
 /// Next(state, noticed, event, facts, .to, .variant, .execute): state is "" before the incident exists; noticed matters only for open; facts is a dynamic
-/// object with the members variant (a notice's open variant), pending, waiting and demoMode (1 or 0; a member that is absent is 0). execute is OWN (the
-/// event's own request), EARLIEST (the earliest waiting request) or "".
+/// object with the members variant (a notice's open variant), pending, waiting, demoMode and holds (1 or 0; a member that is absent is 0). holds is 1 while, for an item
+/// of the incident's production, the newest item-kind run that changed it is a suspend_item run of the incident (Fix.Run Holds; Story 23.9). execute is OWN (the event's own request), EARLIEST (the earliest waiting request) or "".
 ///
 /// The rows (every other pair of state and event is refused, and so is every event on a closed incident):
 ///   - (none) + first -> open, no variant;
@@ -17,8 +17,9 @@
 ///   - fixing + finished -> fixing with execute earliest when waiting is 1, else awaiting_approval when pending is 1, else resolved;
 ///   - fixing + approved, rejected or expired -> fixing (an approved request waits);
 ///   - awaiting_approval or resolved + raised -> awaiting_approval; fixing + raised -> fixing;
-///   - resolved + dismiss, closeForReplay or closeQuiet -> closed;
-///   - open, noticed + dismiss -> closed; open, noticed + closeQuiet -> closed only when demoMode is 0.
+///   - resolved + dismiss -> closed; resolved + closeForReplay or closeQuiet -> closed only when holds is 0;
+///   - open, noticed + dismiss -> closed; open, noticed + closeQuiet -> closed only when demoMode is 0 and holds is 0.
+/// Dismiss closes whether the incident holds a suspend or not.
 /// The variant is kept only while the target state is open: any other target clears it.
 Class OcuTalon.Watch.Transitions
 {
@@ -79,11 +80,13 @@ ClassMethod Next(state As %String, noticed As %Boolean, event As %String, facts 
 	Set pending = 0
 	Set waiting = 0
 	Set demo = 0
+	Set holds = 0
 	Set given = ""
 	If $IsObject($Get(facts)) {
 		Set pending = ''+facts.pending
 		Set waiting = ''+facts.waiting
 		Set demo = ''+facts.demoMode
+		Set holds = ''+facts.holds
 		Set given = facts.variant
 	}
 	If state = "" {
@@ -99,7 +102,7 @@ ClassMethod Next(state As %String, noticed As %Boolean, event As %String, facts 
 		} Else {
 			If event = ..#DISMISS {
 				Set to = ..#CLOSED
-			} ElseIf (event = ..#CLOSEQUIET) && 'demo {
+			} ElseIf (event = ..#CLOSEQUIET) && 'demo && 'holds {
 				Set to = ..#CLOSED
 			} ElseIf event = ..#RAISED {
 				Set to = ..#AWAITING
@@ -133,7 +136,7 @@ ClassMethod Next(state As %String, noticed As %Boolean, event As %String, facts 
 	} ElseIf state = ..#RESOLVED {
 		If event = ..#RAISED {
 			Set to = ..#AWAITING
-		} ElseIf (event = ..#DISMISS) || (event = ..#CLOSEFORREPLAY) || (event = ..#CLOSEQUIET) {
+		} ElseIf (event = ..#DISMISS) || (((event = ..#CLOSEFORREPLAY) || (event = ..#CLOSEQUIET)) && 'holds) {
 			Set to = ..#CLOSED
 		}
 	}

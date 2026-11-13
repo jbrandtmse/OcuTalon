@@ -1,4 +1,4 @@
-/// Asks, for one of the session's own incidents, for a fix of a kind the chat may ask for (Story 23.2; AD-1, AD-16): suspend_item, resume_item or reroute. The incident's owner,
+/// Asks, for one of the session's own incidents, for a fix of a kind the chat may ask for (Story 23.2; AD-1, AD-16): suspend_item, resume_item, reroute or partner_warning (Story 23.5). The incident's owner,
 /// IncidentManager, asks FixExecutor for the kind's dry run and raises the approval request itself; this command only names what is wanted.
 Class OcuTalon.Msg.Command.ProposeFix Extends OcuTalon.Msg.Command
 {

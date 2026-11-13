@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "87e1ab39aef3fad7fdf11717ffb5f074f112174a35f00c530b6cbc9addaa00fc"
+epics_md_hash: "5da3832d89fc084d5f42ccf9d4f5992e0bfce06b725aa6b9052bbcdcf52b9b47"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -301,10 +301,12 @@ epics:
             paths_hint: ["src/ocutalon/cls/OcuTalon/Mcp/**", "src/bridge/cls/OcuTalon/Bridge/Adapter/**", "src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{SendEmail,AddMcpServer,RemoveMcpServer,ClassifyTool,SetSourcePoll,RemoveSourcePoll}*.cls", "src/ocutalon/cls/OcuTalon/Core/{CommandsIn,SettingsOps}.cls", "src/ocutalon/cls/OcuTalon/Channel/Webhook*/**", "src/ocutalon/cls/OcuTalon/Install/Step/Web.cls", "src/ocutalon/cls/OcuTalon/Data/Webhook*.cls", "src/ocutalon/cls/OcuTalon/Web/{Api,Hook}*.cls", "web/src/app/settings/**", "src/ocutalon/cls/OcuTalon/Test/{Mcp,Core,Web}/**"],
             story_waits: {"35.1": [epic-17, epic-19],       # footprint: the adapter that 17.3 and 19.5 change; real (inference): 19.5's per-turn tool manager must carry the MCP servers (spine:553, 564)
                           "35.2": epic-18}}                 # real: the settings page and SettingsOps it extends
-  epic-36: {lane: pool, depends_on: [epic-35], submodules: [],                        # step 5: Stories 36.1 (was 23.1) then 36.2 (was 24.1); real (inference): 36.1 extends the BackgroundCheck row types and step 4 names 35.1 fixes; 36.1 records PRD Open Question 5's answer in the spine (Telegram and email by default, chosen per person; the owner, 2026-10-25)
+  # [AMENDED 2026-11-11, Contest Planner ruling: real dependency is 35.1; 35.3 is independent] epic-level edge on epic-35 lifted to story level (35.1 merged at 1d3cc767); 35.3/36.1 BackgroundCheck row types: plain union, second to merge integrates forward
+  epic-36: {lane: pool, depends_on: [], submodules: [],                        # step 5: Stories 36.1 (was 23.1) then 36.2 (was 24.1); real (inference): 36.1 extends the BackgroundCheck row types and step 4 names 35.1 fixes; 36.1 records PRD Open Question 5's answer in the spine (Telegram and email by default, chosen per person; the owner, 2026-10-25)
             paths_hint: ["src/ocutalon/cls/OcuTalon/Watch/{SettingHistory,Reader}*.cls", "src/ocutalon/cls/OcuTalon/Checks/**", "src/ocutalon/cls/OcuTalon/Data/{SettingSnapshot,SettingChange,BackgroundCheck}*.cls", "src/ocutalon/cls/OcuTalon/Fix/Kind/**", "src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{AckPage,SaveSqlWatch}*.cls", "src/ocutalon/cls/OcuTalon/Data/{Setting,PartnerContact,Reminder}*.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "web/src/app/settings/**", "README.md", "src/ocutalon/cls/OcuTalon/Test/{Watch,Install,Core}/**", "web/e2e/**"],
-            story_waits: {"36.1": [epic-22, epic-14, epic-30],   # footprint: BackgroundCheck row types and Checks, which 22.5 changes; real: the overview's generated privilege list shows %Ens_ProductionConfig (M4); real: the Watch area's purge, Story 30.2 (M2)
-                          "36.2": epic-22}}                 # real: "with Epic 22 merged" it links 22.6's worked example
+            story_waits: {"36.1": [epic-14, epic-30],   # [AMENDED 2026-11-11, Contest Planner ruling: footprint only, not a real dependency] epic-22 wait lifted; plain union with 22.5 on the Checks and BackgroundCheck files
+                            # footprint: BackgroundCheck row types and Checks, which 22.5 changes; real: the overview's generated privilege list shows %Ens_ProductionConfig (M4); real: the Watch area's purge, Story 30.2 (M2)
+                          "36.3": epic-22}}                 # real: "with Epic 22 merged" it links 22.6's worked example [AMENDED 2026-11-12, split (runner U5, decide): the wait moved from 36.2 to 36.3, which took 36.2's README criterion; 36.2 (contracts) and 36.4 (on-call Settings) have no Epic 22 wait; order 36.1, 36.2, 36.4, 36.3]
   epic-37: {lane: pool, depends_on: [], submodules: [],                               # step 6: Stories 37.1 (was 26.1) then 37.2 (was 25.1); real: 37.1's approver kinds come from step 5's spine update
             # [AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (ii)] epic-level edge on epic-36 lifted to story level: 37.1 waits on epic-36; 37.2 is free and carries its own step-6 REST, ownership and navigation rows (37.1's appends come later)
             story_waits: {"37.1": epic-36},
@@ -358,14 +360,19 @@ epics:
             story_waits: {"20.2": epic-18}}                 # footprint (v3): the web chat's message view and its tests, where 18.4 adds the digest card and Got it
 
   # ---- step 4
-  epic-21: {lane: pool, depends_on: [epic-35], submodules: [],                        # Lane B's files; real: 35.2's routes and verbs, 35.1's Tools(server) stub; "Epic 20" was order only
+  # [AMENDED 2026-11-11, Contest Planner ruling under the owner's delegation: real dependency is 35.1/35.2; 35.3 is independent] epic-level edge on epic-35 lifted to story level: 35.1 and 35.2 merged at 1d3cc767
+  epic-21: {lane: pool, depends_on: [], submodules: [],                        # Lane B's files; real: 35.2's routes and verbs, 35.1's Tools(server) stub; "Epic 20" was order only
             paths_hint: ["src/ocutalon/cls/OcuTalon/Channel/{Email,Webhook}*/**", "src/ocutalon/cls/OcuTalon/Core/{SettingsOps,CommandsIn,BridgeSink,NoticesIn}.cls", "src/ocutalon/cls/OcuTalon/Data/PollOutcome*.cls", "src/ocutalon/cls/OcuTalon/Install/Step/Web.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/{Core,Render}.cls", "web/src/app/{settings,chat,rail,approvals,phone}/**", "web/src/app/api/**", "ci/compose.ci.yml", "ci/mock/**", "README.md", "src/ocutalon/cls/OcuTalon/Test/{Core,Web,Channel}/**", "web/e2e/**"],
-            story_waits: {"21.2": [epic-17, epic-18],       # real: Settings › Daily digest and the digest EmailOut sends
+            story_waits: {"21.2": [epic-17, epic-18], "21.6": [epic-17, epic-18], "21.7": [epic-17, epic-18],   # [ADDED 2026-11-11, split of 21.2 into 21.2/21.6/21.7 (runner U5); waits copied from 21.2]
+                                 # real: Settings › Daily digest and the digest EmailOut sends
                           "21.4": epic-18,                  # real: a new Settings section
+                          "21.10": epic-22, "21.11": epic-22, "21.9": epic-22,   # [ADDED 2026-11-12, splits 21.5 -> 21.5/21.10 and 21.10 -> 21.10/21.11, 21.4 -> 21.4/21.9 (runner U5; Planner approved 21.5's and 21.4's); real, story level: 21.10 after 22.4 merges, 21.11 after 22.7, 21.9 after Lane A's `changed` flag; 21.4 after 22.4 and 21.5 after 21.4 + 22.5 (orchestrator Mcp/Ops.cls order 22.4 -> 21.4 -> 22.5, Planner-confirmed)]
                           "21.5": epic-31}}                 # real: tool-call notices through NoticesIn moved from 6.3 to Story 31.2 (M2); 31.2 itself waits for 30.3; v2: Catalog/Render.cls gains the email channel, 21.2 (M9)
-  epic-22: {lane: A, depends_on: [epic-35], submodules: [],                           # real: 35.1's names; 35.2's verbs (22.2, and 22.5 and 22.7, M3); "Epic 19" is footprint only, carried by 35.1's wait
+  # [AMENDED 2026-11-11, Contest Planner ruling under the owner's delegation: real dependency is 35.1/35.2; 35.3 is independent] epic-level edge on epic-35 lifted to story level: 35.1 and 35.2 merged at 1d3cc767
+  epic-22: {lane: A, depends_on: [], submodules: [],                           # real: 35.1's names; 35.2's verbs (22.2, and 22.5 and 22.7, M3); "Epic 19" is footprint only, carried by 35.1's wait
             paths_hint: ["src/ocutalon/cls/OcuTalon/Mcp/**", "src/bridge/cls/OcuTalon/Bridge/{Adapter,Policy}/**", "src/bridge/cls/OcuTalon/Bridge/{Context,Approval}.cls", "src/ocutalon/cls/OcuTalon/Tools/{CallMcp*,Email*,Result,Names}.cls", "src/ocutalon/cls/OcuTalon/Checks/**", "src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls", "src/ocutalon/cls/OcuTalon/Fix/{Executor*,Kind/Email*}", "src/ocutalon/cls/OcuTalon/Install/Step/{Mcp,Roles}*.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Test/{Mcp,Bridge,Tools,Checks,Fix}/**", "docs/**", "ci/mock/scenarios/A/**"],
-            story_waits: {"22.4": epic-30,                  # real: the approved tool-call replay moved from 3.6 to Story 30.3 (M2)
+            story_waits: {"22.8": [], "22.9": [], "22.10": [],   # [ADDED 2026-11-11, split of 22.2 into 22.2/22.8/22.9 (runner U5) and 22.10 (Planner ruling, after 22.7); no outstanding waits]
+                          "22.4": epic-30,                  # real: the approved tool-call replay moved from 3.6 to Story 30.3 (M2)
                           "22.5": [epic-17, epic-30],       # real: the coverage list's sources section and digest; the `tool` request path, 30.3 (M2)
                           "22.6": epic-14,                  # real: regenerates Epic 14's security overview
                           "22.7": epic-14}}                 # real: the overview lists the email tool
@@ -387,7 +394,7 @@ epics:
   # ---- step 6
   epic-25: {lane: pool, depends_on: [], submodules: [],                               # Lane B's files; real: 37.2's rows and navigation, 37.1's role stubs (25.4, 25.5); "Epic 24" was order only (inference)
             # [AMENDED 2026-11-09, owner re-plan, consequence of Contest Planner ruling (ii), reported for veto] epic-level edge on epic-37 lifted to story level: 25.2 waits on Story 37.2 merged (its rows and navigation); 25.4 and 25.5 on Story 37.1 (role stubs)
-            story_waits_stories: {"25.2": "37.2", "25.4": "37.1", "25.5": "37.1"},
+            story_waits_stories: {"25.2": "37.2", "25.4": "37.1", "25.5": "37.1", "25.6": ["37.1", "26.2"]},   # [ADDED 2026-11-12, split of 25.3 into 25.3/25.6 (runner U5, Planner approved): 25.6 needs 37.1's reply-contract AC (U-326, DW-1231) and 26.2's read path]
             paths_hint: ["web/src/app/{usage,history,settings,chat,documents}/**", "web/src/app/api/**", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls", "src/ocutalon/cls/OcuTalon/Install/Step/Web.cls", "src/ocutalon/cls/OcuTalon/Core/{AnswersIn,SettingsOps}.cls", "src/ocutalon/cls/OcuTalon/Data/{File,Ownership}*.cls", "ci/mock/**", "src/ocutalon/cls/OcuTalon/Test/{Core,Web,Data}/**", "web/e2e/**"],
             story_waits: {"25.3": epic-20,                  # real: the Documents page's Add documents
                           "25.4": [epic-18, epic-16]}}      # real: a Settings section; the online demo account, Story 16.1 (M4)
@@ -398,13 +405,19 @@ epics:
                           "26.3": epic-19,                  # real: the save-memory command and memory
                           "26.4": [epic-14, epic-23, epic-25]}}   # real: the overview; step 5's approval kinds; AnswersIn's not_allowed, 25.5
 
-# Step 7 (Could), after the contest (owner, 2026-10-31, U-195: "so we can ship them as soon as possible"). Kept verbatim for
-# after the contest; never dispatched in this run. The orchestrator reads candidates from epics: only.
-post_contest:
-  epic-27: {lane: pool, depends_on: [epic-35], submodules: [],                        # Lane B's files; real: the /ocutalon/hook application, 35.2 (was 21.1); "Epic 25" was order only
+  # [AMENDED 2026-11-11, owner: "continue steps 4-7"; Contest Planner ruling] Epics 27 and 28 moved from post_contest: into epics:;
+  # priority last (after steps 4-6) unless a lane would otherwise idle; edges at story level:
+  #   27.1, 27.2 (Slack): no epic edge (epic-35 lifted to 35.1/35.2, merged 1d3cc767). Slack never runs on the online demo.
+  #   28.1: creates its own DraftTransform verb (as 23.2 created ProposeFix), so it no longer waits on 27.1; real deps = merged diagnosis and incident stories.
+  #   28.2: no edge beyond merged memory (epic-19 recall, merged).
+  #   28.3: waits only on the merged 35.1 Mcp names (was [epic-14, epic-22]); its new web application, role and resource are a veto item; OFF on the online demo.
+  #   epic-28 epic-level edge on epic-23 lifted to story level: 23.6 (incident summary) merged at b896ef39.
+  # [AMENDED 2026-11-11, Contest Planner ruling under the owner's delegation: real dependency is 35.1/35.2; 35.3 is independent] epic-level edge on epic-35 lifted to story level: 35.1 and 35.2 merged at 1d3cc767
+  epic-27: {lane: pool, depends_on: [], submodules: [],                        # Lane B's files; real: the /ocutalon/hook application, 35.2 (was 21.1); "Epic 25" was order only
             paths_hint: ["src/ocutalon/cls/OcuTalon/Channel/Slack/**", "src/ocutalon/cls/OcuTalon/Web/Hook*.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/DraftTransform*.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls", "web/src/app/settings/**", "ci/mock/mock.mjs", "ci/mock/scenarios.mjs", "ci/mock/scenarios/B/**", "ci/mock/test/**", "ci/compose.ci.yml", "README.md", ".env.example", "src/ocutalon/cls/OcuTalon/Test/{Channel,Core}/**"]}   # v2: 27.1 creates the DraftTransform verb (L3); v3: ci/mock/** narrowed to 27.2's Slack API mock: the mock's routing (mock.mjs), a slack match type (scenarios.mjs), B scenarios, the mock's tests and the CI override's Slack base URL (inference)
-  epic-28: {lane: A, depends_on: [epic-23], submodules: [],                           # real: the incident summary, 23.6; "Epic 26" was order only; pool-eligible (inference)
+  epic-28: {lane: A, depends_on: [], submodules: [],                           # real: the incident summary, 23.6; "Epic 26" was order only; pool-eligible (inference)
             paths_hint: ["src/ocutalon/cls/OcuTalon/Watch/**", "src/ocutalon/cls/OcuTalon/Fix/Draft*.cls", "src/ocutalon/cls/OcuTalon/Memory/**", "src/ocutalon/cls/OcuTalon/Data/Memory.cls", "src/ocutalon/cls/OcuTalon/Mcp/Service*.cls", "src/ocutalon/cls/OcuTalon/Install/{Step/Mcp,Task}*", "src/ocutalon/cls/OcuTalon/Test/{Fix,Memory,Mcp}/**", "ci/mock/scenarios/A/**", "docs/**"],
-            story_waits: {"28.1": epic-27,                  # real (v2, L3): the DraftTransform verb Story 27.1 creates, which 28.1's chat path submits
-                          "28.2": epic-19,                  # real: memory recall and Data.Memory
-                          "28.3": [epic-14, epic-22]}}      # real: the overview; the Mcp area's installer step
+            story_waits: {"28.2": epic-19}}                 # real: memory recall and Data.Memory (merged); 28.1 and 28.3 have no outstanding wait (see the note above)
+
+# Step 7 moved into epics: on 2026-11-11 (owner: "continue steps 4-7"; Contest Planner ruling). Nothing remains post-contest.
+post_contest: {}

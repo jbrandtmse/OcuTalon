@@ -12,6 +12,7 @@ import { renderPageText } from '../msg/catalog';
 import { TraceLink } from '../shared/trace-link';
 import { EvidencePanel } from './evidence-panel';
 import { IncidentDismiss, type DismissTarget } from './incident-dismiss';
+import { IncidentStateChip } from './incident-state-chip';
 import { INCIDENT_TEXTS, incidentView, productionOf, type IncidentContext } from './incident-view';
 
 /** The last id handed to a card, for the ids of its headline and its panel. */
@@ -55,7 +56,7 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
  */
 @Component({
   selector: 'app-incident-card',
-  imports: [ApprovalRequestCard, DecisionStrip, EvidencePanel, FallbackFlag, Icon, IncidentDismiss, ResultBand, TraceLink],
+  imports: [ApprovalRequestCard, DecisionStrip, EvidencePanel, FallbackFlag, Icon, IncidentDismiss, IncidentStateChip, ResultBand, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <article
@@ -67,7 +68,7 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
     >
       <div class="chip-row">
         @if (view().stateText; as stateText) {
-          <span [class]="'chip chip-' + view().chip">{{ stateText }}</span>
+          <app-incident-state-chip [chip]="view().chip" [text]="stateText" />
         }
         @if (view().fallback) {
           <app-fallback-flag />
@@ -205,37 +206,6 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
       align-items: center;
       gap: var(--space-2);
       margin-bottom: var(--space-1);
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 22px;
-      padding: 0 var(--space-2);
-      border-radius: var(--rounded-full);
-      font-size: var(--type-label-font-size);
-      font-weight: var(--type-label-font-weight);
-      line-height: 1;
-      white-space: nowrap;
-    }
-    .chip-open {
-      background: var(--incident-state-open-background);
-      color: var(--incident-state-open-foreground);
-    }
-    .chip-awaiting-approval {
-      background: var(--incident-state-awaiting-approval-background);
-      color: var(--incident-state-awaiting-approval-foreground);
-    }
-    .chip-fixing {
-      background: var(--incident-state-fixing-background);
-      color: var(--incident-state-fixing-foreground);
-    }
-    .chip-resolved {
-      background: var(--incident-state-resolved-background);
-      color: var(--incident-state-resolved-foreground);
-    }
-    .chip-closed {
-      background: var(--incident-state-closed-background);
-      color: var(--incident-state-closed-foreground);
     }
     .time {
       color: var(--ink-muted);

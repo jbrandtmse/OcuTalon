@@ -19,9 +19,9 @@ const { formatCost } = await import(app('chat', 'decision-view.ts'));
 const { README_URL } = await import(app('links.ts'));
 const { TELEGRAM_ANCHOR, readmeSection } = await import(app('rail', 'rail-view.ts'));
 
-/** The addresses of the README's sections that the actions open (DW-361): the install section and the model-key section. */
-const INSTALL_URL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
-const SET_KEY_URL = 'https://github.com/jbrandtmse/OcuTalon#set-a-model-key';
+/** The addresses of the guide's sections that the actions open (DW-361): the install section and the model-key section. */
+const INSTALL_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself';
+const SET_KEY_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#set-a-model-key';
 
 /** The format the component builds, with the browser's locale and zone named. */
 const formatIn = (zone = 'UTC', locale = 'en-GB') => ({

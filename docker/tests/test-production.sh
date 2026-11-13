@@ -68,10 +68,10 @@ live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
 
-if ! wait_started_ready 400; then
+if ! wait_started_ready "$LIVE_FIRST_START_WAIT"; then
   start_log | tail -n 30 | cut -c1-200
   dc logs --tail 20 iris 2>&1 | cut -c1-200
-  die "row 13 the first start did not end ready within 400 s"
+  die "row 13 the first start did not end ready within $LIVE_FIRST_START_WAIT s"
 fi
 pass "row 13 the first start ended ready"
 
@@ -127,7 +127,7 @@ fi
 check_session "row 15: a terminal session reads the extension classes and a runner's model from the active production" OCUTALON \
   "CHK|HostSinkClass|OcuTalon.Core.BridgeSink|1
 CHK|ReplyFilterClass|OcuTalon.Checks.ReplyGuard|1
-CHK|ClassificationClass|OcuTalon.Bridge.Ext.Classification|1
+CHK|ClassificationClass|OcuTalon.Mcp.Classification|1
 CHK|model|TriageAgent|claude-haiku-5-5" \
   'For s="HostSinkClass","ReplyFilterClass","ClassificationClass" { Set c=##class(OcuTalon.Bridge.Ext.Accessor).ClassFor(s,,,.sc) Write !,"CHK|",s,"|",c,"|",$SYSTEM.Status.IsOK(sc) }' \
   'Write !,"CHK|model|TriageAgent|",##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("TriageAgent")' \

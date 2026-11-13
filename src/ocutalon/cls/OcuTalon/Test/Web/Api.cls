@@ -129,7 +129,7 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,admin,onlineDemo,demoMode,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,admin,onlineDemo,demoMode,filesReadable,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
 	Do $$$AssertEquals(body.%GetTypeOf("mailbox")_"|"_body.mailbox.%Size(), "array|0", "mailbox is an empty array for a session with no mail")
 	Do $$$AssertEquals(body.%GetTypeOf("phone")_"|"_body.phone.%Size(), "array|0", "phone is an empty array for a session with no phone message")
 	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
@@ -137,6 +137,8 @@ Method TestStateBody()
 	Do $$$AssertEquals(body.user, session.IrisUser, "user is the session row's")
 	Do $$$AssertEquals(body.user, "zzapistate"_..Number, "and the fixture session's user")
 	Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", "the two flags are booleans")
+	Do $$$AssertEquals(body.%GetTypeOf("filesReadable"), "boolean", "filesReadable is a boolean")
+	Do $$$AssertEquals(body.filesReadable, ##class(OcuTalon.Core.Files).Readable(), "and it is Core.Files.Readable()")
 	Set keys = ""
 	Set iterator = body.models.%GetIterator()
 	While iterator.%GetNext(.key) {
@@ -552,6 +554,44 @@ Method TestStateChatDecision()
 	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_triage_","_reply_","_replied_","_fallback_","_bare)
 }
 
+/// Story 41.15 (AD-4, AD-12): the snapshot's chat entry for a turn carries the learned saves to show, {memoryRef, fact} with the fact shaped, as chat.message does; a turn whose reply already says "I'll remember" has none, and a turn
+/// of another session is not in the snapshot, with its learned entry.
+Method TestStateLearned()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set mine = $ClassMethod(fixture, "Session", "zzapilearned"_..Number)
+	Set theirs = $ClassMethod(fixture, "Session", "zzapilearnedother"_..Number)
+	Set learned = "[{""memoryRef"":""zzlrn1"",""text"":""The Results partner's contact is Lee.""},{""memoryRef"":""zzlrn2"",""text"":""Second fact""}]"
+	Set shown = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:01Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(shown)
+	Set row.ReplyText = "Noted."
+	Set row.Learned = learned
+	Do $$$AssertStatusOK(row.%Save(), "mine has a turn with two learned entries")
+	Set said = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:02Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(said)
+	Set row.ReplyText = "I'll remember that."
+	Set row.Learned = learned
+	Do $$$AssertStatusOK(row.%Save(), "and a turn whose reply says it")
+	Set plain = $ClassMethod(fixture, "Turn", mine, "2030-01-01T10:00:03Z")
+	Set other = $ClassMethod(fixture, "Turn", theirs, "2030-01-01T10:00:04Z")
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(other)
+	Set row.ReplyText = "Noted."
+	Set row.Learned = "[{""memoryRef"":""zzlrnother"",""text"":""Theirs only""}]"
+	Do $$$AssertStatusOK(row.%Save(), "theirs has a turn with a learned entry")
+
+	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(mine))
+	Do $$$AssertEquals(..Items(body.chat), "chat.message:"_shown_",chat.message:"_said_",chat.message:"_plain, "mine's chat holds its three turns and no other session's")
+	Set first = body.chat.%Get(0).payload
+	Do $$$AssertEquals(first.learned.%ToJSON(), [{"memoryRef": "zzlrn1", "fact": "The Results partner's contact is Lee"}, {"memoryRef": "zzlrn2", "fact": "Second fact"}].%ToJSON(), "the first entry lists the learned saves as the line shows them")
+	Do $$$AssertEquals(body.chat.%Get(1).payload.%IsDefined("learned")_"|"_body.chat.%Get(2).payload.%IsDefined("learned"), "0|0", "a reply that says it, and a turn with no entry, have none")
+	Set theirBody = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(theirs))
+	Do $$$AssertEquals(..Items(theirBody.chat), "chat.message:"_other, "theirs holds its own turn only")
+	Do $$$AssertEquals(theirBody.chat.%Get(0).payload.learned.%ToJSON(), [{"memoryRef": "zzlrnother", "fact": "Theirs only"}].%ToJSON(), "with its own entry")
+	Do $$$AssertTrue(theirBody.%ToJSON() '[ "zzlrn1", "the snapshot of theirs holds none of mine's learned saves")
+	Do $$$AssertTrue(body.%ToJSON() '[ "zzlrnother", "and the snapshot of mine none of theirs")
+	Do $ClassMethod(fixture, "Clean", mine_","_theirs_","_shown_","_said_","_plain_","_other)
+}
+
 /// DW-294: the snapshot's chat entry for an incident carries the member decision, the Decision payload of the incident's
 /// DecisionRef (its diagnose decision), when that is a decision of the session's own, so that the card's footer finds it after a
 /// load. An incident whose DecisionRef is empty, or a decision of another session, has no decision member, and the entry is then
@@ -954,12 +994,12 @@ Method TestErrorTexts()
 	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
-/// The URL map holds exactly the 37 routes, each with its call.
+/// The URL map holds exactly the 38 routes, each with its call.
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/decisions/:ref/got-it GotIt", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "POST /v1/decisions/:ref/noise MarkNoise", "GET /v1/memory/precedents Precedents", "DELETE /v1/memory/precedents/:ref ForgetPrecedent", "GET /v1/memory/notes Notes", "GET /v1/memory/items MemoryItems", "GET /v1/memory/pinned PinnedMemories", "POST /v1/memory/:ref/pin PinMemory", "DELETE /v1/memory/:ref/pin UnpinMemory", "DELETE /v1/memory/items/:ref ForgetMemory", "GET /v1/settings Settings", "POST /v1/settings/models SaveModels", "POST /v1/settings/models/test TestModel", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/daily-digest/send SendDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
-	Do $$$AssertEquals($ListLength(found), 37, "37 routes")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/decisions/:ref/got-it GotIt", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "POST /v1/decisions/:ref/noise MarkNoise", "GET /v1/memory/precedents Precedents", "DELETE /v1/memory/precedents/:ref ForgetPrecedent", "GET /v1/memory/notes Notes", "GET /v1/memory/items MemoryItems", "GET /v1/memory/pinned PinnedMemories", "POST /v1/memory/:ref/pin PinMemory", "DELETE /v1/memory/:ref/pin UnpinMemory", "DELETE /v1/memory/items/:ref ForgetMemory", "GET /v1/settings Settings", "POST /v1/settings/models SaveModels", "POST /v1/settings/models/test TestModel", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels SaveChannels", "POST /v1/settings/channels/sign-in SignInMail", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/daily-digest/send SendDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
+	Do $$$AssertEquals($ListLength(found), 38, "38 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")

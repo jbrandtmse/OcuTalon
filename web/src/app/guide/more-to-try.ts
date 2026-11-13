@@ -39,7 +39,7 @@ let panels = 0;
  * control's own. The incident summary item presses the Dismiss of the newest incident card that is resolved (the incident's own close, which
  * writes its summary) and, when no card is resolved (the guide's incident was closed already, or the guide has not run), sends "Show me the incident
  * summary" through the chat's outbox instead; the Persona item opens the rail and the Persona card's Change, the suspicious email item selects the
- * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the reroute item sends its prompt through the chat's outbox as the user's own message (Story 23.2), the Demo view item presses the
+ * Simulated mailbox tab and presses the suspicious-request chip, the Reject a fix item presses the box's Break the feed, the reroute item and the partner warning item (Story 23.5) send their prompts through the chat's outbox as the user's own message (Story 23.2), the Demo view item presses the
  * Demo view switch while it is on, the memory item sends its prompt through the chat's outbox (a new message of the user's), the Memory card item opens the rail and focuses the
  * Memory card's heading, the documents item is a link to the Documents page and the heartbeat item opens the rail and focuses the Heartbeat checklist card's heading, pressing nothing, and the sources item (Story 20.2) is a link to the Documents page. While the visitor has no documents (SampleRunbook.none, with the `documents` item listed) the documents and sources items are instead a button, Add the sample runbook, which asks the Documents page to press its own button of that name (SampleRunbook.ask) and opens the page; the panel posts nothing. Every action runs from the control's own click, and focus moves
  * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
@@ -58,7 +58,7 @@ let panels = 0;
  * group come first with no heading, and a heading never takes focus.
  * In the stacked column the page scrolls and the group grows with its items.
  *
- * The memory item and the reroute item are aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing; the
+ * The memory item, the reroute item and the partner warning item are aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing; the
  * incident summary item's press sends nothing in the same cases when it falls back to sending its prompt.
  */
 @Component({
@@ -79,15 +79,17 @@ let panels = 0;
               <p class="look-for">{{ item.lookFor }}</p>
               @if (item.action === 'documents' && !sampleFirst()) {
                 <a class="button button-secondary" routerLink="/documents" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
-              } @else if (item.action === 'usage') {
-                <a class="button button-secondary" routerLink="/usage" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
+              } @else if (item.action === 'webhooks') {
+                <a class="button button-secondary" routerLink="/settings/channels" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
+              } @else if (item.action === 'usage' || item.action === 'history') {
+                <a class="button button-secondary" [routerLink]="'/' + item.action" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
               } @else {
                 <button
                   type="button"
                   class="button button-secondary"
                   data-guide-focus="moreItem"
-                  [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute') && blocked() ? 'true' : null"
-                  [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' ? describedBy() : null"
+                  [attr.aria-disabled]="(item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' || item.action === 'queueWatch') && blocked() ? 'true' : null"
+                  [attr.aria-describedby]="item.action === 'memory' || item.action === 'reroute' || item.action === 'partnerWarning' || item.action === 'queueWatch' ? describedBy() : null"
                   (click)="press(item)"
                 >{{ sampleFirst() && item.action === 'documents' ? documentsTexts.sample : item.button }}</button>
               }
@@ -256,6 +258,16 @@ export class MoreToTry {
           this.outbox.send(MORE_TO_TRY_TEXTS.reroutePrompt);
         }
         break;
+      case 'partnerWarning':
+        if (!this.blocked()) {
+          this.outbox.send(MORE_TO_TRY_TEXTS.partnerPrompt);
+        }
+        break;
+      case 'queueWatch':
+        if (!this.blocked()) {
+          this.outbox.send(MORE_TO_TRY_TEXTS.queuePrompt);
+        }
+        break;
       case 'demoView':
         this.handTo([DEMO_VIEW_SWITCH], (control) => control.getAttribute('aria-checked') === 'true');
         break;
@@ -278,6 +290,9 @@ export class MoreToTry {
         break;
       case 'usage':
         void this.router.navigate(['/usage']);
+        break;
+      case 'history':
+        void this.router.navigate(['/history']);
         break;
       default:
         break;

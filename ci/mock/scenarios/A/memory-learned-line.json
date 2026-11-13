@@ -1,0 +1,21 @@
+{
+  "name": "memory-learned-line",
+  "match": {
+    "marker": "memory-learned-line"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "save_memory",
+        "input": {
+          "text": "the Results partner's contact is Lee"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "Noted."
+    }
+  ]
+}

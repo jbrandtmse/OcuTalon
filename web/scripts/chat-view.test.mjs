@@ -5,6 +5,7 @@
 // holds only while it keeps to erasable syntax and imports only types.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -23,7 +24,7 @@ const turn = (ref, over = {}) => ({
 const incident = (ref) => ({ type: 'incident', payload: { ref, state: 'open' } });
 const notice = (ref, over = {}) => ({ type: 'notification', payload: { ref, kind: 'reminder', text: 'Reminder: stretch.', createdAt: '2026-10-22T14:12:00Z', ...over } });
 const tellNow = (ref, over = {}) => notice(ref, { kind: 'tellnow', text: 'zz Dana: Invoice', whyNow: 'Why now: zz first.', dueAt: '', ...over });
-const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You can send more at 15:00 ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself";
+const ALLOWANCE_TEXT = "You've used this session's 50 messages for the hour. You can send more at 15:00 ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself";
 const allowance = (ref, over = {}) => notice(ref, { kind: 'allowance', text: ALLOWANCE_TEXT, ...over });
 const DIGEST_TEXT = 'Good morning.\nI checked the Chat agent (all running, no errors, no backlog).\nYesterday\'s cost: $0.04.';
 const digest = (ref, over = {}) => notice(ref, { kind: 'digest', text: DIGEST_TEXT, ...over });
@@ -104,7 +105,7 @@ describe('the order of the entries', () => {
   });
 
   it('leaves out a notification of the incident kinds: the incident card is their web form', () => {
-    const chat = [notice('K1', { kind: 'incident' }), notice('K2', { kind: 'approval' }), notice('K3', { kind: 'answered' }), notice('K4', { kind: 'result' })];
+    const chat = [notice('K1', { kind: 'incident' }), notice('K2', { kind: 'approval' }), notice('K3', { kind: 'answered' }), notice('', { kind: 'result' })];
     assert.deepEqual(chatView(chat, [], NO_RUNNING, NOW), []);
   });
 
@@ -116,7 +117,14 @@ describe('the order of the entries', () => {
     assert.deepEqual(views.map((view) => [view.entry, view.kind, view.approvalRef, view.strip]), [['notice', 'approval', 'A1', false], ['notice', 'result', 'A1', false]]);
     assert.equal(views[0].text, 'Run zz_send on ops-mcp\nInputs: {}');
     assert.equal(noticeOf(notice('K3', { kind: 'approval', approvalRef: '' })), undefined);
-    assert.equal(noticeOf(notice('K4', { kind: 'result' })), undefined);
+    assert.equal(noticeOf(notice('', { kind: 'result' })), undefined, 'a result with neither an approvalRef nor a card ref is the incident card\'s');
+  });
+
+  it('shows the notice that a delay notice could not be drafted (a result with a card ref and no approvalRef) as a notice card (Story 23.5)', () => {
+    const text = "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.";
+    const views = chatView([notice('K5', { kind: 'result', text })], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['notification:K5']);
+    assert.deepEqual(views.map((view) => [view.entry, view.kind, view.approvalRef, view.strip, view.text]), [['notice', 'result', undefined, false, text]]);
   });
 
   it('puts a card between the turns around it, as the server held it, and the page\'s own messages after them', () => {
@@ -332,6 +340,14 @@ describe('the decision strip of a turn', () => {
     }
   });
 
+  it('carries the learned saves of the chat.message as served, and leaves them out when it has none (Story 41.15)', () => {
+    const learned = [{ memoryRef: 'M1', fact: 'The Results partner\'s contact is Lee' }, { memoryRef: 'M2', fact: 'Lee works in Boston' }];
+    const [some, none, empty] = chatView([turn('A', { learned }), turn('B'), turn('C', { learned: [] })], [], NO_RUNNING, NOW);
+    assert.deepEqual(some.learned, learned);
+    assert.equal(none.learned, undefined);
+    assert.equal(empty.learned, undefined);
+  });
+
   it('leaves them out when the chat.message has none', () => {
     const [view] = chatView([turn('A')], [], NO_RUNNING, NOW);
     for (const field of ['decision', 'turnCost', 'fallbackReason', 'checkKey', 'checks', 'traceUrl']) {
@@ -395,8 +411,9 @@ describe('the notice cards', () => {
     assert.equal(view(allowance('Z')).kind, 'allowance');
     assert.equal(view(digest('D')).kind, 'digest');
     for (const kind of ['incident', 'approval', 'answered', 'result', 'fallback', 'pairing', 'status', '', undefined]) {
-      assert.deepEqual(chatView([notice('X', { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
-      assert.equal(noticeOf(notice('X', { kind })), undefined, `noticeOf: a ${kind} notification`);
+      const ref = kind === 'result' ? '' : 'X';
+      assert.deepEqual(chatView([notice(ref, { kind })], [], NO_RUNNING, NOW), [], `a ${kind} notification`);
+      assert.equal(noticeOf(notice(ref, { kind })), undefined, `noticeOf: a ${kind} notification`);
     }
     assert.equal(noticeOf(turn('T')), undefined, 'a turn is no notice');
     assert.equal(noticeOf(incident('I')), undefined, 'an incident is no notice');
@@ -601,5 +618,20 @@ describe('liveRequest', () => {
 
   it('gives undefined for a result, even when the store holds the request', () => {
     assert.equal(liveRequest(result, { A1: pendingPayload }), undefined);
+  });
+});
+
+describe('the learned lines are plain text (Story 41.15, QA; AC 4)', () => {
+  // The page cannot be drawn in Node, so the guard reads the component's source: the fact comes from the person's words and must only ever be interpolated.
+  const source = readFileSync(join(here, '..', 'src', 'app', 'chat', 'learned-lines.ts'), 'utf8');
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  it('binds each line by interpolation in a paragraph, and never as HTML', () => {
+    assert.match(code, /<p class="learned">\{\{ line \}\}<\/p>/);
+    assert.doesNotMatch(code, /innerHTML|outerHTML|bypassSecurityTrust|insertAdjacentHTML|\[innerText\]|DomSanitizer/);
+  });
+
+  it('carries no label of its own (no aria-label, no heading, no title)', () => {
+    assert.doesNotMatch(code, /aria-label|aria-labelledby|<h[1-6]|\btitle=/);
   });
 });

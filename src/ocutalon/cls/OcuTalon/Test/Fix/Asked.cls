@@ -6,6 +6,8 @@
 ///     both items and the example, which renders as ruled;
 ///   - TestSuspendAndUndo (AC1, AC2, AC6): a suspend for a resolved incident raises one request with incident.suspendRequest; the same ask again is already_asked; after the suspend
 ///     is done, resume_item raises one request with incident.resumeRequest and a second resume ask is already_asked;
+///   - TestHeldIncidentResumeIsTheSessions (Story 23.9; AC3, AC4): on a resolved incident that holds a done suspend, the owner's resume ask is raised, with one request and the dry run asked
+///     once; a session that is not a recipient of the incident gets not_found, with no request raised and no dry run asked;
 ///   - TestRefusedNothingAndFailed: a dry run's Reason is refused with the reason in the message, a dry run with no Targets is nothing, an error is failed; none raises a request;
 ///   - TestNotAllowedAndNotFound: a closed or unknown incident and a session that is not a recipient are not_found; a kind the chat may not ask for, an unknown kind, parameters
 ///     that are no object and an incident that was not noticed are not_allowed; the dry run is not asked for any of them;
@@ -57,6 +59,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..Refs = ""
 	Set ..Incidents = ""
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Asked", $Parameter(..#PROBE, "LOGASK"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "RaiseAsked", $Parameter(..#PROBE, "LOGASK"))
 	Quit $$$OK
 }
 
@@ -137,6 +140,31 @@ Method TestSuspendAndUndo()
 	Do $$$AssertEquals(host.Raised.%Get(1).fixKind_"|"_host.Raised.%Get(1).fixTargets_"|"_stored.item_"|"_stored.before_"|"_stored.after, "resume_item|5|OrdersToWarehouse|disabled|enabled", "with its own dry run, and nothing changes until it is approved")
 }
 
+/// Story 23.9 (AC3, AC4): the undo of a suspend that holds its incident is the owning session's. A resolved incident with a done suspend_item run (a real FixRun) takes the owner's resume ask as
+/// one request with its own dry run; a session that is not a recipient gets not_found at Asked, and nothing is raised or asked.
+Method TestHeldIncidentResumeIsTheSessions()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("held")
+	Set other = ..Owner("heldstranger")
+	Set incident = ..Incident(owner, "resolved")
+	Set suspend = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Row(owner, incident, suspend, "done", "suspend_item", "OrdersToWarehouse")
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"Total": 1, "Completed": 1})
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Run).Holds(##class(OcuTalon.Data.Incident).RefIndexOpen(incident)), 1, "the resolved incident holds the suspend")
+	Set host.DryAnswer = ..Answer("5", {"item": "OrdersToWarehouse", "before": "disabled", "after": "enabled"})
+	Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set response = ..Ask(host, other, incident, "resume_item", {"item": "OrdersToWarehouse"})
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|not_found", "a session that is not a recipient gets not_found")
+	Do $$$AssertEquals(host.Raised.%Size()_"|"_host.Asks.%Size(), "0|0", "nothing is raised and no dry run is asked")
+	Set response = ..Ask(host, owner, incident, "resume_item", {"item": "OrdersToWarehouse"})
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref, "1|raised|"_host.RaiseRef, "the owner's resume ask is raised")
+	Do $$$AssertEquals(host.Raised.%Size()_"|"_host.Asks.%Size(), "1|1", "with one request and one dry run")
+	Set stored = {}.%FromJSON(host.Raised.%Get(0).dryRun)
+	Do $$$AssertEquals(host.Raised.%Get(0).fixKind_"|"_stored.item_"|"_stored.before_"|"_stored.after, "resume_item|OrdersToWarehouse|disabled|enabled", "the request is a resume of the item, with its own dry run")
+}
+
 /// A dry run's Reason, no targets and an error.
 Method TestRefusedNothingAndFailed()
 {
@@ -161,7 +189,7 @@ Method TestRefusedNothingAndFailed()
 	Do $$$AssertEquals(host.Raised.%Size()_"|"_host.Sent.%Size(), "0|0", "none of them raises a request or sends a Notification")
 	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Do $$$AssertEquals(stored.State_"|"_stored.RequestRefs, "resolved|", "and the incident is as it was")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Asked", $Parameter(..#PROBE, "LOGASK")), 1, "the failed ask is one Type 3 warning")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "RaiseAsked", $Parameter(..#PROBE, "LOGASK")), 1, "the failed ask is one Type 3 warning (RaiseAsked, the tail of every asked request, logs it)")
 }
 
 Method TestNotAllowedAndNotFound()

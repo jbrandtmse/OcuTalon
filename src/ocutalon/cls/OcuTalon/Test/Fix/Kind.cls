@@ -5,7 +5,7 @@
 ///   - TestContract: the base declares NAME, PARAMETERS, RESOURCES, NOTALLOWED (Story 7.3: the plain reason of a run that cannot start without the resources) and
 ///     KINDS, and the methods Classes, Names, ForName, Check, CheckParameters, DryRun, Recheck and
 ///     Execute (the last three with the same first three arguments, and Execute with the run as its last); the base's DryRun, Recheck and Execute are not implemented; the registered kinds are exactly
-///     RepairResend, whose NAME, PARAMETERS, RESOURCES and NOTALLOWED are fixed; every registered kind that declares RESOURCES sets NOTALLOWED; a class that is not
+///     RepairResend, SuspendItem, ResumeItem, Reroute and PartnerWarning (Story 23.5: the base's DRAFTED, MOVES, NOTSETUP and Ready), whose NAME, PARAMETERS, RESOURCES and NOTALLOWED are fixed; every registered kind that declares RESOURCES sets NOTALLOWED; a class that is not
 ///     in KINDS (ZzKind) is unknown;
 ///   - TestSchemaCheck: the base's CheckParameters (through ZzKind) accepts exactly the PARAMETERS keys, each a string that is not blank;
 ///   - TestCheckParameters: RepairResend's matrix: the field must be a member of the fields (exactly), both formats registered, one family, two different formats;
@@ -60,12 +60,14 @@ Method OnAfterOneTest(testname As %String) As %Status
 Method TestContract()
 {
 	Do $$$AssertTrue($Parameter(..#KIND, "NAME") = "" && ($Parameter(..#KIND, "PARAMETERS") = "") && ($Parameter(..#KIND, "RESOURCES") = "") && ($Parameter(..#KIND, "NOTALLOWED") = ""), "the base declares NAME, PARAMETERS, RESOURCES and NOTALLOWED, and sets none")
-	Do $$$AssertEquals($Parameter(..#KIND, "KINDS"), "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute", "the kinds that exist are listed once, in KINDS")
+	Do $$$AssertEquals($Parameter(..#KIND, "KINDS"), "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute,OcuTalon.Fix.Kind.PartnerWarning", "the kinds that exist are listed once, in KINDS")
 	Do $$$AssertEquals($Parameter(..#KIND, "TARGETTYPE")_"|"_$Parameter(..#KIND, "DIAGNOSED")_"|"_$Parameter(..#KIND, "ASKED")_"|"_$Parameter(..#KIND, "NOSTART")_"|"_$Parameter(..#KIND, "NOREAD")_"|"_$Parameter(..#KIND, "ONLINEGRANT"), "message|1|0|||1", "the base's kind has message targets, is a diagnosis kind, is not asked for and has no reasons of its own (Story 23.2)")
-	For parameter = "NAME", "PARAMETERS", "RESOURCES", "NOTALLOWED", "KINDS", "TARGETTYPE", "DIAGNOSED", "ASKED", "NOSTART", "NOREAD", "ONLINEGRANT", "ERRORSTATUS" {
+	Do $$$AssertEquals($Parameter(..#KIND, "DRAFTED")_"|"_$Parameter(..#KIND, "MOVES")_"|"_$Parameter(..#KIND, "NOTSETUP"), "0|1|", "the base's kind is not drafted, moves the incident and has no not-set-up reason (Story 23.5)")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Ready("", .why)_"|"_why, "1|", "the base's kind is always ready (Story 23.5)")
+	For parameter = "NAME", "PARAMETERS", "RESOURCES", "NOTALLOWED", "KINDS", "TARGETTYPE", "DIAGNOSED", "ASKED", "NOSTART", "NOREAD", "ONLINEGRANT", "ERRORSTATUS", "DRAFTED", "MOVES", "NOTSETUP" {
 		Do $$$AssertTrue(##class(%Dictionary.CompiledParameter).%ExistsId(..#KIND_"||"_parameter), "the base declares "_parameter)
 	}
-	For method = "Classes", "Names", "ForName", "Check", "CheckParameters", "DryRun", "Recheck", "Execute", "DiagnosedNames", "Diagnosed", "Standing", "Failed", "ItemsOf", "ItemNamed", "Targeted", "MessageReason", "ItemNounOf", "ProductionName" {
+	For method = "Classes", "Names", "ForName", "Check", "CheckParameters", "DryRun", "Recheck", "Execute", "DiagnosedNames", "Diagnosed", "Standing", "Failed", "ItemsOf", "ItemNamed", "Targeted", "MessageReason", "ItemNounOf", "ProductionName", "Ready" {
 		Do $$$AssertTrue(##class(%Dictionary.CompiledMethod).%ExistsId(..#KIND_"||"_method), "the base declares "_method)
 	}
 	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%OpenId(..#KIND).Abstract, "the base is abstract")
@@ -79,8 +81,8 @@ Method TestContract()
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(##class(OcuTalon.Fix.Kind).Execute("", "", "", .result)), 5003, "and so is its Execute (error 5003)")
 	Do $$$AssertEquals($Translate($Piece($Piece(##class(%Dictionary.CompiledMethod).%OpenId(..#KIND_"||Execute").FormalSpec, ",", 5), ":", 1), "*&", ""), "run", "Execute takes the run (the FixRun row) as its fifth argument")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(##class(OcuTalon.Fix.Kind).DryRun("", "", .targets, .dryRun)), 5003, "and its DryRun")
-	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Classes(), $ListBuild(..#REPAIR, "OcuTalon.Fix.Kind.SuspendItem", "OcuTalon.Fix.Kind.ResumeItem", "OcuTalon.Fix.Kind.Reroute"), "the registered kinds are RepairResend, SuspendItem, ResumeItem and Reroute")
-	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Names(), $ListBuild("repair_resend", "suspend_item", "resume_item", "reroute"), "named repair_resend, suspend_item, resume_item and reroute")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Classes(), $ListBuild(..#REPAIR, "OcuTalon.Fix.Kind.SuspendItem", "OcuTalon.Fix.Kind.ResumeItem", "OcuTalon.Fix.Kind.Reroute", "OcuTalon.Fix.Kind.PartnerWarning"), "the registered kinds are RepairResend, SuspendItem, ResumeItem, Reroute and PartnerWarning")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).Names(), $ListBuild("repair_resend", "suspend_item", "resume_item", "reroute", "partner_warning"), "named repair_resend, suspend_item, resume_item, reroute and partner_warning")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).DiagnosedNames(), $ListBuild("repair_resend"), "the diagnosis may name repair_resend only")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).ForName("repair_resend"), ..#REPAIR, "ForName gives its class")
 	For name = "", "Repair_Resend", "repair_resend ", "zz_kind", "rollback", "OcuTalon.Fix.Kind.RepairResend" {
@@ -99,6 +101,7 @@ Method TestContract()
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(##class(OcuTalon.Fix.Kind).Check("rollback", {}, [])) [ "repair_resend", "and the error names the kinds the diagnosis may name")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("reroute", {"target": "OrdersForReview"}, []), "Check refuses a registered kind that the diagnosis may not name (DIAGNOSED 0), with valid parameters")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("suspend_item", {"item": "OrdersToWarehouse"}, []), "and suspend_item")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Fix.Kind).Check("partner_warning", {"text": "A notice.", "to": "it@results-partner.example"}, []), "and partner_warning (Story 23.5)")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(##class(OcuTalon.Fix.Kind).Check("reroute", {"target": "A"}, [])) '[ "reroute,", "without naming it among the kinds it may name")
 }
 

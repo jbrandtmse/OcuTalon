@@ -22,6 +22,8 @@
 /// CloseMoves, a state, is written into the request's row on disk (SQL) before the product's Close, so that FinishExecution refuses it. StartMoves, a state, is written into the
 /// row on disk (SQL) before Start fails with StartIs, so that the row the handler holds is not the row on disk (another job or a cancel moved it). SendResult also records,
 /// from disk, whether the run's FixRun has an EndedAt (storedEnd 1 or 0) and the request's State (storedState) at the send.
+/// Since Story 23.5 SendNotice (Deliver's send of a delay notice to SimMailboxOut) records each notice in Notices, as {sessionRef, approvalRef, incidentRef, catalogKey, slots, text}, and hands it to
+/// a shadow instance of SimMailboxOut, so that the mail is saved and published as the operation does; it answers that operation's status, or an error for a session that FailNoticeFor names.
 Class OcuTalon.Test.Fix.ExecutorProbe Extends OcuTalon.Fix.Executor
 {
 
@@ -193,6 +195,23 @@ Method Waiting() As %List [ Private ]
 		If $IsObject(run) && (..Incidents '= "") && $ListFind($ListFromString(..Incidents), run.IncidentRef) Set waiting = waiting _ $ListBuild(id)
 	}
 	Quit waiting
+}
+
+/// The delay notices that SendNotice recorded (Story 23.5), in order, each {sessionRef, approvalRef, incidentRef, catalogKey, slots, text}.
+Property Notices As %DynamicArray [ Transient ];
+
+/// The SessionRefs, comma-separated, whose delay notice SendNotice answers with an error instead of saving it.
+Property FailNoticeFor As %String(MAXLEN = "") [ Transient ];
+
+/// Records the notice and hands it to a shadow instance of SimMailboxOut (a shadow instance of the executor cannot SendRequestSync), or fails it for a session of FailNoticeFor.
+Method SendNotice(notice As OcuTalon.Fix.Msg.PartnerNotice) As %Status [ Private ]
+{
+	If '$IsObject(..Notices) Set ..Notices = []
+	Do ..Notices.%Push({"sessionRef": (notice.SessionRef), "approvalRef": (notice.ApprovalRef), "incidentRef": (notice.IncidentRef), "catalogKey": (notice.CatalogKey), "slots": (notice.Slots), "text": (notice.Text)})
+	If $ListFind($ListFromString(..FailNoticeFor), notice.SessionRef) Quit $SYSTEM.Status.Error(5001, "The delay notice to "_notice.SessionRef_" is refused")
+	Set mailbox = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Channel.SimMailbox.Out", .sc)
+	If '$IsObject(mailbox) Quit sc
+	Quit mailbox.OnPartnerNotice(notice, .response)
 }
 
 /// Records the data of the entry instead of writing it.

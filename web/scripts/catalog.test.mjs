@@ -87,6 +87,9 @@ const RESULT_KEYS = [
 /** The Got it button text and the handled line of a tell-now notice (Story 18.4), listed after the either-way line. */
 const GOT_IT_KEYS = ['button.gotIt', 'handled.marked'];
 
+/** The line that announces a learned save (Story 41.15), listed after the Got it keys; its fact slot is a text slot. */
+const LEARNED_KEY = 'memory.learnedSaved';
+
 /** The page key of the either-way line (Story 7.8): derived by the generator from the two catalog entries that hold it, listed last. */
 const LINE_KEY = 'incident.eitherWayLine';
 const LINE_PARENTS = ['incident.withFixEitherWay', 'incident.laterRequestEitherWay'];
@@ -113,15 +116,15 @@ describe('the real tree', () => {
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 59);
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 60);
   });
 
   it('holds the 16 banner and action keys, the nine answered keys and the fourteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 9);
     assert.equal(RESULT_KEYS.length, 14);
-    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS]);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
       'checks.notEverythingRestPassed': { whatFailed: 'text' },
@@ -156,9 +159,12 @@ describe('the real tree', () => {
       'result.rerouted': { count: 'count', itemNoun: 'noun', to: 'text' },
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
       'handled.marked': { time: 'time' },
+      [LEARNED_KEY]: { fact: 'text' },
     };
     for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
     assert.equal(real.PAGE_TEXTS['bannerAction.budgets'], 'Budgets');
+    assert.equal(real.renderPageText(LEARNED_KEY, { fact: "The Results partner's contact is Lee" }), 'I\'ll remember this: "The Results partner\'s contact is Lee". You can tell me to forget it.', 'the ruled line of Story 41.15');
+    assert.equal(real.renderPageText(LEARNED_KEY, { fact: ' <b>Lee</b>\n& co ' }), 'I\'ll remember this: "<b>Lee</b> & co". You can tell me to forget it.', 'a text slot is cleaned and never treated as markup');
     for (const key of BANNER_KEYS) assert.equal(typeof real.PAGE_TEXTS[key], 'string', key);
   });
 
@@ -538,6 +544,7 @@ const GOOD = {
   'fallbackReason.timeout': { text: 'it timed out', slots: {}, source: 'fixture' },
   'fallbackReason.generic': { text: 'it failed', slots: {}, source: 'fixture' },
   'pairing.paired': { text: 'Not listed: {time}', slots: { time: 'time' }, source: 'fixture' },
+  [LEARNED_KEY]: { text: 'Learned: "{fact}".', slots: { fact: 'text' }, source: 'fixture' },
 };
 
 /**
@@ -587,8 +594,8 @@ describe('the generator on a fixture', () => {
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
-    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS]);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY, 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY]);
     assert.deepEqual({ ...module.PAGE_SLOTS['checks.notEverything'] }, { whatFailed: 'text' });
     assert.deepEqual({ ...module.PAGE_SLOTS['handled.marked'] }, { time: 'time' });
     assert.equal(module.renderPageText('handled.marked', { time: '14:12' }), 'Handled at 14:12');
@@ -768,6 +775,7 @@ describe('the generator on a fixture', () => {
       'result.itemSkipped',
       'result.rerouted',
       LINE_KEY,
+      LEARNED_KEY,
     ]);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS).filter((key) => Object.values(real.PAGE_SLOTS[key]).includes('text')), TEXT_SLOT_KEYS, 'the listed keys of the real catalog with a text slot');
     for (const key of LISTED_KEYS.filter((one) => one !== LINE_KEY)) {

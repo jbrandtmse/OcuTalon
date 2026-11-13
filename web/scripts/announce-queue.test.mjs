@@ -284,6 +284,50 @@ describe('the whole sequence', () => {
   });
 });
 
+describe('retract', () => {
+  it('withdraws every waiting copy of a message, trimmed, and keeps the others in order', () => {
+    const { clock, queue, spoken } = setup();
+    queue.push('one');
+    queue.push('Failed.');
+    queue.push('two');
+    queue.push(' Failed. ');
+    queue.retract('Failed.');
+    clock.advance(0);
+    assert.deepEqual(texts(spoken), ['one. two.']);
+  });
+
+  it('speaks nothing when it withdraws the only waiting message, and the next push still speaks', () => {
+    const { clock, queue, spoken } = setup();
+    queue.push('Failed.');
+    queue.retract('Failed.');
+    clock.advance(5000);
+    assert.deepEqual(spoken, []);
+    queue.push('Later.');
+    clock.advance(0);
+    assert.deepEqual(texts(spoken), ['Later.']);
+  });
+
+  it('withdraws a message that waits for the gap after a spoken one, which is not recalled', () => {
+    const { clock, queue, spoken } = setup();
+    queue.push('First.');
+    clock.advance(0);
+    queue.push('Failed.');
+    queue.retract('Failed.');
+    queue.retract('First.');
+    clock.advance(5000);
+    assert.deepEqual(texts(spoken), ['First.']);
+  });
+
+  it('ignores a message that is not waiting', () => {
+    const { clock, queue, spoken } = setup();
+    queue.push('one');
+    queue.retract('other');
+    queue.retract('');
+    clock.advance(0);
+    assert.deepEqual(texts(spoken), ['one']);
+  });
+});
+
 describe('dispose', () => {
   it('leaves no timer and speaks nothing more', () => {
     const { clock, queue, spoken } = setup();

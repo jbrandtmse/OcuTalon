@@ -4,6 +4,12 @@
  */
 export const README_URL = 'https://github.com/jbrandtmse/OcuTalon#readme';
 
+/**
+ * The OcuTalon guide in the repository (GUIDE.md: the install, set-a-key and Telegram steps); a link to one of its sections uses
+ * this address with the section's anchor, through readmeSection.
+ */
+export const GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md';
+
 /** The bridge developer guide in the repository (docs/bridge-guide.md); HEAD resolves to the repository's default branch. */
 export const BRIDGE_GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/HEAD/docs/bridge-guide.md';
 

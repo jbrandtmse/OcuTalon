@@ -55,6 +55,8 @@
 ///     reply's HostData are on the Turn, the Outbound and chat.message, with the check rows still carried; a malformed entry, bad JSON and a
 ///     wrong shape add nothing and at most 5 of each are kept; a busy, a broken and a fallback reply carry none; and a reply
 ///     that cites a document never says the none-line, through the real reply guard, while a reply without citations keeps it and carries none;
+///   - TestLearnedCarried, TestLearnedShape, TestLearnedNotOnFallbacks, TestLearnedSaid (Story 41.15): the learned entries of a usable reply's HostData are on the Turn (JSON, at most 3, malformed entries dropped) and the
+///     Outbound, and the done chat.message carries the entries to show ({memoryRef, fact}) unless the reply already says "I'll remember", in which case the Turn still keeps them; a busy, a broken and a fallback reply carry none;
 ///   - TestAnswerForNonRunningTurnDropped: an answer for a turn that is no longer running changes nothing, whatever its Attempt;
 ///   - TestDecideAnswerOfAnotherClassStillRuns: a decide answer that is not a DecisionResponse keeps no DecisionRef and the turn
 ///     runs on;
@@ -1803,6 +1805,110 @@ Method TestSourcesShape()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ?", mark, "Sourced", "Conversation added no citations or memories")
 }
 
+/// A usable reply whose HostData holds learned saves (Story 41.15): the Turn keeps the entries (JSON), the Outbound sent to Notify carries them as they are, and the done chat.message carries the entries to show, {memoryRef, fact},
+/// with the fact shaped; the messages before the reply have none, and the reply text is the guarded text, byte for byte.
+Method TestLearnedCarried()
+{
+	Set learned = [(..Learned(1)), {"memoryRef": "zzlrn2", "text": "Lee is the contact."}]
+	Set hostData = {"learned": (learned)}.%ToJSON()
+	Set row = ..Finish("lrn", "reply", , , .session, hostData)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz lrn", "the turn ends normally with its reply, as the guard left it")
+	Do $$$AssertEquals(row.Learned, learned.%ToJSON(), "the Turn keeps both entries, as JSON")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals(..Call($List(sent, 1), "learned"), row.Learned, "the Outbound carries them")
+	Do $$$AssertEquals(..Call($List(sent, 1), "text"), row.ReplyText, "and the reply text unchanged")
+	Set events = ..ChatEvents(session)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).States(events), "queued,running,done", "the three stages are published")
+	Do $$$AssertEquals(events.%Get(0).payload.%IsDefined("learned")_"|"_events.%Get(1).payload.%IsDefined("learned"), "0|0", "queued and running: none")
+	Set done = events.%Get(2).payload
+	Do $$$AssertEquals(done.replyText, row.ReplyText, "done: the reply text is the guarded text")
+	Do $$$AssertEquals(done.learned.%ToJSON(), [{"memoryRef": "zzlrn1", "fact": "zz learned fact 1"}, {"memoryRef": "zzlrn2", "fact": "Lee is the contact"}].%ToJSON(), "done: the entries to show, {memoryRef, fact}, with one trailing full stop removed")
+	Set state = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do state.%JSONExportToString(.json)
+	Do $$$AssertEquals({}.%FromJSON(json).learned.%Size(), 2, "the payload built from the row (what /v1/state lists) holds them")
+}
+
+/// What HostData may hold for learned: bad JSON, a value that is not an object, a member that is not an array and entries of the wrong shape add nothing, a valid entry among bad ones is kept, at most 3 are kept,
+/// and a member outside the shape is cut away. Each turn ends normally.
+Method TestLearnedShape()
+{
+	Set badRef = ..Learned(2)
+	Do badRef.%Set("memoryRef", 5)
+	Set noText = ..Learned(3)
+	Do noText.%Remove("text")
+	Set numberText = ..Learned(4)
+	Do numberText.%Set("text", 5)
+	Set extra = ..Learned(5)
+	Do extra.%Set("zz", "extra member")
+	Set five = []
+	For i = 1:1:5 Do five.%Push(..Learned(i))
+	// name | HostData | the entries kept, as JSON ("" for none)
+	Set cases = $ListBuild(
+		$ListBuild("badjson", "{""learned"": [{", ""),
+		$ListBuild("array", "[1,2]", ""),
+		$ListBuild("notarray", {"learned": "x"}.%ToJSON(), ""),
+		$ListBuild("anobject", {"learned": {"memoryRef": "a", "text": "b"}}.%ToJSON(), ""),
+		$ListBuild("empty", {"learned": []}.%ToJSON(), ""),
+		$ListBuild("nonobjects", {"learned": [1, "x", null, [1]]}.%ToJSON(), ""),
+		$ListBuild("badentries", {"learned": [(badRef), (noText), (numberText)]}.%ToJSON(), ""),
+		$ListBuild("onevalid", {"learned": [(badRef), (noText), (..Learned(1))]}.%ToJSON(), [(..Learned(1))].%ToJSON()),
+		$ListBuild("five", {"learned": (five)}.%ToJSON(), [(..Learned(1)), (..Learned(2)), (..Learned(3))].%ToJSON()),
+		$ListBuild("extramember", {"learned": [(extra)]}.%ToJSON(), [(..Learned(5))].%ToJSON()))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1)
+		Set row = ..Finish("lrnshape"_position, "reply", , , .session, $List(case, 2))
+		Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz lrnshape"_position, label_": the turn ends normally with its reply")
+		Do $$$AssertEquals(row.Learned, $List(case, 3), label_": the entries kept")
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(sent, 1), "learned"), row.Learned, label_": the Outbound carries what the Turn keeps")
+		Set done = ..ChatEvents(session).%Get(2).payload
+		Do $$$AssertEquals($Select(done.%IsDefined("learned"): done.learned.%Size(), 1: 0), $Select(row.Learned = "": 0, 1: {}.%FromJSON("{""a"":"_row.Learned_"}").a.%Size()), label_": and chat.message")
+	}
+}
+
+/// A busy reply, a broken session and a fallback whose HostData holds learned saves carry none (Story 41.15).
+Method TestLearnedNotOnFallbacks()
+{
+	Set hostData = {"learned": [(..Learned(1))]}.%ToJSON()
+	Set cases = $ListBuild("busy,reply|a busy reply", "broken,reply|a broken session", "fallback:timeout|a fallback")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set answers = $Piece(case, "|", 1), label = $Piece(case, "|", 2)
+		Set row = ..Finish("nolrn"_position, answers, , , .session, hostData)
+		Do $$$AssertEquals(row.State, "done", label_": the turn ends")
+		Do $$$AssertEquals(row.Learned, "", label_": no learned entry on the Turn")
+		Set sent = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(sent, 1), "learned"), "", label_": none on the Outbound")
+		Set events = ..ChatEvents(session)
+		Set done = events.%Get(events.%Size() - 1).payload
+		Do $$$AssertEquals(done.state_"|"_done.%IsDefined("learned"), "done|0", label_": none on the done chat.message")
+	}
+}
+
+/// A reply that already says "I'll remember" (Story 41.15): the Turn and the Outbound keep the entries, the reply text is not changed, and chat.message and the payload of the row carry no learned entry to show. A reply
+/// that does not say it, with the same entries, has them, as a control.
+Method TestLearnedSaid()
+{
+	Set hostData = {"learned": [(..Learned(1))]}.%ToJSON()
+	Set said = "I'll remember that zz learned fact 1."
+	Set row = ..Finish("lrnsaid", "reply", , , .session, hostData, said)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|"_said, "the turn ends with the reply, unchanged")
+	Do $$$AssertEquals(row.Learned, [(..Learned(1))].%ToJSON(), "the Turn still keeps the entry")
+	Set sent = ..SentFor("Notify", session)
+	Do $$$AssertEquals(..Call($List(sent, 1), "learned"), row.Learned, "and the Outbound carries it")
+	Do $$$AssertEquals(..Call($List(sent, 1), "text"), said, "with the reply text unchanged")
+	Set done = ..ChatEvents(session).%Get(2).payload
+	Do $$$AssertEquals(done.replyText_"|"_done.%IsDefined("learned"), said_"|0", "the done chat.message has no learned entry: nothing to announce")
+	Set state = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do state.%JSONExportToString(.json)
+	Do $$$AssertEquals({}.%FromJSON(json).%IsDefined("learned"), 0, "and the payload built from the row (what /v1/state lists) has none")
+	Set row = ..Finish("lrnsaid2", "reply", , , .session, hostData, "I will remember "_$Char(8217)_"that")
+	Do $$$AssertEquals(..ChatEvents(session).%Get(2).payload.%IsDefined("learned"), 0, "'I will remember' says it too")
+	Set row = ..Finish("lrnsaid3", "reply", , , .session, hostData, "Noted.")
+	Do $$$AssertEquals(..ChatEvents(session).%Get(2).payload.learned.%Size(), 1, "control: a reply that does not say it carries the entry to show")
+}
+
 /// A busy reply, a broken session and a fallback whose HostData holds citations and memories carry none: the first two are asked
 /// again and the answer that follows has none, and the fallback ends the turn without reading them.
 Method TestSourcesNotOnFallbacks()
@@ -1967,6 +2073,12 @@ Method SentFor(target As %String, session As %String) As %List [ Private ]
 Method Citation(number As %Integer, section As %String) As %DynamicObject [ Private ]
 {
 	Quit {"documentRef": ("zzdoc"_number), "document": "Results runbook", "section": (section), "passage": ("zz passage "_number), "chunkIndex": (number)}
+}
+
+/// A learned entry made from the number (Story 41.15).
+Method Learned(number As %Integer) As %DynamicObject [ Private ]
+{
+	Quit {"memoryRef": ("zzlrn"_number), "text": ("zz learned fact "_number)}
 }
 
 /// A memory made from the number.

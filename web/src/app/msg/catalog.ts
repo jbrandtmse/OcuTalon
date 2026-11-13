@@ -50,6 +50,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'incident.eitherWayLine': 'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
   'button.gotIt': 'Got it',
   'handled.marked': 'Marked as handled at {time}',
+  'memory.learnedSaved': 'I\'ll remember this: "{fact}". You can tell me to forget it.',
   'fallbackReason.timeout': "the model didn't answer within the time allowed",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -119,6 +120,7 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'incident.eitherWayLine': { 'resendCount': 'count', 'reading': 'text', 'item': 'text' },
   'button.gotIt': {},
   'handled.marked': { 'time': 'time' },
+  'memory.learnedSaved': { 'fact': 'text' },
 };
 
 /** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */

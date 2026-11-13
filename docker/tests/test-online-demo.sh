@@ -144,10 +144,10 @@ live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
 
-if ! wait_started_ready 400; then
+if ! wait_started_ready "$LIVE_FIRST_START_WAIT"; then
   start_log | tail -n 30 | cut -c1-200 | redact
   dc logs --tail 20 iris 2>&1 | cut -c1-200 | redact
-  die "row 1 the first start did not end ready within 400 s"
+  die "row 1 the first start did not end ready within $LIVE_FIRST_START_WAIT s"
 fi
 pass "row 1 the first start ended ready"
 
@@ -469,6 +469,47 @@ splash_envelope() {
 check_session "row 11: the /ocutalon* applications in IRIS are exactly the five" %SYS \
   "CHK|apps|/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocuorders,/ocutalon/trace/ocutalon" \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Security.Applications WHERE Name LIKE ? ORDER BY Name","/ocutalon%") Set l="" While rs.%Next() { Set l=l_$Select(l="":"",1:",")_rs.%Get("Name") } Write !,"CHK|apps|",l' \
+  'Halt'
+
+# Story 35.3: the online demo has no webhook. The role does not exist, and a POST to a hook address with a secret header gets no 202 and creates no
+# WebhookIn message.
+check_session "row 11 (Story 35.3): the role OcuTalonWebhook does not exist on the online demo" %SYS \
+  "CHK|webhook-role|0" \
+  'Write !,"CHK|webhook-role|",##class(Security.Roles).Exists("OcuTalonWebhook")' \
+  'Halt'
+hook_headers() {
+  printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Ens.MessageHeader WHERE SourceConfigName=?","WebhookIn") Do rs.%Next() Write !,"CHK|hookheaders|",rs.%Get("c")' 'Halt' | session_value OCUTALON hookheaders
+}
+hook_before=$(hook_headers)
+next_probe
+hook_code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -H 'X-OcuTalon-Webhook-Secret: zz-demo-hook-secret-0123456789' --data '{"a":1}' "$base/ocutalon/hook/zzzzzzzzzzzzzzzzzzzzzz?probe=$probes")
+hook_after=$(hook_headers)
+if [ -n "$hook_code" ] && [ "$hook_code" != 202 ]; then
+  pass "row 11 (Story 35.3): a POST to /ocutalon/hook/<ref> with a secret header gets '$hook_code', not 202"
+else
+  fail "row 11 (Story 35.3): a POST to /ocutalon/hook/<ref> gets '$hook_code'"
+fi
+if [ -n "$hook_before" ] && [ "$hook_before" = "$hook_after" ]; then
+  pass "row 11 (Story 35.3): and creates no WebhookIn message ($hook_before before and after)"
+else
+  fail "row 11 (Story 35.3): WebhookIn messages before '$hook_before', after '$hook_after'"
+fi
+
+# Story 35.3 (QA, DW-1130): the Web step's own Run, with the online-demo flag on (it is on in this stack), deletes a stale /ocutalon/hook application.
+# A stand-in is made through the step's own Apply (a local install that was switched to the online demo would hold one), Run is called, and the check
+# reads that the application is gone and that the /ocutalon* applications are the five again. The stack is a throwaway, and Run is what every start of
+# it runs; the stand-in is removed again at the end whatever Run did, so a failed check leaves nothing behind for the checks after it.
+check_session "row 11 (Story 35.3): Install.Step.Web.Run deletes a stale /ocutalon/hook application on the online demo" OCUTALON \
+  "CHK|stale-made|1
+CHK|run|1
+CHK|stale-after|0
+CHK|apps-after|/ocutalon,/ocutalon/api,/ocutalon/public,/ocutalon/trace/ocuorders,/ocutalon/trace/ocutalon" \
+  'Do ##class(OcuTalon.Install.Step.Web).TraceApp("OCUTALON",.props) Set props("CookiePath")="/ocutalon/hook/" Set sc=##class(OcuTalon.Install.Step.Web).Apply("/ocutalon/hook",.props)' \
+  'Set $Namespace="%SYS" Write !,"CHK|stale-made|",$SYSTEM.Status.IsOK(sc)*##class(Security.Applications).Exists("/ocutalon/hook") Set $Namespace="OCUTALON"' \
+  'Set sc=##class(OcuTalon.Install.Step.Web).Run() Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+  'Set $Namespace="%SYS" Write !,"CHK|stale-after|",##class(Security.Applications).Exists("/ocutalon/hook")' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT Name FROM Security.Applications WHERE Name LIKE ? ORDER BY Name","/ocutalon%") Set l="" While rs.%Next() { Set l=l_$Select(l="":"",1:",")_rs.%Get("Name") } Write !,"CHK|apps-after|",l' \
+  'Set $Namespace="OCUTALON" Do ##class(OcuTalon.Install.Step.Web).RemoveHook()' \
   'Halt'
 
 bundle_main=$(dc exec -T iris sh -c "ls /durable/iris/csp/ocutalon-web" 2>/dev/null | tr -d '\r' | grep -E '^main-[A-Za-z0-9]+\.js$' | head -n 1)

@@ -270,12 +270,13 @@ ClassMethod WaitFor(node As %String, seconds As %Integer) As %Boolean
 	Quit $Get(@node) '= ""
 }
 
-/// 1 when WaitRecord holds for every runner, within RECORDSECONDS in all.
-ClassMethod WaitRecords() As %Boolean
+/// 1 when WaitRecord holds for every runner, within RECORDSECONDS in all. runners is a comma-separated list of runner items; empty means RUNNERS
+/// (eval/run.sh --rules-only passes RUNNERS and RETRYRUNNERS after RestoreKeys, Story 0.27).
+ClassMethod WaitRecords(runners As %String = "") As %Boolean
 {
 	Set deadline = $ZHorolog + ..#RECORDSECONDS
 	Set all = 1
-	Set runners = $ListFromString(..#RUNNERS)
+	Set runners = $ListFromString($Select(runners = "": ..#RUNNERS, 1: runners))
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set remaining = deadline - $ZHorolog

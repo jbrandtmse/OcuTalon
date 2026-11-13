@@ -6,6 +6,9 @@
 ///   - /ocutalon/api: OcuTalon.Web.Api, the REST surface;
 ///   - /ocutalon/trace/ocutalon: the Visual Trace portal pages of OCUTALON, restricted to AD-24's seven classes;
 ///   - /ocutalon/public: OcuTalon.Web.Public.Status, unauthenticated and outside the sign-in group.
+///   - /ocutalon/hook (Story 35.3, AD-13, AD-24): OcuTalon.Web.Hook, the webhook endpoint, unauthenticated and outside the sign-in group, with the application role
+///     OcuTalonWebhook (HOOKROLE) and no path or files. It is built like /ocutalon/public. On an online-demo install the application is not created, a
+///     stale one is deleted by Run, and Grants declares no webhook role, so the role is never created there.
 /// The applications are structural (AD-19): every start rewrites each one to exactly these properties, with
 /// Modify, never delete and create, so nothing attached to an application is lost. The OCUORDERS trace
 /// application is the Demo step's, built from TraceApp, and exists only with demo mode on.
@@ -21,6 +24,12 @@ Class OcuTalon.Install.Step.Web Extends OcuTalon.Install.Step
 
 /// The role of the trace applications' users (AD-24).
 Parameter TRACEROLE = "OcuTalonTraceViewer";
+
+/// The role of the webhook application (AD-24); it is declared off the online demo only.
+Parameter HOOKROLE = "OcuTalonWebhook";
+
+/// The webhook application's name.
+Parameter HOOKAPP = "/ocutalon/hook";
 
 /// The sign-in group that /ocutalon, /ocutalon/api and the trace applications share (AD-13).
 Parameter GROUP = "OcuTalon";
@@ -59,7 +68,7 @@ Parameter ONLINETIMEOUT = 120;
 Parameter LOCALTIMEOUT = 28800;
 
 /// The step: refuses a missing bundle, removes OcuTalon's files from the old bundle folder, writes the four
-/// applications, then grants the trace role its SQL privilege in this namespace.
+/// applications (and the webhook application off the online demo; on it, a webhook application that exists is deleted), then grants the trace role its SQL privilege in this namespace.
 ClassMethod Run() As %Status
 {
 	Set sc = ..Prepare($SYSTEM.Util.DataDirectory())
@@ -77,6 +86,10 @@ ClassMethod Run() As %Status
 		If $SYSTEM.Status.IsError(sc) Quit
 	}
 	If $SYSTEM.Status.IsError(sc) Quit sc
+	If ..OnlineDemo() {
+		Set sc = ..RemoveHook()
+		If $SYSTEM.Status.IsError(sc) Quit sc
+	}
 	Quit ..GrantTraceSql()
 }
 
@@ -118,7 +131,7 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 
 /// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
 /// touched; then the address counter's rows older than one hour are deleted, whatever daysToKeep is (AddressCounter.Purge), and
-/// so are the uploads that nobody took and that are more than one hour old (Upload.Purge; the documents routes run it too).
+/// so are the uploads that nobody took and that are more than one hour old (Upload.Purge; the documents routes run it too), and the sent files (Story 25.3) older than daysToKeep days (SentFile.Purge). The webhook counters' purge (Webhook.PurgeCounters, Story 35.3) writes the rejection counts that are still pending and deletes the accepted-event windows older than two hours.
 /// This is Lane B's retention, declared in the Web area, which the purge task calls (Story 30.2). The result is the first
 /// error, and every purge runs after a failed one too.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
@@ -126,9 +139,13 @@ ClassMethod Purge(daysToKeep As %Integer) As %Status
 	Set sc = ##class(OcuTalon.Live.Event).Purge(daysToKeep)
 	Set counter = ##class(OcuTalon.Data.AddressCounter).Purge(daysToKeep)
 	Set uploads = ##class(OcuTalon.Data.Upload).Purge(daysToKeep)
+	Set files = ##class(OcuTalon.Data.SentFile).Purge(daysToKeep)
+	Set webhooks = ##class(OcuTalon.Data.Webhook).PurgeCounters()
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If $SYSTEM.Status.IsError(counter) Quit counter
-	Quit uploads
+	If $SYSTEM.Status.IsError(uploads) Quit uploads
+	If $SYSTEM.Status.IsError(files) Quit files
+	Quit webhooks
 }
 
 /// The trace role holds exactly: Use on %Ens_Portal, %Ens_MessageTrace, %Ens_MessageHeader and
@@ -136,14 +153,35 @@ ClassMethod Purge(daysToKeep As %Integer) As %Status
 /// SELECT on Ens.MessageHeader is GrantTraceSql's. The OCUORDERS grants are the Demo step's.
 ClassMethod Grants() As %DynamicArray
 {
+	Quit ..GrantsFor(..OnlineDemo())
+}
+
+/// The trace role's grants, and off the online demo (online 0) the webhook role's: Read on the code database and Read and Write on the data and private
+/// databases, the databases of the hook's code, the webhook rows and counters, the audit call and the production's message store. Never %All or an %Ens_*
+/// resource. With online 1 no webhook row is declared, so the Roles step never creates OcuTalonWebhook there (Story 23.2's Fix.GrantsOf precedent).
+ClassMethod GrantsFor(online As %Boolean) As %DynamicArray
+{
+	Set grants = ..TraceGrants()
+	If online Quit grants
+	Set role = ..#HOOKROLE
+	Do grants.%Push({"role": (role), "resource": "%DB_OCUTALON_CODE", "permission": "R"})
+	Do grants.%Push({"role": (role), "resource": "%DB_OCUTALON_DATA", "permission": "RW"})
+	Do grants.%Push({"role": (role), "resource": "%DB_OCUTALON_PRIVATE", "permission": "RW"})
+	Quit grants
+}
+
+/// The trace role's six grants.
+ClassMethod TraceGrants() As %DynamicArray [ Private ]
+{
 	Quit [{"role":"OcuTalonTraceViewer","resource":"%Ens_Portal","permission":"U"},{"role":"OcuTalonTraceViewer","resource":"%Ens_MessageTrace","permission":"U"},{"role":"OcuTalonTraceViewer","resource":"%Ens_MessageHeader","permission":"U"},{"role":"OcuTalonTraceViewer","resource":"%Ens_MessageContent","permission":"U"},{"role":"OcuTalonTraceViewer","resource":"%DB_OCUTALON_DATA","permission":"R"},{"role":"OcuTalonTraceViewer","resource":"%DB_OCUTALON_CODE","permission":"R"}]
 }
 
 /// apps(name, key) = the value, for each application of this step, with every key that Security.Applications
 /// is given (Modify keeps a key that is not passed, so all of them are passed). The CORS allow-list is passed
 /// empty, so a list added by hand is removed at the next start. With the online demo on, /ocutalon, /ocutalon/api and
-/// the OCUTALON trace application get ONLINETIMEOUT; /ocutalon/public and every application of a local install get LOCALTIMEOUT.
-/// CSPZENEnabled is 1 for all four: with it off, build 154 does not reach the dispatch class of a signed-in
+/// the OCUTALON trace application get ONLINETIMEOUT; /ocutalon/public, /ocutalon/hook and every application of a local install get LOCALTIMEOUT. /ocutalon/hook is
+/// defined only off the online demo.
+/// CSPZENEnabled is 1 for every one of them: with it off, build 154 does not reach the dispatch class of a signed-in
 /// request, and answers an empty page or a 404.
 ClassMethod Definitions(Output apps) As %Status
 {
@@ -181,6 +219,19 @@ ClassMethod Definitions(Output apps) As %Status
 	Set public("PermittedClasses") = ""
 	Set public("CSPZENEnabled") = 1
 	Merge apps("/ocutalon/public") = public
+
+	If 'online {
+		Do ..Common(.hook, "OCUTALON", ..#HOOKAPP_"/", 0)
+		Set hook("AutheEnabled") = 64
+		Set hook("GroupById") = ""
+		Set hook("DispatchClass") = "OcuTalon.Web.Hook"
+		Set hook("Path") = ""
+		Set hook("ServeFiles") = 0
+		Set hook("MatchRoles") = ":"_..#HOOKROLE
+		Set hook("PermittedClasses") = ""
+		Set hook("CSPZENEnabled") = 1
+		Merge apps(..#HOOKAPP) = hook
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -231,6 +282,16 @@ ClassMethod Apply(name As %String, ByRef props) As %Status
 		Quit ##class(Security.Applications).Modify(name, .props)
 	}
 	Quit ##class(Security.Applications).Create(name, .props)
+}
+
+/// Deletes the webhook application (or the given application, for a test) when it exists: the online demo has none (Run). A missing application is not an
+/// error. Runs in %SYS.
+ClassMethod RemoveHook(application As %String = {..#HOOKAPP}) As %Status
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If '##class(Security.Applications).Exists(application) Quit $SYSTEM.Status.OK()
+	Quit ##class(Security.Applications).Delete(application)
 }
 
 /// The bundle folder must hold index.html: otherwise the error names the path that is missing.

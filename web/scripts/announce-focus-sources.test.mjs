@@ -61,7 +61,9 @@ describe('the page speaks only through the Announcer', () => {
     const { code: announcer } = file('app/shared/announcer.ts');
     assert.match(announcer, /new AnnounceQueue\(/);
     assert.match(announcer, /announce\(message: string\): void \{\s*this\.queue\.push\(message\);\s*\}/);
-    assert.equal((announcer.match(/this\.live\.announce\(/g) ?? []).length, 1, 'one call to the live announcer');
+    assert.equal((announcer.match(/this\.live\.announce\(text, /g) ?? []).length, 1, 'one call that speaks a text');
+    assert.equal((announcer.match(/this\.live\.announce\(/g) ?? []).length, 2, 'and one more, which empties the region for a retracted text');
+    assert.match(announcer, /retract\(message: string\): void \{[^}]*this\.queue\.retract\(text\);\s*if \(text !== '' && this\.lastSpoken === text\) \{\s*this\.lastSpoken = '';\s*void this\.live\.announce\('', 'polite'\);/);
   });
 
   it('reads a reply for the chat from the real modules: the first block with links as labels, the catalog\'s fallback sentence and CHAT_TEXTS', () => {
@@ -103,6 +105,8 @@ describe('the page speaks only through the Announcer', () => {
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
       'app/banners/banner-stack.ts',
+      // Sending a file from the chat: a refusal or a failed send, once (Story 25.3).
+      'app/chat/chat-files.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
       'app/chat/got-it.ts',
@@ -111,6 +115,8 @@ describe('the page speaks only through the Announcer', () => {
       'app/feed/break-feed-box.ts',
       'app/guide/demo-guide.ts',
       'app/header/credential-rows.ts',
+      // The History page: its load failure, "Couldn't load your history.", once per failed read (Story 25.2).
+      'app/history/history-page.ts',
       'app/incidents/incident-dismiss.ts',
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
@@ -120,9 +126,12 @@ describe('the page speaks only through the Announcer', () => {
       'app/settings/check-thresholds-section.ts',
       'app/settings/daily-digest-section.ts',
       'app/settings/demo-mode-section.ts',
+      'app/settings/email-section.ts',
       'app/settings/models-section.ts',
       'app/settings/settings-page.ts',
       'app/settings/time-zone-section.ts',
+      // The Webhooks group (Story 35.3): the saved text of a create or a replacement, once, and a refused or failed one.
+      'app/settings/webhooks-section.ts',
       'app/shared/announcer.ts',
       'app/shared/confirm-dialog.ts',
       'app/shared/narrow-note.ts',
@@ -141,6 +150,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/guide/demo-guide.ts': [1, 'Show me focuses the phone\'s pending notification or its feed, for the user\'s own press (Story 4.7)'],
     'app/guide/more-to-try.ts': [1, 'an item of Other things to try hands focus to the control it presses, for the user\'s own press (Story 4.11)'],
     'app/devices/device-panel.ts': [1, 'the tab that the user\'s arrow key moved to'],
+    'app/history/history-page.ts': [3, 'the tab that the user\'s arrow key moved to, the first filter after the user\'s own Clear filters, whose button leaves with the filters, and the page\'s main region after the user\'s own Previous or Next page, whose pager leaves while the page loads (Story 25.2)'],
     'app/rail/heartbeat-card/heartbeat-card.ts': [1, 'Edit, after the user\'s own Esc collapses its disclosure'],
     'app/rail/persona-card/persona-card.ts': [1, 'Change, after the user\'s own Esc collapses its disclosure'],
     'app/rail/memory-card/memory-card.ts': [2, 'the tab that the user\'s arrow key moved to, and the Memory heading after the user\'s own confirmed Forget, or after an Unpin that took the row off Pinned, when the dialog or the button has given focus back and the row is gone (Stories 41.6 and 41.13)'],
@@ -156,7 +166,9 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/settings/check-thresholds-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 33.2)'],
     'app/settings/daily-digest-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 18.2)'],
     'app/settings/demo-mode-section.ts': [1, 'the switch takes focus when the user\'s own Save changes is refused or the Demo step fails (Story 33.2)'],
+    'app/settings/email-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 21.2)'],
     'app/settings/time-zone-section.ts': [1, 'the select takes focus after the user\'s own Save changes is refused for the zone (Story 18.2)'],
+    'app/settings/webhooks-section.ts': [1, 'the first field in error takes focus after the user\'s own Create webhook or Save changes (Story 35.3)'],
     'signin/splash.js': [1, 'a copy that fails on the splash gives the focus to the input whose value it selects, after the user pressed the copy button (Story 16.2)'],
   };
 
@@ -170,7 +182,7 @@ describe('focus moves only for the user or through the focus rule', () => {
   });
 
   it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) or the control an Other things to try item hands off to, that the user opened, to measure the room that the Other things to try panel and the banners leave, the heading of the document the user opened with Open document, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/documents/documents-page.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/budgets-section.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/models-section.ts', 'app/settings/time-zone-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/documents/documents-page.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/budgets-section.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/email-section.ts', 'app/settings/models-section.ts', 'app/settings/time-zone-section.ts', 'app/settings/webhooks-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {

@@ -55,8 +55,7 @@ const DEFECTS = [
   ['a match with two keys', { 'A/good.json': { ...GOOD, match: { marker: 'good', mockkey: 'good' } } }, ['A/good.json', 'exactly one key']],
   ['a match with an unknown key', { 'A/good.json': { ...GOOD, match: { header: 'good' } } }, ['A/good.json', 'unknown key']],
   ['a telegram match with a model reply', { 'A/good.json': { ...GOOD, match: { telegram: 'getUpdates' } } }, ['A/good.json', 'a reply has the unknown field "text"']],
-  ['a telegram match with getFile', { 'A/good.json': { ...GOOD, match: { telegram: 'getFile' }, replies: [TG_REPLY] } }, ['A/good.json', 'getFile arrives in Story 25.3']],
-  ['a telegram match with a method the mock does not serve', { 'A/good.json': { ...GOOD, match: { telegram: 'kick' }, replies: [TG_REPLY] } }, ['A/good.json', 'match telegram must be one of getMe, getUpdates, sendMessage, editMessageText, answerCallbackQuery']],
+  ['a telegram match with a method the mock does not serve', { 'A/good.json': { ...GOOD, match: { telegram: 'kick' }, replies: [TG_REPLY] } }, ['A/good.json', 'match telegram must be one of getMe, getUpdates, sendMessage, editMessageText, answerCallbackQuery, getFile']],
   ['a telegram match that is not a string', { 'A/good.json': { ...GOOD, match: { telegram: 5 }, replies: [TG_REPLY] } }, ['A/good.json', 'match telegram is not a non-empty string']],
   ['a telegram reply with no body', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200 }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
   ['a telegram reply with a body that is a list', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: [1] }] } }, ['A/good.json', 'a telegram reply needs a body that is a JSON object']],
@@ -259,7 +258,7 @@ test('row 15 (Story 10.3): telegram scenarios load in either folder, several may
     assert.equal(scenarios.byMockKey.size + scenarios.prompts.length, 0, 'a telegram scenario is no mock key and no guide prompt');
     assert.equal(scenarios.byName.get('send-limited').match.telegram, 'sendMessage');
   });
-  assert.deepEqual(BOT_METHODS, ['getMe', 'getUpdates', 'sendMessage', 'editMessageText', 'answerCallbackQuery']);
+  assert.deepEqual(BOT_METHODS, ['getMe', 'getUpdates', 'sendMessage', 'editMessageText', 'answerCallbackQuery', 'getFile']);
   assert.deepEqual(TELEGRAM_REPLY_FIELDS, ['status', 'headers', 'delayMs', 'body']);
   assert.deepEqual(checkTelegramReplies([TG_REPLY, { status: 200, body: {} }], 'replies'), []);
   assert.equal(checkTelegramReplies([], 'replies').length, 1);

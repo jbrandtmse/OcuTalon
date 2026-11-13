@@ -10,7 +10,7 @@ Class OcuTalon.Test.Data.Tables Extends OcuTalon.Test.Contract
 Method TestContracts()
 {
 	Do ..AssertContract("Contracts")
-	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS"), "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example", "the dry run keys (item, from, to and example since Story 23.2)")
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS"), "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example,notice,recipients,simulated", "the dry run keys (item, from, to and example since Story 23.2; notice, recipients and simulated since Story 23.5)")
 }
 
 /// Each registry class sets the row's DEFAULTGLOBAL, stores its data in the global plus D, and has its globals in the
@@ -404,7 +404,9 @@ XData Contracts [ MimeType = application/json ]
    "CheckKey": "%String(MAXLEN=128)",
    "CheckRows": "%String(MAXLEN=)",
    "Citations": "%String(MAXLEN=)",
-   "Memories": "%String(MAXLEN=)"
+   "Memories": "%String(MAXLEN=)",
+   "Learned": "%String(MAXLEN=)",
+   "SentFile": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -467,6 +469,19 @@ XData Contracts [ MimeType = application/json ]
    "RefIndex": "Ref unique"
   }
  },
+ "OcuTalon.Data.MailSeen": {
+  "super": "%Persistent",
+  "props": {
+   "Mailbox": "%String(COLLATION=EXACT,MAXLEN=64)",
+   "Uidl": "%String(COLLATION=EXACT,MAXLEN=70)",
+   "Baseline": "%Boolean",
+   "SeenAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "MailboxUidlIndex": "Mailbox,Uidl unique",
+   "MailboxIndex": "Mailbox"
+  }
+ },
  "OcuTalon.Data.Precedent": {
   "super": "%Persistent",
   "props": {
@@ -487,6 +502,21 @@ XData Contracts [ MimeType = application/json ]
    "SourceRefIndex": "SourceRef unique",
    "OwnerRefIndex": "OwnerRef",
    "OwnerKeyIndex": "OwnerRef,Channel,MatchKey"
+  }
+ },
+ "OcuTalon.Data.Webhook": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "Name": "%String(MAXLEN=64)",
+   "SessionRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "SecretHash": "%String(COLLATION=EXACT,MAXLEN=66)",
+   "CreatedAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique",
+   "NameIndex": "Name unique",
+   "SessionRefIndex": "SessionRef"
   }
  },
  "OcuTalon.Data.Reminder": {
@@ -753,6 +783,11 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Handled"
  },
  {
+  "short": "MailSeen",
+  "global": "^OcuTalonP.MailSeen",
+  "class": "OcuTalon.Data.MailSeen"
+ },
+ {
   "short": "Memory",
   "global": "^OcuTalonP.Memory",
   "class": "OcuTalon.Data.Memory"
@@ -768,9 +803,19 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Upload"
  },
  {
+  "short": "SentFile",
+  "global": "^OcuTalonP.SentFile",
+  "class": "OcuTalon.Data.SentFile"
+ },
+ {
   "short": "Precedent",
   "global": "^OcuTalonP.Precedent",
   "class": "OcuTalon.Data.Precedent"
+ },
+ {
+  "short": "Webhook",
+  "global": "^OcuTalonP.Webhook",
+  "class": "OcuTalon.Data.Webhook"
  },
  {
   "short": "Reminder",

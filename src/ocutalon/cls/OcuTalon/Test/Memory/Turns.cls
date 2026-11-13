@@ -5,8 +5,10 @@
 /// Tainted, the steps of Visual Trace and the mock's log. The ChatAgent job that runs the first turn is the job that runs every later turn of a test (DW-782: a tool
 /// that embeds from inside AI Hub's callback does not crash or recycle the runner).
 ///   - TestSaveRecallListThroughTheAgent (Integration AC): "Remember ..." with [[mock:memory-save]] makes one Data.Memory row of the session (text, Origin tool, the turn's
-///     ItemId), the model's next request carries ok, saved and the Ref; a later turn that asks by meaning (memory-recall-meaning) and one by the word Lee
-///     (memory-recall-keyword) get the memory, and the Reply's HostData.memories holds {memoryRef, text, savedAt} for it, with Tainted 0; a list turn (memory-list)
+///     ItemId), the model's next request carries ok, saved and the Ref, and the Reply has Tainted 0 and HostData exactly {"learned":[{memoryRef, text}]} with no
+///     memories member (the turn goes straight to the agent job, so no Data.Turn holds its ItemId and the save reads as learned; Story 41.15); a later turn that asks
+///     by meaning (memory-recall-meaning) and one by the word Lee (memory-recall-keyword) get the memory, and the Reply's HostData.memories holds
+///     {memoryRef, text, savedAt} for it, with Tainted 0; a list turn (memory-list)
 ///     gives the memory and total 1 and no HostData; the ChatAgent job is the same across the four turns and the steps of each are right;
 ///   - TestToldAndLearnedThroughTheAgent (Story 41.8, Integration AC): three "[[mock:memory-save]]" turns of one session: on a Data.Turn of the session whose text
 ///     holds "Remember that" the new row is told; on a Data.Turn whose text holds none of the fixed phrases it is learned; and with an ItemId that has no Data.Turn it
@@ -250,7 +252,8 @@ Method TestSaveRecallListThroughTheAgent()
 	Do $$$AssertEquals(rs.%Get("Text")_"|"_rs.%Get("Origin")_"|"_rs.%Get("ItemId"), text_"|tool|"_request.ItemId, "with the text, the origin tool and the ItemId of the turn")
 	Do $$$AssertTrue('(before ] rs.%Get("SavedAt")) && '(rs.%Get("SavedAt") ] after), "and the time of the turn")
 	Do $$$AssertNotTrue(rs.%Next(), "and only one")
-	Do $$$AssertEquals(answer.Tainted_"|"_answer.HostData, "0|", "the reply is not tainted and carries no HostData")
+	// This turn goes straight to the agent job, so no Data.Turn holds its ItemId and Memory.Ops.Source reads the save as learned: HostData announces it.
+	Do $$$AssertEquals(answer.Tainted_"|"_answer.HostData, "0|"_{"learned": [{"memoryRef": (ref), "text": (text)}]}.%ToJSON(), "the reply is not tainted and its HostData is exactly the learned entry {memoryRef, text} of the saved memory")
 	If ..LastResult(requests, .result) Do $$$AssertEquals(result.ok_"|"_result.outcome_"|"_result.ref_"|"_result.message, "1|saved|"_ref_"|"_$Parameter("OcuTalon.Memory.Ops", "MESSAGESAVED"), "the model reads ok, saved, the Ref and the owner's message")
 	Do ..AssertSteps(answer, turnSession, $ListBuild("Saving a memory"), $ListBuild("save_memory"))
 	Do ..SameJob(job, "after the save")

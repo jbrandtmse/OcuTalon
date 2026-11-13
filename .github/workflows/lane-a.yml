@@ -75,7 +75,7 @@ jobs:
   ipm-install:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, ocutalon]
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-ipm
@@ -99,7 +99,7 @@ jobs:
   ipm-install-p:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, ocutalon]
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-ipm-p

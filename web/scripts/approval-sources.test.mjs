@@ -21,6 +21,7 @@ const app = join(here, '..', 'src', 'app');
 const files = sourceFiles(join(app, 'approvals'), ['.ts']);
 const incidents = sourceFiles(join(app, 'incidents'), ['.ts']);
 const api = sourceFiles(join(app, 'api'), ['.ts']);
+const live = sourceFiles(join(app, 'live'), ['.ts']);
 
 const file = (list, name) => {
   const found = list.find((one) => one.name === name);
@@ -147,6 +148,20 @@ describe('the call', () => {
     assert.doesNotMatch(press.code, /session|user/i);
   });
 
+  it('hands every reply that carries a payload to the host at once, right after it becomes local, and the card passes it to the live store', () => {
+    assert.match(press.code, /if \(approval !== undefined\) \{\s*this\.local\.set\(approval\);\s*this\.options\.answered\(approval\);\s*\}/);
+    assert.match(press.code, /answered: \(approval: ApprovalPayload\) => void;/);
+    assert.match(card.code, /channel: 'web',\s*answered: \(approval\) => this\.live\.applyAnswer\(approval\),/);
+    assert.match(card.code, /private readonly live = inject\(LiveState\);/);
+  });
+
+  it('takes the reply into the live store only while the page runs and holds a store, and sets it only when withAnswer gave another store', () => {
+    const state = file(live, 'live-state.ts').code;
+    const method = /applyAnswer\(approval: ApprovalPayload\): void \{[\s\S]*?\n  \}/.exec(state)?.[0] ?? '';
+    assert.match(method, /const current = this\.store\(\);\s*if \(this\.stopped \|\| !current\) \{\s*return;\s*\}/);
+    assert.match(method, /const next = withAnswer\(current, approval\);\s*if \(next !== current\) \{\s*this\.store\.set\(next\);\s*\}/);
+  });
+
   it('keeps the notices of a reply in one place: a late press, a missing request, a refusal or failure and no connection', () => {
     assert.match(press.code, /case 'already':\s*return \(approval === undefined \? '' : latePressText\(approval, this\.options\.context\(\)\)\) \|\| outcome\.message;/);
     assert.match(press.code, /case 'gone':\s*return APPROVAL_TEXTS\.gone;/);
@@ -207,6 +222,24 @@ describe('the texts', () => {
     assert.match(template, /@if \(view\(\)\.setting; as setting\) \{/);
     assert.ok(template.indexOf('{{ setting.note }}') < template.indexOf('{{ texts.dryRun }}'), 'before the dry run block');
     assert.doesNotMatch(template, /Nothing changes unless you approve|Now:|Proposed:/, 'the template types none of the lines\' words');
+  });
+
+  it('prints a partner delay notice\'s lines (Story 23.5) by interpolation, in the dry run\'s place, with the Simulated label beside the To line, and types none of their words', () => {
+    const order = ['view().action', 'partner.to', 'partner.notice', 'partner.note'];
+    let last = -1;
+    for (const name of order) {
+      const at = template.indexOf(`{{ ${name} }}`);
+      assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
+      last = at;
+    }
+    assert.match(template, /@if \(view\(\)\.partner; as partner\) \{/);
+    assert.match(template, /@if \(partner\.simulated\) \{\s*<app-simulated-label \/>/, 'the label stands beside the To line, while the payload says simulated');
+    assert.ok(template.indexOf('{{ partner.note }}') < template.indexOf('{{ texts.dryRun }}'), 'before the dry run block');
+    assert.doesNotMatch(template, /Nothing is sent unless you approve|To:|Simulated mailbox/, 'the template types none of the lines\' words');
+    const card = file(files, 'approval-request-card.ts');
+    assert.match(card.code, /import \{ SimulatedLabel \} from '\.\.\/devices\/simulated-label';/);
+    assert.match(card.code, /imports: \[[^\]]*SimulatedLabel[^\]]*\]/);
+    assert.match(literal(card, 'styles'), /\.partner-notice \{\s*white-space: pre-line;/, 'the notice keeps its line breaks');
   });
 
   it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {

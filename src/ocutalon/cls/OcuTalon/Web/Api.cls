@@ -37,11 +37,23 @@
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
 ///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
-///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode; channels answers 501 not_built) takes the section's fields as a JSON
+///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode, channels) takes the section's fields as a JSON
 ///     object of field to value, submits one SaveSettings command (a SetDemoMode for demo-mode) with origin web_admin, the IRIS user of the call and
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
 ///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
 ///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
+///     POST /v1/settings/channels (Stories 21.2, 21.6 and 21.3; AD-1, AD-19) connects the mailbox: SaveChannels takes {address, incoming, outgoing, user, signIn,
+///     clientId, password, clientSecret}; outgoing, signIn (password, google or microsoft; default password), clientId, password and clientSecret are optional (an absent
+///     or empty password or clientSecret keeps the stored one), and the body may not hold origin. With the online demo on it answers 409 not_available
+///     (MESSAGENOTAVAILABLE) before it reads the body. A password or clientSecret of more than 256 characters, or that is not a string, is 400 bad_settings naming it and
+///     nothing is offered; every other non-empty one is offered to SecretHandoff (in memory; the REST process stores nothing) and only the reference
+///     secret://handoff/<name> goes in the SaveSettings command's body, so no secret is in any command, message or log. The body also gets origin, the http or https
+///     origin of the request (PageOrigin), from which SettingsOps makes the OAuth2 redirection endpoint. After the submit returns, whatever it answered, every untaken
+///     secret is discarded. The answers are those of Answer, with not_available 409.
+///     POST /v1/settings/channels/sign-in (Story 21.3; AD-1) takes exactly {"action": "start"|"check"} (anything else is 400 bad_settings with fields ["action"]) and
+///     submits one MailSignIn (origin web_admin, the IRIS user of the call, the CSP session's Ref, PageOrigin): start answers 200 {"result":"started","url"}, the address
+///     that opens IRIS's authorization flow in a new tab, and check 200 {"result":"checked","signedIn"}; a client that is not registered is 400 bad_settings with
+///     fields ["signIn"]; on the online demo it is 409 not_available before the body is read; any other outcome or status is 500 server_error.
 ///     POST /v1/settings/models takes {"agents", "prices"} (SettingsOps' models section); POST /v1/settings/models/test takes exactly {"agent": string} and submits one
 ///     TestModel (origin web_admin): Ok 200 {"answered", "seconds", "reason"}; a bad body or an agent that is refused 400 bad_settings with fields ["agent"]; any
 ///     other outcome or status 500 server_error.
@@ -88,8 +100,16 @@
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
+///   - The files route (Story 25.3; POST /v1/files {clientId, name, content} with the bytes in base64) is OcuTalon.Web.Files', forwarded by its own map: it stores a PDF, Word,
+///     JPEG or PNG file (the type read from its bytes) under the CSP session's session and sends WebChatIn an Item of provenance untrusted that names the file by Ref, name,
+///     media type and size; 409 not_available on the online demo before the body is read; every other method and every path below it is 404 not_found, and no route serves
+///     a stored file's bytes back.
 ///   - The usage route (Story 37.2; GET /v1/usage?days=1|7|30) is OcuTalon.Web.Usage's, forwarded by its own map: the CSP session's own token and cost
 ///     buckets by local day, agent, channel, model and Estimated, with the request-size limit.
+///   - The history routes (Story 25.2; GET /v1/history/decisions?outcome=&channel=&day=&fallback=&page= and GET /v1/history/incidents?page=) are OcuTalon.Web.History's, forwarded
+///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
+///   - The webhook routes (Story 35.3; GET and POST /v1/settings/channels/webhooks, POST /v1/settings/channels/webhooks/:ref/secret) are OcuTalon.Web.HookSettings', forwarded
+///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -171,6 +191,12 @@ Parameter MESSAGENOTADMIN = "Only OcuTalon admins can open settings.";
 
 /// The message of the 400 bad_settings of a save.
 Parameter MESSAGEBADSETTINGS = "Couldn't save. Nothing was changed.";
+
+/// The 409 message of an email save on the online demo (Public text P2).
+Parameter MESSAGENOTAVAILABLE = "Email can't be connected on the online demo. Nothing was changed.";
+
+/// The most characters of a mailbox password that the route offers.
+Parameter PASSWORDMAX = 256;
 
 /// The message of the 409 demo_step_failed of a demo mode save; {v} is on or off.
 Parameter MESSAGEDEMOSTEPFAILED = "Demo mode is set to {v}, but the switch didn't finish. OcuTalon tries again at its next start.";
@@ -256,24 +282,29 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/models" Method="POST" Call="SaveModels"/>
 <Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
-<Route Url="/v1/settings/channels" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/settings/channels" Method="POST" Call="SaveChannels"/>
+<Route Url="/v1/settings/channels/sign-in" Method="POST" Call="SignInMail"/>
 <Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
 <Route Url="/v1/settings/daily-digest/send" Method="POST" Call="SendDigest"/>
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
 <Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
+<Map Prefix="/v1/files" Forward="OcuTalon.Web.Files"/>
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
+<Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
+<Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
 </Routes>
 }
 
 /// The request bodies larger than Web.BodyLimit's default that a route takes (Web.BodyLimit): POST /v1/documents takes a file in base64, up to
-/// OcuTalon.Web.Documents' BODYMAX (Test.Web.DocumentsApi TestBodyBounds pins the two equal). The forwarded class declares
-/// the same route with the remainder of the path.
+/// OcuTalon.Web.Documents' BODYMAX (Test.Web.DocumentsApi TestBodyBounds pins the two equal), and POST /v1/files (Story 25.3) takes one up to the same
+/// number (Test.Web.FilesApi pins it equal). The forwarded class declares the same route with the remainder of the path.
 XData BodyBounds [ MimeType = application/json ]
 {
 [
-{"method": "POST", "url": "/v1/documents", "bytes": 13985112}
+{"method": "POST", "url": "/v1/documents", "bytes": 13985112},
+{"method": "POST", "url": "/v1/files", "bytes": 13985112}
 ]
 }
 
@@ -324,6 +355,23 @@ ClassMethod IsSettingsUrl(url As %String) As %Boolean [ Private ]
 {
 	Set path = $ZConvert($Piece($Get(url), "?", 1), "L")
 	Quit (path = "/v1/settings") || ($Extract(path, 1, $Length("/v1/settings/")) = "/v1/settings/")
+}
+
+/// The answer to a known URL with a wrong verb: 405 method_not_allowed, except under /v1/files, which has no route but POST of the empty remainder (Story 25.3; OcuTalon.Web.Files):
+/// every other method there is 404 not_found, with no Allow header. The class that is dispatched first answers it, not the class a Map forwards to, so it is decided here.
+ClassMethod Http405(pSupportedVerbs As %String = "") As %Status
+{
+	If ..UnderFiles($ZConvert($Piece(%request.URL, "?", 1), "L")) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Quit ##super(pSupportedVerbs)
+}
+
+/// 1 when the path is the files route or below it (a path with /v1/files as a whole segment).
+ClassMethod UnderFiles(path As %String) As %Boolean [ Private ]
+{
+	Set at = $Find(path, "/v1/files")
+	If 'at Quit 0
+	Set next = $Extract(path, at)
+	Quit (next = "") || (next = "/")
 }
 
 /// The error body for 404, 405 and 500; the cause of a 500 is logged, never sent. Every other status is the
@@ -890,6 +938,104 @@ ClassMethod SaveCheckThresholds() As %Status
 	Quit ..SaveSection("check-thresholds")
 }
 
+/// POST /v1/settings/channels (Stories 21.2 and 21.3): see the class description. On the online demo it answers 409 not_available before the body is read. The
+/// body is a JSON object, and anything else is 400 bad_settings with no field and nothing offered or submitted. A body with an origin member is 400 with fields
+/// ["origin"]. A password or clientSecret that is present but not a JSON string, or a string of more than PASSWORDMAX characters, is 400 bad_settings
+/// with the field named, nothing offered or submitted, so that no secret value ever reaches the command. Any other non-empty string secret
+/// is offered to SecretHandoff and replaced in the body by its reference; the SaveSettings command (slug channels, origin web_admin, the IRIS user of
+/// the call, the CSP session's Ref) carries only those references and the request's origin. Whatever the submit answers, or throws, each reference is then taken with
+/// no wait and the value discarded (a Take of a reference that SettingsOps already took fails harmlessly). The answers are those of Answer.
+ClassMethod SaveChannels() As %Status
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If '..SettingsBody(.body) Quit ..BadSettings([])
+	If body.%IsDefined("origin") Quit ..BadSettings(["origin"])
+	Set bad = []
+	For name = "password", "clientSecret" {
+		Set type = body.%GetTypeOf(name)
+		If ((type '= "string") && (type '= "unassigned")) || ((type = "string") && ($Length(body.%Get(name)) > ..#PASSWORDMAX)) Do bad.%Push(name)
+	}
+	If bad.%Size() Quit ..BadSettings(bad)
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set uris = ""
+	Try {
+		For name = "password", "clientSecret" {
+			Set secret = $Select(body.%GetTypeOf(name) = "string": body.%Get(name), 1: "")
+			If secret = "" Continue
+			Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
+			Kill secret
+			If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+			Set uris = uris_$ListBuild(uri)
+			Do body.%Set(name, uri, "string")
+		}
+		Do body.%Set("origin", ..PageOrigin(), "string")
+		Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+		Set command.Slug = "channels"
+		Set command.Changes = body.%ToJSON()
+		Set command.ActingUser = $USERNAME
+		Set command.SessionRef = sessionRef
+		Set sc = ..SubmitChannels(command, .result)
+	} Catch exception {
+		Kill secret
+		Set sc = exception.AsStatus()
+	}
+	Set position = 0
+	While $ListNext(uris, position, one) {
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(one, .discard, 0)
+		Kill discard
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Answer(result, "")
+}
+
+/// POST /v1/settings/channels/sign-in (Story 21.3): see the class description. The online demo answers 409 not_available before the body is read; the body is
+/// exactly {"action": "start" or "check"}. One MailSignIn is submitted through Commands.Submit with origin web_admin.
+ClassMethod SignInMail() As %Status
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If '..SettingsBody(.body) || (body.%Size() '= 1) || (body.%GetTypeOf("action") '= "string") || ((body.action '= "start") && (body.action '= "check")) Quit ..BadSettings(["action"])
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.MailSignIn).%New()
+	Set command.Action = body.action
+	Set command.PageOrigin = ..PageOrigin()
+	Set command.ActingUser = $USERNAME
+	Set command.SessionRef = sessionRef
+	Set sc = ..SubmitSignIn(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Outcome = "refused" {
+		Try {
+			Set fields = ##class(%DynamicAbstractObject).%FromJSON(result.Data).fields
+		} Catch {
+			Set fields = ""
+		}
+		Quit ..BadSettings($Select($IsObject(fields): fields, 1: ["signIn"]))
+	}
+	If result.Outcome = "not_available" Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
+	If 'result.Ok || ((result.Outcome '= "started") && (result.Outcome '= "checked")) Quit ..ServerError($SYSTEM.Status.Error(5001, "SettingsOps answered the mail sign-in with '"_result.Outcome_"'"))
+	Try {
+		Set answer = {"result": (result.Outcome)}
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+		Set iterator = data.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Do answer.%Set(name, value, data.%GetTypeOf(name))
+		}
+	} Catch exception {
+		Return ..ServerError(exception.AsStatus())
+	}
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write answer.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The origin of the request, as the browser envelope checks it: http or https (from %request.Secure) and the Host header. A test subclass overrides it.
+ClassMethod PageOrigin() As %String [ Private ]
+{
+	Quit $Select(%request.Secure: "https", 1: "http")_"://"_%request.GetCgiEnv("HTTP_HOST")
+}
+
 /// The save of one settings section (AD-1, AD-4, AD-19): the body is a JSON object of the section's field to value, and anything else is 400
 /// bad_settings with no field and nothing submitted. The route submits one SaveSettings command (the section's slug, the body as it is, the IRIS user of
 /// the call and the CSP session's Ref) through Commands.Submit with origin web_admin, and SettingsOps decides what is acceptable. The answers are
@@ -907,6 +1053,18 @@ ClassMethod SaveSection(section As %String) As %Status [ Private ]
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Quit ..Answer(result, "")
+}
+
+/// The one submit of SaveChannels: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+}
+
+/// The one submit of SignInMail: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitSignIn(command As OcuTalon.Msg.Command.MailSignIn, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 }
 
 /// POST /v1/settings/demo-mode: the body is {"demoMode": true or false} and nothing else; any other body is 400 bad_settings, naming demoMode
@@ -928,7 +1086,7 @@ ClassMethod SaveDemoMode() As %Status
 }
 
 /// The answer to a save from the CommandResult (word is "on" or "off" for a demo mode save): Ok is 200 {"result":"done","sections"} with the
-/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; step_failed is 409 demo_step_failed; no result,
+/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; not_available is 409; step_failed is 409 demo_step_failed; no result,
 /// not_audited, failed, unknown_command and any other outcome are 500 server_error.
 ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %Status [ Private ]
 {
@@ -953,6 +1111,7 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %St
 		Quit ..BadSettings($Select($IsObject(fields): fields, 1: []))
 	}
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If outcome = "not_available" Quit ..Fail(409, "not_available", ..#MESSAGENOTAVAILABLE)
 	If (outcome = "step_failed") && (word '= "") Quit ..Fail(409, "demo_step_failed", $Replace(..#MESSAGEDEMOSTEPFAILED, "{v}", word))
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The settings save was answered "_outcome))
 }
@@ -1098,7 +1257,8 @@ ClassMethod Unpair() As %Status [ Private ]
 /// and the rail (read through Ownership: the chat holds the newest CHATMAX of the session's turns, visible noticed
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
 /// reminders and newest decisions), the signed-in user (the session row's, never the client's), admin (whether the signed-in user holds OcuTalonAdmin, which only decides the page's
-/// Settings link), the booleans onlineDemo and demoMode, models:
+/// Settings link), the booleans onlineDemo and demoMode, filesReadable (Story 25.3: whether the install's code can read a sent file, Core.Files.Readable; the page shows the
+/// paperclip and takes a chat drop only when it is true and the instance is not the online demo), models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
 /// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
 /// newest PHONEMAX simulated-phone messages, oldest first, mailbox: the session's newest MAILMAX simulated-mailbox emails,
@@ -1132,6 +1292,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 	Do body.%Set("admin", ..IsAdmin(), "boolean")
 	Do body.%Set("onlineDemo", ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1, "boolean")
 	Do body.%Set("demoMode", ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY) = "1", "boolean")
+	Do body.%Set("filesReadable", ##class(OcuTalon.Core.Files).Readable(), "boolean")
 	Set body.models = {
 		"triage": (..ModelName(..ResolveModel("TriageAgent"))),
 		"diagnosis": (..ModelName(..ResolveModel("DiagnosisAgent"))),

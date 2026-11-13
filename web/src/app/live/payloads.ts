@@ -35,6 +35,9 @@ export interface DryRun {
   from?: string;
   to?: string;
   example?: string;
+  notice?: string;
+  recipients?: string[];
+  simulated?: boolean;
   eitherWay?: boolean;
   reading?: string;
 }
@@ -109,10 +112,22 @@ export interface ItemNoun {
   other?: string;
 }
 
+export interface Learned {
+  memoryRef?: string;
+  fact?: string;
+}
+
 export interface Memory {
   memoryRef?: string;
   text?: string;
   savedAt?: string;
+}
+
+export interface SentFile {
+  ref?: string;
+  name?: string;
+  mediaType?: string;
+  size?: number;
 }
 
 export interface StatusSlots {
@@ -148,6 +163,8 @@ export interface ChatMessagePayload {
   checks?: CheckRow[];
   citations?: Citation[];
   memories?: Memory[];
+  learned?: Learned[];
+  sentFile?: SentFile;
   traceUrl?: string;
 }
 

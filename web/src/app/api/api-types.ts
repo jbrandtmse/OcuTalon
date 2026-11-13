@@ -58,6 +58,8 @@ export interface StateSnapshot {
   admin: boolean;
   onlineDemo: boolean;
   demoMode: boolean;
+  /** True only when the install's code can read a file that is sent (Story 25.3; 26.2 turns it on): the paperclip and the chat's file drop show only then, and never on the online demo. */
+  filesReadable: boolean;
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
@@ -85,6 +87,26 @@ export interface MessagePost {
 /** The 202 answer to a message: its clientId, also for a repeat of one the server already holds. */
 export interface MessageAccepted {
   clientId: string;
+}
+
+/** POST /ocutalon/api/v1/files: one file of the chat, its bytes in base64 (Story 25.3). The session is the caller's; the body never names one. */
+export interface FilePost {
+  clientId: string;
+  name: string;
+  content: string;
+}
+
+/** The 202 answer to a file: its clientId and the stored file's Ref, name, media type and size; a repeat of a clientId answers the clientId alone. */
+export interface FileAccepted {
+  clientId: string;
+  file?: { ref: string; name: string; mediaType: string; size: number };
+}
+
+/** The error body of POST /v1/files: `error` for any refusal, and for a 400 `bad_file` the `reason` (too_large, empty or wrong_type) and the `size` in bytes. */
+export interface FileRefusal {
+  error?: { code?: string; message?: string };
+  reason?: string;
+  size?: number;
 }
 
 /** POST /ocutalon/api/v1/mailbox/incoming: one simulated email. The session is the caller's; the body never names one. */
@@ -235,6 +257,38 @@ export interface SettingsSections {
   };
   'daily-digest': { time: string; channels: string };
   'demo-mode': { demoMode: boolean };
+  /** The mailbox (Story 21.2): never on the online demo. `passwordSet` says that a password is stored; the password itself is never sent. */
+  channels?: EmailValues;
+}
+
+/**
+ * The values of the Email form: the saved address, incoming server (host, or host:port off port 995), outgoing server (host, or host:port off port 587; empty
+ * for none) and user name, whether a password is stored, and the sign-in method (Story 21.3): `password`, `google` or `microsoft`. For a provider,
+ * `clientId` is the saved client ID, `clientSecretSet` says that a client is registered with IRIS (the secret itself is never sent) and `signedIn` says that
+ * the last check found tokens.
+ */
+export interface EmailValues {
+  address: string;
+  incoming: string;
+  outgoing: string;
+  user: string;
+  passwordSet: boolean;
+  signIn: 'password' | 'google' | 'microsoft';
+  clientId: string;
+  clientSecretSet: boolean;
+  signedIn: boolean;
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/sign-in with `start` (Story 21.3): IRIS's authorization address, to open in a new tab. */
+export interface MailSignInStarted {
+  result: 'started';
+  url: string;
+}
+
+/** The 200 answer to the same route with `check`: whether IRIS's OAuth2 client holds the mailbox's tokens. */
+export interface MailSignInChecked {
+  result: 'checked';
+  signedIn: boolean;
 }
 
 /** The body of a Time zone save: the IANA zone name, or "" for the server's own zone. The zone is a bridge value, so the 200 answer's sections do not hold it. */
@@ -257,6 +311,38 @@ export interface SettingsSaved {
 export interface SettingsError {
   error: { code: string; message: string };
   fields?: string[];
+}
+
+/** A webhook as the settings routes list it (Story 35.3): its Ref, name and path below the host, and when it was made. It never holds a secret or a hash. */
+export interface WebhookRow {
+  ref: string;
+  name: string;
+  path: string;
+  createdAt: string;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/channels/webhooks: the session's own webhooks in creation order. */
+export interface WebhooksList {
+  webhooks: WebhookRow[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks: the new webhook. */
+export interface WebhookCreated {
+  result: 'done';
+  message: string;
+  webhook: WebhookRow;
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks/<ref>/secret. */
+export interface WebhookSecretSaved {
+  result: 'done';
+  message: string;
+}
+
+/** The error body of a refused webhook call: `{error: {code, message}}`, and for `bad_webhook` the refused fields, each with its text. */
+export interface WebhookError {
+  error: { code: string; message: string };
+  fields?: { name?: string; secret?: string };
 }
 
 /** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */

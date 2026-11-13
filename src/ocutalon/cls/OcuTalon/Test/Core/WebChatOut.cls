@@ -16,6 +16,9 @@
 ///     result, with an ApprovalRef) are cards: rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, published as
 ///     one notification event and in RecentNotices; a toolCall key with no ApprovalRef, the kind answered, a fix's request
 ///     (incident.laterRequest) and a fix's result (result.allThrough) record their Delivery row only;
+///   - TestPartnerNotDraftedCard (Story 23.5; AC-NOTDRAFTED-WEB): result.partnerNotDrafted (kind result, no ApprovalRef) is a card of the web chat: rendered for the web, recorded with a ChannelMessageId, no ApprovalRef and
+///     the kind result, published as one notification event and in RecentNotices; any other result with no ApprovalRef (result.allThrough, a tool call's) and a result.partnerSent with an ApprovalRef
+///     that is not a tool call's keep their Delivery row only;
 ///   - TestPersonaCards (Story 40.6): the persona notices of Core.SettingsOps (approval.persona with kind approval, persona.applied and
 ///     persona.stale with kind result), with an ApprovalRef, are cards as a tool call's are; without an ApprovalRef, or with the kind
 ///     answered, they record their Delivery row only;
@@ -260,6 +263,41 @@ Method TestToolCallCards()
 	}
 	Do $$$AssertEquals(..Notifications(quiet).%Size(), 0, "none publishes an event")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(quiet, 10).Count(), 0, "and none is a card of the chat")
+}
+
+/// The notice that a delay notice could not be drafted is a card of the web chat although it has no ApprovalRef (Story 23.5): the rendered text, a new ChannelMessageId, one notification event and a place in RecentNotices.
+/// The other results with no ApprovalRef, and a fix's result with an ApprovalRef, stay Delivery rows only.
+Method TestPartnerNotDraftedCard()
+{
+	Set session = ..Session("notdrafted")
+	Set notification = ..Notification(session, "result", "result.partnerNotDrafted", {})
+	Set notification.IncidentRef = "ZzIncidentRef0000000001"
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the notification is delivered")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "the session has a card")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "web|result||", "its channel and kind, and no ApprovalRef or DecisionRef")
+	Do $$$AssertEquals(row.Text, "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again.", "the text rendered for the web")
+	Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), "a new message id: "_row.ChannelMessageId)
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.approvalRef_"|"_payload.text, row.ChannelMessageId_"|result||"_row.Text, "its payload carries the Ref, the kind and the text, and no approvalRef")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "and the card is in RecentNotices")
+	Set quiet = ..Session("notdraftedquiet")
+	Set plain = ..Notification(quiet, "result", "result.allThrough", {"count": 3, "itemNoun": {"one": "order", "other": "orders"}})
+	Set sent = ..Notification(quiet, "result", "result.partnerSent", {"count": 1})
+	Set sent.ApprovalRef = "ZzPartnerSentRef"
+	For each = plain, sent {
+		Set before = ..Rows(quiet)
+		Do $$$AssertStatusOK(..Out().OnNotification(each, .response), each.CatalogKey_": delivered")
+		Do $$$AssertEquals(..Rows(quiet), before + 1, each.CatalogKey_": one row is recorded")
+		Set row = ..LastRow(quiet)
+		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId, "|", each.CatalogKey_": no text and no message id: the incident card is its web form")
+	}
+	Do $$$AssertEquals(..Notifications(quiet).%Size()_"|"_##class(OcuTalon.Data.Ownership).RecentNotices(quiet, 10).Count(), "0|0", "and neither is published or a card")
 }
 
 /// The persona notices (Story 40.6) are cards of the web chat: approval.persona (kind approval) and persona.applied and persona.stale
@@ -639,7 +677,7 @@ Method TestSummaryCard()
 	Set ..Refs = ..Refs_","_incident
 	Set expected = "Incident summary: 50 orders failed in Orders."
 		_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
-		_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_"
+		_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_."
 		_$Char(10)_"Sample error: Field <script>alert(1)</script> was not a date."
 		_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
 	Set notification = ..Notification(session, "summary", "summary.title", {})

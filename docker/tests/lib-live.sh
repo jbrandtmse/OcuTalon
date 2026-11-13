@@ -20,6 +20,12 @@
 # unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819. The only bot token
 # in the container is the dummy of ci/compose.ci.yml, or the empty value that live_no_bot_token layers after it; neither is a key
 # (live_key_count, check_no_key).
+# With a web port, dc up, dc start and dc restart go through live_port_guard (Stories 0.24 and 0.25): one budget of LIVE_PORT_WAIT s
+# (default 90, polled every 3 s) of waiting for the port to be free, shared by the wait before the start and the waits before the
+# retries; up to two retries, each after LIVE_PORT_RETRY_PAUSE s (default 10, outside the budget) and a wait, when the start fails with
+# the bind error ("address already in use" or "failed programming external connectivity"); a third bind error fails loudly. A start
+# that waited prints one "waited <s> s for port <p>" line, and the loud failure and "PORT still in use" list what holds the port
+# (live_port_holders: containers of any project and TCP sockets in any state).
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #
@@ -197,15 +203,66 @@ ensure_web_bundle() {
 # The ports that no test may publish: the judges' default, and the ports of the other instances and slots.
 LIVE_FORBIDDEN_PORTS="52773 1979 52779 8089 1990 1991 52790 52791 8090 8091"
 
-# 0 when something listens on 127.0.0.1:<port>.
-port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+# The knobs of the port wait and of the retries in live_port_guard, in seconds.
+LIVE_PORT_WAIT=${LIVE_PORT_WAIT:-90}
+# The one budget, in poll seconds, of the first start's wait (wait_started_ready "$LIVE_FIRST_START_WAIT" in the 23 CI live unit
+# scripts that wait for a first start; test-demo-path.sh's live_first_start keeps its own). It is 1.4 times the largest per-unit median of the audit in
+# _bmad-output/implementation-artifacts/evidence/0-32-task0-ci-time-budgets.md, rounded up to 30 s, and stays under the 720 s of
+# AD-23's first-start WARN.
+LIVE_FIRST_START_WAIT=${LIVE_FIRST_START_WAIT:-510}
+LIVE_PORT_RETRY_PAUSE=${LIVE_PORT_RETRY_PAUSE:-10}
+# Set to 1 by live_port_wait_free when it found the port in use and waited for it; its callers reset it to 0 first.
+LIVE_PORT_BUSY_SEEN=0
+
+# 0 when the host's table of TCP sockets holds <port> on a local address that Docker's bind would collide with: ss where there is one
+# (every state except TIME-WAIT, so a loopback client whose ephemeral source port is the port counts as well as a listener, on
+# 127.0.0.1, 0.0.0.0, *, [::] or [::ffff:127.0.0.1]; a TIME-WAIT socket does not block a listener that sets SO_REUSEADDR), otherwise
+# lsof (LISTEN only); with neither tool, 1 (the connect check of port_in_use stands alone).
+live_port_listed() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -tan 2>/dev/null | awk -v p="$1" '
+      $1 != "TIME-WAIT" && ($4 == "127.0.0.1:" p || $4 == "0.0.0.0:" p || $4 == "*:" p || $4 == "[::]:" p || $4 == "[::ffff:127.0.0.1]:" p) { found = 1 }
+      END { exit !found }'
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+  else
+    return 1
+  fi
+}
+
+# 0 when something listens on 127.0.0.1:<port>, or the listener table lists the port (a stack that is still releasing it can refuse
+# the connect and still hold the bind).
+port_in_use() {
+  if (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; then return 0; fi
+  live_port_listed "$1"
+}
+
+live_port_free() { ! port_in_use "$1"; }
+
+# live_port_wait_free <port> [<max s>]: 0 at once when the port is free; 1 at once, silently, when <max s> (default LIVE_PORT_WAIT)
+# is 0 or less. Otherwise sets LIVE_PORT_BUSY_SEEN=1, prints "PORT waiting", waits (wait_until, so every 3 s, up to <max s> and never
+# past the run's deadline) for it to be free, checks once more after the last sleep, and prints "PORT free: ... after <s> s" and
+# returns 0, or returns 1 when it is still in use.
+live_port_wait_free() {
+  local p=$1 max=${2:-$LIVE_PORT_WAIT} t=$SECONDS
+  if ! port_in_use "$p"; then return 0; fi
+  if [ "$max" -le 0 ]; then return 1; fi
+  LIVE_PORT_BUSY_SEEN=1
+  echo "PORT waiting: 127.0.0.1:$p is in use; waiting up to $max s"
+  if wait_until "$max" live_port_free "$p" || live_port_free "$p"; then
+    echo "PORT free: 127.0.0.1:$p after $((SECONDS - t)) s"
+    return 0
+  fi
+  return 1
+}
 
 # live_web_port: publishes the project's web port on 127.0.0.1 only. The port is OCUTALON_TEST_WEB_PORT when set,
-# otherwise the first port of 52800-52819 that nothing listens on. Sets web_port, and adds an override file
+# otherwise the first port of 52800-52819 that nothing listens on. An override port that is in use is waited for
+# (live_port_wait_free, up to LIVE_PORT_WAIT s, printing one "waited <s> s for port <p>" line when it waited) before it is refused. Sets web_port, and adds an override file
 # (ports: ["127.0.0.1:<port>:52773"]) after the other compose files. Returns 1, saying why, when the port is
-# outside 52800-52819, in use or forbidden, or no port is free.
+# outside 52800-52819, in use (after the wait) or forbidden, or no port is free.
 live_web_port() {
-  local port="" candidate forbidden
+  local port="" candidate forbidden waited_from free
   if [ -n "${OCUTALON_TEST_WEB_PORT:-}" ]; then
     port=$OCUTALON_TEST_WEB_PORT
     case $port in
@@ -225,7 +282,12 @@ live_web_port() {
       echo "FAIL live_web_port: OCUTALON_TEST_WEB_PORT $port is outside 52800-52819"
       return 1
     fi
-    if port_in_use "$port"; then
+    LIVE_PORT_BUSY_SEEN=0
+    waited_from=$SECONDS
+    live_port_wait_free "$port"
+    free=$?
+    if [ "$LIVE_PORT_BUSY_SEEN" = 1 ]; then echo "waited $((SECONDS - waited_from)) s for port $port"; fi
+    if [ "$free" -ne 0 ]; then
       echo "FAIL live_web_port: port $port is in use on 127.0.0.1"
       return 1
     fi
@@ -246,10 +308,119 @@ live_web_port() {
   live_add_file "$tmp/port.yml"
 }
 
-dc() {
+dc_compose() {
   local args=() f
   for f in "${LIVE_FILES[@]}"; do args+=(-f "$f"); done
   docker compose -p "$P" "${args[@]}" "$@"
+}
+
+# dc <compose arguments>: the project's compose command. With a web port, a start (up, start or restart as the first argument) goes
+# through live_port_guard; every other call runs as it is.
+dc() {
+  case ${1:-} in
+    up | start | restart)
+      if [ -n "${web_port:-}" ]; then
+        live_port_guard dc_compose "$@"
+        return
+      fi
+      ;;
+  esac
+  dc_compose "$@"
+}
+
+# The first line of file <1> that holds a bind error, cut to 200 characters; 1 when there is none.
+live_bind_error() {
+  local line
+  line=$(grep -m1 -F -e 'address already in use' -e 'failed programming external connectivity' "$1" 2>/dev/null) || return 1
+  printf '%s\n' "${line:0:200}"
+}
+
+# live_bounded <command...>: runs the command under timeout 10 where the host has timeout.
+live_bounded() {
+  if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
+}
+
+# live_port_holders <port>: prints "PORT holder: <line>" for what holds the port, and returns 0 always: every container of any
+# project that publishes it (docker ps -a), then every TCP socket with that local port in any state (ss, else lsof), at most 10
+# lines from each source and each tool run once; "PORT holder: none seen" when there is nothing.
+live_port_holders() {
+  local p=$1 out seen=0
+  out=$(live_bounded docker ps -a --filter "publish=$p" --format '{{.Names}} {{.Status}} project={{.Label "com.docker.compose.project"}}' 2>/dev/null \
+    | awk 'NR <= 10 { print "PORT holder: " substr($0, 1, 200) }')
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    seen=1
+  fi
+  if command -v ss >/dev/null 2>&1; then
+    out=$(live_bounded ss -tanp 2>/dev/null | awk -v s=":$p" '
+      length($4) > length(s) && substr($4, length($4) - length(s) + 1) == s && n < 10 { n++; print "PORT holder: " substr($0, 1, 200) }')
+  elif command -v lsof >/dev/null 2>&1; then
+    out=$(live_bounded lsof -nP -iTCP:"$p" 2>/dev/null | awk 'NR > 1 && n < 10 { n++; print "PORT holder: " substr($0, 1, 200) }')
+  else
+    out=""
+  fi
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    seen=1
+  fi
+  if [ "$seen" = 0 ]; then echo "PORT holder: none seen"; fi
+  return 0
+}
+
+# live_port_guard <command...>: runs a start of the project's stack, which publishes $web_port, as follows.
+#   1. Before the start, unless the project's own container publishes the port (a restart, or an up over a running stack): waits for
+#      the port to be free (live_port_wait_free, one budget of LIVE_PORT_WAIT s); when it is still in use, says so, lists the holders
+#      and starts anyway, because the bind decides.
+#   2. Runs the command; its stderr goes to a file and is replayed to stderr afterwards.
+#   3. When the command fails with a bind error: up to two times prints "PORT retry", pauses LIVE_PORT_RETRY_PAUSE s (outside the
+#      budget), waits for the port again with what is left of the budget, and runs the command once more. A bind error after the
+#      second retry prints "FAIL web port: ... could not be bound after two retries" and the holders.
+#   4. A start that waited (the first wait found the port in use, or a retry ran) prints one "waited <s> s for port <p>" line, last.
+# Returns the last status. Any other failure returns its status at once, with no retry.
+live_port_guard() {
+  local p=$web_port t=$SECONDS rc line errf="$tmp/port-guard.$$.err" budget=$LIVE_PORT_WAIT spent=0 waited_s=0 waited=0 k=0 t1 t2 t_end left free
+  LIVE_PORT_BUSY_SEEN=0
+  if [ -z "$(docker ps -q --filter "label=com.docker.compose.project=$P" --filter "publish=$p" 2>/dev/null)" ]; then
+    t=$SECONDS # the wait starts here: the own-stack query above is not waiting
+    live_port_wait_free "$p" "$budget"
+    free=$?
+    t_end=$SECONDS
+    if [ "$free" -ne 0 ]; then
+      echo "PORT still in use: 127.0.0.1:$p after $((t_end - t)) s; starting anyway"
+      live_port_holders "$p"
+    fi
+    if [ "$LIVE_PORT_BUSY_SEEN" = 1 ]; then
+      spent=$((t_end - t))
+      waited_s=$spent
+      waited=1
+    fi
+  fi
+  "$@" 2>"$errf"
+  rc=$?
+  cat "$errf" >&2
+  while [ "$rc" -ne 0 ] && [ "$k" -lt 2 ] && line=$(live_bind_error "$errf"); do
+    k=$((k + 1))
+    waited=1
+    echo "PORT retry: $line; retry $k of 2 in $LIVE_PORT_RETRY_PAUSE s"
+    t1=$SECONDS
+    sleep "$LIVE_PORT_RETRY_PAUSE"
+    t2=$SECONDS
+    left=$((budget - spent))
+    if [ "$left" -lt 0 ]; then left=0; fi
+    live_port_wait_free "$p" "$left" || true
+    spent=$((spent + SECONDS - t2))
+    waited_s=$((waited_s + SECONDS - t1))
+    "$@" 2>"$errf"
+    rc=$?
+    cat "$errf" >&2
+  done
+  if [ "$rc" -ne 0 ] && [ "$k" -eq 2 ] && line=$(live_bind_error "$errf"); then
+    echo "FAIL web port: 127.0.0.1:$p could not be bound after two retries: $line"
+    live_port_holders "$p"
+  fi
+  if [ "$waited" = 1 ]; then echo "waited $waited_s s for port $p"; fi
+  rm -f "$errf"
+  return "$rc"
 }
 
 # Records the image that the service's last build produced, so that the cleanup removes it
@@ -368,17 +539,34 @@ start_log_complete() { # start_log_complete <container start stamp, UTC to the s
 
 container_start_stamp() { started_at | cut -c1-19; }
 
-# wait_started_log <max seconds>: waits for this start's log to end. Prints nothing; returns 1 on timeout.
+# wait_started_log <max seconds>: waits for this start's log to end; returns 1 on timeout. On every return it prints one line to stderr
+# (so that no $(...) caller captures it): "MEASURED wait <script>:<line> <s> s of <max> s", the wall-clock seconds of the wait and the
+# nearest calling frame outside this file. The budget counts the poll seconds of wait_until, so a wait can print more seconds than its
+# budget.
 wait_started_log() {
-  local stamp
+  local stamp t=$SECONDS rc=0 i site="lib-live.sh:0"
+  for ((i = 1; i < ${#BASH_SOURCE[@]}; i++)); do
+    case ${BASH_SOURCE[$i]} in
+      lib-live.sh | */lib-live.sh) ;;
+      *)
+        site="$(basename "${BASH_SOURCE[$i]}"):${BASH_LINENO[$((i - 1))]}"
+        break
+        ;;
+    esac
+  done
   stamp=$(container_start_stamp)
-  [ -n "$stamp" ] || return 1
-  wait_until "$1" start_log_complete "$stamp"
+  if [ -n "$stamp" ]; then
+    wait_until "$1" start_log_complete "$stamp" || rc=1
+  else
+    rc=1
+  fi
+  echo "MEASURED wait $site $((SECONDS - t)) s of $1 s" >&2
+  return "$rc"
 }
 
 # wait_started_ready <max seconds>: waits for this start's log to end with `ready`, then for Docker to report
-# `healthy`. Returns 1 when either does not happen in time, when the start ended `not ready`, or when the
-# container started again in between. After a ready start it parks the Telegram items (live_park_telegram) unless the caller sets
+# `healthy`. The MEASURED line of wait_started_log covers the first part. Returns 1 when either does not happen in time, when the
+# start ended `not ready`, or when the container started again in between. After a ready start it parks the Telegram items (live_park_telegram) unless the caller sets
 # LIVE_TELEGRAM=started, which a check of a running Telegram sets for its start; a failed park fails the wait.
 wait_started_ready() {
   local before after
@@ -488,6 +676,8 @@ live_first_start() {
     echo "first start: docker compose up failed after $((SECONDS - up_at)) s"
     return 1
   fi
+  # The port guard's lines (Stories 0.24 and 0.25): a port wait or a retry counts in the ready figure, so they are shown beside it.
+  grep -E '^(PORT|waited )' "$tmp/first-up.log"
   cid=$(dc ps -q iris)
   if [ -z "$cid" ]; then
     echo "first start: no iris container in project $P after $((SECONDS - up_at)) s"
@@ -592,21 +782,26 @@ security_app_props() {
 #     OCUORDERS (the Demo step's, Story 0.10: the check assumes demo mode on);
 #   - user ocutalon holds the three roles, with a password that never expires, no forced change and an account that
 #     never expires, enabled; InvalidLoginAction is 0;
-#   - the four web applications have exactly the properties of the Web step, the OCUORDERS trace application has the
+#   - OcuTalonWebhook (Story 35.3, a local install) holds exactly Read on the code database and Read and Write on the data and private
+#     databases, and no user holds it; /ocutalon/hook is unauthenticated (64), outside the sign-in group, and adds that role alone;
+#   - the five web applications have exactly the properties of the Web step, the OCUORDERS trace application has the
 #     same properties as OCUTALON's in its own namespace, and no application has a CORS list. The bundle folder is the
 #     durable csp/ocutalon-web/ (DW-5), and /ocutalon/public is outside the sign-in group, with no password.
 check_security() {
-  local label=$1 permitted shell_props api_props public_props trace_props orders_props
+  local label=$1 permitted shell_props api_props public_props hook_props trace_props orders_props
   permitted='1(1"%CSP.Broker",1"EnsPortal.VisualTrace",1"EnsPortal.SVG.VisualTrace",1"EnsPortal.VisualTraceLegend",1"EnsPortal.SVG.TraceLegend",1"EnsPortal.MessageContents",1"EnsPortal.MessageViewer")'
   shell_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Public.Shell ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' /durable/iris/csp/ocutalon-web/ '' 3 32 OcuTalon OCUTALON OcuTalon.Web.SessionEvents)
   api_props=$(security_app_props 1 /ocutalon/ OcuTalon.Web.Api ':%DB_OCUTALON_CODE:%DB_OCUTALON_DATA:%DB_OCUTALON_PRIVATE' '' '' 0)
   public_props=$(security_app_props 1 /ocutalon/public/ OcuTalon.Web.Public.Status '' '' '' 0 64 '')
+  hook_props=$(security_app_props 1 /ocutalon/hook/ OcuTalon.Web.Hook ':OcuTalonWebhook' '' '' 0 64 '')
   trace_props=$(security_app_props 1 /ocutalon/trace/ocutalon/ '' '' '' "$permitted" 1)
   orders_props=$(security_app_props 1 /ocutalon/trace/ocuorders/ '' '' '' "$permitted" 1 32 OcuTalon OCUORDERS)
   check_session "$label: roles, README account, sign-in policy and applications" %SYS \
     "CHK|role-OcuTalonUser|
 CHK|role-OcuTalonAdmin|
 CHK|role-OcuTalonTraceViewer|%DB_OCUORDERS_CODE:R,%DB_OCUORDERS_DATA:R,%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%Ens_MessageContent:U,%Ens_MessageHeader:U,%Ens_MessageTrace:U,%Ens_Portal:U
+CHK|role-OcuTalonWebhook|%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:RW,%DB_OCUTALON_PRIVATE:RW
+CHK|webhook-holders|0
 CHK|trace-sql-select|1
 CHK|trace-sql-select-orders|1
 CHK|user|OcuTalonAdmin,OcuTalonTraceViewer,OcuTalonUser|1|0|1|1
@@ -614,15 +809,17 @@ CHK|invalid-login-action|0
 CHK|app|/ocutalon|$shell_props
 CHK|app|/ocutalon/api|$api_props
 CHK|app|/ocutalon/public|$public_props
+CHK|app|/ocutalon/hook|$hook_props
 CHK|app|/ocutalon/trace/ocutalon|$trace_props
 CHK|app|/ocutalon/trace/ocuorders|$orders_props" \
-    'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
+    'For r="OcuTalonUser","OcuTalonAdmin","OcuTalonTraceViewer","OcuTalonWebhook" { Set sc=##class(Security.Roles).Get(r,.p) Write !,"CHK|role-",r,"|",$Select($SYSTEM.Status.IsOK(sc):$Get(p("Resources")),1:"<missing>") }' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) c FROM Security.Users WHERE Roles [ ?","OcuTalonWebhook") Do rs.%Next() Write !,"CHK|webhook-holders|",rs.%Get("c")' \
     'Write !,"CHK|trace-sql-select|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUTALON")' \
     'Write !,"CHK|trace-sql-select-orders|",$SYSTEM.SQL.Security.CheckPrivilege("OcuTalonTraceViewer",1,"Ens.MessageHeader","s","OCUORDERS")' \
     'If ##class(Security.Users).Exists("ocutalon",.u) { Set rl="" For i=1:1:u.Roles.Count() { Set rl=rl_$Select(rl="":"",1:",")_u.Roles.GetAt(i) } Write !,"CHK|user|",rl,"|",u.Enabled,"|",u.ChangePassword,"|",u.PasswordNeverExpires,"|",u.AccountNeverExpires } Else { Write !,"CHK|user|<missing>" }' \
     'Set sc=##class(Security.System).Get("SYSTEM",.sp) Write !,"CHK|invalid-login-action|",$Get(sp("InvalidLoginAction"))' \
     'Set keys=$ListBuild("AutheEnabled","AutoCompile","CSPZENEnabled","CookiePath","CorsAllowlist","DispatchClass","Enabled","EventClass","GroupById","InbndWebServicesEnabled","IsNameSpaceDefault","LoginPage","MatchRoles","NameSpace","Path","PermittedClasses","ServeFiles","SessionScope","Timeout")' \
-    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/trace/ocutalon","/ocutalon/trace/ocuorders" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
+    'For app="/ocutalon","/ocutalon/api","/ocutalon/public","/ocutalon/hook","/ocutalon/trace/ocutalon","/ocutalon/trace/ocuorders" { Kill p Set sc=##class(Security.Applications).Get(app,.p) Set out="" For k=1:1:$ListLength(keys) { Set key=$List(keys,k) Set out=out_key_"="_$Get(p(key))_";" } Write !,"CHK|app|",app,"|",$Select($SYSTEM.Status.IsOK(sc):out,1:"<missing>") }' \
     'Halt'
 }
 

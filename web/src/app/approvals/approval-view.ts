@@ -27,6 +27,10 @@
  *   resume), with no count line, no fixed-targets line and no resend row; a reroute has the count line, Before "Message {example}: {from}", After "Message {example}: {to}" and the
  *   resend row "{count} copies to {to}; the originals stay unchanged." (one copy: "1 copy to {to}; the original stays unchanged."). A refused answer of an item kind reads
  *   "Only an approver for fixes can answer this request.".
+ * - A partner delay notice (Story 23.5; fixKind partner_warning) has no dry run block and no fixed-targets line. Its `partner` holds "To: {recipients}" (the payload's dry run
+ *   recipients, each "Name <address>", with the Simulated label beside it when `simulated` is true), the notice as the payload gives it (shown with its line breaks) and, while pending only,
+ *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.". Its result bands are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
+ *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent.
  * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
  *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
  *   `setting` holds the three lines "Now: {old}", "Proposed: {new}" (the payload's dry run before and after) and, while pending only,
@@ -69,6 +73,12 @@ export const APPROVAL_TEXTS = {
   settingNow: 'Now: {old}',
   settingProposed: 'Proposed: {new}',
   settingNote: 'Nothing changes unless you approve.',
+  partnerTo: 'To: {recipients}',
+  partnerNote: 'Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.',
+  partnerSent: 'Sent to the Simulated mailbox.',
+  partnerSentSome: 'Sent to the Simulated mailbox for {completed} of {total} contacts.',
+  partnerKept: "Approved and kept as a draft: email delivery isn't set up yet.",
+  partnerNotSent: 'Not sent: {reason}.',
   expires: 'Expires {when}',
   notApprover: 'Only an approver for resends can answer this request.',
   notApproverFix: 'Only an approver for fixes can answer this request.',
@@ -105,6 +115,18 @@ export interface DryRunView {
 export interface SettingView {
   now: string;
   proposed: string;
+  /** "" unless the request is pending. */
+  note: string;
+}
+
+/** The card of a partner delay notice: who it goes to, the notice, whether it is simulated and, while pending, the note. */
+export interface PartnerView {
+  /** "To: Results Partner IT <it@results-partner.example>". */
+  to: string;
+  /** The notice as approved, with its line breaks. */
+  notice: string;
+  /** True when the payload says the notice goes to the Simulated mailbox: the card shows the Simulated label beside the To line. */
+  simulated: boolean;
   /** "" unless the request is pending. */
   note: string;
 }
@@ -148,6 +170,8 @@ export interface ApprovalView {
   dryRun: DryRunView | undefined;
   /** The lines of a setting request in place of the dry run; undefined for any other kind. */
   setting: SettingView | undefined;
+  /** The lines of a partner delay notice in place of the dry run; undefined for any other kind. */
+  partner: PartnerView | undefined;
   /** "Expires tomorrow at 14:13"; "" unless the request is pending and its expiry is readable. */
   expiry: string;
   /** The answered status that replaces the buttons, or undefined while pending (and for a state the page does not know). */
@@ -264,6 +288,9 @@ function rerouteDryRunView(dry: DryRun & { affected: number }, pending: boolean)
 
 /** The dry run block of a request, or undefined when its dry run has no count. */
 function dryRunView(approval: ApprovalPayload, pending: boolean, ctx: ApprovalContext): DryRunView | undefined {
+  if (approval.fixKind === 'partner_warning') {
+    return undefined;
+  }
   if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
     return itemDryRunView(approval, pending);
   }
@@ -299,6 +326,25 @@ function settingView(approval: ApprovalPayload, pending: boolean): SettingView {
     now: fill(APPROVAL_TEXTS.settingNow, { old: before }),
     proposed: fill(APPROVAL_TEXTS.settingProposed, { new: after }),
     note: pending ? APPROVAL_TEXTS.settingNote : '',
+  };
+}
+
+/** The card of a partner delay notice from the payload's dry run, or undefined when the dry run holds neither a notice nor a recipient. */
+function partnerView(approval: ApprovalPayload, pending: boolean): PartnerView | undefined {
+  const dry = approval.dryRun;
+  if (dry === null || typeof dry !== 'object' || Array.isArray(dry)) {
+    return undefined;
+  }
+  const recipients = (Array.isArray(dry.recipients) ? dry.recipients : []).map(textOf).filter((one) => one !== '');
+  const notice = typeof dry.notice === 'string' ? dry.notice.trim() : '';
+  if (notice === '' && recipients.length === 0) {
+    return undefined;
+  }
+  return {
+    to: fill(APPROVAL_TEXTS.partnerTo, { recipients: recipients.join(', ') }),
+    notice,
+    simulated: dry.simulated === true,
+    note: pending ? APPROVAL_TEXTS.partnerNote : '',
   };
 }
 
@@ -348,9 +394,10 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, re
   const ref = approval.ref ?? '';
   const pending = approval.state === 'pending';
   const isSetting = approval.kind === 'setting';
+  const isPartner = approval.fixKind === 'partner_warning';
   const shownRequest = isSetting ? '' : request;
   const title = shownRequest === '' ? ctx.title(approval) : shownRequest.split('\n', 1)[0] ?? '';
-  const dry = isSetting ? undefined : dryRunOf(approval);
+  const dry = isSetting || isPartner ? undefined : dryRunOf(approval);
   const expires = pending ? ctx.whenBeside(approval.expiresAt ?? '', ctx.nowMs) : '';
   let fixedTargets = '';
   if (pending && dry !== undefined) {
@@ -373,6 +420,7 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, re
     fixedTargets,
     dryRun: isSetting ? undefined : dryRunView(approval, pending, ctx),
     setting: isSetting ? settingView(approval, pending) : undefined,
+    partner: isPartner ? partnerView(approval, pending) : undefined,
     expiry: expires === '' ? '' : fill(APPROVAL_TEXTS.expires, { when: expires }),
     status: pending ? undefined : statusOf(approval, ctx),
   };
@@ -463,6 +511,10 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
  * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
  *   place of result.allThrough; with failures or skips it has the bands above.
+ * - a partner delay notice (fixKind partner_warning, Story 23.5): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
+ *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
+ *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
+ *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
@@ -474,6 +526,9 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   }
   if (request.fixKind === 'suspend_item' || request.fixKind === 'resume_item') {
     return itemResultView(request, result, render, production);
+  }
+  if (request.fixKind === 'partner_warning') {
+    return partnerResultView(request, result, render);
   }
   const total = numberOf(result.total) ?? 0;
   const resent = numberOf(result.resent) ?? 0;
@@ -563,6 +618,40 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
     slots = { reason };
   }
   return bandOf(key, slots, tone, icon, render);
+}
+
+/** The reason of a partner request that is kept as a draft: the kind's NOTSETUP (Fix.Kind.PartnerWarning). */
+export const PARTNER_NOT_SET_UP = "email delivery isn't set up yet";
+
+/** The band of a partner delay notice (Story 23.5): see resultView. */
+function partnerResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender): ResultView | undefined {
+  const total = numberOf(result.total) ?? 0;
+  const completed = numberOf(result.completed) ?? 0;
+  const reason = textOf(result.reason).replace(/\.$/, '');
+  let key: string;
+  let text: string;
+  let tone: ResultView['tone'] = 'partial';
+  let icon: ResultView['icon'] = 'triangle-alert';
+  if (request.state === 'executing') {
+    return undefined;
+  } else if (completed > 0 && completed >= total) {
+    key = 'result.partnerSent';
+    text = APPROVAL_TEXTS.partnerSent;
+    tone = 'success';
+    icon = 'circle-check';
+  } else if (completed > 0) {
+    key = 'result.partnerSentSome';
+    text = fill(APPROVAL_TEXTS.partnerSentSome, { completed: String(completed), total: String(total) });
+  } else if (request.state === 'failed' && reason === PARTNER_NOT_SET_UP) {
+    key = 'result.partnerKept';
+    text = APPROVAL_TEXTS.partnerKept;
+  } else if (reason === '') {
+    return undefined;
+  } else {
+    key = 'result.partnerNotSent';
+    text = fill(APPROVAL_TEXTS.partnerNotSent, { reason });
+  }
+  return { key, text, tone, icon, audit: render('audit.recorded', {}) };
 }
 
 /** A band from its key, slots, tone and icon: the text from the renderer and the audit line beneath it. */

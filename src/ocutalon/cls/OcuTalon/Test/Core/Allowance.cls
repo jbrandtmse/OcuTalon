@@ -16,6 +16,8 @@
 ///   - TestTimeReadsForms: the forms and the refusals of Observe.TimeReads, which the card tests rely on;
 ///   - TestNoticeOnAnotherDay: a retryAt on another day reads "on <day> at HH:MM ET", the form that the card tests accept beside the clock alone;
 ///   - TestMailAllowed: the email limit at 19, 20 and 21, outgoing rows and old rows ignored, the flag off;
+///   - TestMailAllowedCountsPartnerNotices (Story 23.5, AC10): the sent delay notices (outgoing mailbox rows with an ApprovalRef) count with the incoming emails toward the 20, a reply (no ApprovalRef) does
+///     not, a caller that asks for room for several (more) is allowed only while count plus more is at most 20, retryAt is the oldest of the two kinds, and the flag off lifts it;
 ///   - TestConversationNamesNoAllowance: Conversation never refers to the allowance, by its full or its short name, or to TryConsume
 ///     (AD-20);
 ///   - QA (Story 16.9): TestMailAllowedFailedReadIsNotAnAllowance (a count that cannot be read is an error and 0, never an allowance),
@@ -401,16 +403,16 @@ Method TestNotices()
 	Set notice = ##class(OcuTalon.Core.Allowance).Notice("zzref", "2030-06-15T10:00:00Z")
 	Do $$$AssertEquals(notice.SessionRef_"|"_notice.Kind_"|"_notice.CatalogKey, "zzref|allowance|conversation.sessionAllowance", "the session notice")
 	Set slots = {}.%FromJSON(notice.Slots)
-	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit_"|"_slots.time_"|"_slots.readmeLink, "number|50|2030-06-15T10:00:00Z|https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "with the limit, the time and the install link")
+	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit_"|"_slots.time_"|"_slots.readmeLink, "number|50|2030-06-15T10:00:00Z|https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", "with the limit, the time and the install link")
 	Do $$$AssertEquals(slots.%Size(), 3, "and nothing else")
 	Set capped = ##class(OcuTalon.Core.Allowance).DailyCapNotice("zzref", "2030-06-16T04:00:00Z")
 	Do $$$AssertEquals(capped.SessionRef_"|"_capped.Kind_"|"_capped.CatalogKey, "zzref|allowance|conversation.dailyCap", "the daily-cap notice")
 	Set slots = {}.%FromJSON(capped.Slots)
-	Do $$$AssertEquals(slots.time_"|"_slots.readmeLink_"|"_slots.%Size(), "2030-06-16T04:00:00Z|https://github.com/jbrandtmse/OcuTalon#install-it-yourself|2", "with the time and the install link")
+	Do $$$AssertEquals(slots.time_"|"_slots.readmeLink_"|"_slots.%Size(), "2030-06-16T04:00:00Z|https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself|2", "with the time and the install link")
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders the session notice")
 	Set clock = ##class(OcuTalon.Data.Time).ForMessage("2030-06-15T10:00:00Z", "2030-06-15T09:00:00Z")
-	Do $$$AssertEquals(text, "You've used this session's 50 messages for the hour. You can send more at "_clock_" ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "as the UX's text, in instance time and ET")
+	Do $$$AssertEquals(text, "You've used this session's 50 messages for the hour. You can send more at "_clock_" ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", "as the UX's text, in instance time and ET")
 }
 
 /// The email limit: with fewer than 20 incoming emails in the past hour MailAllowed allows; with 20 it refuses and retryAt is the
@@ -439,6 +441,38 @@ Method TestMailAllowed()
 	Set other = ..Session("mailother")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(other, now, .retryAt, .sc), 1, "another session's emails are not counted")
+}
+
+/// AC10 (Story 23.5): the delay notices that the session sent count with its incoming emails toward the 20 of the hour.
+Method TestMailAllowedCountsPartnerNotices()
+{
+	Set ref = ..Session("mailnotice")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	For i = 1:1:10 Do ..Mail(ref, "in", ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + i))
+	For i = 1:1:9 Do ..Notice(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -2500 + i))
+	For i = 1:1:5 Do ..Mail(ref, "out", ##class(OcuTalon.Data.Time).AddSeconds(now, -100 - i))
+	Do ..Notice(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -3601))
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc), 1, "10 incoming and 9 notices: one more is allowed (a reply and a notice older than the hour are not counted)")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc, 2), 0, "but room for two is not: 19 plus 2 is over 20")
+	Set oldest = ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + 1)
+	Do $$$AssertEquals(retryAt, ##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600), "retryAt is the oldest of the incoming emails and the notices plus 3600 seconds")
+	Do ..Notice(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -2400))
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, now, .retryAt, .sc), 0, "10 incoming and 10 notices: refused")
+	Do $$$AssertStatusOK(sc, "with no error")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(ref, ##class(OcuTalon.Data.Time).AddSeconds(oldest, 3600), .later, .sc), 1, "allowed again when the oldest has left the window")
+	Set only = ..Session("mailnoticeonly")
+	For i = 1:1:20 Do ..Notice(only, ##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + i))
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(only, now, .retryAt, .sc), 0, "20 notices alone use the 20 emails")
+	Do $$$AssertEquals(retryAt, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).AddSeconds(now, -3000 + 1), 3600), "and retryAt is the oldest notice plus 3600 seconds")
+	Set none = ..Session("mailnone")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(none, now, .retryAt, .sc, 20), 1, "room for 20 with nothing sent is allowed")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(none, now, .retryAt, .sc, 21)_"|"_retryAt, "0|", "room for 21 is refused, with no retryAt to give")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PartnerNotices(ref, ##class(OcuTalon.Data.Time).AddSeconds(now, -3600), .first, .sc)_"|"_first, "10|"_##class(OcuTalon.Data.Time).AddSeconds(now, -2500 + 1), "PartnerNotices counts the notices of the hour and gives the oldest")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PartnerNotices("", now, .first, .sc), 0, "an empty session reads none")
+	Do $$$AssertStatusNotOK(sc, "and says that the read failed")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Allowance).MailAllowed(only, now, .retryAt, .sc, 5), 1, "the flag off: no limit")
 }
 
 /// Matrix row 17, the error handling (QA): a count that cannot be read is an error status and the result is 0 with an empty retryAt,
@@ -471,7 +505,7 @@ Method TestNoticeCarriesTheConfiguredLimit()
 	Do $$$AssertEquals(slots.%GetTypeOf("limit")_"|"_slots.limit, "number|7", "the slot is the number 7")
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders it")
-	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's 7 messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself", "2030-06-15T10:00:00Z") '= "", "as 7 messages, at the notice's time: "_text)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).TimeReads(text, "You've used this session's 7 messages for the hour. You can send more ", " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself", "2030-06-15T10:00:00Z") '= "", "as 7 messages, at the notice's time: "_text)
 }
 
 /// A retryAt on another day than the reading reads with its day, as "on <day> at HH:MM ET" and not "at <day> at HH:MM ET", whatever the
@@ -484,7 +518,7 @@ Method TestNoticeOnAnotherDay()
 	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("conversation.sessionAllowance", notice.Slots, "web", "2030-06-15T09:00:00Z", 1, .sc)
 	Do $$$AssertStatusOK(sc, "the catalog renders the notice")
 	Set head = "You've used this session's 50 messages for the hour. You can send more "
-	Set tail = " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon#install-it-yourself"
+	Set tail = " ET, or install OcuTalon yourself to keep going: https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself"
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).TimeReads(text, head, tail, retryAt), "otherday", "the time carries its day: "_text)
 	Set day = ##class(OcuTalon.Data.Time).ForMessage(retryAt, "2030-06-15T09:00:00Z")
 	Do $$$AssertEquals(text, head_"on "_day_tail, "as 'on <day> at HH:MM', not 'at <day> at HH:MM': "_text)
@@ -594,6 +628,12 @@ Method Seed(ref As %String, count As %Integer, oldestAge As %Integer, until As %
 Method Mail(ref As %String, direction As %String, createdAt As %String) [ Private ]
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(ref, {"Kind": "mailbox", "Direction": (direction), "CreatedAt": (createdAt), "Subject": "zz mail"})
+}
+
+/// A sent delay notice of the session (Story 23.5): outgoing mailbox mail that carries the ApprovalRef of its request.
+Method Notice(ref As %String, createdAt As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Test.Data.Fixture).SimMessage(ref, {"Kind": "mailbox", "Direction": "out", "CreatedAt": (createdAt), "Subject": "zz notice", "ApprovalRef": "ZzApprovalRef00000001"})
 }
 
 /// The turns of the session, oldest first.

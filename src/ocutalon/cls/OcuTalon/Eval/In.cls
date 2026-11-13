@@ -1136,7 +1136,7 @@ Method Render(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Pri
 	}
 }
 
-/// Puts the citations and the memories of the Reply's HostData (each an array) in the TurnResult as JSON (Citations, Memories). A HostData with neither adds nothing.
+/// Puts the citations, the memories and the learned saves of the Reply's HostData (each an array) in the TurnResult as JSON (Citations, Memories, Learned). A HostData with none of them adds nothing.
 Method Cite(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Private ]
 {
 	If hostData = "" Quit
@@ -1145,6 +1145,7 @@ Method Cite(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Priva
 		If $ClassName(data) '= "%Library.DynamicObject" Quit
 		If (data.%GetTypeOf("citations") = "array") && (data.citations.%Size() > 0) Set result.Citations = data.citations.%ToJSON()
 		If (data.%GetTypeOf("memories") = "array") && (data.memories.%Size() > 0) Set result.Memories = data.memories.%ToJSON()
+		If (data.%GetTypeOf("learned") = "array") && (data.learned.%Size() > 0) Set result.Learned = data.learned.%ToJSON()
 	} Catch exception {
 		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
 	}

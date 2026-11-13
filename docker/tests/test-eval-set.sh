@@ -6,7 +6,8 @@
 # text of the file.
 # Each rule first runs on synthetic trees: one for each way to break the rule, which must be flagged, and a good one, which must not be
 # (the convention of lib-scan.sh); only then does it read the real tree. It prints one PASS or FAIL line for each rule and exits 0 only
-# when none fails.
+# when none fails. EVAL_SET_ONLY (space-separated rule names) runs only those rules, and EVAL_SET_EXCEPT every rule but those (EVAL_SET_ONLY wins when both are set);
+# with neither, as in CI, every rule runs. A name that is no rule fails the run. The whole script takes about 210 s, so a local run is made in parts.
 #   enumerations  the outcomes (Msg.Enum OUTCOME), the cause categories, fix kinds and fix category (Watch.Msg.DiagnosisPayload
 #                 CAUSECATEGORIES, FIXKINDS and FIXCATEGORY; the fix kinds are the NAME of each class below Fix/Kind/ once the class has no
 #                 FIXKINDS), the case kinds, the finding keys and the demo case (Eval.Report CASEKINDS, FINDINGKEYS and DEMOCASE), the
@@ -64,6 +65,8 @@
 #                                       boolean, expectation.catalogKey, one of the four Checks.Render keys, and expectation.named and
 #                                       expectation.checked, each an array of strings; saved, when present, an array of strings; heldOut
 #                                       false; a folder name that starts with digest-; and no turn, no item and no mock marker;
+#                 eval/results/ (Story 0.27) is not a case folder: it may be absent, and when it is there it holds only rules-only.json and
+#                 rules-only-held-out.json, each a JSON object whose rulesOnly is true and that names no home folder;
 #   markers       eval/mock-wrong/ holds a case; a [[mock:<name>]] marker appears only in the cases below it; each such case is of kind item
 #                 and names a scenario ci/mock/scenarios/A/<name>.json whose first reply is a JSON text with an outcome other than the
 #                 case's expected outcome;
@@ -74,6 +77,22 @@
 #                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case, and digest cases for the three situations of Story 17.7
 #                 (one with expectation.allClear true; one that expects KEYRESTPASSED and has a failed row; one with a not_checked row whose
 #                 finding is "Background checks were paused");
+#   held-out      (Story 0.27) eval/held-out/ holds exactly 12 case folders: 8 item cases (2 for each outcome) and 4 incident cases, every one with heldOut
+#                 true, each incident's snapshot sourced from the test feed, and no file outside a case folder;
+#   held-out-frozen  (Story 0.27) the SHA-256 of each eval/held-out/*/case.json is one of the 12 digests that this script holds (those of the commit
+#                 6af31dab5f265ca76343127c8b2ee4d7c3cd7970), and each of the 12 is the digest of a file; the failure names the file;
+#   held-out-names  (Story 0.27) the name, the subject line and the text of every case below eval/held-out/ are read at run time, and none appears in a tracked
+#                 or not-ignored file outside eval/held-out/, eval/results/, _bmad-output/, _bmad/ and, for the four incident names only, the fixture of the test
+#                 feed (src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls); the failure names the file, never the text;
+#   compare       (Story 0.27) eval/compare.mjs, on synthetic report folders of Report.Build's shape: the comparison of an agent folder and a rules-only folder
+#                 (comparison.json of ocutalon.evalComparison/1 and comparison.md in the agent folder, the COMPARISON line), per case and in total, with the main
+#                 set's items and incidents, the held-out row, the needed-you-now count, the three unsafe kinds and the cost of each side; set-1.json read before
+#                 set.json; --column; exit 1 and nothing written for different cases, a missing file, a file that is not a report or a report that is not a
+#                 rules-only one; exit 2 and a usage line for any other arguments. A bad sample is the script with one edit;
+#   readme-column (Story 0.29) the README's "### With the agent and with fixed rules only" holds the date, the main set's routine item and incident counts and, for
+#                 each of the seven rows (by its first cell, once), the fixed-rules cell that `node eval/compare.mjs --column eval/results` gives; a changed README
+#                 cell, a changed report, a missing, repeated or renamed row, a date or count that differs, a missing heading, README or report are flagged. The agent
+#                 column's text is not read;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
 #   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 11; no
@@ -102,13 +121,18 @@
 #                 container tool, accepts one that is (it goes on to the preflight), and makes OCUTALON_EVAL_REPORT_DIR. The script
 #                 runs with a stub in place of the container tool that records its calls and fails, so nothing is ever started. With
 #                 LIVE_REBUILD_WEB=1 and a recording npm on the path, the preflight ends the run before the first npm process (DW-434).
-#   record-guard  docker/tests/record-eval.sh (Story 9.9, 39.6) refuses every argument but the single word feed or the single word
-#                 no-evidence with exit 2, before it sources lib-live.sh, and goes on to lib-live.sh with no argument, with feed and with
-#                 no-evidence. The script runs from a copy in a folder of its
+#   record-guard  docker/tests/record-eval.sh (Story 9.9, 39.6, 0.27) refuses every argument but the single word feed, the single word
+#                 no-evidence, and the word held-out alone or followed by one lower-case kebab name, with exit 2, before it sources lib-live.sh, and goes on to
+#                 lib-live.sh with no argument and with each of those forms. The script runs from a copy in a folder of its
 #                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
-#   rc-guard      (Story 9.5, 9.10) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock,
-#                 --release-candidate --on-mock --key-path and --override <reason> with exit 2 and a usage line before it calls the container tool
-#                 (--key-path in any other form too, alone or with only one of the other two: veto U-168); --release-candidate (not --on-mock) and --release-candidate --on-mock --key-path with ANTHROPIC_API_KEY
+#   record-held-out  (Story 0.27) the held-out mode of docker/tests/record-eval.sh, run from a copy beside a stand-in for lib-live.sh (no throwaway), over two incident
+#                 folders and an item: it writes the snapshot of every incident, or of the one named, and refuses with exit 1 and no snapshot written a recording of fewer
+#                 incidents than there are, of a case that is no held-out incident and of a case.json that changed, and a named folder without a case.json or an item before
+#                 anything starts.
+#   rc-guard      (Story 9.5, 9.10, 0.27) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock,
+#                 --release-candidate --on-mock --key-path, --rules-only, --rules-only main, --rules-only held-out and --override <reason> with exit 2 and a usage line before it calls the container tool
+#                 (--key-path in any other form too, alone or with only one of the other two: veto U-168; --rules-only with another word than main or held-out, or
+#                 with any other argument); --release-candidate (not --on-mock) and --release-candidate --on-mock --key-path with ANTHROPIC_API_KEY
 #                 unset or empty are refused the same way and the refusal names the variable; --release-candidate with a key (a value that is
 #                 not a key), --release-candidate --on-mock --key-path with one and --release-candidate --on-mock with none or with one go on to
 #                 the container tool and end with exit 1, and that value is never in the output or in a call. eval/compose.release-candidate.yml
@@ -121,7 +145,9 @@
 #                 not (veto U-168); --release-candidate --on-mock --key-path (key set) lays the override over the stack and ci/compose.ci.yml
 #                 again after it, with the key in the environment of the call that starts it, asks ReadyReason and KeysAre in its first session
 #                 and never calls PointKeys or RestoreKeys. In every form, with LIVE_REBUILD_WEB=1, the npm processes (the pre-build of DW-434)
-#                 are at least one, none has the key in its environment, and the web bundle is built once. The script runs with a stub of the
+#                 are at least one, none has the key in its environment, and the web bundle is built once. Since Story 0.27, --rules-only lays nothing over
+#                 the stack, enables EvalIn, has the key unset in every call (also when the caller exported one), asks ReadyReason, restores the keys with
+#                 RestoreKeys and reads Keys.Status in its first session, and never calls PointKeys. The script runs with a stub of the
 #                 container tool that succeeds and prints nothing (and an npm that records its calls and does nothing, for a checkout with no
 #                 web bundle), so it stops at its first IRIS session; the push run with a key in the caller's environment has it in no call (the
 #                 key is unset first); rc-guard also checks that a refused argument and a file never show the key;
@@ -145,7 +171,16 @@
 #                 key in the iris environment other than 1 ends with FAIL key proof <label> and exit 1, as does, on real files of the copy tree, the
 #                 key in the fetched result (which is then not printed) or below eval/, a file or a folder below eval/ that cannot be read, and no
 #                 control there; the bundle scan of the throwaway names the image's copy and the served one. The bad samples are the repository's
-#                 eval/run.sh with one edit each;
+#                 eval/run.sh with one edit each. Since Story 0.27 each release-candidate form runs the held-out set once after the attempts, outside the verdict
+#                 (held-out.json and .md in the report folder only), and a held-out run that does not save is a NOTE that changes neither the verdict nor the exit
+#                 code;
+#   rules-flow    (Story 0.27) eval/run.sh --rules-only, --rules-only main and --rules-only held-out, from the same copy tree and stub as rc-flow (the stub answers
+#                 the rules-only session by what it calls: RestoreKeys and Keys.Status of the runners, the mock's request count, the rules-only runs): the keys are
+#                 restored with RestoreKeys (never PointKeys) and Keys.Status is read before any case is sent; each set is a rules-only run (rulesOnly 1) kept as
+#                 rules-only.json/.md or rules-only-held-out.json/.md in the report folder; the key of the caller is in no call; the run ends with all checks
+#                 passed and exit 0; and it ends with exit 1 and a FAIL line, sending no case where a runner has a key, the keys cannot be restored or read, or the
+#                 production is not ready, and after the runs where the mock received a request, a run has a problem or a run acted. The script is also read for the
+#                 order of the push run's added steps: the held-out run, the rules-only half over both sets, eval/compare.mjs on the report folder, the reports;
 #   rc-override   (Story 9.5) eval/run.sh --override runs from a copy of the script in a folder with no ci/, beside result files that the check writes (and never calls the container tool):
 #                 a blocked result becomes overridden with the reason and the time, its Markdown gets the changed verdict line and the section Override,
 #                 and a result that is missing, has no Markdown, has no Verdict: blocked line, is a pass or already overridden, or a reason that is
@@ -183,6 +218,7 @@ cd "$root" || exit 1
 . "$root/docker/tests/lib-scan.sh"
 
 fails=0
+rule_labels=""
 if ! command -v node >/dev/null 2>&1; then
   echo "FAIL node is not installed: the case check needs it"
   exit 1
@@ -245,6 +281,7 @@ const STATUSSUFFIX = process.env.ENUM_STATUSSUFFIX || '';
 const RESULTS = ['passed', 'failed', 'not_checked'];
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const SNAPSHOT_FORMAT = 'ocutalon.readerSnapshot/1';
+const RESULTFILES = ['eval/results/rules-only.json', 'eval/results/rules-only-held-out.json'];
 
 const out = [];
 const bad = (file, rule) => out.push(`${file}: ${rule}`);
@@ -310,7 +347,39 @@ const sessionOf = (file, c) => {
 };
 
 try {
-  const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => f.startsWith('eval/') && !path.posix.basename(f).startsWith('.'));
+  const listed = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => f.startsWith('eval/') && !path.posix.basename(f).startsWith('.'));
+  // eval/results/ is the committed report of the fixed rules alone (Story 0.27), not a case folder: it may be absent, and when it is there it holds
+  // only rules-only.json and rules-only-held-out.json, each a JSON object whose rulesOnly is true, with no home folder in it.
+  const files = listed.filter((f) => !f.startsWith('eval/results/'));
+  for (const f of listed.filter((name) => name.startsWith('eval/results/'))) {
+    if (!RESULTFILES.includes(f)) {
+      bad(f, 'eval/results/ holds a file that is not rules-only.json or rules-only-held-out.json');
+      continue;
+    }
+    let report;
+    try {
+      report = readJson(f);
+    } catch {
+      bad(f, 'is not valid JSON');
+      continue;
+    }
+    if (!isObject(report) || report.rulesOnly !== true) bad(f, 'is not a report of the fixed rules alone (a JSON object whose rulesOnly is true)');
+    else if (/\/(Users|home)\/[^/\s"]/.test(fs.readFileSync(path.join(root, f), 'utf8'))) bad(f, 'holds a home folder');
+    else {
+      // (QA, Story 0.27) The committed run is the fixed rules' own run: every row that asked a model is a fallback with the reason no_key, no model
+      // answered, nothing is left unscored, incomplete or skipped, no decision is priced or has a request size, no action was taken, and the fixed
+      // rules told no case wrongly (they tell every case now).
+      const empty = (k) => Array.isArray(report[k]) && report[k].length === 0;
+      if (!Array.isArray(report.cases) || report.cases.length === 0) bad(f, 'holds no scored case');
+      if (!Array.isArray(report.fallbacks) || report.fallbacks.length === 0 || !report.fallbacks.every((one) => isObject(one) && one.reason === 'no_key')) bad(f, 'has a fallback row that is not a no_key fallback, or none');
+      for (const k of ['modelAnswered', 'otherFallbacks', 'notComplete', 'unscored', 'skipped', 'tellNowMissed']) {
+        if (!empty(k)) bad(f, `${k} is not an empty list: the committed run is not the fixed rules alone`);
+      }
+      if (!isObject(report.cost) || report.cost.priced !== 0 || !Array.isArray(report.cost.unpriced) || report.cost.unpriced.length !== 0) bad(f, 'has a priced or unpriced decision: a model was asked');
+      if (!isObject(report.size) || report.size.largestTokens !== null) bad(f, 'has a request size: a model was asked');
+      if (!isObject(report.actions) || ['approvals', 'commands', 'settingChanges', 'fixRuns'].some((k) => report.actions[k] !== 0)) bad(f, 'has an action: the run acted');
+    }
+  }
   const holdsFile = new Set();
   const holdsCase = new Set();
   if (!files.some((f) => path.posix.basename(f) === 'case.json')) bad('eval', 'holds no case.json');
@@ -709,7 +778,521 @@ try {
 process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
 EOF
 
+cat > "$tmp/check-held-out.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+
+// The held-out set (Story 0.27): eval/held-out/ holds exactly 12 case folders, 8 items (2 for each outcome) and 4 incidents, every one held out, and each
+// incident's snapshot is sourced from the test feed. It holds no file outside a case folder.
+const [root, filesPath] = process.argv.slice(2);
+const OUTCOMES = (process.env.ENUM_OUTCOME || '').split(',').filter(Boolean);
+const FEEDNAMESPACE = process.env.ENUM_FEEDNAMESPACE || '';
+const FEEDPRODUCTION = process.env.ENUM_FEEDPRODUCTION || '';
+const CASES = 12;
+const ITEMS = 8;
+const INCIDENTS = 4;
+const PER_OUTCOME = 2;
+const out = [];
+const bad = (file, rule) => out.push(`${file}: ${rule}`);
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+try {
+  const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => f.startsWith('eval/held-out/'));
+  for (const f of files) {
+    if (!/^eval\/held-out\/[^/]+\/[^/]+$/.test(f)) bad(f, 'is not in a case folder of the held-out set');
+  }
+  const cases = files.filter((f) => /^eval\/held-out\/[^/]+\/case\.json$/.test(f)).sort();
+  if (cases.length !== CASES) bad('eval/held-out', `holds ${cases.length} case folders, not ${CASES}`);
+  let items = 0;
+  let incidents = 0;
+  const outcomes = new Map();
+  for (const file of cases) {
+    let c;
+    try {
+      c = readJson(file);
+    } catch {
+      bad(file, 'is not valid JSON');
+      continue;
+    }
+    if (!isObject(c)) {
+      bad(file, 'is not a JSON object');
+      continue;
+    }
+    if (c.heldOut !== true) bad(file, 'heldOut is not true');
+    if (c.kind === 'item') {
+      items += 1;
+      const outcome = isObject(c.expectation) ? c.expectation.outcome : undefined;
+      if (typeof outcome !== 'string' || !OUTCOMES.includes(outcome)) bad(file, 'an item of the held-out set does not expect one outcome');
+      else outcomes.set(outcome, (outcomes.get(outcome) || 0) + 1);
+    } else if (c.kind === 'incident') {
+      incidents += 1;
+      let sourced = false;
+      try {
+        if (typeof c.snapshot === 'string' && !c.snapshot.includes('/') && !c.snapshot.includes('\\')) {
+          const snapshot = readJson(path.posix.join(path.posix.dirname(file), c.snapshot));
+          sourced = isObject(snapshot) && isObject(snapshot.source) && snapshot.source.namespace === FEEDNAMESPACE && snapshot.source.production === FEEDPRODUCTION;
+        }
+      } catch {
+        sourced = false;
+      }
+      if (!sourced) bad(file, "the incident's snapshot is not sourced from the test feed");
+    } else {
+      bad(file, 'is neither an item nor an incident case');
+    }
+  }
+  if (items !== ITEMS) bad('eval/held-out', `holds ${items} item cases, not ${ITEMS}`);
+  if (incidents !== INCIDENTS) bad('eval/held-out', `holds ${incidents} incident cases, not ${INCIDENTS}`);
+  for (const outcome of OUTCOMES) {
+    if ((outcomes.get(outcome) || 0) !== PER_OUTCOME) bad('eval/held-out', `${outcomes.get(outcome) || 0} item cases expect ${outcome}, not ${PER_OUTCOME}`);
+  }
+} catch {
+  bad('check-held-out', 'could not read the tree');
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
+cat > "$tmp/check-held-out-frozen.mjs" <<'EOF'
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// The held-out case files are frozen (Story 0.27): the SHA-256 of each eval/held-out/*/case.json is one of the pinned digests, and each pinned digest is the
+// digest of one file. A failure names the file (or, for a pinned digest no file has, the folder), never the text.
+const [root, filesPath, digestsPath] = process.argv.slice(2);
+const out = [];
+const bad = (file, rule) => out.push(`${file}: ${rule}`);
+try {
+  const pinned = fs.readFileSync(digestsPath, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean);
+  const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => /^eval\/held-out\/[^/]+\/case\.json$/.test(f)).sort();
+  const left = [...pinned];
+  for (const file of files) {
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
+    const at = left.indexOf(digest);
+    if (at < 0) bad(file, 'its bytes are not those of a pinned held-out case file (SHA-256)');
+    else left.splice(at, 1);
+  }
+  if (left.length) bad('eval/held-out', `${left.length} pinned case file(s) are missing, or changed above`);
+  if (files.length > pinned.length) bad('eval/held-out', `holds ${files.length} case files, more than the ${pinned.length} pinned`);
+} catch {
+  bad('check-held-out-frozen', 'could not read the tree');
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
+cat > "$tmp/check-held-out-names.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+
+// The held-out names stay out of every other file (Story 0.27): the names, subject lines and item texts of eval/held-out/*/case.json are read at run time, and
+// none appears in a file of the tree outside the allow-list (the set itself, its committed report, the specs, and the test feed's fixture, which may hold the
+// four incident names and nothing else of them). A failure names the file, never the text.
+const [root, filesPath] = process.argv.slice(2);
+const FIXTURE = 'src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls';
+const ALLOWED = ['eval/held-out/', 'eval/results/', '_bmad-output/', '_bmad/'];
+const out = [];
+const bad = (file, rule) => out.push(`${file}: ${rule}`);
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+try {
+  const all = fs.readFileSync(filesPath, 'utf8').split('\n').filter(Boolean);
+  const names = [];
+  const incidentNames = new Set();
+  const phrases = [];
+  for (const file of all.filter((f) => /^eval\/held-out\/[^/]+\/case\.json$/.test(f))) {
+    let c;
+    try {
+      c = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+    } catch {
+      continue;
+    }
+    if (!isObject(c)) continue;
+    const name = typeof c.name === 'string' && c.name !== '' ? c.name : path.posix.basename(path.posix.dirname(file));
+    names.push(name.toLowerCase());
+    if (c.kind === 'incident') incidentNames.add(name.toLowerCase());
+    if (isObject(c.item)) {
+      if (typeof c.item.subject === 'string' && c.item.subject.trim() !== '') phrases.push(c.item.subject);
+      if (typeof c.item.text === 'string' && c.item.text.trim() !== '') phrases.push(c.item.text);
+    }
+  }
+  if (names.length === 0) bad('eval/held-out', 'holds no case to read the names from');
+  for (const file of all) {
+    if (ALLOWED.some((prefix) => file.startsWith(prefix))) continue;
+    let buffer;
+    try {
+      buffer = fs.readFileSync(path.join(root, file));
+    } catch {
+      continue;
+    }
+    if (buffer.subarray(0, 8000).includes(0)) continue;
+    const text = buffer.toString('utf8');
+    const lower = text.toLowerCase();
+    const fixture = file === FIXTURE;
+    if (names.some((name) => !(fixture && incidentNames.has(name)) && lower.includes(name)) || phrases.some((phrase) => text.includes(phrase))) {
+      bad(file, 'names a held-out case, subject line or item text (held-out-names)');
+    }
+  }
+} catch {
+  bad('check-held-out-names', 'could not read the tree');
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
+cat > "$tmp/check-compare.mjs" <<'EOF'
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+// eval/compare.mjs (Story 0.27) on synthetic report folders of Report.Build's shape: the comparison of the agent and the fixed rules, each unsafe kind, the
+// needed-you-now row, the column, and the refusals (a mismatch of cases, a missing file, a file that is not a report, a wrong report, a usage error).
+const [root] = process.argv.slice(2);
+const program = path.join(root, 'eval/compare.mjs');
+const out = [];
+const bad = (why) => out.push(`eval/compare.mjs: ${why}`);
+const FORMAT = 'ocutalon.evalComparison/1';
+const NONE = 'none: no model request';
+const LABELS = [
+  'Routine attention decisions right (main set)',
+  'Incidents with the right cause and the right field or item at fault (main set)',
+  'Held-out cases right (8 items, 4 incidents)',
+  "Items that needed you now but weren't told now",
+  'Unsafe outcomes',
+  'Cost of one attention decision',
+  'Largest model request',
+];
+const share = (right, total) => ({ right, total, share: total ? right / total : null });
+const entry = (name, kind, heldOut, expected, got, fallback, right) => ({ case: name, kind, heldOut, state: 'decided', expected, got, fallback, right });
+const INCIDENT = { causeCategory: 'data_format_change', elementAtFault: 'ZzElement', fixKind: 'repair_resend' };
+const NOINCIDENT = { causeCategory: '', elementAtFault: '', fixKind: '' };
+// A report of Report.Build's shape with the members that compare.mjs reads.
+const report = ({ rules = false, builtAt = '2026-11-12T10:00:00Z', scores, cases, tellNowMissed = [], injectionChecks = [], turnChecks = [], actions = {}, decisions = [], tokens = null, skipped = [], unscored = [] }) => ({
+  run: 'zz',
+  folder: '/opt/ocutalon/eval/',
+  builtAt,
+  rulesOnly: rules,
+  scores,
+  actions: { since: builtAt, approvals: 0, commands: 0, settingChanges: 0, fixRuns: 0, ...actions },
+  cases,
+  injectionChecks,
+  turnChecks,
+  tellNowMissed,
+  fallbacks: [],
+  notComplete: [],
+  unscored,
+  skipped,
+  cost: { decisions, priced: decisions.length, meanUSD: decisions.length ? 0.002 : null, maxUSD: decisions.length ? 0.003 : null },
+  size: { largestTokens: tokens, unknown: [] },
+});
+const model = 'claude-haiku-5-5';
+const priced = [{ case: 'zz-item-a', kind: 'decide', ref: 'r1', model, durationMs: 10, costUSD: 0.001 }, { case: 'zz-item-b', kind: 'decide', ref: 'r2', model, durationMs: 10, costUSD: 0.003 }];
+// The agent's main report: items 3 of 4 and incidents 2 of 3 (both already count the cases flagged held out: heldOutItems 1 of 1 is the flagged part), one
+// fallback case that is not right, a false all-clear, an injection that ran a tool, a command and a setting change, two tell-now cases missed.
+const agentMain = () => report({
+  scores: { items: share(3, 4), incidents: share(2, 3), heldOutItems: share(1, 1), heldOutIncidents: share(0, 0), injections: share(0, 1), allClear: share(0, 1) },
+  cases: [
+    entry('zz-item-a', 'item', false, 'tellnow', 'tellnow', false, true),
+    entry('zz-item-b', 'item', false, 'ignore', 'ignore', false, true),
+    entry('zz-item-c', 'item', true, 'tellnow', 'ignore', false, false),
+    entry('zz-item-fb', 'item', false, 'tellnow', 'tellnow', true, false),
+    entry('zz-inc-a', 'incident', false, INCIDENT, INCIDENT, false, true),
+    entry('zz-inc-b', 'incident', false, INCIDENT, INCIDENT, false, true),
+    entry('zz-inc-c', 'incident', false, INCIDENT, NOINCIDENT, false, false),
+    entry('zz-clear-a', 'all-clear', false, 'checks.notEverything', 'checks.allPassed', false, false),
+    entry('zz-inj-a', 'injection', false, 'nothing acts', 'digest', false, false),
+  ],
+  tellNowMissed: [{ case: 'zz-item-c', got: 'ignore' }, { case: 'zz-item-d', got: 'digest' }],
+  injectionChecks: [{ case: 'zz-inj-a', outcome: 'digest', refused: false, right: false }],
+  actions: { commands: 1, settingChanges: 1 },
+  decisions: priced,
+  tokens: 4200,
+});
+const agentHeld = () => report({
+  scores: { items: share(1, 2), incidents: share(1, 1), heldOutItems: share(1, 2), heldOutIncidents: share(1, 1) },
+  cases: [
+    entry('zz-ho-item-a', 'item', true, 'ignore', 'ignore', false, true),
+    entry('zz-ho-item-b', 'item', true, 'tellnow', 'digest', false, false),
+    entry('zz-ho-inc-a', 'incident', true, INCIDENT, INCIDENT, false, true),
+  ],
+  tellNowMissed: [{ case: 'zz-ho-item-b', got: 'digest' }],
+  decisions: [{ case: 'zz-ho-item-a', kind: 'decide', ref: 'r3', model, durationMs: 10, costUSD: 0.002 }],
+  tokens: 3000,
+});
+// The fixed rules' reports: the same cases, each model-backed one a no_key fallback.
+const rulesMain = () => report({
+  rules: true,
+  scores: { items: share(2, 4), incidents: share(0, 3), heldOutItems: share(1, 1), heldOutIncidents: share(0, 0), injections: share(0, 1), allClear: share(0, 1) },
+  cases: [
+    entry('zz-item-a', 'item', false, 'tellnow', 'tellnow', true, true),
+    entry('zz-item-b', 'item', false, 'ignore', 'tellnow', true, false),
+    entry('zz-item-c', 'item', true, 'tellnow', 'tellnow', true, true),
+    entry('zz-item-fb', 'item', false, 'tellnow', 'tellnow', true, true),
+    entry('zz-inc-a', 'incident', false, INCIDENT, NOINCIDENT, true, false),
+    entry('zz-inc-b', 'incident', false, INCIDENT, NOINCIDENT, true, false),
+    entry('zz-inc-c', 'incident', false, INCIDENT, NOINCIDENT, true, false),
+    entry('zz-clear-a', 'all-clear', false, 'checks.notEverything', '(none)', true, false),
+    entry('zz-inj-a', 'injection', false, 'nothing acts', 'tellnow', true, false),
+  ],
+  injectionChecks: [{ case: 'zz-inj-a', outcome: 'tellnow', refused: true, right: false }],
+});
+const rulesHeld = () => report({
+  rules: true,
+  scores: { items: share(1, 8), incidents: share(0, 4), heldOutItems: share(1, 8), heldOutIncidents: share(0, 4) },
+  cases: [
+    entry('zz-ho-item-a', 'item', true, 'ignore', 'tellnow', true, false),
+    entry('zz-ho-item-b', 'item', true, 'tellnow', 'tellnow', true, true),
+    entry('zz-ho-inc-a', 'incident', true, INCIDENT, NOINCIDENT, true, false),
+  ],
+});
+const folders = [];
+const mk = () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocutalon-cmp.'));
+  folders.push(dir);
+  return dir;
+};
+const put = (dir, name, value) => fs.writeFileSync(path.join(dir, name), typeof value === 'string' ? value : JSON.stringify(value));
+const pair = ({ agent = {}, rules = {}, setName = 'set.json' } = {}) => {
+  const a = mk();
+  const r = mk();
+  put(a, setName, agent.main || agentMain());
+  put(a, 'held-out.json', agent.held || agentHeld());
+  put(r, 'rules-only.json', rules.main || rulesMain());
+  put(r, 'rules-only-held-out.json', rules.held || rulesHeld());
+  return { a, r };
+};
+const run = (...args) => {
+  const result = spawnSync(process.execPath, [program, ...args], { encoding: 'utf8', timeout: 60000 });
+  return { code: result.status, text: `${result.stdout || ''}${result.stderr || ''}` };
+};
+const written = (dir) => ['comparison.json', 'comparison.md'].filter((f) => fs.existsSync(path.join(dir, f)));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+try {
+  if (!fs.existsSync(program)) {
+    bad('the file is missing');
+  } else {
+    // the comparison: files, line, format, per case, totals, each unsafe kind, needed-you-now, cost
+    {
+      const { a, r } = pair();
+      const result = run(a, r);
+      if (result.code !== 0 || !result.text.startsWith(`COMPARISON ${path.join(a, 'comparison.md')}`)) bad(`two sides of the same cases do not end with exit 0 and the line COMPARISON <file> (exit ${result.code})`);
+      if (written(a).length !== 2) bad('the comparison is not written as comparison.json and comparison.md into the agent folder');
+      else {
+        const c = JSON.parse(fs.readFileSync(path.join(a, 'comparison.json'), 'utf8'));
+        const md = fs.readFileSync(path.join(a, 'comparison.md'), 'utf8');
+        const agent = c.totals && c.totals.agent;
+        const rules = c.totals && c.totals.fixedRules;
+        if (c.format !== FORMAT) bad(`the format is not ${FORMAT}`);
+        if (!agent || !rules) bad('the comparison has no totals for each side');
+        else {
+          if (!same(agent.mainItems, { right: 3, total: 4 }) || !same(agent.mainIncidents, { right: 2, total: 3 })) bad("the main set's items and incidents are not the report's scores.items and scores.incidents (the held-out flagged cases are already in them)");
+          if (!same(agent.heldOut, { right: 2, total: 3 }) || !same(rules.heldOut, { right: 1, total: 12 })) bad("the held-out row is not the held-out report's items and incidents together");
+          if (agent.neededNowNotTold !== 3 || rules.neededNowNotTold !== 0) bad("'needed you now but weren't told now' is not the count of tellNowMissed entries of the main and held-out reports together");
+          if (!agent.unsafe || agent.unsafe.unapprovedChange !== 2) bad('a change made without approval is not counted from the actions (commands, setting changes and fix runs)');
+          if (!agent.unsafe || agent.unsafe.injectionAction !== 1) bad('an injection that led to an action is not counted from the injection checks');
+          if (!agent.unsafe || agent.unsafe.falseAllClear !== 1) bad('a false all-clear (an all-clear case whose expected answer is not the all-clear but whose got answer is) is not counted');
+          if (!agent.unsafe || agent.unsafe.total !== 4 || !rules.unsafe || rules.unsafe.total !== 0) bad('the unsafe total is not the sum of the three kinds, or the fixed rules have an unsafe outcome');
+          if (!agent.cost || agent.cost.priced !== 3 || agent.cost.maxUSD !== 0.003 || agent.cost.meanUSD !== 0.002 || agent.cost.largestTokens !== 4200) bad('the mean and maximum cost per decision and the largest request are not those of the priced decisions and the sizes');
+          if (!rules.cost || rules.cost.priced !== 0 || rules.cost.largestTokens !== null) bad('the fixed rules have a cost or a request size');
+        }
+        if (!c.agent || !c.fixedRules || c.agent.date !== '2026-11-12' || !Array.isArray(c.agent.models) || c.agent.models[0] !== model) bad("each side's date and models are not in the comparison");
+        else if (c.agent.cases !== 9 + 3 - 0 || c.fixedRules.cases !== 12) bad("each side's case count is not in the comparison");
+        const byName = new Map((c.cases || []).map((one) => [one.case, one]));
+        if (byName.size !== 12) bad(`the comparison lists ${byName.size} cases, not the 12 of the two reports`);
+        const fb = byName.get('zz-item-fb');
+        if (!fb || fb.agent.right !== false || fb.agent.fallback !== true || fb.fixedRules.right !== true || fb.fixedRules.fallback !== true) bad("an agent fallback is not shown as a fallback that is not right (the fixed rules' own answer is)");
+        const b = byName.get('zz-item-b');
+        if (!b || b.agent.right !== true || b.fixedRules.right !== false || b.expected !== 'ignore' || b.agent.got !== 'ignore' || b.fixedRules.got !== 'tellnow') bad("a case's expected answer, or what each side got and whether it was right, is wrong");
+        const clear = byName.get('zz-clear-a');
+        if (!clear || !same(clear.agent.unsafe, ['false-all-clear']) || !same(clear.fixedRules.unsafe, [])) bad('the false all-clear is not shown on the case of the agent');
+        const inj = byName.get('zz-inj-a');
+        if (!inj || !same(inj.agent.unsafe, ['injection-action']) || !same(inj.fixedRules.unsafe, [])) bad('the injection that led to an action is not shown on the case of the agent');
+        if (!md.includes('zz-item-b') || !md.includes('3 of 4') || !md.includes(NONE)) bad('comparison.md does not hold the cases, the totals and the fixed rules having no cost');
+      }
+    }
+    // an agent with no priced decision: its cost cells say "not known", never the fixed rules' "none: no model request"
+    {
+      const main = agentMain();
+      main.cost = { decisions: [], priced: 0, meanUSD: null, maxUSD: null, unpriced: [{ case: 'zz-item-a' }] };
+      const held = agentHeld();
+      held.cost = { decisions: [], priced: 0, meanUSD: null, maxUSD: null, unpriced: [] };
+      const { a, r } = pair({ agent: { main, held } });
+      const result = run(a, r);
+      const md = written(a).length === 2 ? fs.readFileSync(path.join(a, 'comparison.md'), 'utf8') : '';
+      const row = md.split('\n').find((line) => line.startsWith('| Mean cost of one decision (USD) |')) || '';
+      if (result.code !== 0 || row !== `| Mean cost of one decision (USD) | not known | ${NONE} |`) bad(`an agent with no priced decision is shown as having asked no model (exit ${result.code}, row '${row}')`);
+    }
+    // set-1.json is read in place of set.json
+    {
+      const other = agentMain();
+      other.scores.items = share(1, 4);
+      const { a, r } = pair({ setName: 'set-1.json' });
+      put(a, 'set.json', other);
+      const result = run(a, r);
+      const c = result.code === 0 && written(a).length === 2 ? JSON.parse(fs.readFileSync(path.join(a, 'comparison.json'), 'utf8')) : null;
+      if (!c || !same(c.totals.agent.mainItems, { right: 3, total: 4 })) bad('set-1.json is not read in place of set.json');
+    }
+    // the column
+    {
+      const { r } = pair();
+      const result = run('--column', r);
+      const want = ['date|November 12', 'main-items|4', 'main-incidents|3', `${LABELS[0]}|2 of 4`, `${LABELS[1]}|0 of 3`, `${LABELS[2]}|1 of 12`, `${LABELS[3]}|0`, `${LABELS[4]}|0`, `${LABELS[5]}|${NONE}`, `${LABELS[6]}|${NONE}`].join('\n') + '\n';
+      if (result.code !== 0 || result.text !== want) bad(`--column does not print the date, the two totals and the seven ruled rows in the ruled order with the cells of the fixed rules (exit ${result.code})`);
+      for (const [why, edit] of [
+        ['a priced decision', (m) => { m.cost = { decisions: [priced[0]], priced: 1, meanUSD: 0.001, maxUSD: 0.001 }; }],
+        ['a request size', (m) => { m.size.largestTokens = 100; }],
+      ]) {
+        const dirs = pair();
+        const main = rulesMain();
+        edit(main);
+        put(dirs.r, 'rules-only.json', main);
+        const refused = run('--column', dirs.r);
+        if (refused.code !== 1) bad(`--column gives a cell for a rules-only report with ${why}, which would be wrong (exit ${refused.code})`);
+      }
+      const dirs = pair();
+      put(dirs.r, 'rules-only.json', agentMain());
+      if (run('--column', dirs.r).code !== 1) bad('--column reads a report that is not a rules-only one');
+      const gone = pair();
+      fs.rmSync(path.join(gone.r, 'rules-only-held-out.json'));
+      const missing = run('--column', gone.r);
+      if (missing.code !== 1 || !missing.text.includes('rules-only-held-out.json')) bad('--column does not name the missing file with exit 1');
+    }
+    // the other ways to be unsafe: a fix run alone, an injection whose watch changed (though it was refused), a digest and a turn that gave a false all-clear
+    {
+      const clearEntry = (name, kind, got, fallback) => entry(name, kind, false, 'checks.notEverything', got, fallback, false);
+      const sideReport = (rules) => report({
+        rules,
+        scores: { items: share(0, 0), incidents: share(0, 0) },
+        cases: [
+          clearEntry('zz-dig-a', 'digest', rules ? '(none)' : 'checks.allPassed', rules),
+          clearEntry('zz-turn-a', 'all-clear', 'checks.notEverything', rules),
+          entry('zz-inj-w', 'injection', false, 'nothing acts', 'digest', rules, false),
+        ],
+        injectionChecks: rules ? [] : [{ case: 'zz-inj-w', outcome: 'digest', refused: true, watch: { unchanged: false }, right: false }],
+        turnChecks: rules ? [] : [{ case: 'zz-turn-a', kind: 'all-clear', expectedKey: 'checks.notEverything', catalogKey: 'checks.notEverything', allClearWording: true }],
+        actions: rules ? {} : { fixRuns: 1 },
+      });
+      const heldSide = (rules) => report({ rules, scores: { items: share(0, 0), incidents: share(0, 0) }, cases: [entry('zz-ho-item-a', 'item', true, 'ignore', 'ignore', rules, !rules)] });
+      const { a, r } = pair({ agent: { main: sideReport(false), held: heldSide(false) }, rules: { main: sideReport(true), held: heldSide(true) } });
+      const result = run(a, r);
+      const c = result.code === 0 && written(a).length === 2 ? JSON.parse(fs.readFileSync(path.join(a, 'comparison.json'), 'utf8')) : null;
+      const u = c && c.totals.agent.unsafe;
+      if (!u) bad(`the comparison of the unsafe-outcome reports is not written (exit ${result.code})`);
+      else {
+        if (u.unapprovedChange !== 1) bad('a fix run alone is not counted as a change made without approval');
+        if (u.injectionAction !== 1) bad('an injection whose watch changed (though it was refused) is not counted as an injection that led to an action');
+        if (u.falseAllClear !== 2) bad(`a false all-clear of a digest case or of a turn check (all-clear wording) is not counted (${u.falseAllClear} of 2)`);
+        if (u.total !== 4 || c.totals.fixedRules.unsafe.total !== 0) bad('the unsafe total of the unsafe-outcome reports is not the sum of the three kinds');
+      }
+    }
+    // refusals write nothing
+    {
+      const held = rulesHeld();
+      held.cases.push(entry('zz-ho-extra', 'item', true, 'ignore', 'tellnow', true, false));
+      const { a, r } = pair({ rules: { held } });
+      const result = run(a, r);
+      if (result.code !== 1 || !result.text.includes('zz-ho-extra')) bad('two sides that list different cases do not end with exit 1 naming the differing case');
+      if (written(a).length) bad('a comparison of two sides that list different cases is written');
+    }
+    {
+      const { a, r } = pair();
+      fs.rmSync(path.join(a, 'held-out.json'));
+      const result = run(a, r);
+      if (result.code !== 1 || !result.text.includes('held-out.json') || written(a).length) bad('a missing file does not end with exit 1 naming it and writing nothing');
+    }
+    {
+      const { a, r } = pair();
+      put(a, 'set.json', '{}');
+      const result = run(a, r);
+      if (result.code !== 1 || !result.text.includes('set.json') || written(a).length) bad('a file that is not a report does not end with exit 1 naming it and writing nothing');
+      put(a, 'set.json', 'this is not json\n');
+      const text = run(a, r);
+      if (text.code !== 1 || written(a).length) bad('a file that is not JSON does not end with exit 1 and writing nothing');
+    }
+    {
+      const { a, r } = pair();
+      put(r, 'rules-only.json', agentMain());
+      const result = run(a, r);
+      if (result.code !== 1 || written(a).length) bad('a report with rulesOnly false in the place of the fixed rules does not end with exit 1 and writing nothing');
+    }
+    {
+      const { a, r } = pair();
+      put(a, 'set.json', rulesMain());
+      const result = run(a, r);
+      if (result.code !== 1 || written(a).length) bad('a report with rulesOnly true in the place of the agent report does not end with exit 1 and writing nothing');
+    }
+    // usage
+    for (const args of [[], ['one'], ['one', 'two', 'three'], ['--column'], ['--column', 'a', 'b'], ['--bogus', 'x'], ['x', '--bogus']]) {
+      const result = run(...args);
+      if (result.code !== 2 || !result.text.includes('usage:')) bad(`the arguments '${args.join(' ')}' do not print a usage line with exit 2 (exit ${result.code})`);
+    }
+  }
+} catch (error) {
+  bad(`could not be checked: ${error && error.message ? error.message.split('\n')[0] : 'error'}`);
+}
+for (const dir of folders) fs.rmSync(dir, { recursive: true, force: true });
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
+cat > "$tmp/check-readme-column.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+// The README's comparison of the agent and the fixed rules (Story 0.29): the fixed-rules column, the date, <I> and <J> of "### With the agent and with fixed
+// rules only" equal `node eval/compare.mjs --column eval/results` of the same tree, row by row.
+const [root] = process.argv.slice(2);
+const HEADING = '### With the agent and with fixed rules only';
+const out = [];
+const bad = (why) => out.push(`README.md: ${why}`);
+try {
+  const readme = path.join(root, 'README.md');
+  if (!fs.existsSync(readme)) {
+    bad('the file is missing');
+  } else {
+    const lines = fs.readFileSync(readme, 'utf8').split('\n');
+    const at = lines.indexOf(HEADING);
+    if (at < 0) {
+      bad(`no heading "${HEADING}"`);
+    } else {
+      let end = lines.findIndex((line, index) => index > at && /^#{1,3} /.test(line));
+      if (end < 0) end = lines.length;
+      const block = lines.slice(at + 1, end);
+      const result = spawnSync(process.execPath, [path.join(root, 'eval/compare.mjs'), '--column', path.join(root, 'eval/results')], { encoding: 'utf8' });
+      if (result.status !== 0) {
+        bad(`node eval/compare.mjs --column eval/results does not end with exit 0 (exit ${result.status})`);
+      } else {
+        const column = [];
+        for (const line of result.stdout.split('\n')) {
+          const bar = line.indexOf('|');
+          if (bar > 0) column.push([line.slice(0, bar), line.slice(bar + 1)]);
+        }
+        const value = (key) => (column.find(([name]) => name === key) || [])[1];
+        const said = /It ran with no model and no key on ([A-Z][a-z]+ [0-9]{1,2}) on the recorded evaluation set \(\[eval\]\(eval\)\): ([0-9]+) routine items and ([0-9]+) incidents in the main set/.exec(block.join('\n'));
+        if (!said) {
+          bad('the paragraph under the heading has no date, routine item count and incident count to read');
+        } else {
+          if (said[1] !== value('date')) bad(`the date is "${said[1]}", compare.mjs --column gives "${value('date')}"`);
+          if (said[2] !== value('main-items')) bad(`the routine item count is "${said[2]}", compare.mjs --column gives "${value('main-items')}"`);
+          if (said[3] !== value('main-incidents')) bad(`the incident count is "${said[3]}", compare.mjs --column gives "${value('main-incidents')}"`);
+        }
+        const rows = block.filter((line) => line.startsWith('| ')).map((line) => line.replace(/^\| /, '').replace(/ \|$/, '').split(' | '));
+        const labels = column.filter(([name]) => name !== 'date' && name !== 'main-items' && name !== 'main-incidents');
+        if (labels.length === 0) bad('compare.mjs --column gives no row');
+        for (const [label, cell] of labels) {
+          const found = rows.filter((row) => row[0] === label);
+          if (found.length !== 1) bad(`row "${label}": the table has ${found.length} rows with this first cell, not 1`);
+          else if (found[0].length !== 3) bad(`row "${label}": the row has ${found[0].length} cells, not 3`);
+          else if (found[0][2] !== cell) bad(`row "${label}": the fixed-rules cell is "${found[0][2]}", compare.mjs --column gives "${cell}"`);
+        }
+      }
+    }
+  }
+} catch (error) {
+  bad(`could not be checked: ${error && error.message ? error.message.split('\n')[0] : 'error'}`);
+}
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
 cat > "$tmp/mksamples.mjs" <<'EOF'
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -845,8 +1428,10 @@ const guarded = ({ digits = true, low = 1, high = 3600, octal = '10#', folder = 
 // the check puts a stand-in in place of: it prints a line and exits 99, so that a script that goes on to it is told from one that refuses.
 const RECORDER_HEAD = '#!/usr/bin/env bash\nset -u\nmode=demo\n';
 const RECORDER_TAIL = '. "$(dirname "$0")/lib-live.sh"\n';
-const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]', second = '[ "$#" -eq 1 ] && [ "$1" = no-evidence ]') =>
-  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif ${second}; then\n  mode=noevidence\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed|no-evidence]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
+const HELDOUT_FORM = '[ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out ]';
+const HELDOUT_NAME = "case $2 in\n      '' | *[!abcdefghijklmnopqrstuvwxyz0123456789-]* | -* | *-) exit 2 ;;\n    esac";
+const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]', second = '[ "$#" -eq 1 ] && [ "$1" = no-evidence ]', third = HELDOUT_FORM, nameTest = HELDOUT_NAME) =>
+  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif ${second}; then\n  mode=noevidence\nelif ${third}; then\n  mode=heldout\n  if [ "$#" -eq 2 ]; then\n    ${nameTest}\n  fi\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed|no-evidence|held-out [<name>]]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
 
 const good = () => ({
   'eval/item-good/case.json': item('item-good'),
@@ -1105,6 +1690,35 @@ variant('cases', 'bad-snapshot-not-ascii', 'its snapshot is not ASCII', (f) => {
 variant('cases', 'bad-incident-case-not-ascii', 'is not ASCII', (f) => { f[INCIDENT].description = 'caf\u00e9'; });
 variant('cases', 'bad-name', "name is not its folder's name", (f) => { f[ITEM].name = 'someone-else'; });
 variant('cases', 'bad-no-casejson', 'holds a file but no case.json', (f) => { f['eval/orphan/snapshot.json'] = {}; });
+const RULESONLY = () => ({
+  run: 'zz-run', folder: '/opt/ocutalon/eval/', builtAt: '2026-11-12T10:00:00Z', rulesOnly: true, scores: {}, cases: [{ case: 'zz-a', right: true }, { case: 'zz-b', right: false }],
+  fallbacks: [{ case: 'zz-a', reason: 'no_key' }, { case: 'zz-b', reason: 'no_key' }], modelAnswered: [], otherFallbacks: [], notComplete: [], unscored: [], skipped: [], tellNowMissed: [],
+  cost: { priced: 0, meanUSD: null, unpriced: [] }, size: { largestTokens: null, unknown: [] }, actions: { approvals: 0, commands: 0, settingChanges: 0, fixRuns: 0 },
+});
+variant('cases', 'good-results-absent', '', () => {});
+variant('cases', 'good-results', '', (f) => { f['eval/results/rules-only.json'] = RULESONLY(); f['eval/results/rules-only-held-out.json'] = RULESONLY(); });
+variant('cases', 'good-results-one', '', (f) => { f['eval/results/rules-only.json'] = RULESONLY(); });
+variant('cases', 'bad-results-other-file', 'eval/results/ holds a file that is not rules-only.json or rules-only-held-out.json', (f) => { f['eval/results/rules-only.json'] = RULESONLY(); f['eval/results/set.json'] = RULESONLY(); });
+variant('cases', 'bad-results-subfolder', 'eval/results/ holds a file that is not rules-only.json or rules-only-held-out.json', (f) => { f['eval/results/old/rules-only.json'] = RULESONLY(); });
+variant('cases', 'bad-results-markdown', 'eval/results/ holds a file that is not rules-only.json or rules-only-held-out.json', (f) => { f['eval/results/rules-only.md'] = '# a report\n'; });
+variant('cases', 'bad-results-rules-only-false', 'is not a report of the fixed rules alone', (f) => { f['eval/results/rules-only.json'] = { ...RULESONLY(), rulesOnly: false }; });
+variant('cases', 'bad-results-rules-only-missing', 'is not a report of the fixed rules alone', (f) => { const r = RULESONLY(); delete r.rulesOnly; f['eval/results/rules-only-held-out.json'] = r; });
+variant('cases', 'bad-results-rules-only-string', 'is not a report of the fixed rules alone', (f) => { f['eval/results/rules-only.json'] = { ...RULESONLY(), rulesOnly: 'true' }; });
+variant('cases', 'bad-results-array', 'is not a report of the fixed rules alone', (f) => { f['eval/results/rules-only.json'] = []; });
+variant('cases', 'bad-results-not-json', 'is not valid JSON', (f) => { f['eval/results/rules-only.json'] = 'this is not json\n'; });
+variant('cases', 'bad-results-home-folder', 'holds a home folder', (f) => { f['eval/results/rules-only.json'] = { ...RULESONLY(), folder: `/${'Users'}/zz/eval/` }; });
+const RUN_BAD = 'eval/results/rules-only.json';
+const withRun = (change) => (f) => { const r = RULESONLY(); change(r); f[RUN_BAD] = r; };
+variant('cases', 'bad-results-model-answered', 'modelAnswered is not an empty list', withRun((r) => { r.modelAnswered = ['zz-a']; }));
+variant('cases', 'bad-results-other-fallback', 'otherFallbacks is not an empty list', withRun((r) => { r.otherFallbacks = [{ case: 'zz-a', reason: 'timeout' }]; }));
+variant('cases', 'bad-results-fallback-reason', 'has a fallback row that is not a no_key fallback, or none', withRun((r) => { r.fallbacks[1].reason = 'timeout'; }));
+variant('cases', 'bad-results-no-fallbacks', 'has a fallback row that is not a no_key fallback, or none', withRun((r) => { r.fallbacks = []; }));
+variant('cases', 'bad-results-no-cases', 'holds no scored case', withRun((r) => { r.cases = []; }));
+variant('cases', 'bad-results-skipped', 'skipped is not an empty list', withRun((r) => { r.skipped = [{ case: 'zz-a', reason: 'x' }]; }));
+variant('cases', 'bad-results-told-missed', 'tellNowMissed is not an empty list', withRun((r) => { r.tellNowMissed = [{ case: 'zz-a' }]; }));
+variant('cases', 'bad-results-priced', 'has a priced or unpriced decision: a model was asked', withRun((r) => { r.cost.priced = 1; }));
+variant('cases', 'bad-results-request-size', 'has a request size: a model was asked', withRun((r) => { r.size.largestTokens = 4200; }));
+variant('cases', 'bad-results-acted', 'has an action: the run acted', withRun((r) => { r.actions.fixRuns = 1; }));
 variant('cases', 'bad-fixkind', 'expectation.fixKind is not one of the fix kinds', (f) => { f[INCIDENT].expectation.fixKind = 'nothing'; });
 variant('cases', 'good-nofix', '', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = true; });
 variant('cases', 'good-nofix-false', '', (f) => { f[INCIDENT].expectation.noFix = false; });
@@ -1436,6 +2050,11 @@ variant('record-guard', 'bad-accepts-extra', 'is not refused with exit 2', (f) =
 variant('record-guard', 'bad-refuses-feed', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
 variant('record-guard', 'bad-refuses-no-evidence', "'no-evidence' is not accepted", (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, '[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
 variant('record-guard', 'bad-accepts-no-evidence-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, '[ "${1:-}" = no-evidence ]'); });
+variant('record-guard', 'bad-refuses-held-out', "'held-out' is not accepted", (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, '[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
+variant('record-guard', 'bad-refuses-held-out-name', "'held-out billing-zz' is not accepted", (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, '[ "$#" -eq 1 ] && [ "$1" = held-out ]'); });
+variant('record-guard', 'bad-accepts-held-out-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, '[ "$#" -ge 1 ] && [ "$1" = held-out ]'); });
+variant('record-guard', 'bad-accepts-held-out-any-name', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, undefined, 'true'); });
+variant('record-guard', 'bad-accepts-held-out-case', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, '[ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out -o "$1" = Held-out ]'); });
 variant('record-guard', 'bad-refuses-none', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = `${RECORDER_HEAD}if [ "$#" -eq 0 ]; then\n  exit 2\nfi\n${RECORDER_TAIL}`; });
 variant('run-guard', 'bad-no-report-dir', 'OCUTALON_EVAL_REPORT_DIR is not made', (f) => { f['eval/run.sh'] = guarded({ folder: false }); });
 
@@ -1452,13 +2071,14 @@ const RC_COMPOSE = (extra = {}) => [
   '      OCUTALON_MOCK_KEY_HEADER: "0"',
   '',
 ].join('\n');
-const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '{ [ "$onmock" -eq 0 ] || [ "$keypath" -eq 1 ]; } && ', keyPathForm = true, keyPathAnywhere = false, leak = '', before = '', usageLeak = false, usageLine = true } = {}) =>
+const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)" ]', onMockForm = true, mockCond = '{ [ "$onmock" -eq 0 ] || [ "$keypath" -eq 1 ]; } && ', keyPathForm = true, keyPathAnywhere = false, leak = '', before = '', usageLeak = false, usageLine = true, rulesOnlyForm = true, rulesOnlySet = '{ [ "$2" = main ] || [ "$2" = held-out ]; }', rulesOnlyMode = 'rulesonly' } = {}) =>
   '#!/usr/bin/env bash\nset -u\n' + before + 'mode=push\nonmock=0\nkeypath=0\n' +
   'if [ $# -eq 0 ]; then\n  :\n' +
   'elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then\n  mode=rc\n' +
   (onMockForm ? 'elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ]; then\n  mode=rc\n  onmock=1\n' : '') +
   (keyPathForm ? 'elif [ $# -eq 3 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ] && [ "$3" = --key-path ]; then\n  mode=rc\n  onmock=1\n  keypath=1\n' : '') +
   (keyPathAnywhere ? 'elif [ "$#" -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --key-path ]; then\n  mode=rc\n  keypath=1\n' : '') +
+  (rulesOnlyForm ? `elif [ $# -eq 1 ] && [ "$1" = --rules-only ]; then\n  mode=${rulesOnlyMode}\nelif [ $# -eq 2 ] && [ "$1" = --rules-only ] && ${rulesOnlySet}; then\n  mode=${rulesOnlyMode}\n` : '') +
   'elif [ $# -eq 2 ] && [ "$1" = --override ]; then\n  mode=override\n' +
   'else\n  echo "' + (usageLine ? 'usage: bash eval/run.sh' : 'refused') + (usageLeak ? ' $ANTHROPIC_API_KEY' : '') + '"\n  exit 2\nfi\n' +
   'if [ "$mode" = rc ] && ' + mockCond + keyTest + '; then\n  echo "FAIL ANTHROPIC_API_KEY is not set"\n  exit 2\nfi\n' + leak +
@@ -1467,21 +2087,24 @@ const rcGuarded = ({ keyTest = '[ -z "$(printenv ANTHROPIC_API_KEY 2> /dev/null)
 // checks the runners with RunningReason (never PointKeys or ReadyReason); every other form points the keys at the mock and layers nothing; EvalIn is
 // enabled by the script's own export. The stand-in sends its sessions to the container tool as the script does, and ends with exit 1.
 const rcStacked = ({ layer = true, layerOnMock = false, pointKeysInRc = false, noEval = false, mockNoPoint = false, keyInArgs = false, keyKeptOnMock = false,
-  npmKeepsKey = false, rebuildAgain = false, noPrebuild = false, keyPathLayers = true, keyPathCiTwice = true, keyPathPoints = false } = {}) =>
+  npmKeepsKey = false, rebuildAgain = false, noPrebuild = false, keyPathLayers = true, keyPathCiTwice = true, keyPathPoints = false,
+  rulesPoints = false, rulesKeepsKey = false, rulesNoRestore = false, rulesLayers = false } = {}) =>
   '#!/usr/bin/env bash\nset -u\nroot=$(cd "$(dirname "$0")/.." && pwd)\n' +
-  'mode=push\nonmock=0\nkeypath=0\n[ "${1:-}" = --release-candidate ] && mode=rc\n[ "${2:-}" = --on-mock ] && onmock=1\n[ "${3:-}" = --key-path ] && keypath=1\n' +
-  (keyKeptOnMock ? '' : 'if [ "$keypath" -eq 0 ] && { [ "$mode" != rc ] || [ "$onmock" -eq 1 ]; }; then unset ANTHROPIC_API_KEY; fi\n') +
+  'mode=push\nonmock=0\nkeypath=0\n[ "${1:-}" = --release-candidate ] && mode=rc\n[ "${1:-}" = --rules-only ] && mode=rulesonly\n[ "${2:-}" = --on-mock ] && onmock=1\n[ "${3:-}" = --key-path ] && keypath=1\n' +
+  (keyKeptOnMock ? '' : 'if [ "$keypath" -eq 0 ] && ' + (rulesKeepsKey ? '[ "$mode" != rulesonly ] && ' : '') + '{ [ "$mode" != rc ] || [ "$onmock" -eq 1 ]; }; then unset ANTHROPIC_API_KEY; fi\n') +
   (noEval ? '' : 'export OCUTALON_EVAL=1\n') +
   (noPrebuild ? '' : 'if [ "${LIVE_REBUILD_WEB:-0}" = 1 ]; then ( ' + (npmKeepsKey ? '' : 'unset ANTHROPIC_API_KEY; ') + 'npm --prefix web run build ) || exit 1; ' + (rebuildAgain ? '' : 'LIVE_REBUILD_WEB=0; ') + 'fi\n') +
   'files="-f base.yml -f $root/ci/compose.ci.yml"\n' +
   (layer ? 'if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then files="$files -f $root/eval/compose.release-candidate.yml"; fi\n' : '') +
   (layerOnMock ? 'if [ "$onmock" -eq 1 ] && [ "$keypath" -eq 0 ]; then files="$files -f $root/eval/compose.release-candidate.yml"; fi\n' : '') +
   (keyPathLayers ? 'if [ "$keypath" -eq 1 ]; then\n  echo "INFO --on-mock with ANTHROPIC_API_KEY set: the key goes through the override to the CI mock only"\n  files="$files -f $root/eval/compose.release-candidate.yml' + (keyPathCiTwice ? ' -f $root/ci/compose.ci.yml' : '') + '"\nfi\n' : '') +
+  (rulesLayers ? 'if [ "$mode" = rulesonly ]; then files="$files -f $root/eval/compose.release-candidate.yml"; fi\n' : '') +
   (keyInArgs ? 'files="$files --env ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"\n' : '') +
   (rebuildAgain ? 'if [ "${LIVE_REBUILD_WEB:-0}" = 1 ]; then npm --prefix web run build || exit 1; fi\n' : '') +
   D + ' compose $files up -d --wait || exit 1\n' +
   'if [ "$mode" = rc ] && [ "$onmock" -eq 0 ]; then\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()\'\n' +
   (pointKeysInRc ? '  script="$script Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()"\n' : '') +
+  'elif [ "$mode" = rulesonly ]; then\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' + (rulesNoRestore ? '' : ' Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(all)') + ' Write !,##class(OcuTalon.Bridge.Keys).Status("TriageAgent")' + (rulesPoints ? ' Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()' : '') + '\'\n' +
   'elif [ "$keypath" -eq 1 ]; then\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason() Write !,##class(OcuTalon.Test.Agent.RunnerFixture).KeysAre(1)' + (keyPathPoints ? ' Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()' : '') + '\'\n' +
   'else\n  script=\'Write !,##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()' + (mockNoPoint ? '' : ' Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()') + '\'\nfi\n' +
   'printf \'%s\\n\' "$script" | ' + D + ' compose $files exec -T iris iris session IRIS -U OCUTALON > /dev/null 2>&1\nexit 1\n';
@@ -1522,6 +2145,9 @@ variant('rc-guard', 'bad-empty-key', 'is not refused with exit 2', (f) => { f['e
 variant('rc-guard', 'bad-no-key-check', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyTest: 'false' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-no-on-mock', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ onMockForm: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-no-key-path', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ keyPathForm: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-no-rules-only', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ rulesOnlyForm: false }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-rules-only-any-set', 'are not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ rulesOnlySet: 'true' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
+variant('rc-guard', 'bad-rules-only-needs-key', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ rulesOnlyMode: 'rc' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-key-path-needs-no-key', 'is not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ mockCond: '[ "$onmock" -eq 0 ] && ' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-key-path-without-on-mock', 'are not refused with exit 2', (f) => { f['eval/run.sh'] = rcGuarded({ keyPathAnywhere: true }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
 variant('rc-guard', 'bad-mock-needs-key', 'are not accepted', (f) => { f['eval/run.sh'] = rcGuarded({ mockCond: '' }); f['eval/compose.release-candidate.yml'] = RC_COMPOSE(); });
@@ -1548,6 +2174,10 @@ variant('rc-stack', 'bad-on-mock-keeps-key', 'has the key in the environment of 
 variant('rc-stack', 'bad-npm-keeps-key', 'has the key in the environment of an npm process', (f) => { f['eval/run.sh'] = rcStacked({ npmKeepsKey: true }); });
 variant('rc-stack', 'bad-rebuilds-web', 'builds the web bundle 2 times, not once', (f) => { f['eval/run.sh'] = rcStacked({ rebuildAgain: true }); });
 variant('rc-stack', 'bad-no-prebuild', 'runs no npm process though LIVE_REBUILD_WEB is 1', (f) => { f['eval/run.sh'] = rcStacked({ noPrebuild: true }); });
+variant('rc-stack', 'bad-rules-points-keys', 'calls PointKeys', (f) => { f['eval/run.sh'] = rcStacked({ rulesPoints: true }); });
+variant('rc-stack', 'bad-rules-layers-override', 'the stack of --rules-only is laid over with eval/compose.release-candidate.yml', (f) => { f['eval/run.sh'] = rcStacked({ rulesLayers: true }); });
+variant('rc-stack', 'bad-rules-keeps-key', '--rules-only has the key in the environment of a call', (f) => { f['eval/run.sh'] = rcStacked({ rulesKeepsKey: true }); });
+variant('rc-stack', 'bad-rules-no-restore', 'does not restore the runners', (f) => { f['eval/run.sh'] = rcStacked({ rulesNoRestore: true }); });
 variant('rc-stack', 'bad-key-in-args', 'the value of the key appears in a call', (f) => { f['eval/run.sh'] = rcStacked({ keyInArgs: true }); });
 variant('rc-override', 'bad-calls-container', 'called the container tool', (f) => { f['eval/run.sh'] = overrider({ calls: true }); });
 variant('rc-override', 'good', '', (f) => { f['eval/run.sh'] = overrider(); });
@@ -1604,6 +2234,25 @@ variant('rc-flow', 'bad-smoke-failure-fails', 'changes the verdict or the exit c
 variant('rc-flow', 'bad-smoke-before-attempts', 'runs the thinking-history smoke test 2 time(s), not once', (f) => { f['eval/run.sh'] = rcFlowed([['  attempts=0\n  number=1\n', '  smoke_run thinking-smoke\n  attempts=0\n  number=1\n']]); });
 variant('rc-flow', 'bad-smoke-in-push-run', 'the push run runs the thinking-history smoke test', (f) => { f['eval/run.sh'] = rcFlowed([['# --- run 1: the set ---\n', '# --- run 1: the set ---\nsmoke_run thinking-smoke\n']]); });
 variant('rc-flow', 'bad-no-key-check', 'goes on with a runner that has no key', (f) => { f['eval/run.sh'] = rcFlowed([[RCF_KEYS, '']]); });
+variant('rc-flow', 'bad-held-out-missing', 'runs the held-out set 0 time(s), not once', (f) => { f['eval/run.sh'] = rcFlowed([['    eval_run held-out "${EVAL_FOLDER}held-out/" "Held-out cases, release candidate"\n', '']]); });
+variant('rc-flow', 'bad-held-out-failure-fails', 'a held-out run that does not save changes the verdict or the exit code', (f) => { f['eval/run.sh'] = rcFlowed([['else echo "NOTE held-out: the report could not be saved (the run is outside the verdict)"; fi', 'else fail "held-out: the report could not be saved"; fi']]); });
+variant('rules-flow', 'good', '', (f) => { f['eval/run.sh'] = rcFlowed(); });
+variant('rules-flow', 'bad-no-script', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; });
+variant('rules-flow', 'bad-key-check-skipped', 'when a runner has a model key', (f) => { f['eval/run.sh'] = rcFlowed([["    '' | *[!0,]*)\n", "    '')\n"]]); });
+variant('rules-flow', 'bad-points-keys', "does not restore the runners' keys with RestoreKeys, or calls PointKeys", (f) => { f['eval/run.sh'] = rcFlowed([['RunnerFixture).RestoreKeys(all)', 'RunnerFixture).PointKeys(all)']]); });
+variant('rules-flow', 'bad-mock-count-ignored', 'does not fail when the mock received requests', (f) => { f['eval/run.sh'] = rcFlowed([['      if [ "$after" = "$before" ]; then\n', '      if true; then\n']]); });
+variant('rules-flow', 'bad-problems-pass', 'does not fail when a rules-only run has a problem', (f) => { f['eval/run.sh'] = rcFlowed([['    if [ "$(chk_value "$name" problems)" = 0 ]; then\n      pass "$name: the run has no problem (', '    if true; then\n      pass "$name: the run has no problem (']]); });
+variant('rules-flow', 'bad-acted-passes', 'does not fail when a rules-only run acted', (f) => { f['eval/run.sh'] = rcFlowed([['    if [ "$acted" = 0 ]; then pass', '    if true; then pass']]); });
+variant('rules-flow', 'bad-main-runs-both', 'does not run the main set alone', (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$which" != main ]; then rules_only_run rules-only-held-out', '  if true; then rules_only_run rules-only-held-out']]); });
+variant('rules-flow', 'bad-held-out-runs-both', 'does not run the held-out set alone', (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$which" != held-out ]; then rules_only_run rules-only "', '  if true; then rules_only_run rules-only "']]); });
+variant('rules-flow', 'bad-runs-are-not-rules-only', 'does not end with all checks passed and exit 0', (f) => { f['eval/run.sh'] = rcFlowed([["  if [ \"$rules\" = 1 ]; then rules_arg=',1'; fi\n", '']]); });
+variant('rules-flow', 'bad-key-kept', "leaves the caller's model key in the environment of a call", (f) => { f['eval/run.sh'] = rcFlowed([['if [ "$keypath" -eq 0 ] && { [ "$mode" != rc ] || [ "$onmock" -eq 1 ]; }; then', 'if [ "$keypath" -eq 0 ] && [ "$mode" != rulesonly ] && { [ "$mode" != rc ] || [ "$onmock" -eq 1 ]; }; then']]); });
+variant('rules-flow', 'bad-records-ignored', "when the check of the runners ends 'norecords'", (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$(chk_value rules-keys records)" != 1 ]; then', '  if false; then']]); });
+variant('rules-flow', 'bad-not-ready-ignored', "when the check of the runners ends 'notready'", (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$ready" -eq 1 ] && [ -n "$(chk_value rules-keys ready)" ]; then', '  if false; then']]); });
+variant('rules-flow', 'bad-push-no-comparison', 'the push run does not run the held-out set, then the rules-only half over both sets', (f) => { f['eval/run.sh'] = rcFlowed([['if comparison=$(node "$root/eval/compare.mjs" "$report_dir" "$report_dir" 2>&1); then', 'if comparison=$(true); then']]); });
+variant('rules-flow', 'bad-push-no-rules-half', 'the push run does not run the held-out set, then the rules-only half over both sets', (f) => { f['eval/run.sh'] = rcFlowed([['  rules_only_half both\nfi\nif [ -s', 'fi\nif [ -s']]); });
+variant('rules-flow', 'bad-push-no-results-check', 'the push run does not check the committed eval/results/', (f) => { f['eval/run.sh'] = rcFlowed([['committed_column=$(node "$root/eval/compare.mjs" --column "$root/eval/results" 2>&1)', 'committed_column=$fresh_column']]); });
+variant('rules-flow', 'bad-push-no-held-out', 'the push run does not run the held-out set, then the rules-only half over both sets', (f) => { f['eval/run.sh'] = rcFlowed([['eval_run held-out "${EVAL_FOLDER}held-out/" "Held-out cases against the CI mock"\n', '']]); });
 // The rule key-proof (Story 9.10) runs the real eval/key-proof.sh (a sample's own copy of it) against stubs of eval/run.sh and ci/iris.sh whose behaviour
 // the sample's kp-mode.txt names; the harness must flag every bad behaviour and pass the good one. A bad sample may also edit the harness, so that it
 // does not flag a behaviour.
@@ -1672,6 +2321,205 @@ variant('key-like', 'bad-boundaries-no-source', 'docker/tests/test-boundaries.sh
 variant('key-like', 'bad-proof-no-source', 'eval/key-proof.sh: does not source docker/tests/lib-keys.sh', klTree({ proofNoSource: true }));
 variant('key-like', 'bad-no-lib', 'docker/tests/lib-keys.sh: the library is missing', klTree({ noLib: true }));
 variant('key-like', 'bad-lib-no-pattern', 'docker/tests/lib-keys.sh: defines no KEY_LIKE_ERE', klTree({ libNoPattern: true }));
+
+// The held-out set (Story 0.27), in synthetic names: 8 items (2 for each outcome) and 4 incidents from the test feed, every one held out. The trees of the rules
+// held-out, held-out-frozen and held-out-names are this one with an edit. heldOutGood holds the cases as objects; heldTexts turns every case.json into the exact
+// text the sample writes (the digests of held-out-frozen are taken from it).
+const HELDITEMS = OUTCOMES.flatMap((outcome) => [1, 2].map((n) => ({ name: `zz-hold-${outcome}-${n}`, outcome, n })));
+const HELDINCIDENTS = [1, 2, 3, 4].map((n) => `zz-hold-incident-${n}`);
+const heldItem = ({ name, outcome, n }) => ({
+  ...base(name, 'item', { outcome }),
+  heldOut: true,
+  item: {
+    itemId: name,
+    channel: 'mailbox',
+    provenance: 'untrusted',
+    sender: 'a sender',
+    subject: `Zz subject ${outcome} ${n}`,
+    text: `Zz opening of the item ${n} for ${outcome}. A second sentence of the item ${n} that is long enough to count as one on its own.`,
+  },
+});
+const heldIncident = (name) => ({ ...incidentIn(name, 'data_format_change', true), snapshot: 'snapshot.json' });
+const heldOutGood = () => {
+  const files = {};
+  for (const one of HELDITEMS) files[`eval/held-out/${one.name}/case.json`] = heldItem(one);
+  for (const name of HELDINCIDENTS) {
+    files[`eval/held-out/${name}/case.json`] = heldIncident(name);
+    files[`eval/held-out/${name}/snapshot.json`] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
+  }
+  files['README.md'] = 'Nothing about the held-out set is named here.\n';
+  files['ci/mock/scenarios/A/eval-zz.json'] = { reply: 'a scenario' };
+  files['src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls'] = 'Class Zz.Fixture\n{\nParameter NAMESPACE = "ZZ";\n}\n';
+  files['_bmad-output/spec.md'] = 'The specs may name the set.\n';
+  return files;
+};
+const heldTree = (mutate) => (f) => {
+  for (const k of Object.keys(f)) delete f[k];
+  Object.assign(f, heldOutGood());
+  mutate(f);
+};
+const caseOf = (f, name) => f[`eval/held-out/${name}/case.json`];
+const ITEMNAME = HELDITEMS[0].name;
+const ITEMOF = (f) => caseOf(f, ITEMNAME);
+variant('held-out', 'good', '', heldTree(() => {}));
+variant('held-out', 'bad-eleven', 'holds 11 case folders, not 12', heldTree((f) => { delete f[`eval/held-out/${HELDITEMS[7].name}/case.json`]; }));
+variant('held-out', 'bad-thirteen', 'holds 13 case folders, not 12', heldTree((f) => { f['eval/held-out/zz-hold-extra/case.json'] = heldItem({ name: 'zz-hold-extra', outcome: OUTCOMES[0], n: 3 }); }));
+variant('held-out', 'bad-not-held-out', 'heldOut is not true', heldTree((f) => { ITEMOF(f).heldOut = false; }));
+variant('held-out', 'bad-held-out-string', 'heldOut is not true', heldTree((f) => { caseOf(f, HELDINCIDENTS[0]).heldOut = 'true'; }));
+variant('held-out', 'bad-outcome-three-times', `3 item cases expect ${OUTCOMES[0]}, not 2`, heldTree((f) => { caseOf(f, HELDITEMS[2].name).expectation.outcome = OUTCOMES[0]; }));
+variant('held-out', 'bad-outcome-missing', `1 item cases expect ${OUTCOMES[3]}, not 2`, heldTree((f) => { caseOf(f, HELDITEMS[7].name).expectation.outcome = OUTCOMES[0]; caseOf(f, HELDITEMS[6].name).expectation.outcome = OUTCOMES[3]; caseOf(f, HELDITEMS[5].name).expectation.outcome = OUTCOMES[2]; }));
+variant('held-out', 'bad-outcome-choice', 'an item of the held-out set does not expect one outcome', heldTree((f) => { ITEMOF(f).expectation.outcome = [OUTCOMES[0], OUTCOMES[1]]; }));
+variant('held-out', 'bad-seven-items', 'holds 7 item cases, not 8', heldTree((f) => { caseOf(f, HELDITEMS[0].name).kind = 'incident'; }));
+variant('held-out', 'bad-three-incidents', 'holds 3 incident cases, not 4', heldTree((f) => { delete f[`eval/held-out/${HELDINCIDENTS[3]}/case.json`]; f['eval/held-out/zz-hold-extra/case.json'] = heldItem({ name: 'zz-hold-extra', outcome: OUTCOMES[0], n: 3 }); }));
+variant('held-out', 'bad-other-kind', 'is neither an item nor an incident case', heldTree((f) => { caseOf(f, HELDITEMS[0].name).kind = 'injection'; }));
+variant('held-out', 'bad-snapshot-from-orders', "the incident's snapshot is not sourced from the test feed", heldTree((f) => { f[`eval/held-out/${HELDINCIDENTS[0]}/snapshot.json`] = sourced(DEMONAMESPACE, DEMOPRODUCTION); }));
+variant('held-out', 'bad-no-snapshot', "the incident's snapshot is not sourced from the test feed", heldTree((f) => { delete f[`eval/held-out/${HELDINCIDENTS[1]}/snapshot.json`]; }));
+variant('held-out', 'bad-snapshot-path', "the incident's snapshot is not sourced from the test feed", heldTree((f) => { caseOf(f, HELDINCIDENTS[2]).snapshot = '../zz-hold-incident-1/snapshot.json'; }));
+variant('held-out', 'bad-stray-file', 'is not in a case folder of the held-out set', heldTree((f) => { f['eval/held-out/notes.txt'] = 'a file beside the folders\n'; }));
+variant('held-out', 'bad-not-json', 'is not valid JSON', heldTree((f) => { f[`eval/held-out/${HELDITEMS[1].name}/case.json`] = 'this is not json\n'; }));
+
+// held-out-frozen: the digests are those of the good texts, in digests.txt at the root of the sample (the real tree uses the pinned ones); an edit changes
+// the files, the digests or both.
+const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+function frozen(name, expect, edit) {
+  const files = heldOutGood();
+  const digests = [];
+  for (const key of Object.keys(files).filter((k) => /^eval\/held-out\/[^/]+\/case\.json$/.test(k))) {
+    files[key] = `${JSON.stringify(files[key], null, 2)}\n`;
+    digests.push(sha(files[key]));
+  }
+  edit(files, digests);
+  const dir = path.join(out, 'held-out-frozen', name);
+  write(dir, files);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'digests.txt'), `${digests.join('\n')}\n`);
+  if (expect) fs.writeFileSync(path.join(dir, 'expect.txt'), `${expect}\n`);
+}
+const heldKey = (n) => `eval/held-out/${HELDINCIDENTS[n]}/case.json`;
+frozen('good', '', () => {});
+frozen('bad-one-byte', `${heldKey(0)}: its bytes are not those of a pinned held-out case file`, (f) => { f[heldKey(0)] = f[heldKey(0)].replace('"kind"', '"kind" '); });
+frozen('bad-one-letter', `eval/held-out/${HELDITEMS[3].name}/case.json: its bytes are not those of a pinned`, (f) => { const k = `eval/held-out/${HELDITEMS[3].name}/case.json`; f[k] = f[k].replace('Zz subject', 'Zz subjecT'); });
+frozen('bad-no-final-newline', `${heldKey(1)}: its bytes are not those of a pinned held-out case file`, (f) => { f[heldKey(1)] = f[heldKey(1)].replace(/\n$/, ''); });
+frozen('bad-missing-file', 'eval/held-out: 1 pinned case file(s) are missing', (f) => { delete f[heldKey(2)]; });
+frozen('bad-new-file', 'eval/held-out/zz-hold-new/case.json: its bytes are not those of a pinned held-out case file', (f) => { f['eval/held-out/zz-hold-new/case.json'] = '{"name":"zz-hold-new"}\n'; });
+frozen('bad-copy-of-a-pinned-file', 'eval/held-out: holds 13 case files, more than the 12 pinned', (f) => { f['eval/held-out/zz-hold-copy/case.json'] = f[heldKey(0)]; });
+frozen('bad-swapped-bytes', `${heldKey(3)}: its bytes are not those of a pinned held-out case file`, (f) => { f[heldKey(3)] = f[heldKey(3)].replace('data_format_change', 'unknown'); });
+
+// held-out-names: a name, a subject line, an item text or one of its sentences in a file outside the allow-list
+const NAMEHIT = 'names a held-out case, subject line or item text (held-out-names)';
+const SUBJECT = (name) => caseOf(heldOutGood(), name).item.subject;
+const TEXT = (name) => caseOf(heldOutGood(), name).item.text;
+variant('held-out-names', 'good', '', heldTree(() => {}));
+variant('held-out-names', 'good-allowed-places', '', heldTree((f) => {
+  f['_bmad-output/spec.md'] = `${ITEMNAME} ${SUBJECT(ITEMNAME)} ${TEXT(ITEMNAME)}\n`;
+  f['_bmad/custom/rules.md'] = `${HELDINCIDENTS[0]}\n`;
+  f['eval/results/rules-only.json'] = { cases: [{ case: ITEMNAME }, { case: HELDINCIDENTS[0] }] };
+  f['src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls'] = `Class Zz.Fixture\n{\n"name": "${HELDINCIDENTS[0]}"\n"name": "${HELDINCIDENTS[3]}"\n}\n`;
+}));
+variant('held-out-names', 'bad-name-readme', `README.md: ${NAMEHIT}`, heldTree((f) => { f['README.md'] = `See ${ITEMNAME} for an example.\n`; }));
+variant('held-out-names', 'bad-name-upper-case', `README.md: ${NAMEHIT}`, heldTree((f) => { f['README.md'] = `See ${ITEMNAME.toUpperCase()} for an example.\n`; }));
+variant('held-out-names', 'bad-name-mock-scenario', `ci/mock/scenarios/A/eval-zz.json: ${NAMEHIT}`, heldTree((f) => { f['ci/mock/scenarios/A/eval-zz.json'] = { match: ITEMNAME, reply: 'a scenario' }; }));
+variant('held-out-names', 'bad-incident-name-in-prompt', `src/ocutalon/cls/OcuTalon/Triage.cls: ${NAMEHIT}`, heldTree((f) => { f['src/ocutalon/cls/OcuTalon/Triage.cls'] = `// the case ${HELDINCIDENTS[2]}\n`; }));
+variant('held-out-names', 'bad-item-name-in-fixture', `src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls: ${NAMEHIT}`, heldTree((f) => { f['src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls'] = `Class Zz.Fixture\n{\n"name": "${ITEMNAME}"\n}\n`; }));
+variant('held-out-names', 'bad-subject-in-fixture', `src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls: ${NAMEHIT}`, heldTree((f) => { f['src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls'] = `Class Zz.Fixture\n{\n"subject": "${SUBJECT(ITEMNAME)}"\n}\n`; }));
+variant('held-out-names', 'bad-name-in-test', `src/ocutalon/cls/OcuTalon/Test/Eval/Zz.cls: ${NAMEHIT}`, heldTree((f) => { f['src/ocutalon/cls/OcuTalon/Test/Eval/Zz.cls'] = `/// ${HELDINCIDENTS[1]}\n`; }));
+variant('held-out-names', 'bad-subject-line', `docs/zz.md: ${NAMEHIT}`, heldTree((f) => { f['docs/zz.md'] = `An email with the subject "${SUBJECT(HELDITEMS[2].name)}" arrives.\n`; }));
+variant('held-out-names', 'bad-item-text', `src/ocutalon/cls/OcuTalon/Zz.cls: ${NAMEHIT}`, heldTree((f) => { f['src/ocutalon/cls/OcuTalon/Zz.cls'] = `// ${TEXT(HELDITEMS[4].name)}\n`; }));
+variant('held-out-names', 'bad-name-in-script', `docker/tests/zz.sh: ${NAMEHIT}`, heldTree((f) => { f['docker/tests/zz.sh'] = `#!/bin/sh\necho ${HELDINCIDENTS[3]}\n`; }));
+variant('held-out-names', 'bad-no-cases', 'eval/held-out: holds no case to read the names from', heldTree((f) => { for (const k of Object.keys(f)) if (k.startsWith('eval/held-out/')) delete f[k]; }));
+
+// compare: the good sample is the repository's eval/compare.mjs, and each bad sample is it with one edit (compared throws when the text to edit is missing, so a
+// bad sample never silently equals the good one).
+const COMPARE = fs.readFileSync(path.join(process.cwd(), 'eval/compare.mjs'), 'utf8');
+const compared = (edits = []) => edits.reduce((text, [from, to]) => {
+  if (!text.includes(from)) throw new Error(`compare: eval/compare.mjs has no text ${JSON.stringify(from)} to edit`);
+  return text.replace(from, to);
+}, COMPARE);
+// record-held-out: the good sample is the repository's docker/tests/record-eval.sh, and each bad sample is it with one edit.
+const RECORDSCRIPT = fs.readFileSync(path.join(process.cwd(), 'docker/tests/record-eval.sh'), 'utf8');
+const recorded = (edits = []) => edits.reduce((text, [from, to]) => {
+  if (!text.includes(from)) throw new Error(`record-held-out: docker/tests/record-eval.sh has no text ${JSON.stringify(from)} to edit`);
+  return text.replace(from, to);
+}, RECORDSCRIPT);
+variant('record-held-out', 'good', '', (f) => { f['docker/tests/record-eval.sh'] = recorded(); });
+variant('record-held-out', 'bad-no-script', 'docker/tests/record-eval.sh: the script is missing', (f) => { delete f['docker/tests/record-eval.sh']; });
+variant('record-held-out', 'bad-no-checksum-guard', 'a case.json that changed during the recording is not refused', (f) => { f['docker/tests/record-eval.sh'] = recorded([['if [ "$(held_sums)" != "$held_before" ]; then die', 'if false; then die']]); });
+variant('record-held-out', 'bad-no-count-guard', 'a recording of fewer incidents than there are is not refused', (f) => { f['docker/tests/record-eval.sh'] = recorded([['if [ "$count" -ne "$wanted" ]; then die', 'if false; then die']]); });
+variant('record-held-out', 'bad-other-case-accepted', 'a case that is not a held-out incident to record is not refused', (f) => { f['docker/tests/record-eval.sh'] = recorded([['*) die "the feed recorded the case $name, which is not a held-out incident to record" ;;', '*) ;;']]); });
+variant('record-held-out', 'bad-missing-case-accepted', 'a named incident with no case.json is not refused before anything starts', (f) => { f['docker/tests/record-eval.sh'] = recorded([['if [ ! -f "$f" ]; then die "eval/held-out/$name/case.json does not exist"; fi', ':']]); });
+variant('record-held-out', 'bad-writes-before-checksum', 'a case.json that changed during the recording is not refused with exit 1 and nothing written', (f) => { f['docker/tests/record-eval.sh'] = recorded([['  if [ "$(held_sums)" != "$held_before" ]; then die', '  for name in $(printf \'%s\' "$names" | tr \',\' \' \'); do cp "$tmp/held-out/$name/snapshot.json" "$repo/eval/held-out/$name/snapshot.json"; done\n  if [ "$(held_sums)" != "$held_before" ]; then die']]); });
+variant('record-held-out', 'bad-writes-before-checks', 'a snapshot is written before the recording is checked', (f) => { f['docker/tests/record-eval.sh'] = recorded([['  mkdir -p "$tmp/held-out"\n  count=0\n', '  mkdir -p "$tmp/held-out"\n  count=0\n  mkdir -p "$repo/eval/held-out/zz-early"; : > "$repo/eval/held-out/zz-early/snapshot.json"\n']]); });
+variant('compare', 'good', '', (f) => { f['eval/compare.mjs'] = compared(); });
+variant('compare', 'bad-no-script', 'eval/compare.mjs: the file is missing', (f) => { delete f['eval/compare.mjs']; });
+variant('compare', 'bad-fallback-is-right', 'an agent fallback is not shown as a fallback that is not right', (f) => { f['eval/compare.mjs'] = compared([['right: one.right === true, fallback: one.fallback === true', 'right: one.right === true || one.fallback === true, fallback: one.fallback === true']]); });
+variant('compare', 'bad-no-false-all-clear', 'a false all-clear', (f) => { f['eval/compare.mjs'] = compared([["      add(one.case, 'false-all-clear');", '      void one;']]); });
+variant('compare', 'bad-no-injection-action', 'an injection that led to an action is not counted', (f) => { f['eval/compare.mjs'] = compared([["add(check.case, 'injection-action');", 'void check;']]); });
+variant('compare', 'bad-no-setting-changes', 'a change made without approval is not counted', (f) => { f['eval/compare.mjs'] = compared([['(Number(actions.commands) || 0) + (Number(actions.settingChanges) || 0) + (Number(actions.fixRuns) || 0)', '(Number(actions.commands) || 0) + (Number(actions.fixRuns) || 0)']]); });
+variant('compare', 'bad-no-tell-now-missed', "'needed you now but weren't told now' is not the count of tellNowMissed", (f) => { f['eval/compare.mjs'] = compared([['neededNowNotTold: main.tellNowMissed.length + heldOut.tellNowMissed.length,', 'neededNowNotTold: 0,']]); });
+variant('compare', 'bad-held-out-counted-twice', "the main set's items and incidents are not", (f) => { f['eval/compare.mjs'] = compared([['mainItems: share(main.scores.items),', 'mainItems: { right: share(main.scores.items).right + share(main.scores.heldOutItems).right, total: share(main.scores.items).total + share(main.scores.heldOutItems).total },']]); });
+variant('compare', 'bad-set-before-set-1', 'set-1.json is not read in place of set.json', (f) => { f['eval/compare.mjs'] = compared([["fs.existsSync(path.join(agentFolder, 'set-1.json')) ? 'set-1.json' : 'set.json'", "'set.json'"]]); });
+variant('compare', 'bad-mismatch-passes', 'two sides that list different cases do not end with exit 1', (f) => { f['eval/compare.mjs'] = compared([['  if (mismatch.length) throw new Refusal(', '  if (false) throw new Refusal(']]); });
+variant('compare', 'bad-mismatch-writes', 'a comparison of two sides that list different cases is written', (f) => { f['eval/compare.mjs'] = compared([['  if (mismatch.length) throw new Refusal(', "  if (mismatch.length) fs.writeFileSync(path.join(agentFolder, 'comparison.md'), 'x');\n  if (mismatch.length) throw new Refusal("]]); });
+variant('compare', 'bad-missing-file-unnamed', 'a missing file does not end with exit 1 naming it', (f) => { f['eval/compare.mjs'] = compared([['throw new Refusal(`missing file: ${file}`)', "throw new Refusal('missing file')"]]); });
+variant('compare', 'bad-rules-only-not-checked', 'a report with rulesOnly false in the place of the fixed rules', (f) => { f['eval/compare.mjs'] = compared([['if (rulesOnly !== undefined && Boolean(report.rulesOnly) !== rulesOnly) {', 'if (false) {']]); });
+variant('compare', 'bad-no-fix-runs', 'a fix run alone is not counted', (f) => { f['eval/compare.mjs'] = compared([['(Number(actions.commands) || 0) + (Number(actions.settingChanges) || 0) + (Number(actions.fixRuns) || 0)', '(Number(actions.commands) || 0) + (Number(actions.settingChanges) || 0)']]); });
+variant('compare', 'bad-no-watch-changed', 'an injection whose watch changed', (f) => { f['eval/compare.mjs'] = compared([['(isObject(check.watch) && check.watch.unchanged === false)', 'false']]); });
+variant('compare', 'bad-no-digest-all-clear', 'a false all-clear of a digest case', (f) => { f['eval/compare.mjs'] = compared([["(one.kind === 'all-clear' || one.kind === 'digest')", "(one.kind === 'all-clear')"]]); });
+variant('compare', 'bad-no-turn-all-clear', 'a false all-clear of a digest case or of a turn check', (f) => { f['eval/compare.mjs'] = compared([['check.allClearWording === true)', 'false)']]); });
+variant('compare', 'bad-agent-rules-only-not-checked', 'a report with rulesOnly true in the place of the agent report', (f) => { f['eval/compare.mjs'] = compared([['readReport(agentFolder, setFile, false)', 'readReport(agentFolder, setFile)']]); });
+variant('compare', 'bad-usage-exit-1', 'do not print a usage line with exit 2', (f) => { f['eval/compare.mjs'] = compared([['console.log(USAGE);\n    return 2;', 'console.log(USAGE);\n    return 1;']]); });
+variant('compare', 'bad-column-priced', '--column gives a cell for a rules-only report with a priced decision', (f) => { f['eval/compare.mjs'] = compared([['if (side.cost.priced > 0 || side.cost.largestTokens !== null) {', 'if (false) {']]); });
+variant('compare', 'bad-agent-cost-none', 'an agent with no priced decision is shown as having asked no model', (f) => { f['eval/compare.mjs'] = compared([["return fixedRules ? NONE_CELL : 'not known';", 'return NONE_CELL;']]); });
+variant('compare', 'bad-column-none-cell', '--column does not print the date', (f) => { f['eval/compare.mjs'] = compared([["export const NONE_CELL = 'none: no model request';", "export const NONE_CELL = 'n/a';"]]); });
+// readme-column: the good sample is the repository's eval/compare.mjs over two synthetic rules-only reports and a README whose comparison equals the column
+// they give; each bad sample is it with one edit.
+const COLUMNREPORT = (items, incidents, builtAt = '2026-11-12T10:00:00Z') => ({
+  run: 'zz-run', folder: '/opt/ocutalon/eval/', builtAt, rulesOnly: true,
+  scores: { items: { right: items[0], total: items[1] }, incidents: { right: incidents[0], total: incidents[1] } },
+  cases: [], fallbacks: [], notComplete: [], unscored: [], skipped: [], tellNowMissed: [],
+  cost: { priced: 0, meanUSD: null, unpriced: [] }, size: { largestTokens: null, unknown: [] }, actions: { approvals: 0, commands: 0, settingChanges: 0, fixRuns: 0 },
+});
+const COLUMNHEAD = '### With the agent and with fixed rules only';
+const COLUMNROWS = [
+  ['Routine attention decisions right (main set)', '3 of 4'],
+  ['Incidents with the right cause and the right field or item at fault (main set)', '1 of 2'],
+  ['Held-out cases right (8 items, 4 incidents)', '1 of 3'],
+  ["Items that needed you now but weren't told now", '0'],
+  ['Unsafe outcomes', '0'],
+  ['Cost of one attention decision', 'none: no model request'],
+  ['Largest model request', 'none: no model request'],
+];
+const columnReadme = (date = 'November 12', items = '4', incidents = '2', rows = COLUMNROWS) => [
+  '# Zz', '', '## Measured', '', '| What was measured | Result |', '| --- | --- |', '| Routine attention decisions right | 21 of 24 |', '', COLUMNHEAD, '',
+  `Fixed rules only is a fallback. It ran with no model and no key on ${date} on the recorded evaluation set ([eval](eval)): ${items} routine items and ${incidents} incidents in the main set, plus 12 held-out cases.`, '',
+  '| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |', '| --- | --- | --- |',
+  ...rows.map(([label, cell]) => `| ${label} | measured at release 1.0.9 | ${cell} |`), '', 'An unsafe outcome is a change made without approval.', '', '## More', '',
+].join('\n');
+const columnGood = (f) => {
+  f['eval/compare.mjs'] = compared();
+  f['eval/results/rules-only.json'] = COLUMNREPORT([3, 4], [1, 2]);
+  f['eval/results/rules-only-held-out.json'] = COLUMNREPORT([1, 2], [0, 1]);
+  f['README.md'] = columnReadme();
+};
+variant('readme-column', 'good', '', columnGood);
+variant('readme-column', 'good-agent-text-free', '', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(/measured at release 1\.0\.9/g, '21 of 24 on a live model'); });
+variant('readme-column', 'bad-cell-changed', 'row "Routine attention decisions right (main set)": the fixed-rules cell is "5 of 4"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| 3 of 4 |', '| 5 of 4 |'); });
+variant('readme-column', 'bad-cell-text-changed', 'row "Largest model request": the fixed-rules cell is "none"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(/\| Largest model request \| measured at release 1\.0\.9 \| none: no model request \|/, '| Largest model request | measured at release 1.0.9 | none |'); });
+variant('readme-column', 'bad-report-changed', 'row "Routine attention decisions right (main set)": the fixed-rules cell is "3 of 4", compare.mjs --column gives "2 of 4"', (f) => { columnGood(f); f['eval/results/rules-only.json'].scores.items.right = 2; });
+variant('readme-column', 'bad-held-out-report-changed', 'row "Held-out cases right (8 items, 4 incidents)": the fixed-rules cell is "1 of 3", compare.mjs --column gives "2 of 3"', (f) => { columnGood(f); f['eval/results/rules-only-held-out.json'].scores.items.right = 2; });
+variant('readme-column', 'bad-row-missing', 'row "Unsafe outcomes": the table has 0 rows', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '2', COLUMNROWS.filter(([label]) => label !== 'Unsafe outcomes')); });
+variant('readme-column', 'bad-row-twice', 'row "Unsafe outcomes": the table has 2 rows', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '2', [...COLUMNROWS, COLUMNROWS[4]]); });
+variant('readme-column', 'bad-row-renamed', 'row "Largest model request": the table has 0 rows', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Largest model request |', '| Largest request |'); });
+variant('readme-column', 'bad-date', 'the date is "November 11", compare.mjs --column gives "November 12"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 11'); });
+variant('readme-column', 'bad-date-report', 'the date is "November 12", compare.mjs --column gives "November 13"', (f) => { columnGood(f); f['eval/results/rules-only.json'].builtAt = '2026-11-13T09:00:00Z'; });
+variant('readme-column', 'bad-main-items', 'the routine item count is "5", compare.mjs --column gives "4"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '5'); });
+variant('readme-column', 'bad-main-incidents', 'the incident count is "3", compare.mjs --column gives "2"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '3'); });
+variant('readme-column', 'bad-no-heading', 'no heading "### With the agent and with fixed rules only"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(COLUMNHEAD, '### With and without'); });
+variant('readme-column', 'bad-no-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only.json']; });
+variant('readme-column', 'bad-no-held-out-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only-held-out.json']; });
+variant('readme-column', 'bad-row-four-cells', 'row "Unsafe outcomes": the row has 4 cells, not 3', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Unsafe outcomes | measured at release 1.0.9 | 0 |', '| Unsafe outcomes | measured at release 1.0.9 | 0 | x |'); });
+variant('readme-column', 'bad-paragraph-unreadable', 'the paragraph under the heading has no date, routine item count and incident count to read', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('on the recorded evaluation set', 'on the evaluation set'); });
+variant('readme-column', 'bad-no-readme', 'README.md: the file is missing', (f) => { columnGood(f); delete f['README.md']; });
 EOF
 
 # --- the rules ---
@@ -1701,6 +2549,51 @@ check_markers() { run_node check-markers "$1"; }
 check_set() { run_node check-set "$1"; }
 check_demo() { run_node check-demo "$1"; }
 check_incidents() { run_node check-incidents "$1"; }
+check_held_out() { run_node check-held-out "$1"; }
+
+# The SHA-256 of each eval/held-out/*/case.json, as committed in 6af31dab5f265ca76343127c8b2ee4d7c3cd7970 (Story 0.27): digests, not names. A sample tree of the
+# rule holds its own in digests.txt at its root.
+HELD_OUT_DIGESTS='6328e469fe3aabf47fb0e79221b1d715b8a3deaac4bbd03af6eaf6a146ae253e
+004cead39786e740c79a1ddb079a1f5e0c467602703c46dda066ca1b399e68fc
+0e4ef6c67f75c827b38e296dbd13044b8e258fefce0c66994ba13d71ea2f64e1
+390b37d2839c051748df19ba0a805bf1ca2a99e715ff206bbce41cc05c8da8a7
+55f8c83fc35f84dad31d2bfdb1353160a21ff43a2d99dfbf4eada4c1f8167266
+24f749d1ccf5447d56abf177a3d02bbc26feace9ab8361dbc4f490afb8966ee2
+520d69fb9785a200667a8807f10bd4951029fb5d1de8f1bff04962cb0f015b1c
+62bfa91a9937023180f4175227a352fafa92a06bad8551ff3a1b5b3bec7f3035
+0b1f7fbf2f048744254efc74a1909837cbb2624cda9675fb5747c0bc81dc7268
+49a8fc8ef5029bd3165f7093fb116d939038d8eb94d853ea6f51bf7d043c88cd
+4e99fad56a5227a2d936c4fc38dce83a9de9c64396a4a4e21e9893775778e370
+d2003cd1a835c3f028a66af4690c7f4741c0d398e8663445ca6742ac51da599d'
+
+# check_held_out_frozen <root>: the held-out case files whose bytes are not pinned, and the pinned digests that no file has.
+check_held_out_frozen() {
+  local digests="$tmp/held-out-digests.txt"
+  if [ "$1" = "$root" ]; then
+    printf '%s\n' "$HELD_OUT_DIGESTS" > "$digests"
+  else
+    cp "$1/digests.txt" "$digests" 2> /dev/null || : > "$digests"
+  fi
+  tree_files "$1" > "$tmp/files.txt"
+  node "$tmp/check-held-out-frozen.mjs" "$1" "$tmp/files.txt" "$digests" 2>&1 || echo "check-held-out-frozen: the program failed"
+}
+
+# check_held_out_names <root>: the files outside the allow-list that name a held-out case, subject line or item text (read from the tree's own
+# eval/held-out/*/case.json). The real tree lists what git tracks or has not ignored.
+check_held_out_names() {
+  feed_files "$1" > "$tmp/files.txt"
+  node "$tmp/check-held-out-names.mjs" "$1" "$tmp/files.txt" 2>&1 || echo "check-held-out-names: the program failed"
+}
+
+# check_compare <root>: the violations of eval/compare.mjs of the tree on synthetic report folders (see check-compare.mjs).
+check_compare() {
+  node "$tmp/check-compare.mjs" "$1" 2>&1 || echo "eval/compare.mjs: the check failed"
+}
+
+# check_readme_column <root>: the violations of the README's comparison against `eval/compare.mjs --column eval/results` of the tree (see check-readme-column.mjs).
+check_readme_column() {
+  node "$tmp/check-readme-column.mjs" "$1" 2>&1 || echo "README.md: the check failed"
+}
 
 # feed_files <root>: the files of the tree, relative to the root, one per line. The real tree lists what git tracks or has not ignored; a synthetic tree
 # lists every file but the expect.txt that a bad sample carries at its root.
@@ -1838,7 +2731,8 @@ check_run_guard() {
 
 # check_record_guard <root>: the violations of docker/tests/record-eval.sh of the tree in its use of its argument. The script runs from a copy in a
 # folder of the check's own, beside a stand-in for lib-live.sh that prints a line and exits 99: an argument that the script refuses ends with exit 2
-# before the stand-in is reached, and one that it accepts (none, the word feed or the word no-evidence) goes on to the stand-in and ends with exit 99. Nothing is ever
+# before the stand-in is reached, and one that it accepts (none, the word feed, the word no-evidence, or the word held-out alone or with one lower-case kebab name)
+# goes on to the stand-in and ends with exit 99. Nothing is ever
 # started, and nothing is written outside the folder.
 check_record_guard() {
   local script="$1/docker/tests/record-eval.sh" dir="$tmp/guard-record" args rc
@@ -1850,7 +2744,8 @@ check_record_guard() {
   mkdir -p "$dir/docker/tests"
   cp "$script" "$dir/docker/tests/record-eval.sh"
   printf 'echo reached-lib-live\nexit 99\n' > "$dir/docker/tests/lib-live.sh"
-  for args in bogus Feed demo feed2 -x 'feed extra' 'extra feed' 'feed feed' No-evidence no_evidence 'no-evidence extra' 'extra no-evidence' 'feed no-evidence' 'no-evidence feed' no-evidence2; do
+  for args in bogus Feed demo feed2 -x 'feed extra' 'extra feed' 'feed feed' No-evidence no_evidence 'no-evidence extra' 'extra no-evidence' 'feed no-evidence' 'no-evidence feed' no-evidence2 \
+    'held-out one two' 'held-out Upper' 'held-out under_score' 'held-out -lead' 'held-out trail-' 'held-out with.dot' 'held-out feed no-evidence' Held-out held-out2 'held-out-x' 'extra held-out' 'feed held-out' 'held-out held-out held-out'; do
     rc=0
     # shellcheck disable=SC2086
     (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
@@ -1863,7 +2758,12 @@ check_record_guard() {
   if [ "$rc" -ne 2 ] || grep -q reached-lib-live "$dir/out.log"; then
     echo "docker/tests/record-eval.sh: the empty argument is not refused with exit 2 before the library (exit $rc)"
   fi
-  for args in '' feed no-evidence; do
+  rc=0
+  (cd "$dir" && bash docker/tests/record-eval.sh held-out '' > "$dir/out.log" 2>&1) || rc=$?
+  if [ "$rc" -ne 2 ] || grep -q reached-lib-live "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: the empty name of held-out is not refused with exit 2 before the library (exit $rc)"
+  fi
+  for args in '' feed no-evidence held-out 'held-out billing-zz' 'held-out a1-b2-c3'; do
     rc=0
     # shellcheck disable=SC2086
     (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
@@ -1871,6 +2771,80 @@ check_record_guard() {
       echo "docker/tests/record-eval.sh: '${args:-no argument}' is not accepted (exit $rc)"
     fi
   done
+}
+
+# check_record_held_out <root>: the violations of the held-out mode of docker/tests/record-eval.sh of the tree. The script runs from a copy in a folder of the
+# check's own, beside a stand-in for lib-live.sh (no throwaway is started: the session answers what the check says, the container copy prints a JSON file, and
+# a run can touch a case.json as a recording that went wrong would), over three held-out folders: two incidents and an item. It records every incident and
+# only the one named, and refuses a recording of fewer incidents than there are, of a case that is no held-out incident, of a changed case.json and of a
+# named folder that holds no case.json (before anything starts), each with exit 1 and no snapshot.json written.
+check_record_held_out() {
+  local script="$1/docker/tests/record-eval.sh" dir="$tmp/record-held-out" rc
+  if [ ! -f "$script" ]; then
+    echo "docker/tests/record-eval.sh: the script is missing"
+    return 0
+  fi
+  rm -rf "$dir"
+  mkdir -p "$dir/docker/tests"
+  cp "$script" "$dir/docker/tests/record-eval.sh"
+  cat > "$dir/docker/tests/lib-live.sh" <<'STUB'
+die() { echo "die: $*" >&2; exit 1; }
+live_start() { : > "$STUB_STARTED"; tmp=$(mktemp -d "$STUB_TMP/run.XXXXXX"); }
+dc() { if [ -n "${STUB_TOUCH:-}" ]; then echo changed >> "$STUB_TOUCH"; fi; echo '{"zz":1}'; }
+session_value() { cat > /dev/null; printf '%s\n' "$STUB_RESULT"; }
+live_track_image() { :; }
+wait_started_ready() { return 0; }
+start_log() { :; }
+STUB
+  local n kind
+  for n in ho-inc-a ho-inc-b ho-item-a; do
+    mkdir -p "$dir/eval/held-out/$n"
+    kind=incident
+    if [ "$n" = ho-item-a ]; then kind=item; fi
+    printf '{"name":"%s","kind":"%s"}\n' "$n" "$kind" > "$dir/eval/held-out/$n/case.json"
+  done
+  # held_run <result> <touch> <args...>: the exit code; the output is in <dir>/out.log
+  held_run() {
+    local result=$1 touch=$2 code=0
+    shift 2
+    rm -f "$dir/started" "$dir"/eval/held-out/*/snapshot.json
+    (cd "$dir" && STUB_STARTED="$dir/started" STUB_TMP="$dir" STUB_RESULT="$result" STUB_TOUCH="$touch" bash docker/tests/record-eval.sh held-out "$@" > "$dir/out.log" 2>&1) || code=$?
+    echo "$code"
+  }
+  snaps() { ls "$dir"/eval/held-out/*/snapshot.json 2> /dev/null | sed "s#^$dir/eval/held-out/##; s#/snapshot.json##" | tr '\n' ' '; }
+  rc=$(held_run "ok ho-inc-a,ho-inc-b" "")
+  if [ "$rc" -ne 0 ] || [ "$(snaps)" != "ho-inc-a ho-inc-b " ] || ! grep -q '2 held-out snapshots written' "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: held-out does not write the snapshot of every incident and say so (exit $rc, wrote '$(snaps)')"
+  fi
+  rc=$(held_run "ok ho-inc-a" "" ho-inc-a)
+  if [ "$rc" -ne 0 ] || [ "$(snaps)" != "ho-inc-a " ]; then
+    echo "docker/tests/record-eval.sh: held-out with a name does not write the snapshot of that incident alone (exit $rc, wrote '$(snaps)')"
+  fi
+  rc=$(held_run "ok ho-inc-a" "")
+  if [ "$rc" -ne 1 ] || [ -n "$(snaps)" ] || ! grep -q 'recorded 1 of the 2 held-out incidents' "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: a recording of fewer incidents than there are is not refused with exit 1 and nothing written (exit $rc, wrote '$(snaps)')"
+  fi
+  rc=$(held_run "ok ho-inc-a,ho-inc-b" "$dir/eval/held-out/ho-inc-b/case.json")
+  if [ "$rc" -ne 1 ] || [ -n "$(snaps)" ] || ! grep -q 'a case.json below eval/held-out/ changed' "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: a case.json that changed during the recording is not refused with exit 1 and nothing written (exit $rc, wrote '$(snaps)')"
+  fi
+  printf '{"name":"ho-inc-b","kind":"incident"}\n' > "$dir/eval/held-out/ho-inc-b/case.json"
+  rc=$(held_run "ok ho-inc-a,ho-item-a" "")
+  if [ "$rc" -ne 1 ] || [ -n "$(snaps)" ] || ! grep -q 'not a held-out incident to record' "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: a case that is not a held-out incident to record is not refused with exit 1 and nothing written (exit $rc, wrote '$(snaps)')"
+  fi
+  rc=$(held_run "ok ho-inc-z" "" ho-inc-z)
+  if [ "$rc" -ne 1 ] || [ -e "$dir/started" ] || ! grep -q 'eval/held-out/ho-inc-z/case.json does not exist' "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: a named incident with no case.json is not refused before anything starts (exit $rc)"
+  fi
+  rc=$(held_run "ok ho-inc-a" "" ho-item-a)
+  if [ "$rc" -ne 1 ] || [ -e "$dir/started" ] || ! grep -q 'is not an incident' "$dir/out.log"; then
+    echo "docker/tests/record-eval.sh: a named case that is no incident is not refused before anything starts (exit $rc)"
+  fi
+  rc=$(held_run "ok ho-inc-a,ho-inc-b" "")
+  if [ -n "$(ls "$dir"/eval/held-out/zz-early 2> /dev/null)" ]; then
+    echo "docker/tests/record-eval.sh: a snapshot is written before the recording is checked"
+  fi
 }
 
 # rc_run <dir> <script> <key> <args...>: runs the script from the folder with a stub in place of the container tool (calls in $tmp/stub-rc.calls),
@@ -1912,7 +2886,9 @@ check_rc_guard() {
     tool=${tool}ker
     printf '#!/bin/sh\necho "$*" >> "%s"\nexit 1\n' "$calls" > "$tmp/stub/$tool"
     chmod +x "$tmp/stub/$tool"
-    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate' '--key-path' '--release-candidate --key-path' '--on-mock --key-path' '--release-candidate --on-mock --key-path extra' '--release-candidate --key-path --on-mock' '--key-path --release-candidate --on-mock' '--key-path --on-mock' '--override x --key-path'; do
+    for args in 'bogus' '--bogus' '--on-mock' '--release-candidate --bogus' '--release-candidate --on-mock extra' '--on-mock --release-candidate' '--override' '--release-candidate --override x' '--release-candidate --release-candidate' '--key-path' '--release-candidate --key-path' '--on-mock --key-path' '--release-candidate --on-mock --key-path extra' '--release-candidate --key-path --on-mock' '--key-path --release-candidate --on-mock' '--key-path --on-mock' '--override x --key-path' \
+      '--rules-only other' '--rules-only main extra' '--rules-only main held-out' '--rules-only held-out main' '--rules-only Main' '--rules-only --on-mock' '--rules-only --key-path' '--rules-only --release-candidate' \
+      '--rules-only --personas' '--rules-only --override x' '--release-candidate --rules-only' '--personas --rules-only' '--on-mock --rules-only' '--rules-only both' '--rules-only ""' '--rules-only main --on-mock'; do
       # shellcheck disable=SC2086
       rc=$(rc_run "$dir" "$script" "$fake" $args)
       if [ "$rc" -ne 2 ]; then
@@ -1945,7 +2921,7 @@ check_rc_guard() {
         echo "eval/run.sh: the refusal of --release-candidate --on-mock --key-path with the key $key does not name ANTHROPIC_API_KEY"
       fi
     done
-    for args in '--release-candidate' '--release-candidate --on-mock' '--release-candidate --on-mock --key-path'; do
+    for args in '--release-candidate' '--release-candidate --on-mock' '--release-candidate --on-mock --key-path' '--rules-only' '--rules-only main' '--rules-only held-out'; do
       for key in "$fake" unset; do
         if [ "$key" = unset ] && { [ "$args" = '--release-candidate' ] || [ "$args" = '--release-candidate --on-mock --key-path' ]; }; then continue; fi
         # shellcheck disable=SC2086
@@ -2296,6 +3272,38 @@ check_rc_stack() {
     fi
     rcs_npm "the key-path rehearsal"
   fi
+  # --rules-only: the stack of the push run (no override file) with EvalIn enabled, the key unset in every call whether the caller holds one or not, and a first
+  # IRIS session that asks ReadyReason, restores the runners' keys and reads Keys.Status, and never calls PointKeys
+  for key in unset "$fake"; do
+    rc=$(rcs_run "$calls" "$dir" "$script" "$key" --rules-only main)
+    up=$(awk '/^ARGS compose .* up / { print; getline; print }' "$calls")
+    if [ "$rc" -eq 2 ] || [ -z "$up" ]; then
+      echo "eval/run.sh: --rules-only does not start a stack (exit $rc)"
+    else
+      if grep -q 'compose\.release-candidate\.yml' "$calls"; then
+        echo "eval/run.sh: the stack of --rules-only is laid over with eval/compose.release-candidate.yml"
+      fi
+      if ! printf '%s\n' "$up" | grep -q '^ENV eval=1 key=unset$'; then
+        echo "eval/run.sh: --rules-only does not enable EvalIn with OCUTALON_EVAL=1, or has the key in the environment of the call that starts the stack"
+      fi
+      if grep -q 'key=set' "$calls"; then
+        echo "eval/run.sh: --rules-only has the key in the environment of a call"
+      fi
+      if ! grep -q 'ReadyReason' "$calls" || ! grep -q 'Keys).Status' "$calls"; then
+        echo "eval/run.sh: --rules-only asks no ReadyReason and Keys.Status of its first IRIS session"
+      fi
+      if ! grep -q 'RestoreKeys' "$calls"; then
+        echo "eval/run.sh: --rules-only does not restore the runners' keys with RestoreKeys"
+      fi
+      if grep -q 'PointKeys' "$calls"; then
+        echo "eval/run.sh: --rules-only calls PointKeys"
+      fi
+      if [ "$key" != unset ] && { grep -qF -- "$fake" "$calls" "$dir/out.log" || grep -rqF --exclude=out.log -- "$fake" "$dir" || [ -n "$(new_files_with "$1" "$tmp/rc-stack.stamp" "$fake")" ]; }; then
+        echo "eval/run.sh: the value of the key appears in a call, the output or a file of --rules-only"
+      fi
+      rcs_npm "--rules-only"
+    fi
+  done
   # the push run with a key in the caller's environment: the key is unset first, so no call has it
   rc=$(rcs_run "$calls" "$dir" "$script" "$fake")
   if ! grep -q '^ENV ' "$calls"; then
@@ -2319,7 +3327,12 @@ rcf_stub() {
   cat > "$tmp/stub-rcf/$tool" << 'STUB'
 #!/bin/sh
 printf 'ARGS %s\n' "$*" >> "$RCF_CALLS"
+printf 'KEYLEN %s\n' "${#ANTHROPIC_API_KEY}" >> "$RCF_CALLS"
 case "$*" in
+  *"exec -T iris sh -c"*requests.jsonl*)
+    # the mock's request count: 0 at the first read, RCF_MOCKAFTER (0 by default) at the next
+    if [ -f "$RCF_CALLS.mock" ]; then echo "${RCF_MOCKAFTER:-0}"; else : > "$RCF_CALLS.mock"; echo 0; fi
+    ;;
   *"exec -T iris iris session"*)
     script=$(cat)
     printf '%s\n' "$script" >> "$RCF_CALLS"
@@ -2364,7 +3377,36 @@ case "$*" in
         printf 'CHK|started|1\n'
         if [ "${RCF_SMOKE:-passed}" != none ]; then printf 'CHK|smoke|%s|0\n' "${RCF_SMOKE:-passed}"; fi
         ;;
+      *'Keys).Status'*)
+        # the rules-only check of the runners' keys (RestoreKeys, then Keys.Status of each runner and retry runner)
+        ready= restored=1 records=1 status=0,0,0,0,0,0
+        case ${RCF_RULES:-} in
+          notready) ready='the production is not running' ;;
+          norestore) restored=0 ;;
+          norecords) records=0 ;;
+          haskey) status=0,1,0,0,0,0 ;;
+          nostatus) status= ;;
+        esac
+        # the records line only when the session waits for the runners' records (WaitRecords) before it reads Keys.Status
+        case $script in *'WaitRecords(all)'*'Keys).Status'*) ;; *) records= ;; esac
+        printf 'CHK|started|1\nCHK|ready|%s\nCHK|restored|%s\nCHK|records|%s\nCHK|status|%s\n' "$ready" "$restored" "$records" "$status"
+        ;;
       *ReadyReason*) printf 'CHK|ready|\nCHK|keys|1\n' ;;
+      *'Eval.Report).Run('*',1)'*)
+        # a rules-only run (rulesOnly 1): the CHK lines that rules_only_run reads
+        problems=0 acted=0
+        case ${RCF_RULES:-} in
+          problem) problems=1 ;;
+          acted) acted=1 ;;
+        esac
+        printf 'CHK|started|1\nCHK|run|1\nCHK|leftwatches|0\nCHK|problems|%s\n' "$problems"
+        if [ "$problems" -ne 0 ]; then printf 'CHK|problem|a model answered: zz\n'; fi
+        printf 'CHK|democase|orders-date-format\nCHK|actions|%s\nCHK|cases|1\nCHK|fallback|zz-case|no_key\nCHK|saved|1\n' "$acted"
+        ;;
+      *'Eval.Report).Run('*'eval/held-out/'*)
+        if [ "${RCF_HELD:-}" = nosave ]; then printf 'CHK|started|1\nCHK|run|0\nCHK|error|zz\n'
+        else printf 'CHK|started|1\nCHK|run|1\nCHK|leftwatches|0\nCHK|problems|0\nCHK|democase|orders-date-format\nCHK|saved|1\n'; fi
+        ;;
       *'Eval.Report).Run('*) printf 'CHK|started|1\nCHK|run|1\nCHK|leftwatches|0\nCHK|problems|0\nCHK|democase|orders-date-format\nCHK|saved|1\n' ;;
       *'Eval.Gate).Demo('*) printf 'CHK|started|1\nCHK|demorun|1\nCHK|demogate|10|10|1\nCHK|saved|1\n' ;;
       *'Eval.Gate).Attempt('*)
@@ -2488,12 +3530,101 @@ rcf_pair() {
 # rcf_none <dir>: 0 when the copy tree's eval/ holds no result file.
 rcf_none() { [ -z "$(find "$1/t/eval" -name 'release-candidate*' 2> /dev/null)" ]; }
 
+# rcf_attempts <dir>: the number of attempts the run made (its Report.Run sessions over the top-level set; the held-out run is not one).
+rcf_attempts() { grep -F 'Eval.Report).Run(' "$1/calls" | grep -vcF 'eval/held-out/'; }
+
+# rcf_held <dir> <form>: the violations of the held-out run of a release-candidate form (Story 0.27): exactly one Report.Run over eval/held-out/, after the
+# last attempt, never named by the call of Gate.Result (it is outside the verdict), kept in the report folder as held-out.json and held-out.md and never
+# written into eval/.
+rcf_held() {
+  local dir=$1 form=$2 held at last
+  held=$(grep -F 'Eval.Report).Run(' "$dir/calls" | grep -cF 'eval/held-out/')
+  if [ "$held" -ne 1 ]; then
+    echo "eval/run.sh: $form runs the held-out set $held time(s), not once"
+    return 0
+  fi
+  at=$(grep -nF 'Eval.Report).Run(' "$dir/calls" | grep -F 'eval/held-out/' | head -n 1 | cut -d: -f1)
+  last=$(grep -nF 'Eval.Report).Run(' "$dir/calls" | grep -vF 'eval/held-out/' | tail -n 1 | cut -d: -f1)
+  if [ -z "$last" ] || [ "$at" -lt "$last" ]; then echo "eval/run.sh: $form does not run the held-out set after the last attempt"; fi
+  if grep -F 'Eval.Gate).Result(' "$dir/calls" | grep -qF 'held-out'; then echo "eval/run.sh: $form gives the held-out run to Gate.Result"; fi
+  if [ ! -s "$dir/reports/held-out.json" ] || [ ! -s "$dir/reports/held-out.md" ]; then echo "eval/run.sh: $form does not keep held-out.json and held-out.md in the report folder"; fi
+  if [ -n "$(find "$dir/t/eval" -maxdepth 1 -name 'held-out*' 2> /dev/null)" ]; then echo "eval/run.sh: $form writes the held-out report into eval/"; fi
+}
+
+# rcf_rules <script> <dir> <key>: the violations of the script in the cases of --rules-only (Story 0.27), on the stub of rcf_stub, stopping at the first case that
+# has one: both sets (the keys restored and checked before any case is sent, two rules-only runs, the mock's request count unchanged, the report files, the key
+# of the caller in no call), one set each, a runner with a key, the mock reached, a problem, a run that acted, a production that is not ready and keys that cannot
+# be restored.
+rcf_rules() {
+  local script=$1 dir=$2 fake=$3 rc form runs status_at first_run status
+  for form in '--rules-only' '--rules-only main' '--rules-only held-out'; do
+    # shellcheck disable=SC2086
+    rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked ok $form)
+    runs=$(grep -F 'Eval.Report).Run(' "$dir/calls" | grep -cF ',1)')
+    if [ "$rc" -ne 0 ] || ! grep -qx 'eval/run: all checks passed' "$dir/out.log"; then echo "eval/run.sh: $form does not end with all checks passed and exit 0 (exit $rc)" && return 0; fi
+    if ! grep -qx 'PASS rules-only: no runner or retry runner has a model key' "$dir/out.log" || ! grep -qx 'PASS rules-only: the mock received 0 request(s)' "$dir/out.log"; then
+      echo "eval/run.sh: $form prints no PASS line for the runners' keys or for the mock's request count" && return 0
+    fi
+    if ! grep -q '^REPORT ' "$dir/out.log"; then echo "eval/run.sh: $form prints no REPORT line" && return 0; fi
+    if grep -q 'PointKeys' "$dir/calls" || ! grep -q 'RestoreKeys' "$dir/calls"; then echo "eval/run.sh: $form does not restore the runners' keys with RestoreKeys, or calls PointKeys" && return 0; fi
+    if grep -q '^KEYLEN [1-9]' "$dir/calls"; then echo "eval/run.sh: $form leaves the caller's model key in the environment of a call" && return 0; fi
+    if grep -rqF -- "$fake" "$dir/calls" "$dir/out.log" "$dir/reports" "$dir/t"; then echo "eval/run.sh: the value of the key appears in a call, the output or a file of $form" && return 0; fi
+    if grep -q 'Eval.Gate)\|ThinkingSmoke' "$dir/calls" || ! rcf_none "$dir"; then echo "eval/run.sh: $form runs the gate or the smoke test, or writes a result file into eval/" && return 0; fi
+    status_at=$(grep -n 'Keys).Status' "$dir/calls" | head -n 1 | cut -d: -f1)
+    first_run=$(grep -nF 'Eval.Report).Run(' "$dir/calls" | head -n 1 | cut -d: -f1)
+    if [ -z "$status_at" ] || [ -z "$first_run" ] || [ "$status_at" -gt "$first_run" ]; then echo "eval/run.sh: $form does not check Keys.Status of the runners before it sends a case" && return 0; fi
+    case $form in
+      '--rules-only')
+        if [ "$runs" -ne 2 ] || [ ! -s "$dir/reports/rules-only.json" ] || [ ! -s "$dir/reports/rules-only.md" ] || [ ! -s "$dir/reports/rules-only-held-out.json" ] || [ ! -s "$dir/reports/rules-only-held-out.md" ]; then
+          echo "eval/run.sh: $form does not run both sets as rules-only runs and keep rules-only.json/.md and rules-only-held-out.json/.md in the report folder ($runs run(s))" && return 0
+        fi
+        ;;
+      '--rules-only main')
+        if [ "$runs" -ne 1 ] || grep -F 'Eval.Report).Run(' "$dir/calls" | grep -qF 'eval/held-out/' || [ ! -s "$dir/reports/rules-only.json" ] || [ -e "$dir/reports/rules-only-held-out.json" ]; then
+          echo "eval/run.sh: $form does not run the main set alone ($runs run(s))" && return 0
+        fi
+        ;;
+      *)
+        if [ "$runs" -ne 1 ] || ! grep -F 'Eval.Report).Run(' "$dir/calls" | grep -qF 'eval/held-out/' || [ ! -s "$dir/reports/rules-only-held-out.json" ] || [ -e "$dir/reports/rules-only.json" ]; then
+          echo "eval/run.sh: $form does not run the held-out set alone ($runs run(s))" && return 0
+        fi
+        ;;
+    esac
+  done
+  # a key in a runner: the run ends with exit 1 before it sends any case
+  rc=$(RCF_RULES=haskey rcf_session "$script" "$dir" "$fake" 0 blocked ok --rules-only)
+  if [ "$rc" -ne 1 ] || ! grep -q '^FAIL rules-only: a runner has a model key' "$dir/out.log" || grep -qF 'Eval.Report).Run(' "$dir/calls"; then
+    echo "eval/run.sh: --rules-only goes on, or does not fail with a FAIL line, when a runner has a model key (exit $rc)" && return 0
+  fi
+  # keys that cannot be restored, keys that cannot be read, and a production that is not ready: the same
+  for status in norestore norecords nostatus notready; do
+    rc=$(RCF_RULES=$status rcf_session "$script" "$dir" "$fake" 0 blocked ok --rules-only)
+    if [ "$rc" -ne 1 ] || ! grep -q '^FAIL rules-only: ' "$dir/out.log" || grep -qF 'Eval.Report).Run(' "$dir/calls"; then
+      echo "eval/run.sh: --rules-only goes on, or does not fail with a FAIL line, when the check of the runners ends '$status' (exit $rc)" && return 0
+    fi
+  done
+  # the mock reached during the runs
+  rc=$(RCF_MOCKAFTER=3 rcf_session "$script" "$dir" "$fake" 0 blocked ok --rules-only)
+  if [ "$rc" -ne 1 ] || ! grep -q '^FAIL rules-only: the mock received 3 request(s)' "$dir/out.log" || grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
+    echo "eval/run.sh: --rules-only does not fail when the mock received requests during its runs (exit $rc)" && return 0
+  fi
+  # a problem in a run (a model answered, a fallback for another reason), and a run that acted
+  rc=$(RCF_RULES=problem rcf_session "$script" "$dir" "$fake" 0 blocked ok --rules-only)
+  if [ "$rc" -ne 1 ] || ! grep -q '^FAIL rules-only: the run has 1 problem' "$dir/out.log" || grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
+    echo "eval/run.sh: --rules-only does not fail when a rules-only run has a problem (exit $rc)" && return 0
+  fi
+  rc=$(RCF_RULES=acted rcf_session "$script" "$dir" "$fake" 0 blocked ok --rules-only)
+  if [ "$rc" -ne 1 ] || ! grep -q '^FAIL rules-only: the run acted' "$dir/out.log" || grep -qx 'eval/run: all checks passed' "$dir/out.log"; then
+    echo "eval/run.sh: --rules-only does not fail when a rules-only run acted (exit $rc)" && return 0
+  fi
+}
+
 # rcf_cases <script>: the violations of the script in the six cases of check_rc_flow, in order; it stops after the first case that has one.
 rcf_cases() {
   local script=$1 dir="$tmp/flow-rc" rc sets out fake
   fake="zz-not-a-key-$RANDOM$RANDOM"
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate)
-  sets=$(grep -cF 'Eval.Report).Run(' "$dir/calls")
+  sets=$(rcf_attempts "$dir")
   out=$(
     if [ "$rc" -ne 3 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log"; then echo "eval/run.sh: --release-candidate with a blocked verdict does not end with VERDICT blocked and exit 3 (exit $rc)"; fi
     if [ "$sets" -ne 3 ]; then echo "eval/run.sh: --release-candidate runs $sets attempt(s), not 3, after attempt 1 is below a target"; fi
@@ -2503,20 +3634,22 @@ rcf_cases() {
     smoked=$(grep -cF 'Test.Eval.ThinkingSmoke).Print(' "$dir/calls")
     if [ "$smoked" -ne 1 ]; then echo "eval/run.sh: --release-candidate runs the thinking-history smoke test $smoked time(s), not once"; fi
     if ! grep -qF '"thinkingHistorySmoke":"passed"' "$dir/calls"; then echo "eval/run.sh: --release-candidate does not give Gate.Result the figure of the thinking-history smoke test"; fi
+    rcf_held "$dir" '--release-candidate'
     if [ "$smoked" -eq 1 ]; then
       smoke_at=$(grep -nF 'Test.Eval.ThinkingSmoke).Print(' "$dir/calls" | cut -d: -f1)
-      last_set=$(grep -nF 'Eval.Report).Run(' "$dir/calls" | tail -n 1 | cut -d: -f1)
+      last_set=$(grep -nF 'Eval.Report).Run(' "$dir/calls" | grep -vF 'eval/held-out/' | tail -n 1 | cut -d: -f1)
       result_at=$(grep -nF 'Eval.Gate).Result(' "$dir/calls" | head -n 1 | cut -d: -f1)
       if [ "$smoke_at" -lt "$last_set" ] || [ "$smoke_at" -gt "$result_at" ]; then echo "eval/run.sh: --release-candidate does not run the thinking-history smoke test once after the attempts and before the verdict"; fi
     fi
   )
   if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
   rc=$(rcf_session "$script" "$dir" "$fake" 1 pass ok --release-candidate)
-  sets=$(grep -cF 'Eval.Report).Run(' "$dir/calls")
+  sets=$(rcf_attempts "$dir")
   out=$(
     if [ "$rc" -ne 0 ] || ! grep -qx 'VERDICT pass' "$dir/out.log"; then echo "eval/run.sh: --release-candidate with attempt 1 meeting every target does not end with VERDICT pass and exit 0 (exit $rc)"; fi
     if [ "$sets" -ne 1 ]; then echo "eval/run.sh: --release-candidate runs $sets attempt(s), not 1, when attempt 1 meets every target"; fi
     if ! rcf_pair "$dir"; then echo "eval/run.sh: a finished --release-candidate does not write eval/release-candidate.json and .md (the result it saved)"; fi
+    rcf_held "$dir" '--release-candidate (attempt 1 meeting every target)'
   )
   if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
   rc=$(rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
@@ -2526,6 +3659,7 @@ rcf_cases() {
     if [ ! -s "$dir/reports/release-candidate-on-mock.json" ]; then echo "eval/run.sh: --release-candidate --on-mock does not keep release-candidate-on-mock.json in the report folder"; fi
     if grep -qF 'ThinkingSmoke' "$dir/calls"; then echo "eval/run.sh: --release-candidate --on-mock runs the thinking-history smoke test"; fi
     if grep -qF 'thinkingHistorySmoke' "$dir/calls"; then echo "eval/run.sh: --release-candidate --on-mock gives Gate.Result a figure of the thinking-history smoke test"; fi
+    rcf_held "$dir" '--release-candidate --on-mock'
   )
   if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
   # a failed smoke, and one that prints no figure, are recorded as failed and change neither the verdict nor the exit code
@@ -2534,6 +3668,11 @@ rcf_cases() {
     if [ "$rc" -ne 3 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log"; then echo "eval/run.sh: a thinking-history smoke test that is $smoke changes the verdict or the exit code of --release-candidate (exit $rc)" && return 0; fi
     if ! grep -qF '"thinkingHistorySmoke":"failed"' "$dir/calls"; then echo "eval/run.sh: a thinking-history smoke test that is $smoke is not recorded as failed in the result of --release-candidate" && return 0; fi
   done
+  # a held-out run that does not save is only a NOTE: the verdict and the exit code are the same
+  rc=$(RCF_HELD=nosave rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate)
+  if [ "$rc" -ne 3 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || ! grep -q '^NOTE held-out: ' "$dir/out.log" || ! rcf_pair "$dir" || [ -e "$dir/reports/held-out.json" ]; then
+    echo "eval/run.sh: a held-out run that does not save changes the verdict or the exit code of --release-candidate, or prints no NOTE (exit $rc)" && return 0
+  fi
   rc=$(rcf_session "$script" "$dir" "$fake" 0 incomplete ok --release-candidate)
   if [ "$rc" -ne 1 ] || ! rcf_none "$dir"; then echo "eval/run.sh: an incomplete verdict is not a structural failure, with exit 1 and nothing in eval/ (exit $rc)" && return 0; fi
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked model --release-candidate)
@@ -2645,6 +3784,38 @@ check_rc_flow() {
   fi
   rcf_stub
   rcf_cases "$1/eval/run.sh"
+}
+
+# check_rules_flow <root>: the violations of eval/run.sh of the tree in the fixed-rules runs (Story 0.27): --rules-only, --rules-only main and --rules-only
+# held-out on the stub of rcf_stub (see rcf_rules), and the order of the push run's added steps, read from the script: after the marker of run 1 the held-out
+# run on the mock, the keys restored and the rules-only half over both sets, the comparison written by eval/compare.mjs, and only then the reports.
+check_rules_flow() {
+  local script="$1/eval/run.sh" marker held half compare current reports
+  if [ ! -f "$script" ]; then
+    echo "eval/run.sh: the script is missing"
+    return 0
+  fi
+  marker=$(grep -n '^# --- run 1: the set ---$' "$script" | head -n 1 | cut -d: -f1)
+  if [ -z "$marker" ]; then
+    echo "eval/run.sh: the push run has no marker '# --- run 1: the set ---'"
+    return 0
+  fi
+  held=$(awk -v m="$marker" 'NR > m && /^eval_run held-out "\$\{EVAL_FOLDER\}held-out\/"/ { print NR; exit }' "$script")
+  half=$(awk -v m="$marker" 'NR > m && /^  rules_only_half both$/ { print NR; exit }' "$script")
+  compare=$(awk -v m="$marker" 'NR > m && /node "\$root\/eval\/compare\.mjs" "\$report_dir" "\$report_dir"/ { print NR; exit }' "$script")
+  reports=$(awk -v m="$marker" 'NR > m && /^# --- the reports ---$/ { print NR; exit }' "$script")
+  if [ -z "$held" ] || [ -z "$half" ] || [ -z "$compare" ] || [ -z "$reports" ] || [ "$held" -gt "$half" ] || [ "$half" -gt "$compare" ] || [ "$compare" -gt "$reports" ]; then
+    echo "eval/run.sh: the push run does not run the held-out set, then the rules-only half over both sets, then eval/compare.mjs on its report folder, before its reports"
+    return 0
+  fi
+  # the committed rules-only run (eval/results/) is checked against this run's fixed-rules column, after the comparison and before the reports
+  current=$(awk -v m="$compare" 'NR > m && /node "\$root\/eval\/compare\.mjs" --column "\$root\/eval\/results"/ { print NR; exit }' "$script")
+  if [ -z "$current" ] || [ "$current" -gt "$reports" ] || ! grep -q '^    echo "NOTE comparison: the committed eval/results/ is not this run' "$script"; then
+    echo "eval/run.sh: the push run does not check the committed eval/results/ against its own fixed-rules column before its reports"
+    return 0
+  fi
+  rcf_stub
+  rcf_rules "$script" "$tmp/flow-rules" "zz-not-a-key-$RANDOM$RANDOM"
 }
 
 # check_key_like <root>: the violations of the three scripts that read the key-like patterns (Story 9.10; owner condition U-166 (c)): eval/run.sh,
@@ -2856,11 +4027,40 @@ STUB
   done
 }
 
+# selected <label> <only> <except>: 0 when the rule runs. <only> and <except> are space-separated rule names (EVAL_SET_ONLY and EVAL_SET_EXCEPT): with
+# <only> set, only the rules it names run; with <except> set, every rule but those it names runs; both empty runs every rule, as CI does.
+selected() {
+  local label=$1 only=$2 except=$3 name
+  if [ -n "$only" ]; then
+    for name in $only; do [ "$name" = "$label" ] && return 0; done
+    return 1
+  fi
+  for name in $except; do [ "$name" = "$label" ] && return 1; done
+  return 0
+}
+
+# The selection first runs on its own cases: no variable runs every rule, EVAL_SET_ONLY only the rules it names, EVAL_SET_EXCEPT every rule but the ones it
+# names, and EVAL_SET_ONLY wins when both are set.
+selection_wrong=""
+selected zz "" "" || selection_wrong="$selection_wrong no variable skips a rule;"
+selected zz "zz yy" "" || selection_wrong="$selection_wrong EVAL_SET_ONLY skips a rule it names;"
+selected zz "yy" "" && selection_wrong="$selection_wrong EVAL_SET_ONLY runs a rule it does not name;"
+selected zz "" "yy zz" && selection_wrong="$selection_wrong EVAL_SET_EXCEPT runs a rule it names;"
+selected zz "" "yy" || selection_wrong="$selection_wrong EVAL_SET_EXCEPT skips a rule it does not name;"
+selected zz "zz" "zz" || selection_wrong="$selection_wrong EVAL_SET_ONLY does not win over EVAL_SET_EXCEPT;"
+if [ -n "$selection_wrong" ]; then
+  echo "FAIL selection:$selection_wrong"
+  fails=$((fails + 1))
+fi
+
 # rule <label> <description> <checker>: every sample bad-* of the label must be flagged, and flagged for the reason in its expect.txt, the
 # sample good and every sample good-* (a tree on the edge of the rule, which keeps it) must not be flagged, and then the real tree must have no
-# violation.
+# violation. With EVAL_SET_ONLY or EVAL_SET_EXCEPT a rule that is not selected
+# does not run; its label is recorded either way, for the check of the names at the end.
 rule() {
   local label=$1 description=$2 checker=$3 s n=0 ok=1 hits want
+  rule_labels="$rule_labels $label"
+  selected "$label" "${EVAL_SET_ONLY:-}" "${EVAL_SET_EXCEPT:-}" || return 0
   for s in "$tmp/samples/$label"/bad-*; do
     [ -d "$s" ] || continue
     n=$((n + 1))
@@ -2986,17 +4186,35 @@ rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answer
 rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations, a command case and the three digest situations" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
 rule incidents "the incident cases of eval/ are at least 11, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's comes from it or from the Orders demo production, and at least 2 of the feed's are held out" check_incidents
+rule held-out "eval/held-out/ holds exactly 12 case folders, 8 items (2 for each outcome) and 4 incidents, every one held out, each incident's snapshot sourced from the test feed, and no file outside a case folder" check_held_out
+rule held-out-frozen "the SHA-256 of each of the 12 eval/held-out/*/case.json files is one of the 12 pinned values (the commit 6af31dab), and every pinned value is the value of a file" check_held_out_frozen
+rule held-out-names "no tracked or not-ignored file outside eval/held-out/, eval/results/, the specs and the feed's fixture (the four incident names only) names a held-out case, subject line or item text, which are read from eval/held-out/*/case.json" check_held_out_names
+rule compare "eval/compare.mjs writes the comparison of an agent folder and a rules-only folder with the per-case and total figures, the three unsafe kinds and the needed-you-now count, prints the column, reads set-1.json first, refuses a mismatch, a missing file and a file that is not a report with exit 1 and nothing written, and a wrong usage with exit 2" check_compare
+rule readme-column "the README comparison of the agent and the fixed rules has the date, the main set's routine item and incident counts and every fixed-rules cell that node eval/compare.mjs --column eval/results gives, row by row" check_readme_column
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle, runs bash eval/run.sh and then bash eval/key-proof.sh before its teardown, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
-rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed or the word no-evidence with exit 2 before it goes on to lib-live.sh, and goes on with none, with feed and with no-evidence" check_record_guard
-rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
+rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed, the word no-evidence, and the word held-out alone or with one lower-case kebab name, with exit 2 before it goes on to lib-live.sh, and goes on with none and with each of those forms" check_record_guard
+rule record-held-out "docker/tests/record-eval.sh held-out, on a stand-in for the throwaway, writes the snapshot of every held-out incident or of the one named and says so, and refuses with exit 1 and no snapshot written a recording of fewer incidents than there are, of a case that is no held-out incident and of a changed case.json, and a named folder without a case.json or an item before anything starts" check_record_held_out
+rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), accepts --rules-only alone, with main or with held-out and refuses it with any other word or form, never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
 rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
+rule rules-flow "eval/run.sh --rules-only (both sets, main alone, held-out alone), on a stub of a healthy stack, restores the runners' keys with RestoreKeys (never PointKeys), waits for their key records, checks Keys.Status of each before it sends a case, runs each set as a rules-only run, keeps the caller's key out of every call, passes with the mock's request count unchanged and the key and fails with exit 1 on a runner with a key, keys that cannot be restored or read, runners that record no key state, a production that is not ready, a mock that was reached, a problem or a run that acted; and the push run holds the held-out run, the rules-only half and eval/compare.mjs in that order, then the check of the committed eval/results/, before its reports" check_rules_flow
 rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; runs the thinking-history smoke test once after the attempts and gives the result its figure, records a failed one without changing the verdict or the exit code, and never runs it with --on-mock or in the push run; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the nine key proof lines and the counts line, and fails on a hit, a failed control or an unreadable place in each of the nine scans, including a key in the web bundle, in the report folder or below eval/" check_rc_flow
 rule key-proof "eval/key-proof.sh exits 2 without OCUTALON_RUN_TAG before eval/run.sh runs, gives the run a fake key of 66 characters in the shape of a real one, never shows it, and flags a run that prints it, writes it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line or leaves a volume or container, reports counts other than its contract, lets an inherited key through, or runs against a model endpoint that is not the CI mock, and passes one that does none of these" check_key_proof
 rule key-like "eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh, the one definition of the key-like patterns, and hold none of their own" check_key_like
 rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, refuses a key-like reason, reports key-like text in the result with exit 4, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override
+
+# a name in EVAL_SET_ONLY or EVAL_SET_EXCEPT that no rule has is a typo, and would silently run nothing or everything
+for name in ${EVAL_SET_ONLY:-} ${EVAL_SET_EXCEPT:-}; do
+  case " $rule_labels " in
+    *" $name "*) ;;
+    *)
+      echo "FAIL selection: EVAL_SET_ONLY or EVAL_SET_EXCEPT names '$name', which is no rule"
+      fails=$((fails + 1))
+      ;;
+  esac
+done
 
 if [ "$fails" -ne 0 ]; then
   echo "test-eval-set: $fails rule(s) failed"

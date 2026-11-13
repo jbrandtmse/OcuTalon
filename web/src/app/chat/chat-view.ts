@@ -30,8 +30,10 @@ import type {
   Cost,
   DecisionPayload,
   IncidentPayload,
+  Learned,
   Memory,
   NotificationPayload,
+  SentFile,
   TurnStepPayload,
 } from '../live/payloads';
 
@@ -138,6 +140,10 @@ export interface TurnView {
   citations?: readonly Citation[];
   /** The memories the reply recalled, as its chat.message carries them; absent when it has none. */
   memories?: readonly Memory[];
+  /** The learned saves the reply announces, as its chat.message carries them (the server decided which show); absent when it has none. */
+  learned?: readonly Learned[];
+  /** The file the message carries, as its chat.message served it (Story 25.3); absent for a message of text. */
+  sentFile?: SentFile;
   /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
   traceUrl?: string;
 }
@@ -222,7 +228,8 @@ function messageOf(item: LiveItem): ChatMessagePayload | undefined {
 
 /**
  * The notice card of a chat entry: a notification of the kind tellnow, reminder, allowance, digest or summary, or of the kind approval or result
- * with an approvalRef (a tool call's request or result); undefined for any other entry.
+ * with an approvalRef (a tool call's request or result), or of the kind result with no approvalRef but a card `ref` of its own (the notice that a delay notice could not
+ * be drafted, Story 23.5: a fix's result with no card Ref belongs to the incident card, which draws it); undefined for any other entry.
  */
 export function noticeOf(item: LiveItem): NoticeView | undefined {
   if (item.type !== 'notification') {
@@ -230,7 +237,8 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
   }
   const payload: NotificationPayload = item.payload;
   const toolCall = (payload.kind === 'approval' || payload.kind === 'result') && !!payload.approvalRef;
-  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && payload.kind !== 'digest' && payload.kind !== 'summary' && !toolCall) {
+  const bareResult = payload.kind === 'result' && !payload.approvalRef && !!payload.ref;
+  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && payload.kind !== 'digest' && payload.kind !== 'summary' && !toolCall && !bareResult) {
     return undefined;
   }
   const view: NoticeView = {
@@ -406,6 +414,12 @@ export function chatView(
     }
     if (message.memories !== undefined && message.memories.length > 0) {
       view.memories = message.memories;
+    }
+    if (message.learned !== undefined && message.learned.length > 0) {
+      view.learned = message.learned;
+    }
+    if (message.sentFile !== undefined) {
+      view.sentFile = message.sentFile;
     }
     if (message.traceUrl) {
       view.traceUrl = message.traceUrl;

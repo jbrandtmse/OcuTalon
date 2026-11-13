@@ -63,10 +63,16 @@ Property Citations As list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME
 /// The memories the reply recalled, one per memory a memory search returned for the turn; absent for a reply with none.
 Property Memories As list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME = "memories");
 
+/// The learned saves the reply announces (Story 41.15), one per fact that the turn saved from the person's own words, shaped for the line under the reply (Memory.Learned.Shown); absent for a reply with none, and for a reply that already says "I'll remember".
+Property Learned As list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME = "learned");
+
+/// The file that the user's message carries (Story 25.3): ref, name, media type and size, never the bytes; absent for a message of text.
+Property SentFile As OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME = "sentFile");
+
 /// The payload for a turn row, with every field set from the row: ref, clientId, channel, fromGuide, state, text, replyText,
 /// the fallback's catalogKey and fallbackReason, createdAt, the trace target (the row's TraceHeaderId, in the running
 /// namespace; both stay empty while the row has none), the position of the trace target in its session's item list (both
-/// indexes, set only when the row has them), the shown decision (Decision.FromRow of the row ShownDecisionRef
+/// indexes, set only when the row has them), the file (sentFile, set only when the row has one), the shown decision (Decision.FromRow of the row ShownDecisionRef
 /// names, read as the session's own through Ownership) with the turn's cost, the check key and rows, and the citations and
 /// memories. A read that fails leaves the decision, the cost and the rows empty; it never fails the payload.
 ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMessage
@@ -88,6 +94,7 @@ ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMess
 	}
 	If row.TraceItemIndex '= "" Set payload.TraceItemIndex = row.TraceItemIndex
 	If row.TraceItemIndexNoEvents '= "" Set payload.TraceItemIndexNoEvents = row.TraceItemIndexNoEvents
+	Set payload.SentFile = ##class(OcuTalon.Live.Payload.Part.SentFile).FromJSON(row.SentFile)
 	Do ..SetDecision(payload, row)
 	Set payload.CheckKey = row.CheckKey
 	Set list = ##class(OcuTalon.Live.Payload.Part.CheckRow).ListFromJSON(row.CheckRows)
@@ -96,6 +103,8 @@ ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMess
 	For i = 1:1:list.Count() Do payload.Citations.Insert(list.GetAt(i))
 	Set list = ##class(OcuTalon.Live.Payload.Part.Memory).ListFromJSON(row.Memories)
 	For i = 1:1:list.Count() Do payload.Memories.Insert(list.GetAt(i))
+	Set list = ##class(OcuTalon.Live.Payload.Part.Learned).ListFromShown(##class(OcuTalon.Memory.Learned).Shown(row.Learned, row.ReplyText))
+	For i = 1:1:list.Count() Do payload.Learned.Insert(list.GetAt(i))
 	Quit payload
 }
 

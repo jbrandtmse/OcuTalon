@@ -45,6 +45,7 @@ export const RAIL_TEXTS = {
   suspend: 'Suspend {item}',
   resume: 'Resume {item}',
   reroute: 'Reroute {n} {noun} to {to}',
+  partner: 'Send a delay notice',
   runTool: 'Run {toolName}',
   changePersona: 'Change how OcuTalon talks to you',
   showInChat: 'Show in the chat: {action}',
@@ -52,6 +53,7 @@ export const RAIL_TEXTS = {
   expires: 'expires {when}',
   checkTitle: '{name} production',
   checkSchedule: 'Live, plus a check every minute',
+  checkScheduleQueues: 'A check every minute',
   lastRun: 'Last run {when}',
   lastRunLate: 'Last run {when} (late)',
   titleWithCountdown: '{text}{separator}{countdown}',
@@ -70,6 +72,9 @@ export const DECISIONS_SHOWN = 20;
 
 /** The kind of the production check, which the rail names and schedules. */
 const PRODUCTION_KIND = 'production';
+
+/** The kind of the queue-backlog check, which the rail schedules. */
+const QUEUES_KIND = 'queues';
 
 /** The values the view reuses from the page's other modules. when and countdown are bound to the clock's now. */
 export interface RailFormat {
@@ -176,7 +181,7 @@ export function readmeSection(readmeUrl: string, anchor: string): string {
 
 /**
  * The title of an approval request: "Repair and resend 50 orders" for a fix with a dry run (the noun by the count), "Repair and
- * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
+ * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Send a delay notice" for a partner warning (Story 23.5), "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
  */
 export function approvalTitle(approval: ApprovalPayload): string {
   if (approval.kind === 'setting') {
@@ -184,6 +189,9 @@ export function approvalTitle(approval: ApprovalPayload): string {
   }
   if (approval.kind === 'tool_call') {
     return fill(RAIL_TEXTS.runTool, { toolName: approval.toolName ?? '' }).trim();
+  }
+  if (approval.fixKind === 'partner_warning') {
+    return RAIL_TEXTS.partner;
   }
   if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
     return fill(approval.fixKind === 'suspend_item' ? RAIL_TEXTS.suspend : RAIL_TEXTS.resume, { item: approval.dryRun?.item ?? '' }).trim();
@@ -250,6 +258,8 @@ function checkRow(check: CheckPayload, format: RailFormat, late: boolean): RailR
   const row: RailRow = { key: `checks:${check.ref ?? ''}`, kind: 'check', title, lead: title, meta };
   if (check.kind === PRODUCTION_KIND) {
     row.detail = RAIL_TEXTS.checkSchedule;
+  } else if (check.kind === QUEUES_KIND) {
+    row.detail = RAIL_TEXTS.checkScheduleQueues;
   }
   return withTrace(row, check.traceUrl);
 }
@@ -276,7 +286,8 @@ function reminderRow(reminder: ReminderPayload, format: RailFormat): RailRow {
   return withTrace(row, reminder.traceUrl);
 }
 
-function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
+/** The row of one decision payload, which the rail lists and the History page lists too. */
+export function decisionRow(decision: DecisionPayload, format: RailFormat): RailRow {
   const fallback = decision.fallback === true;
   const sentence = fallback ? format.fallbackSentence(decision.fallbackReason ?? '') : undefined;
   const meta: string[] = [];

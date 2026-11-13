@@ -58,7 +58,8 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
 /// The payload for an approval request row, with every row-backed field set (the fix kind of a fix request included); dryRun is the row's stored JSON parsed
-/// into its part (left absent when the row holds none or it can't be read). A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
+/// into its part (left absent when the row holds none or it can't be read). A partner_warning request (Story 23.5) has the DryRun {notice, recipients, simulated}: its part holds
+/// only the notice, the recipients as "Name <address>" and simulated, with no repair keys and no reading. A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
 /// its part holds only before and after, each the old or new object's text, the string itself when it is one, and "" when it is missing; every other
 /// field of the part stays empty, eitherWay is 0 and Reading is not asked. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
 /// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
@@ -96,6 +97,18 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 			If row.Kind = "setting" {
 				Set part.Before = ..SettingText(dry, "old")
 				Set part.After = ..SettingText(dry, "new")
+				Set payload.DryRun = part
+				Quit
+			}
+			If row.FixKind = "partner_warning" {
+				Set part.Notice = dry.notice
+				Set part.Simulated = +dry.simulated
+				If $IsObject(dry.recipients) {
+					Set iterator = dry.recipients.%GetIterator()
+					While iterator.%GetNext(, .recipient) {
+						Do part.Recipients.Insert(recipient.name_" <"_recipient.address_">")
+					}
+				}
 				Set payload.DryRun = part
 				Quit
 			}

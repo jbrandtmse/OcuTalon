@@ -1,12 +1,13 @@
 /// Tests of the transition table of an incident (Story 5.5; AD-15) and of the quiet-time rule that closeQuiet uses. The class is pure: it calls
 /// OcuTalon.Watch.Transitions.Next and OcuTalon.Watch.Settle.Quiet and nothing else, so it runs warm.
-///   - TestRows: every row of the table, each at every combination of the facts pending, waiting and demoMode (and at the variants a notice may carry), gives
-///     its target state, open variant and execute choice; the row "open, noticed + raised -> awaiting_approval" (Story 23.2) is the request that the user asked for in the chat;
+///   - TestRows: every row of the table, each at every combination of the facts pending, waiting, demoMode and holds (and at the variants a notice may carry), gives
+///     its target state, open variant and execute choice; the rows of Story 23.9 split by holds (a resolved incident's closeQuiet and closeForReplay need h0, an open noticed
+///     incident's closeQuiet needs d0 h0, and dismiss carries no condition, so it closes a held incident too); the row "open, noticed + raised -> awaiting_approval" (Story 23.2) is the request that the user asked for in the chat;
 ///   - TestRefusedMoves: every pair of state (none, open not noticed, open noticed, awaiting_approval, fixing, resolved, closed) and event, at every combination
 ///     of the facts, is refused unless a row accepts it, and a refused move gives no target, variant or execute;
 ///   - TestQuiet: Settle.Quiet is 0 at 899 and 900 seconds, 1 at 901, and 0 for a time it cannot read.
 /// The rows are in Rows, one place, so that the two table tests read the same rows: each is a list of the state, whether the incident is noticed ("*" for either),
-/// the event, the condition on the facts (space-separated tokens p0 p1 w0 w1 d0 d1, and v for a variant of a notice), and the expected target, variant
+/// the event, the condition on the facts (space-separated tokens p0 p1 w0 w1 d0 d1 h0 h1, and v for a variant of a notice), and the expected target, variant
 /// ("<v>" for the variant given) and execute choice.
 Class OcuTalon.Test.Watch.Transitions Extends %UnitTest.TestCase
 {
@@ -24,11 +25,13 @@ Method TestRows()
 				For pending = 0, 1 {
 					For waiting = 0, 1 {
 						For demo = 0, 1 {
-							If '..Holds($List(row, 4), variant, pending, waiting, demo) Continue
-							Set facts = {"variant": (variant), "pending": (pending), "waiting": (waiting), "demoMode": (demo)}
-							Set accepted = ##class(OcuTalon.Watch.Transitions).Next(state, noticed, event, facts, .to, .kept, .execute)
-							Set expected = $List(row, 5)_"|"_$Select($List(row, 6) = "<v>": variant, 1: $List(row, 6))_"|"_$List(row, 7)
-							Do $$$AssertEquals(accepted_"|"_to_"|"_kept_"|"_execute, "1|"_expected, "'"_state_"' (noticed "_noticed_") + "_event_" at "_..Describe(variant, pending, waiting, demo)_" gives "_expected)
+							For holds = 0, 1 {
+								If '..Holds($List(row, 4), variant, pending, waiting, demo, holds) Continue
+								Set facts = {"variant": (variant), "pending": (pending), "waiting": (waiting), "demoMode": (demo), "holds": (holds)}
+								Set accepted = ##class(OcuTalon.Watch.Transitions).Next(state, noticed, event, facts, .to, .kept, .execute)
+								Set expected = $List(row, 5)_"|"_$Select($List(row, 6) = "<v>": variant, 1: $List(row, 6))_"|"_$List(row, 7)
+								Do $$$AssertEquals(accepted_"|"_to_"|"_kept_"|"_execute, "1|"_expected, "'"_state_"' (noticed "_noticed_") + "_event_" at "_..Describe(variant, pending, waiting, demo, holds)_" gives "_expected)
+							}
 						}
 					}
 				}
@@ -55,17 +58,19 @@ Method TestRefusedMoves()
 				For pending = 0, 1 {
 					For waiting = 0, 1 {
 						For demo = 0, 1 {
-							Set facts = {"variant": (variant), "pending": (pending), "waiting": (waiting), "demoMode": (demo)}
-							Set accepted = ##class(OcuTalon.Watch.Transitions).Next(state, noticed, event, facts, .to, .kept, .execute)
-							Set listed = ..Listed(rows, state, noticed, event, variant, pending, waiting, demo)
-							Set checked = checked + 1
-							If listed {
-								If 'accepted Do $$$AssertTrue(0, "'"_state_"' (noticed "_noticed_") + "_event_" at "_..Describe(variant, pending, waiting, demo)_" is a row but was refused")
-								Continue
-							}
-							Set refused = refused + 1
-							If accepted || (to_kept_execute '= "") {
-								Do $$$AssertTrue(0, "'"_state_"' (noticed "_noticed_") + "_event_" at "_..Describe(variant, pending, waiting, demo)_" is no row but gave "_accepted_"|"_to_"|"_kept_"|"_execute)
+							For holds = 0, 1 {
+								Set facts = {"variant": (variant), "pending": (pending), "waiting": (waiting), "demoMode": (demo), "holds": (holds)}
+								Set accepted = ##class(OcuTalon.Watch.Transitions).Next(state, noticed, event, facts, .to, .kept, .execute)
+								Set listed = ..Listed(rows, state, noticed, event, variant, pending, waiting, demo, holds)
+								Set checked = checked + 1
+								If listed {
+									If 'accepted Do $$$AssertTrue(0, "'"_state_"' (noticed "_noticed_") + "_event_" at "_..Describe(variant, pending, waiting, demo, holds)_" is a row but was refused")
+									Continue
+								}
+								Set refused = refused + 1
+								If accepted || (to_kept_execute '= "") {
+									Do $$$AssertTrue(0, "'"_state_"' (noticed "_noticed_") + "_event_" at "_..Describe(variant, pending, waiting, demo, holds)_" is no row but gave "_accepted_"|"_to_"|"_kept_"|"_execute)
+								}
 							}
 						}
 					}
@@ -80,6 +85,16 @@ Method TestRefusedMoves()
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("fixing", 1, "dismiss", {"pending": 0}, .to), 0, "dismiss while fixing is refused")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("open", 0, "dismiss", {}, .to), 0, "dismiss of an unnoticed open incident is refused")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("open", 0, "notice", {"variant": "rejected"}, .to), 0, "a notice with another variant is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("resolved", 0, "closeQuiet", {"holds": 1}, .to), 0, "closeQuiet of a resolved incident that holds a suspend is refused (Story 23.9)")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("resolved", 0, "closeForReplay", {"holds": 1}, .to), 0, "closeForReplay of a resolved incident that holds a suspend is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("open", 1, "closeQuiet", {"demoMode": 0, "holds": 1}, .to), 0, "closeQuiet of an open, noticed incident that holds a suspend is refused, with demo mode off")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("open", 1, "closeForReplay", {"holds": 0}, .to), 0, "closeForReplay of an open incident that holds no suspend is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("open", 1, "closeForReplay", {"holds": 1}, .to), 0, "and so is closeForReplay of an open incident that holds one")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("resolved", 0, "dismiss", {"holds": 1}, .to), 1, "dismiss of a resolved incident that holds a suspend is accepted")
+	Do $$$AssertEquals(to, "closed", "and closes it")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("open", 1, "dismiss", {"demoMode": 1, "holds": 1}, .to), 1, "dismiss of an open, noticed incident that holds a suspend is accepted, in demo mode too")
+	Do $$$AssertEquals(to, "closed", "and closes it")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Transitions).Next("resolved", 0, "closeQuiet", {"holds": 0, "demoMode": 1}, .to), 1, "a resolved incident that holds no suspend is closed by closeQuiet, in demo mode too (the online demo, where suspend and resume are refused, never holds one)")
 }
 
 Method TestQuiet()
@@ -120,14 +135,14 @@ ClassMethod Rows() As %List [ Private ]
 		$ListBuild("resolved", "*", "raised", "", "awaiting_approval", "", ""),
 		$ListBuild("fixing", "*", "raised", "", "fixing", "", ""),
 		$ListBuild("resolved", "*", "dismiss", "", "closed", "", ""),
-		$ListBuild("resolved", "*", "closeForReplay", "", "closed", "", ""),
-		$ListBuild("resolved", "*", "closeQuiet", "", "closed", "", ""),
+		$ListBuild("resolved", "*", "closeForReplay", "h0", "closed", "", ""),
+		$ListBuild("resolved", "*", "closeQuiet", "h0", "closed", "", ""),
 		$ListBuild("open", 1, "dismiss", "", "closed", "", ""),
-		$ListBuild("open", 1, "closeQuiet", "d0", "closed", "", ""))
+		$ListBuild("open", 1, "closeQuiet", "d0 h0", "closed", "", ""))
 }
 
-/// 1 when the condition holds at the facts: p0, p1, w0, w1, d0 and d1 are the facts, v means that the variant of the notice is fallback or no_fix.
-ClassMethod Holds(condition As %String, variant As %String, pending As %Boolean, waiting As %Boolean, demo As %Boolean) As %Boolean [ Private ]
+/// 1 when the condition holds at the facts: p0, p1, w0, w1, d0, d1, h0 and h1 are the facts (h is holds), v means that the variant of the notice is fallback or no_fix.
+ClassMethod Holds(condition As %String, variant As %String, pending As %Boolean, waiting As %Boolean, demo As %Boolean, holds As %Boolean) As %Boolean [ Private ]
 {
 	For i = 1:1:$Length(condition, " ") {
 		Set token = $Piece(condition, " ", i)
@@ -135,7 +150,7 @@ ClassMethod Holds(condition As %String, variant As %String, pending As %Boolean,
 		If token = "v" {
 			If (variant '= "fallback") && (variant '= "no_fix") Return 0
 		} Else {
-			Set fact = $Case($Extract(token, 1), "p": pending, "w": waiting, "d": demo, : "")
+			Set fact = $Case($Extract(token, 1), "p": pending, "w": waiting, "d": demo, "h": holds, : "")
 			If fact '= $Extract(token, 2) Return 0
 		}
 	}
@@ -143,14 +158,14 @@ ClassMethod Holds(condition As %String, variant As %String, pending As %Boolean,
 }
 
 /// 1 when a row accepts the state, noticed flag, event and facts.
-ClassMethod Listed(rows As %List, state As %String, noticed As %Boolean, event As %String, variant As %String, pending As %Boolean, waiting As %Boolean, demo As %Boolean) As %Boolean [ Private ]
+ClassMethod Listed(rows As %List, state As %String, noticed As %Boolean, event As %String, variant As %String, pending As %Boolean, waiting As %Boolean, demo As %Boolean, holds As %Boolean) As %Boolean [ Private ]
 {
 	Set found = 0
 	Set position = 0
 	While $ListNext(rows, position, row) {
 		If ($List(row, 1) '= state) || ($List(row, 3) '= event) Continue
 		If (state = "open") && ($List(row, 2) '= noticed) Continue
-		If ..Holds($List(row, 4), variant, pending, waiting, demo) {
+		If ..Holds($List(row, 4), variant, pending, waiting, demo, holds) {
 			Set found = 1
 			Quit
 		}
@@ -159,9 +174,9 @@ ClassMethod Listed(rows As %List, state As %String, noticed As %Boolean, event A
 }
 
 /// The facts as text, for the label of an assertion.
-ClassMethod Describe(variant As %String, pending As %Boolean, waiting As %Boolean, demo As %Boolean) As %String [ Private ]
+ClassMethod Describe(variant As %String, pending As %Boolean, waiting As %Boolean, demo As %Boolean, holds As %Boolean) As %String [ Private ]
 {
-	Quit "variant '"_variant_"', pending "_pending_", waiting "_waiting_", demoMode "_demo
+	Quit "variant '"_variant_"', pending "_pending_", waiting "_waiting_", demoMode "_demo_", holds "_holds
 }
 
 }

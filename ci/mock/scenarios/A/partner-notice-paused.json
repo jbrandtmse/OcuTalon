@@ -1,0 +1,12 @@
+{
+  "name": "partner-notice-paused",
+  "match": {
+    "marker": "partner-notice-paused"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Orders sent from your feed failed because the date format of the orders changed. The affected flow was paused, and the affected orders have not been processed yet."
+    }
+  ]
+}

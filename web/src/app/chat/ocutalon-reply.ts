@@ -7,6 +7,7 @@ import { AnswerSources } from './answer-sources';
 import { CheckRows } from './check-rows';
 import { CHAT_TEXTS, indicatorOf, type TurnView } from './chat-view';
 import { DecisionStrip } from './decision-strip';
+import { LearnedLines } from './learned-lines';
 import { parseReply, type ReplyBlock } from './reply-text';
 
 /** The catalog key of the sentence for a fallback reply whose own key the page does not render. */
@@ -27,14 +28,14 @@ export function replyFallbackText(catalogKey: string, fallbackReason: string): s
  * one-character ellipsis U+2026 (after 10 s the whole seconds instead): the ellipsis is revealed in three steps unless the user
  * prefers reduced motion. Once the turn is done it is the reply, left-aligned and unboxed under the mark and the name "OcuTalon":
  * the catalog's fallback sentence for a fallback, else the model's text as paragraphs and lists, and then the check results of the
- * reply and the sources of the answer (AnswerSources: a chip for each cited document section and each recalled memory). The decision strip comes last, after the indicator while the turn runs and after the text and the check rows once it is
+ * reply, one line for each learned save that the reply announces (LearnedLines) and the sources of the answer (AnswerSources: a chip for each cited document section and each recalled memory). The decision strip comes last, after the indicator while the turn runs and after the text and the check rows once it is
  * done. The model's text is bound by interpolation and `[href]` only, never as HTML; its
  * links open in a new tab and say so in their names, and a labelled link shows the host it opens after its label. Nothing here is a live region, and the element takes focus only when the
  * New messages button sends it there.
  */
 @Component({
   selector: 'app-ocutalon-reply',
-  imports: [AnswerSources, CheckRows, DecisionStrip, Icon, NgTemplateOutlet],
+  imports: [AnswerSources, CheckRows, DecisionStrip, Icon, LearnedLines, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (turn().reply.kind !== 'none') {
@@ -82,6 +83,9 @@ export function replyFallbackText(catalogKey: string, fallbackReason: string): s
           </div>
           @if (turn().checkKey || turn().checks) {
             <app-check-rows [checkKey]="turn().checkKey" [checks]="turn().checks" />
+          }
+          @if (turn().learned) {
+            <app-learned-lines [learned]="turn().learned" />
           }
           @if (turn().citations || turn().memories) {
             <app-answer-sources [citations]="turn().citations" [memories]="turn().memories" />

@@ -1,5 +1,5 @@
 // Tests that the written counts and texts of Story 20.2 follow the More to try registry (src/app/guide/more-to-try-view.ts): the README's
-// "more things to try" count, its "New since 1.0.0" line about the chips, EXPERIENCE.md's item count and its items 6 and 8, and the
+// "more things to try" count, the guide's "New since 1.0.0" line about the chips, EXPERIENCE.md's item count and its items 6 and 8, and the
 // registry's own header comments, and that EXPERIENCE.md numbers the items in the registry's order. The registry is the source of the
 // count; the words are written out here so that an item another story adds fails these tests until every place that counts says the new
 // number.
@@ -15,20 +15,21 @@ const root = join(here, '..', '..');
 const { MORE_TO_TRY_GROUPS, MORE_TO_TRY_ITEMS, groupsOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts')).href);
 
 const README = readFileSync(join(root, 'README.md'), 'utf8');
+const GUIDE = readFileSync(join(root, 'GUIDE.md'), 'utf8');
 const EXPERIENCE = readFileSync(join(root, '_bmad-output', 'planning-artifacts', 'ux-designs', 'ux-OcuTalon-2026-10-16', 'EXPERIENCE.md'), 'utf8');
 const REGISTRY = readFileSync(join(here, '..', 'src', 'app', 'guide', 'more-to-try-view.ts'), 'utf8');
 
-const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen'];
 const count = WORDS[MORE_TO_TRY_ITEMS.length];
 
-/** The Planner-ruled README bullet (Story 20.2, public text 14), word for word. */
+/** The Planner-ruled bullet of the guide's "New since 1.0.0" section (Story 20.2, public text 14), word for word. */
 const BULLET =
   '- **Where an answer came from.** An answer from your documents ends with a chip for each source that names the document and section: press it to read the passage, or open the whole document on the Documents page. An answer that recalls a memory carries a From memory chip that shows what was remembered and when. Try it: More to try, *See where an answer came from*.';
 
 /** The text between a heading line and the next heading of the same or a higher level. */
 const section = (text, heading) => {
   const start = text.indexOf(`\n${heading}\n`);
-  assert.ok(start >= 0, `${heading} is in the README`);
+  assert.ok(start >= 0, `${heading} is in the file`);
   const rest = text.slice(start + heading.length + 2);
   const end = rest.search(/\n#{1,3} /);
   return end < 0 ? rest : rest.slice(0, end);
@@ -42,7 +43,7 @@ describe('the registry names a count the documents can say', () => {
 
 describe('every written count follows the registry', () => {
   it('README says how many more things to try there are', () => {
-    assert.match(README, new RegExp(`its More to try panel has ${count} more things to try`));
+    assert.match(README, new RegExp(`Its More to try panel has ${count} more things to try`));
   });
 
   it('EXPERIENCE.md says how many items there are', () => {
@@ -56,8 +57,8 @@ describe('every written count follows the registry', () => {
   });
 });
 
-describe('README, "New since 1.0.0"', () => {
-  const bullets = section(README, '### New since 1.0.0')
+describe('GUIDE.md, "New since 1.0.0"', () => {
+  const bullets = section(GUIDE, '## New since 1.0.0')
     .split('\n')
     .filter((line) => line.startsWith('- '));
 
@@ -98,11 +99,11 @@ describe('EXPERIENCE.md, More to try', () => {
   // The panel's order: the sets of groupsOf, flattened. EXPERIENCE.md numbers its entries in this order.
   const SETS = groupsOf(MORE_TO_TRY_ITEMS);
   const PANEL = SETS.flatMap((set) => set.items);
-  // EXPERIENCE.md numbers its `Item n` entries 1, 2, ... in the panel's order; an unnumbered entry (`First item`) takes no number and
-  // leaves the numbers of the others as they are.
+  // EXPERIENCE.md numbers its `Item n` entries 1, 2, ... in the panel's order; an unnumbered entry (`First item`, or `After Item n`, which
+  // sits right after the `Item n` entry it names) takes no number and leaves the numbers of the others as they are.
   const NUMBERED = PANEL.filter((item) => EXPERIENCE.split('\n').some((one) => one.startsWith('    - Item ') && one.includes(`Label "${item.label}".`)));
   const numberOf = (id) => NUMBERED.findIndex((one) => one.id === id) + 1;
-  const ENTRY_LINE = /^    - (Item \d+|First item)\b/;
+  const ENTRY_LINE = /^    - (Item \d+|First item|After Item \d+)\b/;
   const HEADING_LINE = /^    - Heading "([^"]*)"\./;
   const labelOf = (text) => /Label "([^"]*)"\./.exec(text)?.[1];
 
@@ -111,6 +112,10 @@ describe('EXPERIENCE.md, More to try', () => {
     assert.deepEqual(lines.map(labelOf), PANEL.map((item) => item.label), 'the entries are the panel\'s items, in its order');
     NUMBERED.forEach((item, at) => {
       assert.ok(line(at + 1).includes(`Label "${item.label}".`), `Item ${at + 1} is the registry's ${item.id} entry`);
+    });
+    lines.forEach((one, at) => {
+      const after = /^    - After Item (\d+)\b/.exec(one);
+      if (after) assert.ok(lines[at - 1]?.startsWith(`    - Item ${after[1]}. `), `"After Item ${after[1]}" comes right after Item ${after[1]}`);
     });
   });
 

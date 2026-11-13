@@ -286,9 +286,9 @@ describe('the floor script runs the floor in three engines (Story 2.16)', () => 
     assert.deepEqual(titlesOf('floor-webkit'), tagged);
   });
 
-  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U4, E1 to E3, M1, M2, D1 and D6', () => {
+  it('tags K1, K2 (the tooltip case), K4, G1, P2, A1, U1 to U4, E1 to E4, M1, M2, D1 and D6', () => {
     const ids = tagged.map((title) => /^[^:]+: ([A-Z]\d)/.exec(title)?.[1]);
-    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'U4', 'E1', 'E2', 'E3', 'M1', 'M2', 'D1', 'D6']) {
+    for (const id of ['K1', 'K2', 'K4', 'G1', 'P2', 'A1', 'U1', 'U2', 'U3', 'U4', 'E1', 'E2', 'E3', 'E4', 'M1', 'M2', 'D1', 'D6']) {
       assert.ok(ids.includes(id), `${id} is tagged @browsers: ${tagged.join(' | ')}`);
     }
     assert.equal(ids.filter((id) => id === 'K2').length, 1, 'only the first K2 case is tagged');
@@ -328,12 +328,12 @@ describe('the case lists of the floor, answers and cards projects (Story 6.4; DW
     }
   });
 
-  it('holds I2 to I11, A2 to A12 and E1 to E6 in the cards project, each once and in its own spec', () => {
+  it('holds I2 to I11, A2 to A13 and E1 to E6 in the cards project, each once and in its own spec', () => {
     const where = (id) => cards.filter((one) => idOf(one.title) === id).map((one) => one.file);
     for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['cards/incident-card.spec.ts'], id);
-    for (const id of range('A', 2, 12)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
+    for (const id of range('A', 2, 13)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
     for (const id of range('E', 1, 8)) assert.deepEqual(where(id), ['cards/either-way.spec.ts'], id);
-    assert.equal(cards.length, 29, 'and no other case');
+    assert.equal(cards.length, 30, 'and no other case');
     assert.deepEqual([...new Set(cards.flatMap((one) => one.projects))], ['cards'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 

@@ -283,13 +283,19 @@ export interface SeedMemory {
   savedAt: string;
 }
 
+/** One learned save that a turn's reply announces (Story 41.15): what Turn.Learned holds, the stored text as MemoryTools put it in HostData. */
+export interface SeedLearned {
+  memoryRef: string;
+  text: string;
+}
+
 /**
  * A turn for seedTurns: when it was created (UTC, to the second), its text and reply, and where it came from. A fallback
  * reply carries the catalog key the server answered with and its reason (Turn.ReplyCatalogKey and Turn.FallbackReason); both
  * are empty for a reply of the model's own words. state is done unless it is running (a running turn has no reply). triage and
  * turn are the turn's decisions (the Decision rows are made and their Refs kept on the turn), usage its usage rows, and
  * checkKey and checks the key and rows that Checks.Render made for the reply, and citations and memories the sources that the reply's
- * HostData carried (Story 20.2).
+ * HostData carried (Story 20.2), and learned the learned saves that the reply announces (Story 41.15).
  */
 export interface SeedTurn {
   createdAt: string;
@@ -309,6 +315,7 @@ export interface SeedTurn {
   checks?: SeedCheck[];
   citations?: SeedCitation[];
   memories?: SeedMemory[];
+  learned?: SeedLearned[];
 }
 
 /**
@@ -445,6 +452,7 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
     if (turn.checks) lines.push(`Set t.CheckRows=${quoted(JSON.stringify(turn.checks))}`);
     if (turn.citations) lines.push(`Set t.Citations=${quoted(JSON.stringify(turn.citations))}`);
     if (turn.memories) lines.push(`Set t.Memories=${quoted(JSON.stringify(turn.memories))}`);
+    if (turn.learned) lines.push(`Set t.Learned=${quoted(JSON.stringify(turn.learned))}`);
     lines.push('Set sc=t.%Save()', 'If $System.Status.IsError(sc) Set bad=1', 'If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(t)', `Write !,"CHK|ref|${i}|",t.Ref,"|",'bad`, `Write !,"CHK|dec|${i}|",dt,"|",dr`);
     if (publish) {
       lines.push(
@@ -710,7 +718,8 @@ function properties(values: Record<string, string | undefined>): Record<string, 
  * empty example unless given). null gives a request with no dry run.
  */
 export interface SeedDryRun {
-  affected: number;
+  /** The number of messages: a partner delay notice's dry run (Story 23.5) has none, and holds the notice and its recipients instead. */
+  affected?: number;
   itemNoun?: { one: string; other: string };
   resend?: number;
   field?: string;
@@ -720,6 +729,10 @@ export interface SeedDryRun {
   from?: string;
   to?: string;
   example?: string;
+  /** A partner delay notice's dry run (Story 23.5): the exact text, each recipient as a name and an address, and simulated. */
+  notice?: string;
+  recipients?: ReadonlyArray<{ name: string; address: string }>;
+  simulated?: boolean;
 }
 
 /**
@@ -731,7 +744,7 @@ export interface ApprovalFields {
   /** The request's Ref (a new one unless given): a case that names the Ref in its incident's RequestRefs gives it before the request exists. */
   ref?: string;
   kind?: string;
-  /** The request's FixKind (repair_resend, suspend_item, resume_item or reroute). */
+  /** The request's FixKind (repair_resend, suspend_item, resume_item, reroute or partner_warning). */
   fixKind?: string;
   state?: string;
   incidentRef?: string;
@@ -761,7 +774,9 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
       ? undefined
       : fields.dryRun === null
         ? ''
-        : JSON.stringify({
+        : fields.dryRun.notice !== undefined
+          ? JSON.stringify({ notice: fields.dryRun.notice, recipients: fields.dryRun.recipients ?? [], simulated: fields.dryRun.simulated ? 1 : 0 })
+          : JSON.stringify({
             affected: fields.dryRun.affected,
             resend: fields.dryRun.resend ?? fields.dryRun.affected,
             leftOut: 0,
@@ -1019,10 +1034,15 @@ export interface IncidentFields {
   requestRefs?: string;
   /** The incident's stored summary (Story 23.6): the JSON {"parts": [{"key", "slots"}], "lines": []} that Watch.Summary builds; none by default. */
   summary?: string;
+  /** When the incident was closed (UTC), the failure count, the first failure's time and the item noun (Story 25.2's History rows); the fixture's defaults when left out. */
+  closedAt?: string;
+  count?: number;
+  firstAt?: string;
+  itemNoun?: { one: string; other: string };
 }
 
 /**
- * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance', the user whose own session owns it, or `{sessionRef}`,
+ * Writes an incident through Test.Data.Fixture.Incident. The owner is 'instance' or 'eval', the user whose own session owns it, or `{sessionRef}`,
  * the fixture session with this Ref (seedOtherSession), as seedApproval's ApprovalOwner is. Returns its Ref; cleanFixtureRows removes it.
  */
 export async function seedIncident(owner: string | { sessionRef: string }, fields: IncidentFields = {}): Promise<string> {
@@ -1032,13 +1052,17 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
     Summary: fields.summary,
+    ClosedAt: fields.closedAt,
+    Count: fields.count === undefined ? undefined : numeric(fields.count, 'count'),
+    FirstAt: fields.firstAt,
+    ItemNoun: fields.itemNoun === undefined ? undefined : JSON.stringify(fields.itemNoun),
   });
   const lines = await irisScript(
     [
       ...(typeof owner === 'object'
         ? [`Set o=${quoted(owner.sessionRef)}`]
-        : owner === 'instance'
-          ? ['Set o="instance"']
+        : owner === 'instance' || owner === 'eval'
+          ? [`Set o=${quoted(owner)}`]
           : [`Set s=##class(OcuTalon.Data.Session).ForUser(${literal(owner)},.sc)`, 'Set o=s.Ref']),
       `Set r=##class(OcuTalon.Test.Data.Fixture).Incident(o,${fields.noticedAt === undefined ? '##class(OcuTalon.Data.Time).NowUtc()' : quoted(fields.noticedAt)},${quoted(fields.namespace ?? 'ZZNS')},${quoted(fields.production ?? 'Zz.Production')},${fieldsObject(row)})`,
       'Write !,"CHK|incident|",r',

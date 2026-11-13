@@ -288,6 +288,18 @@ ClassMethod Pairing(sessionRef As %String, displayName As %String = "Zz chat") A
 	Quit ..Keep(row)
 }
 
+/// A webhook of the session (Data.Webhook) with the name, whose secret is the given one (a fixed test secret by default). Returns its Ref.
+ClassMethod Webhook(sessionRef As %String, name As %String, secret As %String = "zz-fixture-secret-0123456789") As %String
+{
+	Set row = ##class(OcuTalon.Data.Webhook).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Name = name
+	Set row.SessionRef = sessionRef
+	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Quit ..Keep(row)
+}
+
 /// A document of the owner (a session's Ref, or instance); the state defaults to indexing, the type to markdown, the size to the length of the
 /// name and AddedAt to now. fields, an object of property names and values, is set after the defaults.
 ClassMethod Document(ownerRef As %String, name As %String, fields As %DynamicObject = "") As %String
@@ -522,6 +534,18 @@ ClassMethod Between(headers As %DynamicArray, type As %Integer, source As %Strin
 		If (header.type = type) && (header.source = source) && (header.target = target) Do found.%Push(header)
 	}
 	Quit found
+}
+
+/// Saves a Data.SentFile row of the session (a small PDF named name, channel web) and records it for Clean; returns its Ref.
+ClassMethod SentFile(sessionRef As %String, name As %String = "zz.pdf") As %String
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Do bytes.Write("%PDF-1.4 zz")
+	Do bytes.Rewind()
+	Set ref = ##class(OcuTalon.Data.SentFile).Put(sessionRef, "web", name, "application/pdf", bytes, .sc)
+	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Do ..Record(##class(OcuTalon.Data.SentFile).RefIndexOpen(ref))
+	Quit ref
 }
 
 /// Saves the row and records it under ref, which is the row's Ref by default, and returns ref.

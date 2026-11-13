@@ -15,4 +15,16 @@ Property Text As %String(MAXLEN = "");
 /// True when the text came from a guide prompt.
 Property FromGuide As %Boolean [ InitialExpression = 0 ];
 
+/// The Ref of the file the message carries (Data.SentFile), empty for a message of text; the message then has no text.
+Property FileRef As %String(MAXLEN = 22);
+
+/// The file's name.
+Property FileName As %String(MAXLEN = 255);
+
+/// The file's media type.
+Property FileMediaType As %String(MAXLEN = 128);
+
+/// The file's size in bytes.
+Property FileSize As %Integer;
+
 }

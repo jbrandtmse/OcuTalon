@@ -15,6 +15,8 @@
 ///     $ListBuild(key, rowsJSON), it records the results it was given under ^OcuTalonTest("ConversationProbe", RunNumber,
 ///     "rendered", n) as JSON and returns that key and those rows; otherwise it calls the class it extends, the real stub;
 ///   - ThrowIn makes Join (join), Decided (decided) or RenderChecks (render) throw, for the tests of a failure inside the class;
+///   - Reader, the seam of Core.Files.Readable: when ^OcuTalonTest("ConversationProbe", RunNumber, "reader") is set it returns that value as a boolean, otherwise it calls the
+///     class it extends, the real probe of the code (Story 25.3);
 ///   - ItemFor and FreshAfter expose the private ItemOf and AfterTaint to the tests.
 Class OcuTalon.Test.Core.ConversationProbe Extends (OcuTalon.Core.Conversation, OcuTalon.Test.Core.ProbeSeam)
 {
@@ -41,6 +43,7 @@ Method Send(target As %String, request As %Library.Persistent, responseRequired 
 		Set @call@("checkRows") = request.CheckRows
 		Set @call@("citations") = request.Citations
 		Set @call@("memories") = request.Memories
+		Set @call@("learned") = request.Learned
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
 	}
@@ -80,6 +83,13 @@ Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %
 	Set ^OcuTalonTest("ConversationProbe", ..RunNumber, "rendered", n) = results.%ToJSON()
 	Set rows = ##class(%DynamicAbstractObject).%FromJSON($List(render, 2))
 	Quit $List(render, 1)
+}
+
+Method Reader() As %Boolean [ Private ]
+{
+	Set reader = $Get(^OcuTalonTest("ConversationProbe", ..RunNumber, "reader"))
+	If reader '= "" Quit +reader
+	Quit ##super()
 }
 
 /// The Item that Conversation builds from the row for Agent.Input.Render.

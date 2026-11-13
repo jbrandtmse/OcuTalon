@@ -3,6 +3,11 @@
 /// the subclass in the ClassificationClass setting of the Decide item. The gate asks it last for a tool of a class
 /// source (after the code of the class and the ToolClassification setting), and first and alone for an MCP tool, whose source is
 /// the toolref that starts with mcp: (AD-10).
+///   - Classify answers by source and name alone, for a class source (and, in the default ClassifyMcp, for an MCP tool).
+///   - ClassifyMcp is the one question the gate asks for an MCP tool (AD-10, AD-31): it answers the classification, the read-only flag and whether the tool's
+///     server is registered together, so that a change between two questions cannot mix them. fingerprint is the fingerprint that the turn's map holds for the
+///     tool (OcuTalon.Bridge.Context McpFingerprint), "" when the map has none. The default delegates to Classify and never says that a server is unregistered,
+///     so the bridge runs alone.
 Class OcuTalon.Bridge.Ext.Classification
 {
 
@@ -15,6 +20,18 @@ Class OcuTalon.Bridge.Ext.Classification
 ClassMethod Classify(source As %String, name As %String, arguments As %DynamicObject = "") As %String
 {
 	Quit ""
+}
+
+/// The answer for an MCP call, as {"classification": "safe", "risky" or "", "readOnly": 1 or 0, "registered": 1 or 0}, or "" for none:
+///   - classification and readOnly are the tool's classification (any other value counts as none), and readOnly 1 counts only with safe;
+///   - registered 0 says that the tool's server is not registered, and the gate denies the call at once (UNREGISTERED), before any other step.
+/// source is the toolref of the MCP tool, name the tool's name and fingerprint the turn's fingerprint for the tool. A host that keeps a classification
+/// for the fingerprint it was given for answers none for a fingerprint that differs, and may clear that classification from here (a changed tool, AD-21).
+/// The gate calls this method inside AI Hub's authorization callback, and the runner calls it once for each MCP tool when a request composes its tools, outside
+/// every callback: it makes no AI Hub call and runs no Python (AD-6). Returns the answer of Classify, with readOnly 0 and registered 1, by default.
+ClassMethod ClassifyMcp(source As %String, name As %String, fingerprint As %String = "") As %DynamicObject
+{
+	Quit {"classification": (..Classify(source, name)), "readOnly": 0, "registered": 1}
 }
 
 }

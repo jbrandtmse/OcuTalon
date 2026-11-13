@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane B produces (AD-29, AD-32): the pairing replies and
 /// press alerts of Telegram, the answered statuses, the conversation and allowance texts, the fallback reasons, tell now and
-/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; no code sends them yet. The XData block Entries holds
+/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; the webhook field texts (settings.webhookBadName, settings.webhookBadSecret, settings.webhookNameTaken, settings.refusedExpansion and settings.webhooksOffOnDemo, Story 35.3) are rendered by SettingsOps for the webhook routes, and no other code sends them yet. The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
 ///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
@@ -18,6 +18,13 @@ XData Entries [ MimeType = application/json ]
   "text": "You're paired with your OcuTalon session; notifications, reminders and approval requests will arrive here (send /stop to unpair).",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Pairing (Telegram) / Valid code"
+ },
+ "memory.learnedSaved": {
+  "text": "I'll remember this: \"{fact}\". You can tell me to forget it.",
+  "slots": {
+   "fact": "text"
+  },
+  "source": "Story 41.15 AC (Contest Planner ruling 2026-11-10)"
  },
  "pairing.badCode": {
   "text": "That code didn't work. Open the OcuTalon page and scan the QR code there for a new one.",
@@ -721,6 +728,21 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook name taken"
  },
+ "settings.webhooksOffOnDemo": {
+  "text": "Webhooks are off on the online demo, so it has no public webhook address. They work on your own install.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhooks off on the online demo"
+ },
+ "settings.webhookBadName": {
+  "text": "Enter a name of 1 to 64 characters. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook name refused"
+ },
+ "settings.webhookBadSecret": {
+  "text": "Use a secret of 16 to 256 characters: letters, digits and punctuation, with no spaces. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Settings and requests (step 4) / Webhook secret refused"
+ },
  "settings.secretSet": {
   "text": "Saved, and never shown again. Type a new value to replace it.",
   "slots": {},
@@ -811,6 +833,11 @@ XData Entries [ MimeType = application/json ]
    "to": "text"
   },
   "source": "Story 23.2 Suspend, resume and reroute with a dry run, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedPartner": {
+  "text": "Approved. Sending the delay notice to the Simulated mailbox.",
+  "slots": {},
+  "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
  }
 }
 }

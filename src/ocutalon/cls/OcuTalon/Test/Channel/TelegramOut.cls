@@ -23,6 +23,8 @@
 ///     name and an unknown key are as the Boundaries say; with the online demo on the time is followed by " ET"; a row with an entry only,
 ///     one with a time and no finding, one with no entry, and CheckRows that are not a JSON array give the literal forms of the Boundaries;
 ///     checks.notEverything with a failed row names it with nothing after, and checks.everythingElsePassed gives its catalog text;
+///   - TestLearnedLines (Story 41.15): the learned saves of a reply follow it, after its check sentence when there is one, as the ruled line for each entry (one trailing full stop removed, a long fact cut to 200
+///     characters with an ellipsis), one per line after a blank line; markup is sent as written with no parse_mode; a reply that already says "I'll remember" adds nothing;
 ///   - TestSummary (Story 23.6; AC 14): a summary Notification is one plain-text message to the paired chat with the stored summary's lines and the markup of the
 ///     cause, the evidence and the sample error as it is, no parse_mode and no buttons; a missing summary sends nothing;
 ///   - TestSummaryBuilt (QA; AC 14): the summary that Watch.Summary.Build makes of an incident whose cause, fix and sample error hold markup (the sample error longer than a notice's
@@ -585,6 +587,79 @@ Method TestCheckSentence()
 	Do ..Cleanup()
 }
 
+/// Story 41.15, AD-21, AD-28: the learned saves of a reply follow it, and its check sentence when there is one, as lines of plain text. The exact sent text is the reply, a blank line, then the ruled line for each entry
+/// (the stored text with one trailing full stop removed, cut to 200 characters with an ellipsis), one per line; markup is sent as written with no parse_mode; a reply that already says "I'll remember" adds nothing; and
+/// an Outbound with no entry is the reply alone.
+Method TestLearnedLines()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set session = ..NewSessionRef()
+		Set chatId = 8645
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set blank = $Char(10, 10)
+		Set ellipsis = $Char(8230)
+		Set line = "I'll remember this: ""{fact}"". You can tell me to forget it."
+
+		Set message = ..ForSession(session, "Noted.")
+		Set message.Learned = [{"memoryRef": "zzm1", "text": "The Results partner's contact is Lee."}].%ToJSON()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", message, .response), "(a) a reply with one learned entry is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "as one message")
+		If calls.%Size() = 1 {
+			Set params = calls.%Get(0).params
+			Do $$$AssertEquals(params.text, "Noted."_blank_"I'll remember this: ""The Results partner's contact is Lee"". You can tell me to forget it.", "the reply, a blank line, and the ruled line with one full stop removed")
+			Do $$$AssertEquals(params.%IsDefined("parse_mode")_"|"_params.%IsDefined("entities"), "0|0", "plain text: no parse_mode and no entities")
+		}
+
+		Set message = ..ForSession(session, "Noted again.")
+		Set message.Learned = [{"memoryRef": "zzm1", "text": "<b>Lee</b> & *co* [x](y)"}, {"memoryRef": "zzm2", "text": "Second fact"}].%ToJSON()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", message, .response), "(b) markup in the facts, and two entries")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 2, "it adds one more message")
+		If calls.%Size() = 2 {
+			Do $$$AssertEquals(calls.%Get(1).params.text, "Noted again."_blank_$Replace(line, "{fact}", "<b>Lee</b> & *co* [x](y)")_$Char(10)_$Replace(line, "{fact}", "Second fact"), "the markup is sent as written and the lines are in order, one per line")
+			Do $$$AssertEquals(calls.%Get(1).params.%IsDefined("parse_mode"), 0, "with no parse_mode")
+		}
+
+		Set long = $Translate($Justify("", 300), " ", "c")
+		Set message = ..ForSession(session, "Noted long.")
+		Set message.Learned = [{"memoryRef": "zzm3", "text": (long)}].%ToJSON()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", message, .response), "(c) a 300-character fact")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 3, "it adds one more message")
+		If calls.%Size() = 3 Do $$$AssertEquals(calls.%Get(2).params.text, "Noted long."_blank_$Replace(line, "{fact}", $Extract(long, 1, 199)_ellipsis), "is cut to 199 characters and an ellipsis")
+
+		Set message = ..ForSession(session, "I'll remember that Lee is the contact.")
+		Set message.Learned = [{"memoryRef": "zzm1", "text": "Lee is the contact."}].%ToJSON()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", message, .response), "(d) a reply that already says it")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 4, "it adds one more message")
+		If calls.%Size() = 4 Do $$$AssertEquals(calls.%Get(3).params.text, "I'll remember that Lee is the contact.", "adds nothing")
+
+		Set message = ..ForSession(session, "Done.")
+		Set message.Learned = "[]"
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", message, .response), "(e) a reply with no entry")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 5, "it adds one more message")
+		If calls.%Size() = 5 Do $$$AssertEquals(calls.%Get(4).params.text, "Done.", "goes alone")
+
+		Set now = ##class(OcuTalon.Data.Time).NowUtc()
+		Set recent = ##class(OcuTalon.Data.Time).AddSeconds(now, -120)
+		Set message = ..WithChecks(session, "checks.allPassed", [{"result": "passed", "entry": "Alpha", "finding": "", "checkedAt": (recent)}])
+		Set message.Learned = [{"memoryRef": "zzm1", "text": "Lee is the contact."}].%ToJSON()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", message, .response), "(f) a reply with a check sentence and an entry")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 6, "it adds one more message")
+		If calls.%Size() = 6 Do $$$AssertEquals(calls.%Get(5).params.text, "zz reply"_blank_"Everything I checked passed."_blank_$Replace(line, "{fact}", "Lee is the contact"), "the check sentence comes first, then the line")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the learned-lines test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
 /// An incident summary (Story 23.6; AC 14): a Notification of kind summary goes to the session's paired chat as one plain-text message, whose text is
 /// OcuTalon.Watch.Summary.Text(IncidentRef, "telegram"): the stored summary's lines with the markup of the cause, the evidence and the sample error left as it is,
 /// with no parse_mode, no entities and no reply_markup (no Approve or Reject), and a Delivery row of the kind summary with no text. A summary that is missing sends
@@ -601,7 +676,7 @@ Method TestSummary()
 		Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).NowUtc()), "Summary": ({"parts": (parts), "lines": []}.%ToJSON())})
 		Set expected = "Incident summary: 50 orders failed in Orders."
 			_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
-			_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_ [a](b)"
+			_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_ [a](b)."
 			_$Char(10)_"Sample error: Field `OrderDate` was not a date."
 			_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
 		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")

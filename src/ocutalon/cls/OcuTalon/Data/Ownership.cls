@@ -36,11 +36,14 @@
 ///   - Watchers, ActiveVisitors, AllowanceHeld, AdminSessions and ApprovalIncident read across owners, so they prepare with the privilege
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
-///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
+///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. PartnerNotices (Story 23.5) is the session's own count of the delay notices
+///     it sent since a time (outgoing mailbox rows that carry an ApprovalRef), the other part of the email limit. RecentTurns leaves out a refused
 ///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10) and the summary cards (Story 23.6).
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
+///     another session answers "", exactly as for a missing one.
+///   - SentFile (Story 25.3) is the session's own sent file by its Ref, a Rows kind too; Core.Files reads through it (Open for the bytes, Describe for the rest), and a file of
 ///     another session answers "", exactly as for a missing one.
 ///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
@@ -57,6 +60,9 @@
 ///   - DecisionServed (Story 41.12) is whether a decision has any usage row of the session.
 ///   - Usage (Story 37.2) is the session's own Usage rows of the last 1, 7 or 30 instance-zone local days, summed into buckets of local date, agent, channel, model and
 ///     Estimated, for the Usage page; it is a Rows kind (usage) summed by Sum, and a row of owner eval, instance or another session is never read.
+///   - HistoryDecisions and HistoryIncidents (Story 25.2) are one page of HISTORYPAGE rows of the History page, newest first, with the page count: the session's own decide
+///     decisions filtered by outcome, channel (through the session's own usage rows), local day and fallback, and the incidents it sees, as Incidents does. They are Rows kinds
+///     (historyDecisions, historyDecisionTotal, historyIncidents, historyIncidentTotal), and a row of owner eval, instance or another session is never read.
 Class OcuTalon.Data.Ownership
 {
 
@@ -68,6 +74,17 @@ Parameter INSTANCE [ Final ] = "instance";
 
 /// The owner literal of an evaluation record, which no session sees.
 Parameter EVAL [ Final ] = "eval";
+
+/// The rows of one page of the History page's lists.
+Parameter HISTORYPAGE = 25;
+
+/// The highest page number of the History page's lists.
+Parameter HISTORYPAGEMAX = 9999;
+
+/// The WHERE text of the History page's decisions, with its owner check and its ten bound filter values (outcome three times, the fallback flag and value, the day marker and
+/// its window, the channel twice). A filter is applied only when its first value is empty: an empty bound value is NULL in dynamic SQL, so the test is IS NULL. A fallback decision
+/// is a Tell now one, as the chip shows it. The channel is that of a usage row of the same owner and decision (DecisionChannel's source).
+Parameter HISTORYDECISIONS [ Final ] = "d.OwnerRef = ? AND d.Kind = 'decide' AND (? IS NULL OR (d.Fallback = 1 AND ? = 'tellnow') OR (d.Fallback = 0 AND d.Outcome = ?)) AND (? IS NULL OR d.Fallback = ?) AND (? IS NULL OR (d.RecordedAt >= ? AND d.RecordedAt < ?)) AND (? IS NULL OR EXISTS (SELECT 1 FROM OcuTalon_Bridge_Data.Usage u WHERE u.OwnerRef = d.OwnerRef AND u.DecisionRef = d.Ref AND u.Channel = ?))";
 
 /// The condition on an incident row i that the incident statements share: it is noticed, and it is the owner's or, on a
 /// local install, an instance incident of a production the owner's checks watch. Three ?: the owner, the local flag and
@@ -440,6 +457,17 @@ ClassMethod Upload(ref As %String, sessionRef As %String, Output sc As %Status) 
 	Quit rows.GetAt(1)
 }
 
+/// The sent file with this Ref when it is the session's own, otherwise "": a file of another session answers like a missing one (Story 25.3). Ref and
+/// SessionRef compare exactly (EXACT collation). ref may come from a request or an Item; it is only ever a bound value. OcuTalon.Core.Files is the only caller.
+ClassMethod SentFile(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.SentFile
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("sentFile", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
 /// The document with this Ref when the session can see it (its own, or on a local install one of owner instance), otherwise "": a
 /// document of another session answers like a missing one. ref may come from request input; it is only ever a bound value.
 ClassMethod Document(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Document
@@ -469,6 +497,71 @@ ClassMethod Incidents(sessionRef As %String, Output sc As %Status) As %ListOfObj
 ClassMethod RecentIncidents(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("recentIncidents", sessionRef, .sc, +max, ..LocalFlag())
+}
+
+/// One page (page, from 1) of the session's decide decisions that match the filters, newest RecordedAt first and then newest ID first, HISTORYPAGE to a page (Story 25.2;
+/// AD-4, AD-13), and the number of pages (1 when there is no row) in pages. A filter that is "" is not applied: outcome is one of ignore, digest, tellnow and act (tellnow also
+/// matches every fallback decision, as the chip shows it); channel is a Msg.Enum CHANNEL, matched through the session's own usage rows of the decision (a decision no model call
+/// served has none, and matches only when channel is ""); day is an instance-zone local date YYYY-MM-DD (Data.Time.FromLocal); fallback is yes or no. A page past the last gives
+/// an empty list. A filter or page that is not one of these, and a failed read, give an empty list and an error status in sc, and nothing is read for the first.
+ClassMethod HistoryDecisions(sessionRef As %String, outcome As %String = "", channel As %String = "", day As %String = "", fallback As %String = "", page As %Integer = 1, Output pages As %Integer, Output sc As %Status) As %ListOfObjects
+{
+	Set sc = $SYSTEM.Status.OK()
+	Set pages = 1
+	Set outcome = $Get(outcome), channel = $Get(channel), day = $Get(day), fallback = $Get(fallback)
+	Kill filter
+	Set from = "", to = ""
+	If day '= "" {
+		Try {
+			Set from = ##class(OcuTalon.Data.Time).FromLocal(day_"T00:00:00")
+			If from '= "" Set to = ##class(OcuTalon.Data.Time).FromLocal($ZDate($ZDateH(day, 3) + 1, 3)_"T00:00:00")
+		} Catch {
+			Set from = "", to = ""
+		}
+	}
+	If ((outcome '= "") && '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#OUTCOME), outcome)) || ((channel '= "") && '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#CHANNEL), channel)) || ((fallback '= "") && (fallback '= "yes") && (fallback '= "no")) || ((day '= "") && ((from = "") || (to = ""))) {
+		Set sc = $SYSTEM.Status.Error(5001, "A filter of the history read is not one of its values")
+		Quit ##class(%ListOfObjects).%New()
+	}
+	Set filter = 10
+	Set filter(1) = outcome, filter(2) = outcome, filter(3) = outcome
+	Set filter(4) = fallback, filter(5) = (fallback = "yes")
+	Set filter(6) = day, filter(7) = from, filter(8) = to
+	Set filter(9) = channel, filter(10) = channel
+	Quit ..HistoryPageOf("historyDecisionTotal", "historyDecisions", sessionRef, page, .filter, .pages, .sc)
+}
+
+/// One page (page, from 1) of the incidents the session sees, as Incidents does, newest NoticedAt first and then newest ID first, HISTORYPAGE to a page (Story 25.2), and the number
+/// of pages (1 when there is no row) in pages. A page past the last gives an empty list. A page that is not a whole number from 1 to HISTORYPAGEMAX with no leading zero, and a
+/// failed read, give an empty list and an error status in sc.
+ClassMethod HistoryIncidents(sessionRef As %String, page As %Integer = 1, Output pages As %Integer, Output sc As %Status) As %ListOfObjects
+{
+	Kill filter
+	Set filter = 1
+	Set filter(1) = ..LocalFlag()
+	Quit ..HistoryPageOf("historyIncidentTotal", "historyIncidents", sessionRef, page, .filter, .pages, .sc)
+}
+
+/// The page of a History read: the count of the rows that match (totalKind, bound by filter(1..filter)), the page count, and then the page (pageKind, bound by the same values and
+/// the page's limit and offset). filter is changed.
+ClassMethod HistoryPageOf(totalKind As %String, pageKind As %String, sessionRef As %String, page As %Integer, ByRef filter, Output pages As %Integer, Output sc As %Status) As %ListOfObjects [ Private ]
+{
+	Set sc = $SYSTEM.Status.OK()
+	Set pages = 1
+	Set page = $Get(page)
+	If (page '? 1.4N) || (+page '= page) || (page < 1) || (page > ..#HISTORYPAGEMAX) {
+		Set sc = $SYSTEM.Status.Error(5001, "The page of the history read is a whole number from 1 to "_..#HISTORYPAGEMAX)
+		Quit ##class(%ListOfObjects).%New()
+	}
+	Set total = ..Rows(totalKind, sessionRef, .sc, filter...)
+	If $SYSTEM.Status.IsError(sc) Quit ##class(%ListOfObjects).%New()
+	Set count = $Select(total.Count() = 0: 0, 1: +total.GetAt(1).total)
+	Set pages = $Select(count < 1: 1, 1: (count - 1) \ ..#HISTORYPAGE + 1)
+	If page > pages Quit ##class(%ListOfObjects).%New()
+	Set filter = filter + 2
+	Set filter(filter - 1) = ..#HISTORYPAGE
+	Set filter(filter) = (page - 1) * ..#HISTORYPAGE
+	Quit ..Rows(pageKind, sessionRef, .sc, filter...)
 }
 
 /// The session's pending approval requests, by RaisedAt: its own, and on a local install those of the visible
@@ -776,6 +869,18 @@ ClassMethod IncomingMail(sessionRef As %String, since As %String, Output oldest 
 {
 	Set oldest = ""
 	Set rows = ..Rows("incomingMail", sessionRef, .sc, $Get(since))
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	If rows.Count() > 0 Set oldest = rows.GetAt(1).CreatedAt
+	Quit rows.Count()
+}
+
+/// The number of delay notices that the session has sent after since (UTC; SimMessage rows of Kind mailbox, Direction out, with an ApprovalRef: the sent mail of an approved
+/// partner notice, Story 23.5; a reply has none), and, as oldest, the CreatedAt of the oldest of them ("" when there is none): the other count behind the online demo's email
+/// limit (Allowance.MailAllowed). sc is an error status when the read failed, and the count is then 0.
+ClassMethod PartnerNotices(sessionRef As %String, since As %String, Output oldest As %String, Output sc As %Status) As %Integer
+{
+	Set oldest = ""
+	Set rows = ..Rows("partnerNotices", sessionRef, .sc, $Get(since))
 	If $SYSTEM.Status.IsError(sc) Quit 0
 	If rows.Count() > 0 Set oldest = rows.GetAt(1).CreatedAt
 	Quit rows.Count()
@@ -1129,6 +1234,23 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oaa"
 		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND RecordedAt >= ? AND RecordedAt < ? ORDER BY RecordedAt, ID"
 	}
+	If kind = "historyDecisions" {
+		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oaaaaaaaaaaaa"
+		Quit "SELECT d.ID FROM OcuTalon_Bridge_Data.Decision d WHERE "_..#HISTORYDECISIONS_" ORDER BY d.RecordedAt DESC, d.ID DESC LIMIT ? OFFSET ?"
+	}
+	If kind = "historyDecisionTotal" {
+		// A count: no row is opened (class is empty), and each result row is {"total": the first column}.
+		Set binds = "oaaaaaaaaaa"
+		Quit "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision d WHERE "_..#HISTORYDECISIONS
+	}
+	If kind = "historyIncidents" {
+		Set class = "OcuTalon.Data.Incident", binds = "oaoaa"
+		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE "_..#INCIDENTVISIBLE_" ORDER BY i.NoticedAt DESC, i.ID DESC LIMIT ? OFFSET ?"
+	}
+	If kind = "historyIncidentTotal" {
+		Set binds = "oao"
+		Quit "SELECT COUNT(*) FROM OcuTalon_Data.Incident i WHERE "_..#INCIDENTVISIBLE
+	}
 	If kind = "runDecisions" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND RecordedAt >= ? ORDER BY ID"
@@ -1176,6 +1298,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "incomingMail" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'in' AND CreatedAt > ? ORDER BY CreatedAt, ID"
+	}
+	If kind = "partnerNotices" {
+		Set class = "OcuTalon.Data.SimMessage", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'out' AND ApprovalRef IS NOT NULL AND ApprovalRef <> '' AND CreatedAt > ? ORDER BY CreatedAt, ID"
 	}
 	If kind = "finishedToolCalls" {
 		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "oaa"
@@ -1236,6 +1362,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "upload" {
 		Set class = "OcuTalon.Data.Upload", binds = "ao"
 		Quit "SELECT u.ID FROM OcuTalon_Data.Upload u WHERE u.Ref = ? AND u.SessionRef = ?"
+	}
+	If kind = "sentFile" {
+		Set class = "OcuTalon.Data.SentFile", binds = "ao"
+		Quit "SELECT f.ID FROM OcuTalon_Data.SentFile f WHERE f.Ref = ? AND f.SessionRef = ?"
 	}
 	If kind = "precedents" {
 		Set class = "OcuTalon.Data.Precedent", binds = "ao"

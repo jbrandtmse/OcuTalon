@@ -25,6 +25,14 @@
 ///     tainted tainted;
 ///   - TestForgetLeavesHostData: a memory that the turn's search put into HostData.memories and that forget_memory then forgets is taken out of it, the other
 ///     memories and members stay, the member goes when the last one is forgotten, and a forget that the owner refuses changes nothing;
+///   - TestLearnedHostData (Story 41.15): a save that answers saved for a row whose Source is learned puts {memoryRef, text} (the stored text) into HostData.learned, and no other member of the entry; a repeat of
+///     the same Ref adds none; four distinct Refs hold the first three, in order; the other members of HostData stay;
+///   - TestLearnedNothing (Story 41.15): a told row, an old row (no Source), another session's row, a Ref that has no row, NOSESSION, an owner refusal and a failed submit add nothing to HostData, and the tool's
+///     answer is what it was;
+///   - TestLearnedReadFailed (Story 41.15, QA): a saved memory whose row cannot be read back (the read answers an error status) adds nothing to HostData.learned, keeps the entries already there, and logs one
+///     warning of MemoryTools SaveMemory that holds the status text, and a row that can be read logs none;
+///   - TestLearnedForgotten (Story 41.15): a learned memory that forget_memory forgets in the turn leaves HostData.learned, the other entries and members stay, the member goes when the last one is forgotten,
+///     and a forget that the owner refuses changes nothing;
 ///   - TestListAnswer: list_memories answers the newest 20 and the total, in the same shape (a learned row and old rows told), touches no HostData member, and holds only the session's own;
 ///   - TestOwnerIsolation: a session's searches and lists never hold another session's memory;
 ///   - TestInstructions: Chat's INSTRUCTIONS hold the six memory bullets word for word, in order (the search, list and forget bullets with (told) or
@@ -379,6 +387,135 @@ Method TestForgetLeavesHostData()
 	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
 	Do $$$AssertNotTrue(host.%IsDefined("memories"), "when the last one is forgotten the member goes")
 	Do $$$AssertEquals(host.checks.%Size(), 1, "and the other members stay")
+}
+
+/// A learned save puts its entry into HostData.learned (Story 41.15).
+Method TestLearnedHostData()
+{
+	If '..Ready() Quit
+	If '..Prepare() Quit
+	Set text = "the Results partner's contact is Lee"
+	For i = 1:1:4 Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla"_i, text_" "_i, "2026-11-05T10:00:0"_i_"Z", , , "learned"), "A's learned memory "_i_" is stored")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do ##class(OcuTalon.Tools.HostData).Put("checks", [{"result": "ok"}])
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla1"
+	Set answer = ##class(OcuTalon.Tools.MemoryTools).SaveMemory("as the model wrote it: "_text_" 1")
+	Do $$$AssertEquals(answer.ok_"|"_answer.outcome_"|"_answer.ref, "1|saved|zzmtla1", "the save answers saved with the Ref of the row")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(host.learned.%ToJSON(), [{"memoryRef": "zzmtla1", "text": (text_" 1")}].%ToJSON(), "HostData.learned holds {memoryRef, text}, the stored text, and no other member")
+	Do $$$AssertEquals(host.checks.%Size(), 1, "HostData keeps its other members")
+	Do $$$AssertNotTrue(host.%IsDefined("memories"), "and a save adds no memories")
+	Do ##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 1")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(host.learned.%Size(), 1, "a repeat that answers the same Ref adds none: each memoryRef is held once")
+	For i = 2:1:4 {
+		Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla"_i
+		Do ##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" "_i)
+	}
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.learned), "zzmtla1,zzmtla2,zzmtla3", "four distinct Refs hold the first three, in the order saved")
+	Do $$$AssertEquals(host.checks.%Size(), 1, "and the other members stay")
+}
+
+/// A save that is not a learned save that answered saved adds nothing (Story 41.15).
+Method TestLearnedNothing()
+{
+	If '..Ready() Quit
+	If '..Prepare() Quit
+	Set text = "the Results partner's contact is Lee"
+	Set saved = {"ok": true, "message": "The CI double saved the memory.", "ref": "zzmtla1", "outcome": "saved"}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla1", text, "2026-11-05T10:00:01Z", , , "told"), "A's told memory is stored")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla2", text_" 2", "2026-11-05T10:00:02Z"), "an old one, with no Source")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#B, "zzmtlb1", text_" B", "2026-11-05T10:00:03Z", , , "learned"), "and a learned one of B's")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla3", text_" 3", "2026-11-05T10:00:04Z", , , "learned"), "and a learned one of A's, for the refusals")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla1"
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text).%ToJSON(), saved.%ToJSON(), "a told row: the answer is what it was")
+	Do $$$AssertEquals(..LearnedOf(), "", "and nothing is added")
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla2"
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 2").outcome, "saved", "an old row answers saved")
+	Do $$$AssertEquals(..LearnedOf(), "", "and an old row, read as told, adds nothing")
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtlb1"
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" B").outcome, "saved", "another session's Ref answers saved")
+	Do $$$AssertEquals(..LearnedOf(), "", "and another session's row adds nothing")
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtlnone0000000001"
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text).outcome, "saved", "a Ref with no row answers saved")
+	Do $$$AssertEquals(..LearnedOf(), "", "and adds nothing")
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla3"
+	Set ^OcuTalonTest("CommandsDouble", "refuse", "SaveMemory") = "Refused by the owner."
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 3").%ToJSON(), {"ok": false, "message": "Refused by the owner.", "outcome": "refused"}.%ToJSON(), "an owner refusal reaches the model as it is")
+	Do $$$AssertEquals(..LearnedOf(), "", "and adds nothing, though the row is learned")
+	Kill ^OcuTalonTest("CommandsDouble", "refuse")
+	Set ^OcuTalonTest("CommandsDouble", "fail") = 1
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 3").%ToJSON(), {"ok": false, "message": (##class(OcuTalon.Tools.CommandCall).#NOTSENT)}.%ToJSON(), "a failed submit answers NOTSENT")
+	Do $$$AssertEquals(..LearnedOf(), "", "and adds nothing")
+	Kill ^OcuTalonTest("CommandsDouble", "fail")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set expected = {"ok": false, "message": (##class(OcuTalon.Tools.CommandCall).#NOSESSION)}.%ToJSON()
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 3").%ToJSON(), expected, "with no session the answer is NOSESSION")
+	Do $$$AssertEquals(..Calls().%Size(), 6, "and nothing was submitted for it (the six earlier saves are the only commands)")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla3"
+	Do ##class(OcuTalon.Tools.MemoryTools).SaveMemory(text_" 3")
+	Do $$$AssertEquals(..LearnedOf(), [{"memoryRef": "zzmtla3", "text": (text_" 3")}].%ToJSON(), "control: the same learned row of the session does give its entry")
+}
+
+/// A saved memory whose row cannot be read back adds nothing and logs one warning (Story 41.15, QA; the I/O matrix row "Failed save"). The read of Ownership answers an error
+/// status for the Ref of the instance or of the eval session, which no context can hold (a context holds a 22-character Ref), so the private Announce is reached through Test.Tools.MemoryAnnouncer, a subclass of MemoryTools.
+Method TestLearnedReadFailed()
+{
+	If '..Ready() Quit
+	If '..Prepare() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	// An inherited method logs under the name of the class it runs in: the helper subclass.
+	Set tools = "OcuTalon.Test.Tools.MemoryAnnouncer"
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla1", "the Results partner's contact is Lee", "2026-11-05T10:00:01Z", , , "learned"), "A's learned memory is stored")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do ##class(OcuTalon.Tools.HostData).Put("learned", [{"memoryRef": "zzmtlheld", "text": "held"}])
+	Set mark = $ClassMethod(fixture, "EventMark")
+	Do ##class(OcuTalon.Test.Tools.MemoryAnnouncer).Run("zzmtla1", ##class(OcuTalon.Data.Ownership).#EVAL)
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, tools, "SaveMemory", $ListBuild("could not be read back", "A read needs the Ref of a session")), 1, "a read that fails logs one warning that holds the status text")
+	Do $$$AssertEquals(..LearnedOf(), [{"memoryRef": "zzmtlheld", "text": "held"}].%ToJSON(), "and adds nothing: the held entries are as they were")
+	Set mark = $ClassMethod(fixture, "EventMark")
+	Do ##class(OcuTalon.Test.Tools.MemoryAnnouncer).Run("zzmtla1", ..#A)
+	Do $$$AssertEquals($ClassMethod(fixture, "Warnings", mark, tools, "SaveMemory"), 0, "control: a row that can be read logs no warning")
+	Do $$$AssertEquals(..LearnedOf(), [{"memoryRef": "zzmtlheld", "text": "held"}, {"memoryRef": "zzmtla1", "text": "the Results partner's contact is Lee"}].%ToJSON(), "and its entry is added after the held one")
+}
+
+/// A learned memory that the turn forgets leaves HostData.learned (Story 41.15).
+Method TestLearnedForgotten()
+{
+	If '..Ready() Quit
+	If '..Prepare() Quit
+	For i = 1:1:2 Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla"_i, "the Results partner's contact is Lee "_i, "2026-11-05T10:00:0"_i_"Z", , , "learned"), "A's learned memory "_i_" is stored")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do ##class(OcuTalon.Tools.HostData).Put("checks", [{"result": "ok"}])
+	For i = 1:1:2 {
+		Set ^OcuTalonTest("CommandsDouble", "memoryRef") = "zzmtla"_i
+		Do ##class(OcuTalon.Tools.MemoryTools).SaveMemory("the Results partner's contact is Lee "_i)
+	}
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.learned), "zzmtla1,zzmtla2", "control: both learned saves are held")
+	Set ^OcuTalonTest("CommandsDouble", "refuse", "ForgetMemory") = "Refused by the owner."
+	Do ##class(OcuTalon.Tools.MemoryTools).ForgetMemory("zzmtla1")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.learned), "zzmtla1,zzmtla2", "a forget that the owner refuses changes nothing")
+	Kill ^OcuTalonTest("CommandsDouble", "refuse")
+	Do $$$AssertEquals(##class(OcuTalon.Tools.MemoryTools).ForgetMemory("zzmtla1").outcome, "forgotten", "the double forgets the first memory")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.learned), "zzmtla2", "it leaves HostData.learned and the other entry stays")
+	Do $$$AssertEquals(host.checks.%Size(), 1, "and HostData keeps its other members")
+	Do ##class(OcuTalon.Tools.MemoryTools).ForgetMemory("zzmtla2")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertNotTrue(host.%IsDefined("learned"), "when the last one is forgotten the member goes")
+	Do $$$AssertEquals(host.checks.%Size(), 1, "and the other members stay")
+}
+
+/// The member learned of the context's HostData as JSON text, or "" when it has none.
+Method LearnedOf() As %String [ Private ]
+{
+	Set held = ##class(OcuTalon.Tools.HostData).Get("learned")
+	Quit $Select($IsObject(held): held.%ToJSON(), 1: "")
 }
 
 /// list_memories: the newest 20 and the total.

@@ -82,6 +82,15 @@ Property Citations As %String(MAXLEN = "");
 /// Rows saved before this property hold no value.
 Property Memories As %String(MAXLEN = "");
 
+/// The learned saves the reply announces (Story 41.15), as a JSON array of {memoryRef, text} (at most 3): the facts that the turn saved from the person's
+/// own words (Source learned), as MemoryTools put them in the reply's HostData; empty for a reply with none. Rows saved before Story 41.15 hold no value.
+Property Learned As %String(MAXLEN = "");
+
+/// The file that the turn carries (Story 25.3), as a JSON object {ref, name, mediaType, size} from the stored row (Core.Files.Describe), never its bytes; empty for a turn
+/// of text. A turn with a file is untrusted (AD-10, AD-14): Conversation.ItemOf gives its requests provenance untrusted. The object is kept so that a reload shows the file
+/// after the stored row has been purged. Rows saved before Story 25.3 hold no value.
+Property SentFile As %String(MAXLEN = "");
+
 /// The Ref of the decision whose figures the turn shows (AD-20): for a fallback reply the reply decision, else the triage
 /// decision; the other one when the first is empty.
 Method ShownDecisionRef() As %String
@@ -175,6 +184,12 @@ Storage Default
 </Value>
 <Value name="25">
 <Value>Memories</Value>
+</Value>
+<Value name="26">
+<Value>Learned</Value>
+</Value>
+<Value name="27">
+<Value>SentFile</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

@@ -15,7 +15,11 @@ import type {
   DocumentText,
   DocumentsList,
   EventsResponse,
+  FileAccepted,
+  FilePost,
   GuideMarker,
+  MailSignInChecked,
+  MailSignInStarted,
   MailboxAccepted,
   MailboxEmail,
   MessageAccepted,
@@ -27,7 +31,11 @@ import type {
   SettingsSaved,
   StateSnapshot,
   UnpairDone,
+  WebhookCreated,
+  WebhookSecretSaved,
+  WebhooksList,
 } from './api-types';
+import type { HistoryDecisionsResponse, HistoryFilters, HistoryIncidentsResponse } from './history-types';
 import type { HeartbeatPut, HeartbeatSaved, HeartbeatState } from './heartbeat-types';
 import type { PersonaPut, PersonaSaved, PersonaState } from './persona-types';
 
@@ -61,11 +69,42 @@ export class ApiClient {
   }
 
   /**
+   * The signed-in admin's webhooks (Story 35.3): a GET that answers 200 `{webhooks: [{ref, name, path, createdAt}]}`. A 403 (not an admin) and a 409
+   * `not_available` (the online demo) fail as an HttpErrorResponse whose `error` is the body.
+   */
+  webhooks(): Observable<WebhooksList> {
+    return this.http.get<WebhooksList>(`${BASE}/settings/channels/webhooks`);
+  }
+
+  /**
+   * Creates a webhook: a POST of `{name, secret}` that answers 200 with the new webhook. The secret is sent once and never comes back. A 400 `bad_webhook`
+   * (with `fields`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  createWebhook(name: string, secret: string): Observable<WebhookCreated> {
+    return this.http.post<WebhookCreated>(`${BASE}/settings/channels/webhooks`, { name, secret });
+  }
+
+  /** Replaces a webhook's secret: a POST of `{secret}` that answers 200 `{result, message}`. A 404 for a webhook that is not the admin's fails as an HttpErrorResponse, as the others do. */
+  setWebhookSecret(ref: string, secret: string): Observable<WebhookSecretSaved> {
+    return this.http.post<WebhookSecretSaved>(`${BASE}/settings/channels/webhooks/${encodeURIComponent(ref)}/secret`, { secret });
+  }
+
+  /**
    * Tests the saved first model of one agent: a POST of `{agent}` that answers 200 `{answered, seconds, reason}` (Story 18.3). The call can take most of
    * 45 seconds. A 400 `bad_settings` (an agent the server refuses), a 403 and a 500 fail as an HttpErrorResponse.
    */
   testModel(agent: string): Observable<ModelTestAnswer> {
     return this.http.post<ModelTestAnswer>(`${BASE}/settings/models/test`, { agent });
+  }
+
+  /**
+   * Starts or checks the mailbox's OAuth2 sign-in (Story 21.3): a POST of `{action}` that answers 200 `{result: 'started', url}` for `start` and
+   * `{result: 'checked', signedIn}` for `check`. A 400 `bad_settings` (nothing registered), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  signInMail(action: 'start'): Observable<MailSignInStarted>;
+  signInMail(action: 'check'): Observable<MailSignInChecked>;
+  signInMail(action: 'start' | 'check'): Observable<MailSignInStarted | MailSignInChecked> {
+    return this.http.post<MailSignInStarted | MailSignInChecked>(`${BASE}/settings/channels/sign-in`, { action });
   }
 
   /**
@@ -97,6 +136,23 @@ export class ApiClient {
       map((response) => {
         if (response.status !== 202 || response.body === null) {
           throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/messages` });
+        }
+        return response.body;
+      }),
+    );
+  }
+
+  /**
+   * Sends one file of the chat: a POST of {clientId, name, content}, the file's bytes in base64 (the session is the caller's, never in the body). Only the
+   * answer 202 is a success; a 400 `bad_file` (with its `reason`), a 409 `not_available`, a 413 and a 500 fail as an HttpErrorResponse whose `error` is the body
+   * (FileRefusal).
+   */
+  sendFile(clientId: string, name: string, content: string): Observable<FileAccepted> {
+    const body: FilePost = { clientId, name, content };
+    return this.http.post<FileAccepted>(`${BASE}/files`, body, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/files` });
         }
         return response.body;
       }),
@@ -178,6 +234,27 @@ export class ApiClient {
   /** The session's own usage over the last 1, 7 or 30 local days, summed into buckets (Story 37.2): the Usage page's read. */
   usage(days: import('./usage-types').UsageDays): Observable<import('./usage-types').UsageResponse> {
     return this.http.get<import('./usage-types').UsageResponse>(`${BASE}/usage`, { params: { days } });
+  }
+
+  /**
+   * One page of the session's own past decisions (Story 25.2): the Decisions tab's read. Only the filters that are set are sent. A page past the
+   * last is 200 with an empty list; a 404 for a value the route does not take and a 500 fail as an HttpErrorResponse.
+   */
+  historyDecisions(filters: HistoryFilters & { page: number }): Observable<HistoryDecisionsResponse> {
+    const params: Record<string, string> = {};
+    for (const key of ['outcome', 'channel', 'day', 'fallback'] as const) {
+      const value = filters[key];
+      if (value !== undefined && value !== '') {
+        params[key] = value;
+      }
+    }
+    params['page'] = String(filters.page);
+    return this.http.get<HistoryDecisionsResponse>(`${BASE}/history/decisions`, { params });
+  }
+
+  /** One page of the incidents the session sees (Story 25.2): the Incidents tab's read. */
+  historyIncidents(page: number): Observable<HistoryIncidentsResponse> {
+    return this.http.get<HistoryIncidentsResponse>(`${BASE}/history/incidents`, { params: { page: String(page) } });
   }
 
   /**

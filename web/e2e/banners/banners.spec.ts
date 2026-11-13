@@ -39,9 +39,9 @@ import { announcedTexts, announcementCount, announcements, plain, recordAnnounce
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
-const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
-const SET_KEY = 'https://github.com/jbrandtmse/OcuTalon#set-a-model-key';
-const TELEGRAM = 'https://github.com/jbrandtmse/OcuTalon#telegram';
+const INSTALL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself';
+const SET_KEY = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#set-a-model-key';
+const TELEGRAM = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram';
 const LIVE_REGIONS = '[aria-live], [role="log"], [role="status"], [role="alert"]';
 
 /** The middle dot between the parts of a meta line, with its spaces. */
@@ -155,7 +155,7 @@ async function expectAction(one: Locator, name: string, href: string, what: stri
   const link = one.getByRole('link');
   await expect(link, `${what} has one action`).toHaveCount(1);
   await expect(link, `${what}'s action is named, with the new-tab words`).toHaveAccessibleName(`${name} (opens in a new tab)`);
-  await expect(link, `${what}'s action leads to its README section`).toHaveAttribute('href', href);
+  await expect(link, `${what}'s action leads to its guide section`).toHaveAttribute('href', href);
   await expect(link).toHaveAttribute('target', '_blank');
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(link, `${what}'s action is underlined`).toHaveCSS('text-decoration-line', 'underline');

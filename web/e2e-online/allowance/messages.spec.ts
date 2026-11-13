@@ -35,7 +35,8 @@ import { CHAT_A, MOCK_MS, chatTurnsOf, finishTelegram, pairChat, repliesOf, send
  */
 test.describe.configure({ timeout: 240_000 });
 
-const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
+/** The install section of the guide: the banner's action and the address in the notice card's text. */
+const INSTALL = 'https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself';
 const USED_UP = /^You've used this session's 50 messages for the hour\. You can send more at .+\.$/;
 /** The notice card: the time reads as the clock alone on the day it falls on and with its day on another ("at 15:02 ET", "on Friday at 00:09 ET"). */
 const CARD_TEXT = /You've used this session's 50 messages for the hour\. You can send more (?:at|on (?:(?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}(?:, \d{4})?) at) \d{2}:\d{2} ET, or install OcuTalon yourself to keep going: /;
@@ -95,7 +96,7 @@ test('A1: the 51st message is refused with a 429, the banner and the explained-d
     await expect(banner(page), "the allowance banner shows at once, from the page's own 429 (not from the next status event)").toBeVisible({ timeout: 2_000 });
     await expect(page.locator('[data-banner]').first(), 'and heads the stack').toHaveAttribute('data-banner', 'allowance');
     await expect(banner(page).locator('button'), 'it cannot be closed').toHaveCount(0);
-    await expect(banner(page).getByRole('link'), 'its action opens the README\'s install section').toHaveAttribute('href', INSTALL);
+    await expect(banner(page).getByRole('link'), 'its action opens the guide\'s install section').toHaveAttribute('href', INSTALL);
     const text = (await banner(page).locator('.text').innerText()).trim();
     expect(text, "the banner's text").toMatch(USED_UP);
 

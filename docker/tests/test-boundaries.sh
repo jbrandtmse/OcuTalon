@@ -128,7 +128,7 @@ for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalo
     scope_ok=0
   fi
 done
-for f in README.md CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artifacts/sprint-status.yaml \
+for f in README.md GUIDE.md CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artifacts/sprint-status.yaml \
   eval/orders-date-format/case.json eval/orders-date-format/snapshot.json; do
   if ! grep -qxF -- "$f" <<< "$all_files"; then
     echo "  not scanned for paths and keys: $f"
@@ -136,7 +136,7 @@ for f in README.md CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementa
   fi
 done
 if [ "$scope_ok" -eq 1 ]; then
-  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/, release/*.sh, docs/security-overview.md and the IPM release are scanned; every tracked or new file is scanned for paths and keys, README.md among them"
+  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/, release/*.sh, docs/security-overview.md and the IPM release are scanned; every tracked or new file is scanned for paths and keys, README.md and GUIDE.md among them"
 else
   echo "FAIL scope: a file that must be scanned is not"
   fails=$((fails + 1))

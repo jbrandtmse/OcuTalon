@@ -15,14 +15,18 @@
 ///       error status means that the production could not be read at all;
 ///       Execute carries the fix out for the targets given (those that passed), one by one, and registers each copy on the run (the FixRun row the executor
 ///       made for the request). result holds {"resent": the copies made, "skipped": [{"id", "reason"}]} for the targets it left out.
-///   - TARGETTYPE is what the targets name: "message" (the default; header ids of the incident's failed messages) or "item" (Ens.Config.Item ids of the incident's
-///     production, one per item); DIAGNOSED is 1 when the diagnosis may name the kind (Watch.Msg.DiagnosisPayload accepts only those) and ASKED is 1 when the user may
+///   - TARGETTYPE is what the targets name: "message" (the default; header ids of the incident's failed messages), "item" (Ens.Config.Item ids of the incident's
+///     production, one per item) or "contact" (Fix.PartnerContacts ids of the incident's production, one per recipient); DIAGNOSED is 1 when the diagnosis may name the kind (Watch.Msg.DiagnosisPayload accepts only those) and ASKED is 1 when the user may
 ///     ask for it in the chat (propose_fix, Story 23.2); NOSTART and NOREAD are the kind's own plain reasons for a run that could not start and for one that could not
 ///     read the production, where the executor's say resend (empty means the executor's);
+///   - DRAFTED is 1 when the kind's text is drafted by the model through IncidentManager before its dry run (the dry run then holds the drafted text); MOVES is 0 when the
+///     kind's requests never move the incident's state; NOTSETUP is the plain reason of a kind that can't deliver yet; Ready(incident, .reason) is 1 unless the kind can't run now,
+///     and then says why (Story 23.5);
 ///   - Standing and Failed are the shared reading of an incident's failed messages: Standing is the part of the target test that every message kind shares, and Failed
 ///     reads the failures of an incident's failure groups, in a request's window (the kinds the diagnosis proposes) or in the groups' whole Seen (a kind the chat asks for).
-///   - The result of Execute for a kind whose targets are items is {"changed": the items changed, "skipped": [{"id", "reason"}], "unreached": [{"id", "code"}]}.
-/// Targets are header ids, comma-separated and ascending (Item ids for TARGETTYPE item). Lane A.
+///   - The result of Execute for a kind whose targets are items is {"changed": the items changed, "skipped": [{"id", "reason"}], "unreached": [{"id", "code"}]}; for a kind
+///     whose targets are contacts it is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]}, and the executor does the delivering.
+/// Targets are header ids, comma-separated and ascending (Item ids for TARGETTYPE item, contact ids for TARGETTYPE contact). Lane A.
 Class OcuTalon.Fix.Kind [ Abstract ]
 {
 
@@ -38,7 +42,7 @@ Parameter RESOURCES;
 /// The plain reason of a run that cannot start without RESOURCES (Story 7.3); empty here.
 Parameter NOTALLOWED;
 
-/// What the kind's targets name: "message" (header ids) or "item" (Ens.Config.Item ids of the incident's production).
+/// What the kind's targets name: "message" (header ids), "item" (Ens.Config.Item ids of the incident's production) or "contact" (Fix.PartnerContacts ids).
 Parameter TARGETTYPE = "message";
 
 /// 1 when the diagnosis may name the kind (its fixKind), 0 when only the chat can ask for it.
@@ -55,11 +59,20 @@ Parameter NOSTART;
 
 Parameter NOREAD;
 
+/// 1 when the kind's text is drafted by the model through IncidentManager before its dry run; 0 when its parameters come from the ask.
+Parameter DRAFTED = 0;
+
+/// 0 when the kind's requests never move the incident's state: they are told to the sessions, answered and carried out in any state but closed.
+Parameter MOVES = 1;
+
+/// The plain reason of a run that can't start because the kind can't deliver yet (Ready); empty for a kind that always can.
+Parameter NOTSETUP;
+
 /// The status text of a message that failed, as Reader.Evidence gives it.
 Parameter ERRORSTATUS = "Error";
 
 /// The kinds that exist, as class names, comma-separated.
-Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute";
+Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute,OcuTalon.Fix.Kind.PartnerWarning";
 
 /// The classes of KINDS that are compiled and extend this class, as a list.
 ClassMethod Classes() As %List
@@ -208,11 +221,21 @@ ClassMethod Failed(incident As OcuTalon.Data.Incident, whole As %Boolean, Output
 	Quit $$$OK
 }
 
-/// The display name of the incident's production (Reader.Admits), else its class name: the name the kinds' reasons give.
+/// 1 when the kind can run now; else 0 and reason says why (a plain sentence), which the executor ends the run with. The base kind always can.
+ClassMethod Ready(incident As OcuTalon.Data.Incident, Output reason As %String) As %Boolean
+{
+	Set reason = ""
+	Quit 1
+}
+
+/// The display name of the incident's production (Reader.Admits), else its class name (also when the production list can't be read): the name the kinds' reasons give.
 ClassMethod ProductionName(incident As OcuTalon.Data.Incident) As %String
 {
-	If ##class(OcuTalon.Watch.Reader).Admits(incident.Namespace, incident.Production, .name) Quit name
-	Quit incident.Production
+	Try {
+		If ##class(OcuTalon.Watch.Reader).Admits(incident.Namespace, incident.Production, .name) Quit
+	} Catch {
+	}
+	Quit $Select($Get(name) '= "": name, 1: incident.Production)
 }
 
 /// The items of the incident's production (Reader.Items) as a dynamic array of {"id", "name", "className", "businessType", "enabled"}. When the production can't be read, an

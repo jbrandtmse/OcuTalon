@@ -16,7 +16,8 @@
  * - The Daily digest section (Story 18.2): digestChannelBoxes says which channel boxes show, digestChannelsBody builds the channels of a save from the
  *   boxes and the stored value (a hidden channel keeps its stored state, and the order is always web, phone, telegram), digestBody is the body of a save
  *   and isDigestDirty the rule of its form. The Telegram box shows only while Telegram is included and on or paused (telegramBoxShown).
- * - The Channels section (Story 18.2) is read only: channelsView says which of its views shows for the Telegram block and the Telegram card's view kind.
+ * - The Channels section (Story 18.2) shows the state of Telegram: channelsView says which of its views shows for the Telegram block and the Telegram card's view kind.
+ *   Its Webhooks group (Story 35.3) is webhooks-view.ts, with its fixed strings in SETTINGS_TEXTS.webhooks.
  * - The Models section (Story 18.3): modelsView lists the supported providers with their reason when a key is not set, modelOptions and secondOptions give
  *   the choices of the Model and Second model selects, modelsFormOf builds the form from the server's values, modelsBody is the body of a save,
  *   isModelsDirty the rule of its form, and testResultText the line under a Test button. The Budgets section: budgetsBody and isBudgetsDirty.
@@ -72,6 +73,16 @@ export const SETTINGS_TEXTS = {
   },
   channels: {
     telegramOn: 'Telegram on',
+  },
+  webhooks: {
+    heading: 'Webhooks',
+    help: 'Other systems can send OcuTalon any JSON event. Each webhook has its own secret, which the sender puts in the X-OcuTalon-Webhook-Secret header.',
+    name: 'Name',
+    secret: 'Secret',
+    create: 'Create webhook',
+    address: 'Send events with POST to {address}.',
+    secretSet: 'Saved, and never shown again. Type a new value to replace it.',
+    offOnDemo: 'Webhooks are off on the online demo, so it has no public webhook address. They work on your own install.',
   },
   models: {
     agents: { TriageAgent: 'Triage agent', DiagnosisAgent: 'Diagnosis agent', ChatAgent: 'Chat agent' },
@@ -134,11 +145,14 @@ export function sectionLabel(slug: string): string {
   return SETTINGS_SECTIONS.find((section) => section.slug === slug)?.label ?? SETTINGS_SECTIONS[0].label;
 }
 
-/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2), usage (Story 37.2) or the chat. */
-export function pageOf(address: string): 'settings' | 'documents' | 'usage' | 'chat' {
+/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2), history (Story 25.2), usage (Story 37.2) or the chat. */
+export function pageOf(address: string): 'settings' | 'documents' | 'history' | 'usage' | 'chat' {
   const path = address.replace(/^#/, '').split(/[?#;]/)[0];
   if (path === '/documents') {
     return 'documents';
+  }
+  if (path === '/history') {
+    return 'history';
   }
   if (path === '/usage') {
     return 'usage';

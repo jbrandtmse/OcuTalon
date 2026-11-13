@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page, type Response } from '../support
 
 import { README_ACCOUNT, signIn } from '../sign-in/helpers';
 import { CARD_MS, loadedAfter, signInReadmeLoaded, unique } from '../support/floor';
+import { NAV_LINKS_USER } from '../support/header-nav';
 import { publishFixtureEvent } from '../support/devices';
 import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
@@ -343,7 +344,7 @@ test('D12: a 404 answer to a remove closes the dialog and the row leaves', async
 test('D13: a user who is not an admin has Documents in the header and opens the page', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
-  await expect(pagesNav(page).getByRole('link'), 'the header navigation holds Chat, Documents and Usage, and no Settings').toHaveText(['Chat', 'Documents', 'Usage']);
+  await expect(pagesNav(page).getByRole('link'), 'the header navigation holds the links of a user who is not an admin, and no Settings').toHaveText(NAV_LINKS_USER);
   await documentsLink(page).click();
   expect(new URL(page.url()).hash, 'at the address #/documents').toBe('#/documents');
   await expect(page.getByRole('heading', { level: 1 }), 'the page opens').toHaveText('Documents');

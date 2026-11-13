@@ -80,11 +80,13 @@ describe('the real tree', () => {
     assert.match(text, /^export interface IncidentPayload \{[\s\S]*?\n  fallback\?: boolean;/m);
   });
 
-  it('nests the decision payload, the cost and the check rows, the citations and the memories in ChatMessagePayload', () => {
+  it('nests the decision payload, the cost and the check rows, the citations, the memories, the learned saves and the sent file in ChatMessagePayload', () => {
     const text = readFileSync(realOut, 'utf8');
-    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  citations\?: Citation\[\];\n  memories\?: Memory\[\];\n  traceUrl\?: string;\n\}/m);
+    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  citations\?: Citation\[\];\n  memories\?: Memory\[\];\n  learned\?: Learned\[\];\n  sentFile\?: SentFile;\n  traceUrl\?: string;\n\}/m);
     assert.match(text, /^export interface Citation \{\n  documentRef\?: string;\n  document\?: string;\n  section\?: string;\n  passage\?: string;\n  chunkIndex\?: number;\n\}/m);
     assert.match(text, /^export interface Memory \{\n  memoryRef\?: string;\n  text\?: string;\n  savedAt\?: string;\n\}/m);
+    assert.match(text, /^export interface SentFile \{\n  ref\?: string;\n  name\?: string;\n  mediaType\?: string;\n  size\?: number;\n\}/m);
+    assert.match(text, /^export interface Learned \{\n  memoryRef\?: string;\n  fact\?: string;\n\}/m);
     assert.match(text, /^export interface Cost \{\n  inputTokens\?: number;[\s\S]*?\n  costUSD\?: number;\n\}/m);
     assert.match(text, /^export interface CheckRow \{\n  result\?: string;\n  entry\?: string;\n  finding\?: string;\n  checkedAt\?: string;\n\}/m);
     assert.match(text, /^export interface TurnStepPayload \{\n  turnRef\?: string;\n  decisionRef\?: string;/m);

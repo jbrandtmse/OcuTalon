@@ -21,8 +21,8 @@
 //   headers: valid HTTP names and string values, never Content-Length or Transfer-Encoding, which the mock sets itself.
 // A marker scenario's marker is its name. The match type telegram serves the Telegram Bot API side of the mock (Story 10.3):
 //   {"name": "<kebab-case, the file's name>", "match": {"telegram": "<method>"}, "replies": [<telegram reply>, ...]}
-//   method: one of BOT_METHODS (getMe, getUpdates, sendMessage, editMessageText, answerCallbackQuery), in A/ or B/; getFile arrives
-//           in Story 25.3 and is refused; several scenarios may name one method;
+//   method: one of BOT_METHODS (getMe, getUpdates, sendMessage, editMessageText, answerCallbackQuery, getFile), in A/ or B/; several
+//           scenarios may name one method;
 //   telegram reply: {"status": 100-599, "headers": {...}, "delayMs": 0-600000, "body": {...}}, the body being required and a JSON
 //           object; text, toolUse and stopReason are model replies and are refused.
 // A telegram scenario is never selected by a model request: a test queues it for its method through POST /_mock/telegram/replies.
@@ -39,8 +39,8 @@ export const SCENARIO_FIELDS = ['name', 'match', 'replies'];
 export const REPLY_FIELDS = ['status', 'headers', 'delayMs', 'stopReason', 'text', 'toolUse', 'body'];
 export const REPLY_BODY_FIELDS = ['text', 'toolUse', 'body'];
 export const TELEGRAM_REPLY_FIELDS = ['status', 'headers', 'delayMs', 'body'];
-// The Bot API methods that the mock serves (Story 10.3). getFile is Story 25.3's.
-export const BOT_METHODS = ['getMe', 'getUpdates', 'sendMessage', 'editMessageText', 'answerCallbackQuery'];
+// The Bot API methods that the mock serves (Story 10.3; getFile, Story 25.3).
+export const BOT_METHODS = ['getMe', 'getUpdates', 'sendMessage', 'editMessageText', 'answerCallbackQuery', 'getFile'];
 export const STOP_REASONS = ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'refusal'];
 // The grammar of a scenario name and of a marker's test key, as regular expression source; every pattern below is built
 // from these two.
@@ -209,8 +209,6 @@ function checkScenario(rel, folder, base, data, bad) {
       bad(`${rel}: match has the unknown key "${type}"`);
     } else if (typeof value !== 'string' || value === '') {
       bad(`${rel}: match ${type} is not a non-empty string`);
-    } else if (type === 'telegram' && value === 'getFile') {
-      bad(`${rel}: match telegram getFile arrives in Story 25.3`);
     } else if (type === 'telegram' && !BOT_METHODS.includes(value)) {
       bad(`${rel}: match telegram must be one of ${BOT_METHODS.join(', ')}`);
     } else if (type === 'marker' && value !== data.name) {

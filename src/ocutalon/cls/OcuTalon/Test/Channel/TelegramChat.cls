@@ -456,7 +456,7 @@ Method TestNotices()
 		While iterator.%GetNext(.key) {
 			If ($Extract(key, 1, 9) = "incident.") || ($Extract(key, 1, 7) = "result.") Set keys = keys _ $ListBuild(key)
 		}
-		Do $$$AssertEquals($ListLength(keys), 28, "there are 28 Watch notice keys")
+		Do $$$AssertEquals($ListLength(keys), 34, "there are 34 Watch notice keys")
 		For core = "notice.tellNow", "notice.tellNowFallback", "reminder.due", "reminder.late", "conversation.sessionAllowance", "conversation.dailyCap" Set keys = keys _ $ListBuild(core)
 		Set expectedRows = "", approvals = 0, position = 0, phones = 0, withFixRow = "", withFixText = ""
 		While $ListNext(keys, position, key) {
@@ -465,7 +465,7 @@ Method TestNotices()
 				Do $$$AssertTrue(0, key_" has a fixture")
 				Continue
 			}
-			Set kind = $Case($Piece(key, ".", 1), "incident": $Select((key = "incident.laterRequest") || (key = "incident.laterRequestEitherWay") || (key = "incident.laterRequestChecked") || (key = "incident.laterRequestEitherWayChecked") || (key = "incident.suspendRequest") || (key = "incident.resumeRequest") || (key = "incident.rerouteRequest"): "approval", 1: "incident"), "result": "result", "notice": "tellnow", "reminder": "reminder", : "allowance")
+			Set kind = $Case($Piece(key, ".", 1), "incident": $Select((key = "incident.laterRequest") || (key = "incident.laterRequestEitherWay") || (key = "incident.laterRequestChecked") || (key = "incident.laterRequestEitherWayChecked") || (key = "incident.suspendRequest") || (key = "incident.resumeRequest") || (key = "incident.rerouteRequest") || (key = "incident.partnerRequest"): "approval", 1: "incident"), "result": "result", "notice": "tellnow", "reminder": "reminder", : "allowance")
 			Set approval = ""
 			If (kind = "incident") || (kind = "approval") {
 				Set approvals = approvals + 1
@@ -504,13 +504,13 @@ Method TestNotices()
 			Set expectedRows = expectedRows _ $Select(expectedRows = "": "", 1: ",") _ kind_"|"_approval_"|"_chatRef_":"_(before + 1)
 		}
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows, "the telegram Delivery rows have each notice's kind, its approval Ref and <ChatRef>:<message_id>")
-		Do $$$AssertEquals($Length(expectedRows, ","), 34, "there are 34 of them")
+		Do $$$AssertEquals($Length(expectedRows, ","), 40, "there are 40 of them")
 
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set answered = fixtures.%Get("answered.approved")
 		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 0, "no message has been edited yet")
 		If ..ToNotify(..Notification(session, "answered", "answered.approved", answered.slots, "zzappr1"), trace) {
-			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 35, 30), "TelegramOut has handled all 34 notifications and the answered one")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 41, 30), "TelegramOut has handled all 40 notifications and the answered one")
 			Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), before, "an answered Notification sends no sendMessage")
 		}
 		Set status = ##class(OcuTalon.Msg.Catalog).Render("answered.approved", answered.slots.%ToJSON(), "telegram")
@@ -519,7 +519,7 @@ Method TestNotices()
 		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, withFixText_$Char(10, 10)_status, "the incident.withFix message, with the status as its last line")
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows_",answered|zzappr1|"_withFixRow, "and records one answered telegram row, with the message's id")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 100).Count(), phones, "the phone got none of the allowance notices")
-		Do $$$AssertTrue(..WaitRows(session, "web", "*", 34, 30) >= 34, "WebChatOut has handled all 34 notifications, so that nothing is left to write when the test ends")
+		Do $$$AssertTrue(..WaitRows(session, "web", "*", 41, 30) >= 41, "WebChatOut has handled all 40 notifications and the answered one, so that nothing is left to write when the test ends")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the notices test failed: "_..Safe(ex))
 	}
