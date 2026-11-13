@@ -202,7 +202,8 @@ XData Contracts [ MimeType = application/json ]
    "FixParameters": "%String(MAXLEN=)",
    "FixTargets": "%String(MAXLEN=)",
    "ToolSource": "%String(MAXLEN=512)",
-   "Runner": "%String(MAXLEN=128)"
+   "Runner": "%String(MAXLEN=128)",
+   "ToolFingerprint": "%String(MAXLEN=64)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

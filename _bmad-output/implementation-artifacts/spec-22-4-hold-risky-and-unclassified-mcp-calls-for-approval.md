@@ -2,11 +2,11 @@
 title: 'Story 22.4: Hold risky and unclassified MCP calls for approval'
 type: 'feature'
 created: '2026-11-11'
-status: 'in-progress'
-baseline_revision: '14ed75901bb62898111b03d48012cf972b7dcfe3'
-baseline_commit: '14ed75901bb62898111b03d48012cf972b7dcfe3'
+status: 'done'
+baseline_revision: 'b0c3b06ef2991796c3f0955a63ba95a049841bb0'
+baseline_commit: 'b0c3b06ef2991796c3f0955a63ba95a049841bb0'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-22-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md'
@@ -225,7 +225,7 @@ Code review 2026-11-12 (four layers, full-opus: `_bmad/custom/model-overrides.ya
 - `low` Two fail-closed layers (the gate's fingerprint throw behind `Raise`'s refusal; the proxy's demo check behind `ProxyToolSet` empty) cannot be told apart by a test: defence in depth, and the outside behaviour is pinned.
 - `low` 2(b)'s "no model turn" half has no mutation line of its own: Rule 19 asks for one demonstrated mutation per AC, and 2(b) has one.
 
-- [ ] [CI] iris (image): `OcuTalon.Test.Data.Tables` `TestContracts` fails on af886ee3 (ci run 43344958166, job iris (image), shard lane-b@Contract,Core,Data,Live): "OcuTalon.Bridge.Data.ApprovalRequest has exactly its contract: property ToolFingerprint is not in the contract" -- `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` contract block for `OcuTalon.Bridge.Data.ApprovalRequest` (around L179-206, after `"Runner": "%String(MAXLEN=128)"`) -- append exactly one entry `"ToolFingerprint": "%String(MAXLEN=64)"` (the comma on the Runner line) and change nothing else in that file: it is Lane B's and contended with Epic 21 (a one-entry append is the allowed precedent; Epic 21 edits a different block). Check whether any other contract or count in `Test.Data.Tables` (or another `Test/Data/**` contract test) also lists ApprovalRequest's properties or storage slots, and fix it the same minimal way. Verify with `ci/iris.sh class OcuTalon.Test.Data.Tables` on a lane D warm stack.
+- [x] [CI] iris (image): `OcuTalon.Test.Data.Tables` `TestContracts` fails on af886ee3 (ci run 43344958166, job iris (image), shard lane-b@Contract,Core,Data,Live): "OcuTalon.Bridge.Data.ApprovalRequest has exactly its contract: property ToolFingerprint is not in the contract" -- `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` contract block for `OcuTalon.Bridge.Data.ApprovalRequest` (around L179-206, after `"Runner": "%String(MAXLEN=128)"`) -- append exactly one entry `"ToolFingerprint": "%String(MAXLEN=64)"` (the comma on the Runner line) and change nothing else in that file: it is Lane B's and contended with Epic 21 (a one-entry append is the allowed precedent; Epic 21 edits a different block). Check whether any other contract or count in `Test.Data.Tables` (or another `Test/Data/**` contract test) also lists ApprovalRequest's properties or storage slots, and fix it the same minimal way. Verify with `ci/iris.sh class OcuTalon.Test.Data.Tables` on a lane D warm stack.
 
 ## Spec Change Log
 
@@ -288,6 +288,10 @@ Code review 2026-11-12 (four layers, full-opus: `_bmad/custom/model-overrides.ya
   - `[low]` `[patch]` Verification-gap 5: the pinning-mutation table named `TestSecondReplay`/`TestNoGrant` for "TakeGrant keeps the grant" - corrected to the Gate test that the mutation line names.
   - `[low]` `[patch]` Verification-gap 6: `TestNoFingerprintNoHold` counted every approval row, so a row raised by anything else on the shared stack could flake it - fixed: `RowCount` counts the fixture session's rows.
   - `[false]` `[reject]` Verification-gap 7: `TestNoGrant` also accepts the UNREGISTERED sentence - it asserts a denial and no mock request, which is what the AC pins; UNREGISTERED has its own Gate row now.
+
+### 2026-11-13 - Review pass (CI rework 1, follow-up pass)
+- verdicts: 0 findings - high 0, medium 0, low 0, false 0, maybe-false 0 (Blind Hunter, Edge Case Hunter and Verification Gap reported none; the Intent Alignment Auditor reported readings only: the diff implements the table-contract surface for the new column and nothing behavioural)
+- findings: none
 
 ## Design Notes
 
@@ -470,6 +474,7 @@ There are no `(once)` lines. CI runs the full suite (the shards, `live:install-u
 - (CR) `mutation:` `Approval.CancelPending` stops at the first request it cannot cancel -> `Test.Bridge.Approval:TestCancelPending` red (the second request of the locked source stays pending).
 - (CR) `mutation:` `Mcp.Proxy.Run` always reports the outcome `ok` -> `Test.Mcp.Approval:TestReplayResultIsCut` red (DW-1220, the result cut).
 - (CR) `mutation:` `Core.BridgeSink` maps the result `changed` to `toolCall.failed` -> `Test.Mcp.Approval:TestChangedNoticeNamesToolAndServer` red (R1's key and slots).
+- (CI rework 1) `mutation:` the `ToolFingerprint` entry removed from the `OcuTalon.Bridge.Data.ApprovalRequest` contract in `Test/Data/Tables.cls` -> `Test.Data.Tables:TestContracts` red ("property ToolFingerprint is not in the contract"); reverted byte-identical (`git diff --stat` unchanged), class green again on the lane D warm stack `e22s4rw`.
 
 **Shared surfaces:**
 - the `ApprovalRequest` columns and `Raise`'s validation (`Test.Bridge.Approval`, `ApprovalRows`);
@@ -498,17 +503,12 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Status: done
 Blocking condition: none
 
-**Summary.** An MCP call that is risky or unclassified is held as one `tool_call` row in native form with the tool's fingerprint (new `ApprovalRequest.ToolFingerprint`, property 26; `Raise` requires it for an `mcp:` source and refuses it elsewhere). Its approval replays through Story 30.3's path as `call_mcp_tool {server, tool, arguments}` on a governed manager that holds only the proxy toolset (`Agent.ProxyManager`); the gate takes the grant on the native triple, the proxy compares a fresh `tools/list` with the approved fingerprint and refuses a change unrun (row failed, result `changed`, `MCP` `refused` entry). Removing a server cancels its pending requests (`Approval.CancelPending`, called from `Ops.Unregister` after the commit). On the online demo no MCP replay can run (pinned). Under ruling R1, `FinishExecution` accepts `changed` and `Core.BridgeSink` maps it to `mcp.replayToolChanged`.
+**Summary (CI rework 1, this pass only).** The `OcuTalon.Bridge.Data.ApprovalRequest` contract in `Test.Data.Tables` now lists `ToolFingerprint` (`%String(MAXLEN=64)`), which is what the compiled class declares; the `[CI]` item is ticked.
 
-**Files changed.**
-- Bridge: `Approval.cls` (Raise rules, `IsMcpSource`, `CancelPending`, `changed`), `Context.cls` (grant fingerprint, approved and refusal nodes), `Policy/Gate.cls` (native-form hold, replay classification and grant on the native triple), `Replay.cls` (MCP branch, `ProxyCall`), `Adapter/Agent.cls` (`ProxyManager`, `RestoreTools`), `Adapter/StepBuffer.cls` (replay label), `Data/ApprovalRequest.cls` (column), `Ext/McpServers.cls` (`ServerOf`).
-- Host: `Mcp/Attach.cls` (`ServerOf`, `Toolref`), `Mcp/Classification.cls` (delegates to `Attach.ServerOf`), `Mcp/Proxy.cls` (replay mode), `Mcp/Ops.cls` (`Unregister`, new private `CancelPending`, class doc; contended with 21.4, `OnRemove` untouched), `Core/BridgeSink.cls` (R1: one branch).
-- Tests and fixtures: new `Test/Mcp/Approval.cls` (12 tests) and `Test/Mcp/JobFixture.cls`; changed `Test/Bridge/{Approval,Gate,Ext,ZzGateServers}.cls`, `Test/Core/ToolCallNotices.cls`, `Test/Mcp/{Mock,Ops,ProxyJob}.cls`; new `ci/mock/scenarios/A/mcp-held-replay.json`; evidence `evidence/22-4-task0-replay.md`.
+**Files changed.** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`: one entry appended in the ApprovalRequest contract block (the Runner line gained its comma), nothing else. No other contract or count in `Test/Data/**` or `Test/Contract/**` lists ApprovalRequest's properties or storage slots (searched).
 
-**Review.** 23 findings (medium 5, low 14, false 4). Patched: the empty-fingerprint replay hole (Blind 1 / Edge 3), three missing pins (non-changed refusal, unclassified replay, proxy-call UNREGISTERED), a test row leak, a flaky global count, the mutation table and the missing mutation lines. Deferred (frontmatter): the R1 notice renders no text on the web and phone cards (medium, Channel is Epic 21's); no `raised` Approval audit entry (low). Rejected with reasons: see the triage log.
+**Review.** 0 findings from the four layers; no patches, nothing deferred, nothing rejected. Follow-up review recommended: false (this follow-up pass patched no high).
 
-**Follow-up review recommended: true.** Three medium findings were patched on a first pass. Unverified risk: the new replay guard and three new `Test.Mcp.Approval` tests were verified only on the lane D warm stack, and `Test.Mcp.Attach` and the upgrade harness were not rerun after them.
+**Verification.** Lane D warm stack `e22s4rw`: `OcuTalon.Test.Data.Tables` passed; `OcuTalon.Test.Mcp.ApprovalUpgrade` passed; `docker/tests/test-boundaries.sh` and `docker/tests/test-storage.sh` passed. Mutation (Rule 19): the new entry removed -> `Test.Data.Tables:TestContracts` red ("property ToolFingerprint is not in the contract"); reverted byte-identical.
 
-**Verification.** Lane D warm stack `e22s4iw`, one class per call: `Test.Mcp.Approval` (12 tests), `Test.Bridge.Approval`, `Test.Bridge.Gate`, `Test.Mcp.Ops`, `Test.Mcp.Proxy`, `Test.Bridge.Ext`, `Test.Bridge.Decide`, `Test.Agent.Runners`, `Test.Core.ToolCallNotices` all passed after the patches; the implement pass also passed `Test.Mcp.{Attach,Client,ProxyJob,Classification}`, `Test.Bridge.{CodeRules,Audit}` and `Test.Core.BridgeSink`. `test-mock`, `test-boundaries`, `test-class-rules` and `test-ci-config` exit 0. 17 mutations, each seen red and reverted byte-identical (listed under Verification). Not run (CI only, held): `live:install-upgrade` for the 1.0.7 pending-request condition, the full shards, `live:demo-path`.
-
-**Residual risks.** (1) On the web and phone cards the changed-tool notice has no text until Channel renders `mcp.replayToolChanged`; the row still ends failed, the audit holds the refusal and nothing runs. (2) The 1.0.7 upgrade AC is proven only for the column read (Task 0); the harness is CI.
+**Residual risks.** None known. The CI image group is the next proof (the lead re-pushes).
