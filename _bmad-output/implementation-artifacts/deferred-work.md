@@ -7612,6 +7612,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator ruling on 25.3's split, 2026-11-12 (veto U-326) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 25.3 plan: 25.6 needs a reply contract no story fixes
 - 2026-11-12T22:51:35Z status=routed owner=37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=orchestrator note=DW bullet added to 37.1's epics.md block at 25.3's merge
+- 2026-11-13T15:48:29Z status=resolved-by:37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption by=adjudication note=read-result_contract(fileRef,kind,read,reason,text,chars,cut,addable)+HostData_caption(memoryRef,text)_in_spine_AD-21_S4+Conventions_S6;Agent.Input.ReadFile_stub_pinned_in_Test.Contract.Ac+TestReadFileStub(commit_101b85e2);25.6_obligations_routed_DW-1269
 ### DW-1229: eval case mail-partner-notice expects digest alone, but the UX says the partner notice comes back as Digest or Tell now (mockups/states.html:982, EXPERIENCE Key Flows Coda), and the held-out-flagged mail-date-format-monday of the same shape expects tellnow; the attention agent chose tellnow in 14 of 15 RC attempts (1.0.4-1.0.8)
 - source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: eval/mail-partner-notice/case.json expected digest; _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/mockups/states.html:982 'the partner notice comes back as Digest or Tell now'; release-evidence/<v>-gates/rc-eval/set-*.json 15/15 misses
@@ -7652,6 +7653,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: SaveSettings.Changes is visible to OcuTalonTraceViewer, which non-admin accounts hold
 - 2026-11-13T04:50:39Z status=routed owner=burndown by=orchestrator note=Planner ruling; one audit story
+- 2026-11-13T15:48:08Z status=routed owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=lead note=restates_the_orchestrator's_2026-11-13T08:12:38Z_trailer,which_a_union_merge_placed_under_DW-1271's_heading(integrate-forward_29259a7c);Planner_DW-1255_audit_ruling_items_1,5
 
 ### DW-1267: 25.4 obligation from 37.1: the Roles section hands the target user name and role to SettingsOps through SecretHandoff (Changes holds only {handoff}) and Holders' list returns through a handoff uri; a leak-scan test of the change's message bodies for the target user name; routes admin-only, 409 not_available on the online demo before the body, a test per refusal
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
