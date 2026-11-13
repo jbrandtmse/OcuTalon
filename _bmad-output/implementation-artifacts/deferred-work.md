@@ -7384,6 +7384,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Proxy.TextOf puts OMITTED in place of each non-text part of a tools/call result; the text reaches the model and the step summary's Result. The Planner approved Public text 1-10 only; this string is in Task 3 step 7, not the table.
 - 2026-11-12T21:11:47Z status=decision-pending owner=burndown by=cr note=veto window (public text): recommend approve verbatim; alternative drop the marker. Planner decides at the decision sheet
+- 2026-11-13T03:04:39Z status=by-design by=orchestrator note=Planner_F3_text_approved_verbatim([non-text_content_omitted])
 
 ### DW-1228: A server tool named call_mcp_tool, added before the proxy toolset in OfferServers, may collide with or shadow the governed proxy (unverified)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: in-epic
@@ -7394,6 +7395,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
 - evidence: the row ends failed, the audit records the refusal and nothing runs, but the owner sees an empty notice; Channel files are Epic 21's (contended); Telegram render unchecked
 - 2026-11-12T23:13:35Z status=escalated owner=burndown by=harvest note=needs a ruling: add the key to Channel/WebChat/Out.cls and the phone card (Epic 21 contended), or route to an Epic 21 story
+- 2026-11-13T03:04:39Z status=routed owner=burndown by=orchestrator note=to_21.10_Planner_F2
 
 ### DW-1233: Approval.Raise writes no 'raised' Approval audit entry although 22.4's AC names one for the held MCP request
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
@@ -7410,6 +7412,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Mcp.Classification.ClassifyMcp: ServerOf empty -> registered 0 -> gate UNREGISTERED, no row (Test.Bridge.Gate TestMcpBridgeAlone); no map fingerprint -> FAILED (2(e), S16); replay of such a row fails NOSERVERTEXT (TestUnknownToolref).
 - 2026-11-13T00:27:51Z status=decision-pending owner=burndown by=cr note=planner=confirm denial (fail closed, no row that could never run) satisfies condition 4's HELD; code kept
+- 2026-11-13T03:04:39Z status=by-design by=orchestrator note=Planner_F1_stricter_reading_accepted(unknown_toolref_denied_never_held);22.4_spec_AC_amended
 
 ### DW-1241: An approved MCP request whose server is removed and re-added under the same name before its replay starts runs on the re-added server
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: med | footprint: in-story
