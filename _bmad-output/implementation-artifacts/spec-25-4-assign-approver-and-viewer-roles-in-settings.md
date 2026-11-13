@@ -2,8 +2,8 @@
 title: 'Story 25.4: Assign approver and viewer roles in Settings'
 type: 'feature'
 created: '2026-11-13'
-status: 'ready-for-dev'
-baseline_revision: '09777e12381c15bc1993f78b85b6ba6ac3533d5c'
+status: 'blocked'
+baseline_revision: 'cc9040ab3174e69cf562592e4f36b1381d034be0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -498,6 +498,19 @@ All paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `w
 - On slot A, `Security.Users:List("*","*")` answers 10 rows, and slot A has no OcuTalon role (it runs no installer).
 - Everything about other platform behaviour is Task 0 and is labelled (inference) until then.
 
+**Measured (Task 0, implement stage 2026-11-13, a warm throwaway of tag `e25s4iw`, build 154, fresh install with the production running; no product code changed yet; scratch probe classes `E25T0.*` loaded on the throwaway only):**
+- (a) A probe business operation added to `OcuTalon.Production` (so it runs in an item's job, as `SettingsOps` does) ran `Security.Users.AddRoles`/`RemoveRoles` on a fixture user holding `OcuTalonUser`, in `%SYS`: `before=OcuTalonUser`, `AddRoles OcuTalonViewer` gave `OcuTalonUser,OcuTalonViewer`, `RemoveRoles OcuTalonViewer` gave `OcuTalonUser` again. Each call changed only the named role; both statuses OK.
+- (b) The item's job reads `_Ensemble | roles=%All,%DB_OCUTALON_CODE,%DB_OCUTALON_DATA,%EnsRole_ProdPrivs_OCUTALON | %Admin_Secure:USE=1`. A job that logged in with `$SYSTEM.Security.Login` as a fixture user holding `OcuTalonAdmin,OcuTalonUser,OcuTalonViewer` reads `%Admin_Secure:USE=0` (the user's roles hold no `%Admin_Secure`). So `Assign`/`Holders` need `SettingsOps`' job and the check refuses an admin's own CSP job.
+- (c) The web applications `/ocutalon` and `/ocutalon/api` have `Timeout=28800` (8 hours of idleness), `UseCookies=2`, `SessionScope=2`, group `OcuTalon`. A fixture user signed in over HTTP (GET the sign-in page, POST `IRISUsername`/`IRISPassword`/`IRISLogin`) got `GET /ocutalon/api/v1/state` 200. The role `OcuTalonUser` was removed with `Security.Users.RemoveRoles` (the user's `Roles` then read empty), and the same session still answered 200 on the very next request, so the CSP session keeps `$Roles` from sign-in. With both applications' `Timeout` set to 20 on the throwaway (restored to 28800 afterwards), eight polls 8 seconds apart (64 s, over three times the timeout) all answered 200, and a request after 30 s of silence answered 401 `signed_out`: every request renews the idle timeout. `OcuTalonUser` stood in for `OcuTalonViewer` because `Shell.HasRole` does not yet admit a viewer; the mechanism (`$Roles` of the session) is the one the viewer check reads. The page polls `GET /v1/events` while it is open, and the idle cap (`idleSeconds`) exists only on the online demo (`Api.StateBody`: `If body.onlineDemo Set body.idleSeconds = ...`). So a removed viewer who keeps a tab open keeps reading with no upper bound (more than 24 hours), and one who closes the tab keeps it for up to 8 hours.
+- (d) `Bridge.Audit.Record("Settings", {setting "roles.ZzT0c", from, to, irisUser, sessionRef "", channel "web"})` is OK, and `Test.Bridge.AuditLog.Wait` (10 s default) read it back after 0.26 s. The entry's data holds the target user name and the role lists as written.
+- (e) The probe operation (production job) put a 3,000,010-character string with `SecretHandoff.Put` and a separate terminal process took all of it (`length=3000010`, 0.011 s); a second take answered an error. Cross-process works to 3 MB, and a uri is single-use.
+- (f) / C2, GET routes that write for a viewer-only caller. Reading every GET handler of `Web.Api`, `Web.Documents`, `Web.History` and `Web.Usage` and diffing `^OcuTalon*`, `^Ens.MessageHeaderD`, `^Ens.MessageBodyD` and `^Ens.Util.LogD` around each GET as a signed-in fixture user (a control of eight idle dumps shows background writes to `^Ens.MessageHeaderD`/`^Ens.MessageBodyD` about every minute and to `^OcuTalonP.StatusMarkD`, so those two are not the routes'):
+  - Only the session attach writes on first contact (`Data.Ownership.SessionRef` -> `Attach`, the caller's own session row), and that is the exception C2 names.
+  - `GET /v1/memory/items?q=<text>` (`Web/Api.cls:1985` -> `SearchMemories` :2083-2089 -> `SubmitMemory` :2174) submits a `SearchMemory` command through the production. On the online demo `Core/CommandsIn.cls:196-198` makes it consume one message of the session's allowance (`Core/Allowance.cls:63` `TryConsumeRead`), which writes an allowance entry.
+  - `GET /v1/memory/pinned` (`Web/Api.cls:2002` -> `ReadPinned` :2024) submits a `ListPinnedMemories` command through the production.
+  - Every other GET (`/v1/state`, `/v1/events`, `/v1/persona`, `/v1/heartbeat`, `/v1/memory/precedents`, `/v1/memory/notes`, `/v1/memory/items` with no `q`, `/v1/documents`, `/v1/documents/:ref`, `/v1/history/decisions`, `/v1/history/incidents`, `/v1/usage`) changed no `^OcuTalon*` global beyond the background mark above. `/v1/settings` (GET) is read-only code (`SettingsOps.Values`).
+- C3 (report only). Neither `Channel.Telegram.In` (`Channel/Telegram/In.cls:184` `OnProcessInput`, `Run` :204, `Poll` :256) nor the email entry (`Channel/Email/In.cls:37` `OnProcessInput`: owner from the product key `email.owner`, then `Send` to the Item target) mentions `OcuTalonUser`, `$Roles` or `GetUserRecursedRoleSet` anywhere under `Channel/Telegram` or `Channel/Email`. So a message is taken in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person's role at USE time. What does re-check at USE time is the approval answer: `Bridge/Approval.cls:325` and :412 (`Answer` reads `$SYSTEM.Security.GetUserRecursedRoleSet(irisUser)` under the row's lock). The lead files a DW for the two entries.
+
 ## Planner Gate
 
 **PUBLIC TEXT** (target `web/src/app/settings/roles-view.ts` `ROLES_TEXTS` unless noted; server messages are `Web.RoleSettings` parameters, pinned equal):
@@ -626,7 +639,9 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: C-24h removed viewer session lasts without an upper bound while the page polls (up to 8 hours after the tab closes); and intent gap: C2 GET routes that write for a viewer: GET /v1/memory/items?q= (Web/Api.cls:1985,2083-2089; on the online demo Core/CommandsIn.cls:196-198 and Core/Allowance.cls:63 write an allowance entry) and GET /v1/memory/pinned (Web/Api.cls:2002,2024), each submitting a command through the production
 
 Planned 2026-11-13 (plan stage, halt after planning). The spec meets the READY FOR DEVELOPMENT standard. The Planner Gate (PUBLIC TEXT 15 items, SECURITY 11, QUESTIONS 8) goes to the Contest Planner before implement. The lead applies the spine replacements and the epics.md AC 1 amendment listed under Design Notes.
+
+Implement pass 1 (2026-11-13): Task 0 only, then HALT by the Planner rulings' two STOP conditions (C-24h and C2). Measurements a-f and C3 are under Design Notes "Measured (Task 0, implement stage)". No product code, test or web file was changed. Recommendation: (1) C-24h: have `Api.OnPreDispatch` re-read the signed-in user's live role set for a viewer-only session (`$SYSTEM.Security.GetUserRecursedRoleSet($Username)`, which `Approval.Answer` already uses at USE time) and end the CSP session when it no longer holds `OcuTalonViewer` or `OcuTalonUser`, or accept the 8-hour idle cap and rule that a removed viewer's read-only access until sign-out is acceptable; either is an AD-13 decision. (2) C2: rule that `SearchMemory` and `ListPinnedMemories` are read commands that a viewer may send (no product row changes on a local install; the online demo has no viewer role), or have `Web.Api` refuse both routes for a viewer with 403 `read_only`.
