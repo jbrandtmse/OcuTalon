@@ -2,7 +2,7 @@
 title: 'Story 22.11: Run source polls through the governed proxy'
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -307,6 +307,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
   - The rulings file has no Planner text.
 
   Planned as the `epics.md` reading, behind the one switch `Watch.Ops.REPOINTRESETS`, and listed as **CONFIRM (DW-1328)** under Veto items.
+
+- 2026-11-14 (lead). **Gate ruled, Contest Planner ~13:20Z Nov 14:** SPLIT approved. Matrix rows 8-11, the DW-1325 (`Mcp/Ops.cls` `OnSetSource`), DW-1327 (`Checks/Coverage.cls`), DW-1328 switch (`Watch/Ops.cls` `REPOINTRESETS`) and mailbox-sentence (`Digest/Process.cls`) tasks, their tests and ACs move to Story 22.13 (`spec-22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover.md`). DW-1328 is RESET (confirmed); 22.11 keeps the baseline rule (first good run since `CreatedAt`) and `TestRepointBaseline`. Task 0 gains the STOP: due polls adding more than 10 s to the median triage decision time, or any triage decision missing its timeout, go to the Planner. `reserved_name` in 21.5 is lane C's cross-lane bullet. Status reset to `draft` for a re-plan of the poll run after 22.13 merges.
 
 ## Review Triage Log
 
