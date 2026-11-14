@@ -6,6 +6,12 @@
 ///   - TestPartOrder: with a failed row, a passed row, an unhandled tell-now Decision and nothing saved, the parts are the greeting, the vital signs, what was
 ///     checked, the key of Render with whatFailed, what needs the user, nothing saved and the cost, in that order, with the lines and rows of the check
 ///     rows, and every part renders;
+///   - TestNotCheckedLead (Story 22.5): a real source row "Jira" that has been unreachable since 02:10 and a queue-backlog row that passed give the checks part
+///     digest.notCheckedUnreachable {Jira, 02:10} then checks.everythingElsePassed, which render as the two lines the UX gives, and no all-clear;
+///   - TestNotCheckedLeadWithFailure (Story 22.5): with a failed row as well, the checks part keeps checks.notEverythingRestPassed, naming the failed and the not-checked
+///     entries, and has neither the lead nor checks.everythingElsePassed;
+///   - TestNotCheckedLeadTwo (Story 22.5): two not-checked rows and a passed one lead with both not-checked lines, in row order, then checks.everythingElsePassed;
+///   - TestMailboxOnlyNothingWatched (Story 22.5, AD-28): the Mailbox row alone, passed or not, gives digest.nothingWatched and no all-clear;
 ///   - TestQuietDay: everything passed and nothing needs the user: the quiet parts, checks.allPassed as the CatalogKey, and at most 150 words;
 ///   - TestNothingWatched, TestVitalsNotAll: digest.nothingWatched alone, with checks.nothingWatched; the vital signs that did not pass are named;
 ///   - TestGreeting: the greeting of the compose hour in the instance zone, by the three bands;
@@ -87,6 +93,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
 	Do $ClassMethod(..#PROBE, "Clean", ..Sessions)
+	Do ..CleanSources()
 	Do ..PutChannelsBack()
 	For i = 1:1:$Length(..Handled, ",") {
 		If $Piece(..Handled, ",", i) '= "" Do ##class(OcuTalon.Data.Handled).%DeleteId($Piece(..Handled, ",", i))
@@ -239,6 +246,17 @@ Method Part(slots As %DynamicObject, key As %String) As %DynamicObject
 	Quit found
 }
 
+/// Deletes the source rows and the runs of the sessions of the test (Story 22.5).
+Method CleanSources()
+{
+	For i = 1:1:$Length(..Sessions, ",") {
+		Set ref = $Piece(..Sessions, ",", i)
+		If ref = "" Continue
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.CheckRun WHERE SessionRef = ?", ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ?", ref, "source")
+	}
+}
+
 /// The Telegram rendering of every part and line, one on each line; an element that does not render fails the test.
 Method Render(slots As %DynamicObject) As %String
 {
@@ -314,9 +332,11 @@ Method Sent(session As %String) As %DynamicObject
 	Quit row
 }
 
-Method Watched(result As %String, entry As %String, finding As %String = "") As %DynamicObject
+Method Watched(result As %String, entry As %String, finding As %String = "", kind As %String = "") As %DynamicObject
 {
-	Quit {"result": (result), "entry": (entry), "finding": (finding), "checkedAt": "2030-06-03T12:00:00Z"}
+	Set row = {"result": (result), "entry": (entry), "finding": (finding), "checkedAt": "2030-06-03T12:00:00Z"}
+	If kind '= "" Do row.%Set("kind", kind)
+	Quit row
 }
 
 Method TestPartOrder()
@@ -346,6 +366,165 @@ Method TestPartOrder()
 	Do $$$AssertTrue(text [ "Not everything: Billing source. Everything else I checked passed.", "and so does the reserved sentence")
 	Do $$$AssertTrue(text [ "2 things need you: Billing source: 5 messages queued; Partner support: invoice question.", "and what needs the user")
 	Do $$$AssertTrue(text [ "Failed: Billing source (5 messages queued, ", "and the coverage lines")
+}
+
+/// Story 22.5: with no row failed, one not checked and one passed, the checks part is the coverage line of each not-checked row, then checks.everythingElsePassed.
+Method TestNotCheckedLead()
+{
+	Set session = ..Session()
+	Set end = ..Utc("2030-06-03T09:00:00")
+	Set start = ..Utc("2030-06-03T02:10:00")
+	Set sc = ##class(OcuTalon.Watch.Ops).SetSource(session, "zz", "zz_lookup", "Jira", "{}", 15, "zzcompose", .ref, .created)
+	Do $$$AssertStatusOK(sc, "the source row Jira is made through Watch.Ops")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+	Set row.CreatedAt = start
+	Do $$$AssertStatusOK(row.%Save(), "created at 02:10 local")
+	Set at = start
+	While '(at ] end) {
+		Set insert = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO OcuTalon_Digest_Data.CheckRun (CheckRef, SessionRef, RanAt, Result, Reason, Finding) VALUES (?, ?, ?, ?, ?, ?)", ref, session, at, "not_checked", "unreachable", ##class(OcuTalon.Checks.Process).#REASONSOURCEUNREACHABLE)
+		Do $$$AssertTrue(insert.%SQLCODE '< 0, "an unreachable run at "_at_" is recorded")
+		Set at = ##class(OcuTalon.Data.Time).AddSeconds(at, 900)
+	}
+	Set queue = ##class(OcuTalon.Test.Data.Fixture).Check(session, "", "", {"Kind": "queues", "DisplayName": "Queue-backlog check", "CreatedAt": (##class(OcuTalon.Data.Time).AddSeconds(end, -600))})
+	Do ..Keep(queue)
+	For i = 1:1:10 {
+		Set insert = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO OcuTalon_Digest_Data.CheckRun (CheckRef, SessionRef, RanAt, Result, Reason, Finding) VALUES (?, ?, ?, ?, ?, ?)", queue, session, ##class(OcuTalon.Data.Time).AddSeconds(end, -630 + (i * 60)), "passed", "", "")
+		Do $$$AssertTrue(insert.%SQLCODE '< 0, "a passed run of the queue check is recorded")
+	}
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled")
+	Set notice = ..Notice(1)
+	Set slots = notice.slots
+	Do $$$AssertEquals(..Keys(slots), "digest.greetingMorning,digest.healthy,digest.checked,digest.notCheckedUnreachable,checks.everythingElsePassed,digest.savedNone,digest.cost", "the checks part is the not-checked line, then the rest-passed sentence")
+	Do $$$AssertEquals(..Part(slots, "digest.notCheckedUnreachable").slots.%ToJSON(), "{""entry"":""Jira"",""time"":"""_start_"""}", "the line names Jira, unreachable since the first run of the streak, 02:10")
+	Do $$$AssertEquals(..Part(slots, "checks.everythingElsePassed").slots.%ToJSON(), "{}", "and the sentence has no slot")
+	Do $$$AssertEquals(..Part(slots, "digest.checked").slots.checked, "Jira and the Queue-backlog check", "what was checked names both entries, the source as typed and the queue check with its the")
+	Do $$$AssertEquals(notice.catalogKey, "checks.notEverythingRestPassed", "the CatalogKey is Render's key, unchanged")
+	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
+	Do $$$AssertEquals(..Part(slots, "checks.allPassed") _ ..Part(slots, "checks.notEverythingRestPassed"), "", "no part holds the all-clear or the old rest-passed sentence")
+	Set first = ##class(OcuTalon.Msg.Catalog).RenderAt("digest.notCheckedUnreachable", ..Part(slots, "digest.notCheckedUnreachable").slots, "telegram", end, 0, .sc)
+	Do $$$AssertStatusOK(sc, "the line renders")
+	Set second = ##class(OcuTalon.Msg.Catalog).RenderAt("checks.everythingElsePassed", {}, "telegram", end, 0, .sc)
+	Do $$$AssertStatusOK(sc, "and so does the sentence")
+	Do $$$AssertEquals(first _ " " _ second, "Not checked: Jira (unreachable since 02:10). Everything else I checked passed.", "together they are the sentence of the UX")
+	Do $$$AssertTrue((first _ second) '[ "Everything I checked passed.", "neither holds the all-clear")
+	Do $$$AssertTrue((first _ second) '[ "Your IRIS system is healthy", "nor the healthy vital signs")
+	Set text = ##class(OcuTalon.Channel.DigestText).Text(slots.%ToJSON(), "telegram", .sc)
+	Do $$$AssertStatusOK(sc, "the digest renders as a channel's text")
+	Set lines = $ListFromString(text, $Char(10))
+	Set found = 0
+	For i = 2:1:$ListLength(lines) {
+		If $List(lines, i) = "Everything else I checked passed." {
+			Set before = $List(lines, i - 1)
+			Do $$$AssertTrue(($Extract(before, 1, 37) = "Not checked: Jira (unreachable since ") && ($Extract(before, *-6, *) = "02:10)."), "the line before it is the not-checked line: "_before)
+			Set found = found + 1
+		}
+	}
+	Do $$$AssertEquals(found, 1, "the sentence is one line of the text, after the not-checked line")
+	Do $$$AssertTrue(text '[ "Not everything", "and the text never says 'Not everything'")
+	Do $$$AssertTrue(text '[ "Everything I checked passed.", "or the all-clear")
+}
+
+/// Story 22.5: with a failed row as well, the checks part stays as it is without the lead: Render's checks.notEverythingRestPassed naming the failed and the not-checked entries, no
+/// checks.everythingElsePassed, and no all-clear.
+Method TestNotCheckedLeadWithFailure()
+{
+	Set session = ..Session()
+	Set end = ..Utc("2030-06-03T09:00:00")
+	Set start = ..Utc("2030-06-03T02:10:00")
+	Set sc = ##class(OcuTalon.Watch.Ops).SetSource(session, "zz", "zz_lookup", "Jira", "{}", 15, "zzcompose", .ref, .created)
+	Do $$$AssertStatusOK(sc, "the source row Jira is made through Watch.Ops")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+	Set row.CreatedAt = start
+	Do $$$AssertStatusOK(row.%Save(), "created at 02:10 local")
+	Set at = start
+	While '(at ] end) {
+		Set insert = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO OcuTalon_Digest_Data.CheckRun (CheckRef, SessionRef, RanAt, Result, Reason, Finding) VALUES (?, ?, ?, ?, ?, ?)", ref, session, at, "not_checked", "unreachable", ##class(OcuTalon.Checks.Process).#REASONSOURCEUNREACHABLE)
+		Do $$$AssertTrue(insert.%SQLCODE '< 0, "an unreachable run at "_at_" is recorded")
+		Set at = ##class(OcuTalon.Data.Time).AddSeconds(at, 900)
+	}
+	For name = "Disk check", "Queue-backlog check" {
+		Set check = ##class(OcuTalon.Test.Data.Fixture).Check(session, "", "", {"Kind": "queues", "DisplayName": (name), "CreatedAt": (##class(OcuTalon.Data.Time).AddSeconds(end, -600))})
+		Do ..Keep(check)
+		For i = 1:1:10 {
+			Set insert = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO OcuTalon_Digest_Data.CheckRun (CheckRef, SessionRef, RanAt, Result, Reason, Finding) VALUES (?, ?, ?, ?, ?, ?)", check, session, ##class(OcuTalon.Data.Time).AddSeconds(end, -630 + (i * 60)), $Select(name = "Disk check": "failed", 1: "passed"), "", $Select(name = "Disk check": "5 messages queued", 1: ""))
+			Do $$$AssertTrue(insert.%SQLCODE '< 0, "a run of "_name_" is recorded")
+		}
+	}
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled")
+	Set notice = ..Notice(1)
+	Set slots = notice.slots
+	Do $$$AssertEquals(notice.catalogKey, "checks.notEverythingRestPassed", "the CatalogKey is Render's key")
+	Do $$$AssertEquals(..Part(slots, "checks.notEverythingRestPassed").slots.%ToJSON(), "{""whatFailed"":""Disk check and Jira""}", "the checks part names the failed and then the not-checked entry")
+	Do $$$AssertEquals(..Part(slots, "checks.everythingElsePassed"), "", "there is no checks.everythingElsePassed part")
+	Do $$$AssertEquals(..Part(slots, "digest.notCheckedUnreachable"), "", "and the not-checked line does not lead the checks part")
+	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
+}
+
+/// Story 22.5: two not-checked rows and a passed one: the checks part is the line of each not-checked row, in row order, then checks.everythingElsePassed.
+Method TestNotCheckedLeadTwo()
+{
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Feed", [(..Watched("not_checked", "Jira", "Couldn't reach its MCP server")), (..Watched("passed", "Orders production")), (..Watched("not_checked", "Mailbox", "Couldn't be read"))])
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled")
+	Set notice = ..Notice(1)
+	Set slots = notice.slots
+	Set keys = ""
+	Set entries = ""
+	Set iterator = slots.parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		Set keys = keys _ $ListBuild(part.key)
+		If part.key = "digest.notCheckedError" Set entries = entries _ $ListBuild(part.slots.entry)
+	}
+	Do $$$AssertEquals($ListToString(keys), "digest.greetingMorning,digest.healthy,digest.checked,digest.notCheckedError,digest.notCheckedError,checks.everythingElsePassed,digest.savedNone,digest.cost", "both not-checked lines lead, then the rest-passed sentence")
+	Do $$$AssertEquals($ListToString(entries), "Jira,Mailbox", "in row order")
+	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
+}
+
+/// Story 22.5: in the I-checked list a source row's name stands as the admin typed it, and every other entry (a production, the Mailbox) keeps its "the ".
+Method TestCheckedListSourceBare()
+{
+	Set source = ##class(OcuTalon.Checks.Process).#SOURCEKIND
+	For result = "passed", "failed" {
+		Do $ClassMethod(..#PROBE, "Reset")
+		Set session = ..Session()
+		Do $ClassMethod(..#PROBE, "Feed", [(..Watched(result, "Orders production", $Select(result = "failed": "5 messages queued", 1: ""))), (..Watched("passed", "Jira", "", source)), (..Watched("passed", ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX))])
+		Set host = ..Host()
+		Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled ("_result_")")
+		Set slots = ..Notice(1).slots
+		Set part = ..Part(slots, $Select(result = "failed": "digest.checked", 1: "digest.checkedQuiet"))
+		Do $$$AssertEquals(part.slots.checked, "the Orders production, Jira and the Mailbox", "the source has no the, the production and the Mailbox keep it ("_result_")")
+		Set expected = "I checked the Orders production, Jira and the Mailbox"_$Select(result = "failed": ".", 1: " (all running, no errors, no backlog).")
+		Do $$$AssertTrue(..Render(slots) [ expected, "it renders as: "_expected)
+	}
+	Do $ClassMethod(..#PROBE, "Reset")
+}
+
+/// Story 22.5 (AD-28): the Mailbox row is not a watch, so a session whose only watched row is the Mailbox gets digest.nothingWatched and never an all-clear,
+/// whether the Mailbox passed or not; with a watched row as well, the Mailbox counts in Render's key as any row does.
+Method TestMailboxOnlyNothingWatched()
+{
+	Set mailbox = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX
+	For result = "passed", "not_checked" {
+		Do $ClassMethod(..#PROBE, "Reset")
+		Set session = ..Session()
+		Do $ClassMethod(..#PROBE, "Feed", [(..Watched(result, mailbox, $Select(result = "passed": "", 1: "Couldn't be read")))])
+		Set host = ..Host()
+		Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled (" _ result _ ")")
+		Set notice = ..Notice(1)
+		Do $$$AssertEquals(..Keys(notice.slots), "digest.greetingMorning,digest.healthy,digest.nothingWatched,digest.savedNone,digest.cost", "a " _ result _ " Mailbox alone: digest.nothingWatched")
+		Do $$$AssertEquals(notice.catalogKey, "checks.nothingWatched", "the CatalogKey is never an all-clear (" _ result _ ")")
+		Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear (" _ result _ ")")
+	}
+	Do $ClassMethod(..#PROBE, "Reset")
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Feed", [(..Watched("passed", "Orders production")), (..Watched("passed", mailbox))])
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled (control)")
+	Set notice = ..Notice(1)
+	Do $$$AssertEquals(notice.catalogKey, "checks.allPassed", "control: with a production watched as well, Render's key stands")
 }
 
 Method TestQuietDay()

@@ -1,6 +1,15 @@
 /// McpOps (AD-1, AD-21, AD-29, AD-33; Lane A): the item of the production that owns the MCP servers an admin registers. It is the only writer of
 /// OcuTalon.Mcp.Server and of OcuTalon.Mcp.ToolClassification, and it answers AddMcpServer, RemoveMcpServer and ClassifyTool with an
-/// OcuTalon.Msg.CommandResult. It has no handler for SetSourcePoll and RemoveSourcePoll (Story 22.5), so CommandsIn answers those failed.
+/// OcuTalon.Msg.CommandResult, and it answers SetSourcePoll and RemoveSourcePoll too (Story 22.5):
+///   - SetSourcePoll makes one Read-only tool of a registered server a source, or changes that source: the one BackgroundCheck row of Kind source of the command's session
+///     with that name (Watch.Ops SetSource), in one transaction with its MCP audit entry (change source_set, outcome created or updated; the entry never holds an argument),
+///     then one CheckChanged. It answers saved with the row's Ref, or not_read_only, not_found, bad_name, bad_arguments or bad_interval, and a refusal writes nothing;
+///     a command whose session has no row is failed, and an audit that fails undoes the change (not_audited).
+///   - RemoveSourcePoll removes the source of a Ref, whatever admin set it, in one transaction with its audit entry (source_removed), then sends a CheckChanged with Stopped 1.
+///     It answers removed, or not_found, or not_audited when the audit fails (the source stays). RemoveMcpServer removes the sources of the server too, each in its own
+///     transaction, after the drop of the entry and the wallet secret and before Restart; a source that cannot be removed stays, with one warning that names its Ref.
+///   - Both source verbs pass the same checks as the three verbs below before anything is written (Refusal: the sender, the origin web_admin, the acting user, the
+///     online demo), with the same not_allowed answers. The CheckChanged goes to the Checks item through the seam SendChanged, a private method a test subclass overrides.
 ///   - AddMcpServer, RemoveMcpServer and ClassifyTool come from CommandsIn with Origin web_admin. Each handler re-checks that the sender is CommandsIn,
 ///     that the Origin is web_admin (a bridge context counts as origin tool), that ActingUser is not empty and that the install is not the online demo,
 ///     before it writes anything; a refusal has the outcome not_allowed, and a wrong sender or origin or a missing acting user is also one warning.
@@ -64,6 +73,31 @@ Parameter MESSAGECLASSIFICATION = "A tool is Unclassified, Read-only or Risky. N
 
 Parameter MESSAGESAVED = "Saved";
 
+Parameter MESSAGENOTREADONLY = "Only a Read-only tool can be a source. Nothing was changed.";
+
+Parameter MESSAGESOURCENAME = "A source's name is 1 to 100 characters. Nothing was changed.";
+
+Parameter MESSAGESOURCEARGUMENTS = "A source's arguments must be a JSON object of up to 4,000 characters, with no secret in it. Nothing was changed.";
+
+Parameter MESSAGESOURCEINTERVAL = "A source is polled every 5 to 1,440 minutes. Nothing was changed.";
+
+Parameter MESSAGENOSOURCE = "There is no source with that reference. Nothing was changed.";
+
+Parameter MESSAGESOURCEREMOVED = "The source was removed.";
+
+/// The configuration item that publishes the change of a check (AD-33).
+Parameter CHECKS = "Checks";
+
+/// The fewest and the most minutes between two polls of a source.
+Parameter INTERVALMIN = 5;
+
+Parameter INTERVALMAX = 1440;
+
+/// The longest a source's name is, in characters, and the longest the text of its arguments is.
+Parameter NAMEMAX = 100;
+
+Parameter ARGUMENTSMAX = 4000;
+
 /// The description of the entry that SaveEntry writes.
 Parameter ENTRYDESCRIPTION = "Written by McpOps for an MCP server an admin added; do not edit.";
 
@@ -81,6 +115,12 @@ XData MessageMap
 </MapItem>
 <MapItem MessageType="OcuTalon.Msg.Command.ClassifyTool">
 <Method>OnClassify</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.SetSourcePoll">
+<Method>OnSetSource</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Command.RemoveSourcePoll">
+<Method>OnRemoveSource</Method>
 </MapItem>
 </MapItems>
 }
@@ -145,6 +185,72 @@ Method OnClassify(request As OcuTalon.Msg.Command.ClassifyTool, Output response 
 		Set sc = ..Failed(.response, "the tool could not be classified", exception.AsStatus())
 	}
 	Lock -^OcuTalon.Mcp.Server(server)
+	Quit sc
+}
+
+/// Makes one Read-only tool of a server a source of the command's session, or changes it: the row, the audit entry, the CheckChanged. See the class description.
+Method OnSetSource(request As OcuTalon.Msg.Command.SetSourcePoll, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ..Refusal(request, "SetSourcePoll")
+	If $IsObject(response) Quit $$$OK
+	Set sessionRef = request.SessionRef
+	If (sessionRef = "") || '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)) Quit ..Failed(.response, "the source command names no session", $SYSTEM.Status.Error(5001, "No session"))
+	Set server = request.Server
+	Set row = ""
+	If $Match(server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) Set row = ##class(OcuTalon.Mcp.Server).NameIndexOpen(server)
+	If '$IsObject(row) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOSERVER)
+	Set stored = row.Name
+	Set tool = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(stored, request.Tool)
+	If '$IsObject(tool) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOTOOL)
+	If tool.Classification '= "read-only" Quit ..Answer(.response, 0, "not_read_only", ..#MESSAGENOTREADONLY)
+	Set name = $ZStrip(request.Name, "<>W")
+	If ($Length(name) < 1) || ($Length(name) > ..#NAMEMAX) || ($ZStrip(name, "*C") '= name) Quit ..Answer(.response, 0, "bad_name", ..#MESSAGESOURCENAME)
+	Set arguments = ..Normalised(request.Arguments)
+	If arguments = "" Quit ..Answer(.response, 0, "bad_arguments", ..#MESSAGESOURCEARGUMENTS)
+	Set interval = request.IntervalMinutes
+	If '$IsValidNum(interval) || (interval '= (interval \ 1)) || (interval < ..#INTERVALMIN) || (interval > ..#INTERVALMAX) Quit ..Answer(.response, 0, "bad_interval", ..#MESSAGESOURCEINTERVAL)
+	If '..Lock(stored) Quit ..Answer(.response, 0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Set sc = $$$OK
+	Set ref = ""
+	Try {
+		Set sc = ..SaveSource(request, stored, request.Tool, name, arguments, +interval, .response, .ref)
+	} Catch exception {
+		Set response = ""
+		Set ref = ""
+		Set sc = ..Failed(.response, "the source could not be set", exception.AsStatus())
+	}
+	Lock -^OcuTalon.Mcp.Server(stored)
+	If ref '= "" Do ..Changed(ref, sessionRef, 0, "source", name)
+	Quit sc
+}
+
+/// Removes the source of the command's Ref: the row, the audit entry, the CheckChanged. See the class description.
+Method OnRemoveSource(request As OcuTalon.Msg.Command.RemoveSourcePoll, Output response As OcuTalon.Msg.CommandResult) As %Status
+{
+	Set response = ..Refusal(request, "RemoveSourcePoll")
+	If $IsObject(response) Quit $$$OK
+	Set row = $Select(request.SourceRef = "": "", 1: ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(request.SourceRef))
+	If '$IsObject(row) || (row.Kind '= ##class(OcuTalon.Watch.Ops).#SOURCEKIND) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOSOURCE)
+	Set server = row.Server
+	If '..Lock(server) Quit ..Answer(.response, 0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Set sc = $$$OK
+	Set fields = ""
+	Try {
+		Set sc = ..RemoveRow(request.SourceRef, request, .fields, .audited)
+		If $$$ISERR(sc) {
+			Set sc = ..Failed(.response, "the source could not be removed", sc, $Select(audited: "failed", 1: "not_audited"))
+		} ElseIf fields = "" {
+			Set sc = ..Answer(.response, 0, "not_found", ..#MESSAGENOSOURCE)
+		} Else {
+			Set sc = ..Answer(.response, 1, "removed", ..#MESSAGESOURCEREMOVED)
+		}
+	} Catch exception {
+		Set response = ""
+		Set fields = ""
+		Set sc = ..Failed(.response, "the source could not be removed", exception.AsStatus())
+	}
+	Lock -^OcuTalon.Mcp.Server(server)
+	If fields '= "" Do ..Changed(request.SourceRef, fields.SessionRef, 1, "source", fields.DisplayName)
 	Quit sc
 }
 
@@ -220,6 +326,7 @@ Method Unregister(request As OcuTalon.Msg.Command.RemoveMcpServer, Output respon
 	If $$$ISERR(sc) Quit ..Failed(.response, "the MCP server could not be removed", sc, $Select($Get(audited) = 0: "not_audited", 1: "failed"))
 	Do ..CancelPending(server, request)
 	If $$$ISERR(..DropEntry(stored)) $$$LOGWARNING("OcuTalon.Mcp.Ops: the entry or the wallet secret of the removed MCP server could not all be dropped")
+	Do ..RemoveSources(stored, request)
 	Set restart = 1
 	Quit ..Answer(.response, 1, "removed", ..#MESSAGEREMOVED)
 }
@@ -321,6 +428,142 @@ Method Classify(request As OcuTalon.Msg.Command.ClassifyTool, Output response As
 		Quit ..Failed(.response, "the classification could not be audited, so it was undone", sc, "not_audited")
 	}
 	Quit ..Answer(.response, 1, "saved", ..#MESSAGESAVED)
+}
+
+/// The set of a source, under the server's lock (OnSetSource has validated every value; the tool is re-read here and must still be classified read-only): Watch.Ops SetSource and the audit entry in one transaction. ref is the row's Ref
+/// when the change is saved and audited, else "".
+Method SaveSource(request As OcuTalon.Msg.Command.SetSourcePoll, server As %String, tool As %String, name As %String, arguments As %String, interval As %Integer, Output response As OcuTalon.Msg.CommandResult, Output ref As %String) As %Status [ Private ]
+{
+	Set ref = ""
+	If '##class(OcuTalon.Mcp.Server).NameIndexExists(server) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOSERVER)
+	Set classified = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, tool)
+	If '$IsObject(classified) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOTOOL)
+	If classified.Classification '= "read-only" Quit ..Answer(.response, 0, "not_read_only", ..#MESSAGENOTREADONLY)
+	Set level = $TLevel
+	Set audited = 1
+	TSTART
+	Try {
+		Set sc = ##class(OcuTalon.Watch.Ops).SetSource(request.SessionRef, server, tool, name, arguments, interval, request.ActingUser, .made, .created)
+		If $$$ISOK(sc) {
+			Set data = ..McpData("source_set", server, request)
+			Do data.%Set("tool", tool, "string")
+			Do data.%Set("outcome", $Select(created: "created", 1: "updated"), "string")
+			Set sc = ..WriteAudit("MCP", data)
+			If $$$ISERR(sc) Set audited = 0
+		}
+		If $$$ISERR(sc) {
+			TROLLBACK
+			Quit
+		}
+		TCOMMIT
+	} Catch exception {
+		If $TLevel > level TROLLBACK
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) Quit ..Failed(.response, "the source could not be set", sc, $Select(audited: "failed", 1: "not_audited"))
+	Set ref = made
+	Quit ..Answer(.response, 1, "saved", ..#MESSAGESAVED, ref)
+}
+
+/// Removes the source of the Ref and audits it (source_removed, outcome removed, in the name of the command's acting admin), in one transaction. The caller holds the lock
+/// of the source's server. fields is the row's fields (Watch.Ops Fields), or "" when there is no source of that Ref. audited is 0 when the audit entry was the failure,
+/// and then the removal is rolled back.
+Method RemoveRow(ref As %String, command As OcuTalon.Msg.Command, Output fields As %DynamicObject, Output audited As %Boolean) As %Status [ Private ]
+{
+	Set fields = ""
+	Set audited = 1
+	Set level = $TLevel
+	TSTART
+	Try {
+		Set sc = ##class(OcuTalon.Watch.Ops).RemoveSource(ref, .removed)
+		If $$$ISOK(sc) && $IsObject(removed) {
+			Set data = ..McpData("source_removed", removed.Server, command)
+			Do data.%Set("tool", removed.Tool, "string")
+			Do data.%Set("outcome", "removed", "string")
+			Set sc = ..WriteAudit("MCP", data)
+			If $$$ISERR(sc) Set audited = 0
+		}
+		If $$$ISERR(sc) {
+			TROLLBACK
+			Quit
+		}
+		TCOMMIT
+		Set fields = removed
+	} Catch exception {
+		If $TLevel > level TROLLBACK
+		Set fields = ""
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Removes the sources of a server that Unregister has just removed and committed (Story 22.5), each in its own transaction with its audit entry (source_removed, in the
+/// name of the admin who removed the server), then one CheckChanged each. A source that cannot be removed or audited stays, with one warning, and the removal stands.
+Method RemoveSources(server As %String, request As OcuTalon.Msg.Command.RemoveMcpServer) [ Private ]
+{
+	Try {
+		Set refs = ##class(OcuTalon.Watch.Ops).SourcesOf(server)
+		Set iterator = refs.%GetIterator()
+		While iterator.%GetNext(, .ref) {
+			Set fields = ""
+			Try {
+				Set sc = ..RemoveRow(ref, request, .fields, .audited)
+			} Catch exception {
+				Set sc = exception.AsStatus()
+			}
+			If $$$ISERR(sc) {
+				$$$LOGWARNING("OcuTalon.Mcp.Ops: the source " _ ref _ " of the removed MCP server could not be removed: " _ ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			} ElseIf fields '= "" {
+				Do ..Changed(ref, fields.SessionRef, 1, "source", fields.DisplayName)
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING("OcuTalon.Mcp.Ops: the sources of the removed MCP server could not be read: " _ ##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+}
+
+/// The text of the arguments as the one normal JSON object text (%FromJSON, then %ToJSON, with the members in their order): "" means {}. "" is the answer when the text is
+/// not a JSON object, is longer than ARGUMENTSMAX once normalised, or holds secret:// (in any letter case) or @{ (AD-19), since the text is never an empty string otherwise.
+ClassMethod Normalised(arguments As %String) As %String [ Private ]
+{
+	If $IsObject(arguments) Quit ""
+	If arguments = "" Quit "{}"
+	Try {
+		Set parsed = ##class(%Library.DynamicAbstractObject).%FromJSON(arguments)
+		If '$IsObject(parsed) || 'parsed.%IsA("%Library.DynamicObject") {
+			Set text = ""
+		} Else {
+			Set text = parsed.%ToJSON()
+			If ($Length(text) > ..#ARGUMENTSMAX) || ($ZConvert(text, "L") [ "secret://") || (text [ "@{") Set text = ""
+		}
+	} Catch {
+		Set text = ""
+	}
+	Quit text
+}
+
+/// Tells the Checks item that a check was set (stopped 0) or removed (stopped 1), through SendChanged: a CheckChanged of the kind, with an empty namespace and production.
+/// A failed send, or an exception, is one warning and changes nothing else.
+Method Changed(ref As %String, sessionRef As %String, stopped As %Boolean, kind As %String, displayName As %String) [ Private ]
+{
+	Try {
+		Set message = ##class(OcuTalon.Checks.Msg.CheckChanged).%New()
+		Set message.CheckRef = ref
+		Set message.SessionRef = sessionRef
+		Set message.Stopped = stopped
+		Set message.Kind = kind
+		Set message.DisplayName = displayName
+		Set sc = ..SendChanged(message)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) $$$LOGWARNING("OcuTalon.Mcp.Ops: the check change " _ ref _ " could not be sent: " _ ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+}
+
+/// Sends the message to the Checks item, asynchronously, with no answer wanted (a seam for the tests).
+Method SendChanged(message As OcuTalon.Checks.Msg.CheckChanged) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#CHECKS, message)
 }
 
 /// The tools of the server for Settings, as a %DynamicArray of {"name", "classification", "status"} sorted by name. The status is refused for a tool in the
@@ -643,13 +886,14 @@ ClassMethod Common(data As %DynamicObject, irisUser As %String, sessionRef As %S
 	Do data.%Set("channel", $Case(origin, "web_admin": "web", : "system"), "string")
 }
 
-/// Builds the CommandResult in response and returns OK.
-ClassMethod Answer(ByRef response As OcuTalon.Msg.CommandResult, ok As %Boolean, outcome As %String, message As %String) As %Status [ Private ]
+/// Builds the CommandResult in response (with the Ref, when given) and returns OK.
+ClassMethod Answer(ByRef response As OcuTalon.Msg.CommandResult, ok As %Boolean, outcome As %String, message As %String, ref As %String = "") As %Status [ Private ]
 {
 	Set response = ##class(OcuTalon.Msg.CommandResult).%New()
 	Set response.Ok = ok
 	Set response.Outcome = outcome
 	Set response.Message = message
+	Set response.Ref = ref
 	Quit $$$OK
 }
 

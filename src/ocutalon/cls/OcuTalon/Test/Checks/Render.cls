@@ -10,7 +10,8 @@
 ///   - TestOddValues ("Odd values"): a pass with no or a bad time, an unknown result, values that are not strings, and an entry or finding of 1,200
 ///     characters;
 ///   - TestRowsShape: exactly four string keys, in order, and rows is always an array;
-///   - TestKeysAreCatalogKeys: each KEY parameter renders through Msg.Catalog.
+///   - TestKeysAreCatalogKeys: each KEY parameter renders through Msg.Catalog;
+///   - TestRestKey (Story 22.5): RestKey of Render's rows is checks.everythingElsePassed only when none failed, one is not checked and one passed.
 Class OcuTalon.Test.Checks.Render Extends %UnitTest.TestCase
 {
 
@@ -152,6 +153,34 @@ Method TestKeysAreCatalogKeys()
 		Do $$$AssertTrue(text '= "", name_" has a text")
 	}
 	Do $$$AssertEquals(..Param("KEYALLPASSED")_"|"_..Param("KEYRESTPASSED")_"|"_..Param("KEYNOTEVERYTHING")_"|"_..Param("KEYNOTHINGWATCHED"), "checks.allPassed|checks.notEverythingRestPassed|checks.notEverything|checks.nothingWatched", "and they are the four keys of the spec")
+}
+
+/// RestKey reads Render's own output rows: the key of the sentence that follows the not-checked lines, and "" for anything else, without ever throwing.
+Method TestRestKey()
+{
+	Set render = "OcuTalon.Checks.Render"
+	Set expected = "checks.everythingElsePassed"
+	Do $$$AssertEquals(..Param("KEYELSEPASSED"), expected, "the key is a catalog key of the spec")
+	Set text = ##class(OcuTalon.Msg.Catalog).Render(expected, {}, "web", .sc)
+	Do $$$AssertStatusOK(sc, "it renders through Msg.Catalog")
+	Do $$$AssertEquals(text, "Everything else I checked passed.", "as the reserved sentence")
+	Do ##class(OcuTalon.Checks.Render).Render([(..Result("passed", "A", "", ..#T1)), (..Result("not_checked", "B", "No answer in time", ..#T2)), (..Result("passed", "C", "", ..#T3))], .rows)
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(rows), expected, "none failed, one not checked and some passed: the key")
+	Do ##class(OcuTalon.Checks.Render).Render([(..Result("passed", "A", "", ..#T1)), (..Result("not_checked", "B", "No answer in time", ..#T2)), (..Result("failed", "C", "x", ..#T3))], .rows)
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(rows), "", "one failed row: no key, whatever else passed or was not checked")
+	Do ##class(OcuTalon.Checks.Render).Render([(..Result("not_checked", "A", "No answer in time", ..#T1)), (..Result("not_checked", "B", "No answer in time", ..#T2))], .rows)
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(rows), "", "nothing passed: no key")
+	Do ##class(OcuTalon.Checks.Render).Render([(..Result("passed", "A", "", ..#T1)), (..Result("passed", "B", "", ..#T2))], .rows)
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(rows), "", "all passed: no key, so no all-clear is made from it")
+	Do ##class(OcuTalon.Checks.Render).Render([(..Result("failed", "A", "x", ..#T1)), (..Result("passed", "B", "", ..#T2))], .rows)
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(rows), "", "a failed and a passed row: no key")
+	Do ##class(OcuTalon.Checks.Render).Render([], .rows)
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(rows), "", "no row: no key")
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey("x"), "", "a string is not an array")
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey(""), "", "an empty value is not an array")
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey({"result": "passed"}), "", "an object is not an array")
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey([1, "x", null, [], {"result": 5}]), "", "elements that are not rows give no key and no error")
+	Do $$$AssertEquals(##class(OcuTalon.Checks.Render).RestKey([1, {"result": "not_checked"}, "x", {"result": "passed"}]), expected, "and are skipped among rows that are")
 }
 
 /// --- helpers ---

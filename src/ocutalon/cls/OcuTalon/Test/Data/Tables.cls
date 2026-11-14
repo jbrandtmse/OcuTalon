@@ -568,7 +568,11 @@ XData Contracts [ MimeType = application/json ]
    "Result": "%String(MAXLEN=32)",
    "Finding": "%String(MAXLEN=1000)",
    "LastRunHeaderId": "%Integer",
-   "Reported": "%String(MAXLEN=)"
+   "Reported": "%String(MAXLEN=)",
+   "Server": "%String(MAXLEN=40)",
+   "Tool": "%String(MAXLEN=128)",
+   "Arguments": "%String(MAXLEN=)",
+   "IntervalMinutes": "%Integer"
   },
   "indexes": {
    "RefIndex": "Ref unique",
