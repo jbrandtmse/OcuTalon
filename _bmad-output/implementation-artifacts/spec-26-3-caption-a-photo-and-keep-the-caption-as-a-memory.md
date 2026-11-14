@@ -2,7 +2,7 @@
 title: 'Story 26.3: Caption a photo and keep the caption as a memory'
 type: 'feature'
 created: '2026-11-13'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '2dfed76579dbbe99b3503a4452d7c883ea4ae26f'
 baseline_commit: '2dfed76579dbbe99b3503a4452d7c883ea4ae26f'
 review_loop_iteration: 0
@@ -221,6 +221,8 @@ Tests and mock:
   - `Test/Agent/Content.cls`: one case with a caption of more than 2,000 characters (the mock scenario's text cannot be that long; call `Agent.Content.Accepted` directly) whose saved memory text is exactly `CAPTIONMAX` characters, and one case that calls `Accepted` twice with the same request and text and leaves one memory with the same `memoryRef` both times. Mutations: drop the `$Extract` cut -> red; change the `IdempotencyKey` to a per-call value -> red.
   - Record, run and revert (tree byte-identical) these mutations for the ACs that lack one, writing a `mutation:` line each: remove the `Origin = photo` Learned branch of `Memory.Ops.OnSave` -> `Test.Memory.Ops:TestPhotoSourceLearned` red; remove `Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)` from `Converse` -> `Test.Bridge.Content:TestRunnerSendsTheImage` red.
 
+- [ ] [CI] web: Unit tests (`npm --prefix web test`): `web/scripts/files-sources.test.mjs` (Story 25.3's source rules) fails on this story's `Agent/Content.cls`, in two assertions. (1) `is read through Ownership.SentFile by Core.Files alone ...`: its `.Content` pattern matches the class names `Ext.Content` and `Agent.Content` in a class that mentions `SentFile` (the `Data.Turn` JSON field), so it reports `Agent/Content.cls` although nothing reads `SentFile.Content` there. Tighten the pattern so it matches only a property read of a stored row's `Content`, not a class name; the expected list stays `['Core/Files.cls', 'Data/SentFile.cls']`. (2) `no class under Web/ calls Core.Files.Open`: the second assertion, "and no class of the product calls it yet (Story 26.2 and 26.3 will)", now has its first caller. Expect exactly `['Agent/Content.cls']` (the photo turn's file, opened in the runner's job, AD-21/AD-31) and update the message and the file's header comment; the Web/ assertion (no route serves a file's bytes) is unchanged. Write a `mutation:` line for each. -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43576051616 (job web, first red sha 39405fff)
+
 **Acceptance Criteria:**
 - Given Task 0 on build 154 with the CI mock, when the runner sends a text part and one `ImageData` part through `ChatWithContent`, then the mock's request holds an Anthropic base64 `image` block of the file's bytes beside the text, with `max_tokens` 8,000 and no sampling parameter, and the results are recorded in `## Verification`. If not, photos answer `read` 0 `failed` and the run halts `blocked` with the evidence.
 - Given a stored PNG photo turn, when its untrusted `turn` request goes through `Decide` with the shipped `ContentClass`, then:
@@ -274,6 +276,8 @@ Code review, 2026-11-14 (epic-cycle stage; four layers: Blind Hunter, Edge Case 
 - Acceptance notes 6 and 7 (`TestOnlineDemo` uses the `OnlineDemo()` seam; the web card maps every pin 409 to over-cap): by-design. The seam is the spec's convention, and the card is DW-1313.
 
 ## Spec Change Log
+
+- 2026-11-14, lead: rework iteration 1 (trigger ci): CI run 43576051616 `web` job red on `web/scripts/files-sources.test.mjs` (Story 25.3's source rules expected no product caller of `Core.Files.Open` yet, and their `.Content` pattern matches the class name `Agent.Content`). One `[CI]` item under Tasks & Acceptance; the rest of the story stands.
 
 - 2026-11-14, lead, Contest Planner rulings `prompts/story-263-rulings-20261114.md` (binding; owner's delegation): (a), (c), (d), (e) accepted; (b) YES, the caption is treated like chat reply text in the trace and photo bytes never are (TraceLeaks pins it); V1 no veto, answered by the lead (below); V2 origin `photo`, not `system`, everywhere (FR-73 amended in the PRD and epics.md); V3 refuse pinning a `photo`-origin memory, reason `pin_photo`, text "This memory came from a photo, so it can't be pinned.", the pin route's file `Web/Api.cls` granted for this check only, with a test and a mutation; V4 accepted; V5 approved with item 3's "or a log" -> "or the event log"; the two AD-31 sentences approved word for word (written into the spine by the lead); V6 accepted with `photo` at `CommandsIn.cls:345` and `Test/Core/CommandsStep3.cls`, the orchestrator granting the one-word contended edit; ImageData: measure first, STOP with the evidence if it fails (Task 0 amended).
 
