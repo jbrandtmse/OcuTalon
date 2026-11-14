@@ -901,7 +901,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
     - **The photo-caption request (Story 26.3).** A photo's turn is its caption request: a `turn` request of provenance `untrusted` through `Decide` to `ChatAgent`, with no new request kind.
       - It runs in a throwaway AI session that is never linked to the conversation (AD-6), with read-only tools at most (AD-10), and `Decide` records its decision, usage and cost as for any turn (AD-20).
       - The image reaches the model only inside the runner's job, through `ContentClass.Part` (AD-31), as one `%AI.LLM.ContentPart.ImageData` sent with `ChatWithContent`, under AD-6's runner rules and AD-7's model-use rules. No production message body, agent step or log holds it.
-    - **The caption memory.** After `Decide` accepts a usable reply, `ContentClass.Accepted` saves the reply's text (at most 2,000 characters) as a memory through `SaveMemory` to `MemoryOps`, with the photo Item's `ItemId`, origin `system` (so recalling it taints a turn) and `Source` `learned`.
+    - **The caption memory.** After `Decide` accepts a usable reply, `ContentClass.Accepted` saves the reply's text (at most 2,000 characters) as a memory through `SaveMemory` to `MemoryOps`, with the photo Item's `ItemId`, origin `photo` (so recalling it taints a turn, it can't be pinned, and it is never mistaken for trusted internal text) and `Source` `learned` [AMENDED 2026-11-14, Story 26.3, Contest Planner ruling V2/V3 (FR-73 as amended); it read "origin `system` (so recalling it taints a turn)"].
       - The Reply then carries the HostData member `caption`, `{memoryRef, text}`, built by code and absent when nothing was saved.
       - `Conversation` carries it as it carries `learned` (Story 25.6), and the page shows "Saved to memory".
       - An unusable reply takes the fallback route and saves nothing (AD-8).
@@ -1241,7 +1241,9 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
       - The base is `OcuTalon.Bridge.Ext.Content`. The setting `ContentClass` is on `Decide` (category Extensions) and is read through `Ext.Accessor.ClassFor`, whose `BASES` gains the pair.
       - `Part(request As OcuTalon.Bridge.Msg.Request, Output mediaType As %String, Output data As %Stream.Object) As %Status` is called in the runner's job before the model call, never inside a callback. It defaults to no content.
         - When it answers content, the runner calls `ChatWithContent` with the turn's text part and one `ImageData` part instead of `Chat`, under every runner rule of AD-6.
+        - The runner calls `Part` only for a `turn` request of provenance `untrusted`, whose AI session is never saved, so an image never enters a stored session. [ADDED 2026-11-14, Story 26.3, Contest Planner ruling V5]
       - `Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject) As %Status` is called by `Decide` in its own job after it accepts a usable `turn` reply. It defaults to nothing, and `Decide` merges the members of `hostData` into the reply's `HostData`.
+        - `Decide` calls `Accepted` once, after it has saved the turn's decision row, and a failure in it is logged and never fails the reply. [ADDED 2026-11-14, Story 26.3, Contest Planner ruling V5]
       - OcuTalon's class is `OcuTalon.Agent.Content` (Lane A).
         - `Part` answers the image of a photo turn: from the request's `ItemId` and `OwnerRef` to the turn's `SentFile`, then through `Core.Files.Open`.
         - `Accepted` saves the caption memory (AD-21) and answers `{"caption": {memoryRef, text}}`.
