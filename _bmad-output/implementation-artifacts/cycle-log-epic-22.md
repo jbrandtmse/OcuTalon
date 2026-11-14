@@ -327,3 +327,6 @@
 2026-11-14T09:42:15Z	Story 22.5	smoke_complete	method=other(lane-D_warm_e22s5fcw:Test.Mcp.SourceSetProduction(real_CommandsIn_web_admin->McpOps->audit->CheckChanged),Test.Digest.AllClear,Test.Watch.Ops;payloads.mjs_--check+payloads.test.mjs;test-boundaries,test-class-rules,test-storage,test-ci-config,test-readme_rc0) result=pass iterations=1 defects_caught=0 torn_down=e22s5fcw
 2026-11-14T09:42:15Z	Story 22.5	fresh_check	env=recipe(new_lane-D_warm_stack_e22s5fcw) tests=10 result=pass order=forward,reverse
 2026-11-14T09:42:15Z	Story 22.5	committed	sha=LOCAL(wip/22-5;no_push_until_lane_B_feature_fix_merges) ci=none_yet
+2026-11-14T09:43:39Z	Story 22.5	planner_rulings_applied	source=<coordination>/prompts/epic-22-rulings-20261113-1715.md#~08:10Z_Nov_14 part_A+22.11_split=approved V11=no_veto item2=source_names_without_the(one_branch_in_Digest/Process.cls:516,no_new_string->in_22.5) mailbox_render=check_and_report
+2026-11-14T09:43:39Z	Story 22.5	rework_opened	cycle_iteration=2 iteration=1 trigger=ruling(Planner_08:10Z_item2) items=R9-1 scope_baseline=aa042f67 branch=wip/22-5
+2026-11-14T09:43:39Z	Story 22.5	stage_spawned	stage=implement spawn_at=2026-11-14T09:43:39Z model=sonnet agent_name=22-5-poll-a-read-only-mcp-tool-as-a-source-implement-2 cycle_iteration=2 effort=high branch=wip/22-5

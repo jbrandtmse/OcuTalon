@@ -2,7 +2,7 @@
 title: 'Story 22.5: Poll a read-only MCP tool as a source'
 type: 'feature'
 created: '2026-11-14'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'bd547e51831adee962a2b16a42419c1526b6c805'
 baseline_commit: 'bd547e51831adee962a2b16a42419c1526b6c805'
 review_loop_iteration: 0
@@ -272,6 +272,8 @@ Rejected:
 - `low`: no real-path test of a server removal with sources (it restarts runner jobs; the probe pins it, as QA recorded); the lock-failure branches have no test.
 - `low`: a moved source's old server never logs the move, and leftover sources are not cleaned up automatically. Both need a failed audit write; the warning now names the Ref.
 - `low`: mid-class placement in `Mcp/Ops.cls`. Story 21.5 implements only after 22.5 merges (ruling D), so there is no merge-conflict risk.
+
+- [ ] [Review] **R9-1 (Contest Planner ruling ~08:10Z Nov 14, item 2)**: in the digest's "I checked" list, a SOURCE row's name appears exactly as the admin typed it, with NO "the " before it (example: "I checked the Orders production, Jira and the mailbox."); every other entry keeps its "the ". It is one branch where `Digest/Process.cls` `Finish` builds `named` (L516 pushes `"the "_entry` today): the verdict must carry which checked entries are source rows (from the coverage rows' kind), and no new catalog string or key is added. Pin it with a test that renders a digest covering a production, a source named `Jira` and the mailbox and asserts the exact "I checked ..." text, with a `mutation:` line (restore the unconditional "the " -> red). ALSO report, without changing anything, how the mailbox entry renders in that same line (`Checks.Coverage` `ENTRYMAILBOX` is "Mailbox": if the text reads "the Mailbox" with a capital M, record that exact text under Design Notes for the lead to report; do NOT change `ENTRYMAILBOX` or any text). If the source branch cannot be done without a new catalog string, HALT `blocked` for a `PUBLIC TEXT:`.
 
 ## Spec Change Log
 
