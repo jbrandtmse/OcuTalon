@@ -30,7 +30,8 @@ Include Ensemble
 /// {key, slots} in this order:
 ///   1. the greeting of the compose hour in the instance zone;
 ///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
-///   3. digest.checkedQuiet when no entry is named, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass, failed
+///   3. digest.checkedQuiet when no entry is named, else digest.checked (each checked entry with "the " before it, except the name of a source row, which stands
+///      as the admin typed it), then the key of Render (with whatFailed, the entries that did not pass, failed
 ///      first, for the two keys that name them), except that when no row failed, at least one is not checked and at least one passed (Render RestKey) the key of Render
 ///      is replaced by the coverage line of each not-checked row, in row order, then checks.everythingElsePassed (Lead; Story 22.5); with nothing watched
 ///      (the Mailbox row alone counts as nothing watched), digest.nothingWatched alone;
@@ -512,8 +513,8 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	} Else {
 		Set named = []
 		Set iterator = verdict.checked.%GetIterator()
-		While iterator.%GetNext(, .entry) {
-			Do named.%Push("the "_entry)
+		While iterator.%GetNext(.position, .entry) {
+			Do named.%Push($Select(verdict.sources.%Get(position): entry, 1: "the "_entry))
 		}
 		Do parts.%Push({"key": ($Select(verdict.named.%Size() = 0: "digest.checkedQuiet", 1: "digest.checked")), "slots": {"checked": (..Joined(named))}})
 		If lead.%Size() > 0 {
@@ -573,11 +574,12 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 
 /// The one verdict of a digest, for a session's rows and for a digest case's (the rows after rows' leading vital rows are the watched ones). The check
 /// rows come only from Checks.Render, so that no verdict is made from the raw results. verdict is {checkKey, nothingWatched, named, failed, checked,
-/// needs, vitalsPart, allClear}:
+/// sources, needs, vitalsPart, allClear}:
 ///   - checkKey is Render's key over the watched rows; with no watched row, or none that Render takes as a result, or only the Mailbox row (Checks.Coverage
 ///     ENTRYMAILBOX: the connected mailbox is not a watch, AD-28), it is checks.nothingWatched and nothingWatched is 1;
 ///   - named holds the entries of Render's rows that did not pass, failed first and then not checked, and failed holds the failed rows;
-///   - checked holds the entry of each watched row that is a result, in the order of the rows;
+///   - checked holds the entry of each watched row that is a result, in the order of the rows, and sources holds, in the same order, 1 for a row of kind source
+///     (the digest.checked list gives its entry as the admin typed it, with no "the " before it) and 0 for any other;
 ///   - needs is what NeedsYou gives the owner for the failed rows, with the Decisions recorded at or after windowStart ("" for no bound; a digest case passes none);
 ///   - vitalsPart is digest.healthy only when Render gives checks.allPassed for every vital row, else digest.vitalsNotAll with the entries that did not pass;
 ///   - allClear is 1 only when checkKey is checks.allPassed, the vital signs passed and nothing needs the owner.
@@ -589,7 +591,7 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 		Do watched.%Push(rows.%Get(i))
 	}
 	Set checkKey = ##class(OcuTalon.Checks.Render).Render(watched, .ordered)
-	Set named = [], failed = [], checked = []
+	Set named = [], failed = [], checked = [], sources = []
 	Set iterator = ordered.%GetIterator()
 	While iterator.%GetNext(, .row) {
 		If row.result '= "passed" Do named.%Push(row.entry)
@@ -597,7 +599,10 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	}
 	Set iterator = watched.%GetIterator()
 	While iterator.%GetNext(, .row) {
-		If ..Entry(row) Do checked.%Push(row.entry)
+		If ..Entry(row) {
+			Do checked.%Push(row.entry)
+			Do sources.%Push((row.%GetTypeOf("kind") = "string") && (row.kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND))
+		}
 	}
 	Set nothingWatched = (ordered.%Size() = 0) || ((ordered.%Size() = 1) && (ordered.%Get(0).entry = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX))
 	If nothingWatched Set checkKey = "checks.nothingWatched"
@@ -605,7 +610,7 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	Set needs = ..NeedsYou(owner, failed, .sc, windowStart)
 	If $$$ISERR(sc) Quit sc
 	Set vitalsPart = ..Vitals(vitals)
-	Set verdict = {"checkKey": (checkKey), "named": (named), "failed": (failed), "checked": (checked), "needs": (needs), "vitalsPart": (vitalsPart)}
+	Set verdict = {"checkKey": (checkKey), "named": (named), "failed": (failed), "checked": (checked), "sources": (sources), "needs": (needs), "vitalsPart": (vitalsPart)}
 	Do verdict.%Set("nothingWatched", nothingWatched, "boolean")
 	Do verdict.%Set("allClear", (checkKey = ##class(OcuTalon.Checks.Render).#KEYALLPASSED) && (vitalsPart.key = "digest.healthy") && (needs.count = 0), "boolean")
 	Quit $$$OK

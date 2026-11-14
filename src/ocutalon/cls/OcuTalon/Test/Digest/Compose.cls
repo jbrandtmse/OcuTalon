@@ -332,9 +332,11 @@ Method Sent(session As %String) As %DynamicObject
 	Quit row
 }
 
-Method Watched(result As %String, entry As %String, finding As %String = "") As %DynamicObject
+Method Watched(result As %String, entry As %String, finding As %String = "", kind As %String = "") As %DynamicObject
 {
-	Quit {"result": (result), "entry": (entry), "finding": (finding), "checkedAt": "2030-06-03T12:00:00Z"}
+	Set row = {"result": (result), "entry": (entry), "finding": (finding), "checkedAt": "2030-06-03T12:00:00Z"}
+	If kind '= "" Do row.%Set("kind", kind)
+	Quit row
 }
 
 Method TestPartOrder()
@@ -396,7 +398,7 @@ Method TestNotCheckedLead()
 	Do $$$AssertEquals(..Keys(slots), "digest.greetingMorning,digest.healthy,digest.checked,digest.notCheckedUnreachable,checks.everythingElsePassed,digest.savedNone,digest.cost", "the checks part is the not-checked line, then the rest-passed sentence")
 	Do $$$AssertEquals(..Part(slots, "digest.notCheckedUnreachable").slots.%ToJSON(), "{""entry"":""Jira"",""time"":"""_start_"""}", "the line names Jira, unreachable since the first run of the streak, 02:10")
 	Do $$$AssertEquals(..Part(slots, "checks.everythingElsePassed").slots.%ToJSON(), "{}", "and the sentence has no slot")
-	Do $$$AssertEquals(..Part(slots, "digest.checked").slots.checked, "the Jira and the Queue-backlog check", "what was checked names both entries")
+	Do $$$AssertEquals(..Part(slots, "digest.checked").slots.checked, "Jira and the Queue-backlog check", "what was checked names both entries, the source as typed and the queue check with its the")
 	Do $$$AssertEquals(notice.catalogKey, "checks.notEverythingRestPassed", "the CatalogKey is Render's key, unchanged")
 	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
 	Do $$$AssertEquals(..Part(slots, "checks.allPassed") _ ..Part(slots, "checks.notEverythingRestPassed"), "", "no part holds the all-clear or the old rest-passed sentence")
@@ -479,6 +481,25 @@ Method TestNotCheckedLeadTwo()
 	Do $$$AssertEquals($ListToString(keys), "digest.greetingMorning,digest.healthy,digest.checked,digest.notCheckedError,digest.notCheckedError,checks.everythingElsePassed,digest.savedNone,digest.cost", "both not-checked lines lead, then the rest-passed sentence")
 	Do $$$AssertEquals($ListToString(entries), "Jira,Mailbox", "in row order")
 	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
+}
+
+/// Story 22.5: in the I-checked list a source row's name stands as the admin typed it, and every other entry (a production, the Mailbox) keeps its "the ".
+Method TestCheckedListSourceBare()
+{
+	Set source = ##class(OcuTalon.Checks.Process).#SOURCEKIND
+	For result = "passed", "failed" {
+		Do $ClassMethod(..#PROBE, "Reset")
+		Set session = ..Session()
+		Do $ClassMethod(..#PROBE, "Feed", [(..Watched(result, "Orders production", $Select(result = "failed": "5 messages queued", 1: ""))), (..Watched("passed", "Jira", "", source)), (..Watched("passed", ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX))])
+		Set host = ..Host()
+		Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled ("_result_")")
+		Set slots = ..Notice(1).slots
+		Set part = ..Part(slots, $Select(result = "failed": "digest.checked", 1: "digest.checkedQuiet"))
+		Do $$$AssertEquals(part.slots.checked, "the Orders production, Jira and the Mailbox", "the source has no the, the production and the Mailbox keep it ("_result_")")
+		Set expected = "I checked the Orders production, Jira and the Mailbox"_$Select(result = "failed": ".", 1: " (all running, no errors, no backlog).")
+		Do $$$AssertTrue(..Render(slots) [ expected, "it renders as: "_expected)
+	}
+	Do $ClassMethod(..#PROBE, "Reset")
 }
 
 /// Story 22.5 (AD-28): the Mailbox row is not a watch, so a session whose only watched row is the Mailbox gets digest.nothingWatched and never an all-clear,

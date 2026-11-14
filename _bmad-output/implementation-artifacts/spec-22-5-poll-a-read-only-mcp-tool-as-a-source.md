@@ -2,11 +2,11 @@
 title: 'Story 22.5: Poll a read-only MCP tool as a source'
 type: 'feature'
 created: '2026-11-14'
-status: 'in-progress'
+status: 'done'
 baseline_revision: 'bd547e51831adee962a2b16a42419c1526b6c805'
 baseline_commit: 'bd547e51831adee962a2b16a42419c1526b6c805'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-22-context.md'
 warnings: ['oversized']
@@ -273,7 +273,7 @@ Rejected:
 - `low`: a moved source's old server never logs the move, and leftover sources are not cleaned up automatically. Both need a failed audit write; the warning now names the Ref.
 - `low`: mid-class placement in `Mcp/Ops.cls`. Story 21.5 implements only after 22.5 merges (ruling D), so there is no merge-conflict risk.
 
-- [ ] [Review] **R9-1 (Contest Planner ruling ~08:10Z Nov 14, item 2)**: in the digest's "I checked" list, a SOURCE row's name appears exactly as the admin typed it, with NO "the " before it (example: "I checked the Orders production, Jira and the mailbox."); every other entry keeps its "the ". It is one branch where `Digest/Process.cls` `Finish` builds `named` (L516 pushes `"the "_entry` today): the verdict must carry which checked entries are source rows (from the coverage rows' kind), and no new catalog string or key is added. Pin it with a test that renders a digest covering a production, a source named `Jira` and the mailbox and asserts the exact "I checked ..." text, with a `mutation:` line (restore the unconditional "the " -> red). ALSO report, without changing anything, how the mailbox entry renders in that same line (`Checks.Coverage` `ENTRYMAILBOX` is "Mailbox": if the text reads "the Mailbox" with a capital M, record that exact text under Design Notes for the lead to report; do NOT change `ENTRYMAILBOX` or any text). If the source branch cannot be done without a new catalog string, HALT `blocked` for a `PUBLIC TEXT:`.
+- [x] [Review] **R9-1 (Contest Planner ruling ~08:10Z Nov 14, item 2)**: in the digest's "I checked" list, a SOURCE row's name appears exactly as the admin typed it, with NO "the " before it (example: "I checked the Orders production, Jira and the mailbox."); every other entry keeps its "the ". It is one branch where `Digest/Process.cls` `Finish` builds `named` (L516 pushes `"the "_entry` today): the verdict must carry which checked entries are source rows (from the coverage rows' kind), and no new catalog string or key is added. Pin it with a test that renders a digest covering a production, a source named `Jira` and the mailbox and asserts the exact "I checked ..." text, with a `mutation:` line (restore the unconditional "the " -> red). ALSO report, without changing anything, how the mailbox entry renders in that same line (`Checks.Coverage` `ENTRYMAILBOX` is "Mailbox": if the text reads "the Mailbox" with a capital M, record that exact text under Design Notes for the lead to report; do NOT change `ENTRYMAILBOX` or any text). If the source branch cannot be done without a new catalog string, HALT `blocked` for a `PUBLIC TEXT:`.
 
 ## Spec Change Log
 
@@ -302,6 +302,18 @@ Rejected:
   - `[low]` `[patch]` Gap 4: the cascaded `source_removed` entries asserted only the `change` word -- `TestServerRemovedRemovesSources` now asserts user, session, channel, server, tool and outcome.
   - `[false]` `[reject]` Intent 1 (descriptive): the diff implements the admin, row and digest surfaces and not the poll run, Items or stop -- the spec's Scope paragraph (Planner ruling C) moves those to Story 22.11, and the lead's note binds; no defect.
   - Rule 19: the reviewers found every added test able to fail, and every AC's pinning test has a `mutation:` line (twelve in all).
+
+### 2026-11-14 -- Review pass (R9-1 rework; follow-up pass, diff = the rework delta since HEAD e867f883)
+- verdicts: 8 findings -- high 0, medium 0, low 3, false 5, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind 3: the Coverage row-shape doc read as if Render reads `kind` -- reworded: `kind` is its own sentence and names its consumer (Digest.Process); doc only.
+  - `[low]` `[reject]` Blind 1 and Gap other 1 (one root cause): no `Test.Digest.Coverage` assertion on `kind` -- `TestNotCheckedLead` goes through the real `Coverage.Build` and pins the source row bare and the queue row with "the"; its renamed-`kind` mutation is recorded red; a second assertion adds nothing (`wontfix-accepted`).
+  - `[low]` `[reject]` Blind 2 and Gap other 2 (one root cause): `kind` goes on the last row, so a `WatchRow` that appends and then throws tags only the Catch row -- that row is the one the digest shows for the source, and it is the one that must be bare; a partial append before a throw does not exist in `WatchRow` (`wontfix-theoretical`).
+  - `[false]` `[reject]` Blind 4, Edge 1, Gap other 3 (one root cause): a row with no `kind` (an eval digest case's rows) reads "the Jira" -- a missing `kind` keeps the old text, no false all-clear; the eval result exposes only `checked` and `named` (not the rendered list), so nothing observable differs; no stored row carries digest rows.
+  - `[false]` `[reject]` Intent 1 (descriptive): the contract does not say how the "I checked" list names a source; the diff implements the Contest Planner's ruling R9-1 (bare name, no new text), and `TestNotCheckedLead`'s pin changed with that ruling, not shortened.
+  - `[false]` `[reject]` Intent 2 (descriptive): the `kind` member widens the coverage row shape -- it is the item's own requirement ("from the coverage rows' kind"); `Test.Core.WebChatOut` stays green, and no Lane B payload pin lists these rows.
+  - `[false]` `[reject]` Intent 3 (descriptive): `sources` added to the verdict -- the item's own requirement.
+  - `[false]` `[reject]` Intent 4 (descriptive): tests exercise the digest level while the intent's matrix is at coverage level -- both levels are pinned (`TestCheckedListSourceBare` at the digest, `TestNotCheckedLead` through `Build`).
 
 ## Design Notes
 
@@ -356,6 +368,10 @@ Story 21.5 (lane C) implements only after 22.5 merges (ruling D). 22.5 builds no
 - `web/src/app/live/payloads.ts`, which the web build's `payloads.mjs --check` requires to match the class. Without it, the `web` job and every browser unit go red.
 
 Each is a mechanical append, with precedent: 22.4 and 22.7 each added one entry to `Test.Data.Tables`. `payloads.test.mjs` needs no change, because `IntervalMinutes` sits before the trace fields. Alternative, if the lead declines: move the payload member to 21.5. That is a scope move, owner-only. The column pin has no alternative, since the columns are AD-18's.
+
+**R9-1 (Planner ruling item 2): how the entries render in the "I checked" line.** A source row's name stands as typed, with no "the " (a source row carries `kind` "source" from `Checks.Coverage.Build`, and `Digest.Process.Verdict` hands the lead `sources`, parallel to `checked`). Every other entry keeps its "the ". Reported, not changed: the Mailbox entry (`ENTRYMAILBOX` "Mailbox") renders as "the Mailbox", with a capital M. Measured by `TestCheckedListSourceBare` (production, source "Jira", mailbox):
+- when a row failed or was not checked: `I checked the Orders production, Jira and the Mailbox.`
+- when every entry passed: `I checked the Orders production, Jira and the Mailbox (all running, no errors, no backlog).`
 
 **Decided in-stage:**
 1. **A Lane A test outside the intent's list.** `Test/Eval/Report.cls`'s value table must follow `FIELDS` (Rule 19). `Test.Eval.Watch` needs no edit once `FIELDS` names the new columns.
@@ -580,6 +596,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (code review) `mutation:` `SendChanged` returns OK without sending (McpOps restarted after the reload) -> `SourceSetProduction` `TestSetUpdateRemove` red (3 asserts).
 - (code review) `mutation:` `Coverage.MailOwner()` returns "" -> `TestMailboxRealSeams` red (2 asserts).
 - (code review) Each mutation was restored from a saved copy (`cmp` identical); `git status --short` and `git diff --stat` matched the pre-mutation baseline. After the restore and a McpOps restart, `Test.Mcp.SourceSet`, `Test.Mcp.SourceSetProduction`, `Test.Mcp.Ops`, `Test.Digest.Compose`, `Test.Digest.Coverage`, `Test.Checks.Render`, `Test.Digest.AllClear`, `Test.Digest.TelegramText` and `Test.Digest.EvalCase` passed on the warm stack; `test-boundaries.sh` and `test-class-rules.sh` exit 0.
+- (R9-1 rework; lane D warm throwaway, tag e22s5jw, torn down) `mutation:` restored the unconditional `"the "_entry` before each checked entry in `Digest/Process.cls` `Finish` -> `TestCheckedListSourceBare` red (4 asserts: the `checked` slot and the rendered line, for the quiet and the failed variant) and `TestNotCheckedLead` red (1 assert); reverted from a saved copy (`git status --short` and `git diff --stat` identical to before). `mutation:` `Coverage.Build` sets the source row's `kind` under another name -> `TestNotCheckedLead` red (1 assert: the real rows carry no kind, so "the Jira" returns). After the revert: `Test.Digest.Compose`, `Test.Digest.Coverage`, `Test.Digest.AllClear`, `Test.Core.WebChatOut`, `Test.Msg.Catalog` and `Test.Mcp.SourceSet` passed; `test-class-rules.sh` and `test-boundaries.sh` exit 0.
 - Not added: a real-path `RemoveMcpServer` with sources (it restarts the runner jobs, as `Test.Mcp.Attach` `TestCommands` shows; `TestServerRemovedRemovesSources` and `TestServerRemovedSourceFails` pin the cascade through the probe, with their `mutation:` lines above).
 
 ## Auto Run Result
@@ -605,3 +622,10 @@ Blocking condition: none
 **Verification (all on the warm stack unless noted).** Passed: `Test.Mcp.SourceSet`, `Test.Mcp.Ops`, `Test.Bridge.Audit`, `Test.Checks.Render`, `Test.Digest.Coverage`, `Test.Digest.Compose`, `Test.Digest.AllClear`, `Test.Eval.Watch` (loop, after the last patch); `Test.Eval.Report`, `Test.Watch.Ops`, `Test.Core.CommandsStep4`, `Test.Digest.TelegramText`, `Test.Digest.RecordTrigger`, `Test.Checks.Runs`, `Test.Checks.Queues`, `Test.Data.Tables`, `Test.Live.Payloads` (once); `payloads.mjs --check` current and `payloads.test.mjs` 20/20; `test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh` exit 0; `Test.Mcp.SourceSet` passed on a fresh stack (tag e22s5i) and was torn down; the warm stack was brought down.
 
 **Residual risks.** The digest shows a not-checked line in both the lead and the coverage list (the spec's text pin). NEW public text 1 ("the Jira" in the I-checked list) stays with the Planner. The `SaveSource` re-check is not exercised by an interleaved test.
+
+**Rework R9-1 (this pass only; follow-up pass).** Status: done. Blocking condition: none.
+- Change: in the digest's "I checked" list a source row's name stands as the admin typed it, with no "the "; every other entry keeps it. `Checks/Coverage.cls` `Build` stamps `kind` "source" on a source's coverage row; `Digest/Process.cls` `Verdict` carries `sources` (parallel to `checked`) and `Finish` skips the "the " for a flagged entry. No catalog string, key or `ENTRYMAILBOX` change. Tests: `TestCheckedListSourceBare` (new) and `TestNotCheckedLead` (its "the Jira" pin now reads "Jira"), both in `Test/Digest/Compose.cls`; mutations under `## Verification`.
+- Mailbox, reported not changed: it renders as "the Mailbox" (capital M); see Design Notes.
+- Review: 8 findings -- patched 1 (low, a doc sentence), rejected 7 with reasons in the triage log, deferred 0. Follow-up review recommended: false (no high patched).
+- Verification: `Test.Digest.Compose`, `Coverage`, `AllClear`, `Test.Core.WebChatOut`, `Test.Msg.Catalog` and `Test.Mcp.SourceSet` passed on the lane D warm stack (tag e22s5jw, brought down); `test-class-rules.sh` and `test-boundaries.sh` exit 0 (rerun after the doc patch).
+- Residual risk: the doc-only patch to `Coverage.cls` was not recompiled on a stack; a row with no `kind` keeps "the ".

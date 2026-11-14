@@ -4,7 +4,8 @@
 ///     use, system log), then one row per background check of the session in ID order (a source row is the entry named by its DisplayName), then the Mailbox row (see
 ///     MailboxRow) when the session owns the connected mailbox. A row is
 ///     {"result" (passed, failed or not_checked), "entry", "finding", "checkedAt" (UTC, YYYY-MM-DDThh:mm:ssZ)}, the shape that Checks.Render
-///     reads. lines holds one {"key", "slots"} for each row, in the rows' order: the catalog line of the row (digest.passed, digest.failed or
+///     reads. The row of a source also carries "kind" ("source"), and no other row does; Digest.Process uses it to name the entry as the admin typed it.
+///     lines holds one {"key", "slots"} for each row, in the rows' order: the catalog line of the row (digest.passed, digest.failed or
 ///     digest.notChecked<Reason>). vitals is {"rows" (the five vital rows), "figures" {"upDays", "databasesFull", "licenseUse"}}; a figure is a
 ///     whole number, or "" when its sign was not read.
 ///   - A vital sign is read live (Watch.Reader.Vitals) against the thresholds. A sign that cannot be read is not_checked with the reason
@@ -165,11 +166,13 @@ ClassMethod Build(sessionRef As %String, fromUtc As %String, toUtc As %String, O
 	Do ..VitalRows(reading, limit, now, rows, lines, vitals)
 	For i = 1:1:checks.Count() {
 		Set check = checks.GetAt(i)
+		Set before = rows.%Size()
 		Try {
 			Do ..WatchRow(check, fromUtc, toUtc, limit, rows, lines)
 		} Catch exception {
 			Do ..Add(rows, lines, ..#NOTCHECKED, ..EntryOf(check), ##class(OcuTalon.Checks.Process).#REASONREAD, now, ..#KEYERROR, {"entry": (..EntryOf(check)), "time": (now)})
 		}
+		If (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (rows.%Size() > before) Do rows.%Get(rows.%Size() - 1).%Set("kind", check.Kind)
 	}
 	Do ..MailboxRow(sessionRef, fromUtc, toUtc, rows, lines)
 	Quit $$$OK
