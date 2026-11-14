@@ -810,6 +810,7 @@ Method TestPrepareFailsSafeWithoutABuildFolder()
 }
 
 /// BuildFolder is the first of ocutalon/csp/ and src/ocutalon/csp/ below the root that holds index.html: each alone, both (ocutalon/csp/ wins), neither and no root.
+/// A module that is not installed has the root "", and Prepare with the build folder of that root is OK, removes nothing and says so in one line (guard (v)).
 /// On OcuTalon's image the installed module's root is /opt/ocutalon/src/; elsewhere that part is skipped.
 Method TestBuildFolder()
 {
@@ -826,6 +827,16 @@ Method TestBuildFolder()
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"d/"), "", "a folder without index.html is not a build")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"none/"), "", "neither")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(""), "", "no root")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).ModuleRoot("zz-no-such-module"), "", "a module that is not installed has no root")
+	Set data = base_"data/"
+	Do ..SeedBundle(data_"csp/ocutalon-web/")
+	Do ..Seed(data_"csp/ocutalon-web/", "main-OLD11111.js", "stale")
+	Set before = ..Tree(data_"csp/ocutalon-web/")
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Prepare(data, ##class(OcuTalon.Install.Step.Web).BuildFolder(##class(OcuTalon.Install.Step.Web).ModuleRoot("zz-no-such-module"))), "Prepare when the module root does not resolve")
+	Do $$$AssertEquals(..Tree(data_"csp/ocutalon-web/"), before, "removes nothing")
+	Set warnings = ..Warnings()
+	Do $$$AssertTrue(warnings [ "no old web file was removed" && ($Length(warnings, "|") = 1), "and says so in one line: "_warnings)
 	If ##class(%File).Exists(##class(OcuTalon.Install.Step.Demo).#VERSIONFILE) {
 		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).ModuleRoot(), "/opt/ocutalon/src/", "on the image the module's root is the baked source folder")
 		Do $$$AssertTrue(##class(%File).Exists(##class(OcuTalon.Install.Step.Web).BuildFolder()_"index.html"), "and BuildFolder() finds the build there")
@@ -934,21 +945,23 @@ ClassMethod RemoveName(list As %String, remove As %String) As %String [ Private 
 	Quit kept
 }
 
-/// The warning lines that the Web step recorded since the last call, joined by | and sorted, and clears them.
+/// The warning lines that the Web step recorded since the last call, joined by | and sorted (a line recorded twice appears twice), and clears them.
 ClassMethod Warnings() As %String [ Private ]
 {
 	Set lines = ##class(OcuTalon.Install.Step).TakeWarnings()
 	Kill sorted
 	Set position = 0
 	While $ListNext(lines, position, line) {
-		Set sorted(line) = ""
+		Set sorted(line) = $Get(sorted(line)) + 1
 	}
 	Set text = ""
 	Set line = ""
 	For {
-		Set line = $Order(sorted(line))
+		Set line = $Order(sorted(line), 1, count)
 		Quit:line=""
-		Set text = text_$Select(text = "": "", 1: "|")_line
+		For copy = 1:1:count {
+			Set text = text_$Select(text = "": "", 1: "|")_line
+		}
 	}
 	Quit text
 }

@@ -1,6 +1,6 @@
 # Story 36.7: stale bundle files on upgrade (DW-1320), evidence
 
-Records only. The rehearsal against v1.0.9 and its mutation run are the lead's, at smoke (the implement stage did not run `release/upgrade-harness.sh` against a previous release). The sections marked "to fill" take the lead's output as it is.
+Records only. The rehearsal against v1.0.9 and its mutation run were run by the lead at smoke (the implement stage did not run `release/upgrade-harness.sh` against a previous release). Each section states what was expected, then what was measured.
 
 ## Measured at the implement stage (lane-B throwaways, tags e36s7i and e36s7b)
 
@@ -14,6 +14,7 @@ Records only. The rehearsal against v1.0.9 and its mutation run are the lead's, 
 
 Result (run by the lead on a lane-B throwaway, 2026-11-14, from OCT-epic36-s367 cd8a9381 with its own web build):
 
+```text
 # OcuTalon 1.0.9
 
 ## Upgrade harness
@@ -42,6 +43,7 @@ Merge retries: 0
 | pairing | pass | 5 checks passed |
 | memory | pass | 2 checks passed |
 | document | pass | 4 checks passed |
+```
 
 The upgrade phase's own lines: `PASS after the upgrade the served web folder holds exactly the candidate's 31 build files`; `PASS after the upgrade /ocutalon/main-ZZSTALE0.js answers 404 and /ocutalon/main-<hash>.js 200`. The install log (`/durable/ocutalon-after-start.log`): `WARN Web removed old web file main-JCJUH3RN.js` and `WARN Web removed old web file main-ZZSTALE0.js`.
 

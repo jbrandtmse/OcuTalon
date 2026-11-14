@@ -89,8 +89,8 @@
 #       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
 #       Story 36.7 (DW-1320): the scratch copy's bundle index.html also gets a comment line, and main-ZZSTALE0.js and zz-admin-note.txt are
 #       planted in csp/ocutalon-web/ before the install. Afterwards the module's Root is MEASURED: it is the scratch folder, and the Web step's
-#       BuildFolder() is its ocutalon/csp/ (a real IPM install must resolve the root that FileCopy read; if it does not, the run stops
-#       with that finding and no workaround). The stale file is gone, the note stays, and the served index.html equals the copy's.
+#       BuildFolder() is its ocutalon/csp/ (a real IPM install must resolve the root that FileCopy read; if it does not, the check fails
+#       and the run ends red, with no workaround). The stale file is gone, the note stays, and the served index.html equals the copy's.
 # Story 19.2 (U-294) adds the Python requirement and the model:
 #   30. after path A's second run: the install fetched fastembed 0.9.0 through requirements.txt (the module root's file, staged beside
 #       src/module.xml by stage_requirements), the output has STEP Memory OK and no WARN Memory line, and <mgr>/fastembed/ holds the model
@@ -123,7 +123,8 @@
 #       `zpm "install ocutalon"` in USER ends with the stop line and the snapshot of check 3, repository mappings included;
 #   28. the same command in OCUTALON passes the checks of the second run (Initialize to Activate SUCCESS, every STEP OK in order, the
 #       production running, autostart, 0 dependencies, Story 9.1's IPM case), /ocutalon/ serves the sign-in page and ocutalon/ocutalon
-#       signs in;
+#       signs in, and the output has no `WARN Web no old web file was removed` line (Story 36.7: the Web step found the build that the
+#       repository install copied, from the module's Root);
 #   29. `zpm "uninstall ocutalon"` in OCUTALON removes OCUTALON's three repository mappings and nothing else of the configuration, and a
 #       hash of USER's three definition globals, taken inside the container and never printed, is the same right after the uninstall
 #       as right before it and as before the first command (U-232).
@@ -1935,6 +1936,11 @@ part_p() {
   check_no_repo_data "part p, before the same command in OCUTALON"
   run p-second OCUTALON 'zpm "install ocutalon"'
   check_run_ok p-second "part p, the same command in OCUTALON"
+  if grep -q '^WARN Web no old web file was removed' "$tmp/p-second.txt"; then
+    fail "part p, the same command in OCUTALON: the Web step found no installed build from the module's Root ($(grep -m 1 '^WARN Web no old web file was removed' "$tmp/p-second.txt"))"
+  else
+    pass "part p, the same command in OCUTALON: the Web step found the installed build from the module's Root (no WARN Web no old web file line)"
+  fi
   check_licences "part p"
   check_python_pins "part p"
   check_extract "part p"

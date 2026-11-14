@@ -130,6 +130,45 @@ deferred: []
 - AC4, rehearsal (ruling point 3). Given `release/upgrade-harness.sh` run phase by phase with `--rehearsal --previous v1.0.9 --record <temp file>` on this checkout, when `report` runs, then `Result: pass`, the `stale files` row passes with the plant note, and the served list equals `src/ocutalon/csp/`'s 27 files after the upgrade and after the restart. With the `RemoveStaleBundle` call removed from `Prepare`, the row fails and names `./main-JCJUH3RN.js` and `./main-ZZSTALE0.js`.
 - AC5, permanent row (ruling point 4). Given any harness run, when its record is written, then the table holds a `stale files` row after `private globals`, the row counts toward `Result:`, and `docker/tests/test-upgrade-harness.sh` passes with rule `stale-files`.
 
+### Review Findings
+
+Code review 2026-11-14 (Tier 1, full, baseline `ce86e1ab`, HEAD `fcfb23b3`; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 29 findings, 26 entries after grouping: 7 patched, 3 closed `wontfix-accepted` in the ledger, 16 rejected. No HIGH; no unresolved MED.
+
+- [x] [Review][Patch] `[med]` The no-module branch of `ModuleRoot` (the ruling's own guard (v) example, "Root doesn't resolve") was never executed by a test [`src/ocutalon/cls/OcuTalon/Install/Step/Web.cls` ModuleRoot; `Test/Web/Install.cls` TestBuildFolder] — `ModuleRoot(name = "ocutalon")`; TestBuildFolder asserts a module that is not installed has root "" and that `Prepare(data, BuildFolder(ModuleRoot(<none>)))` is OK, removes nothing and gives one guard (v) line. (verification-gap)
+- [x] [Review][Patch] `[med]` The install form users run (`zpm "install ocutalon"` from a repository, part p) never measured that the Web step finds the build from the module's Root; check 25 covers `load` only [`release/ipm-install.sh` part_p after `check_run_ok p-second`; header check 28] — part p now fails on a `WARN Web no old web file was removed` line in the repository install's output. Not run in this review (part p exceeds one 10-minute call and is outside the listed re-runs); the lane-a CI job runs part p at push, where a red is the Planner's "STOP and report" finding. (verification-gap + acceptance-auditor)
+- [x] [Review][Patch] `[low]` The test helper `Warnings()` merged duplicate lines, so the "one warning line" asserts could not catch a doubled warning [`Test/Web/Install.cls` Warnings] — duplicates are kept. (edge-case-hunter)
+- [x] [Review][Patch] `[low]` Check 25's header said the run "stops" on an unresolved Root; it fails and the run ends red [`release/ipm-install.sh` header check 25]. (acceptance-auditor)
+- [x] [Review][Patch] `[low]` The evidence file's opening paragraph still said the rehearsal was pending, with "to fill" sections [`evidence/36-7-upgrade-from-v1.0.9.md` L3]. (blind-hunter)
+- [x] [Review][Patch] `[low]` The pasted harness record's `#`/`##` headings broke the evidence file's structure [`evidence/36-7-upgrade-from-v1.0.9.md`] — fenced as text. (blind-hunter)
+- [x] [Review][Patch] `[low]` The QA mutation for R4 was inferred from a failure count [`web/e2e/usage/chunk-reload.spec.ts` R4] — re-run and observed by name (Verification, review mutation lines). (blind-hunter)
+- [x] [Review][Wontfix-accepted] `[low]` DW-1330: the reload covers lazy routes only; Settings' in-page `import('./mcp-section')` is not rescued after an upgrade (ruling V4 scope is route navigation). reopen_if in the ledger. (edge-case-hunter, claim)
+- [x] [Review][Wontfix-accepted] `[low]` DW-1331: `replaceState(target)` overwrites the source page's history entry on a failed header-link navigation, so Back skips it once. (blind-hunter + edge-case-hunter)
+- [x] [Review][Wontfix-accepted] `[low]` DW-1332: on a dirty Settings page, a cancelled native leave prompt during the reload uses up the address's flag and leaves the target address shown. (edge-case-hunter)
+
+**Judgments asked of this review:**
+- **V1 (`WARN Web removed old web file <name>`): meets the ruling; not a deviation.** A step has exactly two output lines: the registry's own `STEP <name> OK|FAILED` and `WARN <name> <text>` from `Install.Step.Warn` (`Registry.cls` Run L54-66; `Step.cls` has only `Warn`/`TakeWarnings`; no step class writes a line itself). The Web step has no progress line of its own, and steps already report corrective actions through `Warn` (`Schedule.cls` "the task ... was suspended, so it was resumed", `Users.cls` "the online-demo password guard ... was removed"). A STEP-level line would break AD-23's "one `STEP <name> OK|FAILED` line per step" and change Lane A's `Registry.cls` (AD-29), so `WARN` is the only reading consistent with the ADs. The text after the prefix is the ruling's own example. For the lead's report: the Planner may read `WARN` as alarming; a separate info line type would be an AD-23 amendment (veto item), not this story.
+- **Residual risk (1), "unsaved edits are lost when the handler reloads": not real as stated.** Angular 22.2.3's router runs `checkGuards` before `loadComponents` (`_router-chunk.mjs` L3939, L3975), so leaving a dirty Settings page asks through `unsavedGuard` before the chunk is fetched; after Leave, the still-dirty page's `beforeunload` handler (`settings-page.ts` L276-286) makes `reload()` prompt natively too. No other page holds unsaved state across a navigation (the composer lives in the routed main page). The residue is DW-1332 (a cancelled native prompt), accepted.
+- Delete rule (i)-(v), the AC2 file list, check 25's measured Root (`/tmp/ocutalon-scratch-next/`, `BuildFolder()` its `ocutalon/csp/`), the V4 handler (root-level `withNavigationErrorHandler`, no text, chunk failures only, one replaceState+reload per address, `sessionStorage` in try/catch with read-back, no reload without storage, no loop: the flag is never cleared), V7 (plant always, note in the row), V11 (two marked spine sentences), no public text or release-note line, AC4 evidence (pass with the `stale files` row; mutation names both files), bundle 882.45 -> 883.39 kB with `web/angular.json` unchanged, and footprint (V5 `release/**` extension, V6 additive Lane B edits): confirmed.
+- Rule 3: real-runtime tests exist (`live:install-upgrade`, `ipm-install.sh b` check 25, the harness row, Playwright R1-R5). Rule 6: no AD violation found (AD-23, AD-5, AD-29, AD-22).
+
+**Rejected:**
+- Blind: the earlier triage log's counts are wrong — fix edits the spec under review.
+- Blind: `## Auto Run Result` is stale after smoke and QA — spec edit (the lead's bookkeeping).
+- Blind: `TestPrepareFailsSafeWithoutABuildFolder`'s second half drops its warnings — false: the behaviours its comment claims (OK, nothing removed) are asserted; guard (iv)'s silence is pinned by `TestStaleNeedsTheSameIndex`.
+- Blind: the AD-23 sentence says "every start" though the step also runs at an IPM install — low: AD-23 states in the same block that the steps run at every start and from `module.xml`.
+- Acceptance: V1 is a deviation — false, see the V1 judgment above.
+- Acceptance: AC4's "27 files" and Gate item 1's "8 chunks" are out of date (31 and 12 today) — spec edit; the harness counts dynamically and the evidence records 31.
+- Acceptance + verification-gap: guard (v)'s "nothing removed" is also held by guard (iv) — by design (defence in depth); guard (v)'s pin is its warning line, which is falsifiable (recorded mutations, M2 below).
+- Acceptance: the intent contract still says no `web/` change and a silent no-build case — superseded by the binding 06:00Z ruling.
+- Acceptance: guard tests carry no `mutation:` comments in source — false: Rule 19 records them in this spec's Verification.
+- Edge: a popstate (Back) failure's handler could race Angular's history restore — maybe-false, low: either outcome is today's behaviour or a reload, and no loop is possible.
+- Edge: an unlistable served folder is reported as every build file missing — low: still a fail; diagnosis only.
+- Edge (claim): the spec says the chunk loads before `unsavedGuard` — correct finding; recorded in the residual-risk judgment above (spec text left to the lead).
+- Verification-gap: `TestPrepareReadsTheNewFolder` leaves a guard (v) line off the image — low: every test that asserts warnings clears them first.
+- Verification-gap: `TestBuildFolder`'s image branch depends on the baked module Root — low: warm stacks import classes and keep the Root (passed warm and fresh in this review).
+- Verification-gap: R3 has no e2e mutation of its own — note: its behaviour is pinned at node level by the recorded storage mutations.
+- Verification-gap: `TestRemoveStaleBundleWarns` could silently skip as a superuser — low: by design; it reached the asserting branch on the CI image (its mutation went red).
+
 ## Spec Change Log
 
 - 2026-11-14, Contest Planner gate ruling (~06:00Z) applied by the runner: guard (v), V1 log lines, V4 reload handler, V7 plant always, V11 spine sentences (Design Notes > Contest Planner rulings at the gate; Execution additions). Branch integrated forward onto feature 9a851935.
@@ -384,9 +423,13 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation (QA): the served-vs-build `index.html` compare made to apply only when the served file exists -> `TestStaleNeedsAServedIndex` red alone (3 asserts); restored identical.
 - mutation (QA): the guard (v) block returns an error status instead of OK -> `TestPrepareFailsSafeWithoutABuildFolder` red (with `TestStaleNeedsABuildList`); restored identical.
 - mutation (QA): `claimReload` taken before the `isChunkLoadError` test in `reloadOnChunkError` -> the node test `does not use up an address on an error that is no chunk failure...` red (the only one); `chunk-reload.ts` restored identical (`git diff` empty).
-- mutation (QA): `withNavigationErrorHandler` removed from `app.config.ts` -> the live part 14/14 of the chromium project (tag e36s7q3) goes 4 failed, 17 passed: R1, R2 and the two R4 cases (R3 and R5 stay green by design; names inferred from the count, the run's output was filtered to the summary); restored identical.
+- mutation (QA, re-run by code review): `withNavigationErrorHandler` and its imports removed from `app.config.ts` -> the live part 14/14 of the chromium project (tag e36s7c3) goes 4 failed, 17 passed, by name: R1, R2, `R4: a missing History chunk ...` and `R4: a missing Settings chunk ...` (R3 and R5 green by design); restored identical (`cmp`, `git diff` of `web/` empty).
 - mutation (QA): `isChunkLoadError` answers true for every error that has a string message -> R5 red alone, 20 passed (tag e36s7q5); restored identical.
 - QA run: `npm --prefix web test` 2040 pass, `npm --prefix web run lint` clean, `OcuTalon.Test.Web.Install` passed warm (e36s7q1) and on a fresh stack (e36s7q6), live part 14/14 of the chromium project (the part that holds `usage/chunk-reload.spec.ts` now that the list has 312 tests; 16/16 held it before the QA tests) 21 passed (e36s7q2). All throwaways torn down.
+
+- mutation (code review): `ModuleRoot` starts from `"/opt/ocutalon/src/"` instead of "" (a missing module would get the image's root) -> `TestBuildFolder` red ("a module that is not installed has no root", and its guard (v) line) (warm, tag e36s7cw); restored identical (`cmp`).
+- mutation (code review): guard (v)'s warning recorded twice -> `TestBuildFolder`, `TestPrepareFailsSafeWithoutABuildFolder` and `TestStaleNeedsABuildList` red (all four cases) now that `Warnings()` keeps duplicates (warm, e36s7cw); restored identical.
+- Code review run: `OcuTalon.Test.Web.Install` passed on a fresh stack before the patches (e36s7c1), warm after them (e36s7cw) and on a fresh stack after them (e36s7c2); `node --test web/scripts/chunk-reload.test.mjs` 12 pass; `test-cpf.sh`, `test-release-sequence.sh` and `test-compose-file.sh` pass. The new part p line (no guard (v) warning in a repository install) was not run here: part p is the lane-a CI job's. All review throwaways torn down.
 
 ## Tests Added (QA stage, 2026-11-14)
 

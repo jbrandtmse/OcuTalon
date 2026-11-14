@@ -111,13 +111,13 @@ ClassMethod Prepare(dataDirectory As %String, buildDirectory As %String = {..Bui
 	Quit ..RemoveStaleBundle(dataDirectory_..#BUNDLEFOLDER, buildDirectory)
 }
 
-/// The root folder of the installed IPM module ocutalon, with its closing separator; "" when IPM or the module is absent
+/// The root folder of the installed IPM module name (by default ocutalon), with its closing separator; "" when IPM or the module is absent
 /// or the module has no root. The module is read through a class method call, so nothing here needs IPM to compile.
-ClassMethod ModuleRoot() As %String
+ClassMethod ModuleRoot(name As %String = "ocutalon") As %String
 {
 	Set root = ""
 	Try {
-		Set module = $ClassMethod("%IPM.Storage.Module", "NameOpen", "ocutalon")
+		Set module = $ClassMethod("%IPM.Storage.Module", "NameOpen", name)
 		If $IsObject(module), module.Root '= "" Set root = ##class(%File).NormalizeDirectory(module.Root)
 	} Catch {
 		Set root = ""
