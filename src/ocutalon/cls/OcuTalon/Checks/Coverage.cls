@@ -16,7 +16,10 @@
 ///     gives a false all-clear. Else passed.
 ///   - A background check's result comes from the runs that Digest.Data.CheckRun recorded in the span, max(fromUtc, CreatedAt) to toUtc. The first
 ///     rule that applies wins: (1) paused: a heartbeat gap overlaps the span; (2) no run in the span: stale when an earlier run exists, else
-///     missed from the span's start to toUtc; (3) missed: two consecutive runs, the span's start and the first run, or the last run and toUtc are
+///     missed from the span's start to toUtc, except that a source row (Kind source, with an IntervalMinutes) takes its newest run at or after its CreatedAt and before
+///     the span as its latest run, through rules (4) and (5), when that run is at most max(the window, IntervalMinutes x 60 + MISSEDSECONDS seconds) before the end of the
+///     window (toUtc, or now when it is empty), since a source polled less often than the digest spans has no run in some windows (Story 22.13; DW-1327); a source's runs
+///     before its CreatedAt never count, so a source with none since reads missed, not stale; (3) missed: two consecutive runs, the span's start and the first run, or the last run and toUtc are
 ///     more than MISSEDSECONDS apart (the first such gap); (4) the latest run is not_checked: its reason gives error, timeout or unreachable
 ///     (an empty or unknown reason is error), for unreachable since the first run of the unbroken streak of unreachable runs that ends at the
 ///     latest, and stopped (Story 22.5: the source's tool is no longer Read-only) since the first run of the unbroken streak of stopped runs that
@@ -287,8 +290,8 @@ ClassMethod DatabaseRow(databases As %DynamicArray, limit As %DynamicObject, now
 	If lowest '= "" Do figures.%Set("databasesFull", ..Round(100 - lowest))
 }
 
-/// The row of one background check: its history (the runs of CheckRun in the span), then, for a production watch whose result stands on its
-/// latest run, the live read.
+/// The row of one background check: its history (the runs of CheckRun in the span, or, for a source with none, its newest run since its CreatedAt when Current holds),
+/// then, for a production watch whose result stands on its latest run, the live read.
 ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String, toUtc As %String, limit As %DynamicObject, rows As %DynamicArray, lines As %DynamicArray) [ Private ]
 {
 	Set entry = ..EntryOf(check)
@@ -304,20 +307,27 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 		Quit
 	}
 	Set runs = ..Runs(check.Ref, spanStart, toUtc)
+	Set carried = 0
+	Set isSource = (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0)
 	If runs.%Size() = 0 {
-		Set earlier = ..EarlierRun(check.Ref, spanStart)
-		If earlier '= "" {
+		Set earlier = ..EarlierRun(check.Ref, spanStart, $Select(isSource: check.CreatedAt, 1: ""), .earlierRun)
+		If (earlier '= "") && isSource && ..Current(earlier, fromUtc, toUtc, check.IntervalMinutes) {
+			Do runs.%Push(earlierRun)
+			Set carried = 1
+		} ElseIf earlier '= "" {
 			Do ..Add(rows, lines, ..#NOTCHECKED, entry, ..#FINDINGSTALE, earlier, ..#KEYSTALE, {"entry": (entry), "time": (earlier)})
+			Quit
 		} Else {
 			Do ..Add(rows, lines, ..#NOTCHECKED, entry, ..#FINDINGMISSED, spanStart, ..#KEYMISSED, {"entry": (entry), "from": (spanStart), "to": (toUtc)})
+			Quit
 		}
-		Quit
 	}
 	Set previous = spanStart
 	Set missed = 0
 	Set allowed = ..#MISSEDSECONDS
-	If (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0) Set allowed = (check.IntervalMinutes * 60) + ..#MISSEDSECONDS
-	For i = 0:1:runs.%Size() {
+	If isSource Set allowed = (check.IntervalMinutes * 60) + ..#MISSEDSECONDS
+	// A carried run was vetted by Current, so the loop over the gaps does not run for it.
+	For i = 0:1:$Select(carried: -1, 1: runs.%Size()) {
 		Set next = $Select(i = runs.%Size(): toUtc, 1: runs.%Get(i).ranAt)
 		If ..Apart(previous, next) > allowed {
 			Do ..Add(rows, lines, ..#NOTCHECKED, entry, ..#FINDINGMISSED, previous, ..#KEYMISSED, {"entry": (entry), "from": (previous), "to": (next)})
@@ -463,12 +473,34 @@ ClassMethod Runs(checkRef As %String, spanStart As %String, toUtc As %String) As
 	Quit runs
 }
 
-/// The time of the newest run of the check before the span's start, or "".
-ClassMethod EarlierRun(checkRef As %String, spanStart As %String) As %String [ Private ]
+/// The time of the newest run of the check before the span's start, or "". notBefore, when it is not empty, leaves out the runs before it (a source's CreatedAt: the runs
+/// of an earlier target never count). run is that run as {"ranAt", "result", "reason", "finding"}, or "" when there is none.
+ClassMethod EarlierRun(checkRef As %String, spanStart As %String, notBefore As %String = "", Output run As %DynamicObject) As %String [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 RanAt FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ? AND RanAt < ? ORDER BY RanAt DESC, ID DESC", checkRef, spanStart)
+	Set run = ""
+	Set sql = "SELECT TOP 1 RanAt, Result, Reason, Finding FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ? AND RanAt < ?"
+	If notBefore '= "" {
+		Set sql = sql_" AND RanAt >= ? ORDER BY RanAt DESC, ID DESC"
+		Set result = ##class(%SQL.Statement).%ExecDirect(, sql, checkRef, spanStart, notBefore)
+	} Else {
+		Set sql = sql_" ORDER BY RanAt DESC, ID DESC"
+		Set result = ##class(%SQL.Statement).%ExecDirect(, sql, checkRef, spanStart)
+	}
 	If result.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The runs of a check could not be read: "_result.%Message))
-	Quit $Select(result.%Next(): result.%Get("RanAt"), 1: "")
+	If 'result.%Next() Quit ""
+	Set run = {"ranAt": (result.%Get("RanAt")), "result": (result.%Get("Result")), "reason": (result.%Get("Reason")), "finding": (result.%Get("Finding"))}
+	Quit run.ranAt
+}
+
+/// 1 when a source's run at ranAt, before the span, is recent enough to stand as the source's latest run: at most max(the window's length, intervalMinutes x 60 +
+/// MISSEDSECONDS seconds) before the end of the window (toUtc, or now when it is empty). Story 22.13; DW-1327.
+ClassMethod Current(ranAt As %String, fromUtc As %String, toUtc As %String, intervalMinutes As %Integer) As %Boolean [ Private ]
+{
+	Set end = $Select(toUtc = "": ##class(OcuTalon.Data.Time).NowUtc(), 1: toUtc)
+	Set allowed = (intervalMinutes * 60) + ..#MISSEDSECONDS
+	Set window = ..Apart(fromUtc, end)
+	If window > allowed Set allowed = window
+	Quit ..Apart(ranAt, end) <= allowed
 }
 
 /// The seconds from one UTC time to a later one; 0 when either is unreadable.

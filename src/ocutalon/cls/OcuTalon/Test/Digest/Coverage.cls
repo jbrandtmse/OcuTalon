@@ -14,6 +14,10 @@
 ///   - TestFixedStrings: the ruled text and the digest line, byte for byte;
 ///   - TestSourceIntervalGap, TestStoppedStreak (Story 22.5): a source row's gap is its interval plus MISSEDSECONDS, and the stopped runs of a source give
 ///     digest.notCheckedStopped since the first run of their trailing streak; TestReasonMap also pins the two phrases of Checks.Process that a source's run writes;
+///   - TestSourceLongIntervalCurrent, TestSourceLongIntervalStale, TestSourceEarlierRunBeforeCreatedAt, TestSourceRepointCountsOnlySince (Story 22.13; DW-1327, DW-1328): a source
+///     polled less often than the window takes its newest run since its CreatedAt, when it is at most max(the window, its interval plus 180 s) before the window's end, as its
+///     latest run (through the latest-run rules), and stale when older; a run before CreatedAt never counts; a repoint through Watch.Ops SetSource moves CreatedAt, so only the runs since count;
+///   - TestStaleShortWindow (Story 22.13): over a one-minute window a production watch stays stale while a 15-minute source takes its earlier run;
 ///   - TestMailboxPassed, TestMailboxStale, TestMailboxUnreachable, TestMailboxError, TestMailboxMarkUnreadable, TestMailboxNoWindow, TestMailboxOtherOwner (Story 22.5): the Mailbox row of the session that owns the
 ///     connected mailbox, from the mark emailPoll (fed through the probe), after the background-check rows, and no row for any other session;
 ///   - TestMailboxRealSeams (Story 22.5): the real Build reads the owner from email.owner and the mark that Channel.Email.Adapter Record writes.
@@ -56,6 +60,7 @@ Method Clean()
 	For i = 1:1:$Length(..Sessions, ",") {
 		Set ref = $Piece(..Sessions, ",", i)
 		If ref '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.CheckRun WHERE SessionRef = ?", ref)
+		If ref '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = 'source'", ref)
 	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
@@ -381,6 +386,116 @@ Method TestSourceIntervalGap()
 	Do $$$AssertEquals(lines.%Get(7).key_"|"_lines.%Get(7).slots.from_"|"_lines.%Get(7).slots.to, "digest.notCheckedMissed|2030-06-01T08:00:30Z|2030-06-01T08:21:30Z", "from the run before the gap to the run after it")
 	Do $$$AssertEquals(rows.%Get(8).entry_"|"_rows.%Get(8).result_"|"_lines.%Get(8).key, "Prod production|not_checked|digest.notCheckedMissed", "a production watch with the same 15-minute runs is missed: its gap is 180 seconds")
 	Do $$$AssertEquals(rows.%Get(9).entry_"|"_rows.%Get(9).result_"|"_lines.%Get(9).key, "NoInterval|not_checked|digest.notCheckedMissed", "a source with no interval keeps the 180 seconds")
+}
+
+/// Story 22.13 (DW-1327): a 48-hour source with no run in a 24-hour window and a run 30 hours before the window's end, since its CreatedAt, takes that run as its latest: passed at
+/// that run, failed with its finding, or not checked with its reason, as for a run in the span. The window is the day before 2030-06-02T12:00:00Z.
+Method TestSourceLongIntervalCurrent()
+{
+	Set session = ..Session()
+	Set passed = ..Source(session, "Passed", 2880)
+	Do ..Run(passed, session, "2030-06-01T06:00:00Z", "passed")
+	Set failed = ..Source(session, "Failed", 2880)
+	Do ..Run(failed, session, "2030-06-01T06:00:00Z", "failed", "", "3 new tickets are unassigned")
+	Set unreachable = ..Source(session, "Unreachable", 2880)
+	Do ..Run(unreachable, session, "2030-06-01T06:00:00Z", "not_checked", "unreachable", "No answer")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T12:00:00Z", "2030-06-02T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry_"|"_rows.%Get(5).result_"|"_rows.%Get(5).checkedAt_"|"_lines.%Get(5).key, "Passed|passed|2030-06-01T06:00:00Z|digest.passed", "the run 30 hours before the end counts: passed, at that run")
+	Do $$$AssertEquals(rows.%Get(6).result_"|"_rows.%Get(6).finding_"|"_rows.%Get(6).checkedAt_"|"_lines.%Get(6).key, "failed|3 new tickets are unassigned|2030-06-01T06:00:00Z|digest.failed", "a failed run gives failed with its finding")
+	Do $$$AssertEquals(rows.%Get(7).result_"|"_rows.%Get(7).checkedAt_"|"_lines.%Get(7).key_"|"_lines.%Get(7).slots.time, "not_checked|2030-06-01T06:00:00Z|digest.notCheckedUnreachable|2030-06-01T06:00:00Z", "a not_checked run gives its reason")
+}
+
+/// Story 22.13 (DW-1327): the same source with its run 50 hours before the window's end is stale, as before; the limit is the interval plus 180 seconds, inclusive.
+Method TestSourceLongIntervalStale()
+{
+	Set session = ..Session()
+	Set old = ..Source(session, "Old", 2880)
+	Do ..Run(old, session, "2030-05-31T10:00:00Z", "passed")
+	Set edge = ..Source(session, "Edge", 2880)
+	Do ..Run(edge, session, "2030-05-31T11:57:00Z", "passed")
+	Set over = ..Source(session, "Over", 2880)
+	Do ..Run(over, session, "2030-05-31T11:56:59Z", "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T12:00:00Z", "2030-06-02T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "not_checked|Its last check was too long ago|2030-05-31T10:00:00Z", "a run 50 hours before the end is stale")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.time, "digest.notCheckedStale|2030-05-31T10:00:00Z", "with that run's time")
+	Do $$$AssertEquals(rows.%Get(6).result_"|"_rows.%Get(6).checkedAt, "passed|2030-05-31T11:57:00Z", "a run exactly the interval plus 180 seconds before the end is current")
+	Do $$$AssertEquals(rows.%Get(7).result_"|"_lines.%Get(7).key, "not_checked|digest.notCheckedStale", "and one a second older is stale")
+}
+
+/// Story 22.13 (DW-1327, DW-1328): a run before the source's CreatedAt never counts: with no run since, the source is missed from the span's start.
+Method TestSourceEarlierRunBeforeCreatedAt()
+{
+	Set session = ..Session()
+	Set ref = ..Watch(session, "", "Moved", {"Kind": "source", "Namespace": "", "Server": "zz", "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 2880, "CreatedAt": "2030-06-01T08:00:00Z"})
+	Do ..Run(ref, session, "2030-06-01T06:00:00Z", "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T12:00:00Z", "2030-06-02T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "not_checked|The check didn't run|2030-06-01T12:00:00Z", "the run before CreatedAt is not counted: missed from the span's start")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.from_"|"_lines.%Get(5).slots.to, "digest.notCheckedMissed|2030-06-01T12:00:00Z|2030-06-02T12:00:00Z", "to the window's end")
+	Set after = ..Watch(session, "", "Since", {"Kind": "source", "Namespace": "", "Server": "zz", "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 2880, "CreatedAt": "2030-06-01T05:00:00Z"})
+	Do ..Run(after, session, "2030-06-01T06:00:00Z", "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T12:00:00Z", "2030-06-02T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(6).entry_"|"_rows.%Get(6).result, "Since|passed", "control: the same run, since CreatedAt, counts")
+}
+
+/// Story 22.13 (DW-1328; integration): a source repointed through Watch.Ops SetSource has its CreatedAt moved to now, and the consumer Checks.Coverage.Build counts only the runs
+/// since: the run before the repoint is no longer in the row, and a run since is.
+Method TestSourceRepointCountsOnlySince()
+{
+	Set session = ..Session()
+	Set sc = ##class(OcuTalon.Watch.Ops).SetSource(session, "zz", "zz_lookup", "Jira", "{}", 1440, "zzcoverage", .ref, .created)
+	Do $$$AssertStatusOK(sc, "the source is made")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+	Set row.CreatedAt = ..Ago(3 * 86400)
+	Do $$$AssertStatusOK(row.%Save(), "its CreatedAt is moved three days back")
+	Set from = ..Ago(3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 300)
+	Set before = ..Ago(5 * 3600)
+	Do ..Run(ref, session, before, "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, from, to, .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry_"|"_rows.%Get(5).result_"|"_rows.%Get(5).checkedAt, "Jira|passed|"_before, "before the repoint the run counts")
+	Set runsBefore = ..RunCount(ref)
+	Set sc = ##class(OcuTalon.Watch.Ops).SetSource(session, "zz", "zz_other", "Jira", "{}", 1440, "zzcoverage", .again, .created)
+	Do $$$AssertStatusOK(sc, "the source is repointed")
+	Do $$$AssertEquals(again _ "|" _ created, ref _ "|0", "on the same Ref")
+	Do $$$AssertEquals(..RunCount(ref) _ "|" _ runsBefore, "1|1", "the CheckRun row of the old target is kept")
+	Set moved = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref).CreatedAt
+	Do $$$AssertTrue(moved ] ..Ago(3600), "CreatedAt is now: "_moved)
+	Set sc = $ClassMethod(..#PROBE, "Build", session, from, to, .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry_"|"_rows.%Get(5).result_"|"_lines.%Get(5).key, "Jira|not_checked|digest.notCheckedMissed", "the run before the repoint is not in the row: missed since the repoint")
+	Do $$$AssertEquals(lines.%Get(5).slots.from, moved, "from the repoint")
+	Set since = ##class(OcuTalon.Data.Time).AddSeconds(moved, 60)
+	Do ..Run(ref, session, since, "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, from, to, .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).checkedAt, "passed|"_since, "a run since the repoint counts")
+}
+
+/// Story 22.13 (DW-1327): over a one-minute window (a requested digest soon after another), a production watch whose last run is before the window stays stale, even within
+/// 180 seconds of the window's end, because only a source takes an earlier run as current; a 15-minute source whose run is 10 minutes before the window's end takes it.
+Method TestStaleShortWindow()
+{
+	Set session = ..Session()
+	Set ref = ..Watch(session, "Zz.Stale", "Orders")
+	Do ..Run(ref, session, "2030-06-01T11:58:00Z", "passed")
+	Set source = ..Source(session, "Jira", 15)
+	Do ..Run(source, session, "2030-06-01T11:50:00Z", "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T11:59:00Z", "2030-06-01T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry_"|"_rows.%Get(5).result_"|"_rows.%Get(5).checkedAt_"|"_lines.%Get(5).key, "Orders production|not_checked|2030-06-01T11:58:00Z|digest.notCheckedStale", "a production watch with no run in the window is stale")
+	Do $$$AssertEquals(rows.%Get(6).entry_"|"_rows.%Get(6).result_"|"_rows.%Get(6).checkedAt_"|"_lines.%Get(6).key, "Jira|passed|2030-06-01T11:50:00Z|digest.passed", "a 15-minute source takes its run 10 minutes before the end")
+}
+
+/// The number of CheckRun rows of a check.
+Method RunCount(ref As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) AS N FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ?", ref)
+	Quit $Select(result.%Next(): result.%Get("N"), 1: 0)
 }
 
 /// Story 22.5: the stopped runs of a source (Reason stopped) give digest.notCheckedStopped, since the first run of the unbroken streak of stopped runs that ends at the
