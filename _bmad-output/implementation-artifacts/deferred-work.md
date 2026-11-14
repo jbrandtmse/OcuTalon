@@ -7968,6 +7968,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
+- 2026-11-14T16:46:48Z status=routed owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=merge_gate note=Planner ruling 2026-11-14 ~17:10Z: Epic 36 burn-down Story 36.8; existing violations reported, not fixed
 
 ### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
 - source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
