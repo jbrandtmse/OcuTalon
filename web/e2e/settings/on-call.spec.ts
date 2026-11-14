@@ -1,13 +1,14 @@
 import { expect, test, type Locator, type Page } from '../support/fixtures';
 
-import { README_ACCOUNT } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope } from '../sign-in/helpers';
 import { readmeSession } from '../support/demo-path';
 import { signInReadmeLoaded } from '../support/floor';
+import { cleanFixtureRows, seedOtherSession } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
-import { ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCall, restoreOnCall, type OnCallStored } from '../support/on-call';
+import { ON_CALL_API, ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCall, restoreOnCall, type OnCallStored } from '../support/on-call';
 
 /**
- * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O11; the sign-in-2 unit). The README account holds
+ * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O13; the sign-in-2 unit). The README account holds
  * OcuTalonAdmin, and has a session, so it is one of the OcuTalon users that the section lists. The cases run one after the other, because the on-call values are
  * the instance's own: each case starts from Nobody for both roles with 15 minutes (beforeEach, through the route), and puts back the values it found (afterEach).
  *   O1  the nav link, the heading, the help and the not-yet line, the two legends, a labelled control for every field, the Telegram box disabled with its text,
@@ -23,7 +24,11 @@ import { ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCall, restoreOn
  *   O8  a 403 shows the denied view in place of the section;
  *   O9  a user with a paired chat (a routed GET) has Telegram enabled and checked by default, and the saved body carries telegram,email;
  *   O10 an edit made while the save is pending is kept and stays unsaved, and the section opened again shows the saved values (the page keeps them);
- *   O11 a refused user (a routed 400 naming primaryUser) shows its filled text under the Person select, which is marked invalid, described by it and focused.
+ *   O11 a refused user (a routed 400 naming primaryUser) shows its filled text under the Person select, which is marked invalid, described by it and focused;
+ *   O12 while the list of users is unavailable (a routed GET with users []), a stored on-call user and backup keep their Telegram and Email boxes, Telegram is
+ *       enabled with no unpaired line, and a save that changes only the minutes sends the stored channels;
+ *   O13 a stored on-call user who has no session row any more (the real server) has Telegram enabled and the stored Email box, with no unpaired line, and
+ *       saving gets the unknown-user text under the Person select, with the stored values and the audit log unchanged.
  * The texts are written out here as the oracle.
  */
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
@@ -443,4 +448,104 @@ test('O11: a refused user shows its filled text under the Person select, which i
   await expect(person(primary(page)), 'and takes focus').toBeFocused();
   await expect(page.locator('#oncall-error'), 'no form error shows').toHaveCount(0);
   await expect(savedText(page), 'and no saved text').toHaveCount(0);
+});
+
+test('O12: while the list of users is unavailable, a stored user keeps their channels, and a save that changes only the minutes sends them', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tag = stamp();
+  const gone = `zz-o12-gone-${tag}`;
+  await page.route('**/api/v1/settings', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as { sections: { 'on-call': OnCallStored } };
+    Object.assign(body.sections['on-call'], {
+      users: [],
+      primaryUser: README_ACCOUNT.user,
+      primaryEmail: `zz-o12p-${tag}@example.com`,
+      primaryChannels: 'telegram,email',
+      backupUser: gone,
+      backupEmail: `zz-o12b-${tag}@example.com`,
+      backupChannels: 'telegram,email',
+    });
+    await route.fulfill({ response, json: body });
+  });
+  const posted: unknown[] = [];
+  await page.route('**/api/v1/settings/on-call', async (route) => {
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'done', sections: {} }) });
+  });
+  await openOnCall(page);
+  for (const group of [primary(page), backup(page)]) {
+    await expect(telegram(group), 'Telegram stays checked').toBeChecked();
+    await expect(telegram(group), 'and can be chosen').toBeEnabled();
+    await expect(telegram(group), 'with no line describing it').toHaveAccessibleDescription('');
+    await expect(mail(group), 'Email stays checked').toBeChecked();
+  }
+  await expect(page.getByText("hasn't paired Telegram"), 'no unpaired line shows for anyone').toHaveCount(0);
+  const before = found as OnCallStored;
+  const changed = before.escalationMinutes === 21 ? 22 : 21;
+  await minutes(page).fill(String(changed));
+  await saveButton(page).click();
+  await expect(savedText(page), 'the routed save is shown as saved').toBeVisible();
+  expect(posted.length, 'one save was posted').toBe(1);
+  expect(posted[0], 'its body carries the stored person, address and channels of both roles, and the new minutes').toMatchObject({
+    primaryPerson: 'user',
+    primaryUser: README_ACCOUNT.user,
+    primaryEmail: `zz-o12p-${tag}@example.com`,
+    primaryChannels: 'telegram,email',
+    backupPerson: 'user',
+    backupUser: gone,
+    backupEmail: `zz-o12b-${tag}@example.com`,
+    backupChannels: 'telegram,email',
+    escalationMinutes: changed,
+  });
+  expect(await readOnCall(page.request), 'nothing was written: the route answered it').toEqual(found);
+});
+
+test('O13: a stored user with no session row keeps their boxes, and saving shows the unknown-user text and changes nothing', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tag = stamp();
+  const user = `zzo13${tag}`;
+  const ref = await seedOtherSession(user);
+  try {
+    const saved = await page.request.post(ON_CALL_API, {
+      headers: envelope(),
+      data: {
+        primaryPerson: 'user',
+        primaryUser: user,
+        primaryEmail: `zz-o13-${tag}@example.com`,
+        primaryChannels: 'email',
+        backupPerson: 'nobody',
+        backupUser: '',
+        backupEmail: '',
+        backupChannels: 'telegram,email',
+        escalationMinutes: (found as OnCallStored).escalationMinutes,
+      },
+    });
+    expect(saved.status(), `the user is saved as the on-call person: ${await saved.text()}`).toBe(200);
+    await cleanFixtureRows([ref]);
+    const stored = await readOnCall(page.request);
+    expect(stored.primaryUser, 'the stored person is the user').not.toBe('');
+    expect(
+      stored.users.some((one) => one.user === stored.primaryUser),
+      'who has no session row now, so the list does not hold them',
+    ).toBe(false);
+    const mark = await auditMark();
+    await openOnCall(page);
+    await expect(person(primary(page)), 'the Person select shows the gone user').toHaveValue(`user:${stored.primaryUser}`);
+    await expect(telegram(primary(page)), 'Telegram can be chosen').toBeEnabled();
+    await expect(telegram(primary(page)), 'and stays unchecked, as stored').not.toBeChecked();
+    await expect(mail(primary(page)), 'Email stays checked').toBeChecked();
+    await expect(page.getByText("hasn't paired Telegram"), 'no unpaired line shows').toHaveCount(0);
+    await saveButton(page).click();
+    await expect(page.locator('#oncall-primary-person-error'), 'the save is refused with the unknown-user text').toHaveText(UNKNOWN_USER(stored.primaryUser));
+    await expect(savedText(page), 'with no saved text').toHaveCount(0);
+    expect(await readOnCall(page.request), 'nothing was changed').toEqual(stored);
+    expect(await auditSince(mark, 0), 'and nothing was audited').toEqual([]);
+  } finally {
+    await cleanFixtureRows([ref]);
+  }
 });

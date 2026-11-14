@@ -39,8 +39,8 @@ const GROUPS = [
 /**
  * The On call section (Story 36.4; FR-44): who OcuTalon pages and who it pages next. Two groups, "On-call person" and "Backup", each with a Person select
  * (Nobody, each OcuTalon user, "Someone else, by email"), the "Email address for pages" field and the "Page by" boxes (the last two hidden for Nobody); then
- * the minutes before the backup is paged, and **Save changes**. The Telegram box is disabled, with its text beside it, for a user without a paired chat and for
- * a person by email. While the on-call person is by email, the line `byEmailHelp` shows under their Person select. While OcuTalon.Data.Page is not
+ * the minutes before the backup is paged, and **Save changes**. The Telegram box is disabled, with its text beside it, for a user the list shows without a paired
+ * chat and for a person by email. While the on-call person is by email, the line `byEmailHelp` shows under their Person select. While OcuTalon.Data.Page is not
  * compiled, the `notYet` line says that no page is sent yet. A press posts the form's body to POST /v1/settings/on-call through the busy pattern
  * (ServerButton), which the server validates:
  *   - 200: the section shows "Saved. Applies within a minute. Recorded in the audit log." and the announcer reads it once; the saved values are the form's new

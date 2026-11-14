@@ -2,7 +2,8 @@
 title: "Story 36.6: Epic 36 burn-down: keep a stored on-call user's channels when the user list is unavailable"
 type: 'bugfix'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '8c46cffa9e72642c54b9fbde500c748ad0e72552'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -78,7 +79,32 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-13: O13's fixture user is `zzo13<stamp>`, not `zz-o13-<stamp>`: `seedOtherSession` accepts only letters, digits and underscore. The behaviour is as specified.
+
 ## Review Triage Log
+
+### 2026-11-13 — Review pass
+- verdicts: 19 findings — high 0, medium 0, low 11, false 8, maybe-false 0 (the 3 intent-audit rows are descriptive and closed by-design, graded false)
+- findings:
+  - `[low]` `[patch]` O12 matcher omits the stored emails and the new minutes (blind hunter) — added `primaryEmail`, `backupEmail` and `escalationMinutes` to the `toMatchObject`.
+  - `[low]` `[patch]` O13 header comment says "keeps their stored boxes" but the real-server case stores `email` only (blind hunter) — reworded to "Telegram enabled and the stored Email box".
+  - `[low]` `[reject]` O13 runs `cleanFixtureRows` twice (blind hunter) — the first call makes the row vanish, the second is the failure-path cleanup; harmless, and a comment would narrate.
+  - `[low]` `[reject]` no unit test for `chose()` / `defaultChannels` with an unlisted user (blind hunter) — the spec leaves `chose()` and `defaultChannels` unchanged and an absent user can't be newly chosen.
+  - `[false]` `[reject]` O13 never stores `telegram,email` for a gone user (blind hunter; edge-case hunter) — the spec fixes O13 at channels `email`; the stored-Telegram case is O12 and the node tests. Spec-bound.
+  - `[low]` `[reject]` O12 does not assert the form is clean before the edit (edge-case hunter) — the dirty rule is unchanged and untouched; a guard assertion would need a new observable the spec does not name.
+  - `[low]` `[patch]` O13 fixture name `zzo13<stamp>` differs from the spec's `zz-o13-<stamp>` (edge-case hunter) — `seedOtherSession` accepts letters, digits and underscore only; recorded under Spec Change Log.
+  - `[false]` `[reject]` a listed-now-unpaired user shows the server's `noChannel` text at save with the list unavailable (edge-case hunter) — this is the design: the server decides at save (Design Notes).
+  - `[low]` `[reject]` letter-case mismatch between a stored user and the list name (edge-case hunter) — the old `find` was case-sensitive too, and the stored name is chosen from the list; no reachable mismatch shown.
+  - `[false]` `[reject]` the O12 POST route does not check the method (edge-case hunter) — only a POST goes to that URL; GET /v1/settings is a different URL.
+  - `[low]` `[reject]` AC5 (bundle size) has no `mutation:` line (verification gap) — the change adds no code that moves the bundle; `initial-bundle.test.mjs` runs at 878.98 kB.
+  - `[low]` `[reject]` AC1's "no server file changed" clause has no test (verification gap) — checked by `git diff --stat`, the clause is a scope statement, not behaviour.
+  - `[low]` `[reject]` O12's last assertion (`readOnCall` equals `found`) cannot fail from the defect (verification gap) — it guards against a leaked stub; the assertions that pin AC2 are the POST count and body.
+  - `[low]` `[reject]` the backup role has no real-server unknown-user case (verification gap) — the backup takes the same path as the primary; O12 and the node tests cover it.
+  - `[false]` `[reject]` O13's discriminating assertion is `toBeEnabled` only (verification gap) — noted, and it is the one that goes red under the old rule; no action.
+  - `[false]` `[reject]` AC3's mutation first reddened O11, not O13 (verification gap) — recorded under Verification with the narrowed variant that reddens O13.
+  - `[false]` `[reject]` intent audit: O12 stubs the POST, so the real server's refusal for an empty roster is evidenced only by O13's gone-user case — by design (Design Notes: the page stops judging; the server decides).
+  - `[false]` `[reject]` intent audit: O13 uses a non-empty roster and channels `email` — spec-bound.
+  - `[false]` `[reject]` intent audit: `chose()` still reads a missing user as unpaired, so re-choosing a gone user starts with Telegram unchecked — spec-bound ("`defaultChannels` and `chose()` are unchanged").
 
 ## Design Notes
 
@@ -122,7 +148,19 @@ No AD's Rule changes.
 - AC3: `fieldErrorText('primaryUser')` returns the `noChannel` text → O13 red.
 - AC4: `telegramState` answers `enabled` for every user → `on-call-view.test.mjs` red (bob) and O1 red on an unpaired README admin.
 
+**Mutation results (implement stage; each reverted by hand, `git diff` byte-identical to the fixed tree):**
+- mutation: `telegramState` reverted so a user the list lacks is `unpaired` (`users.find(...)?.paired !== true`) → O12 red (`toBeChecked` failed on the stored Telegram box; O13 not reached in the serial run) and `on-call-view.test.mjs` red (3 cases: "is not judged for a user the list does not hold", "keeps the stored boxes of a user the list does not hold", "keeps both roles stored boxes, and sends them").
+- mutation: `fieldErrorText('primaryUser')` returns the `noChannel` text → O11 red first (the serial run then skips O13); narrowed to a user named `zzo13*` so O11 passes → O13 red (expected the unknown-user text, received the `noChannel` text).
+- mutation: `telegramState` never answers `unpaired` → `on-call-view.test.mjs` red (bob, "is disabled for a user who hasn't paired", and 3 more) and O1 red (`toBeDisabled` failed on the unpaired README admin).
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (halted after planning, as the invocation directed)
+Status: done
+Blocking condition: none
+
+- Summary: `telegramState` no longer judges a stored user the list does not hold, so Telegram stays enabled with the stored boxes and no unpaired line; a listed user with `paired: false`, a person by email and nobody are unchanged. No server, text or config change.
+- Files: `web/src/app/settings/on-call-view.ts` (fix, doc and header), `web/src/app/settings/on-call-section.ts` (class doc), `web/scripts/on-call-view.test.mjs` (flipped case plus three new), `web/e2e/settings/on-call.spec.ts` (O12, O13, header).
+- Review: 19 findings (low 11, false 8). Patches applied: 3 (O12 matcher gains the stored emails and the new minutes; O13 header wording; fixture-name note in the Spec Change Log). Deferred: none. The other 16 rejected with reasons in the Review Triage Log.
+- Follow-up review recommendation: false (no high patched, one medium at most: none).
+- Verification: `node --test web/scripts/on-call-view.test.mjs` 23 pass; `npm --prefix web test` 2003 pass; lint pass; build initial total 878.98 kB (budget warnings pre-existing, no error), `initial-bundle.test.mjs` pass; `docker/tests/test-boundaries.sh` pass; live `sign-in-2 --part 12/15` on lane-B `e36s6i`: 23 passed (O1 to O13), run again after the review patches; throwaways torn down, no `e36s6` container left. Mutations (three) recorded under Verification, each reverted by hand and byte-identical.
+- Residual risks: part number moved from 13/15 to 12/15 because the spec file grew (re-find the part after later edits). The commit step of Finalize was not run: the caller commits.

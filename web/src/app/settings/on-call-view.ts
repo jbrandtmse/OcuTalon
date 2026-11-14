@@ -6,7 +6,8 @@
  * - A role (the on-call person, the backup) is a person: nobody, an OcuTalon user (a name from the server's list) or someone by email, with an email address
  *   and the channels to page by. The select's values are `nobody`, `user:<name>` and `email`, so that no user name can be mistaken for a choice.
  * - personOf reads a stored role's person from its user and address; onCallFormOf builds the form from the server's values; onCallBody is the body of a save.
- * - telegramState says whether the Telegram box can be chosen: only for a user who has a paired chat. defaultChannels is what the boxes hold when a person is chosen.
+ * - telegramState says whether the Telegram box can be chosen: not for a user the list shows without a paired chat. A user the list does not hold is not judged:
+ *   the stored boxes stay as stored, and the server's save-time checks decide. defaultChannels is what the boxes hold when a person is chosen.
  * - fieldErrorText is the accepted text of a refused field; personOptions is the Person select's choices, and a stored user who has lost their session row
  *   stays in the list.
  * - isOnCallDirty compares a form with its saved one, ignoring what a hidden control holds.
@@ -105,12 +106,17 @@ export function personOptions(users: readonly OnCallUser[], storedUser: string):
   ];
 }
 
-/** Whether the Telegram box can be chosen for the person: only a user who has a paired chat can be messaged there. Nobody has no boxes, so it reads as enabled. */
+/**
+ * Whether the Telegram box can be chosen for the person: not for a person by email, and not for a user the list shows without a paired chat. A user the list does
+ * not hold is not judged (the list may be unavailable, and the server refuses an unknown user or an unpaired Telegram at save), so it reads as enabled, as does
+ * nobody, who has no boxes.
+ */
 export function telegramState(person: Person, user: string, users: readonly OnCallUser[]): TelegramState {
   if (person === 'email') {
     return { kind: 'emailOnly', text: SETTINGS_TEXTS.onCall.telegramEmailOnly };
   }
-  if (person === 'user' && users.find((one) => one.user === user)?.paired !== true) {
+  const listed = person === 'user' ? users.find((one) => one.user === user) : undefined;
+  if (listed !== undefined && listed.paired !== true) {
     return { kind: 'unpaired', text: SETTINGS_TEXTS.onCall.telegramUnpaired.replace('{user}', () => user) };
   }
   return { kind: 'enabled' };
@@ -127,7 +133,7 @@ function boxesOf(channels: string): { telegram: boolean; mail: boolean } {
   return { telegram: named.includes('telegram'), mail: named.includes('email') };
 }
 
-/** One role of the form from its stored values; a Telegram box that cannot be chosen now is not checked. */
+/** One role of the form from its stored values; a Telegram box that cannot be chosen now (a user the list shows unpaired) is not checked. */
 function roleFormOf(user: string, email: string, channels: string, users: readonly OnCallUser[]): OnCallRoleForm {
   const person = personOf(user, email);
   const boxes = boxesOf(channels);

@@ -117,7 +117,12 @@ describe('Telegram', () => {
       kind: 'unpaired',
       text: "bob hasn't paired Telegram, so OcuTalon can't message them there yet. They can pair it on their own OcuTalon page.",
     });
-    assert.equal(telegramState('user', 'gone', USERS).kind, 'unpaired', 'a user the server does not list is not paired');
+  });
+
+  it('is not judged for a user the list does not hold, so the server decides at save', () => {
+    assert.equal(telegramState('user', 'gone', USERS).kind, 'enabled', 'a user the list does not hold is not judged');
+    assert.deepEqual(telegramState('user', 'alice', []), { kind: 'enabled' }, 'nor is any user while the list is empty');
+    assert.equal(telegramState('user', 'bob', USERS).kind, 'unpaired', 'a listed user without a paired chat is still unpaired');
   });
 
   it('is disabled for a person by email, with its own text', () => {
@@ -158,6 +163,24 @@ describe('the form', () => {
     assert.equal(form.primary.telegram, false, 'a user who has unpaired since');
     assert.equal(form.backup.telegram, false, 'and a person by email');
     assert.equal(onCallFormOf(values({ primaryUser: 'alice', primaryChannels: 'telegram,email' })).primary.telegram, true, 'a paired user keeps it');
+  });
+
+  it('keeps the stored boxes of a user the list does not hold', () => {
+    const gone = onCallFormOf(values({ primaryUser: 'gone', primaryChannels: 'telegram,email' }));
+    assert.equal(gone.primary.telegram, true, 'a stored user the list lacks keeps Telegram');
+    assert.equal(gone.primary.mail, true);
+    assert.equal(onCallFormOf(values({ primaryUser: 'bob', primaryChannels: 'telegram,email' })).primary.telegram, false, 'bob, listed and unpaired, still reads false');
+  });
+
+  it('keeps both roles stored boxes, and sends them, while the list is unavailable', () => {
+    const form = onCallFormOf(
+      values({ users: [], primaryUser: 'alice', primaryChannels: 'telegram,email', backupUser: 'gone', backupEmail: 'g@x.io', backupChannels: 'telegram,email' }),
+    );
+    assert.equal(form.primary.telegram, true, 'the primary keeps Telegram');
+    assert.equal(form.backup.telegram, true, 'the backup keeps Telegram');
+    const body = onCallBody(form);
+    assert.equal(body.primaryChannels, 'telegram,email');
+    assert.equal(body.backupChannels, 'telegram,email');
   });
 });
 

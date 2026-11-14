@@ -177,3 +177,5 @@
 2026-11-14T02:42:11Z	Story 36.6	stage_spawned	stage=plan spawn_at=2026-11-14T02:42:11Z model=opus agent_name=36-6-plan-1 cycle_iteration=1 effort=high
 2026-11-14T02:50:26Z	Story 36.6	story_created	spec=spec-36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when.md model=opus fix=telegramState(unpaired_only_when_listed_paired:false) tests_planned=O12(stub_users_[],POST_keeps_telegram),O13(removed_user_refused_real_server),node_on-call-view note=epic_context_recompiled
 2026-11-14T02:50:26Z	Story 36.6	stage_spawned	stage=implement spawn_at=2026-11-14T02:50:26Z model=sonnet agent_name=36-6-implement-1 cycle_iteration=1 effort=high
+2026-11-14T03:33:04Z	Story 36.6	dev_complete	spawn_at=2026-11-14T02:58:00Z model=sonnet effort=high fix=telegramState(unpaired_only_for_listed_paired!=true) tests=node(3),O12,O13 mutations=3 live=sign-in-2_part_12/15_23/23(e36s6i) bundle=878.98kB build-auto_review=19_findings(0_high,0_med,3_low_patched) cycle_iteration=1
+2026-11-14T03:33:04Z	Story 36.6	stage_spawned	stage=qa spawn_at=2026-11-14T03:33:04Z model=sonnet agent_name=36-6-qa-1 cycle_iteration=1 effort=high
