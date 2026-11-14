@@ -26,8 +26,7 @@
  *   the dry run's singular noun, "message" when it has none. It stays on an answered request.
  * - A suspend or resume (Story 23.2; fixKind suspend_item or resume_item) has a dry run block of two rows, Before "{item}: enabled" and After "{item}: disabled" (swapped for a
  *   resume), with no count line, no fixed-targets line and no resend row; a reroute has the count line, Before "Message {example}: {from}", After "Message {example}: {to}" and the
- *   resend row "{count} copies to {to}; the originals stay unchanged." (one copy: "1 copy to {to}; the original stays unchanged."). A refused answer of an item kind reads
- *   "Only an approver for fixes can answer this request.".
+ *   resend row "{count} copies to {to}; the originals stay unchanged." (one copy: "1 copy to {to}; the original stays unchanged.").
  * - A partner delay notice (Story 23.5; fixKind partner_warning) has no dry run block and no fixed-targets line. Its `partner` holds "To: {recipients}" (the payload's dry run
  *   recipients, each "Name <address>", with the Simulated label beside it when `simulated` is true), the notice as the payload gives it (shown with its line breaks) and, while pending only,
  *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.". Its result bands are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
@@ -38,6 +37,9 @@
  *   "Nothing changes unless you approve.". It has no dry run block and no fixed-targets line; the answered status is the same as for
  *   any request.
  * - answerOutcomeOf reads the reply of POST /approvals/:ref/answer; latePressText is the notice of a press that lost the race.
+ * - A request that the signed-in user may not answer (Story 25.5: a pending payload with `answerable` false; an absent `answerable` is answerable) has `cannotAnswer`, the
+ *   sentence of its approver kind (refusalText: the catalog's answered.notApprover plus the kind with a capital first letter when the page has that key, else the fallback
+ *   "Only an approver can answer this request."), and the card and the phone show it in place of Approve and Reject.
  * - resultView (Story 6.4; AD-16) reads the `result` of one of the incident payload's `requests` into the band under the request's
  *   answered status: the catalog's result.* key by the fields (the page maps the fields, because the payload carries no key), its text
  *   with the count-of-one forms, the tone (success only for all-through, a completed suspend or resume and a completed reroute, else partial), the icon and the
@@ -81,8 +83,7 @@ export const APPROVAL_TEXTS = {
   partnerKept: "Approved and kept as a draft: email delivery isn't set up yet.",
   partnerNotSent: 'Not sent: {reason}.',
   expires: 'Expires {when}',
-  notApprover: 'Only an approver for resends can answer this request.',
-  notApproverFix: 'Only an approver for fixes can answer this request.',
+  notApprover: 'Only an approver can answer this request.',
   gone: 'That request is no longer available.',
   busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
   nounOne: 'message',
@@ -157,8 +158,10 @@ export interface ApprovalView {
   /** `approval:<ref>`, the key of the card. */
   key: string;
   ref: string;
-  /** True while the request is pending: the card has the two buttons. */
+  /** True while the request is pending: the card has the two buttons, or `cannotAnswer` in their place. */
   pending: boolean;
+  /** The sentence that replaces the two buttons when the request is pending and the payload says `answerable` is false; "" otherwise (refusalText of its `approverKind`). */
+  cannotAnswer: string;
   label: string;
   bar: ApprovalBar;
   /** The action in the imperative with its final period: "Repair and resend 50 orders.". */
@@ -417,6 +420,7 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, re
     key: `approval:${ref}`,
     ref,
     pending,
+    cannotAnswer: pending && approval.answerable === false ? refusalText(approval.approverKind, ctx.render) : '',
     label: pending ? APPROVAL_TEXTS.labelPending : APPROVAL_TEXTS.labelAnswered,
     bar: barOf(approval.state),
     action: isSetting ? title : shownRequest === '' ? fill(APPROVAL_TEXTS.action, { title }) : shownRequest,
@@ -429,6 +433,25 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, re
     expiry: expires === '' ? '' : fill(APPROVAL_TEXTS.expires, { when: expires }),
     status: pending ? undefined : statusOf(approval, ctx),
   };
+}
+
+/** The catalog key that the refusal sentences start with; the fallback's own key. */
+const REFUSAL_KEY = 'answered.notApprover';
+
+/**
+ * The sentence that tells a user why they can't answer a request of the approver kind (Story 25.5; the server's Live.Payload.Approval RefusalKey without its admin case): the
+ * catalog's answered.notApprover plus the kind with its first letter in upper case when the kind is 1 to 32 lower-case letters or _ and the page's catalog has that key,
+ * else the fallback "Only an approver can answer this request." (an empty, absent or unknown kind).
+ */
+export function refusalText(kind: string | undefined, render: PageRender): string {
+  if (typeof kind === 'string' && /^[a-z_]{1,32}$/.test(kind)) {
+    try {
+      return render(REFUSAL_KEY + kind.charAt(0).toUpperCase() + kind.slice(1), {});
+    } catch {
+      // The page's catalog has no sentence for this kind: the fallback below.
+    }
+  }
+  return render(REFUSAL_KEY, {});
 }
 
 /** The body of a reply as an object, else undefined. */
@@ -451,10 +474,10 @@ function messageOf(body: unknown): string {
  * The reading of the reply to a press, by its HTTP status and body:
  * - 200 is done, with the answered request;
  * - 409 already_answered is the late press, with the request and the server's own message; 409 expired is the expired request;
- * - 404 is "no longer available", 403 not allowed (the server's message for the request's kind);
+ * - 404 is "no longer available", 403 not allowed (the server's message for the refusal, else the fallback sentence);
  * - status 0 (no connection) is unreachable, and any other status is failed with its `error.message`, else unreachable.
  */
-export function answerOutcomeOf(status: number, body: unknown, fixKind = ''): AnswerOutcome {
+export function answerOutcomeOf(status: number, body: unknown): AnswerOutcome {
   const code = textOf(bodyObject(bodyObject(body)?.['error'])?.['code']);
   if (status === 200) {
     return { kind: 'done', approval: approvalOf(body) };
@@ -469,8 +492,7 @@ export function answerOutcomeOf(status: number, body: unknown, fixKind = ''): An
     return { kind: 'gone' };
   }
   if (status === 403) {
-    const itemKind = fixKind === 'suspend_item' || fixKind === 'resume_item';
-    return { kind: 'notAllowed', message: itemKind ? APPROVAL_TEXTS.notApproverFix : messageOf(body) || APPROVAL_TEXTS.notApprover };
+    return { kind: 'notAllowed', message: messageOf(body) || APPROVAL_TEXTS.notApprover };
   }
   const message = status === 0 ? '' : messageOf(body);
   return message === '' ? { kind: 'unreachable' } : { kind: 'failed', message };

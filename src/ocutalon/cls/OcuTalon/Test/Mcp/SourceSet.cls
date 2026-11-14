@@ -5,6 +5,9 @@
 ///   - TestSet, TestUpdate: the row of a read-only tool, the Ref kept by an update, one CheckChanged each and the MCP entry source_set (created, updated), which holds no argument;
 ///   - TestSetRefusedNotReadOnly, TestSetRefused, TestSetLimits: a risky or unclassified tool and each other refusal write no row, no audit entry and no CheckChanged; the
 ///     limits themselves are accepted;
+///   - TestSetRefusedReservedName: the name Mailbox, in any letter case and after the trim, is reserved_name and writes nothing; "My Mailbox" and "Mailboxes" are accepted (DW-1325);
+///   - TestRepointMovesCreatedAt, TestSameTargetKeepsCreatedAt: an update of the server, tool or arguments moves CreatedAt to now; one of the interval or of the name's letter
+///     case alone keeps it (DW-1328);
 ///   - TestSetRecheckUnderLock: a tool made risky, or a server removed, while the set waits for the server's lock (the probe's Lock) is refused and writes nothing;
 ///   - TestRemoveSource: the row, the audit entry source_removed and the CheckChanged with Stopped 1, by another admin too; no row, or another kind, is not_found;
 ///   - TestServerRemovedRemovesSources: RemoveMcpServer removes the sources of that server (each audited and sent) and no other server's;
@@ -525,6 +528,82 @@ Method TestCoverageReadsTheSource()
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload is exported")
 	Set exported = {}.%FromJSON(json)
 	Do $$$AssertEquals(exported.kind _ "|" _ exported.intervalMinutes, "source|15", "as kind and intervalMinutes")
+}
+
+/// The name of the connected mailbox is reserved, in any letter case and after the trim (DW-1325): nothing is written, audited or sent; a name that only contains it is accepted.
+Method TestSetRefusedReservedName()
+{
+	Set server = ..Server("a")
+	Do ..MakeRows(server)
+	Set session = ..MakeSession()
+	Set reserved = "0|reserved_name|That name belongs to the connected mailbox. Choose another name."
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Ops).#MESSAGESOURCERESERVED, "That name belongs to the connected mailbox. Choose another name.", "the message is the approved text")
+	Do ..Refuse(..SetCommand(server, "zz_lookup", "Mailbox", "{}", 15, session), ..#SENDER, reserved, "the name Mailbox")
+	Do ..Refuse(..SetCommand(server, "zz_lookup", " mailbox ", "{}", 15, session), ..#SENDER, reserved, "the name ' mailbox '")
+	Do ..Refuse(..SetCommand(server, "zz_lookup", "MAILBOX", "{}", 15, session), ..#SENDER, reserved, "the name MAILBOX")
+	Do $$$AssertEquals(..Entries(server).%Size(), 0, "no refusal wrote an audit entry")
+	// the checks before the name answer as they did
+	Do ..Refuse(..SetCommand(server, "zz_risky", "Mailbox", "{}", 15, session), ..#SENDER, "0|not_read_only|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGENOTREADONLY, "a risky tool, whatever the name")
+	// a name that holds the word is another name
+	For name = "My Mailbox", "Mailboxes" {
+		Set result = ..Run(..#SENDER, ..SetCommand(server, "zz_lookup", name, "{}", 15, session))
+		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome, "1|saved", name _ " is accepted")
+	}
+	Do $$$AssertEquals(..Rows(session), 2, "and written")
+}
+
+/// An update that changes the server, the tool or the arguments of a source moves its CreatedAt to now (DW-1328); the Ref, the run fields and the interval stay.
+Method TestRepointMovesCreatedAt()
+{
+	Set first = ..Server("a")
+	Set second = ..Server("b")
+	Do ..MakeRows(first)
+	Do ..MakeRows(second)
+	Set session = ..MakeSession()
+	Set result = ..Run(..#SENDER, ..SetCommand(first, "zz_lookup", "Jira", "{""q"":""mine""}", 15, session))
+	Set ref = result.Ref
+	Set old = "2000-01-01T00:00:00Z"
+	Set steps = $ListBuild($ListBuild("the server", second, "zz_lookup", "{""q"":""mine""}"), $ListBuild("the tool", second, "zz_other", "{""q"":""mine""}"), $ListBuild("the arguments", second, "zz_other", "{""q"":""changed""}"))
+	Set ptr = 0
+	While $ListNext(steps, ptr, step) {
+		Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+		Set row.CreatedAt = old
+		Set row.Result = "passed"
+		Set row.Reported = "kept"
+		Set row.NextDueAt = old
+		Do $$$AssertStatusOK(row.%Save(), "the row is moved to the past, with a result")
+		Set result = ..Run(..#SENDER, ..SetCommand($List(step, 2), $List(step, 3), "Jira", $List(step, 4), 15, session))
+		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Ref, "1|saved|" _ ref, "a change of " _ $List(step, 1) _ " is saved on the same Ref")
+		Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+		Do $$$AssertTrue(row.CreatedAt ] "2020-01-01T00:00:00Z", "a change of " _ $List(step, 1) _ " moves CreatedAt to now: " _ row.CreatedAt)
+		Do $$$AssertEquals(row.Result _ "|" _ row.IntervalMinutes _ "|" _ row.Reported, "passed|15|kept", "and keeps the run fields, Reported and the interval")
+		Do $$$AssertTrue(row.NextDueAt ] "2020-01-01T00:00:00Z", "and makes the row due now")
+	}
+	Do $$$AssertEquals(..Rows(session), 1, "there is still one row")
+}
+
+/// An update that changes only the interval, or only the letter case of the name, keeps CreatedAt, the Ref and the run fields (DW-1328).
+Method TestSameTargetKeepsCreatedAt()
+{
+	Set server = ..Server("a")
+	Do ..MakeRows(server)
+	Set session = ..MakeSession()
+	Set first = ..Run(..#SENDER, ..SetCommand(server, "zz_lookup", "Jira", "{""q"":""mine""}", 15, session))
+	Set old = "2000-01-01T00:00:00Z"
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(first.Ref)
+	Set row.CreatedAt = old
+	Set row.Result = "passed"
+	Set row.Reported = "kept"
+	Do $$$AssertStatusOK(row.%Save(), "the row is moved to the past, with a result")
+	Set result = ..Run(..#SENDER, ..SetCommand(server, "zz_lookup", "Jira", "{""q"":""mine""}", 30, session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Ref, "1|saved|" _ first.Ref, "an update of the interval alone is saved on the same Ref")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(first.Ref)
+	Do $$$AssertEquals(row.CreatedAt _ "|" _ row.Result _ "|" _ row.IntervalMinutes _ "|" _ row.Reported, old _ "|passed|30|kept", "it keeps CreatedAt, the run fields and Reported")
+	Set result = ..Run(..#SENDER, ..SetCommand(server, "zz_lookup", "JIRA", "{""q"":""mine""}", 30, session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Ref, "1|saved|" _ first.Ref, "an update of the name's letter case alone is saved on the same Ref")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(first.Ref)
+	Do $$$AssertEquals(row.DisplayName _ "|" _ row.CreatedAt _ "|" _ row.Result _ "|" _ row.Reported, "JIRA|" _ old _ "|passed|kept", "it keeps CreatedAt, the run fields and Reported")
+	Do $$$AssertEquals(..Rows(session), 1, "there is still one row")
 }
 
 /// Runs the command through a probe whose request header names the sender.

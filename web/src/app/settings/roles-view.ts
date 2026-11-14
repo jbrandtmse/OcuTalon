@@ -14,6 +14,7 @@ export const ROLES_REASONS = {
   user_unknown: 'There is no IRIS user with that name.',
   user_managed: "OcuTalon manages this account, so its roles can't be changed here.",
   role: 'Only the approver and viewer roles can be changed here.',
+  self_viewer: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin.",
 } as const;
 
 /** Every fixed string of the section. */

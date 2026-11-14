@@ -84,6 +84,9 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  * the last request card of a resolved or open incident has Dismiss at the band's right end, or, with no band (a rejected or an
  * expired request), at the right end of the answer row after Show details (incident-dismiss.ts).
  *
+ * A pending request that the user may not answer (the payload's `answerable` is false, or a press that the server refused, Story 25.5) has no Approve and Reject: its sentence
+ * (approval-view.ts refusalText) is the status line in their place, with no new layout.
+ *
  * A press sends {action, channel: 'web'} through AnswerPress (answer-press.ts, which the simulated phone's request message uses too
  * with channel 'phone'; the server takes the session from the CSP session). Both buttons go busy together: a spinner, aria-busy and
  * aria-disabled, never `disabled`, and a repeat press sends nothing. The reply's request also goes to the page's live store at once
@@ -172,7 +175,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
         </div>
       }
       <div class="answer-row">
-        @if (view().pending && !viewer()) {
+        @if (view().pending && !viewer() && !cannot()) {
           <span class="buttons" data-part="answer" [attr.data-key]="view().ref">
             <button
               type="button"
@@ -203,6 +206,11 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
               {{ texts.reject }}
             </button>
           </span>
+        } @else if (view().pending && !viewer() && cannot()) {
+          <p class="status tone-expired" data-part="answer" [attr.data-key]="view().ref" tabindex="-1">
+            <app-icon name="circle-slash" [size]="16" />
+            <span>{{ cannot() }}</span>
+          </p>
         } @else if (view().status; as status) {
           <p [class]="'status tone-' + status.tone" data-part="answer" [attr.data-key]="view().ref" tabindex="-1">
             <app-icon [name]="status.icon" [size]="16" />
@@ -235,7 +243,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
       @if (view().expiry) {
         <p class="expiry">{{ view().expiry }}</p>
       }
-      @if (notice()) {
+      @if (notice() && notice() !== cannot()) {
         <app-inline-notice class="under" variant="warning" [id]="noticeId">{{ notice() }}</app-inline-notice>
       }
       @if (details(); as panel) {
@@ -511,6 +519,12 @@ export class ApprovalRequestCard {
 
   protected readonly view = computed(() => approvalView(this.shown(), this.ctx(), this.request()));
 
+  /**
+   * The sentence that replaces Approve and Reject when the user can't answer the request (Story 25.5): the server's, after a press that it refused, else the payload's
+   * (`answerable` false, with the sentence of its approver kind). "" while the user may answer.
+   */
+  protected readonly cannot = computed(() => (this.answer.refused() !== '' ? this.answer.refused() : this.view().cannotAnswer));
+
   /** The result band under the answered status, when the incident payload gives this request a result (approval-view.ts resultView). */
   protected readonly band = computed(() => {
     const request = this.result();
@@ -535,11 +549,16 @@ export class ApprovalRequestCard {
       const pending = this.approval().state === 'pending';
       untracked(() => this.noteStore(pending));
     });
+    effect(() => {
+      // A new payload for the request: the server's own `answerable` decides again, so a refused press no longer holds the card in its can't-answer state.
+      this.approval();
+      untracked(() => this.answer.clearRefused());
+    });
   }
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    this.answer.press(this.view().ref, action, this.approval().fixKind ?? '');
+    this.answer.press(this.view().ref, action);
   }
 
   /**

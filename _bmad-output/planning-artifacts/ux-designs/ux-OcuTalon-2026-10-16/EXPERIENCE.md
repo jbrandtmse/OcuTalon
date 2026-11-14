@@ -719,7 +719,7 @@ The single source for the incident lifecycle, approval request states, answered 
 | Expired | "Expired at {time}. Nothing was changed." It can no longer be answered (FR-8). |
 | Already answered | The press that lost the race. Web and phone: "Already answered: approved from Telegram at 14:15." Telegram: see the Message Catalog. |
 | Can't answer (step 6) | The buttons are absent: "Only an approver for resends can answer this request." On the phone and in Telegram, a press gets the same sentence (FR-11). |
-| Canceled (step 4) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
+| Canceled (step 4) | "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
 
 On the page an answered status is a status line without a final period unless it holds two sentences. In message text (the phone and Telegram), it ends with a period.
 
@@ -1033,7 +1033,7 @@ Banners stack in this table's order.
 | MCP tools table, empty (Settings > Tools and MCP servers, in place of the table; the second with "Unclassified only" on) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "No tools yet." and "No unclassified tools." |
 | MCP tool classification control name (Settings > Tools and MCP servers, the accessible name of each tool's radiogroup) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Classification of {tool} on {server}" |
 | MCP server Remove button name (Settings > Tools and MCP servers, the accessible name of each server's Remove button) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Remove {server}" |
-| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." |
+| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." |
 | Mail poll, server not reached (`emailPoll.reason`, written by `Channel.Email.Adapter`, shown wherever Story 22.5 lists the mailbox as not checked) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't reach the mail server." |
 | Mail poll, log-in refused (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "The mail server refused the user name or password." |
 | Mail poll, mailbox not read (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't read the mailbox." |

@@ -64,6 +64,13 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
+/// 1 when the session that the payload is for may answer the request, 0 when it may not (Story 25.5). FromRow sets it: computed for a pending request with a session, and 1 for
+/// every other payload (the initial value of every payload flag is 0, so that it is always in the JSON).
+Property Answerable As %Boolean(%JSONFIELDNAME = "answerable") [ InitialExpression = 0 ];
+
+/// The approver kind of a request that the session may not answer, as the role check names it (empty until the per-kind roles, Story 26.4, and for a request with no kind).
+Property ApproverKind As %String(%JSONFIELDNAME = "approverKind", MAXLEN = 32);
+
 /// The payload for an approval request row, with every row-backed field set (the fix kind of a fix request included); dryRun is the row's stored JSON parsed
 /// into its part (left absent when the row holds none or it can't be read). A partner_warning request (Story 23.5) has the DryRun {notice, recipients, simulated}: its part holds
 /// only the notice, the recipients as "Name <address>" and simulated, with no repair keys and no reading. A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
@@ -75,9 +82,12 @@ Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 1
 /// stays empty, and so does cancelledAt. A tool_call row's server is ServerOf(ToolSource), empty when the source names none. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
 /// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
 /// TraceHeaderId, traceHeaderId is that id and traceNamespace the current namespace. Otherwise the payload has no target.
-ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %String = "") As OcuTalon.Live.Payload.Approval
+/// For a pending request and a sessionRef that is a Ref, answerable and approverKind are Answerable's answer for that session (api is the approval API that it asks, a test seam);
+/// every other payload has answerable 1 and no approverKind.
+ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %String = "", api As %String = "OcuTalon.Bridge.Approval") As OcuTalon.Live.Payload.Approval
 {
 	Set payload = ..%New()
+	Set payload.Answerable = 1
 	Set payload.Ref = row.Ref
 	Set payload.Kind = row.Kind
 	Set payload.State = row.State
@@ -93,6 +103,10 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 	Set payload.Result = row.Result
 	Set payload.FinishedAt = row.FinishedAt
 	If row.Kind = "tool_call" Set payload.Server = ##class(OcuTalon.Core.BridgeSink).ServerOf(row.ToolSource)
+	If (row.State = "pending") && ##class(OcuTalon.Bridge.Approval).IsRef(sessionRef) {
+		Set payload.Answerable = ..Answerable(row.Ref, sessionRef, .kind, api)
+		Set payload.ApproverKind = $Select(payload.Answerable: "", 1: $Extract(kind, 1, 32))
+	}
 	If (sessionRef '= "") && (row.IncidentRef '= "") {
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(row.IncidentRef, sessionRef, .sc)
 		If $SYSTEM.Status.IsOK(sc), $IsObject(incident), incident.TraceHeaderId '= "" {
@@ -153,6 +167,42 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 		}
 	}
 	Quit payload
+}
+
+/// 1 when the IRIS user of the session of sessionRef may answer the request ref, as the approval API's MayAnswer says (the role check, Lane A), and in kind the approver kind that
+/// MayAnswer names (verbatim; empty when it names none). A session with no row or no IRIS user, a SessionRef that is no Ref and an error of the check give 0 and an empty kind.
+/// The user always comes from the session's row, never from the caller. It writes and fires nothing.
+ClassMethod Answerable(ref As %String, sessionRef As %String, Output kind As %String, api As %String = "OcuTalon.Bridge.Approval") As %Boolean
+{
+	Set kind = ""
+	Set may = 0
+	Try {
+		If '##class(OcuTalon.Bridge.Approval).IsRef($Get(sessionRef)) Quit
+		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+		If '$IsObject(session) || (session.IrisUser = "") Quit
+		Set may = ''$ClassMethod(api, "MayAnswer", $Get(ref), session.IrisUser, .kind)
+	} Catch {
+		Set may = 0
+		Set kind = ""
+	}
+	Set kind = $Get(kind)
+	Quit may
+}
+
+/// The catalog key of the sentence that tells a user why they can't answer: answered.notAdmin when admin is set (an email request needs an OcuTalon admin, Story 22.7), else
+/// answered.notApprover plus the kind with its first letter in upper case when the kind is 1 to 32 lower-case letters or _ and the catalog has that key, and otherwise the plain
+/// answered.notApprover (an empty or unknown kind, and a setting request, which has no kind). Web.Api and AnswersIn's other callers render it; the page's refusalText mirrors it.
+ClassMethod RefusalKey(kind As %String, admin As %Boolean = 0) As %String
+{
+	If +$Get(admin) Quit "answered.notAdmin"
+	Set kind = $Get(kind)
+	If $IsObject(kind) Quit "answered.notApprover"
+	If kind ? 1.32(1L,1"_") {
+		Set key = "answered.notApprover" _ $ZConvert($Extract(kind), "U") _ $Extract(kind, 2, *)
+		Set entry = ##class(OcuTalon.Msg.Catalog).Entry(key, .sc)
+		If $$$ISOK(sc) && $IsObject(entry) Quit key
+	}
+	Quit "answered.notApprover"
 }
 
 /// Fills the part of an email request from its dry run {to, subject, text}: every address of the array to as a plain string in Recipients, the text in Notice and the subject in

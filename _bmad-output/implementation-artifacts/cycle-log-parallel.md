@@ -4121,3 +4121,41 @@
 2026-11-14T12:22:29Z	Epic 22	ci_green_verified	sha=931e6260
 2026-11-14T12:22:29Z	Epic 22	amendments_verified	amendments=epics_22.11_inserted(split)+22.5_ACs_moved,22.5_spec_intent(DW-1326),spine_AD-18/28/S20,docs(22.6_ruled_texts) extensions=Test/Data/Tables.cls,Test/Live/Payloads.cls,payloads.ts(V11_granted),test-readme.sh_rule_docs(R1) ok=true
 2026-11-14T12:22:29Z	Epic 22	merge_enqueued	parts=22.6+22.5 head=931e6260 feature=d2c2fb0d
+2026-11-14T12:31:03Z	Epic 22	epic_merged_to_feature	parts=22.6+22.5 feature_sha=f138fcf82 conflicts=tracker,bridge-guide.md+test-bridge-guide.sh(union:22.6_TurnTools/McpServers_text+26.3_Content_bullet,six_classes) merged_tree_pins=bridge-guide,readme,boundaries,class-rules,release-notes,release-sequence,storage,ci-config,web_2082_pass verified_on_origin=yes
+2026-11-14T12:31:03Z	Run	deps_hash_rerecorded	reason=split(22.11)+burndown_inserted+rule5_amendment hash=dd8a67695cd1
+2026-11-14T12:31:30Z	Run	dispatch_note	B=36.3(+epic_close) C=21.10(then_21.5) D=22.11_plan A=25.5(running) hold=16:00Z
+2026-11-14T12:31:42Z	Epic 22	owner_decision	via=contest_planner mailbox_lowercase_in_sentence_only(22.11;labels_unchanged;list_ENTRYMAILBOX_renders;pin+mutation)
+2026-11-14T12:41:46Z	Run	ci_red_classified	head=ef40062b run=43589903973 job=production_row21 class=flake(DW-306) action=no_rerun(superseded_by_d2c2fb0d,f138fcf8) note=ae6c6009=DW-494,ef40062b=DW-306:different_ledgered_flakes;f138fcf8_covers_all
+2026-11-14T12:41:46Z	Run	ci_cancelled	runs=43593749725,43593749738(d2c2fb0d;superseded_by_f138fcf8_which_contains_it)
+2026-11-14T12:50:06Z	Epic 36	runner_reported	PUBLIC_TEXT story=36.3 spec=OCT-epic36@4891dad2(local) items=AC_target_README->GUIDE.md(rule5),G2_position_first_para_of_For_admins
+2026-11-14T12:50:33Z	Epic 36	owner_decision	via=contest_planner 36.3=APPROVED(AC_retarget_GUIDE+22.6_AC_same_retarget,G2_position,admin-mcp_rule)
+2026-11-14T12:55:01Z	Epic 22	runner_reported	PUBLIC_TEXT story=22.11_gate head=6a5a730a(local;hold_ref) items=reserved_name(21.5_mapping),DW-1328_reset_vs_keep,split_recommended,mailbox_renders_5(#2_list_after_colon) spec_oversized_7477w DW-1326=amended_late
+2026-11-14T12:55:34Z	Epic 22	owner_decision	via=contest_planner 22.11_split->22.13(DW-1325,1327,1328_switch,mailbox_sentences) DW-1328=RESET reserved_name->21.5_bullet(400,DW-1325_text) mailbox_lowercase_both_sentences triage_STOP>10s_median_or_timeout precedents_low_DW
+2026-11-14T13:17:46Z	Run	ci_red_classified	head=f138fcf8 run=43595216871 jobs=shards-3+shards-6(ci-4_port_52814_in_use=infra,DW-1335),shards-4(rail_R10=DW-1093_flake) action=rerun_failed_once(att2)
+2026-11-14T13:19:42Z	Run	lesson	what=orchestrator_cancel_of_d2c2fb0d_ci(43593749725)_left_its_stack_on_ci-4_holding_52814->later_jobs_red rule="cancelling a run with live jobs can leave stacks; prefer cancelling QUEUED runs; until DW-1335 lands, report port errors to the Planner" planner_cleaned_ci-4
+2026-11-14T13:19:42Z	Run	owner_decision	via=contest_planner ci-4_cleaned DW-1335=burndown_story_pre-1.0.10_RC(ci/iris.sh_removes_leftover_stack_on_own_port+test)
+2026-11-14T13:47:12Z	Run	ci_green_verified	head=f138fcf8(feature;21.15+25.4+26.3+36.7+22.6+22.5) runs=43595216871(att2),43595216787 att1_reds=ci-4_port(DW-1335,cleaned)+rail_R10(DW-1093)
+2026-11-14T14:17:08Z	Epic 25	runner_reported	PART_READY story=25.5 head=07a667de runs=43599422831,43599422878 bundle=887.84kB DW-1268,1281,1303=resolved veto_item=AD-11_amendment(not_allowed_slots)
+2026-11-14T14:17:08Z	Epic 25	ci_green_verified	sha=07a667de
+2026-11-14T14:17:08Z	Epic 25	amendments_verified	amendments=GUIDE_P1_middle_sentence(ruled),spine_AD-11(AMENDED)+AD-16/AD-24_ADDED,epics extensions=Fix/Kind/Email.cls(granted_Q1) ok=true
+2026-11-14T14:17:08Z	Epic 25	merge_enqueued	part=25.5 head=07a667de feature=12f15b2b
+2026-11-14T14:17:52Z	Epic 25	epic_merged_to_feature	part=25.5 feature_sha=ba276d3a code=07a667de(identical) ci=green_by_identity(queued_runs_cancelled) verified_on_origin=yes
+2026-11-14T14:18:50Z	Run	owner_decision	via=contest_planner AD-11_amendment=confirmed graph_edit=26.2_wait_epic-25->stories_25.3/25.4/25.5(cycle_fix;epic-19_kept;25.6_keeps_26.2) 26.2=dispatch_now
+2026-11-14T14:42:15Z	Epic 22	runner_reported	PART_READY story=22.13 head=16772e40 runs=43601299721,43601299691 DW-1325,1327,1328=resolved DW-1334=low DW-1336=wontfix notes=48h_example_exceeds_24h_max,window_term_never_decides(by-design)
+2026-11-14T14:42:15Z	Epic 22	ci_green_verified	sha=16772e40
+2026-11-14T14:42:15Z	Epic 22	amendments_verified	amendments=epics_22.13_inserted+22.11_trimmed,AD-18,AD-28 ok=true
+2026-11-14T14:42:15Z	Epic 22	merge_enqueued	part=22.13 head=16772e40 feature=ba276d3a
+2026-11-14T14:44:36Z	Epic 22	epic_merged_to_feature	part=22.13 feature_sha=f403bf664 conflicts=tracker(ours+set;valid) merged_tree_pins=readme,boundaries,class-rules,storage,release-notes,web_2089_pass verified_on_origin=yes ci=own_run deps_hash=rerecorded(split_22.13)
+2026-11-14T14:53:45Z	Epic 26	runner_reported	PUBLIC_TEXT story=26.2_gate head=e43fda8e(hold_ref) items=demo_off+telegram_guard,trace,cost,gap_until_25.6(H1/H2),3_new_texts,veto_1-6,DW-1321_alt_fix,DW-1313_move_to_25.6
+2026-11-14T14:55:03Z	Epic 26	owner_decision	via=contest_planner 26.2=APPROVED(H2_READSFILES=0_incl_Telegram;texts_1-3_to_25.6;demo_guard;injection_pins;10MB_read_cap;token_URL_pins;pool_STOP_10s/45s;DW-1321_line_in_PART_READY;DW-1313->25.6) file=prompts/story-262-rulings-20261114.md
+2026-11-14T15:00:20Z	Epic 22	runner_reported	PUBLIC_TEXT story=22.11_regate(poll_run_only) head=b5d41842(hold_ref) veto=reason_words,Reported_shape(hashes) triage_STOP_kept est_risk=60s_wait_vs_Decide_timer
+2026-11-14T15:00:44Z	Epic 22	owner_decision	via=contest_planner 22.11_regate=APPROVED(veto_1_reason_words,veto_2_Reported_shape,runner_calls) Task0_pre-ruling=(a)_one_poll_in_flight_auto_if_trips;pass_iff_STOP_criteria+no_queue_staleness(pinned);else_STOP
+2026-11-14T15:00:53Z	Epic 26	runner_ended	reason=hold(early_at_clean_boundary) head=32472435(hold/OCT-epic26-20261114) open_ci=none task0=10p_1.0s,cap_3.3s(under_STOP) next=26.2_implement_after_HOLD_OFF
+2026-11-14T15:36:26Z	Run	ci_green_verified	head=f403bf66(feature;+25.5+22.13) runs=43606442301,43606442298 attempt=1
+2026-11-14T15:44:12Z	Run	ci_cancelled	runs=43611679712,43611679763(records-only_1195f4bf) note=status_read_queued_but_jobs_had_started_on_self-hosted; every_cancelled_job_ran_its_Tear_down_step(ipm-install_only_reached_Set_up) -> no_leftover_expected; lesson_reinforced=check_job_steps_not_run_status
+2026-11-14T15:44:51Z	Epic 21	runner_ended	reason=hold head=f82fb8c17(pushed,story_21.10) base=f138fcf8(conflicts_7_files_with_f403bf66,not_identity) ci=43611736264,43611736267(queued_at_hold) planner_items=V12_Canceled,DW-1314_heading_mismatch(MCP_servers_vs_MCP_tools),css_budget_+244B
+2026-11-14T15:55:50Z	Epic 36	runner_ended	reason=hold PART_READY=36.3@42ab53c5(runs_43601944978,43601944955) epic_close_head=9d389150(ci_43606743361_shards-5_red:guide.spec_Q6_main_not_loaded_after_reload=DW-333?) watch=2nd_reload_timeout_today_after_36.7_handler
+2026-11-14T15:55:50Z	Epic 36	merge_enqueued	part=36.3 head=42ab53c5 feature=1195f4bf(pre-hold,docs-only)
+2026-11-14T15:56:57Z	Epic 36	epic_merged_to_feature	part=36.3 feature_sha=6899e3e5 pushed_before_hold=15:56:51Z merged_tree_pins=test-readme_pass ci=own_run(started_pre-hold,may_finish) epic-36=done(runner_close;completion_head_9d389150_CI_open)
+2026-11-14T16:01:29Z	Run	hold_ordered	reason=QUOTA_HOLD_16:00Z(Contest_Planner,owner) via=<state>/HOLD
+2026-11-14T16:01:29Z	Run	hold_complete	feature=6899e3e5(ci_43612889290+lane-a_43612889274_queued,started_pre-hold) lanes: A25=07a667de(merged;records_68e7be18->hold/OCT-epic25-20261114) A26=8ab6a725(merged;WIP_32472435@hold/OCT-epic26;next_26.2_implement) B36=9d389150(epic_done;ci_43606743361_shards-5_red_DW-333?;records_5ecbf7d16@hold/OCT-epic36) C21=f82fb8c17(21.10_pushed;ci_43611736264/267_running;needs_integrate_over_f403bf66+;records_s2115_662749d3@hold/OCT-epic21-s2115) D22=16772e40(merged;spec_1a07b522@hold/OCT-epic22;next_22.11_implement) worktrees=clean runners=all_ended locks=none lock=kept

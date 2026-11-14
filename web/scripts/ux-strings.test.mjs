@@ -641,7 +641,7 @@ const SOURCES = {
     'Approved from {channel} at {time}.',
     'Rejected from {channel} at {time}. Nothing was changed.',
     'Expired at {time}. Nothing was changed.',
-    'Canceled at {time}: the MCP server {server} was removed. Nothing was changed.',
+    'Cancelled at {time}: the MCP server {server} was removed. Nothing was changed.',
     'Already answered: approved from {channel} at {time}.',
     'Already answered: rejected from {channel} at {time}.',
     'Already answered: approved by {user} from {channel} at {time}.',
@@ -780,6 +780,17 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 25.5 Planner Gate rulings 2026-11-13 and the 25.4 final ruling 1 (the Contest Planner under the owner\'s delegation, story-255-rulings-20261113.md: PUBLIC TEXT items 1 to 10 approved as written, item 1 being the UX\'s own sentence; DW-1303: the self_viewer refusal text, word for word)': [
+      'Only an approver for reroutes can answer this request.',
+      'Only an approver for suspending and resuming items can answer this request.',
+      'Only an approver for rollbacks can answer this request.',
+      'Only an approver for partner notices can answer this request.',
+      'Only an approver for emails can answer this request.',
+      'Only an approver for tool calls can answer this request.',
+      'Only an approver can answer this request.',
+      'Only an OcuTalon admin can approve this email.',
+      "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin.",
+    ],
     'Story 25.4 final ruling 3 before the push 2026-11-14 (the Contest Planner under the owner\'s delegation, story-254-rulings-20261113.md, DW-1297 option (a): the text of a save that changes nothing, word for word)': [
       "No change: {user}'s roles are already as you set them.",
     ],
@@ -859,7 +870,6 @@ const SOURCES = {
       'Message {example}: {to}',
       '{count} copies to {to}; the originals stay unchanged.',
       '1 copy to {to}; the original stays unchanged.',
-      'Only an approver for fixes can answer this request.',
     ],
     'Story 23.5 ruling (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: Public Text, Web (Lane B): the title of the partner delay notice request, its To line and note, and its result bands; each names the Simulated mailbox or the draft, and none says that an email was sent)': [
       'Send a delay notice',

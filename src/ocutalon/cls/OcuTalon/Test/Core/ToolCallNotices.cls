@@ -178,7 +178,7 @@ Method TestCancelledEditsInPlace()
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.Server).NameIndexExists("zzcancel"), 0, "the server is not registered")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(ref), "the request is cancelled")
 	Set answered = ..WaitAnswer(message.Ref)
-	Do $$$AssertTrue($Extract(answered.Answer, 1, 12) = "Canceled at ", "the request's message has the render of answered.canceled as its Answer: "_..Facts(ref, session))
+	Do $$$AssertTrue($Extract(answered.Answer, 1, 13) = "Cancelled at ", "the request's message has the render of answered.canceled as its Answer: "_..Facts(ref, session))
 	Do $$$AssertTrue(answered.Answer [ "the MCP server zzcancel was removed. Nothing was changed.", "which names the server and says that nothing was changed")
 	Do $$$AssertEquals(answered.Text_"|"_answered.ApprovalRef, message.Text_"|"_ref, "and keeps its text and request")
 	Hang 2

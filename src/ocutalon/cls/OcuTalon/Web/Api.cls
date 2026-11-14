@@ -187,10 +187,6 @@ Parameter MESSAGEINCIDENTINPROGRESS = "Finish the current Orders incident first:
 
 Parameter MESSAGENOTFOUND = "OcuTalon has nothing at this address.";
 
-Parameter MESSAGENOTAPPROVER = "Only an approver for resends can answer this request.";
-
-Parameter MESSAGENOTAPPROVERTOOL = "Only an approver can answer this request.";
-
 Parameter MESSAGEBADANSWER = "An answer needs an action, approve or reject, and a channel, web or phone.";
 
 Parameter MESSAGENOTALLOWED = "This address doesn't accept that kind of request.";
@@ -775,12 +771,11 @@ ClassMethod AnswerApproval(ref As %String) As %Status
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(row) || (row.State = "cancelled") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If '..AnswerBody(.action, .channel) Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
-	Set kind = $Select((row.Kind = "fix") && (row.FixKind = ##class(OcuTalon.Fix.Kind.Email).#NAME): ##class(OcuTalon.Fix.Kind.Email).#NAME, 1: row.Kind)
 	Kill row
-	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, action, channel, .result, .answeringRef)
+	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, action, channel, .result, .answeringRef, .refusal)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswersIn answered no result"))
-	Quit ..AnswerResponse(ref, kind, sessionRef, result)
+	Quit ..AnswerResponse(ref, refusal, sessionRef, result)
 }
 
 /// The action and channel of the request body, and 1 when it is valid: a JSON object whose action is the string approve or reject
@@ -806,13 +801,20 @@ ClassMethod AnswerBody(Output action As %String, Output channel As %String) As %
 ///   - already_answered: 409 with the catalog's late-press text of the winner and the request's payload, naming the answerer
 ///     when the install is local and the row's AnsweredBy is not the signed-in user (compared without case);
 ///   - expired: 409 with the catalog's expired text at the row's ExpiresAt and the payload;
-///   - not_found: 404; not_allowed: 403 (the approver text of the request's kind; AnswerApproval hands a fix request of the kind email as the kind email, which has the general one); bad_answer: 400;
+///   - not_found: 404; not_allowed: 403 with the catalog's sentence for the refusal that AnswersIn named (Live.Payload.Approval RefusalKey of its kind and admin: the kind's approver
+///     sentence, the fallback for an empty or unknown kind, and the admin sentence of an email approve); bad_answer: 400;
 ///   - anything else, and any failed read or render: 500 server_error.
-ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %String, result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
+ClassMethod AnswerResponse(ref As %String, refusal As %DynamicObject, sessionRef As %String, result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
 {
 	Set code = result.Result
 	If code = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, kind = "setting": ..#MESSAGENOTAPPROVERSETTING, 1: ..#MESSAGENOTAPPROVERTOOL))
+	If code = "not_allowed" {
+		Set kind = $Select($IsObject(refusal): refusal.%Get("kind"), 1: "")
+		Set admin = $Select($IsObject(refusal): +refusal.%Get("admin"), 1: 0)
+		Set message = ##class(OcuTalon.Msg.Catalog).Render(##class(OcuTalon.Live.Payload.Approval).RefusalKey(kind, admin), {}, "web", .sc)
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		Quit ..Fail(403, "not_allowed", message)
+	}
 	If code = "bad_answer" Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
 	If '$ListFind($ListBuild("done", "already_answered", "expired"), code) {
 		Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswerOps answered a result that the route doesn't know: "_code))
@@ -2280,9 +2282,5 @@ ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTa
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
 }
-
-/// The 403 text of a refused page answer to a setting request (U-114: the owner kept this sentence for the API); its own parameter, so
-/// that a change of the tool-call wording cannot reach it.
-Parameter MESSAGENOTAPPROVERSETTING = "Only an approver can answer this request.";
 
 }

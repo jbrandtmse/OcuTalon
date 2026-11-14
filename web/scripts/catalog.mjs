@@ -13,8 +13,9 @@
 // with its name in message text), and keeps an allowlist of the keys the page renders: conversation.turnFallback, the check
 // sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
 // checks.notEverythingRestPassed, the ten banner.* texts, the four bannerAction.* texts the page renders (installYourself,
-// howToSetKey, budgets and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
-// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the thirteen result.* texts (allThrough, failedAgain, skipped,
+// howToSetKey, budgets and setUpBot), the eighteen answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
+// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy; and the nine refusal sentences of Story 25.5: notApproverResend, notApproverReroute, notApproverSuspend,
+// notApproverRollback, notApproverPartner, notApproverEmail, notApproverTool, notApprover and notAdmin), the thirteen result.* texts (allThrough, failedAgain, skipped,
 // failedAndSkipped, stillResending, interrupted, couldNotStart, stoppedPartway and, for a fix the user asks for in the chat, itemSuspended,
 // itemResumed, itemSkipped, itemNotChanged and rerouted), audit.recorded, incident.eitherWayLine, the Got it
 // button text button.gotIt, the line handled.marked (slot time) that a handled tell-now notice ends with, and every fallbackReason.*. An entry's web text is used, else its text.
@@ -96,6 +97,15 @@ export const LISTED_KEYS = [
   'answered.alreadyApprovedBy',
   'answered.alreadyRejectedBy',
   'answered.canceled',
+  'answered.notApproverResend',
+  'answered.notApproverReroute',
+  'answered.notApproverSuspend',
+  'answered.notApproverRollback',
+  'answered.notApproverPartner',
+  'answered.notApproverEmail',
+  'answered.notApproverTool',
+  'answered.notApprover',
+  'answered.notAdmin',
   'result.allThrough',
   'result.failedAgain',
   'result.skipped',

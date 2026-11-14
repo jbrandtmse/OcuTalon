@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30, 0.36 and 21.12; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
+# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30, 0.36, 21.12 and 36.3; FR-4, FR-10, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
 # nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
 # addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
@@ -7,7 +7,7 @@
 # links the guide by its absolute address. Each rule below reads the file that holds its text: README.md for top, word-cap, guide
 # (also the guide), try-it, interesting, measured, video, checklist-video, judges-usability, path and licence; GUIDE.md for use-cases,
 # how-you-talk, outcomes, install, install-pointer, commands, key-account, lan, sign-in-address (also the README), demo-mode,
-# admin-commands, after-start-log, ipm and the three telegram rules; both files for comparison (the H3 in the README, the pointer in the guide), new-since, teaser (its media clauses), images, once,
+# admin-commands, admin-mcp, after-start-log, ipm and the three telegram rules; both files for comparison (the H3 in the README, the pointer in the guide), new-since, teaser (its media clauses), images, once,
 # dev-only, public-text, telegram-demo, no-telegram, product-links and readme-links; README.md's headings and the documentation set
 # (below) for readme-anchors. With no GUIDE.md every rule that names it fails
 # closed (a FAIL no-guide line names a rule that does not).
@@ -111,6 +111,9 @@
 #                  in two minutes" and "Sign in" give its address ("Try it" its account too)
 #   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
+#   admin-mcp      "For admins and developers" opens with the ruled MCP paragraph, once: the Risky classification sentence, word for word
+#                  from docs/mcp-jira-example.md, and a link to that worked example, as a paragraph of its own; the example holds that
+#                  sentence once, as a whole line (Story 36.3; FR-10)
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
 #   dev-only       in the README and the guide, no ##class(, class name or error code outside the sections "For admins and developers" and "Gmail and Microsoft 365",
@@ -159,7 +162,7 @@
 #                  files can never drop out of that scan
 #
 # What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, GUIDE.md, LICENSE,
-# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, the Markdown files of the documentation set (readme-anchors),
+# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, docs/mcp-jira-example.md, the Markdown files of the documentation set (readme-anchors),
 # the sizes of the linked files of docs/images/, install.sh,
 # the tree's file list (for the files of docs/images/), src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
 # docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
@@ -211,6 +214,7 @@ LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
 BRIDGE_DOC=docs/bridge-guide.md
 SECOV_DOC=docs/security-overview.md
+MCP_EXAMPLE_DOC=docs/mcp-jira-example.md
 DOCKERFILE=Dockerfile
 
 listing=$(scan_files)
@@ -245,6 +249,7 @@ license_p=$(of "$LICENSE_FILE")
 ipmdoc_p=$(of "$IPM_DOC")
 bridgedoc_p=$(of "$BRIDGE_DOC")
 secov_p=$(of "$SECOV_DOC")
+mcpexample_p=$(of "$MCP_EXAMPLE_DOC")
 dockerfile_p=$(of "$DOCKERFILE")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
@@ -1345,6 +1350,26 @@ chk_admin_commands() {
   chk_facts admin-commands "$sec" "$ADMIN_FACTS"
 }
 
+# admin-mcp (Story 36.3; FR-10): "For admins and developers" opens with the ruled MCP paragraph (Planner M(4), G2), once in the guide,
+# and its first sentence is a line of the worked example, word for word, so the link's target is there: chk_admin_mcp <guide> <example>.
+ADMIN_MCP_RISKY='An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.'
+ADMIN_MCP_LINE="$ADMIN_MCP_RISKY The worked example [A Jira MCP server, step by step]($MCP_EXAMPLE_DOC) shows how to add a server and classify its tools."
+chk_admin_mcp() {
+  local sec="$tmp/sec.adminmcp" n
+  section "$1" 'For admins and developers' > "$sec"
+  if [ "$(awk 'NF { print; exit }' "$sec")" != "$ADMIN_MCP_LINE" ]; then
+    echo "admin-mcp: 'For admins and developers' does not open with the ruled MCP paragraph"
+  fi
+  if [ -n "$(awk -v l="$ADMIN_MCP_LINE" 'f { print; exit } $0 == l { f = 1 }' "$sec")" ]; then
+    echo "admin-mcp: a line runs on from the ruled MCP paragraph with no empty line, so Markdown joins it to the paragraph"
+  fi
+  n=$(grep -cxF -- "$ADMIN_MCP_LINE" "$1")
+  if [ "$n" -ne 1 ]; then echo "admin-mcp: the guide holds the ruled MCP paragraph $n times, not once"; fi
+  if [ "$(grep -cxF -- "$ADMIN_MCP_RISKY" "$2")" -ne 1 ]; then
+    echo "admin-mcp: $MCP_EXAMPLE_DOC does not hold the guide's classification sentence once, as a line of its own"
+  fi
+}
+
 # after-start-log: the command that reads the start's log, and the lines to look for in it (Troubleshooting; the walkthrough ran it).
 # log_path <after-start.sh>: the default path of the log that the image writes.
 LOG_FACTS='begin with `STEP`
@@ -1465,7 +1490,7 @@ Signing in with Google or Microsoft 365 is optional, and these steps are for you
 
 If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
 
-All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
+All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
 GMEOF
 LEAST_RE='least[- ]privilege|minimum privilege'
 chk_gmail_section() {
@@ -1681,7 +1706,7 @@ L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool,
 L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and each of its inputs on a line of its own, through the redactor, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry. A request too long to show in full on Telegram has no Approve button there."
 L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
 L2115="- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it."
-APPROVAL_TAIL="Every built-in tool is safe except \`send_email\` and \`call_mcp_tool\`, which are classified per call. Code classifies \`send_email\`: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. \`call_mcp_tool\` takes the admin's classification of the server's tool at its current fingerprint, and an unclassified tool counts as risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do. A risky MCP call waits for a person's approval of that exact call, as the MCP servers section below describes."
+APPROVAL_TAIL="Every built-in tool is safe except \`send_email\` and \`call_mcp_tool\`, which are classified per call. Code classifies \`send_email\`: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. \`call_mcp_tool\` takes the admin's classification of the server's tool at its current fingerprint, and an unclassified tool counts as risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do. A risky MCP call waits for a person's approval of that exact call, as the MCP tools section below describes."
 APPROVAL_FRAME="## Approval and audit"
 MCP_FRAME="## MCP tools"
 chk_docs() {
@@ -2701,6 +2726,30 @@ rule_admin_commands() {
   finish admin-commands 'the terminal sessions and the password line are the ones the walkthrough ran' chk_admin_commands
 }
 
+rule_admin_mcp() {
+  rule_begin admin-mcp "$GUIDE" "$mcpexample_p" || return
+  st 'the MCP paragraph removed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") != 1' chk_admin_mcp
+  st 'the guide sentence changed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/must be classified Risky/, "should be classified Risky") } { print }' chk_admin_mcp
+  st 'the link to another file' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/mcp-jira.md") } { print }' chk_admin_mcp
+  st 'the link text changed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/step by step\]/, "step-by-step]") } { print }' chk_admin_mcp
+  st 'the paragraph split over two lines' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/Risky\. The worked/, "Risky.\nThe worked") } { print }' chk_admin_mcp
+  st 'the link to a file that exists' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/security-overview.md") } { print }' chk_admin_mcp
+  st 'an anchor on the link' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/mcp-jira-example\.md\)/, "mcp-jira-example.md#step-1)") } { print }' chk_admin_mcp
+  st 'a line joined to the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print; print "More text."; next } { print }' chk_admin_mcp
+  st 'a line above the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print "A stray line."; print "" } { print }' chk_admin_mcp
+  st 'the paragraph under Demo mode' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { held = $0; next } { print } /^### Demo mode$/ { print ""; print held }' chk_admin_mcp
+  st 'the paragraph in another section' 1 "$GUIDE" "index(\$0, \"An MCP tool that runs operating-system\") == 1 { next } { print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp
+  st 'the paragraph twice' 1 "$GUIDE" "{ print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp
+  st 'the admin heading renamed' 1 "$GUIDE" '/^## For admins and developers$/ { print "## For admins"; next } { print }' chk_admin_mcp
+  st 'the example sentence changed' 2 "$mcpexample_p" '{ sub(/must be classified Risky\./, "should be classified Risky.") } { print }' chk_admin_mcp
+  st 'the example sentence split over two lines' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/ commands or/, "\ncommands or") } { print }' chk_admin_mcp
+  st 'the example sentence twice' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { print; print "" } { print }' chk_admin_mcp
+  st 'the example sentence inside a longer line' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { $0 = $0 " See also the overview." } { print }' chk_admin_mcp
+  st 'the example sentence removed' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") != 1' chk_admin_mcp
+  st 'no worked example' 2 "$mcpexample_p" '0' chk_admin_mcp
+  finish admin-mcp "For admins and developers opens with the ruled MCP paragraph, once, and its classification sentence is a line of $MCP_EXAMPLE_DOC, word for word" chk_admin_mcp
+}
+
 rule_after_start_log() {
   rule_begin after-start-log "$GUIDE" "$after_start_p" || return
   st_facts chk_after_start_log "docker compose exec iris cat $(log_path "$after_start_p")
@@ -2893,7 +2942,7 @@ rule_gmail_section() {
   st 'step 4 removed' 1 "$GUIDE" '/^## / { s = ($0 == "## Gmail and Microsoft 365") } !(s && /^4\. /)' chk_gmail_section
   st 'the closing paragraph removed' 1 "$GUIDE" '/^If the sign-in is withdrawn at the provider/ { next } { print }' chk_gmail_section
   st 'the mailbox and approval paragraph removed' 1 "$GUIDE" '/^All email OcuTalon sends goes out from the one mailbox/ { next } { print }' chk_gmail_section
-  st 'the mailbox and approval paragraph reworded' 1 "$GUIDE" '{ sub(/only an OcuTalon admin can approve it/, "any user can approve it") } { print }' chk_gmail_section
+  st 'the mailbox and approval paragraph reworded' 1 "$GUIDE" '{ sub(/Only an OcuTalon admin can have OcuTalon email another address/, "Any user can have OcuTalon email another address") } { print }' chk_gmail_section
   st 'the section after Stop, start and update' 1 "$GUIDE" '{ l[NR] = $0 } /^## Gmail and Microsoft 365$/ { t = NR } END { e = t; while (e < NR && l[e + 1] !~ /^## /) e++; for (i = 1; i <= NR; i++) { if (t && i >= t && i <= e) continue; print l[i] } for (j = t; j <= e; j++) print l[j] }' chk_gmail_section
   st_append 'a least-privilege claim in GUIDE.md' 'The measured list is the least privilege that works.' chk_gmail_section
   st 'a minimum-privilege claim in README.md, docs/ or release/' 2 "$priv" '{ print } END { print "This is the minimum privilege."}' chk_gmail_section
@@ -3231,7 +3280,7 @@ rule_docs() {
   st 'the approval section line without its Telegram sentence' 3 "$secov_p" '{ sub(/ In Telegram, an approval request for a tool call that is too long for one message shows only its start, with no Approve button\./, "") } { print }' chk_docs
   st 'the MCP rules line without its Telegram sentence' 3 "$secov_p" '{ sub(/ A request too long to show in full on Telegram has no Approve button there\./, "") } { print }' chk_docs
   st 'the built-in tools without call_mcp_tool' 3 "$secov_p" '{ sub(/`send_email` and `call_mcp_tool`, which are classified per call\./, "`send_email`, which code classifies per call.") } { print }' chk_docs
-  st 'the built-in tools paragraph without its last sentence' 3 "$secov_p" '{ sub(/ A risky MCP call waits for a person.s approval of that exact call, as the MCP servers section below describes\./, "") } { print }' chk_docs
+  st 'the built-in tools paragraph without its last sentence' 3 "$secov_p" '{ sub(/ A risky MCP call waits for a person.s approval of that exact call, as the MCP tools section below describes\./, "") } { print }' chk_docs
   st 'the MCP rules back to the exact call' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step."; next } { print }' chk_docs
   st 'the MCP rules line without the full call kept' 3 "$secov_p" '{ sub(/, with the full call kept in the approval record\), an audit entry/, "), an audit entry") } { print }' chk_docs
   st 'the MCP tools heading removed' 3 "$secov_p" '!/^## MCP tools$/' chk_docs
@@ -3290,9 +3339,9 @@ rule_guide() {
   finish guide 'GUIDE.md has its ruled title, its H2 sections in order and its ruled Tests and CI line; the README holds the ruled pointer and the More paragraph once each, and the More paragraph links the guide and each of its H2 sections' chk_guide
 }
 
-RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text gmail_section telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links readme_anchors must_scan ipm licence docs'
+RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands admin_mcp after_start_log dev_only public_text gmail_section telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links readme_anchors must_scan ipm licence docs'
 # The rules that name the guide: with no GUIDE.md each one fails closed.
-GUIDE_RULES='guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo readme_anchors gmail_section'
+GUIDE_RULES='admin_mcp guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo readme_anchors gmail_section'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

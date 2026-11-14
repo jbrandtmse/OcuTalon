@@ -253,6 +253,8 @@ export interface ApprovalPayload {
   cancelledAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
+  answerable?: boolean;
+  approverKind?: string;
   traceUrl?: string;
 }
 

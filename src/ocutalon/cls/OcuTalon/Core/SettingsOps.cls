@@ -2465,7 +2465,7 @@ Method SaveRoles(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 	Set role = body.role
 	Set grant = body.grant
 	Try {
-		Set code = $ClassMethod(..RolesClass(), "Refusal", userName, role)
+		Set code = $ClassMethod(..RolesClass(), "Refusal", userName, role, command.ActingUser, grant)
 	} Catch {
 		$$$LOGERROR("The roles change could not be checked")
 		Quit

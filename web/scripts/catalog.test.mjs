@@ -53,7 +53,7 @@ const BANNER_KEYS = [
 /** The five check sentences that the page renders, in the generator's order. */
 const CHECK_KEYS = ['checks.allPassed', 'checks.everythingElsePassed', 'checks.nothingWatched', 'checks.notEverything', 'checks.notEverythingRestPassed'];
 
-/** The ten answered texts that the page renders (Story 6.2; answered.canceled is Story 21.10's), in the generator's order. */
+/** The answered texts that the page renders (Story 6.2; answered.canceled is Story 21.10's; the last nine are Story 25.5's refusal sentences), in the generator's order. */
 const ANSWERED_KEYS = [
   'answered.approved',
   'answered.approvedBy',
@@ -65,6 +65,15 @@ const ANSWERED_KEYS = [
   'answered.alreadyApprovedBy',
   'answered.alreadyRejectedBy',
   'answered.canceled',
+  'answered.notApproverResend',
+  'answered.notApproverReroute',
+  'answered.notApproverSuspend',
+  'answered.notApproverRollback',
+  'answered.notApproverPartner',
+  'answered.notApproverEmail',
+  'answered.notApproverTool',
+  'answered.notApprover',
+  'answered.notAdmin',
 ];
 
 /** The thirteen result texts and the audit line that the page renders (Story 6.4; the last five are Story 23.2's fixes the user asks for in the chat), in the generator's order. */
@@ -111,19 +120,19 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the ten answered keys, the fourteen result keys, the either-way line and the two Got it keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the fourteen result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 61);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 70);
   });
 
-  it('holds the 16 banner and action keys, the ten answered keys and the fourteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 16 banner and action keys, the 19 answered keys and the fourteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
-    assert.equal(ANSWERED_KEYS.length, 10);
+    assert.equal(ANSWERED_KEYS.length, 19);
     assert.equal(RESULT_KEYS.length, 14);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY]);
     const slots = {
@@ -146,6 +155,15 @@ describe('the real tree', () => {
       'answered.alreadyApprovedBy': { user: 'text', channel: 'channel', time: 'time' },
       'answered.alreadyRejectedBy': { user: 'text', channel: 'channel', time: 'time' },
       'answered.canceled': { time: 'time', server: 'text' },
+      'answered.notApproverResend': {},
+      'answered.notApproverReroute': {},
+      'answered.notApproverSuspend': {},
+      'answered.notApproverRollback': {},
+      'answered.notApproverPartner': {},
+      'answered.notApproverEmail': {},
+      'answered.notApproverTool': {},
+      'answered.notApprover': {},
+      'answered.notAdmin': {},
       'result.allThrough': { count: 'count', itemNoun: 'noun' },
       'result.failedAgain': { count: 'count', itemNoun: 'noun', completed: 'count', failedAgain: 'count', failReason: 'text' },
       'result.skipped': { count: 'count', itemNoun: 'noun', completed: 'count', skipped: 'count' },
@@ -518,7 +536,16 @@ const ANSWERED = {
   'answered.alreadyRejected': { text: 'Late: no from {channel} at {time}.', slots: { channel: 'channel', time: 'time' }, source: 'fixture' },
   'answered.alreadyApprovedBy': { text: 'Late: yes by {user} from {channel} at {time}.', slots: { user: 'text', channel: 'channel', time: 'time' }, source: 'fixture' },
   'answered.alreadyRejectedBy': { text: 'Late: no by {user} from {channel} at {time}.', slots: { user: 'text', channel: 'channel', time: 'time' }, source: 'fixture' },
-  'answered.canceled': { text: 'Canceled at {time}: {server} removed.', slots: { time: 'time', server: 'text' }, source: 'fixture' },
+  'answered.canceled': { text: 'Cancelled at {time}: {server} removed.', slots: { time: 'time', server: 'text' }, source: 'fixture' },
+  'answered.notApproverResend': { text: 'Fixture notApproverResend.', slots: {}, source: 'fixture' },
+  'answered.notApproverReroute': { text: 'Fixture notApproverReroute.', slots: {}, source: 'fixture' },
+  'answered.notApproverSuspend': { text: 'Fixture notApproverSuspend.', slots: {}, source: 'fixture' },
+  'answered.notApproverRollback': { text: 'Fixture notApproverRollback.', slots: {}, source: 'fixture' },
+  'answered.notApproverPartner': { text: 'Fixture notApproverPartner.', slots: {}, source: 'fixture' },
+  'answered.notApproverEmail': { text: 'Fixture notApproverEmail.', slots: {}, source: 'fixture' },
+  'answered.notApproverTool': { text: 'Fixture notApproverTool.', slots: {}, source: 'fixture' },
+  'answered.notApprover': { text: 'Fixture notApprover.', slots: {}, source: 'fixture' },
+  'answered.notAdmin': { text: 'Fixture notAdmin.', slots: {}, source: 'fixture' },
 };
 
 /** The result and audit entries of the fixtures: the slot types and one forms of the real ones, with texts of their own. */

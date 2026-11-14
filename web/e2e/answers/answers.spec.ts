@@ -370,8 +370,8 @@ test('X4: a press on stale buttons gets the late-press notice once and shows the
 /**
  * X5: the phone's busy rule and its failure notices. A held press makes one request however often the buttons are pressed, and the
  * request says channel phone; the buttons are busy (aria-busy and aria-disabled, never disabled); after 10 s both are restored with
- * the notice, shown and announced once; and when the answer then comes its line shows and the notice clears. Then a 404, a 403, a 500
- * and a dropped connection show their notices, each announced, and leave the buttons restored.
+ * the notice, shown and announced once; and when the answer then comes its line shows and the notice clears. Then a 404, a 500
+ * and a dropped connection show their notices, each announced, and leave the buttons restored. A refusal (403) takes the message into its can't-answer state (X5c).
  */
 test('X5: a held press on the phone is busy and sends one request, restores after 10 s with the notice, and a late answer still shows', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -428,10 +428,9 @@ test('X5: a held press on the phone is busy and sends one request, restores afte
     await cleanFixtureRows(rows);
   }
 
-  // The failures: one request, three presses, each answered by the test. The phone keeps its buttons after every failure.
+  // The failures: one request, two presses, each answered by the test. The phone keeps its buttons after every failure.
   const failures = [
     { status: 404, code: 'not_found', message: 'That is not a request of yours.', shown: 'That request is no longer available.' },
-    { status: 403, code: 'not_allowed', message: 'Only an approver for resends can answer this request.', shown: 'Only an approver for resends can answer this request.' },
     { status: 500, code: 'failed', message: 'OcuTalon could not answer. Nothing was changed.', shown: 'OcuTalon could not answer. Nothing was changed.' },
   ];
   const rows2: string[] = [];
@@ -467,6 +466,33 @@ test('X5: a held press on the phone is busy and sends one request, restores afte
     await page.unroute(ANSWER).catch(() => undefined);
     await dropPhone(user, start2);
     await cleanFixtureRows(rows2);
+  }
+});
+
+/**
+ * X5c (Story 25.5): a press on the phone that the server refuses (403 not_allowed) takes the message into its can't-answer state at once: the buttons are gone, the answer line is the
+ * server's sentence (announced once, not shown twice), and nothing reached the request.
+ */
+test('X5c: a refused press on the phone takes the message into its can\'t-answer state, with the server\'s sentence and no buttons', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  const sentence = 'Only an approver for resends can answer this request.';
+  try {
+    await page.route(ANSWER, (route: Route) => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_allowed', message: sentence } }) }));
+    await open(page);
+    const incident = refOf('X5c');
+    const request = await raise(page, user, rows, incident, []);
+    const { message } = await noticeOnPhone(page, user, request, incident, inMs(-120_000));
+    await approveOf(message).click();
+    await expect(message.getByText(sentence, { exact: true }), 'the answer line is the server\'s sentence, once').toHaveCount(1, { timeout: CARD_MS });
+    await expect(approveOf(message), 'Approve is gone').toHaveCount(0);
+    await expect.poll(() => announcedTexts(page).then((texts) => texts.filter((text) => text.includes(sentence)).length), { message: 'the sentence is announced once' }).toBe(1);
+    expect(await readApproval(request).then((one) => one.state), 'nothing was changed').toBe('pending');
+  } finally {
+    await page.unroute(ANSWER).catch(() => undefined);
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
   }
 });
 
@@ -1071,7 +1097,7 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
 /**
  * X14 (Story 21.10): a request that its MCP server's removal cancels. A pending MCP-form request shows its card, its rail row ("Run {tool} on
  * {server}") and its phone message with buttons. Approval.Cancel then cancels it with no Mcp.Server row of that name: within one live update the
- * rail row is gone, the card shows "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." in place of its buttons, the
+ * rail row is gone, the card shows "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." in place of its buttons, the
  * phone's line is the same text with no buttons, and a press through the answer route is a 404.
  */
 test('X14: a request that its removed MCP server cancels shows the cancelled status on the card and the phone, leaves the rail, and answers nothing', async ({ page }) => {
@@ -1101,14 +1127,14 @@ test('X14: a request that its removed MCP server cancels shows the cancelled sta
       [`Set sc=##class(OcuTalon.Bridge.Approval).Cancel(${quoted(request)})`, 'Write !,"CHK|cancel|",$System.Status.IsOK(sc)'].join('\n'),
     );
     expect(chk(lines, 'cancel'), 'the request is cancelled').toBe('1');
-    const status = /^Canceled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\.$/;
+    const status = /^Cancelled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\.$/;
     await expect(rowOfRequest(page, request), 'the rail row leaves within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
-    await expect(card.locator('p.status'), "the card's status says the server was removed").toHaveText(/Canceled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\./, { timeout: ONE_UPDATE_MS });
+    await expect(card.locator('p.status'), "the card's status says the server was removed").toHaveText(/Cancelled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\./, { timeout: ONE_UPDATE_MS });
     await expect(card.locator('.buttons'), 'in place of its buttons').toHaveCount(0);
     await expect
       .poll(() => phoneMessage(user, request).then((one) => one?.answer ?? ''), { message: "the phone's line is the cancelled text", timeout: PHONE_MS })
       .toMatch(status);
-    await expect(lineOf(message), 'on the phone too').toHaveText(/Canceled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\./, { timeout: CARD_MS });
+    await expect(lineOf(message), 'on the phone too').toHaveText(/Cancelled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\./, { timeout: CARD_MS });
     await expect(message.locator('.buttons'), 'with no buttons').toHaveCount(0);
     const press = await page.request.post(`/ocutalon/api/v1/approvals/${request}/answer`, { headers: envelope(), data: { action: 'approve', channel: 'web' } });
     expect(press.status(), 'a press through the answer route is a 404').toBe(404);

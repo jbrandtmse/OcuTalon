@@ -226,6 +226,8 @@ vieweruser=ZzViewer
 viewerpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 roletargetuser=ZzRoleTarget
 roletargetpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+approveruser=ZzApprover
+approverpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -293,7 +295,7 @@ fi
 # user role and the trace role for the specs of Story 2.9, which post messages for its session and open the links in Visual Trace, and
 # the links user holds the same two roles for the specs of Story 2.13, which do the same through the links on the page, and the
 # banners user holds the user role for the specs of Story 2.10, which publish status events on its session and read the banners.
-for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture" "$vieweruser|$viewerpassword|OcuTalonViewer|viewer fixture" "$roletargetuser|$roletargetpassword|OcuTalonUser|role-target fixture"; do
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture" "$vieweruser|$viewerpassword|OcuTalonViewer|viewer fixture" "$roletargetuser|$roletargetpassword|OcuTalonUser|role-target fixture" "$approveruser|$approverpassword|OcuTalonUser,OcuTalonApprover|approver fixture"; do
   fixture_name=${fixture%%|*}
   fixture_rest=${fixture#*|}
   fixture_password=${fixture_rest%%|*}
@@ -384,7 +386,7 @@ if [ -n "$part_label" ]; then
 fi
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/$viewerpassword/<redacted>/g; s/$roletargetpassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/$viewerpassword/<redacted>/g; s/$roletargetpassword/<redacted>/g; s/$approverpassword/<redacted>/g; s/^/  /"; }
 suite_unit=${unit_name#test-}
 echo "MEASURED live:$suite_unit suite budget $((remaining - 20)) s"
 suite_began=$SECONDS
@@ -421,6 +423,8 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_VIEWER_PASSWORD="$viewerpassword" \
   OCUTALON_ROLETARGET_USER="$roletargetuser" \
   OCUTALON_ROLETARGET_PASSWORD="$roletargetpassword" \
+  OCUTALON_APPROVER_USER="$approveruser" \
+  OCUTALON_APPROVER_PASSWORD="$approverpassword" \
   OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \

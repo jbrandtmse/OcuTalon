@@ -31,10 +31,11 @@ Include Ensemble
 ///   1. the greeting of the compose hour in the instance zone;
 ///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
 ///   3. digest.checkedQuiet when no entry is named, else digest.checked (each checked entry with "the " before it, except the name of a source row, which stands
-///      as the admin typed it), then the key of Render (with whatFailed, the entries that did not pass, failed
-///      first, for the two keys that name them), except that when no row failed, at least one is not checked and at least one passed (Render RestKey) the key of Render
+///      as the admin typed it, and the connected mailbox, which reads MAILBOXINSENTENCE), then the key of Render (with whatFailed, the entries that did not pass, failed
+///      first, for the two keys that name them, the connected mailbox again reading MAILBOXINSENTENCE: Story 22.13), except that when no row failed, at least one is not checked and at least one passed (Render RestKey) the key of Render
 ///      is replaced by the coverage line of each not-checked row, in row order, then checks.everythingElsePassed (Lead; Story 22.5); with nothing watched
-///      (the Mailbox row alone counts as nothing watched), digest.nothingWatched alone;
+///      (the Mailbox row alone counts as nothing watched), digest.nothingWatched alone. The coverage lines and the lead name the mailbox as the label "Mailbox"
+///      (Checks.Coverage ENTRYMAILBOX); only the two sentences, "I checked ..." and "Not everything: ...", say "the mailbox";
 ///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none (a tell-now or act Decision counts only when it was recorded at or after the Compose's WindowStart);
 ///   5. what was saved for later: digest.savedNone, digest.saved with the summary, or digest.savedNoSummary with the fallback reason;
 ///   6. digest.cost, the cost of yesterday (OcuTalon.Digest.Cost).
@@ -76,6 +77,10 @@ Parameter EVALSINK = "EvalSink";
 
 /// The seconds to wait for the lock of a session's digest.
 Parameter LOCKSECONDS = 5;
+
+/// How the connected mailbox reads inside the digest's two sentences, "I checked ..." and "Not everything: ..." (public text; Story 22.13). Everywhere else it is the label
+/// Checks.Coverage ENTRYMAILBOX.
+Parameter MAILBOXINSENTENCE = "the mailbox";
 
 /// The setting of the time of day of the scheduled digest, and its value when the setting cannot be read.
 Parameter TIMESETTING = "digest.time";
@@ -514,7 +519,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 		Set named = []
 		Set iterator = verdict.checked.%GetIterator()
 		While iterator.%GetNext(.position, .entry) {
-			Do named.%Push($Select(verdict.sources.%Get(position): entry, 1: "the "_entry))
+			Do named.%Push($Select(verdict.sources.%Get(position): entry, entry = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX: ..#MAILBOXINSENTENCE, 1: "the "_entry))
 		}
 		Do parts.%Push({"key": ($Select(verdict.named.%Size() = 0: "digest.checkedQuiet", 1: "digest.checked")), "slots": {"checked": (..Joined(named))}})
 		If lead.%Size() > 0 {
@@ -524,7 +529,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 			}
 			Do parts.%Push({"key": (##class(OcuTalon.Checks.Render).#KEYELSEPASSED), "slots": {}})
 		} Else {
-			Do parts.%Push({"key": (checkKey), "slots": ($Select(verdict.named.%Size() > 0: {"whatFailed": (..Joined(verdict.named))}, 1: {}))})
+			Do parts.%Push({"key": (checkKey), "slots": ($Select(verdict.named.%Size() > 0: {"whatFailed": (..Joined(..InSentence(verdict.named)))}, 1: {}))})
 		}
 	}
 	If needs.count > 0 {
@@ -614,6 +619,18 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	Do verdict.%Set("nothingWatched", nothingWatched, "boolean")
 	Do verdict.%Set("allClear", (checkKey = ##class(OcuTalon.Checks.Render).#KEYALLPASSED) && (vitalsPart.key = "digest.healthy") && (needs.count = 0), "boolean")
 	Quit $$$OK
+}
+
+/// The entries of names for a sentence: the connected mailbox (Checks.Coverage ENTRYMAILBOX; DW-1325 keeps a source from having that name) reads MAILBOXINSENTENCE, every
+/// other entry is unchanged (Story 22.13).
+ClassMethod InSentence(names As %DynamicArray) As %DynamicArray [ Private ]
+{
+	Set sentence = []
+	Set iterator = names.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Do sentence.%Push($Select(entry = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX: ..#MAILBOXINSENTENCE, 1: entry))
+	}
+	Quit sentence
 }
 
 /// The lead of the digest's checks part (Story 22.5): when Render RestKey of Render's ordered watched rows (those after the vital rows) is not "", the coverage lines

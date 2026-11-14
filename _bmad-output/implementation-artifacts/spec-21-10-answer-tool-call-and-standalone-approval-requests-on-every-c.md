@@ -225,7 +225,7 @@ deferred: []
 - Given an input holding a zero-width space, U+202E, U+E0041, U+2028, CR LF and a tab, when the request shows, then the web and Telegram show the one line `note: "a\u200Bb\u202Ec\uDB40\uDC41d\u2028e\u000D\u000Af\u0009g h"` (V10; `Test.Core.BridgeSink` `TestToolCallInputsVisible`; `TelegramOut` `TestToolCallFits`; X13 in the browser).
 - Given a pending MCP request that 22.4 cancels because its server was removed, when the cancellation arrives, then:
   - a press on any channel answers nothing;
-  - the phone and Telegram messages are edited to "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." with their buttons removed;
+  - the phone and Telegram messages are edited to "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." with their buttons removed;
   - the rail row leaves within one live update;
   - and the card shows that status in place of its buttons.
 
@@ -250,6 +250,8 @@ Stage code-review, 2026-11-14, single reviewer, on `git diff 51a716e48 3d4c521bf
 - Runs at this stage: `node --test web/scripts/` (pass), `bash docker/tests/test-readme.sh` (all rules passed), `bash docker/tests/test-boundaries.sh` (all rules passed). No ObjectScript class was patched, so no lane-C stack was started.
 
 ## Spec Change Log
+
+- 2026-11-14 (lead, after the 16:00Z hold): integrated onto feature (25.5, 22.13) as unions: the Core catalog count goes to 155, the answered keys to 19, the page texts to 70 and the answers cases to 25; catalog.ts was regenerated. The Contest Planner's ~16:10Z rulings are applied in this commit: V12 "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." (the key `answered.canceled` is unchanged), and the DW-1314 last sentence now says "as the MCP tools section below describes" (same pin). The stylesheet +244 B is accepted as a warning (DW-1337).
 
 - 2026-11-12 (lead, spec gate): Planner rulings E applied (split to 21.11 approved; V2-V7 approved; the V4 Telegram 4,096-character condition added as an AC with its approved line; T1, T2, toolCall.requestOnServer verbatim).
 - 2026-11-14 (plan, spec refresh, final; redoes a lost refresh; rulings `epic-21-rulings-20261113-1800.md` "## 21.10", ~02:00Z, ~05:30Z, ~07:20Z, the ~22:00Z StepBuffer note): every Code Map and task line re-read on OCT-epic21 e1eb0414. Task 0 settled: 22.4, 22.6 and 37.1 are merged; C1 is met. Folded in as tasks, each with an AC and a pin: DW-1232 (the web card of `mcp.replayToolChanged`; the phone and Telegram already render it), V8 (the Telegram over-long branch, three Lane A tests), V9 (`toolCall.inputsTooLong`), V10 (the pinned escape definition and its one test), V11 D1/D2/D3 with DW-1266, DW-1314 and DW-1315. Corrections found at the refresh: per-value redaction would miss key rules, so the whole object is redacted first (Decided 9); `Clean` folds spaces, so the `inputs` type uses `Visible` only, and the card keeps spaces (Decided 10); the 22.7 line is already pinned (Decided 12). Verification moved to lane C's commands with the doc rules and the bundle test. No new public text.
@@ -439,7 +441,7 @@ There is no new command, route, grant, role, privilege, table, column, retention
 
 **Reused (accepted):**
 - "Approval needed", "Run {tool} on {server}", "No dry run is available for this tool. Approving runs exactly this call once.", Approve, Reject, and the expiry ("Expires {when}");
-- `answered.canceled` "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." (Story 35.2; on the page it keeps its period, as EXPERIENCE :722 says; spelling: V12);
+- `answered.canceled` "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." (Story 35.2; on the page it keeps its period, as EXPERIENCE :722 says; spelling: V12);
 - `mcp.replayToolChanged` "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." (Story 22.4; now also on the web card);
 - "That request is no longer available."; `press.unavailable`.
 

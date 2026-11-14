@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { APPROVAL_TEXTS, answerOutcomeOf, approvalView, latePressText, requestsOf, resultView } = await import(app('approvals', 'approval-view.ts'));
+const { APPROVAL_TEXTS, answerOutcomeOf, approvalView, latePressText, refusalText, requestsOf, resultView } = await import(app('approvals', 'approval-view.ts'));
 const { renderPageText } = await import(app('msg', 'catalog.ts'));
 const { approvalTitle } = await import(app('rail', 'rail-view.ts'));
 const { pageTimeBeside, pageWhenBeside } = await import(app('chat', 'page-time.ts'));
@@ -99,12 +99,10 @@ describe('the fixes the user asks for in the chat (Story 23.2)', () => {
     assert.equal(approvalView(reroute({ state: 'approved' }), ctx()).dryRun.nothingYet, '', 'an answered request keeps the record without the note');
   });
 
-  it('reads a refusal of an item kind as the fixes text, whatever the server said, and any other as before', () => {
-    const body = { error: { code: 'not_allowed', message: 'Only an approver for resends can answer this request.' } };
-    assert.deepEqual(answerOutcomeOf(403, body, 'suspend_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
-    assert.deepEqual(answerOutcomeOf(403, body, 'resume_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
-    assert.deepEqual(answerOutcomeOf(403, body, 'reroute'), { kind: 'notAllowed', message: 'Only an approver for resends can answer this request.' });
-    assert.deepEqual(answerOutcomeOf(403, undefined, 'suspend_item'), { kind: 'notAllowed', message: 'Only an approver for fixes can answer this request.' });
+  it('reads a refusal as the server\'s sentence, whatever the kind of the request, and the fallback sentence when it gave none (Story 25.5)', () => {
+    const body = { error: { code: 'not_allowed', message: 'Only an approver for suspending and resuming items can answer this request.' } };
+    assert.deepEqual(answerOutcomeOf(403, body), { kind: 'notAllowed', message: 'Only an approver for suspending and resuming items can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, undefined), { kind: 'notAllowed', message: 'Only an approver can answer this request.' });
   });
 });
 
@@ -439,7 +437,7 @@ describe('an answered card', () => {
   it('reads a cancelled request of a removed MCP server as canceled, only with cancelledAt and server (Story 21.10)', () => {
     const tool = (over = {}) => pending({ kind: 'tool_call', state: 'cancelled', incidentRef: undefined, toolName: 'zz_t', dryRun: undefined, ...over });
     assert.deepEqual(approvalView(tool({ server: 'zzS', cancelledAt: '2026-10-27T14:20:00Z' }), ctx()).status, {
-      text: 'Canceled at 14:20: the MCP server zzS was removed. Nothing was changed.',
+      text: 'Cancelled at 14:20: the MCP server zzS was removed. Nothing was changed.',
       tone: 'rejected',
       icon: 'circle-slash',
     });
@@ -541,10 +539,11 @@ describe('the reading of the reply to a press', () => {
     assert.deepEqual(answerOutcomeOf(404, undefined), { kind: 'gone' });
   });
 
-  it('reads a 403 as not allowed, with the server\'s message for the kind, else the approver sentence', () => {
+  it('reads a 403 as not allowed, with the server\'s message, else the fallback approver sentence', () => {
     assert.deepEqual(answerOutcomeOf(403, { error: { code: 'not_allowed', message: 'Only an approver can answer this request.' } }), { kind: 'notAllowed', message: 'Only an approver can answer this request.' });
-    assert.deepEqual(answerOutcomeOf(403, { error: { code: 'not_allowed' } }), { kind: 'notAllowed', message: 'Only an approver for resends can answer this request.' });
-    assert.deepEqual(answerOutcomeOf(403, 'forbidden'), { kind: 'notAllowed', message: 'Only an approver for resends can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, { error: { code: 'not_allowed', message: 'Only an OcuTalon admin can approve this email.' } }), { kind: 'notAllowed', message: 'Only an OcuTalon admin can approve this email.' });
+    assert.deepEqual(answerOutcomeOf(403, { error: { code: 'not_allowed' } }), { kind: 'notAllowed', message: 'Only an approver can answer this request.' });
+    assert.deepEqual(answerOutcomeOf(403, 'forbidden'), { kind: 'notAllowed', message: 'Only an approver can answer this request.' });
   });
 
   it('reads status 0 as unreachable, and any other status as the server\'s own message, else unreachable', () => {
@@ -753,8 +752,7 @@ describe('the texts', () => {
       partnerKept: "Approved and kept as a draft: email delivery isn't set up yet.",
       partnerNotSent: 'Not sent: {reason}.',
       expires: 'Expires {when}',
-      notApprover: 'Only an approver for resends can answer this request.',
-      notApproverFix: 'Only an approver for fixes can answer this request.',
+      notApprover: 'Only an approver can answer this request.',
       gone: 'That request is no longer available.',
       busyNotice: "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
       nounOne: 'message',
@@ -764,6 +762,50 @@ describe('the texts', () => {
 
   it('are printable ASCII', () => {
     for (const text of Object.values(APPROVAL_TEXTS)) assert.ok(!/[^\x20-\x7e]/.test(text), text);
+  });
+});
+
+describe('a request that the signed-in user may not answer (Story 25.5)', () => {
+  const SENTENCES = {
+    resend: 'Only an approver for resends can answer this request.',
+    reroute: 'Only an approver for reroutes can answer this request.',
+    suspend: 'Only an approver for suspending and resuming items can answer this request.',
+    rollback: 'Only an approver for rollbacks can answer this request.',
+    partner: 'Only an approver for partner notices can answer this request.',
+    email: 'Only an approver for emails can answer this request.',
+    tool: 'Only an approver for tool calls can answer this request.',
+  };
+  const FALLBACK = 'Only an approver can answer this request.';
+
+  it('has the sentence of each of the seven kinds, and the fallback for no kind, an unknown one and a kind that is not 1 to 32 lower-case letters or _', () => {
+    for (const [kind, text] of Object.entries(SENTENCES)) assert.equal(refusalText(kind, renderPageText), text, kind);
+    for (const kind of [undefined, '', 'zz_new', 'Bad', 'RESEND', 'resend ', 're-send', 'setting', 'fix', '_', 'a'.repeat(33), 'a'.repeat(40)]) {
+      assert.equal(refusalText(kind, renderPageText), FALLBACK, String(kind));
+    }
+    assert.equal(refusalText(7, renderPageText), FALLBACK, 'a kind that is no string');
+  });
+
+  it('asks the page\'s catalog for answered.notApprover and the kind with a capital first letter, and for the fallback key when that throws', () => {
+    const asked = [];
+    const render = (key) => {
+      asked.push(key);
+      if (key === 'answered.notApproverZz_new') throw new Error('no such key');
+      return key;
+    };
+    assert.equal(refusalText('resend', render), 'answered.notApproverResend');
+    assert.equal(refusalText('zz_new', render), 'answered.notApprover');
+    assert.equal(refusalText(undefined, render), 'answered.notApprover');
+    assert.deepEqual(asked, ['answered.notApproverResend', 'answered.notApproverZz_new', 'answered.notApprover', 'answered.notApprover']);
+  });
+
+  it('has a cannotAnswer text only while the request is pending and the payload says answerable is false (an absent answerable is answerable)', () => {
+    assert.equal(approvalView(pending({ answerable: false, approverKind: 'reroute' }), ctx()).cannotAnswer, SENTENCES.reroute);
+    assert.equal(approvalView(pending({ answerable: false }), ctx()).cannotAnswer, FALLBACK, 'with no kind: the fallback');
+    assert.equal(approvalView(pending({ answerable: false, approverKind: 'zz_new' }), ctx()).cannotAnswer, FALLBACK, 'an unknown kind: the fallback');
+    assert.equal(approvalView(pending({ answerable: true, approverKind: 'reroute' }), ctx()).cannotAnswer, '', 'answerable true');
+    assert.equal(approvalView(pending(), ctx()).cannotAnswer, '', 'no answerable');
+    assert.equal(approvalView(answered('approved', { answerable: false, approverKind: 'reroute' }), ctx()).cannotAnswer, '', 'an answered request');
+    assert.equal(approvalView(pending({ answerable: false }), ctx()).pending, true, 'it is still a pending request');
   });
 });
 

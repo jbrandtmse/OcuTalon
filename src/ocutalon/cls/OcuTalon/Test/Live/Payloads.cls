@@ -1261,7 +1261,9 @@ XData Contracts [ MimeType = application/json ]
    "Server": "%String(%JSONFIELDNAME=server,MAXLEN=512)",
    "CancelledAt": "%String(%JSONFIELDNAME=cancelledAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
-   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)",
+   "Answerable": "%Boolean(%JSONFIELDNAME=answerable)",
+   "ApproverKind": "%String(%JSONFIELDNAME=approverKind,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.BreakFeedProgress": {

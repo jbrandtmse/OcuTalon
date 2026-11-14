@@ -248,7 +248,7 @@ Signing in with Google or Microsoft 365 is optional, and these steps are for you
 
 If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
 
-All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
+All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
 
 ## Stop, start and update
 
@@ -281,6 +281,8 @@ These are the usual causes and fixes. Most entries are messages that `./install.
 **The sign-in is refused**: use user name `ocutalon` and password `ocutalon`, or the new password if you changed it. To set a new one, see [Change the README account's password](#change-the-readme-accounts-password).
 
 ## For admins and developers
+
+An MCP tool that runs operating-system commands or arbitrary code must be classified Risky. The worked example [A Jira MCP server, step by step](docs/mcp-jira-example.md) shows how to add a server and classify its tools.
 
 ### Demo mode
 

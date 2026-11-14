@@ -5,7 +5,8 @@
 ///   - TestApprovedAndRejected: a press from the paired chat on the session's visible request gives approved with the dry run's slots
 ///     {count, itemNoun}, or rejected with none; Answer gets the channel telegram, the session's Ref and the session's request Ref, never
 ///     the ChatRef or the chat id (DW-200), and the IRIS user is the session's;
-///   - TestOtherAnswers: already_answered {action, channel, time}, expired {time} and not_allowed {kind} carry their slots;
+///   - TestOtherAnswers: already_answered {action, channel, time}, expired {time} and not_allowed {kind} carry their slots, the kind being the one that the role check
+///     (rule 6) or the answer's own refusal names, and {"kind": ""} when none is named; a refusal by the role check answers nothing and leaves the request as it was;
 ///   - TestNoPairing: an unknown ChatRef, a code row's Ref, a case-changed ChatRef and an unpaired chat are not_paired with no hand-over;
 ///   - TestBadSessionRefIsNotAllowed (DW-200): a chat row whose SessionRef is not a Ref answers not_allowed with {} and hands nothing over;
 ///   - TestNotVisibleAndUnknown: another session's request is not_visible; an unknown, a cancelled and a malformed Ref, another
@@ -84,7 +85,7 @@ Method TestApprovedAndRejected()
 }
 
 /// already_answered carries the winner {action, channel, time}, expired the request's ExpiresAt as {time}, and not_allowed (the session's
-/// user lacks the role) the request's kind as {kind}.
+/// user lacks the role) the approver kind that the refusal names as {kind}: "" when the answer itself refuses, the scripted kind when the role check does.
 Method TestOtherAnswers()
 {
 	Set session = ..Session("a")
@@ -98,7 +99,13 @@ Method TestOtherAnswers()
 	Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "expired|{""time"":""2030-01-02T09:00:00Z""}", "expired, with the request's ExpiresAt")
 	Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin("not_allowed")
 	Do ..Press(request, "approve", chat, .code, .slots)
-	Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_allowed|{""kind"":""fix""}", "not_allowed, with the kind")
+	Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_allowed|{""kind"":""""}", "not_allowed from the answer, with no kind (the request's own kind is never the slot)")
+	Do ##class(OcuTalon.Test.Core.ApprovalDouble).Begin("done")
+	Do ##class(OcuTalon.Test.Core.ApprovalDouble).May(request, 0, "reroute")
+	Do ..Press(request, "approve", chat, .code, .slots)
+	Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_allowed|{""kind"":""reroute""}", "not_allowed from the role check, with the kind that it names")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Calls(), 0, "and nothing was answered")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "pending", "so the request is still pending")
 }
 
 /// A chat with no live pairing is not_paired with {} and AnswersIn is not called: an unknown ChatRef, a code row's Ref, a case-changed

@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 145 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 154 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -81,8 +81,8 @@ Method TestEntries()
 	// Story 35.3 (Contest Planner ruling 2026-11-11, PUBLIC TEXT T1-T3): settings.webhooksOffOnDemo, webhookBadName and webhookBadSecret take the Core count to 143.
 	// Story 21.7 (Contest Planner ruling 2026-11-12, PUBLIC TEXT E1): email.digestSubject takes the Core count to 144.
 	// Story 21.4 (Contest Planner ruling 2026-11-12, PUBLIC TEXT T1): settings.mcpOffOnDemo takes the Core count to 145.
-	// Story 21.10 (Contest Planner ruling 2026-11-13, PUBLIC TEXT V9): toolCall.inputsTooLong takes the Core count to 146.
-	Do $$$AssertEquals(keys.core.%Size(), 146, "the expected Core list has 146 keys")
+	// Story 21.10 (Contest Planner ruling 2026-11-13, PUBLIC TEXT V9): toolCall.inputsTooLong, and Story 25.5 (Contest Planner ruling 2026-11-13, PUBLIC TEXT 1 to 9): the nine answered.notApprover* and answered.notAdmin keys, take the Core count to 155.
+	Do $$$AssertEquals(keys.core.%Size(), 155, "the expected Core list has 155 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -90,7 +90,7 @@ Method TestEntries()
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
 	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 146 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 155 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -129,7 +129,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 224 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 233 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "webhook,slack,system,heartbeat", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -1115,6 +1115,15 @@ XData Keys [ MimeType = application/json ]
   "answered.alreadyRejected",
   "answered.alreadyApprovedBy",
   "answered.alreadyRejectedBy",
+  "answered.notApproverResend",
+  "answered.notApproverReroute",
+  "answered.notApproverSuspend",
+  "answered.notApproverRollback",
+  "answered.notApproverPartner",
+  "answered.notApproverEmail",
+  "answered.notApproverTool",
+  "answered.notApprover",
+  "answered.notAdmin",
   "conversation.turnFallback",
   "conversation.dailyCap",
   "conversation.sessionAllowance",
@@ -1587,6 +1596,15 @@ XData Fixtures [ MimeType = application/json ]
  "answered.alreadyRejected": {"slots": {"channel": "telegram", "time": "2026-10-16T18:15:00Z"}, "text": "Already answered: rejected from Telegram at 14:15 ET."},
  "answered.alreadyApprovedBy": {"slots": {"user": "sam", "channel": "phone", "time": "2026-10-16T18:15:00Z"}, "text": "Already answered: approved by sam from the simulated phone at 14:15 ET."},
  "answered.alreadyRejectedBy": {"slots": {"user": "sam", "channel": "web", "time": "2026-10-16T18:15:00Z"}, "text": "Already answered: rejected by sam from the web chat at 14:15 ET."},
+ "answered.notApproverResend": {"slots": {}, "text": "Only an approver for resends can answer this request."},
+ "answered.notApproverReroute": {"slots": {}, "text": "Only an approver for reroutes can answer this request."},
+ "answered.notApproverSuspend": {"slots": {}, "text": "Only an approver for suspending and resuming items can answer this request."},
+ "answered.notApproverRollback": {"slots": {}, "text": "Only an approver for rollbacks can answer this request."},
+ "answered.notApproverPartner": {"slots": {}, "text": "Only an approver for partner notices can answer this request."},
+ "answered.notApproverEmail": {"slots": {}, "text": "Only an approver for emails can answer this request."},
+ "answered.notApproverTool": {"slots": {}, "text": "Only an approver for tool calls can answer this request."},
+ "answered.notApprover": {"slots": {}, "text": "Only an approver can answer this request."},
+ "answered.notAdmin": {"slots": {}, "text": "Only an OcuTalon admin can approve this email."},
  "conversation.turnFallback": {"slots": {"fallbackReason": "timeout"}, "text": "I couldn't answer that: the model didn't answer within the time allowed. Nothing was changed."},
  "conversation.dailyCap": {"slots": {"time": "2026-10-17T04:00:00Z", "readmeLink": "https://example.com/ocutalon-readme"}, "text": "The online demo has used today's model allowance. Decisions use fixed rules until Saturday at 00:00 ET. You can install OcuTalon yourself to keep going: https://example.com/ocutalon-readme"},
  "conversation.sessionAllowance": {"slots": {"limit": 50, "time": "2026-10-16T19:02:00Z", "readmeLink": "https://example.com/ocutalon-readme"}, "text": "You've used this session's 50 messages for the hour. You can send more at 15:02 ET, or install OcuTalon yourself to keep going: https://example.com/ocutalon-readme"},
@@ -1822,7 +1840,7 @@ XData Fixtures [ MimeType = application/json ]
  "settings.sourceInterval": {"slots": {}, "text": "Check every"},
  "settings.sourceNotReadOnly": {"slots": {}, "text": "Only a Read-only tool can be a source."},
  "settings.sourceBadArguments": {"slots": {}, "text": "Enter the arguments as a JSON object. Nothing was changed."},
- "answered.canceled": {"slots": {"time": "2026-10-16T18:15:00Z", "server": "Tickets"}, "text": "Canceled at 14:15 ET: the MCP server Tickets was removed. Nothing was changed."}
+ "answered.canceled": {"slots": {"time": "2026-10-16T18:15:00Z", "server": "Tickets"}, "text": "Cancelled at 14:15 ET: the MCP server Tickets was removed. Nothing was changed."}
 }
 }
 
