@@ -33,6 +33,10 @@ Parameter MAXLABEL = 200;
 /// The longest summary: the MAXLEN of OcuTalon.Bridge.Msg.AgentStep.Summary.
 Parameter MAXSUMMARY = 1000;
 
+/// The name of the tool that sends email. A step of a tool of this name shows its inputs as the name and the number of recipients alone (InputsOf), because the recipients, the subject and
+/// the text of an email are never in the trace except in the message that sends it to the mailbox's own address.
+Parameter EMAILTOOL = "send_email";
+
 /// Empties the buffer and starts a call: the base of every estimate and the clock mark.
 ClassMethod Start(baseChars As %Integer = 0)
 {
@@ -98,8 +102,8 @@ ClassMethod Estimates() As %List
 /// when there is no buffer. Call it after Chat, outside every callback.
 ///   - A model step: kind model, label "Model request <n>", summary "About <t> tokens sent (an estimate). Reply: <c> characters of
 ///     text, <k> tool calls.", where k counts the tool steps that follow it before the next model step, status ok.
-///   - A tool step: kind tool, the label of its class (LabelFor), summary "<name>. Inputs: <arguments>. Result: <result>." (the inputs of a call of the governed proxy are its server and tool alone, InputsOf; or "Error:
-///     <detail>." or "Denied: <detail>."), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
+///   - A tool step: kind tool, the label of its class (LabelFor), summary "<name>. Inputs: <arguments>. Result: <result>." (the inputs of a call of the governed proxy are its server and tool alone, and those of
+///     the email tool its name and the number of its recipients alone, InputsOf; or "Error: <detail>." or "Denied: <detail>."), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
 ///     arguments and the result or detail in tokens.
 ClassMethod Records() As %DynamicArray
 {
@@ -140,13 +144,15 @@ ClassMethod Records() As %DynamicArray
 /// The inputs of a tool step as the record shows them: the arguments as they are, except for an MCP call and a call of the governed proxy (Story 22.3), whose arguments hold the
 /// inputs of an MCP tool, which a step record never shows (the Contest Planner's condition (d) and the AC on step records): only its server and its tool, as JSON text. For a call
 /// of the proxy they are the server and the tool of its arguments (a JSON object with both, else ""); for an MCP call (the toolClass is its toolref, or rerouted names its server)
-/// they are the call's name and the host's name for the server when there is one.
+/// they are the call's name and the host's name for the server when there is one. A call of the email tool (EMAILTOOL, not an MCP call) shows the tool's name and the number of its
+/// recipients alone, as {"tool":"send_email","recipients":<n>} (the number is left out when the arguments hold no recipients array): never an address, the subject or the text.
 ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String, rerouted As %String = "") As %String [ Private ]
 {
 	If (rerouted '= "") || ($ZConvert($Extract(toolClass, 1, 4), "L") = "mcp:") {
 		Set server = $Select(rerouted '= "": rerouted, 1: ##class(OcuTalon.Bridge.Context).McpServerOf(toolClass))
 		Quit $Select(server '= "": {"server": (server), "tool": (name)}.%ToJSON(), 1: {"tool": (name)}.%ToJSON())
 	}
+	If name = ..#EMAILTOOL Quit ..EmailInputs(arguments)
 	If name '= $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPROXY") Quit arguments
 	Set inputs = ""
 	Try {
@@ -156,6 +162,19 @@ ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String
 		Set inputs = ""
 	}
 	Quit inputs
+}
+
+/// The inputs of a step of the email tool: its name and the number of the entries of the arguments' recipients array, as JSON text, and nothing else of the arguments. Arguments that are
+/// not a JSON object, or hold no recipients array, give the name alone.
+ClassMethod EmailInputs(arguments As %String) As %String [ Private ]
+{
+	Set inputs = {"tool": (..#EMAILTOOL)}
+	Try {
+		Set object = {}.%FromJSON(arguments)
+		If $IsObject(object) && (object.%GetTypeOf("recipients") = "array") Do inputs.%Set("recipients", object.recipients.%Size(), "number")
+	} Catch {
+	}
+	Quit inputs.%ToJSON()
 }
 
 /// The host's name for the server of the step of a native MCP call that the gate rewrote into a call of the proxy (Context NoteRerouted), or "" for any other step. AI Hub hands the

@@ -164,6 +164,7 @@ Roles and accounts:
 - `OcuTalonAdmin` switches demo mode with the documented terminal command.
 - `OcuTalonTraceViewer` is the trace role: Use on the four `%Ens_*` resources, Read on the data and code databases, `SELECT` on `Ens.MessageHeader`, and nothing on the private database.
 - Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text.
+- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it.
 - The local (README) account holds all three roles. The online demo account holds `OcuTalonUser` and `OcuTalonTraceViewer`. The read-only account holds `OcuTalonTraceViewer` alone.
 - The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly seven: the six trace and message-viewer pages and `%CSP.Broker`. It can't use the OcuTalon page or its API.
 - As the Privileges tables show, no OcuTalon role holds `%All`.

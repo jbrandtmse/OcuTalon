@@ -6,8 +6,8 @@
 ///     for an exception. It reads only the call's recipients, subject and text, the stored product keys email.address and email.owner (Data.Setting.Fresh) and the context's OwnerRef.
 ///   - Raise refuses before it raises anything, with Channel.Email.Out's sentence: on the online demo (MESSAGEUNAVAILABLE), with no mailbox address (MESSAGENOTCONNECTED) and for
 ///     parameters that CheckParameters or the dry run refuses (MESSAGEREFUSED; the dry run also refuses recipients too long for a SendEmail command). Otherwise it raises one fix request with no incident and ResultTarget FixExecutor through Approval.Raise.
-///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef, the owner's session, the subject and the text and no recipients (EmailOut
-///     reads them from the request's row), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
+///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef and the owner's session and nothing else: no recipients, no subject and no text
+///     (EmailOut reads all three from the request's row, so that none of them is in the command or in the trace), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
 ///   - MayApprove is the interim approver rule of an email request (DW-1262): an approval of an email to anyone but the owner's own address is answered only by a holder of the role
 ///     OcuTalonAdmin. AnswerOps asks it before every approve.
 ///   - Audit writes the one Action entry of a send (tool or approved): the action email, the target EmailOut, the outcome, the number of recipients sent to and, for an approved send, the IRIS user who approved it (AD-17). It holds no address, subject or text.
@@ -182,8 +182,9 @@ ClassMethod AsApproved(dryRun As %DynamicObject, parameters As %DynamicObject) A
 	Quit same
 }
 
-/// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner, the parameters' subject and text and
-/// no recipients: EmailOut takes the recipients from the approval's row, so that no address is in the command or in its trace (DW-1255). result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
+/// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner and nothing else: no recipients, no subject and
+/// no text. EmailOut takes all three from the approval's row, so that no address, subject or text is in the command or in its trace (DW-1255 rule 4, P4 (a)); parameters is only the
+/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
 	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
@@ -192,8 +193,6 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
 	Set command.SessionRef = row.OwnerRef
 	Set command.ApprovalRef = row.Ref
-	Set command.Subject = parameters.subject
-	Set command.Text = parameters.text
 	Set answered = ""
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .answered)
 	If $$$ISERR(sc) || '$IsObject(answered) Quit $$$OK

@@ -13,6 +13,9 @@
 ///   - TestRecords: the shape and the wording of the records: a model step counts the tool steps after it and has the status ok; a tool
 ///     step has the label of its class, the name, the inputs and the result, an estimate of its own and its duration; an error and a
 ///     denial have their own wording; a step buffer that ended has no records;
+///   - TestEmailStepShowsOnlyItsRecipientCount (Story 22.7): a step of the email tool (send_email) shows its inputs as {"tool":"send_email","recipients":<n>} and nothing of its arguments, in an ok, an
+///     error and a denied step, for arguments that are not an object or hold no recipients array, and its result and denial are the fixed words that the tool and the gate give; an MCP call named
+///     send_email keeps the MCP rule (its server and tool alone), and any other tool's inputs are as they were; the buffer's EMAILTOOL is the Chat tool's name (OcuTalon.Tools.Names SENDEMAIL);
 ///   - TestLabels: the label of a tool is the parameter STEPLABEL<NAME> of its class, else STEPLABEL, else "Running a tool", for the name
 ///     with _ and - removed and in upper case; a class that does not exist and an empty class give the generic label;
 ///   - TestAudit: %LogExecution records the arguments as a string and as an object, the class from the metadata, the result_json, the
@@ -187,6 +190,52 @@ Method TestRecords()
 	Do $$$AssertEquals(records.%Get(5).label, "Model request 3", "and the third")
 	Do $$$AssertEquals($ListToString($ClassMethod(buffer, "Estimates")), "0,34,34", "the estimates of the model steps, in order")
 	Do $$$AssertEquals($ClassMethod(buffer, "Tokens", 0)_"|"_$ClassMethod(buffer, "Tokens", 1)_"|"_$ClassMethod(buffer, "Tokens", 4)_"|"_$ClassMethod(buffer, "Tokens", 5), "0|1|1|2", "a count of characters is a count of tokens at 4 a token, rounded up")
+}
+
+/// Story 22.7: no address, subject or text of an email is in a step record. A step of send_email shows {"tool":"send_email","recipients":<n>} as its inputs, whatever its status; the recipients are
+/// counted when the arguments hold a recipients array and left out otherwise. The result of the tool (ok, outcome and one fixed sentence) and the denial of the gate (a fixed sentence) are shown as
+/// they are and hold no address, subject or text. A call of an MCP tool that happens to be named send_email keeps the MCP rule (the server and the tool alone, never the recipients), and the inputs
+/// of every other tool are the arguments as they are.
+Method TestEmailStepShowsOnlyItsRecipientCount()
+{
+	Set buffer = ..#BUFFER
+	Set address = "zzsteps.partner@example.test"
+	Set second = "zzsteps.second@example.test"
+	Set subject = "zzstepssubject marker"
+	Set text = "zzstepstext marker of the email"
+	Set arguments = {"recipients": [(address), (second)], "subject": (subject), "text": (text)}.%ToJSON()
+	Set answer = {"message": "The email was sent.", "ok": true, "outcome": "sent"}.%ToJSON()
+	Set tool = "OcuTalon.Tools.EmailTools"
+	Do $ClassMethod(buffer, "Start", 0)
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, answer, 5, "ok", "")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, "", 0, "denied", "Tool access denied: held for your approval; nothing was run")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, "", 2, "error", "The tool failed")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, {"recipients": [(address)], "subject": (subject), "text": (text)}.%ToJSON(), answer, 5, "ok", "")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, {"recipients": [], "subject": (subject), "text": (text)}.%ToJSON(), answer, 5, "ok", "")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, {"recipients": (address), "subject": (subject), "text": (text)}.%ToJSON(), "", 0, "denied", "refused")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, "not an object, "_address_" "_subject, "", 0, "denied", "refused")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, "[""" _ address _ """]", "", 0, "denied", "refused")
+	Do $ClassMethod(buffer, "Tool", "send_email", "", arguments, answer, 5, "ok", "")
+	Do $ClassMethod(buffer, "Tool", "send_email", "mcp:zzsteps", arguments, "", 0, "denied", "refused")
+	Do $ClassMethod(buffer, "Tool", "zz_other", "", arguments, "", 0, "denied", "refused")
+	Set records = $ClassMethod(buffer, "Records")
+	Do $ClassMethod(buffer, "End")
+	Do $$$AssertEquals($Parameter(buffer, "EMAILTOOL"), $Parameter("OcuTalon.Tools.Names", "SENDEMAIL"), "the buffer's email tool is the name of the Chat tool that sends email")
+	Do $$$AssertEquals(records.%Size(), 11, "eleven steps")
+	If records.%Size() '= 11 Quit
+	Set inputs = $ListBuild("{""tool"":""send_email"",""recipients"":2}", "{""tool"":""send_email"",""recipients"":2}", "{""tool"":""send_email"",""recipients"":2}", "{""tool"":""send_email"",""recipients"":1}", "{""tool"":""send_email"",""recipients"":0}", "{""tool"":""send_email""}", "{""tool"":""send_email""}", "{""tool"":""send_email""}", "{""tool"":""send_email"",""recipients"":2}", "{""tool"":""send_email""}", arguments)
+	Set names = $ListBuild("an ok step", "a denied step", "an error step", "one recipient", "an empty recipients array", "recipients that are a string", "arguments that are not an object", "arguments that are an array", "a call with no class", "an MCP call named send_email", "another tool")
+	For i = 1:1:11 {
+		Set summary = records.%Get(i - 1).summary
+		Set start = $Select(i = 11: "zz_other", 1: "send_email") _ ". Inputs: " _ $List(inputs, i) _ ". "
+		Do $$$AssertEquals($Extract(summary, 1, $Length(start)), start, $List(names, i) _ ": the inputs are " _ $List(inputs, i))
+		If i < 11 Do $$$AssertEquals(($ZConvert(summary, "L") [ "example.test") _ "|" _ (summary [ "zzstepssubject") _ "|" _ (summary [ "zzstepstext"), "0|0|0", $List(names, i) _ ": the summary holds no address, subject or text")
+	}
+	Set resultPart = ". Result: " _ answer _ ". "
+	Set deniedPart = ". Denied: Tool access denied: held for your approval; nothing was run. "
+	Do $$$AssertTrue(records.%Get(0).summary [ resultPart, "the tool's answer is the result, as it is: fixed words only")
+	Do $$$AssertTrue(records.%Get(1).summary [ deniedPart, "and the gate's denial is as it is")
+	Do $$$AssertTrue(records.%Get(10).summary [ address, "another tool's inputs are its arguments as they are")
 }
 
 /// The label of a tool.
