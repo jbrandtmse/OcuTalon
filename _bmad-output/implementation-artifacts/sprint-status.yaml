@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-14-2026 20:24 UTC
+last_updated: 11-14-2026 21:45
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -380,6 +380,7 @@ development_status:
   25-4-assign-approver-and-viewer-roles-in-settings: done
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: done
   25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
+  25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block: done
   epic-25-retrospective: optional
 
   epic-26: in-progress
@@ -460,7 +461,7 @@ development_status:
   35-3-send-events-to-ocutalon-through-a-webhook: done
   epic-35-retrospective: optional
 
-  epic-36: in-progress
+  epic-36: done
   36-1-record-the-setting-history-of-each-watched-production: done
   36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql: done
   36-4-set-the-on-call-person-and-backup-in-settings: done
@@ -468,6 +469,7 @@ development_status:
   36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages: done
   36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when: done
   36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun: done
+  36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o: done
   epic-36-retrospective: optional
 
   epic-37: done

@@ -370,3 +370,4 @@
 2026-11-14T19:46:28Z	Story 21.5	stage_spawned	stage=code-review spawn_at=2026-11-14T19:46:28Z model=opus effort=high agent_name=21-5-code-review-1 cycle_iteration=1
 2026-11-14T20:28:41Z	Story 21.5	cr_complete	model=opus review_tier=full-opus findings=24 high=0 med=1(B11/B12_not_self-contained;patched) low=13(10_patched;DW-1351_wontfix-accepted) rejected=10 unresolved_high_med=0 final_status=done checks=McpSettingsApi,sign-in-2_9/12,node_2102,tsc,class-rules,boundaries_pass bundle=888.96kB
 2026-11-14T20:28:41Z	Story 21.5	parked	reason=QUOTA_HOLD_NOW(19:48Z) boundary=after_code-review next=smoke,fresh_check,integrate_feature(42e7b3ec+)_and_OCT-epic21_records(0e7427a77),re-run_checks,push,PART_READY
+2026-11-14T21:45:46Z	Epic 21	integrated	merged=OCT-epic21-s215(21.5)+feature_a6821f1d4(21.10_merge_42e7b3ec_and_later) conflicts=cycle-log(union),sprint-status(feature_side,re-set_21-5_done) spine=auto-merged generated=catalog.ts,payloads.ts_regenerated_identical

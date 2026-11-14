@@ -4159,3 +4159,36 @@
 2026-11-14T15:56:57Z	Epic 36	epic_merged_to_feature	part=36.3 feature_sha=6899e3e5 pushed_before_hold=15:56:51Z merged_tree_pins=test-readme_pass ci=own_run(started_pre-hold,may_finish) epic-36=done(runner_close;completion_head_9d389150_CI_open)
 2026-11-14T16:01:29Z	Run	hold_ordered	reason=QUOTA_HOLD_16:00Z(Contest_Planner,owner) via=<state>/HOLD
 2026-11-14T16:01:29Z	Run	hold_complete	feature=6899e3e5(ci_43612889290+lane-a_43612889274_queued,started_pre-hold) lanes: A25=07a667de(merged;records_68e7be18->hold/OCT-epic25-20261114) A26=8ab6a725(merged;WIP_32472435@hold/OCT-epic26;next_26.2_implement) B36=9d389150(epic_done;ci_43606743361_shards-5_red_DW-333?;records_5ecbf7d16@hold/OCT-epic36) C21=f82fb8c17(21.10_pushed;ci_43611736264/267_running;needs_integrate_over_f403bf66+;records_s2115_662749d3@hold/OCT-epic21-s2115) D22=16772e40(merged;spec_1a07b522@hold/OCT-epic22;next_22.11_implement) worktrees=clean runners=all_ended locks=none lock=kept
+2026-11-14T16:01:50Z	Run	ci_cancelled	runs=43613317207,43613317041(records-only_23fafe59;hosted_jobs_only_started;no_self-hosted_stack) reason=hold+records_only
+2026-11-14T16:02:41Z	Run	owner_decision	via=contest_planner reload_timeouts=check_handler+traces_first(then_DW-333_rerun_or_STOP) V12=Cancelled_text(21.10) DW-1314_pointer=MCP_tools_section(21.10) css_+244B=warning_accepted(DW-1337_low)
+2026-11-14T16:38:19Z	Run	hold_off	via=contest_planner(owner) hold-clear=done next_hold=20:00Z account_unchanged(80pct@16:37Z)
+2026-11-14T16:39:23Z	Run	resume_after_hold	C=21.10_integrate(+V12,DW-1314_pointer) D=22.11_implement A26=26.2_implement B=reload_check_then_rerun+completion A25=DW-1335_as_25.7 reminders=19:43Z,20:01Z
+2026-11-14T16:39:45Z	Run	owner_decision	via=contest_planner next_hold_moved_20:00Z->21:00Z reminders=20:43Z,21:01Z
+2026-11-14T16:45:26Z	Epic 36	runner_complete	epic=36 stories=36.1-36.7 head=0805a1bd(records;code=feature) reload_check=handler_cleared(ERR_NETWORK_CHANGED_on_CI_host=DW-333) ci=9d389150_green(att2_by_identity) slip=traces_copied_to_owner_machine_then_deleted(logged) records_runs=not_cancelled(self-hosted_jobs_live)
+2026-11-14T16:45:26Z	Epic 36	tracker_set	epic-36=done
+2026-11-14T16:45:48Z	Epic 36	owner_decision	via=contest_planner close_accepted trace_slip_check_requested 36.8=DW-1287_approved no_new_epic_laneB(81pct_weekly)
+2026-11-14T16:52:22Z	Run	owner_decision	via=contest_planner 21:00Z_hold_CANCELLED trigger=weekly_usage_95pct("QUOTA HOLD NOW") reminders_cancelled
+2026-11-14T18:17:28Z	Epic 36	runner_reported	PART_READY story=36.8 head=8009b184 runs=43622582261,43622582258 DW-1287=resolved baseline=4_Session_reads DW-1338,1339=decision-pending trace_check=fake_creds_only(compose.ci.yml:7,24,29) iris_query=default_profile(localhost:52773_community_container;not_ocutalon-aihub-test_52779)
+2026-11-14T18:17:28Z	Epic 36	ci_green_verified	sha=8009b184
+2026-11-14T18:17:28Z	Epic 36	merge_enqueued	part=36.8 head=8009b184
+2026-11-14T18:21:08Z	Epic 36	epic_merged_to_feature	part=36.8 feature_sha=cf3fee0ee merged_tree_pins=class-rules,boundaries,ci-config,readme_pass verified_on_origin=yes ci=own_run
+2026-11-14T18:21:47Z	Epic 36	owner_decision	via=contest_planner 36.8: DW-1338=accept_4_baselined(low_DW;new_entries_need_ruling) DW-1339=low_post-contest V2=AD-13_sentence_approved trace_case_closed MCP_profile_rule=explicit_profile_never_shared
+2026-11-14T18:27:49Z	Epic 36	epic_merged_to_feature	part=36.8_spine_V2+records feature_sha=eabc5a8db code_change=none(spine+records) lint=10_baseline
+2026-11-14T18:27:49Z	Epic 36	runner_complete	epic=36 stories=36.1-36.8 runner=aa9ed365494c41f91 state=waiting(no_new_epic,quota)
+2026-11-14T18:56:25Z	Epic 26	runner_reported	PLANNER_REPORT story=26.2 head=66b8b113(hold_ref) open=DW-1343(PDF_turn_untrusted_not_Tainted;gate_refuses_UNTRUSTED;options_A/B/C) resolved=DW-1340,1341,1270,1321 ext=ci/mock/mock.mjs(base64_overflow) orchestrator_grant=mock_ext_under_V6
+2026-11-14T18:57:01Z	Epic 26	owner_decision	via=contest_planner DW-1343=option_A+pin(propose_fix_no_approval,call_mcp_tool_risky_refused,no_changing_tool;cite_or_add;else_STOP)+AD-10_sentence mock_ext_granted PHOTOASK_approved DW-1345_accepted 60s_unmeasured_note
+2026-11-14T19:30:47Z	Epic 25	runner_reported	PART_READY story=25.7(DW-1335) head=647d4c9a runs=43627052496,43627052520 narrowings=own-pattern_stacks_only,self-hosted_only DW-1344=med_decision(no-port_leftovers)
+2026-11-14T19:30:47Z	Epic 25	ci_green_verified	sha=647d4c9a
+2026-11-14T19:30:47Z	Epic 25	merge_enqueued	part=25.7 head=647d4c9a
+2026-11-14T19:35:04Z	Epic 25	epic_merged_to_feature	part=25.7 feature_sha=d96e4e6ef merged_tree_pins=ci-config,ci-sweep,boundaries,lib-live_pass verified_on_origin=yes ci=own_run DW-1335=resolved
+2026-11-14T19:35:31Z	Epic 25	owner_decision	via=contest_planner 25.7_accepted(no_veto_on_narrowings) DW-1344=low_accepted(hosts_clean_19:35Z)
+2026-11-14T19:41:37Z	Epic 21	runner_reported	PART_READY story=21.10 code_head=5e2c5f069 runs=43623786098,43623786065 base_has=f403bf66 note=report_arrived_via_hold_message(earlier_PART_READY_not_seen_by_orchestrator)
+2026-11-14T19:41:37Z	Epic 21	ci_green_verified	sha=5e2c5f069
+2026-11-14T19:41:37Z	Epic 21	amendments_verified	amendments=security-overview(D1,D2,DW-1314+pointer),docs(D3),catalog(V9,V12_Cancelled),EXPERIENCE_rows extensions=Channel/Telegram/Out.cls+TelegramOut_tests(V8) ok=true
+2026-11-14T19:41:37Z	Epic 21	merge_enqueued	part=21.10 head=5e2c5f069 feature=d96e4e6e
+2026-11-14T19:44:12Z	Epic 21	epic_merged_to_feature	part=21.10 feature_sha=42e7b3ec4 merged_tree_pins=readme,boundaries,class-rules,release-notes,bridge-guide,web_2091_pass verified_on_origin=yes ci=own_run
+2026-11-14T19:48:52Z	Run	hold_ordered	reason=QUOTA_HOLD_NOW(95pct_weekly_19:48Z) via=<state>/HOLD
+2026-11-14T19:49:04Z	Run	note	hold_relayed_to_live_runners(C,D,A26) side_effect=D_and_A26_had_a_running_tool_call_moved_to_background(urgent_HOLD_exception) idle=B(epic-36_complete),A25(waiting_26.2)
+2026-11-14T19:49:48Z	Epic 22	runner_ended	reason=hold story=22.11(impl+QA+review;rework_pending_5_MED) head=acd04af6(hold/OCT-epic22-20261114) task0=silent_tripped(12.7s)->option_a(5.7s,0_timeouts,no_queue_stale) planner_items=DW-1350(inflight_member),DW-1346(one_poll_per_tick_scaling),DW-1347(answer_cut)
+2026-11-14T19:50:03Z	Epic 26	runner_ended	reason=hold story=26.2_done_pushed head=294565a3(base_eabc5a8d;feature_now_42e7b3ec) ci=43632972453,43632972411(queued_pre-hold) DW-1343=closed_by-design(pins_cited_Gate.cls:222) records=87e79cff@hold/OCT-epic26
+2026-11-14T20:29:45Z	Run	hold_complete	feature=42e7b3ec(ci_43633699261+lane-a_43633699257_running,pre-hold) lanes: A25=25.7_merged(records@hold/OCT-epic25-20261114) A26=26.2_pushed_294565a3(ci_open) B36=complete C21=21.10_merged;21.5_review_done@hold/OCT-epic21-20261114_f56f9ba1(records_0e7427a7@hold/OCT-epic21-records-20261114) D22=22.11_rework_pending@hold/OCT-epic22-20261114_acd04af6 worktrees=clean runners=all_ended locks=none stacks=none lock=kept

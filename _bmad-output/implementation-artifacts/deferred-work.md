@@ -7970,6 +7970,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
+- 2026-11-14T16:46:48Z status=routed owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=merge_gate note=Planner ruling 2026-11-14 ~17:10Z: Epic 36 burn-down Story 36.8; existing violations reported, not fixed
+- 2026-11-14T17:40:27Z status=resolved-by:36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=adjudication note=Story 36.8: rule web-global-reads in docker/tests/test-class-rules.sh flags direct product-storage global reads and row access over product classes in OcuTalon.Web classes; four existing reads baselined (reported, DW-1338); callee reads out of scope (DW-1339); planted-violation self-tests and mutations
 
 ### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
 - source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
@@ -8142,6 +8144,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 43595216871 attempt 1: shards-3 (live:floor, live:demo-switch) and shards-6 (live:documents, live:bundle-folder), both on ocutalon-ci-4, 12:45-13:05Z
 - 2026-11-14T13:17:46Z status=routed owner=burndown by=orchestrator note=infra, not code; likely a stack left by a cancelled job; needs a runner-side cleanup (owner or Planner call); rerun lands elsewhere if lucky
 - 2026-11-14T13:19:42Z status=routed owner=burndown by=orchestrator note=cause (Planner, who cleaned ci-4 ~13:25Z): the stack of run 43593749725 (d2c2fb0d ci) that the ORCHESTRATOR CANCELLED kept running and held 52814; a cancelled job skips teardown. Fix before the 1.0.10 RC (test and CI only): at job start ci/iris.sh removes any compose stack publishing THIS runner's fixed web port (one job per runner, so it is a leftover), logs the project, never touches another runner's port; test with a planted leftover
+- 2026-11-14T16:41:12Z status=routed owner=25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block by=lead note=chartered_as_burndown_story_25.7(orchestrator_dw-1335-burndown-25.md)
+- 2026-11-14T18:23:35Z status=resolved-by:25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block by=adjudication note=f51032b7+cr_patches:ci/iris.sh_runner_sweep_in_build;docker/tests/test-ci-sweep.sh(hermetic_in_checks,--live_local);test-ci-config_job-start_rule;mutations_AC1-AC6
 ### DW-1334: Precedents never learn from source-poll Items: Data.Precedent.KeyFor has no key form for a poll Item
 - source: _bmad-output/implementation-artifacts/spec-22-11-run-source-polls-through-the-governed-proxy.md (plan) | severity: low | fix-risk: low | footprint: cross-lane
 - evidence: Data.Precedent.KeyFor (Lane B) has no key for an untrusted system-channel Item from a source poll, so precedents do not learn from source Items (AD-21 names the source for polls)
@@ -8156,3 +8160,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-5 code review | severity: low | fix-risk: low | footprint: in-epic
 - evidence: RAIL_TEXTS.hintChecks (rail-view.ts :43) is one fixed hint for the whole checks section; Story 21.5 adds source rows to that section, and a source is removed in Settings > Tools and MCP servers, not by a Stop watching request. A fix needs a new ruled text.
 - 2026-11-14T20:14:46Z status=wontfix-accepted owner=21-5-set-up-source-polls-and-answer-tool-call-approval-requests by=cr note=reopen_if=a user asks the chat to stop a source by the hint and is not helped, or a story edits hintChecks
+### DW-1344: infra: a cancelled job's port-less stack (a shard, class or install unit) is never removed: the 25.7 sweep keeps port-less stacks by ruling and teardown matches only its own tag
+- source: spec-25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block.md (code review) | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: compose.throwaway.yml resets ports, so only browser units publish one; the DW-1335 cancel left a stack, and the same cancel in a port-less unit leaves IRIS containers holding memory and disk on a shared CI host. Unverified on a host: settle with a read-only docker ps of compose projects on a CI host (owner or Planner only).
+- 2026-11-14T18:09:20Z status=escalated owner=burndown by=cr note=unverified; a fix needs a runner identity on each project (ruling 3 forbids touching port-less stacks); hosts go after Nov 15
+- 2026-11-14T19:35:31Z status=wontfix-accepted owner=burndown by=orchestrator note=Planner: severity low; hosts inspected clean 2026-11-14 ~19:35Z (ci-b, ci-c, ci-d docker ps -a: zero containers); reopen_if=port-less leftovers ever appear (bring to the Planner)
+### DW-1337: The approval-request-card stylesheet is 244 bytes over its 4 kB anyComponentStyle warning budget after Story 21.10
+- source: orchestrator; 21.10 hold report | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 21.10 build at f82fb8c17: warning only
+- 2026-11-14T16:02:41Z status=routed owner=burndown by=orchestrator note=Planner: accepted as a warning, no budget raise; trim it the next time the card is touched
+### DW-1338: Four web-class methods open or test Data.Session rows directly (generated RefIndexOpen/RefIndexExists): Web.Api:CurrentSession, Web.Live:Frame, Web.Live:Heartbeat (the caller's own row, keyed by Ownership.SessionRef) and Web.Hook:Authenticated (a webhook's owning session exists); held in test-class-rules.sh BASELINE_WEB_READS
+- source: spec-36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o.md (reported, not fixed, per the Planner's ~17:10Z ruling) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls:1556, Web/Live.cls:163, Web/Live.cls:195, Web/Hook.cls:110; none reads beyond the caller's own row
+- 2026-11-14T17:40:27Z status=decision-pending owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=runner note=veto V3 for the Planner: route to one follow-on (own-session opens behind an Ownership accessor, the Hook check behind its owning class) or accept as own-row reads in ALLOW_WEB_READS
+- 2026-11-14T18:22:15Z status=wontfix-accepted by=merge_gate note=Planner ruling ~18:30Z Nov 14 (V3): all four baselined reads ACCEPTED as low (three read the caller's own session row; Hook:Authenticated checks the webhook's owning session exists); reopen_if=any NEW baseline entry is proposed (needs the Planner's ruling)
+
+### DW-1339: The web-global-reads lint sees only OcuTalon.Web classes, not reads made by methods the web process calls in other packages (AD-13 says both); measured at 36.8: seven callee reads (SettingsOps.Heartbeat, Live.Publish.LastSeq/WakeName/RefreshGuide, Watch.Summary.Text, SettingsOps.Values/Persona via Stored)
+- source: spec-36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o.md (scope limit) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: a static scan cannot follow ..M() chains, calls on objects, $ClassMethod with variable names, indirection or Xecute; DW-1278's own case was a callee read
+- 2026-11-14T17:40:27Z status=decision-pending owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=runner note=veto V1 for the Planner: a follow-on story extending the rule to callees needs a ruling on which Ownership accessors count as allowed (an AD-13 wording question); V2: AD-13's sentence naming DW-1287 is stale after 36.8 merges
+- 2026-11-14T18:22:15Z status=routed owner=burndown by=merge_gate note=Planner ruling ~18:30Z Nov 14 (V1): low burndown DW for after the contest
