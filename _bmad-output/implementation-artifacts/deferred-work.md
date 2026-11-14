@@ -7792,6 +7792,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: SettingsOps PoolSize 1; TestModel holds it up to TESTWAIT 45 s > SEARCHTIMEOUT 20 s, so a GET during a model test answers users []; on-call-view.ts roleFormOf: telegram = boxes.telegram && telegramState(...)='enabled', and telegramState of a user absent from [] is unpaired; channelsOf then sends 'email' only
 - 2026-11-14T01:11:36Z status=escalated owner=burndown by=cr note=last rework iteration; ruling-bound (users [] with no new text): keep stored boxes when the list is unavailable, or unqueue the read
+- 2026-11-14T02:42:05Z status=routed owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=merge_gate note=Planner rulings 2026-11-14 (~02:00Z s6, ~03:00Z option (a)): fixed before 36.4 merges as burn-down Story 36.6, web-only, no new text
 
 ### DW-1309: 36.4: a ListOnCallUsers handler that runs after CommandsIn gave up (SEARCHTIMEOUT 20 s, busy) offers its user-name list to SecretHandoff and nobody takes it; it stays in shared memory until restart
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-story
