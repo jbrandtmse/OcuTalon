@@ -1077,7 +1077,10 @@ Method Concluded(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
 	Quit (request.DecisionRef '= "") && ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(request.DecisionRef)
 }
 
-/// The call: chats in the session with the input, passing the step renderer, and returns the reply. opened is 1 for a session that was
+/// The call: chats in the session with the input, passing the step renderer, and returns the reply. A request that ContentFor gives content (an untrusted
+/// turn whose ContentClass answers an image) chats through ChatWithContent with the text part and the image part instead, everything else unchanged; a
+/// Part error is the error status before the stats are read or any model call is made. An image is content from outside, so a call that sends one taints the turn
+/// before the call (Context Tainted 1), and the reply carries it. opened is 1 for a session that was
 /// opened from a link, whose stored history the first step's estimate counts (BaseChars). completed is 1 when Chat did not throw. The
 /// call is counted (AD-6, AD-9, AD-20): GetStats() is read after the session is made and again after Chat, outside every callback, and
 /// RecordUsage writes one Usage row from the difference, priced from Price. That happens after every Chat that returns, whether or not
@@ -1093,6 +1096,9 @@ Method Converse(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Ses
 {
 	Set reply = ""
 	Set completed = 0
+	Set sc = ..ContentFor(request, input, .content)
+	If $$$ISERR(sc) Quit sc
+	If $IsObject(content) Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
 	Set before = ..ReadStats(session)
 	Set response = ""
 	Set thrown = ""
@@ -1100,7 +1106,11 @@ Method Converse(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Ses
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Start(..BaseChars(input, $Select(opened: session, 1: "")))
 	Set started = $ZHorolog
 	Try {
-		Set response = ..Agent.Chat(session, input, ##class(OcuTalon.Bridge.Adapter.StepRenderer).%New())
+		If $IsObject(content) {
+			Set response = ..Agent.ChatWithContent(session, content, ##class(OcuTalon.Bridge.Adapter.StepRenderer).%New())
+		} Else {
+			Set response = ..Agent.Chat(session, input, ##class(OcuTalon.Bridge.Adapter.StepRenderer).%New())
+		}
 	} Catch chatException {
 		Set thrown = chatException
 		Set failureText = ..FailureText(chatException, request)
@@ -1129,6 +1139,29 @@ Method Converse(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Ses
 	Do ..CarryUsage(row, before, after, durationMs, reply)
 	Set completed = '$IsObject(thrown)
 	Quit $$$OK
+}
+
+/// The content that Converse sends with the text of an untrusted turn (AD-6, AD-31): the array of the text part (input) and one image part, or "" when the
+/// request gets none and the call is Chat as always. Only a request of kind turn with provenance untrusted asks the ContentClass setting of Decide (read in
+/// this job through Ext.Accessor) for its Part, because every such turn chats in a throwaway AI session that is never saved. A setting that is not usable
+/// and an error status of Part are the error status, and no model call is made. A stream with no bytes, or no stream, is no content.
+Method ContentFor(request As OcuTalon.Bridge.Msg.Request, input As %String, Output content As %DynamicArray) As %Status [ Private ]
+{
+	Set content = ""
+	If (request.Kind '= "turn") || (request.Provenance '= "untrusted") Quit $$$OK
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ContentClass", "", "Decide", .sc)
+	If $$$ISERR(sc) Quit sc
+	Try {
+		Set sc = $ClassMethod(class, "Part", request, .mediaType, .data)
+		If $$$ISOK(sc) && $IsObject($Get(data)) && (data.Size > 0) {
+			Set content = ##class(%AI.LLM.ContentPart).Build(##class(%AI.LLM.ContentPart).Text(input), ##class(%AI.LLM.ContentPart).ImageData(data, $Get(mediaType)))
+		}
+	} Catch exception {
+		Set content = ""
+		Set sc = ##class(%AI.System).HandleError(exception, 1)
+	}
+	If $$$ISERR(sc) Set content = ""
+	Quit sc
 }
 
 /// Saves the AI session of a completed, untainted linked turn and names it in the reply (SessionId), for Decide to point the link at when it accepts

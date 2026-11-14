@@ -150,7 +150,7 @@ The pending requests are the rows of the table `OcuTalon_Bridge_Data.ApprovalReq
 
 ### Settings
 
-The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification`, `ClassificationClass` and `TurnToolsClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification`, `ClassificationClass`, `TurnToolsClass` and `ContentClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
 
 The settings of the `Decide` item:
 
@@ -171,6 +171,7 @@ The settings of the `Decide` item:
 | `ClassificationClass` | `OcuTalon.Bridge.Ext.Classification` | The class that classifies tools beyond code and settings. |
 | `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
 | `McpServersClass` | `OcuTalon.Bridge.Ext.McpServers` | The class that names the MCP servers an agent attaches and receives the report of each attach. See "The extension classes". |
+| `ContentClass` | `OcuTalon.Bridge.Ext.Content` | The class that gives an untrusted chat turn one image to send with its text, and receives each accepted chat reply. See "The extension classes". |
 
 The settings of a runner item (the example's `TriageAgent`, which is an `OcuTalon.Bridge.Operation.AgentRunner`):
 
@@ -308,13 +309,14 @@ The result of `Answer` is `done`, `already_answered` (with the answer that won),
 
 ### The extension classes
 
-The bridge reaches your code only through five classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+The bridge reaches your code only through six classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
 
 - `OcuTalon.Bridge.Ext.HostSink` (`HostSinkClass`): `OnEvent(type, ownerRef, payload)` receives the bridge's events: `turn.step`, `decision.recorded`, `approval.raised`, `approval.answered`, `approval.expired`, `approval.cancelled`, `approval.result` and `budget.capped`. It does nothing by default.
 - `OcuTalon.Bridge.Ext.ReplyFilter` (`ReplyFilterClass`): `Filter(text, hostData)` returns the text to use in place of model-written text. For a chat turn, `hostData` is the reply's `HostData` JSON; otherwise it is empty. It returns the text unchanged by default.
 - `OcuTalon.Bridge.Ext.Classification` (`ClassificationClass`): `Classify(source, name, arguments)` returns `safe` or `risky`, or empty for none; the gate calls it with the source and the name. It returns empty by default.
 - `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
 - `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default.
+- `OcuTalon.Bridge.Ext.Content` (`ContentClass`): `Part(request, mediaType, data)` returns one image, a JPEG or PNG stream and its media type, to send with an untrusted chat turn; the runner sends the turn's text and the image together in that turn's throwaway session, and the image never enters a message body, an agent step or the event log. `Accepted(request, text, hostData)` is called once after `Decide` accepts a usable chat reply, with the filtered reply text, and the members it returns in `hostData` are added to the reply's `HostData`. Both do nothing by default.
 
 ### Rules for your own tools
 

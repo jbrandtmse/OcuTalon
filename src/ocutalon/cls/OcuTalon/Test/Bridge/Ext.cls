@@ -1,6 +1,6 @@
 /// Tests of the bridge's extension points and of its per-call context (Story 0.6, matrix rows 2, 6 and 7). Nothing starts
 /// a production, and nothing is written to the audit log.
-///   - TestAccessorInAnotherJob: a job that did not start the production reads the five extension classes of Decide (Story 19.5 added TurnToolsClass, Story 35.1 McpServersClass)
+///   - TestAccessorInAnotherJob: a job that did not start the production reads the six extension classes of Decide (Story 19.5 added TurnToolsClass, Story 35.1 McpServersClass, Story 26.3 ContentClass)
 ///     from the production definition, and gets "" with an error for a bad setting, item, production or class;
 ///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4); since Story 1.9 also of a setting of
 ///     an item's adapter, such as the AgentClass of a runner, when the target is Adapter;
@@ -58,6 +58,7 @@ Method TestAccessorInAnotherJob()
 	Do $$$AssertEquals($Get(@run@("ClassificationClass")), "OcuTalon.Mcp.Classification|1", "ClassificationClass is OcuTalon.Mcp.Classification (Story 22.8)")
 	Do $$$AssertEquals($Get(@run@("TurnToolsClass")), "OcuTalon.Docs.TurnTools|1", "TurnToolsClass is OcuTalon.Docs.TurnTools")
 	Do $$$AssertEquals($Get(@run@("McpServersClass")), "OcuTalon.Mcp.Attach|1", "McpServersClass is OcuTalon.Mcp.Attach")
+	Do $$$AssertEquals($Get(@run@("ContentClass")), "OcuTalon.Agent.Content|1", "ContentClass is OcuTalon.Agent.Content (Story 26.3)")
 	For case = "setting", "item", "production", "check", "checkEmpty", "checkMissing" {
 		Do $$$AssertEquals($Get(@run@(case)), "|0", "the "_case_" case gives an empty class and an error status")
 	}
@@ -151,7 +152,7 @@ ClassMethod AccessorProbe(number As %Integer, production As %String)
 	Set run = $Name(^OcuTalonTest("BridgeExt", number))
 	Try {
 		Set @run@("namespace") = $Namespace
-		For setting = "HostSinkClass", "ReplyFilterClass", "ClassificationClass", "TurnToolsClass", "McpServersClass" {
+		For setting = "HostSinkClass", "ReplyFilterClass", "ClassificationClass", "TurnToolsClass", "McpServersClass", "ContentClass" {
 			Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor(setting, production, , .sc)
 			Set @run@(setting) = class_"|"_$SYSTEM.Status.IsOK(sc)
 		}

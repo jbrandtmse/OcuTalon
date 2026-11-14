@@ -23,6 +23,7 @@ XData ProductionDefinition
     <Setting Target="Host" Name="TurnToolsClass">OcuTalon.Docs.TurnTools</Setting>
     <Setting Target="Host" Name="ClassificationClass">OcuTalon.Mcp.Classification</Setting>
     <Setting Target="Host" Name="McpServersClass">OcuTalon.Mcp.Attach</Setting>
+    <Setting Target="Host" Name="ContentClass">OcuTalon.Agent.Content</Setting>
   </Item>
   <Item Name="ApprovalHold" ClassName="OcuTalon.Bridge.Process.ApprovalHold" PoolSize="1" Enabled="true"/>
   <Item Name="ApprovalStartIn" ClassName="OcuTalon.Bridge.Service.ApprovalStart" PoolSize="0" Enabled="true"/>

@@ -7958,6 +7958,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: count by the Planner: 9 cancelled, 4 canceled
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
 
+### DW-1312: Security overview for photos (the story that makes photos visible): add 'A chat turn with a photo also carries that photo.' to the model-request bullet, and state that photos are never in the trace while captions are, like chat replies
+- source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Planner rulings 263 items 9 and 10 (V1): no release route reaches Part() before READSFILES (Core/Conversation.cls:537-541)
+- 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=Contest Planner 2026-11-14; 26.2 sets READSFILES and so makes photos visible
+
+### DW-1313: Memory card: a 409 pin_photo shows the over-cap notice (memory-card.ts:705 maps every pin 409 to MEMORY_TEXTS.overCap); show 'This memory came from a photo, so it can't be pinned.' in a lazy chunk once photos are visible
+- source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner ruling 263 V3; the route answers 409 pin_photo with the sentence from 26.3; no photo memory exists until READSFILES
+- 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=web code waits for DW-1282 headroom or goes lazy; may belong to Lane B 25.6 if it owns the card change
+
+### DW-1319: The real-HTTP pin_photo check in web/e2e/api/memory.spec.ts (LIVE user, 409 pin_photo) was type-checked but never run and has no observed mutation
+- source: _bmad-output/implementation-artifacts/spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement stage ran no web e2e; the refusal is pinned and mutated in Test.Memory.Pins:TestPinPhoto and Test.Web.MemoryApi:TestPinPhotoText
+- 2026-11-14T04:21:14Z status=open owner=26-3-caption-a-photo-and-keep-the-caption-as-a-memory by=harvest note=lead runs it (memory.spec.ts only, lane-a fresh stack) at the smoke with one mutation
+- 2026-11-14T05:04:01Z status=resolved-by:26-3-caption-a-photo-and-keep-the-caption-as-a-memory by=adjudication note=QA ran chromium part 3/26 (api/memory.spec.ts) 11/11 green on a fresh lane-A stack; removing the pin_photo line of Web.Api.MemoryItemCommand turned the LIVE-user test red (500 not 409), restored byte for byte
+
+### DW-1321: A photo turn's decide (triage) request carries Render's PHOTOASK caption ask but no image: Conversation.Begin sends the decide request first through Intake.RequestFor with the same Agent.Input.Render input, and ContentFor sends the image only for kind turn, so once photos reach Decide the TriageAgent is asked to describe a photo it never gets
+- source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: medium | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Agent/Input.cls Render; Core/Intake.cls RequestFor; Core/Conversation.cls Begin
+- evidence: Input.cls:51 adds PHOTOASK for any non-user photo Item; Intake.cls:158 renders one Input for both kinds; Conversation.cls:392 sends kind decide first with no context; Adapter.Agent.ContentFor gates on kind turn; unreachable until READSFILES (26.2) and Conversation's file path (25.6)
+- 2026-11-14T04:59:52Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=26.3 review (Blind 1 + Edge 1): fix when photos become visible, e.g. Render adds PHOTOASK only for the turn request (a context flag from the turn caller) and the decide request gets a neutral 'a photo was attached' line; Conversation and Intake are outside 26.3 (Never list), so not patched here
+
+### DW-1322: The real-HTTP e2e 'a photo caption cannot be pinned, as the LIVE user' asserts that the LIVE session holds no pin before it starts instead of creating that state (the file's existing convention, shared with 'the pin cap as the LIVE user')
+- source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: low | fix-risk: low | footprint: web/e2e/api/memory.spec.ts
+- evidence: memory.spec.ts:340 expects pinnedCountOf(session) = 0 first; playwright runs serially (workers 1) and each pin test removes its seeded rows in finally, so a leftover pin fails loudly, never falsely green
+- 2026-11-14T05:00:25Z status=wontfix-accepted owner=26-3-caption-a-photo-and-keep-the-caption-as-a-memory by=cr note=26.3 review (Verification Gap, Rule 19 hermeticity): kept with the file's convention; reopen_if=the precondition 'the LIVE session holds no pinned memory before the test' fails in a QA or CI run of live:sign-in
 ### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
 - source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 25.4 LOCAL READY report 47bc45f3
