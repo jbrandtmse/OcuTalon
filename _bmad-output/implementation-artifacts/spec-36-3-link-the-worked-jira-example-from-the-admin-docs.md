@@ -62,9 +62,17 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-14, Contest Planner gate ruling (~13:00Z) applied by the lead: amendment and G2 position approved; epics.md retargeted (36.3 and 22.6).
+
 ## Review Triage Log
 
 ## Design Notes
+
+### Contest Planner ruling at the gate (2026-11-14 ~13:00Z, binding; `.coordination/prompts/epic-36-rulings-20261113-2130.md`, "36.3 gate")
+
+- The Rule 5 amendment is APPROVED as worded and applied by the lead in epics.md (Story 36.3's AC, and the same retarget in Story 22.6's ACs in Epic 22's block), each marked `[AMENDED 2026-11-14, Story 36.3, Contest Planner gate ruling ~13:00Z ...]`.
+- G2's position is APPROVED: the first paragraph of `## For admins and developers` in GUIDE.md, before `### Demo mode`, the words verbatim under M(4).
+- The `admin-mcp` rule is APPROVED, with its self-tests and the 4 mutations.
 
 **Governing ADs:** AD-29. GUIDE.md, README.md and `docker/tests/` are Lane B's. The worked example and the security overview are Lane A's: this story links them and does not edit them. The Consistency Conventions "README link" row governs product links (`GUIDE_URL` plus an anchor); this is a link inside a document, and Story 0.30 allows a relative one. No AD is amended. **Rules 1 and 2:** no service is introduced, so there are no Integration ACs and no consumers. Consumes: Story 22.6's `docs/mcp-jira-example.md`, the real file. **Rule 3:** docs only; the real-runtime evidence is the CLI run of `test-readme.sh` (exit code and PASS line) plus the link smoke.
 
