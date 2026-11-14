@@ -8151,3 +8151,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover.md (code review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: OnSetSource refuses only ENTRYMAILBOX (Planner ruling ~09:40Z/~13:20Z named Mailbox). A source named 'the mailbox' reads 'I checked the mailbox and the mailbox'; one named 'database space' gives two such coverage lines. Each needs a deliberate admin choice; a wider list needs new public text.
 - 2026-11-14T13:37:44Z status=wontfix-accepted owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=reopen_if=an admin reports, or a digest shows, two coverage entries or two checked names that read the same
+
+### DW-1351: The rail's checks hint 'To stop, ask: "Stop watching Orders."' also shows beside source rows, which stop only in Settings
+- source: spec-21-5 code review | severity: low | fix-risk: low | footprint: in-epic
+- evidence: RAIL_TEXTS.hintChecks (rail-view.ts :43) is one fixed hint for the whole checks section; Story 21.5 adds source rows to that section, and a source is removed in Settings > Tools and MCP servers, not by a Stop watching request. A fix needs a new ruled text.
+- 2026-11-14T20:14:46Z status=wontfix-accepted owner=21-5-set-up-source-polls-and-answer-tool-call-approval-requests by=cr note=reopen_if=a user asks the chat to stop a source by the hint and is not helped, or a story edits hintChecks

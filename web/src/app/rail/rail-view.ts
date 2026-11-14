@@ -15,6 +15,8 @@
  * - A request of an incident also carries `jump`, its Ref, and `jumpName`, "Show in the chat: Repair and resend 50 orders", which holds the
  *   visible title verbatim (WCAG 2.5.3): its title is a button that takes focus to the request's card in the chat (Story 6.3). A
  *   tool call's request has no card there, so no jump.
+ * - A source check's row (Story 21.5) reads "Polled every {duration}" (intervalText gives the duration: "15 minutes", "1 hour", "6 hours", "1 day") when its payload carries
+ *   intervalMinutes, and has no detail line without it.
  * - Each row carries its key, its title, an optional detail line and its meta parts; a reminder carries its countdown too, and a
  *   decision its chip, fallback flag and reason lines. A row whose payload has a traceUrl carries it, for the trace link that ends
  *   its meta line; a row whose payload has none carries none.
@@ -55,6 +57,11 @@ export const RAIL_TEXTS = {
   checkTitle: '{name} production',
   checkSchedule: 'Live, plus a check every minute',
   checkScheduleQueues: 'A check every minute',
+  checkScheduleSource: 'Polled every {duration}',
+  durationMinutes: '{n} minutes',
+  durationHour: '1 hour',
+  durationHours: '{h} hours',
+  durationDay: '1 day',
   lastRun: 'Last run {when}',
   lastRunLate: 'Last run {when} (late)',
   titleWithCountdown: '{text}{separator}{countdown}',
@@ -76,6 +83,9 @@ const PRODUCTION_KIND = 'production';
 
 /** The kind of the queue-backlog check, which the rail schedules. */
 const QUEUES_KIND = 'queues';
+
+/** The kind of a source poll, which the rail schedules by its interval. */
+const SOURCE_KIND = 'source';
 
 /** The values the view reuses from the page's other modules. when and countdown are bound to the clock's now. */
 export interface RailFormat {
@@ -157,6 +167,17 @@ export interface RailView {
 /** The template with each {name} replaced in one pass, so that a value that holds a placeholder is not filled in again. */
 function fill(template: string, values: Readonly<Record<string, string>>): string {
   return template.replace(/\{(\w+)\}/g, (_match, name: string) => values[name] ?? '');
+}
+
+/** The words for a poll interval in minutes: 60 is "1 hour", 1440 is "1 day", another whole number of hours is "{h} hours", and anything else is "{n} minutes". */
+export function intervalText(n: number): string {
+  if (n === 1440) {
+    return RAIL_TEXTS.durationDay;
+  }
+  if (n === 60) {
+    return RAIL_TEXTS.durationHour;
+  }
+  return n >= 60 && n % 60 === 0 ? fill(RAIL_TEXTS.durationHours, { h: String(n / 60) }) : fill(RAIL_TEXTS.durationMinutes, { n: String(n) });
 }
 
 /** The values of a keyed collection, in the order the store keeps them. */
@@ -264,6 +285,8 @@ function checkRow(check: CheckPayload, format: RailFormat, late: boolean): RailR
     row.detail = RAIL_TEXTS.checkSchedule;
   } else if (check.kind === QUEUES_KIND) {
     row.detail = RAIL_TEXTS.checkScheduleQueues;
+  } else if (check.kind === SOURCE_KIND && typeof check.intervalMinutes === 'number') {
+    row.detail = fill(RAIL_TEXTS.checkScheduleSource, { duration: intervalText(check.intervalMinutes) });
   }
   return withTrace(row, check.traceUrl);
 }

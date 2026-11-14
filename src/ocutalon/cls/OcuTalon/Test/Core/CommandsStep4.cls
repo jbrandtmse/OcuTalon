@@ -617,8 +617,10 @@ Method TestMcpSettingsRoutes()
 	Do $$$AssertTrue(routes [ "<RouteUrl=""""Method=""GET""Call=""List""/>", "Web.McpSettings routes GET the list")
 	Do $$$AssertTrue(routes [ "<RouteUrl=""/servers""Method=""POST""Call=""Add""/>", "POST servers")
 	Do $$$AssertTrue(routes [ "<RouteUrl=""/servers/:server""Method=""DELETE""Call=""Remove""/>", "DELETE servers/:server")
-	Do $$$AssertTrue(routes [ "<RouteUrl=""/classify""Method=""POST""Call=""Classify""/>", "and POST classify")
-	Do $$$AssertEquals($Length(routes, "<RouteUrl=") - 1, 4, "and no other route")
+	Do $$$AssertTrue(routes [ "<RouteUrl=""/classify""Method=""POST""Call=""Classify""/>", "POST classify")
+	Do $$$AssertTrue(routes [ "<RouteUrl=""/sources""Method=""POST""Call=""SetSource""/>", "POST sources (Story 21.5)")
+	Do $$$AssertTrue(routes [ "<RouteUrl=""/sources/:ref""Method=""DELETE""Call=""RemoveSource""/>", "and DELETE sources/:ref")
+	Do $$$AssertEquals($Length(routes, "<RouteUrl=") - 1, 6, "and no other route")
 }
 
 /// The XData UrlMap of the class as text, with the quotes made double and the white space taken out.

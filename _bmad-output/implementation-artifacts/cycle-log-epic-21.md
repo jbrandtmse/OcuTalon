@@ -360,3 +360,13 @@
 2026-11-14T17:55:58Z	Story 21.10	ci_red	sha=07928c52f run=43618045215 job=checks test=test-mcp-notices.sh:keys class=story(21.10_put_toolCall.request/inputsTooLong_rows_in_EXPERIENCE_MCP_notices_block_pinned_to_6_Watch_keys) lane-a=43618045286_success action=[CI]_rework_1_lead(move_2_rows_to_Settings_and_requests_(step_4)) checks=mcp-notices,test-readme,ux-strings_pass
 2026-11-14T18:43:40Z	Story 21.10	ci_resolved	sha=5e2c5f069 result=success runs=43623786098,43623786065 feature_base=23fafe59b
 2026-11-14T18:43:40Z	Story 21.10	part_ready	parts=21.10 code_head=5e2c5f069 ci=success records=local
+2026-11-14T16:53:49Z	Story 21.10	pushed	head=07928c52f ci=pending runs=43618045215,43618045286 feature_base=23fafe59b
+2026-11-14T16:53:49Z	Story 21.5	stage_spawned	stage=implement spawn_at=2026-11-14T16:53:49Z model=sonnet effort=high agent_name=21-5-implement-1 cycle_iteration=1 branch=OCT-epic21-s215 base=07928c52f note=22.5_merged;V8_approved
+2026-11-14T19:05:17Z	Story 21.5	dev_complete	model=sonnet effort=high build_sha=4830d2cc8 branch=OCT-epic21-s215 review=28(high0,med3,low25;8_patched) followup=false bundle=888.96kB(+0.56kB,V8) task0=22.5_matches_except_reserved_name(22.13;mapped_400_bad_source_name,McpOps_text_relayed,no_new_text)->reported;22.11_not_merged(T7_not_in_GUIDE);coverage_test_exists(22.5)
+2026-11-14T19:05:17Z	Story 21.5	stage_spawned	stage=qa spawn_at=2026-11-14T19:05:17Z model=sonnet effort=high agent_name=21-5-qa-1 cycle_iteration=1 timebox=19:40Z
+2026-11-14T19:40:36Z	Story 21.5	qa_complete	model=sonnet tests=rail-view.test.mjs(intervalText_2880,61,0,-60),SettingsMcp.TestListSourcesReadFails(+SettingsOpsProbe.SourceRows_seam) mutations_demonstrated=3 findings=none
+2026-11-14T19:40:36Z	Story 21.5	parked	reason=quota_hold_20:00Z next=code-review(opus),smoke,fresh,integrate_onto_OCT-epic21+feature,push wip=hold/OCT-epic21-20261114
+2026-11-14T19:46:28Z	Story 21.5	resumed	holds_cancelled(usage_95%_trigger) rulings=reserved_name_mapping_accepted;T7_deferred_to_22.11_accepted 21.10=merged(42e7b3ec)
+2026-11-14T19:46:28Z	Story 21.5	stage_spawned	stage=code-review spawn_at=2026-11-14T19:46:28Z model=opus effort=high agent_name=21-5-code-review-1 cycle_iteration=1
+2026-11-14T20:28:41Z	Story 21.5	cr_complete	model=opus review_tier=full-opus findings=24 high=0 med=1(B11/B12_not_self-contained;patched) low=13(10_patched;DW-1351_wontfix-accepted) rejected=10 unresolved_high_med=0 final_status=done checks=McpSettingsApi,sign-in-2_9/12,node_2102,tsc,class-rules,boundaries_pass bundle=888.96kB
+2026-11-14T20:28:41Z	Story 21.5	parked	reason=QUOTA_HOLD_NOW(19:48Z) boundary=after_code-review next=smoke,fresh_check,integrate_feature(42e7b3ec+)_and_OCT-epic21_records(0e7427a77),re-run_checks,push,PART_READY
