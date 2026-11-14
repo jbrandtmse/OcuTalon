@@ -4114,3 +4114,10 @@
 2026-11-14T12:10:39Z	Epic 36	ci_green_verified	sha=c57cc619
 2026-11-14T12:10:39Z	Epic 36	amendments_verified	amendments=spine_AD-23+lazy-routes_sentences,epics_36.7_charter extensions=release/upgrade-harness.sh,release/ipm-install.sh,Install/Step/Web.cls(granted_V5/V6) ok=true
 2026-11-14T12:10:39Z	Epic 36	merge_enqueued	part=36.7 head=c57cc619 feature=ef40062b
+2026-11-14T12:13:32Z	Epic 36	epic_merged_to_feature	part=36.7 feature_sha=d2c2fb0d conflicts=tracker(ours+set;valid) merged_tree_pins=readme,boundaries,class-rules,compose-file,upgrade-harness,release-notes,web_2082/2082,lint_pass verified_on_origin=yes ci=own_run DW-1320=resolved(1.0.10_RC_blocker_cleared)
+2026-11-14T12:14:01Z	Epic 36	owner_decision	via=contest_planner 36.7_accepted RC_blocker_cleared V1_WARN_ok(no_AD-23_amend) DW-1330_wontfix_accepted
+2026-11-14T12:14:23Z	Epic 36	runner_ended	reason=waiting waiting_on=22.6 local=c3e9bb06(records_unpushed) merged=36.1,36.2,36.4,36.5,36.6,36.7 left=36.3
+2026-11-14T12:22:29Z	Epic 22	runner_reported	PART_READY stories=22.6+22.5 head=931e6260 runs=43584720772,43584720770 source_names_bare=pinned separate=the_Mailbox_capital_M
+2026-11-14T12:22:29Z	Epic 22	ci_green_verified	sha=931e6260
+2026-11-14T12:22:29Z	Epic 22	amendments_verified	amendments=epics_22.11_inserted(split)+22.5_ACs_moved,22.5_spec_intent(DW-1326),spine_AD-18/28/S20,docs(22.6_ruled_texts) extensions=Test/Data/Tables.cls,Test/Live/Payloads.cls,payloads.ts(V11_granted),test-readme.sh_rule_docs(R1) ok=true
+2026-11-14T12:22:29Z	Epic 22	merge_enqueued	parts=22.6+22.5 head=931e6260 feature=d2c2fb0d
