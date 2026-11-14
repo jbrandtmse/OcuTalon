@@ -2,7 +2,7 @@
 title: 'Story 22.11: Run source polls through the governed proxy'
 type: 'feature'
 created: '2026-11-14'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '149cf20aa17a24f484b04649a5b0827769293a29'
 review_loop_iteration: 0
 followup_review_recommended: true
@@ -304,6 +304,12 @@ Code review 2026-11-14 (Tier 1, full mode; layers blind-hunter, edge-case-hunter
   - "**The runner's own calls are accepted:** an answer from before a repoint is dropped (the key is <Ref>|<sentAt>); a changed tool counts as stopped; `stopped` means the latest run; a stopped run is not the baseline; SeedMcp writes the map entry directly."
   - "## Task 0 pre-ruling: If the triage limit trips, apply option **(a)** automatically: at most ONE poll in flight. Then MEASURE AGAIN in all four mock modes (answering, silent, Silence, Stall). (a) passes only if BOTH hold: 1. The STOP criteria pass: the median adds no more than 10 s, AND no triage decision misses its timeout. 2. With 3 silent sources due at once, every due source still polls within interval + 180 s, so no source is marked stale only because of queuing. PIN THAT with a test. If (a) fails either check, STOP (`PLANNER REPORT:`). Options (b) and (c) need the Planner's ruling. Report the before and after numbers in PART READY either way."
   - Built into Task 0 item 5 (the pre-ruled path and `TestOneInFlightNoQueueStale`). Veto items 1 and 2 are now APPROVED.
+
+- 2026-11-14 (lead). **Rulings for the rework, Contest Planner ~20:40Z Nov 14 (BINDING)**, quoted from `<coordination>/prompts/epic-22-rulings-20261113-1715.md`:
+  - "**DW-1350: RATIFIED.** `inflight` is a transient member of Reported, present only while a poll is out, with no column, and never written on the demo."
+  - "**DW-1346:** one poll per Tick STAYS, because it protects triage. But staleness must not flag a source that is only waiting in the queue. In the rework pass, the allowance becomes: interval + max(180 s, 60 s × the number of sources due together). Test it with 3 slow sources due at once: none is marked stale. Add a mutation."
+  - "**DW-1347:** a low DW for lane C, after 21.5: compare the hash of the FULL tool result, taken BEFORE the tool-result cut. It does not block 22.11."
+  - Rework iteration 1 (code review's five MED and three LOW open `[Review][Patch]` items, plus DW-1346's allowance) re-opens the story; `status` set to `in-progress`.
 
 ## Review Triage Log
 
