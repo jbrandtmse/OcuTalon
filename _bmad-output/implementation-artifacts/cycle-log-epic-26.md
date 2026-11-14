@@ -67,3 +67,5 @@
 2026-11-14T14:57:00Z	Story 26.2	spec_validated	cycle_iteration=2 note=planner_rulings_applied(Spec_Change_Log,Planner_rulings_section,READSFILES_0,docs_GUIDE_tasks_moved,Telegram_gate_AC,injection/download/token_ACs,Task0_e_pool_STOP) amendments=epics.md_25.6_bullets,spine_AD-21,AD-14 model=claude-opus-5-5
 2026-11-14T15:00:20Z	Story 26.2	task0_partial	by=lead env=warm_e26s2t0w(torn_down) measured=e(pool):2p_604/547ms,10p_1013/993ms,cap_60p_3321/3282ms(200054_chars,cut1) result=under_STOP_thresholds(10s,45s) note=a-d_left_to_the_implement_stage
 2026-11-14T15:00:20Z	Epic 26	hold_saved	story=26-2 stage=plan(spec_gated,rulings_applied) patch=none tree=clean note=no_stage_fits_before_16:00Z_QUOTA_HOLD;implement_after_HOLD_OFF
+2026-11-14T16:40:00Z	Epic 26	hold_restored	story=26-2 note=HOLD_OFF_relayed;integrated_forward_onto_feature_23fafe59(sprint-status_feature_side,regenerated,26-2=ready-for-dev_re-set);next_hold_20:00Z
+2026-11-14T16:40:00Z	Story 26.2	stage_spawned	stage=implement spawn_at=2026-11-14T16:40:00Z model=sonnet agent_name=26-2-files-sent-from-the-chat-or-telegram-become-items-implement-1 cycle_iteration=1 story_base=864bcaacc
