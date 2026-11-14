@@ -89,3 +89,7 @@
 2026-11-14T19:49:32Z	Epic 26	hold_ordered	reason=QUOTA_HOLD_NOW(Planner,95pct_weekly,19:48Z)
 2026-11-14T19:49:32Z	Epic 26	hold_saved	story=26-2 stage=ci_wait(after_committed) patch=none tree=clean note=OCT-epic26_294565a3_pushed;CI_43632972453,43632972411_left_running(no_rerun)
 2026-11-14T19:49:32Z	Epic 26	hold_complete	shas=294565a3(OCT-epic26),records_on_hold/OCT-epic26-20261114
+2026-11-14T21:45:43Z	Epic 26	hold_restored	story=26-2 note=HOLD_OFF_relayed(owner_switched_accounts)
+2026-11-14T21:45:43Z	Story 26.2	ci_red_classified	run=43632972453 workflow=.github/workflows/ci.yml class=flake test=test-production.sh_row_21(WatchOps_start-fails) job=iris(production) first_red=294565a3 ledger=DW-306(occurrence_logged_by_orchestrator) action=one_rerun_of_failed_job note=lane-a_43632972411_green
+2026-11-14T22:14:35Z	Story 26.2	ci_resolved	story=26.2 sha=294565a3 runs=43632972453,43632972411 failed=none via=none result=success resolved_at=part_ready note=ci_attempt2_after_one_DW-306_rerun(iris_production_row_21);lane-a_green_attempt1
+2026-11-14T22:14:35Z	Story 26.2	story_cycle	plan_to_commit_min=~460(incl_planner_gates_and_quota_hold) implement_passes=1 reviews=1 rework=0 first_ci=flake(DW-306) models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
