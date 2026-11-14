@@ -95,4 +95,11 @@ ClassMethod HasUserRole() As %Boolean [ Private ]
 	Quit ##super()
 }
 
+/// The live role set of OnPreDispatch's re-read: the test's own roles (Roles).
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ..Roles()
+	Quit $$$OK
+}
+
 }

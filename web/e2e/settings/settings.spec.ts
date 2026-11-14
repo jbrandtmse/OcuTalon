@@ -620,7 +620,11 @@ test('S10: the Daily digest section saves the time and the channels, and keeps a
   await expect(phone, 'the simulated phone box shows only while demo mode is on').toHaveCount(before.demo ? 1 : 0);
   const stored = before.channels.split(',').map((name) => name.trim().toLowerCase());
   await expect(web, 'and is checked as stored').toBeChecked({ checked: stored.includes('web') });
-  const newTime = before.time === '06:45' ? '06:46' : '06:45';
+  // One minute after the stored time (Story 21.15): the sign-in seed keeps digest.time at least 2 hours from the run, so the saved time does too, and no
+  // digest falls due while it is saved.
+  const [hours, minutes] = before.time.split(':').map(Number);
+  const next = (hours * 60 + minutes + 1) % 1440;
+  const newTime = `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`;
   try {
     await time.fill(newTime);
     await web.check();

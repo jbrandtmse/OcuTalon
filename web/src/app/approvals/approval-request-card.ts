@@ -27,6 +27,7 @@ import { approvalTitle } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
+import { isViewer } from '../shared/viewer-view';
 import { HEIGHT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { AnswerPress } from './answer-press';
@@ -171,7 +172,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
         </div>
       }
       <div class="answer-row">
-        @if (view().pending) {
+        @if (view().pending && !viewer()) {
           <span class="buttons" data-part="answer" [attr.data-key]="view().ref">
             <button
               type="button"
@@ -502,6 +503,9 @@ export class ApprovalRequestCard {
     const stored = this.approval();
     return answered !== undefined && stored.state === 'pending' ? answered : stored;
   });
+  /** True for a viewer (Story 25.4): Approve and Reject are not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
+
   protected readonly view = computed(() => approvalView(this.shown(), this.ctx(), this.request()));
 
   /** The result band under the answered status, when the incident payload gives this request a result (approval-view.ts resultView). */

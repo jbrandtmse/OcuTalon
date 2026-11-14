@@ -63,11 +63,28 @@ ClassMethod Roles() As %String [ Private ]
 	Quit ##super()
 }
 
-/// 1 when the test's roles hold the OcuTalon user role, else the process's own check.
+/// 1 when the test's roles hold the OcuTalon user role or the viewer role (Shell.HasRole), else the process's own check.
 ClassMethod HasUserRole() As %Boolean [ Private ]
 {
-	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit (","_^OcuTalonTest("ApiProbe", "roles")_",") [ (","_##class(OcuTalon.Web.Public.Shell).#ROLE_",")
+	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit ##class(OcuTalon.Web.Public.Shell).HasRole(^OcuTalonTest("ApiProbe", "roles"))
 	Quit ##super()
+}
+
+/// The live role set of OnPreDispatch's re-read: ^OcuTalonTest("ApiProbe", "liveRoles") when it is set, an error status when ^OcuTalonTest("ApiProbe", "liveError") is
+/// set, and the test's own roles (Roles) otherwise, so that a test that sets the roles of the signed-in user holds them live too.
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ""
+	If $Data(^OcuTalonTest("ApiProbe", "liveError")) Quit $SYSTEM.Status.Error(5001, "zz live roles unreadable")
+	Set n = $Increment(^OcuTalonTest("ApiProbe", "liveReads"))
+	Set roles = $Select($Data(^OcuTalonTest("ApiProbe", "liveRoles")): ^OcuTalonTest("ApiProbe", "liveRoles"), 1: ..Roles())
+	Quit $$$OK
+}
+
+/// 1 when ^OcuTalonTest("ApiProbe", "rolesReady") is 1, so that a test can see the Roles section's flag on: the install has no STEP6ROLES yet.
+ClassMethod RolesInstalled() As %Boolean [ Private ]
+{
+	Quit ($Get(^OcuTalonTest("ApiProbe", "rolesReady")) = 1)
 }
 
 /// Answer, for the tests: the HTTP answer to a save's CommandResult.

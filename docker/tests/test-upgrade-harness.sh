@@ -24,6 +24,11 @@
 #     build whose MemoryOps or DocumentOps is not built seeds nothing and the upgrade row carries the note that its upgrade part joins later, one that is
 #     built is seeded and checked after the upgrade, a search that misses (or a document that is not listed ready) is a fail line, and the record made on the
 #     candidate is checked after the restart;
+#   - stale-files (Story 36.7): stale_compare on equal, extra, missing and both-way lists and an empty build list (status 2); the plant's name
+#     matches the Web step's STALEFILES and its hash holds a character outside esbuild's alphabet; the family is on and its row sits after
+#     private globals; the three phases call the seed and the checks; check_stale_files over stubs passes on equal lists (and, after the upgrade,
+#     on a 404 for the plant and a 200 for the main script) and fails naming each extra and each missing file, a plant that is served and an
+#     empty build output; seed_stale_files over a stub of the plant records the seed line and the note, or fails;
 #   - run: the run command chained over a stub of the harness: the phases in order, the options only on build, the tag shared, report and
 #     down after any failed phase, and only down after a refused build;
 #   - static: the harness holds no docker push, login, save or export, no compose config without --quiet and no inspect without
@@ -447,7 +452,7 @@ write_results() {
   : > "$f"
   case $2 in
     pass | fail | partial)
-      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing memory document; do
+      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals stale-files pairing memory document; do
         if [ "$2" = partial ] && [ "$id" = restart ]; then continue; fi
         if [ "$2" = partial ] && [ "$id" = storage ]; then continue; fi
         printf 'RECORD %s pass the first check of %s\nRECORD %s pass the second | check\n' "$id" "$id" "$id" >> "$f"
@@ -490,9 +495,12 @@ t_record() {
   eq "the run line" "$(printf '%s\n' "$sec" | sed -n 's/^Run: //p')" "2026-11-01T10:00:00Z to 2026-11-01T10:20:00Z, tag e11s2t"
   lacks "no note for a release tag" "$sec" "Note:"
   eq "the heading is the first line" "$(printf '%s\n' "$sec" | head -n 1)" "## Upgrade harness"
-  eq "the table has a header, a separator and thirteen rows" "$(printf '%s\n' "$sec" | grep -c '^| ')" 15
-  eq "the rows are in order, memory and document last" "$(printf '%s\n' "$sec" | sed -n 's/^| \([a-z ]*\) | [a-z ]* | .*/\1/p' | tr '\n' ',')" "previous build,upgrade,conversation,reminder,approval,watch,settings,restart,storage,private globals,pairing,memory,document,"
+  eq "the table has a header, a separator and fourteen rows" "$(printf '%s\n' "$sec" | grep -c '^| ')" 16
+  eq "the rows are in order, memory and document last" "$(printf '%s\n' "$sec" | sed -n 's/^| \([a-z ]*\) | [a-z ]* | .*/\1/p' | tr '\n' ',')" "previous build,upgrade,conversation,reminder,approval,watch,settings,restart,storage,private globals,stale files,pairing,memory,document,"
   has "pairing is a pass row in the table" "$sec" "| pairing | pass | 2 checks passed |"
+  has "stale files is a pass row in the table, after private globals" "$sec" "| private globals | pass | 2 checks passed |
+| stale files | pass | 2 checks passed |
+| pairing |"
   lacks "no row is off" "$sec" "| off |"
   has "a note adds to a pass detail" "$sec" "| reminder | pass | 2 checks passed; R1 fired late |"
 
@@ -510,7 +518,7 @@ t_record() {
   sec=$(record_section /dev/null "$o")
   eq "no results is not run" "$(printf '%s\n' "$sec" | sed -n 's/^Result: //p')" "not run"
   eq "a dry run's mode" "$(printf '%s\n' "$sec" | sed -n 's/^Mode: //p')" "dry run"
-  eq "every row is not run, pairing, memory and document too" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 13
+  eq "every row is not run, stale files, pairing, memory and document too" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 14
 
   write_results "$r" fail
   sec=$(record_section "$r" "$o")
@@ -771,7 +779,7 @@ t_record_contract() {
   eq "every row's result is pass, fail, not run or off" "$(printf '%s\n' "$rows" | awk -F' [|] ' '$2 != "pass" && $2 != "fail" && $2 != "not run" && $2 != "off" { bad++ } END { print bad + 0 }')" 0
   eq "the section is plain ASCII" "$(printf '%s\n' "$sec" | LC_ALL=C grep -c '[^ -~]')" 0
   v=$(printf '%s\n' "$rows" | sed -n 's/^| \([a-z ]*\) | .*/\1/p' | wc -l | tr -d ' ')
-  eq "the rows are the thirteen records" "$v" 13
+  eq "the rows are the fourteen records" "$v" 14
   [ "$bad" -eq 0 ]
 }
 b_record_contract() {
@@ -1082,6 +1090,110 @@ t_memory_document() {
   [ "$bad" -eq 0 ]
 }
 b_memory_document() { document_found() { echo; }; memory_found() { echo 1; }; }
+
+# --- stale files (Story 36.7, DW-1320) ---
+
+# sf_check <when>: check_stale_files over stubs of its three readers; STUB_BUILD and STUB_SERVED are the lists (words), STUB_PLANT and STUB_MAIN the
+# statuses. Prints its PASS and FAIL lines, then the RECORD lines of the row.
+sf_check() {
+  local when=$1
+  results=$tmp/sf.results
+  : > "$results"
+  build_tree() { local f; for f in ${STUB_BUILD-./index.html ./main-AB12CD34.js ./chunk-EF56GH78.js}; do echo "$f"; done; }
+  served_tree() { local f; for f in ${STUB_SERVED-./index.html ./main-AB12CD34.js ./chunk-EF56GH78.js}; do echo "$f"; done; }
+  web_status() { case $1 in "$STALE_PLANT") echo "${STUB_PLANT-404}" ;; *) echo "${STUB_MAIN-200}" ;; esac; }
+  check_stale_files "$when"
+  cat "$results"
+}
+
+t_stale_files() {
+  local bad=0 a=$tmp/sf.a b=$tmp/sf.b out re plant_hash
+  printf '%s\n' ./index.html ./main-AB12CD34.js ./chunk-EF56GH78.js > "$a"
+
+  # stale_compare
+  printf '%s\n' ./chunk-EF56GH78.js ./index.html ./main-AB12CD34.js > "$b"
+  status_is "equal lists" 0 stale_compare "$a" "$b"
+  eq "equal lists print nothing" "$(stale_compare "$a" "$b")" ""
+  printf '%s\n' ./chunk-EF56GH78.js ./index.html ./main-AB12CD34.js ./main-JCJUH3RN.js > "$b"
+  status_is "an extra file" 1 stale_compare "$a" "$b"
+  eq "an extra file is named" "$(stale_compare "$a" "$b")" "EXTRA ./main-JCJUH3RN.js"
+  printf '%s\n' ./index.html ./main-AB12CD34.js > "$b"
+  status_is "a missing file" 1 stale_compare "$a" "$b"
+  eq "a missing file is named" "$(stale_compare "$a" "$b")" "MISSING ./chunk-EF56GH78.js"
+  printf '%s\n' ./index.html ./main-ZZSTALE0.js ./main-AB12CD34.js > "$b"
+  eq "an extra and a missing file are both named" "$(stale_compare "$a" "$b" | tr '\n' ' ')" "EXTRA ./main-ZZSTALE0.js MISSING ./chunk-EF56GH78.js "
+  : > "$a"
+  status_is "an empty build list is refused, not a vacuous pass" 2 stale_compare "$a" "$b"
+  has "and says why" "$(stale_compare "$a" "$b")" "empty"
+  status_is "a missing build list is refused too" 2 stale_compare "$tmp/sf.none" "$b"
+  printf '%s\n' ./index.html ./main-AB12CD34.js ./chunk-EF56GH78.js > "$a"
+  : > "$b"
+  status_is "an empty served list misses every build file" 1 stale_compare "$a" "$b"
+  eq "the names list at most ten per kind" "$(stale_names "$(printf 'EXTRA ./x%s\n' 1 2 3 4 5 6 7 8 9 10 11 12)" EXTRA | wc -w | tr -d ' ')" 10
+
+  # the plant
+  re=$(sed -n 's/^Parameter STALEFILES = "\(.*\)";$/\1/p' src/ocutalon/cls/OcuTalon/Install/Step/Web.cls)
+  [ -n "$re" ] || { echo "  STALEFILES could not be read from Web.cls"; bad=1; }
+  if printf '%s\n' "$STALE_PLANT" | grep -Eq "$re"; then :; else echo "  the plant $STALE_PLANT does not match STALEFILES ($re)"; bad=1; fi
+  plant_hash=${STALE_PLANT#main-}
+  plant_hash=${plant_hash%.js}
+  case $plant_hash in
+    *[!A-Z2-7]*) ;;
+    *) echo "  the plant's hash $plant_hash is inside esbuild's alphabet"; bad=1 ;;
+  esac
+
+  # the placement
+  case " $HARNESS_ON " in *" stale-files "*) ;; *) echo "  stale-files is not in HARNESS_ON"; bad=1 ;; esac
+  case "$HARNESS_ROWS" in *" private-globals stale-files pairing memory document") ;; *) echo "  HARNESS_ROWS lacks ' private-globals stale-files pairing memory document' at its end"; bad=1 ;; esac
+  eq "phase_seed plants" "$(declare -f phase_seed | tr -s ' \t\n' ' ' | grep -c 'if family_on stale-files; then seed_stale_files; fi;')" 1
+  eq "phase_upgrade checks after the families" "$(declare -f phase_upgrade | tr -s ' \t\n' ' ' | grep -c 'if family_on stale-files; then check_stale_files upgrade; fi; logout_all')" 1
+  eq "phase_restart checks" "$(declare -f phase_restart | tr -s ' \t\n' ' ' | grep -c 'if family_on stale-files; then check_stale_files restart; fi; logout_all')" 1
+
+  # check_stale_files
+  out=$(sf_check upgrade)
+  has "upgrade, equal lists: the list line" "$out" "PASS after the upgrade the served web folder holds exactly the candidate's 3 build files"
+  has "upgrade: the status line" "$out" "PASS after the upgrade /ocutalon/main-ZZSTALE0.js answers 404 and /ocutalon/main-<hash>.js 200"
+  eq "upgrade: two pass records" "$(printf '%s\n' "$out" | grep -c '^RECORD stale-files pass ')" 2
+  lacks "upgrade: no fail" "$out" "FAIL"
+  out=$(sf_check restart)
+  has "restart, equal lists" "$out" "PASS after the restart the served web folder holds exactly the candidate's 3 build files"
+  eq "restart: one pass record, and no status check" "$(printf '%s\n' "$out" | grep -c '^RECORD stale-files pass ')" 1
+  out=$(STUB_SERVED="./index.html ./main-AB12CD34.js ./chunk-EF56GH78.js ./main-JCJUH3RN.js ./main-ZZSTALE0.js" sf_check upgrade)
+  has "extra files are named" "$out" "FAIL after the upgrade the served web folder differs from the candidate's build output (3 files): extra ./main-JCJUH3RN.js ./main-ZZSTALE0.js"
+  has "and recorded" "$out" "RECORD stale-files fail after the upgrade the served web folder differs"
+  out=$(STUB_SERVED="./index.html ./main-AB12CD34.js" sf_check restart)
+  has "a missing file is named" "$out" "FAIL after the restart the served web folder differs from the candidate's build output (3 files): missing ./chunk-EF56GH78.js"
+  out=$(STUB_SERVED="./index.html ./main-AB12CD34.js ./main-ZZSTALE0.js" sf_check upgrade)
+  has "extra and missing in one line" "$out" "(3 files): extra ./main-ZZSTALE0.js missing ./chunk-EF56GH78.js"
+  out=$(STUB_PLANT=200 sf_check upgrade)
+  has "a plant that is served is a fail" "$out" "FAIL after the upgrade /ocutalon/main-ZZSTALE0.js answers '200' (wanted 404)"
+  out=$(STUB_MAIN=404 sf_check upgrade)
+  has "a main script that is not served is a fail" "$out" "answers '404' (wanted 200)"
+  out=$(STUB_BUILD="" sf_check upgrade)
+  has "an empty build output is a fail" "$out" "FAIL after the upgrade the candidate's build output src/ocutalon/csp has no file"
+  lacks "and no pass line" "$out" "PASS"
+
+  # seed_stale_files
+  results=$tmp/sf.results
+  : > "$results"
+  seeding=1
+  stale_plant() { return 0; }
+  out=$(seed_stale_files)
+  has "the plant: the seed line" "$out" "PASS stale files: main-ZZSTALE0.js is planted in the served folder"
+  has "the plant: the note says it is planted and that every mode plants" "$out" "INFO main-ZZSTALE0.js was planted in the served folder before the upgrade, standing in for an earlier upgrade's leftover; every mode plants it"
+  eq "the plant: a seed record and a note, and no pass record" "$(grep -c '^RECORD stale-files \(seed\|note\) ' "$results")$(grep -c '^RECORD stale-files pass ' "$results")" 20
+  : > "$results"
+  stale_plant() { return 1; }
+  out=$(seed_stale_files)
+  has "a plant that fails is a fail line" "$out" "FAIL stale files: main-ZZSTALE0.js could not be planted"
+  seeding=0
+  : > "$results"
+  printf 'RECORD stale-files seed planted\nRECORD stale-files note %s\nRECORD stale-files pass one\nRECORD stale-files pass two\nRECORD stale-files pass three\n' "$STALE_NOTE" > "$results"
+  write_options "$tmp/sf.options" tag v1.0.0 release
+  has "the table row reads three checks and the plant note" "$(record_section "$results" "$tmp/sf.options")" "| stale files | pass | 3 checks passed; main-ZZSTALE0.js was planted in the served folder before the upgrade, standing in for an earlier upgrade's leftover; every mode plants it |"
+  [ "$bad" -eq 0 ]
+}
+b_stale_files() { stale_compare() { return 0; }; }
 
 # --- approval reject (Story 22.4, DW-1239) ---
 
@@ -1552,6 +1664,7 @@ rule record-contract t_record_contract b_record_contract
 rule pairing t_pairing b_pairing
 rule memory-document t_memory_document b_memory_document
 rule approval-reject t_approval_reject b_approval_reject
+rule stale-files t_stale_files b_stale_files
 rule run t_run b_run
 rule report t_report b_report
 rule merge-retries t_merge_retries b_merge_retries

@@ -224,6 +224,13 @@ Method TestOnlineDemo()
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a remove is refused")
 	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "risky"))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a classification is refused")
+	Set session = ..MakeAdmin()
+	Set result = ..Run(..#SENDER, ..SetSource(server, "zz_one", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a SetSourcePoll is refused")
+	Set result = ..Run(..#SENDER, ..RemoveSource("zzNoSuchSource", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a RemoveSourcePoll is refused")
+	Do $$$AssertEquals(..SourceRows(session), 0, "and no source row is written")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", session)
 	Do $$$AssertEquals(..Written(..Server("d2")), "", "nothing was added")
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one").Classification, "unclassified", "nothing was classified")
 	Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(server), "nothing was removed")
@@ -250,6 +257,13 @@ Method TestOnlineDemoRealFlag()
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a remove is refused")
 	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "risky"))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a classification is refused")
+	Set session = ..MakeAdmin()
+	Set result = ..Run(..#SENDER, ..SetSource(server, "zz_one", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a SetSourcePoll is refused")
+	Set result = ..Run(..#SENDER, ..RemoveSource("zzNoSuchSource", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a RemoveSourcePoll is refused")
+	Do $$$AssertEquals(..SourceRows(session), 0, "and no source row is written")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", session)
 	Do $$$AssertEquals(..Written(..Server("z2")), "", "nothing was added")
 	Do $$$AssertEquals(..ResourceCount() _ "|" _ ..OcuTalonRoles(), resources _ "|" _ roles, "and no resource or grant was made")
 	Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(server), "nothing was removed")
@@ -810,6 +824,39 @@ Method Classify(server As %String, tool As %String, word As %String, origin As %
 	Set command.Origin = origin
 	Set command.ActingUser = user
 	Quit command
+}
+
+/// A SetSourcePoll for the tool, from the admin session, with fixed values.
+Method SetSource(server As %String, tool As %String, session As %String, origin As %String = "web_admin", user As %String = {..#USER}) As OcuTalon.Msg.Command.SetSourcePoll [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SetSourcePoll).%New()
+	Set command.Server = server
+	Set command.Tool = tool
+	Set command.Name = "Jira"
+	Set command.Arguments = "{}"
+	Set command.IntervalMinutes = 15
+	Set command.SessionRef = session
+	Set command.Origin = origin
+	Set command.ActingUser = user
+	Quit command
+}
+
+Method RemoveSource(ref As %String, session As %String, origin As %String = "web_admin", user As %String = {..#USER}) As OcuTalon.Msg.Command.RemoveSourcePoll [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.RemoveSourcePoll).%New()
+	Set command.SourceRef = ref
+	Set command.SessionRef = session
+	Set command.Origin = origin
+	Set command.ActingUser = user
+	Quit command
+}
+
+/// The check rows of the session.
+Method SourceRows(session As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", session)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// A server row with no resource, and a tool row of each name (unclassified, with the fingerprint "fp").

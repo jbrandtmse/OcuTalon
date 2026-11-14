@@ -28,6 +28,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `save_memory` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Saving a memory | safe | no | yes | none |
 | `search_memories` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Searching your memories | safe | yes | yes | none |
 | `send_digest` | `OcuTalon.Tools.DigestTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Sending your digest | safe | no | yes | none |
+| `send_email` | `OcuTalon.Tools.EmailTools` | `OcuTalon.Tools.Email` | `OcuTalon.Agent.Chat` | Sending an email | per call: safe when every recipient is the user's own email address; otherwise risky, so it waits for approval | no | yes | none |
 | `set_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Setting a reminder | safe | no | yes | none |
 | `start_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Starting a watch | safe | no | yes | none |
 | `stop_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Stopping a watch | safe | no | yes | none |
@@ -41,6 +42,7 @@ One tool has no class of its own: `documents`, the search over your added docume
 
 | Class | Name | Classification | Resources |
 | --- | --- | --- | --- |
+| `OcuTalon.Fix.Kind.Email` | `email` | risky | none |
 | `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |
 | `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |
@@ -71,6 +73,8 @@ On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so O
 | `OcuTalonWebhook` | `%DB_OCUTALON_CODE` | R | `Web` |
 | `OcuTalonWebhook` | `%DB_OCUTALON_DATA` | RW | `Web` |
 | `OcuTalonWebhook` | `%DB_OCUTALON_PRIVATE` | RW | `Web` |
+
+Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`, with no public permission, and `OcuTalonServiceRole` holds U on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none.
 
 ### With demo mode on
 
@@ -120,7 +124,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's 
 
 ## Approval and audit
 
-Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
+Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe except `send_email`, which code classifies per call: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do.
 
 Content that didn't come from the user (for example a simulated email, or a failed message's body):
 
@@ -140,6 +144,7 @@ Each risky action is one approval request, held as one IRIS Workflow task:
 Who may answer:
 
 - a holder of the role named in the bridge's approval-role setting, which OcuTalon seeds with `OcuTalonUser`;
+- an email to anyone but the connected mailbox's own address can be answered only by the session that asked for it, and can be approved only if its user holds `OcuTalonAdmin`;
 - on the online demo, only the session that owns the request;
 - never a tool's own job.
 
@@ -151,10 +156,10 @@ The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types a
 - `Approval`: answered, expired, cancelled, started or finished;
 - `Pairing`: a chat paired, unpaired or refused;
 - `Settings`: setting, from, to;
-- `MCP`: a server added or removed;
+- `MCP`: a server added or removed, or a tool called or refused;
 - `Tool`: a tool's classification.
 
-Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or classify an MCP tool, so a release without those features writes none of them.
+Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them.
 
 Roles and accounts:
 
@@ -162,6 +167,7 @@ Roles and accounts:
 - `OcuTalonAdmin` switches demo mode with the documented terminal command.
 - `OcuTalonTraceViewer` is the trace role: Use on the four `%Ens_*` resources, Read on the data and code databases, `SELECT` on `Ens.MessageHeader`, and nothing on the private database.
 - Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text.
+- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it.
 - The local (README) account holds all three roles. The online demo account holds `OcuTalonUser` and `OcuTalonTraceViewer`. The read-only account holds `OcuTalonTraceViewer` alone.
 - The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly seven: the six trace and message-viewer pages and `%CSP.Broker`. It can't use the OcuTalon page or its API.
 - As the Privileges tables show, no OcuTalon role holds `%All`.
@@ -179,7 +185,7 @@ Data leaves the instance only:
 
 - In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. Daily notes and precedents also go to the configured provider inside requests: a person's turn that starts a session carries their daily notes for today and yesterday, which code builds from OcuTalon's own records, and the decision on an arriving item carries up to three of the person's earlier answers on items from the same sender or source. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor. A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval. Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap.
 - In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its chat replies, notices, reminders and approval requests, and the answers to them).
-- In calls to configured MCP servers, which this release can't make.
+- In calls to the MCP servers an admin has added, never on the online demo: a check that the server answers, the list of its tools, and each tool call with its arguments, which can hold content that OcuTalon read. The results come back as untrusted content.
 
 Model keys and bot tokens come only from environment variables. They are never stored in IRIS or shown. OcuTalon reports only whether a key is present.
 
@@ -201,16 +207,22 @@ The 7-day and 90-day counts are task settings, which an admin can change in the 
 
 ## MCP tools
 
-This release can't connect to MCP servers. When a release adds MCP support, these rules apply:
+On a local or IPM install, an admin can add MCP servers, and their tools become OcuTalon's tools under the same gate, approval and audit as the built-in ones. The worked example [A Jira MCP server, step by step](mcp-jira-example.md) shows each step. MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none. These rules apply:
 
-- Only admins add or remove a server, only from the settings page, and nobody can on the online demo.
-- Servers are reached only over HTTPS, and each server has its own IRIS resource that the service user must hold.
+- Only admins add or remove a server or classify its tools, only from the settings page.
+- Servers are reached only over HTTPS (plain HTTP only to this computer, for development). A server's secret is kept in the IRIS Wallet, and its Config Store entry `AI.MCP.OcuTalon_<server>` holds only a Wallet reference to it, never the secret itself.
+- Each server has its own IRIS resource, `OcuTalon_MCP_<server>`, which the service user must hold (the Privileges section).
 - A new server's tools arrive unclassified, which counts as risky.
-- Tools are identified by server and name and never take a built-in tool's classification.
+- Tools are identified by server and name and never take a built-in tool's classification. A server's tool with the name of one of the agent's own tools, or the name `call_mcp_tool`, is refused and never offered or run.
 - A changed description or input schema makes a tool unclassified again. MCP annotations such as `readOnlyHint` are ignored.
-- An MCP tool that runs commands must be classified risky.
+- An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.
+- A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads.
+- Every call goes through the governed tool `call_mcp_tool` (the Built-in tools table), which checks before the call that the tool still has the name, description and input schema it was classified with, and runs nothing if it changed.
 - Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry.
 - Results are untrusted content.
+- Removing a server cancels its pending approval requests.
+
+OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection.
 
 ## Online demo
 

@@ -296,7 +296,7 @@ Method TestProposeThroughATurn()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,incident_summary,list_memories,list_productions,list_reminders,propose_fix,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch", "the second request offers propose_persona with the other seventeen tools of Chat, send_digest (since Story 17.6), incident_summary (since Story 23.6) and propose_fix (since Story 23.2) among them")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,incident_summary,list_memories,list_productions,list_reminders,propose_fix,propose_persona,recent_activity,save_memory,search_memories,send_digest,send_email,set_reminder,start_watch,stop_watch", "the second request offers propose_persona with the other eighteen tools of Chat, send_digest (since Story 17.6), incident_summary (since Story 23.6) and propose_fix (since Story 23.2) among them")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..Proposed(), "the model reads the answer of the owner")

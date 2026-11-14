@@ -33,6 +33,7 @@
 ///     cannot send without the approval path (Story 21.6). Otherwise the refusal is not_allowed and nothing is sent;
 ///   - step 4 webhooks (Story 35.3, AD-1, AD-19): CreateWebhook and SetWebhookSecret go to SettingsOps from web_admin only; neither is a tool verb, and the
 ///     secret is never in the command, only the uri of its SecretHandoff;
+///   - step 6 (Story 25.4, AD-1, AD-24): ListRoles goes to SettingsOps from web_admin only; it is no tool verb, and its answer carries only a SecretHandoff uri;
 ///   - ListMcpServers (Story 21.4, AD-1, AD-21) is the read behind Settings > Tools and MCP servers: it goes to SettingsOps from web_admin only, is no tool verb, and
 ///     changes nothing; AddMcpServer carries only the uri of its credential's SecretHandoff;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
@@ -146,9 +147,10 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 
 /// 1 when a SendEmail from a tool is for the session user's own mailbox: inside a bridge context the command's SessionRef is the
 /// context's OwnerRef, the product key email.owner is the SessionRef, email.address is set, and every comma-separated recipient,
-/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0. Both keys are read from their
-/// rows and never from the per-process cache, because the mailbox moves to the admin who saved last (SettingsOps.SaveEmail) and a cached
-/// pair could name the old owner with the new address.
+/// trimmed and lower-cased, equals it lower-cased. The marker OWNADDRESS of SendEmail, as the whole list (trimmed, ignoring case), is the own address under
+/// the same checks of the owner and the address (OcuTalon's own producers send it instead of the address, DW-1255). An empty list, an empty recipient or no
+/// mailbox gives 0. Both keys are read from their rows and never from the per-process cache, because the mailbox moves to the admin who saved last
+/// (SettingsOps.SaveEmail) and a cached pair could name the old owner with the new address.
 ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolean [ Private ]
 {
 	If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit 0
@@ -156,6 +158,7 @@ ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolea
 	If (address = "") || (command.SessionRef = "") || (..Stored("email.owner") '= command.SessionRef) Quit 0
 	Set recipients = command.Recipients
 	If $ZStrip(recipients, "<>W") = "" Quit 0
+	If $ZConvert($ZStrip(recipients, "<>W"), "L") = ##class(OcuTalon.Msg.Command.SendEmail).#OWNADDRESS Quit 1
 	Set own = 1
 	For i = 1:1:$Length(recipients, ",") {
 		If $ZConvert($ZStrip($Piece(recipients, ",", i), "<>W"), "L") '= address Set own = 0
@@ -350,7 +353,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "TestModel", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "MailSignIn", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
- {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool,photo"},
  {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool,web_user"},
  {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"},
@@ -374,6 +377,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"},
  {"verb": "AckPage", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"},
+ {"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "ListOnCallUsers", "owner": "SettingsOps", "origins": "web_admin"}
 ]
 }

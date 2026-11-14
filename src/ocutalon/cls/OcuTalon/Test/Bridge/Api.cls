@@ -11,7 +11,7 @@
 ///   - TestMayAnswer: Approval.MayAnswer is the interim rule of Story 37.1 until Story 26.4: 1 when the user holds the row's RequiredRole, 0 for a user
 ///     without it, a role nobody holds, an unknown or malformed Ref and an empty user, with kind empty, 1 for an answered and expired row (state and expiry
 ///     are Answer's), and it writes nothing and publishes no event;
-///   - TestRoleStubs: Install.Step.Roles.Assign and Holders are stubs until Story 26.4: 5003, changed 0, users [], and no role changes;
+///   - TestRoleCalls: Install.Step.Roles.Assign (Story 25.4) refuses %All with an error that names it, and Holders does not answer 5003; no role changes;
 ///   - TestReadFileStub: Agent.Input.ReadFile is a stub until Stories 26.2 and 26.3: 5003 and {}.
 Class OcuTalon.Test.Bridge.Api Extends %UnitTest.TestCase
 {
@@ -135,26 +135,34 @@ ClassMethod RowCount() As %Integer
 	Quit -1
 }
 
-/// Assign answers 5003 and sets changed to 0 for a grant and for a removal, Holders answers 5003 and sets users to [], and the recursed role set of the
-/// README account is the same before and after.
-Method TestRoleStubs()
+/// Assign refuses a role that is not on the allowlist, for a grant and for a removal, with an error 5001 that names the role (not 5003) and changed 0, Holders is built (it
+/// does not answer 5003), and the recursed role set of the README account is the same before and after. The online-demo flag is forced off and put back. It changes
+/// no security object: the real changes are Test.Install.RolesAssign's.
+Method TestRoleCalls()
 {
-	Set user = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
-	Do $$$AssertStatusOK($SYSTEM.Security.GetUserRecursedRoleSet(user, .before), "the roles of the README account are read")
-	Set changed = 1
-	Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(user, "OcuTalonApprover", 1, .changed)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "Assign of a grant answers 'not implemented'")
-	Do $$$AssertEquals(changed, 0, "and changes nothing")
-	Set changed = 1
-	Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(user, "%All", 0, .changed)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "Assign of a removal answers 'not implemented'")
-	Do $$$AssertEquals(changed, 0, "and changes nothing")
-	Set users = "zz"
-	Set sc = ##class(OcuTalon.Install.Step.Roles).Holders(.users)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "Holders answers 'not implemented'")
-	Do $$$AssertEquals(users.%ToJSON(), "[]", "and lists nobody")
-	Do $$$AssertStatusOK($SYSTEM.Security.GetUserRecursedRoleSet(user, .after), "the roles of the README account are read again")
-	Do $$$AssertEquals(after, before, "the roles of the README account are the same")
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	Try {
+		Set user = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
+		Do $$$AssertStatusOK($SYSTEM.Security.GetUserRecursedRoleSet(user, .before), "the roles of the README account are read")
+		Set changed = 1
+		Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(user, "%All", 1, .changed)
+		Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5001, "Assign of %All answers an error that is not 'not implemented'")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "%All", "which names the role")
+		Do $$$AssertEquals(changed, 0, "and changes nothing")
+		Set changed = 1
+		Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(user, "%All", 0, .changed)
+		Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5001, "so does a removal of it")
+		Do $$$AssertEquals(changed, 0, "and changes nothing")
+		Set sc = ##class(OcuTalon.Install.Step.Roles).Holders(.users)
+		Do $$$AssertNotEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "Holders does not answer 'not implemented'")
+		Do $$$AssertStatusOK($SYSTEM.Security.GetUserRecursedRoleSet(user, .after), "the roles of the README account are read again")
+		Do $$$AssertEquals(after, before, "the roles of the README account are the same")
+	} Catch exception {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+		Throw exception
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
 }
 
 /// ReadFile of an Item with a file answers 5003 and {}.
