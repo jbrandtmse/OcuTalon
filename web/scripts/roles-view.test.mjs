@@ -57,8 +57,10 @@ describe('the section\'s fixed strings', () => {
     assert.equal(ROLES_REASONS.user_unknown, parameter('MESSAGEREASONUNKNOWN'));
     assert.equal(ROLES_REASONS.user_managed, parameter('MESSAGEREASONMANAGED'));
     assert.equal(ROLES_REASONS.user_system, parameter('MESSAGEREASONSYSTEM'));
+    assert.equal(ROLES_REASONS.self_viewer, parameter('MESSAGEREASONSELFVIEWER'));
+    assert.equal(ROLES_REASONS.self_viewer, "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin.");
     assert.equal(ROLES_TEXTS.off, parameter('MESSAGEROLESOFF'));
-    assert.deepEqual(Object.keys(ROLES_REASONS).sort(), ['role', 'user_managed', 'user_system', 'user_unknown']);
+    assert.deepEqual(Object.keys(ROLES_REASONS).sort(), ['role', 'self_viewer', 'user_managed', 'user_system', 'user_unknown']);
   });
 });
 

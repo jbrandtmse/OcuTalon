@@ -2,7 +2,8 @@
 title: 'Story 25.5: Answer only with the right approver role, and say why otherwise'
 type: 'feature'
 created: '2026-11-13'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fa5b336d6e906963b2c6bd0f3bdde9412c36ba92'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -133,10 +134,10 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 - Story 22.7 must be on `origin/feature/OCT_OcuTalon_MVP` and integrated forward into `OCT-epic25`, and Story 25.4 must be implemented on this branch. Otherwise HALT `blocked` with `dependency: 22.7 merged and 25.4 implemented` before any edit (Planner Gate question 5).
 
 **Execution:**
-- [ ] Task 0 (measure on the lane's fresh throwaway, inside the new `AnswersInWebRoles` methods' first run). In a job logged in as a fixture user with exactly `OcuTalonUser` plus the application roles (the class's `Probe` context):
+- [x] Task 0 (measure on the lane's fresh throwaway, inside the new `AnswersInWebRoles` methods' first run). In a job logged in as a fixture user with exactly `OcuTalonUser` plus the application roles (the class's `Probe` context):
   - `Approval.MayAnswer(ref, $Username, .kind)` answers 1 for a row whose `RequiredRole` the user holds, and 0 for a fixture role the user lacks, with no error status and no `<PROTECT>`. This measures `GetUserRecursedRoleSet` for one's own name with no `%Admin_Secure` (inference from `irissys/%SYSTEM/Security.cls:315-327` until measured).
   - If it fails, stop with `## Clarification Needed`: the web job could not compute `answerable`. Record the result under Design Notes "Measured".
-- [ ] `Live/Payload/Approval.cls`:
+- [x] `Live/Payload/Approval.cls`:
   - Add `Property Answerable As %Boolean(%JSONFIELDNAME = "answerable") [ InitialExpression = 1 ]` and `Property ApproverKind As %String(%JSONFIELDNAME = "approverKind", MAXLEN = 32)` after `TraceNamespace`.
   - New `ClassMethod Answerable(ref, sessionRef, Output kind, api As %String = "OcuTalon.Bridge.Approval") As %Boolean`:
     - It reads `Data.Session.RefIndexOpen(sessionRef).IrisUser`. No row or no user gives 0 with kind "".
@@ -144,8 +145,8 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - New `ClassMethod RefusalKey(kind As %String, admin As %Boolean = 0) As %String`, by the rule in Boundaries, using `Msg.Catalog.Entry` for the existence check.
   - `FromRow(row, sessionRef, api As %String = "OcuTalon.Bridge.Approval")`: for a `pending` row and an `IsRef` sessionRef, set `Answerable` and `ApproverKind` from `Answerable(...)`.
   - -- AC 3; the one Lane B wrapper that `AnswersIn`, `Web.Api` and, from Story 26.4, Lane A's `TelegramIn` read.
-- [ ] `Msg/Catalog/Core.cls`: add the nine `answered.*` entries of PUBLIC TEXT items 1-9 (no slots), each with `source` (EXPERIENCE.md:721 for `resend`, Api.cls for the fallback) or `gap` ("Story 25.5 PUBLIC TEXT, Planner gate"). Then regenerate `web/src/app/msg/catalog.ts` with `npm --prefix web run catalog`. -- AC 3.
-- [ ] `Core/AnswersIn.cls`:
+- [x] `Msg/Catalog/Core.cls`: add the nine `answered.*` entries of PUBLIC TEXT items 1-9 (no slots), each with `source` (EXPERIENCE.md:721 for `resend`, Api.cls for the fallback) or `gap` ("Story 25.5 PUBLIC TEXT, Planner gate"). Then regenerate `web/src/app/msg/catalog.ts` with `npm --prefix web run catalog`. -- AC 3.
+- [x] `Core/AnswersIn.cls`:
   - Add `Parameter APPROVALAPI = "OcuTalon.Bridge.Approval";` (sibling: `AnswerOps.APPROVALAPI`) and a transient `Property Refusal As %DynamicObject`.
   - `OnProcessInput` first sets `..Refusal = {}` (a shadow instance is reused between calls). It opens the session before the hand-over. When there is no row, `Refuse("not_found")`. Then call `##class(OcuTalon.Live.Payload.Approval).Answerable(row.Ref, pInput.SessionRef, .kind, ..#APPROVALAPI)`. On 0, set `..Refusal = {"kind": kind}` and `Refuse("not_allowed")`.
   - After `Send`, when the response is `not_allowed`, the row is a `fix` of `FixKind` `email` and the action is `approve`, set `..Refusal = {"kind": "email", "admin": true}`. Otherwise a `not_allowed` refusal stays `{"kind": ""}`.
@@ -154,48 +155,48 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - `FromPage` gains a trailing `Output refusal As %DynamicObject`.
   - `TelegramCode`'s `not_allowed` slots become the refusal object, so `row.Kind` is no longer read. The doc lines change to match.
   - -- AC 1, AC 4, AC 7; DW-1268.
-- [ ] `Web/Api.cls` (contended):
+- [x] `Web/Api.cls` (contended):
   - `AnswerApproval` passes `.refusal` to `FromPage` and on to `AnswerResponse`. 22.7's `Set kind` line goes.
   - `AnswerResponse`'s `not_allowed` answers 403 with `Msg.Catalog.Render(Approval.RefusalKey(refusal.kind, refusal.admin), {}, "web")`.
   - Remove the three `MESSAGENOTAPPROVER*` parameters, whose texts move to the catalog, and update the doc lines.
   - -- AC 1, AC 7.
-- [ ] `Fix/Kind/Email.cls` (Lane A, 22.7; footprint extension, Planner Gate question 1):
+- [x] `Fix/Kind/Email.cls` (Lane A, 22.7; footprint extension, Planner Gate question 1):
   - Add `Parameter MESSAGENOTADMIN` (PUBLIC TEXT 10).
   - In `Raise`, after the dry run and before `Approval.Raise`, refuse with it when `'..MayApprove(request, user)`, where `user` is the `IrisUser` of the session of `ownerRef`.
   - Doc lines.
   - -- AC 8; the 22.7 email DW.
-- [ ] `web/src/app/live/payloads.ts`: `answerable?: boolean; approverKind?: string` on `ApprovalPayload`.
-- [ ] `web/src/app/approvals/approval-view.ts`:
+- [x] `web/src/app/live/payloads.ts`: `answerable?: boolean; approverKind?: string` on `ApprovalPayload`.
+- [x] `web/src/app/approvals/approval-view.ts`:
   - `refusalText(kind, render)` mirrors `RefusalKey` without `admin`: `'answered.notApprover' + Kind` when the catalog has it, else `'answered.notApprover'`.
   - `ApprovalView` gains `cannotAnswer: string`, which is "" unless the request is pending and `answerable === false`.
   - `answerOutcomeOf`'s 403 uses the server's message, else the fallback text. `notApproverFix` goes, and `notApprover` becomes the fallback text.
   - Doc lines.
-- [ ] `web/src/app/approvals/approval-request-card.ts` and `answer-press.ts`:
+- [x] `web/src/app/approvals/approval-request-card.ts` and `answer-press.ts`:
   - Approve and Reject render only when `pending && !cannotAnswer && !refused`.
   - In their place, the status line shows `refused || cannotAnswer` with no new layout, using the existing status line's markup.
   - A `notAllowed` press outcome sets `refused` to its message.
   - Story 25.4's viewer guard stays.
-- [ ] `web/src/app/phone/phone-view.ts` and `phone-request.ts`:
+- [x] `web/src/app/phone/phone-view.ts` and `phone-request.ts`:
   - `requestView` gains `cannot: string`.
   - `buttons` also needs `approval?.answerable !== false` and no local refusal.
   - `cannot` is `refusalText(approval.approverKind)` or the local refusal's message, shown where the notice is.
   - Doc rule :14-17 gains the one exception: a store payload with `answerable: false`.
   - -- AC 3.
-- [ ] `Test/Core/ApprovalDouble.cls`:
+- [x] `Test/Core/ApprovalDouble.cls`:
   - Add `MayAnswer(ref, irisUser, Output kind)`.
   - With no run, or no script for the ref, it answers 1 with kind "", so the existing probe tests, whose fixture sessions name no real IRIS user, keep their results.
   - `May(ref, result, kind)` scripts a result.
   - `Kind(ref, kind)` scripts the step-6 rule over real roles: 1 when `GetUserRecursedRoleSet(irisUser)` holds the row's `RequiredRole` or `RequiredRole_kind`, else 0 with the kind.
   - Calls are recorded under `"mayCalls"`.
   - Doc lines.
-- [ ] `Test/Core/AnswersInProbe.cls` and `AnswersTelegramProbe.cls`: `Parameter APPROVALAPI = "OcuTalon.Test.Core.ApprovalDouble";`. `Deliver`'s override gains `.refusal`.
-- [ ] `Test/Core/AnswersIn.cls`. Add these tests:
+- [x] `Test/Core/AnswersInProbe.cls` and `AnswersTelegramProbe.cls`: `Parameter APPROVALAPI = "OcuTalon.Test.Core.ApprovalDouble";`. `Deliver`'s override gains `.refusal`.
+- [x] `Test/Core/AnswersIn.cls`. Add these tests:
   - `TestRoleCheckBeforeHandOver`: scripted 0/`resend` gives `not_allowed`, `Sends` 0, the row is unchanged and the refusal is `{"kind":"resend"}`. A scripted 1 hands over. The `not_found`/`bad_answer` rows and the bridge context never ask (`mayCalls` 0). No session row gives `not_found`.
   - `TestRefusalKey`: the seven kinds, "", `zz_new`, `Bad`, 33 characters, and `admin`; `Render` of each equals PUBLIC TEXT.
   - `TestPayloadAnswerable`: `FromRow(row, s, double)` for pending refused, pending allowed, answered and no session.
   - `TestEmailAdminRefusal`: an own email row (fixture `fix`/`email` with another address), and a fixture session whose user is no admin. `AnswerOpsProbe`'s real `Carry` refuses, so the refusal is `{"kind":"email","admin":true}`. A reject is handed over to `Answer`.
-- [ ] `Test/Core/AnswersTelegram.cls:101`, `AnswersTelegramProduction.cls:90`, `AnswersInProduction.cls:143-174`, `Test/Web/Api.cls:397` and `OcuTalon.Test.Msg.Catalog`: update the pins to the new slots, texts, keys and payload members.
-- [ ] `Test/Core/AnswersInWebRoles.cls` (THROWAWAY guard). Add `EnsureRole(name)`, which creates a role with no resources only when it is absent and records it for removal. Reuse 25.4's IRIS helper instead if its delivered code has one.
+- [x] `Test/Core/AnswersTelegram.cls:101`, `AnswersTelegramProduction.cls:90`, `AnswersInProduction.cls:143-174`, `Test/Web/Api.cls:397` and `OcuTalon.Test.Msg.Catalog`: update the pins to the new slots, texts, keys and payload members.
+- [x] `Test/Core/AnswersInWebRoles.cls` (THROWAWAY guard). Add `EnsureRole(name)`, which creates a role with no resources only when it is absent and records it for removal. Reuse 25.4's IRIS helper instead if its delivered code has one.
   - `TestMayAnswerInAWebJob`: Task 0, as an assertion.
   - `TestApproverMatrix`: the fixture roles `OcuTalonApprover` and the seven `OcuTalonApprover_<kind>`. Rows have `RequiredRole` `OcuTalonApprover` and `Kind(ref,k)` for each kind. Through `AnswersInProbe` and `FromTelegram` (`AnswersTelegramProbe`):
     - a user holding only `OcuTalonApprover_<k'>` (k' ≠ k) is refused with kind k, and the row stays pending;
@@ -207,15 +208,15 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
     - as a holder, `done`;
     - with `onlineDemo` forced (restored after), the demo-role holder answers its own request and gets `not_found` for another session's request, which stays pending.
   - -- AC 2, AC 6.
-- [ ] `Test/Fix/Email.cls` (Lane A, 22.7; footprint extension): `TestNonAdminEmailIsRefusedAtRaise`, following `TestRiskyTurnApprovedSendsOnce`. A non-admin's risky email to another address gets `MESSAGENOTADMIN` and no `ApprovalRequest` row. An admin's raises one. -- AC 8.
-- [ ] `docker/tests/test-sign-in.sh`: after 25.4's fixture roles, add the fixture user `ZzApprover` (`OcuTalonUser,OcuTalonApprover`, random password). Pass `OCUTALON_APPROVER_USER/_PASSWORD` to Playwright and add the password to the `show_log` redaction. -- AC 3 fixture.
-- [ ] `web/e2e/phone/approver.spec.ts` (new; `live:sign-in-2`):
+- [x] `Test/Fix/Email.cls` (Lane A, 22.7; footprint extension): `TestNonAdminEmailIsRefusedAtRaise`, following `TestRiskyTurnApprovedSendsOnce`. A non-admin's risky email to another address gets `MESSAGENOTADMIN` and no `ApprovalRequest` row. An admin's raises one. -- AC 8.
+- [x] `docker/tests/test-sign-in.sh`: after 25.4's fixture roles, add the fixture user `ZzApprover` (`OcuTalonUser,OcuTalonApprover`, random password). Pass `OCUTALON_APPROVER_USER/_PASSWORD` to Playwright and add the password to the `show_log` redaction. -- AC 3 fixture.
+- [x] `web/e2e/phone/approver.spec.ts` (new; `live:sign-in-2`):
   - (a) Real path. `seedApproval` + `raise` a pending fix row for `ZzRoleTarget`'s session with `requiredRole` `OcuTalonApprover`. The card and the phone show no Approve or Reject (none focusable by Tab) and the status "Only an approver can answer this request."
   - (b) `ZzApprover`'s own such row shows both buttons, and Approve gives "Approved from the web chat at {time}" on the card and the phone within 5 s.
   - (c) A row that is answerable at load gets its `RequiredRole` changed by `irisScript`. Approve is then refused, and the card switches to the server's sentence with no buttons. The phone does the same.
   - (d) A mocked `approverKind: 'resend'` (route-fulfilled `/v1/state`, as `approval-card.spec.ts` mocks) shows "Only an approver for resends can answer this request." on the card and the phone.
   - Each case removes its rows. -- AC 3, AC 5.
-- [ ] `web/e2e/api/approver.spec.ts` (new; `live:sign-in`, real HTTP):
+- [x] `web/e2e/api/approver.spec.ts` (new; `live:sign-in`, real HTTP):
   - Signed out, `POST /api/v1/approvals/:ref/answer` gives 401.
   - LIVE unprivileged `ZzRoleTarget` on its own row (`RequiredRole` `OcuTalonApprover`) gets 403 `not_allowed` with the fallback sentence, and the row is pending (read back).
   - `GET /api/v1/state` shows that row with `answerable:false`, `approverKind:""`.
@@ -223,25 +224,25 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - `ZzApprover` on its own row gets 200 `done`.
   - The README account's state shows its `OcuTalonUser` rows with `answerable:true`.
   - -- AC 1, AC 6.
-- [ ] Web unit tests:
+- [x] Web unit tests:
   - `web/scripts/approval-view.test.mjs`, `answer-press.test.mjs`, `phone-view.test.mjs`: `refusalText` for the seven kinds, "" and unknown; `cannotAnswer` and `buttons` for `answerable` false, true and absent; a refused press.
   - `ux-strings.test.mjs`: the new strings.
   - `approval-card.spec.ts:555-572` and `answers.spec.ts:371,432`: the new texts.
-- [ ] Spine (`ARCHITECTURE-SPINE.md`), additive and marked `[ADDED 2026-11-13, Story 25.5]`:
+- [x] Spine (`ARCHITECTURE-SPINE.md`), additive and marked `[ADDED 2026-11-13, Story 25.5]`:
   - AD-11 `AnswersIn` bullet: rules 5-6, the refusal object and the composition order with 22.7's rule.
   - AD-12/REST row: the approval payload's `answerable`/`approverKind`; the 403 text from `answered.notApprover*`.
   - The cross-lane table: `Live.Payload.Approval.Answerable` and `RefusalKey` (B), read by `AnswersIn`, `Web.Api` and Lane A's `TelegramIn` (Story 26.4).
   - AD-16's email bullet: the raise-time refusal.
   - Then run `lint_spine.py`.
 
-- [ ] [Ruling] Contest Planner rulings on the Planner Gate (2026-11-13 ~19:10Z, `.coordination/prompts/story-255-rulings-20261113.md`, BINDING; summarized under Design Notes "Planner rulings"):
+- [x] [Ruling] Contest Planner rulings on the Planner Gate (2026-11-13 ~19:10Z, `.coordination/prompts/story-255-rulings-20261113.md`, BINDING; summarized under Design Notes "Planner rulings"):
   - PUBLIC TEXT items 1-10 approved as written; item 11's removal and item 12 agreed; Q7 plurals approved.
   - SECURITY approved (checks a-e in the planned order; tests as listed), plus: a raise-time refusal writes Email's EXISTING audit entry with a refused outcome and no address, ONLY IF `Fix.Kind.Email`'s audit already has such an outcome; otherwise write nothing. Never add an audit kind in this story.
   - Q1 (a): refuse at raise time with `MayApprove` on the requester's IRIS user, item 10's text; the footprint extension into `Fix/Kind/Email.cls` applies after 22.7 is merged and integrated forward. DW-1281 (lane D's email DW) closes with it, `resolved-by:25-5-...` (lead, at adjudication).
   - Q2: `MayApprove` stays admin-only until 26.4's plan. Q3, Q4 (item 9) approved.
   - Q5: implement precondition APPROVED: 22.7 merged and integrated forward, and 25.4 implemented; do NOT split the story.
   - Q6: 25.5 carries the GUIDE update as its own change: in GUIDE.md "## Gmail and Microsoft 365", P1's paragraph (shipped by 22.7), replace ONLY the middle sentence ("When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request.") with, word for word: "Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing." Keep the first and last sentences unchanged; update every doc-test pin it trips without changing the wording. The review checks it against the merged raise refusal; a mismatch is a STOP (`PUBLIC TEXT:`).
-- [ ] [Ledger] DW-1303 (routed by the lead 2026-11-14 from the Contest Planner's 25.4 final ruling 1; PUBLIC TEXT approved by that ruling): `Install.Step.Roles.Refusal` / `SettingsOps.SaveRoles` refuse an admin granting `OcuTalonViewer` to THEMSELVES (the acting user equals the target user, compared in lower case) with reason `self_viewer` and the field text, word for word: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin." Nothing changes and no audit entry is written. Tests: a class-level refusal test with its `mutation:` line (the check skipped -> red), and a real-HTTP case as the README admin. Removing one's own viewer role, and granting oneself `OcuTalonApprover`, stay allowed. Footprint: 25.4's files (`Install/Step/Roles.cls`, `Web/RoleSettings.cls`, `web/src/app/settings/roles-view.ts`, lazy chunk only).
+- [x] [Ledger] DW-1303 (routed by the lead 2026-11-14 from the Contest Planner's 25.4 final ruling 1; PUBLIC TEXT approved by that ruling): `Install.Step.Roles.Refusal` / `SettingsOps.SaveRoles` refuse an admin granting `OcuTalonViewer` to THEMSELVES (the acting user equals the target user, compared in lower case) with reason `self_viewer` and the field text, word for word: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin." Nothing changes and no audit entry is written. Tests: a class-level refusal test with its `mutation:` line (the check skipped -> red), and a real-HTTP case as the README admin. Removing one's own viewer role, and granting oneself `OcuTalonApprover`, stay allowed. Footprint: 25.4's files (`Install/Step/Roles.cls`, `Web/RoleSettings.cls`, `web/src/app/settings/roles-view.ts`, lazy chunk only).
 **Acceptance Criteria:**
 - AC 1: Given an answer from any channel to a request the session can see, when `AnswersIn`'s handler takes it, then after the ownership and answer-shape checks it asks `Approval.MayAnswer` for the session's IRIS user. On 0 it returns `not_allowed` with `{"kind"}`, answers nothing and sends nothing to `AnswerOps`. On 1 it hands the answer over as before.
 - AC 2: Given the online demo, when the demo-role user holding the fixture `OcuTalonApprover` answers, then its own request is answered and another session's request is refused by the owning-session rule and stays pending: both checks run.
@@ -262,6 +263,36 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 - 2026-11-13 ~19:40Z, lead: Contest Planner rulings recorded (`story-255-rulings-20261113.md`): all APPROVED; audit addition (existing outcome only); Q1 (a) with DW-1281 resolved-by 25.5; Q5 precondition; Q6 GUIDE middle-sentence replacement carried by 25.5. Worked into Tasks & Acceptance as the `[Ruling]` item. Implement still waits for 22.7 merged + 25.4 done.
 
 ## Review Triage Log
+
+### 2026-11-14 — Review pass
+- verdicts: 26 findings — high 0, medium 3, low 21, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) The admin sentence is also shown for an email approve that `Approval.Answer`'s own role check refuses after rule 6 passed — Decided 6 records it: theoretical (a role removed within the milliseconds before the lock), email rows only, and `AnswerOps`' hunk stays byte-identical; a fix needs a second `MayApprove` call and would be more than a direct correction.
+  - `[low]` `[reject]` (blind) After a refused Approve the page and phone also drop Reject — the contract says a 403 turns the request into the can't-answer state; a non-admin can only hold an email row after a role removal, and the state ends at the next payload.
+  - `[low]` `[reject]` (blind) `Answerable` fails closed without a log line — the contract says an error gives `answerable:false`; a log per payload build in `BridgeSink`'s job would be noise, and the fallback sentence is true.
+  - `[low]` `[reject]` (blind) `answerable` is not recomputed when roles change — Planner Gate question 3 option (a) is ruled: recompute at every snapshot, event and reply; a grant shows after a reload.
+  - `[low]` `[patch]` (blind) The spine's Telegram row still says `not_allowed` carries "the request's kind" — it contradicted the new slots; amended with an `[AMENDED 2026-11-14, Story 25.5]` marker, `lint_spine.py` unchanged (the same 10 low findings as at HEAD).
+  - `[low]` `[reject]` (blind) A `not_allowed` from `Approval.Answer` now carries no kind on Telegram — Decided 4 and the contract: `kind` is `MayAnswer`'s output verbatim, never derived from the row.
+  - `[low]` `[reject]` (blind) `Roles.Assign` falls back to the caller's `$Username` when `actingUser` is empty — documented in its doc comment, the only product caller passes `actingUser`, and the fallback fails safe (it refuses more).
+  - `[low]` `[reject]` (blind) `answered.notAdmin` is dead in the page bundle — the nine PUBLIC TEXT keys are listed together in the page catalog by the spec's catalog task; one unused 46-byte text is harmless and removing it is a change to the ruled list.
+  - `[low]` `[reject]` (blind) GUIDE does not describe the other approvals or DW-1303 — the rulings allow exactly one GUIDE change (Q6) and item 12 says no More to try or New since item; extra public text is not ruled.
+  - `[low]` `[reject]` (edge) Stale `answerable` after a role change — the same as the Planner-ruled question 3 (a).
+  - `[low]` `[reject]` (edge) The email label is inferred in `AnswersIn` — the same as Decided 6.
+  - `[medium]` `[patch]` (edge) The `clearRefused` effect of the card and the phone ends the refused state on any new payload — real and unpinned: `phone/approver.spec.ts` V3 now restores the role, republishes both requests and asserts Approve and Reject return on the card and the phone; mutation recorded under AC 3.
+  - `[low]` `[reject]` (edge) The raise-time refusal's audit entry names channel `system` and a failing audit write could lose the sentence — the channel is not known at raise and `system` is in the enum, `Audit` returns a status that is logged, and the `Record` of the entry is the same seam as the other Email entries.
+  - `[false]` `[reject]` (edge) `Answerable` has `InitialExpression = 0`, the plan said 1 — Decided 12: the payload contract test holds every `%Boolean` to 0, and `FromRow` is the only builder and sets 1.
+  - `[medium]` `[patch]` (verification) The route's 403 sentence for a non-empty kind is not pinned (the real `MayAnswer` names no kind until 26.4) — `Test.Web.ApiProbe.RefusalFor` makes the private `AnswerResponse` callable and `Test.Web.Api:TestAnswerRefusalSentences` pins resend, tool, empty, unknown and the admin sentence; mutation recorded under AC 1.
+  - `[medium]` `[patch]` (verification) A refused press never recovering is not exercised — the same fix as the effect row above (V3).
+  - `[low]` `[reject]` (verification) AC 6's matrix runs against the double's per-kind rule — the spec's AC 6 names the double ("Given the fixture roles and the double"); the real per-kind rule is Story 26.4's.
+  - `[low]` `[reject]` (verification) `Assign` with no acting user is unpinned — see the blind row on `Assign`: no product caller reaches it.
+  - `[low]` `[reject]` (verification) The Lane A tests that raise now rely on the README account being an admin with no control assertion — the account holds `OcuTalonAdmin` by the installer, and a failure is a loud raise refusal; not worth an extra assertion per helper.
+  - `[low]` `[reject]` (verification, other) The email label also covers a lock-time role refusal — the same as Decided 6.
+  - `[false]` `[reject]` (verification, other) `live answers`, `live cards`, `live demo-path`, `npm test`, lint and `ci/checks.sh` had not run — they ran in this stage and pass (see Run results).
+  - `[low]` `[reject]` (verification, other) The page offers buttons an admin-less holder cannot use only after a role removal — AP5 pins the 403 over HTTP; the contract's refused-press state handles it.
+  - `[low]` `[reject]` (intent) The email label is inferred, not signalled by `AnswerOps` — the same as Decided 6.
+  - `[low]` `[reject]` (intent) `MayApprove`'s doc comment was edited although "its hunk is not changed" — the body is byte-identical; only the comment's story reference changed.
+  - `[low]` `[reject]` (intent) `AnswersIn.APPROVALAPI` and the `api` argument are class-name seams in product code — they mirror `AnswerOps.APPROVALAPI`, default to the real class and can only be set by a subclass or a caller in code, never by a setting.
+  - `[low]` `[reject]` (intent) The online-demo row is pinned with `onlineDemo` forced in the web-context job, not through a demo HTTP session — the real route and the owning-session rule are the same code; the demo stack's own `live demo-path` passes.
 
 ## Design Notes
 
@@ -338,6 +369,25 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
     - `shards-4` (`live:sign-in-2`: `phone/approver.spec.ts`);
     - `shards-10` (`live:sign-in`: `api/approver.spec.ts`);
     - the edited existing specs stay in `shards-11` (`live:cards`) and `shards-7` (`live:answers`).
+
+**Decided in-stage (implement, 2026-11-14; differences from the plan are named, each follows HEAD and the spec's intent):**
+11. HEAD differs from the plan's reading of 22.7. `AnswerOps.Carry` calls `Fix.Kind.Email.MayApprove(row, session.IrisUser)` (not a hunk at :58; its hunk is unchanged). `Web.Api.AnswerApproval` computed `kind` for 22.7's email case (the `Set kind` line, now gone with `AnswerResponse`'s `kind` argument, which became `refusal`). `MESSAGENOTAPPROVER*` sat at `Web/Api.cls` :190, :192 and :2282, and `Test.Fix.EmailRoute` pinned two of them. `Install.Step.Roles.Refusal` exists (25.4). The line numbers of the Code Map are otherwise those of the plan.
+12. `Live.Payload.Approval.Answerable` is a property and a class method of the same name, and compiles. The property's initial value is 0, not 1: `Test.Contract` holds every payload `%Boolean` to `InitialExpression = 0` (so that the flag is always in the JSON), and `FromRow` sets it to 1 first, so every payload it builds is answerable unless the role check says otherwise. A payload built by `%New()` alone (a test fixture) reads `answerable` false and is never built by the product.
+13. IRIS omits an empty string from a payload's JSON, so an empty `approverKind` is absent, not `""`; the page reads it as `refusalText(undefined)`, the fallback. The real-HTTP spec asserts `approverKind ?? ''`.
+14. Raise-time audit (Planner rule): `Fix.Kind.Email.Audit` already writes the outcome word of a CommandResult, and `refused` is one of them (`Channel.Email.Out`'s refused answer), so the raise refusal writes the one Action entry with outcome `refused`, recipients 0 and the requester's IRIS user, and no address, subject or text. No audit kind is added. A failed write is one warning and the refusal stands. A requester whose owner Ref has no `Session` row is refused too (no user, so `MayApprove` is 0 unless every recipient is the owner's own address, which `Classify` never raises).
+15. Because `Raise` now refuses a requester who is no admin, the tests of Lane A that raise through it use the README admin's session (`ApprovalRows.ANSWERER`, who holds `OcuTalonAdmin`): `Test.Fix.Email` (`Connect` makes the mailbox owner's session that user's), `Test.Fix.EmailCard` (`RaiseFor`, and a real admin user `one` in `TestStateShowsTheStoredEmail`), `Test.Fix.EmailRoute` (`RaiseFor`, restored to the process's user for the answer) and `Test.Tools.Email` (`AdminSession`). `EmailRoute`'s first test now pins "Only an OcuTalon admin can approve this email." (a non-admin who passes the role check) and the fallback sentence for a request the user lacks the role of.
+16. The web keeps a refused press (403) as `AnswerPress.refused`, set by the reply and cleared by `clearRefused` when the store's payload of the request changes, so a later snapshot or `approval` event (the server's `answerable`) decides again. The card shows the sentence as its status line (`tone-expired`, icon `circle-slash`, the same part and key as the buttons, so the shared focus rule moves focus to it); the phone shows it as its answer line. The notice that repeats the same text is not shown twice, and is still announced once. `AnswerPress.press` and `answerOutcomeOf` lost their `fixKind` argument (`notApproverFix` is gone).
+17. The nine catalog keys are in the page's allowlist (`web/scripts/catalog.mjs` `LISTED_KEYS`, with `catalog.test.mjs`), so `catalog.ts` holds them; `refusalText` asks the page's catalog by key and falls back when it throws. `payloads.ts` is regenerated (`answerable`, `approverKind`).
+18. The mocked 403 cases moved: `approval-card.spec.ts` A8 no longer loops a 403 (a 403 now ends the buttons) and A8b is the new case; `answers.spec.ts` X5's second half drops its 403 and X5c is the new case.
+19. The page receives live events over a WebSocket, so the mocked approver kind of the phone spec (V4) is a `/v1/state` snapshot (chat incident, rail approval with `answerable` false and `approverKind` resend, one phone message), not a patched `/v1/events` reply.
+20. `api/approver.spec.ts` AP5 is an addition: until Story 26.4 names kinds, `Approval.Answer` applies the same role rule under its lock, so the 403 of AP2 is the same with or without rule 6. An email request to another address tells them apart (rule 6 first gives the fallback sentence to a user without the role; without it `AnswerOps`' email rule gives the admin sentence) and pins AC 7 over real HTTP.
+21. DW-1303: `Roles.Refusal(userName, role, actingUser = "", grant = 1)` answers `self_viewer` (after the managed and unknown checks) when `actingUser` is not empty, the role is `OcuTalonViewer` (compared without case), `grant` is 1 and the acting user equals the target without case. `Assign` asks it with its `actingUser`, else the caller's `$Username`, and `SaveRoles` with `command.ActingUser` and the grant flag; the pinned Contract signature (leading arguments) is unchanged. The text is `Web.RoleSettings` `MESSAGEREASONSELFVIEWER` and `ROLES_REASONS.self_viewer` (the lazy chunk `roles-section`), pinned equal by `roles-view.test.mjs`. `Test.Core.RolesStub.Refusal` takes the two new arguments.
+22. GUIDE.md and `docker/tests/test-readme.sh`: P1's middle sentence is replaced word for word (Q6); the test's approved copy of the paragraph and its `the mailbox and approval paragraph reworded` mutation pattern follow it, with no change to the wording. `test-readme.sh` passes.
+23. `lint_spine.py` answers `"ok": false` with 10 low `placeholder` findings, at HEAD and now alike; this story adds none.
+24. The initial bundle is 886.81 kB (884.58 kB before): the nine catalog texts and the card's and phone's logic are in the chat, which is initial; the Roles text is in the lazy `roles-section` chunk. The cap of 1 MB holds.
+25. `new_units: none`; no CI group changes. The classes that changed are in the groups of Decided 10.
+
+**Measured (Task 0, implement stage 2026-11-14, `AnswersInWebRoles.TestMayAnswerInAWebJob` on the lane-A throwaway):** in a job logged in as a fixture user with exactly `OcuTalonUser` and the application roles, `Approval.MayAnswer(ref, $Username, .kind)` answers 1 (kind "") for a request whose `RequiredRole` the user holds and 0 for the fixture role `OcuTalonApprover` that the user lacks and for a role that does not exist, with no error status and no `<PROTECT>`, and `Live.Payload.Approval.FromRow` gives `answerable` 1 and 0 for the same rows in the same job. The web job needs no `%Admin_Secure`.
 
 **Measured (plan stage):** nothing was run. Slot A has no OcuTalon roles and no 22.7 code. Task 0 measures the one platform behaviour this plan rests on, and it is labelled (inference) until then.
 
@@ -442,24 +492,39 @@ Run one command per tool call, in the foreground, with `timeout: 600000`, each s
 - the phone's button rule (`phone-view.test.mjs`);
 - the spine's tables.
 
+26. Review patches (2026-11-14): `Test.Web.ApiProbe.RefusalFor` (a probe method, like `AnswerFor`) and `Test.Web.Api:TestAnswerRefusalSentences` pin the route's 403 sentences for a named kind; `phone/approver.spec.ts` V3 pins the end of the refused state; the spine's Telegram `not_allowed` slot sentence is amended. `web/scripts/playwright-projects.test.mjs` counts the two added mocked-403 cases (cards 31, answers 24). `answers.spec.ts` X5c opens the page before it raises, as X5 does.
+
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-**Mutations to record (Rule 19; one per AC, each observed red and reverted byte-identical):**
-- AC 1: skip rule 6 → `TestRoleCheckBeforeHandOver` and `api/approver.spec.ts` go red.
-- AC 2: move rule 6 before rule 3 → the demo case of `TestFixtureRoleOnTheRealPath` (another session's request gives `not_found`) goes red.
-- AC 3: ignore `answerable` in the card's `@if` → `phone/approver.spec.ts` (a) goes red. Make `RefusalKey` always return the fallback → `TestRefusalKey` and spec (d) go red.
-- AC 4: put `row.Kind` back in `TelegramCode` → `AnswersTelegram` goes red.
-- AC 5: drop `session.IrisUser` from `AnswerOps`' `Answer` call → `Test.Core.AnswersIn:TestMalformedSessionRefNeverReaches` (the existing irisUser pin at :165) goes red, and `phone/approver.spec.ts` (b) goes red.
-- AC 6: make the double ignore `RequiredRole_kind` → `TestApproverMatrix`'s kind-role holder goes red.
-- AC 7: drop the post-send email label → `TestEmailAdminRefusal` goes red.
-- AC 8: remove the `MayApprove` call in `Raise` → `TestNonAdminEmailIsRefusedAtRaise` goes red.
+**Mutations (Rule 19; one per AC, each applied, observed red and reverted byte-identical from a copy saved by the implementer; run 2026-11-14 on the lane-A throwaways `e25s5iw` (warm) and `e25s5i` (fresh)):**
+- AC 1: mutation: skip rule 6 (`If '..Answerable(...) {` becomes `If 0 {` in `AnswersIn.OnProcessInput`) -> `TestRoleCheckBeforeHandOver` and `TestEmailAdminRefusal` go red, and over real HTTP `api/approver.spec.ts` AP5 goes red (AP2 stays green: `Approval.Answer` applies the same role rule until Story 26.4, see Decided 20).
+- AC 2: mutation: move rule 6 before rule 3 (the role check right after the SessionRef shape check) -> `AnswersInWebRoles:TestFixtureRoleOnTheRealPath` goes red ("another session's request is not_found, whether or not the holder may answer it").
+- AC 3: mutation: remove `&& !cannot()` from the card's `@if (view().pending && !viewer() && !cannot())` -> `phone/approver.spec.ts` V1 (a), V3 and V4 go red. mutation: `RefusalKey` never takes the kind branch (`If kind ? 1.32(1L,1"_") {` becomes `If 0 {`) -> `TestRefusalKey` goes red. mutation: `refusalText` never takes the kind branch -> `approval-view.test.mjs`, `phone-view.test.mjs` and `phone/approver.spec.ts` V4 (d) go red.
+- AC 4: mutation: put `row.Kind` back in `TelegramCode`'s `not_allowed` branch -> `AnswersTelegram:TestOtherAnswers` goes red.
+- AC 5: mutation: drop `session.IrisUser` from `AnswerOps`' `Answer` call (`""` in its place) -> `AnswersIn:TestMalformedSessionRefNeverReaches` (and `TestRoleRefusalReachesCaller`) go red, and `phone/approver.spec.ts` V2 (b) goes red.
+- AC 6: mutation: the double ignores `RequiredRole_kind` (`|| $ListFind(held, row.RequiredRole_"_"_kind)` removed) -> `AnswersInWebRoles:TestApproverMatrix`'s kind-role holder goes red.
+- AC 7: mutation: drop the post-send email label (`Set ..Refusal = {"kind": ""}` always) -> `AnswersIn:TestEmailAdminRefusal` goes red; over real HTTP AP5 pins the same composition.
+- AC 8: mutation: remove the `MayApprove` call in `Raise` (`If 0 {`) -> `Test.Fix.Email:TestNonAdminEmailIsRefusedAtRaise` goes red.
+- AC 1 (route sentence): mutation: `AnswerResponse` sets `kind = ""` after reading the refusal -> `Test.Web.Api:TestAnswerRefusalSentences` goes red (resend and tool).
+- AC 3 (refused state ends): mutation: the card's `clearRefused` effect body is removed -> `phone/approver.spec.ts` V3 goes red.
+- DW-1303: mutation: skip the `self_viewer` check in `Roles.Refusal` -> `Test.Install.RolesAssign:TestSelfViewerRefused` goes red and `api/roles.spec.ts` R6 goes red. mutation: `SaveRoles` asks `Refusal` without `command.ActingUser, grant` -> `Test.Core.SettingsRoles:TestRefusalIsAskedWithTheActingUser` goes red.
+
+**Run results (implement, 2026-11-14).**
+- Warm stack `e25s5iw`, each class once, all `passed`: `Test.Core.AnswersIn`, `.AnswersTelegram`, `.AnswersTelegramProduction`, `.AnswersInProduction`, `.AnswersInWebRoles` (22 s), `.BridgeSink`, `.PersonaAnswers`, `.SettingsRoles`, `.AnswerPrecedents`; `Test.Web.Api`, `.RolesApi`; `Test.Msg.Catalog`; `Test.Fix.Email`, `.EmailRoute`, `.EmailCard`; `Test.Tools.Email`; `Test.Live.Payloads`; `Test.Install.RolesAssign`; `Test.Bridge.Api`, `.CodeRules`; `Test.Contract.Ac`; `Test.Channel.TelegramApproval`.
+- Node: `node --test web/scripts/` (2075 tests) passes; the loop list of the spec passes; `npm --prefix web run catalog` writes the 18 lines of the nine keys (PAGE_TEXTS and PAGE_SLOTS), `npm --prefix web run payloads` the two fields; `tsc -p web/tsconfig.e2e.json` and `node --check web/scripts/*.mjs` pass.
+- Fresh throwaway `e25s5i`: `ci/iris.sh live sign-in --part 3/33` (`api/approver.spec.ts` AP1 to AP5, with `body-limit` and `files`, 12 tests) passes; `live sign-in --part 6/33` (`api/roles.spec.ts` R1 to R6) passes; `live sign-in-2 --part 13/24` (`phone/approver.spec.ts` V1 to V4, with the two `live/` specs) passes. Parts: `node web/scripts/e2e-part.mjs 3/33`, `6/33` and `13/24` on the project listings.
+- `docker/tests/test-readme.sh`, `test-boundaries.sh` and `test-class-rules.sh` pass. `lint_spine.py`: see Decided 23. Not run (the parent's once commands): `live demo-path`, `live answers`, `live cards`, `npm --prefix web test`, `npm --prefix web run lint`, `bash ci/checks.sh`.
+- Parent's once commands (2026-11-14, throwaway `e25s5i`): `live demo-path` passes; `live answers` passes (24; the first run failed X5c, which had not opened the page, fixed); `live cards` passes (31); `npm --prefix web test` (2075), `npm --prefix web run lint` and `npm --prefix web run build` pass; all 32 `CHECK_SCRIPTS` blocks of `ci/checks.sh` pass (run one by one). After the review patches: `Test.Web.Api` passes on `e25s5iw`, `live sign-in-2 --part 13/24` passes with V3's recovery, `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-changes.sh`, node tests and lint pass.
+- Initial bundle after `npm --prefix web run build`: 886.81 kB (cap 1 MB; was 884.58 kB). The Roles text is in the lazy chunk `roles-section`.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned 2026-11-13 (plan stage, halt after planning). The spec meets the READY FOR DEVELOPMENT standard.
-- The Planner Gate goes to the Contest Planner before implement: PUBLIC TEXT has 12 items, SECURITY 9 and QUESTIONS 7.
-- The recommendation for the 22.7 email DW is to refuse at raise time (question 1 (a)).
-- Implement has a precondition: 22.7 merged and integrated forward, and 25.4 implemented.
+- Summary: `AnswersIn` now refuses an answer with `not_allowed` and `{"kind"}` when `Approval.MayAnswer` refuses the session's IRIS user (rules 5 and 6, after ownership and shape), the email admin rule labels its refusal `{"kind":"email","admin":true}`, every channel renders the sentence from the catalog (`RefusalKey`), and the approval payload carries `answerable` and `approverKind` so the card and the simulated phone drop Approve and Reject and show the sentence. A non-admin's risky email to another address is refused at raise time (DW-1281, with the existing `refused` audit outcome), GUIDE P1's middle sentence is replaced as ruled (Q6), and an admin can't give themselves the viewer role (DW-1303, `self_viewer`).
+- Files: the Lane B answer path (`Core/AnswersIn.cls`, `Live/Payload/Approval.cls`, `Web/Api.cls`, `Msg/Catalog/Core.cls`), Lane A's `Fix/Kind/Email.cls` (raise refusal), `Install/Step/Roles.cls`, `Core/SettingsOps.cls` and `Web/RoleSettings.cls` (DW-1303), the web (`approval-view.ts`, `approval-request-card.ts`, `answer-press.ts`, `phone-view.ts`, `phone-request.ts`, `payloads.ts`, `catalog.ts`, `roles-view.ts`), GUIDE.md, `test-sign-in.sh` and `test-readme.sh`, the spine, the tests listed under Tasks and the new specs `web/e2e/api/approver.spec.ts` and `web/e2e/phone/approver.spec.ts`.
+- Review: 26 findings (medium 3, low 21, false 2): 3 patched (the route's 403 sentences pinned by `TestAnswerRefusalSentences`, the end of the refused state pinned by V3, the spine's Telegram slot sentence), 23 rejected with their reasons in the triage log, 0 deferred.
+- Follow-up review recommended: false (no `high` patched; 2 `medium` patches were test additions, not product changes).
+- Verification: see Run results; every command passes; mutations for AC 1 to 8 and DW-1303 and the two review patches were observed red and reverted byte-identical.
+- Residual risks: the page's refused state ends on any new payload for the request, so a stale event can show the buttons again until the next press (the server refuses again); the admin label is inferred (Decided 6); per-kind sentences can't appear for real users until Story 26.4. Initial bundle 886.81 kB (cap 1 MB).

@@ -77,7 +77,7 @@ describe('the guards', () => {
   });
 
   it('Approve and Reject show only for a request that is pending and a user who is no viewer', () => {
-    assert.match(code('approvals/approval-request-card.ts'), /@if \(view\(\)\.pending && !viewer\(\)\)/);
+    assert.match(code('approvals/approval-request-card.ts'), /@if \(view\(\)\.pending && !viewer\(\) && !cannot\(\)\)/);
   });
 
   it('the simulated phone shows no Approve or Reject for a viewer', () => {

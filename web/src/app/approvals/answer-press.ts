@@ -38,12 +38,16 @@ export interface AnswerPressOptions {
  *   the page's live store. A reply with no payload changes nothing there. The notice of a reply is `notice` (a late press reads
  *   latePressText, a missing request the "no longer available" text, a refusal or a failure the reply's own message, no connection
  *   the busy notice), and each notice is announced once. A new press clears it.
+ * - A reply that refuses the press (403 not_allowed, Story 25.5) also sets `refused` to the server's sentence: the host takes the request into its can't-answer state at once,
+ *   with Approve and Reject gone, until the store's payload for the request changes (clearRefused), when the server's own `answerable` decides again.
  */
 export class AnswerPress {
   /** True while a press is out: both buttons are busy. */
   readonly busy = signal(false);
   /** The request as a reply showed it, until the host drops it; undefined before any such reply. */
   readonly local = signal<ApprovalPayload | undefined>(undefined);
+  /** The server's sentence of the last press that was refused (403 not_allowed), "" for none: the request is shown as one that the user can't answer. */
+  readonly refused = signal('');
   /** The notice under the buttons: the last reply's, else the busy notice while it is raised, else "". */
   readonly notice = computed(() => (this.replyNotice() !== '' ? this.replyNotice() : this.timedOut() ? APPROVAL_TEXTS.busyNotice : ''));
 
@@ -69,7 +73,7 @@ export class AnswerPress {
   }
 
   /** A press of Approve or Reject for the request: one call for both buttons; a press while a call is out is ignored. */
-  press(ref: string, action: 'approve' | 'reject', fixKind = ''): void {
+  press(ref: string, action: 'approve' | 'reject'): void {
     if (!this.state.press()) {
       return;
     }
@@ -79,16 +83,18 @@ export class AnswerPress {
       .answer(ref, action, this.options.channel)
       .pipe(takeUntilDestroyed(this.options.destroyRef))
       .subscribe({
-        next: (response: HttpResponse<AnswerBody>) => this.replied(call, response.status, response.body, fixKind),
-        error: (error: unknown) =>
-          error instanceof HttpErrorResponse ? this.replied(call, error.status, error.error, fixKind) : this.replied(call, 0, undefined, fixKind),
+        next: (response: HttpResponse<AnswerBody>) => this.replied(call, response.status, response.body),
+        error: (error: unknown) => (error instanceof HttpErrorResponse ? this.replied(call, error.status, error.error) : this.replied(call, 0, undefined)),
       });
   }
 
   /** The reply to the call: it ends the busy state, early or late, and shows what the reply says. */
-  private replied(call: number, status: number, body: unknown, fixKind: string): void {
+  private replied(call: number, status: number, body: unknown): void {
     this.state.answered(call);
-    const outcome = answerOutcomeOf(status, body, fixKind);
+    const outcome = answerOutcomeOf(status, body);
+    if (outcome.kind === 'notAllowed') {
+      this.refused.set(outcome.message);
+    }
     const approval = 'approval' in outcome ? outcome.approval : undefined;
     if (approval !== undefined) {
       this.local.set(approval);
@@ -112,6 +118,11 @@ export class AnswerPress {
       default:
         return '';
     }
+  }
+
+  /** Drops the refused state: the store's payload for the request changed, so the server's own answer decides again. */
+  clearRefused(): void {
+    this.refused.set('');
   }
 
   /** Shows the notice and announces it, once; "" clears it. */

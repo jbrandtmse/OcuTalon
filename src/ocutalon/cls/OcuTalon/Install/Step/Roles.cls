@@ -37,9 +37,10 @@ Parameter MAXUSERNAME = 160;
 /// The reason Assign would refuse the call, as one code, or "" when it would not: online_demo, role (not in ASSIGNABLE), user_unknown (empty, longer than
 /// MAXUSERNAME or not an IRIS user), user_system (one of SYSTEMUSERS, or a name that starts with _ or %, checked before the user is looked up) or user_managed (the
 /// service, Workflow and SQL-watch users and the online demo's and read-only accounts, by name and whether or not they exist, or an account whose FullName is Users
-/// MARKER). The README account is not managed.
+/// MARKER) or self_viewer (Story 25.5, DW-1303: actingUser, when given, is the target user compared without regard to case, the role is OcuTalonViewer and grant is 1, because a viewer is read-only
+/// and an admin who made themselves one would lose Settings; removing one's own viewer role and granting oneself OcuTalonApprover stay allowed). The README account is not managed.
 /// It changes nothing and reads %SYS only to find the user.
-ClassMethod Refusal(userName As %String, role As %String) As %String
+ClassMethod Refusal(userName As %String, role As %String, actingUser As %String = "", grant As %Boolean = 1) As %String
 {
 	If +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = 1 Quit "online_demo"
 	If ..Assignable($Get(role)) = "" Quit "role"
@@ -57,6 +58,7 @@ ClassMethod Refusal(userName As %String, role As %String) As %String
 	If hit Quit "user_managed"
 	If '..UserKnown(name, .fullName) Quit "user_unknown"
 	If fullName = ##class(OcuTalon.Install.Step.Users).#MARKER Quit "user_managed"
+	If (actingUser '= "") && ''grant && ($ZConvert(..Assignable(role), "L") = "ocutalonviewer") && ($ZConvert(actingUser, "L") = lower) Quit "self_viewer"
 	Quit ""
 }
 
@@ -65,14 +67,15 @@ ClassMethod Refusal(userName As %String, role As %String) As %String
 /// %SYS to look the user up, and gets the next error), the %Admin_Secure:USE check (an error that names %Admin_Secure), then the change in %SYS with the allowlist's spelling of the role, then one IRIS audit entry of type Settings through
 /// Bridge.Audit (setting roles.<userName>, from and to the user's OcuTalon roles as sorted comma lists, irisUser actingUser or the caller's $Username, sessionRef
 /// and channel). A user already in the requested state changes nothing and writes no entry. When the entry cannot be written the role change is put back and
-/// the error is returned (with the put-back's own error appended when that fails too). Audit is the one seam for the entry.
+/// the error is returned (with the put-back's own error appended when that fails too). Audit is the one seam for the entry. Refusal is asked with the acting user (the caller's $Username when
+/// actingUser is empty) and grant, so that a user cannot grant themselves the viewer role (self_viewer).
 ClassMethod Assign(userName As %String, role As %String, grant As %Boolean, Output changed As %Boolean, actingUser As %String = "", sessionRef As %String = "", channel As %String = "system") As %Status
 {
 	Set changed = 0
 	Set code = ""
 	Set denied = $$$OK
 	Try {
-		Set code = ..Refusal($Get(userName), $Get(role))
+		Set code = ..Refusal($Get(userName), $Get(role), $Select($Get(actingUser) '= "": actingUser, 1: $Username), $Get(grant, 1))
 	} Catch exception {
 		Set denied = ..RequirePrivilege()
 		If $$$ISOK(denied) Throw exception
@@ -159,6 +162,7 @@ ClassMethod Subject(code As %String, userName As %String, role As %String) As %S
 {
 	If code = "role" Quit "role " _ $Extract(role, 1, 64) _ " is not one of " _ ..#ASSIGNABLE
 	If code = "online_demo" Quit "roles are not changed on the online demo"
+	If code = "self_viewer" Quit "user " _ $Extract(userName, 1, 64) _ " can't give themselves the viewer role"
 	Quit "user " _ $Extract(userName, 1, 64) _ " " _ $Case(code, "user_unknown": "is not an IRIS user", "user_system": "is an IRIS system account", : "is managed by OcuTalon")
 }
 

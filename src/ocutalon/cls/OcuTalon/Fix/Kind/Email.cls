@@ -5,7 +5,10 @@
 ///   - Classify gives safe only when the call's parameters are valid and every recipient is the session user's own address (OwnAddressOnly), and risky otherwise, also for bad input and
 ///     for an exception. It reads only the call's recipients, subject and text, the stored product keys email.address and email.owner (Data.Setting.Fresh) and the context's OwnerRef.
 ///   - Raise refuses before it raises anything, with Channel.Email.Out's sentence: on the online demo (MESSAGEUNAVAILABLE), with no mailbox address (MESSAGENOTCONNECTED) and for
-///     parameters that CheckParameters or the dry run refuses (MESSAGEREFUSED; the dry run also refuses recipients too long for a SendEmail command). Otherwise it raises one fix request with no incident and ResultTarget FixExecutor through Approval.Raise.
+///     parameters that CheckParameters or the dry run refuses (MESSAGEREFUSED; the dry run also refuses recipients too long for a SendEmail command)
+///     and, with this class's own sentence MESSAGENOTADMIN, for a requester who may not approve the request: a user who is no OcuTalon admin (MayApprove on the IRIS user of the owner's session; Story 25.5), so that no
+///     request is raised that nobody could answer. That refusal writes one Action entry with the outcome refused and no recipient count (it holds no address, subject or text). Otherwise it raises one fix request with
+///     no incident and ResultTarget FixExecutor through Approval.Raise.
 ///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef and the owner's session and nothing else: no recipients, no subject and no text
 ///     (EmailOut reads all three from the request's row, so that none of them is in the command or in the trace), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
 ///   - MayApprove is the interim approver rule of an email request (DW-1262): an approval of an email to anyone but the owner's own address is answered only by a holder of the role
@@ -38,6 +41,12 @@ Parameter EMAILNOSTART = "OcuTalon couldn't start sending the email, so it wasn'
 
 /// The target and the action of the Action entry.
 Parameter AUDITTARGET = "EmailOut";
+
+/// The sentence of a send_email call that is refused because the requester is no OcuTalon admin (public text, Story 25.5; the style of Channel.Email.Out's refusals).
+Parameter MESSAGENOTADMIN = "Only an OcuTalon admin can send email to another address, so the email wasn't sent.";
+
+/// The outcome of the Action entry of that refusal: the word that Channel.Email.Out already gives to a command it refuses.
+Parameter AUDITREFUSED = "refused";
 
 /// The schema check of the base does not fit the array: recipients is an array of 1 to the limit of addresses, subject is one line of 1 to the limit of characters and text is 1 to the limit of
 /// characters in which only a tab, a line feed and a carriage return are control characters; the keys are exactly PARAMETERS.
@@ -244,6 +253,13 @@ ClassMethod Raise(arguments As %DynamicObject, ownerRef As %String, traceRef As 
 		Set request.FixParameters = parameters.%ToJSON()
 		Set request.FixTargets = targets
 		Set request.DryRun = dryRun.%ToJSON()
+		Set irisUser = ..SessionUser(ownerRef)
+		If '..MayApprove(request, irisUser) {
+			Set refusal = ..#MESSAGENOTADMIN
+			Set audited = ..Audit(..#AUDITREFUSED, "", ownerRef, "", 0, irisUser)
+			If $$$ISERR(audited) Do ##class(Ens.Util.Log).LogWarning($ClassName(), "Raise", "A refused send_email call could not write its audit entry: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(audited)))
+			Quit
+		}
 		Set sc = ##class(OcuTalon.Bridge.Approval).Raise(request, .ref, sinkClass)
 		If $$$ISERR(sc) Set ref = ""
 	} Catch exception {
@@ -253,7 +269,14 @@ ClassMethod Raise(arguments As %DynamicObject, ownerRef As %String, traceRef As 
 	Quit sc
 }
 
-/// 1 when the IRIS user may approve the request (DW-1262, until the approver-role check of Story 25.5 covers the kind email). Any row that is not a fix request of the kind email
+/// The IRIS user of the session of ownerRef (the Session row's), or "" when the Ref names no session.
+ClassMethod SessionUser(ownerRef As %String) As %String [ Private ]
+{
+	Set session = $Select(##class(OcuTalon.Bridge.Approval).IsRef($Get(ownerRef)): ##class(OcuTalon.Data.Session).RefIndexOpen(ownerRef), 1: "")
+	Quit $Select($IsObject(session): session.IrisUser, 1: "")
+}
+
+/// 1 when the IRIS user may approve the request (DW-1262; Story 26.4's plan decides the approver rule of the kind email). Raise asks it of the requester before it raises, and AnswerOps asks it before every approve. Any row that is not a fix request of the kind email
 /// may be answered as before. An email request whose recipients are exactly the own address of the request's owner (OwnAddressOnly) may be answered as before. Any other email
 /// request (any other address, a mailbox that now belongs to another session, parameters that cannot be read) may be approved only by a user who holds the role OcuTalonAdmin by its
 /// whole name, among the roles the user holds directly or through other roles (never the job's roles). An unknown user, an error and a user with no roles hold nobody. A reject is not asked.

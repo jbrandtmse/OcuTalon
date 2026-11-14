@@ -33,6 +33,8 @@
 ///     (not_allowed, nothing sent) for another session, with no mailbox owner or address, joined with another recipient, and as an empty or blank list;
 ///   - TestOnlyAnAdminApprovesAnEmailToAnotherAddress (DW-1262): through AnswersIn and AnswerOps with two fixture IRIS users of the approval role, a non-admin's approve of an email to another address is
 ///     not_allowed (nothing sent, the request pending), a non-admin's reject is answered, an admin's approve sends once, and MayApprove is asked row by row;
+///   - TestNonAdminEmailIsRefusedAtRaise (Story 25.5, AC 8): a risky email of a requester who is no OcuTalon admin is refused at raise time with Fix.Kind.Email MESSAGENOTADMIN, raises no request and writes one refused Action entry
+///     with no address; an admin's call is raised as before;
 ///   - TestApprovedEmailIsInNoTraceGlobal (P4 (a), DW-1255 rule 4): an email raised through Fix.Kind.Email.Raise to another address (no chat turn), approved and sent, leaves the stored SendEmail
 ///     with only its ApprovalRef, and OcuTalon.Test.Core.SecretHandoff TraceLeaks finds the recipient, the subject and the text marker in none of the trace globals (message bodies, headers, log rows);
 ///   - TestSystemSendTakesItsSubjectAndTextFromTheRow (P4 (a)): a system SendEmail that leaves its Subject and Text empty is sent with those of its executing approval row, one that carries the row's
@@ -231,6 +233,10 @@ ClassMethod EmailDeliveries(owner As %String, approval As %String = "") As %Inte
 Method Connect(address As %String) As %Boolean [ Private ]
 {
 	Set ..Owner = ..Session("mailbox")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(..Owner)
+	Set row.IrisUser = ..#ANSWERER
+	Do $$$AssertStatusOK(row.%Save(), "the mailbox owner is the README admin, so that a send_email call to another address may be raised (Story 25.5)")
+	Kill row
 	Set ..Dummy = "Zz-email-"_..Number_"-"_$Random(1000000)
 	Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address"), ##class(OcuTalon.Data.Setting).Get("email.address"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), ##class(OcuTalon.Data.Setting).Get("email.owner"))
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(..Dummy, .uri)
@@ -1120,6 +1126,43 @@ Method TestOnlyAnAdminApprovesAnEmailToAnotherAddress()
 	Do $$$AssertEquals($ClassMethod(kind, "MayApprove", ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(other), plain), 1, "a request of another fix kind is not asked: yes")
 	Do $$$AssertEquals(..AnswerAs(plainSession, mixed, "approve"), "not_allowed", "through AnswerOps: the own address and another is refused to a non-admin too")
 	Do $$$AssertEquals(..StateOf(mixed), "pending", "and stays pending")
+}
+
+/// Story 25.5, AC 8 (the 22.7 email DW): a risky send_email call of a requester who is no OcuTalon admin is refused at raise time with Fix.Kind.Email MESSAGENOTADMIN, through Raise and through the
+/// tool's hook: no request is raised and nothing is sent, and one Action entry of the action email with the outcome refused and no recipient count is written, with no address, subject or text.
+/// An admin's call is raised as before, and a requester with no session is refused too.
+Method TestNonAdminEmailIsRefusedAtRaise()
+{
+	If '..Setup() Quit
+	Set plain = ..MakeUser("rplain", "OcuTalonUser")
+	If plain = "" Quit
+	Set session = ..SessionOf(plain)
+	Set sentence = $Parameter("OcuTalon.Fix.Kind.Email", "MESSAGENOTADMIN")
+	Do $$$AssertEquals(sentence, "Only an OcuTalon admin can send email to another address, so the email wasn't sent.", "the sentence is the approved text")
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set arguments = {"recipients": [(..#OTHERADDRESS)], "subject": "Zz not an admin subject", "text": "Zz not an admin text."}
+	Set sc = ##class(OcuTalon.Fix.Kind.Email).Raise(arguments, session, ##class(OcuTalon.Bridge.Ids).NewRef(), "", .ref, .refusal)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_ref_"|"_refusal, "1||"_sentence, "a non-admin's call is refused with the sentence and raises nothing")
+	Set ref = "zz"
+	Set refusal = "zz"
+	Set sc = $ClassMethod("OcuTalon.Tools.EmailTools", "HoldSENDEMAIL", arguments, session, "", "", .ref, .refusal)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_ref_"|"_refusal, "1||"_sentence, "and so is the hook of the tool")
+	Do $$$AssertEquals(..EmailRows(session).%Size()_"|"_..AllRows(session), "0|0", "no approval request exists")
+	Do $$$AssertEquals(..Mails().%Size()_"|"_..EmailDeliveries(session), "0|0", "nothing was sent")
+	Set entries = ..EmailEntries(since, 2)
+	Do $$$AssertEquals(entries.%Size(), 2, "one Action entry of the action email for each refusal")
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set data = entry.data
+		Do $$$AssertEquals(data.action_"|"_data.target_"|"_data.result_"|"_data.approvalRef_"|"_data.sessionRef_"|"_data.counts.recipients_"|"_data.irisUser, "email|EmailOut|refused||"_session_"|0|"_plain, "email, EmailOut, refused, no approval, the session, no recipient count and the requester's user")
+		Set text = $ZConvert(entry.%ToJSON(), "L")
+		Do $$$AssertEquals((text [ "example.test")_"|"_(text [ "zz not an admin"), "0|0", "and it holds no address, subject or text")
+	}
+	Set sc = ##class(OcuTalon.Fix.Kind.Email).Raise(arguments, ..Owner, ##class(OcuTalon.Bridge.Ids).NewRef(), "", .adminRef, .refusal)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_(adminRef '= "")_"|"_refusal, "1|1|", "an admin's call is raised")
+	Do $$$AssertEquals(..EmailRows(..Owner).%Size(), 1, "and one request exists for the admin's session")
+	Set sc = ##class(OcuTalon.Fix.Kind.Email).Raise(arguments, ##class(OcuTalon.Bridge.Ids).NewRef(), ##class(OcuTalon.Bridge.Ids).NewRef(), "", .orphanRef, .refusal)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_orphanRef_"|"_refusal, "1||"_sentence, "a requester with no session is refused")
 }
 
 /// P4 (a): an approved email's recipients, subject and text are only in its approval record. The request is raised through Fix.Kind.Email.Raise (no chat turn, so no model request carries them), approved

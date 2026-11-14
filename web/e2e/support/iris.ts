@@ -66,6 +66,7 @@ export type FixtureKind =
   | 'CARDS'
   | 'VIEWER'
   | 'ROLETARGET'
+  | 'APPROVER'
   | 'DEMOACCOUNT'
   | 'READONLYACCOUNT';
 

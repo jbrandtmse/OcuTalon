@@ -7,6 +7,9 @@
 ///   - TestManagedUserRefused: the service, Workflow and SQL-watch users, the public demo and read-only accounts, and an account whose FullName is the installer's
 ///     marker are refused (user_managed) with the same checks;
 ///   - TestSystemUserRefused (C1): UnknownUser, _SYSTEM, SuperUser, a name that starts with % and one that starts with _ are refused (user_system);
+///   - TestSelfViewerRefused (Story 25.5, DW-1303): an admin granting OcuTalonViewer to themselves (the acting user is the target, whatever the case of either name and of the role) is refused (self_viewer) with
+///     an error that names the code and the user, changed 0, the user's roles unchanged and no entry; removing one's own viewer role, granting oneself OcuTalonApprover, granting the viewer role to another user
+///     and a call with no acting user are not refused;
 ///   - TestHoldersListsSystemAccountAsManaged (C1): Holders lists an account with a system name that already holds an OcuTalon role, with managed true;
 ///   - TestUnknownUserRefused: an unknown user, an empty name and a name of 161 characters are refused (user_unknown);
 ///   - TestNoPrivilege: a job logged in as a fixture admin, who holds no %Admin_Secure:USE, gets an error that names %Admin_Secure from Assign and Holders and changes nothing;
@@ -139,6 +142,39 @@ Method TestSystemUserRefused()
 		If ..RoleSet(name) '= before Do ..RemoveRole(name, "OcuTalonViewer")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Settings").%Size(), 0, "no Settings entry was written")
+}
+
+Method TestSelfViewerRefused()
+{
+	If '..Guard() Quit
+	Set admin = ..NewUser("s", "OcuTalonUser,OcuTalonAdmin")
+	Set other = ..NewUser("t", "OcuTalonUser")
+	Set session = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set before = ..RoleSet(admin)
+	For case = admin_"|OcuTalonViewer", $ZConvert(admin, "U")_"|OcuTalonViewer", admin_"|ocutalonviewer", $ZConvert(admin, "L")_"|OCUTALONVIEWER" {
+		Set acting = $Piece(case, "|", 1), role = $Piece(case, "|", 2)
+		Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(admin, role, 1, .changed, acting, session, "web")
+		Do $$$AssertStatusNotOK(sc, case_": a grant to oneself is refused")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "(self_viewer)", case_": the error names the code")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ admin, case_": and the user")
+		Do $$$AssertEquals(changed, 0, case_": changed is 0")
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Roles).Refusal(admin, role, acting, 1), "self_viewer", case_": Refusal says self_viewer")
+	}
+	Do $$$AssertEquals(..RoleSet(admin), before, "the admin's role set is unchanged")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Settings").%Size(), 0, "and no Settings entry was written")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Roles).Refusal(admin, "OcuTalonViewer"), "", "with no acting user nobody is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Roles).Refusal(admin, "OcuTalonViewer", other, 1), "", "another user's grant of the viewer role to the admin is not refused")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Roles).Refusal(admin, "OcuTalonViewer", admin, 0), "", "removing one's own viewer role is not refused")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Roles).Refusal(admin, "OcuTalonApprover", admin, 1), "", "nor is granting oneself OcuTalonApprover")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Roles).Refusal(other, "OcuTalonViewer", admin, 1), "", "nor is granting the viewer role to another user")
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(admin, "OcuTalonApprover", 1, .changed, admin, session, "web")
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_changed, "1|1", "granting oneself OcuTalonApprover is done")
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(admin, "OcuTalonViewer", 1, .changed, other, session, "web")
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_changed, "1|1", "another user's grant of the viewer role to the admin is done")
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Assign(admin, "OcuTalonViewer", 0, .changed, admin, session, "web")
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_changed, "1|1", "and the admin removing their own viewer role is done")
+	Do $$$AssertEquals(..OcuTalonRoles(admin), "OcuTalonAdmin,OcuTalonApprover,OcuTalonUser", "which leaves the other roles")
 }
 
 Method TestUnknownUserRefused()

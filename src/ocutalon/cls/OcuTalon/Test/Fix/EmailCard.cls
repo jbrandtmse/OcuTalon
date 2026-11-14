@@ -73,10 +73,17 @@ Method Setup() As %Boolean [ Private ]
 	Quit 1
 }
 
-/// Raises the request of an email call through the real Fix.Kind.Email.Raise for the owner session; its Ref ("" when nothing was raised, which fails the assertion).
-Method RaiseFor(owner As %String, recipients As %DynamicArray, subject As %String, text As %String) As %String [ Private ]
+/// Raises the request of an email call through the real Fix.Kind.Email.Raise for the owner session; its Ref ("" when nothing was raised, which fails the assertion). Raise refuses a requester who is
+/// no admin (Story 25.5), so a session of a fixture name belongs to the README admin before the raise (asAdmin 1); a session of a real fixture user that holds OcuTalonAdmin keeps its user (asAdmin 0).
+Method RaiseFor(owner As %String, recipients As %DynamicArray, subject As %String, text As %String, asAdmin As %Boolean = 1) As %String [ Private ]
 {
 	Set ..Owners = ..Owners _ $Select(..Owners = "": "", 1: ",") _ owner
+	If asAdmin {
+		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(owner)
+		Set session.IrisUser = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
+		Do $$$AssertStatusOK(session.%Save(), "the requester is the README admin")
+		Kill session
+	}
 	Set sc = ##class(OcuTalon.Fix.Kind.Email).Raise({"recipients": (recipients), "subject": (subject), "text": (text)}, owner, ##class(OcuTalon.Bridge.Ids).NewRef(), "", .ref, .refusal)
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_(ref '= "")_"|"_refusal, "1|1|", "the request is raised")
 	Quit ref
@@ -170,7 +177,7 @@ Method TestStateShowsTheStoredEmail()
 	If '..Setup() Quit
 	Set passwordOne = "Zz-email-card-"_$Random(1000000)
 	Set passwordTwo = "Zz-email-card-"_$Random(1000000)
-	Set one = ..MakeUser("one", passwordOne)
+	Set one = ..MakeUser("one", passwordOne, "OcuTalonUser,OcuTalonAdmin")
 	Set two = ..MakeUser("two", passwordTwo)
 	If (one = "") || (two = "") Quit
 	Set sessionOne = ##class(OcuTalon.Test.Data.Fixture).Session(one)
@@ -187,7 +194,7 @@ Method TestStateShowsTheStoredEmail()
 
 	Set subject = "Zz card subject "_$Char(233)
 	Set text = "Zz card text"_$Char(10)_"second line with ""quotes"""
-	Set ref = ..RaiseFor(sessionOne, [(..#FIRST), (..#SECOND)], subject, text)
+	Set ref = ..RaiseFor(sessionOne, [(..#FIRST), (..#SECOND)], subject, text, 0)
 	If ref = "" Quit
 	Set row = ..RowOf(ref)
 	Set stored = {}.%FromJSON(row.DryRun)
@@ -215,22 +222,22 @@ Method TestStateShowsTheStoredEmail()
 }
 
 /// Makes an IRIS user of the role OcuTalonUser with the password; its name, or "" when it could not be made. OnAfterOneTest deletes it.
-Method MakeUser(name As %String, password As %String) As %String [ Private ]
+Method MakeUser(name As %String, password As %String, roles As %String = "OcuTalonUser") As %String [ Private ]
 {
 	Set user = "zzemailcard"_name_..Number
-	Set sc = ..CreateUser(user, password)
-	Do $$$AssertStatusOK(sc, "the fixture user "_user_" of the role OcuTalonUser is made")
+	Set sc = ..CreateUser(user, password, roles)
+	Do $$$AssertStatusOK(sc, "the fixture user "_user_" of the roles "_roles_" is made")
 	If $$$ISERR(sc) Quit ""
 	Set ..Users = ..Users _ $Select(..Users = "": "", 1: ",") _ user
 	Quit user
 }
 
 /// The status of Security.Users.Create for the user with the role OcuTalonUser. Runs in %SYS.
-ClassMethod CreateUser(user As %String, password As %String) As %Status [ Private ]
+ClassMethod CreateUser(user As %String, password As %String, roles As %String = "OcuTalonUser") As %Status [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
-	Quit ##class(Security.Users).Create(user, "OcuTalonUser", password, "OcuTalon test fixture", "OCUTALON", "", "", 0, 1, "Created by a test; the test deletes it.", 1, "", "", , 1, 1)
+	Quit ##class(Security.Users).Create(user, roles, password, "OcuTalon test fixture", "OCUTALON", "", "", 0, 1, "Created by a test; the test deletes it.", 1, "", "", , 1, 1)
 }
 
 /// A request to the instance's own web server that is signed in as the user (the sign-in form of the web application, as Test.Install.PasswordGuard.SignInChange posts it); it keeps the session cookie,

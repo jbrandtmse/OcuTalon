@@ -10,7 +10,7 @@
 /// other text is the service's output as it is, and an absent value is a sent press. The roles of the signed-in user (Story 33.2) are
 /// the text in ^OcuTalonTest("ApiProbe", "roles") when it is set (comma-separated, as $Roles is), which both the OcuTalon user role check and
 /// the admin check of OnPreDispatch read, and the process's own $Roles otherwise. AnswerFor makes Answer, the private mapping of a save's
-/// CommandResult to the HTTP answer, callable.
+/// CommandResult to the HTTP answer, callable. RefusalFor does the same for AnswerResponse's not_allowed answer (Story 25.5).
 Class OcuTalon.Test.Web.ApiProbe Extends OcuTalon.Web.Api
 {
 
@@ -91,6 +91,14 @@ ClassMethod RolesInstalled() As %Boolean [ Private ]
 ClassMethod AnswerFor(result As OcuTalon.Msg.CommandResult, word As %String = "") As %Status
 {
 	Quit ..Answer(result, word)
+}
+
+/// AnswerResponse, for the tests: the HTTP answer to a not_allowed AnswerResult whose refusal is the object (the kind that the role check named, and admin for the email rule).
+ClassMethod RefusalFor(refusal As %DynamicObject) As %Status
+{
+	Set result = ##class(OcuTalon.Core.Msg.AnswerResult).%New()
+	Set result.Result = "not_allowed"
+	Quit ..AnswerResponse("", refusal, "", result)
 }
 
 /// The press that BreakFeedIn would carry out, answered from ^OcuTalonTest("ApiProbe", "press").

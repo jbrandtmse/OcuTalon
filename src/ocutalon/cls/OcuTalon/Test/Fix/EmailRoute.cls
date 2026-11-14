@@ -1,10 +1,11 @@
-/// Tests of the answer route for an email request (Story 22.7, DW-1262; AD-11, AD-16): until the approver-role check of Story 25.5 covers the kind email, an approve of an email to anyone but the
-/// owner's own address is refused to a user who does not hold the role OcuTalonAdmin, and the route says it with the sentence of any request that is not a resend, never the resend approver's.
+/// Tests of the answer route for an email request (Story 22.7, DW-1262; Story 25.5; AD-11, AD-16): an approve of an email to anyone but the
+/// owner's own address is refused to a user who passes the role check but does not hold the role OcuTalonAdmin, and the route says it with the sentence "Only an OcuTalon admin can approve this email."
+/// (the catalog's answered.notAdmin). The request is raised by an admin (Raise refuses a requester who is no admin, Story 25.5) and answered by this process's user.
 /// THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): they need the running OcuTalon.Production. Each test calls Web.Api.AnswerApproval as the REST surface does (the stand-in request with the body,
 /// a CSP session bound to a fixture session of this process's user, as Test.Core.AnswersInProduction does), so the answering user is this process's user, who holds %All and not the role OcuTalonAdmin
 /// by its whole name. The approving by an admin and the check row by row are Test.Fix.Email's. No mail is sent: no test here approves a request.
-///   - TestNonAdminApproveIsRefusedWithTheGeneralSentence: an approve of an email request to another address is 403 not_allowed with "Only an approver can answer this request.", the request is still
-///     pending and nothing is sent; a resend request that this user may not answer keeps the resend approver's sentence;
+///   - TestNonAdminApproveIsRefusedWithTheAdminSentence: an approve of an email request to another address is 403 not_allowed with "Only an OcuTalon admin can approve this email.", the request is still
+///     pending and nothing is sent; a request that this user may not answer by the role check has the fallback sentence "Only an approver can answer this request.";
 ///   - TestRejectIsAnswered: a reject of the same request is 200 and the request is rejected.
 Class OcuTalon.Test.Fix.EmailRoute Extends OcuTalon.Test.Core.InProduction
 {
@@ -74,11 +75,18 @@ ClassMethod HeldRole() As %String [ Private ]
 	Quit $Piece(roles, ",", 1)
 }
 
-/// Raises a request of an email to another address for the session through the real Fix.Kind.Email.Raise, and makes it one that this process's user holds the role of; its Ref.
+/// Raises a request of an email to another address for the session through the real Fix.Kind.Email.Raise, as the README admin (Raise refuses a requester who is no admin), and makes it one that this process's user holds the role of; its Ref.
+/// The session belongs to this process's user again when it returns.
 Method RaiseFor(owner As %String) As %String [ Private ]
 {
 	Set ..Owners = ..Owners _ $Select(..Owners = "": "", 1: ",") _ owner
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(owner)
+	Set session.IrisUser = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
+	Do $$$AssertStatusOK(session.%Save(), "the requester is the README admin")
 	Set sc = ##class(OcuTalon.Fix.Kind.Email).Raise({"recipients": [(..#OTHER)], "subject": "Route", "text": "Only an admin approves this."}, owner, ##class(OcuTalon.Bridge.Ids).NewRef(), "", .ref, .refusal)
+	Set session.IrisUser = $Username
+	Do $$$AssertStatusOK(session.%Save(), "and the session is this process's user's again")
+	Kill session
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_(ref '= "")_"|"_refusal, "1|1|", "the request is raised")
 	If ref = "" Quit ""
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
@@ -110,8 +118,8 @@ Method StateOf(ref As %String) As %String [ Private ]
 	Quit $Select($IsObject(row): row.State, 1: "")
 }
 
-/// An approve of an email to another address by a user who is no admin is 403 with the general approver sentence and changes nothing.
-Method TestNonAdminApproveIsRefusedWithTheGeneralSentence()
+/// An approve of an email to another address by a user who is no admin is 403 with the admin sentence and changes nothing.
+Method TestNonAdminApproveIsRefusedWithTheAdminSentence()
 {
 	If '..Setup() Quit
 	Set mine = ..WebSession("a")
@@ -119,8 +127,7 @@ Method TestNonAdminApproveIsRefusedWithTheGeneralSentence()
 	If ref = "" Quit
 	Set body = ..Post(mine, ref, "{""action"":""approve"",""channel"":""web""}", .status)
 	Do $$$AssertEquals(status, "403 Forbidden", "an approve of an email to another address is 403")
-	Do $$$AssertEquals(body, "{""error"":{""code"":""not_allowed"",""message"":""Only an approver can answer this request.""}}", "with the sentence of any request that is not a resend, and no payload")
-	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "MESSAGENOTAPPROVER") '= $Parameter("OcuTalon.Web.Api", "MESSAGENOTAPPROVERTOOL"), 1, "which is not the resend approver's sentence")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""not_allowed"",""message"":""Only an OcuTalon admin can approve this email.""}}", "with the admin sentence and no payload")
 	Do $$$AssertEquals(..StateOf(ref), "pending", "the request is still pending")
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(mine, "approval")
 	Do $$$AssertEquals(events.%Size(), 1, "and no event was published but the one of the raise")
@@ -128,7 +135,7 @@ Method TestNonAdminApproveIsRefusedWithTheGeneralSentence()
 	Set other = ##class(OcuTalon.Test.Data.Fixture).Approval(mine, "", "pending", , {"RequiredRole": "ZzNoSuchRole"})
 	Set ..Refs = ..Refs _ "," _ other
 	Set body = ..Post(mine, other, "{""action"":""approve"",""channel"":""web""}", .status)
-	Do $$$AssertEquals(body, "{""error"":{""code"":""not_allowed"",""message"":""Only an approver for resends can answer this request.""}}", "a resend request that this user may not answer keeps the resend approver's sentence")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""not_allowed"",""message"":""Only an approver can answer this request.""}}", "a request that this user may not answer by the role check has the fallback sentence")
 }
 
 /// A reject of the same request by the same user is answered.
