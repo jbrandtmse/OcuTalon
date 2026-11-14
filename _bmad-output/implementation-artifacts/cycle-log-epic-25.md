@@ -177,3 +177,7 @@
 2026-11-14T13:14:24Z	Story 25.5	smoke_complete	method=browser+api(lead:fresh_lane-A_stacks;sign-in_2/30_5/5(api/approver),5/30_12/12(api/roles),sign-in-2_11/20_12/12(phone/approver),live_answers_24/24) result=pass iterations=1 defects_caught=0 model=claude-opus-5-5
 2026-11-14T13:14:24Z	Story 25.5	fresh_check	env=recipe(fresh_warm_e25s5f,torn_down) tests=15_iris_classes result=pass order=forward,reverse
 2026-11-14T13:22:11Z	Epic 25	integrated_forward	feature=f138fcf8 head=d34dc415 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,25.5=done) code_conflicts=none bundle_initial=887.84kB node=2089/2089 lint=ok test-readme=pass boundaries=pass iris=18_classes_pass(warm_e25s5g,torn_down)
+2026-11-14T13:22:44Z	Story 25.5	committed	sha=07a667de submodules= ci=pending runs=43599422831,43599422878 note=pushed_once_after_integrate_forward_f138fcf8;bundle_initial=887.84kB amendments=ARCHITECTURE-SPINE.md(AD-11_Telegram_slot_AMENDED;additive_AD-11,AD-16,AD-24,tables),GUIDE.md(Q6)
+2026-11-14T14:16:28Z	Story 25.5	ci_resolved	story=25.5 sha=07a667de runs=43599422831,43599422878 result=success failed=none via=none resolved_at=part_ready
+2026-11-14T14:16:28Z	Story 25.5	story_cycle	plan_to_commit_min=na(planned_2026-11-13) implement_passes=1 reviews=1 rework=0 first_ci=success models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-14T14:16:28Z	Epic 25	part_ready	story=25.5 head=07a667de ci=success(43599422831,43599422878) bundle_initial=887.84kB epic_25=in-progress open=25.6(waits_26.2) burndown_gate=not_run
