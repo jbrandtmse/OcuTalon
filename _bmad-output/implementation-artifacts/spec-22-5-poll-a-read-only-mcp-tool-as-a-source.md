@@ -228,6 +228,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 
 ## Spec Change Log
 
+- 2026-11-14 (runner, orchestrator ruling ~07:45Z): **veto item 11 GRANTED** as a footprint extension: the additive contract appends in `Test/Data/Tables.cls` (BackgroundCheck's four columns) and `Test/Live/Payloads.cls` (`Payload.Check` `IntervalMinutes`), and the regenerated line in `web/src/app/live/payloads.ts` (generated, not hand-written web code, so the initial-bundle rule does not apply). These override the Never line for exactly those three edits. NEW public text 1 ("the Jira" in the I-checked list) is with the Planner and does not block implement: ship no new text.
+
 ## Review Triage Log
 
 ## Design Notes
