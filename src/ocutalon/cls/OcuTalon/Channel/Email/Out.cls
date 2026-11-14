@@ -8,6 +8,16 @@
 /// FixExecutor's approved email fix) and answer an OcuTalon.Msg.CommandResult on every path, never an error status. For each command, in order:
 ///   - the online demo answers not_available (Ok 0, MESSAGEUNAVAILABLE) before anything else, whatever the rows say;
 ///   - the product key email.address (read from its row, never the cache) is the From address; with none the answer is not_connected (Ok 0);
+///   - the recipients to check are those of the command (Listed): Recipients as given, except for the two commands that OcuTalon's own producers send
+///     without an address (DW-1255). A tool send whose Recipients is the marker SendEmail OWNADDRESS (the whole list, ignoring case and spaces) means the
+///     mailbox's own address, email.address. A system send whose Recipients is empty and that names its approval means the recipients of that approval's row,
+///     FixParameters member recipients in order, taken only from a row of Kind fix, in State executing, with FixKind FIXKIND (any other row gives an empty
+///     list, which Check refuses). No other command is changed by this;
+///   - a system send that names its approval also takes its subject and text from that row (Approved, DW-1255 rule 4, P4 (a)): FixExecutor's command carries only the ApprovalRef, so that
+///     the recipient, the subject and the text of an approved email are only in the approval's record and never in the trace. For each of the two, when the row (Kind fix, State executing,
+///     FixKind FIXKIND) holds it as a string in FixParameters: a command that leaves it empty is sent with the row's value, a command that carries one equal to the row's is sent as it is,
+///     and a command that carries another value is refused (refused, naming subject or text) and sends nothing. A row that does not hold the member (a row that no email fix of OcuTalon
+///     makes) leaves the command's own value as it is. The recipients of a command that carries them are compared with the row's by Authorised, as before;
 ///   - the values are checked (Check): 1 to MAXRECIPIENTS recipients, each one address (SettingsOps.IsAddress); a subject of 1 to SUBJECTMAX
 ///     characters; a text of 1 to TEXTMAX characters; no control character in a recipient or the subject, none in the text but a tab, a line feed
 ///     or a carriage return. A refusal answers refused (Ok 0, MESSAGEREFUSED) with Data {"fields": [...]} naming recipients, subject or text;
@@ -159,19 +169,28 @@ Method Handle(request As OcuTalon.Msg.Command.SendEmail) As OcuTalon.Msg.Command
 	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Result(0, "not_available", ..#MESSAGEUNAVAILABLE)
 	Set from = ##class(OcuTalon.Data.Setting).Fresh(..#ADDRESSKEY)
 	If '##class(OcuTalon.Core.SettingsOps).IsAddress(from) Quit ..Result(0, "not_connected", ..#MESSAGENOTCONNECTED)
-	Set bad = ..Check(request, .recipients)
+	Set mismatch = ..Approved(request, .subject, .text)
+	Set bad = ..Check(subject, text, ..Listed(request, from), .recipients)
+	For i = 0:1:mismatch.%Size() - 1 {
+		Set field = mismatch.%Get(i)
+		Set found = 0
+		For j = 0:1:bad.%Size() - 1 {
+			If bad.%Get(j) = field Set found = 1
+		}
+		If 'found Do bad.%Push(field)
+	}
 	If bad.%Size() Quit ..Refused(bad)
 	If '..Authorised(request, from, .recipients) Quit ..Refused(["recipients"])
 	Set owner = $Select(request.SessionRef '= "": request.SessionRef, 1: ..#INSTANCE)
-	If (request.Origin = "system") && (request.ApprovalRef '= "") Quit ..SendClaimed(request, from, .recipients, owner, request.ApprovalRef, "")
-	If (request.Origin = "tool") && (request.IdempotencyKey '= "") Quit ..SendClaimed(request, from, .recipients, owner, "", ..ToolKeyOf(request))
-	Quit ..Send(request, from, .recipients, owner, "")
+	If (request.Origin = "system") && (request.ApprovalRef '= "") Quit ..SendClaimed(request, from, .recipients, owner, request.ApprovalRef, "", subject, text)
+	If (request.Origin = "tool") && (request.IdempotencyKey '= "") Quit ..SendClaimed(request, from, .recipients, owner, "", ..ToolKeyOf(request), subject, text)
+	Quit ..Send(request, from, .recipients, owner, "", subject, text)
 }
 
 /// The claimed send of the class description, for a system send (approval is its ApprovalRef, key "") and for a keyed tool send (approval "", key is
 /// ToolKeyOf). Under a lock on the approval or on the owner and key, a Data.Delivery row of channel email for it is looked up (Claimed); then the answer
 /// is that of the class description, or the claim row is written pending and the send follows. A claim row never carries an ApprovalRef for a tool send.
-Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, approval As %String, key As %String) As OcuTalon.Msg.CommandResult [ Private ]
+Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, approval As %String, key As %String, subject As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set lockName = $Select(approval '= "": $Name(^OcuTalon.EmailOut.Approval(approval)), 1: $Name(^OcuTalon.EmailOut.Key(owner, key)))
 	Lock +@lockName:..#CLAIMWAIT
@@ -188,7 +207,7 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 			Set result = $Select(approval '= "": ..Result(1, "already_sent", ..#MESSAGESENT), 1: ..Result(1, "sent", ..#MESSAGESENT))
 		} Else {
 			Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", ..#CLAIMPENDING, .claim, "", key)
-			Set result = $Select($$$ISERR(sc): ..Result(0, "failed", ..#MESSAGEFAILED), 1: ..Send(request, from, .recipients, owner, claim))
+			Set result = $Select($$$ISERR(sc): ..Result(0, "failed", ..#MESSAGEFAILED), 1: ..Send(request, from, .recipients, owner, claim, subject, text))
 		}
 	} Catch exception {
 		$$$LOGERROR("EmailOut failed: "_exception.Name)
@@ -202,14 +221,14 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 	Quit result
 }
 
-/// Builds the message, delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
+/// Builds the message from the subject and the text (Approved), delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
 /// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed. It deletes
 /// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again, unless the email may still have reached the server
 /// (Sender.MayHaveSent); that claim is kept, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message.
-Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery) As OcuTalon.Msg.CommandResult [ Private ]
+Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery, subject As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
-	Set sc = ..Transmit(from, .recipients, request.Subject, request.Text, ref)
+	Set sc = ..Transmit(from, .recipients, subject, text, ref)
 	If $$$ISOK(sc) {
 		If '$IsObject(claim) {
 			Set recorded = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ref, "")
@@ -368,14 +387,85 @@ Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
 	Quit ..Adapter.SendMail(message)
 }
 
-/// Checks the values of the command. recipients is the number of recipients, and recipients(n) each one trimmed; the answer names the refused
-/// fields (recipients, subject, text) in a dynamic array.
-Method Check(request As OcuTalon.Msg.Command.SendEmail, Output recipients) As %DynamicArray [ Private ]
+/// The comma-separated recipients that Check works on (see the class description): the command's Recipients, except for a tool send of the marker (from, the
+/// mailbox's own address) and for a system send with no Recipients that names its approval (the recipients of that approval's row, "" when it is not an executing
+/// email fix).
+Method Listed(request As OcuTalon.Msg.Command.SendEmail, from As %String) As %String [ Private ]
+{
+	Set raw = request.Recipients
+	If (request.Origin = "tool") && ($ZConvert($ZStrip(raw, "<>W"), "L") = ##class(OcuTalon.Msg.Command.SendEmail).#OWNADDRESS) Quit from
+	If (request.Origin = "system") && (raw = "") && (request.ApprovalRef '= "") Quit ..ApprovedRecipients(request.ApprovalRef)
+	Quit raw
+}
+
+/// The subject and the text to check and to send (see the class description): those of the command, except that a system send that names its approval takes them from the approval's row
+/// (FixParameters members subject and text of a row of Kind fix, State executing and FixKind FIXKIND, when the member is a string). subject and text come back as the command's own
+/// when the row does not hold the member or is not such a row, and as the row's when the command leaves the value empty. The answer names, in a dynamic array, each of the two that the command
+/// carries and that is not exactly the row's (subject, text), for Handle to refuse. Anything unreadable is a row that holds nothing.
+Method Approved(request As OcuTalon.Msg.Command.SendEmail, Output subject As %String, Output text As %String) As %DynamicArray [ Private ]
+{
+	Set subject = request.Subject
+	Set text = request.Text
+	Set mismatch = []
+	If (request.Origin '= "system") || (request.ApprovalRef = "") Quit mismatch
+	Try {
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ApprovalRef)
+		If '$IsObject(row) || $$$ISERR(row.%Reload()) Quit
+		If (row.Kind '= "fix") || (row.State '= "executing") || (row.FixKind '= ..#FIXKIND) Quit
+		Set parameters = {}.%FromJSON(row.FixParameters)
+		If parameters.%GetTypeOf("subject") = "string" {
+			If subject = "" {
+				Set subject = parameters.%Get("subject")
+			} ElseIf subject '= parameters.%Get("subject") {
+				Do mismatch.%Push("subject")
+			}
+		}
+		If parameters.%GetTypeOf("text") = "string" {
+			If text = "" {
+				Set text = parameters.%Get("text")
+			} ElseIf text '= parameters.%Get("text") {
+				Do mismatch.%Push("text")
+			}
+		}
+	} Catch {
+		Set subject = request.Subject
+		Set text = request.Text
+		Set mismatch = []
+	}
+	Quit mismatch
+}
+
+/// The recipients of the approval's row joined by commas, in order: FixParameters member recipients of a row of Kind fix, State executing and FixKind FIXKIND, when
+/// every entry is a string. "" for any other row, a row that is not there and anything unreadable.
+ClassMethod ApprovedRecipients(approval As %String) As %String [ Private ]
+{
+	Set joined = ""
+	Try {
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(approval)
+		If '$IsObject(row) || $$$ISERR(row.%Reload()) Quit
+		If (row.Kind '= "fix") || (row.State '= "executing") || (row.FixKind '= ..#FIXKIND) Quit
+		Set list = {}.%FromJSON(row.FixParameters).%Get(..#FIXRECIPIENTS)
+		If '$IsObject(list) || 'list.%IsA("%Library.DynamicArray") Quit
+		Set iterator = list.%GetIterator()
+		Set clean = 1
+		While iterator.%GetNext(, .address, .type) {
+			If type '= "string" Set clean = 0
+			Set joined = joined _ $Select(joined = "": "", 1: ",") _ address
+		}
+		If 'clean Set joined = ""
+	} Catch {
+		Set joined = ""
+	}
+	Quit joined
+}
+
+/// Checks the values to send. subject and text are those of Approved, and raw is the comma-separated list of the recipients to check (Listed). recipients is the number of recipients, and
+/// recipients(n) each one trimmed; the answer names the refused fields (recipients, subject, text) in a dynamic array.
+Method Check(subject As %String, text As %String, raw As %String, Output recipients) As %DynamicArray [ Private ]
 {
 	Kill recipients
 	Set recipients = 0
 	Set bad = []
-	Set raw = request.Recipients
 	Set ok = (raw '= "") && '..HasControl(raw)
 	If ok {
 		Set count = $Length(raw, ",")
@@ -394,7 +484,7 @@ Method Check(request As OcuTalon.Msg.Command.SendEmail, Output recipients) As %D
 		Set recipients = 0
 		Do bad.%Push("recipients")
 	}
-	Do ..CheckValues(request.Subject, request.Text, bad)
+	Do ..CheckValues(subject, text, bad)
 	Quit bad
 }
 

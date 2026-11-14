@@ -32,8 +32,40 @@
 /// Ref when there is none), or an error status when ^OcuTalonTest("SettingsOpsProbe", "raise") is "error". SendNotice sends nothing; it
 /// records the Kind, CatalogKey, Slots, ApprovalRef and SessionRef of each notice in the order sent under
 /// ^OcuTalonTest("SettingsOpsProbe", "notices", n, ...) and answers an error status when ^OcuTalonTest("SettingsOpsProbe", "notice") is "error".
+/// The roster seam (Story 36.4, DW-1278) SubmitRoster stands in for Commands.Submit of a ListOnCallUsers: it counts its calls in ^OcuTalonTest("SettingsOpsProbe", "roster"),
+/// records the uri of each handoff it makes itself under ("roster", "uri", n),
+/// and, unless the "roster" answer says otherwise, sends the command to a shadow instance of this class as CommandsIn would (origin web_admin), so that the real
+/// handler answers. The "roster" answers: "error" is an error status, "throw" throws, "busy" is an Ok 0 result of outcome busy, "nohandoff" is an Ok 1 result whose
+/// handoff names nothing, and "garbled", "notlist", "badrow" and "shortrow" answer Ok 1 with a handoff of their own whose text is not JSON, is not an array, holds a row
+/// whose user is not a string, and holds one good row and one row without paired.
 Class OcuTalon.Test.Core.SettingsOpsProbe Extends OcuTalon.Core.SettingsOps
 {
+
+ClassMethod SubmitRoster(command As OcuTalon.Msg.Command.ListOnCallUsers, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Set count = $Increment(^OcuTalonTest("SettingsOpsProbe", "roster"))
+	Set answer = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "roster"))
+	If answer = "error" Quit $SYSTEM.Status.Error(5001, "zz roster submit failed")
+	If answer = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz roster submit threw"))
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	If answer = "busy" {
+		Set result.Ok = 0, result.Outcome = "busy"
+		Quit $$$OK
+	}
+	If answer '= "" {
+		Set result.Ok = 1, result.Outcome = "listed"
+		Set text = $Case(answer, "garbled": "not json", "notlist": "{""user"": ""zzx""}", "badrow": "[{""user"": 5, ""paired"": true}]", "shortrow": "[{""user"": ""zzgood"", ""paired"": false}, {""user"": ""zzbad""}]", : "")
+		Set uri = "secret://handoff/00000000000000000000000000000000"
+		If text '= "" Do ##class(OcuTalon.Core.SecretHandoff).Put(text, .uri)
+		Set ^OcuTalonTest("SettingsOpsProbe", "roster", "uri", count) = $Select(text '= "": uri, 1: "")
+		Set result.Data = {"handoff": (uri)}.%ToJSON()
+		Quit $$$OK
+	}
+	Set command.Origin = "web_admin"
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.SettingsOpsProbe", .sc)
+	If $$$ISERR(sc) Quit sc
+	Quit probe.OnMessage(command, .result)
+}
 
 Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 {

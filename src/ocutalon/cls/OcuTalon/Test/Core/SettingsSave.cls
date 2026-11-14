@@ -438,7 +438,7 @@ Method TestValues()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode,channels", "the sections that hold values, the channels last (not on the online demo)")
+	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode,channels,on-call", "the sections that hold values, the channels and on-call last (neither on the online demo)")
 	Set channels = body.sections.channels
 	Set shape = ""
 	Set iterator = channels.%GetIterator()
