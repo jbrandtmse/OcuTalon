@@ -59,24 +59,24 @@ const {
 const DEFAULTS = { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 };
 
 describe('the sections', () => {
-  it('are the eight of the UX, in its order, then Roles, each with a slug of its own', () => {
+  it('are the nine of the UX, in its order, then Roles, each with a slug of its own', () => {
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.label),
-      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers', 'Roles'],
+      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers', 'Roles'],
     );
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.slug),
-      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode', 'mcp', 'roles'],
+      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'demo-mode', 'mcp', 'roles'],
     );
-    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 9);
+    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 10);
   });
 
   it('list Roles only when roles can be assigned, and open Models for the address of a hidden Roles', () => {
     assert.deepEqual(
       shownSections(false).map((section) => section.slug),
-      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode', 'mcp'],
+      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'demo-mode', 'mcp'],
     );
-    assert.equal(shownSections(true).length, 9);
+    assert.equal(shownSections(true).length, 10);
     assert.equal(sectionSlug('roles', false), 'models');
     assert.equal(sectionSlug('roles', true), 'roles');
     assert.equal(sectionSlug('roles'), 'roles');

@@ -18,6 +18,8 @@
 ///     card's search, is web_user only and no tool verb either;
 ///   - ListPinnedMemories, the read behind the Memory card's Pinned tab, is web_user only and no tool verb, and is sent with the search's bounded wait
 ///     (Story 41.13);
+///   - ListOnCallUsers, the read behind Settings > On call's list of users (Story 36.4, DW-1278), is web_admin only and no tool verb, goes to SettingsOps, and is sent with
+///     the same bounded wait: no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0);
 ///   - on the online demo (Data.Setting onlineDemo = 1) each SearchMemory counts as one of the session's messages through Allowance.TryConsumeRead,
 ///     before anything is sent and without a Turn or an allowance window; past the limit the answer is Outcome allowance (Ok 0) with Data {retryAt, limit}
 ///     (Story 41.13). The list, the pinned read and every other verb never count;
@@ -50,6 +52,7 @@
 ///     defines waits for the whole TIMEOUT and ends with no answer), and when the send fails because EmailOut is not registered in the running production.
 ///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 ///     A ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 41.13).
+///     A ListOnCallUsers that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 36.4).
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.
@@ -144,9 +147,10 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 
 /// 1 when a SendEmail from a tool is for the session user's own mailbox: inside a bridge context the command's SessionRef is the
 /// context's OwnerRef, the product key email.owner is the SessionRef, email.address is set, and every comma-separated recipient,
-/// trimmed and lower-cased, equals it lower-cased. An empty list, an empty recipient or no mailbox gives 0. Both keys are read from their
-/// rows and never from the per-process cache, because the mailbox moves to the admin who saved last (SettingsOps.SaveEmail) and a cached
-/// pair could name the old owner with the new address.
+/// trimmed and lower-cased, equals it lower-cased. The marker OWNADDRESS of SendEmail, as the whole list (trimmed, ignoring case), is the own address under
+/// the same checks of the owner and the address (OcuTalon's own producers send it instead of the address, DW-1255). An empty list, an empty recipient or no
+/// mailbox gives 0. Both keys are read from their rows and never from the per-process cache, because the mailbox moves to the admin who saved last
+/// (SettingsOps.SaveEmail) and a cached pair could name the old owner with the new address.
 ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolean [ Private ]
 {
 	If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit 0
@@ -154,6 +158,7 @@ ClassMethod OwnAddressOnly(command As OcuTalon.Msg.Command.SendEmail) As %Boolea
 	If (address = "") || (command.SessionRef = "") || (..Stored("email.owner") '= command.SessionRef) Quit 0
 	Set recipients = command.Recipients
 	If $ZStrip(recipients, "<>W") = "" Quit 0
+	If $ZConvert($ZStrip(recipients, "<>W"), "L") = ##class(OcuTalon.Msg.Command.SendEmail).#OWNADDRESS Quit 1
 	Set own = 1
 	For i = 1:1:$Length(recipients, ",") {
 		If $ZConvert($ZStrip($Piece(recipients, ",", i), "<>W"), "L") '= address Set own = 0
@@ -190,6 +195,7 @@ Method Send(target As %String, request As Ens.Request, Output response As %Libra
 	}
 	If request.%IsA("OcuTalon.Msg.Command.ListPinnedMemories") Quit ..SendSearch(target, request, .response)
 	If request.%IsA("OcuTalon.Msg.Command.SearchMemory") Quit ..SendSearch(target, request, .response)
+	If request.%IsA("OcuTalon.Msg.Command.ListOnCallUsers") Quit ..SendSearch(target, request, .response)
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
 }
 
@@ -212,6 +218,7 @@ Method SearchAllowance(command As OcuTalon.Msg.Command.SearchMemory) As OcuTalon
 /// is answered here as a CommandResult with Ok 0 and Outcome busy (the Message is the gate's failed sentence); the owner still finishes the request, and
 /// nothing is changed by it.
 /// A ListPinnedMemories is sent the same way (Story 41.13).
+/// A ListOnCallUsers is sent the same way (Story 36.4).
 Method SendSearch(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Set sc = ..SendRequestSync(target, request, .response, ..#SEARCHTIMEOUT)
@@ -325,6 +332,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
 /// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 /// MailSignIn (Story 21.3, AD-1) starts or checks the mailbox's OAuth2 sign-in and goes to SettingsOps from web_admin only: neither the model nor any tool can send it.
+/// ListOnCallUsers (a read, Story 36.4) goes to SettingsOps from web_admin only, not from system, and is no tool verb.
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -369,7 +377,8 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"},
  {"verb": "AckPage", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"},
- {"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"}
+ {"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "ListOnCallUsers", "owner": "SettingsOps", "origins": "web_admin"}
 ]
 }
 

@@ -1067,6 +1067,7 @@ Banners stack in this table's order.
 | `settings.onCallNoChannel`, Settings > On call, field error on Page by | "Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed." |
 | `settings.onCallUnknownUser`, Settings > On call, field error on Person | "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed." |
 | `settings.onCallOffOnDemo`, the 409 `not_available` body of `POST /api/v1/settings/on-call` (Planner ruling 2026-11-12: replaces "because it has no admin") | "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here." |
+| `settings.onCallByEmailHelp`, Settings > On call, under the on-call person's Person select while "Someone else, by email" is chosen (Story 36.4, DW-1250) [ADDED 2026-11-13, Story 36.4, Contest Planner ruling P1] | "Someone paged by email can't press Got it, so OcuTalon also pages the backup after the minutes below." |
 | `settings.partnersSection`, Settings nav label and heading, Story 24.2 | "Partner contacts" |
 | `settings.partnersHelp`, Settings > Partner contacts, help (condition: Story 24.2 pins both halves in tests, that warnings go only to the listed people and only after each is approved) | "Partner warnings go only to the people listed here, and only after you approve each one." |
 | `settings.partnerName`, Settings > Partner contacts, field label | "Name" |

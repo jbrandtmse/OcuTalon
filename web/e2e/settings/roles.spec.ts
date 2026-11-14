@@ -43,7 +43,7 @@ test('RS1: on the real state there is no Roles entry in the Settings navigation'
   const state = (await (await page.request.get(STATE)).json()) as Record<string, unknown>;
   expect(state['rolesAssignable'], 'the real state: no STEP6ROLES on this branch').toBe(false);
   await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(sectionsNav(page).getByRole('link'), 'eight sections, no Roles').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers']);
+  await expect(sectionsNav(page).getByRole('link'), 'nine sections, no Roles').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers']);
   await page.evaluate(() => {
     location.hash = '#/settings/roles';
   });
@@ -58,7 +58,7 @@ test('RS2: with roles assignable, the admin lists, grants and removes by keyboar
   await signInReadmeLoaded(page);
   try {
     await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-    await expect(sectionsNav(page).getByRole('link'), 'Roles is the last entry').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers', 'Roles']);
+    await expect(sectionsNav(page).getByRole('link'), 'Roles is the last entry').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers', 'Roles']);
     const link = sectionsNav(page).getByRole('link', { name: 'Roles', exact: true });
     await link.focus();
     await page.keyboard.press('Enter');

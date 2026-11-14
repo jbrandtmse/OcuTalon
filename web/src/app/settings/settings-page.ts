@@ -6,7 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { AgentModels, EmailValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
+import type { AgentModels, EmailValues, OnCallValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { telegramPaused } from '../rail/telegram-card/telegram-card-view';
 import { Announcer } from '../shared/announcer';
@@ -17,7 +17,8 @@ import { CheckThresholdsSection } from './check-thresholds-section';
 import { DailyDigestSection } from './daily-digest-section';
 import { DemoModeSection } from './demo-mode-section';
 import { ModelsSection } from './models-section';
-import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, ROLES_SLUG, sectionPath, sectionSlug, SETTINGS_TEXTS, shownSections, telegramBoxShown, type ThresholdNumbers } from './settings-view';
+import { OnCallSection } from './on-call-section';
+import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, ROLES_SLUG, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, shownSections, telegramBoxShown, type ThresholdNumbers } from './settings-view';
 import { TimeZoneSection } from './time-zone-section';
 
 /** The id of the load error's text, which Retry is described by. */
@@ -25,12 +26,12 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
 
 /**
  * The settings page (Story 33.2; FR-17; UX: Step 2, settings and the daily digest), for OcuTalonAdmin only. It is titled "Settings \u00B7 OcuTalon" by its
- * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the nine sections in the UX's order on the left (Roles, Story 25.4, only while the snapshot says an admin can assign roles; its code is a lazy chunk, loaded by a dynamic import when the section first opens), and the
+ * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the ten sections in the UX's order on the left (eight on the online demo, which has no On call and no Roles; Roles, Story 25.4, only while the snapshot says an admin can assign roles; its code is a lazy chunk, loaded by a dynamic import when the section first opens), and the
  * open section on the right under its own h2. A section has its own address, #/settings/<slug>; #/settings and an unknown slug open Models (the first).
  *
  * The page asks GET /v1/settings once when it opens, and the answer decides what it shows (D10): the sections for an admin; for a 403, the denied
  * view, "Only OcuTalon admins can open settings." with a link back to the chat; for any other failure, the load error with Retry. Models, Budgets, Check
- * thresholds, Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
+ * thresholds, On call (Story 36.4), Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
  * save (Story 18.2). Tools and MCP servers (Story 21.4) loads its own list and has its own forms (mcp-section.ts, loaded the first time the section opens, so that its code stays out of the initial bundle, which is near its 1 MB budget). Every section is built; an unknown address opens Models.
  *
  * Unsaved changes: the open form tells the page whether it differs from its saved values (`dirty`). While it does, leaving by a link or the browser's
@@ -38,7 +39,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
  */
 @Component({
   selector: 'app-settings-page',
-  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, NgComponentOutlet, RouterLink, ServerButton, TimeZoneSection],
+  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, NgComponentOutlet, OnCallSection, RouterLink, ServerButton, TimeZoneSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="settings" tabindex="-1" [attr.data-settings]="status()" [attr.aria-busy]="status() === 'loading' ? 'true' : null">
@@ -65,6 +66,11 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                     (dirtyChange)="dirty.set($event)"
                     (denied)="deny()"
                   />
+                }
+                @case ('on-call') {
+                  @if (onCall(); as values) {
+                    <app-on-call-section [values]="values" (saved)="keepOnCall($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
+                  }
                 }
                 @case ('channels') {
                   <app-channels-section [email]="email()" (emailSaved)="keepEmail($event)" (dirtyChange)="dirty.set($event)" />
@@ -237,16 +243,22 @@ export class SettingsPage {
   /** The Roles section's component, loaded from its own chunk the first time the section opens (a dynamic import, so the initial bundle never holds it). */
   private readonly rolesHost = viewChild('rolesHost', { read: ViewContainerRef });
 
-  /** The sections the navigation lists. */
-  protected readonly sections = computed(() => shownSections(this.rolesShown()));
-
   /** The section part of the address, as it was typed. */
   private readonly part = toSignal(this.route.paramMap.pipe(map((params) => params.get('section'))), {
     initialValue: this.route.snapshot.paramMap.get('section'),
   });
 
-  /** The open section's slug: an unknown or hidden one is Models. */
-  protected readonly active = computed(() => sectionSlug(this.part(), this.rolesShown()));
+  /** The slug that the address names: an unknown, missing or hidden one (Roles while roles can't be assigned) is Models. */
+  private readonly requested = computed(() => sectionSlug(this.part(), this.rolesShown()));
+
+  /** The On call values: the server sends none on the online demo, so that the section is neither listed nor opened there (Story 36.4). */
+  protected readonly onCall = computed<OnCallValues | undefined>(() => this.data()?.sections['on-call']);
+
+  /** The sections that the navigation lists: Roles only while roles can be assigned (shownSections), On call only while the server sends its values. */
+  protected readonly sections = computed(() => shownSections(this.rolesShown()).filter((section) => section.slug !== 'on-call' || this.onCall() !== undefined));
+
+  /** The open section's slug: the address's, or Models (the first) for On call when the server sends none. */
+  protected readonly active = computed(() => (this.requested() === 'on-call' && this.data() !== undefined && this.onCall() === undefined ? SETTINGS_SECTIONS[0].slug : this.requested()));
 
   protected readonly label = computed(() => sectionLabel(this.active()));
   /** The Tools and MCP servers section, set once its code has loaded (Story 21.4): it is imported when the section first opens, not with the page. */
@@ -332,6 +344,10 @@ export class SettingsPage {
 
   protected keepThresholds(values: SettingsSections['check-thresholds']): void {
     this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'check-thresholds': values } }));
+  }
+
+  protected keepOnCall(values: OnCallValues): void {
+    this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'on-call': values } }));
   }
 
   protected keepDailyDigest(values: SettingsSections['daily-digest']): void {
