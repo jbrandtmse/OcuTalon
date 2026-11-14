@@ -6,6 +6,7 @@
 ///     no fingerprint is in the answer;
 ///   - TestListSources (Story 21.5): "sources" holds only the command's own session's source rows, sorted by name, each as {ref, name, server, tool, intervalMinutes} with no arguments; a
 ///     production row of the session and a source row of another session are left out, and a command with no session lists none;
+///   - TestListSourcesReadFails (QA, Story 21.5): a failed read of the session's source rows answers failed with the accepted text and no data;
 ///   - TestPendingByToolref: the pending count is by the server's toolref under CancelPending's own predicate: a pending tool_call row whose ToolSource is the toolref in
 ///     another case is counted (CancelPending would cancel it), and an approved row, a row of another kind and another server's row are not;
 ///   - TestNameThatToolrefRefuses: PendingToolCalls gives 0 and an error for a name that is no server name;
@@ -116,6 +117,24 @@ Method TestListSources()
 	Do $$$AssertEquals(+(result.Data [ foreign)+(result.Data [ production), 0, "the other session's row and the production row are not in the answer")
 	Do $$$AssertEquals({}.%FromJSON(..List(other).Data).sources.%Size(), 1, "the other session lists its own row")
 	Do $$$AssertEquals({}.%FromJSON(..List("").Data).sources.%Size(), 0, "a command with no session lists none")
+}
+
+/// QA (Story 21.5): a read of the session's source rows that fails fails the whole list: the answer is failed with the accepted text and no data, not a list with no sources.
+/// mutation: the status of SourceRows ignored in ListMcp -> the answer is listed (red).
+Method TestListSourcesReadFails()
+{
+	Set a = ..Server("f")
+	Do ..MakeServer(a, "attached", "")
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session("zzsrcf"_..Number)
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(mine, , , {"Kind": "source", "Server": (a), "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 15, "DisplayName": "Jira"})
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "sources") = "error"
+	Set result = ..List(mine)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "a source read that fails answers failed with the accepted text")
+	Do $$$AssertEquals(result.Data, "", "and lists nothing")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "sources")
+	Set result = ..List(mine)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|listed", "the same list is answered once the read works")
+	Do $$$AssertEquals({}.%FromJSON(result.Data).sources.%Size(), 1, "with the session's source")
 }
 
 Method TestPendingByToolref()

@@ -433,6 +433,10 @@ describe('background checks', () => {
     assert.equal(intervalText(120), '2 hours');
     assert.equal(intervalText(45), '45 minutes');
     assert.equal(intervalText(90), '90 minutes');
+    assert.equal(intervalText(2880), '48 hours', 'two days is still {h} hours: only 1440 is "1 day"');
+    assert.equal(intervalText(61), '61 minutes');
+    assert.equal(intervalText(0), '0 minutes', 'zero is not a whole number of hours');
+    assert.equal(intervalText(-60), '-60 minutes', 'nor is a negative one');
   });
 
   it('shows the last run and the finding: "Last run 14:13 \u00B7 50 new failures"', () => {

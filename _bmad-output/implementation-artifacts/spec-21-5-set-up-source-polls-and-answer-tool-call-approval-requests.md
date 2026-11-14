@@ -425,6 +425,15 @@ Mutations demonstrated at implement (each reverted; format `mutation: <change> -
 - mutation: the `1440` branch of `intervalText` removed, and separately the `60` branch -> `rail-view.test.mjs` red (the six-choices case and the source-check case); the `n % 60 === 0` guard removed -> red on the 90-minute case; each reverted, `git diff` unchanged by the revert.
 - mutation: `SetSource`'s name-length check raised to 1000 characters -> `TestSourceRouteRefusals` and `TestSourceMcpOpsRefusals` red (a 101-character name, trimmed or not, is submitted); its tool-length check raised to 100000 -> `TestSourceMcpOpsRefusals` red (a 129-character tool is submitted and is not 404 with nothing submitted); each reverted, `git diff` unchanged by the revert.
 
+- mutation (QA): the `n >= 60 &&` guard removed from `intervalText` -> `rail-view.test.mjs` "gives intervalText the words of the six choices..." red (0 reads "0 hours", not "0 minutes"); reverted, `shasum` identical.
+- mutation (QA): `n === 1440` changed to `n % 1440 === 0` in `intervalText` -> the same test red (2880 reads "1 day", not "48 hours"); reverted, `shasum` identical.
+- mutation (QA): the status of `SourceRows` ignored in `SettingsOps.ListMcp` (`Do` for `Set sc =`) -> `SettingsMcp.TestListSourcesReadFails` red (the list is answered listed, not failed); reverted, `shasum` identical.
+
+Test files touched at QA (QA):
+- `web/scripts/rail-view.test.mjs` (QA): `intervalText` of 2880, 61, 0 and -60.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls` (QA): `TestListSourcesReadFails`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOpsProbe.cls` (QA): a `SourceRows` override that fails on demand.
+
 Criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Commands:**
