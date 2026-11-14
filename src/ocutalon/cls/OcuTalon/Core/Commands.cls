@@ -30,7 +30,7 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, origin As %String, Output re
 		Set effective = "tool"
 	} Else {
 		If '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#ORIGIN), origin) && '$ListFind($ListFromString(..#FEATUREORIGINS), origin) {
-			Quit $SYSTEM.Status.Error(5001, "The origin '"_origin_"' is not one of "_##class(OcuTalon.Msg.Enum).#ORIGIN)
+			Quit $SYSTEM.Status.Error(5001, "The origin '"_origin_"' is not one of "_##class(OcuTalon.Msg.Enum).#ORIGIN_","_..#FEATUREORIGINS)
 		}
 		Set effective = origin
 	}

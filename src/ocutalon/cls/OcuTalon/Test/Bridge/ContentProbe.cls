@@ -3,8 +3,9 @@
 /// Decide calls Accepted.
 ///   - Part notes each call in ^OcuTalonTest("ContentProbe", "part", n) as the kind, provenance and ItemId of the request, answers the error text of the node "partError" when it is set,
 ///     and otherwise answers the PNG (media type image/png) for the ItemId of the node "item", and no content for any other;
-///   - Accepted notes each call in ^OcuTalonTest("ContentProbe", "accepted", n) as the ItemId and the text, then by the node "mode": "" or "members" gives {"probe": {"text": <the text>}}, "error" is an error
-///     status, "throw" throws, "none" gives no member.
+///   - Accepted notes each call in ^OcuTalonTest("ContentProbe", "accepted", n) as the ItemId and the text, and in ^OcuTalonTest("ContentProbe", "row", n) whether the Decision row of the
+///     request's ItemId and kind exists at that moment, then by the node "mode": "" or "members" gives {"probe": {"text": <the text>}}, "none" gives no member, and "error" (an error status)
+///     and "throw" (an exception) first put that member in hostData, so that a Decide that merged it anyway would show it.
 /// ImageBytes and ImageBase64 are the PNG: a 4 by 4 red square.
 Class OcuTalon.Test.Bridge.ContentProbe Extends OcuTalon.Bridge.Ext.Content
 {
@@ -27,12 +28,14 @@ ClassMethod Part(request As OcuTalon.Bridge.Msg.Request, Output mediaType As %St
 ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject) As %Status
 {
 	Set hostData = {}
-	Set ^OcuTalonTest("ContentProbe", "accepted", $Increment(^OcuTalonTest("ContentProbe", "accepted"))) = $ListBuild(request.ItemId, text)
+	Set n = $Increment(^OcuTalonTest("ContentProbe", "accepted"))
+	Set ^OcuTalonTest("ContentProbe", "accepted", n) = $ListBuild(request.ItemId, text)
+	Set ^OcuTalonTest("ContentProbe", "row", n) = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind)
 	Set mode = $Get(^OcuTalonTest("ContentProbe", "mode"))
-	If mode = "error" Quit $$$ERROR($$$GeneralError, "The probe refuses to accept")
-	If mode = "throw" $$$ThrowStatus($$$ERROR($$$GeneralError, "The probe throws"))
 	If mode = "none" Quit $$$OK
 	Set hostData.probe = {"text": (text)}
+	If mode = "error" Quit $$$ERROR($$$GeneralError, "The probe refuses to accept")
+	If mode = "throw" $$$ThrowStatus($$$ERROR($$$GeneralError, "The probe throws"))
 	Quit $$$OK
 }
 

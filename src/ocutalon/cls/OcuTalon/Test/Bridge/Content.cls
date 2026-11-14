@@ -1,12 +1,12 @@
 /// Tests of the content extension and of the runner's image path (Story 26.3; AD-6, AD-7, AD-9, AD-20, AD-31, FR-5). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), except
 /// TestBaseSendsNothing and TestMerge, which need nothing: the others send requests through Decide to the runner ChatAgent and the CI mock, so they need the CI
 /// override's environment, and they put the helper Test.Bridge.ContentProbe behind the ContentClass setting of the Decide item of the running production (RunnerFixture UseItemSetting)
-/// and put the setting back. Where they lack the environment they fail with the reason and send nothing to a real model API. The image is a 4 by 4 red PNG; the mock logs whole
+/// and put the setting back (TestAcceptedGetsFilteredText also puts Test.Bridge.ProbeFilter behind ReplyFilterClass). A test that gets no Reply from Decide fails. Where they lack the environment they fail with the reason and send nothing to a real model API. The image is a 4 by 4 red PNG; the mock logs whole
 /// messages, so its request log shows what the model call carried. Each test deletes the Decision, Usage and step rows of its requests and the AI sessions it saved.
 ///   - TestRunnerSendsTheImage (Task 0, the runner pin): an untrusted turn whose ItemId the probe names is sent to the model as one user message of a text block and one base64 image block
 ///     (media type image/png, the file's bytes), with max_tokens 8,000 and none of temperature, top_p and top_k; the Reply is the scenario's text with no fallback; one Usage row and the
 ///     Decision totals hold the call (input and output tokens above 0, a cost); the step renderer fired (one model step with a summary and no image bytes); Part was called once,
-///     for that turn, in the runner's job, and Accepted once, after the Decision row was saved, with the filtered text; and no AI session was saved or linked;
+///     for that turn, and Accepted once, after the Decision row was saved (the probe looks for it), with the filtered text; and no AI session was saved or linked;
 ///   - TestUserTurnUsesChat: the same request with provenance user, with the probe naming it, is a plain Chat: Part is not called, the model's request holds no image block, and the
 ///     turn is answered;
 ///   - TestPartErrorMakesNoCall: an error status of Part ends the request before any model call (the mock's log holds nothing for it), Decide takes the fallback route (Fallback 1) and
@@ -15,8 +15,9 @@
 ///   - TestAcceptedMembersMerged: the members that Accepted answers are in the reply's HostData, and a mode that answers no member leaves the reply as it is; and, on OcuTalon's image,
 ///     a turn whose runner already put a member of its own (the scenario photo-recall: search_memories finds a stored memory of the owner and puts HostData.memories) carries both that
 ///     member and the one of Accepted;
-///   - TestAcceptedFailureKeepsTheReply: an error status and an exception from Accepted leave the reply unchanged (text, no fallback, the same Decision row), add no member and log one warning
-///     of Decide's Accept;
+///   - TestAcceptedGetsFilteredText: with a reply filter that changes the text, Accepted gets the filtered text and its member holds the reply's text;
+///   - TestAcceptedFailureKeepsTheReply: an error status and an exception from Accepted leave the reply unchanged (text, no fallback, the same Decision row), add no member (the probe
+///     puts one in hostData before it fails) and log one warning of Decide's Accept;
 ///   - TestBaseSendsNothing: the base class gives no content and no member, and with the base named in the setting an untrusted turn is sent as text only and its HostData is unchanged
 ///     (the bridge alone, FR-5);
 ///   - TestMerge: HostData.Merge returns the JSON with each member set, replaces a member of the same name, keeps the others, takes a non-object or empty json as an empty object, keeps types,
@@ -162,6 +163,7 @@ Method TestRunnerSendsTheImage()
 	Do $$$AssertEquals(^OcuTalonTest("ContentProbe", "part"), 1, "and only once")
 	Do $$$AssertEquals(^OcuTalonTest("ContentProbe", "accepted"), 1, "Accepted was called once")
 	Do $$$AssertEquals($Get(^OcuTalonTest("ContentProbe", "accepted", 1)), $ListBuild(request.ItemId, ..#CAPTION), "with the item and the filtered reply text")
+	Do $$$AssertEquals($Get(^OcuTalonTest("ContentProbe", "row", 1)), 1, "after the Decision row of the turn was saved")
 	Set hostData = {}.%FromJSON(answer.HostData)
 	Do $$$AssertEquals(hostData.probe.text, ..#CAPTION, "and its member is in the reply's HostData")
 	Set steps = ..StepsOf(answer.DecisionRef)
@@ -183,7 +185,7 @@ Method TestUserTurnUsesChat()
 	Set ^OcuTalonTest("ContentProbe", "item") = request.ItemId
 	Set sc = ..Ask(request, .answer, .entries)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn")
-	If '$IsObject(answer) Quit
+	If '..Answered(answer) Quit
 	Do $$$AssertEquals(answer.Text_"|"_answer.Fallback, ..#CAPTION_"|0", "the turn is answered")
 	Set requests = $ClassMethod(..#FIXTURE, "FindRequests", entries, ref)
 	Do $$$AssertEquals(requests.%Size(), 1, "with one model request")
@@ -201,7 +203,7 @@ Method TestPartErrorMakesNoCall()
 	Set ^OcuTalonTest("ContentProbe", "item") = request.ItemId
 	Set sc = ..Ask(request, .answer, .entries)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn")
-	If '$IsObject(answer) Quit
+	If '..Answered(answer) Quit
 	Do $$$AssertEquals(answer.Fallback, 1, "with a fallback reply")
 	Do $$$AssertTrue(answer.FallbackReason '= "", "and a reason: "_answer.FallbackReason)
 	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "Drain", "ChatAgent"), $$$OK, "the runner has handled everything sent to it")
@@ -221,7 +223,7 @@ Method TestAcceptedOnlyOnAccept()
 		Set ^OcuTalonTest("ContentProbe", "item") = request.ItemId
 		Set sc = ..Ask(request, .answer, .entries)
 		Do $$$AssertStatusOK(sc, $List(case, 1)_": Decide answers the turn")
-		If '$IsObject(answer) Continue
+		If '..Answered(answer) Continue
 		Do $$$AssertEquals(answer.Fallback_"|"_answer.FallbackReason, "1|"_$List(case, 2), $List(case, 1)_": a fallback with that reason")
 		Do $$$AssertEquals(answer.HostData '[ "probe", 1, $List(case, 1)_": no member of Accepted")
 	}
@@ -238,12 +240,12 @@ Method TestAcceptedMembersMerged()
 	Set ^OcuTalonTest("ContentProbe", "mode") = "none"
 	Set sc = ..Ask(request, .answer, .entries)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn with a mode that gives no member")
-	If $IsObject(answer) Do $$$AssertEquals(answer.HostData, "", "the reply's HostData is empty, as the runner left it")
+	If ..Answered(answer) Do $$$AssertEquals(answer.HostData, "", "the reply's HostData is empty, as the runner left it")
 	Set ^OcuTalonTest("ContentProbe", "mode") = "members"
 	Set request = ..NewTurn("untrusted", "Describe the photo. [[mock:photo-caption]]", .ref)
 	Set sc = ..Ask(request, .answer, .entries)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn with a member")
-	If $IsObject(answer) Do $$$AssertEquals(answer.HostData, {"probe": {"text": (..#CAPTION)}}.%ToJSON(), "the reply's HostData is the member")
+	If ..Answered(answer) Do $$$AssertEquals(answer.HostData, {"probe": {"text": (..#CAPTION)}}.%ToJSON(), "the reply's HostData is the member")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("ContentProbe", "accepted")), 2, "Accepted was called once for each turn")
 	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
 		Do $$$AssertSkipped("Not OcuTalon's image: the runner's own member needs a stored memory, embedded by a worker")
@@ -272,6 +274,23 @@ Method TestAcceptedMembersMerged()
 	Do $$$AssertEquals($IsObject(hostData.probe) && (hostData.probe.text = answer.Text), 1, "and the member probe of Accepted holds the reply's text")
 }
 
+/// Accepted gets the filtered reply text: with a reply filter that changes the text (Test.Bridge.ProbeFilter puts "[f] " in front), the text that Accepted gets and the member it adds
+/// are the reply's filtered text, never the model's.
+Method TestAcceptedGetsFilteredText()
+{
+	If '..Prepare() Quit
+	Do ..Use(..#PROBE)
+	Do ..Use("OcuTalon.Test.Bridge.ProbeFilter", "ReplyFilterClass")
+	Set request = ..NewTurn("untrusted", "Describe the photo. [[mock:photo-caption]]", .ref)
+	Set sc = ..Ask(request, .answer, .entries)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn")
+	If '..Answered(answer) Quit
+	Do $$$AssertEquals(answer.Text_"|"_answer.Fallback, "[f] "_..#CAPTION_"|0", "the reply is the filtered text")
+	Do $$$AssertEquals($Get(^OcuTalonTest("ContentProbe", "accepted", 1)), $ListBuild(request.ItemId, "[f] "_..#CAPTION), "Accepted got the filtered text, not the model's")
+	Set member = $Select(answer.HostData = "": "", 1: {}.%FromJSON(answer.HostData).probe)
+	Do $$$AssertEquals($Select($IsObject(member): member.text, 1: ""), answer.Text, "and its member holds the reply's text")
+}
+
 /// An error status and an exception from Accepted leave the reply as it is, and Decide logs a warning.
 Method TestAcceptedFailureKeepsTheReply()
 {
@@ -283,7 +302,7 @@ Method TestAcceptedFailureKeepsTheReply()
 		Set mark = $ClassMethod(..#FIXTURE, "EventMark")
 		Set sc = ..Ask(request, .answer, .entries)
 		Do $$$AssertStatusOK(sc, mode_": Decide answers the turn")
-		If '$IsObject(answer) Continue
+		If '..Answered(answer) Continue
 		Do $$$AssertEquals(answer.Text_"|"_answer.Fallback, ..#CAPTION_"|0", mode_": the reply is unchanged and not a fallback")
 		Do $$$AssertEquals(answer.HostData, "", mode_": with no member")
 		Do $$$AssertEquals($ClassMethod(..#FIXTURE, "Warnings", mark, "OcuTalon.Bridge.Process.Decide", "Accept", $ListBuild(answer.DecisionRef)), 1, mode_": one warning of Accept names the decision")
@@ -310,7 +329,7 @@ Method TestBaseSendsNothing()
 	Set request = ..NewTurn("untrusted", "Describe the photo. [[mock:photo-caption]]", .ref)
 	Set sc = ..Ask(request, .answer, .entries)
 	Do $$$AssertStatusOK(sc, "Decide answers the turn with the base named")
-	If '$IsObject(answer) Quit
+	If '..Answered(answer) Quit
 	Do $$$AssertEquals(answer.Text_"|"_answer.Fallback_"|"_answer.HostData_"|"_answer.Tainted, ..#CAPTION_"|0||0", "the reply is the text, nothing is merged and the turn is not tainted")
 	Set requests = $ClassMethod(..#FIXTURE, "FindRequests", entries, ref)
 	Do $$$AssertEquals(requests.%Size(), 1, "one model request")
@@ -359,12 +378,20 @@ Method Prepare() As %Boolean [ Private ]
 }
 
 /// Puts the class behind the ContentClass setting of Decide; OnAfterOneTest puts the setting back.
-Method Use(class As %String) [ Private ]
+Method Use(class As %String, setting As %String = "ContentClass") [ Private ]
 {
-	Set sc = $ClassMethod(..#FIXTURE, "UseItemSetting", "Decide", "Host", "ContentClass", class, .saved)
-	Do $$$AssertStatusOK(sc, "the ContentClass of Decide is "_class)
+	Set sc = $ClassMethod(..#FIXTURE, "UseItemSetting", "Decide", "Host", setting, class, .saved)
+	Do $$$AssertStatusOK(sc, "the "_setting_" of Decide is "_class)
 	If '$IsObject(..Swaps) Set ..Swaps = []
 	If $IsObject(saved) Do ..Swaps.%Push({"item": "Decide", "saved": (saved)})
+}
+
+/// 1 when Decide's answer is a Reply; otherwise one failed assertion, so that a test with no answer (a timed-out call answers OK with none) never passes.
+Method Answered(answer As %Persistent) As %Boolean [ Private ]
+{
+	If $IsObject(answer) && answer.%IsA("OcuTalon.Bridge.Msg.Reply") Quit 1
+	Do $$$AssertTrue(0, "Decide's answer is a Reply")
+	Quit 0
 }
 
 /// A turn request of the provenance whose ItemId is its reference, and whose owner is a reference of its own.

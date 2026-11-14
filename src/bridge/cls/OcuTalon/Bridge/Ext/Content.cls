@@ -1,7 +1,8 @@
 /// The bridge's content extension (AD-6, AD-31, Story 26.3): lets a host send one image with an untrusted chat turn and learn of each accepted
 /// reply. The default sends nothing and adds nothing, so the bridge runs alone (FR-5). A host extends this class and names the subclass in the
 /// ContentClass setting of the Decide item.
-///   - Part runs in the runner's job, once for each model call of a request of kind turn with provenance untrusted, before the AI session chats and never
+///   - Part runs in the runner's job, once each time the runner answers a request of kind turn with provenance untrusted (the tool loop of that answer sends
+///     the same image), before the AI session chats and never
 ///     inside a callback. A request of any other kind or provenance never reaches it, because a linked turn saves its AI session and an image must
 ///     never enter a stored session. When it answers a stream with bytes, the runner sends the turn's text and that one image together through
 ///     ChatWithContent, under every rule that binds Chat (the gate, the step audit policy, the usage record and the no-callback rule). The image is content

@@ -8762,6 +8762,7 @@ So that I can ask about a file without adding it as a document first.
 - DW-1270: 37.1's obligation for 26.2: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; mind Docs.Extract's up-to-45 s run in Conversation's job (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
 - DW-1312: the security overview for photos: add "A chat turn with a photo also carries that photo." to the model-request bullet, and say photos are never in the trace while captions are, like chat replies (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner rulings 9-10)
 - DW-1313: the memory card shows "This memory came from a photo, so it can't be pinned." for a 409 pin_photo instead of the over-cap notice, in a lazy chunk (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner ruling V3)
+- DW-1321: a photo turn's decide (triage) request carries the photo ask but no image; when photos reach Decide, give the PHOTOASK line only to the turn request and a neutral line to the decide request (ledger; routed by cr 2026-11-14, Story 26.3)
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
 

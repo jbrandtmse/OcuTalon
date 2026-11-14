@@ -129,7 +129,7 @@ Include Ensemble
 /// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount, StepsSent, RetryRunner and
 /// FirstSeconds.
 /// None is a setting. The six extension settings name the classes through which the bridge reaches its host (AD-31); the production
-/// definition sets the first two, the fourth, the fifth and the sixth, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
+/// definition sets all six, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
 /// settings of Decide itself, which Decide reads as they are written now when it runs as its own job (SettingText), so that a change applies to the
 /// next decision with no restart. InstanceZone is the instance zone's single source (AD-18): OcuTalon.Bridge.Time reads and writes it. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job, and ApprovalRole by OcuTalon.Bridge.Approval.Raise (AD-11) in the caller's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).

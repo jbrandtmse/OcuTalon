@@ -26,7 +26,7 @@ Property SavedAt As %String(MAXLEN = 20);
 /// The Ref of the item (the turn) that saved the memory.
 Property ItemId As %String(COLLATION = "EXACT", MAXLEN = 22);
 
-/// What saved the memory: one of Msg.Enum ORIGIN.
+/// What saved the memory: one of Msg.Enum ORIGIN, or photo (Core.Commands FEATUREORIGINS) for the caption of a photo.
 Property Origin As %String(MAXLEN = 16);
 
 /// The text's vector from the AllMiniLM-L6-v2 model (AD-21).

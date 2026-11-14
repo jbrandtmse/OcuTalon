@@ -62,7 +62,7 @@ ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Ou
 	Set command.SessionRef = request.OwnerRef
 	Set command.IdempotencyKey = request.ItemId_":caption"
 	Set command.Text = caption
-	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "photo", .result)
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, ##class(OcuTalon.Memory.Ops).#PHOTOORIGIN, .result)
 	If $$$ISERR(sc) Quit sc
 	If '$IsObject(result) || 'result.Ok || (result.Outcome '= "saved") || (result.Ref = "") {
 		Quit $$$ERROR($$$GeneralError, "The caption was not saved"_$Select($IsObject(result): " ("_result.Outcome_")", 1: "")_".")

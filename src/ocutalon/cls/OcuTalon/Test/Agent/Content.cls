@@ -2,20 +2,21 @@
 /// OcuTalon's Docker image (the caption memory is embedded by a worker), through the CI environment (the mock's base URL and OCUTALON_MOCK_KEY_HEADER=1), except TestRender,
 /// TestReadFile and TestNoSendClass's direct calls, which need the sessions and files only. Each end-to-end test sends an untrusted turn request through Decide
 /// (RunnerFixture.Run) to the runner ChatAgent and the CI mock, with the shipped OcuTalon.Agent.Content in the ContentClass setting (unless the test names a helper class), the real
-/// gate, CommandsIn and MemoryOps, for a fixture session, a tiny PNG stored through Core.Files.Store with a unique zz26s3 marker in a tEXt chunk, and a Data.Turn that holds the item and
+/// gate, CommandsIn and MemoryOps, off the online demo (a flag the stack had is put back after each test), for a fixture session, a tiny PNG stored through Core.Files.Store with a unique zz26s3 marker in a tEXt chunk, and a Data.Turn that holds the item and
 /// the file's Describe JSON, and reads what the production wrote.
 ///   - TestCaptioned (matrix "Photo captioned"): the mock gets one user message of a text block and the base64 image block of the file's bytes; the Reply is the caption with no fallback
 ///     and Tainted 1, and its HostData is exactly {caption: {memoryRef, text}}; one Data.Memory row of the session has the turn's ItemId, origin photo, source learned and the caption
 ///     text, and the memoryRef is its Ref; the usage and cost are recorded; no AI session is saved or linked; the turn's agent steps exist with summaries that hold neither the marker
 ///     nor the file's bytes; and no Ens message body, header or log holds the raw marker or the file's base64;
 ///   - TestUnusable (matrix "Unusable reply"): a refusal, an empty reply and a cut-off reply are fallbacks with the reasons refusal, empty and cut_off, and no caption member and no memory;
-///   - TestRecall (matrix "Later recall"): after TestCaptioned's turn, "What was in the photo I sent? [[mock:photo-recall]]" finds the caption: the Reply's HostData.memories holds its
+///   - TestRecall (matrix "Later recall"): after a captioned photo turn of its own, "What was in the photo I sent? [[mock:photo-recall]]" finds the caption: the Reply's HostData.memories holds its
 ///     memoryRef and text, the turn is tainted, and the answer says it came from memory;
 ///   - TestNotAPhoto (matrix "Not a photo turn"): an untrusted turn with no file, and one whose file is a PDF, send no image, add no caption member and save no memory, and Part and
 ///     Accepted answer nothing for them, as for an owner that is no session (the instance, eval: a model test is an untrusted turn of the owner instance); Accepted for a photo turn's
 ///     ItemId answers nothing and saves nothing when the request is of provenance user or of a kind other than turn (the gate of Part);
 ///   - TestPartRepeatable: the shipped Part answers a new stream of the stored photo each time it is called, each at its start with the file's bytes, as a resend or a retry needs;
 ///   - TestCaptionCut: a caption of more than CAPTIONMAX characters, given to Accepted directly, is saved cut to exactly CAPTIONMAX characters, and the member holds the same text;
+///   - TestCaptionNotSaved (matrix "Accepted fails"): while the test holds the session's memory lock, MemoryOps answers failed, and Accepted answers an error status, no member and no memory;
 ///   - TestCaptionRepeat: Accepted called twice for the same request and text leaves one memory, and answers the same memoryRef both times;
 ///   - TestCannotOpen (matrix "Photo cannot be opened"): a turn whose file row is gone, and one whose file belongs to another session, make no model call, and Decide takes the fallback
 ///     route with no caption and no memory;
@@ -80,6 +81,12 @@ Method OnBeforeAllTests() As %Status
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
+	// Each test starts off the online demo (TestOnlineDemo sets the flag itself); OnAfterOneTest puts back a value the stack had.
+	Set demo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	If demo '= "" {
+		Set ..Demo = demo
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	}
 	If $ClassMethod(..#FIXTURE, "Running") Set ..SessionMark = $ClassMethod(..#FIXTURE, "SessionMark")
 	Quit $$$OK
 }
@@ -356,7 +363,7 @@ Method TestOnlineDemo()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.ZzDemoContent).Accepted(request, ..#CAPTION, .hostData), "Accepted answers OK")
 	Do $$$AssertEquals(hostData.%ToJSON(), "{}", "with no member")
 	Do $$$AssertEquals(..MemoryRows(session).%Size(), 0, "and saved no memory")
-	Set ..Demo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	If ..Demo = -1 Set ..Demo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.SessionRef = session, item.FileRef = file.ref, item.FileName = file.name, item.FileMediaType = file.mediaType
@@ -462,6 +469,32 @@ Method TestCaptionCut()
 	}
 	Do $$$AssertEquals($Length(rows.%Get(0).text)_"|"_(rows.%Get(0).text = $Extract(long, 1, max)), max_"|1", "its text is the first "_max_" characters, no more")
 	Do $$$AssertEquals($Length(hostData.caption.text)_"|"_(hostData.caption.text = rows.%Get(0).text)_"|"_(hostData.caption.memoryRef = rows.%Get(0).ref), max_"|1|1", "and the member holds that text and the row's Ref")
+}
+
+/// A caption that MemoryOps does not save is an error status of Accepted with no member (the matrix row "Accepted fails"): while this process holds the session's memory lock,
+/// MemoryOps' save waits its 5 seconds and answers failed, so no caption names a memory that does not exist.
+Method TestCaptionNotSaved()
+{
+	If '..Ready() Quit
+	Set session = ..Session("captionfail")
+	Set marker = ..Marker("captionfail")
+	Set item = ..PhotoTurn(session, marker, .file, .bytes, .turnItem)
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn", request.Provenance = "untrusted", request.ItemId = turnItem, request.OwnerRef = session
+	Lock +^OcuTalon.Memory(session):5
+	If '$Test {
+		Do $$$AssertTrue(0, "the test holds the session's memory lock")
+		Quit
+	}
+	Try {
+		Set sc = ##class(OcuTalon.Agent.Content).Accepted(request, ..#CAPTION, .hostData)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Lock -^OcuTalon.Memory(session)
+	Do $$$AssertStatusNotOK(sc, "Accepted answers an error status when the caption is not saved")
+	Do $$$AssertEquals($Select($IsObject($Get(hostData)): hostData.%ToJSON(), 1: ""), "{}", "with no member")
+	Do $$$AssertEquals(..MemoryRows(session).%Size(), 0, "and no memory exists")
 }
 
 /// The same request and text, given to Accepted twice, leave one memory and answer its memoryRef both times.
