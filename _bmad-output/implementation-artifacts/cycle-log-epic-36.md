@@ -196,3 +196,6 @@
 2026-11-14T04:50:57Z	Story 36.7	story_created	spec=spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md branch=OCT-epic36-s367(local) head=27ec5e7e model=opus gate=PUBLIC_TEXT(file_list,harness_row,veto_items) finding=IPM_0.10.10_FileCopy_never_deletes_on_Linux
 2026-11-14T04:56:27Z	Story 36.7	spec_validated	gate=PUBLIC_TEXT_approved(~06:00Z)+3_additions(guard_v,V1_log,V4_reload_handler)+V11 branch=OCT-epic36-s367 integrated_forward=feature_9a851935(81bd2866) head=49eb6052
 2026-11-14T04:56:27Z	Story 36.7	stage_spawned	stage=implement spawn_at=2026-11-14T04:56:27Z model=sonnet agent_name=36-7-implement-1 cycle_iteration=1 effort=high worktree=scratch_s367wt
+2026-11-14T05:27:52Z	Story 36.4	ci_red_classified	run=43555521311 attempt=1 job=iris(image) class=flake ledger=DW-1095 test=Test.Data.Purge:TestCurrentSessionLosesNoRows action=one_rerun_of_failed_jobs_when_run_completes
+2026-11-14T06:22:06Z	Story 36.4	ci_resolved	branch=OCT-epic36 sha=4a74d329 runs=43555521311(attempt2),43555521307 result=success failed=none note=attempt1_iris(image)=DW-1095_flake;covers_36.4+36.6
+2026-11-14T06:22:06Z	Epic 36	runner_resume	note=post-crash(owner_machine);dead_turn_lines_verified_and_kept;s367_worktree_lost(branch_safe_at_49eb6052;implement_work_lost);feature_9a851935_red(deep-link_D1/D4_7_vs_8_after_21.4)
