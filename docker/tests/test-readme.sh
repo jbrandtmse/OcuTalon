@@ -2212,7 +2212,7 @@ rule_measured() {
   st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
   st 'a row removed whose label the comparison table repeats' 1 "$README" '/^## / { m = ($0 == "## Measured") } /^### / { m = 0 } m && /^\| Cost of one attention decision \|/ { next } { print }' chk_measured
   # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
-  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/21 of 24/, "20 of 24") } /^From the real-model evaluation of release/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
+  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/[0-9]+ of 24/, "20 of 24") } /^From the real-model evaluation of release/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
   if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
   finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }
