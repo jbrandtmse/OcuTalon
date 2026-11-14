@@ -1,15 +1,15 @@
 /**
  * The settings page's view model (Story 33.2; EXPERIENCE: Step 2, settings and the daily digest): the fixed strings of the page, the order of its
- * sections, the Check thresholds' fields and the small rules of the page and its forms. A framework-free module: it imports only types and uses only erasable
- * TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12): the values and the refusals are the server's (SettingsOps); the
+ * sections, the Check thresholds' fields and the small rules of the page and its forms. A framework-free module: it imports only types and page-shell-view.ts and uses only
+ * erasable TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12): the values and the refusals are the server's (SettingsOps); the
  * form sends what was typed and the server validates every value.
  *
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
+ * - SETTINGS_SECTIONS is the eight sections in the UX's order, each with its address slug. The eighth, Tools and MCP servers (Story 21.4), is mcp-view.ts.
  * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
- * - pageOf says which page an address is: the settings page, the Documents page, the Usage page or the chat.
+ * - pageOf and settingsMatch are page-shell-view.ts's (the eager shell needs them, so they live there); this module re-exports them. SETTINGS_TEXTS's title, unsaved, stay and leave are SHELL_TEXTS's.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
  * - stepFailedText is the Demo step's text for the value that was written.
  * - The Time zone section (Story 18.2): zoneOptions lists the zones to choose from, and zoneBody is the body of a save.
@@ -23,11 +23,12 @@
  *   isModelsDirty the rule of its form, and testResultText the line under a Test button. The Budgets section: budgetsBody and isBudgetsDirty.
  * - refusalKind (DW-948) is the one classifier of a refused or failed save, which every section that saves or sends uses through refusal.ts.
  */
+import { pageOf, SHELL_TEXTS, settingsMatch } from '../shared/page-shell-view.ts';
 import type { AgentModels, ModelPrices, ModelsBody, ModelTestAnswer, Prices, ProviderRow } from '../api/api-types';
 
 /** Every fixed string of the settings page. The separator in the title is U+00B7. */
 export const SETTINGS_TEXTS = {
-  title: 'Settings \u00B7 OcuTalon',
+  title: SHELL_TEXTS.settingsTitle,
   heading: 'Settings',
   sectionsName: 'Settings sections',
   sections: {
@@ -38,6 +39,7 @@ export const SETTINGS_TEXTS = {
     timeZone: 'Time zone',
     checkThresholds: 'Check thresholds',
     demoMode: 'Demo mode',
+    mcp: 'Tools and MCP servers',
   },
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
@@ -45,9 +47,9 @@ export const SETTINGS_TEXTS = {
   failed: "Couldn't save. Nothing was changed.",
   denied: 'Only OcuTalon admins can open settings.',
   back: 'Back to the chat',
-  unsaved: 'You have unsaved changes in this section. Leave without saving?',
-  stay: 'Stay',
-  leave: 'Leave without saving',
+  unsaved: SHELL_TEXTS.unsaved,
+  stay: SHELL_TEXTS.stay,
+  leave: SHELL_TEXTS.leave,
   thresholds: {
     diskFreePercent: 'Disk free space below (%)',
     journalFreePercent: 'Journal free space below (%)',
@@ -125,7 +127,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The seven sections in the UX's order. */
+/** The eight sections in the UX's order. */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -134,6 +136,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'time-zone', label: SETTINGS_TEXTS.sections.timeZone },
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
+  { slug: 'mcp', label: SETTINGS_TEXTS.sections.mcp },
 ];
 
 /** The slug of the section that an address part names, or models (the first) for an unknown or missing one. */
@@ -146,36 +149,13 @@ export function sectionLabel(slug: string): string {
   return SETTINGS_SECTIONS.find((section) => section.slug === slug)?.label ?? SETTINGS_SECTIONS[0].label;
 }
 
-/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2), history (Story 25.2), usage (Story 37.2) or the chat. */
-export function pageOf(address: string): 'settings' | 'documents' | 'history' | 'usage' | 'chat' {
-  const path = address.replace(/^#/, '').split(/[?#;]/)[0];
-  if (path === '/documents') {
-    return 'documents';
-  }
-  if (path === '/history') {
-    return 'history';
-  }
-  if (path === '/usage') {
-    return 'usage';
-  }
-  return path === '/settings' || path.startsWith('/settings/') ? 'settings' : 'chat';
-}
-
 /** The address of the section, as the router takes it. */
 export function sectionPath(slug: string): string[] {
   return ['/settings', slug];
 }
 
-/**
- * The route matcher of the settings page: #/settings and #/settings/<section> are one route, so that moving between sections keeps the
- * page (its values and the focus of the link pressed) instead of building it again. The section is the parameter `section`.
- */
-export function settingsMatch<T extends { path: string }>(segments: T[]): { consumed: T[]; posParams: Record<string, T> } | null {
-  if (segments.length < 1 || segments.length > 2 || segments[0].path !== 'settings') {
-    return null;
-  }
-  return { consumed: segments, posParams: segments.length === 2 ? { section: segments[1] } : {} };
-}
+/** pageOf and settingsMatch live in page-shell-view.ts, which the eager shell imports; they are re-exported here for settings-view.test.mjs. */
+export { pageOf, settingsMatch };
 
 /** A field of Check thresholds: its name in the API, its label and its range. */
 export interface ThresholdField {

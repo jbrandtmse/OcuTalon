@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { pageOf } from '../settings/settings-view';
+import { pageOf } from '../shared/page-shell-view';
 
 /**
  * Which page the app shows (Stories 33.2, 34.2 and 37.2): the chat (the main page), the settings page, the Documents page or the Usage page. It starts from the address the page was opened with, which

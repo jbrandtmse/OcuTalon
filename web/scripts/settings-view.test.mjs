@@ -58,16 +58,16 @@ const {
 const DEFAULTS = { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 };
 
 describe('the sections', () => {
-  it('are the seven of the UX, in its order, each with a slug of its own', () => {
+  it('are the eight of the UX, in its order, each with a slug of its own', () => {
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.label),
-      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode'],
+      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers'],
     );
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.slug),
-      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode'],
+      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode', 'mcp'],
     );
-    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 7);
+    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 8);
   });
 
   it('open Models for an unknown or a missing address part', () => {
@@ -186,7 +186,7 @@ describe('the routes', () => {
   const config = readFileSync(join(here, '..', 'src', 'app', 'app.config.ts'), 'utf8');
 
   it('open the settings page at #/settings and at #/settings/:section as one route, before the wildcard, titled and guarded against leaving with unsaved changes', () => {
-    const settings = [...config.matchAll(/\{ matcher: settingsMatch, component: SettingsPage, title: SETTINGS_TEXTS\.title, canDeactivate: \[unsavedGuard\] \}/g)];
+    const settings = [...config.matchAll(/\{\s*matcher: settingsMatch,\s*loadComponent: \(\) => import\('\.\/settings\/settings-page'\)\.then\(\(m\) => m\.SettingsPage\),\s*title: SHELL_TEXTS\.settingsTitle,\s*canDeactivate: \[unsavedGuard\],?\s*\}/g)];
     assert.equal(settings.length, 1, 'one settings route, with the matcher, the title and the unsaved-changes guard');
     assert.doesNotMatch(config, /path: 'settings/, 'no second settings route, which would build the page again on a section change');
     assert.ok(config.indexOf('matcher: settingsMatch') < config.indexOf("path: '**'"), 'the wildcard comes last');

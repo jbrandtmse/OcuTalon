@@ -10202,6 +10202,31 @@ So that I classify a tool that runs operating-system commands or arbitrary code 
 **Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
 
 
+### Story 36.5: Epic 36 burn-down: load the Settings, History and Usage pages lazily
+
+[AMENDED 2026-11-13, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, option (b)): DW-1282 taken now so the initial web bundle regains headroom under its 1 MB cap; Story 36.4's on-call section rides on top; fallback (a) is 36.4 lazy-loading only its own section]
+
+As a visitor to OcuTalon's web app,
+I want the first page to load only the code the first screen needs,
+So that the app stays fast and new pages don't push the initial bundle over its limit.
+
+**Acceptance Criteria:**
+
+**Given** the production web build (`npm --prefix web run build`)
+**When** it runs
+**Then** the Settings sections and the History and Usage pages load as lazy chunks (their routes load their components on demand), the initial bundle is at most 921 kB, and the initial-bundle budget in `web/angular.json` stays at `maximumError` 1MB (no cap raise)
+
+**Given** a signed-in admin
+**When** they open /settings, /history and /usage directly by URL (a deep link), and reload each page
+**Then** each page renders as before, with the same headings, sections and data, and no console error; Playwright tests pin the deep-link load and the reload of all three
+
+**Given** the existing Settings, History and Usage tests (node and Playwright)
+**When** they run after the change
+**Then** they pass unchanged in behaviour; the lazy Settings section components other lanes add (Story 25.4's Roles section, Story 21.4's MCP section) stay compatible: whoever pushes second integrates forward
+
+- DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap; move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB (ledger; routed by the Planner ruling 2026-11-13)
+
+
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.
