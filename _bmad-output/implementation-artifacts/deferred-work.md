@@ -7811,3 +7811,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner 22:00Z ruling (epic-22-rulings-20261113-1715.md): StepBuffer.InputsOf (L144) records a built-in tool's arguments verbatim in the turn's step summary (L132), which lands in ^Ens.MessageBodyD; 22.7 fixes send_email only
 - 2026-11-13T23:12:49Z status=routed owner=burndown by=orchestrator note=Planner_22:00Z:audit_DW;not_22.7_work;not_a_1.0.9_blocker
+
+### DW-1305: No automated test pins that the send_email tool answer and the gate's refusal, denial and error sentences stay free of addresses, subject and text, so the Result part of a send_email step record has no failing pin (the ruled 'verbatim Result' mutation is not observable)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rework 4 R4-2/R4-3: three chat turns (own, other, malformed) show only fixed words after Result:/Denied:; Planner 22:00Z ruling item 3 asked for that mutation
+- 2026-11-14T00:39:36Z status=decision-pending owner=burndown by=harvest note=for_the_Planner:waive_the_verbatim-Result_mutation_or_rule_a_pin(e.g._assert_the_Result_part_equals_a_fixed_outcome_set);DW-1296_audit_is_related
