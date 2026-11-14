@@ -2,15 +2,47 @@
 title: 'Story 22.11: Run source polls through the governed proxy'
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '149cf20aa17a24f484b04649a5b0827769293a29'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-22-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A run recorded in the same second as the repoint that moves CreatedAt keeps the old history (the start-afresh rule is "LastRunAt before CreatedAt", strictly).
+    evidence: |-
+      StateOf reads Reported unless CreatedAt follows LastRunAt; with LastRunAt equal to CreatedAt (second resolution) the earlier target's seen hashes stay for the next run, which could send one extra Item or hide one.
+      Tests age LastRunAt before a repoint (TestRepointBaseline). The window is one second per repoint.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Checks/Process.cls StateOf
+    severity: low
+  - summary: >-
+      Option (a) caps the whole install at one poll per Tick, so N sources need N Ticks to be polled once, and more sources than their interval in minutes fall behind interval + 180 s and read stale.
+    evidence: |-
+      RunSources reads the in-flight state once and the first poll sent sets it for the rest of the Tick, whatever the source's answer time; the in-flight mark is install-wide, so one session's silent source also delays every other session's sources.
+      The pre-ruled check 2 (3 silent sources) holds; a fleet larger than the shortest interval (5 minutes) is not covered. Oldest-NextDueAt-first ordering keeps the waiting sources from starving. The remedies are the Planner's options (b) a dedicated poll runner or (c) TriageAgent PoolSize 2, both of which need a ruling.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Checks/Process.cls RunSources, PollInFlight
+    severity: medium (escalated to the Contest Planner)
+  - summary: >-
+      A poll's answer is cut at the tool-result room (the step's token budget) like any tool result, so a change beyond the cut that leaves the total length alone is not seen.
+    evidence: |-
+      Tools.McpCall.CallMcpTool passes ..Room() - used to Proxy.Call, and the answer carries the cut note with the shown and total counts; Poll.Run takes the value as it comes, and SHA-256 covers what was shown. A change in the total length changes the note and so the hash.
+      Not measured against a tool whose answer exceeds the room.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Tools/McpCall.cls CallMcpTool, src/bridge/cls/OcuTalon/Bridge/Poll.cls Run
+    severity: medium (unverified)
+  - summary: >-
+      Proxy.Listed's online-demo word has no test of its own.
+    evidence: |-
+      The demo is held back at Checks.RunSources and by the proxy's MCPDEMO refusal on call_mcp_tool; a direct Listed call on the demo is not asserted.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Mcp/Proxy.cls Listed
+    severity: low
 ---
 
 <intent-contract>
@@ -237,6 +269,42 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `Bridge/` (`
 
 ## Review Triage Log
 
+### 2026-11-14 -- Review pass
+- verdicts: 32 findings -- high 0, medium 10, low 21, false 1, maybe-false 0
+- findings:
+  - `[medium]` `[defer]` Blind: one poll per Tick for the whole install (plus the starvation of waiting sources and the claim of check 2 beyond 3 sources; Edge 3 and Edge 10 share the root cause) -- the pre-ruled option (a); ordering oldest-first patched (see Edge 3), the capacity itself deferred to the Planner's (b)/(c)
+  - `[low]` `[reject]` Blind: PollInFlight scans and parses every source row each Tick -- tens of rows at most, once a minute; a column or filter is more than a direct correction
+  - `[false]` `[reject]` Blind: a Busy reply recorded as passed -- OnRequest returns Busy only when 'tool && Held (Decide.cls L345); a poll is kind tool, so Decide never answers it Busy
+  - `[medium]` `[patch]` Blind and Edge: PollCall accepts arguments that are not a JSON object -- PollCall answers invalid unless the parsed arguments are a dynamic object; TestPollRunWords pins arrays and numbers (mutation recorded)
+  - `[medium]` `[defer]` Blind: a poll's answer is cut at the tool-result room -- the tool's own bound applies; the cut note carries the lengths; deferred with the evidence
+  - `[medium]` `[patch]` Blind and Verification gap: TestOneInFlightNoQueueStale compared two constants -- it now asserts the third source's send set NextDueAt at the Tick of step 3 and measures the wait against the coverage's allowance
+  - `[low]` `[patch]` Blind and Verification gap: TestSourceStoppedNotice never checked the render -- it now asserts the rendered notice holds the source, tool and server
+  - `[low]` `[reject]` Blind: the SHA-256 hex helper exists three times -- the tests compute the oracle independently on purpose, and a shared helper would make the oracle the code under test
+  - `[low]` `[reject]` Blind and Edge: ProxyManager builds a manager before the agent check, and its message changed -- a discarded manager costs nothing and no test or reader pins the old wording
+  - `[low]` `[reject]` Blind: the Gate class doc has two steps numbered 5 -- the doc already numbers its alternatives 5 (replay, other contexts)
+  - `[low]` `[patch]` Blind: the Verification table lacked two mutation rows -- added with the others
+  - `[medium]` `[patch]` Edge: OnError then OnResponse records a failed poll twice -- read in irislib Ens.BusinessProcess: a handled error is followed by OnResponse for the same key; ErroredKey makes the second call a no-op; TestOtherFailure counts the CheckRun rows and the announcements (mutation recorded)
+  - `[low]` `[patch]` Edge: SendPoll that throws leaves the in-flight mark -- the send is in a Try and a thrown error clears the mark like an error status
+  - `[medium]` `[patch]` Edge: the lowest ID always wins when more sources are due than one Tick sends -- RunSources runs the due rows oldest NextDueAt first (RowOf carries it); TestOldestDueFirst (mutation recorded)
+  - `[low]` `[reject]` Edge: a stopped record or a late answer wipes the mark while a poll runs -- a stopped source makes no call, and a poll lasts at most 110 seconds against an interval of at least 5 minutes: wontfix-theoretical
+  - `[low]` `[reject]` Edge: a new hash is stored before its Item is sent, so a failed send is not retried -- matrix row 2 says one warning, not resent: by-design
+  - `[low]` `[reject]` Edge: a stop notice that fails is not retried -- matrix row 5 says once per transition and one warning: by-design
+  - `[low]` `[reject]` Edge: Decide's timer ends before the runner on a long poll -- TimerSeconds 60 against a poll of at most about 26 seconds; wontfix-theoretical
+  - `[medium]` `[patch]` Verification gap: a proxy refusal after the seed listing was unpinned -- TestPollRunWords holds the tools/call past its bound and asserts the word timeout with no text (mutation recorded)
+  - `[medium]` `[patch]` Verification gap: the real StopNotice and SourceClass never ran -- OPSCLASS and the probe's RealSeams run them; TestStopThroughTheRealSeams (mutation recorded)
+  - `[low]` `[defer]` Verification gap: Proxy.Listed's demo word is untested -- the demo is held at RunSources and by MCPDEMO; deferred; the SeedMcp key checks got TestSeedMcpKeys
+  - `[medium]` `[patch]` Verification gap: TestPollRuns asked ItemIdKindIndexExists with one argument, so it could not fail -- it counts the Decision rows of the ItemId by SQL
+  - `[low]` `[reject]` Verification gap: TestFirstRunBaseline asserts the session the test set on the shadow -- the assertion pins that Checks carries its own session to the send; kept
+  - `[low]` `[patch]` Verification gap: three ACs lacked a mutation line -- recorded (recording, stopped); the no-model half and the triage-delay AC are closed with a reason in Verification
+  - `[low]` `[patch]` Verification gap: TestPollRunWords made its fixture row due, so the production's own Checks could poll it -- the fixture row's NextDueAt is 2099
+  - `[low]` `[reject]` Verification gap: SourceRun flips fixture rows to the real Kind for a moment -- a window of milliseconds in a class that runs in one second
+  - `[low]` `[reject]` Verification gap: SourceRunProduction waits a fixed 1.1 seconds before its Tick -- it then waits on LastRunAt up to 40 seconds, whichever Tick ran
+  - `[medium]` `[reject]` Verification gap and Intent: the inflight member beyond the approved Reported shape -- pre-ruled (a) puts the in-flight state on the row and no column is allowed; decided in-stage (note 17) and flagged to the Planner in the report
+  - `[low]` `[reject]` Intent: rows 3 to 9 are pinned at the Checks seam and the bridge layers, rows 1 and 2 end to end -- the spec's own test list; the wire is covered by TestPollRuns and TestPollRunWords
+  - `[low]` `[reject]` Intent: the stopped check is made in Checks and again in PollCall -- the two are the spec's (before the send, and after a denial or a change)
+  - `[low]` `[reject]` Intent: a run recorded in the same second as a repoint keeps the old history -- already deferred
+  - `[low]` `[reject]` Intent: Checks maps the word demo to error -- no poll runs on the demo, so it is a backstop only
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -286,6 +354,10 @@ No AC contradicts an AD's Rule. No NFR trips Rule 5: the Planner's two triage-de
 13. **`SeedMcp` writes the entry directly** (with `SetMcpTools`' key checks, shared) rather than through `SetMcpTools`, because `PollCall` returns a fingerprint, not a description and schema.
 14. The baseline test is "`Reported.baseline` is not 1" after the start-afresh rule, so a stopped run before the first success does not use up the baseline.
 15. Task 0 item 5 runs after the poll path is built, because there is nothing to measure before it; it still runs before the tests and the review, and it HALTs the stage.
+17. **(implement) The in-flight mark is the `inflight` member of a source row's `Reported`** (the send time of the one outstanding poll; Task 0 item 5's pre-ruled option (a), "the row's in-flight state on the row"). It adds no column, exists only while a poll is outstanding, and the record of the answer writes `Reported` without it; it is a member beyond the approved `{seen, baseline, stopped}`, flagged to the Planner.
+18. **(implement) After `OnError` the host calls `OnResponse` for the same key** (`Ens.BusinessProcess`, read in `irislib`), so `OnError` notes the key (`ErroredKey`, transient) and `OnResponse` skips that call once: a failed poll records once.
+19. **(implement) Due sources run oldest `NextDueAt` first** (never-run first), so that option (a)'s one poll a Tick never passes over a waiting source for one that is due again.
+20. **(implement) `Checks.Process.OPSCLASS`** names the class whose `SourceStopped` tells the admins (`Mcp.Ops`); `Test.Mcp.SourceProbe` points it at `Test.Mcp.OpsProbe` and, with `RealSeams` 1, runs the real `SourceClass` and `StopNotice`.
 16. A poll's `turn.step` reaches no chat: `BridgeSink.Step` publishes only for the running turn's ItemId (read, not changed).
 
 **Extend, don't copy (Rule 2):**
@@ -392,10 +464,59 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | Ignore `CreatedAt` in the start-afresh rule | `TestRepointBaseline` |
 | Drop the `sentAt` check | `TestAnswerBeforeRepoint` |
 | Drop the demo return in `RunSources` | `TestOnlineDemoNoPoll` |
+| The poll's runner uses an ungoverned manager (`PollManager` skips `Govern`) | `TestPollRuns` |
+| `Decide.OnResponse` poll branch off (a poll goes through `Conclude`) | `TestPollNoDecisionRow` |
+| Option (a) applied (Task 0 item 5): drop the in-flight check in `PollSource` | `TestOneInFlightNoQueueStale` |
+| OnError and the host's OnResponse for the same key both record | `TestOtherFailure` |
+| Due sources run in the order of their rows, not oldest NextDueAt first | `TestOldestDueFirst` |
+| `Proxy.Noted` does not note a poll's refusal | `TestPollRunWords` |
+| `Attach.PollCall` accepts arguments that are not a JSON object | `TestPollRunWords` |
+| `StopNotice` swaps the tool and the server in the call to `Mcp.Ops` | `TestStopThroughTheRealSeams` |
+| A stopped source is polled (the stopped check dropped) | `TestStoppedBeforeSend` |
+| A passed run recorded as failed | `TestNewResult` |
+
+**Mutations demonstrated (Rule 19; each applied alone, the named test observed red, then reverted byte-identically, `git status --short` and `git diff --stat` as before):**
+
+- mutation: `Adapter.Agent` `PollManager` no longer calls `Govern` (an ungoverned manager) -> `Test.Mcp.SourceRunProduction:TestPollRuns` red ("the one step of the poll is labelled for the tool and the server"). Note: a runner job keeps the class it started with, so `TestPollRuns` restarts TriageAgent first (`PointRunner`, which also points its key at the CI mock so that a model request would show); without the restart the mutation was not seen.
+- mutation: `Decide.OnResponse` poll branch off (`If 0 {`), so the poll goes through `Conclude` -> `Test.Bridge.Poll:TestPollNoDecisionRow` red.
+- mutation: `RecordSource` without the `seen` check (`ElseIf (hash '= "")`) -> `Test.Mcp.SourceRun:TestSeenBefore` red.
+- mutation: `RecordSource` does not insert the `SourceItem` -> `Test.Mcp.SourceRunProduction:TestNewResultReachesIntake` red ("one Item went from Checks to Intake").
+- mutation: `RecordSource` calls `Record` without keep (the last argument 1 dropped) -> `Test.Mcp.SourceRun:TestNextDueAtAtSend` red.
+- mutation: `RecordSource` notifies on every stopped run (`If outcome = "stopped"`) -> `Test.Mcp.SourceRun:TestStoppedNotifiesOnce` red.
+- mutation: `Gate.Decision` allows any name in a poll (`If 0 && (name '= ..#MCPPROXY)`) -> `Test.Bridge.Poll:TestPollOnlyProxy` red.
+- mutation: `Gate.Decision` treats a poll as a replay (`replay = (context.Kind = ..#REPLAYKIND)`, so a grant is required) -> `Test.Bridge.Poll:TestPollNoGrant` red.
+- mutation: `StateOf` ignores `CreatedAt` in the start-afresh rule -> `Test.Mcp.SourceRun:TestRepointBaseline` red.
+- mutation: `SourceAnswer` drops the `sentAt` check (`If 0 {`) -> `Test.Mcp.SourceRun:TestAnswerBeforeRepoint` red.
+- mutation: `RunSources` drops its demo return -> `Test.Mcp.SourceRun:TestOnlineDemoNoPoll` red.
+- mutation: `PollSource` drops the in-flight check (`If 'stopped && busy Quit 0`) -> `Test.Mcp.SourceRun:TestOneInFlightNoQueueStale` red.
+- mutation: `OnResponse` does not skip the call that follows `OnError` for the same key (`If 0 && ...`) -> `Test.Mcp.SourceRun:TestOtherFailure` red ("(error status) one CheckRun row is written and the run is announced once").
+- mutation: `RunSources` orders the due rows by their position, not by NextDueAt -> `Test.Mcp.SourceRun:TestOldestDueFirst` red.
+- mutation: `Proxy.Noted` drops `|| IsPoll()` -> `Test.Bridge.Poll:TestPollRunWords` red ("(call timeout) a call that the proxy refuses after the listing is the word timeout").
+- mutation: `Attach.PollCall` drops the JSON-object check -> `Test.Bridge.Poll:TestPollRunWords` red ("arguments that are a JSON array").
+- mutation: `StopNotice` passes the server where the tool belongs -> `Test.Mcp.SourceRun:TestStopThroughTheRealSeams` red (the notice's slots).
+- mutation: `PollSource` never reads the source as stopped (`Set stopped = 0`) -> `Test.Mcp.SourceRun:TestStoppedBeforeSend` red (and `TestStoppedNotifiesOnce`, `TestStoppedCoverage`): the "each run is recorded" and "stopped" ACs are pinned by these.
+- mutation: `RecordSource` records a passed run as `failed` -> `Test.Mcp.SourceRun:TestNewResult` red (and `TestResume`, `TestOneInFlightNoQueueStale`): the "each run is recorded" AC.
+- The "no model" half of AC 1 is pinned by the model-mock log assertion in `TestPollRuns` (zero model requests); the poll path holds no model client, so no one-line mutation makes it call one (accepted). The triage-delay AC has no automated test: it rests on `evidence/22-11-task0-poll.md`.
+
+**Notes of the implement stage (Task 0 and its result are in `evidence/22-11-task0-poll.md`):**
+
+- Option (a) WAS applied: before it, `Call(port, "silent")` added 12746 ms to the median triage decision (limit 10000 ms); after it, every mode passes both limits (medians 27, 5734.5, 16 and 15 ms against a baseline of 28 ms; no decision with Fallback 1 or a timeout). The in-flight mark is `inflight` (the send time) in the source row's `Reported`, which is a member beyond the approved `{seen, baseline, stopped}` shape: it exists only while a poll is outstanding, holds a time, no column is added, and the record of the answer writes `Reported` without it.
+- `Test.Mcp.SourceRunProduction` extends `Test.Mcp.JobFixture` (the zzmcp fixtures) and not `Test.Core.InProduction`, because both are test cases; it repeats InProduction's clean-up.
+- `Test.Bridge.Poll` also pins `Poll.Run` with OcuTalon's `PollCall` (`TestPollRunWords`) and `Agent.PollManager` with no agent built.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-planned only (halt after planning); nothing implemented. Open for the lead: the two NEW veto items (the poll reason words; `Reported`'s source shape); the AD-18/AD-6/AD-10/AD-31 spine records (Design Notes); Task 0 item 5's STOP, which the implement stage measures and HALTs on.
+**Summary.** On each Tick `Checks.RunSources` sends every due `source` row one asynchronous untrusted `tool` request through `Decide`, oldest `NextDueAt` first and at most one poll in flight (Task 0 item 5's option (a), pre-ruled). `Decide` admits it as a poll, runs it on TriageAgent, and answers a bare Reply with no `Decision` row. `Bridge.Poll` makes one governed `call_mcp_tool` on a proxy-only manager seeded by `PollCall`. `Checks.OnResponse` records the run: the first success since `CreatedAt` is a baseline, a new SHA-256 of the whole answer is one untrusted Item for `Intake`, a source whose tool is no longer Read-only stops with one `mcp.sourceStopped`, and nothing runs on the online demo.
+
+**Task 0.** Option (a) WAS applied: before it, `Call(port, "silent")` added 12746 ms to the median triage decision (limit 10000 ms); after it every mode passes (medians 27, 5734.5, 16 and 15 ms against a baseline of 28 ms; no decision with Fallback 1 or a timeout). The numbers per mode are in `evidence/22-11-task0-poll.md`.
+
+**Files.** Bridge: `Poll.cls` (new), `Adapter/Agent.cls` (`PollManager`, the poll branch of `Answer`), `Context.cls` (`IsPoll`, `SeedMcp`), `Ext/McpServers.cls` (`PollCall`, `POLLREASONS`), `Policy/Gate.cls` (the poll branch), `Process/Decide.cls` (`Admit`, `RunnerFor`, `PollAnswer`). Product: `Checks/Process.cls` (`RunSources`, `OnResponse`, `OnError`, `RecordSource`, `SourceItem`, the seams), `Mcp/Attach.cls` (`PollCall`), `Mcp/Proxy.cls` (`Listed`, `Listing`, `Noted`), `Mcp/Ops.cls` (`SourceStopped`), `Data/BackgroundCheck.cls` and `Digest/Data/CheckRun.cls` (docs). Tests: `Test/Bridge/Poll.cls`, `Test/Mcp/SourceRun.cls`, `Test/Mcp/SourceProbe.cls`, `Test/Mcp/SourceRunProduction.cls` (new), `Test/Bridge/Ext.cls`.
+
+**Review.** 32 findings (a finding that two layers reported is one row): 12 patched (the double record after `OnError`, oldest-first order, a refusal after the seed, the real stop seams, non-object arguments, three vacuous or weak assertions, three missing mutation lines, a send that throws, the fixture row's due time), 3 deferred (option (a)'s capacity of one poll per Tick install-wide, a cut answer, `Listed`'s demo word; the same-second repoint was deferred by the implement pass), the rest rejected with reasons in the Review Triage Log (one was false: a Busy reply cannot reach a poll).
+
+**Verification.** Warm, one class per call, after the last patch: `Test.Bridge.Poll`, `Gate`, `Decide`, `Ext`, `Test.Mcp.SourceRun`, `SourceRunProduction`, `Proxy`, `Test.Bridge.Runner`, `Approval`, `Test.Mcp.Approval`, `Attach`, `Ops`, `SourceSet`, `SourceSetProduction`, `Test.Checks.Queues`, `Runs`, `Test.Digest.Coverage`, `AllClear`, `Test.Watch.Ops`, `Test.Msg.Catalog` all passed (`Test.Bridge.Poll` once more after the last test patch); `test-boundaries.sh`, `test-class-rules.sh` and `test-ci-config.sh` exit 0; `SourceRunProduction` passed on a fresh stack (tag `e22s11i`), then torn down. Every row of the Pinning mutations table was observed red and reverted byte-identically.
+
+**Residual risks.** (1) The in-flight mark is an `inflight` member of `Reported`, beyond the approved shape (Design Notes 17): flagged to the Planner. (2) Option (a)'s capacity (deferred, escalated). (3) The skip after `OnError` rests on the kernel's `Ens.BusinessProcess` source and is exercised in the test by calling `OnResponse` as the host does, not by a live failed call. Follow-up review recommended: true (two or more medium findings patched; the unverified risk is (3) and the new test seams `OPSCLASS` and `RealSeams`).

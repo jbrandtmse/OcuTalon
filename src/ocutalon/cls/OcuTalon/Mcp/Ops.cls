@@ -34,6 +34,8 @@
 ///     unclassified, with the fingerprint the report gives), deletes the rows of tools it no longer lists, and clears the classification of a tool whose
 ///     fingerprint changed (ClearChanged). A server with no row is an error and nothing is written.
 ///   - ClearChanged: the one way a classified tool becomes unclassified because its fingerprint changed; it audits the change and tells the admins.
+///   - SourceStopped (Story 22.11): the one public way a source's stop reaches the admins: mcp.sourceStopped {source, tool, server, time} to every admin session, through Notify and Send. Checks
+///     calls it once for each transition to stopped; it writes no row and no audit entry.
 ///   - Admin notices (kind status, sent to Ownership.AdminSessions) go out once for each transition: a server that turns unavailable
 ///     (mcp.serverUnavailable), a tool newly refused because it has a built-in's name (mcp.toolShadowsBuiltIn) and a tool that changed
 ///     (mcp.toolChanged). The same report again sends nothing.
@@ -774,8 +776,21 @@ ClassMethod Notify(server As %String, ByRef events) As %Status [ Private ]
 			Quit:tool=""
 			Do ..Send(ref, "mcp.toolChanged", {"tool": (tool), "server": (server)})
 		}
+		If $Data(events("stopped")) {
+			Set stopped = events("stopped")
+			Do ..Send(ref, "mcp.sourceStopped", {"source": ($List(stopped, 1)), "tool": ($List(stopped, 2)), "server": (server), "time": ($List(stopped, 3))})
+		}
 	}
 	Quit $$$OK
+}
+
+/// Tells every admin session that the source has stopped polling (Story 22.11): the notice mcp.sourceStopped with the source's name, its tool, its server and the time, through Notify's loop
+/// and Send. Checks sends it once for each transition to stopped. A read of the admins' sessions that fails is one warning and no notice, and the status is that error; a notice that cannot
+/// be sent is one warning. It writes no row and no audit entry, and the notice holds the four slots only, never an argument.
+ClassMethod SourceStopped(source As %String, tool As %String, server As %String, time As %String) As %Status
+{
+	Set events("stopped") = $ListBuild(source, tool, time)
+	Quit ..Notify(server, .events)
 }
 
 /// One notice (kind status, the catalog key and its slots) to the session; a failed send is one warning.

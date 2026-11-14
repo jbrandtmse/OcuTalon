@@ -83,6 +83,20 @@
 ///     them, or cannot read a listed namespace is not_checked with REASONREAD, REASONUNREADABLE or REASONNOTCURRENT (the first unread namespace in list order),
 ///     never passed; the crossings of the namespaces that were read are still sent. Else the run is failed with FINDINGQUEUE or FINDINGQUEUES while any
 ///     queue is above its limits, else passed. Record's row-count rule applies: a watch stopped meanwhile records, sends and publishes nothing.
+///   - Source rows (Story 22.11; AD-18, AD-21, AD-30, AD-33): after the queue rows of a Tick, each row of Kind SOURCEKIND that is due runs through RunSources, unless the install is the online
+///     demo (nothing runs, nothing is recorded). At most one poll is in flight: a source's Reported holds inflight, the send time, from its send to
+///     the record of its answer, and a due source that is not stopped sends nothing, and keeps its NextDueAt, while another source holds a mark younger than INFLIGHTSECONDS, so TriageAgent
+///     never holds more than one poll. For each due row that sends, one UPDATE sets NextDueAt to the tick time plus the row's IntervalMinutes, at the send. A source whose tool is no longer
+///     Read-only (the seam SourceClass) makes no call: it records not_checked with REASONNOTREADONLY at once (keep 1), and the transition to stopped sends the admins mcp.sourceStopped once
+///     (the seam StopNotice, Mcp.Ops SourceStopped). Any other source is sent one asynchronous request of kind tool and provenance untrusted to POLLTARGET (the seam SendPoll), whose Input
+///     is {"source": <the Ref>} and nothing else, in the Tick's session, with the completion key <Ref>|<the send time>. The answer reaches OnResponse (a failed call reaches OnError, which
+///     reads it as a failed poll). The row is read again; a missing row records nothing, and so does a send time before the row's CreatedAt (the answer of a poll made before a repoint).
+///     Reported is {"seen": [at most 50 SHA-256 hex hashes of whole answers, newest last], "baseline": 1 once a run succeeded, "stopped": "" or "not_read_only"}, and starts as {} when
+///     LastRunAt is empty or before CreatedAt. The Reply maps to the run: no FailureText is passed (the first one since CreatedAt is the baseline and sends no Item; later an answer whose
+///     hash is not in seen sends one Item, Channel system, Provenance untrusted, Subject the source's name, Text the answer; an empty answer is passed and never an Item); notreadonly and
+///     changed are stopped; denied is stopped when the tool is no longer Read-only, else REASONREAD; unreachable is REASONSOURCEUNREACHABLE; timeout is REASONTIMEOUT; any other word is
+///     REASONREAD. A run that is not a stop clears stopped. Record is called with keep 1, so the send's NextDueAt stands. The latest run counts (DW-1326), and no argument value, URL or
+///     secret reaches a request, log line, finding or notice.
 /// Nothing that decides "due" or "new" lives in memory (AD-5). The only namespace switch is in Watch.Reader (AD-3). This class is the only one that
 /// publishes the check event and the heartbeat event.
 Class OcuTalon.Checks.Process Extends Ens.BusinessProcess
@@ -124,7 +138,7 @@ Parameter INSTANCE = "instance";
 Parameter EVAL = "eval";
 
 /// The columns of a BackgroundCheck row that Due and Watching select, in the order that RowOf reads them.
-Parameter ROWCOLUMNS = "Ref, SessionRef, Namespace, Production, DisplayName, CreatedAt, LastRunAt, NextDueAt, Reported";
+Parameter ROWCOLUMNS = "Ref, SessionRef, Namespace, Production, DisplayName, CreatedAt, LastRunAt, NextDueAt, Reported, Server, Tool, IntervalMinutes";
 
 /// The parts of a finding (public text; the first letter is made upper case, {count} is the number).
 Parameter FINDINGSTOPPED = "production stopped";
@@ -250,6 +264,11 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 				$$$LOGWARNING(..#LOGRUN_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 			}
 		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Try {
+		Do ..RunSources(tickAt)
 	} Catch exception {
 		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
@@ -529,10 +548,10 @@ Method Watching(namespace As %String, production As %String, ownerRef As %String
 }
 
 /// The row object of a result set positioned on a BackgroundCheck row of ROWCOLUMNS: {"ref", "sessionRef", "namespace", "production", "displayName",
-/// "createdAt", "lastRunAt", "reported"}.
+/// "createdAt", "lastRunAt", "reported", "nextDueAt", "server", "tool", "interval"} (the last three are a source row's).
 Method RowOf(rs As %SQL.StatementResult) As %DynamicObject [ Private ]
 {
-	Quit {"ref": (rs.%GetData(1)), "sessionRef": (rs.%GetData(2)), "namespace": (rs.%GetData(3)), "production": (rs.%GetData(4)), "displayName": (rs.%GetData(5)), "createdAt": (rs.%GetData(6)), "lastRunAt": (rs.%GetData(7)), "reported": (rs.%GetData(9))}
+	Quit {"ref": (rs.%GetData(1)), "sessionRef": (rs.%GetData(2)), "namespace": (rs.%GetData(3)), "production": (rs.%GetData(4)), "displayName": (rs.%GetData(5)), "createdAt": (rs.%GetData(6)), "lastRunAt": (rs.%GetData(7)), "reported": (rs.%GetData(9)), "nextDueAt": (rs.%GetData(8)), "server": (rs.%GetData(10)), "tool": (rs.%GetData(11)), "interval": (rs.%GetData(12))}
 }
 
 /// 1 when an incident of this owner counts for the session's row (AD-4): the owner is the session, or is INSTANCE while the instance is not the online
@@ -987,6 +1006,333 @@ Parameter REASONSOURCEUNREACHABLE = "Couldn't reach its MCP server";
 /// The finding of a source run that was not made because the source's tool is no longer Read-only (public text), written by the run of Story 22.11. Coverage ReasonOf
 /// maps it to stopped.
 Parameter REASONNOTREADONLY = "Its tool is no longer Read-only";
+
+/// The completion key of a poll whose error OnError has recorded, until the OnResponse call that follows it for the same key has been skipped.
+Property ErroredKey As %String(MAXLEN = 100) [ Internal, Transient ];
+
+/// The class whose SourceStopped tells the admins that a source stopped (Mcp.Ops; the tests name a probe).
+Parameter OPSCLASS = "OcuTalon.Mcp.Ops";
+
+/// The configuration item that runs a source poll (the Decide process).
+Parameter POLLTARGET = "Decide";
+
+/// The most hashes of whole answers that a source row's Reported keeps.
+Parameter SEENMAX = 50;
+
+/// The value of stopped in a source row's Reported.
+Parameter STOPPEDVALUE = "not_read_only";
+
+/// How long a poll's in-flight mark counts, in seconds: Decide answers a poll within its timer (110 seconds at most), so an older mark is stale.
+Parameter INFLIGHTSECONDS = 150;
+
+Parameter LOGPOLL = "Checks could not poll source ";
+
+Parameter LOGPOLLSEND = "Checks could not send the poll of source ";
+
+Parameter LOGPOLLANSWER = "Checks could not record the answer of source ";
+
+/// The summary of the request of a source poll.
+Parameter POLLSUMMARY = "Source poll";
+
+/// Runs the sources that are due at the tick time (see the class description): nothing on the online demo. At most one poll is in flight (PollInFlight): a
+/// source that is due while another's poll is outstanding sends nothing and keeps its NextDueAt, so it polls at a later Tick. The due sources run oldest NextDueAt first (a source that has
+/// never run first), so that a source that waits is never passed over by one that is due again. Each row runs in a Try of its own (LOGPOLL).
+Method RunSources(tickAt As %String) [ Private ]
+{
+	If ..PollsOff() Quit
+	Set busy = ..PollInFlight()
+	Set due = ..DueOf(tickAt, ..#SOURCEKIND)
+	Kill order
+	Set iterator = due.%GetIterator()
+	While iterator.%GetNext(.position, .row) {
+		Set order(row.nextDueAt _ "|" _ $Justify(position, 8)) = row
+	}
+	Set key = ""
+	For {
+		Set key = $Order(order(key), 1, row)
+		Quit:key=""
+		Try {
+			If ..PollSource(row, tickAt, busy) Set busy = 1
+		} Catch exception {
+			$$$LOGWARNING(..#LOGPOLL_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		}
+	}
+}
+
+/// The online demo runs no source (a seam for the tests): 1 when Watch.Reader says the install is the online demo.
+Method PollsOff() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Watch.Reader).OnlineDemo()
+}
+
+/// 1 when a source's poll is in flight: a source row whose Reported holds inflight, the send time of a poll whose answer has not been recorded, less than INFLIGHTSECONDS ago. Decide
+/// answers every poll within its timer (MAXTIMER seconds at most), so an older mark is stale and counts for nothing. The state is on the rows (AD-5).
+Method PollInFlight() As %Boolean [ Private ]
+{
+	Set now = ##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc())
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Reported FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? AND Reported IS NOT NULL AND Reported <> ''", ..#SOURCEKIND)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The sources could not be read: "_rs.%Message))
+	Set sent = ""
+	While rs.%Next() {
+		Try {
+			Set state = ##class(%DynamicAbstractObject).%FromJSON(rs.%GetData(1))
+			Set sent = $Select($IsObject(state) && (state.%GetTypeOf("inflight") = "string"): ##class(OcuTalon.Data.Time).Seconds(state.inflight), 1: "")
+		} Catch {
+			Set sent = ""
+		}
+		If (sent '= "") && ((now - sent) < ..#INFLIGHTSECONDS) Quit
+		Set sent = ""
+	}
+	Quit (sent '= "")
+}
+
+/// One due source: a source whose tool is no longer Read-only records a stopped run at once (its NextDueAt is set to the tick time plus its interval first); another source waits, with
+/// its NextDueAt as it was, while busy is 1 (a poll is in flight); any other has its NextDueAt set to the tick time plus its interval, is marked in flight and is sent its poll. 1 when a poll
+/// was sent.
+Method PollSource(row As %DynamicObject, tickAt As %String, busy As %Boolean) As %Boolean [ Private ]
+{
+	Set stopped = (..SourceClass(row.server, row.tool) '= "read-only")
+	If 'stopped && busy Quit 0
+	Set minutes = +row.interval
+	If minutes < 1 Set minutes = 1
+	Set nextDueAt = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, minutes * 60))
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET NextDueAt = ? WHERE Ref = ?", nextDueAt, row.ref)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The next due time of a source could not be set: "_rs.%Message))
+	If +rs.%ROWCOUNT < 1 Quit 0
+	If stopped {
+		Do ..RecordSource(row, ##class(OcuTalon.Data.Time).NowUtc(), "stopped", "")
+		Quit 0
+	}
+	Set sentAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ..MarkInFlight(row, sentAt)
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "tool"
+	Set request.Provenance = "untrusted"
+	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.OwnerRef = row.sessionRef
+	Set request.TraceRef = ..TraceOf(row.sessionRef)
+	Set request.Channel = ..#SYSTEMCHANNEL
+	Set request.Summary = ..#POLLSUMMARY
+	Set request.Input = {"source": (row.ref)}.%ToJSON()
+	Try {
+		Set sc = ..SendPoll(request, row.ref_"|"_sentAt)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGPOLLSEND_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Do ..ClearInFlight(row.ref)
+		Quit 0
+	}
+	Quit 1
+}
+
+/// The state that a source row's Reported holds, as {"seen", "baseline", "stopped"}: empty when the row has not run since its CreatedAt (LastRunAt empty or before it), or its Reported
+/// is not that shape.
+Method StateOf(row As %DynamicObject) As %DynamicObject [ Private ]
+{
+	Set state = {"seen": [], "baseline": 0, "stopped": ""}
+	If (row.lastRunAt '= "") && '(row.createdAt ] row.lastRunAt) && (row.reported '= "") {
+		Try {
+			Set before = ##class(%DynamicAbstractObject).%FromJSON(row.reported)
+			If $IsObject(before) && (before.%GetTypeOf("seen") = "array") {
+				Set state.seen = before.seen
+				Set state.baseline = $Select(before.baseline = 1: 1, 1: 0)
+				Set state.stopped = $Select(before.%GetTypeOf("stopped") = "string": before.stopped, 1: "")
+			}
+		} Catch {
+		}
+	}
+	Quit state
+}
+
+/// Marks the source's poll as in flight: its Reported with inflight, the send time, added. The answer's record (RecordSource) writes Reported without it.
+Method MarkInFlight(row As %DynamicObject, sentAt As %String) [ Private ]
+{
+	Set state = ..StateOf(row)
+	Do state.%Set("inflight", sentAt, "string")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", state.%ToJSON(), row.ref)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "A source's poll could not be marked: "_rs.%Message))
+}
+
+/// Takes the in-flight mark off the source's Reported (a poll that was not sent, or whose answer is dropped). Nothing happens for a row that is gone or holds no mark.
+Method ClearInFlight(ref As %String) [ Private ]
+{
+	Set row = ..SourceRow(ref)
+	If '$IsObject(row) || (row.reported = "") Quit
+	Try {
+		Set state = ##class(%DynamicAbstractObject).%FromJSON(row.reported)
+		If '$IsObject(state) || (state.%GetTypeOf("inflight") = "unassigned") Quit
+		Do state.%Remove("inflight")
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", state.%ToJSON(), ref)
+	} Catch {
+	}
+}
+
+/// Sends the poll request to POLLTARGET asynchronously, wanting the answer, with the completion key (a seam for the tests).
+Method SendPoll(request As OcuTalon.Bridge.Msg.Request, key As %String) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#POLLTARGET, request, 1, key)
+}
+
+/// The classification of the tool of a source as the gate reads it (OcuTalon.Mcp.ToolClassification), or "" when it has none (a seam for the tests).
+Method SourceClass(server As %String, tool As %String) As %String [ Private ]
+{
+	Set row = $Select((server '= "") && (tool '= ""): ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, tool), 1: "")
+	Quit $Select($IsObject(row): row.Classification, 1: "")
+}
+
+/// Tells the admins that the source stopped polling (a seam for the tests): Mcp.Ops SourceStopped, with the source's name, tool and server and the time. A failure is one warning.
+Method StopNotice(row As %DynamicObject, time As %String) [ Private ]
+{
+	Set sc = $ClassMethod(..#OPSCLASS, "SourceStopped", row.displayName, row.tool, row.server, time)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGPOLL_row.ref_": the stop notice was not sent")
+	}
+}
+
+/// The answer of a source's poll: the Reply of Decide, with the completion key <Ref>|<sentAt> (see the class description). Any other completion key is not Checks' own and does nothing.
+Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
+{
+	If (pCompletionKey '= "") && (pCompletionKey = ..ErroredKey) {
+		Set ..ErroredKey = ""
+		Quit $$$OK
+	}
+	If $Length(pCompletionKey, "|") = 2 {
+		Try {
+			Do ..SourceAnswer(pCompletionKey, callresponse)
+		} Catch exception {
+			$$$LOGWARNING(..#LOGPOLLANSWER_$Piece(pCompletionKey, "|", 1)_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		}
+	}
+	Quit $$$OK
+}
+
+/// A source's poll that Decide answered with an error status counts as a failed poll; any other error keeps its status. The host then calls OnResponse for the same key once more, and
+/// that call records nothing (ErroredKey).
+Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
+{
+	If $Length(pCompletionKey, "|") '= 2 Quit pErrorStatus
+	Set ..ErroredKey = pCompletionKey
+	Try {
+		Do ..SourceAnswer(pCompletionKey, "")
+	} Catch exception {
+		$$$LOGWARNING(..#LOGPOLLANSWER_$Piece(pCompletionKey, "|", 1)_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Quit $$$OK
+}
+
+/// Records the answer of a poll on its row (see the class description). reply is the Reply, or "" for a poll that failed. An answer for a target that was set again since the send
+/// (a send time before the row's CreatedAt) records nothing and takes the in-flight mark off.
+Method SourceAnswer(key As %String, reply As %RegisteredObject) [ Private ]
+{
+	Set ref = $Piece(key, "|", 1)
+	Set sentAt = $Piece(key, "|", 2)
+	Set row = ..SourceRow(ref)
+	If '$IsObject(row) Quit
+	If row.createdAt ] sentAt {
+		Do ..ClearInFlight(ref)
+		Quit
+	}
+	Set word = $Select($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"): reply.FailureText, 1: "failed")
+	Set text = $Select($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"): reply.Text, 1: "")
+	Set outcome = $Case(word, "": "passed", "notreadonly": "stopped", "changed": "stopped", "denied": $Select(..SourceClass(row.server, row.tool) '= "read-only": "stopped", 1: "error"), "unreachable": "unreachable", "timeout": "timeout", : "error")
+	Do ..RecordSource(row, ##class(OcuTalon.Data.Time).NowUtc(), outcome, text)
+}
+
+/// The row of a source by Ref as RowOf gives it, or "" when there is none or it is not a source row.
+Method SourceRow(ref As %String) As %DynamicObject [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT "_..#ROWCOLUMNS_" FROM OcuTalon_Data.BackgroundCheck WHERE Ref = ? AND Kind = ?", ref, ..#SOURCEKIND)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The source could not be read: "_rs.%Message))
+	If rs.%Next() Quit ..RowOf(rs)
+	Quit ""
+}
+
+/// Records a run of a source with the outcome (passed, stopped, unreachable, timeout or error) and, for passed, the answer's text: the result, the finding and the new Reported are made
+/// from it, the new result's Item (if any) is sent after the update by Record, and a transition to stopped sends the stop notice once. Record gets keep 1, so NextDueAt stays as the send set it.
+/// The new Reported has no in-flight mark.
+Method RecordSource(row As %DynamicObject, runAt As %String, outcome As %String, text As %String) [ Private ]
+{
+	Set state = ..StateOf(row)
+	Set wasStopped = (state.stopped '= "")
+	Set items = ##class(%ListOfObjects).%New()
+	Set finding = ""
+	If outcome = "passed" {
+		Set result = "passed"
+		Set state.stopped = ""
+		Set hash = $Select(text = "": "", 1: ..HashOf(text))
+		If state.baseline '= 1 {
+			Set state.baseline = 1
+			If hash '= "" Do state.seen.%Push(hash, "string")
+		} ElseIf (hash '= "") && '..Contains(state.seen, hash) {
+			Do state.seen.%Push(hash, "string")
+			Do items.Insert(..SourceItem(row, text))
+		}
+		Set state.seen = ..Newest(state.seen)
+	} Else {
+		Set result = "not_checked"
+		If outcome = "stopped" {
+			Set finding = ..#REASONNOTREADONLY
+			Set state.stopped = ..#STOPPEDVALUE
+		} Else {
+			Set state.stopped = ""
+			Set finding = $Case(outcome, "unreachable": ..#REASONSOURCEUNREACHABLE, "timeout": ..#REASONTIMEOUT, : ..#REASONREAD)
+		}
+	}
+	Do ..Record(row, "", runAt, result, finding, state.%ToJSON(), items, 1)
+	If (outcome = "stopped") && 'wasStopped Do ..StopNotice(row, runAt)
+}
+
+/// 1 when the array holds the text (a hash that was seen before).
+ClassMethod Contains(array As %DynamicArray, text As %String) As %Boolean [ Private ]
+{
+	Set found = 0
+	Set iterator = array.%GetIterator()
+	While iterator.%GetNext(, .value) {
+		If value = text {
+			Set found = 1
+			Quit
+		}
+	}
+	Quit found
+}
+
+/// The newest SEENMAX hashes of the array (the array keeps them oldest first), as a new array.
+ClassMethod Newest(seen As %DynamicArray) As %DynamicArray [ Private ]
+{
+	Set size = seen.%Size()
+	If size <= ..#SEENMAX Quit seen
+	Set kept = []
+	For i = (size - ..#SEENMAX):1:(size - 1) {
+		Do kept.%Push(seen.%Get(i), "string")
+	}
+	Quit kept
+}
+
+/// The SHA-256 of the UTF-8 text, as 64 lower-case hexadecimal characters.
+ClassMethod HashOf(text As %String) As %String [ Private ]
+{
+	Set digest = $SYSTEM.Encryption.SHAHash(256, $ZConvert(text, "O", "UTF8"))
+	Set hex = ""
+	For i = 1:1:$Length(digest) {
+		Set hex = hex_$ZConvert($Extract($ZHex(256 + $Ascii(digest, i)), 2, 3), "L")
+	}
+	Quit hex
+}
+
+/// The Item of a result that was not seen before (see the class description): a new ItemId, the row's session, Channel system, Provenance untrusted, Subject the source's name, Text the answer.
+Method SourceItem(row As %DynamicObject, text As %String) As OcuTalon.Msg.Item [ Private ]
+{
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set item.SessionRef = row.sessionRef
+	Set item.Channel = ..#SYSTEMCHANNEL
+	Set item.Provenance = "untrusted"
+	Set item.Subject = row.displayName
+	Set item.Text = text
+	Quit item
+}
 
 Storage Default
 {

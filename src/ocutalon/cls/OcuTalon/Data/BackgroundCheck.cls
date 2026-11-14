@@ -47,7 +47,7 @@ Property Finding As %String(MAXLEN = 1000);
 /// The trace header id of the latest run.
 Property LastRunHeaderId As %Integer;
 
-/// What the findings of the check have reported, as JSON, written by Checks with each run that read the production: {"stopped": 1 while the production's stop has been reported, "disabled": [the names of its items reported disabled]}; empty until the first such run, which reports nothing (veto U-179).
+/// What the findings of the check have reported, as JSON, written by Checks with each run that read the production: {"stopped": 1 while the production's stop has been reported, "disabled": [the names of its items reported disabled]}; empty until the first such run, which reports nothing (veto U-179). A source row's (Story 22.11) is {"seen": [at most 50 SHA-256 hex hashes of whole answers, oldest first], "baseline": 1 once a run succeeded, "stopped": "" or "not_read_only"}, with "inflight" (the send time of a poll whose answer is not recorded yet) added while one is outstanding: hashes only, never the answer's text.
 Property Reported As %String(MAXLEN = "");
 
 /// The MCP server of a source's tool: a source row's; empty for every other kind.

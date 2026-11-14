@@ -218,6 +218,9 @@ Method TestExtensionBases()
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Mcp.Attach", "%Extends", "OcuTalon.Bridge.Ext.McpServers"), "OcuTalon.Mcp.Attach extends McpServers")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.McpServers).ProxyToolSet(), "", "and offers no proxy: ProxyToolSet gives an empty string (Story 22.3)")
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.Attach).ProxyToolSet(), "OcuTalon.Tools.McpProxy", "OcuTalon's class offers the governed proxy toolset")
+	Set word = ##class(OcuTalon.Bridge.Ext.McpServers).PollCall("zzsource", .server, .tool, .arguments, .toolref, .fingerprint)
+	Do $$$AssertEquals(word _ "|" _ server _ "|" _ tool _ "|" _ arguments _ "|" _ toolref _ "|" _ fingerprint, "invalid|||||", "and polls no source: PollCall answers invalid with every output empty (Story 22.11)")
+	Do $$$AssertEquals($ListFromString(##class(OcuTalon.Bridge.Ext.McpServers).#POLLREASONS), $ListBuild("invalid", "notreadonly", "notfound", "unreachable", "timeout", "failed", "changed", "demo"), "POLLREASONS lists the eight words that PollCall answers")
 }
 
 /// Story 22.4 (AD-10, AD-31; condition 4): ServerOf(toolref) of the McpServersClass extension. The bridge's base names no server for any toolref, so the bridge alone holds and replays

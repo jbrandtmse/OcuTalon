@@ -29,12 +29,21 @@
 ///     for a toolref that the host does not know. The gate holds and replays a call of an MCP tool as the host's proxy call (the replay of an approved call takes the toolref
 ///     of its grant only when ServerOf names the call's server), and a toolref that gets "" is denied, and is never held or run. The default is "", which
 ///     is no server: the bridge alone has no MCP server, so it holds and replays no MCP call. A host that lists servers overrides it.
+///   - PollCall (Story 22.11; AD-6, AD-10, AD-31) prepares the one governed call of a source poll for the source named by its Ref: the host's server name, tool and arguments (a
+///     dynamic object, from the source's own row alone), the server's toolref and the fingerprint that the live listing gives the tool. It answers "" when the call may be made and
+///     otherwise one word of POLLREASONS: invalid (the Ref names no source), notreadonly (the tool is no longer classified read-only), notfound (it has no classification),
+///     unreachable or timeout (the server did not list the tool), failed (any other refusal), changed (the live tool is not the one that was classified) and demo (the online
+///     demo). The words are for the bridge and the host only and are never shown to a person. The default answers invalid, so the bridge alone polls nothing. A host that lists
+///     servers overrides it.
 ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
 Class OcuTalon.Bridge.Ext.McpServers
 {
 
 /// The reasons of a report for a server that is unavailable, comma-separated.
 Parameter REASONS = "unreachable,failed,invalid";
+
+/// The words that PollCall answers when the call of a source poll may not be made, comma-separated.
+Parameter POLLREASONS = "invalid,notreadonly,notfound,unreachable,timeout,failed,changed,demo";
 
 /// The servers to attach, as a %DynamicArray of {"server", "config"}. Gives none by default.
 ClassMethod Servers(Output servers As %DynamicArray) As %Status
@@ -74,6 +83,18 @@ ClassMethod ServerOf(toolref As %String) As %String
 ClassMethod ToolsReadOnly(server As %String) As %Boolean
 {
 	Quit 0
+}
+
+/// Prepares the call of a source poll (see the class description): "" with server, tool, arguments (a dynamic object), toolref and fingerprint set when the call may be made,
+/// else one word of POLLREASONS and every output empty. source is the Ref of the source. Gives invalid by default.
+ClassMethod PollCall(source As %String, Output server As %String, Output tool As %String, Output arguments As %DynamicObject, Output toolref As %String, Output fingerprint As %String) As %String
+{
+	Set server = ""
+	Set tool = ""
+	Set arguments = ""
+	Set toolref = ""
+	Set fingerprint = ""
+	Quit "invalid"
 }
 
 }
