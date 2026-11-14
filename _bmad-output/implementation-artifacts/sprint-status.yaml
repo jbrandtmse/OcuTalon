@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-14-2026 17:45
+last_updated: 11-14-2026 18:32
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -384,7 +384,7 @@ development_status:
   epic-25-retrospective: optional
 
   epic-26: in-progress
-  26-2-files-sent-from-the-chat-or-telegram-become-items: review
+  26-2-files-sent-from-the-chat-or-telegram-become-items: in-progress
   26-3-caption-a-photo-and-keep-the-caption-as-a-memory: done
   26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe: backlog
   epic-26-retrospective: optional

@@ -4,7 +4,7 @@
 ///     a global, a message, a trace entry, a log line or a status text. It builds a new request object for every call, because a reused
 ///     one sends the previous URL as its Referer, and it follows no redirect.
 ///   - Download reads the token the same way, for GET <base path>/file/bot<token>/<file path>, with no redirect, no gzip and the raw bytes, and answers them as a stream that
-///     holds at most DOWNLOADMAX bytes (CappedStream): the read stops at that limit whatever size getFile or the update reported. The file path is checked first and is only
+///     holds at most DOWNLOADMAX bytes (CappedStream): the read stops at that limit whatever size getFile or the update reported, and at DOWNLOADSECONDS of reading. The file path is checked first and is only
 ///     what getFile answered; the URL it builds holds the token, so no text, error, log row or message ever holds that URL, the path or the token.
 ///   - Every error text that Call, Download or Failure returns is a fixed phrase with the method, the HTTP status and Telegram's description. It
 ///     never holds the URL, the path, a host or the token, and it goes through Safe.
@@ -32,6 +32,9 @@ Parameter LIMIT = 4096;
 
 /// The most bytes that Download reads: the sent-file limit of Core.Files (10 MB).
 Parameter DOWNLOADMAX = {##class(OcuTalon.Core.Files).#FILEMAX};
+
+/// The most seconds that one Download reads the body (DW-1341): a body still arriving then is cut off. 10 MB in 60 s is about 1.4 Mbit/s (inference: far below Telegram's file servers).
+Parameter DOWNLOADSECONDS = 60;
 
 /// What a file path that Download takes looks like (a path that getFile answered): 1 to 200 of letters, digits, dot, slash, underscore and hyphen.
 Parameter PATHPATTERN = "^[A-Za-z0-9._/-]{1,200}$";
@@ -98,9 +101,10 @@ ClassMethod Call(base As %String, sslConfig As %String, method As %String, param
 
 /// The bytes of the file that getFile named by filePath, as a rewound stream of at most DOWNLOADMAX bytes, or "" with sc set. httpStatus is the HTTP status of the answer when
 /// there was one; a status other than 200 is an error status and no stream. tooLarge is 1 when the body went over DOWNLOADMAX: the read was cut off there, and the answer is "" with an
-/// error status. filePath must match PATHPATTERN and have no empty, "." or ".." part, else the error names no value. seconds is the read timeout. Every error text is a fixed phrase
-/// through Safe, with no URL, path or token.
-ClassMethod Download(base As %String, sslConfig As %String, filePath As %String, seconds As %Integer, Output httpStatus As %Integer, Output sc As %Status, Output tooLarge As %Boolean) As %Stream.TmpBinary
+/// error status. filePath must match PATHPATTERN and have no empty, "." or ".." part, else the error names no value. seconds is the read timeout of each read, and total the most seconds
+/// of the whole read (DOWNLOADSECONDS when it is not above 0; a test passes less): a body that is still arriving then is cut off, an error status and no stream. Every error text is a
+/// fixed phrase through Safe, with no URL, path or token.
+ClassMethod Download(base As %String, sslConfig As %String, filePath As %String, seconds As %Integer, Output httpStatus As %Integer, Output sc As %Status, Output tooLarge As %Boolean, total As %Numeric = 0) As %Stream.TmpBinary
 {
 	Set httpStatus = ""
 	Set sc = $SYSTEM.Status.OK()
@@ -132,6 +136,7 @@ ClassMethod Download(base As %String, sslConfig As %String, filePath As %String,
 		}
 		Set capped = ##class(OcuTalon.Channel.Telegram.CappedStream).%New()
 		Set capped.Limit = ..#DOWNLOADMAX
+		Set capped.Deadline = $ZHorolog + $Select(+$Get(total) > 0: +total, 1: ..#DOWNLOADSECONDS)
 		Set request.ResponseStream = capped
 		Set get = request.Get(prefix_"/file/bot"_token_"/"_filePath)
 		Kill token
@@ -140,6 +145,10 @@ ClassMethod Download(base As %String, sslConfig As %String, filePath As %String,
 		If capped.Exceeded {
 			Set tooLarge = 1
 			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was cut off: the file is over the limit")
+			Quit
+		}
+		If capped.Late {
+			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was cut off: it took longer than its time limit")
 			Quit
 		}
 		If $SYSTEM.Status.IsError(get) || '$IsObject(response) {
@@ -157,6 +166,8 @@ ClassMethod Download(base As %String, sslConfig As %String, filePath As %String,
 		If $IsObject($Get(capped)) && capped.Exceeded {
 			Set tooLarge = 1
 			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was cut off: the file is over the limit")
+		} ElseIf $IsObject($Get(capped)) && capped.Late {
+			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was cut off: it took longer than its time limit")
 		} Else {
 			Set sc = $SYSTEM.Status.Error(5001, ..Safe("The Telegram file download failed ("_exception.Name_")"))
 		}

@@ -7707,6 +7707,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-21 S4; Planner V8 + escalation ruling
 - 2026-11-13T13:24:14Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=ReadFile/Render document branch built and pinned; READSFILES 0 per Planner H2, 25.6 flips it
 
 ### DW-1271: 26.4 obligation from 37.1 rulings: Roles.Assign admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role (per-kind roles included) and the installer-managed accounts, an IRIS audit entry per assignment and removal, a test per refusal; pin the demo account's and the README account's OcuTalonApprover in tests; setting rows (persona proposals) keep RequiredRole OcuTalonUser and no ApproverKind (no OcuTalonApprover_setting)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7999,6 +8000,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: medium | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Agent/Input.cls Render; Core/Intake.cls RequestFor; Core/Conversation.cls Begin
 - evidence: Input.cls:51 adds PHOTOASK for any non-user photo Item; Intake.cls:158 renders one Input for both kinds; Conversation.cls:392 sends kind decide first with no context; Adapter.Agent.ContentFor gates on kind turn; unreachable until READSFILES (26.2) and Conversation's file path (25.6)
 - 2026-11-14T04:59:52Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=26.3 review (Blind 1 + Edge 1): fix when photos become visible, e.g. Render adds PHOTOASK only for the turn request (a context flag from the turn caller) and the decide request gets a neutral 'a photo was attached' line; Conversation and Intake are outside 26.3 (Never list), so not patched here
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=PHOTOASK worded for both requests (Input.cls:322); Planner condition met; SentFiles TestPhotoAsk + mutation
 
 ### DW-1322: The real-HTTP e2e 'a photo caption cannot be pinned, as the LIVE user' asserts that the LIVE session holds no pin before it starts instead of creating that state (the file's existing convention, shared with 'the pin cap as the LIVE user')
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: low | fix-risk: low | footprint: web/e2e/api/memory.spec.ts
@@ -8159,11 +8161,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Channel/Telegram/In.cls File runs Fetch and Store before Turn reaches Core.Allowance; unreachable until 25.6 flips READSFILES
 - 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=check the allowance before getFile
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=Turn checks row and allowance before Stored fetches; refund on refusal; TelegramFile TestNotSent + mutation (uncommitted)
 
 ### DW-1341: Api.Download bounds each read (8 s) and the bytes (10 MB) but not the total time, so a slow-drip body can hold the poll job for minutes
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: %Net.HttpRequest.Timeout is per read; CappedStream throws only on size; unreachable until 25.6
 - 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=a deadline check in CappedStream.Write
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=CappedStream Deadline, Api.Download DOWNLOADSECONDS 60; TelegramFile TestDownloadDeadline + mutation (uncommitted)
 
 ### DW-1342: Story 25.6 must add the production readable-PDF and photo Telegram turns (TelegramChat with the reader on) and a web turn: today the Telegram fetch-to-Item join is verified through the probe seam
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -8174,3 +8178,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: story-262-rulings condition 1; Test.Agent.SentFiles injection pins
 - 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=code review decides: meet the flag within AD-10, or route to the Planner
+- 2026-11-14T18:32:43Z status=decision-pending owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=Planner: literal Tainted for a text PDF conflicts with AD-10 taint def; protection met via provenance; see CR clarification
+
+### DW-1345: Telegram: a download cut off at 10 MB is answered 'That file is 10.1 MB' whatever its real size
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: In.Fetch sets size to DOWNLOADMAX+1 when Download is cut off; reachable only when the update's file_size is missing or wrong
+- 2026-11-14T18:32:43Z status=wontfix-accepted owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=reopen_if=a Telegram update without file_size, or with a wrong one, is seen

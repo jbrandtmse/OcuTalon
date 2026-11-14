@@ -9,16 +9,22 @@ Include Ensemble
 ///     with its bytes, and sent as one untrusted Item of channel telegram with the four file fields and the caption as its text, after one allowance call; nothing is refused;
 ///   - TestPhoto (matrix "Telegram photo"): the last size of a photo array is fetched, and with no file name the file is stored as photo.jpg;
 ///   - TestReportedTooLarge (matrix "Telegram over 10 MB", AC5): a document that reports 10,485,761 bytes is refused with files.tooLarge {size 10.1 MB} before any call: the mock got no call, there is no row, and no Item;
-///   - TestStreamTooLarge (Planner condition 2): a file whose update claims under the limit but whose stream is over it is cut off at 10 MB of bytes read and refused as files.tooLarge, with no row;
+///   - TestStreamTooLarge (Planner condition 2): a file whose update claims under the limit but whose stream is over it is cut off at 10 MB of bytes read and refused as files.tooLarge, with no row and
+///     the allowance entry given back; a body of exactly 10 MB is read whole;
+///   - TestDownloadDeadline (DW-1341): a download still being read at its time limit is cut off, an error status with no stream that names no path, and the same file with the default limit is read;
 ///   - TestOtherTypeAndEmpty (matrix "Telegram other type"): a document whose bytes are text, and an empty one, are downloaded and refused by Store as files.unreadable with Core.Files' reasons, with no row;
 ///   - TestFetchFails (matrix "Telegram fetch fails", condition 3): getFile answered 400, a download answered 404, and a call with no bot token are files.unreadable with Docs.Extract's failed reason and one warning that
 ///     holds no token, no download address and no file path; no row and no Item;
-///   - TestOnlineDemo (matrix "Telegram on the demo", AC6): on the demo no call is made, there is no row, and the chat is answered files.offOnDemo, whether or not a reader is on;
+///   - TestOnlineDemo (matrix "Telegram on the demo", AC6): on the demo no call is made, there is no row, and the chat is answered files.offOnDemo, whether or not a reader is on, also for a
+///     document or photo part with no file_id (the demo guard comes first);
 ///   - TestNoReader (Planner ruling H2): with the product's own reader switch (READSFILES 0), a document and a photo get files.noReader with the file's name, no getFile, no download, no row and no Item, and the size check still comes first;
-///   - TestNotSent (matrix "Telegram not sent"): an allowance refusal, a session with no row and a failed send give no Item, and the stored file is discarded; a failed send also gives the entry back;
+///   - TestNotSent (matrix "Telegram not sent"; DW-1340): an allowance refusal and a session with no row fetch nothing and store nothing, and a failed send gives no Item, discards the stored file
+///     and gives the entry back;
 ///   - TestRenders (AC5): the texts of the files.* keys for the channel telegram are those of Core.Files and Docs.Extract;
 ///   - TestDownloadApi (conditions 2 and 3): Api.Download refuses a path that is not one getFile answers, with an error text that names no value; and its error texts, and the event log, audit entries and Ensemble messages after every test, hold no token,
-///     no "file/bot" and no file path.
+///     no "file/bot" and no file path;
+///   - (QA) TestFetchBadPath and TestDownloadUnreachable (condition 3): a getFile path that Download refuses, and a download with no server, are refused with no path, address or token in any text.
+/// Every refusal after the allowance took the message (a fetch or store that failed) also gives the entry back (Targets "allowed|Notify|refund").
 /// The fixture sessions (zztgfile...) come from Test.Data.Fixture and are removed with their files after each test. The probe records under ^OcuTalonTest("TelegramInProbe", n), which OnAfterAllTests kills.
 Class OcuTalon.Test.Channel.TelegramFile Extends OcuTalon.Test.Channel.LiveCase
 {
@@ -155,7 +161,7 @@ ClassMethod PhotoMessage(smallId As %String, largeId As %String, caption As %Str
 	Quit message
 }
 
-/// The Bot API methods that the mock got, in order, joined with ",": getFile and download only.
+/// The Bot API methods that the mock got, in order, joined with "," (every method: a test of a file expects getFile and download and nothing else).
 Method Called() As %String [ Private ]
 {
 	Set found = ""
@@ -333,7 +339,7 @@ Method TestStreamTooLarge()
 		Do $$$AssertTrue(..RegisterBig(fileId, path, limit + 1), "a PDF of 10,485,761 bytes is registered on the mock")
 		Do ..NewProbe().RunFile("zzchatref", session, ..DocumentMessage(fileId, "stream.pdf", 1000))
 		Do $$$AssertEquals(..Called(), "getFile,download", "the update's claimed size passed, so the mock got getFile and the download")
-		Do $$$AssertEquals(..Targets(), "Notify", "one Notification and no Item was sent")
+		Do $$$AssertEquals(..Targets(), "allowed|Notify|refund", "the allowance took the message, one Notification and no Item was sent, and the entry was given back")
 		Set notification = ..OneNotification()
 		Do $$$AssertEquals($Piece(notification, "|", 1)_"|"_{}.%FromJSON($Piece(notification, "|", 2, *)).size, "files.tooLarge|10.1 MB", "it is files.tooLarge with the size 10.1 MB")
 		Do $$$AssertEquals(..Rows(session), 0, "no file was stored")
@@ -341,7 +347,13 @@ Method TestStreamTooLarge()
 		Set stream = ##class(OcuTalon.Channel.Telegram.Api).Download($SYSTEM.Util.GetEnviron(##class(OcuTalon.Channel.Telegram.Api).#BASEVAR), "", path, 30, .status, .sc, .tooLarge)
 		Do $$$AssertEquals($IsObject(stream)_"|"_status_"|"_tooLarge, "0|200|1", "Api.Download answers no stream, with the status 200 and tooLarge 1: it stopped at 10 MB of bytes read")
 		Do $$$AssertTrue($SYSTEM.Status.IsError(sc) && ($Find($SYSTEM.Status.GetErrorText(sc), path) = 0), "and an error status that names no path")
-		Do ..AssertQuiet("a stream over the limit", path)
+		// A body of exactly the limit is read whole: the cut-off is above 10 MB, as Store's limit is.
+		Set exactId = "zzExact"_..Number, exactPath = "documents/zzexact"_..Number_".pdf"
+		Do $$$AssertTrue(..RegisterBig(exactId, exactPath, limit), "a PDF of exactly 10,485,760 bytes is registered on the mock")
+		Set stream = ##class(OcuTalon.Channel.Telegram.Api).Download($SYSTEM.Util.GetEnviron(##class(OcuTalon.Channel.Telegram.Api).#BASEVAR), "", exactPath, 30, .status, .sc, .tooLarge)
+		Do $$$AssertEquals($IsObject(stream)_"|"_status_"|"_tooLarge_"|"_$Select($IsObject(stream): stream.Size, 1: ""), "1|200|0|"_limit, "Api.Download reads a body of exactly 10 MB whole: a stream of 10,485,760 bytes, not tooLarge")
+		Do $$$AssertStatusOK(sc, "with an OK status")
+		Do ..AssertQuiet("a stream over the limit", path_","_exactPath)
 	} Catch ex {
 		Do $$$AssertTrue(0, "the stream-size test failed: "_..Safe(ex))
 	}
@@ -363,7 +375,7 @@ Method TestOtherTypeAndEmpty()
 			Do $$$AssertTrue(..Register(fileId, path, "application/octet-stream", $List(case, 2)), label_": the file is registered")
 			Do ..NewProbe().RunFile("zzchatref", session, ..DocumentMessage(fileId, $List(case, 3), $Length($List(case, 2))))
 			Do $$$AssertEquals(..Called(), "getFile,download", label_": it is fetched")
-			Do $$$AssertEquals(..Targets(), "Notify", label_": one Notification and no Item")
+			Do $$$AssertEquals(..Targets(), "allowed|Notify|refund", label_": one Notification and no Item, and the entry was given back")
 			Set notification = ..OneNotification()
 			Do $$$AssertEquals($Piece(notification, "|", 1)_"|"_{}.%FromJSON($Piece(notification, "|", 2, *)).reason, "files.unreadable|"_$List(case, 4), label_": files.unreadable with Core.Files' reason")
 			Do $$$AssertEquals(..Rows(session), 0, label_": no file was stored")
@@ -402,7 +414,7 @@ Method TestFetchFails()
 				Do $$$AssertTrue(0, label_": File threw: "_..Safe(inner))
 			}
 			If label = "no token" Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMTOKENVAR, token)
-			Do $$$AssertEquals(..Targets(), "Notify", label_": one Notification and no Item")
+			Do $$$AssertEquals(..Targets(), "allowed|Notify|refund", label_": one Notification and no Item, and the entry was given back")
 			Set notification = ..OneNotification()
 			Do $$$AssertEquals($Piece(notification, "|", 1)_"|"_{}.%FromJSON($Piece(notification, "|", 2, *)).reason, "files.unreadable|"_failed, label_": files.unreadable with the reason of failed")
 			Do $$$AssertEquals(..TextOf("files.unreadable", {"reason": (failed)}), ##class(OcuTalon.Docs.Extract).Failure("failed"), label_": which reads as Docs.Extract's Failure of failed")
@@ -433,6 +445,13 @@ Method TestOnlineDemo()
 			Set notification = ..OneNotification()
 			Do $$$AssertEquals($Piece(notification, "|", 1)_"|"_$Piece(notification, "|", 2, *), "files.offOnDemo|{}", "reader "_readable_": files.offOnDemo with no slots")
 			Do $$$AssertEquals(..Rows(session), 0, "reader "_readable_": no file was stored")
+		}
+		// The demo guard comes first: a part with no file_id gets the off text too, not the unreadable one.
+		For label = "a document with no file_id", "a photo size with no file_id" {
+			Kill ^OcuTalonTest("TelegramInProbe", ..Number)
+			Set message = $Select(label [ "document": {"chat": {"type": "private"}, "document": {"file_name": "demo.pdf", "file_size": 100}}, 1: {"chat": {"type": "private"}, "photo": [{"width": 90, "height": 90}]})
+			Do ..NewProbe(1, 1).RunFile("zzchatref", session, message)
+			Do $$$AssertEquals(..Called()_"|"_..OneNotification(), "|files.offOnDemo|{}", label_": no call, and files.offOnDemo")
 		}
 		Do $$$AssertEquals(..TextOf("files.offOnDemo"), ##class(OcuTalon.Core.Files).#TEXTOFFONDEMO, "the text is Core.Files' TEXTOFFONDEMO")
 	} Catch ex {
@@ -478,7 +497,83 @@ Method TestNoReader()
 	}
 }
 
-/// A stored file whose Item is not sent is discarded: an allowance refusal, a session with no row and a failed send.
+/// (QA) A getFile answer that names no path, or a path that Download refuses ("../", a space), is files.unreadable with no download call: the answer of Telegram is not trusted into the address (Planner condition 3).
+Method TestFetchBadPath()
+{
+	If '..Go() || '..Ready() Quit
+	Try {
+		Set session = ..Session("badpath")
+		Set failed = ##class(OcuTalon.Docs.Extract).Reason("failed")
+		Set start = ##class(OcuTalon.Channel.Telegram.In).#LOGFETCH
+		Set cases = $ListBuild($ListBuild("traversal", "../../etc/passwd"), $ListBuild("a space", "documents/a b.pdf"), $ListBuild("no path", ""))
+		Set position = 0
+		While $ListNext(cases, position, case) {
+			Set label = $List(case, 1), path = $List(case, 2)
+			Kill ^OcuTalonTest("TelegramInProbe", ..Number)
+			Do ##class(OcuTalon.Test.Channel.BotApi).Reset()
+			Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+			Set fileId = "zzBadPath"_..Number_$Translate(label, " ", "")
+			Set result = {"file_id": (fileId), "file_unique_id": "uzz"}
+			If path '= "" Do result.%Set("file_path", path)
+			Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "getFile", "replies": [{"status": 200, "body": {"ok": true, "result": (result)}}]}), label_": getFile is told to answer "_$Select(path = "": "no path", 1: "a path that is not safe"))
+			Do ..NewProbe().RunFile("zzchatref", session, ..DocumentMessage(fileId, "bad.pdf", 100))
+			Do $$$AssertEquals(..Called(), "getFile", label_": the mock got getFile and no download")
+			Do $$$AssertEquals(..Targets(), "allowed|Notify|refund", label_": one Notification and no Item, and the entry was given back")
+			Set notification = ..OneNotification()
+			Do $$$AssertEquals($Piece(notification, "|", 1)_"|"_{}.%FromJSON($Piece(notification, "|", 2, *)).reason, "files.unreadable|"_failed, label_": files.unreadable with the reason of failed")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .warning, "Fetch", start), 1, label_": one warning was logged: "_$Extract(warning, 1, 160))
+			Do $$$AssertEquals($Find(warning, "etc/passwd") + $Find(warning, "a b.pdf") + $Find(warning, "file/bot"), 0, label_": and it holds no path or download address")
+			Do $$$AssertEquals(..Rows(session), 0, label_": no file was stored")
+			Do ..AssertQuiet(label, $Select(path = "": "zz-no-path", 1: path))
+			Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Fetch", start)
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the bad-path test failed: "_..Safe(ex))
+	}
+}
+
+/// (QA) A download that gets no answer at all (nothing listens at the address) is an error status and no stream, and its text holds no token, address or path (Planner condition 3, the failure path of the transport).
+Method TestDownloadUnreachable()
+{
+	If '..Go() || '..Ready() Quit
+	Try {
+		Set token = $SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMTOKENVAR)
+		Set path = "documents/zzunreachable"_..Number_".pdf"
+		Set stream = ##class(OcuTalon.Channel.Telegram.Api).Download("http://127.0.0.1:1", "", path, 3, .status, .sc, .tooLarge)
+		Do $$$AssertEquals($IsObject(stream)_"|"_tooLarge, "0|0", "no stream, and not too large")
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "the status is an error: "_text)
+		Do $$$AssertEquals($Find(text, "file/bot") + $Find(text, path) + $Find(text, token), 0, "and its text holds no address, path or token: "_text)
+		Do ..AssertQuiet("an unreachable server", path)
+	} Catch ex {
+		Do $$$AssertTrue(0, "the unreachable-download test failed: "_..Safe(ex))
+	}
+}
+
+/// A download that is still being read at its time limit is cut off, with no stream and an error that names no path (DW-1341); the same file read with the default limit is whole.
+Method TestDownloadDeadline()
+{
+	If '..Go() || '..Ready() Quit
+	Try {
+		Set base = $SYSTEM.Util.GetEnviron(##class(OcuTalon.Channel.Telegram.Api).#BASEVAR)
+		Set fileId = "zzSlow"_..Number, path = "documents/zzslow"_..Number_".pdf"
+		Set size = 4194304
+		Do $$$AssertTrue(..RegisterBig(fileId, path, size), "a PDF of 4 MB is registered on the mock")
+		Set stream = ##class(OcuTalon.Channel.Telegram.Api).Download(base, "", path, 30, .status, .sc, .tooLarge, 0.001)
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertEquals($IsObject(stream)_"|"_tooLarge, "0|0", "with a time limit of 1 ms the download is cut off: no stream, and not too large")
+		Do $$$AssertTrue($SYSTEM.Status.IsError(sc) && (text [ "time limit"), "an error status that says it took longer than its time limit: "_text)
+		Do $$$AssertEquals($Find(text, "file/bot") + $Find(text, path), 0, "and names no address or path")
+		Set stream = ##class(OcuTalon.Channel.Telegram.Api).Download(base, "", path, 30, .status, .sc, .tooLarge)
+		Do $$$AssertEquals($IsObject(stream)_"|"_status_"|"_$Select($IsObject(stream): stream.Size, 1: ""), "1|200|"_size, "with the default limit (DOWNLOADSECONDS) the same file is read whole")
+		Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.Api).#DOWNLOADSECONDS, 60, "the default limit is 60 seconds")
+		Do ..AssertQuiet("a download over its time", path)
+	} Catch ex {
+		Do $$$AssertTrue(0, "the download-deadline test failed: "_..Safe(ex))
+	}
+}
+
+/// A file whose Item is not sent leaves no row: an allowance refusal and a session with no row fetch nothing (DW-1340), and a failed send discards the stored file.
 Method TestNotSent()
 {
 	If '..Go() || '..Ready() Quit
@@ -497,8 +592,8 @@ Method TestNotSent()
 			If case = "failed send" Set probe.FailSend = 1
 			If case = "no session row" Set owner = "zznosession"_..Number
 			Do probe.RunFile("zzchatref", owner, ..DocumentMessage(fileId, "n.pdf", $Length(bytes)))
-			Do $$$AssertEquals(..Called(), "getFile,download", case_": the file was fetched")
-			Do $$$AssertEquals(..Rows(owner), 0, case_": and its row was discarded")
+			Do $$$AssertEquals(..Called(), $Select(case = "failed send": "getFile,download", 1: ""), case_": "_$Select(case = "failed send": "the file was fetched", 1: "nothing was fetched, before the allowance or the row let the message in (DW-1340)"))
+			Do $$$AssertEquals(..Rows(owner), 0, case_": and no row is left")
 			Set targets = ..Targets()
 			If case = "refused" Do $$$AssertEquals(targets, "allowed|Notify", case_": the allowance was refused and gave its notice, and no Item was sent")
 			If case = "no session row" Do $$$AssertEquals(targets, "", case_": nothing was asked or sent")

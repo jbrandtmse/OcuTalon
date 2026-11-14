@@ -35,8 +35,9 @@
 ///     that carries the image and for one that does not (DW-1321: Intake's decide request has none);
 ///   - an untrusted item with a FileRef whose file (Core.Files.Describe, for item.SessionRef) is a PDF or Word (.docx) file (Story 26.2; AD-21) adds the code-written line
 ///     FILEINTRO after the label, and its quoted part is the head and the text as above, a blank line when that is not empty, and then the text that Docs.Extract.Read made of the
-///     file (the page markers of a PDF and the cut note of a long text included). That text reaches a model request only here, in the turn's own input, as chat text does. The
-///     file is read again for each render (decide, turn): the text is never stored, cached or logged. A document that cannot be read (damaged, encrypted, with no text, an old
+///     file (the page markers of a PDF and the cut note of a long text included). That text reaches a model request only here, in the turn's own input, as chat text does, so it is
+///     in the trace only where a chat turn's text is (the request messages' Input). The file is read again for each render (decide, turn): the text is kept in no table, cached
+///     nowhere and never logged. A document that cannot be read (damaged, encrypted, with no text, an old
 ///     .doc, a read that timed out, a file that is gone or another session's, or the online demo) renders "", so that Decide refuses the empty input and makes no model request;
 ///   - an item with no text, sender or subject, and a user's item with no text, render "", so that Decide refuses it rather than
 ///     send a bare preamble. A photo item with no text renders its ask, and a readable document with no text its intro and the file's text.

@@ -10,8 +10,11 @@ import { signInFromSplash, signOutGroup } from './support';
  * Story 26.2, sending a file stays OFF on the online demo (AD-25; the Planner gate (a)), on the real online-demo stack as the demo account.
  * - F1: the state says onlineDemo is true, the composer has no "Send a file" button, and a POST of a file to /api/v1/files is a 409 not_available
  *   with the text of Core.Files TEXTOFFONDEMO, with no SentFile row for the session.
- * The reader switch (filesReadable) is the product's: it is false until Story 25.6 and the case does not depend on it, because the demo hides the
- * paperclip and refuses the route whatever that flag says. The texts are written out here, as the independent oracle of the page's own.
+ * The reader switch (filesReadable) is the product's: it is false until Story 25.6, so the paperclip is hidden on every real state and F1's two
+ * composer checks cannot fail on this branch. Until 25.6 the `!onlineDemo` term of fileControls is pinned by web/e2e/files/files.spec.ts ("on the
+ * online demo there is no paperclip", a stubbed state with filesReadable true); the composer checks become this spec's own when 25.6 turns the
+ * reader on. The route refuses the file whatever the flag says, so the 409 and the row count are F1's live checks today. The texts are written out
+ * here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 120_000 });
 
