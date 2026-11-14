@@ -363,3 +363,5 @@
 2026-11-14T19:05:17Z	Story 21.5	stage_spawned	stage=qa spawn_at=2026-11-14T19:05:17Z model=sonnet effort=high agent_name=21-5-qa-1 cycle_iteration=1 timebox=19:40Z
 2026-11-14T19:40:36Z	Story 21.5	qa_complete	model=sonnet tests=rail-view.test.mjs(intervalText_2880,61,0,-60),SettingsMcp.TestListSourcesReadFails(+SettingsOpsProbe.SourceRows_seam) mutations_demonstrated=3 findings=none
 2026-11-14T19:40:36Z	Story 21.5	parked	reason=quota_hold_20:00Z next=code-review(opus),smoke,fresh,integrate_onto_OCT-epic21+feature,push wip=hold/OCT-epic21-20261114
+2026-11-14T19:46:28Z	Story 21.5	resumed	holds_cancelled(usage_95%_trigger) rulings=reserved_name_mapping_accepted;T7_deferred_to_22.11_accepted 21.10=merged(42e7b3ec)
+2026-11-14T19:46:28Z	Story 21.5	stage_spawned	stage=code-review spawn_at=2026-11-14T19:46:28Z model=opus effort=high agent_name=21-5-code-review-1 cycle_iteration=1
