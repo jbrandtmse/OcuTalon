@@ -2081,6 +2081,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 - 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
+- 2026-11-14T05:25:54Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=OCT-epic22_522228a5_ci_run_43554772670_job_132325025906_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;one_rerun_of_failed_jobs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint

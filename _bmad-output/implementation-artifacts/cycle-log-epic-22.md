@@ -306,3 +306,5 @@
 2026-11-14T03:57:56Z	Story 22.7	report_error	fault=lead field=dev_complete(cycle_iteration=7).baseline_revision reported=4f6457ba actual=the_spec_baseline_revision_build-auto_captured(4f6457ba_is_the_review_baseline_commit) impact=none
 2026-11-14T04:04:03Z	Story 22.7	smoke_complete	method=other(lane-D_warm_e22s7f6w:Test.Bridge.Steps,Test.Fix.Email,Test.Install.SecurityOverview;test-readme,test-release-sequence(overviewdoc,overview,overviewunit,overviewdrift,static),test-class-rules,test-boundaries_rc0) result=pass iterations=1 defects_caught=0 torn_down=e22s7f6w
 2026-11-14T04:04:03Z	Story 22.7	fresh_check	env=recipe(new_lane-D_warm_stack_e22s7f6w) tests=2(Bridge.Steps,Fix.Email) result=pass order=forward,reverse
+2026-11-14T05:54:05Z	Story 22.7	ci_red_classified	run=43554772670 workflow=.github/workflows/ci.yml class=flake test=iris(production)_live:production_row_21(DW-306:wanted_CHK|start-fails|1|1_got_empty) action=one_rerun_of_failed_jobs(attempt_2,05:54Z)
+2026-11-14T06:22:13Z	Epic 22	runner_resumed	note=post-crash(owner_computer);records_from_the_cut_turn_kept_and_committed_locally head=522228a5
