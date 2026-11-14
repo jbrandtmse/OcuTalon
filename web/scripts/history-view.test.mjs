@@ -1,6 +1,6 @@
 // Tests the History page's view rules (src/app/history/history-view.ts; Story 25.2): the fixed strings against the ruled PUBLIC TEXT, the address (what
 // paramsOf reads and queryOf writes, the invalid values dropped, the round trip), the filters' options, and the empty, pager, times and summary texts.
-// The module is imported as it is: Node strips its types, which holds only while it keeps to erasable syntax and imports only types and page-shell-view.ts; the shared labels
+// The module is imported as it is: Node strips its types, which holds only while it keeps to erasable syntax and imports only page-shell-view.ts; the shared labels
 // come from chat-view.ts and usage-view.ts, as the page passes them.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';

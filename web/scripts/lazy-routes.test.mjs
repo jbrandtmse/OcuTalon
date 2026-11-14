@@ -102,11 +102,11 @@ describe('the routes', () => {
   });
 
   it('keep the titles, the settings matcher and the unsaved-changes guard', () => {
-    assert.match(config, /path: 'history',\s*loadComponent: [^\n]*title: SHELL_TEXTS\.historyTitle/);
-    assert.match(config, /path: 'usage',\s*loadComponent: [^\n]*title: SHELL_TEXTS\.usageTitle/);
+    assert.match(config, /path: 'history',\s*loadComponent: [^}]*?title: SHELL_TEXTS\.historyTitle/);
+    assert.match(config, /path: 'usage',\s*loadComponent: [^}]*?title: SHELL_TEXTS\.usageTitle/);
     assert.match(
       config,
-      /matcher: settingsMatch,\s*loadComponent: [^\n]*SettingsPage\),\s*title: SHELL_TEXTS\.settingsTitle,\s*canDeactivate: \[unsavedGuard\]/,
+      /matcher: settingsMatch,\s*loadComponent: [^}]*?SettingsPage\),\s*title: SHELL_TEXTS\.settingsTitle,\s*canDeactivate: \[unsavedGuard\]/,
     );
     assert.match(config, /path: 'documents', component: DocumentsPage/, 'Documents stays eager');
     assert.match(config, /path: '\*\*', component: MainPage/, 'the wildcard stays the chat');

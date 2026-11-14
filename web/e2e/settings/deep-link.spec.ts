@@ -4,14 +4,16 @@ import { signInReadmeLoaded } from '../support/floor';
 import { NAV_LINKS_ADMIN } from '../support/header-nav';
 
 /**
- * Story 36.5, the lazily loaded Settings, History and Usage pages opened by their address (D1 to D3; the sign-in-2 unit), signed in as the README admin. Each case
+ * Story 36.5, the lazily loaded Settings, History and Usage pages opened by their address (D1 to D4; the sign-in-2 unit), signed in as the README admin. Each case
  * signs in, then opens a NEW page in the same context at the page's hash (a real document load, so the router builds the lazy chunk from the address and not
  * from a link press), waits for the page's own GET to answer 200, checks the page, reloads it and checks it again. Every console error and page error from
  * before the first load is collected without a filter, so a lazy chunk that fails to load ("Failed to load resource") fails the case. The cases save nothing.
  *   D1  #/settings (titled Settings \u00B7 OcuTalon, the h1, the eight sections, Models, the header marks Settings) and #/settings/check-thresholds (its h2 and fields, its
  *       section link current);
  *   D2  #/history (titled History \u00B7 OcuTalon, the hidden h1, the tablist with Decisions selected, the header marks History);
- *   D3  #/usage (titled Usage \u00B7 OcuTalon, the h1, its table or its empty text, the header marks Usage).
+ *   D3  #/usage (titled Usage \u00B7 OcuTalon, the h1, its table or its empty text, the header marks Usage);
+ *   D4  (QA) the unsaved-changes guard on a lazy Settings page that was opened by its address: an edit left unsaved asks before a section link or a page link leaves,
+ *       Stay keeps the section and the typed value, Leave without saving goes on (S6 reaches the page by link presses; here the chunk comes with the document load).
  */
 const API = '/ocutalon/api/v1';
 const SECTION_NAMES = ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode'];
@@ -143,5 +145,33 @@ test('D3: #/usage opens the lazy Usage page by address, and again after a reload
   await reload(linked, '/usage');
   await expectUsage(linked);
   expect(errors, 'no console error or page error at #/usage').toEqual([]);
+  await linked.close();
+});
+
+test('D4: an unsaved edit on the Settings page opened by address still asks before a link leaves it', async ({ page }) => {
+  await signInReadmeLoaded(page);
+  const { page: linked, errors, answered } = await open(page, '#/settings/check-thresholds', '/settings');
+  expect(answered.status(), 'GET /settings').toBe(200);
+  await expectThresholds(linked);
+  const disk = linked.getByLabel(THRESHOLD_LABELS[0], { exact: true });
+  const saved = await disk.inputValue();
+  const typed = saved === '41' ? '42' : '41';
+  const dialog = linked.getByRole('dialog');
+  await expect(dialog, 'a clean form asks nothing yet').toHaveCount(0);
+  await disk.fill(typed);
+
+  await sectionsNav(linked).getByRole('link', { name: 'Demo mode', exact: true }).click();
+  await expect(dialog, 'a section link asks first').toBeVisible();
+  await expect(dialog).toContainText('You have unsaved changes in this section. Leave without saving?');
+  await dialog.getByRole('button', { name: 'Stay', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(linked, 'Stay keeps the section').toHaveURL(/#\/settings\/check-thresholds$/);
+  await expect(disk, 'and the typed value').toHaveValue(typed);
+
+  await pagesNav(linked).getByRole('link', { name: 'Chat', exact: true }).click();
+  await expect(dialog, 'a page link asks first too').toBeVisible();
+  await dialog.getByRole('button', { name: 'Leave without saving', exact: true }).click();
+  await expect(linked, 'Leave goes on to the chat').not.toHaveURL(/#\/settings/);
+  expect(errors, 'no console error or page error').toEqual([]);
   await linked.close();
 });

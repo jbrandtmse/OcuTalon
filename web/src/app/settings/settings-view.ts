@@ -152,7 +152,7 @@ export function sectionPath(slug: string): string[] {
   return ['/settings', slug];
 }
 
-/** pageOf and settingsMatch live in page-shell-view.ts, which the eager shell imports; they are re-exported here for the page and its tests. */
+/** pageOf and settingsMatch live in page-shell-view.ts, which the eager shell imports; they are re-exported here for settings-view.test.mjs. */
 export { pageOf, settingsMatch };
 
 /** A field of Check thresholds: its name in the API, its label and its range. */

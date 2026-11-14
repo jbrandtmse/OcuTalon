@@ -7774,3 +7774,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: count by the Planner: 9 cancelled, 4 canceled
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
 - 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
+
+### DW-1300: The installer's STALEFILES pattern (Install/Step/Web.cls) accepts only [A-Za-z0-9] in a bundle file's hash, but Angular's chunk optimizer names chunks with [A-Za-z0-9_-]; 36.5 keeps NG_BUILD_OPTIMIZE_CHUNKS=0 so names stay plain
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: build with the optimizer on measured chunk-BAxI_vlj.js; live:bundle-folder would go red; pinned by lazy-routes.test.mjs while the flag stays
+- 2026-11-13T23:28:34Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=harvest note=reopen_if=a build needs the chunk optimizer on, or any built bundle file name contains _ or - (lazy-routes.test.mjs pins the flag)
+
+### DW-1301: A lazy page chunk that fails to load (offline, dropped connection) leaves a Settings, History or Usage click on the old page with only a console error; the router has no navigation error handler
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review | severity: low | fix-risk: med | footprint: in-story
+- evidence: Story 36.5 made the three routes loadComponent; app.config.ts provides no withNavigationErrorHandler. Before, the page rendered and its GET failed with the page's own error text. A handler needs new user-facing text (veto item).
+- 2026-11-13T23:51:33Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=reopen_if=a user report or an e2e shows a page link doing nothing after a chunk load failure, or a stale-tab chunk 404 after an upgrade
+
+### DW-1302: initial-bundle.test.mjs runs an ng build inside npm --prefix web test, in parallel with the suite's wall-clock assertions (bounded-waits.test.mjs: under 2000 ms around 300-500 ms bounds); on a small hosted runner the CPU load could make them flaky
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review (verification-gap) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Unverified inference: the full suite ran green locally with the build in parallel (2000 pass, 14.5 s). Moving the build to its own step is a .github/workflows change this story rules out.
+- 2026-11-13T23:51:33Z status=wontfix-theoretical owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=real if a web/scripts timing assertion fails in the ci web job Unit tests step while initial-bundle.test.mjs builds
