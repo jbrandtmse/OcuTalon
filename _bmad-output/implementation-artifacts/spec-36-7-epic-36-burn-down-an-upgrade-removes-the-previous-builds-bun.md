@@ -2,7 +2,8 @@
 title: 'Story 36.7: Epic 36 burn-down: an upgrade removes the previous builds'' bundle files from the served web folder'
 type: 'bugfix'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ce86e1ab3501fdaac54e95142f179817e4edc4e7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -134,6 +135,41 @@ deferred: []
 - 2026-11-14, Contest Planner gate ruling (~06:00Z) applied by the runner: guard (v), V1 log lines, V4 reload handler, V7 plant always, V11 spine sentences (Design Notes > Contest Planner rulings at the gate; Execution additions). Branch integrated forward onto feature 9a851935.
 
 ## Review Triage Log
+
+### 2026-11-14 — Review pass
+- verdicts: 29 findings — high 0, medium 0, low 5, false 0, maybe-false 1 (the rest are rejected as spec-bound, ruled, theoretical or the lead's pending work)
+- findings:
+  - `[low]` `[reject]` Blind: the reload flag is never cleared, so a tab that survives two upgrades is rescued once — the Planner's ruling asks for a per-URL flag that stops a second reload; clearing it adds a router event and state; today's behaviour remains for the second upgrade. Reopen if a tab is seen across two upgrades.
+  - `[low]` `[reject]` Blind: a network blip also triggers the reload — a lazy route that cannot be fetched fails either way, one reload at most, ruling-bound (V4).
+  - `[medium]` `[reject]` Blind: the reload discards unsaved edits (lazy chunk loads before `unsavedGuard`) — ruling-bound (V4: one full load, no text); recorded as a residual risk below for the lead.
+  - `[n/a]` `[reject]` Blind: the rehearsal and its mutation were not run, evidence file has placeholders — directed: the lead runs AC4 at smoke.
+  - `[low]` `[reject]` Blind: a removal prints as `WARN Web` — the registry has no other line type for a step; recorded decision (a). Same finding from Edge (`claim`) and Verification-gap's `Other findings`.
+  - `[low]` `[reject]` Blind: `TestBuildFolder` asserts `/opt/ocutalon/src/` on the image — the spec's own expectation; the test skips elsewhere.
+  - `[low]` `[reject]` Blind: the wiring test regex-matches `app.config.ts` — R1 and R2 pin the behaviour; the regex is an extra, and a reformat is a visible red.
+  - `[low]` `[reject]` Blind: the harness failure line caps names at 10 — the spec's own record line says "at most 10 names".
+  - `[low]` `[reject]` Blind: a stuck file warns on every start with no summary — spec-bound (one line naming the file).
+  - `[low]` `[patch]` Blind: the spine amendment is joined to the Angular row's earlier bracket without a stop — a full stop was added.
+  - `[low]` `[reject]` Edge: the flag is never cleared (same as Blind row 1).
+  - `[low]` `[reject]` Edge: a throw from `replaceState`/`reload` leaves the flag claimed — the browser calls do not throw in practice and the result is today's behaviour.
+  - `[low]` `[reject]` Edge: no Try/Catch around the file calls in `RemoveStaleBundle` — `%File` calls return values, and the registry catches a throwing step (Registry.cls Catch blocks); no reachable failure shown.
+  - `[low]` `[reject]` Edge: tighten the removal pattern to the base32 alphabet — `STALEFILES` is unchanged by the spec; admin-file deletion is veto item 2, accepted.
+  - `[low]` `[reject]` Edge: warn when the served `index.html` differs — the Matrix row says silent.
+  - `[low]` `[reject]` Edge: a nested or renamed asset in the previous release would show as EXTRA in the harness row — the spec's V8 to V10 keep the served-equals-build check; recorded for the lead as a future-release note.
+  - `[low]` `[reject]` Edge: `build_tree` reads the working tree, not the image — the spec's gate item 2 sets `BUILD_WEB=src/ocutalon/csp` as the candidate's build output.
+  - `[low]` `[reject]` Edge: a removal is reported as WARN (claim) — see decision (a).
+  - `[low]` `[reject]` Edge: guard (v) warns on every start when no IPM module root resolves — ruling (the Planner's 06:00Z guard (v)).
+  - `[medium]` `[reject]` Verification-gap: AC4's real-stack code and mutation not run — directed; the lead's smoke closes it.
+  - `[low]` `[reject]` Verification-gap: guard (v)'s "nothing removed" assertions are also protected by guard (iv) — the mutation is red on the warning line; the record says so. Reopen if guard (iv) is weakened.
+  - `[medium]` `[patch]` Verification-gap: no recorded mutation for the no-storage branch and the `isChunkLoadError` narrowing — three mutations run and recorded; each turns a node test red.
+  - `[low]` `[reject]` Verification-gap: the survivors check has no mutation of its own — the unit mutation for AC2 is recorded; a live mutation needs another 7 minute run for a pin that duplicates `TestRemoveStaleBundle`.
+  - `[low]` `[reject]` Verification-gap: the wiring test is a source-text check — R1 and R2 pin the real wiring.
+  - `[maybe-false]` `[reject]` Verification-gap: R1's victim chunk is the first lazy chunk requested after a snapshot — R1 passed; it would need a late lazy request before the click to fail; reopen if R1 flakes.
+  - `[low]` `[reject]` Verification-gap: R2 and R3 wait for `networkidle` for an absence — the check pins "no second reload within the idle window"; reopen if a late reload is seen.
+  - `[low]` `[reject]` Verification-gap: `TestRemoveStaleBundleWarns` skips as root — it ran in the implement environment; it skips by design when the folder stays writable.
+  - `[low]` `[reject]` Verification-gap: nested assets removed by a later release would stay behind (same as Edge row 16).
+  - `[low]` `[reject]` Verification-gap: guard (v) warns when no IPM module is installed (same as Edge, ruling-bound).
+  - `[n/a]` `[reject]` Intent audit: the diff changes `web/` and warns in the no-build-folder case, which the intent contract's Never and Matrix say not to — both are the Planner's binding 06:00Z rulings (V4, guard (v)), later than the contract; recorded as decisions.
+  - `[n/a]` `[reject]` Intent audit: the stuck-file test warns for every file (mixed case unreachable on Unix) — recorded decision (c).
 
 ## Design Notes
 
@@ -311,7 +347,49 @@ Rules for every run:
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+### Implementation record (implement stage, 2026-11-14)
+- `OcuTalon.Test.Web.Install` warm (tag e36s7iw): passed, with 8 new tests (TestRemoveStaleBundle, TestStaleKeepsNestedFiles (i), TestStaleKeepsOtherNames (ii), TestStaleNeedsTheSameIndex (iv), TestStaleNeedsABuildList (v), TestRemoveStaleBundleWarns, TestBuildFolder, TestPrepareRemovesStale). Spec correction found by running: `%File:FileSet` with includeDirs 0 does not exclude folders, so `RemoveStaleBundle` skips entries of type D itself.
+- mutation: `RemoveStaleBundle` without the `STALEFILES` test (AC2, guard ii) -> TestRemoveStaleBundle, TestStaleKeepsOtherNames, TestPrepareRemovesStale red (warm).
+- mutation: the served-vs-build `index.html` compare line removed (guard iv) -> TestStaleNeedsTheSameIndex red.
+- mutation: the build-list guard block removed (guard v) -> TestStaleNeedsABuildList red (the observable that the test pins is the one warning line; the delete itself stays blocked by guard iv).
+- mutation: the scan also lists `assets/` (guard i) -> TestStaleKeepsNestedFiles, TestRemoveStaleBundle red.
+- mutation: folders no longer skipped -> TestRemoveStaleBundle, TestStaleKeepsNestedFiles red.
+- mutation: the `RemoveStaleBundle` call removed from `Prepare` (AC1 at class level) -> TestPrepareRemovesStale red.
+- mutation: `BUILDFOLDERS` order swapped -> TestBuildFolder red. mutation: the stuck-file warning removed -> TestRemoveStaleBundleWarns red.
+- Every mutation was reverted (`cmp` against a copy taken before: identical).
+- `live:install-upgrade` (tag e36s7i, `bash ci/iris.sh live install-upgrade`, about 7.5 min): all checks passed, including the five new `36.7:` lines (planted five stale files and six survivors; none stale left; survivors kept with content; served folder without the survivors equals `/opt/ocutalon/src/ocutalon/csp` byte for byte, 31 files; the start's log names `WARN Web removed old web file main-ZZSTALE0.js`).
+- `bash docker/tests/test-upgrade-harness.sh`: all rules passed, `stale-files` included (new rule `t_stale_files`, with its own synthetic break `b_stale_files`; `t_record`, `t_record_contract` and `write_results` now count 14 rows).
+- mutation: `stale-files` dropped from `HARNESS_ROWS` (AC5) -> rules `record`, `record-contract` and `stale-files` red; reverted (cmp against a copy: identical).
+- AC4's two runs (the rehearsal against v1.0.9 and its mutation with tag `e36s7m`) were NOT run by the implement stage, as directed: the lead runs them at smoke. The harness code that they exercise is covered only by the hermetic rule over stubs here.
+- `bash release/ipm-install.sh b` (tag e36s7b, `OCUTALON_LIVE_DEADLINE=1980`, about 7.5 min): all checks passed (63 PASS lines), the new ones among them. Check 25 MEASURED on a real IPM install: the module's Root is the loaded folder (`/tmp/ocutalon-scratch-next/`) and `Web.BuildFolder()` is its `ocutalon/csp/` (guard v's premise holds: no blocker). The planted `main-ZZSTALE0.js` is gone, `zz-admin-note.txt` stays, the served `index.html` equals the copy's (which carries the appended comment), and the install output holds `WARN Web removed old web file main-ZZSTALE0.js`.
+- Web reload handler (V4): `web/src/app/shared/chunk-reload.ts` (pure logic, no imports) and a `withNavigationErrorHandler` provider in `web/src/app/app.config.ts`; no text. `node --test web/scripts/chunk-reload.test.mjs`: 11 tests pass, and `npm --prefix web test` passes in full (2039 tests); `npm --prefix web run lint` is clean.
+- mutation: `claimReload` never sees a taken flag (`if (false)`) -> two node tests red (once per address; no second reload).
+- Playwright `web/e2e/usage/chunk-reload.spec.ts` (R1: chunk 404 once -> exactly one reload, Usage renders; R2: chunk missing for good -> exactly one reload and no second; R3: sessionStorage throws -> no reload), chromium project, run with `bash ci/iris.sh live sign-in --part 16/16` (tag e36s7i; the part also holds usage.spec.ts): 18 passed.
+- mutation: the navigation error handler removed from `app.config.ts` (the build then reports the baseline initial total, 882.45 kB) -> R1 and R2 red (R3 stays green as designed); the rest of the part passes.
+- Initial bundle: 882.45 kB before (baseline, and the mutation build measured it again), 883.39 kB after: +0.94 kB, under the 921 kB cap; `web/angular.json` untouched.
+- mutation: `ModuleRoot()` returns the old root `/opt/ocutalon-ipm/src/` (AC3) -> `ipm-install.sh b` red on check 25: the measured-Root line, the stale-file line (the stale file is not removed because the build folder read is not the loaded copy) and the install output's `WARN Web removed old web file` line (3 checks failed); reverted.
+- mutation: the `RemoveStaleBundle` call removed from `Prepare` (AC1) -> `live:install-upgrade` (tag e36s7i) red on three of the new `36.7:` checks: stale files left in the served folder, the served folder differs from the image's bundle, and no `WARN Web removed old web file` line in the start's log (3 checks failed; the survivors check stays green by design); reverted.
+- Fresh stack, `bash ci/iris.sh class OcuTalon.Test.Web.Install` (tag e36s7i): passed. `docker/tests/test-compose-file.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `test-upgrade-harness.sh`: all passed. mutation: `BUILDFOLDERS` changed in `Web.cls` -> `test-compose-file.sh`'s new BUILDFOLDERS check red; reverted.
+- Spine (V11): two sentences marked `[AMENDED 2026-11-14, Story 36.7, Contest Planner gate ruling]` in `ARCHITECTURE-SPINE.md`: the cleanup in the AD-23 static-files bullet, and the lazy routes and the reload handler in the Angular row (the spine had no earlier description of the lazy routes, so that row carries both). No public text, no release-note line.
+- Decisions the spec leaves open: (a) the Web step has no log line of its own besides the registry's `STEP Web OK`, so a removal is reported through `Install.Step.Warn` and prints as `WARN Web removed old web file <name>` (the only channel the registry writes for a step); (b) guard (v) warns whenever no readable build list with `index.html` exists, including the "no IPM module" case that the Matrix row listed as silent (the Planner's ruling is later and binding); a served `index.html` that differs stays silent; (c) the stuck-file test makes the whole served folder read-only, so every stale file is warned about and kept (a mix of deleted and stuck files is not reachable on Unix), and it skips when the folder stays writable.
+- Not run by the implement stage, by direction: `release/upgrade-harness.sh` against v1.0.9 (AC4's rehearsal and its mutation run, tags e36s7h and e36s7m); the lead runs both at smoke and fills `evidence/36-7-upgrade-from-v1.0.9.md`. The harness's real-stack code (`served_tree`, `web_status`, `stale_plant`, the phase calls) is therefore verified only by the hermetic rule over stubs and by reading.
+- All throwaways of tags e36s7i, e36s7iw and e36s7b were torn down (no `e36s7` container, volume or image is left).
+- mutation (review pass): `claimReload` returns true when the storage is missing -> node tests `claimReload is false without a storage...` and `does not reload with no usable storage` red; the read-back check of the flag dropped -> the same two red; the `isChunkLoadError` test dropped from `reloadOnChunkError` -> `does nothing for an error that is not a chunk failure` red. `chunk-reload.ts` restored (`cmp` against a copy: identical).
+- Review pass: the spine's Angular row got a full stop before the new sentence (`ARCHITECTURE-SPINE.md`).
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none. The run halted after planning, as the invocation directed. The spec goes to the Contest Planner at the spec gate. Gate items 1 to 3 are under `## Design Notes`, and the veto items await the Planner's ruling.
+Status: done
+Blocking condition: none.
+
+**Summary:** the Web step now removes, at every start, the top-level `STALEFILES` files that the installed build lacks (`RemoveStaleBundle`, from `Prepare`), only with a readable build list that holds `index.html` and only while the served `index.html` equals the build's; each removal logs `removed old web file <name>`, a stuck file warns, and the step never fails. The harness has the `stale-files` row (plant always), the install-upgrade, IPM (check 25, Root measured) and compose checks are extended, and the web app has the one-reload handler for a failed lazy chunk. Spine sentences are in AD-23 and the Angular row.
+
+**Files changed:** `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls` (BUILDFOLDERS, ModuleRoot, BuildFolder, RemoveStaleBundle, Prepare); `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls` (8 tests); `docker/tests/test-install-upgrade.sh`, `docker/tests/test-upgrade-harness.sh`, `docker/tests/test-compose-file.sh`, `release/ipm-install.sh`, `release/upgrade-harness.sh`; `web/src/app/shared/chunk-reload.ts`, `web/src/app/app.config.ts`, `web/scripts/chunk-reload.test.mjs`, `web/e2e/usage/chunk-reload.spec.ts`; `ARCHITECTURE-SPINE.md`; `evidence/36-7-upgrade-from-v1.0.9.md` (placeholders for the lead).
+
+**Review:** 29 findings from four layers. Patched: 2 (spine full stop; V4 storage and narrowing mutations recorded). Rejected: 27, each with its reason in the Review Triage Log. Deferred: none. Patched counts by verdict: 1 medium, 1 low. Follow-up review recommended: false.
+
+**Verification:** see `## Verification` (Implementation record and the review-pass mutation lines). Re-run by the review stage: node chunk-reload tests (11 pass), `test-compose-file.sh`, `test-upgrade-harness.sh`, `test-class-rules.sh` pass.
+
+**Open for the lead (not run here, by direction):** AC4, the rehearsal against v1.0.9 and its mutation run (tags e36s7h and e36s7m), and filling `evidence/36-7-upgrade-from-v1.0.9.md`. Not committed (the lead commits; quota hold from 16:00Z).
+
+**Residual risks:** (1) the reload handler discards unsaved edits on the page being left when a lazy chunk is missing (ruling-bound, no text); (2) the flag is per session, so a tab that crosses two upgrades is rescued once; (3) the install log reports removals as `WARN Web ...` and warns on every start where no module Root resolves (dev slots); (4) the harness row compares the whole served list, so a future release that drops a nested asset will show it as EXTRA; (5) the intent contract's "No change to web/" and "no warning" lines are superseded by the 06:00Z rulings (contract left unedited); (6) an intent-to-add index entry exists for four new files (`git add -N`, run by the review stage by mistake); the lead's commit includes them anyway.

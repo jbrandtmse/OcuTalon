@@ -1,12 +1,13 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withHashLocation, withRouterConfig, type Routes } from '@angular/router';
+import { provideRouter, withHashLocation, withNavigationErrorHandler, withRouterConfig, type Routes } from '@angular/router';
 
 import { envelopeInterceptor } from './api/envelope.interceptor';
 import { DocumentsPage } from './documents/documents-page';
 import { DOCUMENTS_TEXTS } from './documents/documents-view';
 import { MainPage } from './main-page/main-page';
 import { unsavedGuard } from './settings/unsaved-guard';
+import { reloadForChunkError } from './shared/chunk-reload';
 import { SHELL_TEXTS, settingsMatch } from './shared/page-shell-view';
 
 /**
@@ -17,6 +18,8 @@ import { SHELL_TEXTS, settingsMatch } from './shared/page-shell-view';
  * shell takes their titles and the settings matcher from page-shell-view.ts and imports nothing else from settings/ (but the guard and its dialog), history/ or usage/.
  * A navigation that a guard cancels puts the browser's history back as it was (canceledNavigationResolution 'computed'), so a back that the
  * user answered with Stay keeps the page it was going to.
+ * A lazy page whose chunk can no longer be fetched (an upgrade removed the previous build's files while the tab was open) makes the router's navigation
+ * error handler load the target address once more in full, at most once per address in a session (chunk-reload.ts); it shows no text.
  */
 export const routes: Routes = [
   {
@@ -36,6 +39,13 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideHttpClient(withInterceptors([envelopeInterceptor])),
-    provideRouter(routes, withHashLocation(), withRouterConfig({ canceledNavigationResolution: 'computed' })),
+    provideRouter(
+      routes,
+      withHashLocation(),
+      withRouterConfig({ canceledNavigationResolution: 'computed' }),
+      withNavigationErrorHandler((failed) => {
+        reloadForChunkError(failed.error, failed.url);
+      }),
+    ),
   ],
 };

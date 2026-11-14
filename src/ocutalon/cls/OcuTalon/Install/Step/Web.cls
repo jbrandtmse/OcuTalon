@@ -54,6 +54,10 @@ Parameter OCUTALONMARKER = "<base href=""/ocutalon/"">";
 /// The top-level files of a bundle that carry a content hash.
 Parameter STALEFILES = "^(main|chunk|polyfills|styles)-[A-Za-z0-9]+\.(js|css)(\.map)?$";
 
+/// The bundle FileCopy sources below the root of the installed module, in the order they are tried: src/module.xml (the image and the IPM
+/// artifact) and the repository's module.xml. The first that holds index.html is the build that IPM copied.
+Parameter BUILDFOLDERS = "ocutalon/csp/,src/ocutalon/csp/";
+
 /// The session event class of /ocutalon: OnLogin attaches the user's durable session (AD-4). The other applications have none.
 Parameter SESSIONEVENTS = "OcuTalon.Web.SessionEvents";
 
@@ -67,7 +71,7 @@ Parameter ONLINETIMEOUT = 120;
 /// /ocutalon/public on any install.
 Parameter LOCALTIMEOUT = 28800;
 
-/// The step: refuses a missing bundle, removes OcuTalon's files from the old bundle folder, writes the four
+/// The step: refuses a missing bundle, removes OcuTalon's files from the old bundle folder, removes the earlier builds' hashed files from the new one (Prepare), writes the four
 /// applications (and the webhook application off the online demo; on it, a webhook application that exists is deleted), then grants the trace role its SQL privilege in this namespace.
 ClassMethod Run() As %Status
 {
@@ -93,14 +97,93 @@ ClassMethod Run() As %Status
 	Quit ..GrantTraceSql()
 }
 
-/// The step's work on the files of a data directory: the new bundle folder must hold index.html, and then the
-/// old bundle folder loses OcuTalon's files.
-ClassMethod Prepare(dataDirectory As %String) As %Status
+/// The step's work on the files of a data directory: the new bundle folder must hold index.html, then the
+/// old bundle folder loses OcuTalon's files, and then the new folder loses the earlier builds' hashed files that the
+/// installed build lacks (RemoveStaleBundle, which never fails the step). buildDirectory is the installed build's folder,
+/// by default the one that BuildFolder finds.
+ClassMethod Prepare(dataDirectory As %String, buildDirectory As %String = {..BuildFolder()}) As %Status
 {
 	Set dataDirectory = ##class(%File).NormalizeDirectory(dataDirectory)
 	Set sc = ..BundleCheck(dataDirectory_..#BUNDLEFOLDER)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Quit ..RemoveOldBundle(dataDirectory_..#OLDBUNDLEFOLDER, dataDirectory_..#BUNDLEFOLDER)
+	Set sc = ..RemoveOldBundle(dataDirectory_..#OLDBUNDLEFOLDER, dataDirectory_..#BUNDLEFOLDER)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit ..RemoveStaleBundle(dataDirectory_..#BUNDLEFOLDER, buildDirectory)
+}
+
+/// The root folder of the installed IPM module ocutalon, with its closing separator; "" when IPM or the module is absent
+/// or the module has no root. The module is read through a class method call, so nothing here needs IPM to compile.
+ClassMethod ModuleRoot() As %String
+{
+	Set root = ""
+	Try {
+		Set module = $ClassMethod("%IPM.Storage.Module", "NameOpen", "ocutalon")
+		If $IsObject(module), module.Root '= "" Set root = ##class(%File).NormalizeDirectory(module.Root)
+	} Catch {
+		Set root = ""
+	}
+	Quit root
+}
+
+/// The folder that IPM's FileCopy read the bundle from: the first of BUILDFOLDERS below root that holds index.html, with its
+/// closing separator; "" when root is "" or none does.
+ClassMethod BuildFolder(root As %String = {..ModuleRoot()}) As %String
+{
+	If root = "" Quit ""
+	Set root = ##class(%File).NormalizeDirectory(root)
+	Set position = 0
+	Set folders = $ListFromString(..#BUILDFOLDERS, ",")
+	While $ListNext(folders, position, relative) {
+		Set folder = ##class(%File).NormalizeDirectory(root_relative)
+		If ##class(%File).Exists(folder_"index.html") Quit
+		Set folder = ""
+	}
+	Quit $Get(folder)
+}
+
+/// Removes from servedDir each top-level file whose name matches STALEFILES and that buildDir lacks by name, and only
+/// while servedDir's index.html is byte-equal to buildDir's. A folder, a nested file and any other name stay. It always
+/// answers OK. With no readable build list, an empty one or one without index.html it removes nothing and gives one
+/// warning line; with a served index.html that differs (another build is served) it removes nothing and is silent. Each file
+/// removed gives the warning line "removed old web file <name>", and one that can't be deleted gives a line that names it.
+ClassMethod RemoveStaleBundle(servedDir As %String, buildDir As %String) As %Status
+{
+	Set servedDir = ##class(%File).NormalizeDirectory(servedDir)
+	Set sc = $SYSTEM.Status.Error(5001, "no build folder")
+	If buildDir '= "" {
+		Set buildDir = ##class(%File).NormalizeDirectory(buildDir)
+		Set sc = ..Entries(buildDir, 0, .built)
+	}
+	Set names = ""
+	Set i = ""
+	For {
+		Set i = $Order(built(i), 1, entry)
+		Quit:i=""
+		If $List(entry, 2) '= "D" Set names(##class(%File).GetFilename($List(entry, 1))) = ""
+	}
+	If $SYSTEM.Status.IsError(sc) || '$Data(names("index.html")) {
+		Do ..Warn("no old web file was removed: the installed build's file list could not be read, or has no index.html (build folder: "_$Select(buildDir = "": "none", 1: buildDir)_")")
+		Quit $SYSTEM.Status.OK()
+	}
+	If '##class(%File).Compare(servedDir_"index.html", buildDir_"index.html") Quit $SYSTEM.Status.OK()
+	Set sc = ..Entries(servedDir, 0, .served)
+	If $SYSTEM.Status.IsError(sc) {
+		Do ..Warn("no old web file was removed: "_servedDir_" could not be listed")
+		Quit $SYSTEM.Status.OK()
+	}
+	Set i = ""
+	For {
+		Set i = $Order(served(i), 1, entry)
+		Quit:i=""
+		Set name = ##class(%File).GetFilename($List(entry, 1))
+		If $List(entry, 2) = "D" || '$Match(name, ..#STALEFILES) || $Data(names(name)) Continue
+		If ##class(%File).Delete($List(entry, 1)) {
+			Do ..Warn("removed old web file "_name)
+		} Else {
+			Do ..Warn("the old web file "_name_" could not be deleted")
+		}
+	}
+	Quit $SYSTEM.Status.OK()
 }
 
 /// Lane B's areas reconcile here (AD-5, AD-23): the turn queue is started again, through WebChatIn, by Conversation.Reconcile.

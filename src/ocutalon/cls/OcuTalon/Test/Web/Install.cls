@@ -1,6 +1,7 @@
 /// Tests of the Web step's declarations (matrix rows 17, 20 and 21; Story 35.3): the application table (five applications off the online demo, four
 /// on it), the webhook application's properties, the trace application of a namespace, the trace role's and the webhook role's grants (none of the
-/// latter on the online demo), Apply, BundleCheck, the removal of the old bundle's files and the trace role's SQL privilege. The real applications, roles, user and bundle folders are never touched: Apply and the SQL
+/// latter on the online demo), Apply, BundleCheck, the removal of the old bundle's files, the removal of the earlier builds' hashed files from the served folder
+/// (RemoveStaleBundle and its guards, BuildFolder, Prepare) and the trace role's SQL privilege. The real applications, roles, user and bundle folders are never touched: Apply and the SQL
 /// grant run on fixtures (ZzWeb<n>), and the bundle tests on folders under the fixture folder (zzbundle<n>), which
 /// OnAfterAllTests removes.
 Class OcuTalon.Test.Web.Install Extends %UnitTest.TestCase
@@ -577,6 +578,214 @@ Method TestRemoveOldBundleKeepsAndFails()
 	Do $$$AssertEquals(..Tree(stuck), "", "removes the rest of OcuTalon's files")
 }
 
+/// The removal of an earlier build's hashed files from the served folder, over every row of the rule except the stuck file: each top-level file that
+/// matches STALEFILES and that the build lacks goes (the script, its map, a chunk, a polyfills file and a stylesheet), each is named by a "removed old
+/// web file" line, every file of the build stays byte for byte, a folder named like a bundle file stays, the build folder is unchanged and a second run changes nothing.
+Method TestRemoveStaleBundle()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"s/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..SeedServed(served)
+	Do ..Seed(served, "main-OLD88888.js/keep.txt", "keep")
+	Set stale = "main-OLD11111.js|main-OLD11111.js.map|chunk-OLD22222.js|polyfills-OLD33333.js|styles-OLD44444.css"
+	Set kept = ..Tree(build)_"|main-OLD88888.js|main-OLD88888.js/keep.txt|"_..#SURVIVORS
+	Do $$$AssertEquals(..Tree(served), ..Sorted(..Tree(build)_"|main-OLD88888.js|main-OLD88888.js/keep.txt|"_..#SURVIVORS_"|"_stale), "the served folder holds the build, the survivors and the stale files")
+	Set buildBefore = ..Tree(build)
+	Set indexBefore = ..ReadFile(served_"index.html")
+	Set mainBefore = ..ReadFile(served_"main-AB12CD34.js")
+
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle")
+	Do $$$AssertEquals(..Tree(served), ..Sorted(kept), "only the stale files are gone")
+	Do $$$AssertEquals(..Warnings(), "removed old web file chunk-OLD22222.js|removed old web file main-OLD11111.js|removed old web file main-OLD11111.js.map|removed old web file polyfills-OLD33333.js|removed old web file styles-OLD44444.css", "each removal is named")
+	Do $$$AssertEquals(..Tree(build), buildBefore, "the build folder is unchanged")
+	Do $$$AssertEquals(..ReadFile(served_"index.html"), indexBefore, "index.html is byte for byte")
+	Do $$$AssertEquals(..ReadFile(served_"main-AB12CD34.js"), mainBefore, "and so is the build's script")
+	Do $$$AssertEquals(..ReadFile(served_"zz-keep.txt"), "keep", "a survivor keeps its content")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "a second run")
+	Do $$$AssertEquals(..Tree(served), ..Sorted(kept), "changes nothing")
+	Do $$$AssertEquals(..Warnings(), "", "and says nothing")
+}
+
+/// Guard (i): only the top level of the served folder is scanned. A file that matches STALEFILES in a subfolder, and a folder that is named like a bundle file, stay.
+Method TestStaleKeepsNestedFiles()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"n/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..SeedBundle(served)
+	Do ..Seed(served, "assets/main-OLD66666.js", "keep")
+	Do ..Seed(served, "assets/fonts/chunk-OLD66666.js", "keep")
+	Do ..Seed(served, "zz/main-OLD77777.js", "keep")
+	Do ..Seed(served, "main-OLD88888.js/styles-OLD99999.css", "keep")
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Set before = ..Tree(served)
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle")
+	Do $$$AssertEquals(..Tree(served), ..RemoveName(before, "main-OLD11111.js"), "the top-level stale file is gone and nothing nested or folder-like is")
+	Do $$$AssertEquals(..Warnings(), "removed old web file main-OLD11111.js", "and only it is named")
+}
+
+/// Guard (ii): a top-level file that does not match STALEFILES stays, whatever the build holds: an admin's file, a backup copy, a different case, a name outside the hash alphabet and an extension that is not js, css or map.
+Method TestStaleKeepsOtherNames()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"o/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..SeedBundle(served)
+	Set names = $ListFromString(..#SURVIVORS, "|")
+	Set position = 0
+	While $ListNext(names, position, name) {
+		If name '[ "/", name '= "zz" Do ..Seed(served, name, "mine")
+	}
+	Do ..Seed(served, "main-OLD55555.json", "mine")
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Set before = ..Tree(served)
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle")
+	Do $$$AssertEquals(..Tree(served), ..RemoveName(before, "main-OLD11111.js"), "only the file that matches STALEFILES and is not in the build is gone")
+	Do $$$AssertEquals(..ReadFile(served_"zz-admin-note.txt"), "mine", "the admin's note keeps its content")
+	Do $$$AssertEquals(..Warnings(), "removed old web file main-OLD11111.js", "and only the stale file is named")
+}
+
+/// Guard (iv): nothing is removed unless the served index.html is byte-equal to the build's (another build is served). The step is silent then.
+Method TestStaleNeedsTheSameIndex()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"i/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..SeedBundle(served)
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Do ##class(%File).Delete(served_"index.html")
+	Do ..Seed(served, "index.html", ..ReadFile(build_"index.html")_"<!-- another build -->")
+	Set before = ..Tree(served)
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle")
+	Do $$$AssertEquals(..Tree(served), before, "a different index.html: nothing is removed")
+	Do $$$AssertEquals(..Warnings(), "", "and nothing is said")
+	Do ##class(%File).Delete(served_"index.html")
+	Do ..Seed(served, "index.html", ..ReadFile(build_"index.html"))
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "the same index.html")
+	Do $$$AssertEquals(..Tree(served), ..RemoveName(before, "main-OLD11111.js"), "removes the stale file")
+	Do ..Warnings()
+}
+
+/// Guard (v): with no usable build list nothing is removed, the step is still OK and one warning line says why: no build folder, a missing folder, an empty one,
+/// and one without index.html.
+Method TestStaleNeedsABuildList()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"v/"
+	Set served = base_"served/"
+	Do ..SeedBundle(served)
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Set before = ..Tree(served)
+	Do ##class(%File).CreateDirectoryChain(base_"empty/")
+	Do ..Seed(base_"noindex/", "main-AB12CD34.js", "main")
+	Set builds = $ListBuild("", base_"missing/", base_"empty/", base_"noindex/")
+	Set labels = $ListBuild("no build folder", "a missing folder", "an empty folder", "a folder without index.html")
+	Set position = 0
+	Set at = 0
+	While $ListNext(builds, position, build) {
+		Set at = at + 1
+		Set label = $List(labels, at)
+		Do ..Warnings()
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle with "_label)
+		Do $$$AssertEquals(..Tree(served), before, label_": nothing is removed")
+		Set warnings = ..Warnings()
+		Do $$$AssertTrue(warnings [ "no old web file was removed" && ($Length(warnings, "|") = 1), label_": one warning line says so: "_warnings)
+	}
+}
+
+/// A file that can't be deleted gives a WARN line that names it, and the step is still OK: the stale files sit in a folder that is read-only, and once it is writable again the
+/// next run removes them. Skipped where the folder can be written to anyway (a superuser).
+Method TestRemoveStaleBundleWarns()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"w/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..SeedBundle(served)
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Do ..Seed(served, "chunk-OLD22222.js", "stale")
+	Set before = ..Tree(served)
+	Set folder = $Extract(served, 1, $Length(served) - 1)
+	Set attributes = ##class(%File).Attributes(folder)
+	Set locked = ##class(%File).SetReadOnly(folder)
+	Set writable = 0
+	If locked {
+		Set probe = served_"zz-probe.txt"
+		Do ..Seed(served, "zz-probe.txt", "probe")
+		Set writable = ##class(%File).Exists(probe)
+	}
+	Set error = ""
+	Try {
+		If 'locked || writable {
+			Do $$$AssertSkipped("The served folder can't be made read-only here: "_$Select('locked: "SetReadOnly failed", 1: "it is writable anyway"))
+		} Else {
+			Do ..Warnings()
+			Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle")
+			Set warnings = ..Warnings()
+			Do $$$AssertEquals(warnings, "the old web file chunk-OLD22222.js could not be deleted|the old web file main-OLD11111.js could not be deleted", "each stuck file is named")
+			Do $$$AssertEquals(..Tree(served), before, "and stays")
+		}
+	} Catch exception {
+		Set error = exception.DisplayString()
+	}
+	Do ##class(%File).SetAttributes(folder, attributes)
+	Do ##class(%File).Delete(served_"zz-probe.txt")
+	Do $$$AssertEquals(error, "", "no error was thrown")
+	If locked, 'writable {
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "the next run, with the folder writable")
+		Do $$$AssertEquals(..Tree(served), ..RemoveName(..RemoveName(before, "main-OLD11111.js"), "chunk-OLD22222.js"), "removes the stale files")
+		Do ..Warnings()
+	}
+}
+
+/// BuildFolder is the first of ocutalon/csp/ and src/ocutalon/csp/ below the root that holds index.html: each alone, both (ocutalon/csp/ wins), neither and no root.
+/// On OcuTalon's image the installed module's root is /opt/ocutalon/src/; elsewhere that part is skipped.
+Method TestBuildFolder()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"b/"
+	Do ..Seed(base_"a/ocutalon/csp/", "index.html", "a")
+	Do ..Seed(base_"b/src/ocutalon/csp/", "index.html", "b")
+	Do ..Seed(base_"c/ocutalon/csp/", "index.html", "c")
+	Do ..Seed(base_"c/src/ocutalon/csp/", "index.html", "c")
+	Do ..Seed(base_"d/ocutalon/csp/", "main-AB12CD34.js", "d")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).#BUILDFOLDERS, "ocutalon/csp/,src/ocutalon/csp/", "the two FileCopy sources")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"a/"), base_"a/ocutalon/csp/", "ocutalon/csp/ alone")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"b"), base_"b/src/ocutalon/csp/", "src/ocutalon/csp/ alone, a root without its closing separator")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"c/"), base_"c/ocutalon/csp/", "both: ocutalon/csp/ wins")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"d/"), "", "a folder without index.html is not a build")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(base_"none/"), "", "neither")
+	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).BuildFolder(""), "", "no root")
+	If ##class(%File).Exists(##class(OcuTalon.Install.Step.Demo).#VERSIONFILE) {
+		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Web).ModuleRoot(), "/opt/ocutalon/src/", "on the image the module's root is the baked source folder")
+		Do $$$AssertTrue(##class(%File).Exists(##class(OcuTalon.Install.Step.Web).BuildFolder()_"index.html"), "and BuildFolder() finds the build there")
+	} Else {
+		Do $$$AssertSkipped("Not OcuTalon's image: "_##class(OcuTalon.Install.Step.Demo).#VERSIONFILE_" does not exist on this instance, so its module root is not known")
+	}
+}
+
+/// Prepare, given the build folder, removes the stale file that was planted in the served folder and keeps the rest.
+Method TestPrepareRemovesStale()
+{
+	Set data = ..Directory_"zzbundle"_..Number_"r/"
+	Set build = ..Directory_"zzbundle"_..Number_"r-build/"
+	Do ..SeedBundle(build)
+	Do ..SeedBundle(data_"csp/ocutalon-web/")
+	Do ..Seed(data_"csp/ocutalon-web/", "main-OLD11111.js", "stale")
+	Do ..Seed(data_"csp/ocutalon-web/", "zz-admin-note.txt", "mine")
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Prepare(data, build), "Prepare")
+	Do $$$AssertEquals(..Tree(data_"csp/ocutalon-web/"), ..Sorted(..Tree(build)_"|zz-admin-note.txt"), "the stale file is gone and the rest stays")
+	Do $$$AssertEquals(..Warnings(), "removed old web file main-OLD11111.js", "and it is named")
+}
+
 /// The trace role's SQL privilege is granted once, in the current namespace, to the role that is named.
 Method TestGrantTraceSql()
 {
@@ -610,6 +819,84 @@ ClassMethod SeedBundle(dir As %String) [ Private ]
 	Do ..Seed(dir, "styles-IJ90KL12.css", "styles")
 	Do ..Seed(dir, "3rdpartylicenses.txt", "licences")
 	Do ..Seed(dir, "assets/fonts/Inter-Regular.woff2", "font")
+}
+
+/// The top-level survivors of the stale-file rule, joined by |: names that do not match STALEFILES, and files in subfolders.
+Parameter SURVIVORS = "zz-keep.txt|zz-admin-note.txt|main-AB12CD34.js.bak|Main-OLD55555.js|main-zz_stale.js|assets/main-OLD66666.js|zz|zz/main-OLD77777.js";
+
+/// A served folder: the bundle, the survivors and the stale files of TestRemoveStaleBundle.
+ClassMethod SeedServed(dir As %String) [ Private ]
+{
+	Do ..SeedBundle(dir)
+	Set files = $ListFromString(..#SURVIVORS, "|")
+	Set position = 0
+	While $ListNext(files, position, name) {
+		If name '= "zz" Do ..Seed(dir, name, "keep")
+	}
+	Set stale = $ListFromString("main-OLD11111.js|main-OLD11111.js.map|chunk-OLD22222.js|polyfills-OLD33333.js|styles-OLD44444.css", "|")
+	Set position = 0
+	While $ListNext(stale, position, name) {
+		Do ..Seed(dir, name, "stale")
+	}
+}
+
+/// The names of a |-joined list, sorted by name.
+ClassMethod Sorted(list As %String) As %String [ Private ]
+{
+	Kill names
+	Set parts = $ListFromString(list, "|")
+	Set position = 0
+	While $ListNext(parts, position, part) {
+		Set names(part) = ""
+	}
+	Set sorted = ""
+	Set name = ""
+	For {
+		Set name = $Order(names(name))
+		Quit:name=""
+		Set sorted = sorted_$Select(sorted = "": "", 1: "|")_name
+	}
+	Quit sorted
+}
+
+/// A |-joined list without one name.
+ClassMethod RemoveName(list As %String, remove As %String) As %String [ Private ]
+{
+	Set kept = ""
+	Set parts = $ListFromString(list, "|")
+	Set position = 0
+	While $ListNext(parts, position, part) {
+		If part '= remove Set kept = kept_$Select(kept = "": "", 1: "|")_part
+	}
+	Quit kept
+}
+
+/// The warning lines that the Web step recorded since the last call, joined by | and sorted, and clears them.
+ClassMethod Warnings() As %String [ Private ]
+{
+	Set lines = ##class(OcuTalon.Install.Step).TakeWarnings()
+	Kill sorted
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set sorted(line) = ""
+	}
+	Set text = ""
+	Set line = ""
+	For {
+		Set line = $Order(sorted(line))
+		Quit:line=""
+		Set text = text_$Select(text = "": "", 1: "|")_line
+	}
+	Quit text
+}
+
+/// The content of a file.
+ClassMethod ReadFile(file As %String) As %String [ Private ]
+{
+	Set stream = ##class(%Stream.FileBinary).%New()
+	Do stream.LinkToFile(file)
+	Set text = stream.Read(32000)
+	Quit text
 }
 
 /// The files and folders below dir, relative to it, sorted, joined by |.

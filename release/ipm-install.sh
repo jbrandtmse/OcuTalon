@@ -87,6 +87,10 @@
 #   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
 #       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
 #       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
+#       Story 36.7 (DW-1320): the scratch copy's bundle index.html also gets a comment line, and main-ZZSTALE0.js and zz-admin-note.txt are
+#       planted in csp/ocutalon-web/ before the install. Afterwards the module's Root is MEASURED: it is the scratch folder, and the Web step's
+#       BuildFolder() is its ocutalon/csp/ (a real IPM install must resolve the root that FileCopy read; if it does not, the run stops
+#       with that finding and no workaround). The stale file is gone, the note stays, and the served index.html equals the copy's.
 # Story 19.2 (U-294) adds the Python requirement and the model:
 #   30. after path A's second run: the install fetched fastembed 0.9.0 through requirements.txt (the module root's file, staged beside
 #       src/module.xml by stage_requirements), the output has STEP Memory OK and no WARN Memory line, and <mgr>/fastembed/ holds the model
@@ -1682,14 +1686,45 @@ reinstall_next() {
   resources_before=$(resources_fingerprint)
   scratch_copy "$copy" \
     "sed -i 's|<Version>$ver</Version>|<Version>$raised</Version>|' $copy/module.xml" \
+    "printf '<!-- %s -->\\n' $raised >> $copy/ocutalon/csp/index.html" \
     "grep -c '<Version>$raised</Version>' $copy/module.xml" > "$tmp/scratch-next.out" 2>&1
   if [ "$(grep -v '^$' "$tmp/scratch-next.out" | tail -n 1 | tr -d '\r')" != 1 ]; then
     cat "$tmp/scratch-next.out"
     fail "$label: the scratch copy with the next version could not be made"
     return
   fi
+  printf '%s\n' \
+    'Set d=$SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/",n=0' \
+    'For f="main-ZZSTALE0.js","zz-admin-note.txt" { Set s=##class(%Stream.FileBinary).%New() Do s.LinkToFile(d_f) Do s.Write("planted by the reinstall check") Do s.%Save() Kill s Set n=n+$Select(##class(%File).Exists(d_f):1,1:0) }' \
+    'Write !,"CHK|planted|",n' \
+    'Halt' | iris_script OCUTALON > "$tmp/plant.chk"
+  if [ "$(cat "$tmp/plant.chk")" = "CHK|planted|2" ]; then
+    pass "$label: main-ZZSTALE0.js and zz-admin-note.txt are planted in csp/ocutalon-web/"
+  else
+    fail "$label: the stale file and the note could not be planted in csp/ocutalon-web/ ($(cat "$tmp/plant.chk"))"
+  fi
   run reinstall-next OCUTALON "zpm \"load $copy\""
   check_run_ok reinstall-next "$label"
+  check_session "$label: the module's Root is the folder that was loaded, and the Web step's BuildFolder() is its ocutalon/csp/ (measured)" OCUTALON \
+    "CHK|root|$copy/
+CHK|build|$copy/ocutalon/csp/" \
+    'Write !,"CHK|root|",##class(OcuTalon.Install.Step.Web).ModuleRoot()' \
+    'Write !,"CHK|build|",##class(OcuTalon.Install.Step.Web).BuildFolder()' \
+    'Halt'
+  check_session "$label: the stale file is gone, the note stays, and the served index.html is the new folder's" OCUTALON \
+    "CHK|stale|0
+CHK|note|1
+CHK|same|1" \
+    'Set d=$SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/"' \
+    'Write !,"CHK|stale|",+##class(%File).Exists(d_"main-ZZSTALE0.js")' \
+    'Write !,"CHK|note|",+##class(%File).Exists(d_"zz-admin-note.txt")' \
+    "Write !,\"CHK|same|\",+##class(%File).Compare(d_\"index.html\",\"$copy/ocutalon/csp/index.html\")" \
+    'Halt'
+  if grep -q '^WARN Web removed old web file main-ZZSTALE0.js$' "$tmp/reinstall-next.txt"; then
+    pass "$label: the install output names the removed file (WARN Web removed old web file main-ZZSTALE0.js)"
+  else
+    fail "$label: the install output has no WARN Web line for main-ZZSTALE0.js"
+  fi
   memory_after=$(memory_fingerprint)
   if [ -n "$memory_before" ] && [ "$memory_before" = "$memory_after" ]; then
     pass "$label: <mgr>/fastembed/ is unchanged, so nothing was downloaded again ($memory_after)"
