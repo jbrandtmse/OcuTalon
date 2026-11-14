@@ -967,8 +967,8 @@ Method TestEmptyRecipientsOfASystemSend()
 		Do $$$AssertEquals(result.Data, "{""fields"":[""recipients""]}", $List(case, 1)_": naming the recipients")
 	}
 	Set row = ..Seed(..Owner, "executing", {"FixParameters": (listed.%ToJSON())})
-	Set result = ..SubmitSystem(row, "own")
-	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|refused", "the marker of a tool send is not a recipient of a system send")
+	Set result = ..SubmitSystem(row, "own", "A row subject", "A row text.")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""recipients""]}", "the marker of a tool send is not a recipient of a system send (the subject and text are the row's, so only the recipients are refused)")
 	Do $$$AssertEquals(..Mails().%Size(), 0, "the stub holds nothing after every refusal")
 	Set commandMark = ..LastCommand()
 	Set result = ..SubmitSystem(row, "", "", "")
@@ -1246,8 +1246,8 @@ Method TestSafeSendKeepsTheAddressOutOfTheTrace()
 /// The markers are the same in every run, so the test takes any earlier ones out of the trace first and last (ForgetMarkers).
 Method TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace()
 {
-	Set ..Marked = 1
 	Do ..ForgetMarkers()
+	Set ..Marked = 1
 	If '..Setup(..#TRACEOWN) Quit
 	Set leaks = ##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks("zzr4")
 	Do $$$AssertEquals(leaks, "", "before the turns no trace global holds a marker")
@@ -1284,6 +1284,7 @@ Method TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace()
 	Do $$$AssertTrue(","_##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(..#TRACEOWNTEXT)_"," [ ",Ens.MessageBodyD,", "and so is the text")
 	Do $$$AssertTrue($Extract(..ToolStepSummary(answer), 1, $Length(count)) = count, "own address: the turn's own step record shows the count of recipients")
 	Do ..AssertSteps(answer, turnSession, "Sending an email", "send_email")
+	Do ..AssertNoContent(..#TRACEOTHER, ..#TRACEOTHERSUBJECT, ..#TRACEOTHERTEXT, "after the own-address turn of the same conversation")
 }
 
 /// Asserts that no trace global holds the recipient, the subject marker or the text marker.
@@ -1294,7 +1295,8 @@ Method AssertNoContent(recipient As %String, subject As %String, text As %String
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(text), "", label_": nor the text marker")
 }
 
-/// Takes the fixed markers of the trace scenarios out of the trace: every message body that holds "zzr4" with its header, and the log rows that hold it.
+/// Takes the fixed markers of the trace scenarios out of the trace: every message body that holds "zzr4" with its header, and the log rows that hold it. It first waits, up to PATIENCE
+/// seconds for each body, until no header of that body is still Created, Queued or Delivered, so that no business host opens a message that is gone.
 Method ForgetMarkers() [ Private ]
 {
 	Set node = "^Ens.MessageBodyD"
@@ -1307,6 +1309,13 @@ Method ForgetMarkers() [ Private ]
 	For {
 		Set id = $Order(ids(id))
 		Quit:id=""
+		Set deadline = $ZHorolog + ..#PATIENCE
+		For {
+			Set pending = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyId = ? AND Status < 4", id)
+			Do pending.%Next()
+			If (pending.%GetData(1) = 0) || ($ZHorolog > deadline) Quit
+			Hang 0.25
+		}
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, MessageBodyClassName FROM Ens.MessageHeader WHERE MessageBodyId = ?", id)
 		While rs.%Next() {
 			Set class = rs.%Get("MessageBodyClassName")

@@ -7777,6 +7777,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Code now sends the marker own (tool) and an empty Recipients (system, EmailOut reads the row), AnswerOps.Carry asks Fix.Kind.Email.MayApprove, and Live FromRow reuses Recipients/Notice/Before for email; spine lines 109-133, 413, 583, 590 describe the old shape
 - 2026-11-13T15:16:08Z status=routed owner=burndown by=cr note=lead: Rule 20 W5 amendment before merge (Planner rulings DW-1255 rule 4, M(1), M(2)); code matches the rulings
 - 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=spine_AD-10_record_bullet_W5-W7(stored-row_SendEmail,email_card_payload,interim_admin_approver);lint_unchanged
+- 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
+- 2026-11-14T00:51:08Z status=routed owner=burndown by=cr note=cr4:lead_Rule20:W5/AD-16_subject+text_from_row(P4a);AD-9/W2_send_email_step=name+count(R4-2)
+- 2026-11-14T00:54:38Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=rework4:spine_AD-10_record_W8(P4a)+W9(step_record);AD-16_email_bullet_AMENDED_2026-11-14;lint_unchanged
 
 ### DW-1275: Test.Fix.EmailRoute depends on the test process's IRIS user: it answers as $Username, asserts that user lacks OcuTalonAdmin and makes its request require that user's first role, so a runner account with OcuTalonAdmin (e.g. ocutalon) turns it red
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: med | footprint: in-story
@@ -7816,3 +7819,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Rework 4 R4-2/R4-3: three chat turns (own, other, malformed) show only fixed words after Result:/Denied:; Planner 22:00Z ruling item 3 asked for that mutation
 - 2026-11-14T00:39:36Z status=decision-pending owner=burndown by=harvest note=for_the_Planner:waive_the_verbatim-Result_mutation_or_rule_a_pin(e.g._assert_the_Result_part_equals_a_fixed_outcome_set);DW-1296_audit_is_related
+- 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
+- 2026-11-14T00:51:07Z status=decision-pending owner=burndown by=cr note=cr4:claim_holds(Result/Denied_fixed_words;answer_pinned_by_Test.Tools.Email);only_Error_part(AI_Hub_text)_unpinned
+
+### DW-1306: docs/security-overview.md is stale since 22.7: L125 says 'Every built-in tool is safe.' (send_email is a built-in tool that is risky per call), and 'Who may answer' (L142-146) does not mention the interim admin-only approval of an email to anyone else (DW-1262)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 22.7 rework-4 code review (outside the rework range; public text): docs/security-overview.md:125, :142-146
+- 2026-11-14T00:54:37Z status=decision-pending owner=burndown by=cr note=human=Planner_PUBLIC_TEXT:the_corrected_L125_sentence_and_a_Who-may-answer_line_for_email;22.7_merge_gate?

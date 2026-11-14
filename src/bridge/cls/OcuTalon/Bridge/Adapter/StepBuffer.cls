@@ -33,8 +33,8 @@ Parameter MAXLABEL = 200;
 /// The longest summary: the MAXLEN of OcuTalon.Bridge.Msg.AgentStep.Summary.
 Parameter MAXSUMMARY = 1000;
 
-/// The name of the tool that sends email. A step of a tool of this name shows its inputs as the name and the number of recipients alone (InputsOf), because the recipients, the subject and
-/// the text of an email are never in the trace except in the message that sends it to the mailbox's own address.
+/// The name of the tool that sends email. A step of a tool of this name shows its inputs as the name and the number of recipients alone (InputsOf), because no email's recipients are in
+/// the trace, and an email's subject and text are in it only in the message that sends it to the mailbox's own address.
 Parameter EMAILTOOL = "send_email";
 
 /// Empties the buffer and starts a call: the base of every estimate and the clock mark.
