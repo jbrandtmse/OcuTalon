@@ -339,3 +339,5 @@
 2026-11-14T07:35:00Z	Story 22.6	planner_rulings_applied	source=<coordination>/prompts/epic-22-rulings-20261113-1715.md#~07:45Z_Nov_14 L14=approved_verbatim L57="that_runs"_approved pins=one_each_with_mutation
 2026-11-14T07:35:00Z	Story 22.6	rework_opened	cycle_iteration=5 iteration=3 trigger=ruling(Planner_PUBLIC_TEXT_DW-1324) items=R8-1,R8-2,R8-3 scope_baseline=191842c3 branch=wip/22-6
 2026-11-14T07:35:00Z	Story 22.6	stage_spawned	stage=implement spawn_at=2026-11-14T07:35:00Z model=sonnet agent_name=22-6-document-a-worked-jira-example-and-mcp-governance-implement-5 cycle_iteration=5 effort=high branch=wip/22-6
+2026-11-14T07:52:28Z	Story 22.6	dev_complete	spawn_at=2026-11-14T07:36:00Z model=sonnet build_sha=801c16f3 cycle_iteration=5 review_loop_iteration=0 followup_review_recommended=false deferred=0 items=R8-1(L14_approved),R8-2(L57_that_runs),R8-3(2_pins+2_controls,mutations_red) branch=wip/22-6
+2026-11-14T07:52:28Z	Story 22.6	stage_spawned	stage=code-review spawn_at=2026-11-14T07:52:28Z model=opus agent_name=22-6-document-a-worked-jira-example-and-mcp-governance-code-review-3 cycle_iteration=5 effort=high scope=51eebf4d..HEAD branch=wip/22-6
