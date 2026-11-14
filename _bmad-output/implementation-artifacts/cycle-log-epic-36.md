@@ -229,3 +229,6 @@
 2026-11-14T13:52:29Z	Story 36.3	ledger_adjudicated	owned=0 resolved=0 terminal=0 note=slice_empty
 2026-11-14T13:52:29Z	Story 36.3	smoke_complete	method=docs(test-readme_43_incl_admin-mcp_19_self-tests,test-release-notes_real-tree,boundaries,link_resolves_tracked_file) result=pass
 2026-11-14T13:52:29Z	Story 36.3	fresh_check	env=real_worktree_after_merging_feature_12f15b2b tests=web_node_2082/0+test-readme result=pass
+2026-11-14T16:46:59Z	Epic 36	planner_ruling	source=epic-36-rulings-20261113-2130.md(~17:10Z) items=close_and_reload_check_accepted;trace_check;36.8=DW-1287_approved;no_new_lane-B_epic;hold_21:00Z
+2026-11-14T16:46:59Z	Story 36.8	ledger_burndown_chartered	key=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o owns=DW-1287 branch=OCT-epic36-s368(from_feature_23fafe59) epic-36=in-progress(reopened_for_36.8)
+2026-11-14T16:46:59Z	Story 36.8	stage_spawned	stage=plan spawn_at=2026-11-14T16:46:59Z model=opus agent_name=36-8-plan-1 cycle_iteration=1 effort=high
