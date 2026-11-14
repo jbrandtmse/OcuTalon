@@ -235,6 +235,20 @@ deferred: []
 - Given the guide, when this story lands, then `docs/security-overview.md` holds D1, D2 and the DW-1314 text, and `docs/mcp-jira-example.md` holds D3, each word for word; D3's two quoted strings equal the catalog's text; and each is pinned with a mutation that turns it red (`test-readme.sh docs`, `test-release-sequence.sh overviewdoc`; DW-1266, DW-1314, DW-1315).
 - Given the online demo, when the demo path runs, then nothing changes (`live demo-path`, X1-X11 unchanged).
 
+### Review Findings
+
+Stage code-review, 2026-11-14, single reviewer, on `git diff 51a716e48 3d4c521bf` plus QA's uncommitted `Test/Channel/TelegramOut.cls`. high 0, med 0, low 1; nothing patched.
+- (1) Ruled text: checked by exact string comparison against `epic-21-rulings-20261113-1800.md`. D1 and D2 are each one whole line of `docs/security-overview.md` (D2 with its comma after "on a line of its own" and its Telegram sentence); the DW-1314 text is the exact tail of the first paragraph under "## Approval and audit"; `test-readme.sh` `L111` = D1, `L187` = D2, `APPROVAL_TAIL` = DW-1314; V9 is the catalog text of `toolCall.inputsTooLong` and the EXPERIENCE row. D3 in `docs/mcp-jira-example.md` matches Public text, and its two quoted strings equal the first line of `toolCall.requestOnServer` (with `add_comment` and `Jira`) and its last line. DW-1315 (b) is the existing `L2115` pin and its "email trace line changed" control. No finding.
+- (2) V10: `Visible` escapes Cc (U+0000-U+001F, U+007F-U+009F, tab included), Zl/Zp (U+2028, U+2029), the Unicode 15.1 Cf set, the whole TAG block U+E0000-U+E007F as ruled, and lone surrogate halves; an astral character goes out as its two halves; `$ZHex` gives upper-case hex, and `Escapes` upper-cases JSON's own `\uXXXX`. The raw-character check over `git diff 51a716e48 -U0` added lines finds nothing. No finding.
+- (3) Redaction: `InputsOf` runs `Bridge.Redact.Text` on the whole `ToolArguments` before it splits the members, and fails closed (no notice, one warning) on `UNCHECKED` or a non-object. `TestToolCallInputsLine` pins top-level and nested key rules, and checks that the secret is nowhere in the slot. Telegram's kept Delivery text goes through the redactor again. No finding.
+- (4) Lane A scope: the only Lane A files in the diff and the tree are `Channel/Telegram/Out.cls` (the two parameters, the over-long branch with `CutRequest`, and `Deliver`'s `keep` that the branch needs) and `Test/Channel/TelegramOut.cls`. QA added assertions inside the existing `TestToolCallTooLong` and `TestToolCallFits`, with no new method. `StepBuffer.cls` is untouched. `test-boundaries.sh` passes. No finding.
+- (5) AD-31: `OnEvent` still wraps everything in one Try, logs a warning and always returns OK; the new `CanceledServer`/`Registered` lookups and `NowUtc` run inside it; `Notice` is still `NoticesIn.Send` (asynchronous). No finding.
+- (6) Online demo: no demo code path changed (`Test/Demo/SimPhoneOut.cls` changes only fixtures); `live demo-path` passed at implement.
+  - `[low]` `[accept]` CR1: the AC "online demo unchanged" has a regression run and no mutation line. A no-change AC has no product line to mutate, and `live demo-path` is the pin. No action.
+- (7) Bundle: `node --test web/scripts/` gives 2,084 pass, 0 fail, including "the built initial bundle" (the 921 kB cap); implement measured 886 kB. No finding.
+- (8) Per-AC pins: every other AC has at least one mutation line under Verification: card text (the "Why:" line, `INPUTLINE`, `InputsOf`), phone and Telegram (`ToolCallNotices`, the length check), over-long (the length check, the cut branch, `TOOLKEYS`, `keep`), V10 (the short escapes, the Cf ranges, the astral escape), the cancel (the cancelled branch, X14), the cancel that is not a removal (`Registered`), DW-1232 (`KEYCHANGED`), and the docs (D1, D2, DW-1314, D3 controls).
+- Runs at this stage: `node --test web/scripts/` (pass), `bash docker/tests/test-readme.sh` (all rules passed), `bash docker/tests/test-boundaries.sh` (all rules passed). No ObjectScript class was patched, so no lane-C stack was started.
+
 ## Spec Change Log
 
 - 2026-11-12 (lead, spec gate): Planner rulings E applied (split to 21.11 approved; V2-V7 approved; the V4 Telegram 4,096-character condition added as an AC with its approved line; T1, T2, toolCall.requestOnServer verbatim).
@@ -497,6 +511,18 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - (once, after S1-S3) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- no finding beyond the baseline.
 
 - Review pass (build-auto), mutations of the patches: mutation: `.action.text { white-space: pre-wrap }` changed to `pre-line` in `approval-request-card.ts` -> `web/scripts/approval-sources.test.mjs` red (36 pass, 1 fail), reverted byte-identical, green again; mutation: the first-line comparison of `mcp_approval_problems` replaced by `true` -> `test-release-sequence.sh overviewdoc` red (the new first-line control), restored byte-identical, `PASS overviewdoc`.
+
+- QA pass (stage qa, warm `e21s10qw`; mutations_demonstrated=9, each applied, observed red, reverted byte-identical, tree status unchanged):
+  - Test files touched (QA): `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls` (V8 grant: blocks added inside `TestToolCallTooLong` and `TestToolCallFits`, no new method): a request of exactly 4,097 units is cut (one message, no buttons, ends with the V9 line); a line break exactly at the last unit that fits is a cut point (head, line break and line are exactly 3,840 units); with no line break the head never ends on a high surrogate; a cancel edits a fitting request (with buttons) in place and drops the keyboard.
+  - mutation: the length check `> LIMIT` changed to `> LIMIT + 1` in `Telegram/Out.cls` -> red (`TestToolCallFits`, "as exactly one sendMessage").
+  - mutation: the cut window `room + 1` changed to `room` -> red (`TestToolCallTooLong`, the boundary head and "exactly 3,840 units").
+  - mutation: the high-surrogate drop in `CutRequest` removed -> red (`TestToolCallTooLong`, "the head stops before the half pair").
+  - mutation: `If $IsObject(markup) || keep {` changed to `If keep {` in `Deliver` -> red (`TestToolCallFits`, "it edits the message once"; also `TestButtons` and the `TestEdit*` rows).
+  - mutation: `BridgeSink.InputsOf` redacting each value alone instead of the whole object -> red (`Test.Core.BridgeSink` `TestToolCallInputsLine`: key rule, secret in the slot, nested key). Existing test, confirmed red.
+  - mutation: D2 sentence "has no Approve button there." changed to "has an Approve button there." in `docs/security-overview.md` -> `test-readme.sh docs` red (FAIL docs).
+  - mutation: DW-1314 text "takes the admin's classification" changed to "takes the model's classification" -> `test-readme.sh docs` red.
+  - mutation: D1 sentence "shows only its start" changed to "shows only its end" -> `test-readme.sh docs` red.
+  - mutation: D3 text "says why it waits," changed to "says nothing," in `docs/mcp-jira-example.md` -> `test-release-sequence.sh overviewdoc` red.
 
 ## Auto Run Result
 

@@ -7541,6 +7541,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T23:13:35Z status=escalated owner=burndown by=harvest note=needs a ruling: add the key to Channel/WebChat/Out.cls and the phone card (Epic 21 contended), or route to an Epic 21 story
 - 2026-11-13T03:04:39Z status=routed owner=burndown by=orchestrator note=to_21.10_Planner_F2
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=re-owned_after_Epics_21_and_22_merged(Planner_F2)
+- 2026-11-14T15:43:07Z status=resolved-by:21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=adjudication note=delivered in 3d4c521bf (+QA/CR) on OCT-epic21; ruled text word for word; pins with mutations
 
 ### DW-1233: Approval.Raise writes no 'raised' Approval audit entry although 22.4's AC names one for the held MCP request
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: low | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Approval.cls
@@ -7790,6 +7791,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
+- 2026-11-14T15:43:08Z status=resolved-by:21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=adjudication note=delivered in 3d4c521bf (+QA/CR) on OCT-epic21; ruled text word for word; pins with mutations
 
 ### DW-1277: 36.4's On call section hides its 'OcuTalon doesn't send pages yet' line once OcuTalon.Data.Page is compiled, but that state is never observed: Data.Page arrives only with Story 23.4
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: low | footprint: in-epic

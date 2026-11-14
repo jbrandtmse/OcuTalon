@@ -964,6 +964,43 @@ Method TestToolCallTooLong()
 			Do $$$AssertTrue($Length(cut) + 1 + $Length(line) '> 3840, "it fits")
 			Do $$$AssertTrue($Length($Piece(rendered, $Char(10), 1, $Length(cut, $Char(10)) + 1)) + 1 + $Length(line) > 3840, "and one more line would not")
 		}
+
+		// QA: a line break that falls exactly at the last unit that still fits is a cut point (head, line break and line are exactly 3,840 units).
+		Set room = 3840 - 1 - $Length(line)
+		Set slots = {"tool": "zz_t", "inputs": [{"name": "a", "value": ("""""")}, {"name": "b", "value": (""""_big_"""")}]}
+		Set pad = room - $Length($Piece(##class(OcuTalon.Msg.Catalog).Render("toolCall.request", slots, "telegram"), $Char(10), 1, 4))
+		Set padding = ""
+		For i = 1:1:pad Set padding = padding_"q"
+		Do slots.inputs.%Set(0, {"name": "a", "value": (""""_padding_"""")})
+		Set rendered = ##class(OcuTalon.Msg.Catalog).Render("toolCall.request", slots, "telegram")
+		Do $$$AssertEquals($Length($Piece(rendered, $Char(10), 1, 4)), room, "the first four lines are exactly room units")
+		Do $$$AssertTrue($Length(rendered) > 4096, "and the request is over 4,096 units")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "toolCall.request", slots, ..NewRef()), .response), "it is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 3, "as one more sendMessage")
+		If calls.%Size() = 3 {
+			Do $$$AssertEquals(calls.%Get(2).params.text, $Piece(rendered, $Char(10), 1, 4)_$Char(10)_line, "the head is the four lines: the cut falls on the line break at the boundary")
+			Do $$$AssertEquals($Length(calls.%Get(2).params.text), 3840, "and the message is exactly 3,840 units")
+			Do $$$AssertEquals(calls.%Get(2).params.%IsDefined("reply_markup"), 0, "with no buttons")
+		}
+
+		// QA: with no line break to cut at, the head is the first units that fit and never ends on a high surrogate.
+		Set emoji = $Char(55357, 56832)
+		Set x = ""
+		For i = 1:1:(room - 5) Set x = x_"x"
+		Set slots = {"tool": (x_emoji_"yyyyyyyyyyyyyyyyyyyy"), "inputs": []}
+		Set rendered = ##class(OcuTalon.Msg.Catalog).Render("toolCall.request", slots, "telegram")
+		Do $$$AssertTrue($Length(rendered) > 4096, "a request with a first line of "_$Length($Piece(rendered, $Char(10), 1))_" units is over 4,096 units")
+		Do $$$AssertEquals($Ascii(rendered, room), 55357, "its unit at the cut is the high half of a surrogate pair")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "toolCall.request", slots, ..NewRef()), .response), "it is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 4, "as one more sendMessage")
+		If calls.%Size() = 4 {
+			Set text = calls.%Get(3).params.text
+			Do $$$AssertEquals(text, "Run "_x_$Char(10)_line, "the head stops before the half pair and is followed by a line break and the line")
+			Do $$$AssertTrue($Length(text) '> 3840, "at most 3,840 units")
+			Do $$$AssertEquals(calls.%Get(3).params.%IsDefined("reply_markup"), 0, "with no buttons")
+		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the too-long test failed: "_..Safe(ex))
 	}
@@ -1019,6 +1056,32 @@ Method TestToolCallFits()
 		Set rows = ..TelegramRows(session)
 		Do $$$AssertEquals(rows.Count(), 1, "one Delivery row")
 		If rows.Count() = 1 Do $$$AssertEquals(rows.GetAt(1).ApprovalRef, approval, "with the request's Ref")
+
+		// QA: a cancel after the server was removed edits the whole request in place, on its last part, and removes the buttons.
+		Set cancel = {"time": (##class(OcuTalon.Data.Time).NowUtc()), "server": "zzS"}
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, "answered.canceled", cancel), .response), "an answered.canceled notification is sent")
+		Set edits = ..EditsTo(chatId)
+		Do $$$AssertEquals(edits.%Size(), 1, "it edits the message once")
+		If (edits.%Size() = 1) && (rows.Count() = 1) {
+			Do $$$AssertEquals(edits.%Get(0).text, rows.GetAt(1).Text_$Char(10, 10)_##class(OcuTalon.Msg.Catalog).Render("answered.canceled", cancel, "telegram"), "in place: the stored last part, a blank line and the status")
+			Do $$$AssertEquals(edits.%Get(0).%IsDefined("reply_markup"), 0, "with no keyboard")
+		}
+
+		// QA: one unit more (4,097) is cut: one message, no buttons, ending with the V9 line.
+		Set before = ..SentTo(chatId).%Size()
+		Set last = slots.inputs.%Get(4)
+		Set last.value = $Extract(last.value, 1, *-1)_"p"""
+		Set over = ##class(OcuTalon.Msg.Catalog).Render("toolCall.requestOnServer", slots, "telegram")
+		Do $$$AssertEquals($Length(over), 4097, "the same request with one unit more renders to 4,097 units")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "toolCall.requestOnServer", slots, ..NewRef()), .response), "it is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size() - before, 1, "as exactly one sendMessage")
+		If calls.%Size() - before = 1 {
+			Set params = calls.%Get(before).params
+			Do $$$AssertEquals(params.%IsDefined("reply_markup"), 0, "with no buttons")
+			Do $$$AssertEquals($Piece(params.text, $Char(10), $Length(params.text, $Char(10))), "The inputs are too long to show here. See them on your OcuTalon page before you approve.", "ending with the line")
+			Do $$$AssertTrue($Length(params.text) '> 3840, "at most 3,840 units")
+		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the fits test failed: "_..Safe(ex))
 	}

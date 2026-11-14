@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-14-2026 12:52
+last_updated: 11-14-2026 15:43
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -328,8 +328,7 @@ development_status:
   21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: done
   21-9-show-the-changed-tool-banner-in-settings: backlog
   21-5-set-up-source-polls-and-answer-tool-call-approval-requests: ready-for-dev
-  21-10-answer-tool-call-and-standalone-approval-requests-on-every-c: 
-    in-progress
+  21-10-answer-tool-call-and-standalone-approval-requests-on-every-c: done
   21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o: backlog
   21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do: done
   21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com: done

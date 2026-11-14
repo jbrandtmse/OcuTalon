@@ -350,3 +350,6 @@
 2026-11-14T14:33:19Z	Story 21.10	stage_spawned	stage=qa spawn_at=2026-11-14T14:33:19Z model=sonnet effort=high agent_name=21-10-qa-1 cycle_iteration=1 timebox=15:05Z
 2026-11-14T15:08:12Z	Story 21.10	qa_complete	model=sonnet tests=TelegramOut(TestToolCallFits:4097_boundary,cancel_edit;TestToolCallTooLong:break_at_boundary,no_high_surrogate_end) mutations_demonstrated=9 findings=none
 2026-11-14T15:08:12Z	Story 21.10	stage_spawned	stage=code-review spawn_at=2026-11-14T15:08:12Z model=opus effort=high agent_name=21-10-code-review-1 cycle_iteration=1 timebox=15:40Z
+2026-11-14T15:43:08Z	Story 21.10	cr_complete	model=opus review_tier=single-opus(time_box) high=0 med=0 low=1(CR1_accepted:demo_AC_no_mutation_line) unresolved_high_med=0 final_status=done checks=node_2084/0,test-readme,boundaries
+2026-11-14T15:43:08Z	Story 21.10	ledger_adjudicated	owned_resolved=all slice_after=empty
+2026-11-14T15:43:08Z	Story 21.10	fresh_check	env=implement_lane-C_stacks(e21s10iw,e21s10i) live_answers=24/24 demo-path=pass note=lead_fresh_rerun_skipped(16:00Z_hold)
