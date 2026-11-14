@@ -8669,7 +8669,7 @@ So that only the right people can approve each kind of action, and others can lo
 
 **Given** an admin opens Settings › Roles
 **When** it loads
-**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges); no other role can be granted or removed there (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
+**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover` or `OcuTalonViewer`, and shows the `OcuTalonApprover_<kind>` roles each user holds, which an administrator grants in IRIS (Planner ruling V3), through `SettingsOps`, which calls the role-assignment method that this story builds in Lane A's file (the lead's dispatch); no other role can be granted or removed there [AMENDED 2026-11-13, Story 25.4, Contest Planner ruling Q8 (V3); it read "lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges)"] (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
 **And** each change confirms with the step-2 settings text and is audited as a settings change (FR-9, FR-17)
 
 **Given** a user holding `OcuTalonViewer`
@@ -8719,6 +8719,7 @@ So that I know who has to approve it.
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
 - DW-1268: 37.1's obligation for 25.5: AnswersIn calls Approval.MayAnswer before Answer, the not_allowed slot carries the row's ApproverKind, and one 'Only an approver for ...' sentence per approver kind (seven; setting rows keep today's rule) comes as PUBLIC TEXT (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- DW-1303: Settings > Roles must refuse an admin giving themselves OcuTalonViewer (self-lockout; viewer wins), reason self_viewer, text "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin." (ledger; routed by lead 2026-11-14, Contest Planner 25.4 final ruling 1)
 
 ### Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
 
@@ -10215,6 +10216,55 @@ So that I classify a tool that runs operating-system commands or arbitrary code 
 **When** this story runs
 **Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
 
+
+### Story 36.5: Epic 36 burn-down: load the Settings, History and Usage pages lazily
+
+[AMENDED 2026-11-13, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, option (b)): DW-1282 taken now so the initial web bundle regains headroom under its 1 MB cap; Story 36.4's on-call section rides on top; fallback (a) is 36.4 lazy-loading only its own section]
+
+As a visitor to OcuTalon's web app,
+I want the first page to load only the code the first screen needs,
+So that the app stays fast and new pages don't push the initial bundle over its limit.
+
+**Acceptance Criteria:**
+
+**Given** the production web build (`npm --prefix web run build`)
+**When** it runs
+**Then** the Settings sections and the History and Usage pages load as lazy chunks (their routes load their components on demand), the initial bundle is at most 921 kB, and the initial-bundle budget in `web/angular.json` stays at `maximumError` 1MB (no cap raise)
+
+**Given** a signed-in admin
+**When** they open /settings, /history and /usage directly by URL (a deep link), and reload each page
+**Then** each page renders as before, with the same headings, sections and data, and no console error; Playwright tests pin the deep-link load and the reload of all three
+
+**Given** the existing Settings, History and Usage tests (node and Playwright)
+**When** they run after the change
+**Then** they pass unchanged in behaviour; the lazy Settings section components other lanes add (Story 25.4's Roles section, Story 21.4's MCP section) stay compatible: whoever pushes second integrates forward
+
+- DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap; move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB (ledger; routed by the Planner ruling 2026-11-13)
+
+
+### Story 36.6: Epic 36 burn-down: keep a stored on-call user's channels when the user list is unavailable
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding rulings (prompts/epic-36-rulings-20261113-2130.md, ~02:00Z section 6 and ~03:00Z option (a)): DW-1308 fixed before Story 36.4 merges; web-only, no new text; the server's save-time checks decide]
+
+As an OcuTalon admin,
+I want the On call form to keep the channels I stored for a person even when the list of users can't be had,
+So that saving the form never silently drops a person's Telegram channel.
+
+**Acceptance Criteria:**
+
+**Given** a stored on-call user (primary or backup) who is missing from the user list that `GET /v1/settings` returns (the list is unavailable, so `users` is `[]`, or the user is gone)
+**When** the On call section loads
+**Then** that person keeps their stored channel boxes (Telegram included) and the form shows no "no paired chat" line for them; no new user-facing text is added and the server is unchanged
+
+**Given** the list is unavailable and the admin saves the On call section without touching that person
+**When** the save reaches the server
+**Then** the stored Telegram channel is sent and kept; a Playwright test pins this, and a mutation that drops the channel fails it
+
+**Given** a stored user who no longer exists (no session row)
+**When** the admin saves
+**Then** the server refuses it with the existing unknown-user refusal and nothing is saved; a test pins this through the page
+
+- DW-1308: when the on-call user list cannot be had (users [] on busy/fail), the On call form unchecks a stored paired user's Telegram box, so the next save silently drops the Telegram channel (ledger; routed by the Planner rulings 2026-11-14)
 
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 

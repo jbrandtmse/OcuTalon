@@ -1,7 +1,7 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
-import { SETTINGS_TEXTS } from './settings-view';
+import { SHELL_TEXTS } from '../shared/page-shell-view';
 
 /** The id of the sentence, which names the dialog. */
 export const UNSAVED_TEXT_ID = 'unsaved-text';
@@ -50,7 +50,7 @@ export class UnsavedDialog {
   private readonly dialogRef = inject<DialogRef<boolean>>(DialogRef);
 
   protected readonly textId = UNSAVED_TEXT_ID;
-  protected readonly texts = SETTINGS_TEXTS;
+  protected readonly texts = SHELL_TEXTS;
 
   /** Closes the dialog with the answer: true leaves, false stays. */
   protected answer(leave: boolean): void {

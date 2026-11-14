@@ -22,11 +22,15 @@ import type {
   MailSignInStarted,
   MailboxAccepted,
   MailboxEmail,
+  McpChanged,
+  McpSettings,
   MessageAccepted,
   MessagePost,
   ModelTestAnswer,
   PairingCode,
   PublicStatus,
+  RoleSaved,
+  RolesList,
   SettingsBody,
   SettingsSaved,
   StateSnapshot,
@@ -87,6 +91,48 @@ export class ApiClient {
   /** Replaces a webhook's secret: a POST of `{secret}` that answers 200 `{result, message}`. A 404 for a webhook that is not the admin's fails as an HttpErrorResponse, as the others do. */
   setWebhookSecret(ref: string, secret: string): Observable<WebhookSecretSaved> {
     return this.http.post<WebhookSecretSaved>(`${BASE}/settings/channels/webhooks/${encodeURIComponent(ref)}/secret`, { secret });
+  }
+
+  /**
+   * The users who hold an OcuTalon role (Story 25.4): a GET that answers 200 `{users: [{user, roles, managed}]}`. A 403 (not an admin), a 409 `not_available`
+   * (the online demo) and a 501 fail as an HttpErrorResponse whose `error` is the body.
+   */
+  listRoles(): Observable<RolesList> {
+    return this.http.get<RolesList>(`${BASE}/settings/roles`);
+  }
+
+  /**
+   * Grants (`grant` true) or removes one of the two assignable roles of an IRIS user: a POST of `{user, role, grant}` that answers 200 `{result, changed}`. A 400
+   * `bad_settings` (with `fields` and `reason`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  saveRole(user: string, role: string, grant: boolean): Observable<RoleSaved> {
+    return this.http.post<RoleSaved>(`${BASE}/settings/roles`, { user, role, grant });
+  }
+
+  /**
+   * The MCP servers and their tools (Story 21.4): a GET that answers 200 `{servers, tools}`. A 403 (not an admin) and a 409 `not_available` (the online demo)
+   * fail as an HttpErrorResponse whose `error` is the body.
+   */
+  mcpSettings(): Observable<McpSettings> {
+    return this.http.get<McpSettings>(`${BASE}/settings/mcp`);
+  }
+
+  /**
+   * Adds an MCP server: a POST of `{name, address}` and, when one was typed, `{secret}`. The secret is sent once and never comes back. A 400 `bad_mcp_server`
+   * (with `fields`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  addMcpServer(body: { name: string; address: string; secret?: string }): Observable<McpChanged> {
+    return this.http.post<McpChanged>(`${BASE}/settings/mcp/servers`, body);
+  }
+
+  /** Removes an MCP server: a DELETE that answers 200 `{result: 'removed', message}`. A 404 (no such server), a 403, a 409 and a 500 fail as an HttpErrorResponse. */
+  removeMcpServer(server: string): Observable<McpChanged> {
+    return this.http.delete<McpChanged>(`${BASE}/settings/mcp/servers/${encodeURIComponent(server)}`, { body: {} });
+  }
+
+  /** Classifies one tool of an MCP server: a POST of `{server, tool, classification}` that answers 200 `{result: 'saved', message}`. */
+  classifyMcpTool(server: string, tool: string, classification: string): Observable<McpChanged> {
+    return this.http.post<McpChanged>(`${BASE}/settings/mcp/classify`, { server, tool, classification });
   }
 
   /**

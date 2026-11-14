@@ -18,6 +18,8 @@
 ///     card's search, is web_user only and no tool verb either;
 ///   - ListPinnedMemories, the read behind the Memory card's Pinned tab, is web_user only and no tool verb, and is sent with the search's bounded wait
 ///     (Story 41.13);
+///   - ListOnCallUsers, the read behind Settings > On call's list of users (Story 36.4, DW-1278), is web_admin only and no tool verb, goes to SettingsOps, and is sent with
+///     the same bounded wait: no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0);
 ///   - on the online demo (Data.Setting onlineDemo = 1) each SearchMemory counts as one of the session's messages through Allowance.TryConsumeRead,
 ///     before anything is sent and without a Turn or an allowance window; past the limit the answer is Outcome allowance (Ok 0) with Data {retryAt, limit}
 ///     (Story 41.13). The list, the pinned read and every other verb never count;
@@ -31,6 +33,9 @@
 ///     cannot send without the approval path (Story 21.6). Otherwise the refusal is not_allowed and nothing is sent;
 ///   - step 4 webhooks (Story 35.3, AD-1, AD-19): CreateWebhook and SetWebhookSecret go to SettingsOps from web_admin only; neither is a tool verb, and the
 ///     secret is never in the command, only the uri of its SecretHandoff;
+///   - step 6 (Story 25.4, AD-1, AD-24): ListRoles goes to SettingsOps from web_admin only; it is no tool verb, and its answer carries only a SecretHandoff uri;
+///   - ListMcpServers (Story 21.4, AD-1, AD-21) is the read behind Settings > Tools and MCP servers: it goes to SettingsOps from web_admin only, is no tool verb, and
+///     changes nothing; AddMcpServer carries only the uri of its credential's SecretHandoff;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -47,6 +52,7 @@
 ///     defines waits for the whole TIMEOUT and ends with no answer), and when the send fails because EmailOut is not registered in the running production.
 ///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 ///     A ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 41.13).
+///     A ListOnCallUsers that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 36.4).
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.
@@ -189,6 +195,7 @@ Method Send(target As %String, request As Ens.Request, Output response As %Libra
 	}
 	If request.%IsA("OcuTalon.Msg.Command.ListPinnedMemories") Quit ..SendSearch(target, request, .response)
 	If request.%IsA("OcuTalon.Msg.Command.SearchMemory") Quit ..SendSearch(target, request, .response)
+	If request.%IsA("OcuTalon.Msg.Command.ListOnCallUsers") Quit ..SendSearch(target, request, .response)
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
 }
 
@@ -211,6 +218,7 @@ Method SearchAllowance(command As OcuTalon.Msg.Command.SearchMemory) As OcuTalon
 /// is answered here as a CommandResult with Ok 0 and Outcome busy (the Message is the gate's failed sentence); the owner still finishes the request, and
 /// nothing is changed by it.
 /// A ListPinnedMemories is sent the same way (Story 41.13).
+/// A ListOnCallUsers is sent the same way (Story 36.4).
 Method SendSearch(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Set sc = ..SendRequestSync(target, request, .response, ..#SEARCHTIMEOUT)
@@ -324,6 +332,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
 /// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 /// MailSignIn (Story 21.3, AD-1) starts or checks the mailbox's OAuth2 sign-in and goes to SettingsOps from web_admin only: neither the model nor any tool can send it.
+/// ListOnCallUsers (a read, Story 36.4) goes to SettingsOps from web_admin only, not from system, and is no tool verb.
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -358,6 +367,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "AddMcpServer", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveMcpServer", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "ClassifyTool", "owner": "McpOps", "origins": "web_admin"},
+ {"verb": "ListMcpServers", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "SetSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "RemoveSourcePoll", "owner": "McpOps", "origins": "web_admin"},
  {"verb": "SendEmail", "owner": "EmailOut", "origins": "tool,system"},
@@ -366,7 +376,9 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"},
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"},
  {"verb": "AckPage", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram"},
- {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"}
+ {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"},
+ {"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "ListOnCallUsers", "owner": "SettingsOps", "origins": "web_admin"}
 ]
 }
 

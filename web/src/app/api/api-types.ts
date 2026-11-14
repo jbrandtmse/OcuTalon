@@ -60,6 +60,10 @@ export interface StateSnapshot {
   demoMode: boolean;
   /** True only when the install's code can read a file that is sent (Story 25.3; 26.2 turns it on): the paperclip and the chat's file drop show only then, and never on the online demo. */
   filesReadable: boolean;
+  /** True when the signed-in user holds OcuTalonViewer and not OcuTalonUser (Story 25.4): the page is read-only, and `admin` is false for such a user. */
+  viewer: boolean;
+  /** True when the online demo is off and the install can assign the approver and viewer roles (Story 26.4 creates them): the Settings nav shows Roles only then. */
+  rolesAssignable: boolean;
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
@@ -259,6 +263,25 @@ export interface SettingsSections {
   'demo-mode': { demoMode: boolean };
   /** The mailbox (Story 21.2): never on the online demo. `passwordSet` says that a password is stored; the password itself is never sent. */
   channels?: EmailValues;
+  /** The on-call person and backup (Story 36.4): never on the online demo. */
+  'on-call'?: OnCallValues;
+}
+
+/**
+ * The values of the On call form (Story 36.4): for each of the two roles the IRIS user name ("" for none), the address pages are emailed to and the channels
+ * (a comma list of telegram and email), the minutes before the backup is paged, the OcuTalon users with whether one of their sessions has a paired chat (admins
+ * only), and whether OcuTalon.Data.Page is compiled (the product sends pages).
+ */
+export interface OnCallValues {
+  primaryUser: string;
+  primaryEmail: string;
+  primaryChannels: string;
+  backupUser: string;
+  backupEmail: string;
+  backupChannels: string;
+  escalationMinutes: number;
+  users: { user: string; paired: boolean }[];
+  pagesBuilt: boolean;
 }
 
 /**
@@ -333,6 +356,24 @@ export interface WebhookCreated {
   webhook: WebhookRow;
 }
 
+/** A user of GET /ocutalon/api/v1/settings/roles (Story 25.4): the IRIS user name, the OcuTalon roles the user holds (sorted) and whether OcuTalon manages the account. */
+export interface RoleHolder {
+  user: string;
+  roles: string[];
+  managed: boolean;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/roles: the users who hold an OcuTalon role, sorted by name. */
+export interface RolesList {
+  users: RoleHolder[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/roles: whether the user's roles changed (false when the user already was in that state). */
+export interface RoleSaved {
+  result: 'done';
+  changed: boolean;
+}
+
 /** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks/<ref>/secret. */
 export interface WebhookSecretSaved {
   result: 'done';
@@ -343,6 +384,42 @@ export interface WebhookSecretSaved {
 export interface WebhookError {
   error: { code: string; message: string };
   fields?: { name?: string; secret?: string };
+}
+
+/** One MCP server as GET /ocutalon/api/v1/settings/mcp lists it (Story 21.4): never a secret, a `secret://` reference or a fingerprint. `status` is `attached`, `unavailable` or "" (never checked). */
+export interface McpServerRow {
+  name: string;
+  address: string;
+  status: string;
+  tools: number;
+  unclassified: number;
+  pending: number;
+}
+
+/** One discovered tool of an MCP server: its classification is `unclassified`, `read-only` or `risky`, and its status `available`, `unavailable` or `refused`. */
+export interface McpToolRow {
+  server: string;
+  name: string;
+  classification: string;
+  status: string;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/mcp: the servers sorted by name, and the tools of all of them, server by server in that order and by name within a server. */
+export interface McpSettings {
+  servers: McpServerRow[];
+  tools: McpToolRow[];
+}
+
+/** The 200 answer to the MCP settings changes: `added`, `removed` or `saved`, with the server's own message. */
+export interface McpChanged {
+  result: 'added' | 'removed' | 'saved';
+  message: string;
+}
+
+/** The error body of a refused MCP settings call: `{error: {code, message}}`, and for `bad_mcp_server` the refused fields, each with its text. */
+export interface McpError {
+  error: { code: string; message: string };
+  fields?: { name?: string; address?: string; secret?: string };
 }
 
 /** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */

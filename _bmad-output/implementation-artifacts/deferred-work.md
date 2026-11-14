@@ -889,6 +889,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Story 2.8's rail took the initial bundle from 485.9 kB to 503.22 kB; the error limit is 1 MB and no PRD, epic or spine target sets the budget (Angular's default)
 - 2026-10-23T15:53:22Z status=wontfix-accepted owner=2-8-show-the-status-rail by=cr note=reopen_if=the initial bundle passes 550 kB, or a build or CI step fails on the budget warning; then split or lazy-load
+- 2026-11-13T16:56:07Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings
 
 ### DW-122: A session that stops watching a production keeps that production's pending instance approval rows in its live rail until a reload, because later approval events no longer reach it
 - source: spec-2-8-show-the-status-rail.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -1010,6 +1011,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: ng build of clean copies: 050ca9a 530.80 kB raw (128.04 kB transfer), a35f7bc 538.57 kB (129.75 kB); the story adds 7.77 kB raw and 1.71 kB transfer (1.5%), not material
 - 2026-10-25T01:26:11Z status=wontfix-accepted owner=2-15-lay-the-page-out-at-every-supported-width by=cr note=reopen_if=the initial bundle passes 600 kB raw or 150 kB transfer, or a page-load measurement misses its target
+- 2026-11-13T16:56:06Z status=escalated owner=burndown by=cr note=reopen_if met (36.4 cr): initial 1,007.44 kB failed the 1MB error budget; raised to 1.05MB; a lazy Settings route measured 921.36 kB
+- 2026-11-13T22:00:16Z status=wontfix-accepted by=merge_gate note=Planner ruling 2026-11-13: no cap raise (standing rule); the 500 kB warning stays a warning; the 1 MB cap holds; reopen_if=the initial bundle passes 1 MB again (DW-1282 covers the headroom)
 
 ### DW-190: In WebKit (Safari) a mouse press on the Status button or on the narrow-window note's Close leaves focus on the page body: Safari focuses no pressed button, so Story 2.15's focus hand-back after a click does not run
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-epic
@@ -3971,6 +3974,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: U-235 (veto, kept by the Contest Planner 2026-11-03T09:22:15Z#706): the larger rework is out of 1.0.0; Story 0.13 retries once on #453 instead; the DW-612 check found #453 on a fresh first start (41419787515) and install-start row 2 (41577358713, 41577710442)
 - 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (U-235); keeps AD-23's merge-at-every-start promise (repair a mapping removed by hand) through a cheaper check
+- 2026-11-14T04:00:20Z occurrence=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages note=CI run 43547225103 attempt 1 (lane-a) ipm-install-p on OCT-epic36-s365 40428606: part p, the install in USER after the uninstall ended 'ERROR! Cannot quiesce the system for namespace reactivation' (Initialize FAILURE); green on the one rerun of the failed job (attempt 2)
 
 ### DW-632: flake: live:floor web/e2e/floor/guide.spec.ts:740 M12 (Show me with no pending notification focuses the phone feed; a jump to step 3 hands focus to an inactive box) hit the 120 s test timeout in the floor project in CI
 - source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6430,6 +6434,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-1 REST write list (line ~122) vs AD-21 Names (Story 35.1, ruling Q4) and Story 35.2's B4/B8 rows (POST/DELETE /api/v1/settings/mcp/servers); code today is stubs that write nothing
 - 2026-11-09T17:38:55Z status=escalated owner=burndown by=cr note=decide: amend AD-1's REST write list for the admin-checked MCP routes (keeps secrets out of messages), or move the write into an operation
 - 2026-11-09T22:43:24Z status=routed owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 21.4 moves the wallet and Config Store write into McpOps (an operation); AD-1 unchanged; the MCP settings routes stay stubs until then (TestMcpEntryStubs, TestNoMcpSettingsRoute); recorded in AD-19 and Story 21.4
+- 2026-11-13T23:52:09Z status=resolved-by:21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=adjudication note=McpOps writes and drops the wallet secret and Config Store entry in its own job through the SecretHandoff (no REST write); SettingsOps stubs deleted; spine AD-1/AD-19/AD-21/AD-33 amended (S1-S6); build 89c77912 + review b22db009 on wip/21-4-impl1
 
 ### DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's per-key 60 s process cache, so for up to a minute after the mailbox moves to another session a tool SendEmail can pair a stale owner with a fresh address
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
@@ -6461,6 +6466,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_browser_06-trace_signedOut;one_rerun
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
 - 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
+- 2026-11-13T20:28:39Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959499 iris(browser) live:demo-path 06-trace.spec.ts:23 run-total not found after navigation to ?signedOut=1; demo path untouched by 36.4; one rerun
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6761,6 +6767,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (shards-4) live:sign-in-2 R10 red at :470; green on one rerun; main badge green 19:45Z
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
 - 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
+- 2026-11-13T20:38:47Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959516 iris(shards-4) live:sign-in-2 rail.spec.ts:432 R10; only diff the heartbeat card's real check-in at 20:26 between live read and reload; rail untouched by 36.4; one rerun
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6771,6 +6778,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T06:26:39Z occurrence=25-2 by=orchestrator note=run 42966931010 job 130346188889 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges + TestRunAgain (ci-12); OCT-epic25 284e8904
 - 2026-11-12T02:02:40Z occurrence=21-6 note=OCT-epic21 7c6dec3c run 43130059980 shards-6 TestOnlyTheMarkerChanges (run_again); GuideApi not in the 21.x diff; one rerun
 - 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
+- 2026-11-13T08:11:13Z occurrence=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=runner note=OCT-epic36 20e3655a ci run 43378472985 job 131730433698 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges (run_again: an event row watch.progress appeared); GuideApi not in the 36.x diff; one rerun
 - 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges+TestRunAgain; same code green on OCT-epic0d 81b65a6a (43445650699); not rerun (superseded by 4aa34ca4, green by identity)
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
@@ -6779,6 +6787,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); compares a session's stored rows before/after; may share a cause with the GuideApi entry filed alongside (unverified); no fix work now
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625167 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (pending reminder, watch, open approval) (ci-8); OCT-epic25 4af29b25; rerun of failed jobs
+- 2026-11-14T05:27:52Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=CI run 43555521311 attempt 1 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (with its five kinds of rows; loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link); OCT-epic36 4a74d329; one rerun of the failed job
 
 ### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
 - source: Contest Planner ruling on DW-1090 (Story 37.2), 2026-11-10 | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -7669,6 +7678,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-24 S2 personal-data clause; Planner V3/V4/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-13T23:37:37Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=ceaf3519+review_patches:SettingsOps.SaveRoles/ListRoles_handoff_both_ways;Test.Web.RolesApi_leak_scan;409_on_demo_per_route;Test.Install.RolesAssign_one_test_per_refusal
 
 ### DW-1268: 25.5 obligation from 37.1: AnswersIn calls Approval.MayAnswer before Answer; the not_allowed slot kind carries the row's ApproverKind; one 'Only an approver for ...' sentence per approver kind (seven: resend, reroute, suspend, rollback, partner, email, tool; setting rows keep today's rule) proposed as PUBLIC TEXT (only 'resends' is in EXPERIENCE.md)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7708,11 +7718,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Spine AD-19 on-call keys bullet (V3, ruled 2026-11-12) vs AD-1/AD-19 Saving a settings section: every save is one SaveSettings submitted through Commands.Submit, so the new address is stored in an Ens message body shown in Visual Trace; a leak-scan test as worded cannot pass.
 - 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan keeps the values out of the message body (e.g. a SecretHandoff-style ref) or escalates V3's trace clause; 24.2 has the same
+- 2026-11-13T17:24:05Z status=resolved-by:36-4-set-the-on-call-person-and-backup-in-settings by=adjudication note=S1(b) shipped: Web.OnCallSettings hands the body through SecretHandoff; traced SaveSettings holds only the handoff; TestValuesOnlyInTheAuditLog (mutation red) and H4
 
 ### DW-1250: An on-call person or backup given only as an email address can never acknowledge a page, so the backup is always paged after oncall.escalationMinutes, and the accepted On call texts don't tell the admin
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.1 rules that email carries no acknowledgement; AckPage comes only from web_user, web_admin and telegram (CommandsIn Routes), which an address-only person has none of; settings.onCallByEmail and settings.onCallHelp say nothing about it.
 - 2026-11-13T04:03:56Z status=routed owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=36.4 plan proposes a help line for 'Someone else, by email' for acceptance, or records that this is intended
+- 2026-11-13T17:24:05Z status=resolved-by:36-4-set-the-on-call-person-and-backup-in-settings by=adjudication note=P1 settings.onCallByEmailHelp shipped verbatim (Planner P1 closes DW-1250); on-call-view tests and O-specs
 
 ### DW-1251: AD-14's page route contradicts itself: a page goes to the user's web chat, yet 'a person with no paired chat gets email only'; the web chat is called a chosen channel though oncall.*.channels offers only telegram,email; EmailOut can't update a copy to handled.marked
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7773,6 +7785,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
 
+### DW-1277: 36.4's On call section hides its 'OcuTalon doesn't send pages yet' line once OcuTalon.Data.Page is compiled, but that state is never observed: Data.Page arrives only with Story 23.4
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec deferred: list; the pagesBuilt=true branch has no test that can run before 23.4
+- 2026-11-13T16:35:03Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=23.4 adds a test that the not-yet line disappears once Data.Page exists
+
+### DW-1278: SettingsOps.OnCallUsers walks the Data.Session and Data.Pairing storage globals from the web process (GET /v1/settings) to list every user, outside the owning classes and outside Ownership (AD-13's 'no other unchecked path')
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Core/SettingsOps.cls OnCallUsers: $Order(^OcuTalonP.SessionD) and (^OcuTalonP.PairingD) with %OpenId, chosen in-stage (Decided 19) because the web process holds no SQL privilege; V4 allows the admin-only list but no ruling covers this read path; the precedents (Webhook.ForSession, Upload) walk their own class's globals
+- 2026-11-13T16:56:16Z status=escalated owner=burndown by=cr note=security posture (AD-13): rule whether an admin roster read by object access is allowed, or move it into Data.Session/Ownership
+- 2026-11-13T22:00:16Z owner=36-4-set-the-on-call-person-and-backup-in-settings by=merge_gate note=Planner ruling 2026-11-13: approved; 36.4 moves OnCallUsers behind SettingsOps in the background process before it merges; AD-13 amendment; lint is DW-1287
+- 2026-11-14T01:17:26Z status=resolved-by:36-4-set-the-on-call-person-and-backup-in-settings by=adjudication note=rework 3 (a8de7e29 + re-review patches): GET /v1/settings sends the ListOnCallUsers read verb (web_admin only) to SettingsOps, which runs OnCallUsers in the production job and returns the list only through SecretHandoff; the web process reads no Data.Session/Data.Pairing storage (pinned by SettingsOnCall.TestRosterNotReadInTheWebProcess); AD-13 amended (4959542a); the lint is DW-1287
+
+### DW-1279: Web.OnCallSettings copies Web.HookSettings' OnlineDemo and Submit verbatim and Hand nearly (Rule 2), instead of a shared settings hand-off in Web.Api
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: OnCallSettings.cls OnlineDemo/Submit equal HookSettings.cls:35-38,141-144; Hand differs only in the Offer seam, Changes vs Handoff and the not_available branch; the spec's own 24.2 note says extend, don't copy
+- 2026-11-13T16:56:16Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=a third settings route copies Hand (Story 24.2 partner contacts): then move OnlineDemo, Submit and Hand into Web.Api
 ### DW-1274: Spine lags 22.7 rework 1: AD-1/AD-14/AD-16 still say SendEmail carries the recipients (tool: every recipient is the own address; system: the row's recipients), AD-11 has no AnswerOps admin-only email rule, AD-16's payload field list has no email row
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Code now sends the marker own (tool) and an empty Recipients (system, EmailOut reads the row), AnswerOps.Carry asks Fix.Kind.Email.MayApprove, and Live FromRow reuses Recipients/Notice/Before for email; spine lines 109-133, 413, 583, 590 describe the old shape
@@ -7806,11 +7834,101 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
 
+### DW-1283: SecretHandoff has no TTL: the reverse handoff uri SettingsOps puts for the Roles list (Holders) is left in shared memory until the instance restarts when the REST process times out before taking it; admin-only, local installs only; a TTL in SecretHandoff would close it
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/SecretHandoff.cls has Put/Take/Discard only (no TTL) on eaad3718; Planner ruling C4 2026-11-13: do not widen SecretHandoff in 25.4, ledger a low DW
+- 2026-11-13T19:04:31Z status=routed owner=burndown by=spec_gate note=Planner ruling C4 (story-254-rulings-20261113.md)
+
+### DW-1284: Telegram and email entries take a message in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person holding OcuTalonUser at USE time: a user whose OcuTalonUser role is removed can still start turns through a paired chat or the connected mailbox (approval answers do re-check at use time)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
+- 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
+
+### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Install/Step/Roles.cls Assign + Bridge/Audit.cls Record (Redact.SensitiveKey); the roles.<user> shape is pinned by the Matrix
+- 2026-11-13T22:43:57Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=harvest note=reopen_if=an admin reports a roles.* audit entry with blank from/to, or a real install has a user named with a sensitive suffix
+
+### DW-1290: A removed OcuTalonAdmin role keeps applying to an open CSP session until it ends (IsAdmin and RoleSettings.Refusal read the session's $Roles; only OcuTalonUser/OcuTalonViewer are re-read live per ruling C-24h); an admin who loses the role and keeps a tab polling keeps /v1/settings and the Roles routes
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls OnPreDispatch, IsAdmin; Web/RoleSettings.cls Refusal; Task 0 (c): 8 h idle timeout renewed per request
+- 2026-11-13T22:43:57Z status=escalated owner=burndown by=harvest note=security posture: extend the C-24h live re-read to OcuTalonAdmin (same call, p95 0.066 ms); for the Planner/decision sheet
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_2:_live_re-read_extends_to_OcuTalonAdmin_under_C-24h_rules,_into_25.4_now
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=84fe7ed3:IsAdmin_live_role_set;TestRemovedAdminLosesSettings(real_HTTP)+3_mutations;lead_smoke_sign-in-2_17/20
+
+### DW-1297: Settings > Roles shows the step-2 text 'Saved. Applies within a minute. Recorded in the audit log.' for a save that changed nothing (changed false, e.g. granting a role the user already holds), though no audit entry is written
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: roles-section.ts change(): every 200 shows SETTINGS_TEXTS.saved; SaveRoles answers changed false and Assign writes no entry for a no-op (I/O matrix Repeat row)
+- 2026-11-13T23:26:30Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling: a no-change text, or no confirmation for changed false; new public text is owner-only
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_3:_option_a:_no_audit_entry_and_text_No_change:_{user}'s_roles_are_already_as_you_set_them.,_into_25.4_now
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=84fe7ed3:no-op_text_No_change(text,not_HTML)+no_audit_entry;RolesApi.TestNoChangeWritesNoEntry,RS3,saveLine_unit;mutations
+
+### DW-1298: Viewer guards in 9 of the 14 guarded components (try-it row, more to try, demo guide Run again, got it, noise control, documents bar and Remove, mailbox, phone, chat drop) are pinned only by source-text regexes, with no rendered viewer check
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: viewer-sources.test.mjs matches template text; viewer.spec.ts V1/V2 render only the composer, Approve/Reject, Dismiss, Break the feed and the rail; the server's 403 read_only is pinned (ViewerApi, api/roles.spec.ts)
+- 2026-11-13T23:26:30Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=reopen_if=a viewer sees a state-changing control on any page, or a guard edit leaves viewer-sources green while a control renders
+
+### DW-1299: POST /v1/settings/roles checks only the body's types before the SecretHandoff; an empty or 161-character user, or a role outside the allowlist, is handed over and refused one hop later by Roles.Refusal (Planner Gate SECURITY row 2 says 1-160 characters and the two roles)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: RoleSettings.ShapeFields types only; the frozen I/O matrix (Unknown user, Role refused rows) and Decided in-stage 5 fix the 400 user_unknown/role answers, which the client gets unchanged; Assign refuses before any change
+- 2026-11-13T23:26:30Z status=by-design owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=spec-bound: frozen matrix rows + Decided in-stage 5; no name leaves the handoff; reopens only via spec amendment
+### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
+- source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
+- evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
+- 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
+- 2026-11-13T18:26:09Z note=occurrence 1 resolved by rerun: ci 43457520830 attempt 2 green on 4af1db03 (18:24Z)
+
+### DW-1285: An MCP entry already saved with a query string (by manual Config Store configuration) is not refused at runtime: the ?/# refusal is on McpOps' add path and the Settings route only
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (Contest Planner B2 re-ruling ~20:25Z) | severity: low | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
+- evidence: Mcp.Ops.AddressAllowed (called by Mcp.Proxy:84 at call time) does not refuse ? or #; changing it changes 22.x runtime behaviour
+- 2026-11-13T20:19:21Z status=open owner=burndown by=epic-21-runner note=Planner ruling: if ever closed, the fix goes through AddressAllowed with a Lane D test change
+
+### DW-1291: An MCP add or removal whose runner restart fails answers 500 server_error, although McpOps kept the change
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: McpOps answers failed after a kept change when RestartRunners fails (22.2 contract); Web.McpSettings maps failed to 500 as the spec says; the section reloads the list, which shows the truth
+- 2026-11-13T23:03:21Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec maps every outcome but added/removed/saved to 500; McpOps' restart-failure contract is 22.2's
+
+### DW-1292: A 403 inside Settings > Tools and MCP servers shows the section's denied text, not the page's denied view
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: med | footprint: in-story
+- evidence: the section is rendered through ngComponentOutlet, which binds no output, and the spec gives the section its own denied state (loading/ready/off/denied/failed)
+- 2026-11-13T23:03:22Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec-bound: the section's states are ruled; a page-level forward needs an injected seam
+
+### DW-1293: McpOps checks only @{ and emptiness of a handed-over MCP secret; the length and character rule lives in the route
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: SaveEntry refuses @{ and an empty secret; the 1 to 4,096 printable-ASCII rule is Web.McpSettings.AddFields'; AddMcpServer is accepted from web_admin only, whose one submitter is that route
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if a second web_admin submitter of AddMcpServer appears
+
+### DW-1294: An exception thrown in McpOps Register after SaveEntry would leave the entry and wallet secret without undo
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: after SaveEntry only WriteAudit runs, which returns a status; SaveEntry and DropEntry never throw; OnAdd's catch (22.2) undoes nothing, as for Grant before
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if WriteAudit or a later step can throw
+
+### DW-1295: The MCP e2e cleanup never revokes the server's IRIS resource, and no leftovers check names it
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/mcp.ts dropMcpServer and api/mcp.spec.ts cleanup delete row, entry, key and collection but call no Install.Step.Mcp.Revoke; only a failed DELETE in finally leaves a resource, on a throwaway stack
+- 2026-11-13T23:03:22Z status=wontfix-accepted owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=reopen_if=a live sign-in or sign-in-2 run reports a leftover OcuTalon_MCP_zz* resource or grant
 ### DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap (998.08 kB after 21.4 moved its MCP section to a lazy chunk); move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB of headroom
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+- 2026-11-14T00:55:11Z occurrence=25-4-assign-approver-and-viewer-roles-in-settings
+- 2026-11-14T00:55:11Z note=25.4 cr: the 997.59 kB ceiling is checked by hand only (angular.json initial maximumError is 1MB); 25.4 build 997.59 kB, at the ceiling
 
+### DW-1303: Self-lockout: Settings > Roles lets an admin grant OcuTalonViewer to themselves, which (viewer wins, Planner 25.4 final ruling 1) locks them out of Settings; the save must refuse it with reason self_viewer and the text: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin."
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Install/Step/Roles.cls Refusal and Web/RoleSettings.cls have no acting-user check (grep self/actingUser at 8d2db7ce); Planner 25.4 final ruling 1 (story-254-rulings-20261113.md, ~00:05Z Nov 14)
+- 2026-11-13T23:56:04Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=lead note=Planner ruling: report-only check found no refusal; routed to 25.5 with reason self_viewer and the given text (PUBLIC TEXT approved by the ruling)
+
+### DW-1307: AD-13 still says OcuTalonAdmin is read from the session's $Roles and applies until the session ends, but 25.4 now reads it from the live role set (Planner final ruling 2, DW-1290); the spine needs the Rule 20 write
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md (code review, rework iteration 1) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md AD-13 settings-routes bullet (by its whole name in $Roles) and the Story 25.4 viewer bullet (the other roles (OcuTalonAdmin among them) are read from the session); Web/Api.cls IsAdmin now reads LiveRoles at 84fe7ed3
+- 2026-11-14T00:55:11Z status=escalated owner=burndown by=cr note=veto window (amending an AD): the lead records final ruling 2 in AD-13 under Rule 20; the code follows the binding ruling
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=lead note=AD-13_settings-routes_bullet_and_25.4_viewer_bullet_amended_per_final_ruling_2(Rule_20),lint_baseline
+
+### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
+- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
+- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
 ### DW-1296: Audit every built-in tool's step record (Inputs and Result, Bridge/Adapter/StepBuffer.cls) for data the stored-row rule covers, including the partner delay notice route, Telegram and the memory/remember tools; list each tool and what its record shows
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner 22:00Z ruling (epic-22-rulings-20261113-1715.md): StepBuffer.InputsOf (L144) records a built-in tool's arguments verbatim in the turn's step summary (L132), which lands in ^Ens.MessageBodyD; 22.7 fixes send_email only
@@ -7839,6 +7957,33 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: count by the Planner: 9 cancelled, 4 canceled
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
 
+### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=found after the three-item cap; not fixed in 25.4
+
+### DW-1311: SessionEvents records AdminAtSignIn from the roles at sign-in (Data/Ownership.cls:832), so a removed admin keeps getting admin-routed items until next sign-in
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=related to DW-1290's live re-read
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
+
+### DW-1300: The installer's STALEFILES pattern (Install/Step/Web.cls) accepts only [A-Za-z0-9] in a bundle file's hash, but Angular's chunk optimizer names chunks with [A-Za-z0-9_-]; 36.5 keeps NG_BUILD_OPTIMIZE_CHUNKS=0 so names stay plain
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: build with the optimizer on measured chunk-BAxI_vlj.js; live:bundle-folder would go red; pinned by lazy-routes.test.mjs while the flag stays
+- 2026-11-13T23:28:34Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=harvest note=reopen_if=a build needs the chunk optimizer on, or any built bundle file name contains _ or - (lazy-routes.test.mjs pins the flag)
+
+### DW-1301: A lazy page chunk that fails to load (offline, dropped connection) leaves a Settings, History or Usage click on the old page with only a console error; the router has no navigation error handler
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review | severity: low | fix-risk: med | footprint: in-story
+- evidence: Story 36.5 made the three routes loadComponent; app.config.ts provides no withNavigationErrorHandler. Before, the page rendered and its GET failed with the page's own error text. A handler needs new user-facing text (veto item).
+- 2026-11-13T23:51:33Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=reopen_if=a user report or an e2e shows a page link doing nothing after a chunk load failure, or a stale-tab chunk 404 after an upgrade
+
+### DW-1302: initial-bundle.test.mjs runs an ng build inside npm --prefix web test, in parallel with the suite's wall-clock assertions (bounded-waits.test.mjs: under 2000 ms around 300-500 ms bounds); on a small hosted runner the CPU load could make them flaky
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review (verification-gap) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Unverified inference: the full suite ran green locally with the build in parallel (2000 pass, 14.5 s). Moving the build to its own step is a .github/workflows change this story rules out.
+- 2026-11-13T23:51:33Z status=wontfix-theoretical owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=real if a web/scripts timing assertion fails in the ci web job Unit tests step while initial-bundle.test.mjs builds
 ### DW-1314: docs/security-overview.md L125 (ruled 22.7 text) says every built-in tool is safe except send_email and that each risky built-in action is a fix kind, but the Built-in tools table lists call_mcp_tool as per-call (risky by default) and its risky calls take a tool_call approval, not a fix kind
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, edge-case-hunter) | severity: med | fix-risk: low | footprint: in-story
 - evidence: docs/security-overview.md:12 lists call_mcp_tool (OcuTalon.Tools.McpCall, CLASSIFICATIONCALLMCPTOOL=risky, per-call rule) under Built-in tools; Bridge/Policy/Gate.cls:256-290 holds a risky call as Kind tool_call, not a Fix.Kind. L125 is the Planner's verbatim text, so a fix is a ruling.
@@ -7848,3 +7993,62 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, verification-gap) | severity: med | fix-risk: low | footprint: in-story
 - evidence: Rule 19: no test in docker/tests, ci or Test/* names either text (verification-gap search); both sit outside the generated sections; spec deferred entry 6 and the rework-6 Verification line say so.
 - 2026-11-14T03:55:09Z status=routed owner=burndown by=cr note=add a test-readme.sh or release-sequence overview pin for both ruled texts; outside the final pass's three ruled items
+
+### DW-1308: 36.4: when the on-call user list cannot be had (users [] on busy/fail), the On call form unchecks a stored paired user's Telegram box with the 'no paired chat' line, so the next on-call save silently drops the Telegram channel
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SettingsOps PoolSize 1; TestModel holds it up to TESTWAIT 45 s > SEARCHTIMEOUT 20 s, so a GET during a model test answers users []; on-call-view.ts roleFormOf: telegram = boxes.telegram && telegramState(...)='enabled', and telegramState of a user absent from [] is unpaired; channelsOf then sends 'email' only
+- 2026-11-14T01:11:36Z status=escalated owner=burndown by=cr note=last rework iteration; ruling-bound (users [] with no new text): keep stored boxes when the list is unavailable, or unqueue the read
+- 2026-11-14T02:42:05Z status=routed owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=merge_gate note=Planner rulings 2026-11-14 (~02:00Z s6, ~03:00Z option (a)): fixed before 36.4 merges as burn-down Story 36.6, web-only, no new text
+- 2026-11-14T04:02:03Z status=resolved-by:36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=adjudication note=Story 36.6 (70f1880a, QA d69359da, review patches): telegramState answers unpaired only for a listed user with paired false; a stored user the list lacks keeps the stored boxes and the server decides at save; pinned by e2e O12/O15 (users [] keeps telegram in the POST) and O13/O16 (a removed user refused with the unknown-user text), node cases; web-only, no new text
+
+### DW-1309: 36.4: a ListOnCallUsers handler that runs after CommandsIn gave up (SEARCHTIMEOUT 20 s, busy) offers its user-name list to SecretHandoff and nobody takes it; it stays in shared memory until restart
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: No web-side handle (the uri is in the unseen result); reachable on a healthy production, not only a wedged one: SettingsOps PoolSize 1 and TestModel waits up to 45 s; memory only, 128-bit name, never a trace or a global (related: DW-1155, no expiry)
+- 2026-11-14T01:11:36Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=SecretHandoff gains an expiry/sweep, or a leftover OcuTalonHandoff* event is seen after GETs outside a model test; fix: skip Put when request age>=20s
+
+### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
+- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
+- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
+### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
+- source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
+- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
+
+### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
+- source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: count by the Planner: 9 cancelled, 4 canceled
+- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
+
+### DW-1316: 36.6: list [] at load, Telegram checked for an unlisted user during a pending save, and a response listing them unpaired leaves the box checked and disabled
+- source: spec-36-6 code-review | severity: low | fix-risk: med | footprint: in-story
+- evidence: on-call-section.ts succeeded(): an edited form is kept while users() refreshes; telegramState then reads unpaired but the kept box stays checked. Next save is refused (noChannel), not silent; person re-pick or Leave without saving recovers.
+- 2026-11-14T03:59:46Z status=wontfix-accepted owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=cr note=needs list [] then a list in the save answer within one pending save; reopen_if=a report or test shows a checked disabled Telegram box
+
+### DW-1317: 36.6: O13/O16 store a user then delete their session row; a run killed before afterEach leaves an unknown on-call user, so a reused instance's next restoreOnCall gets 400
+- source: spec-36-6 code-review | severity: low | fix-risk: med | footprint: in-story
+- evidence: on-call.spec.ts O13/O16 clean the row in finally and afterEach restores original, so normal failures are safe; only a hard kill in that window on a warm (reused) instance leaks. Fresh lane-B and CI instances never hit it.
+- 2026-11-14T03:59:46Z status=wontfix-accepted owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=cr note=loud, recoverable by a reset; reopen_if=a sign-in-2 run fails in afterEach with 'the on-call values are restored: 400' naming zzo13 or zzo16
+
+### DW-1318: 36.6: spec-36-4 (Telegram only for a paired session, else disabled) and epic-36-context's kept rules don't note that a stored user the list lacks now has Telegram enabled
+- source: spec-36-6 code-review | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 36.4 spec ~L195 and epic-36-context.md L22 state the paired-only rule; the 36.6 entry (epic-36-context L20) and on-call-view.ts docs state the new rule; the server's save check is unchanged (AD-19).
+- 2026-11-14T03:59:46Z status=wontfix-accepted owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=cr note=done story record; the context is regenerated by the pre-warm; reopen_if=a later plan cites the 36.4 rule to disable Telegram for a user the list lacks
+
+### DW-1320: An in-place upgrade leaves the previous build's main-<hash>.js in the served web folder csp/ocutalon-web/: module.xml FileCopy copies the new bundle over it and deletes nothing, and Install.Step.Web.RemoveOldBundle (STALEFILES) only clears the old csp/ocutalon/ folder
+- source: 36.5 upgrade rehearsal from v1.0.9 (Contest Planner ruling ~04:30Z Nov 14, Q1 check 1) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rehearsal e36h1 from OCT-epic36-s365 40428606: served folder 28 files vs build 27; extra ./main-JCJUH3RN.js (v1.0.9's main); index.html and the new main identical to the build; deep links and the harness rows pass; evidence _bmad-output/implementation-artifacts/evidence/36-5-upgrade-from-v1.0.9.md on OCT-epic36-s365 74b10a14 (local)
+- 2026-11-14T04:28:21Z status=escalated owner=burndown by=runner note=STOP under the ruling's check 1: Planner to rule whether it blocks 36.5 (pre-existing: any upgrade whose main hash changes leaves it) and who fixes it
+### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=found after the three-item cap; not fixed in 25.4
+
+### DW-1311: SessionEvents records AdminAtSignIn from the roles at sign-in (Data/Ownership.cls:832), so a removed admin keeps getting admin-routed items until next sign-in
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=related to DW-1290's live re-read
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
+
