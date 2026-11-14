@@ -1,6 +1,7 @@
 // Tests the source rules of the file store (Story 25.3; AD-3, AD-4, AD-13, AD-21): over the product's classes outside Test/, only the five that own the
 // table name it, only Core.Files reads a row through Ownership.SentFile and reads its Content, no class under Web/ calls Core.Files.Open (no route serves
-// a file's bytes), the URL map of Web.Files holds exactly one route (POST, the empty remainder), and neither Core.Files nor Web.Files writes to a log.
+// a file's bytes) and Agent.Content alone calls it in the product (it opens the photo turn's file in the runner's job), the URL map of Web.Files holds
+// exactly one route (POST, the empty remainder), and neither Core.Files nor Web.Files writes to a log.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -23,6 +24,9 @@ function classes(dir) {
 /** A class without its description and doc comments (lines that start with ///). */
 const code = (text) => text.split('\n').filter((line) => !line.trimStart().startsWith('///')).join('\n');
 
+/** Code without the class names it spells (the Class line and ##class(...) references), so that a name ending in .Content is not read as a property read. */
+const noClassNames = (text) => text.replace(/^Class\b.*$/gm, '').replace(/##class\([^)]*\)/g, '');
+
 const product = classes(cls)
   .filter((one) => !one.name.startsWith('Test/'))
   .map((one) => ({ ...one, code: code(one.text) }));
@@ -40,7 +44,7 @@ describe('the SentFile table (AD-3, AD-4)', () => {
 
   it('is read through Ownership.SentFile by Core.Files alone (and Ownership itself), and its Content by Core.Files alone', () => {
     assert.deepEqual(named(/Ownership\)\.SentFile\(/), ['Core/Files.cls']);
-    assert.deepEqual(named(/\.Content\b/).filter((name) => file(name).code.includes('SentFile')), ['Core/Files.cls', 'Data/SentFile.cls']);
+    assert.deepEqual(product.filter((one) => one.code.includes('SentFile') && /\.Content\b/.test(noClassNames(one.code))).map((one) => one.name).sort(), ['Core/Files.cls', 'Data/SentFile.cls']);
     assert.match(file('Core/Files.cls').code, /row\.Content/, 'and Core.Files reads it');
     assert.doesNotMatch(file('Data/SentFile.cls').code, /\.Content\b(?!\s*=)(?!\.CopyFrom)/, 'Data.SentFile only fills Content');
   });
@@ -49,7 +53,7 @@ describe('the SentFile table (AD-3, AD-4)', () => {
 describe('no route serves a file\'s bytes (ruling 3 (ii))', () => {
   it('no class under Web/ calls Core.Files.Open', () => {
     assert.deepEqual(product.filter((one) => one.name.startsWith('Web/') && /Core\.Files\)\.Open\(/.test(one.code)).map((one) => one.name), []);
-    assert.deepEqual(named(/Core\.Files\)\.Open\(/), [], 'and no class of the product calls it yet (Story 26.2 and 26.3 will)');
+    assert.deepEqual(named(/Core\.Files\)\.Open\(/), ['Agent/Content.cls'], 'and the one product caller is Agent.Content, in the runner\'s job (AD-21 step 6, AD-31)');
   });
 
   it('Web.Files has one route: POST of the empty remainder', () => {

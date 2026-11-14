@@ -2,11 +2,11 @@
 title: 'Story 26.3: Caption a photo and keep the caption as a memory'
 type: 'feature'
 created: '2026-11-13'
-status: 'in-progress'
-baseline_revision: '2dfed76579dbbe99b3503a4452d7c883ea4ae26f'
+status: 'done'
+baseline_revision: '8180ab28f074f460e8bde75886d4275d8a870c63'
 baseline_commit: '2dfed76579dbbe99b3503a4452d7c883ea4ae26f'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (by line range: AD-6 215-249, AD-8 307-351, AD-21 step 6 893-908, AD-31 1226-1257, Conventions row 1339, ownership rows 1610-1616)'
 warnings: ['oversized']
@@ -221,7 +221,7 @@ Tests and mock:
   - `Test/Agent/Content.cls`: one case with a caption of more than 2,000 characters (the mock scenario's text cannot be that long; call `Agent.Content.Accepted` directly) whose saved memory text is exactly `CAPTIONMAX` characters, and one case that calls `Accepted` twice with the same request and text and leaves one memory with the same `memoryRef` both times. Mutations: drop the `$Extract` cut -> red; change the `IdempotencyKey` to a per-call value -> red.
   - Record, run and revert (tree byte-identical) these mutations for the ACs that lack one, writing a `mutation:` line each: remove the `Origin = photo` Learned branch of `Memory.Ops.OnSave` -> `Test.Memory.Ops:TestPhotoSourceLearned` red; remove `Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)` from `Converse` -> `Test.Bridge.Content:TestRunnerSendsTheImage` red.
 
-- [ ] [CI] web: Unit tests (`npm --prefix web test`): `web/scripts/files-sources.test.mjs` (Story 25.3's source rules) fails on this story's `Agent/Content.cls`, in two assertions. (1) `is read through Ownership.SentFile by Core.Files alone ...`: its `.Content` pattern matches the class names `Ext.Content` and `Agent.Content` in a class that mentions `SentFile` (the `Data.Turn` JSON field), so it reports `Agent/Content.cls` although nothing reads `SentFile.Content` there. Tighten the pattern so it matches only a property read of a stored row's `Content`, not a class name; the expected list stays `['Core/Files.cls', 'Data/SentFile.cls']`. (2) `no class under Web/ calls Core.Files.Open`: the second assertion, "and no class of the product calls it yet (Story 26.2 and 26.3 will)", now has its first caller. Expect exactly `['Agent/Content.cls']` (the photo turn's file, opened in the runner's job, AD-21/AD-31) and update the message and the file's header comment; the Web/ assertion (no route serves a file's bytes) is unchanged. Write a `mutation:` line for each. -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43576051616 (job web, first red sha 39405fff)
+- [x] [CI] web: Unit tests (`npm --prefix web test`): `web/scripts/files-sources.test.mjs` (Story 25.3's source rules) fails on this story's `Agent/Content.cls`, in two assertions. (1) `is read through Ownership.SentFile by Core.Files alone ...`: its `.Content` pattern matches the class names `Ext.Content` and `Agent.Content` in a class that mentions `SentFile` (the `Data.Turn` JSON field), so it reports `Agent/Content.cls` although nothing reads `SentFile.Content` there. Tighten the pattern so it matches only a property read of a stored row's `Content`, not a class name; the expected list stays `['Core/Files.cls', 'Data/SentFile.cls']`. (2) `no class under Web/ calls Core.Files.Open`: the second assertion, "and no class of the product calls it yet (Story 26.2 and 26.3 will)", now has its first caller. Expect exactly `['Agent/Content.cls']` (the photo turn's file, opened in the runner's job, AD-21/AD-31) and update the message and the file's header comment; the Web/ assertion (no route serves a file's bytes) is unchanged. Write a `mutation:` line for each. -- https://github.com/jbrandtmse/OcuTalon/actions/runs/43576051616 (job web, first red sha 39405fff)
 
 **Acceptance Criteria:**
 - Given Task 0 on build 154 with the CI mock, when the runner sends a text part and one `ImageData` part through `ChatWithContent`, then the mock's request holds an Anthropic base64 `image` block of the file's bytes beside the text, with `max_tokens` 8,000 and no sampling parameter, and the results are recorded in `## Verification`. If not, photos answer `read` 0 `failed` and the run halts `blocked` with the evidence.
@@ -307,6 +307,18 @@ Code review, 2026-11-14 (epic-cycle stage; four layers: Blind Hunter, Edge Case 
   - `[low]` `patch` Gap 4c: no mutation line for the image taint in `Converse` - recorded (`TestRunnerSendsTheImage` red).
   - `[medium]` `patch` Gap 4d: no test of the 2,000-character cut or of `Accepted` called twice - patched: `TestCaptionCut` and `TestCaptionRepeat`; mutations recorded.
 - intent-alignment auditor (descriptive, no findings): the diff implements the bridge and `Decide` contract (reading R1) plus the cross-layer pieces the matrix needs (R3). Tests enter at the `Decide` request boundary with a hand-built request and a fixture `Data.Turn`; the channel-to-`Conversation`-to-`Intake` leg is unchanged, unreachable from the UI (no `READSFILES`) and outside this story's Never list.
+
+### 2026-11-14 - Review pass (rework 1, `[CI]` item only)
+- verdicts: 9 findings - high 0, medium 1, low 0, false 0, maybe-false 0 (8 further rows are `reject`/duplicates of the same claims, below)
+- findings:
+  - `[medium]` `patch` Blind 1, Edge 1+2, Gap 1: the narrowed `.Content` pattern (lowercase variable only) misses an uppercase or chained read of a row's Content (`Row.Content`, `..Row.Content`) in a class that names `SentFile` - patched: the rule now strips the `Class` line and `##class(...)` references and matches any `.Content`; the `Rework 1` mutation line covers the four forms.
+  - `[low]` `reject` Edge 3: a lowercase class path `##class(x.Content)` read as a property read - the same patch strips `##class(...)`, so it no longer reports.
+  - `[low]` `reject` Blind 2: the `Open` assertion pins the caller file, not the number of calls or their arguments - the item asks for exactly `['Agent/Content.cls']`; an argument or count check is more than a direct correction and the guarantee at risk (no route serves bytes) is held by the Web/ assertion.
+  - `[low]` `reject` Edge 4: `Core.Files.Open` through `$classmethod`, a variable class name or an alias is not matched - unchanged from the pre-existing rule; no such call exists in the product.
+  - `[low]` `reject` Edge 5: `//` comment lines are not stripped, so a comment could keep the `Open` assertion green - pre-existing `code()` behavior, unchanged by this diff.
+  - `[low]` `reject` Gap 2: no assertion that cannot fail (descriptive; both changed assertions have mutation lines, now four forms plus the Open caller mutations).
+  - `[low]` `reject` Gap 3, Gap 4 (self-contained, static scan, no IRIS state) - descriptive, no defect.
+- intent-alignment auditor (descriptive, no findings): the diff implements the narrow reading of the `[CI]` item; it exercises the Node source-rule surface only, as the item states.
 
 ## Design Notes
 
@@ -581,6 +593,11 @@ Every test added or changed passes on a fresh environment, in either order.
 
   The stack was taken down. DW-1319 (the real-HTTP pin e2e) is settled by the QA run above, and the lead closes it.
 
+**Rework 1 (CI, `web/scripts/files-sources.test.mjs`; no IRIS stack):**
+- mutation (the `.Content` read rule): a scratch `Set x = row.Content` (and, one at a time, `..Row.Content`, `Row.Content`, `tFile.Row.Content`) appended to `Agent/Content.cls` (a class that names `SentFile`) -> `node --test web/scripts/files-sources.test.mjs` red ("is read through Ownership.SentFile by Core.Files alone") each time; the class names (`Class ... Extends OcuTalon.Bridge.Ext.Content`, `##class(...)`) alone stay green. Restored byte for byte.
+- mutation (the `Core.Files.Open` caller list): the `##class(OcuTalon.Core.Files).Open(` call of `Agent/Content.cls` renamed in a scratch copy -> the same file red ("no class under Web/ calls Core.Files.Open"); a `Core.Files).Open(` call added to `Memory/Ops.cls` in a scratch copy -> red. Both restored byte for byte.
+- `npm --prefix web test` (2,028 tests) and `bash docker/tests/test-boundaries.sh` passed.
+
 **Manual checks:** `git diff --stat` touches no `web/src`, `README.md`, `GUIDE.md`, `ci/units.sh` or `_bmad/` file (it does touch `web/e2e/api/memory.spec.ts` and `web/e2e/support/memory.ts`, which the Tasks name for the pin refusal check).
 
 ## Auto Run Result
@@ -611,3 +628,20 @@ Blocking condition: none
 **Follow-up review recommendation: true.** Three medium findings were patched, and the patch round (a gate in `Accepted` and new tests) had no second review layer pass. The unverified risk is the real-HTTP pin e2e, not run (deferred).
 
 **Residual risks.** The real-HTTP pin check is unrun; the spine's origin list needs `photo` (decision 1); the web memory card still maps every pin 409 to the over-cap notice (routed by ledger entry per the Planner gate); the real image-size limit and cost come from the Planner's hands-on pass.
+
+### Rework 1 (CI red, `web/scripts/files-sources.test.mjs`)
+
+Status: done
+Blocking condition: none
+
+**Summary.** Story 25.3's source rules now agree with this story. The `.Content` read rule strips the class names (`Class` line, `##class(...)`) and matches any `.Content` in a class that names `SentFile`, so `Ext.Content` and `Agent.Content` no longer report. The `Core.Files.Open` rule expects exactly `['Agent/Content.cls']`, with its message and the header comment updated; the Web/ assertion is unchanged.
+
+**Files changed.** `web/scripts/files-sources.test.mjs`; this spec.
+
+**Review findings.** 9 (medium 1, low 8 rejected with reasons in the triage log). Patched: 1 (medium): the first `.Content` pattern missed an uppercase or chained read. Deferred: 0.
+
+**Follow-up review recommendation: false.** No high was patched (one medium).
+
+**Verification performed.** `npm --prefix web test` (2,028 tests) and `bash docker/tests/test-boundaries.sh` passed; mutations under `## Verification`, each restored byte for byte.
+
+**Residual risks.** None known.
