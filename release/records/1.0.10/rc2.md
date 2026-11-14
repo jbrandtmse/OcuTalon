@@ -11,7 +11,7 @@ Mode: release
 Candidate: 1.0.10 rc2, release/1.0.10-rc2 at c7feff8bd86bc7fe52c84c3ee967f4daea59c380
 Cut from: release/1.0.10-rc1 at 2eb1f6bb6e44b3770031d6932cb30a986457112b, then af212d21b860e1396f5498a0957a02f8bdb450a7 293b98d3293460848b02c3c96654c0d5a5c9392e cherry-picked from rc-base/1.0.10
 Hands-on time: 0 s for this candidate; 0 s for 1.0.10 so far (target at most 15 min; CI and the hands-on pass not counted)
-Run: 2026-11-14T22:59:23Z to 2026-11-14T23:26:18Z
+Run: 2026-11-14T22:59:23Z to 2026-11-14T23:33:26Z
 
 | Step | Result | Detail |
 | --- | --- | --- |
