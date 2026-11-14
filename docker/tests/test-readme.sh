@@ -1676,7 +1676,7 @@ BRIDGE_SENTENCE='Build 109, which the Early Access portal now offers in place of
 IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
 IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.'
 L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
-L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry."
 L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
 MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
 chk_docs() {

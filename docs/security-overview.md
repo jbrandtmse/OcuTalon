@@ -209,7 +209,7 @@ This release can't connect to MCP servers. When a release adds MCP support, thes
 - Tools are identified by server and name and never take a built-in tool's classification.
 - A changed description or input schema makes a tool unclassified again. MCP annotations such as `readOnlyHint` are ignored.
 - An MCP tool that runs commands must be classified risky.
-- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step.
+- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry.
 - Results are untrusted content.
 
 ## Online demo

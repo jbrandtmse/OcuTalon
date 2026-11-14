@@ -7782,3 +7782,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+
+### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
+- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
+- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
