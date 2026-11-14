@@ -189,3 +189,4 @@
 2026-11-14T04:08:55Z	Story 36.6	fresh_check	env=fresh_stack(e36s6f1) tests=live_sign-in-2_part_14/15(settings.spec.ts)+node_2005/0+boundaries result=pass order=forward torn_down=e36s6s1,e36s6f1
 2026-11-14T04:13:02Z	Epic 36	planner_ruling	source=epic-36-rulings-20261113-2130.md(~04:30Z) items=push_36.6;36.5_v1.0.9_upgrade_rehearsal_required_before_merge;merge_order_first_ready(36.5|21.4);DW-625_ratified_flake
 2026-11-14T04:13:02Z	Epic 36	pushed	sha=pending note=36.4+36.5+36.6;feature_86264c83_already_integrated(4f07aa5a);checks=build_878.98kB,node_2005/0,lint,boundaries,test-readme
+2026-11-14T04:28:21Z	Story 36.5	upgrade_rehearsal	from=v1.0.9 candidate=40428606 tag=e36h1 harness=pass(13_rows_incl_approval) deep_link_reload=pass(settings,history,usage) stale_files=STOP(./main-JCJUH3RN.js_v1.0.9_main;module.xml_FileCopy_deletes_nothing) ledger=DW-1320 evidence=OCT-epic36-s365_74b10a14(local,not_pushed) torn_down=e36h1
