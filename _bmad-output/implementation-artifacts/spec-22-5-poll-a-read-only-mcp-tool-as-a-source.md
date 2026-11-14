@@ -236,6 +236,43 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - Given a server with sources, when `RemoveMcpServer` commits, then each of its `source` rows is removed and audited with one `CheckChanged`, and other servers' sources stay. Mutation: drop the `RemoveSources` call → `TestServerRemovedRemovesSources` red.
 - Given an online-demo install, when either verb arrives, then it answers `not_allowed` and no `source` row is written. The demo path and every existing `Test.Mcp.Ops` row are unchanged. Mutation: skip `Refusal` in `OnSetSource` → `TestOnlineDemoSources` red.
 
+### Review Findings
+
+Code review, 2026-11-14 (follow-up review; four layers, full mode). Patches applied in the review pass, each class green on the lane D warm stack (tag e22s5crw, torn down).
+
+- [x] [Review][Patch] HIGH (AD-28): a session whose only watched row was the Mailbox got `checks.allPassed` and AllClear 1 ("I checked the Mailbox. Everything I checked passed."), but AD-28 gives `checks.nothingWatched` when the session watches nothing. Fixed: `Verdict` treats Render's single Mailbox row as nothing watched; pinned by `TestMailboxOnlyNothingWatched` [src/ocutalon/cls/OcuTalon/Digest/Process.cls Verdict]
+- [x] [Review][Patch] MED: the lead with two or more not-checked rows had no test (cutting `Lead` to its first line stayed green); `TestNotCheckedLeadTwo` added [src/ocutalon/cls/OcuTalon/Test/Digest/Compose.cls]
+- [x] [Review][Patch] MED: `SaveSource`'s re-check under the server's lock was unpinned. It is reachable because `ClearChanged` and `RecordAttach` run in other jobs. Added the `OpsProbe` `Lock` seam and `TestSetRecheckUnderLock` [src/ocutalon/cls/OcuTalon/Test/Mcp/OpsProbe.cls, Test/Mcp/SourceSet.cls]
+- [x] [Review][Patch] MED (Rule 1): no test showed that the real McpOps sends `CheckChanged` to Checks. `TestSetUpdateRemove` now counts McpOps-to-Checks requests, and `TestRefusalsAtTheRoute` asserts none [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSetProduction.cls]
+- [x] [Review][Patch] MED (Rule 1): the Mailbox row was tested only through probe seams. `TestMailboxRealSeams` uses the real `email.owner` and the mark `Channel.Email.Adapter.Record` writes, then puts both back [src/ocutalon/cls/OcuTalon/Test/Digest/Coverage.cls]
+- [x] [Review][Patch] MED (Rule 19 hermeticity): the new online-demo asserts in `Test.Mcp.Ops` could leave a source row on a red run. They now delete the session's rows, inside 22.5's own added lines [src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls]
+- [x] [Review][Patch] LOW (Rule 19): AC2's integration test could not see the interval and had no `mutation:` line. It now records runs 15 minutes apart that pass only by the row's interval; mutation recorded [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls TestCoverageReadsTheSource]
+- [x] [Review][Patch] LOW (Rule 19): removed an assertion that could not fail (`$Data` right after `Kill`) [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls TestOnlineDemoSources]
+- [x] [Review][Patch] LOW: the cascade's warning now names the source's Ref, so an admin can remove a source that stayed [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls RemoveSources]
+- [x] [Review][Patch] LOW (Rule 14): the McpOps class doc left out `not_allowed`, `not_audited`, `failed`, the shared `Refusal`, the cascade's place in the order and the `SendChanged` seam. Corrected in 22.5's own bullets; 21.4's lines are unchanged [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls class doc]
+- [x] [Review][Patch] LOW: `KEYELSEPASSED` was inserted mid-class in an append-only file; moved to the end [src/ocutalon/cls/OcuTalon/Checks/Render.cls]
+- [x] [Review][Defer] MED: a source passes coverage on its latest run although earlier runs in the window were not checked. That is AD-18 rule 5, but the intent says "all passed", and no existing line says "recovered". DW-1326, decision-pending, owner 22.11 (reachable only once 22.11 records runs) [Checks/Coverage.cls WatchRow]
+- [x] [Review][Defer] MED: a source whose interval is longer than the digest span (for example a requested digest soon after the scheduled one) shows as stale (AD-18 rule 2). DW-1327, decision-pending, owner 22.11 [Checks/Coverage.cls WatchRow]
+- [x] [Review][Defer] MED: an update that repoints a source keeps `Reported` (22.11's seen hashes and baseline) and its run history. DW-1328, routed to 22.11 [Watch/Ops.cls SetSource]
+- [x] [Review][Defer] MED (Rule 20, lead): the spec's Spine updates (AD-18: source gap, `stopped`, the Mailbox entry; AD-28: `RestKey` and the lead) are not in the spine yet. This review adds one: the connected mailbox is not a watch (AD-28). DW-1329, open, owner 22.5, for the lead before merge [ARCHITECTURE-SPINE.md]
+- [x] [Review][Defer] LOW: a source named like a fixed coverage entry (Edge Case Hunter again). Occurrence added to DW-1325, which is with the Planner.
+
+Rejected:
+- `false`: races between SetSource and RemoveMcpServer or ClassifyTool, lock keys in another letter case, and a source moved after `SourcesOf` listed it (Blind Hunter, Edge Case Hunter, Acceptance Auditor). The McpOps item has `PoolSize="1"` (`Production.cls`), so its handlers never interleave. The other-job writers (`ClearChanged`, `RecordAttach`) are covered by the now-pinned re-check.
+- `false`: a name made only of no-break spaces slips past `bad_name`. Measured on slot D: `$ZStrip($C(160,160,160),"<>W")` is "", so the name is refused.
+- `false`: an empty-Server source row makes `Lock` throw. `SetSource` cannot write one, because the server is validated (as dispositioned in the implement review).
+- `false`: QA's `SourceSetProduction.cls` is uncommitted. Stage outputs are committed by the lead.
+- `false`: `TestNotCheckedLead` pins "the Jira". It pins today's rendering; a ruling on NEW public text 1 would bring its own change.
+- `low` (by-design): the not-checked line shows in the lead and again in the coverage list. The Tasks say the checks part becomes those lines, and this was recorded as a residual risk.
+- `low` (by-design): the arguments check refuses only `secret://` and `@{` (veto 1, AD-19), and its message is ruled public text.
+- `low`: an ok mailbox mark with a future time passes when `toUtc` is empty. The only product caller (`Digest.Rows`) always passes `WindowEnd`.
+- `low`: an ok mark newer than `toUtc` reads as stale; a failed mark from before the window is reported with its own time. Both are conservative (not checked), and the timing window is seconds.
+- `low`: a passed row with an unreadable time makes the lead print a passed line. Coverage always writes valid times.
+- `low`: `Lead` repeats `Verdict`'s four-line watched slicing; `Finish` uses Render's constant rather than `RestKey`'s return. Both are still Render's key; the fix adds parameters.
+- `low`: no real-path test of a server removal with sources (it restarts runner jobs; the probe pins it, as QA recorded); the lock-failure branches have no test.
+- `low`: a moved source's old server never logs the move, and leftover sources are not cleaned up automatically. Both need a failed audit write; the warning now names the Ref.
+- `low`: mid-class placement in `Mcp/Ops.cls`. Story 21.5 implements only after 22.5 merges (ruling D), so there is no merge-conflict risk.
+
 ## Spec Change Log
 
 - 2026-11-14 (runner, orchestrator ruling ~07:45Z): **veto item 11 GRANTED** as a footprint extension: the additive contract appends in `Test/Data/Tables.cls` (BackgroundCheck's four columns) and `Test/Live/Payloads.cls` (`Payload.Check` `IntervalMinutes`), and the regenerated line in `web/src/app/live/payloads.ts` (generated, not hand-written web code, so the initial-bundle rule does not apply). These override the Never line for exactly those three edits. NEW public text 1 ("the Jira" in the I-checked list) is with the Planner and does not block implement: ship no new text.
@@ -526,6 +563,22 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `mutation:` `MailboxRow` measured the staleness against `toUtc` when it is empty (`Apart(at, toUtc)`) -> `TestMailboxNoWindow` red (a mark days old passed).
 - `mutation:` the `Changed` warning path rethrows -> `TestSendChangedFails` red (the set is not answered).
 - `mutation:` `RemoveSources` stops at the first failed source -> `TestServerRemovedSourceFails` red (the second source stays, no `CheckChanged`, no audit entry for it).
+
+**QA stage (2026-11-14; lane D warm throwaway, tag e22s5qw, torn down).** Every other 22.5 AC and matrix row named in the QA brief already has a pinning test with a `mutation:` line above (the online-demo refusal of both verbs, an admin removing another session's source, a removed server removing its sources, the interval and argument limits). The one gap was the real path: all of `Test.Mcp.SourceSet` calls McpOps' handler through a probe's shadow instance, so nothing ran `Commands.Submit` -> real `CommandsIn` route -> the running McpOps job -> the real audit writer for the source verbs.
+
+- (QA) new test file `src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSetProduction.cls` (3 tests, extends `Test.Core.InProduction`, runs in throwaways and CI only, one class per call: `ci/iris.sh class OcuTalon.Test.Mcp.SourceSetProduction`). A McpOps item job reads its message map and code when it starts, so each mutation below was applied, the class reloaded by a first run, the `McpOps` item disabled and enabled in the warm container, and the class run again.
+- (QA) `mutation:` changed the `SetSourcePoll` MapItem's MessageType in `Mcp/Ops.cls` so the real McpOps no longer handles the verb -> `TestSetUpdateRemove` red ("the set is carried out by McpOps", "the answer's Ref names a row"), and `TestRefusalsAtTheRoute` and `TestOnlineDemoReal` red on their controls.
+- (QA) `mutation:` skipped the read-only check in `OnSetSource` and in `SaveSource` (`If 0 Quit`) -> `TestRefusalsAtTheRoute` red (risky tool not refused, row and audit entry written).
+- (QA) `mutation:` skipped `Refusal` in `OnSetSource` and `OnRemoveSource` (`Set response = ""`) -> `TestOnlineDemoReal` red (set and removal carried out on the demo setting, row changed, audited).
+- Each mutation was reverted by restoring the saved copy (`cmp` identical); `git status --short` showed only the new test file and `git diff --stat` was empty before and after. The class then passed twice more after a McpOps restart (hermetic: rerun order-free; `OnAfterOneTest` restores the `onlineDemo` setting and removes the source rows, tool rows and server row, and asserts none is left). `test-class-rules.sh` and `test-ci-config.sh` exit 0; `ci/iris.sh classes` lists the class (discoverable in the default run).
+- (code review) `mutation:` AC2 integration: removed the interval gap line in `WatchRow` -> `TestCoverageReadsTheSource` red (the McpOps-written row's runs 15 minutes apart are missed).
+- (code review) `mutation:` `Verdict` back to `nothingWatched = (ordered.%Size() = 0)` -> `TestMailboxOnlyNothingWatched` red (a Mailbox alone gives `checks.allPassed`; 5 asserts).
+- (code review) `mutation:` `Lead` keeps only its first not-checked line -> `TestNotCheckedLeadTwo` red.
+- (code review) `mutation:` deleted the server and tool re-check in `SaveSource` -> `TestSetRecheckUnderLock` red (3 asserts).
+- (code review) `mutation:` `SendChanged` returns OK without sending (McpOps restarted after the reload) -> `SourceSetProduction` `TestSetUpdateRemove` red (3 asserts).
+- (code review) `mutation:` `Coverage.MailOwner()` returns "" -> `TestMailboxRealSeams` red (2 asserts).
+- (code review) Each mutation was restored from a saved copy (`cmp` identical); `git status --short` and `git diff --stat` matched the pre-mutation baseline. After the restore and a McpOps restart, `Test.Mcp.SourceSet`, `Test.Mcp.SourceSetProduction`, `Test.Mcp.Ops`, `Test.Digest.Compose`, `Test.Digest.Coverage`, `Test.Checks.Render`, `Test.Digest.AllClear`, `Test.Digest.TelegramText` and `Test.Digest.EvalCase` passed on the warm stack; `test-boundaries.sh` and `test-class-rules.sh` exit 0.
+- Not added: a real-path `RemoveMcpServer` with sources (it restarts the runner jobs, as `Test.Mcp.Attach` `TestCommands` shows; `TestServerRemovedRemovesSources` and `TestServerRemovedSourceFails` pin the cascade through the probe, with their `mutation:` lines above).
 
 ## Auto Run Result
 

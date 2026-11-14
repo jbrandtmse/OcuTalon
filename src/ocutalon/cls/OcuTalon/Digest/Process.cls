@@ -32,8 +32,8 @@ Include Ensemble
 ///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
 ///   3. digest.checkedQuiet when no entry is named, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass, failed
 ///      first, for the two keys that name them), except that when no row failed, at least one is not checked and at least one passed (Render RestKey) the key of Render
-///      is replaced by the coverage line of each not-checked row, in row order, then checks.everythingElsePassed (Lead; Story 22.5); with nothing watched,
-///      digest.nothingWatched alone;
+///      is replaced by the coverage line of each not-checked row, in row order, then checks.everythingElsePassed (Lead; Story 22.5); with nothing watched
+///      (the Mailbox row alone counts as nothing watched), digest.nothingWatched alone;
 ///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none (a tell-now or act Decision counts only when it was recorded at or after the Compose's WindowStart);
 ///   5. what was saved for later: digest.savedNone, digest.saved with the summary, or digest.savedNoSummary with the fallback reason;
 ///   6. digest.cost, the cost of yesterday (OcuTalon.Digest.Cost).
@@ -574,8 +574,8 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 /// The one verdict of a digest, for a session's rows and for a digest case's (the rows after rows' leading vital rows are the watched ones). The check
 /// rows come only from Checks.Render, so that no verdict is made from the raw results. verdict is {checkKey, nothingWatched, named, failed, checked,
 /// needs, vitalsPart, allClear}:
-///   - checkKey is Render's key over the watched rows; with no watched row, or none that Render takes as a result, it is checks.nothingWatched and
-///     nothingWatched is 1;
+///   - checkKey is Render's key over the watched rows; with no watched row, or none that Render takes as a result, or only the Mailbox row (Checks.Coverage
+///     ENTRYMAILBOX: the connected mailbox is not a watch, AD-28), it is checks.nothingWatched and nothingWatched is 1;
 ///   - named holds the entries of Render's rows that did not pass, failed first and then not checked, and failed holds the failed rows;
 ///   - checked holds the entry of each watched row that is a result, in the order of the rows;
 ///   - needs is what NeedsYou gives the owner for the failed rows, with the Decisions recorded at or after windowStart ("" for no bound; a digest case passes none);
@@ -599,7 +599,7 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	While iterator.%GetNext(, .row) {
 		If ..Entry(row) Do checked.%Push(row.entry)
 	}
-	Set nothingWatched = (ordered.%Size() = 0)
+	Set nothingWatched = (ordered.%Size() = 0) || ((ordered.%Size() = 1) && (ordered.%Get(0).entry = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX))
 	If nothingWatched Set checkKey = "checks.nothingWatched"
 	Set sc = $$$OK
 	Set needs = ..NeedsYou(owner, failed, .sc, windowStart)

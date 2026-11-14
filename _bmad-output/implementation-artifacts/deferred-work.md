@@ -7936,3 +7936,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 22.5 implement review (4fc55afb): Checks/Coverage.cls adds the Mailbox row beside source rows named by the admin
 - 2026-11-14T08:55:59Z status=decision-pending owner=burndown by=harvest note=human=Planner_PUBLIC_TEXT:a_refusal_string_for_a_reserved_source_name,_or_accept
+- 2026-11-14T09:30:55Z occurrence=22-5-poll-a-read-only-mcp-tool-as-a-source
+
+### DW-1326: A source row passes coverage on its latest run although earlier runs in the window were not checked
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
+- evidence: Coverage.WatchRow rule (5) takes the latest run for every kind (AD-18), but the intent says a source counts as checked only when its runs in the window all passed. No existing line says 'recovered'; reachable once 22.11 records runs.
+- 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: not checked when any run in span failed; needs a line (missed text says didn't run) or AD-18 rule 5 kept for sources
+
+### DW-1327: A source whose interval is longer than the digest span (e.g. a requested digest soon after the scheduled one) shows stale
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
+- evidence: WatchRow: no run in the span plus an earlier run gives digest.notCheckedStale (AD-18 rule 2), even when that run is within IntervalMinutes x 60 + 180 s of toUtc. Reachable once 22.11 records runs.
+- 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: a source whose last run is within its interval+180 s of toUtc takes that run; AD-18 rule 2 amendment
+
+### DW-1328: An update that repoints a source (server, tool or arguments) keeps its Reported state and run history
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Watch.Ops.SetSource keeps Reported (22.11's seen hashes, baseline, stopped) and the CheckRun history on a repeat of the name, so the repointed source's first poll is compared with the old tool's answers.
+- 2026-11-14T09:30:55Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=22.11 decides: clear Reported (and baseline) in SetSource when server, tool or arguments change, or keep
+
+### DW-1329: Spine not yet updated for Story 22.5 (Rule 20): AD-18 source gap, stopped, Mailbox entry; AD-28 RestKey lead and Mailbox-only
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-story
+- evidence: The spec's Spine updates for the lead are not in ARCHITECTURE-SPINE.md (no Mailbox, emailPoll or notCheckedStopped). The review also made a Mailbox-only session nothing watched (AD-28).
+- 2026-11-14T09:30:55Z status=open owner=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=lead: write AD-18/AD-28 per spec Spine updates plus 'the connected mailbox is not a watch' before merge
+- 2026-11-14T09:34:13Z status=resolved-by:22-5-poll-a-read-only-mcp-tool-as-a-source by=adjudication note=spine:AD-18_record'Source_polls,Part_A(Story_22.5)'+AD-28_record'Not-checked_lead_and_the_mailbox(Story_22.5)'(mailbox_is_not_a_watch);lint_unchanged

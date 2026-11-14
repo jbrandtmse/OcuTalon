@@ -8,7 +8,9 @@
 ///   - WriteAudit answers an error when ^||ZzOps("auditError") is 1, else it writes the entry through the real writer; when ^||ZzOps("sourceAuditError") is "all" it also
 ///     answers an error for each entry whose change is source_removed, and when it is "first" for the first such entry only (counted in ^||ZzOps("sourceAudits"));
 ///   - SendChanged (Story 22.5) records each CheckChanged in ^||ZzOps("changed", n) as a list of the check's Ref, the session, Stopped, the kind, the namespace, the
-///     production and the display name (and answers an error when ^||ZzOps("changedError") is 1), and sends nothing.
+///     production and the display name (and answers an error when ^||ZzOps("changedError") is 1), and sends nothing;
+///   - Lock (Story 22.5) first changes the server once when ^||ZzOps("beforeLock") is set, as another job could while the handler waits for the lock: "risky" makes
+///     the server's tool zz_lookup risky and "gone" deletes the server's row; then it takes the real lock.
 /// Shadow gives a probe whose request header names the sender, as the production does, and a test calls its MessageHandler with a command.
 Class OcuTalon.Test.Mcp.OpsProbe Extends OcuTalon.Mcp.Ops
 {
@@ -99,6 +101,22 @@ ClassMethod Changes() As %DynamicArray
 		Do changes.%Push({"ref": ($List(entry, 1)), "session": ($List(entry, 2)), "stopped": ($List(entry, 3)), "kind": ($List(entry, 4)), "namespace": ($List(entry, 5)), "production": ($List(entry, 6)), "displayName": ($List(entry, 7))})
 	}
 	Quit changes
+}
+
+ClassMethod Lock(server As %String) As %Boolean [ Private ]
+{
+	Set change = $Get(^||ZzOps("beforeLock"))
+	Kill ^||ZzOps("beforeLock")
+	If change = "risky" {
+		Set tool = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_lookup")
+		If $IsObject(tool) {
+			Set tool.Classification = "risky"
+			Do tool.%Save()
+		}
+	} ElseIf change = "gone" {
+		If ##class(OcuTalon.Mcp.Server).NameIndexExists(server, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
+	}
+	Quit ##super(server)
 }
 
 ClassMethod WriteAudit(type As %String, data As %DynamicObject) As %Status [ Private ]

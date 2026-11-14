@@ -8144,6 +8144,8 @@ So that new tickets get an attention decision and a source that stops being read
 **When** it is next due
 **Then** it stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 35.1 (was 22.1)'s proposal (FR-48, FR-50)
 
+- DW-1328: an update that repoints a source (server, tool or arguments) keeps its old `Reported` state and run history; reset them when the source is repointed (ledger; routed by cr 2026-11-14)
+
 ### Story 22.12: Document polling a Jira MCP tool as a source
 
 As a production developer,

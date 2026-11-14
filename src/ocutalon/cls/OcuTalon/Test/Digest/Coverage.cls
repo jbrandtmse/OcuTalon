@@ -15,7 +15,8 @@
 ///   - TestSourceIntervalGap, TestStoppedStreak (Story 22.5): a source row's gap is its interval plus MISSEDSECONDS, and the stopped runs of a source give
 ///     digest.notCheckedStopped since the first run of their trailing streak; TestReasonMap also pins the two phrases of Checks.Process that a source's run writes;
 ///   - TestMailboxPassed, TestMailboxStale, TestMailboxUnreachable, TestMailboxError, TestMailboxMarkUnreadable, TestMailboxNoWindow, TestMailboxOtherOwner (Story 22.5): the Mailbox row of the session that owns the
-///     connected mailbox, from the mark emailPoll (fed through the probe), after the background-check rows, and no row for any other session.
+///     connected mailbox, from the mark emailPoll (fed through the probe), after the background-check rows, and no row for any other session;
+///   - TestMailboxRealSeams (Story 22.5): the real Build reads the owner from email.owner and the mark that Channel.Email.Adapter Record writes.
 Class OcuTalon.Test.Digest.Coverage Extends %UnitTest.TestCase
 {
 
@@ -538,6 +539,38 @@ Method TestMailboxOtherOwner()
 	Do ..Mail(session, session, "")
 	Do ..Built(session, .rows, .lines)
 	Do $$$AssertEquals(rows.%Size(), 5, "an owner with no mark: no Mailbox row")
+}
+
+/// Story 22.5: the real Checks.Coverage.Build, with no seam, reads the owner from the setting email.owner and the mark that Channel.Email.Adapter Record writes.
+/// The setting and the mark are put back as they were.
+Method TestMailboxRealSeams()
+{
+	Set ownerKey = $Parameter("OcuTalon.Channel.Email.In", "OWNERKEY")
+	Set markName = $Parameter("OcuTalon.Channel.Email.Adapter", "MARK")
+	Set savedOwner = ##class(OcuTalon.Data.Setting).Fresh(ownerKey)
+	Set savedMark = ##class(OcuTalon.Data.StatusMark).Get(markName)
+	Set session = ..Session()
+	Set other = ..Session()
+	Try {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(ownerKey, session), "the session owns the mailbox")
+		Do ##class(OcuTalon.Channel.Email.Adapter).Record(0, ##class(OcuTalon.Channel.Email.Adapter).#REASONUNREACHABLE)
+		Set now = ##class(OcuTalon.Data.Time).NowUtc()
+		Set from = ##class(OcuTalon.Data.Time).AddSeconds(now, -600)
+		Set to = ##class(OcuTalon.Data.Time).AddSeconds(now, 60)
+		Do $$$AssertStatusOK(##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines), "Build is OK")
+		Set last = rows.%Size() - 1
+		Do $$$AssertEquals(rows.%Get(last).entry _ "|" _ rows.%Get(last).result _ "|" _ lines.%Get(last).key, "Mailbox|not_checked|digest.notCheckedUnreachable", "a failed poll that Record wrote is the owner's unreachable Mailbox row")
+		Do ##class(OcuTalon.Channel.Email.Adapter).Record(1, "")
+		Do $$$AssertStatusOK(##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines), "Build is OK")
+		Set last = rows.%Size() - 1
+		Do $$$AssertEquals(rows.%Get(last).entry _ "|" _ rows.%Get(last).result _ "|" _ lines.%Get(last).key, "Mailbox|passed|digest.passed", "and a good poll that Record wrote is passed")
+		Do $$$AssertStatusOK(##class(OcuTalon.Checks.Coverage).Build(other, from, to, .rows, .lines), "Build is OK")
+		Do $$$AssertEquals(rows.%Get(rows.%Size() - 1).entry '= "Mailbox", 1, "another session has no Mailbox row")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.Setting).Set(ownerKey, savedOwner)
+	Do ##class(OcuTalon.Data.StatusMark).Record(markName, savedMark)
 }
 
 /// Rule 4, unreachable: the time is the first run of the unbroken streak of unreachable runs that ends at the latest.

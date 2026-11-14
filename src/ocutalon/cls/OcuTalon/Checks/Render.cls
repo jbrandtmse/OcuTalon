@@ -28,9 +28,6 @@ Parameter KEYNOTEVERYTHING = "checks.notEverything";
 /// The catalog key when nothing is watched.
 Parameter KEYNOTHINGWATCHED = "checks.nothingWatched";
 
-/// The catalog key of the sentence that follows the not-checked lines of a digest (Story 22.5): everything else passed.
-Parameter KEYELSEPASSED = "checks.everythingElsePassed";
-
 /// The reason of a row that has not run yet and has no finding.
 Parameter REASONNOTRUN = "Not run yet";
 
@@ -98,6 +95,9 @@ ClassMethod Row(element) As %DynamicObject [ Private ]
 	If (result = "not_checked") && (finding = "") && (checkedAt = "") Set finding = ..#REASONNOTRUN
 	Quit {"result": (result), "entry": ($Extract(entry, 1, ..#LIMIT)), "finding": ($Extract(finding, 1, ..#LIMIT)), "checkedAt": (checkedAt)}
 }
+
+/// The catalog key of the sentence that follows the not-checked lines of a digest (Story 22.5): everything else passed.
+Parameter KEYELSEPASSED = "checks.everythingElsePassed";
 
 /// KEYELSEPASSED when the rows (the output rows of Render) have no failed row, at least one not_checked row and at least one passed row, else "" (see the class
 /// description). It is pure and never throws: anything that is not an array of rows gives "".

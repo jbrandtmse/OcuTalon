@@ -5,6 +5,7 @@
 ///   - TestSet, TestUpdate: the row of a read-only tool, the Ref kept by an update, one CheckChanged each and the MCP entry source_set (created, updated), which holds no argument;
 ///   - TestSetRefusedNotReadOnly, TestSetRefused, TestSetLimits: a risky or unclassified tool and each other refusal write no row, no audit entry and no CheckChanged; the
 ///     limits themselves are accepted;
+///   - TestSetRecheckUnderLock: a tool made risky, or a server removed, while the set waits for the server's lock (the probe's Lock) is refused and writes nothing;
 ///   - TestRemoveSource: the row, the audit entry source_removed and the CheckChanged with Stopped 1, by another admin too; no row, or another kind, is not_found;
 ///   - TestServerRemovedRemovesSources: RemoveMcpServer removes the sources of that server (each audited and sent) and no other server's;
 ///   - TestSourceAuditFails: an audit that fails undoes a set, an update and a remove (not_audited);
@@ -12,7 +13,8 @@
 ///   - TestServerRemovedSourceFails: a source whose removal cannot be audited stays and the server's removal stands; the loop goes on to the server's other sources;
 ///   - TestWatchOpsRemoveSourceKind: Watch.Ops RemoveSource leaves a production or queues row alone, and SourcesOf matches the server's name exactly;
 ///   - TestOnlineDemoSources: on the online demo (the probe's switch, and the real onlineDemo setting) both verbs are not_allowed and no row is written;
-///   - TestCoverageReadsTheSource: Checks.Coverage.Build reads the row that McpOps wrote, and Live.Payload.Check carries its interval.
+///   - TestCoverageReadsTheSource: Checks.Coverage.Build reads the row that McpOps wrote (with no run it was missed; runs 15 minutes apart pass by its interval), and
+///     Live.Payload.Check carries its interval.
 Class OcuTalon.Test.Mcp.SourceSet Extends %UnitTest.TestCase
 {
 
@@ -214,6 +216,25 @@ Method TestSetLimits()
 		If $IsObject(row) Do $$$AssertEquals(row.DisplayName _ "|" _ row.Arguments _ "|" _ row.IntervalMinutes, $List(case, 4) _ "|" _ $List(case, 5) _ "|" _ $List(case, 3), "the stored name, arguments and interval are the normal ones")
 	}
 	Do $$$AssertEquals(..Rows(session), 4, "four rows")
+}
+
+/// The re-check under the server's lock: a tool made risky, or a server removed, after the early check and before the lock is refused, and nothing is written.
+Method TestSetRecheckUnderLock()
+{
+	Set server = ..Server("a")
+	Do ..MakeRows(server)
+	Set session = ..MakeSession()
+	Set ^||ZzOps("beforeLock") = "risky"
+	Set result = ..Run(..#SENDER, ..SetCommand(server, "zz_lookup", "Jira", "{}", 15, session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|not_read_only|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGENOTREADONLY, "a tool made risky while the set waits for the lock is refused")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_lookup").Classification, "risky", "control: the probe made the tool risky")
+	Set other = ..Server("b")
+	Do ..MakeRows(other)
+	Set ^||ZzOps("beforeLock") = "gone"
+	Set result = ..Run(..#SENDER, ..SetCommand(other, "zz_lookup", "Jira", "{}", 15, session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|not_found|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGENOSERVER, "a server removed while the set waits for the lock is not_found")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Server).NameIndexExists(other), 0, "control: the probe removed the server")
+	Do $$$AssertEquals(..Rows(session) _ "|" _ ##class(OcuTalon.Test.Mcp.OpsProbe).Changes().%Size() _ "|" _ ..Entries(server).%Size() _ "|" _ ..Entries(other).%Size(), "0|0|0|0", "no row, CheckChanged or audit entry is written")
 }
 
 /// The removal by Ref, from any admin: the row, the audit entry and the CheckChanged with Stopped 1; no row, or another kind, is not_found.
@@ -457,9 +478,7 @@ Method TestOnlineDemoSources()
 	Set result = ..Run(..#SENDER, ..RemoveCommand(made.Ref, session))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a removal is refused")
 	Do $$$AssertEquals(..Rows(session), 1, "no row was written or removed")
-	Set ^||ZzOps("demo") = 0
 	Kill ^||ZzOps("demo")
-	Do $$$AssertEquals($Data(^||ZzOps("demo")), 0, "the probe's switch is not set, so the real reading of the setting decides")
 	Set ..SavedDemo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Set ..DemoSaved = 1
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
@@ -492,6 +511,15 @@ Method TestCoverageReadsTheSource()
 	Set line = lines.%Get(5)
 	Do $$$AssertEquals(row.entry _ "|" _ row.result, "Jira|not_checked", "the source is the entry Jira, and it is not checked: no run was recorded")
 	Do $$$AssertEquals(line.key _ "|" _ line.slots.entry, "digest.notCheckedMissed|Jira", "with the line that says the check didn't run")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(result.Ref)
+	Set start = row.CreatedAt
+	For minutes = 14, 29, 44 {
+		Set insert = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO OcuTalon_Digest_Data.CheckRun (CheckRef, SessionRef, RanAt, Result, Reason, Finding) VALUES (?, ?, ?, ?, ?, ?)", result.Ref, session, ##class(OcuTalon.Data.Time).AddSeconds(start, minutes * 60), "passed", "", "")
+		Do $$$AssertTrue(insert.%SQLCODE '< 0, "a passed run " _ minutes _ " minutes after the set is recorded")
+	}
+	Set sc = $ClassMethod("OcuTalon.Test.Digest.CoverageProbe", "Build", session, start, ##class(OcuTalon.Data.Time).AddSeconds(start, 45 * 60), .rows, .lines, .vitals)
+	Do $$$AssertStatusOK(sc, "Build over 45 minutes is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry _ "|" _ rows.%Get(5).result _ "|" _ lines.%Get(5).key, "Jira|passed|digest.passed", "runs 15 minutes apart pass by the interval the row was given (15 x 60 + 180 seconds)")
 	Set payload = ##class(OcuTalon.Live.Payload.Check).FromRow(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(result.Ref))
 	Do $$$AssertEquals(payload.Kind _ "|" _ payload.IntervalMinutes _ "|" _ payload.DisplayName, "source|15|Jira", "the payload of the row has the kind source and the interval")
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload is exported")

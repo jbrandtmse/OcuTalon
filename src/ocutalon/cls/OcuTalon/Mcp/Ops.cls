@@ -3,9 +3,13 @@
 /// OcuTalon.Msg.CommandResult, and it answers SetSourcePoll and RemoveSourcePoll too (Story 22.5):
 ///   - SetSourcePoll makes one Read-only tool of a registered server a source, or changes that source: the one BackgroundCheck row of Kind source of the command's session
 ///     with that name (Watch.Ops SetSource), in one transaction with its MCP audit entry (change source_set, outcome created or updated; the entry never holds an argument),
-///     then one CheckChanged. It answers saved with the row's Ref, or not_read_only, not_found, bad_name, bad_arguments or bad_interval, and a refusal writes nothing.
+///     then one CheckChanged. It answers saved with the row's Ref, or not_read_only, not_found, bad_name, bad_arguments or bad_interval, and a refusal writes nothing;
+///     a command whose session has no row is failed, and an audit that fails undoes the change (not_audited).
 ///   - RemoveSourcePoll removes the source of a Ref, whatever admin set it, in one transaction with its audit entry (source_removed), then sends a CheckChanged with Stopped 1.
-///     It answers removed, or not_found. RemoveMcpServer removes the sources of the server too, each in its own transaction, once the removal has committed.
+///     It answers removed, or not_found, or not_audited when the audit fails (the source stays). RemoveMcpServer removes the sources of the server too, each in its own
+///     transaction, after the drop of the entry and the wallet secret and before Restart; a source that cannot be removed stays, with one warning that names its Ref.
+///   - Both source verbs pass the same checks as the three verbs below before anything is written (Refusal: the sender, the origin web_admin, the acting user, the
+///     online demo), with the same not_allowed answers. The CheckChanged goes to the Checks item through the seam SendChanged, a private method a test subclass overrides.
 ///   - AddMcpServer, RemoveMcpServer and ClassifyTool come from CommandsIn with Origin web_admin. Each handler re-checks that the sender is CommandsIn,
 ///     that the Origin is web_admin (a bridge context counts as origin tool), that ActingUser is not empty and that the install is not the online demo,
 ///     before it writes anything; a refusal has the outcome not_allowed, and a wrong sender or origin or a missing acting user is also one warning.
@@ -508,7 +512,7 @@ Method RemoveSources(server As %String, request As OcuTalon.Msg.Command.RemoveMc
 				Set sc = exception.AsStatus()
 			}
 			If $$$ISERR(sc) {
-				$$$LOGWARNING("OcuTalon.Mcp.Ops: a source of the removed MCP server could not be removed: " _ ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+				$$$LOGWARNING("OcuTalon.Mcp.Ops: the source " _ ref _ " of the removed MCP server could not be removed: " _ ##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			} ElseIf fields '= "" {
 				Do ..Changed(ref, fields.SessionRef, 1, "source", fields.DisplayName)
 			}

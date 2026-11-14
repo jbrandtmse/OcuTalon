@@ -10,6 +10,8 @@
 ///     digest.notCheckedUnreachable {Jira, 02:10} then checks.everythingElsePassed, which render as the two lines the UX gives, and no all-clear;
 ///   - TestNotCheckedLeadWithFailure (Story 22.5): with a failed row as well, the checks part keeps checks.notEverythingRestPassed, naming the failed and the not-checked
 ///     entries, and has neither the lead nor checks.everythingElsePassed;
+///   - TestNotCheckedLeadTwo (Story 22.5): two not-checked rows and a passed one lead with both not-checked lines, in row order, then checks.everythingElsePassed;
+///   - TestMailboxOnlyNothingWatched (Story 22.5, AD-28): the Mailbox row alone, passed or not, gives digest.nothingWatched and no all-clear;
 ///   - TestQuietDay: everything passed and nothing needs the user: the quiet parts, checks.allPassed as the CatalogKey, and at most 150 words;
 ///   - TestNothingWatched, TestVitalsNotAll: digest.nothingWatched alone, with checks.nothingWatched; the vital signs that did not pass are named;
 ///   - TestGreeting: the greeting of the compose hour in the instance zone, by the three bands;
@@ -456,6 +458,52 @@ Method TestNotCheckedLeadWithFailure()
 	Do $$$AssertEquals(..Part(slots, "checks.everythingElsePassed"), "", "there is no checks.everythingElsePassed part")
 	Do $$$AssertEquals(..Part(slots, "digest.notCheckedUnreachable"), "", "and the not-checked line does not lead the checks part")
 	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
+}
+
+/// Story 22.5: two not-checked rows and a passed one: the checks part is the line of each not-checked row, in row order, then checks.everythingElsePassed.
+Method TestNotCheckedLeadTwo()
+{
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Feed", [(..Watched("not_checked", "Jira", "Couldn't reach its MCP server")), (..Watched("passed", "Orders production")), (..Watched("not_checked", "Mailbox", "Couldn't be read"))])
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled")
+	Set notice = ..Notice(1)
+	Set slots = notice.slots
+	Set keys = ""
+	Set entries = ""
+	Set iterator = slots.parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		Set keys = keys _ $ListBuild(part.key)
+		If part.key = "digest.notCheckedError" Set entries = entries _ $ListBuild(part.slots.entry)
+	}
+	Do $$$AssertEquals($ListToString(keys), "digest.greetingMorning,digest.healthy,digest.checked,digest.notCheckedError,digest.notCheckedError,checks.everythingElsePassed,digest.savedNone,digest.cost", "both not-checked lines lead, then the rest-passed sentence")
+	Do $$$AssertEquals($ListToString(entries), "Jira,Mailbox", "in row order")
+	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
+}
+
+/// Story 22.5 (AD-28): the Mailbox row is not a watch, so a session whose only watched row is the Mailbox gets digest.nothingWatched and never an all-clear,
+/// whether the Mailbox passed or not; with a watched row as well, the Mailbox counts in Render's key as any row does.
+Method TestMailboxOnlyNothingWatched()
+{
+	Set mailbox = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX
+	For result = "passed", "not_checked" {
+		Do $ClassMethod(..#PROBE, "Reset")
+		Set session = ..Session()
+		Do $ClassMethod(..#PROBE, "Feed", [(..Watched(result, mailbox, $Select(result = "passed": "", 1: "Couldn't be read")))])
+		Set host = ..Host()
+		Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled (" _ result _ ")")
+		Set notice = ..Notice(1)
+		Do $$$AssertEquals(..Keys(notice.slots), "digest.greetingMorning,digest.healthy,digest.nothingWatched,digest.savedNone,digest.cost", "a " _ result _ " Mailbox alone: digest.nothingWatched")
+		Do $$$AssertEquals(notice.catalogKey, "checks.nothingWatched", "the CatalogKey is never an all-clear (" _ result _ ")")
+		Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear (" _ result _ ")")
+	}
+	Do $ClassMethod(..#PROBE, "Reset")
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Feed", [(..Watched("passed", "Orders production")), (..Watched("passed", mailbox))])
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled (control)")
+	Set notice = ..Notice(1)
+	Do $$$AssertEquals(notice.catalogKey, "checks.allPassed", "control: with a production watched as well, Render's key stands")
 }
 
 Method TestQuietDay()
