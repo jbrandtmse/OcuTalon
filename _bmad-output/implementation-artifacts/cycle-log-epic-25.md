@@ -183,3 +183,5 @@
 2026-11-14T14:16:28Z	Epic 25	part_ready	story=25.5 head=07a667de ci=success(43599422831,43599422878) bundle_initial=887.84kB epic_25=in-progress open=25.6(waits_26.2) burndown_gate=not_run
 2026-11-14T16:41:12Z	Epic 25	burndown_story_chartered	story=25.7 key=25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block entries=1(DW-1335) branch=OCT-epic25-s257(from_feature_23fafe59+records_68e7be18) source=prompts/dw-1335-burndown-25.md
 2026-11-14T16:41:12Z	Epic 25	ledger_routed_planned	story=25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block entries=1 excess=0 by=lead
+2026-11-14T16:44:26Z	Epic 25	epic_context_compiled	reason=planning_artifact_newer(25.7_chartered) model=opus words=891
+2026-11-14T16:44:26Z	Story 25.7	stage_spawned	stage=plan spawn_at=2026-11-14T16:44:26Z model=opus agent_name=25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block-plan-1 cycle_iteration=1
