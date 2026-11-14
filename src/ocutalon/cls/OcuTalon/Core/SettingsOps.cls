@@ -2485,6 +2485,7 @@ Method SaveRoles(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 	Set data = {}
 	Do data.%Set("changed", +$Get(changed), "boolean")
 	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED, data.%ToJSON())
+}
 
 /// The Message of an on-call save on the online demo (the accepted text settings.onCallOffOnDemo).
 Parameter MESSAGEONCALLOFF = "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.";
