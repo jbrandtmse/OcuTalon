@@ -4173,3 +4173,10 @@
 2026-11-14T18:17:28Z	Epic 36	merge_enqueued	part=36.8 head=8009b184
 2026-11-14T18:21:08Z	Epic 36	epic_merged_to_feature	part=36.8 feature_sha=cf3fee0ee merged_tree_pins=class-rules,boundaries,ci-config,readme_pass verified_on_origin=yes ci=own_run
 2026-11-14T18:21:47Z	Epic 36	owner_decision	via=contest_planner 36.8: DW-1338=accept_4_baselined(low_DW;new_entries_need_ruling) DW-1339=low_post-contest V2=AD-13_sentence_approved trace_case_closed MCP_profile_rule=explicit_profile_never_shared
+2026-11-14T18:27:49Z	Epic 36	epic_merged_to_feature	part=36.8_spine_V2+records feature_sha=eabc5a8db code_change=none(spine+records) lint=10_baseline
+2026-11-14T18:27:49Z	Epic 36	runner_complete	epic=36 stories=36.1-36.8 runner=aa9ed365494c41f91 state=waiting(no_new_epic,quota)
+2026-11-14T18:56:25Z	Epic 26	runner_reported	PLANNER_REPORT story=26.2 head=66b8b113(hold_ref) open=DW-1343(PDF_turn_untrusted_not_Tainted;gate_refuses_UNTRUSTED;options_A/B/C) resolved=DW-1340,1341,1270,1321 ext=ci/mock/mock.mjs(base64_overflow) orchestrator_grant=mock_ext_under_V6
+2026-11-14T18:57:01Z	Epic 26	owner_decision	via=contest_planner DW-1343=option_A+pin(propose_fix_no_approval,call_mcp_tool_risky_refused,no_changing_tool;cite_or_add;else_STOP)+AD-10_sentence mock_ext_granted PHOTOASK_approved DW-1345_accepted 60s_unmeasured_note
+2026-11-14T19:30:47Z	Epic 25	runner_reported	PART_READY story=25.7(DW-1335) head=647d4c9a runs=43627052496,43627052520 narrowings=own-pattern_stacks_only,self-hosted_only DW-1344=med_decision(no-port_leftovers)
+2026-11-14T19:30:47Z	Epic 25	ci_green_verified	sha=647d4c9a
+2026-11-14T19:30:47Z	Epic 25	merge_enqueued	part=25.7 head=647d4c9a
