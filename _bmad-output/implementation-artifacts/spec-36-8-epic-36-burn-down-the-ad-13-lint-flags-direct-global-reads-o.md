@@ -90,6 +90,24 @@ deferred:
 - Given an untracked planted class `src/ocutalon/cls/OcuTalon/Web/ZzPlanted.cls` with `Set id = $Order(^OcuTalonP.SessionD(""))` in `ClassMethod Run()`, when the script runs, then it exits 1 naming `src/ocutalon/cls/OcuTalon/Web/ZzPlanted.cls:<line> OcuTalon.Web.ZzPlanted:Run ^OcuTalonP.SessionD`. Once the file is deleted, the script exits 0 again.
 - Every test added or changed passes on a fresh environment, in either order. All samples live under the script's `mktemp` folder, which is removed on exit.
 
+### Review Findings
+
+Code review 2026-11-14 (Tier 1, full, baseline `6e9ef429c`, HEAD `287dc3078`; four layers): 0 decision-needed, 4 patch (all applied), 0 defer, 7 rejected.
+
+- [x] [Review][Patch] (med) The `web-global-reads` samples were judged against the real registry and `Data/Session.cls`, state they did not create (Rule 19 hermeticity) [docker/tests/test-class-rules.sh:663] -- the samples now use a fixed `WEB_PRODUCTS` of three classes and the real, guarded `product_classes` list is restored for the real-tree scan only. With the registry list emptied, only the guard lines fail.
+- [x] [Review][Patch] (low) The real-tree wiring (`STALE=1` and `name_stale`'s `baseline:` mapping) was exercised by no sample [docker/tests/test-class-rules.sh:655] -- the real-tree command is now `wr_scan`, and a sample asserts `docker/tests/test-class-rules.sh:<n> stale baseline entry ...` through it.
+- [x] [Review][Patch] (low) The header's known limits left out several static-check gaps and filed `$ZObjClassMethod` as a run-time name [docker/tests/test-class-rules.sh:43] -- added: naked `^(sub)`, an `Import`-resolved short name, `<Property>GetStored`, a row opened through a reference property, `[ Language = python ]`, macro expansion. `$ZObjClassMethod` is now listed as a spelling. None of these occurs in a web class today (searched).
+- [x] [Review][Patch] (low) AC 2 and AC 4 had no `mutation:` line (Rule 19) [spec ## Verification] -- both were run red and recorded. AC 5 has no falsifiable assertion of its own, and the lead's `fresh_check` is its evidence.
+
+Rejected:
+- `false` Blind: the triage tally does not match its rows -- the log has 17 low, 4 false and 2 n/a rows, which makes 23.
+- `false` Blind: Auto Run Result not updated after QA -- it covers the implement pass only (Rule 14), and QA's work is in Tests Added and Verification.
+- `false` Auditor: the spec says `done` before review -- that is `bmad-build-auto`'s finalize contract; the tracker holds `review`.
+- `low` Gap (other): the registry count guard uses the same filter on both sides -- the registry's own completeness belongs to `test-storage.sh` (registry-row, registry-class). The guard pins `product_classes` against it.
+- `low` Auditor: a repeat of a baselined Class:Method:Target passes -- an accepted limit in Design Notes and the header.
+- `low` Auditor: callee reads are not scanned -- out of scope by the intent and DW-1287's wording; veto item V1 and the second `deferred:` item.
+- `low` Auditor: the spine's DW-1287 sentence will be stale after merge -- the spine is out of bounds; veto item V2.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -175,6 +193,10 @@ Shared surfaces: the script's set of PASS/FAIL lines (one new line; `ci/checks.s
 - mutation: key the baseline by `Class:Method` only → the `ZzKnown` known-plus-`%OpenId` sample goes red.
 - mutation: match the web package by prefix (`OcuTalon.Web` without the dot) → the `OcuTalon.Webhook.ZzX` clean sample goes red.
 - mutation (QA): six hand-edits of `web_reads`, each run red and reverted byte-identical (`cmp` against a copy, `git diff --stat` back to the added samples only): (1) bound the package match to two levels below `OcuTalon.Web` → `ZzC` sample "does not flag" (nested sub-package); (2) `while` to `if` on the global loop → `ZzMixed` flagged on 3 lines, wanted 4 (several reads on one line); (3) flag `%Open*`/`%Exists*` on any `OcuTalon.*` class → `ZzClean` flagged (an `%OpenId` on a class not in `short-names.tsv`); (4) accept any `*Open`/`*Exists` form on a product class → `ZzClean` flagged (an index the class does not declare); (5) match the baseline by Class and Target, not Method → the `ZzKnown:Other` check is empty; (6) match it by Method and Target, not Class → the `ZzKnownB` sample "does not flag".
+- mutation (review, AC 2): change the unchecked-prepare PASS text in a copy of the script → its eight existing PASS lines differ from those of the baseline_revision script (unmutated, they are byte-identical).
+- mutation (review, AC 4): with the planted `ZzPlanted.cls` present, list the real-tree files with `git ls-files src` instead of `scan_files src` → the script exits 0 and the planted read goes unnamed. Unmutated, it exits 1 naming `src/ocutalon/cls/OcuTalon/Web/ZzPlanted.cls:6 OcuTalon.Web.ZzPlanted:Run ^OcuTalonP.SessionD`, and exit 0 returns once the file is deleted.
+- mutation (review, AC 3): drop `STALE=1` from `wr_scan`, or drop its `| name_stale` → `FAIL web-global-reads: the real-tree scan does not name a stale baseline entry at its line in this script`.
+- AC 5: no mutation applies, because the criterion has no assertion of its own. The samples live in per-sample folders under the `mktemp` folder and use a fixed product list, and the lead's `fresh_check` runs them in both orders.
 
 ## Tests Added
 

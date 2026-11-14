@@ -42,9 +42,11 @@
 #     of ALLOW_WEB_READS are the sanctioned methods, and the Class:Method:Target entries of BASELINE_WEB_READS are the reads that are
 #     reported and not yet moved; an entry that matches no read fails as stale. Known limits of a static check: methods that the web
 #     process calls in other packages are not scanned; nor are a global or class name that is built at run time (concatenation,
-#     indirection, a variable in $ClassMethod, $ZObjClassMethod), a call split over several lines, embedded or dynamic SQL, an index that
-#     a product class inherits (none does today), or a comment after code on the same line (it is scanned as code); and a baseline
-#     entry passes every repeat of its own Class:Method:Target.
+#     indirection, a variable in $ClassMethod), a naked global reference ^(sub), the spelling $ZObjClassMethod, a short class name that
+#     an Import resolves, a <Property>GetStored call, a row opened by following a reference property, a [ Language = python ] method, a
+#     macro that expands to a read, a call split over several lines, embedded or dynamic SQL, an index that a product class inherits
+#     (none does today), or a comment after code on the same line (it is scanned as code); and a baseline entry passes every repeat of
+#     its own Class:Method:Target.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -649,9 +651,16 @@ wr_class() { # wr_class <sample> <Class> <method> <line>...: a class with one me
   shift 3
   write_class "wr/$sample" "$class" "ClassMethod $method()" '{' "$@" '}'
 }
+# wr_scan <file>...: the scan of the real tree, with the stale check and each stale entry named at its line in this script.
+wr_scan() {
+  STALE=1 web_reads "$@" | name_stale
+}
 mkdir -p "$tmp/wr"
 real_allow_web=$ALLOW_WEB_READS
 real_base_web=$BASELINE_WEB_READS
+# The samples use a fixed list of product classes, so they do not depend on the registry; the real scan uses the guarded registry list.
+real_products=$WEB_PRODUCTS
+WEB_PRODUCTS="OcuTalon.Data.Session RefIndex;OcuTalon.Data.Webhook;OcuTalon.Data.Ownership"
 ALLOW_WEB_READS=""
 BASELINE_WEB_READS=""
 wr_a=$(wr_class a OcuTalon.Web.ZzA Run '	Set id = $Order(^OcuTalonP.SessionD(""))')
@@ -756,6 +765,10 @@ if [ "$(STALE=1 web_reads "$wr_known_gone")" != "baseline:OcuTalon.Web.ZzKnown:R
   echo "FAIL web-global-reads: a baseline entry whose read is gone is not reported stale"
   fails=$((fails + 1)); samples_ok=0
 fi
+if [ "$(wr_scan "$wr_known_gone")" != "docker/tests/test-class-rules.sh:$(grep -n -F 'SAMPLE_BASELINE_WEB_READS=' "$0" | head -n 1 | cut -d: -f1) stale baseline entry OcuTalon.Web.ZzKnown:Run:OcuTalon.Data.Session.RefIndexOpen" ]; then
+  echo "FAIL web-global-reads: the real-tree scan does not name a stale baseline entry at its line in this script"
+  fails=$((fails + 1)); samples_ok=0
+fi
 # A baselined read is keyed by class and method too: the same read in another method, or in another class, is named.
 wr_known_method=$(write_class wr/known-method OcuTalon.Web.ZzKnown 'ClassMethod Run()' '{' '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '}' 'ClassMethod Other()' '{' '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '}')
 wr_known_class=$(wr_class known-class OcuTalon.Web.ZzKnownB Run '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)')
@@ -766,12 +779,13 @@ fi
 expect_flagged "web-global-reads" web_reads "$wr_known_class" 1
 ALLOW_WEB_READS=$real_allow_web
 BASELINE_WEB_READS=$real_base_web
+WEB_PRODUCTS=$real_products
 if [ "$samples_ok" -eq 1 ]; then
   hits=$(
     IFS='
 '
     set -f
-    STALE=1 web_reads $(scan_files src | grep '\.cls$') | name_stale
+    wr_scan $(scan_files src | grep '\.cls$')
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
