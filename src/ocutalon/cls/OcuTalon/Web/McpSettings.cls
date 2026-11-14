@@ -12,6 +12,15 @@
 ///   - DELETE /v1/settings/mcp/servers/<server> answers 200 {"result":"removed","message"}; a name that no server has is 404 not_found.
 ///   - POST /v1/settings/mcp/classify takes exactly {"server", "tool", "classification"}, all strings, and answers 200 {"result":"saved","message"}; a classification that is not
 ///     unclassified, read-only or risky, and a body of another shape, are 400 bad_classification, and a server or tool that does not exist is 404 not_found.
+///   - POST /v1/settings/mcp/sources (Story 21.5) takes exactly {"server", "tool", "name", "arguments", "intervalMinutes"}: four strings and a whole number. It submits one SetSourcePoll and
+///     answers 200 {"result":"saved","message","ref"}; saving a name again updates its source. A body of another shape is 400 bad_source with fields {}; an @{ in the name or the arguments
+///     is 400 bad_source with that field's settings.refusedExpansion; arguments that are not "" or the text of a JSON object are 400 bad_source with {arguments: settings.sourceBadArguments};
+///     nothing is submitted. A name of more than Mcp.Ops NAMEMAX characters (after its edge spaces are stripped, as McpOps does) is 400 bad_source with {name: Mcp.Ops MESSAGESOURCENAME}, since the command
+///     cannot hold it. McpOps judges the rest (a tool that is not Read-only, a blank name, the interval, the arguments' size and secret://) and its message is relayed in 400
+///     bad_source with the field {tool}, {name}, {intervalMinutes} or {arguments}; a server or tool that does not exist is 404 not_found.
+///   - DELETE /v1/settings/mcp/sources/<ref> submits one RemoveSourcePoll and answers 200 {"result":"removed","message"}; a Ref that is not a source row of the caller's own session
+///     (another session's, another kind's, an unknown one) is 404 not_found and nothing is submitted.
+///   - GET also lists the caller's own session's sources in "sources" ([{ref, name, server, tool, intervalMinutes}], by name, never the arguments).
 ///   - On the online demo every route answers 409 not_available with the text settings.mcpOffOnDemo, before anything is read, offered or submitted.
 /// A server's secret reaches McpOps only through OcuTalon.Core.SecretHandoff (Api HandOff): put before the command is submitted, discarded on every path after it, an error
 /// included. The command holds the handoff uri and no secret, and no answer, log line or audit entry holds the secret. Any other outcome, an error status and an exception
@@ -37,6 +46,8 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/servers" Method="POST" Call="Add"/>
 <Route Url="/servers/:server" Method="DELETE" Call="Remove"/>
 <Route Url="/classify" Method="POST" Call="Classify"/>
+<Route Url="/sources" Method="POST" Call="SetSource"/>
+<Route Url="/sources/:ref" Method="DELETE" Call="RemoveSource"/>
 </Routes>
 }
 
@@ -125,6 +136,79 @@ ClassMethod Classify() As %Status
 	Quit ..Answer(result, "classify")
 }
 
+/// POST /v1/settings/mcp/sources: see the class description.
+ClassMethod SetSource() As %Status
+{
+	Set refused = ..Refusal()
+	If refused '= "" Quit refused
+	If '..SettingsBody(.body) || (body.%Size() '= 5) || (body.%GetTypeOf("server") '= "string") || (body.%GetTypeOf("tool") '= "string") || (body.%GetTypeOf("name") '= "string") || (body.%GetTypeOf("arguments") '= "string") || (body.%GetTypeOf("intervalMinutes") '= "number") || (body.intervalMinutes '= (body.intervalMinutes \ 1)) Quit ..BadSource({})
+	Set fields = {}
+	For member = "name", "arguments" {
+		If body.%Get(member) [ "@{" Do fields.%Set(member, ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.refusedExpansion", "@{"))
+	}
+	If 'fields.%IsDefined("name") && ($Length($ZStrip(body.name, "<>W")) > ##class(OcuTalon.Mcp.Ops).#NAMEMAX) Do fields.%Set("name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCENAME)
+	If 'fields.%IsDefined("arguments") && '..ArgumentsAreObject(body.arguments) Do fields.%Set("arguments", ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.sourceBadArguments"))
+	If fields.%Size() Quit ..BadSource(fields)
+	If '$Match(body.server, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) || (body.tool = "") || ($Length(body.tool) > ..#TOOLMAX) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set command = ##class(OcuTalon.Msg.Command.SetSourcePoll).%New()
+	Set command.Server = body.server
+	Set command.Tool = body.tool
+	Set command.Name = $ZStrip(body.name, "<>W")
+	Set command.Arguments = body.arguments
+	Set command.IntervalMinutes = body.intervalMinutes
+	Set command.ActingUser = $USERNAME
+	Set sc = ..Context(command)
+	If $SYSTEM.Status.IsOK(sc) Set sc = ..HandOff(command, , .result, 1)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Answer(result, "set")
+}
+
+/// DELETE /v1/settings/mcp/sources/:ref: see the class description.
+ClassMethod RemoveSource(ref As %String) As %Status
+{
+	Set refused = ..Refusal()
+	If refused '= "" Quit refused
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '..OwnSource(sessionRef, $Get(ref), .sc) {
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	}
+	Set command = ##class(OcuTalon.Msg.Command.RemoveSourcePoll).%New()
+	Set command.SourceRef = ref
+	Set command.ActingUser = $USERNAME
+	Set sc = ..Context(command)
+	If $SYSTEM.Status.IsOK(sc) Set sc = ..HandOff(command, , .result, 1)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Answer(result, "removeSource")
+}
+
+/// 1 when ref is a source row of the session's own checks (Ownership.Checks); sc is an error status when the read failed.
+ClassMethod OwnSource(sessionRef As %String, ref As %String, Output sc As %Status) As %Boolean [ Private ]
+{
+	Set rows = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	Set found = 0
+	For index = 1:1:rows.Count() {
+		Set row = rows.GetAt(index)
+		If (row.Ref = ref) && (row.Kind = "source") Set found = 1
+	}
+	Quit found && (ref '= "")
+}
+
+/// 1 when text is "" or the text of a JSON object.
+ClassMethod ArgumentsAreObject(text As %String) As %Boolean [ Private ]
+{
+	If text = "" Quit 1
+	Set object = ""
+	Try {
+		Set object = {}.%FromJSON(text)
+	} Catch exception {
+		Set object = ""
+	}
+	Quit $IsObject(object) && object.%IsA("%Library.DynamicObject")
+}
+
 /// Sets the CSP session's Ref on the command (AD-4: never from the client).
 ClassMethod Context(command As OcuTalon.Msg.Command) As %Status [ Private ]
 {
@@ -161,7 +245,9 @@ ClassMethod AddFields(name As %String, address As %String, secretType As %String
 	Quit fields
 }
 
-/// The answer from the CommandResult (kind is list, add, remove or classify): listed is 200 with the Data; added, removed and saved are 200 {"result", "message"}; bad_name,
+/// The answer from the CommandResult (kind is list, add, remove, classify, set or removeSource): listed is 200 with the Data; added, removed and saved are 200 {"result", "message"}
+/// (a saved set adds "ref"); for kind set, not_read_only, bad_name, reserved_name, bad_interval and bad_arguments are 400 bad_source with the field {tool}, {name}, {intervalMinutes} or
+/// {arguments} and McpOps' text; for the other kinds bad_name,
 /// bad_address and exists are 400 bad_mcp_server with the field and McpOps' text; bad_classification is 400; not_found is 404; not_available is 409 with the result's message; every
 /// other outcome, and no result, is 500 server_error.
 ClassMethod Answer(result As OcuTalon.Msg.CommandResult, kind As %String) As %Status [ Private ]
@@ -173,10 +259,20 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult, kind As %String) As %St
 		Write result.Data
 		Quit $SYSTEM.Status.OK()
 	}
+	If result.Ok && (kind = "set") && (outcome = "saved") {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": (outcome), "message": (result.Message), "ref": (result.Ref)}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
 	If result.Ok && ((outcome = "added") || (outcome = "removed") || (outcome = "saved")) {
 		Set %response.ContentType = ..#CONTENTTYPE
 		Write {"result": (outcome), "message": (result.Message)}.%ToJSON()
 		Quit $SYSTEM.Status.OK()
+	}
+	If (kind = "set") && ((outcome = "not_read_only") || (outcome = "bad_name") || (outcome = "reserved_name") || (outcome = "bad_interval") || (outcome = "bad_arguments")) {
+		Set fields = {}
+		Do fields.%Set($Case(outcome, "not_read_only": "tool", "bad_interval": "intervalMinutes", "bad_arguments": "arguments", : "name"), result.Message)
+		Quit ..BadSource(fields)
 	}
 	If (outcome = "bad_name") || (outcome = "bad_address") || (outcome = "exists") {
 		Set fields = {}
@@ -193,6 +289,12 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult, kind As %String) As %St
 ClassMethod BadServer(fields As %DynamicObject) As %Status [ Private ]
 {
 	Quit ..Fail(400, "bad_mcp_server", ..#MESSAGEBADSETTINGS, , {"fields": (fields)})
+}
+
+/// 400 bad_source with the plain not-saved message and the refused fields, each with its text.
+ClassMethod BadSource(fields As %DynamicObject) As %Status [ Private ]
+{
+	Quit ..Fail(400, "bad_source", ..#MESSAGEBADSETTINGS, , {"fields": (fields)})
 }
 
 }

@@ -404,22 +404,45 @@ export interface McpToolRow {
   status: string;
 }
 
-/** The 200 answer to GET /ocutalon/api/v1/settings/mcp: the servers sorted by name, and the tools of all of them, server by server in that order and by name within a server. */
+/** One source poll of the caller's session in GET /ocutalon/api/v1/settings/mcp (Story 21.5); the arguments are never listed. */
+export interface McpSourceRow {
+  ref: string;
+  name: string;
+  server: string;
+  tool: string;
+  intervalMinutes: number;
+}
+
+/** The body of a POST to /ocutalon/api/v1/settings/mcp/sources: exactly these five members (Story 21.5). */
+export interface McpSourceBody {
+  server: string;
+  tool: string;
+  name: string;
+  arguments: string;
+  intervalMinutes: number;
+}
+
+/**
+ * The 200 answer to GET /ocutalon/api/v1/settings/mcp: the servers sorted by name, the tools of all of them, server by server in that order and by name within a server,
+ * and the caller's own source polls sorted by name.
+ */
 export interface McpSettings {
   servers: McpServerRow[];
   tools: McpToolRow[];
+  sources: McpSourceRow[];
 }
 
-/** The 200 answer to the MCP settings changes: `added`, `removed` or `saved`, with the server's own message. */
+/** The 200 answer to the MCP settings changes: `added`, `removed` or `saved`, with the server's own message, and a saved source's `ref`. */
 export interface McpChanged {
   result: 'added' | 'removed' | 'saved';
   message: string;
+  ref?: string;
 }
 
 /** The error body of a refused MCP settings call: `{error: {code, message}}`, and for `bad_mcp_server` the refused fields, each with its text. */
 export interface McpError {
   error: { code: string; message: string };
-  fields?: { name?: string; address?: string; secret?: string };
+  fields?: { name?: string; address?: string; secret?: string; tool?: string; arguments?: string; intervalMinutes?: string };
 }
 
 /** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */

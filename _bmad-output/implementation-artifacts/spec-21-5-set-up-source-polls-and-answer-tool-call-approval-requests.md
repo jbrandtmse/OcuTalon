@@ -2,7 +2,8 @@
 title: 'Story 21.5: Set up source polls in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4d76f3c9c61f043576693f422566fbe7cf9a489b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -210,6 +211,34 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-14 — Review pass
+- verdicts: 28 findings (Blind Hunter 10, Edge Case Hunter 8, Verification Gap 10; the Intent Alignment Auditor is descriptive and reported none) - high 0, medium 3, low 25, false 0, maybe-false 0; 8 findings in 5 entries patched, 20 rejected with their reason
+- findings:
+  - `[low]` `reject` Blind 1: the source buttons' accessible name T5 does not contain the visible "Use as a source" — T5 and the visible text are ruled verbatim (ruling D); fixing it edits the spec.
+  - `[low]` `reject` Blind 2 and Edge 4: the open source form is not closed when its server is removed or its tool reclassified — Save answers 404 or McpOps' not_read_only message, shown form-level; honest and rare, and a fix adds branches.
+  - `[low]` `reject` Blind 3: Remove of a source already gone shows the 404 text — rare race, honest message; the spec asks a failure to show the server's message.
+  - `[low]` `reject` Blind 4: saving an existing name retargets the source silently — spec-bound (22.5's natural key; Decided 6: saving the same name updates); `by-design`.
+  - `[low]` `reject` Blind 5 and Edge 1: an empty DisplayName breaks the sort subscripts — unreachable: McpOps refuses a name under 1 character, and McpOps is the only writer (`wontfix-theoretical`).
+  - `[low]` `patch` Blind 6 and VG 4 (one root cause): the route's name-length (NAMEMAX) and tool-length (TOOLMAX) refusals have no test — tests added with `mutation:` lines (finding 3, 6e).
+  - `[low]` `reject` Blind 7 and Edge 2: `intervalText` prints "1 minutes" or an empty value for an odd interval — T4 words "{n} minutes" are ruled; McpOps allows only 5-1,440 and always writes the interval.
+  - `[low]` `reject` Blind 8: the spine rows are appended without a separator and omit the 200/400/404 bodies — S1 and S2 are ruled additive text appended as written (spec Design Notes); the lint count is unchanged (10, as at HEAD).
+  - `[medium]` `patch` Blind 9 and VG 1 (one root cause): the source form's failure, denied/off, Cancel-focus, field-mapping and post-Remove focus paths run in no test — B13 added, B11 extended (finding 1).
+  - `[low]` `reject` Blind 10: `mcp-view.ts` imports `intervalText` from `rail-view.ts` and the duration words appear in two places — spec-bound (Decided 13: defined once, imported); `by-design`.
+  - `[low]` `reject` Edge 3: a double press of Remove can show a 404 line — theoretical; the reload follows at once.
+  - `[low]` `reject` Edge 6: with the Unclassified-only filter on, the opener's button may be absent and focus is lost after Save or Cancel — rare; the reload and heading keep the page usable; a fix adds a branch.
+  - `[low]` `patch` Edge 5: a stale "Saved" line stays beside a later Remove result or save error — `sourceDone` cleared at the start of both (finding 4).
+  - `[low]` `reject` Edge 7: `Fixture.Clean()` with no refs in `SettingsMcp.OnAfterOneTest` — the established pattern (91 uses in the test tree).
+  - `[low]` `reject` Edge 8: the route trims the name and arguments, so "exactly the entered values" is edge-trimmed — McpOps trims the name itself; the recorded-command tests use untrimmed-equal values; cosmetic.
+  - `[medium]` `patch` VG 3: M7, M8 and B11's `leftovers(...).sources === 0` run after `dropMcpServer`, which uses the same predicate, and M4, M5 and B4 assert it for servers that never had a source — checks moved before the drop and the vacuous ones removed (finding 2).
+  - `[low]` `patch` VG 2: pinning tests with no `mutation:` line (arguments-object check, the outcome-word mapping, Context on RemoveSource, the `intervalText` branches) — lines written with demonstrated mutations (finding 6).
+  - `[low]` `patch` VG other 1: `SettingsMcp.OnAfterOneTest` claims a fixture-session check that `Leftovers()` does not make — assertion text restored (finding 5).
+  - `[low]` `reject` VG other 2: the "a press opens nothing" assertion on a disabled control has no wait — the aria-disabled assertion and the `canBeSource` mutation carry the AC; no fix adds evidence.
+  - `[low]` `reject` VG other 3: `api-client-sources.test.mjs` compares method text — it is the DW-231 guard; B11 and M7 run both calls for real.
+  - `[low]` `reject` VG other 4: `seedForeignSource` leaves a recorded Fixture entry that `dropMcpServer` already deleted — harmless; the later `Fixture.Clean` deletes by id and tolerates a missing row.
+  - `[low]` `reject` VG other 5: a `bad_source` with only a `tool` error focuses Source name — unreachable from the UI (a risky tool has no enabled control).
+  - `[low]` `reject` VG other 6: `TestSavedSourceInCoverage` not added — 22.5's `Test.Mcp.SourceSet.TestCoverageReadsTheSource` pins it (Design Notes, Measured), as the spec's condition says.
+- intent-alignment (descriptive): the diff implements the full vertical slice (routes, GET, page, rail, demo). Its divergences are test-surface notes (page behavior only in e2e; the rail line from a synthetic payload at R5; the probe records the last command and counts every submit), already covered by the rows above or by-design.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -263,6 +292,26 @@ No AC contradicts an AD's Rule. The approval ADs (AD-10, AD-11, AD-16, AD-31, AD
   - 22.5 cites `CommandsIn` L359-360 and `Mcp/Ops.cls` `MessageMap` L60-72; on this branch they are :362-363 and :73-86 (21.4 changed both). Lane D re-reads them when it integrates forward.
   - 22.5 adds `IntervalMinutes` to `Live/Payload/Check.cls`, but `web/**` is outside its lane, so the generated `payloads.ts` may be stale after its merge (`payloads.test.mjs` checks the real tree). Task 0 (b) covers it.
   - 22.5 removes a server's sources with the server (`RemoveMcpServer`); the section's reload after a server Remove shows that with no 21.5 change.
+
+**Measured (Task 0, implement stage, 2026-11-14, at `4d76f3c9c`; merged code read only):**
+- (a) 22.5 is merged (via feature 23fafe59b; 22.13 and 25.5 too). 22.11 (the poll run) is NOT merged: `Checks/Process.cls` has no source run (only the `SOURCEKIND` parameter :981-982), and no `TestSeenBefore` exists. So T7 does not ship in 21.5 (Decided 12); the lead files it on 22.11/22.12.
+- (b) `Mcp/Ops.cls`:
+  - `MessageMap` :114-130 maps `SetSourcePoll` to `OnSetSource` :197 and `RemoveSourcePoll` to `OnRemoveSource` :234.
+  - `OnSetSource` outcomes: `not_allowed` (`Refusal` :835-849), `failed`, `not_found` (`MESSAGENOSERVER` :71, `MESSAGENOTOOL` :73), `not_read_only` (`MESSAGENOTREADONLY` :79), `bad_name` (`MESSAGESOURCENAME` :81), `reserved_name` (`MESSAGESOURCERESERVED` :83, new from Story 22.13), `bad_arguments` (:85), `bad_interval` (:87), `not_audited`, and `saved` with `Ref` (`Answer` :896 sets `Ref`; `SaveSource` :471).
+  - `OnRemoveSource` outcomes: `removed` (`MESSAGESOURCEREMOVED` :91), `not_found` (`MESSAGENOSOURCE` :89), `failed`, `not_audited`, `not_allowed`.
+  - The messages are those of the spec's "Read at refresh", plus `MESSAGESOURCERESERVED` "That name belongs to the connected mailbox. Choose another name." (a refusal of a name, in the `bad_name` family).
+  - **One difference from the plan: the outcome `reserved_name`** (Story 22.13, DW-1325; the name "Mailbox" in any letter case). The Matrix table has no word for it, and the table's "any other word" would turn it into a 500. Decided in-stage (small, additive, no new text): `Answer` maps it with `bad_name` to `BadSource({name})`, relaying McpOps' message verbatim. Every planned word, column and message is as planned.
+- `Data/BackgroundCheck.cls`: `Server` (40), `Tool` (128), `Arguments` (unbounded) and `IntervalMinutes` (:63), Kind `source`; `Ref` :11, `SessionRef` :14, `DisplayName` :26. As planned.
+- `Live/Payload/Check.cls` :36 `IntervalMinutes` (`intervalMinutes`), :61 set from the row. `web/src/app/live/payloads.ts` :360 already has `intervalMinutes?: number`, so no regeneration.
+- `Checks.Coverage.Build(sessionRef, fromUtc, toUtc, Output rows, Output lines, Output vitals) As %Status` (`Checks/Coverage.cls` :147). 22.5's `Test/Mcp/SourceSet.cls` `TestCoverageReadsTheSource` :500 saves a source through the verb and reads it in the coverage, so T7's condition (a) holds and `TestSavedSourceInCoverage` is not added.
+- (c) `npm run build` at entry: initial total 888.40 kB (not 998.08: Story 36.5 lowered it), so V8's 0.7 kB allows at most 889.10 kB; the `initial-bundle.test.mjs` cap is 921 kB. The `mcp-section` lazy chunk is 19.89 kB.
+
+**Implemented (implement stage, 2026-11-14), decided in-stage:**
+- `Web.McpSettings.SetSource` also refuses a name of more than `Mcp.Ops` NAMEMAX (100) characters after its edge spaces are stripped, as 400 bad_source `{name: Mcp.Ops MESSAGESOURCENAME}`: `SetSourcePoll.Name` has MAXLEN 100, so a longer name cannot be put into the command (it failed to save, a 500). It sends the stripped name, which McpOps strips again. No new text.
+- `SettingsOps.SourceRows` answers `sources: []` for a command with no session (the `SettingsMcp` fixtures send none); with a session, a failed `Ownership.Checks` read is `failed`.
+- A source's Remove focuses the "Your sources" heading; "Saved" shows under the tools table (`data-saved="source"`).
+- `web/e2e/support/iris.ts` `CheckFields` gains `intervalMinutes` (seedCheck and publishCheck), for R5's source row (published as a check event).
+
 
 **Ledger:**
 - Inbox: none.
@@ -359,6 +408,23 @@ Run every command from the worktree root, after `git rev-parse --show-toplevel` 
 - the initial bundle (998.08 kB of 1 MB);
 - a session's `BackgroundCheck` rows: M7 and B11 create `source` rows through the real route and remove them; check-counting tests (rail specs, `Test.Digest.*`) must not see them, so each test removes its rows in `finally`.
 
+Mutations demonstrated at implement (each reverted; format `mutation: <change> -> <test went red>`):
+- mutation: the `@{` loop removed from `SetSource` -> `McpSettingsApi.TestSourceRouteRefusals` red (the `@{` body is submitted and answered otherwise than 400 bad_source).
+- mutation: the DELETE's owner check replaced by `If 0` -> `TestSourceNotYours` red (404 and nothing-submitted assertions, and the other session's row is removed).
+- mutation: `Context` not called on `SetSourcePoll` -> `TestSetAndRemoveSource` and `TestSourceAnswerWords` red (recorded command and session assertions); over HTTP, M7 and M8 red (McpOps answers no session).
+- mutation: the demo check moved after the body read in `SetSource` -> `TestOnlineDemo` red (SetSource with `not json` and `` is 400, not 409), and `TestNotAdminComesFirst`.
+- mutation: the `set` branch placed after `bad_name` -> `BadServer` in `Answer` -> `TestSourceAnswerWords` and `TestSourceMcpOpsRefusals` red (bad_name is bad_mcp_server).
+- mutation: the Kind filter removed from `SettingsOps.SourceRows` -> `SettingsMcp.TestListSources` red.
+- mutation: `"arguments": (row.Arguments)` added to a `SourceRows` row -> `TestListSources` red (member count and no-arguments assertions).
+- mutation: `canBeSource` true for an unclassified tool (`!== 'risky'`) -> `mcp-view.test.mjs` "lets only a Read-only tool..." red; true for a risky tool (`!== 'unclassified'`, bundle rebuilt) -> B11 red (the risky tool's control is enabled).
+- mutation: no `source` branch in `checkRow` -> `rail-view.test.mjs` "reads a source check ..." red.
+- mutation: `withClassification` without `...settings` -> `mcp-view.test.mjs` "keeps the sources" red.
+- mutation: `ArgumentsAreObject` always true (`Quit 1`) -> `McpSettingsApi.TestSourceRouteRefusals` red (the non-object arguments cases are submitted, not 400 bad_source); reverted, `git diff` unchanged by the revert.
+- mutation: the `bad_interval` field word changed to `interval` in `Answer`'s `$Case` -> `TestSourceAnswerWords` and `TestSourceMcpOpsRefusals` red (the outcome-word cases); the `not_found` answer changed from 404 to 400 -> `TestSourceAnswerWords`, `TestSourceMcpOpsRefusals` and `TestRemoveUnknown` red; each reverted, `git diff` unchanged by the revert.
+- mutation: `Context` not called in `RemoveSource` -> `TestSetAndRemoveSource` and `TestSourceAnswerWords` red (the recorded `RemoveSourcePoll` carries no session); reverted, `git diff` unchanged by the revert.
+- mutation: the `1440` branch of `intervalText` removed, and separately the `60` branch -> `rail-view.test.mjs` red (the six-choices case and the source-check case); the `n % 60 === 0` guard removed -> red on the 90-minute case; each reverted, `git diff` unchanged by the revert.
+- mutation: `SetSource`'s name-length check raised to 1000 characters -> `TestSourceRouteRefusals` and `TestSourceMcpOpsRefusals` red (a 101-character name, trimmed or not, is submitted); its tool-length check raised to 100000 -> `TestSourceMcpOpsRefusals` red (a 129-character tool is submitted and is not 404 with nothing submitted); each reverted, `git diff` unchanged by the revert.
+
 Criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Commands:**
@@ -385,5 +451,26 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Story 21.5 lets an admin set up source polls in Settings. `Web.McpSettings` gains `POST /sources` and `DELETE /sources/:ref` (shape, `@{` and JSON-object checks; McpOps judges the rest and its messages are relayed; the DELETE removes only the caller's own `source` row, else 404; both 409 with T1 on the online demo before the body). `SettingsOps.ListMcp` lists the caller's own sources (no arguments). The tools table has a Source column and a form, the page has a "Your sources" group, and the rail's source row reads "Polled every {duration}" (T4's words). T1-T6 and the rail line are in EXPERIENCE; S1 and S2 are in the spine. T7 is not shipped: Story 22.11 is not merged (the lead files it on 22.11/22.12).
+
+**Task 0 finding (decided in-stage, not a STOP).** 22.5's merged McpOps has one outcome the plan lacks: `reserved_name` (Story 22.13, the name "Mailbox"). It maps to 400 `bad_source` `{name}` with McpOps' message; every planned word, column and message is as planned (Design Notes, Measured).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Web/McpSettings.cls`, `Web/Api.cls`: the two routes, `BadSource`, the `Answer` kinds `set` and `removeSource`; doc updates.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: `ListMcp` gains `sources` (`SourceRows`).
+- `web/src/app/api/api-client.ts`, `api-types.ts`: `setMcpSource`, `removeMcpSource` and types.
+- `web/src/app/rail/rail-view.ts`: `intervalText`, `checkScheduleSource`, the `source` branch of `checkRow`.
+- `web/src/app/settings/mcp-view.ts`, `mcp-section.ts` (lazy): texts, `INTERVAL_CHOICES`, `canBeSource`, `sourceBody`, `sourceOutcome`, the Source column, form and "Your sources" group.
+- Tests: `Test/Web/McpSettingsProbe.cls`, `McpSettingsApi.cls`, `Test/Core/SettingsMcp.cls`, `CommandsStep4.cls`; `web/scripts/` (mcp-view, rail-view, ux-strings, api-client-sources, announce-focus-sources); `web/e2e/api/mcp.spec.ts` (M1, M7, M8), `settings/mcp.spec.ts` (B11-B13), `rail/rail.spec.ts` (R5), `support/mcp.ts`, `support/iris.ts`.
+- Docs: `EXPERIENCE.md` (T1-T6 and the rail line), `ARCHITECTURE-SPINE.md` (S1, S2).
+
+**Review.** Four layers; 28 findings: high 0, medium 3, low 25. Patched (5 entries, 8 findings): the failure, focus and field-mapping paths of the source form (B13 and B11's focus check); the vacuous `sources: 0` leftover assertions; the untested name-length and tool-length route refusals; the stale "Saved" line; the missing `mutation:` lines (and one added `intervalText(90)` case, which killed a surviving mutation); an overclaiming assertion text. 20 findings rejected with their reasons in the Review Triage Log (spec-bound texts, theoretical or rare races, established patterns). Nothing deferred.
+
+**Follow-up review recommendation:** false (no high was patched).
+
+**Verification.** On the lane-C warm stack: `McpSettingsApi`, `SettingsMcp`, `CommandsStep4`, `Web.Api` and `HookSettingsApi` passed. `node --test web/scripts/` passed (2102 tests; rerun by the lead at the end). `tsc -p tsconfig.e2e.json --noEmit` and `npm run build` are clean; the initial bundle is 888.96 kB (+0.56 kB over 888.40 kB; cap 889.10 kB for V8, 921 kB for the test). Live on a fresh stack: `sign-in --part 2/16` (M1, M7, M8) and `sign-in-2 --part 9/12` (B11-B13) passed after the patches; `sign-in-2 --part 7/12` (R5) passed at implement. `test-class-rules.sh`, `test-boundaries.sh` and `test-ci-config.sh` passed. `lint_spine.py` reports 10 findings, as at HEAD. Every mutation of `## Verification` was demonstrated red and reverted. Warm and fresh stacks are torn down.
+
+**Residual risks.** The live run of R5 and of the mutation-sensitive live checks (M7 without `SessionRef`, B11 with an enabled risky control) ran at implement, before the review patches, which touched only tests, `sourceDone` clearing and the rail test; the full live parts for M7-M8 and B11-B13 were rerun after. T7 waits for 22.11.
