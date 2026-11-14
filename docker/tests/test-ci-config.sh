@@ -31,6 +31,8 @@
 #     and names that are not run tags, and does nothing when traces are off; cmd_group calls traces_prune after setup_tag;
 #   - teardown: every job that runs ci/iris.sh has a step with `if: always()` that runs ci/iris.sh teardown after the steps that
 #     run it;
+#   - job-start (Story 25.7, DW-1335): in every self-hosted job of every workflow file, the first step with a `run:` other than
+#     `bash ci/changes.sh ...` is exactly `bash ci/iris.sh build`, which sweeps the runner's web port of a cancelled job's stack;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
 #   - wiring: the checks job of ci.yml runs the ShellCheck step of install.sh and its hermetic test (Story 10.1) and ci/checks.sh, the install-macos job
 #     on macos-15 runs that test as OCUTALON_TEST_BASH_MAJOR=3 /bin/bash docker/tests/test-install-script.sh within timeout-minutes: 10, and the web job runs each
@@ -87,7 +89,8 @@
 #     piece keeps only its areas, a bad piece is refused with exit 2) and every area of each shard once, through shard_unit_areas (the
 #     PASS line states the areas, units and classes of each shard, counted from the tree), a new area of lane-a (a stub shard_areas names
 #     one more) is run by lane-a@rest and by no other piece (Story 0.20, AC6), and teardown removes what carries its tag and nothing else, the lane's
-#     warm-iris.lock and the warm state folder included: the warm stack of the tag (an orphan of a killed stage) goes and its lock
+#     warm-iris.lock and the warm state folder included (each project comes down through project_down, which the sweep of `build` uses too, with
+#     `down -v --rmi local --remove-orphans` and the CI override): the warm stack of the tag (an orphan of a killed stage) goes and its lock
 #     and folder are released, and the stack, lock or folder of another tag, of a tag that extends this one, and of the tag with a
 #     w after it (the warm tag of a stage whose fresh tag this is) are kept (ci/iris.sh is sourced with a stub for dc, docker and
 #     run_classes, and a lock folder and a temporary folder of its own);
@@ -312,6 +315,19 @@ END {
       }
       if (!ok) bad(jobs[j], "teardown")
     }
+    if (j in selfhosted) {
+      first = 0
+      firsttext = ""
+      for (key in runtext) {
+        split(key, kk, SUBSEP)
+        if (kk[1] != j) continue
+        t0 = runtext[key]
+        gsub(/^ +| +$/, "", t0)
+        if (t0 ~ /^bash ci\/changes\.sh( |$)/) continue
+        if (first == 0 || kk[2] + 0 < first) { first = kk[2] + 0; firsttext = t0 }
+      }
+      if (first == 0 || firsttext != "bash ci/iris.sh build") bad(jobs[j], "job-start")
+    }
   }
   # An upload of any job (hosted ones included) must stay off traces, home folders and hidden files.
   if (tracename == "") bad(1, "traces")
@@ -390,6 +406,8 @@ jobs:
         uses: actions/checkout@$sha # v7.0.1
         with:
           persist-credentials: false
+      - name: Build
+        run: bash ci/iris.sh build
       - name: Run
         run: bash ci/iris.sh group \${{ matrix.group }}
       - name: Tear down
@@ -443,6 +461,8 @@ make_bad persist-true 'sub(/persist-credentials: false/, "persist-credentials: t
 make_bad persist-missing '$0 == "          persist-credentials: false" { next } { print }'
 make_bad teardown-no-always '$0 == "        if: always()" { next } { print }'
 make_bad teardown-early '$0 == "      - name: Run" { print "      - name: Tear down"; print "        if: always()"; print "        run: bash ci/iris.sh teardown" } $0 == "      - name: Tear down" { skip = 3 } skip > 0 { skip--; next } { print }'
+make_bad job-start-missing '$0 == "      - name: Build" { skip = 2 } skip > 0 { skip--; next } { print }'
+make_bad job-start-late '$0 == "      - name: Build" { print "      - name: Early"; print "        run: bash ci/iris.sh group install" } { print }'
 make_bad teardown-missing '$0 == "      - name: Tear down" { skip = 3 } skip > 0 { skip--; next } { print }'
 insert_after image-docker "      - name: Run" "        uses: docker/login-action@$sha # v3.0.0"
 insert_after image-cache "      - name: Run" "        uses: actions/cache@$sha # v4.0.0"
@@ -606,6 +626,7 @@ for good_upload in upload-good upload-good-bare traces-hidden-false traces-hoste
   fi
 done
 rule teardown "every job that runs ci/iris.sh has an if: always() step that runs ci/iris.sh teardown" teardown-no-always teardown-missing teardown-early
+rule job-start "the first script step of every self-hosted job (after ci/changes.sh) is bash ci/iris.sh build, which sweeps the runner's web port" job-start-missing job-start-late
 rule matrix "the group list of ci.yml is ci/iris.sh groups" matrix-extra matrix-order matrix-block matrix-missing
 
 # --- wiring: the steps of ci.yml are gated by what the classifier says, and run what the jobs are for ---

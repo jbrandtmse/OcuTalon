@@ -2,7 +2,8 @@
 title: "Story 25.7: Epic 25 burn-down: a cancelled CI job's stack no longer blocks its runner's web port"
 type: 'bugfix'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9ae728cbdb9eedd27573531a302a8cf11b100186'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -100,6 +101,32 @@ These rows are hermetic. They run through the real `cmd_build` of a sourced `ci/
 
 ## Review Triage Log
 
+### 2026-11-14 - Review pass
+- verdicts: 22 findings - high 0, medium 1, low 18, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: `project_down` and `rm -f -v` have no time bound - teardown's down line is equally unbounded and the job-level timeout bounds a hung daemon; a timeout adds a branch for an unobserved failure.
+  - `[false]` `[reject]` Blind: the sweep does not release a warm stack's lock and state folder - warm stacks exist on a developer machine only (never CI, Rule 21) and the sweep runs only when GITHUB_ACTIONS=true and RUNNER_ENVIRONMENT=self-hosted.
+  - `[low]` `[reject]` Blind: `job-start` ignores `if:` and `continue-on-error` on the build step - AC5 pins the first script step; ci.yml's classifier gate skips the whole group, so no stack runs and no sweep is needed; a stricter rule adds parsing for a case no workflow has.
+  - `[low]` `[reject]` Blind: every self-hosted job must start with build, with no opt-out - that is AC5; every self-hosted job today runs a stack.
+  - `[low]` `[reject]` Blind: no hermetic row for a throwaway plus a non-throwaway on one port, or two throwaways on one port - one host port has one holder, so the state cannot occur; the lowercase-only shape is the spec's regex.
+  - `[low]` `[reject]` Blind: the spec's AC5 mutation text says "facts awk", the result line says "rules awk" - the fix edits this build's spec outside the Verification record.
+  - `[low]` `[reject]` Blind: no closing line when a kept holder stays on the port - `live_web_port` already prints its FAIL line and the holder listing; a summary line adds a branch.
+  - `[low]` `[reject]` Edge: a zero-padded preset such as 052814 is not swept - no runner derives or presets a padded port; a fix adds arithmetic parsing.
+  - `[low]` `[reject]` Edge: after the rm fallback, a failed `project_down` leaves the port-less mock while `SWEEP removed project` is logged - needs the compose down to fail and the rm to succeed together; a second listing adds a branch.
+  - `[low]` `[reject]` Edge: unbounded `compose down` - same as the Blind finding above.
+  - `[low]` `[reject]` Edge: `job-start` ignores `if:` on the build step (ci.yml's classifier gate) - same as above; skipped groups run no stack.
+  - `[false]` `[reject]` Edge: a multi-line run block starting with build is flagged - the rule compares the whole text on purpose (a first step that is more than `bash ci/iris.sh build` is the sample `job-start-late`).
+  - `[low]` `[reject]` Edge (claim): ci.yml's build is gated on the classifier, so a skipped group sweeps nothing - a skipped group runs no stack; the next group that runs a stack runs build.
+  - `[low]` `[reject]` Edge (claim): preflight runs before the sweep and can exit - the spec's Code Map orders it so, and a job that fails preflight runs no stack.
+  - `[medium]` `[patch]` Verification gap: the throwaway shape check can be loosened with every test green - patched: `notaway` gained `ocutalon-dev-stack` and `ocutalon-demo-123-45` (kept, no down, no rm); mutation recorded.
+  - `[low]` `[patch]` Verification gap: a failed listing after the rm fallback had no test - patched: case `psfail3` (STUB_DOWN_KEEPS=1, STUB_PS_FAIL_FROM=3); mutation recorded.
+  - `[low]` `[reject]` Verification gap, other: AC4's real-runtime evidence is the developer-machine `--live` run, not CI - decided in the spec (no `--live` in CI).
+  - `[false]` `[reject]` Verification gap, other: "bad preset (empty)" depends on the fixture's 52814 fallback - the assertion reads the SWEEP line and cannot pass without the sweep.
+  - `[low]` `[reject]` Intent: the sweep runs after preflight, not first - same as the Edge claim; the intent says "at job start" and the Code Map fixes the order.
+  - `[low]` `[reject]` Intent: the `job-start` rule pins text, not behaviour - AC5 is stated as that text check; the behaviour is AC1 and AC4.
+  - `[low]` `[reject]` Intent: two cases beyond the matrix (two holders, listing fails) and the empty-preset treatment - consistent with the contract, not a defect.
+  - `[low]` `[reject]` Intent: the DW-1335 incident is represented by a stub name only - the contract forbids touching a real runner host.
+
 ## Design Notes
 
 - **Governing ADs (Rule 6):** AD-22. It covers testing and CI: throwaway projects, `ci/iris.sh` as the one recipe, and no `docker inspect` without `--format`. AD-29 (lanes) is not touched. No spine change (Rule 20): the sweep is internal to `ci/iris.sh` and constrains no other story.
@@ -139,6 +166,17 @@ These rows are hermetic. They run through the real `cmd_build` of a sourced `ci/
 - AC5 mutation: comment out the `bad(..., "job-start")` call in the facts awk → the rule leaves `job-start-missing` and `job-start-late` unflagged and FAILs.
 - AC6 mutation: drop `--remove-orphans` in `project_down` → `test-ci-config` "teardown: each project comes down with ..." goes red.
 
+**Mutation results (implement stage):**
+- mutation: AC1 deleted the `runner_sweep` call in `cmd_build` -> test-ci-sweep.sh hermetic "leftover on own port" rows went red (SWEEP removed line, compose call, order, table), plus every other SWEEP-line row
+- mutation: AC2 listed with `--filter label=com.docker.compose.project` instead of `publish=<p>` -> test-ci-sweep.sh "leftover on own port: the 52813 project survives and the port-less project is never named" went red
+- mutation: AC3 replaced the self-hosted guard with `if false` -> test-ci-sweep.sh "local run (unset|hosted|norunnerenv)" rows went red
+- mutation: AC4 `return 0` as the first line of `runner_sweep` -> test-ci-sweep.sh --live went red ("the real job start for A removes its project" and "a container of the project of A is left")
+- mutation: AC5 removed the `bad(..., "job-start")` call in the rules awk -> test-ci-config.sh `job-start` FAIL ("the rule does not flag the sample job-start-missing")
+- mutation: AC6 dropped `--remove-orphans` in `project_down` -> test-ci-config.sh "teardown: a project did not come down with 'down -v --rmi local --remove-orphans' and the CI override" went red
+- mutation: AC2 (non-throwaway shape) loosened `sweep_throwaway`'s regex to `^ocutalon-` -> test-ci-sweep.sh "not a throwaway" rows went red (`ocutalon-dev-stack` and `ocutalon-demo-123-45` were taken down)
+- mutation: AC1 (a failed listing after the rm fallback) replaced the inner listing guard with a bare assignment -> test-ci-sweep.sh "listing fails after the rm" went red (SWEEP removed was logged)
+Each file was restored byte-identical from a saved copy (cmp), and `git status --short` was unchanged.
+
 **Shared surfaces:**
 - `CHECK_SCRIPTS`: the units rule and `ci/checks.sh`.
 - `ci/iris.sh build` output: the REL-4 `budget_job` and `recipe ... -- build` rows.
@@ -149,7 +187,20 @@ Every test that is added or changed passes on a fresh environment in either orde
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (Halt after planning). Epic context reused (epic-25-context.md, valid). Story base for AC6: 7e984da2cb14cecf1dba5ef2daed144220101c3e.
+**Change:** `ci/iris.sh build` now sweeps the runner's fixed web port. On a self-hosted runner with a port in 52800-52819 it removes every throwaway compose project that publishes that port (the leftover's port-less mock goes with it) and logs one `SWEEP` line per outcome. It never fails the job and never runs in `group`, `live`, `shard` or `class`.
+
+**Files:**
+- `ci/iris.sh`: `project_down` (extracted from teardown, same arguments), `runner_sweep`, `sweep_holders`, `sweep_throwaway`; called from `cmd_build` after `preflight`; header updated.
+- `ci/units.sh`: `ci-sweep` in `CHECK_SCRIPTS`.
+- `docker/tests/test-ci-sweep.sh` (new): hermetic mode (PATH docker stub, every matrix row through the real `cmd_build` and `live_web_port`, plus extra rows) and `--live` (own throwaway projects, developer machine only).
+- `docker/tests/test-ci-config.sh`: rule `job-start` with `job-start-missing` and `job-start-late` samples.
+- This spec (Verification mutation lines, Review Triage Log).
+
+**Review:** 22 findings, 2 patched (a non-throwaway shape fixture set, a failed-listing-after-rm case), 0 deferred, 20 rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched, one medium patched).
+
+**Verification (all exit 0):** `test-ci-sweep.sh` hermetic (twice, after the patch too) and `--live` (ports 52819 and 52818, nothing left behind), `test-ci-config.sh` (42 PASS, `job-start` among them), `test-ci-warm.sh`, `test-lib-live.sh`, `test-ci-changes.sh`, `test-boundaries.sh`. Eight mutations, one per AC plus two from review, each red then restored byte-identical.
+
+**Residual risks:** the sweep has no time bound on `compose down` (same as teardown); `--live` is not run in CI by design, so the real-docker path is proved on a developer machine only. Nothing was pushed.

@@ -10,8 +10,9 @@
 #                                         here and in `shard` may be a piece, <shard>@<Area>,... or <shard>@rest (shard_unit_areas
 #                                         of ci/units.sh), which keeps only those areas of the shard
 #   ci/iris.sh port                       the web port that the browser units would publish: 52810 + n (runners 0 to 9), 52819 - n (10 to 19), or auto
-#   ci/iris.sh build                      checks the base image and builds the web bundle from this checkout; in the lane-a jobs ipm-install and
-#                                         ipm-install-p (GITHUB_JOB) it also takes the job's start stamp
+#   ci/iris.sh build                      checks the base image, sweeps the runner's web port (see the sweep paragraph below) and builds the web
+#                                         bundle from this checkout; in the lane-a jobs ipm-install and ipm-install-p (GITHUB_JOB) it also takes
+#                                         the job's start stamp
 #   ci/iris.sh shard <name> [--reverse] [--part k/n]
 #                                         one throwaway; every test class of the shard's areas through %UnitTest.Manager, in
 #                                         name order (reversed with --reverse); one "CLASS <name> passed|failed <s>s" line each.
@@ -39,6 +40,13 @@
 # (52809 down to 52800), so runners 1 to 19 never share a port on one host. Otherwise (n of 20 or more, no number, no RUNNER_NAME, as
 # on a developer machine) the browser units probe for the first free port of 52800-52819, which a fixed-port runner of the same host
 # may be about to publish. A set OCUTALON_TEST_WEB_PORT always wins.
+# Sweep (Story 25.7, DW-1335): only one job runs on a runner at a time, so `build` removes every throwaway compose project that publishes
+# the runner's fixed web port, after the base image check and before the bundle step, when GITHUB_ACTIONS=true, RUNNER_ENVIRONMENT=self-hosted
+# and OCUTALON_TEST_WEB_PORT (after setup_tag) is a number of 52800-52819. A holder is selected by host port (docker ps -a --filter publish=)
+# and removed by project, through the down line of teardown (the leftover's port-less mock goes with it). Only a compose project named like a
+# live_start project (ocutalon-<label>-<tag>-<epoch>-<pid>, no "slot") is removed; every other holder is kept. It never fails the job and
+# never runs in group, live, shard or class. One line per outcome: `SWEEP off: <reason>`, `SWEEP 127.0.0.1:<p>: no leftover`,
+# `SWEEP removed project <P> (it published 127.0.0.1:<p>)`, `SWEEP kept <name> project=<P|none>: <reason>`, `SWEEP FAIL <what>`.
 # Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image, a failed pull of the mock's image or a failed start.
 # OCUTALON_WARM=1 ci/iris.sh class|shard ... runs on the warm throwaway of the tag (ci/warm.sh up) after reloading the changed
 # classes, with no new start, and exits 1 when that stack is missing, stopped or stale or the reload fails; live, group and all never
@@ -394,10 +402,94 @@ job_wall_report() {
   return 0
 }
 
+# --- the sweep of the runner's web port (Story 25.7) ---
+
+# project_down <project>: brings one throwaway project down with teardown's files and options, volumes and local images included.
+project_down() {
+  docker compose -p "$1" -f "$root/docker-compose.yml" -f "$root/docker/tests/compose.throwaway.yml" -f "$root/ci/compose.ci.yml" \
+    down -v --rmi local --remove-orphans >/dev/null 2>&1
+}
+
+# sweep_holders <port>: one "<container>|<compose project or empty>" line per container that publishes the host port; 1 when docker cannot list.
+sweep_holders() {
+  live_bounded docker ps -a --filter "publish=$1" --format '{{.Names}}|{{.Label "com.docker.compose.project"}}' 2>/dev/null
+}
+
+# sweep_throwaway <project>: 0 when the name is shaped like a live_start project and holds no "slot".
+sweep_throwaway() {
+  case $1 in *slot*) return 1 ;; esac
+  printf '%s\n' "$1" | grep -Eq -- '^ocutalon-[a-z0-9-]+-[0-9]{10}-[0-9]+$'
+}
+
+# runner_sweep: on a self-hosted CI runner with a fixed web port, removes every throwaway project that publishes that port and logs
+# each outcome (the SWEEP lines of the header). It always returns 0.
+runner_sweep() {
+  local p=${OCUTALON_TEST_WEB_PORT:-} rows name proj todo="" left
+  if [ "${GITHUB_ACTIONS:-}" != true ] || [ "${RUNNER_ENVIRONMENT:-}" != self-hosted ]; then
+    echo "SWEEP off: not a self-hosted CI runner"
+    return 0
+  fi
+  if [ -z "$p" ]; then
+    echo "SWEEP off: no fixed web port"
+    return 0
+  fi
+  case $p in
+    528[01][0-9]) ;;
+    *)
+      echo "SWEEP off: OCUTALON_TEST_WEB_PORT '${p:0:40}' is not a port of 52800-52819"
+      return 0
+      ;;
+  esac
+  if ! rows=$(sweep_holders "$p"); then
+    echo "SWEEP FAIL could not list what publishes 127.0.0.1:$p"
+    return 0
+  fi
+  if [ -z "$rows" ]; then
+    echo "SWEEP 127.0.0.1:$p: no leftover"
+    return 0
+  fi
+  while IFS='|' read -r name proj; do
+    [ -n "$name" ] || continue
+    if [ -z "$proj" ]; then
+      echo "SWEEP kept $name project=none: not a compose project"
+    elif ! sweep_throwaway "$proj"; then
+      echo "SWEEP kept $name project=$proj: not a throwaway project"
+    elif ! printf '%s\n' "$todo" | grep -qxF -- "$proj"; then
+      todo="$todo$proj
+"
+    fi
+  done <<EOF
+$rows
+EOF
+  for proj in $todo; do
+    project_down "$proj"
+    if ! rows=$(sweep_holders "$p"); then
+      echo "SWEEP FAIL could not list what publishes 127.0.0.1:$p"
+      continue
+    fi
+    left=$(printf '%s\n' "$rows" | awk -F'|' -v q="$proj" '$2 == q { print $1 }')
+    if [ -n "$left" ]; then
+      for name in $left; do docker rm -f -v "$name" >/dev/null 2>&1; done
+      if ! rows=$(sweep_holders "$p"); then
+        echo "SWEEP FAIL could not list what publishes 127.0.0.1:$p"
+        continue
+      fi
+      left=$(printf '%s\n' "$rows" | awk -F'|' -v q="$proj" '$2 == q { print $1 }')
+    fi
+    if [ -n "$left" ]; then
+      for name in $left; do echo "SWEEP FAIL 127.0.0.1:$p still published by $name"; done
+    else
+      echo "SWEEP removed project $proj (it published 127.0.0.1:$p)"
+    fi
+  done
+  return 0
+}
+
 cmd_build() {
   setup_tag
   job_start_stamp
   preflight
+  runner_sweep
   LIVE_REBUILD_WEB=1 ensure_web_bundle || exit 1
   echo "BUILD the web bundle is built from this checkout"
 }
@@ -864,8 +956,7 @@ cmd_teardown() {
   i=0
   projects=$(docker ps -a --filter label=com.docker.compose.project --format '{{.Label "com.docker.compose.project"}}' | sort -u | grep -E -- "$pattern" | grep -v slot)
   for p in $projects; do
-    docker compose -p "$p" -f "$root/docker-compose.yml" -f "$root/docker/tests/compose.throwaway.yml" -f "$root/ci/compose.ci.yml" \
-      down -v --rmi local --remove-orphans >/dev/null 2>&1
+    project_down "$p"
   done
   for name in $(docker ps -a --format '{{.Names}}' | grep -E -- "$pattern" | grep -v slot); do
     if docker rm -f -v "$name" >/dev/null 2>&1; then c=$((c + 1)); fi
