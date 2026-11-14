@@ -7968,6 +7968,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
+- 2026-11-14T16:46:48Z status=routed owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=merge_gate note=Planner ruling 2026-11-14 ~17:10Z: Epic 36 burn-down Story 36.8; existing violations reported, not fixed
+- 2026-11-14T17:40:27Z status=resolved-by:36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=adjudication note=Story 36.8: rule web-global-reads in docker/tests/test-class-rules.sh flags direct product-storage global reads and row access over product classes in OcuTalon.Web classes; four existing reads baselined (reported, DW-1338); callee reads out of scope (DW-1339); planted-violation self-tests and mutations
 
 ### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
 - source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
@@ -8154,3 +8156,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; 21.10 hold report | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 21.10 build at f82fb8c17: warning only
 - 2026-11-14T16:02:41Z status=routed owner=burndown by=orchestrator note=Planner: accepted as a warning, no budget raise; trim it the next time the card is touched
+### DW-1338: Four web-class methods open or test Data.Session rows directly (generated RefIndexOpen/RefIndexExists): Web.Api:CurrentSession, Web.Live:Frame, Web.Live:Heartbeat (the caller's own row, keyed by Ownership.SessionRef) and Web.Hook:Authenticated (a webhook's owning session exists); held in test-class-rules.sh BASELINE_WEB_READS
+- source: spec-36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o.md (reported, not fixed, per the Planner's ~17:10Z ruling) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls:1556, Web/Live.cls:163, Web/Live.cls:195, Web/Hook.cls:110; none reads beyond the caller's own row
+- 2026-11-14T17:40:27Z status=decision-pending owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=runner note=veto V3 for the Planner: route to one follow-on (own-session opens behind an Ownership accessor, the Hook check behind its owning class) or accept as own-row reads in ALLOW_WEB_READS
+
+### DW-1339: The web-global-reads lint sees only OcuTalon.Web classes, not reads made by methods the web process calls in other packages (AD-13 says both); measured at 36.8: seven callee reads (SettingsOps.Heartbeat, Live.Publish.LastSeq/WakeName/RefreshGuide, Watch.Summary.Text, SettingsOps.Values/Persona via Stored)
+- source: spec-36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o.md (scope limit) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: a static scan cannot follow ..M() chains, calls on objects, $ClassMethod with variable names, indirection or Xecute; DW-1278's own case was a callee read
+- 2026-11-14T17:40:27Z status=decision-pending owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=runner note=veto V1 for the Planner: a follow-on story extending the rule to callees needs a ruling on which Ownership accessors count as allowed (an AD-13 wording question); V2: AD-13's sentence naming DW-1287 is stale after 36.8 merges
