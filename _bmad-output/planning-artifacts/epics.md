@@ -8034,7 +8034,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **When** this story merges
 **Then** a worked example connects a Jira MCP server over HTTPS with its credential as a `secret://` IRIS Wallet reference, classifies its tools (searches read-only; creating, changing or commenting on tickets risky), sets "new tickets assigned to me" as a source poll, and shows the digest's Jira entry and a held risky call (FR-50, FR-48, UX-DR106)
 **And** [AMENDED 2026-11-13, Contest Planner ruling M (4) (Rule 5 split, veto 2 approved): the source half of this criterion -- setting "new tickets assigned to me" as a source poll, the digest's Jira entry and the source half of the release check -- moved to Story 22.12; this story documents the tools half only]
-**And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 36.2 (was 24.1) adds the README link, so it needs no Lane B action (FR-58, AD-29)
+**And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 36.3 (split from 36.2, was 24.1) adds the admin guide's link (GUIDE.md 'For admins and developers', where Story 0.30 moved the README's admin section), so it needs no Lane B action (FR-58, AD-29) [AMENDED 2026-11-14, Story 36.3, Contest Planner gate ruling ~13:00Z: retargeted from the README to the admin guide, GUIDE.md 'For admins and developers', where Story 0.30 moved the README's admin section]
 
 **Given** the security overview, whose MCP section Epic 14 wrote for releases without MCP support
 **When** it is regenerated for this release
@@ -8046,9 +8046,9 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **When** it describes Read-only MCP tools and the attach bound
 **Then** it says plainly that a Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so an admin classifies a tool Read-only only when they trust its server with what OcuTalon reads (the sentence goes to the Contest Planner at this story's spec gate), and it documents Story 22.9's residual: a server that stops answering after its probe passed, within one request, holds that runner until it closes the connection, until Story 22.10 lands (FR-48, FR-61, AD-10, AD-21)
 
-**Given** the worked example's guidance on classifying MCP tools, which the README's admin section (the admin guide) repeats
+**Given** the worked example's guidance on classifying MCP tools, which the admin guide (GUIDE.md 'For admins and developers', where Story 0.30 moved the README's admin section) repeats
 **When** it describes classifying MCP tools
-**Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
+**Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.3 (split from 36.2, was 24.1) copies that sentence into that section with the link (FR-10, FR-61) [AMENDED 2026-11-14, Story 36.3, Contest Planner gate ruling ~13:00Z: retargeted from the README to the admin guide, GUIDE.md 'For admins and developers', where Story 0.30 moved the README's admin section]
 - [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
 - DW-1228: a test confirms that a server tool named `call_mcp_tool` (or any built-in tool name) is refused under the current design ("Refused: a built-in tool has this name"); fix narrowly if it is not (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
 - DW-1221: the guide's MCP section states the measured known limit (a slow server can hold a request about 31 s past the 2 s bound; AD-21 S11), and no text claims a hard MCP deadline (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
@@ -10285,7 +10285,7 @@ So that I classify a tool that runs operating-system commands or arbitrary code 
 
 **Given** Epic 22 merged
 **When** this story runs
-**Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
+**Then** with Epic 22 merged, this story adds the admin guide's link (GUIDE.md 'For admins and developers', where Story 0.30 moved the README's admin section) to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into that section; the link resolves (FR-10, FR-50, FR-58, AD-29) [AMENDED 2026-11-14, Story 36.3, Contest Planner gate ruling ~13:00Z: retargeted from the README to the admin guide, GUIDE.md 'For admins and developers', where Story 0.30 moved the README's admin section]
 
 
 ### Story 36.5: Epic 36 burn-down: load the Settings, History and Usage pages lazily
