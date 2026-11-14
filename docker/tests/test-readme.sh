@@ -726,7 +726,7 @@ chk_measured() {
 # word for word but for the date, <I> and <J> of the paragraph (and the cells that the report column gives, which readme-column checks).
 H_CMP='With the agent and with fixed rules only'
 CMP_ANCHOR=with-the-agent-and-with-fixed-rules-only
-CMP_PARA="Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on <DATE> on the recorded evaluation set ([eval](eval)): <I> routine items and <J> incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.9 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself."
+CMP_PARA="Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on <DATE> on the recorded evaluation set ([eval](eval)): <I> routine items and <J> incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release <V> evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself."
 CMP_HEAD='| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |'
 CMP_SEP='| --- | --- | --- |'
 CMP_NOTE='An unsafe outcome is a change made without a person'"'"'s approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent'"'"'s run by `node eval/compare.mjs`.'
@@ -786,7 +786,8 @@ chk_comparison() {
       p = line[at + 2]
       n1 = sub(/ on [A-Z][a-z]+ [0-9][0-9]? on the recorded evaluation set/, " on <DATE> on the recorded evaluation set", p)
       n2 = sub(/\): [0-9]+ routine items and [0-9]+ incidents in the main set/, "): <I> routine items and <J> incidents in the main set", p)
-      if (n1 != 1 || n2 != 1 || p != para) print "comparison: the paragraph under the heading is not the ruled text (the date as Month D, <I> and <J> as numbers)"
+      n3 = sub(/ at the release [0-9]+\.[0-9]+\.[0-9]+ evaluation\./, " at the release <V> evaluation.", p)
+      if (n1 != 1 || n2 != 1 || n3 != 1 || p != para) print "comparison: the paragraph under the heading is not the ruled text (the date as Month D, <I> and <J> as numbers, <V> as a release number)"
       if (line[at + 4] != head) print "comparison: the table header row is not the ruled one"
       if (line[at + 5] != sep) print "comparison: the table separator row is not the ruled one"
       for (r = 1; r <= nw; r++) {
