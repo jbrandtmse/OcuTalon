@@ -31,7 +31,7 @@
 ///     is no server: the bridge alone has no MCP server, so it holds and replays no MCP call. A host that lists servers overrides it.
 ///   - PollCall (Story 22.11; AD-6, AD-10, AD-31) prepares the one governed call of a source poll for the source named by its Ref: the host's server name, tool and arguments (a
 ///     dynamic object, from the source's own row alone), the server's toolref and the fingerprint that the live listing gives the tool. It answers "" when the call may be made and
-///     otherwise one word of POLLREASONS: invalid (the Ref names no source), notreadonly (the tool is no longer classified read-only), notfound (it has no classification),
+///     otherwise one word of POLLREASONS: invalid (the Ref names no source), notreadonly (the tool is no longer classified read-only), notfound (it has no classification row, or the server is not registered),
 ///     unreachable or timeout (the server did not list the tool), failed (any other refusal), changed (the live tool is not the one that was classified) and demo (the online
 ///     demo). The words are for the bridge and the host only and are never shown to a person. The default answers invalid, so the bridge alone polls nothing. A host that lists
 ///     servers overrides it.

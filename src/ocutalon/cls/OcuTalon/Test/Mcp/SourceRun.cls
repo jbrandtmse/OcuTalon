@@ -28,7 +28,10 @@
 ///     and the admin's notice names the source, the tool, the server and the time; Read-only again polls;
 ///   - TestOldestDueFirst: when more sources are due than one Tick may send, the source with the oldest NextDueAt is sent first, whatever the order of the rows;
 ///   - TestOneInFlightNoQueueStale: with three due sources and polls that wait, one poll is sent at a time, the others keep their NextDueAt and are sent at
-///     the next Tick after an answer, each within the interval plus 180 seconds of the first Tick (Coverage MISSEDSECONDS), and a mark that is older than INFLIGHTSECONDS holds nothing.
+///     the next Tick after an answer; a mark 140 seconds old still holds (INFLIGHTSECONDS is 150) and one 160 seconds old holds nothing, and the third source's send sets its NextDueAt at the Tick that sends it;
+///   - TestSlowQueueNeverStale (DW-1346): five sources due together whose polls queue one behind another, the source in position i running 60 x i seconds later than its interval, are none of them
+///     stale or missed in Coverage.Build, whether the run is in the span (the gap) or before it (Current); with two of them stopped only three count, and with four stopped one counts (the 180 seconds floor); the source that waits longer than the sources that count allow reads not checked, with the allowance's own numbers (max(180, 60 x sources)) as the oracle;
+///   - TestStopNoticeFailureIsOneWarning: an unreadable list of admins at a stop is the one warning of Mcp.Ops Notify and none of Checks.
 Class OcuTalon.Test.Mcp.SourceRun Extends %UnitTest.TestCase
 {
 
@@ -89,6 +92,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		If ref = "" Continue
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Record", $Parameter(..#PROBE, "LOGFINDING")_ref)
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "PollSource", $Parameter(..#PROBE, "LOGPOLLSEND")_ref)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "StopNotice", $Parameter(..#PROBE, "LOGPOLL")_ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN")_ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ?", ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE Ref = ?", ref)
@@ -541,17 +545,18 @@ Method TestOneInFlightNoQueueStale()
 	Set polls = $ClassMethod(..#PROBE, "Polls")
 	Do $$$AssertEquals(polls.%Size() _ "|" _ $Piece(polls.%Get(1).key, "|", 1), "2|" _ two, "after the answer the next due source is sent, one at a time")
 	Do $$$AssertEquals(..Stored(two).NextDueAt, ##class(OcuTalon.Bridge.Time).PlusSeconds(..At(2), 900), "its NextDueAt is set at the send")
-	// a poll that never answers: its mark goes stale
-	Set old = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -(##class(OcuTalon.Checks.Process).#INFLIGHTSECONDS + 10))
-	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 0, "stopped": "", "inflight": (old)}.%ToJSON(), two)
+	// a poll that never answers: its mark goes stale at INFLIGHTSECONDS (150): one 140 seconds old still holds the third source back, one 160 seconds old holds nothing
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 0, "stopped": "", "inflight": (##class(OcuTalon.Data.Time).AddSeconds(now, -140))}.%ToJSON(), two)
+	Do ..Tick(host, ..At(2))
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Polls").%Size(), 2, "a mark 140 seconds old still holds: no third poll")
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 0, "stopped": "", "inflight": (##class(OcuTalon.Data.Time).AddSeconds(now, -160))}.%ToJSON(), two)
 	Do ..Tick(host, ..At(3))
 	Set polls = $ClassMethod(..#PROBE, "Polls")
-	Do $$$AssertEquals(polls.%Size() _ "|" _ $Piece(polls.%Get(2).key, "|", 1), "3|" _ three, "a mark older than INFLIGHTSECONDS holds nothing: the third source is sent")
-	// every source polled within the interval plus 180 seconds of the first Tick: the third source's send is the Tick of step 3, and that Tick is at most 3 minutes after the first
-	Set limit = 900 + ##class(OcuTalon.Checks.Coverage).#MISSEDSECONDS
-	Set waited = ##class(OcuTalon.Data.Time).Seconds(..At(3)) - ##class(OcuTalon.Data.Time).Seconds(..At(0))
+	Do $$$AssertEquals(polls.%Size(), 3, "a mark 160 seconds old holds nothing: a third poll is sent")
+	If polls.%Size() < 3 Quit
+	Do $$$AssertEquals($Piece(polls.%Get(2).key, "|", 1), three, "and it is the third source's")
 	Do $$$AssertEquals(..Stored(three).NextDueAt, ##class(OcuTalon.Bridge.Time).PlusSeconds(..At(3), 900), "the third source's send set its NextDueAt at the Tick of step 3")
-	Do $$$AssertTrue(waited <= limit - 900, "the third source waited " _ waited _ " seconds for its first poll, within the " _ (limit - 900) _ " seconds that the coverage allows beyond the interval")
 	// a send that fails takes the mark off, one warning for each source
 	For ref = one, two, three {
 		Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = '' WHERE Ref = ?", ref)
@@ -561,6 +566,67 @@ Method TestOneInFlightNoQueueStale()
 	Do $$$AssertEquals(..Warnings("PollSource", $Parameter(..#PROBE, "LOGPOLLSEND")), 3, "a send that fails is one warning for each source, and the next source is tried")
 	Do $$$AssertEquals(($ListLength($ListFromString(..Checks)) - ((..Stored(one).Reported [ "inflight") + (..Stored(two).Reported [ "inflight") + (..Stored(three).Reported [ "inflight"))), 3, "and none is left marked in flight")
 	Do $ClassMethod(..#PROBE, "FailPolls", 0)
+}
+
+/// DW-1346 (see the class description): the allowance of a source beyond its interval is max(180 s, 60 s x the sources that are not stopped).
+Method TestSlowQueueNeverStale()
+{
+	Set session = ..Owner("slowqueue")
+	Set first = "2030-06-01T10:00:00Z"
+	Set count = 5
+	Set last = first
+	For i = 0:1:count - 1 {
+		Set ref = ..Source(session, "S" _ i)
+		Do ..Flip(ref, 0)
+		Set late(i) = ref
+		Set second = ##class(OcuTalon.Data.Time).AddSeconds(first, 900 + (60 * i))
+		Do ##class(OcuTalon.Checks.Coverage).RecordRun(ref, session, first, "passed", "")
+		Do ##class(OcuTalon.Checks.Coverage).RecordRun(ref, session, second, "passed", "")
+		If second ] last Set last = second
+	}
+	Set others = ..OtherSources()
+	Do $$$AssertTrue(60 * (count - 1) > 180, "the last source waits longer than the old 180 seconds")
+	// the gap between the two runs of each source (both in the span)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(first, -60)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(last, 30)
+	Do ..AssertQueued(session, from, to, count, others, "in the span")
+	// the latest run before the span stands as the source's latest run (Current): the span is the minute that ends 1150 seconds after the last source's second run
+	Set end = ##class(OcuTalon.Data.Time).AddSeconds(last, 1150)
+	Do ..ResultsOf(session, ##class(OcuTalon.Data.Time).AddSeconds(end, -60), end, .carried)
+	Set limit = 900 + ..Slack(count + others)
+	Do $$$AssertEquals($Get(carried("S" _ (count - 1))), $Select(1150 <= limit: "passed", 1: "not_checked"), "the run of the last source, 1150 seconds before the end of the span, stands (the allowance is " _ limit _ " seconds)")
+	// two of the five stopped: three count, and the allowance is what three give
+	For i = 0:1:1 {
+		Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 1, "stopped": (##class(OcuTalon.Checks.Process).#STOPPEDVALUE)}.%ToJSON(), late(i))
+	}
+	Do ..AssertQueued(session, from, to, count - 2, others, "with two of the five stopped")
+	// four of the five stopped: one counts, and the allowance is the 180 seconds that one source gives (the floor)
+	For i = 2:1:3 {
+		Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 1, "stopped": (##class(OcuTalon.Checks.Process).#STOPPEDVALUE)}.%ToJSON(), late(i))
+	}
+	Do ..AssertQueued(session, from, to, count - 4, others, "with four of the five stopped")
+}
+
+/// A failed read of the admins at a stop is one warning (see the class description).
+Method TestStopNoticeFailureIsOneWarning()
+{
+	Set host = ..Host()
+	Set host.RealSeams = 1
+	Kill ^||ZzOps
+	Set ^||ZzOps("adminsError") = 1
+	Set ref = ..Source(..Owner("onewarn"), "Jira", {"Server": (..#REALSERVER), "Tool": "zz_realtool"})
+	Set class = ##class(OcuTalon.Mcp.ToolClassification).%New()
+	Set class.Server = ..#REALSERVER
+	Set class.Tool = "zz_realtool"
+	Set class.Classification = "risky"
+	Set class.Fingerprint = "zzfp"
+	Do $$$AssertStatusOK(class.%Save(), "the classification row of the tool is risky")
+	Do ..Tick(host, ..At(0))
+	Do $$$AssertEquals(..Stored(ref).Finding, $Parameter(..#PROBE, "REASONNOTREADONLY"), "the run is the stopped one, the notice or not")
+	Do $$$AssertEquals(..Warnings("Notify", "OcuTalon.Mcp.Ops"), 1, "the unreadable list of admins is one warning, Mcp.Ops Notify's")
+	Do $$$AssertEquals(..Warnings("StopNotice", $Parameter(..#PROBE, "LOGPOLL") _ ref), 0, "and Checks adds none")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Notify", "OcuTalon.Mcp.Ops")
+	Kill ^||ZzOps
 }
 
 /// --- helpers ---
@@ -729,6 +795,54 @@ Method Ran(ref As %String) As %Integer
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN") _ ref)
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// Asserts that the coverage of the session from from to to reads each of the sources S0 to S4 passed exactly when its wait (60 seconds x i) is within the allowance that count sources that are
+/// not stopped give with the others of the install (Slack), and not_checked otherwise.
+Method AssertQueued(session As %String, from As %String, to As %String, count As %Integer, others As %Integer, text As %String)
+{
+	Do ..ResultsOf(session, from, to, .results)
+	Set slack = ..Slack(count + others)
+	For i = 0:1:4 {
+		Do $$$AssertEquals($Get(results("S" _ i)), $Select((60 * i) <= slack: "passed", 1: "not_checked"), "(" _ text _ ") the source that waited " _ (60 * i) _ " seconds beyond its interval reads " _ $Select((60 * i) <= slack: "passed", 1: "not_checked") _ " with " _ slack _ " seconds allowed")
+	}
+}
+
+/// The result of each entry of the session's coverage from from to to, by entry name.
+Method ResultsOf(session As %String, from As %String, to As %String, Output results)
+{
+	Kill results
+	Do $$$AssertStatusOK(##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines, .vitals), "the coverage is built")
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Set results(row.entry) = row.result
+	}
+}
+
+/// The seconds beyond the interval that the sources not stopped may wait: max(180, 60 x sources), the Planner's allowance of DW-1346 with its own numbers, so that a change of Coverage's constants shows.
+ClassMethod Slack(sources As %Integer) As %Integer
+{
+	Set slack = sources * 60
+	Quit $Select(slack > 180: slack, 1: 180)
+}
+
+/// The sources of the install of the real Kind that are not this test's and not stopped: the ones that Coverage counts besides the fixtures (none on a fresh stack).
+Method OtherSources() As %Integer
+{
+	Set count = 0
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Reported FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ?", ##class(OcuTalon.Watch.Ops).#SOURCEKIND)
+	While rs.%Next() {
+		If $ListFind($ListFromString(..Checks), rs.%Get("Ref")) Continue
+		Set stopped = 0
+		Try {
+			Set state = ##class(%DynamicAbstractObject).%FromJSON(rs.%Get("Reported"))
+			Set stopped = ($IsObject(state) && (state.%GetTypeOf("stopped") = "string") && (state.stopped '= ""))
+		} Catch {
+			Set stopped = 0
+		}
+		If 'stopped Set count = count + 1
+	}
+	Quit count
 }
 
 /// The number of warnings since the test began that the method logged and that start as given.

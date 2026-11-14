@@ -94,7 +94,7 @@ Method TestPollNoDecisionRow()
 	Set call = ^||ZzDecideCalls("send", 1)
 	Do $$$AssertEquals(^||ZzDecideCalls("send") _ "|" _ $List(call, 1) _ "|" _ $List(call, 3) _ "|" _ $List(call, 4) _ "|" _ $Get(^||ZzDecideCalls("timer")), "1|TriageAgent|1|reply|1", "one send to TriageAgent with the key reply, and one timer")
 	Do $$$AssertEquals($List(call, 2), recorder.DecisionRef, "the request carries the DecisionRef that Decide allocated")
-	Do $$$AssertEquals(..Rows(request.ItemId, recorder.DecisionRef), 0, "no precheck, no fallback and no Decision row exist")
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no precheck, no fallback and no Decision row exist")
 	Set callRequest = request.%ConstructClone()
 	Set callRequest.DecisionRef = recorder.DecisionRef
 	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
@@ -107,7 +107,7 @@ Method TestPollNoDecisionRow()
 	Do $$$AssertTrue($IsObject(out) && out.%IsA("OcuTalon.Bridge.Msg.Reply"), "the answer is a Reply")
 	If $IsObject(out) Do $$$AssertEquals(out.Text _ "|" _ out.Tainted _ "|" _ out.ToolsRun _ "|" _ out.FailureText _ "|" _ out.Fallback _ "|" _ out.DecisionRef, "T-1 open|1|1||0|", "with the runner's text, taint and tools run, no failure, no fallback and no DecisionRef")
 	If $IsObject(out) Do $$$AssertEquals(##class(%DynamicAbstractObject).%FromJSON(out.Steps).%Size(), 1, "and the steps")
-	Do $$$AssertEquals(..Rows(request.ItemId, recorder.DecisionRef), 0, "no Decision row is written")
+	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no Decision row is written")
 	Do $$$AssertEquals(..SinkTypes(), "", "and no decision.recorded is fired")
 	Set steps = 0
 	For n = 1:1:$Get(^||ZzDecideCalls("send")) {
@@ -124,7 +124,7 @@ Method TestPollNoDecisionRow()
 	Do $$$AssertStatusOK(recorder.OnResponse(timed, .out, "", "", "timer"), "(timer) the timer ends it")
 	Do $$$AssertTrue($IsObject(out) && out.%IsA("OcuTalon.Bridge.Msg.Reply"), "(timer) with a Reply")
 	If $IsObject(out) Do $$$AssertEquals(out.Fallback _ "|" _ out.FallbackReason _ "|" _ out.FailureText _ "|" _ out.Text, "1|timeout|timeout|", "(timer) of Fallback 1, FallbackReason timeout and FailureText timeout")
-	Do $$$AssertEquals(..Rows(timed.ItemId, recorder.DecisionRef) _ "|" _ ..SinkTypes() _ "|" _ $Get(^||ZzDecideCalls("send")), "0||1", "(timer) no Decision row, no event and no second send (no retry)")
+	Do $$$AssertEquals(..Rows(timed.ItemId) _ "|" _ ..SinkTypes() _ "|" _ $Get(^||ZzDecideCalls("send")), "0||1", "(timer) no Decision row, no event and no second send (no retry)")
 
 	// a runner that fails: an error status, and a Reply of no object
 	Kill ^||ZzDecideCalls, ^||ZzProbeSink
@@ -137,7 +137,7 @@ Method TestPollNoDecisionRow()
 	Do $$$AssertStatusOK(recorder.OnError(failed, .nothing, callFailed, $$$ERROR($$$GeneralError, "zz runner failure with a url http://zz.example/secret"), "reply"), "(runner error) OnError keeps the status")
 	Do $$$AssertStatusOK(recorder.OnResponse(failed, .out, callFailed, "", "reply"), "(runner error) OnResponse answers")
 	If $IsObject(out) Do $$$AssertEquals(out.FailureText _ "|" _ out.Fallback _ "|" _ out.Text, "failed|0|", "(runner error) with the word failed, never the runner's text")
-	Do $$$AssertEquals(..Rows(failed.ItemId, recorder.DecisionRef) _ "|" _ ..SinkTypes() _ "|" _ $Get(^||ZzDecideCalls("send")), "0||1", "(runner error) no Decision row, no event, no retry and no re-send")
+	Do $$$AssertEquals(..Rows(failed.ItemId) _ "|" _ ..SinkTypes() _ "|" _ $Get(^||ZzDecideCalls("send")), "0||1", "(runner error) no Decision row, no event, no retry and no re-send")
 
 	// the pure answer
 	Set none = $ClassMethod(..#DECIDE, "PollAnswer", "", 0)
@@ -407,28 +407,22 @@ Method Recorder() As OcuTalon.Test.Bridge.ZzDecide [ Private ]
 	Quit recorder
 }
 
-/// The Decision rows of the item or the DecisionRef.
-ClassMethod Rows(itemId As %String, decisionRef As %String) As %Integer [ Private ]
+/// The Decision rows of the item (Test.Agent.RunnerFixture DecisionRowCount; a poll's row would carry the poll's ItemId).
+ClassMethod Rows(itemId As %String) As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ? OR Ref = ?", itemId, decisionRef)
-	Do result.%Next()
-	Quit result.%GetData(1)
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionRowCount(itemId)
 }
 
-/// The event types that the probe sink recorded, comma-separated.
+/// The event types that the probe sink recorded, comma-separated (Test.Bridge.ProbeSink Types).
 ClassMethod SinkTypes() As %String [ Private ]
 {
-	Set types = ""
-	For n = 1:1:+$Get(^||ZzProbeSink) {
-		Set types = types _ $Select(types = "": "", 1: ",") _ $List($Get(^||ZzProbeSink(n)), 1)
-	}
-	Quit types
+	Quit ##class(OcuTalon.Test.Bridge.ProbeSink).Types()
 }
 
-/// The number of events that the probe sink recorded.
+/// The number of events that the probe sink recorded (Test.Bridge.ProbeSink Calls).
 ClassMethod SinkCalls() As %Integer [ Private ]
 {
-	Quit +$Get(^||ZzProbeSink)
+	Quit ##class(OcuTalon.Test.Bridge.ProbeSink).Calls()
 }
 
 /// "<OK>" for an allowed call, "<code ...>" for a status that is no ToolAccessDenied, and otherwise the sentence of the denial.

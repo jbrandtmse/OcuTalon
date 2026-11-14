@@ -751,7 +751,7 @@ ClassMethod KeepRow(server As %String, tool As %String, fingerprint As %String, 
 	Quit ..ClearRow(server, tool, fingerprint, .events)
 }
 
-/// Sends the admin notices of the events (events("unavailable"), events("shadow", tool), events("changed", tool)) to every admin session. A read of the
+/// Sends the admin notices of the events (events("unavailable"), events("shadow", tool), events("changed", tool), events("stopped") as $ListBuild(source, tool, time), which SourceStopped sets) to every admin session. A read of the
 /// admins' sessions that fails is one warning and no notice; a notice that cannot be sent is one warning. Nothing here changes a row.
 ClassMethod Notify(server As %String, ByRef events) As %Status [ Private ]
 {

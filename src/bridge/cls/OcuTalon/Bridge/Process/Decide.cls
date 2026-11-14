@@ -325,6 +325,8 @@ Method AssignOneSetting(pProperty As %String, pValue As %String, pName As %Strin
 /// (Precheck), are given here (response): the second is recorded (RecordFallback) and nothing is sent, no runner request and no timer.
 /// Otherwise the answer comes from OnResponse. The settings are checked first, so that a misconfigured Decide stays an error status and
 /// is never hidden behind a fallback. The DecisionRef is allocated here and kept in DecisionRef, before the send.
+/// The poll of a source (IsPoll: Kind tool, Provenance untrusted; Story 22.11) is a tool request that is never a replay and has no Decision row: it skips the replay lookup's answer (its ItemId is new), the
+/// conversation hold and the precheck, and is sent to the runner like any other; with no runner it is answered at once by PollAnswer (FailureText failed), and a poll never records a fallback.
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
 	Set response = ""
@@ -409,6 +411,8 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 ///     (RunnerError, cut by StepBuffer.Part to Reply.#MAXFAILURE) or the FailureText of its failure Reply. When the runner answered
 ///     with a Reply and no error status, ResendDelay weighs a re-send first (above); a delay above 0 adds the attempt's steps to
 ///     StepCount, sets the timer resend and answers nothing yet.
+/// For the poll of a source (IsPoll; Story 22.11) the keys end differently: timer answers PollAnswer with Fallback 1 and the FailureText timeout, and reply sends the steps (EmitSteps) and
+/// answers PollAnswer from the runner's Reply (or the word failed for an error status or no Reply), with no re-send, no retry, no Decision row and no event; resend never arises.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	Set kind = request.Kind
@@ -793,7 +797,7 @@ ClassMethod IsPoll(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 }
 
 /// The answer to the poll of a source (Story 22.11; AD-6, AD-30): a bare Reply, as the answer for an approved call that never started is, with no Decision row, no decision.recorded event
-/// and no fallback row. runnerReply is the runner's Reply when answered is 1: its Text, Tainted, Steps, ToolsRun, AgentStepCount and FailureText are carried over. Any other answer (the
+/// and no fallback row. runnerReply is the runner's Reply when answered is 1: its Text, Tainted, Steps, ToolsRun, AgentStepCount, DurationMs and FailureText are carried over. Any other answer (the
 /// runner's error status, no Reply, no runner) has the FailureText failed, and the timer (timedOut 1) has Fallback 1, FallbackReason and FailureText timeout. The FailureText is a word
 /// for Checks alone (Poll), never the runner's error text.
 ClassMethod PollAnswer(runnerReply As %RegisteredObject, answered As %Boolean, timedOut As %Boolean = 0) As OcuTalon.Bridge.Msg.Reply

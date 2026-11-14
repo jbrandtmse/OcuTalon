@@ -80,6 +80,8 @@ notification and each `tools/list` page, up to 10 pages) plus a connect bound, s
 trickles bytes holds it longer (S11: 31 s and 36 s measured against 2 s and 20 s). Only Decide's timer (60 s by default) bounds a poll. A poll that runs to that timer can keep the
 mark past the next Tick, so 3 such sources due at once could take up to 4 Ticks (about 240 s), past the 180 s allowance (inference). Check 2 holds for the four measured modes.
 
+Rework note (2026-11-14, DW-1346; the numbers above are unchanged): coverage's allowance for a source is now interval + max(180 s, 60 s x the number of sources that are not stopped), so check 2's "inside interval + 180 s" reads as inside that allowance; for 3 sources it is still 180 s, and the 240 s case above is not covered by it (inference).
+
 So option (a) passes both checks: the story is not halted.
 
 ## Notes

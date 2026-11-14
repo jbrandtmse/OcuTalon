@@ -1182,13 +1182,11 @@ Method SourceClass(server As %String, tool As %String) As %String [ Private ]
 	Quit $Select($IsObject(row): row.Classification, 1: "")
 }
 
-/// Tells the admins that the source stopped polling (a seam for the tests): Mcp.Ops SourceStopped, with the source's name, tool and server and the time. A failure is one warning.
+/// Tells the admins that the source stopped polling (a seam for the tests): Mcp.Ops SourceStopped, with the source's name, tool and server and the time. Its status is not read here: the one
+/// failure it reports, a read of the admins that fails, is already one warning of Mcp.Ops Notify, and a notice that cannot be sent is one warning of its Send, so a failed stop notice is one warning in all.
 Method StopNotice(row As %DynamicObject, time As %String) [ Private ]
 {
-	Set sc = $ClassMethod(..#OPSCLASS, "SourceStopped", row.displayName, row.tool, row.server, time)
-	If $$$ISERR(sc) {
-		$$$LOGWARNING(..#LOGPOLL_row.ref_": the stop notice was not sent")
-	}
+	Do $ClassMethod(..#OPSCLASS, "SourceStopped", row.displayName, row.tool, row.server, time)
 }
 
 /// The answer of a source's poll: the Reply of Decide, with the completion key <Ref>|<sentAt> (see the class description). Any other completion key is not Checks' own and does nothing.
