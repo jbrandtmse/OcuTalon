@@ -4171,3 +4171,5 @@
 2026-11-14T18:17:28Z	Epic 36	runner_reported	PART_READY story=36.8 head=8009b184 runs=43622582261,43622582258 DW-1287=resolved baseline=4_Session_reads DW-1338,1339=decision-pending trace_check=fake_creds_only(compose.ci.yml:7,24,29) iris_query=default_profile(localhost:52773_community_container;not_ocutalon-aihub-test_52779)
 2026-11-14T18:17:28Z	Epic 36	ci_green_verified	sha=8009b184
 2026-11-14T18:17:28Z	Epic 36	merge_enqueued	part=36.8 head=8009b184
+2026-11-14T18:21:08Z	Epic 36	epic_merged_to_feature	part=36.8 feature_sha=cf3fee0ee merged_tree_pins=class-rules,boundaries,ci-config,readme_pass verified_on_origin=yes ci=own_run
+2026-11-14T18:21:47Z	Epic 36	owner_decision	via=contest_planner 36.8: DW-1338=accept_4_baselined(low_DW;new_entries_need_ruling) DW-1339=low_post-contest V2=AD-13_sentence_approved trace_case_closed MCP_profile_rule=explicit_profile_never_shared
