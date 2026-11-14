@@ -761,6 +761,7 @@ export class McpSection {
       return new Observable<void>((subscriber) => subscriber.complete());
     }
     this.sourceDone.set('');
+    this.sourcesError.set('');
     this.sourceNameError.set('');
     this.sourceArgumentsError.set('');
     this.sourceIntervalError.set('');

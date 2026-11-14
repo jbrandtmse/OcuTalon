@@ -671,6 +671,7 @@ Method TestSetAndRemoveSource()
 	Set body = ..Call("SetSource", ..SourceBody(server, "zz_lookup", "Jira", "", 60), , , .response)
 	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).ref, "200 OK|"_ref, "saving the name again is 200 with the same Ref")
 	Set source = ..SourceOf(..Call("List", , , , .response), ref)
+	Do $$$AssertTrue($IsObject(source), "GET still lists the updated source")
 	If $IsObject(source) Do $$$AssertEquals(source.intervalMinutes, 60, "and the list shows the new interval")
 	Do $$$AssertEquals(..SourceRows(), 1, "there is still one source row")
 	// the remove
@@ -693,7 +694,7 @@ Method TestSetAndRemoveSource()
 	Do $$$AssertEquals(..SourceRows(), 0, "the padded source is removed again")
 }
 
-/// mutation: the @{ check moved after the submit -> the "nothing submitted" assertion is red; Context not called on SetSourcePoll -> TestSetAndRemoveSource's session assertion is red.
+/// mutation: the @{ check moved after the submit -> the "nothing submitted" assertion is red.
 Method TestSourceRouteRefusals()
 {
 	If '..Guard() Quit
@@ -759,7 +760,6 @@ Method TestSourceMcpOpsRefusals()
 		$ListBuild("zz_risky", "Jira", "{}", 15, "tool", ##class(OcuTalon.Mcp.Ops).#MESSAGENOTREADONLY),
 		$ListBuild("zz_new", "Jira", "{}", 15, "tool", ##class(OcuTalon.Mcp.Ops).#MESSAGENOTREADONLY),
 		$ListBuild("zz_lookup", "   ", "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCENAME),
-		$ListBuild("zz_lookup", $Translate($Justify("", 101), " ", "n"), "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCENAME),
 		$ListBuild("zz_lookup", "Mailbox", "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCERESERVED),
 		$ListBuild("zz_lookup", "MAILBOX", "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCERESERVED),
 		$ListBuild("zz_lookup", "Jira", "{}", 4, "intervalMinutes", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCEINTERVAL),
@@ -775,9 +775,17 @@ Method TestSourceMcpOpsRefusals()
 		Do $$$AssertEquals(answer.error.code_"|"_answer.error.message_"|"_answer.fields.%ToJSON(), "bad_source|"_..#TEXT_"|"_..Pair($List(case, 5), $List(case, 6)), label_": bad_source with "_$List(case, 5)_" and McpOps' message")
 		Do $$$AssertEquals(..SourceRows(), 0, label_": no row was created")
 	}
-	For case = $ListBuild("zzmcpnone", "zz_lookup"), $ListBuild(server, "zz_missing"), $ListBuild("1bad", "zz_lookup"), $ListBuild(server, "") {
+	For case = $ListBuild("zzmcpnone", "zz_lookup"), $ListBuild(server, "zz_missing") {
 		Set body = ..Call("SetSource", ..SourceBody($List(case, 1), $List(case, 2), "Jira", "{}", 15), , , .response)
 		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", $List(case, 1)_"/"_$List(case, 2)_" is 404")
+	}
+	// a server name that Mcp.Server NAMEPATTERN refuses (a bad first letter, more than 40 characters) and an empty tool are the route's own 404, before any submit
+	For case = $ListBuild("1bad", "zz_lookup"), $ListBuild("z"_$Translate($Justify("", 40), " ", "s"), "zz_lookup"), $ListBuild(server, "") {
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set body = ..Call("SetSource", ..SourceBody($List(case, 1), $List(case, 2), "Jira", "{}", 15), , , .response)
+		Set label = $Extract($List(case, 1), 1, 12)_"/"_$List(case, 2)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", label_" is 404")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, label_": nothing was submitted")
 	}
 	Set longTool = $Translate($Justify("", ##class(OcuTalon.Web.McpSettings).#TOOLMAX + 1), " ", "t")
 	Kill ^OcuTalonTest("McpSettingsProbe")

@@ -202,6 +202,32 @@ deferred: []
 - Given the online demo, when anyone calls either route or opens the section, then 409 `not_available` with T1 comes before the body is read, the section shows T1 in place of its content, and nothing is submitted (`McpSettingsApi`; 21.4's B5).
 - Given a `source` check row whose payload carries `intervalMinutes`, when the rail shows it, then its detail line reads "Polled every {duration}" in T4's duration words (for example "Polled every 15 minutes", "Polled every 6 hours", "Polled every 1 day"), like the production and queue schedule lines; with no `intervalMinutes` there is no line (`rail-view.test.mjs`, R5; ruling C/D, V7).
 
+
+### Review Findings
+
+Code review (2026-11-14, `bmad-code-review`, full mode, four layers: Blind Hunter 9, Edge Case Hunter 2, Verification Gap 9, Acceptance Auditor 4; 24 findings). High 0, medium 1, low 13 real, in 11 entries (10 patched, 1 deferred to the ledger); 10 rejected. Every patch is applied in this pass; nothing re-opens the story.
+
+- [x] [Review][Patch] **B11 and B12 were not self-contained** [web/e2e/settings/mcp.spec.ts B11, B12] (medium, Rule 19; VG) -- both asserted "No sources yet." for the whole README-admin session and saved a source named "Jira", so any other source of that session (a leftover of M7 or of a failed run) turned them red, and a leftover "Jira" would have been updated in place (22.5's natural key). Each now saves a source named `Jira<tag>` and checks only its own row; the empty-list text is pinned hermetically in B13 (d).
+- [x] [Review][Patch] **The route's own 404 for a bad server name had no test that failed without it** [Test/Web/McpSettingsApi.cls TestSourceMcpOpsRefusals] (low; VG, Blind 5) -- a 41-character server name joins the `1bad` and empty-tool cases, each now asserting that nothing was submitted; the 101-character name case, which the route answers before McpOps, is dropped there (`TestSourceRouteRefusals` has it).
+- [x] [Review][Patch] **A failed Remove's message stayed under "Your sources" after a later good save** [web/src/app/settings/mcp-section.ts saveSource] (low; Blind 2) -- `sourcesError` is cleared at the start of a save; B13 (c) pins it.
+- [x] [Review][Patch] **The stale-"Saved" fix (Edge 5) had no test** [B11] (low; VG) -- B11 asserts the Saved line is gone after its Remove.
+- [x] [Review][Patch] **A refused tool's form-level message ran in no test** [B13 (b)] (low; VG) -- B13 fulfils a `bad_source {tool}` and asserts McpOps' message form-level and no field error.
+- [x] [Review][Patch] **A classification change updating the Source control at once ran in no test** [B11] (low; Blind 4) -- B11 picks Read-only for the risky tool and asserts the control is choosable and the reason gone.
+- [x] [Review][Patch] **B13's `gone` was never set, so a 404 Remove ran in no test** [B13 (d)] (low; Blind 1) -- a final step answers the Remove 404, asserts the server's message and the list loaded again without the source ("No sources yet.").
+- [x] [Review][Patch] **The update check in `TestSetAndRemoveSource` was skipped when the source was not listed** [McpSettingsApi.cls] (low; VG) -- an `AssertTrue($IsObject(source))` precedes it.
+- [x] [Review][Patch] **The mutation note on `TestSourceRouteRefusals` named another test's mutation** [McpSettingsApi.cls] (low; Blind 6) -- the clause is removed.
+- [x] [Review][Patch] **B11, B12, B13 and R5 had no `mutation:` line** (low, Rule 19; Auditor, VG) -- each demonstrated and written under Verification.
+- [x] [Review][Defer] **The rail's checks hint "To stop, ask: ..." also shows beside source rows** [rail-view.ts RAIL_TEXTS.hintChecks] (low; Blind 9) -- a fix needs a new ruled text; DW-1351 `wontfix-accepted` with `reopen_if`.
+
+Rejected (verdict and reason):
+- Edge 1 (an in-flight save answered after Cancel or after another tool's form opened): a rare race, the save did happen and "Saved" is honest; the fix adds a guard.
+- Edge 2 (`@\u007b` in the arguments slips past the route's `@{` check): McpOps' `Normalised` re-serializes and refuses it as `bad_arguments`, so nothing is stored; only the message differs, on a crafted request.
+- Auditor 1 (the route's server and tool 404 is not recorded in the spec): it is McpOps' answer given early (the command cannot hold a longer value), as 21.4's `Classify`; the fix edits the spec.
+- Auditor 2 (a 404 on Remove shows the server's message, not `MESSAGESERVERERROR`): the section shows the server's message for every failure, which for a 500 is `MESSAGESERVERERROR`; for a 404 the honest text is the right one.
+- Blind 3 and VG other (R5 renders a published event, not a seeded row; `seedCheck`'s unused `intervalMinutes`): `Check.FromRow` carrying `IntervalMinutes` is pinned by 22.5's `Test.Mcp.SourceSet`; the type field is harmless.
+- Blind 7 and 8 (the earlier triage's patch count; the Boundaries line's 998.08 kB): spec text; the Measured (c) note records 888.40 kB, and this review measured 888.40 -> 888.96 kB (+0.56 kB, V8 holds; `initial-bundle.test.mjs` passes).
+- VG Rule 19 (B11's forced click "opens nothing" cannot fail; B12's "no source was made" cannot fail alone): neither is an AC's pin; the aria-disabled assertion with the `canBeSource` mutation, and M8's `leftovers()`, carry them.
+
 ## Spec Change Log
 
 - 2026-11-14 (lead): 22.5 is now merged (feature 23fafe59b), so Task 0 (a)'s wait is met. Veto V8 is APPROVED by the Planner (~02:00Z Nov 14): the 0.5 kB (ApiClient methods and the rail line) goes in the initial bundle; 21.5 merges only once 36.5 is on feature (it is) and must pass the budget (`web/scripts/initial-bundle.test.mjs`, 921 kB cap). The implement stage re-reads 22.5's merged McpOps handlers, columns and MESSAGE texts first and records them under Design Notes. A material difference from the contract planned here is a STOP.
@@ -428,6 +454,12 @@ Mutations demonstrated at implement (each reverted; format `mutation: <change> -
 - mutation (QA): the `n >= 60 &&` guard removed from `intervalText` -> `rail-view.test.mjs` "gives intervalText the words of the six choices..." red (0 reads "0 hours", not "0 minutes"); reverted, `shasum` identical.
 - mutation (QA): `n === 1440` changed to `n % 1440 === 0` in `intervalText` -> the same test red (2880 reads "1 day", not "48 hours"); reverted, `shasum` identical.
 - mutation (QA): the status of `SourceRows` ignored in `SettingsOps.ListMcp` (`Do` for `Set sc =`) -> `SettingsMcp.TestListSourcesReadFails` red (the list is answered listed, not failed); reverted, `shasum` identical.
+
+- mutation (code review): `'$Match(body.server, ...NAMEPATTERN) ||` removed from `SetSource` -> `McpSettingsApi.TestSourceMcpOpsRefusals` red (`1bad` and the 41-character server name are submitted, and the 41-character one is not 404); reverted, `shasum` identical, the class green again on the same warm stack.
+- mutation (code review): `refusedSource` focuses `#mcp-source-name` for an arguments error -> B12 red ("and the field takes focus"); bundle rebuilt, `sign-in-2 --part 9/12`.
+- mutation (code review): `this.reload()` removed from `saveSource`'s success -> B11 red ("the source is listed"); same run.
+- mutation (code review): `refusedSource` sets `sourceError` to '' for a `tool` field -> B13 red ("a refused tool shows McpOps' message form-level"); same run.
+- mutation (code review): the `source` branch of `checkRow` never taken (`check.kind === 'zz-mutated'`) -> R5 red ("with its poll interval": no "Polled every 15 minutes"); `sign-in-2 --part 7/12`. All four web mutations reverted, `shasum` identical, bundle rebuilt.
 
 Test files touched at QA (QA):
 - `web/scripts/rail-view.test.mjs` (QA): `intervalText` of 2880, 61, 0 and -60.
