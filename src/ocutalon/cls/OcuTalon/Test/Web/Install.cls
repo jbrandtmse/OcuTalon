@@ -746,6 +746,69 @@ Method TestRemoveStaleBundleWarns()
 	}
 }
 
+/// Guard (iii): a file that matches STALEFILES and that the build holds stays, by name alone: one of each shape (script, map, chunk, polyfills, stylesheet) with other
+/// content than the build's, while a name that differs from a build file's in one character is stale.
+Method TestStaleKeepsTheBuildsFiles()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"t/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..Seed(build, "polyfills-BU1LD111.js", "polyfills")
+	Do ..Seed(build, "main-AB12CD34.js.map", "map")
+	Do ..Seed(served, "index.html", ..ReadFile(build_"index.html"))
+	Set held = "main-AB12CD34.js|main-AB12CD34.js.map|chunk-EF56GH78.js|polyfills-BU1LD111.js|styles-IJ90KL12.css"
+	Set files = $ListFromString(held_"|main-AB12CD35.js|main-OLD11111.js", "|")
+	Set position = 0
+	While $ListNext(files, position, name) {
+		Do ..Seed(served, name, "from an earlier build")
+	}
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle")
+	Do $$$AssertEquals(..Tree(served), ..Sorted("index.html|"_held), "the files that the build holds stay and the others are gone")
+	Do $$$AssertEquals(..ReadFile(served_"main-AB12CD34.js"), "from an earlier build", "a kept file is not touched, whatever its content")
+	Do $$$AssertEquals(..Warnings(), "removed old web file main-AB12CD35.js|removed old web file main-OLD11111.js", "only the two others are named")
+}
+
+/// The served index.html is part of guard (iv): a served folder with no index.html (or none at all) is no folder that this build is served from, so nothing is removed and the step is silent.
+Method TestStaleNeedsAServedIndex()
+{
+	Set base = ..Directory_"zzbundle"_..Number_"x/"
+	Set served = base_"served/"
+	Set build = base_"build/"
+	Do ..SeedBundle(build)
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Do ..Seed(served, "main-AB12CD34.js", "main")
+	Set before = ..Tree(served)
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(served, build), "RemoveStaleBundle with no served index.html")
+	Do $$$AssertEquals(..Tree(served), before, "nothing is removed")
+	Do $$$AssertEquals(..Warnings(), "", "and nothing is said")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).RemoveStaleBundle(base_"nosuch/", build), "RemoveStaleBundle with no served folder")
+	Do $$$AssertEquals(##class(%File).DirectoryExists(base_"nosuch/"), 0, "no folder is made")
+	Do $$$AssertEquals(..Warnings(), "", "and nothing is said")
+}
+
+/// Guard (v) through Prepare, the call of the step's Run: a start with no build folder (the module root does not resolve) is OK, removes nothing and says so in one line; and the default
+/// build folder (BuildFolder of this instance) never fails the step either and never removes a file from a served folder whose index.html is not that build's.
+Method TestPrepareFailsSafeWithoutABuildFolder()
+{
+	Set data = ..Directory_"zzbundle"_..Number_"f/"
+	Set served = data_"csp/ocutalon-web/"
+	Do ..SeedBundle(served)
+	Do ..Seed(served, "main-OLD11111.js", "stale")
+	Do ..Seed(served, "zz-admin-note.txt", "mine")
+	Set before = ..Tree(served)
+	Do ..Warnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Prepare(data, ""), "Prepare with no build folder")
+	Do $$$AssertEquals(..Tree(served), before, "nothing is removed")
+	Set warnings = ..Warnings()
+	Do $$$AssertTrue(warnings [ "no old web file was removed" && ($Length(warnings, "|") = 1), "one warning line says so: "_warnings)
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Prepare(data), "Prepare with this instance's build folder")
+	Do $$$AssertEquals(..Tree(served), before, "a served folder that is not that build's loses nothing")
+	Do ..Warnings()
+}
+
 /// BuildFolder is the first of ocutalon/csp/ and src/ocutalon/csp/ below the root that holds index.html: each alone, both (ocutalon/csp/ wins), neither and no root.
 /// On OcuTalon's image the installed module's root is /opt/ocutalon/src/; elsewhere that part is skipped.
 Method TestBuildFolder()

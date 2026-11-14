@@ -380,6 +380,25 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - Lead's smoke (2026-11-14): AC4 rehearsal against v1.0.9, tag e36s7h, phase by phase from cd8a9381: `Result: pass`, 14 rows incl. `stale files` (3 checks; plant noted) and approval; served folder = build (31 files) after upgrade and after restart; deep link and reload of /settings, /history, /usage on the upgraded stack: no error. Evidence `evidence/36-7-upgrade-from-v1.0.9.md`.
 - mutation: AC4, `Web.Prepare`'s `RemoveStaleBundle` call replaced by `Quit sc` (tag e36s7m) -> the harness `stale files` row fails naming `./main-JCJUH3RN.js` and `./main-ZZSTALE0.js` (`RESULT fail`); restored byte-identical (`git status` clean).
 
+- mutation (QA): `RemoveStaleBundle` without the `$Data(names(name))` test (guard iii, a stale-named file the build holds) -> `TestStaleKeepsTheBuildsFiles` red, with the existing `TestRemoveStaleBundle`, `TestStaleKeepsNestedFiles`, `TestStaleKeepsOtherNames`, `TestPrepareRemovesStale`, `TestRemoveStaleBundleWarns` and `TestStaleNeedsTheSameIndex` (warm, tag e36s7q1); `Web.cls` restored (`cmp` against a copy: identical, `git diff` empty).
+- mutation (QA): the served-vs-build `index.html` compare made to apply only when the served file exists -> `TestStaleNeedsAServedIndex` red alone (3 asserts); restored identical.
+- mutation (QA): the guard (v) block returns an error status instead of OK -> `TestPrepareFailsSafeWithoutABuildFolder` red (with `TestStaleNeedsABuildList`); restored identical.
+- mutation (QA): `claimReload` taken before the `isChunkLoadError` test in `reloadOnChunkError` -> the node test `does not use up an address on an error that is no chunk failure...` red (the only one); `chunk-reload.ts` restored identical (`git diff` empty).
+- mutation (QA): `withNavigationErrorHandler` removed from `app.config.ts` -> the live part 14/14 of the chromium project (tag e36s7q3) goes 4 failed, 17 passed: R1, R2 and the two R4 cases (R3 and R5 stay green by design; names inferred from the count, the run's output was filtered to the summary); restored identical.
+- mutation (QA): `isChunkLoadError` answers true for every error that has a string message -> R5 red alone, 20 passed (tag e36s7q5); restored identical.
+- QA run: `npm --prefix web test` 2040 pass, `npm --prefix web run lint` clean, `OcuTalon.Test.Web.Install` passed warm (e36s7q1) and on a fresh stack (e36s7q6), live part 14/14 of the chromium project (the part that holds `usage/chunk-reload.spec.ts` now that the list has 312 tests; 16/16 held it before the QA tests) 21 passed (e36s7q2). All throwaways torn down.
+
+## Tests Added (QA stage, 2026-11-14)
+
+- `Test/Web/Install.cls`:
+  - `TestStaleKeepsTheBuildsFiles`: guard (iii), one build file of each shape (script, map, chunk, polyfills, stylesheet) stays with other content, a name one character off a build file's goes (the rule is by name, not prefix);
+  - `TestStaleNeedsAServedIndex`: a served folder with no `index.html`, or no folder, loses nothing and is silent (guard iv's other half);
+  - `TestPrepareFailsSafeWithoutABuildFolder`: guard (v) through `Prepare`, the call of the step's `Run`: no build folder gives OK, nothing removed and one "no old web file was removed" line; the default build folder never fails the step and never removes from a folder that is not that build's.
+- `web/scripts/chunk-reload.test.mjs`: a non-chunk error does not use up its address's flag (a chunk failure at the same address still reloads once), and each address keeps its one reload in an interleaved sequence.
+- `web/e2e/usage/chunk-reload.spec.ts`: R4 (History as the LIVE user and Settings as the README admin each reload once at their own address and render) and R5 (a chunk that fetches but cannot run is no chunk failure: no reload, no flag).
+- Already pinned, no test added: the V1 line format (`removed old web file <name>` by exact text in `TestRemoveStaleBundle`, `TestStaleKeeps*`, `TestPrepareRemovesStale`, and the registry's `WARN Web` form by `live:install-upgrade`'s anchored grep and `ipm-install.sh` check 25); "no new user-facing text" (`ux-strings.test.mjs` is in `npm --prefix web test`, which passes).
+- Not pinned, by choice: the start-level `WARN Web` line on a real stack with no build folder. The Registry's printing is Lane A's, and a live row would need a stack whose module root does not resolve (a 7 minute run) for a path that `TestStaleNeedsABuildList` and the new Prepare test already pin down to the warning text.
+
 ## Auto Run Result
 
 Status: done

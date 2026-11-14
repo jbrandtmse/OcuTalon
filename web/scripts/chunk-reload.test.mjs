@@ -100,6 +100,17 @@ describe('reloadOnChunkError', () => {
     assert.deepEqual(log.replaced, []);
   });
 
+  it('does not use up an address on an error that is no chunk failure, and keeps every address to its one reload', () => {
+    const { env, log } = environment(memoryStorage());
+    assert.equal(reloadOnChunkError(new Error('NG04002: Cannot match any routes'), '/usage', env), false);
+    assert.equal(reloadOnChunkError(new SyntaxError('Unexpected end of input'), '/usage', env), false);
+    assert.equal(reloadOnChunkError(CHUNK_ERROR, '/usage', env), true, 'the chunk failure of the same address still gets its one reload');
+    assert.equal(reloadOnChunkError(CHUNK_ERROR, '/history', env), true, 'a later failure at another address gets its own');
+    assert.equal(reloadOnChunkError(CHUNK_ERROR, '/usage', env), false);
+    assert.equal(reloadOnChunkError(CHUNK_ERROR, '/history', env), false);
+    assert.equal(log.reloads, 2);
+  });
+
   it('does not reload with no usable storage', () => {
     for (const storage of [() => null, () => { throw new Error('SecurityError'); }, () => ({ getItem: () => null, setItem: () => {} })]) {
       const { env, log } = environment(null);
