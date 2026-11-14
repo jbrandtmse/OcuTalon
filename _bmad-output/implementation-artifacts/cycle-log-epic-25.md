@@ -164,3 +164,6 @@
 2026-11-14T08:38:56Z	Story 25.4	committed	sha=de92b6e4 submodules= ci=pending runs=43576797782,43576797834 fix_for=25.4 note=pushed_once_after_integrate_forward_a5fc95e9;bundle_initial=884.58kB
 2026-11-14T09:49:45Z	Story 25.4	ci_resolved	story=25.4 sha=de92b6e4 runs=43576797782,43576797834 result=success failed=none via=none resolved_at=part_ready
 2026-11-14T09:49:45Z	Epic 25	part_ready	story=25.4 head=de92b6e4 ci=success(43576797782,43576797834) bundle_initial=884.58kB epic_25=in-progress open=25.5(waits_22.7_merged:now_on_feature_a5fc95e9),25.6(waits_26.2) burndown_gate=not_run
+2026-11-14T09:51:34Z	Epic 25	integrated_forward	feature=423f8148(25.4_merged) head=d6cbe5b1 conflicts_resolved=none code_diff=none boundaries=pass
+2026-11-14T09:51:34Z	Story 25.5	spec_revalidated	precondition=met(22.7+25.4_on_feature) owned_ledger=DW-1268,DW-1281,DW-1303 rulings=story-255-rulings-20261113.md(recorded) note=spec_change_log_dispatch_note
+2026-11-14T09:51:34Z	Story 25.5	stage_spawned	stage=implement spawn_at=2026-11-14T09:51:34Z model=sonnet agent_name=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi-implement-1 cycle_iteration=1 story_base=d6cbe5b1

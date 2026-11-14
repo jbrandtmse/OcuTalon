@@ -255,6 +255,8 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 
 ## Spec Change Log
 
+- 2026-11-14 ~09:55Z, lead: implement dispatch. Precondition met: 22.7 (lane D, DW-1262 interim `MayApprove` in `AnswerOps.Carry`, `Fix/Kind/Email.cls`) and 25.4 (Roles, viewer, live role re-read in `Web.Api.OnPreDispatch`; `Install.Step.Roles.Refusal`) are merged on feature 423f8148 and integrated into this branch. The "22.7 email DW" is ledgered as DW-1281 (owner this story; Q1 (a) closes it). Owned ledger: DW-1268, DW-1281, DW-1303. The code base moved since planning: re-read every file this spec names at HEAD before editing (the plan read 22.7 from `origin/OCT-epic22`); where the spec's line numbers or the 22.7 code differ from HEAD, follow HEAD and the spec's intent, and record each difference under Design Notes "Decided in-stage". New web code goes in lazy chunks only (standing rule DW-1282; the initial bundle is 884.58 kB and must stay under its 1 MB cap). The dev slot `ocutalon-slot-a` is shared with the Epic 26 runner: run tests on lane-A throwaways only.
+
 - 2026-11-14 ~00:00Z, lead: DW-1303 (self_viewer refusal) routed to this story by the Contest Planner's 25.4 final ruling 1; added as a `[Ledger]` task and an epics.md bullet.
 
 - 2026-11-13 ~19:40Z, lead: Contest Planner rulings recorded (`story-255-rulings-20261113.md`): all APPROVED; audit addition (existing outcome only); Q1 (a) with DW-1281 resolved-by 25.5; Q5 precondition; Q6 GUIDE middle-sentence replacement carried by 25.5. Worked into Tasks & Acceptance as the `[Ruling]` item. Implement still waits for 22.7 merged + 25.4 done.
