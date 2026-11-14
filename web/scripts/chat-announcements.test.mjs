@@ -389,7 +389,7 @@ describe('the module', () => {
 // generic notice branch: the notice's whole text, trimmed, once when the notice is new. The request card (approvals/approval-request-card.ts)
 // announces nothing when it appears, only its status when the store answers it, so the request's text is spoken once.
 describe('a tool call\'s request and result notice (Story 31.6, DW-610)', () => {
-  const REQUEST = 'Run zz_send on ops-mcp\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once.';
+  const REQUEST = 'Run zz_send on ops-mcp\nWhy: zz_send counts as risky, so it runs only after an approval.\nInputs:\nto: "ops"\nNo dry run is available for this tool. Approving runs exactly this call once.';
   const request = (over = {}) => notice('K1', { kind: 'approval', approvalRef: 'A1', text: REQUEST, ...over });
   const result = (over = {}) => notice('K2', { kind: 'result', approvalRef: 'A1', text: 'zz_send ran once at 14:12.', ...over });
 

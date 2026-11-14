@@ -719,7 +719,7 @@ The single source for the incident lifecycle, approval request states, answered 
 | Expired | "Expired at {time}. Nothing was changed." It can no longer be answered (FR-8). |
 | Already answered | The press that lost the race. Web and phone: "Already answered: approved from Telegram at 14:15." Telegram: see the Message Catalog. |
 | Can't answer (step 6) | The buttons are absent: "Only an approver for resends can answer this request." On the phone and in Telegram, a press gets the same sentence (FR-11). |
-| Canceled (step 4) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
+| Canceled (step 4) | "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
 
 On the page an answered status is a status line without a final period unless it holds two sentences. In message text (the phone and Telegram), it ends with a period.
 
@@ -1031,7 +1031,7 @@ Banners stack in this table's order.
 | MCP tools table, empty (Settings > Tools and MCP servers, in place of the table; the second with "Unclassified only" on) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "No tools yet." and "No unclassified tools." |
 | MCP tool classification control name (Settings > Tools and MCP servers, the accessible name of each tool's radiogroup) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Classification of {tool} on {server}" |
 | MCP server Remove button name (Settings > Tools and MCP servers, the accessible name of each server's Remove button) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Remove {server}" |
-| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." |
+| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." |
 | Mail poll, server not reached (`emailPoll.reason`, written by `Channel.Email.Adapter`, shown wherever Story 22.5 lists the mailbox as not checked) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't reach the mail server." |
 | Mail poll, log-in refused (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "The mail server refused the user name or password." |
 | Mail poll, mailbox not read (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't read the mailbox." |
@@ -1041,6 +1041,8 @@ Banners stack in this table's order.
 | Email, no outgoing server (the `CommandResult.Message` of `EmailOut` and of `CommandsIn` when `EmailOut` is not running or the mailbox has no address) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "No outgoing mail server is connected, so the email wasn't sent." |
 | Email rejected by the server (the `CommandResult.Message` of `EmailOut` when the mail server answers the sender, a recipient or the message with an error) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The mail server didn't accept the email, so it wasn't sent." |
 | Email may have gone out (the `CommandResult.Message` of `EmailOut` for a tool send with an `IdempotencyKey` when the mail server stopped answering while the email was being sent, and for the same key again) [ADDED 2026-11-13, Story 21.13, Contest Planner ruling K] | "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." |
+| Tool-call approval request (`toolCall.request` and `toolCall.requestOnServer`, every channel) [ADDED 2026-11-14, Story 21.10] | "Run {tool} on {server}", then "Why: {tool} counts as risky, so it runs only after an approval.", then "Inputs:", then one line "{name}: {value}" per input ("{}" for none), then "No dry run is available for this tool. Approving runs exactly this call once." (`toolCall.request` has no " on {server}") |
+| Tool-call inputs too long (`toolCall.inputsTooLong`, Telegram only) [ADDED 2026-11-14, Story 21.10] | "The inputs are too long to show here. See them on your OcuTalon page before you approve." |
 
 ### Settings (step 5)
 
@@ -1143,7 +1145,7 @@ Lighter specs. Components with behavior of their own are under Component Pattern
   - **A changed tool** returns to Unclassified (FR-48). Admins are told by a banner in Settings and by a notice card in the chat.
 - **Sources:** a read-only tool can be set as a source poll (FR-50), and it then joins the digest's coverage list.
 - [ADDED 2026-11-09, Story 35.2] **Settings › Channels** (email, webhooks), the changed-tool banner and the source-poll form take their texts from the Message Catalog block "Settings and requests (step 4)".
-- **The approval request for a tool call** shows "Run {tool} on {server}" and the exact inputs as labeled lines. Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17).
+- **The approval request for a tool call** shows "Run {tool} on {server}", "Why: {tool} counts as risky, so it runs only after an approval." and the exact inputs as labeled lines, "{name}: {value}", each value as JSON and never cut ("{}" for a call with no inputs). Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17). In Telegram, a request too long for one message shows its start with no Approve button and ends with "The inputs are too long to show here. See them on your OcuTalon page before you approve." [AMENDED 2026-11-14, Story 21.10]
 
 ### Step 5: more fixes (brief)
 
