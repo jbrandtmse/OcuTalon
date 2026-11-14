@@ -234,3 +234,5 @@
 2026-11-14T14:02:36Z	Epic 36	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet unresolved_high_med_avg=1.0(first_pass:36.1=2,36.2=3,36.3=0,36.4=2,36.5=0,36.6=0,36.7=0) metric=unresolved rework_stories=2(36.1,36.4;causes=guard_tests/CI_count/directive/ruling,not_language_semantics) review_loop_thrash=0 rework_lang_defects=0 result=hold applied=false
 2026-11-14T14:02:36Z	Epic 36	epic_retro_skipped	reason=policy(gates.retrospective=skip)
 2026-11-14T14:45:51Z	Story 36.3	ci_resolved	branch=OCT-epic36 sha=42ab53c5 runs=43601944978,43601944955 result=success failed=none
+2026-11-14T14:48:00Z	Epic 36	integrated_forward	feature=f403bf66 head=c8606173 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,epic-36=done) checks=test-readme,test-release-notes(real-tree),boundaries,class-rules,web_2089/0,lint,build,link
+2026-11-14T14:48:00Z	Epic 36	epic_runner_complete	stories_completed=7(36.1-36.7) ready_for_merge=true merged_already=36.1,36.2,36.4,36.5,36.6,36.7 remaining_merge=36.3 retro=skipped(policy) ledger_open_after=0(epic-36_keys)
