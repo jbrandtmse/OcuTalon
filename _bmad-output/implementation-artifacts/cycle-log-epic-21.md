@@ -377,3 +377,4 @@
 2026-11-14T23:05:48Z	Story 21.5	ci_resolved	sha=19de55b83 result=success runs=43647278273,43647278336
 2026-11-14T23:05:48Z	Story 21.5	part_ready	parts=21.5 code_head=19de55b83 ci=success records=local
 2026-11-14T23:05:48Z	Epic 21	note	DW-1347(22.11_code-review_entry,on_OCT-epic22_ledger)_plan_waits_for_22.11_on_feature(not_in_1.0.10)
+2026-11-14T23:08:57Z	Story 21.5	dw1351	verdict=hint_false_for_sources(CommandsIn.cls:372_RemoveSourcePoll_web_admin_only) fix=rail-view.ts_checksHint(hidden_when_all_checks_are_sources) test=rail-view.test.mjs+mutation(red) node=2103/0 bundle=889.02kB

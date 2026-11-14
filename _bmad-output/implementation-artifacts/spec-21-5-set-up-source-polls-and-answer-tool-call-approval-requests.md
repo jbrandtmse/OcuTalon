@@ -230,6 +230,8 @@ Rejected (verdict and reason):
 
 ## Spec Change Log
 
+- 2026-11-14 (lead, Contest Planner ~22:40Z ruling on DW-1351): the rail's "To stop, ask: ..." hint is false for a source, because `RemoveSourcePoll` comes from origin `web_admin` only (`Core/CommandsIn.cls:372`), so asking in the chat cannot stop it. `rail-view.ts` `checksHint` now hides the hint when every listed check is a source and keeps it beside any check the chat can stop. No new string. Pin: `rail-view.test.mjs` "hides the stop hint when every check is an MCP source"; mutation: `checksHint` returns the hint always -> red.
+
 - 2026-11-14 (lead): 22.5 is now merged (feature 23fafe59b), so Task 0 (a)'s wait is met. Veto V8 is APPROVED by the Planner (~02:00Z Nov 14): the 0.5 kB (ApiClient methods and the rail line) goes in the initial bundle; 21.5 merges only once 36.5 is on feature (it is) and must pass the budget (`web/scripts/initial-bundle.test.mjs`, 921 kB cap). The implement stage re-reads 22.5's merged McpOps handlers, columns and MESSAGE texts first and records them under Design Notes. A material difference from the contract planned here is a STOP.
 
 - 2026-11-12 (lead, spec gate): split ruled (21.10); 22.5 item 9 routed here by the Planner, so the rail line is in scope.

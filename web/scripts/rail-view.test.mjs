@@ -416,6 +416,13 @@ describe('background checks', () => {
     assert.equal(row.kind, 'check');
   });
 
+  it('hides the stop hint when every check is an MCP source, which only an admin stops in Settings, and keeps it beside a check the chat can stop (DW-1351)', () => {
+    const hint = (checks) => section(viewOf({ checks }), 'checks').hint;
+    assert.equal(hint([check('s1', { kind: 'source', displayName: 'Jira', intervalMinutes: 15 })]), '', 'sources only: no hint');
+    assert.equal(hint([check('s1', { kind: 'source', displayName: 'Jira', intervalMinutes: 15 }), check('p1')]), 'To stop, ask: "Stop watching Orders."', 'a production check too: the hint');
+    assert.equal(hint([check('p1')]), 'To stop, ask: "Stop watching Orders."', 'a production check alone: the hint');
+  });
+
   it('reads a source check "Polled every {duration}" from its interval, in the words of the interval choices, and has no detail line without one (Story 21.5)', () => {
     const detail = (over) => section(viewOf({ checks: [check('s1', { kind: 'source', displayName: 'Jira', ...over })] }), 'checks').rows[0];
     assert.equal(detail({ intervalMinutes: 15 }).detail, 'Polled every 15 minutes');

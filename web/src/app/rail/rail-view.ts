@@ -349,6 +349,14 @@ export function decisionRow(decision: DecisionPayload, format: RailFormat): Rail
 }
 
 /** A list section of the rail. */
+/**
+ * The hint under the Background checks list: "To stop, ask ...", unless every listed check is an MCP source (DW-1351). A source is stopped only by an
+ * admin in Settings, because RemoveSourcePoll comes from origin web_admin alone (CommandsIn), so asking in the chat cannot stop it.
+ */
+function checksHint(checks: readonly CheckPayload[]): string {
+  return checks.length > 0 && checks.every((check) => check.kind === SOURCE_KIND) ? '' : RAIL_TEXTS.hintChecks;
+}
+
 function listSection(id: SectionId, label: string, rows: RailRow[], empty: string, hint: string): RailSection {
   const values = { label, n: String(rows.length) };
   return {
@@ -408,7 +416,7 @@ export function railView(store: LiveStore, format: RailFormat, demo = false): Ra
   }
   sections.push(
     listSection('approvals', RAIL_TEXTS.approvals, approvals.map((approval) => approvalRow(approval, format)), RAIL_TEXTS.emptyApprovals, ''),
-    listSection('checks', RAIL_TEXTS.checks, checks.map((check) => checkRow(check, format, late)), demo ? RAIL_TEXTS.emptyChecksDemo : RAIL_TEXTS.emptyChecks, RAIL_TEXTS.hintChecks),
+    listSection('checks', RAIL_TEXTS.checks, checks.map((check) => checkRow(check, format, late)), demo ? RAIL_TEXTS.emptyChecksDemo : RAIL_TEXTS.emptyChecks, checksHint(checks)),
     listSection('reminders', RAIL_TEXTS.reminders, reminders.map((reminder) => reminderRow(reminder, format)), RAIL_TEXTS.emptyReminders, RAIL_TEXTS.hintReminders),
     listSection('decisions', RAIL_TEXTS.decisions, decisions.map((decision) => decisionRow(decision, format)), RAIL_TEXTS.emptyDecisions, ''),
   );
