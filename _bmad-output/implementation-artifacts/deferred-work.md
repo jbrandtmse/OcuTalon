@@ -5591,6 +5591,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T23:30:13Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7's PDF and Word files are the large ones: batch or parallel embedding there
 - 2026-11-08T06:10:59Z status=routed owner=burndown by=spec_gate note=declined_by_19.7_plan:the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop,which_Story_19.5_rewrites;one_Embedder_work_item_per_Index_batch_after_19.5(the_Epic_19_part_2_burn-down)
 - 2026-11-08T12:12:34Z owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=burndown note=overflow(part_2_remainder_3_under_cap_8,no_repeat_occurrences,no_charter):the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop(one_Embedder_work_item_per_Index_batch);26.2_brings_files_sent_from_the_chat_into_the_documents_path,where_large_PDF/Word_files_make_the_wait_visible
+- 2026-11-14T14:52:54Z owner=burndown by=spec_gate note=26.2 indexes nothing; the seam is Docs.Store.Write (Add to documents is 25.6); residual unchanged: one Embedder round trip per passage
 
 ### DW-895: Two Lane B comments are stale now that DocumentOps is built: Web.Documents' OWNER parameter says DocumentOps is disabled until Story 19.4, and Test.Web.DocumentsApi's comment at :537
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -5685,6 +5686,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Rule 2: Files.cls:107-307 repeats Turns.cls:99-215,405; the spec forces the copy (Turns.cls is Story 19.5's file, the helpers are Private) and names the Epic 19 burn-down to lift them
 - 2026-11-08T09:42:33Z status=routed owner=burndown by=cr note=spec-forced copy; unify after 19.5 merges: lift the helpers into one Test.Docs fixture both classes extend
 - 2026-11-08T12:12:34Z owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=burndown note=overflow:lift_Test.Docs.Turns'_private_turn_helpers(DropDocuments,Ready,Turn,Data,ToolResult,AssertSteps,SameJob,Holds)_into_one_Test.Docs_fixture_that_Turns_and_Files_extend;26.2_adds_the_next_documents_turn_tests
+- 2026-11-14T14:52:54Z owner=burndown by=spec_gate note=26.2 adds Test.Agent.SentFiles and does not touch Test.Docs.Files/Turns; residual: unify the copied turn helpers
 
 ### DW-930: _BoundedObject passes flush() and copy() through to the real zlib object unbounded
 - source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
