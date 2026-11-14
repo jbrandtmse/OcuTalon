@@ -7,9 +7,10 @@
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the nine sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
- *   The ninth, Tools and MCP servers (Story 21.4), is mcp-view.ts.
- * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
+ * - SETTINGS_SECTIONS is the ten sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
+ *   The ninth, Tools and MCP servers (Story 21.4), is mcp-view.ts. Roles (Story 25.4) is last and shows only while the snapshot's `rolesAssignable` is true, so
+ *   shownSections(rolesShown) leaves it out otherwise.
+ * - sectionSlug turns an address part into a section's slug: an unknown, missing or hidden one opens Models.
  * - pageOf and settingsMatch are page-shell-view.ts's (the eager shell needs them, so they live there); this module re-exports them. SETTINGS_TEXTS's title, unsaved, stay and leave are SHELL_TEXTS's.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
  * - stepFailedText is the Demo step's text for the value that was written.
@@ -43,6 +44,7 @@ export const SETTINGS_TEXTS = {
     onCall: 'On call',
     demoMode: 'Demo mode',
     mcp: 'Tools and MCP servers',
+    roles: 'Roles',
   },
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
@@ -153,7 +155,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The nine sections in the UX's order (On call after Check thresholds, so that Demo mode stays before Tools and MCP servers). */
+/** The ten sections in the UX's order (On call after Check thresholds, so that Demo mode stays before Tools and MCP servers); Roles is last and is shown only through shownSections(true). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -164,11 +166,20 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'on-call', label: SETTINGS_TEXTS.sections.onCall },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
   { slug: 'mcp', label: SETTINGS_TEXTS.sections.mcp },
+  { slug: 'roles', label: SETTINGS_TEXTS.sections.roles },
 ];
 
+/** The slug of the section that exists only while roles can be assigned. */
+export const ROLES_SLUG = 'roles';
+
+/** The sections the navigation lists: all but Roles unless rolesShown. */
+export function shownSections(rolesShown: boolean): readonly SettingsSection[] {
+  return SETTINGS_SECTIONS.filter((section) => rolesShown || section.slug !== ROLES_SLUG);
+}
+
 /** The slug of the section that an address part names, or models (the first) for an unknown or missing one. */
-export function sectionSlug(part: string | null | undefined): string {
-  return SETTINGS_SECTIONS.find((section) => section.slug === part)?.slug ?? SETTINGS_SECTIONS[0].slug;
+export function sectionSlug(part: string | null | undefined, rolesShown = true): string {
+  return shownSections(rolesShown).find((section) => section.slug === part)?.slug ?? SETTINGS_SECTIONS[0].slug;
 }
 
 /** The name of the section with the slug (models for an unknown slug). */

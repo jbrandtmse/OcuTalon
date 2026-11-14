@@ -1158,7 +1158,7 @@ Reroute, suspend and resume, and roll back each use the approval request card wi
   - When extraction fails: "I couldn't read that file: {reason}."
   - A file's reply offers **Add to documents**.
   - A photo's reply shows a "Saved to memory" chip.
-- **Roles** (FR-11): Settings gains a Roles section for approver roles (all risky actions, or one kind) and the viewer role. Viewers see everything read-only, with no composer.
+- **Roles** (FR-11): Settings gains a Roles section for approver roles (all risky actions, or one kind) and the viewer role. Viewers can open OcuTalon but can't chat, answer or change anything. [AMENDED 2026-11-13, Story 25.4, Contest Planner ruling (row 2, Q8); it read "Viewers see everything read-only, with no composer."]
 
 ### Personality: the heartbeat, the persona and memory (after 1.0.0)
 

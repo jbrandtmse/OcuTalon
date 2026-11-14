@@ -29,6 +29,8 @@ import type {
   ModelTestAnswer,
   PairingCode,
   PublicStatus,
+  RoleSaved,
+  RolesList,
   SettingsBody,
   SettingsSaved,
   StateSnapshot,
@@ -89,6 +91,22 @@ export class ApiClient {
   /** Replaces a webhook's secret: a POST of `{secret}` that answers 200 `{result, message}`. A 404 for a webhook that is not the admin's fails as an HttpErrorResponse, as the others do. */
   setWebhookSecret(ref: string, secret: string): Observable<WebhookSecretSaved> {
     return this.http.post<WebhookSecretSaved>(`${BASE}/settings/channels/webhooks/${encodeURIComponent(ref)}/secret`, { secret });
+  }
+
+  /**
+   * The users who hold an OcuTalon role (Story 25.4): a GET that answers 200 `{users: [{user, roles, managed}]}`. A 403 (not an admin), a 409 `not_available`
+   * (the online demo) and a 501 fail as an HttpErrorResponse whose `error` is the body.
+   */
+  listRoles(): Observable<RolesList> {
+    return this.http.get<RolesList>(`${BASE}/settings/roles`);
+  }
+
+  /**
+   * Grants (`grant` true) or removes one of the two assignable roles of an IRIS user: a POST of `{user, role, grant}` that answers 200 `{result, changed}`. A 400
+   * `bad_settings` (with `fields` and `reason`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  saveRole(user: string, role: string, grant: boolean): Observable<RoleSaved> {
+    return this.http.post<RoleSaved>(`${BASE}/settings/roles`, { user, role, grant });
   }
 
   /**

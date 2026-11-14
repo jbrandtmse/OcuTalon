@@ -79,7 +79,7 @@ describe('the phone', () => {
 
 describe('the answer part', () => {
   it('has the two buttons in a span of the answer part keyed by the message, or the answer line of the same part and key, focusable and naming the request', () => {
-    assert.match(template, /@if \(view\(\)\.buttons\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="message\(\)\.ref" \[attr\.data-approval\]="busy\(\) \? message\(\)\.approvalRef : null">/);
+    assert.match(template, /@if \(view\(\)\.buttons && !viewer\(\)\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="message\(\)\.ref" \[attr\.data-approval\]="busy\(\) \? message\(\)\.approvalRef : null">/);
     assert.match(template, /\} @else if \(view\(\)\.answer; as line\) \{\s*<p \[class\]="'answered tone-' \+ line\.tone" data-part="answer" \[attr\.data-key\]="message\(\)\.ref" \[attr\.data-approval\]="message\(\)\.approvalRef" tabindex="-1">/);
     assert.match(template, /@if \(line\.icon; as icon\) \{\s*<app-icon \[name\]="icon" \[size\]="16" \/>\s*\}\s*<span>\{\{ line\.text \}\}<\/span>/);
   });

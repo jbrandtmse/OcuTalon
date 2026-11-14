@@ -60,6 +60,10 @@ export interface StateSnapshot {
   demoMode: boolean;
   /** True only when the install's code can read a file that is sent (Story 25.3; 26.2 turns it on): the paperclip and the chat's file drop show only then, and never on the online demo. */
   filesReadable: boolean;
+  /** True when the signed-in user holds OcuTalonViewer and not OcuTalonUser (Story 25.4): the page is read-only, and `admin` is false for such a user. */
+  viewer: boolean;
+  /** True when the online demo is off and the install can assign the approver and viewer roles (Story 26.4 creates them): the Settings nav shows Roles only then. */
+  rolesAssignable: boolean;
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
@@ -350,6 +354,24 @@ export interface WebhookCreated {
   result: 'done';
   message: string;
   webhook: WebhookRow;
+}
+
+/** A user of GET /ocutalon/api/v1/settings/roles (Story 25.4): the IRIS user name, the OcuTalon roles the user holds (sorted) and whether OcuTalon manages the account. */
+export interface RoleHolder {
+  user: string;
+  roles: string[];
+  managed: boolean;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/roles: the users who hold an OcuTalon role, sorted by name. */
+export interface RolesList {
+  users: RoleHolder[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/roles: whether the user's roles changed (false when the user already was in that state). */
+export interface RoleSaved {
+  result: 'done';
+  changed: boolean;
 }
 
 /** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks/<ref>/secret. */

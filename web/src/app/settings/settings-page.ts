@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, NgComponentOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, type Type, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, type Type, ViewContainerRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
@@ -18,7 +18,7 @@ import { DailyDigestSection } from './daily-digest-section';
 import { DemoModeSection } from './demo-mode-section';
 import { ModelsSection } from './models-section';
 import { OnCallSection } from './on-call-section';
-import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers } from './settings-view';
+import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, ROLES_SLUG, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, shownSections, telegramBoxShown, type ThresholdNumbers } from './settings-view';
 import { TimeZoneSection } from './time-zone-section';
 
 /** The id of the load error's text, which Retry is described by. */
@@ -26,7 +26,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
 
 /**
  * The settings page (Story 33.2; FR-17; UX: Step 2, settings and the daily digest), for OcuTalonAdmin only. It is titled "Settings \u00B7 OcuTalon" by its
- * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the nine sections in the UX's order on the left (eight on the online demo, which has no On call), and the
+ * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the ten sections in the UX's order on the left (eight on the online demo, which has no On call and no Roles; Roles, Story 25.4, only while the snapshot says an admin can assign roles; its code is a lazy chunk, loaded by a dynamic import when the section first opens), and the
  * open section on the right under its own h2. A section has its own address, #/settings/<slug>; #/settings and an unknown slug open Models (the first).
  *
  * The page asks GET /v1/settings once when it opens, and the answer decides what it shows (D10): the sections for an admin; for a 403, the denied
@@ -98,6 +98,9 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                 }
                 @case ('budgets') {
                   <app-budgets-section [values]="budgets()" (saved)="keepBudgets($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
+                }
+                @case ('roles') {
+                  <ng-container #rolesHost />
                 }
                 @case ('models') {
                   <app-models-section
@@ -231,16 +234,28 @@ export class SettingsPage {
   /** True while the open section has unsaved changes (the guard and the browser's own prompt read it). */
   readonly dirty = signal(false);
 
-  /** The slug that the address names. */
-  private readonly requested = toSignal(this.route.paramMap.pipe(map((params) => sectionSlug(params.get('section')))), {
-    initialValue: sectionSlug(this.route.snapshot.paramMap.get('section')),
+  /** True while the Roles section exists: an admin, roles can be assigned (Story 26.4's roles exist) and the install is not the online demo. */
+  protected readonly rolesShown = computed(() => {
+    const snapshot = this.live.snapshot();
+    return snapshot?.admin === true && snapshot.rolesAssignable === true && snapshot.onlineDemo !== true;
   });
+
+  /** The Roles section's component, loaded from its own chunk the first time the section opens (a dynamic import, so the initial bundle never holds it). */
+  private readonly rolesHost = viewChild('rolesHost', { read: ViewContainerRef });
+
+  /** The section part of the address, as it was typed. */
+  private readonly part = toSignal(this.route.paramMap.pipe(map((params) => params.get('section'))), {
+    initialValue: this.route.snapshot.paramMap.get('section'),
+  });
+
+  /** The slug that the address names: an unknown, missing or hidden one (Roles while roles can't be assigned) is Models. */
+  private readonly requested = computed(() => sectionSlug(this.part(), this.rolesShown()));
 
   /** The On call values: the server sends none on the online demo, so that the section is neither listed nor opened there (Story 36.4). */
   protected readonly onCall = computed<OnCallValues | undefined>(() => this.data()?.sections['on-call']);
 
-  /** The sections that the navigation lists: On call only while the server sends its values. */
-  protected readonly sections = computed(() => SETTINGS_SECTIONS.filter((section) => section.slug !== 'on-call' || this.onCall() !== undefined));
+  /** The sections that the navigation lists: Roles only while roles can be assigned (shownSections), On call only while the server sends its values. */
+  protected readonly sections = computed(() => shownSections(this.rolesShown()).filter((section) => section.slug !== 'on-call' || this.onCall() !== undefined));
 
   /** The open section's slug: the address's, or Models (the first) for On call when the server sends none. */
   protected readonly active = computed(() => (this.requested() === 'on-call' && this.data() !== undefined && this.onCall() === undefined ? SETTINGS_SECTIONS[0].slug : this.requested()));
@@ -293,6 +308,16 @@ export class SettingsPage {
           void import('./mcp-section').then((loaded) => this.mcpSection.set(loaded.McpSection));
         }
       });
+    });
+    effect(() => {
+      const host = this.rolesHost();
+      if (host !== undefined && this.active() === ROLES_SLUG) {
+        void import('./roles-section').then((loaded) => {
+          if (untracked(this.rolesHost) === host && host.length === 0) {
+            host.createComponent(loaded.RolesSection);
+          }
+        });
+      }
     });
     this.destroyed.onDestroy(() => view?.removeEventListener('beforeunload', unload));
   }

@@ -67,7 +67,7 @@ describe('the root and the answer row', () => {
   });
 
   it('has the two buttons in a span of the answer part while pending, and the status in a paragraph of the same part and key, focusable, otherwise', () => {
-    assert.match(template, /<div class="answer-row">\s*@if \(view\(\)\.pending\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="view\(\)\.ref">/);
+    assert.match(template, /<div class="answer-row">\s*@if \(view\(\)\.pending && !viewer\(\)\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="view\(\)\.ref">/);
     const status = /<p \[class\]="'status tone-' \+ status\.tone"([^>]*)>/.exec(template)?.[1] ?? '';
     assert.match(status, /data-part="answer"/);
     assert.match(status, /\[attr\.data-key\]="view\(\)\.ref"/);

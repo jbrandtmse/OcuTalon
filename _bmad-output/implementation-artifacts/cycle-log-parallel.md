@@ -4083,3 +4083,18 @@
 2026-11-14T07:49:02Z	Epic 36	runner_reported	PART_READY story=36.4+36.6 head=39af54d9 runs=43567216780(att2:DW-1323_new_flake_Watch.Summary),43567216781 sections=9_union bundle=882.45kB demo_mode=already_shown_on_feature(9a851935_SECTION_NAMES)
 2026-11-14T07:49:02Z	Epic 36	ci_green_verified	sha=39af54d9 runs=43567216780(att2),43567216781
 2026-11-14T07:49:02Z	Epic 36	merge_enqueued	part=36.4+36.6 head=39af54d9 feature=5de8aec9 fixes=feature_red_section_pins
+2026-11-14T07:50:59Z	Epic 36	epic_merged_to_feature	part=36.4+36.6 feature_sha=a5fc95e9 conflicts=tracker(ours+set;valid) merged_tree_pins=test-readme,boundaries,release-notes,web_node_suite_pass verified_on_origin=yes ci=own_run_required(39af54d9+22.7)
+2026-11-14T07:51:29Z	Run	resume_lane_A	runners=25.4(a17cb142),26.3(ae04eaae) task=integrate_over_a5fc95e9+repush lane_B=36.7_implement lane_D=22.6_pass+22.5
+2026-11-14T07:51:36Z	Run	owner_decision	via=contest_planner feature_fix_verified DW-1323=provisional_flake(second_hit=story_pre-RC)
+2026-11-14T07:51:40Z	Run	note	DW-1323_entry_not_on_feature_yet(on_OCT-epic36_records_b08db61d);ruling_kept_in_standing-rulings;append_after_records_merge
+2026-11-14T08:39:33Z	Run	ci_red_classified	head=a5fc95e9(feature) run=43573005917 job=shards-10_live:sign-in fails=chat.spec_C1+shell.spec_row8(both_empty_chat_panel_count_0) class=UNDETERMINED(row8=DW-1081_ledgered;C1_same_symptom_as_21.4_M2_leftover-turn_bug;possible_merge_interaction_22.7xx21.4) action=rerun_failed_once+lane_C_local_repro
+2026-11-14T08:40:07Z	Run	owner_decision	via=contest_planner a5fc95e9_red: repro_in_CI_order(M2_before_C1/row8)+row_check; DW-1081_only_if_rerun_green_AND_2_local_runs_clean; else_story_red_test-only_fix
+2026-11-14T08:56:33Z	Run	diagnosis	head=a5fc95e9 cause=daily_digest_08:00_window(Digest/Process.cls:4-8,80,215;README_session_seeded_<08:00,suite_crossed_08:00;ChatItems_includes_notices_Api.cls:1400-1447) not=21.4_M2,22.7 local_repro=3_runs_CI_order_clean DW-1081_same_root_cause fix=test-only_seed_digest.time_now+12h(test-sign-in.sh:307-312)
+2026-11-14T08:57:00Z	Epic 21	owner_decision	via=contest_planner digest_window_fix=burndown_story_21.15(lane_C;seed_digest.time+12h_mod24,E7_check,guard_within_2h_fails,DW-1081_reclassify) a5fc95e9_att2_green=counts_green
+2026-11-14T09:19:21Z	Run	ci_green_verified	head=a5fc95e9(feature;22.7+36.4+36.6+21.4+36.5) runs=43573005917(att2;att1_red=digest_08:00_window,DW-1081->21.15),43573005826 dispatch=unblocked
+2026-11-14T09:42:58Z	Epic 22	runner_reported	LOCAL_READY 22.6=wip/22-6@94013b12(DW-1324_resolved;rework_3/3) 22.5=wip/22-5@aa042f67(1HIGH_fixed:mailbox-only_all-clear) open=the-Jira(ruled_08:10Z_not_applied),DW-1325,DW-1326,DW-1327
+2026-11-14T09:43:26Z	Epic 22	owner_decision	via=contest_planner DW-1325=refuse_Mailbox_name(22.11,new_text) DW-1326=latest_run(amend_22.5_spec_intent) DW-1327=max(window,interval)(22.11,tests)
+2026-11-14T09:50:05Z	Epic 25	runner_reported	PART_READY story=25.4 head=de92b6e4 runs=43576797782,43576797834 bundle=884.58kB sections=10(9_shown)
+2026-11-14T09:50:05Z	Epic 25	ci_green_verified	sha=de92b6e4
+2026-11-14T09:50:05Z	Epic 25	amendments_verified	amendments=spine_AD-13,AD-24,epics_25.4_AC1,EXPERIENCE.md:1143 extensions=Install/Step/Roles.cls(granted) ok=true
+2026-11-14T09:50:05Z	Epic 25	merge_enqueued	part=25.4 head=de92b6e4 feature=958c63fb

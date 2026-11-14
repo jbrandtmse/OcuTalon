@@ -9,6 +9,7 @@ import type { GuideStatePayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
 import { BUSY_TIMEOUT_MS } from '../shared/busy-state';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
+import { isViewer } from '../shared/viewer-view';
 import { ServerButton } from '../shared/server-button';
 import { boxView, conflictOf, FEED_TEXTS, heldSent, type LocalPress, NO_PRESS, sentToAnnounce, watchLine } from './break-feed-view';
 
@@ -36,6 +37,7 @@ const NO_REFS: ReadonlySet<string> = new Set<string>();
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.next-step]': 'box().nextStep', '[class.inline]': 'inline()' },
   template: `
+    @if (!viewer()) {
     <div class="head">
       <span class="label">{{ texts.label }}</span>
       @if (box().nextStep) {
@@ -59,6 +61,7 @@ const NO_REFS: ReadonlySet<string> = new Set<string>();
       @if (box().doStep1) {
         <button type="button" class="link step1" data-guide-focus="step1" (click)="doStep1.emit()">{{ texts.doStep1 }}</button>
       }
+    }
     }
   `,
   styles: `
@@ -158,6 +161,8 @@ export class BreakFeedBox {
   protected readonly hintId = HINT_ID;
 
   private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): the box is not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly api = inject(ApiClient);
   private readonly announcer = inject(Announcer);
 
