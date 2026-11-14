@@ -403,3 +403,5 @@
 2026-11-14T13:44:45Z	Story 22.13	fresh_check	env=recipe(new_lane-D_warm_stack_e22s13fc) tests=Test.Mcp.SourceSet,Test.Digest.Coverage,Test.Digest.Compose result=pass order=forward,reverse
 2026-11-14T13:45:59Z	Epic 22	committed	sha=16772e40 stories=22.13 ci=pending runs=43601299721(ci),43601299691(lane-a) note=records_c196b450..carried
 2026-11-14T14:41:23Z	Epic 22	ci_resolved	sha=16772e40 result=success runs=43601299721(ci),43601299691(lane-a) flake_reruns=0 stories=22.13
+2026-11-14T14:45:03Z	Epic 22	integrated_forward	feature=f403bf66(22.13+25.5) head=dfd2e84b conflicts=none
+2026-11-14T14:45:03Z	Story 22.11	replan_opened	spec_status=draft reason=poll_run_only_after_22.13_split(Planner_~13:20Z);Task0_STOP_kept
