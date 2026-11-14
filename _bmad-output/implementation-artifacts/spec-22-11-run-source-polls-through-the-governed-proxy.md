@@ -498,6 +498,19 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: `RecordSource` records a passed run as `failed` -> `Test.Mcp.SourceRun:TestNewResult` red (and `TestResume`, `TestOneInFlightNoQueueStale`): the "each run is recorded" AC.
 - The "no model" half of AC 1 is pinned by the model-mock log assertion in `TestPollRuns` (zero model requests); the poll path holds no model client, so no one-line mutation makes it call one (accepted). The triage-delay AC has no automated test: it rests on `evidence/22-11-task0-poll.md`.
 
+**QA pass (lane D warm throwaway, tag `e22s11qw`; tests only; one test file changed, `src/ocutalon/cls/OcuTalon/Test/Mcp/SourceRunProduction.cls` (QA), five tests added on the real production):**
+
+- `TestSourceRemovedInFlight`, `TestServerRemovedInFlight` (matrix 6 on the real Checks, Decide, TriageAgent and a silent mock; the source row, or the server with its tool rows, sources and entry, is removed while the poll waits; no row is made again, no CheckRun row, no Item to Intake, no `check` event).
+- `TestOnlineDemoNoPollInProduction` (matrix 7: a real `source` row, the real `onlineDemo` setting 1, a Tick to the real Checks: no Checks to Decide request, the mock hears nothing, the row as it was; control: with the setting back the same row is polled).
+- `TestStopThenResume` (matrix 5 on the real classification rows: risky gives `not_checked`, Reason `stopped`, no request reaches the mock; read-only again polls, passes, clears `stopped`, is the baseline).
+- `TestNoSecretLeaksOnFailure` (no argument value, URL or secret in a message, event-log row, audit entry, step label, finding or CheckRun row after a 401 poll, a stopped run and a poll of a mock that is down).
+- Each restarts the Checks item first (a job keeps the class it started with). Whole class `OcuTalon.Test.Mcp.SourceRunProduction` passed on the warm stack with the five new tests (45 s).
+- mutation: `RunSources` without its `PollsOff` return -> `Test.Mcp.SourceRunProduction:TestOnlineDemoNoPollInProduction` red ("the Tick sent no poll request to Decide", "the row is as it was", "no CheckRun row", and the control's two assertions).
+- mutation: `PollSource` never reads the source as stopped (`Set stopped = 0`) -> `Test.Mcp.SourceRunProduction:TestStopThenResume` red ("no poll request went to Decide"; the run still ends stopped, because `PollCall` refuses `notreadonly` before any request reaches the mock).
+- mutation: `RecordSource` logs the row's Arguments in a warning for a run that is not passed -> `Test.Mcp.SourceRunProduction:TestNoSecretLeaksOnFailure` red ("no event-log row holds the argument value or the URL"; `TestNoSecretLeaks` on the success path stays green).
+- mutation: `SourceAnswer` makes the row again when it finds none (`%New`, Ref, Kind, `%Save`) -> `Test.Mcp.SourceRunProduction:TestSourceRemovedInFlight` and `TestServerRemovedInFlight` red ("the row is not made again"). No smaller mutation turns them red: `SourceAnswer`'s missing-row return and `Record`'s `%ROWCOUNT` check each stop a recording alone, so the removal's answer is inert by two layers.
+- Each mutation applied alone, reverted from a saved copy (`cmp` identical) with `git status --short` unchanged.
+
 **Notes of the implement stage (Task 0 and its result are in `evidence/22-11-task0-poll.md`):**
 
 - Option (a) WAS applied: before it, `Call(port, "silent")` added 12746 ms to the median triage decision (limit 10000 ms); after it, every mode passes both limits (medians 27, 5734.5, 16 and 15 ms against a baseline of 28 ms; no decision with Fallback 1 or a timeout). The in-flight mark is `inflight` (the send time) in the source row's `Reported`, which is a member beyond the approved `{seen, baseline, stopped}` shape: it exists only while a poll is outstanding, holds a time, no column is added, and the record of the answer writes `Reported` without it.

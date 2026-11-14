@@ -9,6 +9,15 @@
 ///   - TestNewResultReachesIntake (the Integration AC): a source with a baseline whose mock answer changes sends one Item that reaches Intake and produces an ItemDecision, with one decide
 ///     request in the model mock's log (the keys are pointed at the mock for the test);
 ///   - TestNoSecretLeaks: no argument value of the source, URL or wallet secret shows in a message, an event-log row, an audit entry or a step label of the run.
+/// The QA pass adds the matrix rows that only the real runtime can show (every one restarts the Checks item first, so that it runs the classes as they are now):
+///   - TestSourceRemovedInFlight and TestServerRemovedInFlight (matrix 6): the source row, or the server with its tool rows and its sources, is removed while the poll waits on a silent mock; the answer
+///     that follows updates no row: no row is made again, no CheckRun row, no Item to Intake, no check event;
+///   - TestOnlineDemoNoPollInProduction (matrix 7): with a real source row and the real onlineDemo setting 1, a Tick to the real Checks sends no poll request, the mock hears nothing and the row is as it was;
+///     with the setting back as it was the same row is polled (the control);
+///   - TestStopThenResume (matrix 5): a tool classified risky is not polled (no request reaches the mock, the run is not_checked with Reason stopped); classified read-only again, the next due run polls
+///     and clears stopped;
+///   - TestNoSecretLeaksOnFailure: after a poll that the mock refuses (401) and one that finds the mock down, and after a stopped run, no argument value, URL or secret shows in a message, an event-log row,
+///     an audit entry, a step label, the finding or the CheckRun row.
 Class OcuTalon.Test.Mcp.SourceRunProduction Extends OcuTalon.Test.Mcp.JobFixture
 {
 
@@ -27,15 +36,23 @@ Property Source As %String;
 /// The ID of the newest message header when the test began.
 Property Mark As %Integer;
 
+/// What the public online-demo flag held before the test, and 1 once the test has changed it.
+Property SavedDemo As %String;
+
+Property DemoSaved As %Boolean [ InitialExpression = 0 ];
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Session = ""
 	Set ..Source = ""
+	Set ..DemoSaved = 0
 	Quit ##super(testname)
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If ..DemoSaved Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
+	Set ..DemoSaved = 0
 	Set sc = ##super(testname)
 	Do $ClassMethod(..#MOCK, "Speak", ..Port)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef IN (SELECT Ref FROM OcuTalon_Data.BackgroundCheck WHERE Server = ?)", ..#SERVER)
@@ -147,6 +164,205 @@ Method TestNoSecretLeaks()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(..AuditMark, "OcuTalon", , , url).%Size(), 0, "nor the URL")
 	Do $$$AssertEquals($Find(..StepLabels(), ..#ARGUMENT), 0, "no step label holds the argument value")
 	Do $$$AssertEquals(..Stored(ref).Finding _ "|" _ (..Stored(ref).Reported [ ..#ARGUMENT), "|0", "and neither the finding nor Reported holds it")
+}
+
+/// matrix 6, the source removed while its poll is in flight (see the class description).
+Method TestSourceRemovedInFlight()
+{
+	If '..Ready() Quit
+	Do ..RemovedInFlight("source")
+}
+
+/// matrix 6, the server removed while the poll of its source is in flight (see the class description).
+Method TestServerRemovedInFlight()
+{
+	If '..Ready() Quit
+	Do ..RemovedInFlight("server")
+}
+
+/// matrix 7 on the real Checks item and the real setting (see the class description).
+Method TestOnlineDemoNoPollInProduction()
+{
+	If '..Ready() Quit
+	Do ..FreshChecks()
+	Do ..Setup()
+	Set ..Session = ##class(OcuTalon.Test.Data.Fixture).Session("zzsrcdemo" _ $Increment(^OcuTalonTest("SourceRunProduction", "n")))
+	Set ..SavedDemo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set ..DemoSaved = 1
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ..Ok(##class(OcuTalon.Watch.Ops).SetSource(..Session, ..#SERVER, "zz_lookup", "Jira", {"q": (..#ARGUMENT)}.%ToJSON(), 5, "zzsrcprod", .ref, .created), "the source row is made while the setting is 1")
+	Set ..Source = ref
+	Set due = ..Stored(ref).NextDueAt
+	Set ..Mark = ..HeaderMark()
+	Hang 1.1
+	Do ..Tick()
+	Hang 6
+	Do $$$AssertEquals(##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"), 1, "the real setting onlineDemo is 1")
+	Do $$$AssertNotTrue($IsObject(..PollRequest()), "the Tick sent no poll request to Decide")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Requests", ..Port).%Size(), 0, "the mock heard nothing: no listing, no call")
+	Set row = ..Stored(ref)
+	Do $$$AssertEquals(row.LastRunAt _ "|" _ row.Result _ "|" _ row.Finding _ "|" _ row.Reported _ "|" _ (row.NextDueAt = due), "||||1", "the row is as it was: nothing is recorded")
+	Do $$$AssertEquals(..CheckRuns(ref), 0, "no CheckRun row is written")
+	Do $$$AssertEquals(..Items(), 0, "and no Item is sent")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
+	Set ..DemoSaved = 0
+	Do ..Poll(ref)
+	Do $$$AssertEquals(..Stored(ref).Result, "passed", "control: with the setting back as it was the same row is polled")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Calls", ..Port, "zz_lookup"), 1, "and the mock logged its one tools/call")
+}
+
+/// matrix 5 on the real Checks item and the real classification rows (see the class description).
+Method TestStopThenResume()
+{
+	If '..Ready() Quit
+	Do ..FreshChecks()
+	Set ref = ..Prepare()
+	Do ..Classify("risky")
+	Do ..Poll(ref)
+	Set row = ..Stored(ref)
+	Set reported = ##class(%DynamicAbstractObject).%FromJSON(row.Reported)
+	Do $$$AssertEquals(row.Result _ "|" _ reported.stopped _ "|" _ (reported.baseline = 1), "not_checked|not_read_only|0", "a risky tool: the run is not_checked and stopped, and it is not the baseline")
+	Do $$$AssertEquals(..LastRunReason(ref), "stopped", "the CheckRun row says Reason stopped")
+	Do $$$AssertNotTrue($IsObject(..PollRequest()), "no poll request went to Decide")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Requests", ..Port).%Size(), 0, "no request reached the mock: no listing and no tools/call")
+	Set before = row.LastRunAt
+	Do ..Classify("read-only")
+	Do ..Poll(ref, before)
+	Set row = ..Stored(ref)
+	Set reported = ##class(%DynamicAbstractObject).%FromJSON(row.Reported)
+	Do $$$AssertEquals(row.Result _ "|" _ reported.stopped _ "|" _ reported.baseline, "passed||1", "read-only again: the next due run polls, passes and clears stopped; it is the baseline")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Calls", ..Port, "zz_lookup"), 1, "the mock logged one tools/call, from the run after the stop")
+	Do $$$AssertEquals(..Items(), 0, "no Item (the baseline)")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(..AuditMark, "OcuTalon", "MCP", "MCP", ..#SERVER, , 1)
+	Do $$$AssertEquals(entries.%Size(), 1, "one MCP called entry: the stopped run wrote none")
+}
+
+/// The failure and stop paths leak nothing (see the class description).
+Method TestNoSecretLeaksOnFailure()
+{
+	If '..Ready() Quit
+	Do ..FreshChecks()
+	Set ref = ..Prepare()
+	Do $ClassMethod(..#MOCK, "Status", ..Port, "401 Unauthorized")
+	Do ..Poll(ref)
+	Set first = ..Stored(ref)
+	Do $$$AssertEquals(first.Result, "not_checked", "the refused poll is recorded as not_checked")
+	Do ..Classify("risky")
+	Do ..Poll(ref, first.LastRunAt)
+	Set second = ..Stored(ref)
+	Do $$$AssertEquals(second.Result _ "|" _ ..LastRunReason(ref), "not_checked|stopped", "the stopped run is recorded")
+	Do ..Classify("read-only")
+	Set mock = ..Port
+	Do $ClassMethod(..#MOCK, "Stop", mock)
+	Do ..Poll(ref, second.LastRunAt)
+	Set third = ..Stored(ref)
+	Do $$$AssertEquals(third.Result, "not_checked", "the poll of a mock that is down is recorded as not_checked")
+	Set url = "http://127.0.0.1:" _ mock
+	Set holds = ..TraceHolds(..Mark, $ListBuild(..#ARGUMENT, ..Secret, url), .scanned)
+	Do $$$AssertTrue(scanned > 0, "the messages of the runs were scanned (" _ scanned _ ")")
+	Do $$$AssertEquals($ListToString(holds), "0,0,0", "no message holds the argument value, the secret or the URL")
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "LogRowsHolding", ..LogMark, ..#ARGUMENT) _ "|" _ $ClassMethod(..#FIXTURE, "LogRowsHolding", ..LogMark, url), "0|0", "no event-log row holds the argument value or the URL")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(..AuditMark, "OcuTalon", , , ..#ARGUMENT).%Size() _ "|" _ ##class(OcuTalon.Test.Bridge.AuditLog).Entries(..AuditMark, "OcuTalon", , , url).%Size(), "0|0", "no audit entry holds the argument value or the URL")
+	Do $$$AssertEquals($Find(..StepLabels(), ..#ARGUMENT) _ "|" _ $Find(..StepLabels(), url), "0|0", "no step label holds the argument value or the URL")
+	Set leaked = 0
+	For row = first, second, third {
+		If (row.Finding [ ..#ARGUMENT) || (row.Finding [ url) || (row.Finding [ ..Secret) || (row.Reported [ ..#ARGUMENT) || (row.Reported [ url) Set leaked = leaked + 1
+	}
+	Do $$$AssertEquals(leaked, 0, "neither a finding nor Reported holds them")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ? AND (Finding [ ? OR Finding [ ? OR Finding [ ?)", ref, ..#ARGUMENT, url, ..Secret)
+	Do rs.%Next()
+	Do $$$AssertEquals(+rs.%GetData(1), 0, "and no CheckRun row holds them")
+}
+
+/// The poll of the removal is in flight (a silent mock that the runner has reached), then what is removed is removed, and the answer must record nothing.
+Method RemovedInFlight(what As %String) [ Private ]
+{
+	Do ..FreshChecks()
+	Set ref = ..Prepare()
+	Set session = ..Session
+	Do $ClassMethod(..#MOCK, "Silence", ..Port, 8)
+	Hang 1.1
+	Do ..Tick()
+	Set end = $ZHorolog + ..#WAIT
+	While (('$IsObject(..PollRequest())) || ($ClassMethod(..#MOCK, "Requests", ..Port).%Size() < 1)) && ($ZHorolog < end) {
+		Hang 0.25
+	}
+	Do $$$AssertTrue($IsObject(..PollRequest()), "the poll was sent to Decide")
+	Do $$$AssertTrue($ClassMethod(..#MOCK, "Requests", ..Port).%Size() > 0, "the runner reached the silent mock: the poll is in flight")
+	Do $$$AssertEquals(..Stored(ref).LastRunAt _ "|" _ ..Stored(ref).Result, "|", "nothing is recorded yet")
+	If what = "source" {
+		Do ..Ok(##class(OcuTalon.Watch.Ops).RemoveSource(ref), "the source row is removed")
+	} Else {
+		Set refs = ##class(OcuTalon.Watch.Ops).SourcesOf(..#SERVER)
+		Set iterator = refs.%GetIterator()
+		While iterator.%GetNext(, .each) {
+			Do ..Ok(##class(OcuTalon.Watch.Ops).RemoveSource(each), "a source of the server is removed")
+		}
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..#SERVER)
+		If ##class(OcuTalon.Mcp.Server).NameIndexExists(..#SERVER, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
+		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(..#SERVER)
+		If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ ..#SERVER) Do ##class(%ConfigStore.Configuration).Delete("AI.MCP.OcuTalon_" _ ..#SERVER)
+	}
+	Do $ClassMethod(..#MOCK, "Speak", ..Port)
+	Set end = $ZHorolog + ..#WAIT
+	While ('..Answered()) && ($ZHorolog < end) {
+		Hang 0.25
+	}
+	Do $$$AssertTrue(..Answered(), "Decide's answer reached Checks")
+	Hang 1.5
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(ref), 0, "the row is not made again")
+	Do $$$AssertEquals(..CheckRuns(ref), 0, "no CheckRun row is written")
+	Do $$$AssertEquals(..Items(), 0, "no Item is sent to Intake")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(session, "check").%Size(), 0, "no check event is published")
+}
+
+/// Restarts the Checks item, so that its job runs the classes as they are now (a job keeps the class it started with).
+Method FreshChecks() [ Private ]
+{
+	Do ..Ok($ClassMethod(..#FIXTURE, "Restart", "Checks"), "the Checks item is restarted")
+}
+
+/// Sends a Tick to Checks in the fixture session's trace (the Tick of Poll, with no wait).
+Method Tick() [ Private ]
+{
+	Set tick = ##class(OcuTalon.Msg.Tick).%New()
+	Set tick.TickAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = ##class(Ens.Director).CreateBusinessService("SimMailboxIn", .service)
+	If $$$ISOK(sc) {
+		Set service.%SuperSession = ##class(OcuTalon.Data.Session).RefIndexOpen(..Session).TraceRef
+		Set sc = service.SendRequestAsync("Checks", tick)
+	}
+	Do ..Ok(sc, "a Tick is sent to Checks")
+}
+
+/// Sets the classification of the fixture tool zz_lookup, as an admin's classification does (the rows alone: the gate and Checks read them).
+Method Classify(classification As %String) [ Private ]
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Mcp.ToolClassification SET Classification = ? WHERE Server = ? AND Tool = 'zz_lookup'", classification, ..#SERVER)
+}
+
+/// Whether Decide's answer to a poll has been delivered to and handled by Checks since the test began.
+Method Answered() As %Boolean [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'Decide' AND TargetConfigName = 'Checks' AND Type = 2 AND Status = 9", ..Mark)
+	Do rs.%Next()
+	Quit +rs.%GetData(1) > 0
+}
+
+/// The CheckRun rows of the source.
+Method CheckRuns(ref As %String) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ?", ref)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// The Reason of the newest CheckRun row of the source.
+Method LastRunReason(ref As %String) As %String [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Reason FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ? ORDER BY RanAt DESC, ID DESC", ref)
+	If rs.%Next() Quit rs.%GetData(1)
+	Quit ""
 }
 
 /// Points the key entry of TriageAgent at the CI mock, which restarts the runner (so that it runs the classes as they are now, and a model request of a poll would show in the mock's log),
