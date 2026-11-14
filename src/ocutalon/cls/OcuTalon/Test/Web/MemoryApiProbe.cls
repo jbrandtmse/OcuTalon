@@ -90,6 +90,13 @@ ClassMethod HasUserRole() As %Boolean [ Private ]
 	Quit 1
 }
 
+/// The live role set of OnPreDispatch's re-read: the OcuTalon user role, as HasUserRole says.
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ##class(OcuTalon.Web.Public.Shell).#ROLE
+	Quit $$$OK
+}
+
 ClassMethod ServerError(sc As %Status = {$SYSTEM.Status.OK()}) As %Status [ Private ]
 {
 	Set ^OcuTalonTest("MemoryApiProbe", "logged") = $SYSTEM.Status.GetErrorText(sc)

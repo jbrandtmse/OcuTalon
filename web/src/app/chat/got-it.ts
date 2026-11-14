@@ -1,11 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { catchError, type Observable, of } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
+import { LiveState } from '../live/live-state';
 import { PAGE_TEXTS } from '../msg/catalog';
 import { Announcer } from '../shared/announcer';
 import { InlineNotice } from '../shared/inline-notice';
+import { isViewer } from '../shared/viewer-view';
 import { BUSY_NOTICE, ServerButton } from '../shared/server-button';
 
 /** The last id handed to a Got it, for the id of its notice. */
@@ -39,9 +41,11 @@ function messageOf(error: unknown): string {
   imports: [InlineNotice, ServerButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-server-button variant="secondary" data-part="got-it" [attr.data-ref]="ref()" [action]="press" [describedBy]="notice() === '' ? [] : [noticeId]">
-      {{ label }}
-    </app-server-button>
+    @if (!viewer()) {
+      <app-server-button variant="secondary" data-part="got-it" [attr.data-ref]="ref()" [action]="press" [describedBy]="notice() === '' ? [] : [noticeId]">
+        {{ label }}
+      </app-server-button>
+    }
     @if (notice(); as text) {
       <app-inline-notice class="notice" variant="warning" [id]="noticeId">{{ text }}</app-inline-notice>
     }
@@ -71,6 +75,9 @@ export class GotIt {
   protected readonly notice = signal('');
 
   private readonly api = inject(ApiClient);
+  private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): the button is not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly announcer = inject(Announcer);
 
   /** False once the control is gone (the notice was marked): a reply that comes later shows and announces nothing. */

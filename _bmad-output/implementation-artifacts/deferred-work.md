@@ -7677,6 +7677,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-24 S2 personal-data clause; Planner V3/V4/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-13T23:37:37Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=ceaf3519+review_patches:SettingsOps.SaveRoles/ListRoles_handoff_both_ways;Test.Web.RolesApi_leak_scan;409_on_demo_per_route;Test.Install.RolesAssign_one_test_per_refusal
 
 ### DW-1268: 25.5 obligation from 37.1: AnswersIn calls Approval.MayAnswer before Answer; the not_allowed slot kind carries the row's ApproverKind; one 'Only an approver for ...' sentence per approver kind (seven: resend, reroute, suspend, rollback, partner, email, tool; setting rows keep today's rule) proposed as PUBLIC TEXT (only 'resends' is in EXPERIENCE.md)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7832,6 +7833,44 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
 
+### DW-1283: SecretHandoff has no TTL: the reverse handoff uri SettingsOps puts for the Roles list (Holders) is left in shared memory until the instance restarts when the REST process times out before taking it; admin-only, local installs only; a TTL in SecretHandoff would close it
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/SecretHandoff.cls has Put/Take/Discard only (no TTL) on eaad3718; Planner ruling C4 2026-11-13: do not widen SecretHandoff in 25.4, ledger a low DW
+- 2026-11-13T19:04:31Z status=routed owner=burndown by=spec_gate note=Planner ruling C4 (story-254-rulings-20261113.md)
+
+### DW-1284: Telegram and email entries take a message in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person holding OcuTalonUser at USE time: a user whose OcuTalonUser role is removed can still start turns through a paired chat or the connected mailbox (approval answers do re-check at use time)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
+- 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
+
+### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Install/Step/Roles.cls Assign + Bridge/Audit.cls Record (Redact.SensitiveKey); the roles.<user> shape is pinned by the Matrix
+- 2026-11-13T22:43:57Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=harvest note=reopen_if=an admin reports a roles.* audit entry with blank from/to, or a real install has a user named with a sensitive suffix
+
+### DW-1290: A removed OcuTalonAdmin role keeps applying to an open CSP session until it ends (IsAdmin and RoleSettings.Refusal read the session's $Roles; only OcuTalonUser/OcuTalonViewer are re-read live per ruling C-24h); an admin who loses the role and keeps a tab polling keeps /v1/settings and the Roles routes
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls OnPreDispatch, IsAdmin; Web/RoleSettings.cls Refusal; Task 0 (c): 8 h idle timeout renewed per request
+- 2026-11-13T22:43:57Z status=escalated owner=burndown by=harvest note=security posture: extend the C-24h live re-read to OcuTalonAdmin (same call, p95 0.066 ms); for the Planner/decision sheet
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_2:_live_re-read_extends_to_OcuTalonAdmin_under_C-24h_rules,_into_25.4_now
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=84fe7ed3:IsAdmin_live_role_set;TestRemovedAdminLosesSettings(real_HTTP)+3_mutations;lead_smoke_sign-in-2_17/20
+
+### DW-1297: Settings > Roles shows the step-2 text 'Saved. Applies within a minute. Recorded in the audit log.' for a save that changed nothing (changed false, e.g. granting a role the user already holds), though no audit entry is written
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: roles-section.ts change(): every 200 shows SETTINGS_TEXTS.saved; SaveRoles answers changed false and Assign writes no entry for a no-op (I/O matrix Repeat row)
+- 2026-11-13T23:26:30Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling: a no-change text, or no confirmation for changed false; new public text is owner-only
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_3:_option_a:_no_audit_entry_and_text_No_change:_{user}'s_roles_are_already_as_you_set_them.,_into_25.4_now
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=84fe7ed3:no-op_text_No_change(text,not_HTML)+no_audit_entry;RolesApi.TestNoChangeWritesNoEntry,RS3,saveLine_unit;mutations
+
+### DW-1298: Viewer guards in 9 of the 14 guarded components (try-it row, more to try, demo guide Run again, got it, noise control, documents bar and Remove, mailbox, phone, chat drop) are pinned only by source-text regexes, with no rendered viewer check
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: viewer-sources.test.mjs matches template text; viewer.spec.ts V1/V2 render only the composer, Approve/Reject, Dismiss, Break the feed and the rail; the server's 403 read_only is pinned (ViewerApi, api/roles.spec.ts)
+- 2026-11-13T23:26:30Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=reopen_if=a viewer sees a state-changing control on any page, or a guard edit leaves viewer-sources green while a control renders
+
+### DW-1299: POST /v1/settings/roles checks only the body's types before the SecretHandoff; an empty or 161-character user, or a role outside the allowlist, is handed over and refused one hop later by Roles.Refusal (Planner Gate SECURITY row 2 says 1-160 characters and the two roles)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: RoleSettings.ShapeFields types only; the frozen I/O matrix (Unknown user, Role refused rows) and Decided in-stage 5 fix the 400 user_unknown/role answers, which the client gets unchanged; Assign refuses before any change
+- 2026-11-13T23:26:30Z status=by-design owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=spec-bound: frozen matrix rows + Decided in-stage 5; no name leaves the handoff; reopens only via spec amendment
 ### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
 - source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
@@ -7871,6 +7910,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+- 2026-11-14T00:55:11Z occurrence=25-4-assign-approver-and-viewer-roles-in-settings
+- 2026-11-14T00:55:11Z note=25.4 cr: the 997.59 kB ceiling is checked by hand only (angular.json initial maximumError is 1MB); 25.4 build 997.59 kB, at the ceiling
+
+### DW-1303: Self-lockout: Settings > Roles lets an admin grant OcuTalonViewer to themselves, which (viewer wins, Planner 25.4 final ruling 1) locks them out of Settings; the save must refuse it with reason self_viewer and the text: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin."
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Install/Step/Roles.cls Refusal and Web/RoleSettings.cls have no acting-user check (grep self/actingUser at 8d2db7ce); Planner 25.4 final ruling 1 (story-254-rulings-20261113.md, ~00:05Z Nov 14)
+- 2026-11-13T23:56:04Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=lead note=Planner ruling: report-only check found no refusal; routed to 25.5 with reason self_viewer and the given text (PUBLIC TEXT approved by the ruling)
+
+### DW-1307: AD-13 still says OcuTalonAdmin is read from the session's $Roles and applies until the session ends, but 25.4 now reads it from the live role set (Planner final ruling 2, DW-1290); the spine needs the Rule 20 write
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md (code review, rework iteration 1) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md AD-13 settings-routes bullet (by its whole name in $Roles) and the Story 25.4 viewer bullet (the other roles (OcuTalonAdmin among them) are read from the session); Web/Api.cls IsAdmin now reads LiveRoles at 84fe7ed3
+- 2026-11-14T00:55:11Z status=escalated owner=burndown by=cr note=veto window (amending an AD): the lead records final ruling 2 in AD-13 under Rule 20; the code follows the binding ruling
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=lead note=AD-13_settings-routes_bullet_and_25.4_viewer_bullet_amended_per_final_ruling_2(Rule_20),lint_baseline
 
 ### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
 - source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls

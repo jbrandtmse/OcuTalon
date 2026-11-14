@@ -15,6 +15,7 @@ import { Dialogs } from '../shared/dialogs';
 import { FileDrop } from '../shared/file-drop';
 import { encode } from '../shared/file-encode';
 import { ServerButton } from '../shared/server-button';
+import { isViewer } from '../shared/viewer-view';
 import { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, docRef, formatSize, refusedText, rows, sampleListed, type DocumentRow, type LocalRow } from './documents-view';
 import { SampleRunbook } from './sample-runbook';
 import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
@@ -60,13 +61,15 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
       (files)="addFiles($event)"
     >
       <h1 id="documents-heading" class="heading">{{ texts.heading }}</h1>
-      <div class="bar">
-        <button type="button" class="button button-primary add" (click)="picker.click()">{{ texts.add }}</button>
-        @if (sampleShown()) {
-          <app-server-button #sample variant="secondary" [action]="addSample">{{ texts.sample }}</app-server-button>
-        }
-        <input #picker type="file" multiple hidden [accept]="accept" (change)="picked(picker)" />
-      </div>
+      @if (!viewer()) {
+        <div class="bar">
+          <button type="button" class="button button-primary add" (click)="picker.click()">{{ texts.add }}</button>
+          @if (sampleShown()) {
+            <app-server-button #sample variant="secondary" [action]="addSample">{{ texts.sample }}</app-server-button>
+          }
+          <input #picker type="file" multiple hidden [accept]="accept" (change)="picked(picker)" />
+        </div>
+      }
       @if (opened(); as shown) {
         @if (shown.kind === 'text') {
           <section class="opened" aria-labelledby="document-text-heading" data-part="document-text">
@@ -90,7 +93,7 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
                 <span class="when">{{ row.when }}</span>
                 <span class="size">{{ row.sizeText }}</span>
                 <span class="status">{{ row.status }}</span>
-                @if (row.removable) {
+                @if (row.removable && !viewer()) {
                   <button type="button" class="button button-secondary remove" [attr.aria-label]="removeName(row)" (click)="askRemove(row, $event)">{{ texts.remove }}</button>
                 }
               </li>
@@ -192,6 +195,8 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
 export class DocumentsPage {
   private readonly api = inject(ApiClient);
   private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): no add, sample or remove. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly announcer = inject(Announcer);
   private readonly dialogs = inject(Dialogs);
   private readonly target = inject(ConfirmRequest);
@@ -388,6 +393,9 @@ export class DocumentsPage {
 
   /** Gives each file to the route, one after the other. */
   protected async addFiles(files: readonly File[]): Promise<void> {
+    if (this.viewer()) {
+      return;
+    }
     for (const file of files) {
       await this.addFile(file);
     }

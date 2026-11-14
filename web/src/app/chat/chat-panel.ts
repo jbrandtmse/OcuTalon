@@ -27,6 +27,7 @@ import { FileDrop } from '../shared/file-drop';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
+import { isViewer, VIEWER_TEXTS } from '../shared/viewer-view';
 import { revealRing } from '../shared/reveal-ring';
 import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard, landed } from './chat-announcements';
 import { ChatFiles } from './chat-files';
@@ -131,6 +132,8 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  * A drop of files on the chat is a second way to send a file, beside the composer's paperclip (Story 25.3, UX-DR129): the chat takes the drop only
  * while the snapshot's `filesReadable` is true, and on the online demo it shows the off text; otherwise it binds no handler and the browser's own handling stays.
  *
+ * A viewer (viewer-view.isViewer) has no composer and no chat drop: the viewer line shows in the composer's place.
+ *
  * A 1 s clock ticks only while a turn is running, for the elapsed seconds that the indicator adds after 10 s. The page notes
  * when it first saw each turn running. The step labels of the live store (turn.step events, by the running turn's ref) reach the
  * indicator through chatView.
@@ -189,7 +192,11 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
           {{ texts.newMessages }}
         </button>
       }
-      <app-composer />
+      @if (viewer()) {
+        <p class="viewer-line" data-viewer="line">{{ viewerLine }}</p>
+      } @else {
+        <app-composer />
+      }
     </div>
   `,
   styles: `
@@ -238,6 +245,10 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+    }
+    .viewer-line {
+      margin: 0;
+      color: var(--ink-muted);
     }
     .dock {
       position: relative;
@@ -307,6 +318,10 @@ export class ChatPanel {
 
   /** The paperclip and the drop (files-view.fileControls): the chat takes a drop only while the install can read a file or it is the online demo. */
   protected readonly fileControls = this.chatFiles.controls;
+
+  /** True for a viewer (Story 25.4): the composer gives way to the viewer line. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
+  protected readonly viewerLine = VIEWER_TEXTS.line;
 
   /** A drop on the chat: on the online demo the off text, else the files go to ChatFiles. */
   protected dropped(files: File[]): void {
