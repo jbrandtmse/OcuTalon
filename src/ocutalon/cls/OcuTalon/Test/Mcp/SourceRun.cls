@@ -576,7 +576,8 @@ Method TestSlowQueueNeverStale()
 	Set count = 5
 	Set last = first
 	For i = 0:1:count - 1 {
-		Set ref = ..Source(session, "S" _ i)
+		// the real Kind, so that Coverage counts the row, and never due, so that the production's own Checks never polls it
+		Set ref = ..Source(session, "S" _ i, {"NextDueAt": "2099-01-01T00:00:00Z"})
 		Do ..Flip(ref, 0)
 		Set late(i) = ref
 		Set second = ##class(OcuTalon.Data.Time).AddSeconds(first, 900 + (60 * i))
@@ -585,7 +586,6 @@ Method TestSlowQueueNeverStale()
 		If second ] last Set last = second
 	}
 	Set others = ..OtherSources()
-	Do $$$AssertTrue(60 * (count - 1) > 180, "the last source waits longer than the old 180 seconds")
 	// the gap between the two runs of each source (both in the span)
 	Set from = ##class(OcuTalon.Data.Time).AddSeconds(first, -60)
 	Set to = ##class(OcuTalon.Data.Time).AddSeconds(last, 30)

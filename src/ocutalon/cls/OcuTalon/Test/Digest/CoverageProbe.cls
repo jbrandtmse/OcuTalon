@@ -7,6 +7,8 @@
 ///     string leave the output a string (an unread queue); each call is kept in Calls;
 ///   - Gaps gives the array that Gaps set ([] by default);
 ///   - Mark gives the text that FeedMark set, and MailOwner the Ref that FeedOwner set ("" for none; Story 22.5); Mark throws when ^||CoverageProbe("markError") is 1.
+///   - PollingSources gives ^||CoverageProbe("polling") (0 by default), so that no source row of another session or test in the install changes a
+///     source's allowance here (Story 22.11, DW-1346; DW-1353).
 Class OcuTalon.Test.Digest.CoverageProbe Extends OcuTalon.Checks.Coverage
 {
 
@@ -120,6 +122,11 @@ ClassMethod Namespaces() As %String
 }
 
 /// Forgets every feed and record.
+ClassMethod PollingSources() As %Integer [ Private ]
+{
+	Quit +$Get(^||CoverageProbe("polling"))
+}
+
 ClassMethod Reset()
 {
 	Kill ^||CoverageProbe

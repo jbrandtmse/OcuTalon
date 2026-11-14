@@ -72,8 +72,9 @@ Check 1 (the STOP criteria): the largest median added over the baseline is 5706 
 
 Check 2 (no source marked stale only because of queuing): a silent poll holds the in-flight mark for at most about 26 s (2 s initialize and list of the seed, 2 s for the proxy's own, 20 s
 for the call), so with 3 silent sources due at once the Ticks (60 s apart) poll them one at a time: the first at the Tick, the second at the next Tick, the third at the one after,
-which is at most 120 s after they were due, inside the interval + 180 s that coverage allows (interval 5 minutes or more). Pinned by `TestOneInFlightNoQueueStale`
-(`Test/Mcp/SourceRun.cls`); its mutation is in the spec's Verification section.
+which is at most 120 s after they were due, inside the interval + 180 s that coverage allows (interval 5 minutes or more). The one-at-a-time sends and the 150 s
+mark are pinned by `TestOneInFlightNoQueueStale` (`Test/Mcp/SourceRun.cls`) and coverage's allowance by `TestSlowQueueNeverStale`; their mutations are in the spec's Verification
+section. The 120 s is this measurement, not a test.
 
 Code review note (2026-11-14): the "about 26 s" above is the measured one-page mock, not a bound in code. `Mcp.Client` gives each request its own 2 s limit (initialize, the
 notification and each `tools/list` page, up to 10 pages) plus a connect bound, so a silent one-page server can hold a poll about 32 s and a ten-page one about 68 s, and a server that

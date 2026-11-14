@@ -1183,7 +1183,7 @@ Method SourceClass(server As %String, tool As %String) As %String [ Private ]
 }
 
 /// Tells the admins that the source stopped polling (a seam for the tests): Mcp.Ops SourceStopped, with the source's name, tool and server and the time. Its status is not read here: the one
-/// failure it reports, a read of the admins that fails, is already one warning of Mcp.Ops Notify, and a notice that cannot be sent is one warning of its Send, so a failed stop notice is one warning in all.
+/// failure it reports, a read of the admins that fails, is already one warning of Mcp.Ops Notify, and a notice that cannot be sent is one warning of its Send for that admin session, so Checks adds none.
 Method StopNotice(row As %DynamicObject, time As %String) [ Private ]
 {
 	Do $ClassMethod(..#OPSCLASS, "SourceStopped", row.displayName, row.tool, row.server, time)

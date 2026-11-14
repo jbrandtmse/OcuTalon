@@ -8154,6 +8154,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RunSources/PollInFlight: one mark install-wide; N sources need N Ticks; a poll that runs to Decide's 60 s timer can hold the mark past the next Tick (3 such sources about 240 s > 180 s, inference). Check 2 measured only for 3 sources in 4 mock modes.
 - 2026-11-14T19:28:17Z status=decision-pending owner=burndown by=cr note=Planner: option (b) poll runner or (c) TriageAgent PoolSize 2, or send the next due source from OnResponse
+- 2026-11-14T23:40:11Z occurrence=22-11-run-source-polls-through-the-governed-proxy
+- 2026-11-14T23:40:11Z status=decision-pending owner=burndown by=cr note=ruled ~20:40Z: cap stays, max(180,60xN) coded; residual: timer-length polls cost poll+Tick each (3rd ~240s); rec 120s/source
 
 ### DW-1347: Source polls: a poll answer is cut at the tool-result room, so the hash and the Item hold cut text plus the cut note, and a change past the cut that keeps the length is missed
 - source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8174,3 +8176,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: Checks MarkInFlight writes Reported with inflight (the send time) from the send to the answer's record; veto 2 approved only {seen, baseline, stopped}; the ~15:10Z pre-ruling put the state on the row and allowed no column.
 - 2026-11-14T19:28:59Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the stored member (veto window: stored data); reviewer: consistent with the pre-ruling, transient, time only
+
+### DW-1353: Coverage's install-wide source count (DW-1346) makes Test.Digest.Coverage's source boundary tests depend on other sessions' source rows
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review, rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Coverage.PollingSources counts every non-stopped source row of the install; one leftover row turned TestSourceLongIntervalStale red on the warm stack (and one a second older is stale), green once removed; two turn TestSourceIntervalGap red. Lane B test (Test/Digest/**).
+- 2026-11-14T23:40:11Z status=escalated owner=burndown by=cr note=Lane B file 22.11 may not edit; fix: CoverageProbe overrides PollingSources to count only the test's own rows
+- 2026-11-14T23:56:26Z status=resolved-by:22-11-run-source-polls-through-the-governed-proxy by=lead note=Test/Digest/CoverageProbe.cls_overrides_PollingSources(^||CoverageProbe(polling),default_0);CoverageProbe_is_in_22.5s_footprint(Lane_A);proof:3_leftover_source_rows->Coverage_green;mutation_override_removed->TestSourceIntervalGap+TestSourceLongIntervalStale_red
