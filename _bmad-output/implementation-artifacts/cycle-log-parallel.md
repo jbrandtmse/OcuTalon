@@ -4098,3 +4098,7 @@
 2026-11-14T09:50:05Z	Epic 25	ci_green_verified	sha=de92b6e4
 2026-11-14T09:50:05Z	Epic 25	amendments_verified	amendments=spine_AD-13,AD-24,epics_25.4_AC1,EXPERIENCE.md:1143 extensions=Install/Step/Roles.cls(granted) ok=true
 2026-11-14T09:50:05Z	Epic 25	merge_enqueued	part=25.4 head=de92b6e4 feature=958c63fb
+2026-11-14T09:50:45Z	Epic 25	epic_merged_to_feature	part=25.4 feature_sha=423f8148 code=de92b6e4(identical) ci=green_by_identity(feature_runs_cancelled) verified_on_origin=yes bundle=884.58kB
+2026-11-14T10:22:19Z	Epic 21	runner_reported	PART_READY story=21.15 code_head=58c17af5 runs=43579849186,43579849192 guard_proven residual=60s_setting_cache
+2026-11-14T10:22:19Z	Epic 21	ci_green_verified	sha=58c17af5
+2026-11-14T10:22:19Z	Epic 21	merge_enqueued	part=21.15 head=58c17af5 feature=423f8148
