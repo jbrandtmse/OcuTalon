@@ -4121,3 +4121,27 @@
 2026-11-14T12:22:29Z	Epic 22	ci_green_verified	sha=931e6260
 2026-11-14T12:22:29Z	Epic 22	amendments_verified	amendments=epics_22.11_inserted(split)+22.5_ACs_moved,22.5_spec_intent(DW-1326),spine_AD-18/28/S20,docs(22.6_ruled_texts) extensions=Test/Data/Tables.cls,Test/Live/Payloads.cls,payloads.ts(V11_granted),test-readme.sh_rule_docs(R1) ok=true
 2026-11-14T12:22:29Z	Epic 22	merge_enqueued	parts=22.6+22.5 head=931e6260 feature=d2c2fb0d
+2026-11-14T12:31:03Z	Epic 22	epic_merged_to_feature	parts=22.6+22.5 feature_sha=f138fcf82 conflicts=tracker,bridge-guide.md+test-bridge-guide.sh(union:22.6_TurnTools/McpServers_text+26.3_Content_bullet,six_classes) merged_tree_pins=bridge-guide,readme,boundaries,class-rules,release-notes,release-sequence,storage,ci-config,web_2082_pass verified_on_origin=yes
+2026-11-14T12:31:03Z	Run	deps_hash_rerecorded	reason=split(22.11)+burndown_inserted+rule5_amendment hash=dd8a67695cd1
+2026-11-14T12:31:30Z	Run	dispatch_note	B=36.3(+epic_close) C=21.10(then_21.5) D=22.11_plan A=25.5(running) hold=16:00Z
+2026-11-14T12:31:42Z	Epic 22	owner_decision	via=contest_planner mailbox_lowercase_in_sentence_only(22.11;labels_unchanged;list_ENTRYMAILBOX_renders;pin+mutation)
+2026-11-14T12:41:46Z	Run	ci_red_classified	head=ef40062b run=43589903973 job=production_row21 class=flake(DW-306) action=no_rerun(superseded_by_d2c2fb0d,f138fcf8) note=ae6c6009=DW-494,ef40062b=DW-306:different_ledgered_flakes;f138fcf8_covers_all
+2026-11-14T12:41:46Z	Run	ci_cancelled	runs=43593749725,43593749738(d2c2fb0d;superseded_by_f138fcf8_which_contains_it)
+2026-11-14T12:50:06Z	Epic 36	runner_reported	PUBLIC_TEXT story=36.3 spec=OCT-epic36@4891dad2(local) items=AC_target_README->GUIDE.md(rule5),G2_position_first_para_of_For_admins
+2026-11-14T12:50:33Z	Epic 36	owner_decision	via=contest_planner 36.3=APPROVED(AC_retarget_GUIDE+22.6_AC_same_retarget,G2_position,admin-mcp_rule)
+2026-11-14T12:55:01Z	Epic 22	runner_reported	PUBLIC_TEXT story=22.11_gate head=6a5a730a(local;hold_ref) items=reserved_name(21.5_mapping),DW-1328_reset_vs_keep,split_recommended,mailbox_renders_5(#2_list_after_colon) spec_oversized_7477w DW-1326=amended_late
+2026-11-14T12:55:34Z	Epic 22	owner_decision	via=contest_planner 22.11_split->22.13(DW-1325,1327,1328_switch,mailbox_sentences) DW-1328=RESET reserved_name->21.5_bullet(400,DW-1325_text) mailbox_lowercase_both_sentences triage_STOP>10s_median_or_timeout precedents_low_DW
+2026-11-14T13:17:46Z	Run	ci_red_classified	head=f138fcf8 run=43595216871 jobs=shards-3+shards-6(ci-4_port_52814_in_use=infra,DW-1335),shards-4(rail_R10=DW-1093_flake) action=rerun_failed_once(att2)
+2026-11-14T13:19:42Z	Run	lesson	what=orchestrator_cancel_of_d2c2fb0d_ci(43593749725)_left_its_stack_on_ci-4_holding_52814->later_jobs_red rule="cancelling a run with live jobs can leave stacks; prefer cancelling QUEUED runs; until DW-1335 lands, report port errors to the Planner" planner_cleaned_ci-4
+2026-11-14T13:19:42Z	Run	owner_decision	via=contest_planner ci-4_cleaned DW-1335=burndown_story_pre-1.0.10_RC(ci/iris.sh_removes_leftover_stack_on_own_port+test)
+2026-11-14T13:47:12Z	Run	ci_green_verified	head=f138fcf8(feature;21.15+25.4+26.3+36.7+22.6+22.5) runs=43595216871(att2),43595216787 att1_reds=ci-4_port(DW-1335,cleaned)+rail_R10(DW-1093)
+2026-11-14T14:17:08Z	Epic 25	runner_reported	PART_READY story=25.5 head=07a667de runs=43599422831,43599422878 bundle=887.84kB DW-1268,1281,1303=resolved veto_item=AD-11_amendment(not_allowed_slots)
+2026-11-14T14:17:08Z	Epic 25	ci_green_verified	sha=07a667de
+2026-11-14T14:17:08Z	Epic 25	amendments_verified	amendments=GUIDE_P1_middle_sentence(ruled),spine_AD-11(AMENDED)+AD-16/AD-24_ADDED,epics extensions=Fix/Kind/Email.cls(granted_Q1) ok=true
+2026-11-14T14:17:08Z	Epic 25	merge_enqueued	part=25.5 head=07a667de feature=12f15b2b
+2026-11-14T14:17:52Z	Epic 25	epic_merged_to_feature	part=25.5 feature_sha=ba276d3a code=07a667de(identical) ci=green_by_identity(queued_runs_cancelled) verified_on_origin=yes
+2026-11-14T14:18:50Z	Run	owner_decision	via=contest_planner AD-11_amendment=confirmed graph_edit=26.2_wait_epic-25->stories_25.3/25.4/25.5(cycle_fix;epic-19_kept;25.6_keeps_26.2) 26.2=dispatch_now
+2026-11-14T14:42:15Z	Epic 22	runner_reported	PART_READY story=22.13 head=16772e40 runs=43601299721,43601299691 DW-1325,1327,1328=resolved DW-1334=low DW-1336=wontfix notes=48h_example_exceeds_24h_max,window_term_never_decides(by-design)
+2026-11-14T14:42:15Z	Epic 22	ci_green_verified	sha=16772e40
+2026-11-14T14:42:15Z	Epic 22	amendments_verified	amendments=epics_22.13_inserted+22.11_trimmed,AD-18,AD-28 ok=true
+2026-11-14T14:42:15Z	Epic 22	merge_enqueued	part=22.13 head=16772e40 feature=ba276d3a

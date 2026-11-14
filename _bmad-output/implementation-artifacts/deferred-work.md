@@ -2085,6 +2085,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 - 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
 - 2026-11-14T05:25:54Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=OCT-epic22_522228a5_ci_run_43554772670_job_132325025906_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;one_rerun_of_failed_jobs
+- 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6772,6 +6773,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
 - 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
 - 2026-11-13T20:38:47Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959516 iris(shards-4) live:sign-in-2 rail.spec.ts:432 R10; only diff the heartbeat card's real check-in at 20:26 between live read and reload; rail untouched by 36.4; one rerun
+- 2026-11-14T13:17:46Z occurrence=feature-f138fcf8 by=orchestrator note=run 43595216871 iris(shards-4) live:sign-in-2 rail R10 'a reload shows the same rail' (ci-12); rerun --failed
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7690,6 +7692,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-11 S1; Planner V6/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 
 ### DW-1269: 25.6 obligation from 37.1: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; renders the read result (fileRef, kind, read, reason, text, chars, cut, addable) and the HostData member caption (memoryRef, text), naming the carriers; Add to documents by fileRef. 'No file content in a production message body' = no bytes and no image (extracted text may reach the turn)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7829,6 +7832,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner P1/P2 (epic-22-rulings-20261113-1715): Ownership.cls:97 APPROVALVISIBLE owner-only; Web/Api.cls:699-703 404; AnswerOps.cls:62 MayApprove needs OcuTalonAdmin; fails closed (expires after EXPIRYSECONDS)
 - 2026-11-13T18:50:36Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=orchestrator note=Planner_P2:interim_acceptable(fails_closed);25.5_lets_an_approver_answer_or_refuses_at_raise_with_a_clear_message
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 ### DW-1272: Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
 - evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
@@ -7929,6 +7933,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Install/Step/Roles.cls Refusal and Web/RoleSettings.cls have no acting-user check (grep self/actingUser at 8d2db7ce); Planner 25.4 final ruling 1 (story-254-rulings-20261113.md, ~00:05Z Nov 14)
 - 2026-11-13T23:56:04Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=lead note=Planner ruling: report-only check found no refusal; routed to 25.5 with reason self_viewer and the given text (PUBLIC TEXT approved by the ruling)
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 
 ### DW-1307: AD-13 still says OcuTalonAdmin is read from the session's $Roles and applies until the session ends, but 25.4 now reads it from the live role set (Planner final ruling 2, DW-1290); the spine needs the Rule 20 write
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md (code review, rework iteration 1) | severity: med | fix-risk: low | footprint: in-epic
@@ -8069,6 +8074,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: settings-page.ts void import('./mcp-section') has no catch; 36.7 now deletes the old chunk, so an IPM-install tab open across an upgrade gets a 404 there; withNavigationErrorHandler sees only router navigations (ruling V4 scope)
 - 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=an MCP section that stays empty after an upgrade is reported, or another in-page dynamic import is added
 
+
+### DW-1333: No test reads the per-recipient answerable of BridgeSink's approval event for a watcher of an instance incident (recipient differs from the owner)
+- source: code review of spec-25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: BridgeSink.cls:165 builds FromRow(row, recipient); every test of the event payload uses a session-owned row (recipient = owner), so FromRow(row, ownerRef) there would stay green. Local installs only; the server still refuses the press (rule 6).
+- 2026-11-14T12:53:24Z status=wontfix-accepted owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=cr note=a Test.Core.BridgeSink case is more than 15 lines; reopen_if=an instance watcher without the role sees Approve and Reject on a fresh event
 ### DW-1331: The chunk reload rewrites the current history entry: after a header-link navigation fails, Back skips the page the user left
 - source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: med | footprint: in-story
 - evidence: router URL updates after loadComponents, so the current entry is still the source page; reloadOnChunkError calls history.replaceState(target); a pushState branch would interact with canceledNavigationResolution computed page ids
@@ -8120,6 +8130,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T09:30:55Z status=open owner=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=lead: write AD-18/AD-28 per spec Spine updates plus 'the connected mailbox is not a watch' before merge
 - 2026-11-14T09:34:13Z status=resolved-by:22-5-poll-a-read-only-mcp-tool-as-a-source by=adjudication note=spine:AD-18_record'Source_polls,Part_A(Story_22.5)'+AD-28_record'Not-checked_lead_and_the_mailbox(Story_22.5)'(mailbox_is_not_a_watch);lint_unchanged
 
+### DW-1335: infra: self-hosted runner ocutalon-ci-4 has port 52814 (its fixed web port) held by something else; every browser unit it runs fails at live_web_port with 'port 52814 is in use on 127.0.0.1'
+- source: orchestrator; feature f138fcf8 ci run 43595216871 | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: run 43595216871 attempt 1: shards-3 (live:floor, live:demo-switch) and shards-6 (live:documents, live:bundle-folder), both on ocutalon-ci-4, 12:45-13:05Z
+- 2026-11-14T13:17:46Z status=routed owner=burndown by=orchestrator note=infra, not code; likely a stack left by a cancelled job; needs a runner-side cleanup (owner or Planner call); rerun lands elsewhere if lucky
+- 2026-11-14T13:19:42Z status=routed owner=burndown by=orchestrator note=cause (Planner, who cleaned ci-4 ~13:25Z): the stack of run 43593749725 (d2c2fb0d ci) that the ORCHESTRATOR CANCELLED kept running and held 52814; a cancelled job skips teardown. Fix before the 1.0.10 RC (test and CI only): at job start ci/iris.sh removes any compose stack publishing THIS runner's fixed web port (one job per runner, so it is a leftover), logs the project, never touches another runner's port; test with a planted leftover
 ### DW-1334: Precedents never learn from source-poll Items: Data.Precedent.KeyFor has no key form for a poll Item
 - source: _bmad-output/implementation-artifacts/spec-22-11-run-source-polls-through-the-governed-proxy.md (plan) | severity: low | fix-risk: low | footprint: cross-lane
 - evidence: Data.Precedent.KeyFor (Lane B) has no key for an untrusted system-channel Item from a source poll, so precedents do not learn from source Items (AD-21 names the source for polls)

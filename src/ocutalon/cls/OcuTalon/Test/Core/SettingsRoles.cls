@@ -6,6 +6,7 @@
 ///   - TestOriginAndDemo: an origin other than web_admin is not_allowed and the online demo is not_available, for both commands, and the stub is not called;
 ///   - TestRefusalCodes: each refusal code of Roles.Refusal gives the field and the reason, online_demo gives not_available, a Refusal that throws gives failed, and
 ///     Assign is not called;
+///   - TestRefusalIsAskedWithTheActingUser (Story 25.5, DW-1303): Refusal is asked with the command's acting user and the grant flag, and self_viewer is a refusal of the user field;
 ///   - TestNotBuilt: a 5003 from either call gives not_built, and any other error gives failed;
 ///   - TestDataHoldsNoName: a done carries only {"changed"} (a list only {"handoff"}), no column of the CommandResult holds the user's name, and the list is behind the uri;
 ///   - TestBodyShape: a body that is not exactly {user, role, grant} of the right types is refused and the stub is not called;
@@ -93,7 +94,7 @@ Method TestOriginAndDemo()
 
 Method TestRefusalCodes()
 {
-	For code = "role", "user_unknown", "user_system", "user_managed" {
+	For code = "role", "user_unknown", "user_system", "user_managed", "self_viewer" {
 		Kill ^OcuTalonTest("RolesStub")
 		Set ^OcuTalonTest("RolesStub", "refusal") = code
 		Set uri = ..Put({"user": (..#NAME), "role": "OcuTalonViewer", "grant": true}.%ToJSON())
@@ -114,6 +115,22 @@ Method TestRefusalCodes()
 		Do $$$AssertEquals(..Calls("Assign"), 0, code_": and Assign is not called")
 		Do $$$AssertEquals(..Taken(uri), 0, code_": the uri was consumed")
 	}
+}
+
+/// Story 25.5, DW-1303: SaveRoles asks Refusal with the command's acting user and the grant flag (the check of an admin granting themselves the viewer role is Roles.Refusal's own), and the
+/// refusal is a refused result whose Data names the user field and the reason self_viewer, with no user name in it.
+Method TestRefusalIsAskedWithTheActingUser()
+{
+	Set ^OcuTalonTest("RolesStub", "refusal") = "self_viewer"
+	For grant = "true", "false" {
+		Kill ^OcuTalonTest("RolesStub", "refusalArgs")
+		Set uri = ..Put("{""user"": """_..#NAME_""", ""role"": ""OcuTalonViewer"", ""grant"": "_grant_"}")
+		Set result = ..Save({"handoff": (uri)}.%ToJSON(), "web_admin")
+		Do $$$AssertEquals($Get(^OcuTalonTest("RolesStub", "refusalArgs")), "zzadmin|"_(grant = "true"), "Refusal got the acting user and grant "_grant)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""user""],""reason"":""self_viewer""}", "and its answer is a refusal of the user field")
+		Do $$$AssertEquals(result.Data [ ..#NAME, 0, "that holds no user name")
+	}
+	Do $$$AssertEquals(..Calls("Assign"), 0, "and Assign is not called")
 }
 
 Method TestNotBuilt()

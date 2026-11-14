@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "dd8a67695cd1b11a5c14cc71301c338f655c1f0d0f03ff81c9f24efa417b5bc8"   # re-recorded 2026-11-14 at the 22.6+22.5 merge (reasons: split 22.5->22.5/22.11; burndown 36.5-36.7, 21.15; owner-approved 0.36, 0.37; rule5 amendments)
+epics_md_hash: "886e75207864de3537b7d1e73149cba14297f2002b2305ae726e10165d5c61ad"   # re-recorded 2026-11-14 at the 22.6+22.5 merge (reasons: split 22.11->22.11/22.13; split 22.5->22.5/22.11; burndown 36.5-36.7, 21.15; owner-approved 0.36, 0.37; rule5 amendments)
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -401,7 +401,9 @@ epics:
             # v3: Web/** narrowed to Web/Api.cls (25.2's History, 25.3's file and 25.4's Roles routes, a viewer's 403s), Web/Public/Shell.cls (25.4: the post-sign-in check admits OcuTalonViewer) and Install/Step/Web.cls (25.4: the web applications grant a viewer read access)
   epic-26: {lane: pool, depends_on: [epic-37], submodules: [],                        # Lane A's files; real: 37.1's stubs (the photo-caption request, the approver roles); "Epic 23" is real only for 26.4, now its wait
             paths_hint: ["src/ocutalon/cls/OcuTalon/Docs/**", "src/ocutalon/python/**", "src/ocutalon/cls/OcuTalon/Agent/Input*.cls", "src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/bridge/cls/OcuTalon/Bridge/{Approval,Installer}.cls", "src/bridge/cls/OcuTalon/Bridge/Adapter/**", "src/ocutalon/cls/OcuTalon/Install/Step/Roles.cls", "src/ocutalon/cls/OcuTalon/Test/{Docs,Bridge,Install,Channel}/**", "ci/mock/scenarios/A/**", "docs/**"],
-            story_waits: {"26.2": [epic-19, epic-25],       # real: Docs indexing and the extraction, Story 19.6 (B); 25.3's file-store call and getFile
+            # [AMENDED 2026-11-14, Contest Planner ruling, orchestrator-proposed] 26.2's wait narrowed from epic-25 to stories 25.3, 25.4 and 25.5 (all merged): its real input is 25.3's file-store call and getFile. Reason: a cycle, since 25.6 waits on 26.2 (epic-25 story_waits_stories) and 26.2 waited on all of Epic 25. 25.6 keeps its wait on 26.2.
+            story_waits_stories: {"26.2": ["25.3", "25.4", "25.5"]},
+            story_waits: {"26.2": epic-19,                  # real: Docs indexing and the extraction, Story 19.6 (B); 25.3's file store is now a story wait (above)
                           "26.3": epic-19,                  # real: the save-memory command and memory
                           "26.4": [epic-14, epic-23, epic-25]}}   # real: the overview; step 5's approval kinds; AnswersIn's not_allowed, 25.5
 
