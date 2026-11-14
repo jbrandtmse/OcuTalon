@@ -11,7 +11,7 @@ The tool names below are examples. Your server's names may differ: classify each
 
 ## 1. Add the server
 
-In Settings > Tools and MCP servers, press **Add server** and fill in:
+In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:
 
 - **Name**: `Jira`. An MCP server's name is a letter followed by up to 39 letters, digits or underscores.
 - **Address**: the server's address, for example `https://jira-mcp.example.com/mcp`.
@@ -54,7 +54,7 @@ If an admin removes the server while a request for one of its tools is waiting, 
 - Every call goes through one governed tool, `call_mcp_tool`, and passes the same gate as OcuTalon's built-in tools. Before every call, OcuTalon checks that the tool still has the name, description and inputs it was classified with, and runs nothing if it changed.
 - In your own turns, a Read-only tool runs at once, and a Risky or Unclassified tool waits for your approval. In a turn that holds content that didn't come from you, such as an email or an MCP tool's result, only Read-only tools run: any other call is denied, and no approval request is raised.
 - A tool's results are untrusted content: they can never approve, classify, change a setting or add a server.
-- Each call of a server's tool writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
+- Each call of a server's tool that runs writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
 
 The security overview's [MCP tools](security-overview.md#mcp-tools) section lists the same rules.
 

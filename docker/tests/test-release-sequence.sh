@@ -2190,7 +2190,7 @@ OVW_MCP_OPENING="On a local or IPM install, an admin can add MCP servers, and th
 OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them."
 
 # ovw_mcp_example_lines: the lines of the worked example that say how to classify a tool and how OcuTalon governs MCP tools, one per line, each pinned word for
-# word as a whole line (the classification table's rows, the Read-only rule, the refusal line and the governance bullets).
+# word as a whole line (the classification table's rows, the Read-only rule, the refusal line, the governance bullets and the line that opens the Add server step).
 ovw_mcp_example_lines() {
   cat << 'EOF'
 | `search_issues` | searches tickets | Read-only |
@@ -2205,7 +2205,8 @@ If the server offers a tool with the same name as one of OcuTalon's own tools, o
 - Every call goes through one governed tool, `call_mcp_tool`, and passes the same gate as OcuTalon's built-in tools. Before every call, OcuTalon checks that the tool still has the name, description and inputs it was classified with, and runs nothing if it changed.
 - In your own turns, a Read-only tool runs at once, and a Risky or Unclassified tool waits for your approval. In a turn that holds content that didn't come from you, such as an email or an MCP tool's result, only Read-only tools run: any other call is denied, and no approval request is raised.
 - A tool's results are untrusted content: they can never approve, classify, change a setting or add a server.
-- Each call of a server's tool writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
+- Each call of a server's tool that runs writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
+In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:
 EOF
 }
 
@@ -2493,6 +2494,10 @@ a line other than the time-limits paragraph mentions a deadline"
   eq "control: a table row's classification changed in the example" "$(mcp_doc_problems "$d/e-row.md")" "the example lacks ruled line 5 of its classification and governance text word for word"
   sed 's/, and runs nothing if it changed\.$/./' "$ex" > "$d/e-bullet.md"
   eq "control: a governance bullet shortened in the example" "$(mcp_doc_problems "$d/e-bullet.md")" "the example lacks ruled line 10 of its classification and governance text word for word"
+  sed 's/^In Settings > Tools and MCP servers, fill in the fields under \*\*Add server\*\*, then press the \*\*Add server\*\* button:$/In Settings > Tools and MCP servers, press **Add server** and fill in:/' "$ex" > "$d/e-addstep.md"
+  eq "control: the Add server step line put back to the old wording in the example" "$(mcp_doc_problems "$d/e-addstep.md")" "the example lacks ruled line 14 of its classification and governance text word for word"
+  sed "s/^- Each call of a server's tool that runs writes/- Each call of a server's tool writes/" "$ex" > "$d/e-audit.md"
+  eq "control: \"that runs\" dropped from the audit bullet in the example" "$(mcp_doc_problems "$d/e-audit.md")" "the example lacks ruled line 13 of its classification and governance text word for word"
   sed 's/](security-overview\.md#mcp-tools)/](security-overview.md)/' "$ex" > "$d/e-link.md"
   eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5

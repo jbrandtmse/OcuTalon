@@ -2,7 +2,7 @@
 title: 'Story 22.6: Document a worked Jira example and MCP governance'
 type: 'feature'
 created: '2026-11-13'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '1548802e8679103dd73119d7de18eb48f9a8ea66'
 baseline_commit: '1548802e8679103dd73119d7de18eb48f9a8ea66'
 review_loop_iteration: 0
@@ -237,7 +237,7 @@ deferred:
 
 #### 2026-11-14 - code-review (rework re-review, iteration 2 of 3, and the VERIFY-AT-MERGE gate; diff 1548802e..093439c8; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all opus)
 - verdicts: 17 findings (blind-hunter 9, edge-case-hunter 3, verification-gap 0 gaps + 1 other, acceptance-auditor 4) - high 1, medium 0, low 16, false 0, maybe-false 0. Entries after grouping: 13 (high 1 decision-pending, low 12 rejected or closed). The reviewer also checked each claim against the merged code on its own (no line number taken from the Design Notes).
-- [ ] `[high]` `[decision-pending]` AA1 -> DW-1324 **PUBLIC TEXT** (fix-risk low: one sentence; in-story; spec-bound, P1 is ruled verbatim): `docs/mcp-jira-example.md:14` "In Settings > Tools and MCP servers, press **Add server** and fill in:" is false of the merged Story 21.4 form. The Name, Address and Secret fields always show under the "Add server" heading, with no toggle (`web/src/app/settings/mcp-section.ts:111-163`). The **Add server** button sits below them and sends them (`:166`). Pressing it first sends an empty form and gets refusals on the fields (`Web/McpSettings.cls:141-151`). `web/e2e/settings/mcp.spec.ts:103-121` fills the fields, then clicks. Story 21.4's AC (`epics.md:7685`) has the same press-then-enter order, which is how the text came to say it. Neither the text nor the code was changed. Suggested true wording: "In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:". This waits for a Planner or orchestrator ruling on the text.
+- [x] `[high]` `[patch]` (resolved by R8-1, R8-2 and R8-3) AA1 -> DW-1324 **PUBLIC TEXT** (fix-risk low: one sentence; in-story; spec-bound, P1 is ruled verbatim): `docs/mcp-jira-example.md:14` "In Settings > Tools and MCP servers, press **Add server** and fill in:" is false of the merged Story 21.4 form. The Name, Address and Secret fields always show under the "Add server" heading, with no toggle (`web/src/app/settings/mcp-section.ts:111-163`). The **Add server** button sits below them and sends them (`:166`). Pressing it first sends an empty form and gets refusals on the fields (`Web/McpSettings.cls:141-151`). `web/e2e/settings/mcp.spec.ts:103-121` fills the fields, then clicks. Story 21.4's AC (`epics.md:7685`) has the same press-then-enter order, which is how the text came to say it. Neither the text nor the code was changed. Suggested true wording: "In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:". This waits for a Planner or orchestrator ruling on the text.
 - Verified at merge, independently (TRUE unless marked):
   - (a) Add server: the section label is `settings-view.ts:42`. The labels are `mcp-view.ts:38-40`, and the secret help text is `:41`. The name rule is `Mcp/Server.cls:12` (`^[A-Za-z][A-Za-z0-9_]{0,39}$`) and `Mcp/Ops.cls:55`, enforced at `Ops.cls:94` and `Web/McpSettings.cls:143`. The step order is FALSE (above).
   - (b) Wallet and Config Store write: the collection and key are `Ops.cls:259-260`. The entry `AI.MCP.OcuTalon_<server>` with `url` and `secret://<collection>.Key#token` is `:264-266`, and the local copy of the secret is cleared at `:271`. The resource is granted at `:164` and in `Install/Step/Mcp.cls` Grant (`:55-60`). The service user's permission is checked per call at `Bridge/Policy/Gate.cls:589`.
@@ -262,14 +262,16 @@ deferred:
 - Rule 3: docs-only diff, so not a user-facing code surface. The form's e2e test (`web/e2e/settings/mcp.spec.ts`) is 21.4's. Rule 19: no test was added or changed, and every AC has a `mutation:` line (verification-gap layer). Rule 6: no AD mismatch (AD-21 S11 and S20, AD-10, AD-11 and AD-17 text unchanged by this diff).
 - Exit: one HIGH, so the story does not close. It waits for the PUBLIC TEXT ruling on DW-1324 (sprint-status `in-progress`).
 
-- [ ] [Review] **R8-1 (DW-1324, Contest Planner ~07:45Z Nov 14, approved verbatim)**: `docs/mcp-jira-example.md:14` becomes, word for word: "In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:" (replacing "In Settings > Tools and MCP servers, press **Add server** and fill in:"). Update the spec's Public text P1 to match.
-- [ ] [Review] **R8-2 (Planner ~07:45Z, approved)**: in `docs/mcp-jira-example.md:57` replace "Each call of a server's tool writes an audit entry" with "Each call of a server's tool that runs writes an audit entry"; the rest of that sentence stays exactly as it is. Update the spec's Public text P1 to match.
-- [ ] [Review] **R8-3 (pins)**: pin BOTH lines in `docker/tests/test-release-sequence.sh` (`mcp_doc_problems` / the worked example's line pins), each with one fault control and a `mutation:` line (restore the old line 14 -> its pin red; drop "that runs" from line 57 -> its pin red). Change nothing else. Then resolve DW-1324 in the spec's records (the lead writes the ledger trailer).
+- [x] [Review] **R8-1 (DW-1324, Contest Planner ~07:45Z Nov 14, approved verbatim)**: `docs/mcp-jira-example.md:14` becomes, word for word: "In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:" (replacing "In Settings > Tools and MCP servers, press **Add server** and fill in:"). Update the spec's Public text P1 to match.
+- [x] [Review] **R8-2 (Planner ~07:45Z, approved)**: in `docs/mcp-jira-example.md:57` replace "Each call of a server's tool writes an audit entry" with "Each call of a server's tool that runs writes an audit entry"; the rest of that sentence stays exactly as it is. Update the spec's Public text P1 to match.
+- [x] [Review] **R8-3 (pins)**: pin BOTH lines in `docker/tests/test-release-sequence.sh` (`mcp_doc_problems` / the worked example's line pins), each with one fault control and a `mutation:` line (restore the old line 14 -> its pin red; drop "that runs" from line 57 -> its pin red). Change nothing else. Then resolve DW-1324 in the spec's records (the lead writes the ledger trailer).
 
 ## Spec Change Log
 
 - 2026-11-13 (runner, Planner ruling M (4)): gate APPROVED with the text conditions above; Story 22.12 to be inserted in epics.md.
 - 2026-11-13 (rework 2, R7-1, DW-1286): the shipped `docs/mcp-jira-example.md` L48 reads "cancelled"; the P1 block under `## Public text` below still reads "canceled" and is left as the ruled original (a spec edit is not this pass's work); the shipped file governs.
+
+- 2026-11-14 (rework 3, R8-1, R8-2, R8-3, DW-1324 resolved): `docs/mcp-jira-example.md` L14 and L57 now read the Planner-approved wording, and the P1 block under `## Public text` carries both (it still reads "canceled" and "trace," where the shipped file differs, per the entries above; the shipped file governs).
 
 ## Review Triage Log
 
@@ -343,6 +345,21 @@ deferred:
   - `[false]` `[reject]` IA-3: the intent still names `SaveMcpEntry` - 21.4 deleted it; the evidence names `SaveEntry` and says no public sentence names the old one; no text is false.
   - `[low]` `[reject]` IA-4: the evidence also covers the online-demo sentence, beyond the five - harmless, and the sentence is true.
   - `[low]` `[patch]` VG-b (with BH5, the results half): the Rework 2 note recorded no results - patched with the command outcomes (see the Verification note); the layer found no test gap and no non-falsifiable assertion, and no added or changed test.
+
+### 2026-11-13 - Review pass (rework 3: R8-1, R8-2, R8-3; diff HEAD 51eebf4d..working tree, a follow-up pass)
+- verdicts: 13 findings - high 0, medium 0, low 11, false 0, maybe-false 0 (two reader notes of the intent layer carry no defect)
+- findings:
+  - `[low]` `[reject]` BH-a: the `overviewdoc` header comment (about L36-48) does not list the new pins - it names "the classification and governance lines" generically, which still holds; a header edit is not required by R8-3.
+  - `[low]` `[reject]` BH-b + EC-b + VG-1 + IA-2: the line pins are whole-file `grep -qxF`, not scoped to a section, so "ruled line 14" is a pin-list position - the same grammar as the ten pins before them (spec-accepted since pass 1); a section-scoped pin would change `mcp_doc_problems` for every line. reopen_if: a ruled line is found moved or duplicated in the example with `overviewdoc` green.
+  - `[low]` `[reject]` BH-c + EC-a: "that runs" leaves out that a call that reaches the proxy and is refused also writes an entry (`Mcp/Proxy.cls:52`) - carried from BH4 + EC4 (rework 2): the sentence is true, and the wording is Planner-approved word for word (R8-2), so it is `by-design`.
+  - `[low]` `[reject]` BH-d (spec-only): stale spec records (the earlier pass's Exit line, the BH-e row, `review_loop_iteration`, a blank line in the change log, no green-run record) - history is kept as written, the counter counts bad_spec loopbacks only, and this pass's green runs are in `## Auto Run Result`.
+  - `[low]` `[reject]` BH-e: Story 21.4's AC (`epics.md:7685`) and UX-DR145 still say press-then-enter - another story's block, out of footprint and outside the intent. reopen_if: a new doc or test quotes that AC for the Add server step.
+  - `[low]` `[reject]` EC-b/VG-2 (spec-only): the P1 block still reads "canceled" and "trace," - already in the Spec Change Log; the shipped file governs.
+  - `[low]` `[reject]` VG-3: the mutation for R8-2's line is labeled R8-3 in `## Verification` (the pin is R8-3's item); cosmetic.
+  - `[low]` `[reject]` IA-1: no check ties line 14 to the form's labels (`web/src/app/settings/mcp-view.ts`) - the form's e2e is Story 21.4's, and this pass is docs and a doc pin only; descriptive note.
+  - `[low]` `[reject]` IA-3: the audit bullet is pinned in the example only, not tied to the overview's :221 sentence - the shared-sentence rule names the classification and Read-only sentences only.
+  - `[low]` `[reject]` IA-R-A (note): the shipped file differs from the original P1 in the two ruled lines - P1 now carries both, as R8-1 and R8-2 ask.
+- Patched: 0. Deferred: 0. Rule 3: docs-only diff, not a user-facing code surface. Rule 19: both new pins have a fault control and a `mutation:` line. Exit: no HIGH, so the story closes.
 
 ## Design Notes
 
@@ -457,7 +474,7 @@ The tool names below are examples. Your server's names may differ: classify each
 
 ## 1. Add the server
 
-In Settings > Tools and MCP servers, press **Add server** and fill in:
+In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:
 
 - **Name**: `Jira`. An MCP server's name is a letter followed by up to 39 letters, digits or underscores.
 - **Address**: the server's address, for example `https://jira-mcp.example.com/mcp`.
@@ -500,7 +517,7 @@ If an admin removes the server while a request for one of its tools is waiting, 
 - Every call goes through one governed tool, `call_mcp_tool`, and passes the same gate as OcuTalon's built-in tools. Before every call, OcuTalon checks that the tool still has the name, description and inputs it was classified with, and runs nothing if it changed.
 - In your own turns, a Read-only tool runs at once, and a Risky or Unclassified tool waits for your approval. In a turn that holds content that didn't come from you, such as an email or an MCP tool's result, only Read-only tools run: any other call is denied, and no approval request is raised.
 - A tool's results are untrusted content: they can never approve, classify, change a setting or add a server.
-- Each call of a server's tool writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
+- Each call of a server's tool that runs writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
 
 The security overview's [MCP tools](security-overview.md#mcp-tools) section lists the same rules.
 
@@ -673,6 +690,10 @@ Every `ci/iris.sh` and `ci/warm.sh` call carries the lane variables: `OCUTALON_L
 
 **Rework 2 (R7-1, R7-2, R7-3; 2026-11-13): no pin was added or changed; the existing pins already hold the text.** The example's "cancelled" sentence is pinned by no rule, and none is added (the spec is `oversized`; the item names no new pin). The overview's :221 bullet is pinned whole by `docker/tests/test-readme.sh` rule `docs` (`L187`, once, under `## MCP tools`), which came with 21.4. `mutation:` none (nothing new to mutate). After the edit, exit 0: `bash docker/tests/test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static`, `test-readme.sh`, `test-bridge-guide.sh`, `test-boundaries.sh`, `test-class-rules.sh`; lane D warm `e22s6vw` (taken down): `Test.Install.SecurityOverview` 12.96 s, `Test.Mcp.Ops` 6.33 s, `Test.Mcp.Attach` 198 s passed; `OCUTALON_RUN_TAG=e22s6v ci/iris.sh live security-overview` fresh: all checks passed, no DRIFT.
 
+**Rework 3 (R8-1, R8-2, R8-3; 2026-11-14; no IRIS runtime; each mutation applied, observed red, reverted byte for byte, `git status --short`, `git diff --stat` and a checksum of `git diff` identical to before):** `docker/tests/test-release-sequence.sh` `ovw_mcp_example_lines` gains the Add server step line as ruled line 14 and carries the audit bullet with "that runs" as ruled line 13 (whole-line pins in `mcp_doc_problems`), with two fault controls in `t_overviewdoc`.
+- `mutation:` (R8-1) line 14 of `docs/mcp-jira-example.md` put back to "In Settings > Tools and MCP servers, press **Add server** and fill in:" -> `overviewdoc` red ("the committed worked example is good: got 'the example lacks ruled line 14 of its classification and governance text word for word'"); the new control's own fault gives the same line.
+- `mutation:` (R8-3) "that runs" dropped from the audit bullet (L57) of `docs/mcp-jira-example.md` -> `overviewdoc` red ("the committed worked example is good: got 'the example lacks ruled line 13 of its classification and governance text word for word'").
+
 **Shared surfaces:**
 - the attach and offer reports' `refused` list and `Mcp.Server.RefusedTools`;
 - the order of a request manager's tools (`Test.Mcp.Attach`, `ProxyJob`, `Approval`);
@@ -707,3 +728,15 @@ Blocking condition: none
 - Follow-up review recommendation: false (this follow-up pass patched no `high`; patched counts: high 0, medium 0, low 2).
 - Verification: `test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static`, `test-readme.sh`, `test-bridge-guide.sh`, `test-boundaries.sh`, `test-class-rules.sh` exit 0; lane D warm `e22s6vw` (taken down): `Test.Install.SecurityOverview` 12.96 s, `Test.Mcp.Ops` 6.33 s, `Test.Mcp.Attach` 198 s passed; `OCUTALON_RUN_TAG=e22s6v ci/iris.sh live security-overview` on a fresh throwaway: all checks passed, no DRIFT.
 - Residual risks: the "cancelled" sentence is held by no pin (reopen_if it is edited with every rule green); the spec's P1 block keeps the old spelling (the shipped file governs).
+
+### Rework pass 3 (iteration 3 of 3; R8-1, R8-2, R8-3)
+
+Status: done
+Blocking condition: none
+
+- Summary: R8-1 and R8-2 put the two Planner-approved texts word for word into `docs/mcp-jira-example.md` (L14: fill in the fields under **Add server**, then press the **Add server** button; L57: "that runs"). R8-3 pins both lines in `mcp_doc_problems` with a fault control each. DW-1324 is resolved in the spec's records.
+- Files changed: `docs/mcp-jira-example.md` (two lines), `docker/tests/test-release-sequence.sh` (`ovw_mcp_example_lines`: the audit line and the new step line; two controls in `t_overviewdoc`), this spec (ticks, P1 text, change log, triage log, Verification mutations).
+- Review: four layers, 13 findings. Patched: 0. Deferred: 0. Rejected: 13, with reasons in the triage log (whole-file pin grammar, "that runs" is true and approved, stale spec records, another story's AC text).
+- Follow-up review recommendation: false (this follow-up pass patched no `high`; patched counts: high 0, medium 0, low 0).
+- Verification: `bash docker/tests/test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static` (PASS all rules), `test-readme.sh`, `test-boundaries.sh` and `test-ci-config.sh` exit 0, run by the lead after the handoff; both mutations observed red and reverted byte for byte (see `## Verification`). No IRIS runtime was used.
+- Residual risks: "that runs" does not mention a reached-but-refused call, which also writes an audit entry (approved wording; the sentence is true); the line pins match anywhere in the file.
