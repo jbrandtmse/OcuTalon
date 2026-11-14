@@ -7991,15 +7991,11 @@ So that new tickets get an attention decision and I know when a source wasn't ch
 **When** `McpOps` handles it
 **Then** it writes a source-poll row in `OcuTalon.Data.BackgroundCheck`, owned by the admin's session, with the tool, its arguments and its interval, and refuses a tool that isn't read-only (FR-50, FR-33, AD-18)
 
-**Given** a source poll is due
-**When** `Checks` runs it on the heartbeat's tick
-**Then** it sends a `tool` request through `Decide` that calls `call_mcp_tool` with no model, so the gate, the audit policy and the agent step apply; each new result becomes an untrusted Item sent to `Intake` for its decision; and a result seen before never becomes an item again (FR-50, FR-33, FR-49, AD-6, AD-21)
-**And** each run's time, last result and trace header id are recorded and published as `check` events, so the page shows the source's schedule, last run and last result (FR-33, AD-12, AD-18)
+**And** [AMENDED 2026-11-14, Contest Planner ruling C of 2026-11-12 ~18:10Z (split of 22.5 into Part A and new Story 22.11 Part B approved; veto 1-10 approved): the run, the Items and the stop move to Story 22.11]
 
 **Given** the digest's coverage list
 **When** it is built
 **Then** each source poll, and the connected mailbox from the poll outcomes `EmailIn` records (Lane B's Story 21.2, in the record Story 35.2 (was 21.1) fixes; fixture outcomes until it merges), is a source entry that counts as checked only if its poll ran successfully in the window, otherwise not checked with its reason (unreachable, error or timeout) (FR-36, FR-50, AD-28)
-**And** a source whose tool became unclassified or risky stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 35.1 (was 22.1)'s proposal (FR-48, FR-50)
 
 **Given** the step 4 test: an unreachable source
 **When** the digest is composed with the mock MCP server down since 02:10 and everything else passing
@@ -8128,6 +8124,25 @@ So that a server that stops answering in the middle of a request can never hold 
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
 - [AMENDED 2026-11-13, Contest Planner ruling H: the AD-21 re-architecture this story proposes is DECLINED for the contest window; the story is deferred to the owner's decision after the contest and is not built in this release. DW-1221 moved to Story 22.6 (recorded as a measured known limit in AD-21 S11); it read "- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)"]
+
+### Story 22.11: Run source polls through the governed proxy
+
+[ADDED 2026-11-14, split of Story 22.5 (Part B), Contest Planner ruling C of 2026-11-12 ~18:10Z; follows 22.5 (Part A), which adds the source-poll row, the verbs and the coverage]
+
+As a user,
+I want each due source poll to run its read-only MCP tool through the governed proxy and turn new results into items,
+So that new tickets get an attention decision and a source that stops being read-only stops being polled.
+
+**Acceptance Criteria:**
+
+**Given** a source poll is due
+**When** `Checks` runs it on the heartbeat's tick
+**Then** it sends a `tool` request through `Decide` that calls `call_mcp_tool` with no model, so the gate, the audit policy and the agent step apply; each new result becomes an untrusted Item sent to `Intake` for its decision; and a result seen before never becomes an item again (FR-50, FR-33, FR-49, AD-6, AD-21)
+**And** each run's time, last result and trace header id are recorded and published as `check` events, so the page shows the source's schedule, last run and last result (FR-33, AD-12, AD-18)
+
+**Given** a source poll whose tool became unclassified or risky
+**When** it is next due
+**Then** it stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 35.1 (was 22.1)'s proposal (FR-48, FR-50)
 
 ### Story 22.12: Document polling a Jira MCP tool as a source
 

@@ -2,7 +2,7 @@
 title: 'Story 22.5: Poll a read-only MCP tool as a source'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:

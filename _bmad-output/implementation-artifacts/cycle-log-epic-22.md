@@ -306,3 +306,6 @@
 2026-11-14T03:57:56Z	Story 22.7	report_error	fault=lead field=dev_complete(cycle_iteration=7).baseline_revision reported=4f6457ba actual=the_spec_baseline_revision_build-auto_captured(4f6457ba_is_the_review_baseline_commit) impact=none
 2026-11-14T04:04:03Z	Story 22.7	smoke_complete	method=other(lane-D_warm_e22s7f6w:Test.Bridge.Steps,Test.Fix.Email,Test.Install.SecurityOverview;test-readme,test-release-sequence(overviewdoc,overview,overviewunit,overviewdrift,static),test-class-rules,test-boundaries_rc0) result=pass iterations=1 defects_caught=0 torn_down=e22s7f6w
 2026-11-14T04:04:03Z	Story 22.7	fresh_check	env=recipe(new_lane-D_warm_stack_e22s7f6w) tests=2(Bridge.Steps,Fix.Email) result=pass order=forward,reverse
+2026-11-14T07:14:07Z	Epic 22	branch_created	branch=wip/22-5 from=origin/feature@5de8aec9(22.7+21.4_merged) by=orchestrator_order local_only
+2026-11-14T07:14:07Z	Epic 22	story_inserted	story=22-11-run-source-polls-through-the-governed-proxy source=split_of_22.5(Part_B) ruling=Planner_C_2026-11-12(approved) amendments=epics.md_22.5_block(run+stop_ACs_moved,[AMENDED]) note=orchestrator_re-records_epics_md_hash(reason=split)
+2026-11-14T07:14:07Z	Story 22.5	replan_opened	spec_status=ready-for-dev->draft reason=re-check_against_merged_21.4+Part_A_only(ruling_C);Mcp/Ops.cls_order_22.4->21.4->22.5;21.5_implements_after_22.5_merges(ruling_D)
