@@ -220,3 +220,5 @@
 2026-11-14T12:49:48Z	Story 36.3	story_created	spec=spec-36-3-link-the-worked-jira-example-from-the-admin-docs.md model=opus gate=PUBLIC_TEXT(G2_already_approved_M4;position_GUIDE_For_admins_first_para)+Rule5_amendment(README->GUIDE.md_admin_section) tests_planned=test-readme_rule_admin-mcp(4_mutations) note=epic_context_recompiled
 2026-11-14T12:51:00Z	Story 36.3	spec_validated	gate=approved(~13:00Z) amendments=epics.md_36.3_AC+22.6_ACs_retargeted_README->GUIDE.md_For_admins(marker) public_text=G2(approved_M4)
 2026-11-14T12:51:00Z	Story 36.3	stage_spawned	stage=implement spawn_at=2026-11-14T12:51:00Z model=sonnet agent_name=36-3-implement-1 cycle_iteration=1 effort=high
+2026-11-14T13:30:46Z	Story 36.3	dev_complete	model=sonnet effort=high files=GUIDE.md(G2),docker/tests/test-readme.sh(admin-mcp+12_self-tests) mutations=4 checks=test-readme_43,test-release-notes(real-tree),boundaries,web_2082,link_smoke build-auto_review=9(0_patched)
+2026-11-14T13:30:46Z	Story 36.3	stage_spawned	stage=qa spawn_at=2026-11-14T13:30:46Z model=sonnet agent_name=36-3-qa-1 cycle_iteration=1 effort=high

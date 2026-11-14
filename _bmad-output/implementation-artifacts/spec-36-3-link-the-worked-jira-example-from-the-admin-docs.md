@@ -2,7 +2,8 @@
 title: 'Story 36.3: Link the worked Jira example from the admin docs'
 type: 'chore'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0b90b8d7a9f9ac87a5e0c5b1c6a7446d5333637f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -45,7 +46,7 @@ deferred: []
 - `README.md:101` -- the More paragraph already links `GUIDE.md#for-admins-and-developers`; no change.
 - `docker/tests/test-readme.sh` -- the inputs (`SECOV_DOC=` ~L213, `secov_p=$(of ...)` ~L247); `section()` L437; `st`/`rule_begin`/`finish` L506-590; sibling `chk_admin_commands` L1342 (it reads the same section); `rule_admin_commands` L2690; `RULES` and `GUIDE_RULES` ~L3290; the header rule list L14-159 and "What it reads" L161.
 - `docker/tests/test-release-sequence.sh:2182,2289` -- Lane A's `overviewdoc` already pins the sentence in the example and the overview (`OVW_MCP_RISKY`). It is untouched; the new rule does not depend on it.
-- Prototype (scratch, not tracked): `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.scratch-e36s3/prototype-36-3.patch` (GUIDE +2 lines, test-readme +40/-2). It is measured green, and its four mutations went red.
+- Prototype (scratch, not tracked): `prototype-36-3.patch` in the stage scratch folder `.scratch-e36s3` (GUIDE +2 lines, test-readme +40/-2). It is measured green, and its four mutations went red.
 
 ## Tasks & Acceptance
 
@@ -65,6 +66,20 @@ deferred: []
 - 2026-11-14, Contest Planner gate ruling (~13:00Z) applied by the lead: amendment and G2 position approved; epics.md retargeted (36.3 and 22.6).
 
 ## Review Triage Log
+
+### 2026-11-14 — Review pass
+- verdicts: 9 findings — high 0, medium 0, low 3, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind Hunter and Verification Gap (grouped): no self-test duplicates the classification sentence in the example, so the example side's "exactly once" half is unpinned — real but cosmetic: Lane A's `overviewdoc` rule pins that sentence in the example, the spec fixes the count at 12 self-test copies, and a 13th copy is added complexity for a regression nobody would meet in everyday use.
+  - `[false]` `[reject]` Blind Hunter: the paragraph does not say where to classify or what the default is — G2's words are ruled verbatim (M(4)) with "no new words"; adding a sentence is excluded by the spec's Boundaries.
+  - `[low]` `[reject]` Blind Hunter: the sentence is pinned in three places (`overviewdoc`, `admin-mcp`, the example) — the spec states the new rule does not depend on `overviewdoc`; a shared constant across two test scripts is a larger change for a drift that either rule would flag.
+  - `[low]` `[reject]` Blind Hunter: `admin_mcp` is first in `GUIDE_RULES` but after `admin_commands` in `RULES` — cosmetic; the `unlisted` guard passes and the spec names no order for `GUIDE_RULES`.
+  - `[false]` `[reject]` Intent Auditor divergence 1: the link target is checked as a string only — `readme-links` also failed in the link-rename mutation (shown red), and the link smoke confirms the target is a tracked file.
+  - `[false]` `[reject]` Intent Auditor divergence 2 (R4): G2's wording cannot be checked against the ruling from the intent alone — the wording is the verbatim text in the spec's Design Notes and the lead's instruction, and the diff matches it byte for byte.
+  - `[false]` `[reject]` Intent Auditor divergence 3: the diff exercises GUIDE.md, not the README — descriptive; this is the ruled retarget (gate ruling 2026-11-14).
+  - `[false]` `[reject]` Intent Auditor divergence 4: the "43 rules" count is not visible in the diff — the real run printed 43 PASS lines and exit 0.
+  - `[false]` `[reject]` Verification Gap: AC5 has no mutation line — AC5 is a diff-scope check, pinned by the `git diff --quiet` commands in Verification (exit 0), not by a test.
+- Edge Case Hunter returned no findings.
 
 ## Design Notes
 
@@ -119,5 +134,28 @@ M(4)(e) truth check: sections 1 and 2 of the example add the server and classify
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none for planning. Implement waits for the Planner's rulings on Design Notes gate item 1 (Rule 5: the AC's "README's admin section" retargeted to GUIDE.md "For admins and developers"; recommendation: approve) and gate item 2 (G2's position as the section's first paragraph; G2's words are already approved under M(4)). Halted after planning, as instructed.
+Status: done
+Blocking condition: none
+
+**Change.** G2 is the first paragraph of GUIDE.md "## For admins and developers", before `### Demo mode`, verbatim. A new `admin-mcp` rule in `docker/tests/test-readme.sh` pins it: it must be the section's first paragraph and appear once in the guide, and the example's sentence must be a whole line of `docs/mcp-jira-example.md` once. It has 12 self-test copies and is in `RULES` and `GUIDE_RULES`.
+
+**Files changed.**
+- `GUIDE.md` (+2 lines): G2 and its blank line.
+- `docker/tests/test-readme.sh`: the rule, its inputs and constants, the self-tests, the registration and the header notes (Story 36.3, FR-10, `docs/mcp-jira-example.md`).
+- This spec: status, baseline, the triage log and this result. The Code Map's absolute prototype path was replaced by a relative description, because `test-boundaries.sh` rule `paths` flags absolute paths in tracked files.
+
+**Review.** 9 findings from 4 layers: patches applied 0, deferred 0, rejected 9 (3 low, 6 false; reasons in the triage log). Follow-up review recommended: false (no patches).
+
+**Verification.**
+- `test-readme.sh`: exit 0, 43 PASS, `PASS admin-mcp`. It was run again by the review layer after the last edit.
+- `test-release-notes.sh`: exit 0, including `real-tree`.
+- `test-boundaries.sh`: all rules passed, after the spec path fix.
+- `npm --prefix web test`: 2082 of 2082.
+- The 9 GUIDE.md-reading node tests: 270 of 270.
+- `test-release-sequence.sh overviewdoc`: pass.
+- Link smoke: exit 0, tracked, no anchor.
+- Mutations (each red, then reverted by hand, md5 identical): deleted G2 -> `FAIL admin-mcp`; "should" in the guide -> `FAIL admin-mcp`; link to `docs/mcp-jira.md` -> `FAIL admin-mcp` and `FAIL readme-links`; "should" on example line 36 -> `FAIL admin-mcp`.
+- `git diff --quiet -- README.md docs src web release`: exit 0.
+- `ci/checks.sh` (about 25 minutes) failed only at `boundaries` for the absolute path in this spec, since fixed. The other checks passed; it was not re-run.
+
+**Residual risks.** The `printf: write error: Broken pipe` noise in `test-readme.sh` is pre-existing. The work is not committed: the lead commits (the stage owner forbade `git commit`).

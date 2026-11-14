@@ -282,6 +282,8 @@ These are the usual causes and fixes. Most entries are messages that `./install.
 
 ## For admins and developers
 
+An MCP tool that runs operating-system commands or arbitrary code must be classified Risky. The worked example [A Jira MCP server, step by step](docs/mcp-jira-example.md) shows how to add a server and classify its tools.
+
 ### Demo mode
 
 Demo mode is on for the Docker install. It adds the demo guide, the Simulated phone and mailbox, and Break the feed, and it runs the Orders production in the namespace OCUORDERS.
