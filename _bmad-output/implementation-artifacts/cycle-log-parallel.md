@@ -4135,3 +4135,7 @@
 2026-11-14T13:19:42Z	Run	lesson	what=orchestrator_cancel_of_d2c2fb0d_ci(43593749725)_left_its_stack_on_ci-4_holding_52814->later_jobs_red rule="cancelling a run with live jobs can leave stacks; prefer cancelling QUEUED runs; until DW-1335 lands, report port errors to the Planner" planner_cleaned_ci-4
 2026-11-14T13:19:42Z	Run	owner_decision	via=contest_planner ci-4_cleaned DW-1335=burndown_story_pre-1.0.10_RC(ci/iris.sh_removes_leftover_stack_on_own_port+test)
 2026-11-14T13:47:12Z	Run	ci_green_verified	head=f138fcf8(feature;21.15+25.4+26.3+36.7+22.6+22.5) runs=43595216871(att2),43595216787 att1_reds=ci-4_port(DW-1335,cleaned)+rail_R10(DW-1093)
+2026-11-14T14:17:08Z	Epic 25	runner_reported	PART_READY story=25.5 head=07a667de runs=43599422831,43599422878 bundle=887.84kB DW-1268,1281,1303=resolved veto_item=AD-11_amendment(not_allowed_slots)
+2026-11-14T14:17:08Z	Epic 25	ci_green_verified	sha=07a667de
+2026-11-14T14:17:08Z	Epic 25	amendments_verified	amendments=GUIDE_P1_middle_sentence(ruled),spine_AD-11(AMENDED)+AD-16/AD-24_ADDED,epics extensions=Fix/Kind/Email.cls(granted_Q1) ok=true
+2026-11-14T14:17:08Z	Epic 25	merge_enqueued	part=25.5 head=07a667de feature=12f15b2b
