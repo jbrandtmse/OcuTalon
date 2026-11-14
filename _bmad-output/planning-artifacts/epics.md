@@ -10241,6 +10241,30 @@ So that the app stays fast and new pages don't push the initial bundle over its 
 - DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap; move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB (ledger; routed by the Planner ruling 2026-11-13)
 
 
+### Story 36.6: Epic 36 burn-down: keep a stored on-call user's channels when the user list is unavailable
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding rulings (prompts/epic-36-rulings-20261113-2130.md, ~02:00Z section 6 and ~03:00Z option (a)): DW-1308 fixed before Story 36.4 merges; web-only, no new text; the server's save-time checks decide]
+
+As an OcuTalon admin,
+I want the On call form to keep the channels I stored for a person even when the list of users can't be had,
+So that saving the form never silently drops a person's Telegram channel.
+
+**Acceptance Criteria:**
+
+**Given** a stored on-call user (primary or backup) who is missing from the user list that `GET /v1/settings` returns (the list is unavailable, so `users` is `[]`, or the user is gone)
+**When** the On call section loads
+**Then** that person keeps their stored channel boxes (Telegram included) and the form shows no "no paired chat" line for them; no new user-facing text is added and the server is unchanged
+
+**Given** the list is unavailable and the admin saves the On call section without touching that person
+**When** the save reaches the server
+**Then** the stored Telegram channel is sent and kept; a Playwright test pins this, and a mutation that drops the channel fails it
+
+**Given** a stored user who no longer exists (no session row)
+**When** the admin saves
+**Then** the server refuses it with the existing unknown-user refusal and nothing is saved; a test pins this through the page
+
+- DW-1308: when the on-call user list cannot be had (users [] on busy/fail), the On call form unchecks a stored paired user's Telegram box, so the next save silently drops the Telegram channel (ledger; routed by the Planner rulings 2026-11-14)
+
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.

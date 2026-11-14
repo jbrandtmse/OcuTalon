@@ -111,6 +111,8 @@
 ///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
 ///   - The webhook routes (Story 35.3; GET and POST /v1/settings/channels/webhooks, POST /v1/settings/channels/webhooks/:ref/secret) are OcuTalon.Web.HookSettings', forwarded
 ///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
+///   - The on-call route (Story 36.4; POST /v1/settings/on-call) is OcuTalon.Web.OnCallSettings', forwarded by its own map: admin only, with the section's body handed to
+///     SettingsOps through SecretHandoff so that no on-call value is in a command or a trace, and 409 not_available on the online demo before the body is read.
 ///   - The MCP settings routes (Story 21.4; GET /v1/settings/mcp, POST /v1/settings/mcp/servers, DELETE /v1/settings/mcp/servers/:server, POST /v1/settings/mcp/classify) are
 ///     OcuTalon.Web.McpSettings', forwarded by its own map: admin only, 409 not_available on the online demo before the body is read, a server's secret handed to McpOps through
 ///     SecretHandoff and never in a command, and the list read through the command ListMcpServers, which SettingsOps answers in its own job.
@@ -298,6 +300,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 <Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
+<Map Prefix="/v1/settings/on-call" Forward="OcuTalon.Web.OnCallSettings"/>
 <Map Prefix="/v1/settings/mcp" Forward="OcuTalon.Web.McpSettings"/>
 </Routes>
 }
