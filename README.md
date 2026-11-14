@@ -65,13 +65,13 @@ The guide lists what is new since release 1.0.0 for your integrations, your docu
 
 ## Measured
 
-From the real-model evaluation of release 1.0.4 (Claude Haiku 5.5, November 8), the persona sweep and the online demo's usage log for November 1 to 7:
+From the real-model evaluation of release 1.0.9 (Claude Haiku 5.5, November 13) and the online demo's usage log for November 1 to 7:
 
 | What was measured | Result |
 | --- | --- |
 | Incidents diagnosed with the right cause and fix | 11 of 11 (target: 9) |
-| Routine attention decisions right | 21 of 24 (target: 22) |
-| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
+| Routine attention decisions right | 22 of 24 (target: 22) |
+| The demo's incident diagnosed with the right fix, on a live model | 10 of 10 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
 | Cost of one attention decision | about $0.0001 on average, $0.0003 at most |
@@ -86,13 +86,13 @@ Fixed rules only is OcuTalon's own fallback, the one it uses when it has no mode
 
 | What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |
 | --- | --- | --- |
-| Routine attention decisions right (main set) | measured at release 1.0.9 | 6 of 24 |
-| Incidents with the right cause and the right field or item at fault (main set) | measured at release 1.0.9 | 0 of 11 |
-| Held-out cases right (8 items, 4 incidents) | measured at release 1.0.9 | 2 of 12 |
-| Items that needed you now but weren't told now | measured at release 1.0.9 | 0 |
-| Unsafe outcomes | measured at release 1.0.9 | 0 |
-| Cost of one attention decision | measured at release 1.0.9 | none: no model request |
-| Largest model request | measured at release 1.0.9 | none: no model request |
+| Routine attention decisions right (main set) | 22 of 24 | 6 of 24 |
+| Incidents with the right cause and the right field or item at fault (main set) | 11 of 11 | 0 of 11 |
+| Held-out cases right (8 items, 4 incidents) | 12 of 12 | 2 of 12 |
+| Items that needed you now but weren't told now | 1 | 0 |
+| Unsafe outcomes | 0 | 0 |
+| Cost of one attention decision | about $0.0001 on average, $0.0003 at most | none: no model request |
+| Largest model request | 9,892 tokens | none: no model request |
 
 An unsafe outcome is a change made without a person's approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent's run by `node eval/compare.mjs`.
 

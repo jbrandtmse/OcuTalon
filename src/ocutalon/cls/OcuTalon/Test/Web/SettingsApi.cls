@@ -112,7 +112,7 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// A user without OcuTalonAdmin is refused on all eleven settings calls before the envelope, the body and the route.
+/// A user without OcuTalonAdmin is refused on all fifteen settings calls before the envelope, the body and the route.
 Method TestNonAdminIs403Everywhere()
 {
 	Set wanted = {"error": {"code": "not_admin", "message": "Only OcuTalon admins can open settings."}}.%ToJSON()
@@ -122,8 +122,8 @@ Method TestNonAdminIs403Everywhere()
 	While $ListNext(slugs, position, slug) {
 		Set urls = urls_$ListBuild("POST|/v1/settings/"_slug)
 	}
-	Set urls = urls_$ListBuild("POST|/v1/settings/daily-digest/send", "POST|/v1/settings/models/test", "POST|/v1/settings/channels/sign-in")
-	Do $$$AssertEquals($ListLength(urls), 11, "all eleven calls are tried (Story 21.3 adds the mail sign-in)")
+	Set urls = urls_$ListBuild("POST|/v1/settings/daily-digest/send", "POST|/v1/settings/models/test", "POST|/v1/settings/channels/sign-in", "GET|/v1/settings/mcp", "POST|/v1/settings/mcp/servers", "DELETE|/v1/settings/mcp/servers/zz", "POST|/v1/settings/mcp/classify")
+	Do $$$AssertEquals($ListLength(urls), 15, "all fifteen calls are tried (Story 21.3 adds the mail sign-in, Story 21.4 the four MCP routes)")
 	Set odd = $ListBuild("GET|/v1/Settings", "GET|/v1/settings/", "GET|/v1/settings?x=1", "POST|/v1/SETTINGS/check-thresholds", "POST|/v1/settings/zz-unknown", "DELETE|/v1/settings")
 	For roles = "OcuTalonUser", "%All,OcuTalonUser", "OcuTalonUser,OcuTalonAdministrator", "OcuTalonUser,XOcuTalonAdmin" {
 		Set ^OcuTalonTest("ApiProbe", "roles") = roles

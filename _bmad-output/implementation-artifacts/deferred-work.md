@@ -1010,6 +1010,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-2-15-lay-the-page-out-at-every-supported-width.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: ng build of clean copies: 050ca9a 530.80 kB raw (128.04 kB transfer), a35f7bc 538.57 kB (129.75 kB); the story adds 7.77 kB raw and 1.71 kB transfer (1.5%), not material
 - 2026-10-25T01:26:11Z status=wontfix-accepted owner=2-15-lay-the-page-out-at-every-supported-width by=cr note=reopen_if=the initial bundle passes 600 kB raw or 150 kB transfer, or a page-load measurement misses its target
+- 2026-11-13T16:56:06Z status=escalated owner=burndown by=cr note=reopen_if met (36.4 cr): initial 1,007.44 kB failed the 1MB error budget; raised to 1.05MB; a lazy Settings route measured 921.36 kB
+- 2026-11-13T22:00:16Z status=wontfix-accepted by=merge_gate note=Planner ruling 2026-11-13: no cap raise (standing rule); the 500 kB warning stays a warning; the 1 MB cap holds; reopen_if=the initial bundle passes 1 MB again (DW-1282 covers the headroom)
 
 ### DW-190: In WebKit (Safari) a mouse press on the Status button or on the narrow-window note's Close leaves focus on the page body: Safari focuses no pressed button, so Story 2.15's focus hand-back after a click does not run
 - source: spec-2-16-prove-the-floor-in-chromium-firefox-and-webkit.md | severity: low | fix-risk: med | footprint: in-epic
@@ -6430,6 +6432,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-1 REST write list (line ~122) vs AD-21 Names (Story 35.1, ruling Q4) and Story 35.2's B4/B8 rows (POST/DELETE /api/v1/settings/mcp/servers); code today is stubs that write nothing
 - 2026-11-09T17:38:55Z status=escalated owner=burndown by=cr note=decide: amend AD-1's REST write list for the admin-checked MCP routes (keeps secrets out of messages), or move the write into an operation
 - 2026-11-09T22:43:24Z status=routed owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 21.4 moves the wallet and Config Store write into McpOps (an operation); AD-1 unchanged; the MCP settings routes stay stubs until then (TestMcpEntryStubs, TestNoMcpSettingsRoute); recorded in AD-19 and Story 21.4
+- 2026-11-13T23:52:09Z status=resolved-by:21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=adjudication note=McpOps writes and drops the wallet secret and Config Store entry in its own job through the SecretHandoff (no REST write); SettingsOps stubs deleted; spine AD-1/AD-19/AD-21/AD-33 amended (S1-S6); build 89c77912 + review b22db009 on wip/21-4-impl1
 
 ### DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's per-key 60 s process cache, so for up to a minute after the mailbox moves to another session a tool SendEmail can pair a stale owner with a fresh address
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
@@ -7775,11 +7778,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 21.10 V4 removes the cut; 22.6 P2 states it
 - 2026-11-13T13:19:18Z status=routed owner=21-10-answer-tool-call-and-standalone-approval-requests-on-every-c by=orchestrator note=Planner ruling M(4)
 
+### DW-1277: 36.4's On call section hides its 'OcuTalon doesn't send pages yet' line once OcuTalon.Data.Page is compiled, but that state is never observed: Data.Page arrives only with Story 23.4
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec deferred: list; the pagesBuilt=true branch has no test that can run before 23.4
+- 2026-11-13T16:35:03Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=23.4 adds a test that the not-yet line disappears once Data.Page exists
+
+### DW-1278: SettingsOps.OnCallUsers walks the Data.Session and Data.Pairing storage globals from the web process (GET /v1/settings) to list every user, outside the owning classes and outside Ownership (AD-13's 'no other unchecked path')
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Core/SettingsOps.cls OnCallUsers: $Order(^OcuTalonP.SessionD) and (^OcuTalonP.PairingD) with %OpenId, chosen in-stage (Decided 19) because the web process holds no SQL privilege; V4 allows the admin-only list but no ruling covers this read path; the precedents (Webhook.ForSession, Upload) walk their own class's globals
+- 2026-11-13T16:56:16Z status=escalated owner=burndown by=cr note=security posture (AD-13): rule whether an admin roster read by object access is allowed, or move it into Data.Session/Ownership
+- 2026-11-13T22:00:16Z owner=36-4-set-the-on-call-person-and-backup-in-settings by=merge_gate note=Planner ruling 2026-11-13: approved; 36.4 moves OnCallUsers behind SettingsOps in the background process before it merges; AD-13 amendment; lint is DW-1287
+
+### DW-1279: Web.OnCallSettings copies Web.HookSettings' OnlineDemo and Submit verbatim and Hand nearly (Rule 2), instead of a shared settings hand-off in Web.Api
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: OnCallSettings.cls OnlineDemo/Submit equal HookSettings.cls:35-38,141-144; Hand differs only in the Offer seam, Changes vs Handoff and the not_available branch; the spec's own 24.2 note says extend, don't copy
+- 2026-11-13T16:56:16Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=a third settings route copies Hand (Story 24.2 partner contacts): then move OnlineDemo, Submit and Hand into Web.Api
 ### DW-1274: Spine lags 22.7 rework 1: AD-1/AD-14/AD-16 still say SendEmail carries the recipients (tool: every recipient is the own address; system: the row's recipients), AD-11 has no AnswerOps admin-only email rule, AD-16's payload field list has no email row
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Code now sends the marker own (tool) and an empty Recipients (system, EmailOut reads the row), AnswerOps.Carry asks Fix.Kind.Email.MayApprove, and Live FromRow reuses Recipients/Notice/Before for email; spine lines 109-133, 413, 583, 590 describe the old shape
 - 2026-11-13T15:16:08Z status=routed owner=burndown by=cr note=lead: Rule 20 W5 amendment before merge (Planner rulings DW-1255 rule 4, M(1), M(2)); code matches the rulings
 - 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=spine_AD-10_record_bullet_W5-W7(stored-row_SendEmail,email_card_payload,interim_admin_approver);lint_unchanged
+- 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
+- 2026-11-14T00:51:08Z status=routed owner=burndown by=cr note=cr4:lead_Rule20:W5/AD-16_subject+text_from_row(P4a);AD-9/W2_send_email_step=name+count(R4-2)
+- 2026-11-14T00:54:38Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=rework4:spine_AD-10_record_W8(P4a)+W9(step_record);AD-16_email_bullet_AMENDED_2026-11-14;lint_unchanged
 
 ### DW-1275: Test.Fix.EmailRoute depends on the test process's IRIS user: it answers as $Username, asserts that user lacks OcuTalonAdmin and makes its request require that user's first role, so a runner account with OcuTalonAdmin (e.g. ocutalon) turns it red
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: med | footprint: in-story
@@ -7789,6 +7810,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: release-evidence/ab-035/RESULT.md (Contest Planner A/B, 2026-11-13); not unsafe: Tell now still tells the person at once
 - 2026-11-13T14:41:41Z status=routed owner=0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi by=runner note=Story 0.37 (planning only in this dispatch; Saturday's release, after 1.0.9): separate the two by MEANING (a disabled item is a choice -> tellnow; a production that stopped is a fault -> act), never by copying case text; gate: the same A/B ship rule (a)-(e)
+
+### DW-1281: A non-admin's email request is raised but no one can answer it until it expires: 25.5 must either let an approver answer it, or refuse at raise time with a clear message
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner P1/P2 (epic-22-rulings-20261113-1715): Ownership.cls:97 APPROVALVISIBLE owner-only; Web/Api.cls:699-703 404; AnswerOps.cls:62 MayApprove needs OcuTalonAdmin; fails closed (expires after EXPIRYSECONDS)
+- 2026-11-13T18:50:36Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=orchestrator note=Planner_P2:interim_acceptable(fails_closed);25.5_lets_an_approver_answer_or_refuses_at_raise_with_a_clear_message
 ### DW-1272: Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
 - evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
@@ -7804,3 +7830,111 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: P1 is ruled verbatim (Planner M(4)), so the one-letter change to 'cancelled' rewrites approved public text; the reviewer may not patch it. Grep: docs/mcp-jira-example.md is the only 'canceled' in the public docs.
 - 2026-11-13T21:29:41Z status=decision-pending owner=burndown by=cr note=22.6 CR BH9: Planner to approve 'cancelled' in P1 (one word) or keep as ruled
+### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
+- source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
+- evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
+- 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
+- 2026-11-13T18:26:09Z note=occurrence 1 resolved by rerun: ci 43457520830 attempt 2 green on 4af1db03 (18:24Z)
+
+### DW-1285: An MCP entry already saved with a query string (by manual Config Store configuration) is not refused at runtime: the ?/# refusal is on McpOps' add path and the Settings route only
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (Contest Planner B2 re-ruling ~20:25Z) | severity: low | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
+- evidence: Mcp.Ops.AddressAllowed (called by Mcp.Proxy:84 at call time) does not refuse ? or #; changing it changes 22.x runtime behaviour
+- 2026-11-13T20:19:21Z status=open owner=burndown by=epic-21-runner note=Planner ruling: if ever closed, the fix goes through AddressAllowed with a Lane D test change
+
+### DW-1291: An MCP add or removal whose runner restart fails answers 500 server_error, although McpOps kept the change
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: McpOps answers failed after a kept change when RestartRunners fails (22.2 contract); Web.McpSettings maps failed to 500 as the spec says; the section reloads the list, which shows the truth
+- 2026-11-13T23:03:21Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec maps every outcome but added/removed/saved to 500; McpOps' restart-failure contract is 22.2's
+
+### DW-1292: A 403 inside Settings > Tools and MCP servers shows the section's denied text, not the page's denied view
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: med | footprint: in-story
+- evidence: the section is rendered through ngComponentOutlet, which binds no output, and the spec gives the section its own denied state (loading/ready/off/denied/failed)
+- 2026-11-13T23:03:22Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec-bound: the section's states are ruled; a page-level forward needs an injected seam
+
+### DW-1293: McpOps checks only @{ and emptiness of a handed-over MCP secret; the length and character rule lives in the route
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: SaveEntry refuses @{ and an empty secret; the 1 to 4,096 printable-ASCII rule is Web.McpSettings.AddFields'; AddMcpServer is accepted from web_admin only, whose one submitter is that route
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if a second web_admin submitter of AddMcpServer appears
+
+### DW-1294: An exception thrown in McpOps Register after SaveEntry would leave the entry and wallet secret without undo
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: after SaveEntry only WriteAudit runs, which returns a status; SaveEntry and DropEntry never throw; OnAdd's catch (22.2) undoes nothing, as for Grant before
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if WriteAudit or a later step can throw
+
+### DW-1295: The MCP e2e cleanup never revokes the server's IRIS resource, and no leftovers check names it
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/mcp.ts dropMcpServer and api/mcp.spec.ts cleanup delete row, entry, key and collection but call no Install.Step.Mcp.Revoke; only a failed DELETE in finally leaves a resource, on a throwaway stack
+- 2026-11-13T23:03:22Z status=wontfix-accepted owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=reopen_if=a live sign-in or sign-in-2 run reports a leftover OcuTalon_MCP_zz* resource or grant
+### DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap (998.08 kB after 21.4 moved its MCP section to a lazy chunk); move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB of headroom
+- source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
+- 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+
+### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
+- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
+- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
+### DW-1296: Audit every built-in tool's step record (Inputs and Result, Bridge/Adapter/StepBuffer.cls) for data the stored-row rule covers, including the partner delay notice route, Telegram and the memory/remember tools; list each tool and what its record shows
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner 22:00Z ruling (epic-22-rulings-20261113-1715.md): StepBuffer.InputsOf (L144) records a built-in tool's arguments verbatim in the turn's step summary (L132), which lands in ^Ens.MessageBodyD; 22.7 fixes send_email only
+- 2026-11-13T23:12:49Z status=routed owner=burndown by=orchestrator note=Planner_22:00Z:audit_DW;not_22.7_work;not_a_1.0.9_blocker
+
+### DW-1305: No automated test pins that the send_email tool answer and the gate's refusal, denial and error sentences stay free of addresses, subject and text, so the Result part of a send_email step record has no failing pin (the ruled 'verbatim Result' mutation is not observable)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rework 4 R4-2/R4-3: three chat turns (own, other, malformed) show only fixed words after Result:/Denied:; Planner 22:00Z ruling item 3 asked for that mutation
+- 2026-11-14T00:39:36Z status=decision-pending owner=burndown by=harvest note=for_the_Planner:waive_the_verbatim-Result_mutation_or_rule_a_pin(e.g._assert_the_Result_part_equals_a_fixed_outcome_set);DW-1296_audit_is_related
+- 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
+- 2026-11-14T00:51:07Z status=decision-pending owner=burndown by=cr note=cr4:claim_holds(Result/Denied_fixed_words;answer_pinned_by_Test.Tools.Email);only_Error_part(AI_Hub_text)_unpinned
+- 2026-11-14T03:57:56Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Planner_02:00Z:verbatim-Result_mutation_WAIVED;Error_part_pinned:StepBuffer_fixed_'Error:_the_email_tool_call_failed.'+TestEmailStepErrorIsAFixedSentence+TestEmailToolErrorLeavesNoAddressInTheTrace(mutation_red)
+
+### DW-1306: docs/security-overview.md is stale since 22.7: L125 says 'Every built-in tool is safe.' (send_email is a built-in tool that is risky per call), and 'Who may answer' (L142-146) does not mention the interim admin-only approval of an email to anyone else (DW-1262)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 22.7 rework-4 code review (outside the rework range; public text): docs/security-overview.md:125, :142-146
+- 2026-11-14T00:54:37Z status=decision-pending owner=burndown by=cr note=human=Planner_PUBLIC_TEXT:the_corrected_L125_sentence_and_a_Who-may-answer_line_for_email;22.7_merge_gate?
+- 2026-11-14T03:57:56Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=docs/security-overview.md:125_ruled_text+:146_approved_Who-may-answer_bullet(Planner_02:00Z/03:40Z);follow-up_DW-1314(call_mcp_tool_omission,decision-pending)
+### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
+- source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
+- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
+
+### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
+- source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: count by the Planner: 9 cancelled, 4 canceled
+- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
+
+### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=found after the three-item cap; not fixed in 25.4
+
+### DW-1311: SessionEvents records AdminAtSignIn from the roles at sign-in (Data/Ownership.cls:832), so a removed admin keeps getting admin-routed items until next sign-in
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=related to DW-1290's live re-read
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
+- 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
+
+### DW-1300: The installer's STALEFILES pattern (Install/Step/Web.cls) accepts only [A-Za-z0-9] in a bundle file's hash, but Angular's chunk optimizer names chunks with [A-Za-z0-9_-]; 36.5 keeps NG_BUILD_OPTIMIZE_CHUNKS=0 so names stay plain
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: build with the optimizer on measured chunk-BAxI_vlj.js; live:bundle-folder would go red; pinned by lazy-routes.test.mjs while the flag stays
+- 2026-11-13T23:28:34Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=harvest note=reopen_if=a build needs the chunk optimizer on, or any built bundle file name contains _ or - (lazy-routes.test.mjs pins the flag)
+
+### DW-1301: A lazy page chunk that fails to load (offline, dropped connection) leaves a Settings, History or Usage click on the old page with only a console error; the router has no navigation error handler
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review | severity: low | fix-risk: med | footprint: in-story
+- evidence: Story 36.5 made the three routes loadComponent; app.config.ts provides no withNavigationErrorHandler. Before, the page rendered and its GET failed with the page's own error text. A handler needs new user-facing text (veto item).
+- 2026-11-13T23:51:33Z status=wontfix-accepted owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=reopen_if=a user report or an e2e shows a page link doing nothing after a chunk load failure, or a stale-tab chunk 404 after an upgrade
+
+### DW-1302: initial-bundle.test.mjs runs an ng build inside npm --prefix web test, in parallel with the suite's wall-clock assertions (bounded-waits.test.mjs: under 2000 ms around 300-500 ms bounds); on a small hosted runner the CPU load could make them flaky
+- source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review (verification-gap) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Unverified inference: the full suite ran green locally with the build in parallel (2000 pass, 14.5 s). Moving the build to its own step is a .github/workflows change this story rules out.
+- 2026-11-13T23:51:33Z status=wontfix-theoretical owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=real if a web/scripts timing assertion fails in the ci web job Unit tests step while initial-bundle.test.mjs builds
+### DW-1314: docs/security-overview.md L125 (ruled 22.7 text) says every built-in tool is safe except send_email and that each risky built-in action is a fix kind, but the Built-in tools table lists call_mcp_tool as per-call (risky by default) and its risky calls take a tool_call approval, not a fix kind
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, edge-case-hunter) | severity: med | fix-risk: low | footprint: in-story
+- evidence: docs/security-overview.md:12 lists call_mcp_tool (OcuTalon.Tools.McpCall, CLASSIFICATIONCALLMCPTOOL=risky, per-call rule) under Built-in tools; Bridge/Policy/Gate.cls:256-290 holds a risky call as Kind tool_call, not a Fix.Kind. L125 is the Planner's verbatim text, so a fix is a ruling.
+- 2026-11-14T03:55:09Z status=decision-pending owner=burndown by=cr note=ruled public text (Planner 02:00Z/03:40Z Nov 14); rewording needs a Planner ruling; overview L207 says MCP is not in this release
+
+### DW-1315: The ruled hand-edited lines of docs/security-overview.md (L125's send_email sentences and the 'Who may answer' email bullet, L146) have no pin, so a later edit or regeneration could drop or reword them unnoticed
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, verification-gap) | severity: med | fix-risk: low | footprint: in-story
+- evidence: Rule 19: no test in docker/tests, ci or Test/* names either text (verification-gap search); both sit outside the generated sections; spec deferred entry 6 and the rework-6 Verification line say so.
+- 2026-11-14T03:55:09Z status=routed owner=burndown by=cr note=add a test-readme.sh or release-sequence overview pin for both ruled texts; outside the final pass's three ruled items
