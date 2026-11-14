@@ -377,6 +377,9 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation (review pass): `claimReload` returns true when the storage is missing -> node tests `claimReload is false without a storage...` and `does not reload with no usable storage` red; the read-back check of the flag dropped -> the same two red; the `isChunkLoadError` test dropped from `reloadOnChunkError` -> `does nothing for an error that is not a chunk failure` red. `chunk-reload.ts` restored (`cmp` against a copy: identical).
 - Review pass: the spine's Angular row got a full stop before the new sentence (`ARCHITECTURE-SPINE.md`).
 
+- Lead's smoke (2026-11-14): AC4 rehearsal against v1.0.9, tag e36s7h, phase by phase from cd8a9381: `Result: pass`, 14 rows incl. `stale files` (3 checks; plant noted) and approval; served folder = build (31 files) after upgrade and after restart; deep link and reload of /settings, /history, /usage on the upgraded stack: no error. Evidence `evidence/36-7-upgrade-from-v1.0.9.md`.
+- mutation: AC4, `Web.Prepare`'s `RemoveStaleBundle` call replaced by `Quit sc` (tag e36s7m) -> the harness `stale files` row fails naming `./main-JCJUH3RN.js` and `./main-ZZSTALE0.js` (`RESULT fail`); restored byte-identical (`git status` clean).
+
 ## Auto Run Result
 
 Status: done
