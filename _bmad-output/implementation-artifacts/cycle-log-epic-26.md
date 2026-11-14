@@ -65,3 +65,5 @@
 2026-11-14T14:57:00Z	Story 26.2	spine_updated	ad=AD-21,AD-14 reason=decision_sheet(planner_ruling) by=runner story=26-2 lint=10_low_before_and_after
 2026-11-14T14:57:00Z	Story 26.2	ledger_routed_planned	story=25-6 entries=DW-1312,DW-1313 excess=0 by=spec_gate note=bullets_and_texts_1-3_added_under_25.6_at_the_orchestrator_instruction
 2026-11-14T14:57:00Z	Story 26.2	spec_validated	cycle_iteration=2 note=planner_rulings_applied(Spec_Change_Log,Planner_rulings_section,READSFILES_0,docs_GUIDE_tasks_moved,Telegram_gate_AC,injection/download/token_ACs,Task0_e_pool_STOP) amendments=epics.md_25.6_bullets,spine_AD-21,AD-14 model=claude-opus-5-5
+2026-11-14T15:00:20Z	Story 26.2	task0_partial	by=lead env=warm_e26s2t0w(torn_down) measured=e(pool):2p_604/547ms,10p_1013/993ms,cap_60p_3321/3282ms(200054_chars,cut1) result=under_STOP_thresholds(10s,45s) note=a-d_left_to_the_implement_stage
+2026-11-14T15:00:20Z	Epic 26	hold_saved	story=26-2 stage=plan(spec_gated,rulings_applied) patch=none tree=clean note=no_stage_fits_before_16:00Z_QUOTA_HOLD;implement_after_HOLD_OFF
