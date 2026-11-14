@@ -686,6 +686,10 @@ wr_clean=$(wr_class clean OcuTalon.Web.ZzClean Run \
   '	Do session.%Save()' \
   '	Set k = ##class(OcuTalon.Data.Session).Other(id)' \
   '	Set l = $ClassMethod("OcuTalon.Data.Session", "SignOuts", id)' \
+  '	Set o = ##class(OcuTalon.Zz.NotRegistered).%OpenId(id)' \
+  '	Set p = ##class(OcuTalon.Zz.NotRegistered).RefIndexOpen(ref)' \
+  '	Set q = $ClassMethod("OcuTalon.Zz.NotRegistered", "%OpenId", id)' \
+  '	Set r = ##class(OcuTalon.Data.Session).NoSuchIndexOpen(ref)' \
   '	// Set m = ##class(OcuTalon.Data.Session).%OpenId(id) and $Get(^OcuTalonP.SessionD(1))' \
   '	; Set n = $Get(^OcuTalonBP.DecisionD(1))')
 wr_doc=$(write_class wr/doc OcuTalon.Web.ZzDoc '/// Never read ^OcuTalonP.SessionD or call ##class(OcuTalon.Data.Session).%OpenId( here.' 'ClassMethod Run()' '{' '	Quit 1' '}')
@@ -693,8 +697,14 @@ wr_out1=$(wr_class out1 OcuTalon.Data.Session Run '	Set id = $Order(^OcuTalonP.S
 wr_out2=$(wr_class out2 OcuTalon.Webhook.ZzX Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
 wr_out3=$(wr_class out3 OcuTalon.Test.Web.ZzX Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
 wr_out4=$(wr_class out4 OcuTalon.Webs.ZzX Run '	Set id = $Order(^OcuTalonP.SessionD(""))')
+wr_deep=$(wr_class deep OcuTalon.Web.Public.Deep.ZzC Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
+wr_mixed=$(wr_class mixed OcuTalon.Web.ZzMixed Run \
+  '	If $Data(^OcuTalonP.SessionD(id)), ##class(OcuTalon.Data.Session).%ExistsId(id) Quit $Order(^OcuTalonBP.DecisionI(""))' \
+  '	Set a = ##class(OcuTalon.Data.Webhook).ForSession(ref), b = $Get(^OcuTalonP.SessionD(1))')
 samples_ok=$wr_guard_ok
 expect_flagged "web-global-reads" web_reads "$wr_a" 1
+expect_flagged "web-global-reads" web_reads "$wr_deep" 2
+expect_flagged "web-global-reads" web_reads "$wr_mixed" 4
 expect_flagged "web-global-reads" web_reads "$wr_forms" 6
 expect_flagged "web-global-reads" web_reads "$wr_rows" 8
 for f in "$wr_clean" "$wr_doc" "$wr_out1" "$wr_out2" "$wr_out3" "$wr_out4"; do expect_clean "web-global-reads" web_reads "$f"; done
@@ -746,6 +756,14 @@ if [ "$(STALE=1 web_reads "$wr_known_gone")" != "baseline:OcuTalon.Web.ZzKnown:R
   echo "FAIL web-global-reads: a baseline entry whose read is gone is not reported stale"
   fails=$((fails + 1)); samples_ok=0
 fi
+# A baselined read is keyed by class and method too: the same read in another method, or in another class, is named.
+wr_known_method=$(write_class wr/known-method OcuTalon.Web.ZzKnown 'ClassMethod Run()' '{' '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '}' 'ClassMethod Other()' '{' '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '}')
+wr_known_class=$(wr_class known-class OcuTalon.Web.ZzKnownB Run '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)')
+if [ "$(web_reads "$wr_known_method")" != "$wr_known_method:$(grep -n 'RefIndexOpen' "$wr_known_method" | tail -n 1 | cut -d: -f1) OcuTalon.Web.ZzKnown:Other OcuTalon.Data.Session.RefIndexOpen" ]; then
+  echo "FAIL web-global-reads: the baselined read in another method of the class is not named alone ($(web_reads "$wr_known_method" | sed "s#$tmp/##" | tr '\n' ' '))"
+  fails=$((fails + 1)); samples_ok=0
+fi
+expect_flagged "web-global-reads" web_reads "$wr_known_class" 1
 ALLOW_WEB_READS=$real_allow_web
 BASELINE_WEB_READS=$real_base_web
 if [ "$samples_ok" -eq 1 ]; then

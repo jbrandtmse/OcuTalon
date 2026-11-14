@@ -174,6 +174,17 @@ Shared surfaces: the script's set of PASS/FAIL lines (one new line; `ci/checks.s
 - mutation: add `OcuTalon.Web.Api:Gone:OcuTalon.Data.Session.RefIndexOpen` to the baseline → FAIL `stale baseline entry` at its script line (AC 3).
 - mutation: key the baseline by `Class:Method` only → the `ZzKnown` known-plus-`%OpenId` sample goes red.
 - mutation: match the web package by prefix (`OcuTalon.Web` without the dot) → the `OcuTalon.Webhook.ZzX` clean sample goes red.
+- mutation (QA): six hand-edits of `web_reads`, each run red and reverted byte-identical (`cmp` against a copy, `git diff --stat` back to the added samples only): (1) bound the package match to two levels below `OcuTalon.Web` → `ZzC` sample "does not flag" (nested sub-package); (2) `while` to `if` on the global loop → `ZzMixed` flagged on 3 lines, wanted 4 (several reads on one line); (3) flag `%Open*`/`%Exists*` on any `OcuTalon.*` class → `ZzClean` flagged (an `%OpenId` on a class not in `short-names.tsv`); (4) accept any `*Open`/`*Exists` form on a product class → `ZzClean` flagged (an index the class does not declare); (5) match the baseline by Class and Target, not Method → the `ZzKnown:Other` check is empty; (6) match it by Method and Target, not Class → the `ZzKnownB` sample "does not flag".
+
+## Tests Added
+
+No UI or API surface, so no e2e tests. Gaps in the `web-global-reads` self-tests of `docker/tests/test-class-rules.sh` against the ACs, each by extending the existing helpers and samples (Rule 2); no `src/` file or spine change:
+- `ZzC` in `OcuTalon.Web.Public.Deep` (two levels below the package): a global read and an `%OpenId` are flagged (2 hits). Before, only `Web.Public.ZzB` (one level) was pinned. Mutation 1.
+- `ZzMixed`: one line with `$Data(^OcuTalonP...)`, a `%ExistsId` call and `$Order(^OcuTalonBP...)` gives 3 hits; a line with a sanctioned `Data.Webhook.ForSession` call plus a `$Get(^OcuTalonP...)` gives 1 (4 in all). Mutation 2.
+- `ZzClean` gained four clean lines: `%OpenId`, `RefIndexOpen` and `$ClassMethod(..., "%OpenId")` on `OcuTalon.Zz.NotRegistered` (not in `short-names.tsv`), and `NoSuchIndexOpen` on `Data.Session` (not a declared index). Mutations 3 and 4.
+- Baseline keyed by Class:Method:Target, other axes: `ZzKnown:Other` holding the baselined read is named alone (exact output check), and `ZzKnownB:Run` holding it is flagged. Mutations 5 and 6. The "different target in a baselined method" case (`ZzKnown` plus `%OpenId`) was already pinned by mutation 6 of the story (key by Class:Method only).
+
+Result: `bash docker/tests/test-class-rules.sh` exit 0 with nine PASS lines; `bash docker/tests/test-boundaries.sh` passes; `bash -n` and the non-ASCII grep are clean.
 
 ## Auto Run Result
 

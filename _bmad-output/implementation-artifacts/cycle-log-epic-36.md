@@ -236,3 +236,5 @@
 2026-11-14T17:03:10Z	Story 36.8	stage_spawned	stage=implement spawn_at=2026-11-14T17:03:10Z model=sonnet agent_name=36-8-implement-1 cycle_iteration=1 effort=high
 2026-11-14T17:19:40Z	Story 36.8	dev_complete	model=sonnet rule=web-global-reads baseline=4 mutations=7 checks=test-class-rules(9_PASS),boundaries,ci-config,planted_ZzPlanted.cls_red build-auto_review=23(1_comment_patch)
 2026-11-14T17:19:40Z	Story 36.8	stage_spawned	stage=qa spawn_at=2026-11-14T17:19:40Z model=sonnet agent_name=36-8-qa-1 cycle_iteration=1 effort=high
+2026-11-14T17:25:44Z	Story 36.8	qa_complete	model=sonnet tests=ZzC(nested),ZzMixed(multi-read_line),ZzClean+4(unregistered),ZzKnown:Other,ZzKnownB mutations_demonstrated=6
+2026-11-14T17:25:44Z	Story 36.8	stage_spawned	stage=code-review spawn_at=2026-11-14T17:25:44Z model=opus agent_name=36-8-code-review-1 cycle_iteration=1 effort=high
