@@ -2,8 +2,8 @@
 title: 'Story 22.6: Document a worked Jira example and MCP governance'
 type: 'feature'
 created: '2026-11-13'
-status: 'in-progress'
-baseline_revision: 'e59670247bdfcd4d5b831574d77e058d5305c3a8'
+status: 'done'
+baseline_revision: '1548802e8679103dd73119d7de18eb48f9a8ea66'
 baseline_commit: 'c13b1836a4885ecbc77a55bffc34f4dce01fd7e0'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -231,13 +231,14 @@ deferred:
 - `[low]` `[reject]` AA6: Veto item 6 calls its spine refinement "S19", which already names the IPM spike, and AD-21 does not record it yet - a lead action under Rule 20 (record it under a free S-number); no story code changes.
 - `[low]` `[reject]` AA7: OcuTalon's probe does not itself refuse a plain-HTTP address to another host; the HTTPS rule is applied at add (`Ops.OnAdd`) and at call (`Proxy`) - the Config Store entry is written only by 21.4's `SaveMcpEntry` (VERIFY AT MERGE item 2); wontfix-theoretical; reopen_if anything else writes `AI.MCP.OcuTalon_*`.
 
-- [ ] [Review] **R7-1 (DW-1286, APPROVED by the Planner)**: in `docs/mcp-jira-example.md` L48 change "canceled" to "cancelled" (that one word only), and update any line pin that holds that sentence (`docker/tests/test-release-sequence.sh` `ovw_mcp_example_lines` or `mcp_doc_problems`) in the same pass, with its `mutation:` line if the pin is new or changed.
-- [ ] [Review] **R7-2 (P2 takes 21.4's approved :212 bullet word for word)**: the integrate-forward (f3ce1fa1) put 21.4's bullet "- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry." in place of 22.6's own P2 bullet in `docs/security-overview.md`. Confirm it is word for word (keep "cut to 200 characters" as it is, per the DW-1266 reading), that 22.6's other P2 bullets stand, and that every overview/worked-example pin still passes; update the spec's Public text P2 to the merged wording. No other text change.
-- [ ] [Review] **R7-3 (VERIFY AT MERGE, orchestrator ruling)**: against the MERGED code (feature 5de8aec9 with Story 21.4), check each of the five 21.4-dependent sentences of P1/P2 (Add server; the Wallet and Config Store write; removing the entry and the secret; the Tools table and its classification control; an admin adding servers from Settings) and every sentence about MCP server addresses (the query/fragment refusal on the add path only; userinfo; http to a non-loopback host; `SaveMcpEntry` as the only writer of `AI.MCP.OcuTalon_*` and its address validation). Record each with file:line under Design Notes. A false sentence is a HALT `blocked` for a `PUBLIC TEXT:` (never change code to fit the text, never reword ruled text).
+- [x] [Review] **R7-1 (DW-1286, APPROVED by the Planner)**: in `docs/mcp-jira-example.md` L48 change "canceled" to "cancelled" (that one word only), and update any line pin that holds that sentence (`docker/tests/test-release-sequence.sh` `ovw_mcp_example_lines` or `mcp_doc_problems`) in the same pass, with its `mutation:` line if the pin is new or changed.
+- [x] [Review] **R7-2 (P2 takes 21.4's approved :212 bullet word for word)**: the integrate-forward (f3ce1fa1) put 21.4's bullet "- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry." in place of 22.6's own P2 bullet in `docs/security-overview.md`. Confirm it is word for word (keep "cut to 200 characters" as it is, per the DW-1266 reading), that 22.6's other P2 bullets stand, and that every overview/worked-example pin still passes; update the spec's Public text P2 to the merged wording. No other text change.
+- [x] [Review] **R7-3 (VERIFY AT MERGE, orchestrator ruling)**: against the MERGED code (feature 5de8aec9 with Story 21.4), check each of the five 21.4-dependent sentences of P1/P2 (Add server; the Wallet and Config Store write; removing the entry and the secret; the Tools table and its classification control; an admin adding servers from Settings) and every sentence about MCP server addresses (the query/fragment refusal on the add path only; userinfo; http to a non-loopback host; `SaveMcpEntry` as the only writer of `AI.MCP.OcuTalon_*` and its address validation). Record each with file:line under Design Notes. A false sentence is a HALT `blocked` for a `PUBLIC TEXT:` (never change code to fit the text, never reword ruled text).
 
 ## Spec Change Log
 
 - 2026-11-13 (runner, Planner ruling M (4)): gate APPROVED with the text conditions above; Story 22.12 to be inserted in epics.md.
+- 2026-11-13 (rework 2, R7-1, DW-1286): the shipped `docs/mcp-jira-example.md` L48 reads "cancelled"; the P1 block under `## Public text` below still reads "canceled" and is left as the ruled original (a spec edit is not this pass's work); the shipped file governs.
 
 ## Review Triage Log
 
@@ -297,9 +298,38 @@ deferred:
   - `[low]` `[reject]` IA5: the `turntools` rule and the DW-950 sentence are not touched by this diff - correct, they are committed and unchanged.
   - `[low]` `[reject]` IA6: the `docs` rule checks structure, not the section's prose - the prose is `overviewdoc`'s.
 
+### 2026-11-13 - Review pass (rework 2: R7-1, R7-2, R7-3; diff 1548802e..working tree)
+- verdicts: 16 findings (blind-hunter 5, edge-case-hunter 5, verification-gap 2, intent-alignment 4) - high 0, medium 0, low 13, false 3, maybe-false 0; the rows below group them by root cause and each keeps its layer ids
+- findings:
+  - `[low]` `[patch]` BH2 + EC3: the R7-3 evidence cites `Mcp/Ops.cls:559-560` (userinfo) and `:571-572` (http to another host) and ends AddressAllowed at `:572`; the file has them at :558, :570 and :571 - patched in Design Notes (a citation the item itself requires).
+  - `[low]` `[patch]` EC2 + VG-a: the Rework 2 note said the overview's :221 bullet is pinned by no rule; `test-readme.sh` rule `docs` pins it whole (`L187`, :1681, :1693, :1703) - patched; the note also now records the results.
+  - `[low]` `[reject]` BH1 + EC1: the spec's P1 block still reads "canceled" and BH9 still says decision-pending - the fix edits the spec's ruled text; one line in the Spec Change Log now says that the shipped file governs.
+  - `[false]` `[reject]` BH3: "a call to a removed server's tool ... writes no audit entry" is unchecked - `Test.Mcp.Attach` `TestRemovedServer` (L700-712) asserts the denied call, no approval request, and that the removal is the only `MCP` audit entry and no `Tool` entry; Proxy's audit is gated on `reached`.
+  - `[low]` `[reject]` BH4 + EC4: "an audit entry for each call it lets run" is narrower than the proxy (a reached-but-refused call is audited too), and the example's "Each call of a server's tool writes an audit entry" differs from the overview's removed-server sentence - neither is false (the removed server has no tool to call), the text is ruled verbatim (21.4, P1) and AA4 of the earlier pass is carried; reopen_if a sentence is found false.
+  - `[low]` `[reject]` BH5 (part) : `review_loop_iteration` stays 0 - it counts bad_spec loopbacks only.
+  - `[low]` `[reject]` EC5 + IA-1: the "cancelled" sentence has no whole-line pin - R7-1 asks to update a pin only if one holds the sentence, the spec is `oversized`, and a pin adds a control and a mutation; reopen_if the sentence is edited with every rule green.
+  - `[false]` `[reject]` IA-2: "the R7-2 confirmation is asserted, not shown" - the bullet at `docs/security-overview.md:221` equals the item's text byte for byte (checked), appears once in the overview and once in the spec.
+  - `[false]` `[reject]` IA-3: the intent still names `SaveMcpEntry` - 21.4 deleted it; the evidence names `SaveEntry` and says no public sentence names the old one; no text is false.
+  - `[low]` `[reject]` IA-4: the evidence also covers the online-demo sentence, beyond the five - harmless, and the sentence is true.
+  - `[low]` `[patch]` VG-b (with BH5, the results half): the Rework 2 note recorded no results - patched with the command outcomes (see the Verification note); the layer found no test gap and no non-falsifiable assertion, and no added or changed test.
+
 ## Design Notes
 
 **Ruled 2026-11-13 ~19:00Z (orchestrator, prompts/epic-22-rulings-20261113-1715.md, Step 3): VERIFY AT MERGE** (ruling M(4): "true of the code at merge"). The five sentences that describe Story 21.4's Settings surface (Add server; the Wallet and Config Store write; removing the entry and the secret; the Tools table and its classification control; an admin adding servers from Settings) ship as approved text and are NOT checked against this tree: 22.6 does not push or merge before 21.4 merges; then it integrates forward and a review layer checks each of the five against the merged code (a false claim is a STOP with PUBLIC TEXT; code is never changed to fit the text). Every other sentence must be true of this tree.
+
+**Verified at merge (R7-3; rework pass 2026-11-13, merged feature 5de8aec9 with Story 21.4, in this branch since f3ce1fa1). Every sentence is true; none was reworded and no code changed.** Evidence, `docs/mcp-jira-example.md` (P1) unless marked:
+1. Add server (L13-L18): the section "Tools and MCP servers" is `web/src/app/settings/settings-view.ts:42`; the button "Add server" is `web/src/app/settings/mcp-view.ts:32` and `mcp-section.ts:112,166`; the labels Name, Address and "Secret (optional)" are `mcp-view.ts:38-40` (`mcp-section.ts:114,131,148`); "Sent to the server with every request. It is kept in the IRIS Wallet and never shown again." is `mcp-view.ts:41`; the name rule is `Mcp/Server.cls:12` (NAMEPATTERN) and `Mcp/Ops.cls:55` (MESSAGENAME).
+2. The Wallet and Config Store write (L20, first two sentences): `Mcp/Ops.cls:259-260` creates the Wallet collection and key `OcuTalon_MCP_<server>` / `.Key` holding the secret; `:264-266` writes the entry `AI.MCP.OcuTalon_<server>` (`Mcp/Attach.cls:24` ENTRYPREFIX) with the address and `auth.token` = `secret://<collection>.Key#token`, never the secret; "no message, log, audit entry or answer holds the secret": `Web/McpSettings.cls:16-17` (SecretHandoff, no secret in the command), `Mcp/Ops.cls:16-18,173` (nothing logged), `:617-624` (the audit data holds change and server only). The resource `OcuTalon_MCP_<server>` for the service user: `Install/Step/Mcp.cls:13,55-60,150-151` (Grant) called at `Mcp/Ops.cls:164`.
+3. Removing the entry and the secret (L20, last sentence): `Mcp/Ops.cls:203` (Revoke: the pair and the resource) and `:222` with `:278-291` (DropEntry: the entry, the key and the collection). Note: a failed drop is one warning and the removal stands (`:222`); the sentence states the outcome of a removal and is not contradicted.
+4. The Tools table and its classification control (L24-L26): "A new server's tools show here once OcuTalon next uses its agents. They count as risky until you classify them." is `mcp-view.ts:36`; the three options "Unclassified (counts as risky)", "Read-only", "Risky" are `mcp-view.ts:67` (`CLASSIFICATION_OPTIONS` :72, a radiogroup at `mcp-section.ts:202`); "Refused: a built-in tool has this name" is `mcp-view.ts:62`; the admin notice for a refused name is `Mcp/Ops.cls:520` (`mcp.toolShadowsBuiltIn`).
+5. An admin adding servers from Settings (P1 and P2: "Only admins add or remove a server or classify its tools, only from the settings page"): `Web/Api.cls:323-326` (`not_admin` 403 for a settings URL), `Web/McpSettings.cls:2,52` (admin check on every route), `Mcp/Ops.cls:586-596` (Refusal: origin must be `web_admin` from `CommandsIn`, a tool context is refused), `Mcp/Ops.cls:4-6`.
+6. Online demo (L5 of P1, P2 first paragraph): `Web/McpSettings.cls:53` (409 on the demo) and `Mcp/Ops.cls:596-599`.
+
+Every sentence about MCP server addresses (P1 L8, L17; P2 "Servers are reached only over HTTPS (plain HTTP only to this computer, for development)" and the Wallet-reference bullet):
+- https, or http only to 127.0.0.1, localhost or [::1]: `Mcp/Ops.cls:45` (LOOPBACKHOSTS) and `:550-571` (AddressAllowed; the loopback test at `:570` refuses http to another host), applied at the add (`:95`) and at every call (`Mcp/Proxy.cls:84`).
+- userinfo: `Mcp/Ops.cls:558` (an `@` in the authority is refused); `@{` is refused at `:552`.
+- query and fragment: refused on the add path only, `Mcp/Ops.cls:96` (MESSAGEQUERY, `:53`) and `Web/McpSettings.cls:9`; `AddressAllowed`, which `Proxy.cls:84` asks, has no such test (`:550-571`), as the doc's text says nothing about queries.
+- the only writer of `AI.MCP.OcuTalon_*`: `SaveMcpEntry` no longer exists (21.4 deleted it); the one writer is now `Mcp/Ops.cls` `SaveEntry` (`:247-274`, `Create` at `:266`, called only from `Register` `:169`, after `OnAdd`'s validation at `:94-96`). The only other `%ConfigStore.Configuration` writers are `Bridge/ConfigStore.cls:66,104` (Merge and Restore, whose Shape accepts only the timeouts and the model fields, never `url`; callers `Bridge/Settings.cls:286,296` and `Bridge/Timeouts.cls:127`) and `Install/Step/Provider.cls:179,181` (AI.LLM). No public sentence names `SaveMcpEntry`.
 
 **Governing ADs (Rule 6):**
 - AD-2: the bridge names only its own `Gate.MCPPROXY`.
@@ -475,7 +505,7 @@ On a local or IPM install, an admin can add MCP servers, and their tools become 
 - An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.
 - A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads.
 - Every call goes through the governed tool `call_mcp_tool` (the Built-in tools table), which checks before the call that the tool still has the name, description and input schema it was classified with, and runs nothing if it changed.
-- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step.
+- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry.
 - Results are untrusted content.
 - Removing a server cancels its pending approval requests.
 
@@ -610,6 +640,8 @@ Every `ci/iris.sh` and `ci/warm.sh` call carries the lane variables: `OCUTALON_L
 - `mutation:` (CR, AC 6) the online-demo guard of `OcuTalon.Mcp.Attach` `Servers` (`If ##class(OcuTalon.Mcp.Proxy).OnlineDemo() Quit $$$OK`) commented out -> `Test.Mcp.Attach:TestDemoOffersNoProxy` red (Servers lists the server on the demo, the build records the MCP spec, the native call runs, the server gets requests); restored, the method passes again.
 - After the review patches: `bash docker/tests/test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static`, `bash docker/tests/test-bridge-guide.sh` and `bash docker/tests/test-readme.sh docs` exit 0; `ci/iris.sh class OcuTalon.Test.Mcp.Attach` passed (186.93 s).
 
+**Rework 2 (R7-1, R7-2, R7-3; 2026-11-13): no pin was added or changed; the existing pins already hold the text.** The example's "cancelled" sentence is pinned by no rule, and none is added (the spec is `oversized`; the item names no new pin). The overview's :221 bullet is pinned whole by `docker/tests/test-readme.sh` rule `docs` (`L187`, once, under `## MCP tools`), which came with 21.4. `mutation:` none (nothing new to mutate). After the edit, exit 0: `bash docker/tests/test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static`, `test-readme.sh`, `test-bridge-guide.sh`, `test-boundaries.sh`, `test-class-rules.sh`; lane D warm `e22s6vw` (taken down): `Test.Install.SecurityOverview` 12.96 s, `Test.Mcp.Ops` 6.33 s, `Test.Mcp.Attach` 198 s passed; `OCUTALON_RUN_TAG=e22s6v ci/iris.sh live security-overview` fresh: all checks passed, no DRIFT.
+
 **Shared surfaces:**
 - the attach and offer reports' `refused` list and `Mcp.Server.RefusedTools`;
 - the order of a request manager's tools (`Test.Mcp.Attach`, `ProxyJob`, `Approval`);
@@ -632,3 +664,15 @@ Rework pass (iteration 1 of 3) over the three open `[Review]` items, under the o
 - Follow-up review recommendation: false (this follow-up pass patched no `high`; patched counts: high 0, medium 1, low 1).
 - Verification: `Test.Mcp.Attach` 165.96 s (after the patch; 174.37 s before it), `Test.Install.SecurityOverview` 11.95 s, `Test.Mcp.ProxyJob` 4.23 s, `Test.Mcp.Approval` 79.31 s, `Test.Mcp.Ops` 8.27 s, `Test.Agent.Runners` 40.54 s passed on lane D warm stacks `e22s6qw` (taken down); `test-readme.sh` (whole file), `test-bridge-guide.sh`, `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-config.sh`, `test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static` and `bash ci/checks.sh` (32 scripts) exit 0; `OCUTALON_RUN_TAG=e22s6q ci/iris.sh live security-overview` on a fresh throwaway: no DRIFT. The VG1 mutation was re-run after the patch (red, reverted).
 - Residual risks: `TestProxyNoneAdded` relies on the real probe counting any HTTP status as an answer (`Mcp/Client.cls`); the five Story 21.4 sentences and M(4)(c)/(d) are checked at merge.
+
+### Rework pass 2 (iteration 2 of 3; R7-1, R7-2, R7-3)
+
+Status: done
+Blocking condition: none
+
+- Summary: R7-1 `docs/mcp-jira-example.md` L48 "canceled" to "cancelled" (DW-1286, one word; no pin held the sentence, none added). R7-2 confirmed: the overview's :221 bullet is Story 21.4's bullet word for word (kept "cut to 200 characters"), P2's other bullets stand, and the spec's Public text P2 now carries the merged wording. R7-3 verified at merge: all five Story 21.4 sentences and every MCP-address sentence are true of the merged code; file:line evidence is under Design Notes ("Verified at merge"). No false sentence, no code change, no `PUBLIC TEXT:` needed.
+- Files changed: `docs/mcp-jira-example.md` (one word), this spec (ticks, P2 text, evidence, Spec Change Log line, triage log, Rework 2 note).
+- Review: four layers, 16 findings. Patched: 2 entries (low: three off-by-one citations; the Rework 2 note's false "pinned by no rule" and missing results). Deferred: 0. Rejected: the rest with reasons in the triage log (P1 spec copy still "canceled", audit-wording readings of ruled text, the unpinned "cancelled" sentence, and three false claims).
+- Follow-up review recommendation: false (this follow-up pass patched no `high`; patched counts: high 0, medium 0, low 2).
+- Verification: `test-release-sequence.sh overviewdoc overview overviewunit overviewdrift static`, `test-readme.sh`, `test-bridge-guide.sh`, `test-boundaries.sh`, `test-class-rules.sh` exit 0; lane D warm `e22s6vw` (taken down): `Test.Install.SecurityOverview` 12.96 s, `Test.Mcp.Ops` 6.33 s, `Test.Mcp.Attach` 198 s passed; `OCUTALON_RUN_TAG=e22s6v ci/iris.sh live security-overview` on a fresh throwaway: all checks passed, no DRIFT.
+- Residual risks: the "cancelled" sentence is held by no pin (reopen_if it is edited with every rule green); the spec's P1 block keeps the old spelling (the shipped file governs).
