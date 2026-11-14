@@ -1,4 +1,5 @@
 import { chk, irisScript, quoted } from './iris';
+import { sessionRef } from './persona';
 
 /**
  * Fixtures of the MCP settings specs (Story 21.4): an MCP server as the settings page lists it, without a Config Store entry or a wallet secret (the rows a
@@ -80,4 +81,39 @@ export async function leftovers(name: string): Promise<Leftovers> {
 export async function approvalState(ref: string): Promise<string> {
   const out = await irisScript(`Write !,"CHK|state|",##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(${quoted(ref)},"State")`);
   return chk(out, 'state') ?? '';
+}
+
+/** The mark of the saved AI sessions (RunnerFixture.SessionMark) before a case that makes a runner build and answer a chat turn; give it to `dropReadmeTurns`. */
+export async function sessionMark(): Promise<string> {
+  const lines = await irisScript('Write !,"CHK|mark|",##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()');
+  return chk(lines, 'mark') ?? '';
+}
+
+/**
+ * Removes what a chat turn of the README account leaves, so that the specs that follow it on the same stack (chat.spec C1: the empty chat, frame.spec F1: no
+ * recent decision in the rail) find the account as seeded. It waits (up to `waitMs`) until no turn of the account's session is queued or running, so that no
+ * late reply or decision lands after the clean-up; then removes the session's turns with the Decision, AgentStep and Usage rows the product made for them
+ * (ReminderFixture.RemoveTurns, as persona-approval.spec does), and the AI sessions the turns saved (RunnerFixture.DropSince(mark)). Returns the number of turns
+ * the session holds afterwards, which is 0 when the clean-up is complete.
+ */
+export async function dropReadmeTurns(mark: string, waitMs = 90_000): Promise<number> {
+  const ref = await sessionRef();
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const lines = await irisScript(
+      `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND State IN ('queued','running')",${quoted(ref)}) Do rs.%Next() Write !,"CHK|busy|",rs.%GetData(1)`,
+    );
+    const busy = chk(lines, 'busy');
+    if (busy === undefined) throw new Error(`the busy-turn count could not be read (${lines.join(' ')})`);
+    if (busy === '0') break;
+    if (Date.now() > deadline) throw new Error(`a turn of the README session was still queued or running after ${waitMs} ms`);
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  if (!/^\d+$/.test(mark)) throw new Error(`no AI session mark was taken (${mark})`);
+  const drop = [`Write !,"CHK|dropped|",$System.Status.IsOK(##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(${mark}))`];
+  const lines = await irisScript(
+    [`Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveTurns(${quoted(ref)})`, ...drop, `Write !,"CHK|left|",##class(OcuTalon.Data.Ownership).Turns(${quoted(ref)},.sc).Count()`].join('\n'),
+  );
+  if (chk(lines, 'dropped') !== '1') throw new Error(`the AI sessions of the turn could not be dropped (${lines.join(' ')})`);
+  return Number(chk(lines, 'left') ?? '-1');
 }

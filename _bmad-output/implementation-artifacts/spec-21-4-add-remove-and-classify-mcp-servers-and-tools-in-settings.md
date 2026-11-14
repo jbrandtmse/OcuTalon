@@ -2,10 +2,10 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
 review_loop_iteration: 1
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-35-3-send-events-to-ocutalon-through-a-webhook.md'
@@ -263,7 +263,24 @@ Code review 2 (2026-11-13; the story's diff `git diff 96bbbcd8` with QA's uncomm
 - [x] [Review][Patch] [low] AD-33's Rule lists every one-time cross-lane exception, but not 21.4's ruled DW-1041 exception. Auditor. Fixed: a bullet with a marker; `lint_spine.py` shows the 10 baseline findings only; no `.memlog.md` exists in the spine folder, so no memlog line was written [ARCHITECTURE-SPINE.md:1222]
 - [x] [Review][Patch] [low] The `Mcp.Ops` class doc claimed the address is "never stored elsewhere" and that "a key never sits in the entry's address"; the command, the list answer and IRIS's own audit entry hold the address, and B2 refuses only a query string. Blind + VG + Edge. Fixed: the doc says what this class writes and never logs [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:14]
 - [x] [Review][Patch] [low] Test headers behind their tests: `CommandsStep4`'s class doc and `TestMcpEntryWrite`'s doc left out the audit-failure undo (and the header the `@{` refusal and the failed drop); `api-types.ts` said the tools are sorted by name. Blind. Fixed [src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep4.cls:25]
-- [x] [Review][Patch] [low] Rule 19: the `mutation:` records of condition B, the filter, AC 3 and AC 5 sat only in `## Auto Run Result`; AC 7 had no manual-only note. VG. Fixed in `## Verification` (code review 2)
+- [x] [Review][Patch] [low] Rule 19: the `mutation:` records of condition B, the filter, AC 3 and AC 5 sat only in `## Auto Run Result`
+Status: done
+Blocking condition: none
+
+**Summary ([CI] rework 1, 2026-11-14; this pass only).** M2 in `web/e2e/api/mcp.spec.ts` posted a chat message as the README admin and never removed the turn, so `chat/chat.spec.ts` C1 and `frame/frame.spec.ts` F1 (the same account, later on the stack) went red in CI. M2's `finally` now removes the turn, its decisions, steps and usage rows and the AI session it saved, waits for the turn to finish first, restores the keys and waits for the runners' records. No product code changed.
+
+**Files changed:** `web/e2e/support/mcp.ts` (new shared helpers `sessionMark` and `dropReadmeTurns`, built on `RunnerFixture.SessionMark`/`DropSince` and `ReminderFixture.RemoveTurns`, the `persona-approval.spec` pattern); `web/e2e/api/mcp.spec.ts` (M2 takes the mark, cleans in `finally`, uses `runnersRecorded` from `support/runners.ts`, timeout 540 s).
+
+**Review:** 19 findings, none high; 5 patched (3 medium: the wait and the mark now throw, the copy of `runnersRecorded` removed; 2 low: the timeout, the `mutation:` line), 14 rejected with reasons (table in `## Review Triage Log`). Nothing deferred. Follow-up review recommended: false (no `high` was patched).
+
+**Verification:** with the clean-up removed, M2 then C1 and F1 on one stack: C1 and F1 red; with it: M2, C1 and F1 green (3 of 3, also after the review patches). `live sign-in --part 2/16` 20 of 20 (M1 to M6). `tsc -p tsconfig.e2e.json` clean. The stack of tag `e21s4ci` is torn down; `docker/tests/test-sign-in.sh` was edited for the narrowed run and restored (no diff).
+
+**Residual risks:** the wait is capped at 90 s (it now fails the case rather than going on); the proof is the three-test group, not the whole `live sign-in` unit; the other specs that repeat the mark/drop code inline were not moved to the helper.
+
+---
+
+*Earlier record (before this rework):*
+; AC 7 had no manual-only note. VG. Fixed in `## Verification` (code review 2)
 - [x] [Review][Patch] [low] `Test.Mcp.Attach:TestCommands` started the mock with the expected bearer value but never read it. VG. Fixed: it asserts that every request of AI Hub's client carried the handed-over secret (a wrong secret turned it red) [src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls]
 - [x] [Review][Patch] [low] `Test.Core.SettingsMcp` `Leftovers` did not check the tool rows its fixtures make. VG. Fixed [src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls:228]
 
@@ -329,7 +346,14 @@ Rejected (each with its reason; ledger rows `by=cr` where filed):
   - Contended edits are re-listed for 21.10 and 21.14 (in flight).
 
 ### Review Findings ([CI] rework 1, 2026-11-14)
-- [ ] [Review][CI] `web/e2e/api/mcp.spec.ts` M2 posts a chat message as the README admin (`/ocutalon/api/v1/messages`, "zz hello", about l.145) so that a runner builds, and never removes that turn. In CI run 43541569138 (`iris (shards-10)`, live:sign-in, head 435c5cc8) the next specs for the same account went red: `chat/chat.spec.ts` C1 (the empty chat headline was not found) and `frame/frame.spec.ts` F1 ("Recent decisions, 1" where 0 was expected). Fix: clean M2's chat turn and its AI session and decision records in the spec's own clean-up, following the existing pattern (`persona-approval.spec.ts`: `RunnerFixture.SessionMark()` before, then `DropSince(mark)` and `WaitRecords()` after; or `cleanFixtureRows` / the support helper that removes the posted turn). Prove it by running M2 and then chat.spec C1 and frame.spec F1 in ONE live run on the same stack, in that order; both must be green. Do not weaken C1 or F1.
+- [x] [Review][CI] `web/e2e/api/mcp.spec.ts` M2 posts a chat message as the README admin (`/ocutalon/api/v1/messages`, "zz hello", about l.145) so that a runner builds, and never removes that turn. In CI run 43541569138 (`iris (shards-10)`, live:sign-in, head 435c5cc8) the next specs for the same account went red: `chat/chat.spec.ts` C1 (the empty chat headline was not found) and `frame/frame.spec.ts` F1 ("Recent decisions, 1" where 0 was expected). Fix: clean M2's chat turn and its AI session and decision records in the spec's own clean-up, following the existing pattern (`persona-approval.spec.ts`: `RunnerFixture.SessionMark()` before, then `DropSince(mark)` and `WaitRecords()` after; or `cleanFixtureRows` / the support helper that removes the posted turn). Prove it by running M2 and then chat.spec C1 and frame.spec F1 in ONE live run on the same stack, in that order; both must be green. Do not weaken C1 or F1.
+
+**CI rework 1 instructions (caller's pre-answers; they bind this pass).**
+- Work ONLY the unchecked `[Review][CI]` item above. Clean M2's posted turn and everything it leaves: the chat turn, the AI session, and any decision or record the rail's "Recent decisions" counts. Do it in the spec's own `afterAll`/`finally`, with an existing support helper or the pattern of `web/e2e/persona-approval.spec.ts` (`RunnerFixture.SessionMark()` before, `DropSince(mark)` and `WaitRecords()` after). Read how `chat/chat.spec.ts` C1 and `frame/frame.spec.ts` F1 decide "empty" and make the clean-up meet exactly that. Prefer extending a shared helper to writing a new one (Rule 2). Do not weaken C1 or F1.
+- Proof (Rule 19). Show the failure first: on one lane-C live stack, run `api/mcp.spec.ts`, then `chat/chat.spec.ts` C1 and `frame/frame.spec.ts` F1 in ONE Playwright run, in that order (`ci/iris.sh live` with the spec filter it supports, or the closest grouping it allows); C1 and F1 must go red without the fix. Then run the same group with the fix: green. Record both as a `mutation:` line (fix removed -> red). Also run `live sign-in --part 2/16` (holds M1-M6) so they still pass.
+- No product code change is expected. If the clean-up needs one, STOP and report `blocked`.
+- Runtime (Rule 21, lane C only): `OCUTALON_LOCK_DIR=<worktree root>/../.coordination/locks/lane-c` (the `<vars>` form in `## Verification`), `OCUTALON_TEST_WEB_PORT=52803`, `OCUTALON_LOCK_OWNER='epic=21 stage=implement'`. Run tag `e21s4ci` for fresh/live runs and `e21s4ciw` for a warm stack. Run `ci/iris.sh build` before live runs. Tear down everything you start. Never touch another lane's containers, `ocutalon-aihub-test`, `ocupilot*` or `iris-community-edition`. Never read `.env`. Never attach a real MCP server. Never put an absolute local path in a tracked file. Scratch only under the folder the dispatch prompt names (outside the repo).
+- Rule 14: this pass's `## Auto Run Result` entry describes this pass only; keep the earlier record below it.
 
 ## Review Triage Log
 
@@ -369,6 +393,24 @@ Rejected (each with its reason; ledger rows `by=cr` where filed):
   - `[low]` `[reject]` VG hermeticity: `TestNotAdmin` skips its production-backed part without the production - its first part runs everywhere and the rest is named in the class header as throwaway-only (the other tests there use `Guard`).
   - `[low]` `[reject]` VG hermeticity: M5 compares the whole list before and after - an unrelated server row written between the two reads would break it; the stack has none.
   - `[low]` `[patch]` VG: ACs with a pin and no `mutation:` line (the eighth section, the leak scans, the Remove dialog, the online-demo state, the route map row) - the mutations were applied, observed red and reverted; the lines are in `## Verification`.
+
+### 2026-11-14 - Review pass ([CI] rework 1; the diff of `web/` since `7065897a`, the two e2e files)
+- verdicts: 19 findings (blind 4, edge 11, verification-gap 2 + 2 other, intent audit descriptive: no findings) - high 0, medium 3, low 12, false 4, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind 1 / Edge 2, 3: `dropReadmeTurns` left its busy-wait on the 90 s deadline or on an unreadable count and went on to remove under a live turn - patched: it now throws in both cases (`web/e2e/support/mcp.ts`)
+  - `[medium]` `[patch]` Blind 2 / Edge 5: a non-numeric session mark skipped `DropSince` silently and the turn count still read 0 - patched: a non-numeric mark throws, and `dropped` is always checked
+  - `[medium]` `[patch]` VG other (Rule 2): `waitRecords` copied `runnersRecorded` in `support/runners.ts` - patched: `waitRecords` removed, M2 uses `runnersRecorded()` and asserts `records` is `1`
+  - `[low]` `[patch]` Blind 3 / Edge 9: the cleanup could outrun M2's 420 s timeout - patched: `test.setTimeout(540_000)` (one number)
+  - `[low]` `[patch]` VG: no `mutation:` line for the clean-up - patched: the line is in `## Verification`
+  - `[low]` `[reject]` Blind 4 / Edge 8 / VG other: a clean-up failure replaces the body's own failure - a Playwright `finally` throw is the project's pattern (`persona-approval.spec`); a collecting wrapper is more than a direct correction
+  - `[low]` `[reject]` Edge 1: `stopMock` throwing skips the clean-up - the order is as it was before this pass (pre-existing) and `stopMock` does not throw on a missing job
+  - `[low]` `[reject]` Edge 11: `pointKeys` throwing before `pointed` - pre-existing, the keys are restored by the next spec that points them; no clean-up is added for a case that did not post the turn
+  - `[false]` `[reject]` Edge 4: the turn row is created asynchronously - M2 waits for the runner build, which needs the turn, before the `finally`
+  - `[false]` `[reject]` Edge 7: a missing `CHK|left|` reads as clean - it reads -1, and `toBe(0)` fails
+  - `[false]` `[reject]` Edge 6 and the Edge claim finding: `DropSince` and `RemoveTurns` hit concurrent specs' rows - Playwright runs one worker (`workers: 1`) and the README account's turns are meant to be none after the case (C1, F1)
+  - `[low]` `[reject]` VG 1: M2 does not count Decision rows or sessions itself - C1 and F1 are the observation, run after M2 in the recorded proof; extra queries are more than a direct correction
+  - `[low]` `[reject]` Blind (note) / VG: `sessionMark` and the drop repeat the inline code of `persona-approval`, `try-it`, `sources`, `reminder/chat` and `sample` specs - those specs are not touched in this pass; the new helpers are the shared form for later moves (not a story's scope)
+  - `[low]` `[reject]` Intent audit (three readings, scope of "everything it leaves"): descriptive; the diff cleans the chat turn, its decisions and rows, and the AI session, which is the item's list; MCP audit entries are not what the rail counts
 
 ## Design Notes
 
@@ -665,6 +707,12 @@ Test files touched by QA: `src/ocutalon/cls/OcuTalon/Test/Web/McpSettingsApi.cls
   - mutation: (AC 5) the radiogroup's `(change)` handler removed -> B3 red
 - AC 7 (the spine's wording) is pinned by the manual grep under "Manual checks" only: it is static document text, so it has no test and no `mutation:` line.
 Runs, all green: warm `CommandsStep4` (whole), `SettingsMcp`, `Mcp.Attach:TestCommands`, `Mcp.Attach:TestRemovedServer`, `Mcp.Ops`, `Web.McpSettingsApi`, `Mcp.Approval:TestRemovedWhilePending`; fresh `live sign-in-2 --part 10/12` 16 of 16 and `live sign-in --part 2/16` 20 of 20 (`api/mcp.spec.ts` M1-M5); `node --test web/scripts/` 1993 pass; `tsc -p tsconfig.e2e.json` clean; `npm run build` initial 998.08 kB (unchanged), `mcp-section` lazy chunk 19.76 kB; `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh` pass; `lint_spine.py` the 10 baseline findings.
+
+**CI rework 1 (2026-11-14), the M2 clean-up (`web/e2e/api/mcp.spec.ts`, `web/e2e/support/mcp.ts`):**
+- `<vars> OCUTALON_RUN_TAG=e21s4ci ci/iris.sh live sign-in --part 2/16`, its spec list narrowed for the proof to `api/mcp.spec.ts`, `chat/chat.spec.ts`, `frame/frame.spec.ts` in that order with a `--grep` for M2, C1 and F1 on one stack (a temporary edit of `docker/tests/test-sign-in.sh`, restored byte-identical) -- 3 of 3 pass. The unit's own count check fails by design with the narrowing.
+- `<vars> OCUTALON_RUN_TAG=e21s4ci ci/iris.sh live sign-in --part 2/16` -- 20 of 20 pass (M1, M2 to M4 and M6, M5).
+- `npx tsc -p tsconfig.e2e.json` -- clean.
+- mutation: the M2 clean-up (`dropReadmeTurns`, `restoreKeys`, `waitRecords`) removed from `api/mcp.spec.ts` (the file taken from `HEAD`) -> `chat/chat.spec.ts` C1 (the empty-chat headline not found) and `frame/frame.spec.ts` F1 ("Recent decisions, 1", expected 0) red when run after M2 on one stack -> clean-up restored: M2, C1 and F1 green
 
 ## Auto Run Result
 

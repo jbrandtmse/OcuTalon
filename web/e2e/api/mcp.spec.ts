@@ -3,7 +3,8 @@ import { expect, test, type APIRequestContext } from '../support/fixtures';
 import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
 import { pointKeys, restoreKeys } from '../support/devices';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
-import { leftovers } from '../support/mcp';
+import { dropReadmeTurns, leftovers, sessionMark } from '../support/mcp';
+import { runnersRecorded } from '../support/runners';
 
 /**
  * Story 21.4, the MCP settings routes over real HTTP, on the stack that test-sign-in.sh seeds. The README account holds OcuTalonAdmin; the LIVE fixture user
@@ -16,6 +17,8 @@ import { leftovers } from '../support/mcp';
  *   M4  remove answers 200; the list holds the server no more, and its row, tools, entry, key and collection are gone; an unknown name is 404;
  *   M5  each refused add is 400 bad_mcp_server with its field text, and nothing is made: no row, entry, key or collection;
  *   M6  after M2 to M4, no event log row, message body or audit entry holds the secret (35.3's W9 scan), and neither does any answer.
+ * M2 posts one chat message as the README admin, so its `finally` also removes that turn, its decisions and its AI session (dropReadmeTurns), as chat.spec C1 and
+ * frame.spec F1 expect the account to hold none.
  * The texts are written out here as the oracle.
  */
 const MCP = '/ocutalon/api/v1/settings/mcp';
@@ -115,13 +118,15 @@ test('M1: the LIVE user is 403 on all four routes, and the README admin lists', 
 });
 
 test('M2 to M4 and M6: an added server reaches a runner with its secret, is classified and removed, and the secret is nowhere', async ({ request }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(540_000);
   const name = `zz${tag()}`;
   const secret = `zz-mcp-secret-${tag()}-0123456789`;
   let port = 0;
   let pointed = false;
+  let mark = '';
   try {
     await admin(request);
+    mark = await sessionMark();
     const marks = await irisScript('Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT MAX(ID) m FROM Ens_Util.Log") Do rs.%Next() Write !,"CHK|m|",+rs.%Get("m")\nWrite !,"CHK|t|",$ZDateTime($ZTimeStamp,3,1,3)');
     const logMark = Number(chk(marks, 'm') ?? '0');
     const started = chk(marks, 't') ?? '';
@@ -200,8 +205,22 @@ test('M2 to M4 and M6: an added server reaches a runner with its secret, is clas
     );
   } finally {
     if (port !== 0) await stopMock(port);
-    await cleanup(request, name);
-    if (pointed) await restoreKeys();
+    try {
+      await cleanup(request, name);
+    } finally {
+      // The chat turn that made the runner build is the README account's: remove it with its decisions and AI session, or chat.spec C1 and frame.spec F1 find it.
+      try {
+        if (pointed) expect(await dropReadmeTurns(mark), "the README account's session holds no turn after the case").toBe(0);
+      } finally {
+        if (pointed) {
+          try {
+            await restoreKeys();
+          } finally {
+            expect((await runnersRecorded()).records, 'the runners recorded the restored keys').toBe('1');
+          }
+        }
+      }
+    }
   }
 });
 
