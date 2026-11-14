@@ -4141,3 +4141,7 @@
 2026-11-14T14:17:08Z	Epic 25	merge_enqueued	part=25.5 head=07a667de feature=12f15b2b
 2026-11-14T14:17:52Z	Epic 25	epic_merged_to_feature	part=25.5 feature_sha=ba276d3a code=07a667de(identical) ci=green_by_identity(queued_runs_cancelled) verified_on_origin=yes
 2026-11-14T14:18:50Z	Run	owner_decision	via=contest_planner AD-11_amendment=confirmed graph_edit=26.2_wait_epic-25->stories_25.3/25.4/25.5(cycle_fix;epic-19_kept;25.6_keeps_26.2) 26.2=dispatch_now
+2026-11-14T14:42:15Z	Epic 22	runner_reported	PART_READY story=22.13 head=16772e40 runs=43601299721,43601299691 DW-1325,1327,1328=resolved DW-1334=low DW-1336=wontfix notes=48h_example_exceeds_24h_max,window_term_never_decides(by-design)
+2026-11-14T14:42:15Z	Epic 22	ci_green_verified	sha=16772e40
+2026-11-14T14:42:15Z	Epic 22	amendments_verified	amendments=epics_22.13_inserted+22.11_trimmed,AD-18,AD-28 ok=true
+2026-11-14T14:42:15Z	Epic 22	merge_enqueued	part=22.13 head=16772e40 feature=ba276d3a
