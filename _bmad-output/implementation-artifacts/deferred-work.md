@@ -7801,3 +7801,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review (verification-gap) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Unverified inference: the full suite ran green locally with the build in parallel (2000 pass, 14.5 s). Moving the build to its own step is a .github/workflows change this story rules out.
 - 2026-11-13T23:51:33Z status=wontfix-theoretical owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=real if a web/scripts timing assertion fails in the ci web job Unit tests step while initial-bundle.test.mjs builds
+
+### DW-1320: An in-place upgrade leaves the previous build's main-<hash>.js in the served web folder csp/ocutalon-web/: module.xml FileCopy copies the new bundle over it and deletes nothing, and Install.Step.Web.RemoveOldBundle (STALEFILES) only clears the old csp/ocutalon/ folder
+- source: 36.5 upgrade rehearsal from v1.0.9 (Contest Planner ruling ~04:30Z Nov 14, Q1 check 1) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rehearsal e36h1 from OCT-epic36-s365 40428606: served folder 28 files vs build 27; extra ./main-JCJUH3RN.js (v1.0.9's main); index.html and the new main identical to the build; deep links and the harness rows pass; evidence _bmad-output/implementation-artifacts/evidence/36-5-upgrade-from-v1.0.9.md on OCT-epic36-s365 74b10a14 (local)
+- 2026-11-14T04:28:21Z status=escalated owner=burndown by=runner note=STOP under the ruling's check 1: Planner to rule whether it blocks 36.5 (pre-existing: any upgrade whose main hash changes leaves it) and who fixes it
+- 2026-11-14T04:31:49Z status=routed owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=merge_gate note=Planner ruling 2026-11-14 ~05:00Z: does not block 36.5 (merged bc624f44); blocks the 1.0.10 RC as burn-down Story 36.7

@@ -10224,6 +10224,34 @@ So that the app stays fast and new pages don't push the initial bundle over its 
 - DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap; move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB (ledger; routed by the Planner ruling 2026-11-13)
 
 
+### Story 36.7: Epic 36 burn-down: an upgrade removes the previous builds' bundle files from the served web folder
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, ~05:00Z Nov 14): DW-1320 blocks the 1.0.10 RC; no public claim and no release-note line]
+
+As an OcuTalon operator who upgrades in place,
+I want the upgrade to remove the old builds' hashed bundle files from the served web folder,
+So that the folder holds exactly the new build's bundle and old code never piles up there.
+
+**Acceptance Criteria:**
+
+**Given** an installed OcuTalon whose served web folder `csp/ocutalon-web/` holds hashed bundle files (names matching the installer's STALEFILES pattern: `main-`, `chunk-`, `polyfills-` and `styles-<hash>`) that the new build does not contain, including leftovers of earlier upgrades
+**When** the upgrade installs the new build
+**Then** the installer removes each of those files, and every file of the new build is served
+
+**Given** the same upgrade
+**When** it removes files
+**Then** it removes only files whose names match the STALEFILES pattern and are not in the new build, never "anything not in the build"; the spec lists every file the installer or the runtime writes into that folder, and a test shows each one survives the upgrade
+
+**Given** the release upgrade harness rehearsal from v1.0.9 with an extra old `main-XXXXXXXX.js` planted in the served folder before the upgrade
+**When** the upgrade completes
+**Then** the served folder's file list equals the new build's output (any extra file fails), and reverting the fix turns that check red
+
+**Given** `release/upgrade-harness.sh`
+**When** any release runs it
+**Then** a permanent stale-file row checks that the served web folder matches the candidate's build output after the upgrade; there is no public claim and no release-note line about it
+
+- DW-1320: An in-place upgrade leaves the previous build's main-<hash>.js in the served web folder csp/ocutalon-web/ (ledger; routed by the Planner ruling 2026-11-14 ~05:00Z; blocks the 1.0.10 RC)
+
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.
