@@ -176,3 +176,4 @@
 2026-11-14T13:14:24Z	Story 25.5	ledger_adjudicated	owned=3 resolved=3(DW-1268,DW-1281,DW-1303) reowned=0 terminal=0
 2026-11-14T13:14:24Z	Story 25.5	smoke_complete	method=browser+api(lead:fresh_lane-A_stacks;sign-in_2/30_5/5(api/approver),5/30_12/12(api/roles),sign-in-2_11/20_12/12(phone/approver),live_answers_24/24) result=pass iterations=1 defects_caught=0 model=claude-opus-5-5
 2026-11-14T13:14:24Z	Story 25.5	fresh_check	env=recipe(fresh_warm_e25s5f,torn_down) tests=15_iris_classes result=pass order=forward,reverse
+2026-11-14T13:22:11Z	Epic 25	integrated_forward	feature=f138fcf8 head=d34dc415 conflicts_resolved=sprint-status.yaml(feature_side,regenerated,25.5=done) code_conflicts=none bundle_initial=887.84kB node=2089/2089 lint=ok test-readme=pass boundaries=pass iris=18_classes_pass(warm_e25s5g,torn_down)
