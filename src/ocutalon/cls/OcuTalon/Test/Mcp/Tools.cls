@@ -1,7 +1,9 @@
 /// OcuTalon.Mcp.Ops, the reads and the attach report (AD-21, AD-29): Tools(server), which Story 21.4 calls, and RecordAttach.
-///   - TestTools: an unknown server and an empty name are an error; a registered server gives its tool rows as {"name", "classification", "status"}, sorted by name
+///   - TestTools: an unknown server and an empty name are an error; a registered server gives its tool rows with "name", "classification" and "status" (the "changed" member is TestToolsChanged's), sorted by name
 ///     (capital letters before small ones), with the status refused for a name in RefusedTools, else unavailable while the last attach was unavailable, else
 ///     available; a registered server with no tool rows gives an empty array; the tools of another server are not listed;
+///   - TestToolsChanged: the changed member is a JSON boolean, true only for an unclassified row whose Changed is 1; a row that is not marked, a classified row
+///     whose mark is 1 (drift), and a row stored before the property existed (its storage node ends before the Changed slot, so Changed is empty) are false, never "" or null;
 ///   - TestRecordAttachUnknownServer: a report for a server that has no row, or names none, is an error and writes no row;
 ///   - TestRecordAttach: the report's status, reason, refused tools and, for an attached server, the time are written to the server's row; a reason that
 ///     is not a code word of the bridge is stored as empty, so no text of AI Hub reaches the row; an unavailable report keeps the time of the last
@@ -57,6 +59,31 @@ Method TestTools()
 	Do $$$AssertEquals(..Listed(), "Zz_Upper|risky|unavailable;zz_delete_ticket|unclassified|unavailable;zz_lookup|read-only|unavailable;zz_shadow|unclassified|refused", "and a refused one stays refused")
 }
 
+Method TestToolsChanged()
+{
+	Do ..Add()
+	Do ..Tool(..#SERVER, "zz_cleared", "unclassified", 1)
+	Do ..Tool(..#SERVER, "zz_new", "unclassified", 0)
+	Do ..Tool(..#SERVER, "zz_drift", "read-only", 1)
+	Do ..Tool(..#SERVER, "zz_old", "unclassified", 1)
+	// a row as an earlier version stored it: the list ends before the Changed slot, so the property reads as empty
+	Set id = ""
+	Do $$$AssertTrue(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexExists(..#SERVER, "zz_old", .id), "the pre-upgrade fixture row exists")
+	Set ^OcuTalonP.McpToolD(id) = $List(^OcuTalonP.McpToolD(id), 1, 6)
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).%OpenId(id).Changed, "", "its Changed is empty")
+	Kill tools
+	Do $$$AssertStatusOK(##class(OcuTalon.Mcp.Ops).Tools(..#SERVER, .tools), "Tools is OK")
+	Set text = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set text = text _ $Select(text = "": "", 1: ";") _ tool.name _ "=" _ tool.%GetTypeOf("changed") _ ":" _ tool.changed
+	}
+	Do $$$AssertEquals(text, "zz_cleared=boolean:1;zz_drift=boolean:0;zz_new=boolean:0;zz_old=boolean:0", "changed is a JSON boolean for every tool, true only for the marked unclassified one, and false for the empty and the drifted rows")
+	Set json = tools.%ToJSON()
+	Do $$$AssertTrue(json [ """name"":""zz_cleared"",""classification"":""unclassified"",""status"":""available"",""changed"":true", "the JSON text says true for the marked tool")
+	Do $$$AssertTrue(json [ """name"":""zz_old"",""classification"":""unclassified"",""status"":""available"",""changed"":false", "and false, not an empty string or null, for the pre-upgrade row")
+}
+
 Method TestRecordAttachUnknownServer()
 {
 	Set report = {"status": "attached", "reason": "", "tools": ["zz_lookup"], "refused": []}
@@ -104,7 +131,7 @@ Method Listed() As %String [ Private ]
 }
 
 /// A tool row of the server, made as the fixture; the server's own row is made too when it is the second fixture server.
-Method Tool(server As %String, name As %String, classification As %String) [ Private ]
+Method Tool(server As %String, name As %String, classification As %String, changed As %Boolean = "") [ Private ]
 {
 	If (server = ..#OTHER) && '##class(OcuTalon.Mcp.Server).NameIndexExists(server) {
 		Set other = ##class(OcuTalon.Mcp.Server).%New()
@@ -117,6 +144,7 @@ Method Tool(server As %String, name As %String, classification As %String) [ Pri
 	Set row.Tool = name
 	Set row.Classification = classification
 	Set row.Fingerprint = "fp"
+	If changed '= "" Set row.Changed = changed
 	Do $$$AssertStatusOK(row.%Save(), "the fixture tool " _ name _ " is saved")
 }
 

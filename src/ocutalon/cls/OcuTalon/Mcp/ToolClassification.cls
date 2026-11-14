@@ -5,6 +5,8 @@
 ///     the server offers under the name of a built-in tool and so was refused. A classification holds for the fingerprint the row had when the
 ///     admin set it; a different reported fingerprint makes the row unclassified again.
 ///   - ChangedAt is when the row's classification last changed, UTC to the second.
+///   - Changed is 1 from the moment OcuTalon.Mcp.Ops.ClearChanged makes a classified tool unclassified after a fingerprint change until an admin classifies the tool
+///     again; it is 0 for a new row, and empty in a row stored before the property existed, which reads as 0.
 /// The row holds no URL, no credential and no user name. It lives as long as its server, and a tool that the server stops offering loses its row at
 /// the next attach.
 Class OcuTalon.Mcp.ToolClassification Extends %Persistent
@@ -31,6 +33,9 @@ Property Fingerprint As %String(MAXLEN = 64);
 /// When the classification last changed, UTC to the second (YYYY-MM-DDThh:mm:ssZ).
 Property ChangedAt As %String(MAXLEN = 20);
 
+/// 1 while the tool is unclassified because its fingerprint changed and no admin has classified it since (see the class description).
+Property Changed As %Boolean [ InitialExpression = 0 ];
+
 Index ServerToolIndex On (Server, Tool) [ Unique ];
 
 Storage Default
@@ -53,6 +58,9 @@ Storage Default
 </Value>
 <Value name="6">
 <Value>ChangedAt</Value>
+</Value>
+<Value name="7">
+<Value>Changed</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.McpToolD</DataLocation>

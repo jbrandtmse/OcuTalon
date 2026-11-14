@@ -2,7 +2,8 @@
 title: "Story 22.15: The tool list reports which tools changed (the `changed` flag)"
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0bf4e2d326d604ea83f4d49ffef86c39b5bd5612'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -103,7 +104,54 @@ Lane C: `OCUTALON_LOCK_DIR=<worktree parent>/.coordination/locks/lane-c`, `OCUTA
 - `bash docker/tests/test-storage.sh` if it exists, plus `test-class-rules.sh` and `test-boundaries.sh` -> pass.
 - `lint_spine.py` -> 10 low.
 
+Result (implement, Lane C, warm tag `e22s15iw`, fresh tag `e22s15i`): warm `Test.Mcp.Ops`, `Test.Mcp.Tools`, `Test.Mcp.Classification`, `Test.Mcp.Attach:TestRemovedServer`, `Test.Core.SettingsMcp`, `Test.Core.CommandsStep4`, `Test.Msg.Contracts` and `Test.Data.Tables` passed (one per call). Fresh `Test.Mcp.Ops` and `Test.Mcp.Tools` passed (one class per fresh stack; the cross-order check ran warm: Tools, Ops, then Ops, Tools). `test-storage.sh`, `test-class-rules.sh` and `test-boundaries.sh` passed. `lint_spine.py`: 10 low. `SettingsMcp:TestList` needed no edit (`SettingsOps.ListMcp` copies the tool members by name).
+
+Pinning tests and mutations (each applied, observed red, reverted; `git status --short`, `git diff --stat` and `git diff` byte-identical to before):
+- `Test.Mcp.Ops:TestClearChanged` (1 after clearing a classified row, 0 for an unclassified one, kept by an unclassified row's update, kept when the audit fails): mutation: drop `Set row.Changed = 1` in `ClearRow` -> red; mutation: set `Changed = 1` outside the classified branch -> red; mutation: reset `Changed = 0` on the unclassified path -> red.
+- `Test.Mcp.Ops:TestClassify` (reset to 0 for each of the three words): mutation: drop `Set row.Changed = 0` in `Classify` -> red.
+- `Test.Mcp.Ops:TestAuditFails` (the audit-failure undo restores classification and `Changed` 1): mutation: drop the `Changed` restore in the undo -> red.
+- `Test.Mcp.Ops:TestRecordAttachRows` (a new row, refused one included, is 0): mutation: `KeepRow` sets `Changed = 1` on a new row -> red; mutation: remove `InitialExpression = 0` from the property -> red (with `TestClearChanged`).
+- `Test.Mcp.Tools:TestToolsChanged` (a JSON boolean; true only for a marked unclassified row; false for a classified row with `Changed` 1 and for a row whose storage node was cut before the `Changed` slot, written directly): mutation: push the raw `Changed` value -> red; mutation: drop the `classification = "unclassified"` test -> red.
+
+Shared surfaces: `Mcp/Ops.cls` (Lane D's 22.11 also edits it; integrate forward) and `Mcp/ToolClassification.cls` storage (one new `<Value name="7">`, no migration).
+
+## Review Triage Log
+
+### 2026-11-14 - Review pass
+- verdicts: 13 findings (after grouping duplicates across layers) - high 0, medium 0, low 11, false 2, maybe-false 0
+- findings:
+  - `[low]` `patch` ChangedFlag test helper reports another tool's flag when the tool is absent (blind hunter, edge hunter, verification gap) - the helper now returns "not listed" when no element matches.
+  - `[low]` `patch` the ClearChanged and KeepRow doc lines run past the file's wrap width (blind hunter) - reflowed.
+  - `[low]` `patch` ToolClassification class doc wrote "OcuTalon.Mcp.Ops ClearChanged" (blind hunter) - now "OcuTalon.Mcp.Ops.ClearChanged".
+  - `[low]` `patch` Test.Mcp.Tools class doc's TestTools bullet still listed three members (edge hunter) - now says the changed member is TestToolsChanged's.
+  - `[low]` `reject` ChangedOf dereferences a missing row (edge hunter) - a missing fixture row errors the test loudly, which is a failure, so a guard adds only complexity.
+  - `[low]` `reject` fixture saves in TestClassify and TestAuditFails are unchecked (edge hunter) - the same tests assert the Changed value before and after, so a failed save would show; the fix adds assertions for no reachable failure.
+  - `[false]` `reject` TestToolsChanged leaves the hand-edited global node behind (blind hunter, edge hunter) - OnAfterOneTest removes the test's rows; the verification-gap layer read it and found no leftover state.
+  - `[false]` `reject` the hard-coded cut of 6 could stop meaning "pre-upgrade" (blind hunter, verification gap) - the test asserts Changed = "" before it lists the row, so it cannot pass vacuously; a storage reorder would turn that assertion red.
+  - `[low]` `reject` no end-to-end test through RecordAttach (blind hunter) - KeepRow calls ClearRow unchanged and ClearChanged's test covers the same ClearRow; the spec lists the tests it wants.
+  - `[low]` `reject` a marked tool that later becomes refused reads changed true with status refused (blind hunter) - the intent says the refused branch is unchanged.
+  - `[low]` `reject` classifying with the word unclassified clears Changed (edge hunter) - the intent says Classify, any of the three words, sets Changed 0.
+  - `[low]` `reject` ListMcp drops `changed` so Settings cannot show it yet (blind hunter, intent alignment reading R2 and R3) - Story 21.9 adds it there by the ruling and the stage's override (d); the intent's Approach limits this story to the Lane A files.
+  - `[low]` `reject` spec checkboxes and the Auto Run Result status are stale (blind hunter, verification gap) - the fix edits the build's own spec; the result block is written at finalize.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `McpOps.Tools(server)` now gives each tool `changed`, always a JSON boolean, true only when the row's new stored `Mcp.ToolClassification.Changed` is 1 and the tool is unclassified (an empty value, as in a pre-upgrade row, reads false). `ClearRow` sets `Changed` in the classified branch only, `Classify` resets it, and its audit-failure undo restores it. A new row starts at 0.
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Mcp/ToolClassification.cls`: the `Changed` property, its storage slot 7 and its doc.
+- `src/ocutalon/cls/OcuTalon/Mcp/Ops.cls`: ClearRow, Classify and its undo, Tools, and the docs.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls`: Changed assertions in TestClearChanged, TestClassify, TestAuditFails and TestRecordAttachRows, with two helpers.
+- `src/ocutalon/cls/OcuTalon/Test/Mcp/Tools.cls`: the new TestToolsChanged (including the pre-upgrade row written to the storage node directly).
+- This spec: Verification results and mutation lines, triage log.
+
+Review: 13 findings from four layers; 4 patches applied (all low: the helper guard and three doc lines), 0 deferred, 9 rejected with the reasons above. No Lane B test needed a change (`SettingsMcp:TestList` passes unchanged).
+
+Follow-up review recommendation: false (no high patched; patched counts: high 0, medium 0, low 4).
+
+Verification performed: implement-stage runs (warm: Test.Mcp.Ops, Tools, Classification, Attach:TestRemovedServer, Core.SettingsMcp, Core.CommandsStep4, Msg.Contracts, Data.Tables; fresh Test.Mcp.Ops and Test.Mcp.Tools; forward and reverse order warm; test-storage, test-class-rules, test-boundaries; lint_spine 10 low); after the review patches, a new warm stack re-ran Test.Mcp.Ops and Test.Mcp.Tools (passed) and the three check scripts (passed), then was torn down.
+
+Residual risks: Lane D's 22.11 also edits `Mcp/Ops.cls`; whoever pushes second integrates forward. `changed` reaches the web only when Story 21.9 adds it to `SettingsOps.ListMcp`.

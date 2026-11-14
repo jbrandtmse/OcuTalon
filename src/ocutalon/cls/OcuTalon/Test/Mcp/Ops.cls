@@ -10,13 +10,14 @@
 ///   - TestBadAddress, TestBadNameAndTaken: the refusals change nothing and restart nothing; a port is 1 to 65535;
 ///   - TestWrongSender, TestOnlineDemo, TestOnlineDemoRealFlag: a sender other than CommandsIn, an origin other than web_admin, a bridge context, an empty acting user and
 ///     the online demo (through the probe's switch, and through the real onlineDemo setting) are refused for all three verbs with the sentences of CommandsIn, before any write;
-///   - TestRemove, TestClassify: the rows, resource, grant and audit entries; an unknown server or tool, and a word that is not a classification, change nothing;
-///   - TestAuditFails, TestRestartFails: an audit that fails undoes an add and a classification (not_audited); a restart that fails keeps the change (failed);
+///   - TestRemove, TestClassify: the rows, resource, grant and audit entries; an unknown server or tool, and a word that is not a classification, change nothing; a
+///     classification of any of the three words resets the row's Changed to 0;
+///   - TestAuditFails, TestRestartFails: an audit that fails undoes an add and a classification, Changed included (not_audited); a restart that fails keeps the change (failed);
 ///   - TestRolesCompose: the Roles step composes the grant of each row whose resource exists, skips a row whose resource is missing, and composes none on the
 ///     online demo;
 ///   - TestRecordAttachRows, TestToolNamesAreCaseSensitive, TestChangedTool, TestClearChanged, TestNotices: the tool rows of an attach report (names are case-sensitive;
 ///     a classified tool that is reported refused keeps its classification, and one that is listed with a different or missing fingerprint is cleared), the clear of a
-///     changed tool, and one notice per transition;
+///     changed tool (the row is marked Changed, an unclassified row keeps its mark, a new row has none), and one notice per transition;
 ///   - TestNoAddressOrSecretInAnyText (AC 7): the address a command gives, and a failure's text that holds a credential, show in no result, audit entry, notice,
 ///     or event-log row of the add, classify, remove and attach paths (a refusal, a failed audit and a failed restart included);
 ///   - TestToolFingerprint: the fingerprint (Story 22.8) is 64 hexadecimal characters that change with the server, the name, the description or the input schema, not with the
@@ -334,10 +335,15 @@ Method TestClassify()
 	// the word, the classification the audit log holds and its readOnly flag
 	For case = $ListBuild("read-only", "safe", 1), $ListBuild("risky", "risky", 0), $ListBuild("unclassified", "unclassified", 0) {
 		Set word = $List(case, 1)
+		Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one")
+		Set row.Changed = 1
+		Do row.%Save()
 		Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", word))
 		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|saved|Saved", word _ " is saved")
 		Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one")
 		Do $$$AssertEquals(row.Classification _ "|" _ row.Fingerprint, word _ "|fingerprintkept", "the row holds " _ word _ " and keeps its fingerprint")
+		Do $$$AssertEquals(row.Changed, 0, "a row that was marked Changed is not, after " _ word)
+		Do $$$AssertEquals(..ChangedFlag(server, "zz_one"), "boolean:0", "and Tools reports changed false")
 		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(..AuditMark, "OcuTalon", "Tool", "Tool", server, , $ListFind($ListBuild("read-only", "risky", "unclassified"), word))
 		Set last = entries.%Get(entries.%Size() - 1)
 		Do $$$AssertEquals(last.data.source _ "|" _ last.data.tool _ "|" _ last.data.classification _ "|" _ last.data.readOnly _ "|" _ last.data.irisUser _ "|" _ last.data.channel, server _ "|zz_one|" _ $List(case, 2) _ "|" _ $List(case, 3) _ "|" _ ..#USER _ "|web", "the Tool entry says " _ $List(case, 2) _ " with readOnly " _ $List(case, 3))
@@ -371,10 +377,15 @@ Method TestAuditFails()
 	// a classification
 	Kill ^||ZzOps("auditError")
 	Do ..MakeRows(server, "zz_one")
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one")
+	Set row.Changed = 1
+	Do row.%Save()
 	Set ^||ZzOps("auditError") = 1
 	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "read-only"))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|not_audited|" _ ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "a classification whose audit fails is answered not_audited")
-	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one").Classification, "unclassified", "and the tool is still unclassified")
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one")
+	Do $$$AssertEquals(row.Classification _ "|" _ row.Changed, "unclassified|1", "and the tool is still unclassified, and still marked Changed")
+	Do $$$AssertEquals(..ChangedFlag(server, "zz_one"), "boolean:1", "so Tools still reports changed true")
 	// a remove keeps the server, its rows and its resource
 	Kill ^||ZzOps("auditError")
 	Set again = ..Server("f2")
@@ -452,6 +463,7 @@ Method TestRecordAttachRows()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, report), "an attached report is recorded")
 	Do $$$AssertEquals(..ToolRows(server), "zz_a|unclassified|fpa;zz_b|unclassified|fpb;zz_c|unclassified|", "a row for each listed and refused tool, new ones unclassified, the refused one with no fingerprint")
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_a").ChangedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", 1, "with the time they were made")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_a") _ "|" _ ..ChangedOf(server, "zz_b") _ "|" _ ..ChangedOf(server, "zz_c"), "0|0|0", "and none of them, the refused one included, is marked Changed")
 	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_a")
 	Set row.Classification = "read-only"
 	Do row.%Save()
@@ -670,17 +682,29 @@ Method TestClearChanged()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).Notices().%Size(), 0, "and no notice was sent")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(server, "zz_a", "fpa2"), "a changed fingerprint is cleared")
 	Do $$$AssertEquals(..ToolRows(server), "zz_a|unclassified|fpa2;zz_u|unclassified|fpu", "the tool is unclassified with the new fingerprint")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_a") _ "|" _ ..ChangedOf(server, "zz_u"), "1|0", "the cleared tool is marked Changed, and the unclassified one is not")
+	Do $$$AssertEquals(..ChangedFlag(server, "zz_a") _ "|" _ ..ChangedFlag(server, "zz_u"), "boolean:1|boolean:0", "and Tools reports changed true for the cleared tool only")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), 1, "the admin gets one notice")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Tool", "Tool", server).%Size(), 1, "and the change is audited")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(server, "zz_u", "fpu2"), "an unclassified tool takes the new fingerprint")
 	Do $$$AssertEquals(..ToolRows(server), "zz_a|unclassified|fpa2;zz_u|unclassified|fpu2", "with no other change")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).Notices().%Size(), 1, "and no notice")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_a") _ "|" _ ..ChangedOf(server, "zz_u"), "1|0", "and no mark changes")
+	// an unclassified row that takes a new fingerprint keeps its mark, whatever it is
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(server, "zz_a", "fpa3"), "a marked unclassified tool takes a new fingerprint")
+	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_u")
+	Set row.Changed = 1
+	Do row.%Save()
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(server, "zz_u", "fpu3"), "and so does an unclassified tool whose mark was set")
+	Do $$$AssertEquals(..ToolRows(server), "zz_a|unclassified|fpa3;zz_u|unclassified|fpu3", "the fingerprints are the new ones")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_a") _ "|" _ ..ChangedOf(server, "zz_u"), "1|1", "and both keep their mark")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).Notices().%Size(), 1, "with no notice")
 	// an audit that fails leaves the tool cleared and still tells the admin
 	Do ..MakeTool(server, "zz_f", "read-only", "fpf")
 	Set ^||ZzOps("auditError") = 1
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(server, "zz_f", "fpf2"), "a change that cannot be audited is an error")
 	Kill ^||ZzOps("auditError")
-	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_f").Classification, "unclassified", "but the tool is unclassified")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_f").Classification _ "|" _ ..ChangedOf(server, "zz_f"), "unclassified|1", "but the tool is unclassified and marked Changed")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), 2, "and the admin is still told")
 }
 
@@ -898,6 +922,24 @@ Method MakeAdmin(admin As %Boolean = 1) As %String [ Private ]
 	Do $$$AssertStatusOK(row.%Save(), "the fixture session is saved")
 	Set ..Admin = ..Admin _ $Select(..Admin = "": "", 1: ",") _ row.Ref
 	Quit row.Ref
+}
+
+/// The Changed of the tool's row.
+Method ChangedOf(server As %String, tool As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, tool).Changed
+}
+
+/// The changed member that Tools gives for the tool, as "<JSON type>:<value>".
+Method ChangedFlag(server As %String, tool As %String) As %String [ Private ]
+{
+	Do ##class(OcuTalon.Mcp.Ops).Tools(server, .tools)
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If one.name = tool Quit
+	}
+	If ('$IsObject($Get(one))) || (one.name '= tool) Quit "not listed"
+	Quit one.%GetTypeOf("changed") _ ":" _ one.changed
 }
 
 /// The tool rows of the server as "tool|classification|fingerprint" joined by ";", in the order of the names.
