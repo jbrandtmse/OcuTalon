@@ -6779,6 +6779,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
 - 2026-11-13T08:11:13Z occurrence=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=runner note=OCT-epic36 20e3655a ci run 43378472985 job 131730433698 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges (run_again: an event row watch.progress appeared); GuideApi not in the 36.x diff; one rerun
 - 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges+TestRunAgain; same code green on OCT-epic0d 81b65a6a (43445650699); not rerun (superseded by 4aa34ca4, green by identity)
+- 2026-11-14T10:43:29Z occurrence=26-3-caption-a-photo-and-keep-the-caption-as-a-memory note=CI run 43581056590 iris(shards-6) lane-b@rest, OCT-epic26 8ab6a725 (IRIS code identical to 39405fff, whose shards-6 passed); one rerun of the failed job
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
