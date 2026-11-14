@@ -8211,6 +8211,30 @@ So that the mailbox is never confused with a source, a slow source is not called
 **When** it is composed
 **Then** it reads "I checked the Orders production, Jira and the mailbox." and "Not everything: the mailbox."; where "Mailbox" is a label (coverage lines, check rows, Settings) it stays as it is (Planner ~12:45Z and ~13:20Z item 4; both sentences pinned, each with a mutation)
 
+### Story 22.15: The tool list reports which tools changed (the `changed` flag)
+
+> [ADDED 2026-11-14, Contest Planner, Lane A exception V1 for 21.9] Worked by lane C under the Lane A exception, limited to the `changed` member, ClearRow/ClearChanged, Classify/ClassifyTool and their tests. Story 21.9 builds on it.
+
+As an admin,
+I want the settings page's tool list to say which tools McpOps made Unclassified because they changed,
+So that Settings can tell me which tool to classify again.
+
+**Acceptance Criteria:**
+
+**Given** a classified tool whose fingerprint changed
+**When** McpOps clears it (`ClearChanged`, `ClearRow`)
+**Then** its `Mcp.ToolClassification` row has `Changed` = 1, and `McpOps.Tools(server)` gives that tool `changed: true`, a JSON boolean
+
+**Given** a tool with `Changed` = 1
+**When** an admin classifies it with `ClassifyTool` (any of the three words)
+**Then** `Changed` is 0 and `Tools(server)` gives `changed: false`; a classification whose audit fails puts the previous value back
+
+**Given** a row stored before the upgrade, whose `Changed` is empty
+**When** `Tools(server)` lists it
+**Then** it reads `changed: false`, a JSON boolean, never "" or null (tested; reading the raw value turns the test red)
+
+**And** `Changed` is a %Boolean with InitialExpression 0 and no migration, and AD-21 carries the ruled S1 text word for word
+
 ## Epic 23: Deeper IRIS watch (step 5)
 
 Incidents gain rerouting, suspend and resume and setting rollback as approved fixes, link failures to recent setting changes, page the on-call person with escalation, draft partner warnings sent only after approval, and close with a written summary; queue backlog and SQL query watches report between digests (Could).
