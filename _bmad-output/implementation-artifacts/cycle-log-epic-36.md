@@ -187,3 +187,5 @@
 2026-11-14T04:08:55Z	Story 36.6	ledger_adjudicated	owned=1 resolved=1(DW-1308) terminal=3(DW-1316,1317,1318) note=slice_empty model=claude-opus-5-5
 2026-11-14T04:08:55Z	Story 36.6	smoke_complete	method=build+browser(initial_878.98kB;fresh_lane-B_e36s6s1:live_sign-in-2_part_12/15_deep-link+email+on-call_O1-O16_26/26) result=pass iterations=1 defects_caught=0 evidence=live_log model=claude-opus-5-5
 2026-11-14T04:08:55Z	Story 36.6	fresh_check	env=fresh_stack(e36s6f1) tests=live_sign-in-2_part_14/15(settings.spec.ts)+node_2005/0+boundaries result=pass order=forward torn_down=e36s6s1,e36s6f1
+2026-11-14T04:13:02Z	Epic 36	planner_ruling	source=epic-36-rulings-20261113-2130.md(~04:30Z) items=push_36.6;36.5_v1.0.9_upgrade_rehearsal_required_before_merge;merge_order_first_ready(36.5|21.4);DW-625_ratified_flake
+2026-11-14T04:13:02Z	Epic 36	pushed	sha=pending note=36.4+36.5+36.6;feature_86264c83_already_integrated(4f07aa5a);checks=build_878.98kB,node_2005/0,lint,boundaries,test-readme
