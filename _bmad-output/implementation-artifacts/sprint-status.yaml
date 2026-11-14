@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-14-2026 09:29 UTC
+last_updated: 11-14-2026 13:14
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -334,6 +334,7 @@ development_status:
   21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do: done
   21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com: done
   21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace: done
+  21-15-the-sign-in-tests-never-run-across-the-daily-digest-s-time: done
   21-6-send-email-over-smtp: done
   21-7-send-the-daily-digest-by-email: done
   epic-21-retrospective: optional
@@ -342,13 +343,14 @@ development_status:
   22-2-classify-mcp-tools-by-server-and-name: done
   22-3-call-mcp-tools-only-through-the-governed-proxy: done
   22-4-hold-risky-and-unclassified-mcp-calls-for-approval: done
-  22-5-poll-a-read-only-mcp-tool-as-a-source: ready-for-dev
-  22-6-document-a-worked-jira-example-and-mcp-governance: ready-for-dev
+  22-5-poll-a-read-only-mcp-tool-as-a-source: done
+  22-6-document-a-worked-jira-example-and-mcp-governance: done
   22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone: done
   22-8-classify-mcp-calls-by-fingerprint-in-the-gate: done
   22-9-bound-mcp-attach-and-listing-with-a-timeout: done
   22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie: 
     ready-for-dev
+  22-11-run-source-polls-through-the-governed-proxy: backlog
   22-12-document-polling-a-jira-mcp-tool-as-a-source: backlog
   epic-22-retrospective: optional
 
@@ -375,8 +377,8 @@ development_status:
   epic-25: in-progress
   25-2-filter-past-decisions-and-incidents-on-the-history-page: done
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
-  25-4-assign-approver-and-viewer-roles-in-settings: backlog
-  25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: backlog
+  25-4-assign-approver-and-viewer-roles-in-settings: done
+  25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: done
   25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
   epic-25-retrospective: optional
 
@@ -465,6 +467,7 @@ development_status:
   36-3-link-the-worked-jira-example-from-the-admin-docs: backlog
   36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages: done
   36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when: done
+  36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun: done
   epic-36-retrospective: optional
 
   epic-37: done

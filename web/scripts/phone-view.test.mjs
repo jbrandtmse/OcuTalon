@@ -3,7 +3,7 @@
 // payload, in the snapshot's place), and an approval request is pending on screen only when a message names a pending one that has
 // no answer line. requestView (Story 6.3) is tested against every row of the I/O matrix that the page owns: the text's blocks and the
 // inset of the dry run's example, the buttons (only for a message that names a request and has no answer, the server's or the
-// phone's own), the answer line with its tone and icon, and the buttons' names. The module is imported as it is: Node strips its
+// phone's own, and not a request that the store says the user may not answer, Story 25.5), the sentence that replaces them, the answer line with its tone and icon, and the buttons' names. The module is imported as it is: Node strips its
 // types, which holds only while it keeps to erasable syntax.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -193,6 +193,34 @@ describe('requestView (Story 6.3)', () => {
     assert.equal(requestView(message('m2', 'zz'), approval(), undefined, context).buttons, false);
     assert.equal(requestView(request({ answer: 'Approved from the web chat at 14:15.' }), approval(), undefined, context).buttons, false, 'a message with the server\'s answer');
     assert.equal(requestView(request(), approval(), answered('approved', 'phone'), context).buttons, false, 'and one the phone\'s own press answered');
+  });
+
+  it('takes the buttons away when the store\'s payload says answerable is false (Story 25.5), and gives the sentence of its approver kind', () => {
+    const refused = (kind) => approval({ answerable: false, ...(kind === undefined ? {} : { approverKind: kind }) });
+    const view = requestView(request(), refused('reroute'), undefined, context);
+    assert.equal(view.buttons, false, 'no buttons');
+    assert.equal(view.cannot, 'Only an approver for reroutes can answer this request.', 'the sentence of the kind');
+    assert.equal(view.answer, undefined, 'it is not an answer line');
+    for (const kind of ['resend', 'reroute', 'suspend', 'rollback', 'partner', 'email', 'tool']) {
+      assert.match(requestView(request(), refused(kind), undefined, context).cannot, /^Only an approver for [a-z ]+ can answer this request\.$/, kind);
+    }
+    assert.equal(requestView(request(), refused(undefined), undefined, context).cannot, 'Only an approver can answer this request.', 'no kind: the fallback');
+    assert.equal(requestView(request(), refused('zz_new'), undefined, context).cannot, 'Only an approver can answer this request.', 'an unknown kind: the fallback');
+    assert.equal(requestView(request(), approval({ answerable: true, approverKind: 'reroute' }), undefined, context).buttons, true, 'answerable true keeps the buttons');
+    assert.equal(requestView(request(), approval({ answerable: true }), undefined, context).cannot, '', 'with no sentence');
+    assert.equal(requestView(request(), approval(), undefined, context).buttons, true, 'an absent answerable keeps the buttons');
+    assert.equal(requestView(request(), undefined, undefined, context).cannot, '', 'no payload, no sentence');
+    assert.equal(requestView(request({ answer: 'Approved from the web chat at 14:15.' }), refused('reroute'), undefined, context).cannot, '', 'a message with the server\'s answer shows the answer, not the sentence');
+    assert.equal(requestView(request({ approvalRef: '' }), refused('reroute'), undefined, context).cannot, '', 'a message with no request has none');
+    assert.equal(requestView(request(), answered('approved', 'web', { answerable: false }), undefined, context).buttons, false, 'a payload that says answerable false never shows the buttons');
+  });
+
+  it('takes the buttons away after a press that the server refused, and shows the server\'s sentence', () => {
+    const view = requestView(request(), approval({ answerable: true }), undefined, context, 'Only an approver for emails can answer this request.');
+    assert.equal(view.buttons, false);
+    assert.equal(view.cannot, 'Only an approver for emails can answer this request.');
+    assert.equal(requestView(request(), approval(), undefined, context, '').buttons, true, 'no refusal, the buttons stay');
+    assert.equal(requestView(request(), approval(), answered('approved', 'phone'), context, 'x').cannot, '', 'the phone\'s own answer wins');
   });
 
   it('shows the phone\'s own answer in message form, with the tone and icon of the outcome', () => {

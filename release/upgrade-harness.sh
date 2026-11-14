@@ -42,6 +42,11 @@
 # search of its knowledge base (OcuTalon.Test.Docs.Live Found). The seed makes them on the previous build only when its MemoryOps or
 # DocumentOps is built (no STUB); otherwise the upgrade phase makes them on the candidate, the restart phase checks them, and the row
 # carries the note that its upgrade part joins later.
+# The stale-files family (Story 36.7, DW-1320): IPM copies each build over csp/ocutalon-web/ and never deletes, so the Web step removes the earlier
+# builds' hashed bundle files at every start. The seed plants main-ZZSTALE0.js in the served folder of the previous build in every mode, release
+# runs included (the row's note says so, and it makes the row exercise the delete even when two builds share a main hash). After the upgrade and
+# after the restart the list of files of the served folder must equal the candidate's own build output (src/ocutalon/csp), and after the upgrade
+# the plant answers 404 and the build's main script 200. The row fails and names each extra and each missing file.
 # Merge retries (Story 0.14): a start whose CPF merge hit ERROR #453 retries once (STEP merge RETRY 1 after #453 in the start's log). The
 # harness counts those lines in the log of each of its five starts (settings previous and candidate, records previous, candidate and
 # restart), ready or not, as MERGE-RETRIES <n> <start> lines of the phase's results; the record section gets "Merge retries: <total>"
@@ -67,15 +72,22 @@ cd "$harness_root" || exit 1
 UPGRADE_PRE_RELEASE_COMMIT=c9f1288c7a735f1ee3aa14a4f5289de794ce5257
 
 # The record families the harness runs, and the ones it holds back (none since Story 12.9 turned the pairing family on).
-HARNESS_ON="conversation reminder approval watch settings pairing memory document"
+HARNESS_ON="conversation reminder approval watch settings pairing memory document stale-files"
 HARNESS_OFF=""
 # The rows of the record, in order. A row id has no space.
-HARNESS_ROWS="previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing memory document"
+HARNESS_ROWS="previous-build upgrade conversation reminder approval watch settings restart storage private-globals stale-files pairing memory document"
 # The pairing row's note while the previous build does not include Telegram: its upgrade part has nothing to start from.
 PAIRING_UPGRADE_NOTE="the upgrade part joins from the release after 1.0.0"
 # The memory and document rows' notes while the previous build cannot save a memory or index a document.
 MEMORY_UPGRADE_NOTE="the upgrade part joins from the release after the first one that saves memories"
 DOCUMENT_UPGRADE_NOTE="the upgrade part joins from the release after the first one that indexes documents"
+
+# The stale-files family: the candidate's build output, the served folder of the records project, and the plant. The 0 of the plant's name is
+# outside esbuild's base32 hash alphabet, so no real build can have that name.
+SERVED_WEB=/durable/iris/csp/ocutalon-web
+BUILD_WEB=src/ocutalon/csp
+STALE_PLANT=main-ZZSTALE0.js
+STALE_NOTE="$STALE_PLANT was planted in the served folder before the upgrade, standing in for an earlier upgrade's leftover; every mode plants it"
 
 # The seed's texts, as the CI mock scenarios answer them.
 REPLY_WATCH="I'll watch the Orders production and stay quiet unless something needs you."
@@ -382,6 +394,27 @@ storage_compare() {
   return 0
 }
 
+# stale_compare <build list> <served list>: both are files of one relative path per line. Prints EXTRA <path> for each path of the served list
+# that the build list lacks and MISSING <path> for each path of the build list that the served list lacks, and returns 1 when there is any;
+# returns 2 (and prints why) for an empty build list, so that nothing passes vacuously, and 0 when the lists are equal.
+stale_compare() {
+  local out
+  if [ ! -s "$1" ]; then
+    echo "the build list is empty"
+    return 2
+  fi
+  out=$(LC_ALL=C comm -13 <(LC_ALL=C sort -u "$1") <(LC_ALL=C sort -u "$2" 2> /dev/null) | sed 's/^/EXTRA /'
+    LC_ALL=C comm -23 <(LC_ALL=C sort -u "$1") <(LC_ALL=C sort -u "$2" 2> /dev/null) | sed 's/^/MISSING /')
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    return 1
+  fi
+  return 0
+}
+
+# stale_names <stale_compare output> <EXTRA|MISSING>: the paths of that kind, at most 10, on one line, each followed by a space.
+stale_names() { printf '%s\n' "$1" | sed -n "s/^$2 //p" | head -n 10 | tr '\n' ' ' | sed 's/ $//'; }
+
 # record_rows <results file>: one line per row of the record, in order: id, title, result (pass, fail, not run or off) and detail, tab
 # separated. The results file holds "RECORD <row id> pass|fail|off|note|seed <detail>" lines; a row is pass only when it has a pass line
 # and no fail line, fail when it has any fail line, off for a row of HARNESS_OFF, and not run when it has none. A note adds to a pass
@@ -390,7 +423,7 @@ record_rows() {
   local results=${1:-/dev/null}
   [ -f "$results" ] || results=/dev/null
   awk -v rows="$HARNESS_ROWS" -v offrows="$HARNESS_OFF" '
-    function title(id) { return id == "previous-build" ? "previous build" : (id == "private-globals" ? "private globals" : id) }
+    function title(id) { gsub(/-/, " ", id); return id }
     $1 == "RECORD" {
       id = $2; kind = $3; d = $0
       sub(/^RECORD [^ ]+ [^ ]+ ?/, "", d)
@@ -1402,6 +1435,59 @@ e2e_demo_off() {
 
 # --- seed: project 2 ---
 
+# The stale-files family's readers, each a function that a test replaces.
+# served_tree: the files of the served folder in the records project, as ./relative paths, sorted.
+served_tree() { dc exec -T iris sh -c "cd '$SERVED_WEB' && find . -type f | LC_ALL=C sort" 2> /dev/null | tr -d '\r'; }
+# build_tree: the files of the candidate's own build output, as ./relative paths, sorted.
+build_tree() { (cd "$harness_root/$BUILD_WEB" 2> /dev/null && find . -type f | LC_ALL=C sort); }
+# web_status <path>: the status of a signed-in GET of the served folder's file.
+web_status() { curl -s --max-time 30 -b "$jar" -c "$jar" -o /dev/null -w '%{http_code}' "$base/ocutalon/$1"; }
+# stale_plant: writes the plant into the served folder of the records project.
+stale_plant() { dc exec -T iris sh -c "printf 'planted by the upgrade harness' > '$SERVED_WEB/$STALE_PLANT' && test -f '$SERVED_WEB/$STALE_PLANT'" > /dev/null 2>&1; }
+
+# seed_stale_files: the plant, on the previous build, in every mode.
+seed_stale_files() {
+  row stale-files
+  if stale_plant; then
+    pass "stale files: $STALE_PLANT is planted in the served folder"
+    note_row "$STALE_NOTE"
+  else
+    fail "stale files: $STALE_PLANT could not be planted in the served folder"
+  fi
+}
+
+# check_stale_files <upgrade|restart>: the served folder's files equal the candidate's build output. After the upgrade the plant also answers 404
+# and the build's main script 200.
+check_stale_files() {
+  local when=$1 build served out rc n main plant_code main_code
+  row stale-files
+  build=$tmp/stale.build served=$tmp/stale.served
+  build_tree > "$build"
+  served_tree > "$served"
+  n=$(wc -l < "$build" | tr -d ' ')
+  out=$(stale_compare "$build" "$served")
+  rc=$?
+  if [ "$rc" = 0 ]; then
+    pass "after the $when the served web folder holds exactly the candidate's $n build files"
+  elif [ "$rc" = 2 ]; then
+    fail "after the $when the candidate's build output $BUILD_WEB has no file, so the served web folder cannot be checked"
+    return
+  else
+    fail "after the $when the served web folder differs from the candidate's build output ($n files):$(stale_names "$out" EXTRA | sed 's/^./ extra &/')$(stale_names "$out" MISSING | sed 's/^./ missing &/')"
+    return
+  fi
+  if [ "$when" = upgrade ]; then
+    main=$(sed -n 's|^\./\(main-[A-Za-z0-9]*\.js\)$|\1|p' "$build" | head -n 1)
+    plant_code=$(web_status "$STALE_PLANT")
+    main_code=$(web_status "$main")
+    if [ -n "$main" ] && [ "$plant_code" = 404 ] && [ "$main_code" = 200 ]; then
+      pass "after the upgrade /ocutalon/$STALE_PLANT answers 404 and /ocutalon/main-<hash>.js 200"
+    else
+      fail "after the upgrade /ocutalon/$STALE_PLANT answers '$plant_code' (wanted 404) and /ocutalon/${main:-main-<hash>.js} answers '$main_code' (wanted 200)"
+    fi
+  fi
+}
+
 phase_seed() {
   LIVE_TELEGRAM=started
   row previous-build
@@ -1447,6 +1533,7 @@ phase_seed() {
   if family_on pairing; then seed_pairing; fi
   if family_on memory; then seed_memory; fi
   if family_on document; then seed_document; fi
+  if family_on stale-files; then seed_stale_files; fi
   row previous-build
   if storage_snapshot "$state/storage.prev"; then
     pass "previous build: the storage snapshot is taken ($(wc -l < "$state/storage.prev" | tr -d ' ') slot lines)"
@@ -1791,6 +1878,7 @@ phase_upgrade() {
     check_document_upgrade
     document_candidate
   fi
+  if family_on stale-files; then check_stale_files upgrade; fi
   logout_all "$jar" /ocutalon/api/
 }
 
@@ -1880,6 +1968,7 @@ phase_restart() {
   if family_on pairing; then check_pairing_restart; fi
   if family_on memory; then check_memory_restart; fi
   if family_on document; then check_document_restart; fi
+  if family_on stale-files; then check_stale_files restart; fi
   logout_all "$jar" /ocutalon/api/
 }
 

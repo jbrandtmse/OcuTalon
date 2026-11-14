@@ -132,6 +132,7 @@ describe('the page speaks only through the Announcer', () => {
       'app/settings/models-section.ts',
       // The On call section (Story 36.4): the saved text, once, a failed save, and the online demo's off text.
       'app/settings/on-call-section.ts',
+      'app/settings/roles-section.ts',
       'app/settings/settings-page.ts',
       'app/settings/time-zone-section.ts',
       // The Webhooks group (Story 35.3): the saved text of a create or a replacement, once, and a refused or failed one.
@@ -175,6 +176,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/settings/time-zone-section.ts': [1, 'the select takes focus after the user\'s own Save changes is refused for the zone (Story 18.2)'],
     'app/settings/on-call-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 36.4)'],
     'app/settings/webhooks-section.ts': [1, 'the first field in error takes focus after the user\'s own Create webhook or Save changes (Story 35.3)'],
+    'app/settings/roles-section.ts': [1, 'the user name field takes focus after the user\'s own Grant is refused, and the list heading after the user\'s own Remove, whose button leaves with the role (Story 25.4)'],
     'signin/splash.js': [1, 'a copy that fails on the splash gives the focus to the input whose value it selects, after the user pressed the copy button (Story 16.2)'],
   };
 
@@ -188,7 +190,7 @@ describe('focus moves only for the user or through the focus rule', () => {
   });
 
   it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) or the control an Other things to try item hands off to, that the user opened, to measure the room that the Other things to try panel and the banners leave, the heading of the document the user opened with Open document, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/documents/documents-page.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/budgets-section.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/email-section.ts', 'app/settings/mcp-section.ts', 'app/settings/models-section.ts', 'app/settings/on-call-section.ts', 'app/settings/time-zone-section.ts', 'app/settings/webhooks-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/documents/documents-page.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/budgets-section.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/email-section.ts', 'app/settings/mcp-section.ts', 'app/settings/models-section.ts', 'app/settings/on-call-section.ts', 'app/settings/roles-section.ts', 'app/settings/time-zone-section.ts', 'app/settings/webhooks-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {

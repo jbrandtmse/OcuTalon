@@ -2084,6 +2084,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T12:10:02Z occurrence=23-9-resume-a-suspended-item-after-its-incident-closes note=OCT-epic23_3b197218_run_43201190985_attempt1_production_row21_WatchOps;rerun_failed_jobs_green(attempt2)
 - 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 - 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
+- 2026-11-14T05:25:54Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=OCT-epic22_522228a5_ci_run_43554772670_job_132325025906_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;one_rerun_of_failed_jobs
+- 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3148,6 +3150,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T21:18:08Z occurrence=OCT-epic30-17406fd7 by=orchestrator note=run 42515884139 attempt 1: iris(shards-2) lane-a@rest Test.Fix.Partial TestCopiesFailAgain (3/3/0/3/0 asserts); rerun of failed jobs 21:2xZ
 - 2026-11-09T14:16:10Z occurrence=OCT-epic41-4cb52a8d note=run_42603815732_attempt_1_shards-2
 - 2026-11-10T17:42:07Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980617018 iris(shards-11) shard:lane-a@Fix Test.Fix.Partial TestSomeFailAgainAndSomeHadChanged (5/3/0/3/2, order date reason); OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
+- 2026-11-14T12:06:31Z occurrence=feature-ae6c6009 by=orchestrator note=run 43585177876 iris(shards-11) lane-a@Fix Test.Fix.Partial TestCopiesFailAgain (same 5 asserts); not rerun: superseded by ef40062b, whose CI covers the same code
 
 ### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
@@ -5623,6 +5626,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Adapter/Agent.cls Answer hands kind tool to Replay.Run before any composition; Replay.cls:65 adapter.Agent.ToolManager.ExecuteTool; documents is held (and so replayed) only when Decide's ToolClassification row cannot be read (Install/Step/Production.cls:294), and a host's own risky turn tool always would be
 - 2026-11-08T11:22:28Z status=decision-pending owner=burndown by=cr note=product call: Replay composes the approval owner's turn tools, or the guide states a turn tool must be classified safe; spec matrix Other kinds composes nothing for tool
 - 2026-11-08T12:32:34Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=owner note=planner_ruling(owner_delegation,orchestrator_relay):accepted_as_recommended:the_bridge_guide_says_a_turn_tool_must_be_classified_safe;the_line_is_NEW_text(PUBLIC_TEXT_proposed_in_the_part-2_contract,for_docs/bridge-guide.md:315);lands_in_22.6_unless_the_Planner_rules_it_into_1.0.4;reopen_if=a_turn_tool_call_is_ever_held_for_approval
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=docs/bridge-guide.md_TurnTools_bullet_P6(approved_turn-tool_sentence);test-bridge-guide.sh_turntools_pins_it(mutation:delete_the_sentence->red)
 
 ### DW-951: The upgrade harness's new api_get polls GET /v1/documents with no unique probe query, unlike state_get, so a gateway-kept answer could be read
 - source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
@@ -6746,6 +6750,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T14:48:46Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); not rerun, as above; rerun once per occurrence
 - 2026-11-11T08:31:54Z occurrence=25-2 by=orchestrator note=run 42981966109 job 130394215010 iris(shards-10) live:sign-in row 8 empty chat panel (ci-9); OCT-epic25 f21137d1
 - 2026-11-11T08:32:34Z occurrence=25-2-filter-past-decisions-and-incidents-on-the-history-page note=OCT-epic25 f21137d1 ci run 42981966109 iris (shards-10) live:sign-in row 8; orchestrator-classified flake
+- 2026-11-14T08:59:50Z status=routed owner=21-15-the-sign-in-tests-never-run-across-the-daily-digest-s-time by=adjudication note=reclassified (Contest Planner ~09:15Z Nov 14): not a random flake; the daily digest (Digest.Process, digest.time 08:00) falls due during a live:sign-in run that crosses 08:00 and puts its notice into the README chat; occurrences Nov 10 08:03:16Z (job 129700562519), Nov 11 08:0x (run 42981966109), Nov 14 ~08:01Z (run 43573005917, with chat.spec C1); resolved when 21.15 merges
+- 2026-11-14T10:25:07Z status=resolved-by:21-15-the-sign-in-tests-never-run-across-the-daily-digest-s-time by=orchestrator note=21.15 merged to feature ae6c6009 (code 58c17af5, CI 43579849186/43579849192 green); residual: 60 s Data.Setting cache before 08:00 (product)
 ### DW-1084: More to try: the panel's render of an ungrouped set (first, no h4) is pinned only by groupsOf unit tests and a template source-text match; no executed render covers it
 - source: spec-0-22-the-more-to-try-panel-shows-its-items-under-three-group-head.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web has no component test host and every registry row declares a ruled group (the typo-guard unit test fails otherwise), so no e2e can render an ungrouped set; a template rewrite that keeps the @if regex green could misrender it
@@ -6767,6 +6773,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
 - 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
 - 2026-11-13T20:38:47Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959516 iris(shards-4) live:sign-in-2 rail.spec.ts:432 R10; only diff the heartbeat card's real check-in at 20:26 between live read and reload; rail untouched by 36.4; one rerun
+- 2026-11-14T13:17:46Z occurrence=feature-f138fcf8 by=orchestrator note=run 43595216871 iris(shards-4) live:sign-in-2 rail R10 'a reload shows the same rail' (ci-12); rerun --failed
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7504,6 +7511,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
 - 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
 - 2026-11-13T05:14:19Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:recorded_in_AD-21_S11_as_a_measured_known_limit(31s_vs_2s);22.6_guide_MCP_section_states_it;no_public_hard-deadline_claim;22.10_deferred
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Time_limits_paragraph_word_for_word_in_docs/mcp-jira-example.md+docs/security-overview.md(measured_31s/36s,mid-request_residual,no_hard_deadline);overviewdoc_OVW_MCP_LIMITS+deadline_checks;spine_AD-21_S11_record
 
 ### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
@@ -7528,6 +7536,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
 - 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
 - 2026-11-13T05:14:18Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:test_that_a_server_tool_named_call_mcp_tool_or_any_built-in_name_is_refused_under_the_CURRENT_design;fix_narrowly_if_not
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Bridge/Adapter/Agent.cls_proxy_registered_first+call_mcp_tool_built-in_when_the_host_names_a_proxy;Test.Mcp.Attach_TestProxyNameRefused,TestProxyNameNotShadowing,TestProxyNoneAdded,TestProxyNameKeptWithoutProxy,TestProxyNameRefusedAfterRest;spine_S20
 
 ### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
@@ -7678,11 +7687,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-24 S2 personal-data clause; Planner V3/V4/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-13T23:37:37Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=ceaf3519+review_patches:SettingsOps.SaveRoles/ListRoles_handoff_both_ways;Test.Web.RolesApi_leak_scan;409_on_demo_per_route;Test.Install.RolesAssign_one_test_per_refusal
 
 ### DW-1268: 25.5 obligation from 37.1: AnswersIn calls Approval.MayAnswer before Answer; the not_allowed slot kind carries the row's ApproverKind; one 'Only an approver for ...' sentence per approver kind (seven: resend, reroute, suspend, rollback, partner, email, tool; setting rows keep today's rule) proposed as PUBLIC TEXT (only 'resends' is in EXPERIENCE.md)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-11 S1; Planner V6/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 
 ### DW-1269: 25.6 obligation from 37.1: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; renders the read result (fileRef, kind, read, reason, text, chars, cut, addable) and the HostData member caption (memoryRef, text), naming the carriers; Add to documents by fileRef. 'No file content in a production message body' = no bytes and no image (extracted text may reach the turn)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7822,6 +7833,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner P1/P2 (epic-22-rulings-20261113-1715): Ownership.cls:97 APPROVALVISIBLE owner-only; Web/Api.cls:699-703 404; AnswerOps.cls:62 MayApprove needs OcuTalonAdmin; fails closed (expires after EXPIRYSECONDS)
 - 2026-11-13T18:50:36Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=orchestrator note=Planner_P2:interim_acceptable(fails_closed);25.5_lets_an_approver_answer_or_refuses_at_raise_with_a_clear_message
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 ### DW-1272: Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
 - evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
@@ -7833,6 +7845,49 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
 
+### DW-1283: SecretHandoff has no TTL: the reverse handoff uri SettingsOps puts for the Roles list (Holders) is left in shared memory until the instance restarts when the REST process times out before taking it; admin-only, local installs only; a TTL in SecretHandoff would close it
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/SecretHandoff.cls has Put/Take/Discard only (no TTL) on eaad3718; Planner ruling C4 2026-11-13: do not widen SecretHandoff in 25.4, ledger a low DW
+- 2026-11-13T19:04:31Z status=routed owner=burndown by=spec_gate note=Planner ruling C4 (story-254-rulings-20261113.md)
+
+### DW-1284: Telegram and email entries take a message in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person holding OcuTalonUser at USE time: a user whose OcuTalonUser role is removed can still start turns through a paired chat or the connected mailbox (approval answers do re-check at use time)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
+- 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
+
+### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Install/Step/Roles.cls Assign + Bridge/Audit.cls Record (Redact.SensitiveKey); the roles.<user> shape is pinned by the Matrix
+- 2026-11-13T22:43:57Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=harvest note=reopen_if=an admin reports a roles.* audit entry with blank from/to, or a real install has a user named with a sensitive suffix
+
+### DW-1290: A removed OcuTalonAdmin role keeps applying to an open CSP session until it ends (IsAdmin and RoleSettings.Refusal read the session's $Roles; only OcuTalonUser/OcuTalonViewer are re-read live per ruling C-24h); an admin who loses the role and keeps a tab polling keeps /v1/settings and the Roles routes
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Api.cls OnPreDispatch, IsAdmin; Web/RoleSettings.cls Refusal; Task 0 (c): 8 h idle timeout renewed per request
+- 2026-11-13T22:43:57Z status=escalated owner=burndown by=harvest note=security posture: extend the C-24h live re-read to OcuTalonAdmin (same call, p95 0.066 ms); for the Planner/decision sheet
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_2:_live_re-read_extends_to_OcuTalonAdmin_under_C-24h_rules,_into_25.4_now
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=84fe7ed3:IsAdmin_live_role_set;TestRemovedAdminLosesSettings(real_HTTP)+3_mutations;lead_smoke_sign-in-2_17/20
+
+### DW-1297: Settings > Roles shows the step-2 text 'Saved. Applies within a minute. Recorded in the audit log.' for a save that changed nothing (changed false, e.g. granting a role the user already holds), though no audit entry is written
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: roles-section.ts change(): every 200 shows SETTINGS_TEXTS.saved; SaveRoles answers changed false and Assign writes no entry for a no-op (I/O matrix Repeat row)
+- 2026-11-13T23:26:30Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling: a no-change text, or no confirmation for changed false; new public text is owner-only
+- 2026-11-13T23:56:04Z status=routed owner=25-4-assign-approver-and-viewer-roles-in-settings by=lead note=Planner_final_ruling_3:_option_a:_no_audit_entry_and_text_No_change:_{user}'s_roles_are_already_as_you_set_them.,_into_25.4_now
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=adjudication note=84fe7ed3:no-op_text_No_change(text,not_HTML)+no_audit_entry;RolesApi.TestNoChangeWritesNoEntry,RS3,saveLine_unit;mutations
+
+### DW-1298: Viewer guards in 9 of the 14 guarded components (try-it row, more to try, demo guide Run again, got it, noise control, documents bar and Remove, mailbox, phone, chat drop) are pinned only by source-text regexes, with no rendered viewer check
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: viewer-sources.test.mjs matches template text; viewer.spec.ts V1/V2 render only the composer, Approve/Reject, Dismiss, Break the feed and the rail; the server's 403 read_only is pinned (ViewerApi, api/roles.spec.ts)
+- 2026-11-13T23:26:30Z status=wontfix-accepted owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=reopen_if=a viewer sees a state-changing control on any page, or a guard edit leaves viewer-sources green while a control renders
+
+### DW-1299: POST /v1/settings/roles checks only the body's types before the SecretHandoff; an empty or 161-character user, or a role outside the allowlist, is handed over and refused one hop later by Roles.Refusal (Planner Gate SECURITY row 2 says 1-160 characters and the two roles)
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: RoleSettings.ShapeFields types only; the frozen I/O matrix (Unknown user, Role refused rows) and Decided in-stage 5 fix the 400 user_unknown/role answers, which the client gets unchanged; Assign refuses before any change
+- 2026-11-13T23:26:30Z status=by-design owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=spec-bound: frozen matrix rows + Decided in-stage 5; no name leaves the handoff; reopens only via spec amendment
+### DW-1286: docs/mcp-jira-example.md spells 'the request is canceled' while every other public text and the code use 'cancelled' (approval.cancelled, the overview's Approval audit line)
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: P1 is ruled verbatim (Planner M(4)), so the one-letter change to 'cancelled' rewrites approved public text; the reviewer may not patch it. Grep: docs/mcp-jira-example.md is the only 'canceled' in the public docs.
+- 2026-11-13T21:29:41Z status=decision-pending owner=burndown by=cr note=22.6 CR BH9: Planner to approve 'cancelled' in P1 (one word) or keep as ruled
+- 2026-11-14T07:12:22Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Planner_approved;docs/mcp-jira-example.md:48_reads_cancelled(30c7f33e)
 ### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
 - source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
@@ -7872,6 +7927,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
+- 2026-11-14T00:55:11Z occurrence=25-4-assign-approver-and-viewer-roles-in-settings
+- 2026-11-14T00:55:11Z note=25.4 cr: the 997.59 kB ceiling is checked by hand only (angular.json initial maximumError is 1MB); 25.4 build 997.59 kB, at the ceiling
+
+### DW-1303: Self-lockout: Settings > Roles lets an admin grant OcuTalonViewer to themselves, which (viewer wins, Planner 25.4 final ruling 1) locks them out of Settings; the save must refuse it with reason self_viewer and the text: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin."
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Install/Step/Roles.cls Refusal and Web/RoleSettings.cls have no acting-user check (grep self/actingUser at 8d2db7ce); Planner 25.4 final ruling 1 (story-254-rulings-20261113.md, ~00:05Z Nov 14)
+- 2026-11-13T23:56:04Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=lead note=Planner ruling: report-only check found no refusal; routed to 25.5 with reason self_viewer and the given text (PUBLIC TEXT approved by the ruling)
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
+
+### DW-1307: AD-13 still says OcuTalonAdmin is read from the session's $Roles and applies until the session ends, but 25.4 now reads it from the live role set (Planner final ruling 2, DW-1290); the spine needs the Rule 20 write
+- source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md (code review, rework iteration 1) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md AD-13 settings-routes bullet (by its whole name in $Roles) and the Story 25.4 viewer bullet (the other roles (OcuTalonAdmin among them) are read from the session); Web/Api.cls IsAdmin now reads LiveRoles at 84fe7ed3
+- 2026-11-14T00:55:11Z status=escalated owner=burndown by=cr note=veto window (amending an AD): the lead records final ruling 2 in AD-13 under Rule 20; the code follows the binding ruling
+- 2026-11-14T01:15:26Z status=resolved-by:25-4-assign-approver-and-viewer-roles-in-settings by=lead note=AD-13_settings-routes_bullet_and_25.4_viewer_bullet_amended_per_final_ruling_2(Rule_20),lint_baseline
 
 ### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
 - source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
@@ -7979,20 +8048,6 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: No web-side handle (the uri is in the unseen result); reachable on a healthy production, not only a wedged one: SettingsOps PoolSize 1 and TestModel waits up to 45 s; memory only, 128-bit name, never a trace or a global (related: DW-1155, no expiry)
 - 2026-11-14T01:11:36Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=SecretHandoff gains an expiry/sweep, or a leftover OcuTalonHandoff* event is seen after GETs outside a model test; fix: skip Put when request age>=20s
 
-### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
-- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
-- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
-- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
-### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
-- source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
-- evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
-- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
-
-### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
-- source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
-- evidence: count by the Planner: 9 cancelled, 4 canceled
-- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
-
 ### DW-1316: 36.6: list [] at load, Telegram checked for an unlisted user during a pending save, and a response listing them unpaired leaves the box checked and disabled
 - source: spec-36-6 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: on-call-section.ts succeeded(): an edited form is kept while users() refreshes; telegramState then reads unpaired but the kept box stays checked. Next save is refused (noChannel), not silent; person re-pick or Leave without saving recovers.
@@ -8012,16 +8067,63 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: 36.5 upgrade rehearsal from v1.0.9 (Contest Planner ruling ~04:30Z Nov 14, Q1 check 1) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rehearsal e36h1 from OCT-epic36-s365 40428606: served folder 28 files vs build 27; extra ./main-JCJUH3RN.js (v1.0.9's main); index.html and the new main identical to the build; deep links and the harness rows pass; evidence _bmad-output/implementation-artifacts/evidence/36-5-upgrade-from-v1.0.9.md on OCT-epic36-s365 74b10a14 (local)
 - 2026-11-14T04:28:21Z status=escalated owner=burndown by=runner note=STOP under the ruling's check 1: Planner to rule whether it blocks 36.5 (pre-existing: any upgrade whose main hash changes leaves it) and who fixes it
-### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
-- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
-- evidence: 25.4 LOCAL READY report 47bc45f3
-- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=found after the three-item cap; not fixed in 25.4
+- 2026-11-14T04:31:49Z status=routed owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=merge_gate note=Planner ruling 2026-11-14 ~05:00Z: does not block 36.5 (merged bc624f44); blocks the 1.0.10 RC as burn-down Story 36.7
+- 2026-11-14T10:05:23Z status=resolved-by:36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=adjudication note=Story 36.7: Install.Step.Web.RemoveStaleBundle removes top-level STALEFILES-matching files the new build lacks (guards i-v, fail safe, each removal logged); v1.0.9 rehearsal pass with the permanent stale-files row (served = build, 31 files), its mutation red naming main-JCJUH3RN.js and main-ZZSTALE0.js; evidence/36-7-upgrade-from-v1.0.9.md
 
-### DW-1311: SessionEvents records AdminAtSignIn from the roles at sign-in (Data/Ownership.cls:832), so a removed admin keeps getting admin-routed items until next sign-in
-- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: cross-epic
-- evidence: 25.4 LOCAL READY report 47bc45f3
-- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=related to DW-1290's live re-read
-- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
-- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
-- 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
+### DW-1330: The chunk reload covers lazy routes only: Settings' in-page import of mcp-section is not rescued, so after an upgrade an open Settings tab's MCP section can stay empty
+- source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: settings-page.ts void import('./mcp-section') has no catch; 36.7 now deletes the old chunk, so an IPM-install tab open across an upgrade gets a 404 there; withNavigationErrorHandler sees only router navigations (ruling V4 scope)
+- 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=an MCP section that stays empty after an upgrade is reported, or another in-page dynamic import is added
 
+
+### DW-1333: No test reads the per-recipient answerable of BridgeSink's approval event for a watcher of an instance incident (recipient differs from the owner)
+- source: code review of spec-25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: BridgeSink.cls:165 builds FromRow(row, recipient); every test of the event payload uses a session-owned row (recipient = owner), so FromRow(row, ownerRef) there would stay green. Local installs only; the server still refuses the press (rule 6).
+- 2026-11-14T12:53:24Z status=wontfix-accepted owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=cr note=a Test.Core.BridgeSink case is more than 15 lines; reopen_if=an instance watcher without the role sees Approve and Reject on a fresh event
+### DW-1331: The chunk reload rewrites the current history entry: after a header-link navigation fails, Back skips the page the user left
+- source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: router URL updates after loadComponents, so the current entry is still the source page; reloadOnChunkError calls history.replaceState(target); a pushState branch would interact with canceledNavigationResolution computed page ids
+- 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=a user reports Back skipping a page after the upgrade reload, or the reload is extended beyond the once-per-upgrade rescue
+
+### DW-1332: A dirty Settings page's native leave prompt, if cancelled during the chunk reload, uses up the address's flag and leaves the target address in the bar
+- source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: high | footprint: in-story
+- evidence: unsavedGuard (canDeactivate) runs before loadComponents, then reload() meets settings-page's beforeunload handler; Cancel keeps Settings with the flag taken; a manual reload recovers
+- 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=the reload is seen to leave a mismatched address after a cancelled leave prompt in a real report
+### DW-1324: PUBLIC TEXT: docs/mcp-jira-example.md:14 'press Add server and fill in:' is false of the merged 21.4 form (fields always shown; the Add server button submits them)
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review, VERIFY AT MERGE) | severity: high | fix-risk: low | footprint: in-story
+- evidence: web/src/app/settings/mcp-section.ts:111-166: the Name/Address/Secret fields sit under the 'Add server' heading with no toggle, and the Add server button (:166, add :508) sends them; web/e2e/settings/mcp.spec.ts:103-121 fills then clicks. P1 is ruled verbatim, so the reviewer may not reword it (21.4's AC at epics.md:7685 has the same order).
+- 2026-11-14T07:09:49Z status=decision-pending owner=22-6-document-a-worked-jira-example-and-mcp-governance by=cr note=suggest 'In Settings > Tools and MCP servers, fill in the fields under Add server, then press the Add server button:'
+- 2026-11-14T07:59:52Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Planner_approved_07:45Z:docs/mcp-jira-example.md:14+:57(that_runs)_word_for_word;pinned(ruled_lines_14,13)+controls;mutations_red(801c16f3)
+### DW-1325: A source poll can be named like a fixed coverage entry (for example 'Mailbox'), so the digest's coverage list shows two entries with one name; refusing such a name needs a new public string
+- source: spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 22.5 implement review (4fc55afb): Checks/Coverage.cls adds the Mailbox row beside source rows named by the admin
+- 2026-11-14T08:55:59Z status=decision-pending owner=burndown by=harvest note=human=Planner_PUBLIC_TEXT:a_refusal_string_for_a_reserved_source_name,_or_accept
+- 2026-11-14T09:30:55Z occurrence=22-5-poll-a-read-only-mcp-tool-as-a-source
+- 2026-11-14T10:10:47Z occurrence=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=R9-1 cr: a lone source named Mailbox reads as nothing watched (never all-clear); row kind now tells the two apart
+
+### DW-1326: A source row passes coverage on its latest run although earlier runs in the window were not checked
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
+- evidence: Coverage.WatchRow rule (5) takes the latest run for every kind (AD-18), but the intent says a source counts as checked only when its runs in the window all passed. No existing line says 'recovered'; reachable once 22.11 records runs.
+- 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: not checked when any run in span failed; needs a line (missed text says didn't run) or AD-18 rule 5 kept for sources
+
+### DW-1327: A source whose interval is longer than the digest span (e.g. a requested digest soon after the scheduled one) shows stale
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
+- evidence: WatchRow: no run in the span plus an earlier run gives digest.notCheckedStale (AD-18 rule 2), even when that run is within IntervalMinutes x 60 + 180 s of toUtc. Reachable once 22.11 records runs.
+- 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: a source whose last run is within its interval+180 s of toUtc takes that run; AD-18 rule 2 amendment
+
+### DW-1328: An update that repoints a source (server, tool or arguments) keeps its Reported state and run history
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Watch.Ops.SetSource keeps Reported (22.11's seen hashes, baseline, stopped) and the CheckRun history on a repeat of the name, so the repointed source's first poll is compared with the old tool's answers.
+- 2026-11-14T09:30:55Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=22.11 decides: clear Reported (and baseline) in SetSource when server, tool or arguments change, or keep
+
+### DW-1329: Spine not yet updated for Story 22.5 (Rule 20): AD-18 source gap, stopped, Mailbox entry; AD-28 RestKey lead and Mailbox-only
+- source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-story
+- evidence: The spec's Spine updates for the lead are not in ARCHITECTURE-SPINE.md (no Mailbox, emailPoll or notCheckedStopped). The review also made a Mailbox-only session nothing watched (AD-28).
+- 2026-11-14T09:30:55Z status=open owner=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=lead: write AD-18/AD-28 per spec Spine updates plus 'the connected mailbox is not a watch' before merge
+- 2026-11-14T09:34:13Z status=resolved-by:22-5-poll-a-read-only-mcp-tool-as-a-source by=adjudication note=spine:AD-18_record'Source_polls,Part_A(Story_22.5)'+AD-28_record'Not-checked_lead_and_the_mailbox(Story_22.5)'(mailbox_is_not_a_watch);lint_unchanged
+
+### DW-1335: infra: self-hosted runner ocutalon-ci-4 has port 52814 (its fixed web port) held by something else; every browser unit it runs fails at live_web_port with 'port 52814 is in use on 127.0.0.1'
+- source: orchestrator; feature f138fcf8 ci run 43595216871 | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: run 43595216871 attempt 1: shards-3 (live:floor, live:demo-switch) and shards-6 (live:documents, live:bundle-folder), both on ocutalon-ci-4, 12:45-13:05Z
+- 2026-11-14T13:17:46Z status=routed owner=burndown by=orchestrator note=infra, not code; likely a stack left by a cancelled job; needs a runner-side cleanup (owner or Planner call); rerun lands elsewhere if lucky
+- 2026-11-14T13:19:42Z status=routed owner=burndown by=orchestrator note=cause (Planner, who cleaned ci-4 ~13:25Z): the stack of run 43593749725 (d2c2fb0d ci) that the ORCHESTRATOR CANCELLED kept running and held 52814; a cancelled job skips teardown. Fix before the 1.0.10 RC (test and CI only): at job start ci/iris.sh removes any compose stack publishing THIS runner's fixed web port (one job per runner, so it is a leftover), logs the project, never touches another runner's port; test with a planted leftover

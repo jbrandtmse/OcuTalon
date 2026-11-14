@@ -507,6 +507,17 @@ live_fixture_user() {
     | OCUTALON_T03_PW="$2" dc exec -T -e OCUTALON_T03_PW iris iris session IRIS -U %SYS 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|fixture-user|.*\)$/\1/p' | tail -n 1
 }
 
+# live_fixture_role <name>: creates the role in %SYS with no resources, only when the instance has no role of that name, and prints CHK|fixture-role|1 when the
+# role exists afterwards (made now or before). The step 6 roles (OcuTalonApprover, its per-kind roles and OcuTalonViewer) are made by Story 26.4's installer; until then a
+# throwaway has none, and the tests of the Roles section and of the viewer need them. A role that exists is never changed.
+live_fixture_role() {
+  printf '%s\n' \
+    "Set \$Namespace=\"%SYS\" Set sc=\$Select(##class(Security.Roles).Exists(\"$1\"):1,1:##class(Security.Roles).Create(\"$1\",\"OcuTalon test fixture\",\"\"))" \
+    'Write !,"CHK|fixture-role|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' \
+    | dc exec -T iris iris session IRIS -U %SYS 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|fixture-role|.*\)$/\1/p' | tail -n 1
+}
+
 # --- Docker's health monitor ---
 
 health_status() { docker inspect --format '{{.State.Health.Status}}' "$cid" 2>/dev/null; }

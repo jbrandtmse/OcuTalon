@@ -333,7 +333,7 @@ describe('the case lists of the floor, answers and cards projects (Story 6.4; DW
     for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['cards/incident-card.spec.ts'], id);
     for (const id of range('A', 2, 13)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
     for (const id of range('E', 1, 8)) assert.deepEqual(where(id), ['cards/either-way.spec.ts'], id);
-    assert.equal(cards.length, 30, 'and no other case');
+    assert.equal(cards.length, 31, 'and no other case (A8b is Story 25.5\'s refused-press case)');
     assert.deepEqual([...new Set(cards.flatMap((one) => one.projects))], ['cards'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 
@@ -341,7 +341,7 @@ describe('the case lists of the floor, answers and cards projects (Story 6.4; DW
     const where = (id) => answers.filter((one) => idOf(one.title) === id).map((one) => one.file);
     for (const id of range('X', 1, 13)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
     for (const id of range('C', 1, 10)) assert.deepEqual(where(id), ['answers/close-loop.spec.ts'], id);
-    assert.equal(answers.length, 23, 'and no other case');
+    assert.equal(answers.length, 24, 'and no other case (X5c is Story 25.5\'s refused-press case)');
     assert.deepEqual([...new Set(answers.flatMap((one) => one.projects))], ['answers'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 });

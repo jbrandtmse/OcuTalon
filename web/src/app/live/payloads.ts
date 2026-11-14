@@ -251,6 +251,8 @@ export interface ApprovalPayload {
   finishedAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
+  answerable?: boolean;
+  approverKind?: string;
   traceUrl?: string;
 }
 
@@ -353,6 +355,7 @@ export interface CheckPayload {
   lastRunAt?: string;
   result?: string;
   finding?: string;
+  intervalMinutes?: number;
   traceHeaderId?: number;
   traceNamespace?: string;
   traceUrl?: string;

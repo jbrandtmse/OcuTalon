@@ -47,7 +47,7 @@ function irisContainer(): string {
 
 /**
  * The kinds of fixture user of the sign-in unit, FLOOR, the floor unit's, ANSWERS, the answers unit's, CARDS, the cards unit's, and
- * DEMOACCOUNT and READONLYACCOUNT, the online-demo unit's two public accounts (their values are the unit's test start values).
+ * VIEWER (role OcuTalonViewer only) and ROLETARGET (role OcuTalonUser, the account that the Roles specs grant and remove roles of) and APPROVER (roles OcuTalonUser and OcuTalonApprover, the approver of Story 25.5's approver specs), the sign-in unit's, DEMOACCOUNT and READONLYACCOUNT, the online-demo unit's two public accounts (their values are the unit's test start values).
  */
 export type FixtureKind =
   | 'LIVE'
@@ -64,6 +64,9 @@ export type FixtureKind =
   | 'FLOOR'
   | 'ANSWERS'
   | 'CARDS'
+  | 'VIEWER'
+  | 'ROLETARGET'
+  | 'APPROVER'
   | 'DEMOACCOUNT'
   | 'READONLYACCOUNT';
 

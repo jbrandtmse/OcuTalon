@@ -222,6 +222,12 @@ linksuser=ZzLinks
 linkspassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 bannersuser=ZzBanners
 bannerspassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+vieweruser=ZzViewer
+viewerpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+roletargetuser=ZzRoleTarget
+roletargetpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
+approveruser=ZzApprover
+approverpassword="Zz$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom 2>/dev/null | head -c 24)"
 
 # --- build and start ---
 
@@ -246,6 +252,17 @@ check_no_key "sign-in"
 check_security "rows 1-2"
 
 # --- the users without the OcuTalon user role (Story 0.3, row 12; Story 0.5, row 18) ---
+
+# The step 6 roles that the Roles section and the viewer specs need (Story 25.4): OcuTalonApprover, its seven per-kind roles and OcuTalonViewer, made with no
+# resources only when the instance has none (live_fixture_role, lib-live.sh), before the users that hold them.
+for fixture_role in OcuTalonApprover OcuTalonApprover_resend OcuTalonApprover_reroute OcuTalonApprover_suspend OcuTalonApprover_rollback OcuTalonApprover_partner OcuTalonApprover_email OcuTalonApprover_tool OcuTalonViewer; do
+  created=$(live_fixture_role "$fixture_role")
+  if [ "$created" = "CHK|fixture-role|1" ]; then
+    pass "the fixture role $fixture_role exists"
+  else
+    die "the fixture role $fixture_role could not be made ('$created')"
+  fi
+done
 
 # Each user is made by live_fixture_user (lib-live.sh), whose password reaches IRIS by environment variable.
 
@@ -278,7 +295,7 @@ fi
 # user role and the trace role for the specs of Story 2.9, which post messages for its session and open the links in Visual Trace, and
 # the links user holds the same two roles for the specs of Story 2.13, which do the same through the links on the page, and the
 # banners user holds the user role for the specs of Story 2.10, which publish status events on its session and read the banners.
-for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture"; do
+for fixture in "$liveuser|$livepassword|OcuTalonUser|live fixture" "$sessionuser|$sessionpassword|OcuTalonUser,OcuTalonTraceViewer|session fixture" "$signinuser|$signinpassword|OcuTalonUser|sign-in fixture" "$chatuser|$chatpassword|OcuTalonUser|chat fixture" "$paneluser|$panelpassword|OcuTalonUser|panel fixture" "$decisionuser|$decisionpassword|OcuTalonUser|decision fixture" "$noticeuser|$noticepassword|OcuTalonUser|notice fixture" "$railuser|$railpassword|OcuTalonUser|rail fixture" "$threaduser|$threadpassword|OcuTalonUser,OcuTalonTraceViewer|thread fixture" "$linksuser|$linkspassword|OcuTalonUser,OcuTalonTraceViewer|links fixture" "$bannersuser|$bannerspassword|OcuTalonUser|banners fixture" "$vieweruser|$viewerpassword|OcuTalonViewer|viewer fixture" "$roletargetuser|$roletargetpassword|OcuTalonUser|role-target fixture" "$approveruser|$approverpassword|OcuTalonUser,OcuTalonApprover|approver fixture"; do
   fixture_name=${fixture%%|*}
   fixture_rest=${fixture#*|}
   fixture_password=${fixture_rest%%|*}
@@ -316,6 +333,45 @@ else
   die "the events could not be seeded"
 fi
 
+# --- Story 21.15 (DW-1081): the daily digest's time, away from the run ---
+
+# Digest.Process makes every session due once today's digest.time (08:00 when unset) falls after its CreatedAt, so a stack seeded
+# before that clock and run across it puts the digest into the README account's chat, and chat.spec C1 and shell.spec row 8 find
+# no empty chat. The seed sets digest.time to the instance-zone clock 12 hours from now (a time of day, so modulo 24 hours), read
+# through Data.Time.ToLocal, which converts in the instance zone with its daylight-saving time, so no zone offset brings it back
+# inside the run. It prints the time it set and fails unless that time is at least 2 hours from the instance clock now, either
+# way round the day. OCUTALON_DIGEST_SHIFT_SECONDS (whole seconds, 43200 by default) moves the time; it exists only so that the
+# guard's failure can be shown.
+digest_shift=${OCUTALON_DIGEST_SHIFT_SECONDS:-43200}
+case $digest_shift in
+  '' | *[!0-9]*) die "OCUTALON_DIGEST_SHIFT_SECONDS must be whole seconds, not '$digest_shift'" ;;
+esac
+digested=$(printf '%s\n' \
+  'Set now=##class(OcuTalon.Data.Time).NowUtc(),here=##class(OcuTalon.Data.Time).ToLocal(now)' \
+  "Set there=##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(now,$digest_shift))" \
+  'Set sc=##class(OcuTalon.Data.Setting).Set("digest.time",$Extract($Piece(there,"T",2),1,5))' \
+  'Write !,"CHK|digest-set|",$System.Status.IsOK(sc)' \
+  'Write !,"CHK|digest-time|",##class(OcuTalon.Data.Setting).Fresh("digest.time")' \
+  'Write !,"CHK|instance-time|",$Extract($Piece(here,"T",2),1,5)' \
+  'Halt' | iris_script OCUTALON)
+digest_time=$(printf '%s\n' "$digested" | sed -n 's/^CHK|digest-time|//p')
+instance_time=$(printf '%s\n' "$digested" | sed -n 's/^CHK|instance-time|//p')
+if ! printf '%s\n' "$digested" | grep -qx 'CHK|digest-set|1' \
+    || ! printf '%s\n' "$digest_time" | grep -Eqx '([01][0-9]|2[0-3]):[0-5][0-9]' \
+    || ! printf '%s\n' "$instance_time" | grep -Eqx '([01][0-9]|2[0-3]):[0-5][0-9]'; then
+  printf '%s\n' "$digested" | cut -c1-200
+  die "the daily digest's time could not be set away from the run"
+fi
+digest_minutes=$((10#${digest_time%:*} * 60 + 10#${digest_time#*:}))
+instance_minutes=$((10#${instance_time%:*} * 60 + 10#${instance_time#*:}))
+digest_gap=$(((digest_minutes - instance_minutes + 1440) % 1440))
+if [ $((1440 - digest_gap)) -lt "$digest_gap" ]; then digest_gap=$((1440 - digest_gap)); fi
+echo "DIGEST digest.time $digest_time, instance clock $instance_time, $digest_gap minutes apart"
+if [ "$digest_gap" -lt 120 ]; then
+  die "the daily digest's time $digest_time is within 2 hours of the instance clock $instance_time: a run could cross it"
+fi
+pass "the daily digest's time is $digest_time, $digest_gap minutes from the instance clock $instance_time, so no run reaches it"
+
 # --- Story 0.3, rows 3 to 13, and Story 0.5, rows 13 to 19: the browser ---
 
 remaining=$((deadline - SECONDS))
@@ -330,7 +386,7 @@ if [ -n "$part_label" ]; then
 fi
 # The browser log is printed on every outcome, and a failed fill step can echo what was typed: the fixture's
 # password is replaced before anything reaches the terminal.
-show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/^/  /"; }
+show_log() { tail -n "$1" "$e2e_log" | sed "s/$noropassword/<redacted>/g; s/$tracepassword/<redacted>/g; s/$firstpassword/<redacted>/g; s/$livepassword/<redacted>/g; s/$sessionpassword/<redacted>/g; s/$signinpassword/<redacted>/g; s/$chatpassword/<redacted>/g; s/$panelpassword/<redacted>/g; s/$decisionpassword/<redacted>/g; s/$noticepassword/<redacted>/g; s/$railpassword/<redacted>/g; s/$threadpassword/<redacted>/g; s/$linkspassword/<redacted>/g; s/$bannerspassword/<redacted>/g; s/$viewerpassword/<redacted>/g; s/$roletargetpassword/<redacted>/g; s/$approverpassword/<redacted>/g; s/^/  /"; }
 suite_unit=${unit_name#test-}
 echo "MEASURED live:$suite_unit suite budget $((remaining - 20)) s"
 suite_began=$SECONDS
@@ -363,6 +419,12 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_LINKS_PASSWORD="$linkspassword" \
   OCUTALON_BANNERS_USER="$bannersuser" \
   OCUTALON_BANNERS_PASSWORD="$bannerspassword" \
+  OCUTALON_VIEWER_USER="$vieweruser" \
+  OCUTALON_VIEWER_PASSWORD="$viewerpassword" \
+  OCUTALON_ROLETARGET_USER="$roletargetuser" \
+  OCUTALON_ROLETARGET_PASSWORD="$roletargetpassword" \
+  OCUTALON_APPROVER_USER="$approveruser" \
+  OCUTALON_APPROVER_PASSWORD="$approverpassword" \
   OCUTALON_E2E_IRIS_CONTAINER="$cid" \
   OCUTALON_E2E_VERSION="$(manifest_version src/module.xml)" \
   OCUTALON_E2E_ZONE="$seeded_zone" \

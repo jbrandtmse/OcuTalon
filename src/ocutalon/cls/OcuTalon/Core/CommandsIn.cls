@@ -33,6 +33,7 @@
 ///     cannot send without the approval path (Story 21.6). Otherwise the refusal is not_allowed and nothing is sent;
 ///   - step 4 webhooks (Story 35.3, AD-1, AD-19): CreateWebhook and SetWebhookSecret go to SettingsOps from web_admin only; neither is a tool verb, and the
 ///     secret is never in the command, only the uri of its SecretHandoff;
+///   - step 6 (Story 25.4, AD-1, AD-24): ListRoles goes to SettingsOps from web_admin only; it is no tool verb, and its answer carries only a SecretHandoff uri;
 ///   - ListMcpServers (Story 21.4, AD-1, AD-21) is the read behind Settings > Tools and MCP servers: it goes to SettingsOps from web_admin only, is no tool verb, and
 ///     changes nothing; AddMcpServer carries only the uri of its credential's SecretHandoff;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
@@ -376,6 +377,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"},
  {"verb": "AckPage", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"},
+ {"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "ListOnCallUsers", "owner": "SettingsOps", "origins": "web_admin"}
 ]
 }

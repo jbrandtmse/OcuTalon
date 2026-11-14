@@ -67,12 +67,19 @@ describe('the root and the answer row', () => {
   });
 
   it('has the two buttons in a span of the answer part while pending, and the status in a paragraph of the same part and key, focusable, otherwise', () => {
-    assert.match(template, /<div class="answer-row">\s*@if \(view\(\)\.pending\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="view\(\)\.ref">/);
+    assert.match(template, /<div class="answer-row">\s*@if \(view\(\)\.pending && !viewer\(\) && !cannot\(\)\) \{\s*<span class="buttons" data-part="answer" \[attr\.data-key\]="view\(\)\.ref">/);
     const status = /<p \[class\]="'status tone-' \+ status\.tone"([^>]*)>/.exec(template)?.[1] ?? '';
     assert.match(status, /data-part="answer"/);
     assert.match(status, /\[attr\.data-key\]="view\(\)\.ref"/);
     assert.match(status, /tabindex="-1"/);
     assert.match(template, /@else if \(view\(\)\.status; as status\) \{/);
+    // Story 25.5: a pending request that the user may not answer has its sentence in the same answer part and key, in place of the buttons, with no new layout.
+    const cannot = /@else if \(view\(\)\.pending && !viewer\(\) && cannot\(\)\) \{\s*<p class="status tone-expired"([^>]*)>\s*<app-icon name="circle-slash" \[size\]="16" \/>\s*<span>\{\{ cannot\(\) \}\}<\/span>/.exec(template)?.[1] ?? '';
+    assert.match(cannot, /data-part="answer"/);
+    assert.match(cannot, /\[attr\.data-key\]="view\(\)\.ref"/);
+    assert.match(cannot, /tabindex="-1"/);
+    assert.match(card.code, /protected readonly cannot = computed\(\(\) => \(this\.answer\.refused\(\) !== '' \? this\.answer\.refused\(\) : this\.view\(\)\.cannotAnswer\)\);/);
+    assert.match(template, /@if \(notice\(\) && notice\(\) !== cannot\(\)\) \{/);
   });
 
   it('keeps Show details outside the pending/answered choice, at the end of the row, expanding the incident\'s panel by aria-expanded and aria-controls', () => {
@@ -143,7 +150,7 @@ describe('the call', () => {
     assert.match(method, /\/approvals\/\$\{encodeURIComponent\(ref\)\}\/answer`, \{ action, channel \}/);
     assert.doesNotMatch(method, /session|user/i);
     assert.match(card.code, /answer: \(ref, action, channel\) => this\.api\.answerApproval\(ref, action, channel\),\s*channel: 'web',/);
-    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action, this\.approval\(\)\.fixKind \?\? ''\)/);
+    assert.match(card.code, /this\.answer\.press\(this\.view\(\)\.ref, action\)/);
     assert.match(press.code, /\.answer\(ref, action, this\.options\.channel\)/, 'the press posts the channel it was given');
     assert.doesNotMatch(press.code, /session|user/i);
   });

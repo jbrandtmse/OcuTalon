@@ -5,6 +5,9 @@
 Class OcuTalon.Test.Core.AnswersInProbe Extends OcuTalon.Core.AnswersIn
 {
 
+/// The approval API of rule 6, the role check: the double, which answers 1 unless a test scripts the request's Ref.
+Parameter APPROVALAPI = "OcuTalon.Test.Core.ApprovalDouble";
+
 /// The source item that the header of the send names.
 Property Source As %String [ InitialExpression = "AnswersIn" ];
 

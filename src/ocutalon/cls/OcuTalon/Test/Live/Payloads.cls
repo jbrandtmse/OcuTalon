@@ -1238,7 +1238,9 @@ XData Contracts [ MimeType = application/json ]
    "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
    "FinishedAt": "%String(%JSONFIELDNAME=finishedAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
-   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)",
+   "Answerable": "%Boolean(%JSONFIELDNAME=answerable)",
+   "ApproverKind": "%String(%JSONFIELDNAME=approverKind,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.BreakFeedProgress": {
@@ -1288,6 +1290,7 @@ XData Contracts [ MimeType = application/json ]
    "LastRunAt": "%String(%JSONFIELDNAME=lastRunAt,MAXLEN=20)",
    "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
    "Finding": "%String(%JSONFIELDNAME=finding,MAXLEN=1000)",
+   "IntervalMinutes": "%Integer(%JSONFIELDNAME=intervalMinutes)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
    "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
   }
