@@ -2,7 +2,7 @@
 title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
 type: 'feature'
 created: '2026-11-12'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: 'aa67d691f2d8b601b12272ee39e953b7e39fe2b8'
 baseline_commit: 'aa67d691f2d8b601b12272ee39e953b7e39fe2b8'
 review_loop_iteration: 0
@@ -408,6 +408,11 @@ Rejected:
 - [ ] [Review] **R5-4b (DW-1306 (b))**: in `docs/security-overview.md` "Who may answer", add right after the approval-role bullet, word for word: "- for an email to anyone but the connected mailbox's own address, only the session that asked for it, and only if its user holds `OcuTalonAdmin`;" FIRST check each clause against `Core/AnswersIn.cls` rule 3 (only the session's own request is visible), `Fix.Kind.Email.MayApprove` / `Core/AnswerOps.cls` and `Bridge.Approval` `Answer`'s RequiredRole; record file:line evidence in the spec; if any clause is false, HALT `blocked` for a `PLANNER REPORT:`. Update the pins it trips, never the wording.
 - [ ] [Review] **R5-5 (DW-1305 pin; within the existing StepBuffer grant: Records' send_email handling)**: for a `send_email` step, the record's Error part is the fixed sentence "Error: the email tool call failed." (never the tool's error detail). Test: a stubbed tool error whose detail quotes a unique marker address; scan ^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD with `Test.Core.SecretHandoff.TraceLeaks`: the marker must be absent. `mutation:` restore the error detail -> the test red. The earlier "verbatim Result" mutation is WAIVED by the Planner (record it as waived in `## Verification`). The MCP record rule stays unchanged.
 - **R5 rule**: R5-4a, R5-4b and R5-5 land together in ONE pass or HALT `blocked` with the evidence; anything else found is a HALT, never fixed.
+
+- [ ] [Review] **R6-1 (Contest Planner ~03:40Z Nov 14, final pass item 1)**: apply `_bmad-output/implementation-artifacts/set-aside/22-7-rework5-attempt.patch` with `git apply --whitespace=nowarn --exclude='_bmad-output/*'` (L125's ruled text; StepBuffer's fixed send_email Error sentence; `Test.Bridge.Steps` `TestEmailStepErrorIsAFixedSentence`; `Test.Fix.Email` `TestEmailToolErrorLeavesNoAddressInTheTrace`), and transcribe its spec additions (`mutation:` lines, the waived verbatim-Result note, the R5-4a kind list and R5-4b evidence) into this spec. The patch's "Who may answer" bullet text is REPLACED by R6-2's.
+- [ ] [Review] **R6-2 (item 2)**: the "Who may answer" bullet in `docs/security-overview.md`, right after the approval-role bullet, word for word: "- an email to anyone but the connected mailbox's own address can be answered only by the session that asked for it, and can be approved only if its user holds `OcuTalonAdmin`;" Update the pins it trips, never the wording.
+- [ ] [Review] **R6-3 (item 3; TEST ONLY)**: add the review MED's test that a rerouted MCP call is excluded from the email record rule (`StepBuffer` `IsEmailCall`'s `rerouted = ""` condition): a step whose tool name is `send_email` but that the proxy rerouted (an MCP call) keeps the MCP record (server and tool only), not the email record; with its `mutation:` line (drop the rerouted condition -> red). If the test cannot pass without a code change, HALT `blocked` for a `PLANNER REPORT:`.
+- **R6 rule**: exactly these three items. Check that P1's GUIDE paragraph (GUIDE.md:250) still holds as written, and do not change it. Anything else found is a HALT. When all three land, tick R5-4a, R5-4b and R5-5 above (R5-4b is satisfied by R6-2's approved text).
 
 ## Spec Change Log
 
