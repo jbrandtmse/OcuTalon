@@ -21,6 +21,10 @@
 ///     session's one row of Kind queues, with an empty Namespace and Production and the DisplayName QUEUESNAME. Its natural key is SessionRef and Kind. A
 ///     start needs no production of the reader and is allowed on the online demo; a repeat answers already_watching, and a stop answers stopped or
 ///     not_watching, with the same lock, answers and CheckChanged as a production watch. Its messages are MESSAGEALREADYQUEUES and MESSAGENOTWATCHINGQUEUES.
+///   - The source row (Story 22.5; AD-18): the row of Kind SOURCEKIND that polls one read-only MCP tool of a server (Server, Tool, Arguments and IntervalMinutes), named by
+///     its DisplayName. It is created, updated and removed only through SetSource and RemoveSource, which McpOps calls after it has validated the command and sends the
+///     CheckChanged itself; SourcesOf lists a server's sources. Its natural key is SessionRef, Kind and DisplayName, a repeat of the key updates that row and keeps its Ref,
+///     and every save makes the row due now.
 /// The messages are plain sentences for the model and the caller, never rendered from the catalog (AD-32).
 Class OcuTalon.Watch.Ops Extends Ens.BusinessOperation
 {
@@ -32,6 +36,9 @@ Parameter KIND = "production";
 Parameter QUEUEKIND = "queues";
 
 Parameter QUEUESNAME = "Queue-backlog check";
+
+/// The kind of a source row: one read-only MCP tool that is polled on a schedule (Story 22.5).
+Parameter SOURCEKIND = "source";
 
 Parameter MESSAGESTARTED = "The watch was started.";
 
@@ -61,7 +68,7 @@ Parameter MESSAGENOTEVAL = "WatchOps removes only the watch of an evaluation run
 Parameter EVALNEXTDUE = "9999-12-31T23:59:59Z";
 
 /// The stored properties of OcuTalon.Data.BackgroundCheck, comma-separated: the fields that Fields reports, in this order.
-Parameter FIELDS = "Ref,SessionRef,Kind,Namespace,Production,DisplayName,AskedBy,CreatedAt,NextDueAt,LastRunAt,Result,Finding,LastRunHeaderId,Reported";
+Parameter FIELDS = "Ref,SessionRef,Kind,Namespace,Production,DisplayName,AskedBy,CreatedAt,NextDueAt,LastRunAt,Result,Finding,LastRunHeaderId,Reported,Server,Tool,Arguments,IntervalMinutes";
 
 /// The configuration item that publishes the change of a check (AD-33).
 Parameter CHECKS = "Checks";
@@ -218,6 +225,92 @@ ClassMethod RemoveEvalWatch(ref As %String, Output removed As %Boolean) As %Stat
 	Quit sc
 }
 
+/// Makes the session's source row named name, or updates it (Story 22.5): its natural key is SessionRef, Kind SOURCEKIND and DisplayName (in any letter case). A repeat
+/// of the key updates that row, keeps its Ref and CreatedAt and its run fields, and stores the name as last given (created 0). A new row gets a new Ref, CreatedAt now and empty run
+/// fields (created 1). Every save sets NextDueAt to now. The caller (McpOps) has validated every value. Under the session's lock; the status is an error when the lock
+/// is not taken or the row cannot be saved, and nothing is sent.
+ClassMethod SetSource(sessionRef As %String, server As %String, tool As %String, name As %String, arguments As %String, intervalMinutes As %Integer, askedBy As %String, Output ref As %String, Output created As %Boolean) As %Status
+{
+	Set ref = ""
+	Set created = 0
+	If '..Lock(sessionRef) Quit $SYSTEM.Status.Error(5001, ..#MESSAGEFAILED)
+	Set sc = $$$OK
+	Try {
+		Set id = ""
+		Set found = ..RefOf(sessionRef, "", "", .id, ..#SOURCEKIND, name)
+		Set now = ##class(OcuTalon.Data.Time).NowUtc()
+		If found '= "" {
+			Set row = ##class(OcuTalon.Data.BackgroundCheck).%OpenId(id)
+		} Else {
+			Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
+			Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Set row.SessionRef = sessionRef
+			Set row.Kind = ..#SOURCEKIND
+			Set row.CreatedAt = now
+			Set created = 1
+		}
+		Set row.DisplayName = name
+		Set row.AskedBy = askedBy
+		Set row.Server = server
+		Set row.Tool = tool
+		Set row.Arguments = arguments
+		Set row.IntervalMinutes = intervalMinutes
+		Set row.NextDueAt = now
+		Set sc = row.%Save()
+		If $$$ISOK(sc) Set ref = row.Ref
+		If $$$ISERR(sc) Set created = 0
+	} Catch exception {
+		Set ref = ""
+		Set created = 0
+		Set sc = exception.AsStatus()
+	}
+	Lock -^OcuTalon.Watch(sessionRef)
+	Quit sc
+}
+
+/// Removes the source row of that Ref (Story 22.5), and only a row of Kind SOURCEKIND, under its session's lock. fields is Fields of the row, read before the delete
+/// ("" when nothing was removed). No row, or a row of another kind, is OK with "" fields. Nothing is sent.
+ClassMethod RemoveSource(ref As %String, Output fields As %DynamicObject) As %Status
+{
+	Set fields = ""
+	Set sc = $$$OK
+	Set locked = ""
+	Try {
+		Set row = $Select($Get(ref) = "": "", 1: ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref))
+		If $IsObject(row) && (row.Kind = ..#SOURCEKIND) {
+			Set locked = row.SessionRef
+			If '..Lock(locked) {
+				Set locked = ""
+				Set sc = $SYSTEM.Status.Error(5001, ..#MESSAGEFAILED)
+			} Else {
+				Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+				If $IsObject(row) && (row.Kind = ..#SOURCEKIND) {
+					Set read = ..Fields(row)
+					Set sc = ##class(OcuTalon.Data.BackgroundCheck).%DeleteId(row.%Id())
+					If $$$ISOK(sc) Set fields = read
+				}
+			}
+		}
+	} Catch exception {
+		Set fields = ""
+		Set sc = exception.AsStatus()
+	}
+	If locked '= "" Lock -^OcuTalon.Watch(locked)
+	Quit sc
+}
+
+/// The Refs of the source rows of the MCP server, in ID order, as a dynamic array of strings (Story 22.5). The server is matched exactly. An unreadable table throws.
+ClassMethod SourcesOf(server As %String) As %DynamicArray
+{
+	Set refs = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? AND %EXACT(Server) = ? ORDER BY ID", ..#SOURCEKIND, server)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "WatchOps could not read the sources of the MCP server: "_rs.%Message))
+	While rs.%Next() {
+		Do refs.%Push(rs.%Get("Ref"))
+	}
+	Quit refs
+}
+
 /// The stored values of the watch row as a dynamic object: one member for each name of FIELDS, in that order.
 ClassMethod Fields(row As OcuTalon.Data.BackgroundCheck) As %DynamicObject
 {
@@ -260,11 +353,13 @@ Method SendChanged(message As OcuTalon.Checks.Msg.CheckChanged) As %Status [ Pri
 
 /// The Ref of the session's row of the kind for the namespace and production (its id in id), or "" when it has none. The natural key of a production watch
 /// is SessionRef, Kind, Namespace and Production, and of a queue-backlog row (kind QUEUEKIND) SessionRef and Kind alone: an empty namespace binds as NULL, so
-/// a queue row is never matched by it.
-ClassMethod RefOf(sessionRef As %String, namespace As %String, production As %String, Output id As %String, kind As %String = {..#KIND}) As %String [ Private ]
+/// a queue row is never matched by it. That of a source row (kind SOURCEKIND) is SessionRef, Kind and displayName.
+ClassMethod RefOf(sessionRef As %String, namespace As %String, production As %String, Output id As %String, kind As %String = {..#KIND}, displayName As %String = "") As %String [ Private ]
 {
 	Set id = ""
-	If kind = ..#QUEUEKIND {
+	If kind = ..#SOURCEKIND {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID, Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ? AND DisplayName = ? ORDER BY ID", sessionRef, kind, displayName)
+	} ElseIf kind = ..#QUEUEKIND {
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID, Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ? ORDER BY ID", sessionRef, kind)
 	} Else {
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID, Ref FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = ? AND Namespace = ? AND Production = ? ORDER BY ID", sessionRef, kind, namespace, production)
