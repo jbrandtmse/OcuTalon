@@ -13,7 +13,7 @@ import { adminAtSignIn, fixtureUser } from '../support/iris';
  * leaves the README account's Session.AdminAtSignIn at 1 and the live fixture user's at 0, the values their own sign-ins write.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
-const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'demo-mode', 'mcp'] as const;
+const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'on-call', 'demo-mode', 'mcp'] as const;
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const DEMO_SAVED = 'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.';
 const FAILED = "Couldn't save. Nothing was changed.";
@@ -59,8 +59,8 @@ async function openThresholds(page: Page): Promise<void> {
   await expect(field(page, 'diskFreePercent')).toBeVisible();
 }
 
-/** S1: the header navigation, the title and the eight sections in the UX's order. */
-test('S1: an admin sees Chat and Settings in the header, and Settings opens the page with its eight sections', async ({ page }) => {
+/** S1: the header navigation, the title and the nine sections in the UX's order. */
+test('S1: an admin sees Chat and Settings in the header, and Settings opens the page with its nine sections', async ({ page }) => {
   await signInReadmeLoaded(page);
   const guide = page.getByRole('region', { name: 'Demo guide' });
   await expect(guide, 'the main page has the demo guide (demo mode on)').toHaveCount(1);
@@ -75,18 +75,18 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
     if (request.method() === 'GET' && new URL(request.url()).pathname === SETTINGS) loads += 1;
   });
   await nav.getByRole('link', { name: 'Settings', exact: true }).click();
-  expect(new URL(page.url()).hash, 'at the address #/settings').toBe('#/settings');
+  await expect(page, 'at the address #/settings').toHaveURL(/#\/settings$/);
   await expect(nav.getByRole('link', { name: 'Settings', exact: true }), 'Settings is now the current page').toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'Chat', exact: true })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { level: 1 }), 'one h1').toHaveText('Settings');
-  await expect(sectionsNav(page).getByRole('link'), 'the sections, in the UX order').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers']);
+  await expect(sectionsNav(page).getByRole('link'), 'the sections, in the UX order').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers']);
   await expect(page.getByRole('heading', { level: 2 }), '#/settings opens Models').toHaveText('Models');
   await expect(page.getByText("This part of OcuTalon isn't built yet."), 'Models is built').toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save changes' }), 'Models has its Save changes button').toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Skip to chat', exact: true }), 'the skip links belong to the main page').toHaveCount(0);
   await expect(guide, 'and so does the demo guide').toHaveCount(0);
 
-  for (const [slug, label] of [['budgets', 'Budgets'], ['channels', 'Channels'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone'], ['check-thresholds', 'Check thresholds'], ['demo-mode', 'Demo mode'], ['mcp', 'Tools and MCP servers'], ['models', 'Models']] as const) {
+  for (const [slug, label] of [['budgets', 'Budgets'], ['channels', 'Channels'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone'], ['check-thresholds', 'Check thresholds'], ['on-call', 'On call'], ['demo-mode', 'Demo mode'], ['mcp', 'Tools and MCP servers'], ['models', 'Models']] as const) {
     const link = sectionsNav(page).getByRole('link', { name: label, exact: true });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -134,7 +134,7 @@ test('S1f: a failed load shows the load error, and Retry loads the page', async 
     await expect(sectionsNav(page), 'no sections').toHaveCount(0);
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
     await expect(page.getByRole('heading', { level: 2 }), 'Retry loads the page').toHaveText('Models');
-    await expect(sectionsNav(page).getByRole('link')).toHaveCount(8);
+    await expect(sectionsNav(page).getByRole('link')).toHaveCount(9);
   } finally {
     await page.unroute('**/api/v1/settings');
   }
@@ -492,7 +492,7 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
   }
 });
 
-/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all nine settings calls. */
+/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on GET /v1/settings, on the POST of each of the nine sections, on the digest send and on a check-thresholds POST without the envelope. */
 test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
@@ -620,7 +620,11 @@ test('S10: the Daily digest section saves the time and the channels, and keeps a
   await expect(phone, 'the simulated phone box shows only while demo mode is on').toHaveCount(before.demo ? 1 : 0);
   const stored = before.channels.split(',').map((name) => name.trim().toLowerCase());
   await expect(web, 'and is checked as stored').toBeChecked({ checked: stored.includes('web') });
-  const newTime = before.time === '06:45' ? '06:46' : '06:45';
+  // One minute after the stored time (Story 21.15): the sign-in seed keeps digest.time at least 2 hours from the run, so the saved time does too, and no
+  // digest falls due while it is saved.
+  const [hours, minutes] = before.time.split(':').map(Number);
+  const next = (hours * 60 + minutes + 1) % 1440;
+  const newTime = `${String(Math.floor(next / 60)).padStart(2, '0')}:${String(next % 60).padStart(2, '0')}`;
   try {
     await time.fill(newTime);
     await web.check();

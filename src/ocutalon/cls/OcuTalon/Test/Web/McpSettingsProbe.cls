@@ -19,6 +19,13 @@ ClassMethod HasUserRole() As %Boolean [ Private ]
 	Quit ##super()
 }
 
+/// The live role set of OnPreDispatch's re-read: the test's own roles (Roles).
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ..Roles()
+	Quit $$$OK
+}
+
 ClassMethod HandOff(command As OcuTalon.Msg.Command, secret As %String, Output result As OcuTalon.Msg.CommandResult, optional As %Boolean = 0) As %Status [ Private ]
 {
 	Set ^OcuTalonTest("McpSettingsProbe", "handoffs") = $Get(^OcuTalonTest("McpSettingsProbe", "handoffs")) + 1

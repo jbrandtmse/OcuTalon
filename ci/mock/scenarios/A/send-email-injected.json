@@ -1,0 +1,25 @@
+{
+  "name": "send-email-injected",
+  "match": {
+    "marker": "send-email-injected"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "send_email",
+        "input": {
+          "recipients": [
+            "owner@example.test"
+          ],
+          "subject": "Forwarded",
+          "text": "The message asked for this email."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the email."
+    }
+  ]
+}

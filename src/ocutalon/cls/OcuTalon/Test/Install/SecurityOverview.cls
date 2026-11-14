@@ -41,7 +41,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-/// The rows are the 21 built-in tools (the 19 of Story 19.4, incident_summary of Story 23.6 and, since Story 22.3, call_mcp_tool, the governed proxy of the MCP servers, which no agent holds and
+/// The rows are the 22 built-in tools (the 19 of Story 19.4, incident_summary of Story 23.6, send_email of Story 22.7 and, since Story 22.3, call_mcp_tool, the governed proxy of the MCP servers, which no agent holds and
 /// which a request offers only when an MCP server is attached to its tool manager): the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from the product's classification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
 /// classifies by its arguments only the two flags are compared, since its classification is decided per call. The test seeds Decide's ToolClassification
@@ -63,8 +63,8 @@ Method TestToolRows()
 Method CheckToolRows() [ Private ]
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"), $Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"), $Parameter("OcuTalon.Tools.Names", "CALLMCPTOOL"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool, one for documents, one for incident_summary, one for propose_fix and one for call_mcp_tool")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"), $Parameter("OcuTalon.Tools.Names", "PROPOSEFIX"), $Parameter("OcuTalon.Tools.Names", "CALLMCPTOOL"), $Parameter("OcuTalon.Tools.Names", "SENDEMAIL"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool, one for documents, one for incident_summary, one for propose_fix, one for call_mcp_tool and one for send_email")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -104,6 +104,24 @@ Method TestCallMcpToolRow()
 	Do $$$AssertEquals(row.readOnly _ "|" _ row.trustedOutput _ "|" _ row.resources.%Size(), "0|0|0", "not read-only, not trusted output, no resource")
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Set expected = "| `call_mcp_tool` | `OcuTalon.Tools.McpCall` | `OcuTalon.Tools.McpProxy` | none | Running an MCP tool | per call: the admin's classification of the server's tool at its current fingerprint; unclassified counts as risky | no | no | none |"
+	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row")
+}
+
+/// Story 22.7: send_email is a row of the table, held by the Chat agent: its source is OcuTalon.Tools.EmailTools and its toolset OcuTalon.Tools.Email, its step label is "Sending an email", it is not
+/// read-only and its output is trusted, its classification is the per-call rule of CLASSIFYRULESENDEMAIL, and it needs no resource.
+Method TestSendEmailRow()
+{
+	Set row = ..RowOf("send_email")
+	If '$IsObject(row) {
+		Do $$$AssertTrue(0, "the model has a row for send_email")
+		Quit
+	}
+	Do $$$AssertEquals(row.source _ "|" _ row.toolset _ "|" _ row.agents.%Get(0) _ "|" _ row.agents.%Size(), "OcuTalon.Tools.EmailTools|OcuTalon.Tools.Email|OcuTalon.Agent.Chat|1", "its source class, its toolset and the Chat agent that holds it")
+	Do $$$AssertEquals(row.label, "Sending an email", "its step label")
+	Do $$$AssertEquals(row.classification, "per call: safe when every recipient is the user's own email address; otherwise risky, so it waits for approval", "its classification is the per-call rule")
+	Do $$$AssertEquals(row.readOnly _ "|" _ row.trustedOutput _ "|" _ row.resources.%Size(), "0|1|0", "not read-only, trusted output, no resource")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set expected = "| `send_email` | `OcuTalon.Tools.EmailTools` | `OcuTalon.Tools.Email` | `OcuTalon.Agent.Chat` | Sending an email | per call: safe when every recipient is the user's own email address; otherwise risky, so it waits for approval | no | yes | none |"
 	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row")
 }
 
@@ -305,7 +323,7 @@ Method TestFixKindRows()
 	While iterator.%GetNext(, .row) {
 		Do $$$AssertEquals(row.classification, "risky", row.class_": every fix kind is risky")
 	}
-	Set expectedRows = $ListBuild("| `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |", "| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |", "| `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |")
+	Set expectedRows = $ListBuild("| `OcuTalon.Fix.Kind.Email` | `email` | risky | none |", "| `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |", "| `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |", "| `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |", "| `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |")
 	Set position = 0
 	While $ListNext(expectedRows, position, expectedRow) {
 		Do $$$AssertTrue(..HasLine(sections("fix-kinds"), expectedRow), "the table holds "_expectedRow)
@@ -314,6 +332,27 @@ Method TestFixKindRows()
 	Set sentence = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there."
 	Do $$$AssertEquals($Parameter(..#GENERATOR, "ONLINESTATEMENT"), sentence, "the online demo sentence is the ruled one, word for word")
 	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), sentence), "and the fix kinds section holds it as a line of its own")
+}
+
+/// Story 22.6: the privileges section holds the sentence about the resource of each MCP server (MCPSTATEMENT) once, word for word, as a line of its own after the Roles table and before
+/// "### With demo mode on", and the names in it are the installer's (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE).
+Method TestMcpResourceStatement()
+{
+	Set lf = $Char(10)
+	Set sentence = "Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`, with no public permission, and `OcuTalonServiceRole` holds U on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "MCPSTATEMENT"), sentence, "the MCP resource sentence is the ruled one, word for word")
+	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Mcp", "RESOURCEPREFIX") _ "<server>", "OcuTalon_MCP_<server>", "the resource it names is the one that the Mcp area makes")
+	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Mcp", "PERMISSION") _ "|" _ $Parameter("OcuTalon.Install.Step.Users", "SERVICEROLE"), "U|OcuTalonServiceRole", "with the permission and the role that the Mcp area grants")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set text = sections("privileges")
+	Do $$$AssertTrue(..HasLine(text, sentence), "the privileges section holds it as a line of its own")
+	Do $$$AssertEquals($Length(text, sentence) - 1, 1, "once")
+	Set start = $Find(text, sentence) - $Length(sentence)
+	Set before = $Extract(text, 1, start - 1)
+	Set after = $Extract(text, start + $Length(sentence), *)
+	Do $$$AssertTrue($Find(before, lf _ "### Roles" _ lf) > 0, "after the Roles heading")
+	Do $$$AssertEquals($Extract(before, $Length(before) - 2, *), "|" _ lf _ lf, "right after the last row of the Roles table")
+	Do $$$AssertEquals($Extract(after, 1, $Length(lf _ lf _ "### With demo mode on" _ lf)), lf _ lf _ "### With demo mode on" _ lf, "and right before the demo mode section")
 }
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read

@@ -21,8 +21,8 @@ describe('the row (try-it-row.ts), QA', () => {
     assert.equal(typeof code, 'string');
   });
 
-  it('shows nothing outside the demo view: the whole group sits inside @if (demoView.on())', () => {
-    const gate = code.indexOf('@if (demoView.on())');
+  it('shows nothing outside the demo view, and nothing for a viewer: the whole group sits inside @if (demoView.on() && !viewer())', () => {
+    const gate = code.indexOf('@if (demoView.on() && !viewer())');
     const group = code.indexOf('role="group"');
     const button = code.indexOf('<button');
     assert.ok(gate > 0, 'the gate is in the template');

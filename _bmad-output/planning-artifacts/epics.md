@@ -151,7 +151,7 @@ IDs are the PRD's own, so every story traces back to `prd.md`. The tag in bracke
 - FR-70 [Personality]: OcuTalon may propose a new persona only in the person's own untainted turn, as an approval request showing the current and proposed text; nothing changes unless the person approves, the first answer wins, the request expires after 24 hours, every answer is audited, a stale proposal fails with "Nothing was changed.", and the online demo offers no proposals.
 - FR-71 [Personality]: A daily note built by code with no model call from the day's decisions, incidents, approval requests and reminders, never holding an item's sender, subject or body, a tool result or model-written text; today's and yesterday's notes (at most 2,000 characters a day) are read at each conversation session's start and shown on the Memory card; per session on the online demo.
 - FR-72 [Personality]: Only a person's answers ("This was noise" on a tell-now or act notice, approving or rejecting a request) become precedents, never OcuTalon's own decisions; an arriving item's decision sees at most 3 of the same kind as examples, never rules, with no vectors; the Memory card lists them and each can be forgotten at once; a decision alone records none, and a tool-submitted noise mark is refused.
-- FR-73 [Personality; after FR-41]: OcuTalon may save a durable fact on its own only in the person's own untainted turn (at compaction only if the event for it is added at Epic 41's re-open); each memory is marked told or learned by code; nothing from arriving content is ever saved; forgetting removes the memory, its search entries, any pin and every later session start, without rewriting the current conversation; poisoning and forgetting cases in the evaluation set.
+- FR-73 [Personality; after FR-41]: OcuTalon may save a durable fact on its own only in the person's own untainted turn (at compaction only if the event for it is added at Epic 41's re-open); each memory is marked told or learned by code; nothing from arriving content is ever saved, except the caption of a photo the user sent, which is saved with origin `photo`, taints any turn that recalls it, and can't be pinned [AMENDED 2026-11-14, Story 26.3, Contest Planner ruling V2]; forgetting removes the memory, its search entries, any pin and every later session start, without rewriting the current conversation; poisoning and forgetting cases in the evaluation set.
 - FR-74 [Personality; after FR-41]: A core memory of the person's own pins only, read at each conversation session's start, under a hard 1,000-token cap (4 characters a token), a pin past the cap refused; unpinning and forgetting from the Memory card.
 
 ### NonFunctional Requirements
@@ -7821,6 +7821,27 @@ So that someone who can read traces does not learn them.
 
 - DW-1255: audit: personal data in traced SaveSettings.Changes (the email channel's address and user) moves to the SecretHandoff; the security overview states what the trace role sees (ledger; routed by the orchestrator 2026-11-13)
 
+### Story 21.15: The sign-in tests never run across the daily digest's time
+
+> [ADDED 2026-11-14, Contest Planner, DW-1081 root cause] Epic 21 burndown story on lane C; test-only, no product change and no new text; lands before the 1.0.10 RC.
+
+As a maintainer,
+I want the browser test stacks to keep the daily digest's time away from the run,
+So that chat.spec C1 and shell.spec row 8 do not fail because the clock passed 08:00 while the suite ran.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/test-sign-in.sh` seeds a stack (every project: chromium, sign-in-2 and sign-in-3)
+**When** it seeds the README account
+**Then** it sets `digest.time` to the instance-zone clock 12 hours from now (the time of day, modulo 24 hours), through `OcuTalon.Data.Time`, so that no zone offset brings it back inside the run
+**And** it prints the time it set, and the script fails if that time is within 2 hours of the instance clock now, either way round the day
+
+**Given** the specs that read or save the digest time (`settings/email.spec.ts` E7, `settings/settings.spec.ts` S10)
+**When** they run on such a stack
+**Then** none assumes the 08:00 default, and a time a spec saves for a moment stays as far from the run as the seed
+
+- DW-1081: shell.spec row 8 'a fresh session shows the empty chat panel' failing in CI is the daily digest (Digest.Process, digest.time 08:00) falling due during the run, not a random flake (ledger; Contest Planner, ~09:15Z Nov 14)
+
 ### Story 21.6: Send email over SMTP
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.
@@ -7991,15 +8012,11 @@ So that new tickets get an attention decision and I know when a source wasn't ch
 **When** `McpOps` handles it
 **Then** it writes a source-poll row in `OcuTalon.Data.BackgroundCheck`, owned by the admin's session, with the tool, its arguments and its interval, and refuses a tool that isn't read-only (FR-50, FR-33, AD-18)
 
-**Given** a source poll is due
-**When** `Checks` runs it on the heartbeat's tick
-**Then** it sends a `tool` request through `Decide` that calls `call_mcp_tool` with no model, so the gate, the audit policy and the agent step apply; each new result becomes an untrusted Item sent to `Intake` for its decision; and a result seen before never becomes an item again (FR-50, FR-33, FR-49, AD-6, AD-21)
-**And** each run's time, last result and trace header id are recorded and published as `check` events, so the page shows the source's schedule, last run and last result (FR-33, AD-12, AD-18)
+**And** [AMENDED 2026-11-14, Contest Planner ruling C of 2026-11-12 ~18:10Z (split of 22.5 into Part A and new Story 22.11 Part B approved; veto 1-10 approved): the run, the Items and the stop move to Story 22.11]
 
 **Given** the digest's coverage list
 **When** it is built
 **Then** each source poll, and the connected mailbox from the poll outcomes `EmailIn` records (Lane B's Story 21.2, in the record Story 35.2 (was 21.1) fixes; fixture outcomes until it merges), is a source entry that counts as checked only if its poll ran successfully in the window, otherwise not checked with its reason (unreachable, error or timeout) (FR-36, FR-50, AD-28)
-**And** a source whose tool became unclassified or risky stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 35.1 (was 22.1)'s proposal (FR-48, FR-50)
 
 **Given** the step 4 test: an unreachable source
 **When** the digest is composed with the mock MCP server down since 02:10 and everything else passing
@@ -8016,6 +8033,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the documentation in `docs/`
 **When** this story merges
 **Then** a worked example connects a Jira MCP server over HTTPS with its credential as a `secret://` IRIS Wallet reference, classifies its tools (searches read-only; creating, changing or commenting on tickets risky), sets "new tickets assigned to me" as a source poll, and shows the digest's Jira entry and a held risky call (FR-50, FR-48, UX-DR106)
+**And** [AMENDED 2026-11-13, Contest Planner ruling M (4) (Rule 5 split, veto 2 approved): the source half of this criterion -- setting "new tickets assigned to me" as a source poll, the digest's Jira entry and the source half of the release check -- moved to Story 22.12; this story documents the tools half only]
 **And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 36.2 (was 24.1) adds the README link, so it needs no Lane B action (FR-58, AD-29)
 
 **Given** the security overview, whose MCP section Epic 14 wrote for releases without MCP support
@@ -8032,6 +8050,8 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
 - [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
+- DW-1228: a test confirms that a server tool named `call_mcp_tool` (or any built-in tool name) is refused under the current design ("Refused: a built-in tool has this name"); fix narrowly if it is not (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
+- DW-1221: the guide's MCP section states the measured known limit (a slow server can hold a request about 31 s past the 2 s bound; AD-21 S11), and no text claims a hard MCP deadline (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -8054,7 +8074,7 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** a risky call in a user's turn
 **When** the gate decides
 **Then** nothing is sent: an approval request for the email fix kind under `OcuTalon.Fix.Kind` is raised, whose dry run shows the exact text and every recipient, and after approval `FixExecutor` sends exactly that email once through `EmailOut`, trusting only the approved row, and reports the result (FR-44, FR-8, NFR-13, AD-16)
-**And** the request has no incident, so its `approval`, `answered` and `result` notifications come from Lane B's `OcuTalon.Core.BridgeSink` (Story 21.5), as a tool call's do, not from `IncidentManager`; until Story 21.5 merges, the tests check only that the request has no `IncidentRef` and that `IncidentManager` sends nothing for it (FR-8, AD-31)
+**And** the request has no incident, so its `approval`, `answered` and `result` notifications come from Lane B's `OcuTalon.Core.BridgeSink` (Story 21.11) [AMENDED 2026-11-13, Contest Planner ruling H (c): the criterion moved from Story 21.5 to Story 21.11 when Epic 21 split it; it read "Story 21.5"], as a tool call's do, not from `IncidentManager`; until Story 21.11 merges, the tests check only that the request has no `IncidentRef` and that `IncidentManager` sends nothing for it (FR-8, AD-31)
 
 **Given** an untrusted or tainted turn
 **When** it asks to send email to anyone
@@ -8124,7 +8144,42 @@ So that a server that stops answering in the middle of a request can never hold 
 **When** the runner lists its tools or the model calls one of them
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
-- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)
+- [AMENDED 2026-11-13, Contest Planner ruling H: the AD-21 re-architecture this story proposes is DECLINED for the contest window; the story is deferred to the owner's decision after the contest and is not built in this release. DW-1221 moved to Story 22.6 (recorded as a measured known limit in AD-21 S11); it read "- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)"]
+
+### Story 22.11: Run source polls through the governed proxy
+
+[ADDED 2026-11-14, split of Story 22.5 (Part B), Contest Planner ruling C of 2026-11-12 ~18:10Z; follows 22.5 (Part A), which adds the source-poll row, the verbs and the coverage]
+
+As a user,
+I want each due source poll to run its read-only MCP tool through the governed proxy and turn new results into items,
+So that new tickets get an attention decision and a source that stops being read-only stops being polled.
+
+**Acceptance Criteria:**
+
+**Given** a source poll is due
+**When** `Checks` runs it on the heartbeat's tick
+**Then** it sends a `tool` request through `Decide` that calls `call_mcp_tool` with no model, so the gate, the audit policy and the agent step apply; each new result becomes an untrusted Item sent to `Intake` for its decision; and a result seen before never becomes an item again (FR-50, FR-33, FR-49, AD-6, AD-21)
+**And** each run's time, last result and trace header id are recorded and published as `check` events, so the page shows the source's schedule, last run and last result (FR-33, AD-12, AD-18)
+
+**Given** a source poll whose tool became unclassified or risky
+**When** it is next due
+**Then** it stops polling, shows as not checked with that reason, and admins are told in the wording the author accepted from Story 35.1 (was 22.1)'s proposal (FR-48, FR-50)
+
+- DW-1328: an update that repoints a source (server, tool or arguments) keeps its old `Reported` state and run history; reset them when the source is repointed (ledger; routed by cr 2026-11-14)
+
+### Story 22.12: Document polling a Jira MCP tool as a source
+
+As a production developer,
+I want the worked Jira example to show a read-only Jira MCP tool polled as a source, with the source on my digest's coverage list,
+So that I can set up new-ticket polling the governed way.
+
+**Lane:** A. **Depends on:** Stories 22.5 and 22.11 (the polled source) and Lane B's Story 21.5 merged (story-level). [ADDED 2026-11-13, Contest Planner ruling M (4): split from Story 22.6's first criterion; same release]
+
+**Acceptance Criteria:**
+
+**Given** the worked example `docs/mcp-jira-example.md` from Story 22.6
+**When** this story merges
+**Then** it sets "new tickets assigned to me" as a source poll of a Read-only Jira search tool, shows the source's entry on the digest's coverage list (checked, or not checked with its reason), and the source half of the release check covers it, with every sentence true of the code at merge and brought to the Planner as PUBLIC TEXT (FR-50, FR-36, AD-28)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 
@@ -8652,7 +8707,7 @@ So that only the right people can approve each kind of action, and others can lo
 
 **Given** an admin opens Settings › Roles
 **When** it loads
-**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges); no other role can be granted or removed there (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
+**Then** it lists the IRIS users holding an OcuTalon role with their approver and viewer roles, and lets the admin grant or remove `OcuTalonApprover` or `OcuTalonViewer`, and shows the `OcuTalonApprover_<kind>` roles each user holds, which an administrator grants in IRIS (Planner ruling V3), through `SettingsOps`, which calls the role-assignment method that this story builds in Lane A's file (the lead's dispatch); no other role can be granted or removed there [AMENDED 2026-11-13, Story 25.4, Contest Planner ruling Q8 (V3); it read "lets the admin grant or remove `OcuTalonApprover`, any `OcuTalonApprover_<kind>` or `OcuTalonViewer` through `SettingsOps`, which calls Lane A's role-assignment method (Story 26.4, under the contract Story 37.1 (was 26.1) fixes; a stub until it merges)"] (FR-11, AD-19, AD-24, UX-DR141, UX-DR147)
 **And** each change confirms with the step-2 settings text and is audited as a settings change (FR-9, FR-17)
 
 **Given** a user holding `OcuTalonViewer`
@@ -8702,6 +8757,7 @@ So that I know who has to approve it.
 **When** each kind is answered by a user holding only another kind's role, by a holder of `OcuTalonApprover`, and by the README account after an upgrade (holding the fixture `OcuTalonApprover` until Story 26.4's upgrade grants it)
 **Then** only the right roles answer, the others are told why on the page and the phone and get `not_allowed` from `AnswersIn`'s Telegram entry, and the demo path still passes (FR-11, FR-60, REL-2, AD-29)
 - DW-1268: 37.1's obligation for 25.5: AnswersIn calls Approval.MayAnswer before Answer, the not_allowed slot carries the row's ApproverKind, and one 'Only an approver for ...' sentence per approver kind (seven; setting rows keep today's rule) comes as PUBLIC TEXT (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- DW-1303: Settings > Roles must refuse an admin giving themselves OcuTalonViewer (self-lockout; viewer wins), reason self_viewer, text "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin." (ledger; routed by lead 2026-11-14, Contest Planner 25.4 final ruling 1)
 
 ### Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
 
@@ -8760,6 +8816,9 @@ So that I can ask about a file without adding it as a document first.
 
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
 - DW-1270: 37.1's obligation for 26.2: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; mind Docs.Extract's up-to-45 s run in Conversation's job (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- DW-1312: the security overview for photos: add "A chat turn with a photo also carries that photo." to the model-request bullet, and say photos are never in the trace while captions are, like chat replies (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner rulings 9-10)
+- DW-1313: the memory card shows "This memory came from a photo, so it can't be pinned." for a 409 pin_photo instead of the over-cap notice, in a lazy chunk (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner ruling V3)
+- DW-1321: a photo turn's decide (triage) request carries the photo ask but no image; when photos reach Decide, give the PHOTOASK line only to the turn request and a neutral line to the decide request (ledger; routed by cr 2026-11-14, Story 26.3)
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
 
@@ -10197,6 +10256,84 @@ So that I classify a tool that runs operating-system commands or arbitrary code 
 **Given** Epic 22 merged
 **When** this story runs
 **Then** with Epic 22 merged, this story adds the README link to Lane A's worked Jira example at the path Story 22.6 supplies under `docs/`, and copies that example's sentence that an MCP tool running operating-system commands or arbitrary code must be classified risky into the README's admin section; the link resolves (FR-10, FR-50, FR-58, AD-29)
+
+
+### Story 36.5: Epic 36 burn-down: load the Settings, History and Usage pages lazily
+
+[AMENDED 2026-11-13, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, option (b)): DW-1282 taken now so the initial web bundle regains headroom under its 1 MB cap; Story 36.4's on-call section rides on top; fallback (a) is 36.4 lazy-loading only its own section]
+
+As a visitor to OcuTalon's web app,
+I want the first page to load only the code the first screen needs,
+So that the app stays fast and new pages don't push the initial bundle over its limit.
+
+**Acceptance Criteria:**
+
+**Given** the production web build (`npm --prefix web run build`)
+**When** it runs
+**Then** the Settings sections and the History and Usage pages load as lazy chunks (their routes load their components on demand), the initial bundle is at most 921 kB, and the initial-bundle budget in `web/angular.json` stays at `maximumError` 1MB (no cap raise)
+
+**Given** a signed-in admin
+**When** they open /settings, /history and /usage directly by URL (a deep link), and reload each page
+**Then** each page renders as before, with the same headings, sections and data, and no console error; Playwright tests pin the deep-link load and the reload of all three
+
+**Given** the existing Settings, History and Usage tests (node and Playwright)
+**When** they run after the change
+**Then** they pass unchanged in behaviour; the lazy Settings section components other lanes add (Story 25.4's Roles section, Story 21.4's MCP section) stay compatible: whoever pushes second integrates forward
+
+- DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap; move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB (ledger; routed by the Planner ruling 2026-11-13)
+
+
+### Story 36.6: Epic 36 burn-down: keep a stored on-call user's channels when the user list is unavailable
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding rulings (prompts/epic-36-rulings-20261113-2130.md, ~02:00Z section 6 and ~03:00Z option (a)): DW-1308 fixed before Story 36.4 merges; web-only, no new text; the server's save-time checks decide]
+
+As an OcuTalon admin,
+I want the On call form to keep the channels I stored for a person even when the list of users can't be had,
+So that saving the form never silently drops a person's Telegram channel.
+
+**Acceptance Criteria:**
+
+**Given** a stored on-call user (primary or backup) who is missing from the user list that `GET /v1/settings` returns (the list is unavailable, so `users` is `[]`, or the user is gone)
+**When** the On call section loads
+**Then** that person keeps their stored channel boxes (Telegram included) and the form shows no "no paired chat" line for them; no new user-facing text is added and the server is unchanged
+
+**Given** the list is unavailable and the admin saves the On call section without touching that person
+**When** the save reaches the server
+**Then** the stored Telegram channel is sent and kept; a Playwright test pins this, and a mutation that drops the channel fails it
+
+**Given** a stored user who no longer exists (no session row)
+**When** the admin saves
+**Then** the server refuses it with the existing unknown-user refusal and nothing is saved; a test pins this through the page
+
+- DW-1308: when the on-call user list cannot be had (users [] on busy/fail), the On call form unchecks a stored paired user's Telegram box, so the next save silently drops the Telegram channel (ledger; routed by the Planner rulings 2026-11-14)
+
+### Story 36.7: Epic 36 burn-down: an upgrade removes the previous builds' bundle files from the served web folder
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, ~05:00Z Nov 14): DW-1320 blocks the 1.0.10 RC; no public claim and no release-note line]
+
+As an OcuTalon operator who upgrades in place,
+I want the upgrade to remove the old builds' hashed bundle files from the served web folder,
+So that the folder holds exactly the new build's bundle and old code never piles up there.
+
+**Acceptance Criteria:**
+
+**Given** an installed OcuTalon whose served web folder `csp/ocutalon-web/` holds hashed bundle files (names matching the installer's STALEFILES pattern: `main-`, `chunk-`, `polyfills-` and `styles-<hash>`) that the new build does not contain, including leftovers of earlier upgrades
+**When** the upgrade installs the new build
+**Then** the installer removes each of those files, and every file of the new build is served
+
+**Given** the same upgrade
+**When** it removes files
+**Then** it removes only files whose names match the STALEFILES pattern and are not in the new build, never "anything not in the build"; the spec lists every file the installer or the runtime writes into that folder, and a test shows each one survives the upgrade
+
+**Given** the release upgrade harness rehearsal from v1.0.9 with an extra old `main-XXXXXXXX.js` planted in the served folder before the upgrade
+**When** the upgrade completes
+**Then** the served folder's file list equals the new build's output (any extra file fails), and reverting the fix turns that check red
+
+**Given** `release/upgrade-harness.sh`
+**When** any release runs it
+**Then** a permanent stale-file row checks that the served web folder matches the candidate's build output after the upgrade; there is no public claim and no release-note line about it
+
+- DW-1320: An in-place upgrade leaves the previous build's main-<hash>.js in the served web folder csp/ocutalon-web/ (ledger; routed by the Planner ruling 2026-11-14 ~05:00Z; blocks the 1.0.10 RC)
 
 
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)

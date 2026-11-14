@@ -4,95 +4,82 @@
 
 ## Goal
 
-Step 6 gives a signed-in user a look back at OcuTalon and more ways into it. A History page filters past decisions and incidents (done). Users can send a PDF, Word file or photo from the web chat or from Telegram. The file is stored safely and becomes an Item (25.3), and OcuTalon's reply says whether it could read the file and offers the next step (25.6). Approver and viewer roles decide who may answer each kind of approval request (25.4, 25.5). The Usage page that was this epic's first story now lives in Epic 37 (Story 37.2, done). The epic is built in Lane B's files. Lane A's Epic 26 depends on it: Story 26.2 reads files, 26.3 captions photos and 26.4 enforces roles.
+Lane B's half of step 6: a user filters past decisions and incidents, and sends a PDF, Word file or photo from the web app or Telegram (both done). The remaining stories finish the epic. Admins assign approver and viewer roles in Settings. Approval answers are checked against the request's approver kind, and a user who can't answer is told why. A sent file gets a reply that reports the read failure, offers **Add to documents**, or shows "Saved to memory" for a photo. Lane A's Epic 26 builds the other side of each contract. Story 37.1 fixed those contracts as stubs, so this epic builds against the stubs and fixtures and never waits for Epic 26.
 
 ## Stories
 
-- Story 25.1: moved to Story 37.2 (Usage page, done)
 - Story 25.2: Filter past decisions and incidents on the History page (done)
-- Story 25.3: Send a PDF, Word file or photo from the web app or Telegram (ready for dev)
+- Story 25.3: Send a PDF, Word file or photo from the web app or Telegram (done)
 - Story 25.4: Assign approver and viewer roles in Settings
 - Story 25.5: Answer only with the right approver role, and say why otherwise
 - Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure
 
 ## Requirements & Constraints
 
-- **Accepted files (25.3):** PDF, Word (.docx), and JPEG or PNG photos, sent from the web chat or from the paired Telegram chat.
-- **Size limit:** 10 MB (10,485,760 bytes), the same constant the documents route and the extractor use. A larger file from either channel is refused before anything is stored, with "That file is 14 MB; the limit is 10 MB." (the size filled in), and nothing else happens.
-- **Type check:** the type comes from the file's bytes, never only from its name or declared type. Any other type, a renamed .exe or .html included, is refused the same way with "I couldn't read that file: {reason}.", where the reason is "it isn't a PDF, Word (.docx), JPEG or PNG file".
-- **The Item:** a file becomes an Item that carries the file's `Ref`, name, media type and size, never its bytes.
-- **Four security conditions (25.3), each with its own test:**
-  1. A file turn has `untrusted` provenance even when its text is empty, so only read-only tools run in it. Story 26.2 keeps that marking when it reads the content.
-  2. No route serves a stored file's bytes back to anyone except, at most, its own session.
-  3. The type is detected from the bytes, as described above.
-  4. Nothing about a file reaches a log, the trace or a production message body except its ref, name, type and size. The name is length-capped and escaped.
-- **Online demo (25.3): sending files is off.**
-  - The paperclip is hidden.
-  - A file dropped on the chat shows "Sending files is off on the online demo. It works on your own install."
-  - The file route answers 409 `not_available` before it reads the body. Nothing is stored and nothing is counted against the allowance.
-  - Telegram never runs on the demo.
-  - Wherever files do run, a sent file belongs to its session and is dropped at sign-out, at the reset and by the standard purge.
-- **Before there is a reader (25.3):** on a local install, the paperclip and the chat drop stay hidden behind a `/v1/state` capability flag that turns on only once Story 26.2's read path has merged. As defence in depth, a file turn that arrives with no reader gets the fixed reply "I got {name}, but I can't read files yet." and no model call is made.
-- **Replies (25.6):**
-  - A file that couldn't be read gets "I couldn't read that file: {reason}." with a plain reason.
-  - A file that was read gets a reply offering **Add to documents**, which adds it through the documents route.
-  - A photo's reply shows a "Saved to memory" chip.
-  - Telegram replies carry the same failure text, and a Telegram file that was read can be added to the documents too, through the documents route taking the stored file's `Ref`.
-  - The guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged: "offers to add it to your documents" with 25.6, and "a photo's caption is saved to memory" with 26.3.
-- **Accessibility:** the paperclip button is labelled and works by keyboard. Drag-and-drop is never the only way to send a file. Keyboard-only use, labelled controls and WCAG 2.1 AA contrast apply throughout.
-- **Tests:**
-  - 25.3: automated tests plus a Playwright spec under `web/e2e/` with fixture Telegram file Items. They send each accepted type, a file of another type and an oversized file, from the page and through the file-store call as Telegram files. The Items and refusals must match, and no file content may appear in a production message body. A mock test fetches a file through `getFile` and the download path.
-  - 25.6: uses fixture read results until 26.2, 26.3 and 37.1 merge. Replies match, Add to documents adds the file, and no file content appears in a production message body anywhere in the flow.
-- **Viewers (25.4):** a viewer is read-only, with no composer. Every state-changing route refuses a viewer with 403.
+- An admin grants or removes the approver role for all risky actions (`OcuTalonApprover`) and the viewer role (`OcuTalonViewer`). Per-kind roles (`OcuTalonApprover_<kind>`) are shown but are granted in IRIS, not through OcuTalon. Each change confirms with the step-2 settings text and is audited as a settings change. Non-admins get 403 on the Roles routes.
+- A viewer signs in and sees the page, History and Usage read-only: no composer and no Approve, Reject, Dismiss or Break the feed. Every state-changing route refuses a viewer with 403 and changes nothing.
+- A user without the right approver role still sees the request. Approve and Reject are absent, and the status reads "Only an approver for {kind} can answer this request." This is recomputed when roles change. A Telegram press gets `not_allowed` with the kind.
+- An allowed answer still shows "Approved from {channel} at {time}" on every copy within 5 seconds.
+- Online demo: the demo account holds `OcuTalonApprover` (beside `OcuTalonUser` and `OcuTalonTraceViewer`), so its buttons stay. The owning-session rule still applies, and both checks run. No Roles section shows there. The Roles routes answer 409 `not_available` before reading the body, with a test per refusal.
+- File replies: a failure reads "I couldn't read that file: {reason}." A read document offers **Add to documents**. A photo shows a "Saved to memory" chip. The same failure text and Add to documents apply to Telegram files. No file bytes, image or extracted text ever appear in a production message body.
+- The guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged.
+- Tests: the setup creates `OcuTalonApprover`, the seven per-kind roles and `OcuTalonViewer` as fixture roles. `MayAnswer` is answered by a test double, and read results come from fixtures. Each story has a Playwright spec under `web/e2e/` where it touches the page. Keyboard access and labelled controls are required. The REL-2 demo path must stay green.
 
 ## Technical Decisions
 
-- **Web envelope:**
-  - State-changing calls need JSON, `X-OcuTalon-Request: 1` and a matching `Origin`.
-  - A request with no session gets 401 `signed_out`. A user without the role gets 403 `no_role`.
-  - Errors use the form `{"error": {"code", "message"}}`, with 409 for "not available".
-  - Demo-off routes follow the email and webhook settings precedent: 409 `not_available` before the body is read, and the page hides the feature.
-  - The API's default body limit is 256 KB. A route that takes a file declares its own bound in `XData BodyBounds`, as the documents route does: its `BODYMAX` of 13,985,112 bytes covers 10 MB in base64 plus the JSON around it. It refuses a larger body with 413 `body_too_large` before parsing and reads the bytes from the request stream, never through a string.
-  - Untrusted text, including file names and model text, renders as text only.
-- **What exists from step 3:**
-  - `POST /api/v1/documents` takes `{name, content}` with the bytes in base64, maps the extension to `ContentType`, and refuses `wrong_type`, `too_large` and `empty` with 400 `bad_document`.
-  - It stages the bytes in `OcuTalon.Data.Upload` (matched by `Ref` plus `SessionRef` through `Ownership.Upload`), because a message body can't hold a global stream.
-  - `Upload.Take` deletes the row it returns, and `Upload.Purge` drops untaken rows after an hour. A sent file must outlive its Item, so the criteria call for Lane B's own private file table rather than this staging table.
-  - 25.6's Telegram path needs the documents route to accept a stored file's `Ref` as well as base64 content.
-- **Extraction (Lane A, built in 19.6):** `OcuTalon.Docs.Extract.Read` picks the parser from the bytes' signature. It returns text or a code: `too_large`, `wrong_type`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `contents_too_large`, `timed_out` or `failed`. `Failure(code)` fits each code into "I couldn't read that file: <reason>.".
-- **New contracts that 25.3 adds to the spine in the same change** (AD-29, AD-33):
-  - the upload route in the REST table
-  - the private file table in the ownership tables
-  - the file fields on `OcuTalon.Msg.Item`, which today has none
-  - the file-store call that Lane A's `TelegramIn` will call, in the cross-area API table
-  - the `/v1/state` capability flag
-  - Only the owning lane edits a class, so 25.3 must not edit `TelegramIn` (Lane A).
-- **Items and provenance:** every inbound message is an `OcuTalon.Msg.Item` with `SessionRef`, `Channel`, `Provenance` (`user` or `untrusted`) and content. An untrusted turn runs in a fresh AI session, and only read-only tools may run in it. File text reaches the model only as quoted, untrusted data through `OcuTalon.Agent.Input`, which is Story 26.2's job.
-- **Telegram:** the bot token comes from the environment and never enters a setting, a status text or a log line. Chat ids and display names never reach the audit writer, logs or step summaries.
-- **CI mock (Lane B):** the mock currently refuses `getFile` with a 404 that points at Story 25.3. 25.3 adds `getFile` and the download path `/file/bot<token>/<file path>`, and logs the token by length only there too.
-- **Roles (25.4/25.5):**
-  - Role names: `OcuTalonApprover`, `OcuTalonApprover_<kind>`, `OcuTalonViewer`.
-  - `Approval.MayAnswer` and the role-assignment method are Lane A's. Story 37.1 supplies stubs until Story 26.4 builds them, and until then tests create the roles as fixtures.
-  - `AnswersIn` returns `not_allowed` with the kind. From step 6 the demo account holds `OcuTalonApprover`, and the owning-session rule still applies.
+**Approver kinds.**
+- The kinds are `resend`, `reroute`, `suspend`, `rollback`, `partner`, `email` and `tool`, and later each fix kind's `APPROVERKIND`.
+- `setting` rows (persona proposals) have no kind and keep today's rule. Their `RequiredRole` stays `OcuTalonUser`, and there is no `OcuTalonApprover_setting`.
+- A kind's role is `<RequiredRole>_<ApproverKind>`. A user may answer a row when they hold Use on `RequiredRole`, or on the kind's role.
+
+**`OcuTalon.Bridge.Approval.MayAnswer(ref, irisUser, Output kind) As %Boolean`** (Lane A; until Story 26.4 a stub that applies the role-set rule with `kind` empty).
+- `AnswersIn` calls it before `Approval.Answer` (Story 25.5), and the page's approval state calls it too.
+- It reads without the lock, ignores state and expiry, and writes nothing.
+- It answers 0 with `kind` set to the row's `ApproverKind`, or empty for an unknown Ref.
+- On 0, `AnswersIn` answers nothing and returns `not_allowed`, whose slot `kind` carries the `ApproverKind`.
+- `AnswersIn` passes the answering IRIS user and session to `Answer`, which re-checks under the row's lock. Lane A's audit then names the approver role.
+- The catalog gains one public-text "Only an approver for ..." sentence per approver kind (seven). `setting` rows keep today's rule.
+
+**`OcuTalon.Install.Step.Roles.Assign(userName, role, grant, Output changed) As %Status` and `.Holders(Output users As %DynamicArray)`** (Lane A; until Story 26.4 they are stubs that answer 5003, and `Holders` answers `[]`).
+- Both are admin-only. They run in `%SYS` in the caller's job, which needs `%Admin_Secure:USE`, so `SettingsOps`' production job calls them.
+- `Assign` takes an allowlist of exactly `OcuTalonApprover` and `OcuTalonViewer`. It refuses every other role and every installer-managed account, and it refuses on the online demo too. `changed` is 0 when the user was already in that state.
+- `Holders` returns `{user, roles}` sorted.
+- Lane B builds the Roles section, its routes and the `SettingsOps` handling.
+
+**Personal data in the Roles flow.** An IRIS user name other than the acting user's never enters a traced message.
+- The route hands the target user name and the role to `SettingsOps` through `OcuTalon.Core.SecretHandoff`, so `SaveSettings.Changes` holds only `{"handoff": uri}`.
+- The `Holders` list returns as a handoff uri in the `CommandResult`.
+- The names reach only IRIS audit entries: the role change's own entry and the `Settings` entry. OcuTalon's own Action audit holds no identities.
+- A route test scans the change's message bodies for the user name (a leak scan, as for the on-call keys).
+
+**Viewer sign-in.** The post-sign-in check admits `OcuTalonViewer` by name, as well as `OcuTalonUser`. The web applications grant a viewer read access. `OcuTalonViewer` holds only the R grants declared for `OcuTalonUser`. Lane A creates the roles and the per-role resources in Story 26.4.
+
+**File read result.** `OcuTalon.Agent.Input.ReadFile(item, Output result As %DynamicObject) As %Status` is Lane A's. Until Stories 26.2 and 26.3 it is a stub that answers 5003 with `{}`.
+- `Conversation` calls it for a turn with a `SentFile`, once `Core.Files.Readable()` is 1 and before the turn's requests are sent.
+- `read` 0 ends the turn with `result.text` and makes no model request. Otherwise the turn runs untrusted (read-only tools), and the result rides on its reply.
+- The fields:
+  - `fileRef`;
+  - `kind` (`document` or `photo`);
+  - `read`;
+  - when `read` is 0: `reason` and `text`, which is "I couldn't read that file: <reason>.";
+  - when a document is read: `chars`, `cut` and `addable` 1;
+  - when a photo is read: `addable` 0.
+- Add to documents goes through the documents route with the `fileRef`. That route opens the stored file through `Core.Files.Open` and extracts it again through `DocumentOps`. The extracted text is never stored.
+- **Photo caption.** Lane A's `ContentClass.Accepted` saves the caption memory. The Reply's HostData then carries `caption: {memoryRef, text}`, which is absent when nothing was saved. `Conversation` carries it as it carries `learned`, and the page shows "Saved to memory".
+- **Carriers.** The read result and `caption` follow the `citations`, `memories` and `learned` precedent: built by code, never model text, absent when empty, with no bytes and no extracted text. Story 25.6 names the Lane B carriers (`Turn`, `Outbound`, `chat.message`, `/v1/state`) in its own spine rows.
+
+**Spine rows (same-change rule).** Each story adds its own step-6 spine rows (REST, ownership, conventions) in the same change. Lane B's halves (the Roles section, `AnswersIn`'s check and the file replies) get their rows from Stories 25.4, 25.5 and 25.6. Lane B stays in its own files. `MayAnswer`, `Roles.Assign`/`Holders`, `ReadFile` and `ContentClass` are Lane A's, so call them and never edit them.
 
 ## UX & Interaction Patterns
 
-- **Composer:** it is labelled "Message OcuTalon" persistently. Enter sends; Shift+Enter adds a new line. Step 6 adds a paperclip button, with drag-and-drop on the chat as a second way. Both stay hidden while the capability flag is off and on the demo.
-- **File texts:**
-  - "That file is 14 MB; the limit is 10 MB."
-  - "I couldn't read that file: {reason}."
-  - "Sending files is off on the online demo. It works on your own install."
-  - "I got {name}, but I can't read files yet."
-  - the **Add to documents** offer
-  - the "Saved to memory" chip
-  - Telegram and the simulated phone share each text exactly, as plain text with no Markdown.
-- **Viewers:** see everything read-only, with no composer.
-- **Roles UI:** a Settings › Roles section. Where a user can't answer, the request reads "Only an approver for resends can answer this request." (the fixture sentence for one kind), with no **Approve** or **Reject**.
+- The Settings › Roles section lists users holding an OcuTalon role, with grant and remove controls. It is admin-only and hidden from the demo account.
+- Can't answer: the buttons are absent and the status sentence names the kind. The phone and Telegram get the same sentence (in Telegram, Lane A shows it as an alert).
+- File replies: the failure text, an **Add to documents** offer on a read document, and a "Saved to memory" chip on a photo.
 
 ## Cross-Story Dependencies
 
-- **25.3 provides for Epic 26:**
-  - Story 26.2 needs 25.3's file-store call and the mock's `getFile`. `TelegramIn` will check the size, download, store the file and send the Item, and 26.2's merge turns on the capability flag.
-  - Story 26.3 needs 25.3's photo Items.
-- **25.6 depends on 25.3** (the stored file, its `Ref` and the Item) and on read results from Lane A's 19.6 (done), 26.2 and 26.3. Its reply contract is to be fixed by an added criterion on Story 37.1. It uses fixtures until they merge.
-- **25.4 and 25.5** depend on Story 37.1's stubs. Story 26.4 needs 25.5's `not_allowed` from `AnswersIn`. Story 25.4 builds on the demo account and the step-2 Settings sections.
+- 25.4 needs Epics 16 and 18 (merged: the demo account and the Settings section). It calls Lane A's `Roles.Assign` and `Holders`, which are stubs until Story 26.4.
+- 25.5 calls the `MayAnswer` stub until Story 26.4. Story 26.4 depends on 25.5's `not_allowed` result and uses it for `TelegramIn`'s alert.
+- 25.6 uses fixture read results until Stories 26.2 (documents) and 26.3 (photo caption) merge. Its Telegram reply depends on 26.2 reading the Telegram Item. The guide's photo clause waits for 26.3.
+- Epic 26 depends on Epic 25 merging (26.2 needs 25.3's file-store call and the mock's `getFile`).
+- Story 26.4 later changes `Decide`'s `ApprovalRole` default to `OcuTalonApprover`, grants the demo and README accounts `OcuTalonApprover`, and creates the real roles. Until then the fixture roles stand in.

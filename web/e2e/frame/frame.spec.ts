@@ -604,7 +604,7 @@ test('F9: /state is requested once and answers the new keys', async ({ page }) =
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const body = (await answered[0]!.json()) as Snapshot;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'admin', 'onlineDemo', 'demoMode', 'filesReadable', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'admin', 'onlineDemo', 'demoMode', 'filesReadable', 'viewer', 'rolesAssignable', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['user']).toBe(README_ACCOUNT.user);
   expect(body['onlineDemo']).toBe(false);
   expect(body['demoMode']).toBe(true);

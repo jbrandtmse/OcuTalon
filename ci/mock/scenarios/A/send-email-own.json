@@ -1,0 +1,25 @@
+{
+  "name": "send-email-own",
+  "match": {
+    "marker": "send-email-own"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "send_email",
+        "input": {
+          "recipients": [
+            "owner@example.test"
+          ],
+          "subject": "Your reminder",
+          "text": "This is the email you asked for."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've sent the email to your address."
+    }
+  ]
+}

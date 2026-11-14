@@ -44,6 +44,12 @@
 /// Persona(sessionRef) and Heartbeat(sessionRef) read a person's values from their rows, ForgetPerson(sessionRef) deletes every per-person key of a session
 /// (SessionOps.End calls it), and PersonaKey names a persona key. A written value applies to other processes when their 60-second
 /// Setting cache entries expire.
+/// ListRoles and the roles section of SaveSettings (Story 25.4, origin web_admin) reach OcuTalon.Install.Step.Roles (Holders and Assign) in this job, which holds
+/// %Admin_Secure:USE. The user name and the role of a save arrive only as the SecretHandoff uri that is the whole of Changes ({"handoff": uri}), and the list
+/// leaves only as the uri in the CommandResult's Data ({"handoff": uri}): no other user's name is in a command, a CommandResult, a log line or a global. A save
+/// takes its uri first, on every path. Outcomes: done (a save's Data is {"changed": 0 or 1}), refused (Data {"fields": ["role" or "user"], "reason": the code of
+/// Roles.Refusal}, or {"fields": []} for a shape that is not {user, role, grant}), not_available (the online demo), not_allowed (an origin other than web_admin),
+/// not_built (Roles answered 5003) and failed. The change's one audit entry is Assign's; ListRoles and SaveRoles write none.
 /// SaveSettings saves one section of the settings page (XData Sections: the section's fields, each with its key or bridge name, its kind and
 /// its default). The outcomes are done (Ok 1; a save that changes nothing is done too), refused (a value, a field or the section is not
 /// acceptable; Data is {"fields": [the names of the refused fields]}), not_built (a bridge value's Check answered "not implemented", code 5003:
@@ -100,11 +106,23 @@
 /// webhook.<Ref>.secret, then replaces the hash. The outcomes: done (Ok 1; Data {ref, name, createdAt} for a create); refused and name_taken (Ok 0; Data
 /// {"fields": {name, secret}} with each refused field's catalog text); not_found, no_session, not_available, not_audited and failed (Ok 0). The secret and its hash
 /// are in no result, audit entry or log line.
+/// The on-call section (Story 36.4; kind oncall, slug on-call) chooses who is paged: its body is held by SecretHandoff and never by the command, whose Changes
+/// is exactly {"handoff": uri}, so that no address or user name is in a traced message. SaveOnCall takes the body, which has the members primaryPerson,
+/// primaryUser, primaryEmail, primaryChannels, the four backup members and escalationMinutes. A person is nobody (stored as "", "" and telegram,email), user (an
+/// IRIS user with a Data.Session row) or email (an address, with no user). Every value is validated before anything is written: an address is trimmed and passes
+/// IsAddress; the channels are a non-empty list of telegram and email without a repeat, stored in that order, each reachable (telegram only for a user who has a
+/// session with a paired chat, email only with an address); the minutes are a whole number from 1 to 1440 (Field). A refusal names the fields (primaryUser,
+/// primaryEmail, primaryChannels, the backup ones, escalationMinutes) and never a value. The seven oncall.* keys are written by SaveProduct, each change with
+/// its Settings audit entry (from, to, the admin's user and session) and then its row, in one transaction. On the online demo it answers not_available and
+/// Values has no on-call member. Values adds on-call {the seven values, users [{user, paired}], pagesBuilt}, never on the online demo. No on-call value is in
+/// a log line, a result or a message. The users of the section come from the production job: Values (the web process) sends a ListOnCallUsers (origin web_admin, a
+/// read) and takes the list [{user, paired}] from the handoff that the answer names in Data {"handoff": uri}, never from the sessions' or pairings' storage, and
+/// answers users [] when that fails; no user name is in the command or its result.
 Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 {
 
 /// The setting keys that this operation writes, comma-separated.
-Parameter ALLOWLIST = "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes,email.address,email.owner,email.signIn,email.clientId,email.oauthOwned";
+Parameter ALLOWLIST = "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes,email.address,email.owner,email.signIn,email.clientId,email.oauthOwned,oncall.primary.user,oncall.primary.email,oncall.primary.channels,oncall.backup.user,oncall.backup.email,oncall.backup.channels,oncall.escalationMinutes";
 
 /// The per-person setting keys that this operation writes, comma-separated: person.<SessionRef>. followed by one of these (AD-19).
 Parameter PERSONKEYS = "persona.preset,persona.language,persona.custom,heartbeat.on,heartbeat.interval,heartbeat.from,heartbeat.to,heartbeat.checklist";
@@ -186,6 +204,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.SaveSettings" Quit ..Save(command)
 	If class = "OcuTalon.Msg.Command.TestModel" Quit ..TestModel(command)
 	If class = "OcuTalon.Msg.Command.MailSignIn" Quit ..SignIn(command)
+	If class = "OcuTalon.Msg.Command.ListOnCallUsers" Quit ..ListOnCallUsers()
 	If class = "OcuTalon.Msg.Command.ListMcpServers" Quit ..ListMcp(command)
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
@@ -193,6 +212,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.SetHeartbeat" Quit ..SaveHeartbeat(command)
 	If class = "OcuTalon.Msg.Command.CreateWebhook" Quit ..CreateWebhook(command)
 	If class = "OcuTalon.Msg.Command.SetWebhookSecret" Quit ..SetWebhookSecret(command)
+	If class = "OcuTalon.Msg.Command.ListRoles" Quit ..ListRoles(command)
 	Quit ..Result(0, "unknown_command", ##class(OcuTalon.Core.CommandsIn).#MESSAGEUNKNOWN)
 }
 
@@ -882,7 +902,7 @@ Parameter TESTWAIT = 45;
 /// The sections of the settings page. A section has a slug, a kind (product: its fields are Data.Setting keys that this class writes; bridge:
 /// its fields are bridge names that Bridge.Settings changes; demo: read here only, a SetDemoMode switches it) and its fields. A field has a name
 /// (the page's and the API's), a key (product) or the bridge name, a type (int, time, channels, bridge or flag), its default and, for an int, its
-/// range. A models section has no fields: its body is nested (SaveModels). An email section (Channels, Story 21.2) has its own save (SaveEmail) and its names are those of the form: its fields carry no key.
+/// range. A models section has no fields: its body is nested (SaveModels). An email section (Channels, Story 21.2) has its own save (SaveEmail) and its names are those of the form: its fields carry no key. An on-call section (Story 36.4) has its own save (SaveOnCall): its fields are the seven keyed values that it writes through SaveProduct, and the body that it validates also names each person's kind.
 XData Sections [ MimeType = application/json ]
 {
 [
@@ -911,7 +931,16 @@ XData Sections [ MimeType = application/json ]
   {"name": "signIn", "optional": 1},
   {"name": "clientId", "optional": 1},
   {"name": "password", "optional": 1},
-  {"name": "clientSecret", "optional": 1}]}
+  {"name": "clientSecret", "optional": 1}]},
+ {"slug": "roles", "kind": "roles", "fields": []},
+ {"slug": "on-call", "kind": "oncall", "fields": [
+  {"name": "primaryUser", "key": "oncall.primary.user", "default": ""},
+  {"name": "primaryEmail", "key": "oncall.primary.email", "default": ""},
+  {"name": "primaryChannels", "key": "oncall.primary.channels", "default": "telegram,email"},
+  {"name": "backupUser", "key": "oncall.backup.user", "default": ""},
+  {"name": "backupEmail", "key": "oncall.backup.email", "default": ""},
+  {"name": "backupChannels", "key": "oncall.backup.channels", "default": "telegram,email"},
+  {"name": "escalationMinutes", "key": "oncall.escalationMinutes", "type": "int", "min": 1, "max": 1440, "default": "15"}]}
 ]
 }
 
@@ -944,7 +973,7 @@ ClassMethod Values() As %DynamicObject
 	Set sections = {}
 	Set iterator = ..Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
-		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") Continue
+		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") || (section.kind = "roles") || (section.kind = "oncall") Continue
 		Set values = {}
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
@@ -962,6 +991,7 @@ ClassMethod Values() As %DynamicObject
 		Do sections.%Set(section.slug, values)
 	}
 	If '..OnlineDemo() Do sections.%Set("channels", ..EmailValues())
+	If '..OnlineDemo() Do sections.%Set("on-call", ..OnCallValues())
 	Quit {"sections": (sections), "bridge": (##class(OcuTalon.Bridge.Settings).Values()), "providers": (##class(OcuTalon.Bridge.Settings).Providers()), "instanceZone": (##class(OcuTalon.Bridge.Time).Zone()), "prices": (..Prices())}
 }
 
@@ -1018,6 +1048,8 @@ Method Save(command As OcuTalon.Msg.Command.SaveSettings) As OcuTalon.Msg.Comman
 	If '$IsObject(changes) || 'changes.%IsA("%Library.DynamicObject") Quit ..Refused([])
 	If section.kind = "models" Quit ..SaveModels(command, changes)
 	If section.kind = "email" Quit ..SaveEmail(command, changes)
+	If section.kind = "roles" Quit ..SaveRoles(command, changes)
+	If section.kind = "oncall" Quit ..SaveOnCall(command, changes)
 	Set bad = [], refused = 0, wanted = ""
 	Set fields = section.fields.%GetIterator()
 	While fields.%GetNext(, .field) {
@@ -2384,6 +2416,336 @@ ClassMethod WebhookFieldText(key As %String, value As %String = "") As %String
 	Set slots = $Case(key, "settings.refusedExpansion": {"marker": (value)}, "settings.webhookNameTaken": {"name": (value)}, : {})
 	Set text = ##class(OcuTalon.Msg.Catalog).Render(key, slots, "web", .sc)
 	Quit $Select($$$ISERR(sc) || (text = ""): ..#MESSAGENOTSAVED, 1: text)
+}
+
+/// The class of the role calls; a test subclass overrides it.
+ClassMethod RolesClass() As %String [ Private ]
+{
+	Quit "OcuTalon.Install.Step.Roles"
+}
+
+/// Carries out a ListRoles and returns the CommandResult to answer; see the class description.
+Method ListRoles(command As OcuTalon.Msg.Command.ListRoles) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGENOTSAVED)
+	Set sc = $ClassMethod(..RolesClass(), "Holders", .users)
+	If ..NotImplemented(sc) Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
+	If $$$ISERR(sc) || '$IsObject($Get(users)) {
+		$$$LOGERROR("The holders of the OcuTalon roles could not be listed")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(users.%ToJSON(), .uri)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The list of the OcuTalon roles could not be handed over")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "done", "", {"handoff": (uri)}.%ToJSON())
+}
+
+/// Carries out the roles section of a SaveSettings: see the class description.
+Method SaveRoles(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set json = ""
+	Set uri = $Select(changes.%GetTypeOf("handoff") = "string": changes.handoff, 1: "")
+	Set taken = ..TakeSecret(uri, .json)
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGENOTSAVED)
+	If (changes.%Size() '= 1) || (uri = "") Quit ..Refused([])
+	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(json)
+	} Catch {
+		Set body = ""
+	}
+	Set json = ""
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") || (body.%Size() '= 3) Quit ..Refused([])
+	If (body.%GetTypeOf("user") '= "string") || (body.%GetTypeOf("role") '= "string") || (body.%GetTypeOf("grant") '= "boolean") Quit ..Refused([])
+	Set userName = body.user
+	Set role = body.role
+	Set grant = body.grant
+	Try {
+		Set code = $ClassMethod(..RolesClass(), "Refusal", userName, role)
+	} Catch {
+		$$$LOGERROR("The roles change could not be checked")
+		Quit
+	}
+	If '$Data(code) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If code = "online_demo" Quit ..Result(0, "not_available", ..#MESSAGENOTSAVED)
+	If code '= "" {
+		Set data = {"fields": ([($Select(code = "role": "role", 1: "user"))]), "reason": (code)}
+		Quit ..Result(0, "refused", ..#MESSAGENOTSAVED, data.%ToJSON())
+	}
+	Set sc = $ClassMethod(..RolesClass(), "Assign", userName, role, grant, .changed, command.ActingUser, command.SessionRef, "web")
+	If ..NotImplemented(sc) Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The roles change failed")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set data = {}
+	Do data.%Set("changed", +$Get(changed), "boolean")
+	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED, data.%ToJSON())
+}
+
+/// The Message of an on-call save on the online demo (the accepted text settings.onCallOffOnDemo).
+Parameter MESSAGEONCALLOFF = "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.";
+
+/// The channels that a person can be paged by, in the order that they are stored.
+Parameter ONCALLCHANNELS = "telegram,email";
+
+/// The longest user name that can be an OcuTalon user: a longer name is refused as <role>User without a lookup.
+Parameter ONCALLUSERMAX = 128;
+
+/// Saves the on-call section of a SaveSettings command (see the class description). changes is the parsed Changes, which holds exactly {"handoff": uri}: the
+/// body of the section is behind the uri (SecretHandoff), so that no on-call value is in the command or in the trace. In order: the online demo is not_available
+/// (the handoff is discarded); any other Changes is refused; a handoff with nothing behind it is failed; a body that is not a JSON object is refused; every value is
+/// validated (OnCallProblems) and a refusal names fields only; then SaveProduct writes the changes, each after its audit entry.
+Method SaveOnCall(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set handoff = $Select(changes.%GetTypeOf("handoff") = "string": changes.handoff, 1: "")
+	If ..OnlineDemo() {
+		Do ##class(OcuTalon.Core.SecretHandoff).Discard(handoff)
+		Quit ..Result(0, "not_available", ..#MESSAGEONCALLOFF)
+	}
+	If (changes.%Size() '= 1) || (handoff = "") {
+		Do ##class(OcuTalon.Core.SecretHandoff).Discard(handoff)
+		Quit ..Refused([])
+	}
+	Set taken = ..TakeSecret(handoff, .text)
+	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(text)
+	} Catch {
+		Set body = ""
+	}
+	Kill text
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit ..Refused([])
+	Set bad = ..OnCallProblems(body, .to, .odd)
+	If bad.%Size() || odd Quit ..Refused(bad)
+	Quit ..SaveProduct(command, ..Section("on-call"), .to)
+}
+
+/// The refused fields of an on-call body, as a dynamic array of field names in the form's order (primaryUser, primaryEmail, primaryChannels, the backup three, then
+/// escalationMinutes), and in to the value to store for each field when none is refused. odd is 1 when the body has a member that is not one of the nine. A name
+/// never carries a value.
+ClassMethod OnCallProblems(body As %DynamicObject, Output to, Output odd As %Boolean) As %DynamicArray [ Private ]
+{
+	Kill to
+	Set bad = [], odd = 0
+	Set known = $ListBuild("escalationMinutes")
+	For role = "primary", "backup" {
+		For part = "Person", "User", "Email", "Channels" {
+			Set known = known_$ListBuild(role_part)
+		}
+	}
+	Set iterator = body.%GetIterator()
+	While iterator.%GetNext(.name) {
+		If '$ListFind(known, name) Set odd = 1
+	}
+	Do ..OnCallUsers(.users, .paired)
+	For role = "primary", "backup" {
+		Set named = ..OnCallRole(role, body, .to, .users, .paired)
+		Set position = 0
+		While $ListNext(named, position, name) {
+			Do bad.%Push(name)
+		}
+	}
+	Set field = ..OnCallField("escalationMinutes")
+	If ..Field(field, body, .canonical) {
+		Set to("escalationMinutes") = canonical
+	} Else {
+		Do bad.%Push("escalationMinutes")
+	}
+	Quit bad
+}
+
+/// The row of the on-call section's field with the name.
+ClassMethod OnCallField(name As %String) As %DynamicObject [ Private ]
+{
+	Set fields = ..Section("on-call").fields.%GetIterator()
+	While fields.%GetNext(, .field) {
+		If field.name = name Quit
+	}
+	Quit field
+}
+
+/// Validates one role (primary or backup) of an on-call body, sets the role's three values to store in to (<role>User, <role>Email, <role>Channels) and returns the
+/// names of its refused fields as a list, in the form's order. A member that is missing, is not a JSON string or holds "@{" refuses the field that shows it (the person
+/// and the user name belong to the Person select, <role>User). The person nobody ignores the other three members. A user must have a Data.Session row (the name is
+/// matched whatever its case and stored as the row holds it; one longer than ONCALLUSERMAX is refused without a lookup), and telegram
+/// is reachable only when one of the user's sessions has a paired chat. An address, when the user has one or the person is by email, must pass IsAddress. Every
+/// chosen channel must be reachable. A field whose input is refused is not judged again by a rule that needs it: an unknown user has no channels judged, and a refused
+/// address does not make the channel email unreachable.
+ClassMethod OnCallRole(role As %String, body As %DynamicObject, ByRef to, ByRef users, ByRef paired) As %List [ Private ]
+{
+	Set user = role_"User", email = role_"Email", channels = role_"Channels"
+	Kill named
+	If '..OnCallText(body, role_"Person", .kind) || '$ListFind($ListBuild("nobody", "user", "email"), kind) Set named(user) = ""
+	If '..OnCallText(body, user, .name) Set named(user) = ""
+	If '..OnCallText(body, email, .address) Set named(email) = ""
+	If '..OnCallText(body, channels, .list) Set named(channels) = ""
+	If '$Data(named) {
+		If kind = "nobody" {
+			Set to(user) = "", to(email) = "", to(channels) = ..#ONCALLCHANNELS
+		} Else {
+			Set name = $ZStrip(name, "<>W"), address = $ZStrip(address, "<>W")
+			Set mailOk = ..IsAddress(address)
+			Set mailBad = $Select(kind = "email": 'mailOk, 1: (address '= "") && 'mailOk)
+			If mailBad Set named(email) = ""
+			Set known = 0, chat = 0
+			If kind = "user" {
+				Set known = (name '= "") && ($Length(name) <= ..#ONCALLUSERMAX) && $Data(users($ZConvert(name, "U")))
+				If known Set chat = $Data(paired($ZConvert(name, "U"))) > 0
+				If 'known Set named(user) = ""
+			}
+			Set picked = ..OnCallChannels(list)
+			If (kind = "email") || known {
+				If picked = "" {
+					Set named(channels) = ""
+				} Else {
+					If $ListFind(picked, "telegram") && 'chat Set named(channels) = ""
+					If $ListFind(picked, "email") && 'mailOk && 'mailBad Set named(channels) = ""
+				}
+			}
+			Set to(user) = $Select(known: users($ZConvert(name, "U")), 1: ""), to(email) = address, to(channels) = $ListToString(picked)
+		}
+	}
+	Set result = ""
+	For field = user, email, channels {
+		If $Data(named(field)) Set result = result_$ListBuild(field)
+	}
+	Quit result
+}
+
+/// 1 when the member of the body is a JSON string without "@{"; text is then its value.
+ClassMethod OnCallText(body As %DynamicObject, name As %String, Output text As %String) As %Boolean [ Private ]
+{
+	Set text = ""
+	If body.%GetTypeOf(name) '= "string" Quit 0
+	Set text = body.%Get(name)
+	Quit (text '[ "@{")
+}
+
+/// The channels of the text (a comma list) in the order of ONCALLCHANNELS, as a list, or "" when the text is empty, names a channel that is not one of them, or
+/// repeats one.
+ClassMethod OnCallChannels(text As %String) As %List [ Private ]
+{
+	Set picked = ""
+	For i = 1:1:$Length(text, ",") {
+		Set one = $Piece(text, ",", i)
+		If '$ListFind($ListFromString(..#ONCALLCHANNELS), one) || $ListFind(picked, one) Quit
+		Set picked = picked_$ListBuild(one)
+	}
+	If $ListLength(picked) '= $Length(text, ",") Quit ""
+	Set ordered = ""
+	For one = "telegram", "email" {
+		If $ListFind(picked, one) Set ordered = ordered_$ListBuild(one)
+	}
+	Quit ordered
+}
+
+/// The OcuTalon users, read in the production job (the save's validation and the ListOnCallUsers handler call it; the web process never does): users(<upper-cased
+/// name>) is the name as a Data.Session row holds it, for every row that has an IRIS user, and paired(<upper-cased name>) is set when one of the user's sessions has a
+/// Data.Pairing row (a chat row has a SessionRef only while it is paired). The rows are read by object access from their extents.
+ClassMethod OnCallUsers(Output users, Output paired) [ Private ]
+{
+	Kill users, paired
+	Set id = ""
+	For {
+		Set id = $Order(^OcuTalonP.PairingD(id))
+		Quit:id=""
+		Set row = ##class(OcuTalon.Data.Pairing).%OpenId(id)
+		If $IsObject(row) && (row.SessionRef '= "") Set chats(row.SessionRef) = ""
+	}
+	Set id = ""
+	For {
+		Set id = $Order(^OcuTalonP.SessionD(id))
+		Quit:id=""
+		Set row = ##class(OcuTalon.Data.Session).%OpenId(id)
+		If '$IsObject(row) || (row.IrisUser = "") Continue
+		Set key = $ZConvert(row.IrisUser, "U")
+		If '$Data(users(key)) Set users(key) = row.IrisUser
+		If $Data(chats(row.Ref)) Set paired(key) = ""
+	}
+}
+
+/// Carries out a ListOnCallUsers (Story 36.4, DW-1278; origin web_admin) in the production job: the roster of OnCallUsers as a JSON array [{user, paired}], once per
+/// upper-cased name and in the order of those names, is offered to SecretHandoff, and the answer is Ok 1, Outcome listed and Data {"handoff": uri}. The list is in no
+/// message, result, log line or notice, because the trace role reads every traced message. On the online demo it answers not_available and offers nothing.
+Method ListOnCallUsers() As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEONCALLOFF)
+	Do ..OnCallUsers(.names, .paired)
+	Set list = []
+	Set key = ""
+	For {
+		Set key = $Order(names(key), 1, name)
+		Quit:key=""
+		Set one = {}
+		Do one.%Set("user", name, "string")
+		Do one.%Set("paired", $Data(paired(key)) > 0, "boolean")
+		Do list.%Push(one)
+	}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(list.%ToJSON(), .uri)
+	If $$$ISERR(sc) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Quit ..Result(1, "listed", "", {"handoff": (uri)}.%ToJSON())
+}
+
+/// The users of the on-call section for the web process: a ListOnCallUsers through SubmitRoster, whose handoff is taken once. It answers [{user, paired}] as
+/// ListOnCallUsers made it, and [] when the command is refused, fails, gets no answer, or the handoff is missing or is not a list of users. It never throws.
+ClassMethod OnCallRoster() As %DynamicArray [ Private ]
+{
+	Set users = []
+	Try {
+		Set sc = ..SubmitRoster(##class(OcuTalon.Msg.Command.ListOnCallUsers).%New(), .result)
+		If $$$ISERR(sc) || '$IsObject(result) || 'result.Ok || (result.Outcome '= "listed") Quit
+		Set uri = {}.%FromJSON(result.Data).handoff
+		If $$$ISERR(..TakeSecret(uri, .text)) Quit
+		Set list = ##class(%DynamicAbstractObject).%FromJSON(text)
+		Kill text
+		If '$IsObject(list) || 'list.%IsA("%Library.DynamicArray") Quit
+		Set found = []
+		Set iterator = list.%GetIterator()
+		While iterator.%GetNext(, .one) {
+			If '$IsObject(one) || 'one.%IsA("%Library.DynamicObject") || (one.%GetTypeOf("user") '= "string") || (one.%GetTypeOf("paired") '= "boolean") Quit
+			Set copy = {}
+			Do copy.%Set("user", one.user, "string")
+			Do copy.%Set("paired", one.paired, "boolean")
+			Do found.%Push(copy)
+		}
+		If found.%Size() = list.%Size() Set users = found
+	} Catch {
+		Set users = []
+	}
+	Quit users
+}
+
+/// The one submit of OnCallRoster: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitRoster(command As OcuTalon.Msg.Command.ListOnCallUsers, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+}
+
+/// The on-call member of GET /v1/settings, read from the rows and never from the cache: the seven stored values (an absent row reads as the default; the minutes as a
+/// number, and the default for a stored value that is not a whole number), users (each IRIS user with a Data.Session row, once whatever the case of the name, in the order of the upper-cased names, with paired: 1 when one of
+/// the user's sessions has a paired chat, as OnCallRoster brings them from the production job) and pagesBuilt (1 when OcuTalon.Data.Page is compiled). It runs in the web
+/// process and reads no storage global of the sessions or the pairings.
+ClassMethod OnCallValues() As %DynamicObject
+{
+	Set values = {}
+	Set fields = ..Section("on-call").fields.%GetIterator()
+	While fields.%GetNext(, .field) {
+		Set stored = ..Stored(field.key)
+		If stored = "" Set stored = field.default
+		If field.type = "int" {
+			Do values.%Set(field.name, $Select((stored ? 1.9N): +stored, 1: +field.default), "number")
+		} Else {
+			Do values.%Set(field.name, stored, "string")
+		}
+	}
+	Do values.%Set("users", ..OnCallRoster())
+	Do values.%Set("pagesBuilt", ##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Data.Page"), "boolean")
+	Quit values
 }
 
 }

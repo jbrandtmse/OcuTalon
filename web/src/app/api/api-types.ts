@@ -60,6 +60,10 @@ export interface StateSnapshot {
   demoMode: boolean;
   /** True only when the install's code can read a file that is sent (Story 25.3; 26.2 turns it on): the paperclip and the chat's file drop show only then, and never on the online demo. */
   filesReadable: boolean;
+  /** True when the signed-in user holds OcuTalonViewer and not OcuTalonUser (Story 25.4): the page is read-only, and `admin` is false for such a user. */
+  viewer: boolean;
+  /** True when the online demo is off and the install can assign the approver and viewer roles (Story 26.4 creates them): the Settings nav shows Roles only then. */
+  rolesAssignable: boolean;
   models: { triage: string; diagnosis: string; chat: string };
   telegram: TelegramState;
   status: StatusPayload[];
@@ -259,6 +263,25 @@ export interface SettingsSections {
   'demo-mode': { demoMode: boolean };
   /** The mailbox (Story 21.2): never on the online demo. `passwordSet` says that a password is stored; the password itself is never sent. */
   channels?: EmailValues;
+  /** The on-call person and backup (Story 36.4): never on the online demo. */
+  'on-call'?: OnCallValues;
+}
+
+/**
+ * The values of the On call form (Story 36.4): for each of the two roles the IRIS user name ("" for none), the address pages are emailed to and the channels
+ * (a comma list of telegram and email), the minutes before the backup is paged, the OcuTalon users with whether one of their sessions has a paired chat (admins
+ * only), and whether OcuTalon.Data.Page is compiled (the product sends pages).
+ */
+export interface OnCallValues {
+  primaryUser: string;
+  primaryEmail: string;
+  primaryChannels: string;
+  backupUser: string;
+  backupEmail: string;
+  backupChannels: string;
+  escalationMinutes: number;
+  users: { user: string; paired: boolean }[];
+  pagesBuilt: boolean;
 }
 
 /**
@@ -331,6 +354,24 @@ export interface WebhookCreated {
   result: 'done';
   message: string;
   webhook: WebhookRow;
+}
+
+/** A user of GET /ocutalon/api/v1/settings/roles (Story 25.4): the IRIS user name, the OcuTalon roles the user holds (sorted) and whether OcuTalon manages the account. */
+export interface RoleHolder {
+  user: string;
+  roles: string[];
+  managed: boolean;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/roles: the users who hold an OcuTalon role, sorted by name. */
+export interface RolesList {
+  users: RoleHolder[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/roles: whether the user's roles changed (false when the user already was in that state). */
+export interface RoleSaved {
+  result: 'done';
+  changed: boolean;
 }
 
 /** The 200 answer to POST /ocutalon/api/v1/settings/channels/webhooks/<ref>/secret. */

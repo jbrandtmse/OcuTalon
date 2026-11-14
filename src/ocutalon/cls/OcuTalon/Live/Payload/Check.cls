@@ -32,6 +32,9 @@ Property Result As %String(%JSONFIELDNAME = "result", MAXLEN = 32);
 /// What the last run found.
 Property Finding As %String(%JSONFIELDNAME = "finding", MAXLEN = 1000);
 
+/// The minutes between two runs of a source (Story 22.5); empty for every other kind.
+Property IntervalMinutes As %Integer(%JSONFIELDNAME = "intervalMinutes");
+
 /// The check's trace session id (AD-26): the heartbeat Tick's session of its latest run.
 Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 
@@ -55,6 +58,7 @@ ClassMethod FromRow(row As OcuTalon.Data.BackgroundCheck) As OcuTalon.Live.Paylo
 	Set payload.LastRunAt = row.LastRunAt
 	Set payload.Result = row.Result
 	Set payload.Finding = row.Finding
+	Set payload.IntervalMinutes = row.IntervalMinutes
 	If row.LastRunHeaderId '= "" {
 		Set payload.TraceHeaderId = row.LastRunHeaderId
 		Set payload.TraceNamespace = $Namespace

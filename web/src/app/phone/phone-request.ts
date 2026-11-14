@@ -13,6 +13,7 @@ import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
 import { Popovers } from '../shared/popover';
+import { isViewer } from '../shared/viewer-view';
 import { requestView } from './phone-view';
 
 /** The last id handed to a request message, for the id of its notice. */
@@ -92,7 +93,7 @@ export function messageContext(nowMs: number, instanceZone: string, onlineDemo: 
         }
       }
     </div>
-    @if (view().buttons) {
+    @if (view().buttons && !viewer()) {
       <span class="buttons" data-part="answer" [attr.data-key]="message().ref" [attr.data-approval]="busy() ? message().approvalRef : null">
         <button
           type="button"
@@ -244,6 +245,9 @@ export class PhoneRequest {
   );
   /** True while a press is out: both buttons are busy. */
   protected readonly busy = this.answer.busy;
+
+  /** True for a viewer (Story 25.4): Approve and Reject are not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   /** The notice under the buttons: the last reply's, else the busy notice while it is raised. */
   protected readonly notice = this.answer.notice;
 

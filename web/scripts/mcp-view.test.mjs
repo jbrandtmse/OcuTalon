@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { SETTINGS_SECTIONS, SETTINGS_TEXTS } = await import(app('settings', 'settings-view.ts'));
+const { SETTINGS_TEXTS, shownSections } = await import(app('settings', 'settings-view.ts'));
 const { addBody, CLASSIFICATION_OPTIONS, classificationName, MCP_TEXTS, mcpOutcome, removeName, removeQuestion, statusText, toolKey, toolStatusText, visibleTools, withClassification } = await import(
   app('settings', 'mcp-view.ts')
 );
@@ -24,9 +24,9 @@ function catalogText(key) {
 }
 
 describe('the section in the page\'s navigation', () => {
-  it('is the eighth section, last, with the slug mcp', () => {
-    assert.equal(SETTINGS_SECTIONS.length, 8);
-    assert.deepEqual(SETTINGS_SECTIONS[7], { slug: 'mcp', label: 'Tools and MCP servers' });
+  it('is the ninth section, last, with the slug mcp', () => {
+    assert.equal(shownSections(false).length, 9);
+    assert.deepEqual(shownSections(false)[8], { slug: 'mcp', label: 'Tools and MCP servers' });
     assert.equal(SETTINGS_TEXTS.sections.mcp, 'Tools and MCP servers');
   });
 });

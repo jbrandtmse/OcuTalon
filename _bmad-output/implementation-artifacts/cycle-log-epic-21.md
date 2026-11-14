@@ -340,3 +340,7 @@
 2026-11-14T03:49:32Z	Story 21.4	pushed	head=d1730af5 ci=pending runs=43553562796,43553562956 part=21.4 note=[CI]_rework_1
 2026-11-14T04:32:25Z	Story 21.4	ci_resolved	sha=d1730af5 result=success runs=43553562796,43553562956
 2026-11-14T04:32:25Z	Story 21.4	part_ready	parts=21.4 code_head=d1730af5 ci=success feature_base=86264c83 records=local
+2026-11-14T09:17:07Z	Story 21.15	story_created	by=lead(Contest_Planner_~09:15Z_ruling) branch=OCT-epic21-s2115 base=a5fc95e9 owns=DW-1081(reclassified:digest_window)
+2026-11-14T09:17:07Z	Story 21.15	dev_complete	by=lead change=test-sign-in.sh_seed_digest.time=instance_clock+12h(Data.Time.ToLocal,mod_24h)+guard(print;fail_within_2h);settings.spec_S10_time_relative;E7_unchanged(no_08:00_assumption) proof=guard_fail(3600s:60min->FAIL),sign-in_2/4(C1),4/4(row8),sign-in-2_9/12(E7),11/12(S10)_all_pass;boundaries,ci-config,tsc_pass residual=60s_Setting.Get_cache_before_08:00 product_code=none text=none
+2026-11-14T12:32:02Z	Epic 21	integrated	feature=f138fcf8(22.5,22.6,21.15...) merge=local conflicts_resolved=cycle-log-epic-21.md(union) lint_10_low boundaries_pass
+2026-11-14T12:32:02Z	Story 21.10	stage_spawned	stage=plan(refresh) model=opus effort=high agent_name=21-10-plan-refresh-2 reason=scratch_refresh_lost;rulings_V8-V11,D1,D2(05:30Z),D3,DW-1266,DW-1314,DW-1315
