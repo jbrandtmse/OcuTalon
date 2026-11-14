@@ -7766,3 +7766,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner ruling 263 V3; the route answers 409 pin_photo with the sentence from 26.3; no photo memory exists until READSFILES
 - 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=web code waits for DW-1282 headroom or goes lazy; may belong to Lane B 25.6 if it owns the card change
+
+### DW-1319: The real-HTTP pin_photo check in web/e2e/api/memory.spec.ts (LIVE user, 409 pin_photo) was type-checked but never run and has no observed mutation
+- source: _bmad-output/implementation-artifacts/spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement stage ran no web e2e; the refusal is pinned and mutated in Test.Memory.Pins:TestPinPhoto and Test.Web.MemoryApi:TestPinPhotoText
+- 2026-11-14T04:21:14Z status=open owner=26-3-caption-a-photo-and-keep-the-caption-as-a-memory by=harvest note=lead runs it (memory.spec.ts only, lane-a fresh stack) at the smoke with one mutation
