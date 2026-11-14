@@ -84,6 +84,35 @@ deferred:
 - Given the existing node tests and the Playwright specs that open the three pages (settings/*, history, usage, banners, frame, more-to-try, floor/browsers, z-settings-save), when they run after the change, then they pass with no assertion changed but the settings route-text pin, including S6's unsaved prompt and on-call.spec.ts's On call section (Story 36.4) on the lazily loaded page.
 - Given the bundle built by this change, when `live:bundle-folder` seeds it into the old folder and restarts, then the old folder holds only the two zz files (no chunk file left behind).
 
+### Review Findings
+
+Code review 2026-11-13 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 25 raw findings; 0 high, 1 medium, 6 low patched, 1 deferred to the ledger, 14 rejected). AC3 judged: S1/U1's web-first address reads are a legitimate test-only adaptation (a lazy route commits the hash with its content once the chunk loads; same final address, assertion no weaker). `NG_BUILD_OPTIMIZE_CHUNKS=0` and DW-1300 (wontfix-accepted, pinned by lazy-routes.test.mjs (c) and now by the built-name check) accepted. `initial-bundle.test.mjs` inside `npm --prefix web test` accepted: hermetic temp output, full suite 2000 pass in 14.5 s locally; CI builds it cold once more. Other lanes' `import('./roles-section')` / `import('./mcp-section')` become nested lazy chunks of the lazy Settings page; neither lane touches app.config.ts, the header, the guard, `pageOf`, `settingsMatch` or the moved strings.
+
+- [x] [Review][Patch] (medium) The size pin summed only the files index.html names, and Angular writes at most 10 modulepreload links, so deeper initial chunks would go uncounted -- now follows static imports from the entry script through the chunks (as Angular counts its Initial total) and asserts every preloaded chunk is in that walk [web/scripts/initial-bundle.test.mjs:61]
+- [x] [Review][Patch] (low) No automated check of built file names against STALEFILES or of the About note in a main-*.js (AC1) -- added to initial-bundle.test.mjs, reading STALEFILES from Web.cls and the note from about-dialog.ts [web/scripts/initial-bundle.test.mjs:84]
+- [x] [Review][Patch] (low) initial-bundle.test.mjs header claimed it catches any page going eager and a warm cache in CI -- corrected (History alone stays under 921 kB; CI=true turns the cache off) [web/scripts/initial-bundle.test.mjs:1]
+- [x] [Review][Patch] (low) The size build inherited the caller's other NG_BUILD_* variables -- dropped before the script's own are applied [web/scripts/initial-bundle.test.mjs:31]
+- [x] [Review][Patch] (low) lazy-routes.test.mjs (b) history/usage/settings pins depended on each row staying on one line -- `[^}]*?` keeps them inside the row object [web/scripts/lazy-routes.test.mjs:105]
+- [x] [Review][Patch] (low) settings-view.ts said the re-export is "for the page and its tests"; settings-page.ts uses neither function [web/src/app/settings/settings-view.ts:181]
+- [x] [Review][Patch] (low) Doc drift: deep-link.spec.ts header said D1 to D3 (D4 exists); history-view.test.mjs header said the module imports types (it imports only page-shell-view.ts) [web/e2e/settings/deep-link.spec.ts:7]
+- [x] [Review][Defer] The in-suite ng build could make the suite's wall-clock assertions flaky on a small hosted runner [web/scripts/initial-bundle.test.mjs:50] -- deferred: unverified (local full suite green); settled by a timing red in the ci web job's Unit tests step; DW-1302 wontfix-theoretical
+
+Rejected:
+- EC: D1/D4 hard-code On call, failing on a stack without on-call values -- false: sign-in-2's stack is not the online demo and D1 passed; settings.spec.ts S1 pins the same eight.
+- EC/AA: no handler when a lazy chunk fails to load -- low, real; a handler needs new user-facing text (veto item); DW-1301 wontfix-accepted with reopen_if.
+- EC: a failed chunk shows as a generic waitForResponse timeout -- low, diagnostics only after a failure is already reported.
+- EC: lazy-routes (c) asserts nothing once STALEFILES admits `_`/`-` -- false: the flag is only needed while the pattern rejects them (by design).
+- EC: concurrent ng builds share web/.angular -- low: local only (CI=true disables the cache), unlikely, no failure shown.
+- VG: the size pin cannot catch the optimizer flag removed or History eager alone -- false: lazy-routes (a)/(c) pin those (recorded mutations).
+- VG: `dialog toHaveCount(0)` before any action cannot fail -- false: a precondition that fails if any dialog is open on load; not a pinning assertion.
+- AA: QA work is uncommitted at HEAD -- false as a code finding: stages may not commit; the lead commits.
+- AA: AC3 wording vs the S1/U1 change -- low, by-design: disclosed in the Spec Change Log and judged legitimate; the fix would edit the spec.
+- AA: SECTION_NAMES will need updating when 25.4/21.4 sections merge -- low: the e2e convention; whoever integrates second updates both lists.
+- BH: Auto Run Result stale since QA -- fix edits the spec under review; this section records the QA additions.
+- BH: QA additions overtake the Review Triage Log's BH4/VG2 reason -- fix edits the spec; recorded here.
+- BH: CI builds twice and local npm test pays a build -- low: measured 14.5 s for the full suite locally; one cold build in a 15-minute job; reusing the in-place build would cost hermeticity.
+- BH: the triage tally does not add up -- fix edits the spec.
+
 ## Spec Change Log
 
 - 2026-11-13, implement stage: two existing e2e reads, `settings.spec.ts` S1 and `usage.spec.ts` U1, read `page.url()` right after the header-link click. A lazy route commits the hash only after its chunk loads, so both read `#/` (red). Decided in-stage (small, test-only): each read became the web-first `await expect(page, ...).toHaveURL(/#\/settings$/)` and `/#\/usage$/` (same expected address, now retried; the form `more-to-try.spec.ts` and S6 already use). AC3's "no assertion changed" holds for every other assertion; the app behaviour (the address ends at the page) is unchanged.
@@ -156,6 +185,14 @@ mutation: AC1, History made eager again (`import { HistoryPage }` + `component: 
 mutation: AC2, the usage row's `loadComponent` pointed at `HistoryPage` -> `deep-link.spec.ts` D3 red (settings/deep-link part 12/15 of sign-in-2; D1 and D2 stay green)
 mutation: AC3, `canDeactivate: [unsavedGuard]` dropped from the settings row -> `settings.spec.ts` S6 red (also S5b, S6b and S6c; part 19/21 of sign-in-2)
 mutation: AC4, `NG_BUILD_OPTIMIZE_CHUNKS=0` removed from the build script -> `lazy-routes.test.mjs` (c) "stay inside the installer pattern while the optimizer is the only thing that keeps them there" red; the build emitted chunk-DxAZbMhD.js, chunk-K_0tuUr6.js and others with `_`/`-` names (Initial total 889.90 kB)
+
+QA stage (tests only, nothing else changed; lane B, tag e36s5q, torn down):
+- `web/scripts/initial-bundle.test.mjs` (QA, new): builds the app into a temporary folder (never src/ocutalon/csp/) with the flag of package.json's build script and asserts the files that the built index.html loads up front total at most 921,000 bytes (measured 878.98 kB). `node --test web/scripts/initial-bundle.test.mjs` passes (~2 s warm, ~20 s cold); `npm --prefix web test` 1999 pass.
+- `web/e2e/settings/deep-link.spec.ts` D4 (QA, added to the implement stage's file): the unsaved-changes guard on the Settings page opened by address (section link and page link ask, Stay keeps the section and value, Leave goes on). `live sign-in-2 --part 12/15` (deep-link + email): 10 passed.
+- Gap review: the sub-section deep link after a reload is already pinned by D1 (`#/settings/check-thresholds`, then `reload()`); S6/S6b/S6c/S5b pin the guard on the lazily loaded page reached by link presses; neither was duplicated.
+mutation: AC1 size, Settings made eager again (`import { SettingsPage }` + `component: SettingsPage` in app.config.ts) -> `initial-bundle.test.mjs` "holds at most 921 kB of files that the page loads up front" red (initial total 978.35 kB over 921 kB, walked from the entry script; code review re-run 2026-11-13); History eager alone (899.79 kB) stays under the cap and is the import-graph pin's job
+mutation: AC1/AC4 built names, `NG_BUILD_OPTIMIZE_CHUNKS=0` removed from the build script -> `initial-bundle.test.mjs` "names every bundle file as the installer's STALEFILES pattern expects" red (chunk-BLoI6j-L.js, chunk-DSUlC_sP.js; code review 2026-11-13)
+mutation: AC3 guard on a deep-linked page, `canDeactivate: [unsavedGuard]` dropped from the settings row -> `deep-link.spec.ts` D4 red ("a section link asks first"; D1-D3 and email stay green)
 
 ## Auto Run Result
 
