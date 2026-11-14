@@ -238,3 +238,7 @@
 2026-11-14T17:19:40Z	Story 36.8	stage_spawned	stage=qa spawn_at=2026-11-14T17:19:40Z model=sonnet agent_name=36-8-qa-1 cycle_iteration=1 effort=high
 2026-11-14T17:25:44Z	Story 36.8	qa_complete	model=sonnet tests=ZzC(nested),ZzMixed(multi-read_line),ZzClean+4(unregistered),ZzKnown:Other,ZzKnownB mutations_demonstrated=6
 2026-11-14T17:25:44Z	Story 36.8	stage_spawned	stage=code-review spawn_at=2026-11-14T17:25:44Z model=opus agent_name=36-8-code-review-1 cycle_iteration=1 effort=high
+2026-11-14T17:42:38Z	Story 36.8	cr_complete	model=opus layers=4 scope=6e9ef429c..287dc3078 resolved=4(med:hermetic_samples;low:wr_scan_stale_test,limits,mutation_lines) dismissed=7 high=0 med=1 low=7 unresolved_high_med=0 final_status=done note=one_layer_ran_a_read-only_IRIS_MCP_query(iris_server_profiles,iris_sql_query);one_temp_file_under_/tmp_deleted
+2026-11-14T17:42:38Z	Story 36.8	ledger_adjudicated	owned=1 resolved=1(DW-1287) new=2(DW-1338,DW-1339_decision-pending:veto_V3,V1/V2_for_the_Planner)
+2026-11-14T17:42:38Z	Story 36.8	smoke_complete	method=lint(test-class-rules_10_PASS_incl_web-global-reads,boundaries,ci-config;planted_ZzPlanted_red_earlier) result=pass
+2026-11-14T17:42:38Z	Story 36.8	fresh_check	env=worktree_on_feature_23fafe59(ancestor) tests=test-class-rules+boundaries+ci-config result=pass
