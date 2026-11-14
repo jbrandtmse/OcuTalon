@@ -2085,6 +2085,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T10:06:56Z occurrence=0-28 by=runner note=run_43159935962_attempt_1_job_130988445819_iris(production)_live:production_on_ocutalon-ci-10:row_21_wanted_CHK|start-fails|1|1_got_'';OCT-epic0_eff03a14(README+release_checks_only);one_rerun_of_failed_jobs(attempt_2,started_by_orchestrator_10:02Z)
 - 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
 - 2026-11-14T05:25:54Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=OCT-epic22_522228a5_ci_run_43554772670_job_132325025906_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;one_rerun_of_failed_jobs
+- 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -6772,6 +6773,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z status=routed owner=burndown by=orchestrator note=flake class (first occurrence); no fix work now (Planner); rerun once per occurrence
 - 2026-11-13T01:01:54Z occurrence=feature-bc3eea8f note=ci_43320628392_att2_shards-4_R10
 - 2026-11-13T20:38:47Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959516 iris(shards-4) live:sign-in-2 rail.spec.ts:432 R10; only diff the heartbeat card's real check-in at 20:26 between live read and reload; rail untouched by 36.4; one rerun
+- 2026-11-14T13:17:46Z occurrence=feature-f138fcf8 by=orchestrator note=run 43595216871 iris(shards-4) live:sign-in-2 rail R10 'a reload shows the same rail' (ci-12); rerun --failed
 
 ### DW-1094: flake: lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges ('trace_opened/run_again changes none of the session's data rows') and TestRunAgain ('steps 3 to 5 reset; the watch still counts')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8110,3 +8112,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: The spec's Spine updates for the lead are not in ARCHITECTURE-SPINE.md (no Mailbox, emailPoll or notCheckedStopped). The review also made a Mailbox-only session nothing watched (AD-28).
 - 2026-11-14T09:30:55Z status=open owner=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=lead: write AD-18/AD-28 per spec Spine updates plus 'the connected mailbox is not a watch' before merge
 - 2026-11-14T09:34:13Z status=resolved-by:22-5-poll-a-read-only-mcp-tool-as-a-source by=adjudication note=spine:AD-18_record'Source_polls,Part_A(Story_22.5)'+AD-28_record'Not-checked_lead_and_the_mailbox(Story_22.5)'(mailbox_is_not_a_watch);lint_unchanged
+
+### DW-1335: infra: self-hosted runner ocutalon-ci-4 has port 52814 (its fixed web port) held by something else; every browser unit it runs fails at live_web_port with 'port 52814 is in use on 127.0.0.1'
+- source: orchestrator; feature f138fcf8 ci run 43595216871 | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: run 43595216871 attempt 1: shards-3 (live:floor, live:demo-switch) and shards-6 (live:documents, live:bundle-folder), both on ocutalon-ci-4, 12:45-13:05Z
+- 2026-11-14T13:17:46Z status=routed owner=burndown by=orchestrator note=infra, not code; likely a stack left by a cancelled job; needs a runner-side cleanup (owner or Planner call); rerun lands elsewhere if lucky
+- 2026-11-14T13:19:42Z status=routed owner=burndown by=orchestrator note=cause (Planner, who cleaned ci-4 ~13:25Z): the stack of run 43593749725 (d2c2fb0d ci) that the ORCHESTRATOR CANCELLED kept running and held 52814; a cancelled job skips teardown. Fix before the 1.0.10 RC (test and CI only): at job start ci/iris.sh removes any compose stack publishing THIS runner's fixed web port (one job per runner, so it is a leftover), logs the project, never touches another runner's port; test with a planted leftover
