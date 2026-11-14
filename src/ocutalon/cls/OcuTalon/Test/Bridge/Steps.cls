@@ -16,6 +16,10 @@
 ///   - TestEmailStepShowsOnlyItsRecipientCount (Story 22.7): a step of the email tool (send_email) shows its inputs as {"tool":"send_email","recipients":<n>} and nothing of its arguments, in an ok, an
 ///     error and a denied step, for arguments that are not an object or hold no recipients array, and its result and denial are the fixed words that the tool and the gate give; an MCP call named
 ///     send_email keeps the MCP rule (its server and tool alone), and any other tool's inputs are as they were; the buffer's EMAILTOOL is the Chat tool's name (OcuTalon.Tools.Names SENDEMAIL);
+///   - TestEmailStepErrorIsAFixedSentence (Story 22.7, R5-5): the error of a step of the email tool is the fixed sentence "Error: the email tool call failed." whatever the error's own text holds (here an address, a
+///     subject and a text), in a call with a class and in one with none; the error of an MCP call named send_email and of any other tool is shown as before, and so are the denial and the result of the email tool;
+///   - TestReroutedCallNamedSendEmailKeepsTheMcpRecord (Story 22.7, R6-3): a step named send_email that the gate rerouted to the governed proxy (a native MCP call) keeps the MCP record, its server and tool alone
+///     as its inputs and its error's own text, and not the email record (the count of recipients, the fixed error sentence);
 ///   - TestLabels: the label of a tool is the parameter STEPLABEL<NAME> of its class, else STEPLABEL, else "Running a tool", for the name
 ///     with _ and - removed and in upper case; a class that does not exist and an empty class give the generic label;
 ///   - TestAudit: %LogExecution records the arguments as a string and as an object, the class from the metadata, the result_json, the
@@ -236,6 +240,80 @@ Method TestEmailStepShowsOnlyItsRecipientCount()
 	Do $$$AssertTrue(records.%Get(0).summary [ resultPart, "the tool's answer is the result, as it is: fixed words only")
 	Do $$$AssertTrue(records.%Get(1).summary [ deniedPart, "and the gate's denial is as it is")
 	Do $$$AssertTrue(records.%Get(10).summary [ address, "another tool's inputs are its arguments as they are")
+}
+
+/// Story 22.7 (R5-5): the Error part of a step record of the email tool is the fixed sentence EMAILERROR, never the error's own text, because the text of an error is a host's and may quote the call (an
+/// address, the subject or the text). The step's denial and result are unchanged (fixed words), an MCP call that happens to be named send_email keeps the MCP rule and its error as it was, and the error of
+/// every other tool is shown as it was.
+Method TestEmailStepErrorIsAFixedSentence()
+{
+	Set buffer = ..#BUFFER
+	Set marker = "zzr5error.marker@example.test"
+	Set detail = "Could not send to " _ marker _ " with the subject zzr5subject and the text zzr5text: the mail server said no"
+	Set arguments = {"recipients": [("zzr5.partner@example.test")], "subject": "zzr5subject", "text": "zzr5text"}.%ToJSON()
+	Set answer = {"message": "The email was sent.", "ok": true, "outcome": "sent"}.%ToJSON()
+	Set tool = "OcuTalon.Tools.EmailTools"
+	Do $ClassMethod(buffer, "Start", 0)
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, "", 2, "error", detail)
+	Do $ClassMethod(buffer, "Tool", "send_email", "", arguments, "", 2, "error", detail)
+	Do $ClassMethod(buffer, "Tool", "send_email", "mcp:zzsteps", arguments, "", 2, "error", detail)
+	Do $ClassMethod(buffer, "Tool", "zz_other", "", arguments, "", 2, "error", detail)
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, "", 0, "denied", "Tool access denied: held for your approval; nothing was run")
+	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, answer, 5, "ok", "")
+	Set records = $ClassMethod(buffer, "Records")
+	Do $ClassMethod(buffer, "End")
+	Do $$$AssertEquals($Parameter(buffer, "EMAILERROR"), "the email tool call failed", "the fixed sentence of the buffer")
+	Do $$$AssertEquals(records.%Size(), 6, "six steps")
+	If records.%Size() '= 6 Quit
+	Set fixed = ". Error: the email tool call failed. About "
+	Set names = $ListBuild("the email tool", "the email tool with no class")
+	For i = 1:1:2 {
+		Set summary = records.%Get(i - 1).summary
+		Do $$$AssertEquals($Extract(summary, 1, $Length("send_email. Inputs: {""tool"":""send_email"",""recipients"":1}" _ fixed)), "send_email. Inputs: {""tool"":""send_email"",""recipients"":1}" _ fixed, $List(names, i) _ ": the error is the fixed sentence")
+		Do $$$AssertEquals(records.%Get(i - 1).status, "error", $List(names, i) _ ": the step is still an error step")
+		Do $$$AssertEquals((summary [ marker) _ "|" _ (summary [ "zzr5") _ "|" _ (summary [ "mail server"), "0|0|0", $List(names, i) _ ": the summary holds nothing of the error's text")
+	}
+	Do $$$AssertTrue(records.%Get(2).summary [ (". Error: " _ detail _ ". "), "an MCP call named send_email: its error is as it was")
+	Do $$$AssertTrue(records.%Get(2).summary [ "{""tool"":""send_email""}", "and its inputs are the MCP rule's")
+	Do $$$AssertTrue(records.%Get(3).summary [ (". Error: " _ detail _ ". "), "another tool: its error is as it was")
+	Do $$$AssertTrue(records.%Get(4).summary [ ". Denied: Tool access denied: held for your approval; nothing was run. ", "the denial of the email tool is as it was")
+	Do $$$AssertTrue(records.%Get(5).summary [ (". Result: " _ answer _ ". "), "and so is its result")
+}
+
+/// Story 22.7 (R6-3): the email record rule does not reach an MCP call that happens to be named send_email. The gate rerouted such a call to the governed proxy (Context NoteRerouted), so the audit
+/// policy records it under its own name with the metadata of the proxy tool, and its step keeps the MCP record: its server and tool alone as the inputs, and its error as it is, not the count of
+/// recipients and the fixed sentence of the email tool.
+Method TestReroutedCallNamedSendEmailKeepsTheMcpRecord()
+{
+	Set buffer = ..#BUFFER
+	Set context = "OcuTalon.Bridge.Context"
+	Set partner = "zzr6.partner@example.test"
+	Set detail = "The server said no for zzr6.error@example.test"
+	Set arguments = {"recipients": [(partner)], "subject": "zzr6subject", "text": "zzr6text"}.%ToJSON()
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Set records = ""
+	Do $ClassMethod(context, "End")
+	Try {
+		Do $$$AssertStatusOK($ClassMethod(context, "Begin", request), "a context starts")
+		Do $ClassMethod(context, "NoteRerouted", "send_email", "zzsteps")
+		Do $ClassMethod(buffer, "Start", 0)
+		Do $ClassMethod(buffer, "Tool", "send_email", "OcuTalon.Tools.McpCall", arguments, "", 2, "error", detail)
+		Set records = $ClassMethod(buffer, "Records")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the rerouted call test threw: " _ exception.DisplayString())
+	}
+	Do $ClassMethod(buffer, "End")
+	Do $ClassMethod(context, "End")
+	Do $$$AssertTrue($IsObject(records), "the records are read")
+	If '$IsObject(records) Quit
+	Do $$$AssertEquals(records.%Size(), 1, "one step")
+	If records.%Size() '= 1 Quit
+	Set summary = records.%Get(0).summary
+	Set expected = "send_email. Inputs: {""server"":""zzsteps"",""tool"":""send_email""}. Error: " _ detail _ ". About "
+	Do $$$AssertEquals($Extract(summary, 1, $Length(expected)), expected, "the MCP record: its server and tool and its error's own text")
+	Do $$$AssertEquals((summary [ "the email tool call failed") _ "|" _ (summary [ """recipients""") _ "|" _ (summary [ partner), "0|0|0", "and nothing of the email record")
+	Do $$$AssertEquals(records.%Get(0).status, "error", "it is an error step")
 }
 
 /// The label of a tool.

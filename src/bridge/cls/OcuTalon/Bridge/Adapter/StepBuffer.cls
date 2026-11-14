@@ -34,8 +34,12 @@ Parameter MAXLABEL = 200;
 Parameter MAXSUMMARY = 1000;
 
 /// The name of the tool that sends email. A step of a tool of this name shows its inputs as the name and the number of recipients alone (InputsOf), because no email's recipients are in
-/// the trace, and an email's subject and text are in it only in the message that sends it to the mailbox's own address.
+/// the trace, and an email's subject and text are in it only in the message that sends it to the mailbox's own address. When such a step failed, its record says EMAILERROR in place of the
+/// error's own text (Records), because that text is a host's and may quote the call.
 Parameter EMAILTOOL = "send_email";
+
+/// What the record of a failed step of the email tool says in place of the error's text: the record reads "Error: the email tool call failed."
+Parameter EMAILERROR = "the email tool call failed";
 
 /// Empties the buffer and starts a call: the base of every estimate and the clock mark.
 ClassMethod Start(baseChars As %Integer = 0)
@@ -103,7 +107,7 @@ ClassMethod Estimates() As %List
 ///   - A model step: kind model, label "Model request <n>", summary "About <t> tokens sent (an estimate). Reply: <c> characters of
 ///     text, <k> tool calls.", where k counts the tool steps that follow it before the next model step, status ok.
 ///   - A tool step: kind tool, the label of its class (LabelFor), summary "<name>. Inputs: <arguments>. Result: <result>." (the inputs of a call of the governed proxy are its server and tool alone, and those of
-///     the email tool its name and the number of its recipients alone, InputsOf; or "Error: <detail>." or "Denied: <detail>."), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
+///     the email tool its name and the number of its recipients alone, InputsOf; or "Error: <detail>." or "Denied: <detail>.", where the detail of a failed step of the email tool is always EMAILERROR), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
 ///     arguments and the result or detail in tokens.
 ClassMethod Records() As %DynamicArray
 {
@@ -129,9 +133,9 @@ ClassMethod Records() As %DynamicArray
 		} Else {
 			Set name = $List(step, 4)
 			Set status = $List(step, 8)
-			Set detail = ..Part($List(step, 9), ..#MAXRESULT)
-			Set outcome = $Select(status = "error": "Error: " _ detail, status = "denied": "Denied: " _ detail, 1: "Result: " _ ..Part($List(step, 7), ..#MAXRESULT))
 			Set server = ..ReroutedServerOf($List(step, 5), name, .used)
+			Set detail = $Select(status = "error" && ..IsEmailCall($List(step, 5), name, server): ..#EMAILERROR, 1: ..Part($List(step, 9), ..#MAXRESULT))
+			Set outcome = $Select(status = "error": "Error: " _ detail, status = "denied": "Denied: " _ detail, 1: "Result: " _ ..Part($List(step, 7), ..#MAXRESULT))
 			Set label = ..Part(..LabelFor($List(step, 5), name, $List(step, 6), server), ..#MAXLABEL)
 			Set summary = ..Cut(..Part(name, ..#MAXNAME) _ ". Inputs: " _ ..Part(..InputsOf($List(step, 5), name, $List(step, 6), server), ..#MAXINPUTS) _ ". " _ outcome _ ". About " _ tokens _ " tokens added to the next request (an estimate).", ..#MAXSUMMARY)
 			Set kind = "tool"
@@ -152,7 +156,7 @@ ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String
 		Set server = $Select(rerouted '= "": rerouted, 1: ##class(OcuTalon.Bridge.Context).McpServerOf(toolClass))
 		Quit $Select(server '= "": {"server": (server), "tool": (name)}.%ToJSON(), 1: {"tool": (name)}.%ToJSON())
 	}
-	If name = ..#EMAILTOOL Quit ..EmailInputs(arguments)
+	If ..IsEmailCall(toolClass, name, rerouted) Quit ..EmailInputs(arguments)
 	If name '= $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPROXY") Quit arguments
 	Set inputs = ""
 	Try {
@@ -162,6 +166,13 @@ ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String
 		Set inputs = ""
 	}
 	Quit inputs
+}
+
+/// 1 when the step is a call of the email tool (EMAILTOOL) and not an MCP call: its toolClass is not an MCP toolref and no server was rerouted for it (an MCP tool that happens to be named
+/// send_email keeps the MCP rule).
+ClassMethod IsEmailCall(toolClass As %String, name As %String, rerouted As %String = "") As %Boolean [ Private ]
+{
+	Quit (name = ..#EMAILTOOL) && (rerouted = "") && ($ZConvert($Extract(toolClass, 1, 4), "L") '= "mcp:")
 }
 
 /// The inputs of a step of the email tool: its name and the number of the entries of the arguments' recipients array, as JSON text, and nothing else of the arguments. Arguments that are

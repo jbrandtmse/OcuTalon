@@ -42,6 +42,8 @@
 ///   - TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace (R4-3, Story 22.7): the real chat route, with unique markers in the scenarios send-email-trace-other and send-email-trace-own and none in the chat text. A held
 ///     email to another address, and the same email once approved and sent, leave no recipient, no subject marker and no text marker in any trace global (OcuTalon.Test.Core.SecretHandoff TraceLeaks); an email to the
 ///     mailbox's own address leaves no address in them, and its subject and text are in the message bodies like a chat message's. The step records of both turns show the count of recipients and nothing of the call;
+///   - TestEmailToolErrorLeavesNoAddressInTheTrace (R5-5, Story 22.7): the step of a failed send_email call, whose error text quotes a unique recipient, subject and text, is recorded by the real step audit policy
+///     and buffer, carried by a Reply and its AgentStep messages (Decide StepMessages) and stored: the record says "Error: the email tool call failed." and no trace global holds the quoted address, subject or text;
 ///   - TestInterruptedRunHasNoResult (Task 0, item 5): an email run that a restart cut short is marked and closed by Fix.Run.Interrupt, and Sweep ends it interrupted with an Action entry and no FixResult;
 ///     an email run that has no ResentAt is left alone. The test holds the lock of both runs (HoldRun), so the production's own Sweep never takes them.
 Class OcuTalon.Test.Fix.Email Extends OcuTalon.Test.Watch.Case
@@ -115,6 +117,9 @@ Property Users As %String(MAXLEN = "") [ Private ];
 /// 1 when a test has put the fixed markers of the trace scenarios in the trace: OnAfterOneTest takes them out again.
 Property Marked As %Boolean [ InitialExpression = 0, Private ];
 
+/// The messages that a test stored in the trace by itself, as a list of $ListBuild(class, id): OnAfterOneTest deletes them.
+Property Stored As %List [ Private ];
+
 Method OnBeforeAllTests() As %Status
 {
 	Set sc = ##super()
@@ -129,6 +134,7 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Marked Do ..ForgetMarkers()
+	Do ..DropStored()
 	If ..Missing = "" Do ..Disconnect()
 	Quit ##super(testname)
 }
@@ -1285,6 +1291,61 @@ Method TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace()
 	Do $$$AssertTrue($Extract(..ToolStepSummary(answer), 1, $Length(count)) = count, "own address: the turn's own step record shows the count of recipients")
 	Do ..AssertSteps(answer, turnSession, "Sending an email", "send_email")
 	Do ..AssertNoContent(..#TRACEOTHER, ..#TRACEOTHERSUBJECT, ..#TRACEOTHERTEXT, "after the own-address turn of the same conversation")
+}
+
+/// R5-5 (Story 22.7): the Error part of the step record of a failed send_email call is a fixed sentence, so that an error's own text, which may quote the call, never reaches the trace. The test makes the
+/// step as AI Hub does: the real step audit policy gets the call (its arguments hold a unique recipient, subject and text) and an error status whose text quotes another unique address, the subject and the
+/// text. The records of the real buffer travel as Decide sends them: on a Reply (Steps) and as the AgentStep messages that StepMessages builds from it; both are stored, as the production stores them, and
+/// OcuTalon.Test.Core.SecretHandoff TraceLeaks scans ^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD for the unique part, which every quoted value holds.
+Method TestEmailToolErrorLeavesNoAddressInTheTrace()
+{
+	If '..Ready() Quit
+	Set unique = "zzr5"_$Job_"x"_$Random(1000000)
+	Set quoted = unique_".error@example.test"
+	Set partner = unique_".partner@example.test"
+	Set subject = unique_"subject marker"
+	Set text = unique_"text marker"
+	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
+	Set call = {"id": "toolu_zz_r5", "name": "send_email"}
+	Do call.%Set("arguments", {"recipients": [(partner)], "subject": (subject), "text": (text)}.%ToJSON())
+	Set meta = {"ReadOnly": "0", "origin_class": "OcuTalon.Tools.EmailTools", "requires_auth": false}
+	Set error = $SYSTEM.Status.Error(5001, "The email to "_quoted_" with the subject "_subject_" and the text "_text_" could not be sent")
+	Do $ClassMethod(buffer, "Start", 0)
+	Set audit = ##class(OcuTalon.Bridge.Policy.StepAudit).%New()
+	Do $$$AssertEquals(audit.%LogExecution(call, meta, "", 3, error), 1, "the step audit policy records the failed call")
+	Set records = $ClassMethod(buffer, "Records")
+	Do $ClassMethod(buffer, "End")
+	Do $$$AssertEquals(records.%Size(), 1, "one step record")
+	If records.%Size() '= 1 Quit
+	Do $$$AssertEquals(records.%Get(0).status, "error", "an error step")
+	Set expected = "send_email. Inputs: {""tool"":""send_email"",""recipients"":1}. Error: the email tool call failed. About "
+	Do $$$AssertEquals($Extract(records.%Get(0).summary, 1, $Length(expected)), expected, "its record shows the fixed sentence: the count of recipients and Error: the email tool call failed.")
+
+	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+	Set reply.Text = "The email could not be sent."
+	Set reply.Steps = ##class(OcuTalon.Bridge.Adapter.Agent).StepsJson(records)
+	Set messages = ##class(OcuTalon.Bridge.Process.Decide).StepMessages("zzr5decisionref", reply)
+	Do $$$AssertEquals(messages.Count(), 1, "Decide builds one AgentStep message from the Reply")
+	If messages.Count() '= 1 Quit
+	Do $$$AssertStatusOK(reply.%Save(), "the Reply is stored")
+	Set ..Stored = ..Stored _ $ListBuild($ListBuild("OcuTalon.Bridge.Msg.Reply", reply.%Id()))
+	Set message = messages.GetAt(1)
+	Do $$$AssertStatusOK(message.%Save(), "the AgentStep message is stored")
+	Set ..Stored = ..Stored _ $ListBuild($ListBuild("OcuTalon.Bridge.Msg.AgentStep", message.%Id()))
+	Set opened = ##class(OcuTalon.Bridge.Msg.AgentStep).%OpenId(message.%Id())
+	Do $$$AssertTrue($IsObject(opened) && (opened.Summary [ ". Error: the email tool call failed. "), "the stored step says the fixed sentence")
+	Set leaks = ##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(unique)
+	Do $$$AssertEquals(leaks, "", "no trace global holds the address, the subject or the text that the error quoted, nor the call's own recipient (found in: "_leaks_")")
+}
+
+/// Deletes the messages that a test stored in the trace by itself (Stored).
+Method DropStored() [ Private ]
+{
+	Set position = 0
+	While $ListNext(..Stored, position, entry) {
+		Do $ClassMethod($List(entry, 1), "%DeleteId", $List(entry, 2))
+	}
+	Set ..Stored = ""
 }
 
 /// Asserts that no trace global holds the recipient, the subject marker or the text marker.
