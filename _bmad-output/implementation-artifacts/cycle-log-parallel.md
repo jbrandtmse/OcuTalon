@@ -4159,3 +4159,15 @@
 2026-11-14T15:56:57Z	Epic 36	epic_merged_to_feature	part=36.3 feature_sha=6899e3e5 pushed_before_hold=15:56:51Z merged_tree_pins=test-readme_pass ci=own_run(started_pre-hold,may_finish) epic-36=done(runner_close;completion_head_9d389150_CI_open)
 2026-11-14T16:01:29Z	Run	hold_ordered	reason=QUOTA_HOLD_16:00Z(Contest_Planner,owner) via=<state>/HOLD
 2026-11-14T16:01:29Z	Run	hold_complete	feature=6899e3e5(ci_43612889290+lane-a_43612889274_queued,started_pre-hold) lanes: A25=07a667de(merged;records_68e7be18->hold/OCT-epic25-20261114) A26=8ab6a725(merged;WIP_32472435@hold/OCT-epic26;next_26.2_implement) B36=9d389150(epic_done;ci_43606743361_shards-5_red_DW-333?;records_5ecbf7d16@hold/OCT-epic36) C21=f82fb8c17(21.10_pushed;ci_43611736264/267_running;needs_integrate_over_f403bf66+;records_s2115_662749d3@hold/OCT-epic21-s2115) D22=16772e40(merged;spec_1a07b522@hold/OCT-epic22;next_22.11_implement) worktrees=clean runners=all_ended locks=none lock=kept
+2026-11-14T16:01:50Z	Run	ci_cancelled	runs=43613317207,43613317041(records-only_23fafe59;hosted_jobs_only_started;no_self-hosted_stack) reason=hold+records_only
+2026-11-14T16:02:41Z	Run	owner_decision	via=contest_planner reload_timeouts=check_handler+traces_first(then_DW-333_rerun_or_STOP) V12=Cancelled_text(21.10) DW-1314_pointer=MCP_tools_section(21.10) css_+244B=warning_accepted(DW-1337_low)
+2026-11-14T16:38:19Z	Run	hold_off	via=contest_planner(owner) hold-clear=done next_hold=20:00Z account_unchanged(80pct@16:37Z)
+2026-11-14T16:39:23Z	Run	resume_after_hold	C=21.10_integrate(+V12,DW-1314_pointer) D=22.11_implement A26=26.2_implement B=reload_check_then_rerun+completion A25=DW-1335_as_25.7 reminders=19:43Z,20:01Z
+2026-11-14T16:39:45Z	Run	owner_decision	via=contest_planner next_hold_moved_20:00Z->21:00Z reminders=20:43Z,21:01Z
+2026-11-14T16:45:26Z	Epic 36	runner_complete	epic=36 stories=36.1-36.7 head=0805a1bd(records;code=feature) reload_check=handler_cleared(ERR_NETWORK_CHANGED_on_CI_host=DW-333) ci=9d389150_green(att2_by_identity) slip=traces_copied_to_owner_machine_then_deleted(logged) records_runs=not_cancelled(self-hosted_jobs_live)
+2026-11-14T16:45:26Z	Epic 36	tracker_set	epic-36=done
+2026-11-14T16:45:48Z	Epic 36	owner_decision	via=contest_planner close_accepted trace_slip_check_requested 36.8=DW-1287_approved no_new_epic_laneB(81pct_weekly)
+2026-11-14T16:52:22Z	Run	owner_decision	via=contest_planner 21:00Z_hold_CANCELLED trigger=weekly_usage_95pct("QUOTA HOLD NOW") reminders_cancelled
+2026-11-14T18:17:28Z	Epic 36	runner_reported	PART_READY story=36.8 head=8009b184 runs=43622582261,43622582258 DW-1287=resolved baseline=4_Session_reads DW-1338,1339=decision-pending trace_check=fake_creds_only(compose.ci.yml:7,24,29) iris_query=default_profile(localhost:52773_community_container;not_ocutalon-aihub-test_52779)
+2026-11-14T18:17:28Z	Epic 36	ci_green_verified	sha=8009b184
+2026-11-14T18:17:28Z	Epic 36	merge_enqueued	part=36.8 head=8009b184

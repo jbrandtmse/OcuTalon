@@ -8149,3 +8149,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover.md (code review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: OnSetSource refuses only ENTRYMAILBOX (Planner ruling ~09:40Z/~13:20Z named Mailbox). A source named 'the mailbox' reads 'I checked the mailbox and the mailbox'; one named 'database space' gives two such coverage lines. Each needs a deliberate admin choice; a wider list needs new public text.
 - 2026-11-14T13:37:44Z status=wontfix-accepted owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=reopen_if=an admin reports, or a digest shows, two coverage entries or two checked names that read the same
+
+### DW-1337: The approval-request-card stylesheet is 244 bytes over its 4 kB anyComponentStyle warning budget after Story 21.10
+- source: orchestrator; 21.10 hold report | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 21.10 build at f82fb8c17: warning only
+- 2026-11-14T16:02:41Z status=routed owner=burndown by=orchestrator note=Planner: accepted as a warning, no budget raise; trim it the next time the card is touched
