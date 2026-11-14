@@ -112,7 +112,8 @@
 #   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
 #   admin-mcp      "For admins and developers" opens with the ruled MCP paragraph, once: the Risky classification sentence, word for word
-#                  from docs/mcp-jira-example.md, and a link to that worked example (Story 36.3; FR-10)
+#                  from docs/mcp-jira-example.md, and a link to that worked example, as a paragraph of its own; the example holds that
+#                  sentence once, as a whole line (Story 36.3; FR-10)
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
 #   dev-only       in the README and the guide, no ##class(, class name or error code outside the sections "For admins and developers" and "Gmail and Microsoft 365",
@@ -1358,6 +1359,9 @@ chk_admin_mcp() {
   section "$1" 'For admins and developers' > "$sec"
   if [ "$(awk 'NF { print; exit }' "$sec")" != "$ADMIN_MCP_LINE" ]; then
     echo "admin-mcp: 'For admins and developers' does not open with the ruled MCP paragraph"
+  fi
+  if [ -n "$(awk -v l="$ADMIN_MCP_LINE" 'f { print; exit } $0 == l { f = 1 }' "$sec")" ]; then
+    echo "admin-mcp: a line runs on from the ruled MCP paragraph with no empty line, so Markdown joins it to the paragraph"
   fi
   n=$(grep -cxF -- "$ADMIN_MCP_LINE" "$1")
   if [ "$n" -ne 1 ]; then echo "admin-mcp: the guide holds the ruled MCP paragraph $n times, not once"; fi
@@ -2723,6 +2727,7 @@ rule_admin_mcp() {
   st 'the paragraph split over two lines' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/Risky\. The worked/, "Risky.\nThe worked") } { print }' chk_admin_mcp
   st 'the link to a file that exists' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/security-overview.md") } { print }' chk_admin_mcp
   st 'an anchor on the link' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/mcp-jira-example\.md\)/, "mcp-jira-example.md#step-1)") } { print }' chk_admin_mcp
+  st 'a line joined to the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print; print "More text."; next } { print }' chk_admin_mcp
   st 'a line above the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print "A stray line."; print "" } { print }' chk_admin_mcp
   st 'the paragraph under Demo mode' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { held = $0; next } { print } /^### Demo mode$/ { print ""; print held }' chk_admin_mcp
   st 'the paragraph in another section' 1 "$GUIDE" "index(\$0, \"An MCP tool that runs operating-system\") == 1 { next } { print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp

@@ -61,6 +61,23 @@ deferred: []
 - AC4: Given `bash docker/tests/test-readme.sh`, when it runs, then `PASS admin-mcp` prints, every other rule passes (43 PASS, exit 0), and every self-test copy is flagged.
 - AC5: Given the story diff, when it is inspected, then only `GUIDE.md` (+2 lines) and `docker/tests/test-readme.sh` change, besides this spec. `README.md`, `docs/`, `src/`, `web/` and `release/` are unchanged.
 
+### Review Findings
+
+Code review 2026-11-14 (Tier 1, full, baseline `0b90b8d7a`, HEAD `a391a7de3`; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). 11 findings normalized into 9 entries: 0 high, 0 medium, 4 low (3 patched, 1 group rejected), 5 rejected in total. No ledger rows.
+
+- [x] [Review][Patch] A line run on from G2 with no empty line passed `admin-mcp`, though Markdown joins it to G2's paragraph (AC1 "first paragraph is G2 word for word"; Edge Case Hunter + Verification Gap) [docker/tests/test-readme.sh:1364] — added a run-on check to `chk_admin_mcp` and the self-test `a line joined to the paragraph` (19 self-test copies now); mutation line added under Verification.
+- [x] [Review][Patch] The header's `admin-mcp` description left out the example-side checks (Blind Hunter) [docker/tests/test-readme.sh:114] — it now says the paragraph stands on its own and the example holds the sentence once, as a whole line.
+- [x] [Review][Patch] AC4 and AC5 had no `mutation:` line (Rule 19; Verification Gap) [this spec, Verification] — added: the guide count `-ne 1` -> `-lt 1` (Verification Gap's measured run) for AC1's "once" half and AC4; a byte appended to `docs/mcp-jira-example.md` -> `git diff --quiet -- README.md docs src web release` exits 1 (AC5), restored md5-identical.
+
+Reviewer's re-run after the patches: `test-readme.sh` exit 0, 43 PASS, `PASS admin-mcp`; `test-release-notes.sh` exit 0 (`PASS real-tree`); `test-boundaries.sh` exit 0; link smoke exit 0; `git diff --quiet 0b90b8d7a -- README.md docs src web release` exit 0; G2 byte-identical to the M(4) text (22.6 spec L626) and to example line 36 for its first sentence; epics.md retarget of 36.3 and 22.6 (marker `[AMENDED 2026-11-14, Story 36.3, ...]`, commit `0b90b8d7a`) matches the 13:00Z gate ruling.
+
+**Rejected**
+- `low` Records in this spec went stale after QA (grouped; all four layers): the Auto Run Result says 12 self-test copies (now 19), the first triage entry rejects a case QA later added (`the example sentence twice`), "see the QA report" names no report, "run again by the review layer after the last edit" predates the QA commit, and "the work is not committed" predates the lead's commits — the fix edits the spec under review (the skill rejects it); the correct counts and re-runs are recorded above.
+- `low` `ci/checks.sh` was not re-run after the path fix (Acceptance Auditor, Blind Hunter) — its only failing check, `test-boundaries.sh`, now exits 0 on this tree, and the lead's pre-push CI runs the full gate.
+- `false` The example sentence could sit inside a longer Markdown paragraph of the example (Edge Case Hunter) — AC2 asks only that G2's first sentence equal the example's line 36 word for word, which the whole-line `grep -cxF` pins; the example's paragraphing is Lane A's and no AC names it.
+- `false` The story diff also touches `cycle-log-epic-36.md` and `sprint-status.yaml` (Acceptance Auditor) — orchestrator bookkeeping that the review diff excludes by definition; AC5's product scope holds (`git diff --quiet` exit 0).
+- `false` A second agent edited the worktree mid-review (Verification Gap) — those edits were this review's own patches.
+
 ## Spec Change Log
 
 - 2026-11-14, Contest Planner gate ruling (~13:00Z) applied by the lead: amendment and G2 position approved; epics.md retargeted (36.3 and 22.6).
@@ -130,6 +147,9 @@ M(4)(e) truth check: sections 1 and 2 of the example add the server and classify
 - mutation: G2's link `docs/mcp-jira-example.md` -> `docs/mcp-jira.md` -> `FAIL admin-mcp`, `FAIL readme-links` (AC3).
 - mutation: example line 36 "must" -> "should" -> `FAIL admin-mcp` (AC2, the tie to the example).
 - mutation (QA): `chk_admin_mcp` made to compare the guide's paragraph by its first sentence only (first-line test as a `grep -qF` of the sentence, count as `grep -cF` of the sentence) -> `FAIL admin-mcp: a broken copy was not flagged`, naming the new self-tests `the paragraph split over two lines`, `the link to a file that exists` and `an anchor on the link` (and the older link cases); reverted, md5 identical to the pre-mutation file.
+- mutation (review): `chk_admin_mcp`'s run-on check made to print nothing (`f { exit }`) -> `self-test: a line joined to the paragraph: not flagged`, `FAIL admin-mcp: a broken copy was not flagged` (AC1, the paragraph on its own); restored, md5 identical.
+- mutation (review): the guide count check `-ne 1` -> `-lt 1` -> `self-test: the paragraph twice: not flagged`, `FAIL admin-mcp: a broken copy was not flagged` (AC1 "once", AC4 "every self-test copy is flagged"; measured by the Verification Gap layer on a scratch copy).
+- mutation (review): a newline appended to `docs/mcp-jira-example.md` -> `git diff --quiet -- README.md docs src web release` exits 1 (AC5); restored, md5 identical, exits 0.
 - mutation (QA): the example's `grep -cxF` count made `-lt 1` -> `the example sentence twice` not flagged; made `grep -cF` (not whole-line) -> `the example sentence inside a longer line` not flagged; made a newline-flattened count -> `the example sentence split over two lines` and `the example sentence inside a longer line` not flagged. Each reverted, md5 identical, `git diff --stat` unchanged (6 insertions).
 
 **Shared surfaces:** GUIDE.md "For admins and developers" (read by `admin-commands`, `dev-only` and `test-release-notes.sh`'s `names_outside_section`); `RULES`/`GUIDE_RULES`. Every test added or changed passes on a fresh environment, in either order. `test-release-notes.sh` `real-tree` fails on a history-less scratch copy both with and without G2, so that failure is a property of the copy, not of this change.
