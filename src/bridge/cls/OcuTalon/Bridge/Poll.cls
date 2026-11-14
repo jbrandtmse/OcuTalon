@@ -12,7 +12,7 @@ Include Ensemble
 ///   6. The step buffer starts, and the manager runs ExecuteTool of call_mcp_tool {server, tool, arguments}. The gate (the untrusted rule: only a safe and read-only call runs, and anything
 ///      else is denied, never held; no grant is needed or taken), the step audit and the proxy's own checks apply. A gate denial is the word denied, and any other exception is failed.
 ///   7. The reply: Text is the answer's value, only when the proxy noted no refusal (Context ReplayRefusal); FailureText is "" or one word, the proxy's refusal word (demo, changed, failed or
-///      timeout), denied, or a word of POLLREASONS from step 4; Tainted is 1 when the call ran; ToolsRun is 1 once ExecuteTool was reached; Steps, AgentStepCount and DurationMs are as in any
+///      timeout), denied, or a word of POLLREASONS from step 4; Tainted is 1 when the call returned the tool's text (a refusal returns none); ToolsRun is 1 once ExecuteTool was reached; Steps, AgentStepCount and DurationMs are as in any
 ///      reply. The words are for Checks alone and are never shown to a person.
 /// The context, the step buffer and the manager are let go of on every path. The reply holds no argument, URL or credential. This class names no host class (AD-2): the host is reached
 /// through the McpServersClass extension only.

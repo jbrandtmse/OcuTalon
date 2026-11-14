@@ -75,6 +75,11 @@ for the call), so with 3 silent sources due at once the Ticks (60 s apart) poll 
 which is at most 120 s after they were due, inside the interval + 180 s that coverage allows (interval 5 minutes or more). Pinned by `TestOneInFlightNoQueueStale`
 (`Test/Mcp/SourceRun.cls`); its mutation is in the spec's Verification section.
 
+Code review note (2026-11-14): the "about 26 s" above is the measured one-page mock, not a bound in code. `Mcp.Client` gives each request its own 2 s limit (initialize, the
+notification and each `tools/list` page, up to 10 pages) plus a connect bound, so a silent one-page server can hold a poll about 32 s and a ten-page one about 68 s, and a server that
+trickles bytes holds it longer (S11: 31 s and 36 s measured against 2 s and 20 s). Only Decide's timer (60 s by default) bounds a poll. A poll that runs to that timer can keep the
+mark past the next Tick, so 3 such sources due at once could take up to 4 Ticks (about 240 s), past the 180 s allowance (inference). Check 2 holds for the four measured modes.
+
 So option (a) passes both checks: the story is not halted.
 
 ## Notes

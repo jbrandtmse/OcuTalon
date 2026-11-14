@@ -1035,8 +1035,8 @@ Parameter LOGPOLLANSWER = "Checks could not record the answer of source ";
 Parameter POLLSUMMARY = "Source poll";
 
 /// Runs the sources that are due at the tick time (see the class description): nothing on the online demo. At most one poll is in flight (PollInFlight): a
-/// source that is due while another's poll is outstanding sends nothing and keeps its NextDueAt, so it polls at a later Tick. The due sources run oldest NextDueAt first (a source that has
-/// never run first), so that a source that waits is never passed over by one that is due again. Each row runs in a Try of its own (LOGPOLL).
+/// source that is due while another's poll is outstanding sends nothing and keeps its NextDueAt, so it polls at a later Tick. The due sources run oldest NextDueAt first (a row with no
+/// NextDueAt, which Watch.Ops SetSource never leaves, sorts last), so that a source that waits is never passed over by one that is due again. Each row runs in a Try of its own (LOGPOLL).
 Method RunSources(tickAt As %String) [ Private ]
 {
 	If ..PollsOff() Quit
