@@ -967,8 +967,6 @@ Banners stack in this table's order.
 | Tool shadows a built-in (`mcp.toolShadowsBuiltIn`, admins' chat notice) | "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed." |
 | Tool changed (`mcp.toolChanged`, admins' chat notice) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval." |
 | Approved call, tool changed (`mcp.replayToolChanged`, result of the approved tool-call request, every channel) | "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." |
-| Tool-call approval request (`toolCall.request` and `toolCall.requestOnServer`, every channel) [ADDED 2026-11-14, Story 21.10] | "Run {tool} on {server}", then "Why: {tool} counts as risky, so it runs only after an approval.", then "Inputs:", then one line "{name}: {value}" per input ("{}" for none), then "No dry run is available for this tool. Approving runs exactly this call once." (`toolCall.request` has no " on {server}") |
-| Tool-call inputs too long (`toolCall.inputsTooLong`, Telegram only) [ADDED 2026-11-14, Story 21.10] | "The inputs are too long to show here. See them on your OcuTalon page before you approve." |
 | Source stopped (`mcp.sourceStopped`, admins' chat notice) | "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked." |
 | Digest, not checked: stopped (`digest.notCheckedStopped`, digest coverage line) | "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only)." |
 
@@ -1043,6 +1041,8 @@ Banners stack in this table's order.
 | Email, no outgoing server (the `CommandResult.Message` of `EmailOut` and of `CommandsIn` when `EmailOut` is not running or the mailbox has no address) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "No outgoing mail server is connected, so the email wasn't sent." |
 | Email rejected by the server (the `CommandResult.Message` of `EmailOut` when the mail server answers the sender, a recipient or the message with an error) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The mail server didn't accept the email, so it wasn't sent." |
 | Email may have gone out (the `CommandResult.Message` of `EmailOut` for a tool send with an `IdempotencyKey` when the mail server stopped answering while the email was being sent, and for the same key again) [ADDED 2026-11-13, Story 21.13, Contest Planner ruling K] | "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." |
+| Tool-call approval request (`toolCall.request` and `toolCall.requestOnServer`, every channel) [ADDED 2026-11-14, Story 21.10] | "Run {tool} on {server}", then "Why: {tool} counts as risky, so it runs only after an approval.", then "Inputs:", then one line "{name}: {value}" per input ("{}" for none), then "No dry run is available for this tool. Approving runs exactly this call once." (`toolCall.request` has no " on {server}") |
+| Tool-call inputs too long (`toolCall.inputsTooLong`, Telegram only) [ADDED 2026-11-14, Story 21.10] | "The inputs are too long to show here. See them on your OcuTalon page before you approve." |
 
 ### Settings (step 5)
 
