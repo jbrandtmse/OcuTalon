@@ -47,6 +47,8 @@
 # live_start project (ocutalon-<label>-<tag>-<epoch>-<pid>, no "slot") is removed; every other holder is kept. It never fails the job and
 # never runs in group, live, shard or class. One line per outcome: `SWEEP off: <reason>`, `SWEEP 127.0.0.1:<p>: no leftover`,
 # `SWEEP removed project <P> (it published 127.0.0.1:<p>)`, `SWEEP kept <name> project=<P|none>: <reason>`, `SWEEP FAIL <what>`.
+# It needs every runner of a CI host to have a fixed or preset port: a runner in auto mode on the same host could hold this port with a
+# live stack, which the sweep would remove.
 # Exit 2 for a bad argument or tag, 1 for a failed unit, a missing base image, a failed pull of the mock's image or a failed start.
 # OCUTALON_WARM=1 ci/iris.sh class|shard ... runs on the warm throwaway of the tag (ci/warm.sh up) after reloading the changed
 # classes, with no new start, and exits 1 when that stack is missing, stopped or stale or the reload fails; live, group and all never

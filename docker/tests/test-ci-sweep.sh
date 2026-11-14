@@ -13,7 +13,7 @@
 #   - nothing on the port; auto mode, a local run, a hosted runner and a bad preset print `SWEEP off: ...` and make no docker call;
 #   - a compose project that is not a throwaway (slot, other name), a slot-shaped name and a non-compose container are kept and logged;
 #   - a removal that does not take (one `rm -f -v` of that container, then SWEEP FAIL when it stays) and a listing that fails never fail
-#     the build;
+#     the build; with two throwaways and a kept holder on the port, each `rm -f -v` names only a container of the project it sweeps;
 #   - registration (Rule 8): ci-sweep is in CHECK_SCRIPTS only, and this script is executable; --live refuses GITHUB_ACTIONS=true.
 #
 # bash docker/tests/test-ci-sweep.sh --live    the developer machine only, never CI: real containers of its own. It needs a reachable
@@ -355,11 +355,12 @@ check "auto mode: no runner name prints SWEEP off and makes no docker call" "$ou
 # 5. A local run.
 local_table="$(printf '%s-iris-1|%s|52803|Up\n' "$pa" "$pa")
 "
-for variant in "unset" "hosted" "norunnerenv"; do
+for variant in "unset" "hosted" "norunnerenv" "noactions"; do
   case $variant in
     unset) run_case "local-$variant" "$local_table" OCUTALON_TEST_WEB_PORT=52803 ;;
     hosted) run_case "local-$variant" "$local_table" GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted OCUTALON_TEST_WEB_PORT=52803 ;;
     norunnerenv) run_case "local-$variant" "$local_table" GITHUB_ACTIONS=true OCUTALON_TEST_WEB_PORT=52803 ;;
+    noactions) run_case "local-$variant" "$local_table" RUNNER_ENVIRONMENT=self-hosted OCUTALON_TEST_WEB_PORT=52803 ;;
   esac
   check "local run ($variant): SWEEP off, no docker call, the project is kept" "$out" "${rc:-9}" 0 '^SWEEP off: not a self-hosted CI runner$' '^BUILD '
   if [ -z "$calls" ] && printf '%s\n' "$table" | grep -q "^$pa-iris-1|"; then
@@ -421,6 +422,20 @@ if [ "$(printf '%s\n' "$calls" | grep -c '^rm ')" -eq 1 ] && ! printf '%s\n' "$c
   pass "removal does not take: one rm only, and no other project is named"
 else
   fail "removal does not take: calls '$(printf '%s' "$calls" | tr '\n' '|')'"
+fi
+pd=ocutalon-unit-77-1-x-1794600000-8
+run_case mixed "$pa-iris-1|$pa|52814|Up
+$pa-mock-1|$pa||Up
+$pslot-iris-1|$pslot|52814|Up
+$pd-iris-1|$pd|52814|Up
+" $ci_env RUNNER_NAME=ocutalon-ci-4 STUB_DOWN_KEEPS=1
+check "two throwaways and a kept holder on the port: both throwaways are removed and the other holder is kept" "$out" "${rc:-9}" 0 \
+  "^SWEEP removed project $pa " "^SWEEP removed project $pd " "^SWEEP kept $pslot-iris-1 project=$pslot: not a throwaway project\$" '^BUILD '
+if [ "$(printf '%s\n' "$calls" | grep -c '^rm ')" -eq 2 ] && printf '%s\n' "$calls" | grep -qx "rm -f -v $pa-iris-1" \
+  && printf '%s\n' "$calls" | grep -qx "rm -f -v $pd-iris-1" && printf '%s\n' "$table" | grep -q "^$pslot-iris-1|"; then
+  pass "two throwaways and a kept holder on the port: each rm names only a container of the project it sweeps"
+else
+  fail "two throwaways and a kept holder on the port: calls '$(printf '%s' "$calls" | tr '\n' '|')', table '$(printf '%s' "$table" | tr '\n' '|')'"
 fi
 
 # 9. A listing that fails.

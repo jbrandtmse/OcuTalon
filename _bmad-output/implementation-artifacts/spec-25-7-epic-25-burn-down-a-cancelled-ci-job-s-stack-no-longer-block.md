@@ -4,6 +4,7 @@ type: 'bugfix'
 created: '2026-11-14'
 status: 'done'
 baseline_revision: '9ae728cbdb9eedd27573531a302a8cf11b100186'
+baseline_commit: '9ae728cbdb9eedd27573531a302a8cf11b100186'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -97,6 +98,30 @@ These rows are hermetic. They run through the real `cmd_build` of a sourced `ci/
 - AC6: Given the change, when `git diff --stat <story_base>` is read, then only `ci/iris.sh`, `ci/units.sh`, `docker/tests/test-ci-sweep.sh` and `docker/tests/test-ci-config.sh` changed. There is no product, workflow, `release/` or public-text hunk, and the teardown, lib-live and warm pins are green.
 - DW-1335: resolved by AC1-AC5. The owned ledger slice holds only this entry.
 
+### Review Findings
+
+Code review 2026-11-14 (full, 4 layers): 3 patch (applied), 1 defer, 13 rejected. Rule 8: `ci-sweep` is in `CHECK_SCRIPTS` and the hosted `checks` job runs it with no argument (hermetic mode). Rule 3: exempt (CI-only, no user-facing surface). AD-22: no mismatch.
+
+- [x] [Review][Patch] The sweep's safety needs every runner of a CI host to have a fixed or preset port. An auto-mode runner on the same host could hold this port with a live stack. That holds today (ci-b 3-8, ci-c 9-14, ci-d 15-20 with ci-20 preset to 52805). The header now states the precondition. [ci/iris.sh:50]
+- [x] [Review][Patch] The rm fallback's own-project filter was unpinned. New row `mixed`: two throwaways and a slot holder on 52814, with `STUB_DOWN_KEEPS=1`. Each rm names only its project's container. It also covers the multi-project loop. [docker/tests/test-ci-sweep.sh:427]
+- [x] [Review][Patch] The `GITHUB_ACTIONS` half of the self-hosted guard was untested. New local variant `noactions`: `RUNNER_ENVIRONMENT=self-hosted` without `GITHUB_ACTIONS`. [docker/tests/test-ci-sweep.sh:363]
+- [x] [Review][Defer] A cancelled job's port-less stack is never removed [ci/iris.sh:428] -- deferred: pre-existing and outside ruling (3). The severity is unverified: a read-only listing of compose projects on a CI host would settle it. DW-1344, escalated.
+
+Rejected:
+- `low`: after the rm fallback, `SWEEP removed project` is logged while the leftover's port-less mock may stay. It needs the compose down to fail and the rm to succeed, and the matrix row fixes the one-rm behaviour (spec-bound).
+- `false`: `--live` race between the holder check and the sweep. Port A is bound by the test's own plant at that point, so no other container can publish it.
+- `false`: a widened `ci/changes.sh` exemption in `job-start` would pass. A widening that skips `bash ci/` also skips the build step, so `good.yml` is flagged and the rule goes red. The real `ci.yml` pins the exemption itself.
+- `low`: `job-start` ignores `if:` on the build step. `ci.yml` gates build and group on the same condition, and a stricter rule adds parsing for a case no workflow has.
+- `low`: `-a` in the holder listing is unpinned. An exited container holds no port (measured, Design Notes).
+- `low`: AC6 names four files while the bookkeeping files also changed. The fix edits the spec intent.
+- `low`: AC6's scope clause has no executable check. Scope is a review-time property.
+- `low`: AC4 goes red only under `--live`. The spec decides no `--live` in CI.
+- `low`: the `two` fixture contradicts the earlier triage's "one holder per port". It is harmless, and the new `mixed` row treats several holders as possible.
+- `low`: the edge-case hunter's suggested pid-liveness guard for a live stack of another runner. No CI host runs an auto-mode runner, and the header now names the precondition.
+- `low`: the edge-case hunter's header claim that the sweep can only remove dead stacks. Merged into the first patch.
+- `low`: the spec says "facts awk" for AC5. The Verification line was corrected (Rule 19) and the mutation re-demonstrated.
+- `low`: no hermetic row for two throwaways on one port. Merged into the `mixed` patch.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -163,7 +188,7 @@ These rows are hermetic. They run through the real `cmd_build` of a sourced `ci/
 - AC2 mutation: list with `--filter label=com.docker.compose.project` instead of `publish=<p>` → the row "the 52813 project survives" goes red.
 - AC3 mutation: drop the self-hosted guard → the "Local lane run" row goes red.
 - AC4 mutation: `return 0` as the first line of `runner_sweep` → `--live` goes red (A still runs, `live_web_port` FAILs).
-- AC5 mutation: comment out the `bad(..., "job-start")` call in the facts awk → the rule leaves `job-start-missing` and `job-start-late` unflagged and FAILs.
+- AC5 mutation: comment out the `bad(..., "job-start")` call in the rules awk → the rule leaves `job-start-missing` and `job-start-late` unflagged and FAILs.
 - AC6 mutation: drop `--remove-orphans` in `project_down` → `test-ci-config` "teardown: each project comes down with ..." goes red.
 
 **Mutation results (implement stage):**
@@ -176,6 +201,12 @@ These rows are hermetic. They run through the real `cmd_build` of a sourced `ci/
 - mutation: AC2 (non-throwaway shape) loosened `sweep_throwaway`'s regex to `^ocutalon-` -> test-ci-sweep.sh "not a throwaway" rows went red (`ocutalon-dev-stack` and `ocutalon-demo-123-45` were taken down)
 - mutation: AC1 (a failed listing after the rm fallback) replaced the inner listing guard with a bare assignment -> test-ci-sweep.sh "listing fails after the rm" went red (SWEEP removed was logged)
 Each file was restored byte-identical from a saved copy (cmp), and `git status --short` was unchanged.
+
+**Mutation results (code review):**
+- mutation: AC2 (the rm fallback names only the swept project's containers) widened both `left=` awk filters in `runner_sweep` to `'{ print $1 }'` -> test-ci-sweep.sh "two throwaways and a kept holder on the port: each rm names only a container of the project it sweeps" went red (the slot holder was rm'd)
+- mutation: AC3 (the GITHUB_ACTIONS half of the guard) dropped `[ "${GITHUB_ACTIONS:-}" != true ] ||` from `runner_sweep` -> test-ci-sweep.sh "local run (noactions)" rows went red (SWEEP removed, docker calls)
+- mutation: AC5 re-demonstrated: replaced `bad(jobs[j], "job-start")` in the rules awk with a no-op -> test-ci-config.sh `job-start` FAIL ("the rule does not flag the sample job-start-missing")
+Each file was restored byte-identical from a saved copy (cmp).
 
 **Shared surfaces:**
 - `CHECK_SCRIPTS`: the units rule and `ci/checks.sh`.
