@@ -174,3 +174,4 @@
 2026-11-14T02:42:05Z	Epic 36	planner_ruling	source=epic-36-rulings-20261113-2130.md(~03:00Z) items=36.6_option_(a)_approved;verify_server_first;36.5_split_accepted
 2026-11-14T02:42:05Z	Story 36.6	server_verified	unknown_user=refused_primaryUser_nothing_written(SettingsOnCall.TestRefusals) unpaired_telegram=refused_primaryChannels_nothing_written(TestTelegramNeedsAPairedChat) busy=sync_wait_TIMEOUT_120s>TestModel_45s;timeout->500(OnCallSettingsApi.TestSubmitFailsOrThrows)+handoff_discarded->late_carry_failed_nothing_written(TestHandoffMissing);SaveProduct_one_transaction env=warm_e36s6v1(torn_down) result=pass
 2026-11-14T02:42:05Z	Story 36.6	ledger_burndown_chartered	key=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when owns=DW-1308 charter=epics.md(AMENDED_2026-11-14) path=N.<M+1>
+2026-11-14T02:42:11Z	Story 36.6	stage_spawned	stage=plan spawn_at=2026-11-14T02:42:11Z model=opus agent_name=36-6-plan-1 cycle_iteration=1 effort=high
