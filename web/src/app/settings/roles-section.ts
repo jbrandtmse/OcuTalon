@@ -19,7 +19,8 @@ import { SETTINGS_TEXTS } from './settings-view';
  * announcer, the page's one live region, reads it once.
  *   - 200 with `changed` true: the step-2 saved text shows and is read once, and the list is asked for again (the grant the section made shows in it); after a Remove, whose button
  *     leaves with the role, the list heading takes focus once the list is drawn again;
- *   - 200 with `changed` false (the user already was in that state): "No change: {user}'s roles are already as you set them." shows instead, read once, and the list is asked for again;
+ *   - 200 with `changed` false (the user already was in that state): "No change: {user}'s roles are already as you set them." shows instead, read once, and the list is asked for again (after a Remove, the list
+ *     heading takes focus once the list is drawn again, as for a change);
  *   - 400 with a reason: that reason's text; 403: the page's denied text; 409 not_available: the section's own text in place of the form;
  *   - any other failure: "Couldn't save. Nothing was changed.".
  * A list that fails to load shows "Couldn't load the roles." with Retry in place of the form.

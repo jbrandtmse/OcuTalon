@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-11-13'
 status: 'done'
 baseline_revision: '2226912e4139b7b626adb9ca52e472795e939420'
-baseline_commit: '0d9406059723f0dd6c44b895747f3b2cfcd73b2d'
+baseline_commit: '2226912e4139b7b626adb9ca52e472795e939420'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -442,6 +442,34 @@ Rejected:
 - `low` Verification-gap: `TestUserNameNeverStored` scans every roles row on the stack -- every real row passes through the route, which takes or discards its uri; a leftover is the defect it guards.
 - `low` Verification-gap: the Roles section's load-failure, denied and off states have no rendered test -- `roleOutcome` is unit-tested; the section is admin-only and hidden until Story 26.4.
 
+Code review 2026-11-14, rework re-review (iteration 1 of 3; bmad-code-review, full mode, diff `2226912e..84fe7ed3` plus the tree; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, review tier full-opus). 23 raw findings, 7 entries after grouping (high 0, medium 4, low 3), the rest rejected (below). Checklist: DW-1290 fixed (`IsAdmin` reads `LiveRoles`; `/v1/settings` and below, `/v1/state` `admin` and `RoleSettings.Refusal` follow it; no escalation; a failed read refuses that one request and keeps the session; no cache; real-HTTP test and three mutations); DW-1297 fixed (no entry for either no-op, the exact text drawn by interpolation, both cases tested, mutations for the server and the page); bundle 997.59 kB initial, `roles-section` lazy at 9.42 kB.
+
+- [x] [Review][Patch] RS3 removed the role behind the page's back without waiting for the list that the no-op grant asks for again, so a late GET could redraw the row without "Remove viewer" (Rule 19 readiness) [web/e2e/settings/roles.spec.ts RS3] -- medium / low / in-story / fixed: it waits for that GET's response before the removal. (verification-gap)
+- [x] [Review][Patch] RS3 assumed the target held no assignable role, left so by RS2 (Rule 19 hermeticity) [web/e2e/settings/roles.spec.ts RS3] -- medium / low / in-story / fixed: it puts the target's roles back before it opens the section and checks the row shows OcuTalonUser only. (verification-gap)
+- [x] [Review][Patch] RS3's behind-the-back removal ignored the server's answer, so a refused POST would fail the test on the page's text, not on the setup [web/e2e/settings/roles.spec.ts change] -- low / low / in-story / fixed: `change` returns the response and RS3 asserts 200 and `{result: done, changed: true}`. (edge-case-hunter+blind-hunter)
+- [x] [Review][Patch] A no-op Remove moves focus to the list heading as a real one does, but the section's doc said so only for a change and no test checked it [web/src/app/settings/roles-section.ts:20-23; web/e2e/settings/roles.spec.ts RS3] -- low / low / in-story / fixed: the doc says it, and RS3 asserts the heading has focus after the stale Remove. (blind-hunter)
+- [x] [Review][Patch] `Test.Web.ViewerApi`'s class doc said the same requests pass with the role live again; the test re-checks only `GET /v1/settings` and `/v1/state` [src/ocutalon/cls/OcuTalon/Test/Web/ViewerApi.cls:21] -- low / low / in-story / fixed: the doc names what the test checks. (blind-hunter)
+- [x] [Review][Defer] AD-13 still says OcuTalonAdmin is checked "by its whole name in `$Roles`" and, in Story 25.4's own viewer bullet, is "read from the session and apply until it ends"; the code now follows final ruling 2 [ARCHITECTURE-SPINE.md AD-13] -- deferred: DW-1307, medium / low / in-epic / escalated owner=burndown (amending an AD; the lead's Rule 20 write of the ruling). (acceptance-auditor)
+- [x] [Review][Defer] The 997.59 kB ceiling is checked by hand: `angular.json`'s initial `maximumError` is 1 MB [web/angular.json] -- deferred: occurrence on DW-1282 (routed owner=burndown; the cap is the Planner's). This review's build measures 997.59 kB. (verification-gap)
+
+Rejected (rework re-review):
+- `false` Edge: a done answer without `changed` serialises as false and shows the no-change text for a real change -- `SettingsOps.SaveRoles` always sets `changed` (`+$Get(changed)`, boolean) on its one done path.
+- `false` Blind: `HookSettings`' doc is stale after `IsAdmin` went live -- it says "a signed-in user without OcuTalonAdmin" and never the session's roles; it is still true.
+- `false` Auditor: the spec frontmatter was finalized before this review -- the frontmatter is the implement pass's; the reviewer never changes `status:`.
+- `low` Blind: `OnPreDispatch` reads the live roles twice, and a second read that fails after the first succeeded answers 403 `not_admin`, not 500 -- the request is still refused and the session kept (ruling condition 2); it needs two reads microseconds apart to diverge, and moving the check would make the three recorded DW-1290 mutations stale. wontfix-theoretical: real if a live read is ever seen to fail transiently.
+- `low` Blind: `TestAdminFollowsLiveRoles`' failed-read block hits the first read, not `IsAdmin`'s -- its `/v1/state` `admin` false assertion does reach `IsAdmin`'s failed read (the recorded fail-open mutation turns it red).
+- `low` Blind: no route-level test for the webhooks routes after `IsAdmin` went live -- `OnPreDispatch` is pinned for `GET /v1/settings/channels/webhooks`, and `HookSettings.Refusal` calls the same `IsAdmin` as `RoleSettings.Refusal`, which `TestRemovedAdminIsRefused` pins.
+- `low` Blind: spec text (AC 1, the triage log, the `[Review][Defer]` row of DW-1297, the earlier pass's "deferred 2") describes the state before the rework -- the fix is an edit of the spec's intent and history.
+- `low` Blind: `review_loop_iteration` is still 0 -- frontmatter, the implement pass's.
+- `low` Auditor: the new text is not in the Planner Gate PUBLIC TEXT list -- a record edit of the spec; the ruling's text is word for word in `ROLES_TEXTS.noChange` and under `ruled` in `ux-strings.test.mjs`.
+- `low` Auditor: no single test asserts both the text and the missing entry -- the ruling asks for both cases and the no-entry assert: `TestNoChangeWritesNoEntry` asserts no entry for both, RS3 and `saveLine` the text for both.
+- `low` Edge: `TestRemovedAdminLosesSettings` reads `body.error.code` on a body with no error -- the status assertion before it already fails; the throw is loud.
+- `low` Edge: `TestRemovedAdminIsRefused` parses a body that may be empty -- the same: a loud failure after a failed status assertion.
+- `low` Auditor and Blind (outside the three items): `RoleSettings.Refusal`'s viewer check reads only the session's roles -- `OnPreDispatch` refuses the live viewer first on every Roles URL; not in the rework's lines and not high (reported to the Planner).
+- `low` Auditor (outside the three items): `SessionEvents.OnLogin`'s `AdminAtSignIn` routes admin items by the roles at sign-in (AD-21) -- outside the ruling's scope and the rework's lines (reported to the Planner).
+- `low` Auditor: the bundle has no headroom -- DW-1282's standing rule (new web code in lazy chunks) covers it.
+- `low` Verification-gap: "rendered as text, never HTML" is pinned only by source regexes -- as rejected before (VG 1 / Blind 9): RS3 renders the name in Chromium, Angular interpolation escapes, and the regexes bar `innerHTML`.
+
 ## Spec Change Log
 
 - 2026-11-14 ~00:00Z, lead: rework iteration 1 (trigger: Planner final rulings before push, cap_override-free; items DW-1290, DW-1297): re-opened `done` -> `in-progress`; `[Review]` items above; DW-1303 routed to 25.5.
@@ -822,6 +850,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (rework) tests added: `Test.Web.ViewerApi` `TestAdminFollowsLiveRoles`, `Test.Web.RolesApi` `TestRemovedAdminIsRefused` and `TestNoChangeWritesNoEntry`, `Test.Web.LiveRolesApi` `TestRemovedAdminLosesSettings`, `web/scripts/roles-view.test.mjs` (`saveLine`, the section's saved line), `web/e2e/settings/roles.spec.ts` RS3; the no-op rows of `Test.Install.RolesAssign` `TestGrantAndRemove` already pinned "no entry" at the class level. The new text sits under `ruled` in `ux-strings.test.mjs` and only in the lazy chunk `roles-section` (9.42 kB); the initial bundle is 997.59 kB (cap 997.59). Warm tag `e25s4kw` and fresh tag `e25s4k`, both torn down.
 - (code review) tests changed, warm tag `e25s4cw` and fresh tag `e25s4c` on lane A, both torn down: `Test.Web.ViewerApi`, `Test.Web.RolesApi`, `Test.Core.SettingsRoles`, `Test.Install.RolesAssign`, `Test.Core.AnswersInWebRoles`, `Test.Web.SettingsApi`, `Test.Web.HookSettingsApi` and `Test.Web.LiveRolesApi` passed; `ci/iris.sh live sign-in --part 26/30` (`sign-in/viewer.spec.ts`, 3) and `live sign-in-2 --part 17/20` (`settings/email.spec.ts`, `settings/roles.spec.ts`, 8) passed; `npm --prefix web test` 2005 pass, `run lint` passes, `run build` initial total 997.59 kB (lazy chunk `roles-section` 9.19 kB); `test-boundaries.sh` and `test-class-rules.sh` pass. Not mutated: V2's new controls and RS2's focus check (each needs a rebuilt bundle and a fresh stack per run).
 - (QA) not mutated: AC 6's keyboard and label half (`settings/roles.spec.ts` RS2, which reads every control by `getByLabel`/`getByRole` name); it needs a fresh stack and a rebuilt bundle, and AC 6 already has two demonstrated mutations.
+- (rework re-review) RS3 made self-contained and ready-waiting (it puts the target's roles back first, waits for the list's GET after the no-op grant, asserts the behind-the-back removal's answer, and asserts focus on the list heading after the stale Remove); its pinning assertions and their `mutation:` line (`saveLine` ignoring `changed: false` -> RS3 red) are unchanged. Fresh throwaway tag `e25s4rcr` on lane A, torn down: `ci/iris.sh live sign-in-2 --part 17/20` (`settings/email.spec.ts`, `settings/roles.spec.ts`; RS1, RS2, RS3) 9 passed. `npm --prefix web run lint` passes, `npm --prefix web test` 2010 pass, `run build` initial total 997.59 kB (lazy chunk `roles-section` 9.42 kB, same output).
 
 ## Auto Run Result
 

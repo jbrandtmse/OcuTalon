@@ -18,7 +18,7 @@
 ///   - TestStateFollowsLiveRoles: /v1/state's viewer and admin read the live roles too, so a user cut down to the viewer role is a viewer there;
 ///   - TestAdminFollowsLiveRoles: OcuTalonAdmin is read from the live roles and not from the session's: a user whose live roles lost it is 403 not_admin on /v1/settings,
 ///     below it and on the Roles routes, with the session kept and admin false in /v1/state; a live read that fails refuses that one request with 500 server_error, keeps the
-///     session, and leaves no admin in /v1/state; with the role live again the same requests pass.
+///     session, and leaves no admin in /v1/state; with the role live again GET /v1/settings goes on and admin is true in /v1/state.
 Class OcuTalon.Test.Web.ViewerApi Extends %UnitTest.TestCase
 {
 

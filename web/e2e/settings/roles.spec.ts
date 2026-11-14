@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '../support/fixtures';
+import { expect, test, type APIResponse, type Locator, type Page } from '../support/fixtures';
 
 import { STATE, changeSnapshot } from '../support/api';
 import { signInReadmeLoaded } from '../support/floor';
@@ -26,9 +26,9 @@ const target = (): string => fixtureUser('ROLETARGET').user;
 const pagesNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true });
 const sectionsNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Settings sections', exact: true });
 
-/** Grants or removes one role of the target through the real route, without the page. */
-async function change(page: Page, role: string, grant: boolean): Promise<void> {
-  await page.request.post(ROLES, { headers: { 'content-type': 'application/json', 'x-ocutalon-request': '1', origin: new URL(page.url()).origin }, data: { user: target(), role, grant } });
+/** Grants or removes one role of the target through the real route, without the page; the server's answer. */
+async function change(page: Page, role: string, grant: boolean): Promise<APIResponse> {
+  return page.request.post(ROLES, { headers: { 'content-type': 'application/json', 'x-ocutalon-request': '1', origin: new URL(page.url()).origin }, data: { user: target(), role, grant } });
 }
 
 /** Puts the target's roles back: removes the two assignable roles through the real route. */
@@ -116,11 +116,13 @@ test('RS3: a save that changes nothing says so, for a grant already held and for
   });
   await signInReadmeLoaded(page);
   try {
+    await restore(page);
     await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
     await sectionsNav(page).getByRole('link', { name: 'Roles', exact: true }).click();
     const section = page.getByRole('region', { name: 'Roles', exact: true });
     const row = section.getByRole('group', { name: target(), exact: true });
     await expect(row, 'the target is listed').toBeVisible();
+    await expect(row.getByText('OcuTalonUser', { exact: true }), 'the target starts with the user role only').toBeVisible();
     const status = section.locator('p.saved[data-roles="status"]');
 
     // The first grant changes the roles: the saved text.
@@ -131,19 +133,24 @@ test('RS3: a save that changes nothing says so, for a grant already held and for
     await expect(row.getByText('OcuTalonUser, OcuTalonViewer', { exact: true })).toBeVisible();
 
     // The same grant again changes nothing: the no-change text with the user's name, and not the saved text.
+    const reloaded = page.waitForResponse((response) => new URL(response.url()).pathname === ROLES && response.request().method() === 'GET');
     await section.getByLabel('IRIS user name', { exact: true }).fill(target());
     await section.getByRole('button', { name: 'Grant', exact: true }).click();
     await expect(status.locator('[data-saved="roles-no-change"]'), 'a grant of a role the user already holds shows the no-change text').toHaveText(NO_CHANGE(target()));
     await expect(section.getByText(SAVED, { exact: true }), 'and not the saved text').toHaveCount(0);
+    await reloaded;
 
-    // The role is taken away behind the page's back, so the list is stale: its Remove button now removes a role the user does not hold.
+    // Once the list has been read again, the role is taken away behind the page's back, so the list is stale: its Remove button now removes a role the user does not hold.
     const remove = row.getByRole('button', { name: `Remove viewer from ${target()}`, exact: true });
     await expect(remove, 'the stale list still offers Remove viewer').toBeVisible();
-    await change(page, 'OcuTalonViewer', false);
+    const removed = await change(page, 'OcuTalonViewer', false);
+    expect(removed.status(), 'the removal behind the page\'s back is accepted').toBe(200);
+    expect(await removed.json(), 'and changes the roles').toMatchObject({ result: 'done', changed: true });
     await remove.click();
     await expect(status.locator('[data-saved="roles-no-change"]'), 'a removal of a role the user does not hold shows the no-change text').toHaveText(NO_CHANGE(target()));
     await expect(section.getByText(SAVED, { exact: true }), 'and not the saved text').toHaveCount(0);
     await expect(row.getByRole('button'), 'the list is loaded again without the role').toHaveCount(0);
+    await expect(section.getByRole('heading', { level: 4, name: 'People with an OcuTalon role' }), 'focus goes to the list heading, as the pressed button is gone').toBeFocused();
   } finally {
     await restore(page);
   }
