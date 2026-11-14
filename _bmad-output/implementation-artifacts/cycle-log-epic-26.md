@@ -56,3 +56,6 @@
 2026-11-14T11:22:07Z	Story 26.3	ci_resolved	story=26.3 sha=8ab6a725 runs=43581056590,43581056587 failed=none via=none result=success resolved_at=part_ready note=ci_attempt2_after_one_flake_rerun(DW-1094_GuideApi);lane-a_green_attempt1
 2026-11-14T14:19:46Z	Epic 26	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=26.2_unblocked(Planner_narrowed_wait_to_25.3,25.4,25.5_merged;breaks_cycle_with_25.6) lane=A slot=ocutalon-slot-a inbox_verify=ok hold=16:00Z
 2026-11-14T14:19:46Z	Epic 26	integrated_forward	feature=ba276d3a(25.5,25.4,22.6,22.5,36.7,21.15,26.3) head=a1550cb39 conflicts_resolved=none records=a370d1fb(hold/OCT-epic26-20261114)_carried
+2026-11-14T14:23:49Z	Epic 26	protocol_violation	stage=epic_context_prewarm depth=1 agent=prewarm-epic26-2 violation=harness_backgrounded_Agent_call_despite_run_in_background_false consequence=none detected_by=runner outcome=waited
+2026-11-14T14:23:49Z	Epic 26	epic_context_compiled	spawn_at=2026-11-14T14:20:30Z reason=planning_artifact_newer(26.3_merged,FR-73,spine,25.x_merged) model=opus effort=high words=1549 header=ok
+2026-11-14T14:23:49Z	Story 26.2	stage_spawned	stage=plan spawn_at=2026-11-14T14:23:49Z model=opus agent_name=26-2-files-sent-from-the-chat-or-telegram-become-items-plan-1 cycle_iteration=1 note=planner_gate_after_spec
