@@ -2,7 +2,7 @@
 title: 'Story 22.6: Document a worked Jira example and MCP governance'
 type: 'feature'
 created: '2026-11-13'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'e59670247bdfcd4d5b831574d77e058d5305c3a8'
 baseline_commit: 'c13b1836a4885ecbc77a55bffc34f4dce01fd7e0'
 review_loop_iteration: 0
@@ -230,6 +230,10 @@ deferred:
 - `[low]` `[reject]` VG3: `WithProxyName`'s Catch is never exercised - no shipped `ProxyToolSet` throws (wontfix-theoretical); reopen_if a host's `ProxyToolSet` can throw.
 - `[low]` `[reject]` AA6: Veto item 6 calls its spine refinement "S19", which already names the IPM spike, and AD-21 does not record it yet - a lead action under Rule 20 (record it under a free S-number); no story code changes.
 - `[low]` `[reject]` AA7: OcuTalon's probe does not itself refuse a plain-HTTP address to another host; the HTTPS rule is applied at add (`Ops.OnAdd`) and at call (`Proxy`) - the Config Store entry is written only by 21.4's `SaveMcpEntry` (VERIFY AT MERGE item 2); wontfix-theoretical; reopen_if anything else writes `AI.MCP.OcuTalon_*`.
+
+- [ ] [Review] **R7-1 (DW-1286, APPROVED by the Planner)**: in `docs/mcp-jira-example.md` L48 change "canceled" to "cancelled" (that one word only), and update any line pin that holds that sentence (`docker/tests/test-release-sequence.sh` `ovw_mcp_example_lines` or `mcp_doc_problems`) in the same pass, with its `mutation:` line if the pin is new or changed.
+- [ ] [Review] **R7-2 (P2 takes 21.4's approved :212 bullet word for word)**: the integrate-forward (f3ce1fa1) put 21.4's bullet "- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry." in place of 22.6's own P2 bullet in `docs/security-overview.md`. Confirm it is word for word (keep "cut to 200 characters" as it is, per the DW-1266 reading), that 22.6's other P2 bullets stand, and that every overview/worked-example pin still passes; update the spec's Public text P2 to the merged wording. No other text change.
+- [ ] [Review] **R7-3 (VERIFY AT MERGE, orchestrator ruling)**: against the MERGED code (feature 5de8aec9 with Story 21.4), check each of the five 21.4-dependent sentences of P1/P2 (Add server; the Wallet and Config Store write; removing the entry and the secret; the Tools table and its classification control; an admin adding servers from Settings) and every sentence about MCP server addresses (the query/fragment refusal on the add path only; userinfo; http to a non-loopback host; `SaveMcpEntry` as the only writer of `AI.MCP.OcuTalon_*` and its address validation). Record each with file:line under Design Notes. A false sentence is a HALT `blocked` for a `PUBLIC TEXT:` (never change code to fit the text, never reword ruled text).
 
 ## Spec Change Log
 
