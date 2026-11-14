@@ -8,7 +8,7 @@ import { announcements, recordAnnouncements } from '../support/page';
 import { ON_CALL_API, ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCall, restoreOnCall, type OnCallStored } from '../support/on-call';
 
 /**
- * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O13; the sign-in-2 unit). The README account holds
+ * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O16; the sign-in-2 unit). The README account holds
  * OcuTalonAdmin, and has a session, so it is one of the OcuTalon users that the section lists. The cases run one after the other, because the on-call values are
  * the instance's own: each case starts from Nobody for both roles with 15 minutes (beforeEach, through the route), and puts back the values it found (afterEach).
  *   O1  the nav link, the heading, the help and the not-yet line, the two legends, a labelled control for every field, the Telegram box disabled with its text,
@@ -28,7 +28,12 @@ import { ON_CALL_API, ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCa
  *   O12 while the list of users is unavailable (a routed GET with users []), a stored on-call user and backup keep their Telegram and Email boxes, Telegram is
  *       enabled with no unpaired line, and a save that changes only the minutes sends the stored channels;
  *   O13 a stored on-call user who has no session row any more (the real server) has Telegram enabled and the stored Email box, with no unpaired line, and
- *       saving gets the unknown-user text under the Person select, with the stored values and the audit log unchanged.
+ *       saving gets the unknown-user text under the Person select, with the stored values and the audit log unchanged;
+ *   O14 with the list holding users, a listed user who has not paired has Telegram unchecked and disabled with the one unpaired line, while a stored backup the
+ *       list lacks keeps a Telegram-only channel, enabled and with no line, and a save sends Email alone for the first and Telegram alone for the second;
+ *   O15 while the list is unavailable and the on-call person is Nobody, a stored backup keeps a Telegram-only channel with Email unchecked, and a save sends it;
+ *   O16 a stored backup who has no session row any more (the real server) has Telegram enabled and the stored Email box, and saving gets the unknown-user
+ *       text under the backup's Person select, with the stored values and the audit log unchanged.
  * The texts are written out here as the oracle.
  */
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
@@ -542,6 +547,152 @@ test('O13: a stored user with no session row keeps their boxes, and saving shows
     await expect(page.getByText("hasn't paired Telegram"), 'no unpaired line shows').toHaveCount(0);
     await saveButton(page).click();
     await expect(page.locator('#oncall-primary-person-error'), 'the save is refused with the unknown-user text').toHaveText(UNKNOWN_USER(stored.primaryUser));
+    await expect(savedText(page), 'with no saved text').toHaveCount(0);
+    expect(await readOnCall(page.request), 'nothing was changed').toEqual(stored);
+    expect(await auditSince(mark, 0), 'and nothing was audited').toEqual([]);
+  } finally {
+    await cleanFixtureRows([ref]);
+  }
+});
+
+test('O14: a listed user who has not paired keeps the unpaired line while a stored backup the list lacks keeps a Telegram-only channel, and a save sends each', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tag = stamp();
+  const unpaired = `zz-o14-bob-${tag}`;
+  const gone = `zz-o14-gone-${tag}`;
+  await page.route('**/api/v1/settings', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as { sections: { 'on-call': OnCallStored } };
+    Object.assign(body.sections['on-call'], {
+      users: [
+        { user: `zz-o14-alice-${tag}`, paired: true },
+        { user: unpaired, paired: false },
+      ],
+      primaryUser: unpaired,
+      primaryEmail: `zz-o14p-${tag}@example.com`,
+      primaryChannels: 'telegram,email',
+      backupUser: gone,
+      backupEmail: `zz-o14b-${tag}@example.com`,
+      backupChannels: 'telegram',
+    });
+    await route.fulfill({ response, json: body });
+  });
+  const posted: unknown[] = [];
+  await page.route('**/api/v1/settings/on-call', async (route) => {
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'done', sections: {} }) });
+  });
+  await openOnCall(page);
+  await expect(telegram(primary(page)), 'a listed user who has not paired has Telegram disabled').toBeDisabled();
+  await expect(telegram(primary(page)), 'and unchecked').not.toBeChecked();
+  await expect(telegram(primary(page)), 'with the filled text').toHaveAccessibleDescription(
+    `${unpaired} hasn't paired Telegram, so OcuTalon can't message them there yet. They can pair it on their own OcuTalon page.`,
+  );
+  await expect(mail(primary(page)), 'Email stays checked').toBeChecked();
+  await expect(telegram(backup(page)), 'a stored backup the list lacks has Telegram enabled').toBeEnabled();
+  await expect(telegram(backup(page)), 'and checked, as stored').toBeChecked();
+  await expect(telegram(backup(page)), 'with no line describing it').toHaveAccessibleDescription('');
+  await expect(mail(backup(page)), 'and Email unchecked, as stored').not.toBeChecked();
+  await expect(page.getByText("hasn't paired Telegram"), 'the unpaired line shows once, for the listed user only').toHaveCount(1);
+  const before = found as OnCallStored;
+  const changed = before.escalationMinutes === 21 ? 22 : 21;
+  await minutes(page).fill(String(changed));
+  await saveButton(page).click();
+  await expect(savedText(page), 'the routed save is shown as saved').toBeVisible();
+  expect(posted.length, 'one save was posted').toBe(1);
+  expect(posted[0], 'its body sends Email alone for the unpaired user and Telegram alone for the backup').toMatchObject({
+    primaryUser: unpaired,
+    primaryChannels: 'email',
+    backupUser: gone,
+    backupChannels: 'telegram',
+    escalationMinutes: changed,
+  });
+});
+
+test('O15: while the list is unavailable and nobody is on call, a stored backup keeps a Telegram-only channel, and a save sends it', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tag = stamp();
+  const gone = `zz-o15-gone-${tag}`;
+  await page.route('**/api/v1/settings', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as { sections: { 'on-call': OnCallStored } };
+    Object.assign(body.sections['on-call'], { users: [], backupUser: gone, backupEmail: `zz-o15-${tag}@example.com`, backupChannels: 'telegram' });
+    await route.fulfill({ response, json: body });
+  });
+  const posted: unknown[] = [];
+  await page.route('**/api/v1/settings/on-call', async (route) => {
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'done', sections: {} }) });
+  });
+  await openOnCall(page);
+  await expect(person(primary(page)), 'the on-call person is Nobody').toHaveValue('nobody');
+  await expect(person(backup(page)), 'the Person select shows the stored backup').toHaveValue(`user:${gone}`);
+  await expect(telegram(backup(page)), 'Telegram stays checked').toBeChecked();
+  await expect(telegram(backup(page)), 'and can be chosen').toBeEnabled();
+  await expect(telegram(backup(page)), 'with no line describing it').toHaveAccessibleDescription('');
+  await expect(mail(backup(page)), 'Email stays unchecked').not.toBeChecked();
+  await expect(page.getByText("hasn't paired Telegram"), 'no unpaired line shows').toHaveCount(0);
+  const before = found as OnCallStored;
+  const changed = before.escalationMinutes === 21 ? 22 : 21;
+  await minutes(page).fill(String(changed));
+  await saveButton(page).click();
+  await expect(savedText(page), 'the routed save is shown as saved').toBeVisible();
+  expect(posted.length, 'one save was posted').toBe(1);
+  expect(posted[0], 'its body keeps Nobody and sends the backup with Telegram alone').toMatchObject({
+    primaryPerson: 'nobody',
+    backupPerson: 'user',
+    backupUser: gone,
+    backupChannels: 'telegram',
+    escalationMinutes: changed,
+  });
+});
+
+test('O16: a stored backup with no session row keeps their boxes, and saving shows the unknown-user text under the backup and changes nothing', async ({ page }) => {
+  test.setTimeout(180_000);
+  const tag = stamp();
+  const user = `zzo16${tag}`;
+  const ref = await seedOtherSession(user);
+  try {
+    const saved = await page.request.post(ON_CALL_API, {
+      headers: envelope(),
+      data: {
+        primaryPerson: 'nobody',
+        primaryUser: '',
+        primaryEmail: '',
+        primaryChannels: 'telegram,email',
+        backupPerson: 'user',
+        backupUser: user,
+        backupEmail: `zz-o16-${tag}@example.com`,
+        backupChannels: 'email',
+        escalationMinutes: (found as OnCallStored).escalationMinutes,
+      },
+    });
+    expect(saved.status(), `the user is saved as the backup: ${await saved.text()}`).toBe(200);
+    await cleanFixtureRows([ref]);
+    const stored = await readOnCall(page.request);
+    expect(stored.backupUser, 'the stored backup is the user').not.toBe('');
+    expect(
+      stored.users.some((one) => one.user === stored.backupUser),
+      'who has no session row now, so the list does not hold them',
+    ).toBe(false);
+    const mark = await auditMark();
+    await openOnCall(page);
+    await expect(person(backup(page)), 'the Person select shows the gone backup').toHaveValue(`user:${stored.backupUser}`);
+    await expect(telegram(backup(page)), 'Telegram can be chosen').toBeEnabled();
+    await expect(telegram(backup(page)), 'and stays unchecked, as stored').not.toBeChecked();
+    await expect(mail(backup(page)), 'Email stays checked').toBeChecked();
+    await expect(page.getByText("hasn't paired Telegram"), 'no unpaired line shows').toHaveCount(0);
+    await saveButton(page).click();
+    await expect(page.locator('#oncall-backup-person-error'), 'the save is refused with the unknown-user text under the backup').toHaveText(UNKNOWN_USER(stored.backupUser));
+    await expect(page.locator('#oncall-primary-person-error'), 'and none under the on-call person').toHaveCount(0);
     await expect(savedText(page), 'with no saved text').toHaveCount(0);
     expect(await readOnCall(page.request), 'nothing was changed').toEqual(stored);
     expect(await auditSince(mark, 0), 'and nothing was audited').toEqual([]);

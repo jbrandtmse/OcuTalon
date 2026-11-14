@@ -179,3 +179,5 @@
 2026-11-14T02:50:26Z	Story 36.6	stage_spawned	stage=implement spawn_at=2026-11-14T02:50:26Z model=sonnet agent_name=36-6-implement-1 cycle_iteration=1 effort=high
 2026-11-14T03:33:04Z	Story 36.6	dev_complete	spawn_at=2026-11-14T02:58:00Z model=sonnet effort=high fix=telegramState(unpaired_only_for_listed_paired!=true) tests=node(3),O12,O13 mutations=3 live=sign-in-2_part_12/15_23/23(e36s6i) bundle=878.98kB build-auto_review=19_findings(0_high,0_med,3_low_patched) cycle_iteration=1
 2026-11-14T03:33:04Z	Story 36.6	stage_spawned	stage=qa spawn_at=2026-11-14T03:33:04Z model=sonnet agent_name=36-6-qa-1 cycle_iteration=1 effort=high
+2026-11-14T03:51:44Z	Story 36.6	qa_complete	spawn_at=2026-11-14T03:34:00Z model=sonnet effort=high tests=node(backup_judged_by_list,telegram-only),O14,O15,O16 tests_added=5 mutations_demonstrated=5 live=sign-in-2_part_12/15_26/26(e36s6q1) first_run_failures=0 clarifications=0
+2026-11-14T03:51:44Z	Story 36.6	stage_spawned	stage=code-review spawn_at=2026-11-14T03:51:44Z model=opus agent_name=36-6-code-review-1 cycle_iteration=1 effort=high

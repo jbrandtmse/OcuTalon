@@ -152,6 +152,11 @@ No AD's Rule changes.
 - mutation: `telegramState` reverted so a user the list lacks is `unpaired` (`users.find(...)?.paired !== true`) → O12 red (`toBeChecked` failed on the stored Telegram box; O13 not reached in the serial run) and `on-call-view.test.mjs` red (3 cases: "is not judged for a user the list does not hold", "keeps the stored boxes of a user the list does not hold", "keeps both roles stored boxes, and sends them").
 - mutation: `fieldErrorText('primaryUser')` returns the `noChannel` text → O11 red first (the serial run then skips O13); narrowed to a user named `zzo13*` so O11 passes → O13 red (expected the unknown-user text, received the `noChannel` text).
 - mutation: `telegramState` never answers `unpaired` → `on-call-view.test.mjs` red (bob, "is disabled for a user who hasn't paired", and 3 more) and O1 red (`toBeDisabled` failed on the unpaired README admin).
+- mutation (QA): `onCallFormOf` reads the backup against `[]` instead of `values.users` → `on-call-view.test.mjs` red ("judges the backup by the list as it judges the on-call person, whoever the other role is").
+- mutation (QA): `roleFormOf` returns `mail: true` whatever the stored channels → `on-call-view.test.mjs` red ("keeps a stored Telegram-only channel of a user the list does not hold, with Email unchecked, and sends it alone").
+- mutation (QA): `roleFormOf` returns `telegram: boxes.telegram` (a listed unpaired user's stored Telegram is kept checked) → O14 red (`not.toBeChecked` failed on the listed unpaired user's Telegram; O1 to O13 pass) and `on-call-view.test.mjs` red (3 cases).
+- mutation (QA): `roleFormOf` returns `mail: boxes.mail || users.length === 0` (Email forced on while the list is empty) → O15 red (`not.toBeChecked` failed on the backup's Email; O1 to O14 pass) and `on-call-view.test.mjs` red (the Telegram-only case).
+- mutation (QA): `fieldErrorText('backupUser')` returns the `noChannel` text → O16 red (expected the unknown-user text under the backup, received the `noChannel` text; O1 to O15 pass).
 
 ## Auto Run Result
 
@@ -164,3 +169,10 @@ Blocking condition: none
 - Follow-up review recommendation: false (no high patched, one medium at most: none).
 - Verification: `node --test web/scripts/on-call-view.test.mjs` 23 pass; `npm --prefix web test` 2003 pass; lint pass; build initial total 878.98 kB (budget warnings pre-existing, no error), `initial-bundle.test.mjs` pass; `docker/tests/test-boundaries.sh` pass; live `sign-in-2 --part 12/15` on lane-B `e36s6i`: 23 passed (O1 to O13), run again after the review patches; throwaways torn down, no `e36s6` container left. Mutations (three) recorded under Verification, each reverted by hand and byte-identical.
 - Residual risks: part number moved from 13/15 to 12/15 because the spec file grew (re-find the part after later edits). The commit step of Finalize was not run: the caller commits.
+
+## Tests Added
+
+QA stage (Story 36.6; web-only, no product code change; each new test has a mutation line under Verification):
+- `web/scripts/on-call-view.test.mjs` (23 to 25 cases): "judges the backup by the list as it judges the on-call person, whoever the other role is" (backup alone with the on-call person Nobody: listed unpaired reads unchecked and sends Email alone, a listed-absent user keeps both boxes, a paired one keeps Telegram); "keeps a stored Telegram-only channel of a user the list does not hold, with Email unchecked, and sends it alone" (list `[]`, both roles).
+- `web/e2e/settings/on-call.spec.ts`: **O14** (list holding users: a listed user who has not paired keeps Telegram unchecked and disabled with the one unpaired line, and a save sends Email alone for them, while a stored backup the list lacks keeps a Telegram-only channel, enabled, Email unchecked, with no line, and the save sends `telegram`; the "no paired chat" line is counted once on the page); **O15** (list unavailable, the on-call person Nobody, a stored backup with a Telegram-only channel: the box stays checked and enabled, Email stays unchecked, no line, and the save sends `telegram`); **O16** (real server: a stored backup whose session row is gone keeps Telegram enabled and the stored Email box, and a save is refused with the unknown-user text under the backup's Person select, with GET and the audit log unchanged).
+- Live part 12/15 of sign-in-2 now holds 26 tests (was 23); passed on lane-B `e36s6q1`.

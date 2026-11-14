@@ -182,6 +182,28 @@ describe('the form', () => {
     assert.equal(body.primaryChannels, 'telegram,email');
     assert.equal(body.backupChannels, 'telegram,email');
   });
+
+  it('judges the backup by the list as it judges the on-call person, whoever the other role is', () => {
+    const unpaired = onCallFormOf(values({ backupUser: 'bob', backupChannels: 'telegram,email' }));
+    assert.equal(unpaired.primary.person, 'nobody', 'the on-call person is nobody');
+    assert.equal(unpaired.backup.telegram, false, 'a backup the list shows unpaired has Telegram unchecked');
+    assert.equal(onCallBody(unpaired).backupChannels, 'email', 'and a save sends Email alone');
+    const gone = onCallFormOf(values({ backupUser: 'gone', backupChannels: 'telegram,email' }));
+    assert.equal(gone.backup.telegram, true, 'a backup the list lacks keeps Telegram');
+    assert.equal(onCallBody(gone).backupChannels, 'telegram,email', 'and a save sends both boxes');
+    assert.equal(onCallFormOf(values({ backupUser: 'alice', backupChannels: 'telegram,email' })).backup.telegram, true, 'a paired backup keeps it');
+  });
+
+  it('keeps a stored Telegram-only channel of a user the list does not hold, with Email unchecked, and sends it alone', () => {
+    const form = onCallFormOf(values({ users: [], primaryUser: 'alice', primaryChannels: 'telegram', backupUser: 'gone', backupEmail: 'g@x.io', backupChannels: 'telegram' }));
+    for (const role of [form.primary, form.backup]) {
+      assert.equal(role.telegram, true, 'Telegram stays checked');
+      assert.equal(role.mail, false, 'and Email stays unchecked');
+    }
+    const body = onCallBody(form);
+    assert.equal(body.primaryChannels, 'telegram', 'the on-call person is sent with Telegram alone');
+    assert.equal(body.backupChannels, 'telegram', 'and so is the backup');
+  });
 });
 
 describe('the body of a save', () => {
