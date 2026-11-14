@@ -152,3 +152,5 @@
 2026-11-14T01:15:52Z	Story 25.4	fresh_check	env=recipe(fresh_warm_stack_e25s4h,torn_down;e25s4g_partial_start_torn_down) tests=Web.LiveRolesApi,Web.RolesApi,Web.ViewerApi result=pass order=forward,reverse
 2026-11-14T01:15:52Z	Story 25.4	committed	sha=d8af9b17 submodules= ci=hold(not_pushed;CI_HOLD) runs=none fix_for=25.4 rework=1 amendments=ARCHITECTURE-SPINE.md(AD-13_x2),epics.md(DW-1303_bullet_25.5) note=LOCAL_READY
 2026-11-14T01:17:57Z	Epic 25	integrated_forward	feature=08190d5c(1.0.9_merge-back:README,module.xml,release_records) head=01f01772 conflicts_resolved=none boundaries=pass test-readme=pass tracker=last_updated_normalized(validate_ok) code_diff_vs_tested=none_in_story_paths pushed=no(ci_hold)
+2026-11-14T01:32:26Z	Story 25.4	story_waiting	story=25-4-assign-approver-and-viewer-roles-in-settings on=21.4+36.5_merged reason=combined_bundle_~1003kB_over_cap+10_file_conflicts_with_21.4(coordinator) note=LOCAL_READY_kept;no_set-aside(code_committed_locally,unpushed);DW-1310,DW-1311_ledgered_by_orchestrator
+2026-11-14T01:32:26Z	Epic 25	epic_runner_ended	reason=waiting waiting_on=21.4+36.5_merged head=pending_commit
