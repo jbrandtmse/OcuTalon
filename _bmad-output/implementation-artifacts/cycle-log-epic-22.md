@@ -433,3 +433,4 @@
 2026-11-14T23:56:26Z	Story 22.11	smoke_complete	method=other(lane-D_new_warm_e22s11lpw:Test.Mcp.SourceRunProduction(real_Tick->Decide->TriageAgent->mock->Checks->Intake)) result=pass iterations=1 defects_caught=0 torn_down=e22s11lpw
 2026-11-14T23:56:26Z	Story 22.11	fresh_check	env=recipe(new_lane-D_warm_stack_e22s11lpw) tests=Test.Bridge.Poll,Test.Mcp.SourceRun,Test.Mcp.SourceRunProduction,Test.Digest.Coverage result=pass order=forward,reverse also=test-class-rules,test-boundaries_rc0
 2026-11-14T23:56:26Z	Story 22.11	committed	sha=LOCAL(OCT-epic22;CI_HOLD;no_push_until_orchestrator) ci=none_yet
+2026-11-14T23:57:40Z	Epic 22	runner_ended	reason=waiting waiting_on=planner-DW-1346,CI-HOLD-OFF branch=OCT-epic22 head=b63b976b(=origin_hold/OCT-epic22-20261114) pushed=origin/OCT-epic22_16772e40 local_ready=22.14(OCT-epic22-s2214_6ba4068d),22.11(b63b976b) open_runs=none
