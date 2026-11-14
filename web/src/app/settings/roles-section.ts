@@ -8,7 +8,7 @@ import type { RoleHolder } from '../api/api-types';
 import { Icon } from '../icon/icon';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
-import { ASSIGNABLE, heldAssignable, removeLabel, ROLES_TEXTS, roleOutcome, type AssignableRole } from './roles-view';
+import { ASSIGNABLE, heldAssignable, removeLabel, ROLES_TEXTS, roleOutcome, saveLine, type AssignableRole, type SaveLine } from './roles-view';
 import { SETTINGS_TEXTS } from './settings-view';
 
 /**
@@ -17,8 +17,9 @@ import { SETTINGS_TEXTS } from './settings-view';
  * (one group per user, named by the user), each with the roles as text and a Remove button for each assignable role the user holds, or "Managed by OcuTalon" in place of the
  * buttons; the form below it grants one of the two assignable roles to a user by name. The server judges everything: a refused call shows the text of its reason under the form, and the
  * announcer, the page's one live region, reads it once.
- *   - 200: the step-2 saved text shows and is read once, and the list is asked for again (the grant the section made shows in it); after a Remove, whose button
+ *   - 200 with `changed` true: the step-2 saved text shows and is read once, and the list is asked for again (the grant the section made shows in it); after a Remove, whose button
  *     leaves with the role, the list heading takes focus once the list is drawn again;
+ *   - 200 with `changed` false (the user already was in that state): "No change: {user}'s roles are already as you set them." shows instead, read once, and the list is asked for again;
  *   - 400 with a reason: that reason's text; 403: the page's denied text; 409 not_available: the section's own text in place of the form;
  *   - any other failure: "Couldn't save. Nothing was changed.".
  * A list that fails to load shows "Couldn't load the roles." with Retry in place of the form.
@@ -86,8 +87,8 @@ import { SETTINGS_TEXTS } from './settings-view';
       <p class="saved" data-roles="status">
         @if (refusal() !== '') {
           <span class="field-error"><app-icon name="circle-alert" [size]="16" />{{ refusal() }}</span>
-        } @else if (done()) {
-          <span data-saved="roles">{{ settingsTexts.saved }}</span>
+        } @else if (line(); as shown) {
+          <span [attr.data-saved]="shown.changed ? 'roles' : 'roles-no-change'">{{ shown.text }}</span>
         }
       </p>
     </section>
@@ -194,7 +195,8 @@ export class RolesSection {
   protected readonly role = signal<AssignableRole['role']>(ASSIGNABLE[0].role);
   /** The text of the last refusal, "" when there is none. */
   protected readonly refusal = signal('');
-  protected readonly done = signal(false);
+  /** The line after the last accepted save, null when there is none. */
+  protected readonly line = signal<SaveLine | null>(null);
 
   constructor() {
     this.load();
@@ -246,14 +248,14 @@ export class RolesSection {
   protected typedUser(event: Event): void {
     this.user.set((event.target as HTMLInputElement).value);
     this.refusal.set('');
-    this.done.set(false);
+    this.line.set(null);
   }
 
   protected pickedRole(event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
     this.role.set(ASSIGNABLE.find((one) => one.role === value)?.role ?? ASSIGNABLE[0].role);
     this.refusal.set('');
-    this.done.set(false);
+    this.line.set(null);
   }
 
   /** Grant: posts the typed user and the chosen role. */
@@ -266,15 +268,16 @@ export class RolesSection {
 
   private change(user: string, role: AssignableRole['role'], grant: boolean, fromForm: boolean): Observable<unknown> {
     this.refusal.set('');
-    this.done.set(false);
+    this.line.set(null);
     return this.api.saveRole(user, role, grant).pipe(
       tap({
-        next: () => {
+        next: (answer) => {
           if (fromForm) {
             this.user.set('');
           }
-          this.done.set(true);
-          this.announcer.announce(SETTINGS_TEXTS.saved);
+          const shown = saveLine(answer, user, SETTINGS_TEXTS.saved);
+          this.line.set(shown);
+          this.announcer.announce(shown.text);
           this.load(fromForm ? undefined : () => this.focusLater('#roles-list-heading'));
         },
         error: (error: unknown) => this.refused(error, fromForm),

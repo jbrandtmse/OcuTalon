@@ -4,6 +4,10 @@
 /// everything else. The signed-in user's roles come from Test.Web.ApiProbe's seam; the fixture users have the prefix ZzRoleLeak and the fixture roles are
 /// Test.Install.RolesAssign's.
 ///   - TestNotAdmin: a user with the OcuTalon user role only gets 403 not_admin from OnPreDispatch and from each route, for GET and POST; %All is not the admin role;
+///   - TestRemovedAdminIsRefused: an admin whose live roles no longer hold OcuTalonAdmin gets 403 not_admin from OnPreDispatch and from each route itself, with nothing
+///     submitted and no handoff made;
+///   - TestNoChangeWritesNoEntry: a grant of a role the user already holds and a removal of a role the user does not hold each answer changed false and write no
+///     Settings entry, and the real changes around them are the only entries;
 ///   - TestViewerPostIsReadOnly: a viewer-only admin's POST is 403 read_only from OnPreDispatch, which stops the dispatch before the route runs, and its GET is 403
 ///     not_admin, from OnPreDispatch and from the list route itself, with nothing submitted;
 ///   - TestOnlineDemo: with the online-demo flag set an admin gets 409 not_available for GET and POST, a malformed body included, with no handoff made and no command
@@ -104,6 +108,56 @@ Method TestNotAdmin()
 	Do $$$AssertEquals(response.Status, "403 Forbidden", "%All is not the admin role")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("RoleSettingsProbe", "submits")), 0, "nothing was submitted")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("RoleSettingsProbe", "offers")), 0, "and no handoff was made")
+}
+
+Method TestRemovedAdminIsRefused()
+{
+	Set ^OcuTalonTest("ApiProbe", "liveRoles") = "OcuTalonUser"
+	For method = "GET", "POST" {
+		Set written = ..PreDispatch("/v1/settings/roles", method, .continue)
+		Do $$$AssertEquals(continue, 0, method_": the dispatch stops")
+		Do $$$AssertTrue(written [ """not_admin""", method_": 403 not_admin")
+	}
+	If ..Missing '= "" Quit
+	Set body = ..Call("List", , .response)
+	Do $$$AssertEquals(response.Status, "403 Forbidden", "the list route refuses it itself")
+	Do $$$AssertEquals({}.%FromJSON(body).error.code, "not_admin", "not_admin")
+	Set body = ..Call("Save", ..Body(..Target, "OcuTalonViewer", 1), .response)
+	Do $$$AssertEquals(response.Status, "403 Forbidden", "the save route refuses it itself")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("RoleSettingsProbe", "submits")), 0, "nothing was submitted")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("RoleSettingsProbe", "offers")), 0, "and no handoff was made")
+	Kill ^OcuTalonTest("ApiProbe", "liveRoles")
+	Set written = ..PreDispatch("/v1/settings/roles", "GET", .continue)
+	Do $$$AssertEquals(continue, 1, "control: with the role live again the list goes on")
+}
+
+Method TestNoChangeWritesNoEntry()
+{
+	If '..Guard() Quit
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set user = ..NewTarget()
+	Set body = ..Call("Save", ..Body(user, "OcuTalonViewer", 0), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a removal of a role the user does not hold answers 200: "_body)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.result_"|"_answer.changed, "done|0", "done, changed false")
+	Do $$$AssertEquals(..OcuTalonRoles(user), "OcuTalonUser", "the user's roles are as they were")
+	Set body = ..Call("Save", ..Body(user, "OcuTalonViewer", 1), .response)
+	Do $$$AssertEquals({}.%FromJSON(body).changed, 1, "control: the grant changes the roles")
+	Set body = ..Call("Save", ..Body(user, "OcuTalonViewer", 1), .response)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.result_"|"_answer.changed, "done|0", "a grant of a role the user already holds is done, changed false")
+	Do $$$AssertEquals(..OcuTalonRoles(user), "OcuTalonUser,OcuTalonViewer", "the roles are as they were")
+	Set body = ..Call("Save", ..Body(user, "OcuTalonViewer", 0), .response)
+	Do $$$AssertEquals({}.%FromJSON(body).changed, 1, "control: the removal that follows changes the roles")
+	Set body = ..Call("Save", ..Body(user, "OcuTalonViewer", 0), .response)
+	Do $$$AssertEquals({}.%FromJSON(body).changed, 0, "and a removal of the role it no longer holds changes nothing")
+	Set body = ..Call("Save", ..Body(user, "OcuTalonApprover", 1), .response)
+	Do $$$AssertEquals({}.%FromJSON(body).changed, 1, "the closing grant (the last entry) changes the roles")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", user, "", 3)
+	Do $$$AssertEquals(entries.%Size(), 3, "exactly the three real changes wrote an entry, the no-ops none")
+	Do $$$AssertEquals(entries.%Get(0).data.to, "OcuTalonUser,OcuTalonViewer", "the grant's entry")
+	Do $$$AssertEquals(entries.%Get(1).data.to, "OcuTalonUser", "the removal's entry")
+	Do $$$AssertEquals(entries.%Get(2).data.to, "OcuTalonApprover,OcuTalonUser", "and the closing grant's entry follows it directly")
 }
 
 Method TestViewerPostIsReadOnly()

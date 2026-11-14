@@ -5,6 +5,8 @@
 ///     signed_out, and the session is over (it stays 401 when the user is given the role back);
 ///   - TestRemovedUserEndsItsSession: the same for a user whose OcuTalonUser is removed;
 ///   - TestHoldingBothRolesIsUnaffected: a user who holds both roles and loses one still reads /v1/state;
+///   - TestRemovedAdminLosesSettings: an admin who is signed in reads /v1/settings and /v1/settings/roles, has OcuTalonAdmin removed, and on its next requests, on the same
+///     session, gets 403 not_admin on both and admin false in /v1/state, while the session stays open (/v1/state still answers 200);
 ///   - TestRereadCostIsSmall: the re-read ($SYSTEM.Security.GetUserRecursedRoleSet of the job's own name, in a job that holds the roles of a web request and not
 ///     %Admin_Secure) needs no privilege, and its p95 over 250 calls is under 5 ms (the bound that decides whether a per-session cache is needed); the p95 and the
 ///     median are left under ^OcuTalonTest("LiveRolesApi", "cost").
@@ -91,6 +93,27 @@ Method TestHoldingBothRolesIsUnaffected()
 	Do $$$AssertEquals(..Remove(user, "OcuTalonViewer"), 1, "one role is removed")
 	Do $$$AssertEquals(..State(request, .body), 200, "the same session still answers 200")
 	Do $$$AssertEquals(..State(request, .body), 200, "and again")
+}
+
+Method TestRemovedAdminLosesSettings()
+{
+	If '..Guard() Quit
+	Set user = ..#USER_"a"
+	Set password = ..NewUser(user, "OcuTalonUser,OcuTalonAdmin")
+	Set request = ..SignIn(user, password)
+	Do $$$AssertEquals(..State(request, .body), 200, "the admin's /v1/state answers 200")
+	Do $$$AssertEquals(body.admin, 1, "admin is true")
+	Do $$$AssertEquals(..Get(request, "/ocutalon/api/v1/settings", .body), 200, "GET /v1/settings answers 200")
+	Do $$$AssertEquals(..Get(request, "/ocutalon/api/v1/settings/roles", .body), 200, "GET /v1/settings/roles answers 200")
+	Do $$$AssertEquals(..Remove(user, "OcuTalonAdmin"), 1, "OcuTalonAdmin is removed while the session is open")
+	Do $$$AssertEquals(..Get(request, "/ocutalon/api/v1/settings", .body), 403, "the next GET /v1/settings is 403")
+	Do $$$AssertEquals(body.error.code, "not_admin", "not_admin")
+	Do $$$AssertEquals(..Get(request, "/ocutalon/api/v1/settings/roles", .body), 403, "and GET /v1/settings/roles on the same session")
+	Do $$$AssertEquals(body.error.code, "not_admin", "not_admin")
+	Do $$$AssertEquals(..State(request, .body), 200, "the session is kept: /v1/state still answers 200")
+	Do $$$AssertEquals(body.admin, 0, "with admin false")
+	Do $$$AssertEquals(..Add(user, "OcuTalonAdmin"), 1, "the role is given back")
+	Do $$$AssertEquals(..Get(request, "/ocutalon/api/v1/settings", .body), 200, "and the settings answer 200 again on the same session: nothing is cached")
 }
 
 Method TestRereadCostIsSmall()
@@ -209,8 +232,14 @@ Method SignIn(user As %String, password As %String) As %Net.HttpRequest [ Privat
 /// GET /ocutalon/api/v1/state on the signed-in request; the status, and the body as an object in body (empty for a body that is not JSON).
 Method State(request As %Net.HttpRequest, Output body As %DynamicObject) As %Integer [ Private ]
 {
+	Quit ..Get(request, "/ocutalon/api/v1/state", .body)
+}
+
+/// GET of the URL on the signed-in request; the status, and the body as an object in body (empty for a body that is not JSON).
+Method Get(request As %Net.HttpRequest, url As %String, Output body As %DynamicObject) As %Integer [ Private ]
+{
 	Set body = {}
-	Set sc = request.Get("/ocutalon/api/v1/state")
+	Set sc = request.Get(url)
 	If $SYSTEM.Status.IsError(sc) || '$IsObject(request.HttpResponse) Quit 0
 	Try {
 		Set text = request.HttpResponse.Data.Read(3000000)

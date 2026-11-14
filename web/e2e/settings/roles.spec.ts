@@ -11,11 +11,14 @@ import { fixtureUser } from '../support/iris';
  *   RS1  on the real state the Settings navigation has no Roles entry, and #/settings/roles opens Models;
  *   RS2  with rolesAssignable true the nav lists Roles last; the section lists from the real route; by keyboard alone the admin grants OcuTalonViewer to the target and
  *        sees the saved text, then removes it with the target's Remove viewer button, sees the text again and finds focus on the list heading; an unknown user shows
- *        the refusal text; every control is reached by its label.
+ *        the refusal text; every control is reached by its label;
+ *   RS3  a save that changes nothing shows "No change: {user}'s roles are already as you set them." and not the saved text: the same grant again, and a Remove of a role that
+ *        was taken away behind the page's back (the list is stale).
  */
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const UNKNOWN = 'There is no IRIS user with that name.';
 const SYSTEM = "This is an IRIS system account, so its roles can't be changed here.";
+const NO_CHANGE = (user: string): string => `No change: ${user}'s roles are already as you set them.`;
 const ROLES = '/ocutalon/api/v1/settings/roles';
 /** The name of the fixture account whose roles change: read when a case runs, because the listing of the specs has no fixture users. */
 const target = (): string => fixtureUser('ROLETARGET').user;
@@ -23,10 +26,15 @@ const target = (): string => fixtureUser('ROLETARGET').user;
 const pagesNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true });
 const sectionsNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Settings sections', exact: true });
 
+/** Grants or removes one role of the target through the real route, without the page. */
+async function change(page: Page, role: string, grant: boolean): Promise<void> {
+  await page.request.post(ROLES, { headers: { 'content-type': 'application/json', 'x-ocutalon-request': '1', origin: new URL(page.url()).origin }, data: { user: target(), role, grant } });
+}
+
 /** Puts the target's roles back: removes the two assignable roles through the real route. */
 async function restore(page: Page): Promise<void> {
   for (const role of ['OcuTalonViewer', 'OcuTalonApprover']) {
-    await page.request.post(ROLES, { headers: { 'content-type': 'application/json', 'x-ocutalon-request': '1', origin: new URL(page.url()).origin }, data: { user: target(), role, grant: false } });
+    await change(page, role, false);
   }
 }
 
@@ -96,6 +104,46 @@ test('RS2: with roles assignable, the admin lists, grants and removes by keyboar
     await section.getByLabel('IRIS user name', { exact: true }).fill('UnknownUser');
     await section.getByRole('button', { name: 'Grant', exact: true }).click();
     await expect(section.getByText(SYSTEM, { exact: true })).toBeVisible();
+  } finally {
+    await restore(page);
+  }
+});
+
+test('RS3: a save that changes nothing says so, for a grant already held and for a removal of a role not held', async ({ page }) => {
+  test.setTimeout(180_000);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['rolesAssignable'] = true;
+  });
+  await signInReadmeLoaded(page);
+  try {
+    await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
+    await sectionsNav(page).getByRole('link', { name: 'Roles', exact: true }).click();
+    const section = page.getByRole('region', { name: 'Roles', exact: true });
+    const row = section.getByRole('group', { name: target(), exact: true });
+    await expect(row, 'the target is listed').toBeVisible();
+    const status = section.locator('p.saved[data-roles="status"]');
+
+    // The first grant changes the roles: the saved text.
+    await section.getByLabel('IRIS user name', { exact: true }).fill(target());
+    await section.getByLabel('Role', { exact: true }).selectOption('OcuTalonViewer');
+    await section.getByRole('button', { name: 'Grant', exact: true }).click();
+    await expect(status.locator('[data-saved="roles"]'), 'the grant that changes the roles shows the saved text').toHaveText(SAVED);
+    await expect(row.getByText('OcuTalonUser, OcuTalonViewer', { exact: true })).toBeVisible();
+
+    // The same grant again changes nothing: the no-change text with the user's name, and not the saved text.
+    await section.getByLabel('IRIS user name', { exact: true }).fill(target());
+    await section.getByRole('button', { name: 'Grant', exact: true }).click();
+    await expect(status.locator('[data-saved="roles-no-change"]'), 'a grant of a role the user already holds shows the no-change text').toHaveText(NO_CHANGE(target()));
+    await expect(section.getByText(SAVED, { exact: true }), 'and not the saved text').toHaveCount(0);
+
+    // The role is taken away behind the page's back, so the list is stale: its Remove button now removes a role the user does not hold.
+    const remove = row.getByRole('button', { name: `Remove viewer from ${target()}`, exact: true });
+    await expect(remove, 'the stale list still offers Remove viewer').toBeVisible();
+    await change(page, 'OcuTalonViewer', false);
+    await remove.click();
+    await expect(status.locator('[data-saved="roles-no-change"]'), 'a removal of a role the user does not hold shows the no-change text').toHaveText(NO_CHANGE(target()));
+    await expect(section.getByText(SAVED, { exact: true }), 'and not the saved text').toHaveCount(0);
+    await expect(row.getByRole('button'), 'the list is loaded again without the role').toHaveCount(0);
   } finally {
     await restore(page);
   }

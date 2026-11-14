@@ -46,7 +46,7 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
 }
 
-/// "" when the route may run, else the refusal that has been written: 403 not_admin for a user without OcuTalonAdmin or for a viewer, 409 not_available on the online demo.
+/// "" when the route may run, else the refusal that has been written: 403 not_admin for a user who does not hold OcuTalonAdmin now (IsAdmin reads the live roles) or for a viewer, 409 not_available on the online demo.
 ClassMethod Refusal() As %Status [ Private ]
 {
 	If '..IsAdmin() || ..ViewerOnly() Quit ..Fail(403, "not_admin", ..#MESSAGENOTADMIN)

@@ -9,8 +9,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { ASSIGNABLE, ROLES_REASONS, ROLES_TEXTS, heldAssignable, removeLabel, roleOutcome } = await import(app('settings', 'roles-view.ts'));
+const { ASSIGNABLE, ROLES_REASONS, ROLES_TEXTS, heldAssignable, removeLabel, roleOutcome, saveLine } = await import(app('settings', 'roles-view.ts'));
 const { SETTINGS_TEXTS } = await import(app('settings', 'settings-view.ts'));
+const section = readFileSync(join(here, '..', 'src', 'app', 'settings', 'roles-section.ts'), 'utf8');
 const server = readFileSync(join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTalon', 'Web', 'RoleSettings.cls'), 'utf8');
 
 /** The text of a Parameter of Web.RoleSettings, as the class source holds it. */
@@ -41,6 +42,7 @@ describe('the section\'s fixed strings', () => {
     assert.equal(ROLES_TEXTS.loadFailed, "Couldn't load the roles.");
     assert.equal(ROLES_TEXTS.retry, 'Retry');
     assert.equal(ROLES_TEXTS.off, "Roles can't be changed on the online demo.");
+    assert.equal(ROLES_TEXTS.noChange, "No change: {user}'s roles are already as you set them.");
   });
 
   it('name the section like the navigation does, and reuse the page\'s saved, failed and denied texts', () => {
@@ -106,5 +108,36 @@ describe('roleOutcome', () => {
     }
     assert.deepEqual(roleOutcome(500, 'text'), { kind: 'failed' });
     assert.deepEqual(roleOutcome(400, undefined), { kind: 'failed' });
+  });
+});
+
+describe('saveLine', () => {
+  const SAVED = SETTINGS_TEXTS.saved;
+
+  it('is the saved text when the roles changed', () => {
+    assert.deepEqual(saveLine({ changed: true }, 'ZzTarget', SAVED), { changed: true, text: SAVED });
+  });
+
+  it('is the no-change text, with the user\'s name, when the roles did not change: a role already held that was granted, or one not held that was removed', () => {
+    assert.deepEqual(saveLine({ changed: false }, 'ZzTarget', SAVED), { changed: false, text: "No change: ZzTarget's roles are already as you set them." });
+  });
+
+  it('keeps the name as it is, whatever characters it holds', () => {
+    assert.equal(saveLine({ changed: false }, '<b>$&x</b>', SAVED).text, "No change: <b>$&x</b>'s roles are already as you set them.");
+  });
+
+  it('counts an answer that does not say changed false as a change', () => {
+    assert.equal(saveLine({}, 'ZzTarget', SAVED).changed, true);
+    assert.equal(saveLine(null, 'ZzTarget', SAVED).changed, true);
+    assert.equal(saveLine(undefined, 'ZzTarget', SAVED).changed, true);
+  });
+});
+
+describe('the section\'s saved line', () => {
+  it('comes from saveLine for the accepted answer, is announced once, and is drawn as text, never as HTML', () => {
+    assert.match(section, /const shown = saveLine\(answer, user, SETTINGS_TEXTS\.saved\);/);
+    assert.match(section, /this\.announcer\.announce\(shown\.text\);/);
+    assert.match(section, /\{\{ shown\.text \}\}/);
+    assert.doesNotMatch(section, /innerHTML|bypassSecurityTrust/);
   });
 });

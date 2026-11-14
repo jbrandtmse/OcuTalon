@@ -4,6 +4,8 @@
  * - ROLES_TEXTS is every fixed string of the section; the server's own copies are the parameters of OcuTalon.Web.RoleSettings, pinned equal by a test.
  * - roleOutcome classifies a refused or failed call: 403 is denied, 409 is off (the online demo), a 400 with a known `reason` is that reason's text, and
  *   every other answer is failed.
+ * - saveLine says what shows after a save that the server accepted: the step-2 saved text when the roles changed, and, when they did not (a role the user already
+ *   holds was granted, or one the user does not hold was removed), the no-change text with the user's name in it, which the template draws as text.
  * - ASSIGNABLE is the two roles the form offers, each with its option text and the text of its Remove button; removeLabel is the button's accessible name.
  */
 /** The refusal reasons that the server names, each with the text the section shows. */
@@ -32,6 +34,7 @@ export const ROLES_TEXTS = {
   loadFailed: "Couldn't load the roles.",
   retry: 'Retry',
   off: "Roles can't be changed on the online demo.",
+  noChange: "No change: {user}'s roles are already as you set them.",
   reasons: ROLES_REASONS,
 } as const;
 
@@ -76,4 +79,18 @@ export function roleOutcome(status: number, body: unknown): RoleOutcome {
     return { kind: 'refused', reason, text: ROLES_REASONS[reason] };
   }
   return { kind: 'failed' };
+}
+
+/** What shows after an accepted save: whether the roles changed, and the line to show. */
+export interface SaveLine {
+  changed: boolean;
+  text: string;
+}
+
+/** The line after an accepted save: `saved` when the roles changed, else the no-change text for the user (an answer without `changed: false` counts as a change). */
+export function saveLine(answer: { changed?: boolean } | null | undefined, user: string, saved: string): SaveLine {
+  if (answer?.changed === false) {
+    return { changed: false, text: ROLES_TEXTS.noChange.replace('{user}', () => user) };
+  }
+  return { changed: true, text: saved };
 }

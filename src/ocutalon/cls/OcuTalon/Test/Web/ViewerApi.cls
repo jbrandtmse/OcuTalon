@@ -15,7 +15,10 @@
 ///   - TestDemoAccount: the demo account's roles with the online demo forced give admin, viewer and rolesAssignable false, and the Roles routes 403 not_admin;
 ///   - TestLiveRolesRefusal: a user whose live roles hold neither role gets 401 signed_out and the CSP session ends, and one whose live read fails gets 500 server_error
 ///     with the session kept;
-///   - TestStateFollowsLiveRoles: /v1/state's viewer and admin read the live roles too, so a user cut down to the viewer role is a viewer there.
+///   - TestStateFollowsLiveRoles: /v1/state's viewer and admin read the live roles too, so a user cut down to the viewer role is a viewer there;
+///   - TestAdminFollowsLiveRoles: OcuTalonAdmin is read from the live roles and not from the session's: a user whose live roles lost it is 403 not_admin on /v1/settings,
+///     below it and on the Roles routes, with the session kept and admin false in /v1/state; a live read that fails refuses that one request with 500 server_error, keeps the
+///     session, and leaves no admin in /v1/state; with the role live again the same requests pass.
 Class OcuTalon.Test.Web.ViewerApi Extends %UnitTest.TestCase
 {
 
@@ -246,6 +249,41 @@ Method TestStateFollowsLiveRoles()
 	Set body = ..State("OcuTalonUser,OcuTalonAdmin")
 	Do $$$AssertEquals(body.viewer, 0, "with the live roles back, viewer is false")
 	Do $$$AssertEquals(body.admin, 1, "and admin is true")
+}
+
+Method TestAdminFollowsLiveRoles()
+{
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set ^OcuTalonTest("ApiProbe", "liveRoles") = "OcuTalonUser"
+	For request = "GET|/v1/settings", "POST|/v1/settings/budgets", "GET|/v1/settings/channels/webhooks", "GET|/v1/settings/roles", "POST|/v1/settings/roles" {
+		Set method = $Piece(request, "|", 1), url = $Piece(request, "|", 2)
+		Set written = ..PreDispatch(url, method, .continue)
+		Do $$$AssertEquals(continue, 0, method_" "_url_": a user whose live roles lost OcuTalonAdmin is stopped")
+		Do $$$AssertTrue(written [ """not_admin""", method_" "_url_": 403 not_admin")
+		Do $$$AssertEquals(..Ended, 0, method_" "_url_": and the session is kept")
+	}
+	Set body = ..State("OcuTalonUser,OcuTalonAdmin")
+	Do $$$AssertEquals(body.admin, 0, "admin is false in /v1/state")
+	Do $$$AssertEquals(body.viewer, 0, "and viewer is false")
+	Set written = ..PreDispatch("/v1/messages", "POST", .continue)
+	Do $$$AssertEquals(continue, 1, "the same user's other requests go on")
+	Kill ^OcuTalonTest("ApiProbe", "liveRoles")
+	Set ^OcuTalonTest("ApiProbe", "liveError") = 1
+	Set written = ..PreDispatch("/v1/settings", "GET", .continue)
+	Do $$$AssertEquals(continue, 0, "a live read that fails stops the one settings request")
+	Do $$$AssertTrue(written [ """server_error""", "with 500 server_error")
+	Do $$$AssertEquals(..Ended, 0, "and does not end the session")
+	Set body = ..State("OcuTalonUser,OcuTalonAdmin")
+	Do $$$AssertEquals(body.admin, 0, "no admin is shown while the live read fails")
+	Kill ^OcuTalonTest("ApiProbe", "liveError")
+	Set written = ..PreDispatch("/v1/settings", "GET", .continue)
+	Do $$$AssertEquals(continue, 1, "with the live roles readable and holding the role, GET /v1/settings goes on")
+	Set body = ..State("OcuTalonUser,OcuTalonAdmin")
+	Do $$$AssertEquals(body.admin, 1, "and admin is true")
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
+	Set ^OcuTalonTest("ApiProbe", "liveRoles") = "OcuTalonUser,OcuTalonAdmin"
+	Set written = ..PreDispatch("/v1/settings", "GET", .continue)
+	Do $$$AssertEquals(continue, 1, "a role that the live set holds is read from the live set, not the session's")
 }
 
 /// --- helpers ---

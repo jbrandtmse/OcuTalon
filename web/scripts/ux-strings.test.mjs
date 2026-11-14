@@ -719,6 +719,9 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 25.4 final ruling 3 before the push 2026-11-14 (the Contest Planner under the owner\'s delegation, story-254-rulings-20261113.md, DW-1297 option (a): the text of a save that changes nothing, word for word)': [
+      "No change: {user}'s roles are already as you set them.",
+    ],
     'Story 25.4 rulings at the spec gate 2026-11-13 (the Contest Planner under the owner\'s delegation, story-254-rulings-20261113.md: PUBLIC TEXT rows 1, 3 to 8 and 10 to 14 approved as written, row 2 as ruled, row 9 as the step 2 text only, and the C1 text of the user_system refusal)': [
       "Approvers can answer the approval requests that reach them, for every kind of risky action. Viewers can open OcuTalon but can't chat, answer or change anything.",
       'An approver role for one kind, such as OcuTalonApprover_resend, is granted in IRIS.',

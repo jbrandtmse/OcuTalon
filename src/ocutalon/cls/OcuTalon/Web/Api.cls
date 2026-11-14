@@ -34,7 +34,7 @@
 ///     (exactly) is the Simulated phone's press, any other body is the web chat's; it submits a GotIt command through Commands.Submit (origin web_user)
 ///     and answers 200 {"result":"done","handledAt"} (a second press too, with the first handledAt), 404 not_found for a Decision the session
 ///     can't see or that is not tell-now (nothing is submitted), 501 not_built and 500 server_error.
-///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
+///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in the user's live roles (IsAdmin), never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
 ///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
 ///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode, channels) takes the section's fields as a JSON
@@ -65,7 +65,8 @@
 ///     (POST /v1/session/end excepted), and so are GET /v1/memory/items and GET /v1/memory/pinned, which submit a command; a viewer who also holds OcuTalonAdmin is
 ///     no admin, so every /v1/settings route is 403 not_admin for it. Every request also re-reads the user's live roles
 ///     (LiveRoles): a user who then holds neither OcuTalonUser nor OcuTalonViewer is 401 signed_out and the CSP session ends, so a removed user or viewer role stops applying at the next request;
-///     the other roles (OcuTalonAdmin among them) are read from the session and apply until it ends.
+///     OcuTalonAdmin is read from the same live set (IsAdmin), so a user who lost it is 403 not_admin on /v1/settings and below it and has admin false in /v1/state at the next request, with
+///     the session kept; a live read that fails refuses only that one request (500 server_error from OnPreDispatch, no admin elsewhere) and never ends the session, and nothing is cached.
 ///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
@@ -321,7 +322,7 @@ XData BodyBounds [ MimeType = application/json ]
 
 /// Every request, before the route is matched: the role check first (403 no_role from the session's roles; then the user's live role set, with 401 signed_out
 /// and the CSP session ended when it holds neither OcuTalonViewer nor OcuTalonUser, and 500 server_error, with the session kept, when it can't be read), then the
-/// viewer check (403 read_only), then, for /v1/settings and below it, the admin check (a viewer is no admin there, as in /v1/state), then the browser envelope, then the body size (Web.BodyLimit). A refusal
+/// viewer check (403 read_only), then, for /v1/settings and below it, the admin check (OcuTalonAdmin read from the live roles; a viewer is no admin there, as in /v1/state), then the browser envelope, then the body size (Web.BodyLimit). A refusal
 /// writes its error and stops the dispatch.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
 {
@@ -375,10 +376,12 @@ ClassMethod Roles() As %String [ Private ]
 	Quit $Roles
 }
 
-/// 1 when the signed-in user holds OcuTalonAdmin, by its whole name; %All does not count (AD-19), because a holder of %All could grant itself the role.
+/// 1 when the signed-in user holds OcuTalonAdmin now, by its whole name, read from the live role set (LiveRoles) and not from the CSP session's roles; %All does not count
+/// (AD-19), because a holder of %All could grant itself the role. A live read that fails answers 0 for this one call: the session is kept and nothing is cached.
 ClassMethod IsAdmin() As %Boolean [ Private ]
 {
-	Quit ##class(OcuTalon.Core.Admin).Held(..Roles())
+	If $SYSTEM.Status.IsError(..LiveRoles(.live)) Quit 0
+	Quit ##class(OcuTalon.Core.Admin).Held(live)
 }
 
 /// 1 when the signed-in user holds OcuTalonViewer and not OcuTalonUser (Story 25.4). A test subclass drives it through Roles.
