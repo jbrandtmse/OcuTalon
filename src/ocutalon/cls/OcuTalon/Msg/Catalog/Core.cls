@@ -161,6 +161,51 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Incidents and Approvals / Forms for a count of one, the late press, and the sign-in labels / Already answered, with a user"
  },
+ "answered.notApproverResend": {
+  "text": "Only an approver for resends can answer this request.",
+  "slots": {},
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / Can't answer (step 6)"
+ },
+ "answered.notApproverReroute": {
+  "text": "Only an approver for reroutes can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 2 (Contest Planner ruling 2026-11-13)"
+ },
+ "answered.notApproverSuspend": {
+  "text": "Only an approver for suspending and resuming items can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 3 (Contest Planner ruling 2026-11-13)"
+ },
+ "answered.notApproverRollback": {
+  "text": "Only an approver for rollbacks can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 4 (Contest Planner ruling 2026-11-13)"
+ },
+ "answered.notApproverPartner": {
+  "text": "Only an approver for partner notices can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 5 (Contest Planner ruling 2026-11-13)"
+ },
+ "answered.notApproverEmail": {
+  "text": "Only an approver for emails can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 6 (Contest Planner ruling 2026-11-13)"
+ },
+ "answered.notApproverTool": {
+  "text": "Only an approver for tool calls can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 7 (Contest Planner ruling 2026-11-13)"
+ },
+ "answered.notApprover": {
+  "text": "Only an approver can answer this request.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 8: the sentence of Web.Api (MESSAGENOTAPPROVERTOOL and MESSAGENOTAPPROVERSETTING), moved here"
+ },
+ "answered.notAdmin": {
+  "text": "Only an OcuTalon admin can approve this email.",
+  "slots": {},
+  "source": "Story 25.5 PUBLIC TEXT 9 (Contest Planner ruling 2026-11-13)"
+ },
  "conversation.turnFallback": {
   "text": "I couldn't answer that: {fallbackReason}. Nothing was changed.",
   "slots": {

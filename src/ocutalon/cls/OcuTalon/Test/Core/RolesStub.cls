@@ -1,6 +1,6 @@
 /// The stand-in for OcuTalon.Install.Step.Roles that the tests of the roles commands give SettingsOps (through SettingsRolesProbe.RolesClass). It has the three run-time
 /// calls and changes no security object. Each call is recorded under ^OcuTalonTest("RolesStub", "calls", n) as "<method>|<arguments>". The answers come from
-/// ^OcuTalonTest("RolesStub", "answer"): "" is OK, "stub" is "not implemented" (code 5003) and "error" an error status; Refusal answers the code in
+/// ^OcuTalonTest("RolesStub", "answer"): "" is OK, "stub" is "not implemented" (code 5003) and "error" an error status; Refusal records its acting user and grant as "<actingUser>|<grant>" in ^OcuTalonTest("RolesStub", "refusalArgs") and answers the code in
 /// ^OcuTalonTest("RolesStub", "refusal") (the value "throw" makes it throw instead), and Holders the JSON in ^OcuTalonTest("RolesStub", "users") (an empty list when there is none).
 Class OcuTalon.Test.Core.RolesStub
 {
@@ -11,9 +11,10 @@ ClassMethod Record(text As %String)
 	Set ^OcuTalonTest("RolesStub", "calls", n) = text
 }
 
-ClassMethod Refusal(userName As %String, role As %String) As %String
+ClassMethod Refusal(userName As %String, role As %String, actingUser As %String = "", grant As %Boolean = 1) As %String
 {
 	Do ..Record("Refusal|"_userName_"|"_role)
+	Set ^OcuTalonTest("RolesStub", "refusalArgs") = actingUser_"|"_grant
 	If $Get(^OcuTalonTest("RolesStub", "refusal")) = "throw" Throw ##class(%Exception.General).%New("zz refusal threw")
 	Quit $Get(^OcuTalonTest("RolesStub", "refusal"))
 }

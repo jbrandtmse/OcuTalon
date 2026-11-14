@@ -13,6 +13,7 @@ import { fixtureUser } from '../support/iris';
  *       chat is the same after them; POST /v1/session/end signs the viewer out (204), and the session is then 401;
  *   R4  the README admin lists (the target is in the list), grants OcuTalonViewer (changed true, then false), sees it in the list, and removes it (changed true, then false);
  *   R5  each refused role and user of the matrix is 400 bad_settings with its field and reason, and a bad shape is 400 naming the fields; the target's roles are unchanged.
+ *   R6  (Story 25.5, DW-1303) the README admin granting themselves OcuTalonViewer is 400 bad_settings with the reason self_viewer and its sentence, whatever the case of the name; nothing changes, and removing one's own viewer role and granting oneself OcuTalonApprover are not refused.
  */
 const ROLES = '/ocutalon/api/v1/settings/roles';
 const STATE = '/ocutalon/api/v1/state';
@@ -181,4 +182,31 @@ test('R5: each refused role and user, and each bad shape, is 400 and changes not
     expect(body.fields).toEqual(fields);
   }
   expect(await targetRoles(request), 'the target\'s roles are unchanged').toEqual(before);
+});
+
+test('R6: the README admin granting themselves the viewer role is refused with self_viewer and nothing changes; their own removal and OcuTalonApprover stay allowed (DW-1303)', async ({ request }) => {
+  await admin(request);
+  const own = README_ACCOUNT.user;
+  const sentence = "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin.";
+  const ownRoles = async (): Promise<string[]> => (await list(request)).find((one) => one.user.toLowerCase() === own.toLowerCase())?.roles ?? [];
+  const before = await ownRoles();
+  expect(before, 'the README account holds no viewer role to start with').not.toContain('OcuTalonViewer');
+  try {
+    for (const name of [own, own.toUpperCase()]) {
+      const response = await save(request, name, 'OcuTalonViewer', true);
+      expect(response.status(), `${name}: ${await response.text()}`).toBe(400);
+      const body = (await response.json()) as { error: { code: string; message: string }; fields: string[]; reason: string };
+      expect(body.error.code, name).toBe('bad_settings');
+      expect(body.error.message, `${name}: the refusal's text`).toBe(sentence);
+      expect(body.fields, `${name}: the field`).toEqual(['user']);
+      expect(body.reason, `${name}: the reason`).toBe('self_viewer');
+    }
+    expect(await ownRoles(), 'nothing changed').toEqual(before);
+    expect(await (await save(request, own, 'OcuTalonViewer', false)).json(), 'removing one\'s own viewer role is not refused (the role is not held: nothing changes)').toEqual({ result: 'done', changed: false });
+    const granted = await save(request, own, 'OcuTalonApprover', true);
+    expect(granted.status(), await granted.text()).toBe(200);
+    expect(await granted.json(), 'granting oneself OcuTalonApprover is not refused').toEqual({ result: 'done', changed: !before.includes('OcuTalonApprover') });
+  } finally {
+    if (!before.includes('OcuTalonApprover')) await save(request, own, 'OcuTalonApprover', false);
+  }
 });

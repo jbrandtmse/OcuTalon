@@ -8167,6 +8167,8 @@ So that new tickets get an attention decision and a source that stops being read
 
 - DW-1328: an update that repoints a source (server, tool or arguments) keeps its old `Reported` state and run history; reset them when the source is repointed (ledger; routed by cr 2026-11-14)
 
+[AMENDED 2026-11-14, Contest Planner ruling ~13:20Z Nov 14 (22.11 gate, item 1: split approved): the reserved name (DW-1325), staleness against the interval (DW-1327), DW-1328's switch and the mailbox sentences move to Story 22.13; 22.11 keeps the poll run: the bridge, `Checks` and the stop notice. DW-1328 is ruled RESET (item 2): 22.13 moves a repointed source's `CreatedAt`, and 22.11's run takes the first good run since `CreatedAt` as a baseline with no Item]
+
 ### Story 22.12: Document polling a Jira MCP tool as a source
 
 As a production developer,
@@ -8180,6 +8182,34 @@ So that I can set up new-ticket polling the governed way.
 **Given** the worked example `docs/mcp-jira-example.md` from Story 22.6
 **When** this story merges
 **Then** it sets "new tickets assigned to me" as a source poll of a Read-only Jira search tool, shows the source's entry on the digest's coverage list (checked, or not checked with its reason), and the source half of the release check covers it, with every sentence true of the code at merge and brought to the Planner as PUBLIC TEXT (FR-50, FR-36, AD-28)
+
+### Story 22.13: Keep source names, staleness and repoints honest on the coverage list
+
+[ADDED 2026-11-14, split of Story 22.11, Contest Planner ruling ~13:20Z Nov 14 (22.11 gate, item 1); follows 22.5 (Part A); needs no bridge change]
+
+**Lane:** A.
+
+As a user,
+I want a source poll's name, staleness and repoint to read truthfully on my digest's coverage list,
+So that the mailbox is never confused with a source, a slow source is not called stale between its runs, and a repointed source never carries another target's runs.
+
+**Acceptance Criteria:**
+
+**Given** a `SetSourcePoll` whose name equals "Mailbox", ignoring letter case and surrounding spaces
+**When** `McpOps` handles it
+**Then** it is refused with its own outcome `reserved_name` and the text "That name belongs to the connected mailbox. Choose another name.", and nothing is written (DW-1325; tested with "Mailbox", " mailbox " and "MAILBOX", plus a mutation)
+
+**Given** a source with no run in the digest window
+**When** coverage is built
+**Then** its latest run at or after its `CreatedAt` counts when it is within max(the window, its interval plus 180 s) of the window's end, else it is stale (DW-1327; a 48 h source last run 30 h before the end of a 24 h window is not stale; 50 h before is stale; each with a mutation; AD-18 amended)
+
+**Given** an update of a source that changes its server, tool or arguments
+**When** `Watch.Ops` saves it
+**Then** its `CreatedAt` moves to now, so coverage counts only runs since the repoint (and 22.11's run takes the next good run as a baseline); an update that changes only the interval or the name's letter case keeps `CreatedAt` (DW-1328, ruled RESET; both branches tested, each with a mutation)
+
+**Given** a digest that names the connected mailbox in a sentence
+**When** it is composed
+**Then** it reads "I checked the Orders production, Jira and the mailbox." and "Not everything: the mailbox."; where "Mailbox" is a label (coverage lines, check rows, Settings) it stays as it is (Planner ~12:45Z and ~13:20Z item 4; both sentences pinned, each with a mutation)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 

@@ -11,6 +11,8 @@
 ///   - TestNotCheckedLeadWithFailure (Story 22.5): with a failed row as well, the checks part keeps checks.notEverythingRestPassed, naming the failed and the not-checked
 ///     entries, and has neither the lead nor checks.everythingElsePassed;
 ///   - TestNotCheckedLeadTwo (Story 22.5): two not-checked rows and a passed one lead with both not-checked lines, in row order, then checks.everythingElsePassed;
+///   - TestCheckedListSourceBare, TestCheckedListMailboxLower, TestNotEverythingMailboxLower (Story 22.13): the connected mailbox reads "the mailbox" in "I checked ..." and
+///     "Not everything: ...", and stays "Mailbox" on its coverage line;
 ///   - TestMailboxOnlyNothingWatched (Story 22.5, AD-28): the Mailbox row alone, passed or not, gives digest.nothingWatched and no all-clear;
 ///   - TestQuietDay: everything passed and nothing needs the user: the quiet parts, checks.allPassed as the CatalogKey, and at most 150 words;
 ///   - TestNothingWatched, TestVitalsNotAll: digest.nothingWatched alone, with checks.nothingWatched; the vital signs that did not pass are named;
@@ -483,7 +485,7 @@ Method TestNotCheckedLeadTwo()
 	Do $$$AssertEquals(..Sent(session).AllClear, 0, "the Sent row is no all-clear")
 }
 
-/// Story 22.5: in the I-checked list a source row's name stands as the admin typed it, and every other entry (a production, the Mailbox) keeps its "the ".
+/// Story 22.5: in the I-checked list a source row's name stands as the admin typed it, and a production keeps its "the "; the connected mailbox reads "the mailbox" (Story 22.13).
 Method TestCheckedListSourceBare()
 {
 	Set source = ##class(OcuTalon.Checks.Process).#SOURCEKIND
@@ -495,11 +497,80 @@ Method TestCheckedListSourceBare()
 		Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled ("_result_")")
 		Set slots = ..Notice(1).slots
 		Set part = ..Part(slots, $Select(result = "failed": "digest.checked", 1: "digest.checkedQuiet"))
-		Do $$$AssertEquals(part.slots.checked, "the Orders production, Jira and the Mailbox", "the source has no the, the production and the Mailbox keep it ("_result_")")
-		Set expected = "I checked the Orders production, Jira and the Mailbox"_$Select(result = "failed": ".", 1: " (all running, no errors, no backlog).")
+		Do $$$AssertEquals(part.slots.checked, "the Orders production, Jira and the mailbox", "the source has no the, the production keeps it and the mailbox reads the mailbox ("_result_")")
+		Set expected = "I checked the Orders production, Jira and the mailbox"_$Select(result = "failed": ".", 1: " (all running, no errors, no backlog).")
 		Do $$$AssertTrue(..Render(slots) [ expected, "it renders as: "_expected)
 	}
 	Do $ClassMethod(..#PROBE, "Reset")
+}
+
+/// Story 22.13: the connected mailbox reads "the mailbox" in the I-checked sentence, both variants (digest.checked and digest.checkedQuiet), and stays "Mailbox" as the label
+/// of its coverage line.
+Method TestCheckedListMailboxLower()
+{
+	Set mailbox = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX
+	For result = "passed", "failed" {
+		Do $ClassMethod(..#PROBE, "Reset")
+		Set session = ..Session()
+		Do $ClassMethod(..#PROBE, "Feed", [(..Watched(result, "Orders production", $Select(result = "failed": "5 messages queued", 1: ""))), (..Watched("passed", mailbox))])
+		Set host = ..Host()
+		Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled ("_result_")")
+		Set slots = ..Notice(1).slots
+		Set key = $Select(result = "failed": "digest.checked", 1: "digest.checkedQuiet")
+		Do $$$AssertEquals(..Part(slots, key).slots.checked, "the Orders production and the mailbox", "the "_key_" part names the mailbox in lower case")
+		Set text = ..Render(slots)
+		Set expected = "I checked the Orders production and the mailbox"_$Select(result = "failed": ".", 1: " (all running, no errors, no backlog).")
+		Do $$$AssertTrue(text [ expected, "it renders as: "_expected)
+		Set label = ""
+		Set iterator = slots.lines.%GetIterator()
+		While iterator.%GetNext(, .line) {
+			If line.slots.entry = mailbox Set label = line.key
+		}
+		Do $$$AssertEquals(label, "digest.passed", "the coverage line keeps the label "_mailbox_" ("_result_")")
+	}
+	Do $ClassMethod(..#PROBE, "Reset")
+}
+
+/// Story 22.13: the connected mailbox reads "the mailbox" in "Not everything: ...", beside other entries unchanged, and stays "Mailbox" on its coverage line.
+Method TestNotEverythingMailboxLower()
+{
+	Set mailbox = ##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX
+	Set source = ##class(OcuTalon.Checks.Process).#SOURCEKIND
+	// a failed row exists: the lead does not apply
+	Do $ClassMethod(..#PROBE, "Reset")
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Feed", [(..Watched("failed", "Orders production", "5 messages queued")), (..Watched("not_checked", mailbox, "Couldn't be read"))])
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled (a failed row)")
+	Set notice = ..Notice(1)
+	Set slots = notice.slots
+	Do $$$AssertTrue($Extract(notice.catalogKey, 1, 16) = "checks.notEveryt", "the checks part is a Not everything key: "_notice.catalogKey)
+	Do $$$AssertEquals(..Part(slots, notice.catalogKey).slots.whatFailed, "Orders production and the mailbox", "the other entry is unchanged and the mailbox reads the mailbox")
+	Do $$$AssertTrue(..Render(slots) [ "Not everything: Orders production and the mailbox.", "it renders as: Not everything: Orders production and the mailbox.")
+	Do $$$AssertEquals(..LineKeyOf(slots, mailbox), "digest.notCheckedError", "the coverage line keeps the label "_mailbox)
+	// no row passed: the lead does not apply
+	Do $ClassMethod(..#PROBE, "Reset")
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Feed", [(..Watched("not_checked", "Jira", "Couldn't reach its MCP server", source)), (..Watched("not_checked", mailbox, "Couldn't be read"))])
+	Set host = ..Host()
+	Do $$$AssertStatusOK(..Handle(..Compose(session), host), "the Compose is handled (no row passed)")
+	Set notice = ..Notice(1)
+	Set slots = notice.slots
+	Do $$$AssertTrue($Extract(notice.catalogKey, 1, 16) = "checks.notEveryt", "the checks part is a Not everything key: "_notice.catalogKey)
+	Do $$$AssertEquals(..Part(slots, notice.catalogKey).slots.whatFailed, "Jira and the mailbox", "the source keeps its name and the mailbox reads the mailbox")
+	Do $$$AssertEquals(..LineKeyOf(slots, mailbox), "digest.notCheckedError", "the coverage line keeps the label "_mailbox)
+	Do $ClassMethod(..#PROBE, "Reset")
+}
+
+/// The key of the coverage line of the entry, or "".
+Method LineKeyOf(slots As %DynamicObject, entry As %String) As %String [ Private ]
+{
+	Set key = ""
+	Set iterator = slots.lines.%GetIterator()
+	While iterator.%GetNext(, .line) {
+		If line.slots.entry = entry Set key = line.key
+	}
+	Quit key
 }
 
 /// Story 22.5 (AD-28): the Mailbox row is not a watch, so a session whose only watched row is the Mailbox gets digest.nothingWatched and never an all-clear,

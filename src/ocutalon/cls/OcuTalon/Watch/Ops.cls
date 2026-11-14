@@ -24,7 +24,8 @@
 ///   - The source row (Story 22.5; AD-18): the row of Kind SOURCEKIND that polls one read-only MCP tool of a server (Server, Tool, Arguments and IntervalMinutes), named by
 ///     its DisplayName. It is created, updated and removed only through SetSource and RemoveSource, which McpOps calls after it has validated the command and sends the
 ///     CheckChanged itself; SourcesOf lists a server's sources. Its natural key is SessionRef, Kind and DisplayName, a repeat of the key updates that row and keeps its Ref,
-///     and every save makes the row due now.
+///     and every save makes the row due now. A repeat that changes the target (server, tool or arguments) also moves CreatedAt to now, so coverage counts only the runs since
+///     (REPOINTRESETS; DW-1328).
 /// The messages are plain sentences for the model and the caller, never rendered from the catalog (AD-32).
 Class OcuTalon.Watch.Ops Extends Ens.BusinessOperation
 {
@@ -39,6 +40,10 @@ Parameter QUEUESNAME = "Queue-backlog check";
 
 /// The kind of a source row: one read-only MCP tool that is polled on a schedule (Story 22.5).
 Parameter SOURCEKIND = "source";
+
+/// 1: a source whose server, tool or arguments change keeps its Ref but starts afresh: its CreatedAt becomes now (Story 22.13; DW-1328). 0 would keep CreatedAt on every
+/// update.
+Parameter REPOINTRESETS = 1;
 
 Parameter MESSAGESTARTED = "The watch was started.";
 
@@ -226,7 +231,9 @@ ClassMethod RemoveEvalWatch(ref As %String, Output removed As %Boolean) As %Stat
 }
 
 /// Makes the session's source row named name, or updates it (Story 22.5): its natural key is SessionRef, Kind SOURCEKIND and DisplayName (in any letter case). A repeat
-/// of the key updates that row, keeps its Ref and CreatedAt and its run fields, and stores the name as last given (created 0). A new row gets a new Ref, CreatedAt now and empty run
+/// of the key updates that row, keeps its Ref and its run fields, and stores the name as last given (created 0). It keeps CreatedAt too, unless the target changes (server,
+/// tool or arguments, compared exactly), when CreatedAt becomes now: a source's CreatedAt is when its target was set (Story 22.13; DW-1328). A change of the interval or of
+/// the name's letter case alone keeps it. The run fields, Reported and the CheckRun rows are never touched here. A new row gets a new Ref, CreatedAt now and empty run
 /// fields (created 1). Every save sets NextDueAt to now. The caller (McpOps) has validated every value. Under the session's lock; the status is an error when the lock
 /// is not taken or the row cannot be saved, and nothing is sent.
 ClassMethod SetSource(sessionRef As %String, server As %String, tool As %String, name As %String, arguments As %String, intervalMinutes As %Integer, askedBy As %String, Output ref As %String, Output created As %Boolean) As %Status
@@ -241,6 +248,7 @@ ClassMethod SetSource(sessionRef As %String, server As %String, tool As %String,
 		Set now = ##class(OcuTalon.Data.Time).NowUtc()
 		If found '= "" {
 			Set row = ##class(OcuTalon.Data.BackgroundCheck).%OpenId(id)
+			If ..#REPOINTRESETS && ((row.Server '= server) || (row.Tool '= tool) || (row.Arguments '= arguments)) Set row.CreatedAt = now
 		} Else {
 			Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
 			Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()

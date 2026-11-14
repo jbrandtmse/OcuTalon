@@ -6,14 +6,17 @@
 Class OcuTalon.Test.Core.AnswersTelegramProbe Extends OcuTalon.Core.AnswersIn
 {
 
-ClassMethod Deliver(answer As OcuTalon.Core.Msg.Answer, Output result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
+ClassMethod Deliver(answer As OcuTalon.Core.Msg.Answer, Output result As OcuTalon.Core.Msg.AnswerResult, Output refusal As %DynamicObject) As %Status [ Private ]
 {
 	Set result = ""
+	Set refusal = {}
 	Set ^OcuTalonTest("AnswersTelegramProbe", "delivers") = $Get(^OcuTalonTest("AnswersTelegramProbe", "delivers")) + 1
 	If $Get(^OcuTalonTest("AnswersTelegramProbe", "fail")) Quit $SYSTEM.Status.Error(5001, "zz deliver failed")
 	Set service = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.AnswersInProbe", .sc)
 	If '$IsObject(service) Quit sc
-	Quit service.OnProcessInput(answer, .result)
+	Set sc = service.OnProcessInput(answer, .result)
+	Set refusal = $Select($IsObject(service.Refusal): service.Refusal, 1: {})
+	Quit sc
 }
 
 }
