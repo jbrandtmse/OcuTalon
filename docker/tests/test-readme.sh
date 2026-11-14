@@ -2720,12 +2720,18 @@ rule_admin_mcp() {
   st 'the guide sentence changed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/must be classified Risky/, "should be classified Risky") } { print }' chk_admin_mcp
   st 'the link to another file' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/mcp-jira.md") } { print }' chk_admin_mcp
   st 'the link text changed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/step by step\]/, "step-by-step]") } { print }' chk_admin_mcp
+  st 'the paragraph split over two lines' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/Risky\. The worked/, "Risky.\nThe worked") } { print }' chk_admin_mcp
+  st 'the link to a file that exists' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/security-overview.md") } { print }' chk_admin_mcp
+  st 'an anchor on the link' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/mcp-jira-example\.md\)/, "mcp-jira-example.md#step-1)") } { print }' chk_admin_mcp
   st 'a line above the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print "A stray line."; print "" } { print }' chk_admin_mcp
   st 'the paragraph under Demo mode' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { held = $0; next } { print } /^### Demo mode$/ { print ""; print held }' chk_admin_mcp
   st 'the paragraph in another section' 1 "$GUIDE" "index(\$0, \"An MCP tool that runs operating-system\") == 1 { next } { print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp
   st 'the paragraph twice' 1 "$GUIDE" "{ print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp
   st 'the admin heading renamed' 1 "$GUIDE" '/^## For admins and developers$/ { print "## For admins"; next } { print }' chk_admin_mcp
   st 'the example sentence changed' 2 "$mcpexample_p" '{ sub(/must be classified Risky\./, "should be classified Risky.") } { print }' chk_admin_mcp
+  st 'the example sentence split over two lines' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/ commands or/, "\ncommands or") } { print }' chk_admin_mcp
+  st 'the example sentence twice' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { print; print "" } { print }' chk_admin_mcp
+  st 'the example sentence inside a longer line' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { $0 = $0 " See also the overview." } { print }' chk_admin_mcp
   st 'the example sentence removed' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") != 1' chk_admin_mcp
   st 'no worked example' 2 "$mcpexample_p" '0' chk_admin_mcp
   finish admin-mcp "For admins and developers opens with the ruled MCP paragraph, once, and its classification sentence is a line of $MCP_EXAMPLE_DOC, word for word" chk_admin_mcp

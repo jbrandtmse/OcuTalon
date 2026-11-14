@@ -222,3 +222,6 @@
 2026-11-14T12:51:00Z	Story 36.3	stage_spawned	stage=implement spawn_at=2026-11-14T12:51:00Z model=sonnet agent_name=36-3-implement-1 cycle_iteration=1 effort=high
 2026-11-14T13:30:46Z	Story 36.3	dev_complete	model=sonnet effort=high files=GUIDE.md(G2),docker/tests/test-readme.sh(admin-mcp+12_self-tests) mutations=4 checks=test-readme_43,test-release-notes(real-tree),boundaries,web_2082,link_smoke build-auto_review=9(0_patched)
 2026-11-14T13:30:46Z	Story 36.3	stage_spawned	stage=qa spawn_at=2026-11-14T13:30:46Z model=sonnet agent_name=36-3-qa-1 cycle_iteration=1 effort=high
+2026-11-14T13:40:25Z	Story 36.3	qa_complete	model=sonnet effort=high tests=admin-mcp_self-tests+6(split_para,link_to_existing_file,anchor,example_split,example_twice,example_in_longer_line) mutations_demonstrated=4
+2026-11-14T13:40:25Z	Story 36.3	protocol_violation	stage=qa-1 kind=shell_ampersand(one_busy-loop_poll,stopped_at_once;no_file_touched) severity=low action=noted
+2026-11-14T13:40:25Z	Story 36.3	stage_spawned	stage=code-review spawn_at=2026-11-14T13:40:25Z model=opus agent_name=36-3-code-review-1 cycle_iteration=1 effort=high

@@ -129,8 +129,18 @@ M(4)(e) truth check: sections 1 and 2 of the example add the server and classify
 - mutation: GUIDE.md "must be classified Risky" -> "should be classified Risky" -> `FAIL admin-mcp` (AC2).
 - mutation: G2's link `docs/mcp-jira-example.md` -> `docs/mcp-jira.md` -> `FAIL admin-mcp`, `FAIL readme-links` (AC3).
 - mutation: example line 36 "must" -> "should" -> `FAIL admin-mcp` (AC2, the tie to the example).
+- mutation (QA): `chk_admin_mcp` made to compare the guide's paragraph by its first sentence only (first-line test as a `grep -qF` of the sentence, count as `grep -cF` of the sentence) -> `FAIL admin-mcp: a broken copy was not flagged`, naming the new self-tests `the paragraph split over two lines`, `the link to a file that exists` and `an anchor on the link` (and the older link cases); reverted, md5 identical to the pre-mutation file.
+- mutation (QA): the example's `grep -cxF` count made `-lt 1` -> `the example sentence twice` not flagged; made `grep -cF` (not whole-line) -> `the example sentence inside a longer line` not flagged; made a newline-flattened count -> `the example sentence split over two lines` and `the example sentence inside a longer line` not flagged. Each reverted, md5 identical, `git diff --stat` unchanged (6 insertions).
 
 **Shared surfaces:** GUIDE.md "For admins and developers" (read by `admin-commands`, `dev-only` and `test-release-notes.sh`'s `names_outside_section`); `RULES`/`GUIDE_RULES`. Every test added or changed passes on a fresh environment, in either order. `test-release-notes.sh` `real-tree` fails on a history-less scratch copy both with and without G2, so that failure is a property of the copy, not of this change.
+
+## Tests Added
+
+QA stage (2026-11-14), docs story, no UI or API surface, so no e2e. Six self-test cases added to `rule_admin_mcp` in `docker/tests/test-readme.sh` (6 insertions, rule logic and product text untouched; 18 self-test copies now):
+- Guide side: `the paragraph split over two lines` (the sentence and the link sentence on separate lines), `the link to a file that exists` (`docs/security-overview.md`, a tracked file, where the older case used a missing one), `an anchor on the link` (AC3: no anchor).
+- Example side: `the example sentence split over two lines`, `the example sentence twice` (pins the "once" half the review log called unpinned), `the example sentence inside a longer line` (pins "a line of its own").
+- Already pinned, no case added: G2 moved later (`the paragraph under Demo mode`, `a line above the paragraph`), G2 duplicated elsewhere in the guide (`the paragraph twice`).
+- `bash docker/tests/test-readme.sh`: exit 0, 43 PASS, `PASS admin-mcp`. `bash docker/tests/test-boundaries.sh`: see the QA report.
 
 ## Auto Run Result
 
