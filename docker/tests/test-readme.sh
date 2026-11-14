@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30, 0.36 and 21.12; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
+# Pins README.md and GUIDE.md (Stories 10.2, 10.4, 10.5, 0.21, 0.26, 0.28, 0.29, 0.30, 0.36, 21.12 and 36.3; FR-4, FR-10, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134, DW-1171, DW-1207). Hermetic: it starts
 # nothing, needs no network and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules). That the README's video
 # addresses answer is checked online by docker/tests/check-readme-video.sh, which this script never runs.
 #
@@ -7,7 +7,7 @@
 # links the guide by its absolute address. Each rule below reads the file that holds its text: README.md for top, word-cap, guide
 # (also the guide), try-it, interesting, measured, video, checklist-video, judges-usability, path and licence; GUIDE.md for use-cases,
 # how-you-talk, outcomes, install, install-pointer, commands, key-account, lan, sign-in-address (also the README), demo-mode,
-# admin-commands, after-start-log, ipm and the three telegram rules; both files for comparison (the H3 in the README, the pointer in the guide), new-since, teaser (its media clauses), images, once,
+# admin-commands, admin-mcp, after-start-log, ipm and the three telegram rules; both files for comparison (the H3 in the README, the pointer in the guide), new-since, teaser (its media clauses), images, once,
 # dev-only, public-text, telegram-demo, no-telegram, product-links and readme-links; README.md's headings and the documentation set
 # (below) for readme-anchors. With no GUIDE.md every rule that names it fails
 # closed (a FAIL no-guide line names a rule that does not).
@@ -111,6 +111,9 @@
 #                  in two minutes" and "Sign in" give its address ("Try it" its account too)
 #   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
+#   admin-mcp      "For admins and developers" opens with the ruled MCP paragraph, once: the Risky classification sentence, word for word
+#                  from docs/mcp-jira-example.md, and a link to that worked example, as a paragraph of its own; the example holds that
+#                  sentence once, as a whole line (Story 36.3; FR-10)
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
 #   dev-only       in the README and the guide, no ##class(, class name or error code outside the sections "For admins and developers" and "Gmail and Microsoft 365",
@@ -159,7 +162,7 @@
 #                  files can never drop out of that scan
 #
 # What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, GUIDE.md, LICENSE,
-# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, the Markdown files of the documentation set (readme-anchors),
+# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, docs/mcp-jira-example.md, the Markdown files of the documentation set (readme-anchors),
 # the sizes of the linked files of docs/images/, install.sh,
 # the tree's file list (for the files of docs/images/), src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
 # docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
@@ -211,6 +214,7 @@ LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
 BRIDGE_DOC=docs/bridge-guide.md
 SECOV_DOC=docs/security-overview.md
+MCP_EXAMPLE_DOC=docs/mcp-jira-example.md
 DOCKERFILE=Dockerfile
 
 listing=$(scan_files)
@@ -245,6 +249,7 @@ license_p=$(of "$LICENSE_FILE")
 ipmdoc_p=$(of "$IPM_DOC")
 bridgedoc_p=$(of "$BRIDGE_DOC")
 secov_p=$(of "$SECOV_DOC")
+mcpexample_p=$(of "$MCP_EXAMPLE_DOC")
 dockerfile_p=$(of "$DOCKERFILE")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
@@ -1343,6 +1348,26 @@ chk_admin_commands() {
   local sec="$tmp/sec.admin"
   section "$1" 'For admins and developers' > "$sec"
   chk_facts admin-commands "$sec" "$ADMIN_FACTS"
+}
+
+# admin-mcp (Story 36.3; FR-10): "For admins and developers" opens with the ruled MCP paragraph (Planner M(4), G2), once in the guide,
+# and its first sentence is a line of the worked example, word for word, so the link's target is there: chk_admin_mcp <guide> <example>.
+ADMIN_MCP_RISKY='An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.'
+ADMIN_MCP_LINE="$ADMIN_MCP_RISKY The worked example [A Jira MCP server, step by step]($MCP_EXAMPLE_DOC) shows how to add a server and classify its tools."
+chk_admin_mcp() {
+  local sec="$tmp/sec.adminmcp" n
+  section "$1" 'For admins and developers' > "$sec"
+  if [ "$(awk 'NF { print; exit }' "$sec")" != "$ADMIN_MCP_LINE" ]; then
+    echo "admin-mcp: 'For admins and developers' does not open with the ruled MCP paragraph"
+  fi
+  if [ -n "$(awk -v l="$ADMIN_MCP_LINE" 'f { print; exit } $0 == l { f = 1 }' "$sec")" ]; then
+    echo "admin-mcp: a line runs on from the ruled MCP paragraph with no empty line, so Markdown joins it to the paragraph"
+  fi
+  n=$(grep -cxF -- "$ADMIN_MCP_LINE" "$1")
+  if [ "$n" -ne 1 ]; then echo "admin-mcp: the guide holds the ruled MCP paragraph $n times, not once"; fi
+  if [ "$(grep -cxF -- "$ADMIN_MCP_RISKY" "$2")" -ne 1 ]; then
+    echo "admin-mcp: $MCP_EXAMPLE_DOC does not hold the guide's classification sentence once, as a line of its own"
+  fi
 }
 
 # after-start-log: the command that reads the start's log, and the lines to look for in it (Troubleshooting; the walkthrough ran it).
@@ -2693,6 +2718,30 @@ rule_admin_commands() {
   finish admin-commands 'the terminal sessions and the password line are the ones the walkthrough ran' chk_admin_commands
 }
 
+rule_admin_mcp() {
+  rule_begin admin-mcp "$GUIDE" "$mcpexample_p" || return
+  st 'the MCP paragraph removed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") != 1' chk_admin_mcp
+  st 'the guide sentence changed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/must be classified Risky/, "should be classified Risky") } { print }' chk_admin_mcp
+  st 'the link to another file' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/mcp-jira.md") } { print }' chk_admin_mcp
+  st 'the link text changed' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/step by step\]/, "step-by-step]") } { print }' chk_admin_mcp
+  st 'the paragraph split over two lines' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/Risky\. The worked/, "Risky.\nThe worked") } { print }' chk_admin_mcp
+  st 'the link to a file that exists' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/docs\/mcp-jira-example\.md/, "docs/security-overview.md") } { print }' chk_admin_mcp
+  st 'an anchor on the link' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/mcp-jira-example\.md\)/, "mcp-jira-example.md#step-1)") } { print }' chk_admin_mcp
+  st 'a line joined to the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print; print "More text."; next } { print }' chk_admin_mcp
+  st 'a line above the paragraph' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { print "A stray line."; print "" } { print }' chk_admin_mcp
+  st 'the paragraph under Demo mode' 1 "$GUIDE" 'index($0, "An MCP tool that runs operating-system") == 1 { held = $0; next } { print } /^### Demo mode$/ { print ""; print held }' chk_admin_mcp
+  st 'the paragraph in another section' 1 "$GUIDE" "index(\$0, \"An MCP tool that runs operating-system\") == 1 { next } { print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp
+  st 'the paragraph twice' 1 "$GUIDE" "{ print } /^## Troubleshooting\$/ { print \"\"; print \"$ADMIN_MCP_LINE\" }" chk_admin_mcp
+  st 'the admin heading renamed' 1 "$GUIDE" '/^## For admins and developers$/ { print "## For admins"; next } { print }' chk_admin_mcp
+  st 'the example sentence changed' 2 "$mcpexample_p" '{ sub(/must be classified Risky\./, "should be classified Risky.") } { print }' chk_admin_mcp
+  st 'the example sentence split over two lines' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { sub(/ commands or/, "\ncommands or") } { print }' chk_admin_mcp
+  st 'the example sentence twice' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { print; print "" } { print }' chk_admin_mcp
+  st 'the example sentence inside a longer line' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") == 1 { $0 = $0 " See also the overview." } { print }' chk_admin_mcp
+  st 'the example sentence removed' 2 "$mcpexample_p" 'index($0, "An MCP tool that runs operating-system") != 1' chk_admin_mcp
+  st 'no worked example' 2 "$mcpexample_p" '0' chk_admin_mcp
+  finish admin-mcp "For admins and developers opens with the ruled MCP paragraph, once, and its classification sentence is a line of $MCP_EXAMPLE_DOC, word for word" chk_admin_mcp
+}
+
 rule_after_start_log() {
   rule_begin after-start-log "$GUIDE" "$after_start_p" || return
   st_facts chk_after_start_log "docker compose exec iris cat $(log_path "$after_start_p")
@@ -3279,9 +3328,9 @@ rule_guide() {
   finish guide 'GUIDE.md has its ruled title, its H2 sections in order and its ruled Tests and CI line; the README holds the ruled pointer and the More paragraph once each, and the More paragraph links the guide and each of its H2 sections' chk_guide
 }
 
-RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text gmail_section telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links readme_anchors must_scan ipm licence docs'
+RULES='top word_cap guide try_it interesting measured comparison use_cases how_you_talk video checklist_video judges_usability path new_since teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands admin_mcp after_start_log dev_only public_text gmail_section telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links readme_anchors must_scan ipm licence docs'
 # The rules that name the guide: with no GUIDE.md each one fails closed.
-GUIDE_RULES='guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo readme_anchors gmail_section'
+GUIDE_RULES='admin_mcp guide comparison new_since use_cases how_you_talk images once teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links ipm telegram_section telegram_strings telegram_facts telegram_demo readme_anchors gmail_section'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {
