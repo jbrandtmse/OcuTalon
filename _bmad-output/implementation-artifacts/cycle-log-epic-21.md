@@ -337,3 +337,4 @@
 2026-11-14T03:34:25Z	Story 21.4	ci_resolved	sha=435c5cc8 run=43541569138 result=failure(only_iris_shards-10;all_other_jobs_success) lane-a=43541569042_success action=[CI]_rework_1_running
 2026-11-14T03:48:59Z	Story 21.4	dev_complete	build_sha=acb7b54f cycle_iteration=2 trigger=[CI] change=web/e2e/api/mcp.spec.ts_M2_finally_drops_the_README_turn(dropReadmeTurns,sessionMark_in_support/mcp.ts;reuses_RunnerFixture.DropSince,ReminderFixture.RemoveTurns,runnersRecorded) proof=M2->C1->F1_one_run:red_without_fix,3/3_with_fix;sign-in_part_2/16_20/20 review=19(high0,5_patched,14_rejected) followup=false product_code=none
 2026-11-14T03:48:59Z	Story 21.4	cr_complete	scope=[CI]_rework_1(lead_scoped) review=test-only;shared_helper;C1/F1_unchanged;fails_loudly_on_timeout high=0 med=0 low=0 final_status=done cycle_iteration=2
+2026-11-14T03:49:32Z	Story 21.4	pushed	head=d1730af5 ci=pending runs=43553562796,43553562956 part=21.4 note=[CI]_rework_1
