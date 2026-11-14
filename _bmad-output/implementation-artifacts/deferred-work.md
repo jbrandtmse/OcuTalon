@@ -8033,20 +8033,6 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: No web-side handle (the uri is in the unseen result); reachable on a healthy production, not only a wedged one: SettingsOps PoolSize 1 and TestModel waits up to 45 s; memory only, 128-bit name, never a trace or a global (related: DW-1155, no expiry)
 - 2026-11-14T01:11:36Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=SecretHandoff gains an expiry/sweep, or a leftover OcuTalonHandoff* event is seen after GETs outside a model test; fix: skip Put when request age>=20s
 
-### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
-- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
-- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
-- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
-### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
-- source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
-- evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
-- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=Planner: separate from 36.4; 36.4 moves its own read behind SettingsOps
-
-### DW-1288: Public text mixes 'canceled' (4, including catalog answered.canceled 'Canceled at {time}: ...' and 21.4's T7 dialog sentences) with 'cancelled' (9); all public text should say 'cancelled'/'Cancelled', with catalog keys and code states unchanged
-- source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
-- evidence: count by the Planner: 9 cancelled, 4 canceled
-- 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
-
 ### DW-1316: 36.6: list [] at load, Telegram checked for an unlisted user during a pending save, and a response listing them unpaired leaves the box checked and disabled
 - source: spec-36-6 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: on-call-section.ts succeeded(): an edited form is kept while users() refreshes; telegramState then reads unpaired but the kept box stays checked. Next save is refused (noChannel), not silent; person re-pick or Leave without saving recovers.
@@ -8066,16 +8052,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: 36.5 upgrade rehearsal from v1.0.9 (Contest Planner ruling ~04:30Z Nov 14, Q1 check 1) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rehearsal e36h1 from OCT-epic36-s365 40428606: served folder 28 files vs build 27; extra ./main-JCJUH3RN.js (v1.0.9's main); index.html and the new main identical to the build; deep links and the harness rows pass; evidence _bmad-output/implementation-artifacts/evidence/36-5-upgrade-from-v1.0.9.md on OCT-epic36-s365 74b10a14 (local)
 - 2026-11-14T04:28:21Z status=escalated owner=burndown by=runner note=STOP under the ruling's check 1: Planner to rule whether it blocks 36.5 (pre-existing: any upgrade whose main hash changes leaves it) and who fixes it
-### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
-- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
-- evidence: 25.4 LOCAL READY report 47bc45f3
-- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=found after the three-item cap; not fixed in 25.4
+- 2026-11-14T04:31:49Z status=routed owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=merge_gate note=Planner ruling 2026-11-14 ~05:00Z: does not block 36.5 (merged bc624f44); blocks the 1.0.10 RC as burn-down Story 36.7
+- 2026-11-14T10:05:23Z status=resolved-by:36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=adjudication note=Story 36.7: Install.Step.Web.RemoveStaleBundle removes top-level STALEFILES-matching files the new build lacks (guards i-v, fail safe, each removal logged); v1.0.9 rehearsal pass with the permanent stale-files row (served = build, 31 files), its mutation red naming main-JCJUH3RN.js and main-ZZSTALE0.js; evidence/36-7-upgrade-from-v1.0.9.md
 
-### DW-1311: SessionEvents records AdminAtSignIn from the roles at sign-in (Data/Ownership.cls:832), so a removed admin keeps getting admin-routed items until next sign-in
-- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: cross-epic
-- evidence: 25.4 LOCAL READY report 47bc45f3
-- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=related to DW-1290's live re-read
-- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
-- 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
-- 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
+### DW-1330: The chunk reload covers lazy routes only: Settings' in-page import of mcp-section is not rescued, so after an upgrade an open Settings tab's MCP section can stay empty
+- source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: settings-page.ts void import('./mcp-section') has no catch; 36.7 now deletes the old chunk, so an IPM-install tab open across an upgrade gets a 404 there; withNavigationErrorHandler sees only router navigations (ruling V4 scope)
+- 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=an MCP section that stays empty after an upgrade is reported, or another in-page dynamic import is added
 
+### DW-1331: The chunk reload rewrites the current history entry: after a header-link navigation fails, Back skips the page the user left
+- source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: router URL updates after loadComponents, so the current entry is still the source page; reloadOnChunkError calls history.replaceState(target); a pushState branch would interact with canceledNavigationResolution computed page ids
+- 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=a user reports Back skipping a page after the upgrade reload, or the reload is extended beyond the once-per-upgrade rescue
+
+### DW-1332: A dirty Settings page's native leave prompt, if cancelled during the chunk reload, uses up the address's flag and leaves the target address in the bar
+- source: spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md (code review) | severity: low | fix-risk: high | footprint: in-story
+- evidence: unsavedGuard (canDeactivate) runs before loadComponents, then reload() meets settings-page's beforeunload handler; Cancel keeps Settings with the flag taken; a manual reload recovers
+- 2026-11-14T10:02:42Z status=wontfix-accepted owner=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun by=cr note=reopen_if=the reload is seen to leave a mismatched address after a cancelled leave prompt in a real report
