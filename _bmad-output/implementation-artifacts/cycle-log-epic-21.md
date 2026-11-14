@@ -353,3 +353,4 @@
 2026-11-14T15:43:08Z	Story 21.10	cr_complete	model=opus review_tier=single-opus(time_box) high=0 med=0 low=1(CR1_accepted:demo_AC_no_mutation_line) unresolved_high_med=0 final_status=done checks=node_2084/0,test-readme,boundaries
 2026-11-14T15:43:08Z	Story 21.10	ledger_adjudicated	owned_resolved=all slice_after=empty
 2026-11-14T15:43:08Z	Story 21.10	fresh_check	env=implement_lane-C_stacks(e21s10iw,e21s10i) live_answers=24/24 demo-path=pass note=lead_fresh_rerun_skipped(16:00Z_hold)
+2026-11-14T15:43:36Z	Story 21.10	integrate_deferred	feature=f403bf66(25.5,22.13) conflicts=sprint-status.yaml,Live/Payload/Approval.cls,Test/Msg/Catalog.cls,web/scripts/catalog.mjs,catalog.test.mjs,playwright-projects.test.mjs,web/src/app/msg/catalog.ts reason=16:00Z_hold action=merge_aborted;push_finished_head_on_f138fcf8
