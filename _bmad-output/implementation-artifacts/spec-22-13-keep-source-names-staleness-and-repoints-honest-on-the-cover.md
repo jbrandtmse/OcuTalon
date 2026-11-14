@@ -126,6 +126,34 @@ Paths are under `src/ocutalon/cls/OcuTalon/`. Line numbers are at `6a5a730a` (fe
 - **"I checked" sentence.** Given a digest covering the Orders production, "Jira" and the mailbox, when it is composed, then it reads "I checked the Orders production, Jira and the mailbox.", and the coverage line still names "Mailbox". Mutation: restore `"the "_entry` for the mailbox → `TestCheckedListSourceBare` and `TestCheckedListMailboxLower` red.
 - **"Not everything" sentence.** Given a digest whose mailbox row did not pass and whose lead does not apply, when it is composed, then it reads "Not everything: the mailbox." with the other entries unchanged. Mutation: pass `verdict.named` through unchanged → `TestNotEverythingMailboxLower` red.
 
+### Review Findings
+
+Code review 2026-11-14 (Tier 1, full; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all completed). 25 findings: 3 patch entries (6 findings), 0 defer, 19 rejected. No HIGH. Rule 3: the user-facing change is the digest's text, composed by the real `Digest.Process` in IRIS and asserted as rendered text (`Test.Digest.Compose`); `reserved_name` reaches a person only through 21.5's relay (lane C). Rule 6: AD-18 (amended), AD-28 and AD-33 match the code.
+
+- [x] [Review][Patch] (med, fix-risk low, in-story; verification-gap + blind-hunter) The carry's source-only guard was unpinned, and no test used a reachable interval: removing `isSource &&` left every test green (`TestStale`'s 600 s window is wider than the 180 s a non-source gets), and the new tests use 2,880 minutes, above McpOps' 1,440 limit. Added `TestStaleShortWindow` (a one-minute window: a production watch stays stale with its run 2 minutes before the end; a 15-minute source takes its run 10 minutes before the end); mutation observed red and reverted (see Verification). [src/ocutalon/cls/OcuTalon/Test/Digest/Coverage.cls TestStaleShortWindow]
+- [x] [Review][Patch] (low, fix-risk low, in-epic doc; acceptance-auditor + blind-hunter) AD-18's amended `stale` clause, the Coverage class doc's rule (2) and the `WatchRow` doc did not say that a source's runs before its `CreatedAt` never count (the code gives `missed`, not `stale`) or that a source can take a run from before the span. Spine clause and both docs restated. [ARCHITECTURE-SPINE.md AD-18; src/ocutalon/cls/OcuTalon/Checks/Coverage.cls L18-22, WatchRow doc]
+- [x] [Review][Patch] (low, fix-risk low, in-story; blind-hunter) `WatchRow` wrote the source test twice (the carry and the allowed gap); `isSource` is now computed once and reused, so the two cannot drift. [src/ocutalon/cls/OcuTalon/Checks/Coverage.cls WatchRow]
+
+Rejected:
+- blind-hunter: an interval-only change applies back over the window and can carry an old run -- `by-design`: Planner ~13:20Z item 2, "an interval or letter-case-only change keeps everything".
+- blind-hunter: other fixed entry names (vital signs, "<name> production") can still collide -- `by-design` (the ruling and its text name the mailbox only); the residual is ledgered DW-1336 `wontfix-accepted` with reopen_if.
+- blind-hunter: the reserved name is enforced only in McpOps, and `InSentence` has no kind check -- `wontfix-theoretical`: McpOps is the only production caller of `Watch.Ops.SetSource` (its doc says the caller validated every value); real if a second caller appears.
+- blind-hunter: `TestNotEverythingMailboxLower` checks the key by prefix, and its second case asserts the slot, not the rendered sentence -- low: the vitals decide between the two Not-everything keys, the pinning assertions are the exact `whatFailed` values, and the rendering of that slot is pinned in the first case.
+- edge-case-hunter: an empty `toUtc` makes `Runs` find nothing, so an older run could be carried -- `wontfix-theoretical`: the only production caller (`Digest.Process` Finish) passes the compose time; the empty-end case of `Current` is already in `deferred:`.
+- edge-case-hunter: the same arguments with keys in another order count as a repoint -- `by-design`: the matrix rules an exact compare; `Normalised` keeps the admin's key order.
+- edge-case-hunter: a poll of the old target that records after the repoint counts for the new one -- `by-design` here: the poll run and its baseline are Story 22.11's.
+- edge-case-hunter: a freshly repointed source reads missed before its next poll is due -- `by-design`: matrix rows 4 and 6 ("missed from the span's start, as for a new row today").
+- edge-case-hunter: a source named "the mailbox" gives "I checked the mailbox and the mailbox" -- low, real but needs a deliberate name and a second reserved string (new public text); in DW-1336 with the rest.
+- edge-case-hunter: a name with a zero-width character beside "Mailbox" passes -- `wontfix-theoretical`: only an admin deliberately evading the check.
+- edge-case-hunter (two findings): a source named "Mailbox" before this story is neither migrated nor editable -- `by-design`: Design Notes decided 3 (22.5 is unreleased).
+- edge-case-hunter: the carried run's unreachable/stopped streak starts at the carried run -- low: consistent with a run in the span, whose streak is also bounded by the runs `Runs` returns; still never an all-clear.
+- edge-case-hunter + verification-gap: the window term of max(window, interval + 180 s) never decides -- confirmed and `by-design`: a carried run is at or after `CreatedAt` and before the span's start, so the span starts at `fromUtc` and the run is always older than the window. The effective limit is the interval plus 180 s. The Planner's two tests (30 h current, 50 h stale for a 48 h source in a 24 h window) give the ruled results under either reading (24 h is below 48 h 3 min). The ruled wording is kept.
+- verification-gap: some matrix behaviours (accepted names, carried failed/not_checked, each target field) have no mutation row -- reject: every AC has its row; the layer verified that each named assertion would catch its mutation.
+- verification-gap: the skip of the gap loop for a carried run is equivalent to running it -- reject: no harm; it states the contract.
+- verification-gap: `TestSourceRepointCountsOnlySince` assumes under about 240 s between two steps -- `wontfix-theoretical`: the class runs in under a second.
+- acceptance-auditor: the Part A record says "the interval plus 180 s" while the digest bullet says max(window, ...) -- reject: equal in effect (above).
+- acceptance-auditor: the `RecordRun` doc was not changed -- false: it does not describe staleness, so nothing needed changing.
+
 ## Spec Change Log
 
 - 2026-11-14 (lead; quick gate, ordered by the orchestrator). **Split from Story 22.11** by the Contest Planner's ruling ~13:20Z Nov 14 (22.11 gate), quoted from `<coordination>/prompts/epic-22-rulings-20261113-1715.md`:
@@ -248,6 +276,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | Reset `CreatedAt` on every update | `TestSameTargetKeepsCreatedAt` |
 | `"the "_entry` for the mailbox | `TestCheckedListSourceBare`, `TestCheckedListMailboxLower` |
 | `whatFailed` from `verdict.named` unchanged | `TestNotEverythingMailboxLower` |
+| Drop `isSource &&` from the carry in `WatchRow` (code review) | `TestStaleShortWindow` (observed red: "a production watch with no run in the window is stale"; reverted, checksum equal, class green again) |
 
 ## Auto Run Result
 

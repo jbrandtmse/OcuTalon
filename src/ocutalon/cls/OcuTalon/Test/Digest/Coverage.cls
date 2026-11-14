@@ -17,6 +17,7 @@
 ///   - TestSourceLongIntervalCurrent, TestSourceLongIntervalStale, TestSourceEarlierRunBeforeCreatedAt, TestSourceRepointCountsOnlySince (Story 22.13; DW-1327, DW-1328): a source
 ///     polled less often than the window takes its newest run since its CreatedAt, when it is at most max(the window, its interval plus 180 s) before the window's end, as its
 ///     latest run (through the latest-run rules), and stale when older; a run before CreatedAt never counts; a repoint through Watch.Ops SetSource moves CreatedAt, so only the runs since count;
+///   - TestStaleShortWindow (Story 22.13): over a one-minute window a production watch stays stale while a 15-minute source takes its earlier run;
 ///   - TestMailboxPassed, TestMailboxStale, TestMailboxUnreachable, TestMailboxError, TestMailboxMarkUnreadable, TestMailboxNoWindow, TestMailboxOtherOwner (Story 22.5): the Mailbox row of the session that owns the
 ///     connected mailbox, from the mark emailPoll (fed through the probe), after the background-check rows, and no row for any other session;
 ///   - TestMailboxRealSeams (Story 22.5): the real Build reads the owner from email.owner and the mark that Channel.Email.Adapter Record writes.
@@ -473,6 +474,21 @@ Method TestSourceRepointCountsOnlySince()
 	Set sc = $ClassMethod(..#PROBE, "Build", session, from, to, .rows, .lines)
 	Do $$$AssertStatusOK(sc, "Build is OK")
 	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).checkedAt, "passed|"_since, "a run since the repoint counts")
+}
+
+/// Story 22.13 (DW-1327): over a one-minute window (a requested digest soon after another), a production watch whose last run is before the window stays stale, even within
+/// 180 seconds of the window's end, because only a source takes an earlier run as current; a 15-minute source whose run is 10 minutes before the window's end takes it.
+Method TestStaleShortWindow()
+{
+	Set session = ..Session()
+	Set ref = ..Watch(session, "Zz.Stale", "Orders")
+	Do ..Run(ref, session, "2030-06-01T11:58:00Z", "passed")
+	Set source = ..Source(session, "Jira", 15)
+	Do ..Run(source, session, "2030-06-01T11:50:00Z", "passed")
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T11:59:00Z", "2030-06-01T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry_"|"_rows.%Get(5).result_"|"_rows.%Get(5).checkedAt_"|"_lines.%Get(5).key, "Orders production|not_checked|2030-06-01T11:58:00Z|digest.notCheckedStale", "a production watch with no run in the window is stale")
+	Do $$$AssertEquals(rows.%Get(6).entry_"|"_rows.%Get(6).result_"|"_rows.%Get(6).checkedAt_"|"_lines.%Get(6).key, "Jira|passed|2030-06-01T11:50:00Z|digest.passed", "a 15-minute source takes its run 10 minutes before the end")
 }
 
 /// The number of CheckRun rows of a check.

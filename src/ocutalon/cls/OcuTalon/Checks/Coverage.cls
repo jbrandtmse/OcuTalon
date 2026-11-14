@@ -18,7 +18,8 @@
 ///     rule that applies wins: (1) paused: a heartbeat gap overlaps the span; (2) no run in the span: stale when an earlier run exists, else
 ///     missed from the span's start to toUtc, except that a source row (Kind source, with an IntervalMinutes) takes its newest run at or after its CreatedAt and before
 ///     the span as its latest run, through rules (4) and (5), when that run is at most max(the window, IntervalMinutes x 60 + MISSEDSECONDS seconds) before the end of the
-///     window (toUtc, or now when it is empty), since a source polled less often than the digest spans has no run in some windows (Story 22.13; DW-1327); (3) missed: two consecutive runs, the span's start and the first run, or the last run and toUtc are
+///     window (toUtc, or now when it is empty), since a source polled less often than the digest spans has no run in some windows (Story 22.13; DW-1327); a source's runs
+///     before its CreatedAt never count, so a source with none since reads missed, not stale; (3) missed: two consecutive runs, the span's start and the first run, or the last run and toUtc are
 ///     more than MISSEDSECONDS apart (the first such gap); (4) the latest run is not_checked: its reason gives error, timeout or unreachable
 ///     (an empty or unknown reason is error), for unreachable since the first run of the unbroken streak of unreachable runs that ends at the
 ///     latest, and stopped (Story 22.5: the source's tool is no longer Read-only) since the first run of the unbroken streak of stopped runs that
@@ -289,8 +290,8 @@ ClassMethod DatabaseRow(databases As %DynamicArray, limit As %DynamicObject, now
 	If lowest '= "" Do figures.%Set("databasesFull", ..Round(100 - lowest))
 }
 
-/// The row of one background check: its history (the runs of CheckRun in the span), then, for a production watch whose result stands on its
-/// latest run, the live read.
+/// The row of one background check: its history (the runs of CheckRun in the span, or, for a source with none, its newest run since its CreatedAt when Current holds),
+/// then, for a production watch whose result stands on its latest run, the live read.
 ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String, toUtc As %String, limit As %DynamicObject, rows As %DynamicArray, lines As %DynamicArray) [ Private ]
 {
 	Set entry = ..EntryOf(check)
@@ -307,8 +308,8 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	}
 	Set runs = ..Runs(check.Ref, spanStart, toUtc)
 	Set carried = 0
+	Set isSource = (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0)
 	If runs.%Size() = 0 {
-		Set isSource = (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0)
 		Set earlier = ..EarlierRun(check.Ref, spanStart, $Select(isSource: check.CreatedAt, 1: ""), .earlierRun)
 		If (earlier '= "") && isSource && ..Current(earlier, fromUtc, toUtc, check.IntervalMinutes) {
 			Do runs.%Push(earlierRun)
@@ -324,7 +325,7 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	Set previous = spanStart
 	Set missed = 0
 	Set allowed = ..#MISSEDSECONDS
-	If (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0) Set allowed = (check.IntervalMinutes * 60) + ..#MISSEDSECONDS
+	If isSource Set allowed = (check.IntervalMinutes * 60) + ..#MISSEDSECONDS
 	// A carried run was vetted by Current, so the loop over the gaps does not run for it.
 	For i = 0:1:$Select(carried: -1, 1: runs.%Size()) {
 		Set next = $Select(i = runs.%Size(): toUtc, 1: runs.%Get(i).ranAt)

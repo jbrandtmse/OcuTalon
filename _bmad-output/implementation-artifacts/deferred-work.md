@@ -8091,6 +8091,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T10:10:47Z occurrence=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=R9-1 cr: a lone source named Mailbox reads as nothing watched (never all-clear); row kind now tells the two apart
 - 2026-11-14T12:32:38Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=lead note=Planner_ruling_~09:40Z_Nov_14:refuse_Mailbox(case+spaces),own_reason_code,verbatim_text,3_inputs+mutation
 - 2026-11-14T12:58:50Z status=routed owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=lead note=Planner_~13:20Z_Nov_14_item1:split;moved_from_22.11_to_22.13
+- 2026-11-14T13:37:43Z status=resolved-by:22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=McpOps OnSetSource answers reserved_name for Mailbox in any case after the trim; TestSetRefusedReservedName
 
 ### DW-1326: A source row passes coverage on its latest run although earlier runs in the window were not checked
 - source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
@@ -8104,12 +8105,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: a source whose last run is within its interval+180 s of toUtc takes that run; AD-18 rule 2 amendment
 - 2026-11-14T12:32:39Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=lead note=Planner_ruling_~09:40Z_Nov_14:staleness_vs_max(window,interval);30h_not_stale,50h_stale
 - 2026-11-14T12:58:50Z status=routed owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=lead note=Planner_~13:20Z_Nov_14_item1:split;moved_from_22.11_to_22.13
+- 2026-11-14T13:37:44Z status=resolved-by:22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=Coverage WatchRow carries a source's newest run since CreatedAt when Current; TestSourceLongInterval*, TestStaleShortWindow
 
 ### DW-1328: An update that repoints a source (server, tool or arguments) keeps its Reported state and run history
 - source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Watch.Ops.SetSource keeps Reported (22.11's seen hashes, baseline, stopped) and the CheckRun history on a repeat of the name, so the repointed source's first poll is compared with the old tool's answers.
 - 2026-11-14T09:30:55Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=22.11 decides: clear Reported (and baseline) in SetSource when server, tool or arguments change, or keep
 - 2026-11-14T12:58:50Z status=routed owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=lead note=Planner_~13:20Z_Nov_14_item2:RESET_confirmed;22.13_moves_CreatedAt;22.11_keeps_the_baseline_rule
+- 2026-11-14T13:37:44Z status=resolved-by:22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=Watch.Ops SetSource REPOINTRESETS moves CreatedAt on a changed target; TestRepointMovesCreatedAt, TestSourceRepointCountsOnlySince
 
 ### DW-1329: Spine not yet updated for Story 22.5 (Rule 20): AD-18 source gap, stopped, Mailbox entry; AD-28 RestKey lead and Mailbox-only
 - source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-story
@@ -8121,3 +8124,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-22-11-run-source-polls-through-the-governed-proxy.md (plan) | severity: low | fix-risk: low | footprint: cross-lane
 - evidence: Data.Precedent.KeyFor (Lane B) has no key for an untrusted system-channel Item from a source poll, so precedents do not learn from source Items (AD-21 names the source for polls)
 - 2026-11-14T12:58:50Z status=open owner=burndown by=lead note=Planner_~13:20Z_Nov_14_Notes:file_a_LOW_burndown_DW
+
+### DW-1336: A source may still be named like another coverage entry or sentence form (a vital-sign entry such as 'database space', a '<name> production' entry, or 'the mailbox'); only 'Mailbox' is reserved
+- source: spec-22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: OnSetSource refuses only ENTRYMAILBOX (Planner ruling ~09:40Z/~13:20Z named Mailbox). A source named 'the mailbox' reads 'I checked the mailbox and the mailbox'; one named 'database space' gives two such coverage lines. Each needs a deliberate admin choice; a wider list needs new public text.
+- 2026-11-14T13:37:44Z status=wontfix-accepted owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=reopen_if=an admin reports, or a digest shows, two coverage entries or two checked names that read the same
