@@ -4139,3 +4139,5 @@
 2026-11-14T14:17:08Z	Epic 25	ci_green_verified	sha=07a667de
 2026-11-14T14:17:08Z	Epic 25	amendments_verified	amendments=GUIDE_P1_middle_sentence(ruled),spine_AD-11(AMENDED)+AD-16/AD-24_ADDED,epics extensions=Fix/Kind/Email.cls(granted_Q1) ok=true
 2026-11-14T14:17:08Z	Epic 25	merge_enqueued	part=25.5 head=07a667de feature=12f15b2b
+2026-11-14T14:17:52Z	Epic 25	epic_merged_to_feature	part=25.5 feature_sha=ba276d3a code=07a667de(identical) ci=green_by_identity(queued_runs_cancelled) verified_on_origin=yes
+2026-11-14T14:18:50Z	Run	owner_decision	via=contest_planner AD-11_amendment=confirmed graph_edit=26.2_wait_epic-25->stories_25.3/25.4/25.5(cycle_fix;epic-19_kept;25.6_keeps_26.2) 26.2=dispatch_now
