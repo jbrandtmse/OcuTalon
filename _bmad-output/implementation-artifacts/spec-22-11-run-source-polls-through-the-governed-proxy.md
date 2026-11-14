@@ -118,7 +118,11 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `Bridge/` (`
 
      **STOP to the Planner if due source polls add MORE THAN 10 s to the median triage decision time, or make ANY triage decision miss its timeout.**
 
-     If either limit is crossed in any mode, the implement stage HALTs with `## Clarification Needed`, naming the mode, the baseline and polled medians, the maximum and the missed-timeout count (Design Notes lists options for the Planner).
+     **Pre-ruled (Contest Planner ~15:10Z Nov 14, binding):** if either limit is crossed in any mode, do NOT halt yet. Apply option **(a)** automatically: at most ONE poll in flight (`RunSources` sends no new poll while one is outstanding, keyed on the row's in-flight state on the row, AD-5; the other due sources wait for the next Tick, their `NextDueAt` left unchanged). Then MEASURE AGAIN in all four modes. (a) passes only if BOTH hold:
+     1. the STOP criteria pass: the median adds no more than 10 s, AND no triage decision misses its timeout;
+     2. with 3 silent sources due at once, every due source still polls within its interval + 180 s, so no source is marked stale only because of queuing. Pin this with a test (`TestOneInFlightNoQueueStale` in `Test/Mcp/SourceRun.cls`, with a mutation: drop the in-flight check, or let a queued source wait past interval + 180 s, turns it red).
+
+     If (a) fails either check, HALT `blocked` with `## Clarification Needed` beginning `PLANNER REPORT:` and the before and after numbers per mode. Options (b) (a dedicated poll runner) and (c) (TriageAgent PoolSize 2) need the Planner's ruling and are never taken here. Either way, record the before (and, if (a) was applied, after) numbers per mode in the evidence file and in the stage's final report: the lead reports them in PART READY.
 - [ ] `Bridge/Ext/McpServers.cls` -- add `PollCall(source, Output server, Output tool, Output arguments, Output toolref, Output fingerprint) As %String`. The default answers `invalid`. The answer is "" or one word of a new `POLLREASONS` (`invalid,notreadonly,notfound,unreachable,timeout,failed,changed,demo`). Doc bullet.
 - [ ] `Bridge/Context.cls` -- add `IsPoll()` (Kind `tool` and Provenance `untrusted` in the active context) and `SeedMcp(server, toolref, tool, fingerprint) As %Status` (one map entry and one server entry, with `SetMcpTools`' key checks through a shared private helper). The `NoteReplayRefusal`/`ReplayRefusal` docs say "a replay's or a poll's".
 - [ ] `Mcp/Proxy.cls`:
@@ -224,6 +228,13 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `Bridge/` (`
   - Added: Task 0 item 5 (the measured STOP); `TestAnswerBeforeRepoint`, `TestStoppedChanged`, `TestStoppedCoverage`, `TestSourceStoppedNotice`; the probe class `Test/Mcp/SourceProbe.cls`; the completion key `<Ref>|<sentAt>`.
   - Code Map re-checked line by line at `5fafee78`.
 
+- 2026-11-14 (lead). **Re-gate APPROVED, Contest Planner ~15:10Z Nov 14 (BINDING)**, quoted from `<coordination>/prompts/epic-22-rulings-20261113-1715.md`:
+  - "**Veto 1, the reason words** (invalid, notreadonly, notfound, unreachable, timeout, failed, changed, demo, denied): APPROVED. They are never shown, and never produced on the demo."
+  - "**Veto 2, Reported's stored shape** ({"seen": up to 50 SHA-256 hashes, "baseline", "stopped"}): APPROVED. Hashes only, no new column, never written on the demo."
+  - "**The runner's own calls are accepted:** an answer from before a repoint is dropped (the key is <Ref>|<sentAt>); a changed tool counts as stopped; `stopped` means the latest run; a stopped run is not the baseline; SeedMcp writes the map entry directly."
+  - "## Task 0 pre-ruling: If the triage limit trips, apply option **(a)** automatically: at most ONE poll in flight. Then MEASURE AGAIN in all four mock modes (answering, silent, Silence, Stall). (a) passes only if BOTH hold: 1. The STOP criteria pass: the median adds no more than 10 s, AND no triage decision misses its timeout. 2. With 3 silent sources due at once, every due source still polls within interval + 180 s, so no source is marked stale only because of queuing. PIN THAT with a test. If (a) fails either check, STOP (`PLANNER REPORT:`). Options (b) and (c) need the Planner's ruling. Report the before and after numbers in PART READY either way."
+  - Built into Task 0 item 5 (the pre-ruled path and `TestOneInFlightNoQueueStale`). Veto items 1 and 2 are now APPROVED.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -313,7 +324,7 @@ No AC contradicts an AD's Rule. No NFR trips Rule 5: the Planner's two triage-de
 - 6: `mcp.sourceStopped` to every admin session. Online demo: never sent.
 - 7: bridge request semantics and the `PollCall` extension (22.5 labelled them S19/S20; the lead relabels). Online demo: no change.
 
-**NEW:**
+**NEW at this gate, APPROVED (Contest Planner ~15:10Z Nov 14):**
 1. **NEW reason codes (contract words, within veto 7's scope, listed for the gate):** `PollCall`'s and a poll Reply's `FailureText` words `invalid`, `notreadonly`, `notfound`, `unreachable`, `timeout`, `failed`, `changed`, `demo` and `denied`. Bridge-to-host only; never shown to a person; `Checks` maps them to the existing findings. Online demo: never produced (no poll runs).
 2. **NEW stored format (a source row's `Reported`, no column):** `{"seen": [at most 50 SHA-256 hex hashes of whole answers], "baseline": 1, "stopped": "" | "not_read_only"}`. Hashes only: the answer text is never stored on the row. Kept until the row is removed. Online demo: never written.
 
