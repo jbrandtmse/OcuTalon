@@ -128,15 +128,15 @@ Include Ensemble
 ///     after the timer is discarded by the business process framework.
 /// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount, StepsSent, RetryRunner and
 /// FirstSeconds.
-/// None is a setting. The five extension settings name the classes through which the bridge reaches its host (AD-31); the production
-/// definition sets the first two, the fourth and the fifth, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
+/// None is a setting. The six extension settings name the classes through which the bridge reaches its host (AD-31); the production
+/// definition sets the first two, the fourth, the fifth and the sixth, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
 /// settings of Decide itself, which Decide reads as they are written now when it runs as its own job (SettingText), so that a change applies to the
 /// next decision with no restart. InstanceZone is the instance zone's single source (AD-18): OcuTalon.Bridge.Time reads and writes it. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job, and ApprovalRole by OcuTalon.Bridge.Approval.Raise (AD-11) in the caller's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
 {
 
-Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TurnToolsClass:Extensions,McpServersClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,InstanceZone:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
+Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TurnToolsClass:Extensions,McpServersClass:Extensions,ContentClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,InstanceZone:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
 
 /// The runner item of each request kind, as kind:item pairs (AD-6).
 Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
@@ -233,6 +233,9 @@ Property TurnToolsClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon
 
 /// The class that names the MCP servers a runner attaches and receives the report of each attach; it extends OcuTalon.Bridge.Ext.McpServers.
 Property McpServersClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon.Bridge.Ext.McpServers" ];
+
+/// The class that gives an untrusted turn one image to send with its text and receives each accepted turn reply; it extends OcuTalon.Bridge.Ext.Content.
+Property ContentClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon.Bridge.Ext.Content" ];
 
 /// How long Decide waits for the runner's reply, in whole seconds from MINTIMER to MAXTIMER (AD-5, AD-8). Timeouts.Apply changes it
 /// together with the Config Store entries of the runners.
@@ -1367,6 +1370,8 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///   9. builds the DecisionResponse, or a clone of the Reply with the filtered Text, the DecisionRef, the outcome tellnow, the SessionRotated
 ///      that PointLink gave and the row's totals (CarryTotals), and with no Steps (Decide sent them), no FailureText and no SessionId,
 ///      SessionFrom or HistoryCount.
+///   10. for a turn, calls Accepted of the ContentClass setting once with the filtered text (Accept) and adds the members it gives to the HostData of
+///      the response; a failure there is a warning and the response stays as built.
 /// runner is the first runner of the request, the agent of the link (RunnerFor of the request when it is empty).
 /// An unusable reply is recorded and answered by RecordFallback; only a filter class that fails its check, a row that cannot be saved
 /// and a payload that cannot be exported end with an error status.
@@ -1441,9 +1446,30 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 		Set response.HistoryCount = ""
 		Set response.SessionRotated = rotated
 		Do ..CarryTotals(row, response)
+		Do ..Accept(request, text, response)
 		Quit $$$OK
 	}
 	Quit ..ResponseFromRow(row, .response)
+}
+
+/// Tells the ContentClass setting of the Decide item (Ext.Content, AD-31) of the accepted turn reply, once, after Conclude saved the Decision row, and adds
+/// the members that its Accepted gives to the HostData of the response (HostData.Merge). The class is read through Ext.Accessor each time, so the
+/// runner and Decide agree. A setting that is not usable, an error status and an exception are one warning that names the DecisionRef and nothing is merged:
+/// the reply is never failed by it.
+ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, text As %String, response As OcuTalon.Bridge.Msg.Reply) [ Private ]
+{
+	Set decisionRef = response.DecisionRef
+	Try {
+		Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ContentClass", "", "Decide", .sc)
+		If $$$ISOK(sc) Set sc = $ClassMethod(class, "Accepted", request, text, .hostData)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING("The ContentClass of the decision "_decisionRef_" did not accept the reply, so the reply goes out as it is: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Quit
+		}
+		Set response.HostData = ##class(OcuTalon.Bridge.HostData).Merge(response.HostData, $Get(hostData))
+	} Catch exception {
+		$$$LOGWARNING("The ContentClass of the decision "_decisionRef_" failed on the reply, so the reply goes out as it is: "_##class(OcuTalon.Bridge.Redact).Text($Extract(exception.DisplayString(), 1, 300)))
+	}
 }
 
 /// The one place where a conversation link moves (AD-6, AD-8, DW-729, DW-730). Conclude calls it for a linked turn (Adapter.Agent IsLinked) after it
@@ -1860,6 +1886,9 @@ Storage Default
 </Value>
 <Value name="21">
 <Value>McpServersClass</Value>
+</Value>
+<Value name="22">
+<Value>ContentClass</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

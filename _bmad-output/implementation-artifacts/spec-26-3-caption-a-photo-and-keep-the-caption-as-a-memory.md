@@ -2,13 +2,21 @@
 title: 'Story 26.3: Caption a photo and keep the caption as a memory'
 type: 'feature'
 created: '2026-11-13'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2dfed76579dbbe99b3503a4452d7c883ea4ae26f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (by line range: AD-6 215-249, AD-8 307-351, AD-21 step 6 893-908, AD-31 1226-1257, Conventions row 1339, ownership rows 1610-1616)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The real-HTTP pin-refusal check in web/e2e/api/memory.spec.ts (a photo caption cannot be pinned, as the LIVE user, 409 pin_photo) was type-checked but never run, and has no observed mutation.
+    evidence: |-
+      The implement stage ran no web unit (the file runs in live:sign-in, about 1,560 s on a full stack). The same refusal is pinned and mutated in Test.Memory.Pins:TestPinPhoto and Test.Web.MemoryApi:TestPinPhotoText, so the route mapping is covered below real HTTP only. To settle it, run the chromium project of live:sign-in once, then remove the pin_photo line of Web.Api.MemoryItemCommand and see the test go red.
+    location: >-
+      web/e2e/api/memory.spec.ts
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -204,6 +212,13 @@ Tests and mock:
   - Pin refusal (V3), each with a demonstrated mutation (remove the `photo` check -> red): `Test/Memory/Pins.cls` (or the class that pins `OnPin` today): an own `photo`-origin row answers Ok 0 `pin_photo` and stays unpinned, a `tool`-origin row still pins; `Test/Web/MemoryApi.cls`: `pin_photo` maps to 409 with the sentence (a copy held in the test, as `TestOverCapText` does); real HTTP in `web/e2e/api/memory.spec.ts` (the route rule): as the LIVE OcuTalonUser, a seeded own memory of origin `photo` (extend `seedMemory` in `web/e2e/support/memory.ts` with an optional origin) is POST-pinned to 409 `pin_photo` with the sentence and the pinned count is unchanged; the seeded row is removed in `finally`.
   - `Test/Memory/Ops.cls`: a `photo` save is learned even when the turn's text holds a TOLD phrase, and `TurnOf` still finds a retry's turn.
   - Update the pins listed in Code Map.
+- [x] Review patches (round 1; each with its test and, per Rule 19, a `mutation:` line in `## Verification` recorded in the same pass as `mutation: <change> -> <test red>`):
+  - `src/ocutalon/cls/OcuTalon/Agent/Content.cls` `Accepted`: save and answer a member only for a request of kind `turn` and provenance `untrusted` (the same gate as `Part`); any other request answers OK and `{}`. Pin it in `Test/Agent/Content.cls` (`TestNotAPhoto`): `Accepted` for the photo turn's `ItemId` with a `user`-provenance request saves no memory and answers `{}`.
+  - `Test/Bridge/Content.cls` `TestAcceptedMembersMerged`: add a `Decide`-level case where the runner reply's HostData already holds a member (use the mock scenario `photo-recall` or another existing scenario that makes the runner put a HostData member, with the probe's `Part`/`Accepted`) and assert BOTH the runner's member and the one `Accepted` added are in the response. Mutation: `Decide.Accept` merges into `""` instead of `response.HostData` -> red.
+  - `Test/Bridge/Content.cls` `TestPartRepeatable`: make it call the shipped `OcuTalon.Agent.Content.Part` twice for one stored photo (fixture as in `Test/Agent/Content.cls`, or move the test there) and assert both streams are at the start with the same bytes. Mutation: `Part` caches or does not rewind the stream -> red.
+  - `Test/Agent/Content.cls` `TestReadFile`: the "Word" case must be a different input from the PDF case: an Item whose file is gone (Describe fails) and whose `FileMediaType` is the Word type; it must keep the stub's 5003 and `{}`. Mutation: treat a gone file with a non-photo `FileMediaType` as a photo -> red.
+  - `Test/Agent/Content.cls`: one case with a caption of more than 2,000 characters (the mock scenario's text cannot be that long; call `Agent.Content.Accepted` directly) whose saved memory text is exactly `CAPTIONMAX` characters, and one case that calls `Accepted` twice with the same request and text and leaves one memory with the same `memoryRef` both times. Mutations: drop the `$Extract` cut -> red; change the `IdempotencyKey` to a per-call value -> red.
+  - Record, run and revert (tree byte-identical) these mutations for the ACs that lack one, writing a `mutation:` line each: remove the `Origin = photo` Learned branch of `Memory.Ops.OnSave` -> `Test.Memory.Ops:TestPhotoSourceLearned` red; remove `Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)` from `Converse` -> `Test.Bridge.Content:TestRunnerSendsTheImage` red.
 
 **Acceptance Criteria:**
 - Given Task 0 on build 154 with the CI mock, when the runner sends a text part and one `ImageData` part through `ChatWithContent`, then the mock's request holds an Anthropic base64 `image` block of the file's bytes beside the text, with `max_tokens` 8,000 and no sampling parameter, and the results are recorded in `## Verification`. If not, photos answer `read` 0 `failed` and the run halts `blocked` with the evidence.
@@ -223,6 +238,31 @@ Tests and mock:
 - 2026-11-14, lead, Contest Planner rulings `prompts/story-263-rulings-20261114.md` (binding; owner's delegation): (a), (c), (d), (e) accepted; (b) YES, the caption is treated like chat reply text in the trace and photo bytes never are (TraceLeaks pins it); V1 no veto, answered by the lead (below); V2 origin `photo`, not `system`, everywhere (FR-73 amended in the PRD and epics.md); V3 refuse pinning a `photo`-origin memory, reason `pin_photo`, text "This memory came from a photo, so it can't be pinned.", the pin route's file `Web/Api.cls` granted for this check only, with a test and a mutation; V4 accepted; V5 approved with item 3's "or a log" -> "or the event log"; the two AD-31 sentences approved word for word (written into the spine by the lead); V6 accepted with `photo` at `CommandsIn.cls:345` and `Test/Core/CommandsStep3.cls`, the orchestrator granting the one-word contended edit; ImageData: measure first, STOP with the evidence if it fails (Task 0 amended).
 
 ## Review Triage Log
+
+### 2026-11-14 - Review pass
+- verdicts: 25 findings - high 0, medium 5, low 16, false 4, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind 1 and Gap other: a resend of a recorded photo turn never calls `Accepted` - the spec says `Accepted` runs once per accepted reply; the unique Decision row returns the stored reply on a resend, and a failed save is a logged warning by the matrix row "Accepted fails".
+  - `[low]` `patch` Blind 2: `Accepted` had no kind/provenance gate unlike `Part` - patched: `Agent.Content.Accepted` saves only for a `turn` request of provenance `untrusted`, pinned in `TestNotAPhoto` (user-provenance and decide-kind requests answer `{}`).
+  - `[false]` `reject` Blind 3 and Edge 1: a re-run saves a second caption of different wording - the Decision row's unique ItemId+kind index means one accepted reply per turn, and a resend returns the stored reply without calling `Accepted`.
+  - `[low]` `reject` Blind 4 and Edge 2: PHOTOASK is rendered for a photo that is not sent - an Item with a photo media type comes with its Data.Turn, and an unsendable photo ends in the `Part` error before any model call; no reachable path shows the line without an image (wontfix-theoretical).
+  - `[low]` `reject` Blind 5: a photo that cannot be sent takes the generic fallback - the matrix row "Photo cannot be opened" and "Online demo" rule exactly that (spec-bound).
+  - `[low]` `reject` Blind 6: `Agent.Content.OnlineDemo` tests `= 1` while Watch.Reader tests `'= 0` - the spec names the copy of `Web.Files.OnlineDemo` (`= 1`) and the one-line per-class seam.
+  - `[low]` `reject` Blind 7 and Edge 3: `ContentFor` does not validate the media type - `Part` is host code; a wrong type reaches the provider, which rejects it and Decide takes the `error` fallback (spec: no hard-coded provider limits); the shipped class returns only JPEG or PNG.
+  - `[low]` `reject` Blind 8: the guide omits Part repeatability and the fallback rules - the guide text is the ruled PUBLIC TEXT, word for word.
+  - `[medium]` `defer` Blind 9 and Gap 4a: the new real-HTTP e2e is type-checked only and has no observed mutation - run in live:sign-in by QA or CI; in `deferred:` (the same refusal is pinned and mutated in Test.Memory.Pins and Test.Web.MemoryApi).
+  - `[low]` `reject` Edge 4: the image is not in the BaseChars/RequestTokenLimit estimate - the spec does not ask for it, usage is read from GetStats after the call (AD-20); reopen_if=a photo turn passes the pre-check and the provider reports more than RequestTokenLimit.
+  - `[false]` `reject` Edge 5: no byte-size cap before base64 - the spec's Never list forbids a hard-coded provider limit and a rejected photo takes the `error` fallback; Files.Store has its own upload limits.
+  - `[low]` `reject` Edge 6: `Accepted` blocks the Decide job on the save - Task 0 (f) measured 563 and 592 ms, and the spec fixes it to run in Decide's job after the Decision row.
+  - `[low]` `reject` Edge 7: `Merge` lets a host member replace `memories` or `learned` - the spec's contract is that a member replaces one of the same name; `Accepted` is host code of this product.
+  - `[false]` `reject` Edge 8: a refused save should answer OK with `{}` - the matrix row "Accepted fails" says CommandsIn refusing is an error status that Decide logs as a warning, which is what the code does.
+  - `[medium]` `patch` Gap 1: no Decide-level test of merging into a reply whose HostData already has members - patched: `TestAcceptedMembersMerged` gained a case with the runner's `memories` and the probe's member; mutation recorded.
+  - `[medium]` `patch` Gap 2: `TestPartRepeatable` tested the helper - patched: it calls the shipped `Agent.Content.Part` twice on a stored photo; mutation recorded.
+  - `[low]` `patch` Gap 3: the Word case of `TestReadFile` repeated the PDF input - patched: a gone file with a Word `FileMediaType`; mutation recorded.
+  - `[low]` `patch` Gap 4b: no mutation line for the `photo` Learned branch of `Memory.Ops.OnSave` - recorded (`TestPhotoSourceLearned` red).
+  - `[low]` `patch` Gap 4c: no mutation line for the image taint in `Converse` - recorded (`TestRunnerSendsTheImage` red).
+  - `[medium]` `patch` Gap 4d: no test of the 2,000-character cut or of `Accepted` called twice - patched: `TestCaptionCut` and `TestCaptionRepeat`; mutations recorded.
+- intent-alignment auditor (descriptive, no findings): the diff implements the bridge and `Decide` contract (reading R1) plus the cross-layer pieces the matrix needs (R3). Tests enter at the `Decide` request boundary with a hand-built request and a fixture `Data.Turn`; the channel-to-`Conversation`-to-`Intake` leg is unchanged, unreachable from the UI (no `READSFILES`) and outside this story's Never list.
 
 ## Design Notes
 
@@ -438,13 +478,63 @@ Run one command per call, each with `timeout: 600000` and sized to about 150 s. 
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Task 0 results:** (written by the implement stage)
+**Task 0 results:** (implement stage, 2026-11-14, build 154, warm stack `e26s3iw`, CI mock; measured before any product file changed, through a scratch test class that was then removed)
+- The call: a shadow runner of `OcuTalon.Agent.Chat` (`Test.Bridge.Runner.NewRunner`, the shipped adapter), `BuildAgent`, `NewSession`, the context begun for an untrusted `turn` request, `StepBuffer.Start`, then `adapter.Agent.ChatWithContent(session, ContentPart.Build(ContentPart.Text(input), ContentPart.ImageData(stream, "image/png")), StepRenderer.%New())` with a 4 by 4 red PNG of 73 bytes (`iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg==`).
+- (a) PASS. It returned a `%AI.LLM.Response` (content the scenario's JSON, `Extra` `{"finish_reason":"end_turn"}`), with no exception.
+- (b) PASS. The newest `POST /v1/messages` of the mock log (status 200) holds one `messages` entry, `role` `user`, `content` `[{"text":"Describe the photo. [[mock:bridge-example-ignore]] (test <ref>)","type":"text"},{"source":{"data":"<the fixture's base64, byte for byte>","media_type":"image/png","type":"base64"},"type":"image"}]`. The marker sits in the text block, as the mock reads only text blocks.
+- (c) PASS. The logged request has `max_tokens` 8000 and the keys `max_tokens`, `model`, `messages`, `system` and `tools` only: no `temperature`, `top_p` or `top_k`.
+- (d) `GetStats` before: every counter 0. After: `total_interactions` 1, `total_prompt_tokens` 6,647, `total_completion_tokens` 32, `total_tool_calls` 0 (the delta is the whole reading). The probe did not call the private `RecordUsage`; the kept pin `Test.Bridge.Content.TestRunnerSendsTheImage` shows the usage row for the real runner path: one `Usage` row for the turn, and the Decision totals 6,877 in, 21 out, cost 0.000698 on `claude-haiku-5-5` with one step (the larger count is the mock's length / 4 of the real caption request).
+- (e) PASS. The step renderer fired: `StepRecords` held one record of kind `model`, label `Model request 1`, status `ok`, estimate 25 tokens, with a summary that holds no image bytes.
+- (f) `Accepted`'s save (`Core.Commands.Submit` of `SaveMemory` through `CommandsIn` to `MemoryOps`, embedding included, the embedder warm) took 563 ms and 592 ms in two calls on the warm stack. `Decide` spends that time after it has saved the row and before it answers.
+- Decision: (a) and (b) hold, so the build went ahead, with no `SENDSPHOTOS` 0 fallback.
 
-**Mutations (Rule 19):** (one per AC, written by the stage that adds the pinning test)
+**Mutations (Rule 19):** each applied to the file named, the test run on the warm stack `e26s3iw` and seen red, then the file put back byte for byte (the backup restored; the final tree holds none of them).
+- AC "Task 0 / the runner sends the image": in `Adapter/Agent.cls` `Converse`, `If $IsObject(content)` became `If 0 && $IsObject(content)` (always `Chat`): `Test.Bridge.Content:TestRunnerSendsTheImage` red ("with two blocks").
+- AC "stored PNG photo turn" (caption, HostData, memory row): `HostData.Merge` made `Quit json` first: `Test.Agent.Content:TestCaptioned` red ("the HostData holds one member", "caption is an object"). Also `CommandsIn` `SaveMemory` origins back to `tool`: red ("one memory of the session was saved").
+- AC "unusable reply": `Decide.RecordFallback` made to call `Accept`: `Test.Agent.Content:TestUnusable` red (no caption member and no memory, for refusal, empty and cut-off).
+- AC "trace holds neither the bytes, nor the base64, nor the marker": `ContentFor` made to `$$$LOGINFO` the content JSON: `Test.Agent.Content:TestCaptioned` red ("or the file's base64"). The row it wrote to the event log was deleted from the stack afterwards.
+- AC "later recall": `Agent.Content.Accepted` made to submit origin `tool` instead of `photo`: `Test.Agent.Content:TestRecall` red ("no fallback, and the turn is tainted by the photo's memory").
+- AC "online demo": `Agent.Content.Sendable` made to ignore `OnlineDemo()`: `Test.Agent.Content:TestOnlineDemo` red (eight assertions: the turn is not a fallback, a model request was made, `Part` answers OK, a memory is saved, `ReadFile` reads).
+- AC "pin refusal": the `photo` branch of `Memory.Ops.OnPin` removed: `Test.Memory.Pins:TestPinPhoto` red (five assertions); the `pin_photo` line of `Web.Api.MemoryItemCommand` removed: `Test.Web.MemoryApi:TestPinPhotoText` red ("the status is 409", "the code and the sentence"). The real-HTTP check `web/e2e/api/memory.spec.ts` "a photo caption cannot be pinned, as the LIVE user" was type-checked (`tsc -p web/tsconfig.e2e.json`) and not run: no web unit was run in this stage.
+- Boundaries: `ContentFor` asked for user turns too: `Test.Bridge.Content:TestUserTurnUsesChat` red; the `Catch` of `Decide.Accept` made to rethrow: `TestAcceptedFailureKeepsTheReply` red; `ReadFile`'s photo branch removed: `Test.Agent.Content:TestReadFile` red (nine assertions); `Part` that does not fail for an unopenable file: `TestCannotOpen` red (nine); `PHOTOASK` left out of `Render`: `TestRender` red (three); `Photo` with no check that the owner has a `Session` row (the model test of Settings is an untrusted turn of the owner `instance`): `TestNotAPhoto` red (four), and `Test.Bridge.SettingsApply:TestModelTestEachAgent` was red before that check.
+- Review patches (round 1), each applied to the file named, the test run on the warm stack `e26s3iw` and seen red, then the file put back byte for byte:
+  - mutation: `Agent.Content.Accepted` without the `turn`/`untrusted` gate -> `Test.Agent.Content:TestNotAPhoto` red ("a request of provenance user: and nothing", "a request of the kind decide: and nothing", "no memory was saved").
+  - mutation: `Decide.Accept` merges into `""` instead of `response.HostData` -> `Test.Bridge.Content:TestAcceptedMembersMerged` red ("the HostData holds two members", "the runner's member memories names the stored memory").
+  - mutation: `Agent.Content.Part` reads the stream to its end before answering it (no rewind) -> `Test.Agent.Content:TestPartRepeatable` red (four assertions, calls 1 and 2: "the stream is at its start", "holds the file's bytes").
+  - mutation: `Agent.Input.ReadFile` treats a gone file with a non-photo `FileMediaType` as a photo (the early Quit only when the file describes) -> `Test.Agent.Content:TestReadFile` red ("a Word file that is gone: the stub's answer, 5003", "and an empty result").
+  - mutation: `Agent.Content.Accepted` drops the `$Extract` cut to `CAPTIONMAX` -> `Test.Agent.Content:TestCaptionCut` red (the 2,500-character caption is refused by `MemoryOps`' limit, so "one memory was saved" fails).
+  - mutation: `Agent.Content.Accepted` builds the `IdempotencyKey` from a per-call ItemId (a counter in front of the ItemId, cut to its length) -> `Test.Agent.Content:TestCaptionRepeat` red ("one memory of the session exists"), and `TestCaptioned` red too.
+  - mutation: `Memory.Ops.OnSave` without the `Origin = photo` Learned branch (`If 0 && ...`) -> `Test.Memory.Ops:TestPhotoSourceLearned` red ("is saved: the turn is never read for a caption", "and is learned ...").
+  - mutation: `Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)` removed from `Adapter.Agent.Converse` -> `Test.Bridge.Content:TestRunnerSendsTheImage` red ("and the turn that sent an image is tainted").
+  - After the last restore (each file compared with its backup byte for byte): `Test.Agent.Content`, `Test.Bridge.Content` and `Test.Memory.Ops` passed on the warm stack, `test-boundaries.sh` and `test-class-rules.sh` passed, and the stack was taken down.
 
-**Manual checks:** `git diff --stat` touches no `web/`, `README.md`, `GUIDE.md`, `ci/units.sh` or `_bmad/` file.
+**Manual checks:** `git diff --stat` touches no `web/src`, `README.md`, `GUIDE.md`, `ci/units.sh` or `_bmad/` file (it does touch `web/e2e/api/memory.spec.ts` and `web/e2e/support/memory.ts`, which the Tasks name for the pin refusal check).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Task 0 measured `ChatWithContent` with an `ImageData` part on the warm stack before any product change and passed (results under `## Verification`). A photo turn now carries its image to the model only inside the runner's job: `Ext.Content` (`Part`, `Accepted`), `Decide`'s `ContentClass` setting (slot 22) and its `Accept` step, `HostData.Merge`, and `Agent.Content`, which saves the caption as an origin-`photo` memory and answers `caption` on the Reply. `ReadFile` has its photo branch, `Render` a code-written photo ask, and `PinMemory` refuses an origin-`photo` memory with `pin_photo` (409 on the route).
+
+**Files changed.**
+- Bridge: `Ext/Content.cls` (new), `Ext/Accessor.cls`, `HostData.cls`, `Process/Decide.cls`, `Adapter/Agent.cls`.
+- OcuTalon: `Agent/Content.cls` (new), `Agent/Input.cls`, `Memory/Ops.cls`, `Core/Commands.cls`, `Core/CommandsIn.cls`, `Web/Api.cls`, `Production.cls`.
+- Mock and docs: `ci/mock/scenarios/A/photo-caption.json` and `photo-recall.json` (new), `docs/bridge-guide.md`, `docker/tests/test-bridge-guide.sh`.
+- Tests: new `Test/Bridge/Content.cls`, `Test/Bridge/ContentProbe.cls`, `Test/Agent/Content.cls`, `Test/Agent/ZzDemoContent.cls`, `Test/Agent/ZzNoSendContent.cls`; changed `Test/Memory/Ops.cls`, `Test/Memory/Pins.cls`, `Test/Web/MemoryApi.cls`, `Test/Core/Commands.cls`, `Test/Core/CommandsStep3.cls`, `Test/Bridge/Ext.cls`, `Test/Contract/Ac.cls`, `Test/Install/Production.cls`, `web/e2e/api/memory.spec.ts`, `web/e2e/support/memory.ts`.
+
+**Review findings.** 25 findings (medium 5, low 16, false 4). Patches applied: 8 (medium 3, low 5): the `Accepted` kind and provenance gate, the Decide-level merge test, `Part` repeatability on the shipped class, a distinct Word case, the caption cut and repeat tests, and three missing mutation lines. Deferred: 1 (the real-HTTP pin e2e was not run). Rejected: the rest, each with its reason in the triage log.
+
+**Decided in-stage (small, recorded).**
+1. `Core.Commands.Submit` checks the origin against `Msg.Enum` ORIGIN (six values); adding `photo` there would change counts pinned in five Lane B test classes, so `Commands` gets `Parameter FEATUREORIGINS = "photo"` and the enum stays. The spine's origin list (line 117) says six and needs the lead to add `photo` for this origin.
+2. The matrix expects Tainted 1 for the caption turn, but `Context.Begin` starts an untrusted turn at 0; `Converse` now taints the turn when it sends an image (AD-6 and AD-31 wording unchanged).
+3. `Agent.Content.Photo` answers no photo when the owner has no `Session` row (the Settings model test is an untrusted turn of owner `instance`); pinned in `TestNotAPhoto`.
+4. The `## Verification` manual check now reads `web/src` (the Tasks name the two `web/e2e` files).
+
+**footprint_extensions (for the lead, Rule 11).** Contended Lane B files edited: `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` (one word, granted), `src/ocutalon/cls/OcuTalon/Web/Api.cls` (granted for the pin check), `src/ocutalon/cls/OcuTalon/Core/Commands.cls` and `src/ocutalon/cls/OcuTalon/Test/Core/Commands.cls` (not granted; additive, `FEATUREORIGINS`), `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep3.cls` (granted), `web/e2e/api/memory.spec.ts` and `web/e2e/support/memory.ts` (the Tasks name them).
+
+**Verification performed.** Static: `test-mock.sh` (187 pass), `test-bridge-guide.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `ci/checks.sh`: green. Warm stack `e26s3iw`, after the last patch: `Test.Bridge.Content`, `Test.Agent.Content`, `Test.Memory.Ops`, `Test.Bridge.Ext`, `Test.Core.CommandsStep3`, `Test.Contract.Ac`, `Test.Bridge.Api` passed; `lane-a@Agent` parts 1/2 and 2/2 passed. Fresh stack `e26s3i`: `Test.Agent.Content`, `Test.Bridge.Content`, `Test.Install.Production` passed. The shards `lane-a@Bridge` (4), `lane-a@Memory` (2), `lane-b@Core` (2) and `lane-b@Contract` (1) passed in the first implement pass; the patch round touched only `Agent.Content.Accepted` and two test classes, so they were not run again. Both stacks are torn down. Mutations: 16 in the first pass and 8 in the patch round, each seen red and reverted.
+
+**Follow-up review recommendation: true.** Three medium findings were patched, and the patch round (a gate in `Accepted` and new tests) had no second review layer pass. The unverified risk is the real-HTTP pin e2e, not run (deferred).
+
+**Residual risks.** The real-HTTP pin check is unrun; the spine's origin list needs `photo` (decision 1); the web memory card still maps every pin 409 to the over-cap notice (routed by ledger entry per the Planner gate); the real image-size limit and cost come from the Planner's hands-on pass.

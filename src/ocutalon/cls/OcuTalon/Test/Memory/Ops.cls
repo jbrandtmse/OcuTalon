@@ -26,6 +26,7 @@
 ///     ItemId with no turn of the session, or only a turn of another session, gives learned; the RetryItemId of a running turn that asks gives told, and of another
 ///     session's turn learned (code review); every new row has Pinned 0 and PinnedAt empty; a repeat keeps the first
 ///     row's Source and does not read the turn;
+///   - TestPhotoSourceLearned (Story 26.3): a save of origin photo is learned whatever the turn's text says, and without reading the turn; origin tool on the same turn is told;
 ///   - TestSourceReadFails: while the turn cannot be read (the probe fails TurnOf, so MemoryOps' own Source handles the error), the answer is failed, Ok 0,
 ///     and no row is stored;
 ///   - TestSourceIgnoresSavedText (QA): the Source follows the turn's text, never the text that is saved (a saved text with phrases under a plain turn is learned,
@@ -489,6 +490,28 @@ Method TestSource()
 	Set host.SourceFails = 0
 	Do $$$AssertEquals(..SourceOf(first.Ref), "told|0|", "and the first row keeps its Source")
 	Do $$$AssertEquals(..Count(session), 16, "and there are 16 rows")
+}
+
+/// The caption of a photo is learned whatever the turn's text says (Story 26.3; AD-21): a save of origin photo whose ItemId is the turn of a person who wrote "Remember that" is
+/// learned, with the origin photo, Pinned 0 and PinnedAt empty, and the turn is not read; the same save from origin tool is told, so that it is the origin that decides.
+Method TestPhotoSourceLearned()
+{
+	If '..Ready() Quit
+	Set session = ..Session("photo")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	If '$IsObject(host) Quit
+	Set item = ..TurnItem(session, "Remember that the dock opens at seven")
+	Set command = ..Save(session, item_":caption", "A small red square on a white background.")
+	Set command.Origin = "photo"
+	Set host.SourceFails = 1
+	Do $$$AssertStatusOK(host.OnSave(command, .photo), "a save of origin photo, while the turn cannot be read")
+	Set host.SourceFails = 0
+	Do $$$AssertEquals(photo.Ok_"|"_photo.Outcome, "1|saved", "is saved: the turn is never read for a caption")
+	Do $$$AssertEquals(..SourceOf(photo.Ref), "learned|0|", "and is learned, with Pinned 0 and PinnedAt empty, though the turn's text holds a told phrase")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Memory).RefIndexOpen(photo.Ref).Origin, "photo", "with the origin photo")
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, item_":1", "the dock opens at seven"), .tool), "a save of origin tool on the same turn")
+	Do $$$AssertEquals(..SourceOf(tool.Ref), "told|0|", "is told, so that the origin decides")
 }
 
 /// The source comes from the turn, never from the text that the model saves (QA; AD-21: code decides, the model's arguments never carry it).

@@ -31,6 +31,7 @@
 ///     MemoryOps, Story 41.12) an own memory is pinned (200) and unpinned (200), a pin over the cap is 409 over_cap and changes nothing, and another session's ref and an
 ///     unknown ref are 404 not_found and change nothing;
 ///   - TestOverCapText: the approved sentence of the 409, pinned by a copy held here;
+///   - TestPinPhotoText (Story 26.3): the ruled sentence of the 409 pin_photo, pinned by a copy held here, for a pin only;
 ///   - TestForgetMemory: DELETE /v1/memory/items/:ref submits a ForgetMemory for the session; the owner's answers are mapped (an over_cap is not a 409 here); the real gate
 ///     and the real MemoryOps answer 404 for an unknown ref;
 ///   - TestForgetOtherSessionReal: through the real gate and the real MemoryOps, another session's real memory is 404 not_found and is kept, and the session's own is forgotten;
@@ -50,6 +51,9 @@ Parameter TOOOLD = "This notice is too old to mark as noise. Nothing was changed
 
 /// The approved text of the pin route's 409 over_cap (public text), held here word for word.
 Parameter OVERCAP = "That would go over the 1,000-token limit. Unpin something first.";
+
+/// The ruled text of the pin route's 409 pin_photo (Story 26.3, public text), held here word for word.
+Parameter PINPHOTO = "This memory came from a photo, so it can't be pinned.";
 
 /// The text of the search's 503 search_busy (public text, pending the Planner's approval), held here word for word.
 Parameter SEARCHBUSY = "Search is busy right now. Try again in a moment.";
@@ -618,6 +622,23 @@ Method TestOverCapText()
 	Do $$$AssertEquals(response.Status, "409 Conflict", "the status is 409")
 	Set error = {}.%FromJSON(body).error
 	Do $$$AssertEquals(error.code_"|"_error.message, "over_cap|"_..#OVERCAP, "the code and the sentence")
+}
+
+/// The sentence of the 409 pin_photo (Story 26.3, Planner ruling V3): the parameter equals the copy held here, a pin answered pin_photo is a 409 with that code and sentence, and
+/// an unpin or a forget that is answered pin_photo is not (it is a 500, as any outcome the route does not map).
+Method TestPinPhotoText()
+{
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGEPINPHOTO"), "This memory came from a photo, so it can't be pinned.", "the parameter is the ruled sentence")
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGEPINPHOTO"), ..#PINPHOTO, "and equals the test's copy")
+	Set session = ..Session()
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(0, "pin_photo")
+	Set body = ..Call("PinMemory", .response, "zzmemref")
+	Do $$$AssertEquals(response.Status, "409 Conflict", "the status is 409")
+	Set error = {}.%FromJSON(body).error
+	Do $$$AssertEquals(error.code_"|"_error.message, "pin_photo|"_..#PINPHOTO, "the code and the sentence")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(0, "pin_photo")
+	Set body = ..Call("UnpinMemory", .response, "zzmemref")
+	Do $$$AssertEquals(response.Status, "500 Internal Server Error", "an unpin answered pin_photo is not a 409")
 }
 
 /// DELETE /v1/memory/items/:ref submits a ForgetMemory for the session and the ref (origin web_user), with no pre-check of the row: Ok is 200 {"result":"done"}; not_found 404;

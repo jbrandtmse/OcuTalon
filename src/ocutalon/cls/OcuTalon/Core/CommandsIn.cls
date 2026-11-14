@@ -342,7 +342,7 @@ XData Routes [ MimeType = application/json ]
  {"verb": "TestModel", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "MailSignIn", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
- {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool,photo"},
  {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool,web_user"},
  {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"},
