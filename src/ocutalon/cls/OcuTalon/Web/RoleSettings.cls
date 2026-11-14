@@ -9,7 +9,7 @@
 ///     names of the fields that are missing, extra or of the wrong type, before anything is handed over. The body goes into one SecretHandoff, and one SaveSettings
 ///     (slug roles, origin web_admin, Changes exactly {"handoff": uri}, ActingUser the IRIS user of the call, SessionRef the CSP session's) is submitted. The handoff is
 ///     discarded on every path, an error thrown included. done is 200 {"result":"done","changed"}, refused 400 bad_settings with {fields, reason} and the reason's
-///     text as the message (role, user_unknown, user_system or user_managed), not_available 409, not_built 501, and any other outcome 500 server_error.
+///     text as the message (role, user_unknown, user_system, user_managed or self_viewer), not_available 409, not_built 501, and any other outcome 500 server_error.
 /// No other user's name is in a command, a result, a log line or a global: the names reach only IRIS's audit entry and the admin's response.
 Class OcuTalon.Web.RoleSettings Extends OcuTalon.Web.Api
 {
@@ -25,6 +25,9 @@ Parameter MESSAGEREASONUNKNOWN = "There is no IRIS user with that name.";
 Parameter MESSAGEREASONMANAGED = "OcuTalon manages this account, so its roles can't be changed here.";
 
 Parameter MESSAGEREASONSYSTEM = "This is an IRIS system account, so its roles can't be changed here.";
+
+/// An admin granting the viewer role to themselves (Story 25.5, DW-1303): the refusal text, which is the field text of the page.
+Parameter MESSAGEREASONSELFVIEWER = "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin.";
 
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
@@ -193,7 +196,7 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 /// The text of a refusal reason, or the plain not-saved message for a reason that this class does not know.
 ClassMethod ReasonMessage(reason As %String) As %String [ Private ]
 {
-	Quit $Case(reason, "role": ..#MESSAGEREASONROLE, "user_unknown": ..#MESSAGEREASONUNKNOWN, "user_managed": ..#MESSAGEREASONMANAGED, "user_system": ..#MESSAGEREASONSYSTEM, : ..#MESSAGEBADSETTINGS)
+	Quit $Case(reason, "role": ..#MESSAGEREASONROLE, "user_unknown": ..#MESSAGEREASONUNKNOWN, "user_managed": ..#MESSAGEREASONMANAGED, "user_system": ..#MESSAGEREASONSYSTEM, "self_viewer": ..#MESSAGEREASONSELFVIEWER, : ..#MESSAGEBADSETTINGS)
 }
 
 }

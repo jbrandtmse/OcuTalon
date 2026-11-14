@@ -298,6 +298,12 @@ Method TestRefusals()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Settings").%Size(), 0, "and no Settings entry was written")
 }
 
+/// Story 25.5, DW-1303: the text of the self_viewer refusal is the approved sentence (the route answers it as the message of the reason; the real-HTTP spec api/roles.spec.ts pins that).
+Method TestSelfViewerText()
+{
+	Do $$$AssertEquals($Parameter("OcuTalon.Web.RoleSettings", "MESSAGEREASONSELFVIEWER"), "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin.", "the refusal's text is the approved sentence")
+}
+
 Method TestChangesIsOnlyAHandoff()
 {
 	If '..Guard() Quit

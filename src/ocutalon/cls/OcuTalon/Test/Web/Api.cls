@@ -395,6 +395,7 @@ Method TestStateSections()
 	Do $$$AssertEquals(..Refs(rail.approvals), approval2_","_approval1, "approvals: pending only, by RaisedAt, with the visible instance incident's")
 	Set request = rail.approvals.%Get(1)
 	Do $$$AssertEquals(request.state_"|"_request.incidentRef_"|"_request.kind, "pending|"_own_"|fix", "an approval's payload is Approval.FromRow")
+	Do $$$AssertEquals(request.%GetTypeOf("answerable")_"|"_request.answerable, "boolean|"_+##class(OcuTalon.Live.Payload.Approval).Answerable(request.ref, mine), "a pending approval carries answerable, computed for the session by the role check (Story 25.5)")
 	Do $$$AssertEquals(request.dryRun.affected_"|"_request.dryRun.field_"|"_request.dryRun.itemNoun.one_"|"_request.dryRun.itemNoun.other, "4|OrderDate|order|orders", "its dry run is parsed")
 	Do $$$AssertEquals(request.traceHeaderId_"|"_request.traceNamespace, "777|"_$Namespace, "an approval of an incident with a trace carries the incident's TraceHeaderId")
 	Do $$$AssertEquals(request.traceUrl, "/ocutalon/trace/ocutalon/EnsPortal.VisualTrace.zen?SESSIONID=777", "and its trace URL, with no PAGE")
@@ -1526,6 +1527,27 @@ ClassMethod WaitsOnLock(pid As %Integer, seconds As %Integer) As %Boolean [ Priv
 		Hang 0.02
 	}
 	Quit run = 5
+}
+
+/// The 403 of the answer route says why with the sentence of the refusal (Story 25.5): the sentence of the approver kind that the role check named, the fallback for an empty or unknown
+/// kind, and the admin sentence for the email rule. AnswerResponse is reached through Test.Web.ApiProbe, because the real role check names no kind until Story 26.4.
+Method TestAnswerRefusalSentences()
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/api/")
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = ##class(%CSP.Session).%New("ZzApiRefusal", 0)
+	Set fallback = "Only an approver can answer this request."
+	Set cases = $ListBuild($ListBuild("{""kind"":""resend""}", "Only an approver for resends can answer this request."), $ListBuild("{""kind"":""tool""}", "Only an approver for tool calls can answer this request."))
+	Set cases = cases _ $ListBuild($ListBuild("{""kind"":""""}", fallback), $ListBuild("{""kind"":""zz_new""}", fallback), $ListBuild("{""kind"":""email"",""admin"":true}", "Only an OcuTalon admin can approve this email."))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set %response.ContentType = ""
+		Set written = ..Written(.sc, "OcuTalon.Test.Web.ApiProbe", "RefusalFor", {}.%FromJSON($List(case, 1)))
+		Do $$$AssertStatusOK(sc, "RefusalFor returns OK for "_$List(case, 1))
+		Do $$$AssertEquals(%response.Status, "403 Forbidden", "a not_allowed refusal is 403")
+		Do $$$AssertEquals(written, "{""error"":{""code"":""not_allowed"",""message"":"""_$List(case, 2)_"""}}", "with the sentence of "_$List(case, 1))
+	}
 }
 
 /// DW-62: the snapshot's chat holds the web notice cards that WebChatOut kept (the tell-now and reminder Delivery rows of the

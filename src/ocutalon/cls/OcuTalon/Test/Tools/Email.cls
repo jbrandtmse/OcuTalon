@@ -63,6 +63,9 @@ Property Saved As %Boolean [ InitialExpression = 0 ];
 /// The sessions whose approval rows the test may have made: OnAfterOneTest ends and deletes every row they own.
 Property Owners As %List;
 
+/// The Refs of the sessions that AdminSession made: OnAfterOneTest deletes them.
+Property AdminSessions As %String(MAXLEN = "");
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
@@ -85,7 +88,17 @@ Method OnAfterOneTest(testname As %String) As %Status
 	}
 	Set ..Owners = ""
 	If $Data(^OcuTalonTest("Approval", "refs")) || $Data(^OcuTalonTest("Approval", "job")) Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+	If ..AdminSessions '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..AdminSessions)
+	Set ..AdminSessions = ""
 	Quit $$$OK
+}
+
+/// A session of the README admin (its Ref), as a send_email call to another address needs: Raise refuses a requester who is no OcuTalon admin (Story 25.5). OnAfterOneTest deletes it.
+Method AdminSession() As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER)
+	Set ..AdminSessions = ..AdminSessions _ $Select(..AdminSessions = "": "", 1: ",") _ ref
+	Quit ref
 }
 
 Method OnAfterAllTests() As %Status
@@ -382,8 +395,8 @@ Method TestHoldRefusals()
 Method TestHoldRaisesTheRequest()
 {
 	If '..Prepare() Quit
-	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set owner = ..AdminSession()
+	Set other = ..AdminSession()
 	Set trace = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Mailbox(..#ADDRESS, owner)
 	Set cases = $ListBuild(
@@ -433,7 +446,7 @@ Method TestHoldRaisesTheRequest()
 Method TestGateDecides()
 {
 	If '..Prepare() Quit
-	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set owner = ..AdminSession()
 	Do ..Mailbox(..#ADDRESS, owner)
 	Set gate = ..#GATE
 	Set held = $Parameter(gate, "HELD")

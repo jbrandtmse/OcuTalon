@@ -128,10 +128,17 @@ describe('the buttons', () => {
     assert.match(request.code, /new AnswerPress\(\{\s*answer: \(ref, action, channel\) => this\.api\.answerApproval\(ref, action, channel\),\s*channel: 'phone',/);
     assert.match(request.code, /channel: 'phone',\s*answered: \(approval\) => this\.live\.applyAnswer\(approval\),/);
     assert.match(request.code, /private readonly live = inject\(LiveState\);/);
-    assert.match(request.code, /this\.answer\.press\(this\.approvalRef\(\), action, this\.approval\(\)\?\.fixKind \?\? ''\)/);
+    assert.match(request.code, /this\.answer\.press\(this\.approvalRef\(\), action\)/);
     assert.match(request.code, /return this\.message\(\)\.approvalRef \?\? '';/);
     assert.doesNotMatch(request.code, /channel: 'web'/);
     assert.doesNotMatch(request.code, /BusyState|HttpClient|\.post\(/, 'the phone has no busy state or call of its own');
+  });
+
+  it('show the sentence of a request that the user may not answer (Story 25.5) in the answer part, in place of the buttons, and clear a refused press when the store\'s payload changes', () => {
+    assert.match(request.code, /@else if \(view\(\)\.cannot && !viewer\(\)\) \{\s*<p class="answered tone-expired" data-part="answer" \[attr\.data-key\]="message\(\)\.ref" \[attr\.data-approval\]="message\(\)\.approvalRef" tabindex="-1">\s*<app-icon name="circle-slash" \[size\]="16" \/>\s*<span>\{\{ view\(\)\.cannot \}\}<\/span>/);
+    assert.match(request.code, /@if \(notice\(\) && notice\(\) !== view\(\)\.cannot\) \{/);
+    assert.match(request.code, /this\.answer\.refused\(\)\),\s*\);/);
+    assert.match(request.code, /this\.approval\(\);\s*untracked\(\(\) => this\.answer\.clearRefused\(\)\);/);
   });
 
   it('read the texts in message form with message times: renderMessageText and messageTime, never the page\'s', () => {
