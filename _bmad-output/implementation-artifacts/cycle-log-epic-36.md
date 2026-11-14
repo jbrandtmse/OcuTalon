@@ -225,3 +225,7 @@
 2026-11-14T13:40:25Z	Story 36.3	qa_complete	model=sonnet effort=high tests=admin-mcp_self-tests+6(split_para,link_to_existing_file,anchor,example_split,example_twice,example_in_longer_line) mutations_demonstrated=4
 2026-11-14T13:40:25Z	Story 36.3	protocol_violation	stage=qa-1 kind=shell_ampersand(one_busy-loop_poll,stopped_at_once;no_file_touched) severity=low action=noted
 2026-11-14T13:40:25Z	Story 36.3	stage_spawned	stage=code-review spawn_at=2026-11-14T13:40:25Z model=opus agent_name=36-3-code-review-1 cycle_iteration=1 effort=high
+2026-11-14T13:52:29Z	Story 36.3	cr_complete	model=opus effort=high layers=4 scope=0b90b8d7a..a391a7de3 resolved=3(low:run-on_line_check+self-test,header,mutation_lines) dismissed=5 high=0 med=0 low=4 rows=0 unresolved_high_med=0 final_status=done
+2026-11-14T13:52:29Z	Story 36.3	ledger_adjudicated	owned=0 resolved=0 terminal=0 note=slice_empty
+2026-11-14T13:52:29Z	Story 36.3	smoke_complete	method=docs(test-readme_43_incl_admin-mcp_19_self-tests,test-release-notes_real-tree,boundaries,link_resolves_tracked_file) result=pass
+2026-11-14T13:52:29Z	Story 36.3	fresh_check	env=real_worktree_after_merging_feature_12f15b2b tests=web_node_2082/0+test-readme result=pass
