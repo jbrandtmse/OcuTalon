@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
+import { DOCUMENT, NgComponentOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, type Type, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
@@ -25,20 +25,20 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
 
 /**
  * The settings page (Story 33.2; FR-17; UX: Step 2, settings and the daily digest), for OcuTalonAdmin only. It is titled "Settings \u00B7 OcuTalon" by its
- * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the seven sections in the UX's order on the left, and the
+ * route, has the one h1 "Settings", a navigation landmark named "Settings sections" with the eight sections in the UX's order on the left, and the
  * open section on the right under its own h2. A section has its own address, #/settings/<slug>; #/settings and an unknown slug open Models (the first).
  *
  * The page asks GET /v1/settings once when it opens, and the answer decides what it shows (D10): the sections for an admin; for a 403, the denied
  * view, "Only OcuTalon admins can open settings." with a link back to the chat; for any other failure, the load error with Retry. Models, Budgets, Check
  * thresholds, Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
- * save (Story 18.2). Every section is built; an unknown address opens Models.
+ * save (Story 18.2). Tools and MCP servers (Story 21.4) loads its own list and has its own forms (mcp-section.ts, loaded the first time the section opens, so that its code stays out of the initial bundle, which is near its 1 MB budget). Every section is built; an unknown address opens Models.
  *
  * Unsaved changes: the open form tells the page whether it differs from its saved values (`dirty`). While it does, leaving by a link or the browser's
  * back asks first (unsavedGuard), and a reload or a close of the tab gets the browser's own prompt, which is armed only while the form is dirty.
  */
 @Component({
   selector: 'app-settings-page',
-  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, RouterLink, ServerButton, TimeZoneSection],
+  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, NgComponentOutlet, RouterLink, ServerButton, TimeZoneSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="settings" tabindex="-1" [attr.data-settings]="status()" [attr.aria-busy]="status() === 'loading' ? 'true' : null">
@@ -86,6 +86,9 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                 }
                 @case ('demo-mode') {
                   <app-demo-mode-section [value]="demoMode()" (saved)="keepDemoMode($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
+                }
+                @case ('mcp') {
+                  <ng-container *ngComponentOutlet="mcpSection()" />
                 }
                 @case ('budgets') {
                   <app-budgets-section [values]="budgets()" (saved)="keepBudgets($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
@@ -229,6 +232,8 @@ export class SettingsPage {
   });
 
   protected readonly label = computed(() => sectionLabel(this.active()));
+  /** The Tools and MCP servers section, set once its code has loaded (Story 21.4): it is imported when the section first opens, not with the page. */
+  protected readonly mcpSection = signal<Type<unknown> | null>(null);
   protected readonly thresholds = computed<ThresholdNumbers>(() => this.data()?.sections['check-thresholds'] ?? { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 });
   protected readonly demoMode = computed(() => this.data()?.sections['demo-mode']?.demoMode === true);
   /** The mailbox values of the Email group (Story 21.2); the server sends none on the online demo. */
@@ -267,8 +272,13 @@ export class SettingsPage {
       }
     });
     effect(() => {
-      this.active();
-      untracked(() => this.dirty.set(false));
+      const active = this.active();
+      untracked(() => {
+        this.dirty.set(false);
+        if (active === 'mcp' && this.mcpSection() === null) {
+          void import('./mcp-section').then((loaded) => this.mcpSection.set(loaded.McpSection));
+        }
+      });
     });
     this.destroyed.onDestroy(() => view?.removeEventListener('beforeunload', unload));
   }

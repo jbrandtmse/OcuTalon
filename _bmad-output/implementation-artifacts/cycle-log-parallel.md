@@ -4046,3 +4046,8 @@
 2026-11-14T04:29:43Z	Epic 36	ci_green_verified	sha=40428606(OCT-epic36-s365) runs=43547225049(ci),43547225103(lane-a,att2_DW-625) evidence=74b10a14(records-only)
 2026-11-14T04:29:43Z	Epic 36	amendments_verified	amendments=epics_36.5_charter extensions=web/package.json(NG_BUILD_OPTIMIZE_CHUNKS=0,DW-1300) ok=true
 2026-11-14T04:29:43Z	Epic 36	merge_enqueued	part=36.5(DW-1282) head=74b10a14 feature=86264c83 order=first_ready(21.4_pending)
+2026-11-14T04:30:18Z	Epic 36	epic_merged_to_feature	part=36.5 feature_sha=bc624f44 code=40428606(identical) ci=green_by_identity(feature_runs_cancelled) verified_on_origin=yes
+2026-11-14T04:30:39Z	Epic 36	dispatch_note	lane_B=plan_36.7(DW-1320_burndown;1.0.10_RC_blocker)_to_spec_gate_on_local_branch while_4a74d329_CI
+2026-11-14T04:31:44Z	Epic 21	ci_green_verified	sha=d1730af5 runs=43553562796(ci),43553562956(lane-a)
+2026-11-14T04:31:44Z	Epic 21	amendments_verified	amendments=spine_S1-S6(21.4),security-overview:212_text(approved),T1-T12 ok=true
+2026-11-14T04:31:44Z	Epic 21	merge_enqueued	part=21.4 head=d1730af5 feature=bc624f44(36.5_in)

@@ -60,7 +60,7 @@
 #                  else; "Two things to look at in the demo" is nowhere in the README
 #   new-since      the README's "### New since 1.0.0" sits under "What's interesting", after its image line, and holds only the ruled
 #                  pointer; the guide's "## New since 1.0.0" holds its intro line, then the three #### headings in order and, under them,
-#                  the 16 bullets by bold name, each once, in the ruled order
+#                  the 17 bullets by bold name, each once, in the ruled order
 #   teaser         the full-video line is there once, word for word, two lines below the opening paragraph and the teaser line once,
 #                  word for word, two lines below it, each with an empty line between and above the first H2 section; in the README and
 #                  the guide no HTML media tag, no image inside a link, and no image that is not an
@@ -1052,7 +1052,7 @@ chk_path() {
 }
 
 # new-since: the README's H3 "New since 1.0.0" under "What's interesting", after its image line, with only the ruled pointer; and the guide's
-# section "New since 1.0.0": its intro line, the three H4 groups and the 16 bullets (by bold name), in the ruled order.
+# section "New since 1.0.0": its intro line, the three H4 groups and the 17 bullets (by bold name), in the ruled order.
 NS_INTRO='Each item says where to try it. Visual Trace on the online demo is shared, so save and add nothing personal.'
 NS_G1='Your integrations'
 NS_G2='Your documents and memory'
@@ -1065,6 +1065,7 @@ B Partner delay notices
 B Queue backlogs between digests
 B Webhooks
 B Your own mailbox
+B MCP servers in Settings
 B A History page
 B A Usage page
 H $NS_G2
@@ -1675,7 +1676,7 @@ BRIDGE_SENTENCE='Build 109, which the Early Access portal now offers in place of
 IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
 IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.'
 L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
-L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry."
 L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
 MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
 chk_docs() {
@@ -2472,7 +2473,7 @@ rule_new_since() {
   st 'a bullet under the pointer' 1 "$README" '{ print } /^The guide lists what is new since release 1.0.0/ { print ""; print "- **Memory.** Text." }' chk_new_since
   st 'the intro line back under the heading' 1 "$README" '{ print } /^The guide lists what is new since release 1.0.0/ { print ""; print "Each item says where to try it." }' chk_new_since
   st 'the image line removed from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_new_since
-  # The guide's section holds the intro line, the three groups and the 16 bullets.
+  # The guide's section holds the intro line, the three groups and the 17 bullets.
   st 'the guide heading removed' 2 "$GUIDE" '!/^## New since 1.0.0$/' chk_new_since
   st 'the guide heading renamed' 2 "$GUIDE" '/^## New since 1.0.0$/ { print "## Since 1.0.0"; next } { print }' chk_new_since
   st 'the intro line reworded' 2 "$GUIDE" '/^Each item says where/ { sub(/Visual Trace on the online demo/, "Visual Trace here") } { print }' chk_new_since
@@ -2503,7 +2504,7 @@ rule_new_since() {
   st 'the Usage bullet moved to the next group' 2 "$GUIDE" 'index($0, "- **A Usage page.**") == 1 { held = $0; next } { print } /^#### Your documents and memory$/ { print held }' chk_new_since
   st 'a bullet that is not in the list' 2 "$GUIDE" '{ print } index($0, "- **A Usage page.**") == 1 { print "- **A new thing.** Text." }' chk_new_since
   st 'a bullet above the first group heading' 2 "$GUIDE" '/^Each item says where/ { print; print ""; print "- **A new thing.** Text."; next } { print }' chk_new_since
-  finish new-since 'the README holds the ruled pointer under its H3 New since 1.0.0, and the guide holds the section with its intro line, the three group headings in order and the 16 bullets, each once, in the ruled order' chk_new_since
+  finish new-since 'the README holds the ruled pointer under its H3 New since 1.0.0, and the guide holds the section with its intro line, the three group headings in order and the 17 bullets, each once, in the ruled order' chk_new_since
 }
 
 rule_teaser() {

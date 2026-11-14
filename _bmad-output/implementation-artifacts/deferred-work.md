@@ -6430,6 +6430,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-1 REST write list (line ~122) vs AD-21 Names (Story 35.1, ruling Q4) and Story 35.2's B4/B8 rows (POST/DELETE /api/v1/settings/mcp/servers); code today is stubs that write nothing
 - 2026-11-09T17:38:55Z status=escalated owner=burndown by=cr note=decide: amend AD-1's REST write list for the admin-checked MCP routes (keeps secrets out of messages), or move the write into an operation
 - 2026-11-09T22:43:24Z status=routed owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 21.4 moves the wallet and Config Store write into McpOps (an operation); AD-1 unchanged; the MCP settings routes stay stubs until then (TestMcpEntryStubs, TestNoMcpSettingsRoute); recorded in AD-19 and Story 21.4
+- 2026-11-13T23:52:09Z status=resolved-by:21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=adjudication note=McpOps writes and drops the wallet secret and Config Store entry in its own job through the SecretHandoff (no REST write); SettingsOps stubs deleted; spine AD-1/AD-19/AD-21/AD-33 amended (S1-S6); build 89c77912 + review b22db009 on wip/21-4-impl1
 
 ### DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's per-key 60 s process cache, so for up to a minute after the mailbox moves to another session a tool SendEmail can pair a stale owner with a fresh address
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
@@ -7759,11 +7760,50 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Holds tests data [ text on the raw node (Test/Core/SecretHandoff.cls Holds); %Stream.GlobalCharacter COMPRESS=1 stores compressed chunks; no OcuTalon message class has a %Stream property today (Data.SettingStream sets COMPRESS=0 for the same reason)
 - 2026-11-13T15:34:27Z status=wontfix-accepted owner=21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace by=cr note=reopen_if=an OcuTalon message class gains a %Stream property, or a scanned value can share a stored element with a char above $Char(255)
 
+### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
+- source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
+- evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
+- 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
+- 2026-11-13T18:26:09Z note=occurrence 1 resolved by rerun: ci 43457520830 attempt 2 green on 4af1db03 (18:24Z)
+
+### DW-1285: An MCP entry already saved with a query string (by manual Config Store configuration) is not refused at runtime: the ?/# refusal is on McpOps' add path and the Settings route only
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (Contest Planner B2 re-ruling ~20:25Z) | severity: low | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
+- evidence: Mcp.Ops.AddressAllowed (called by Mcp.Proxy:84 at call time) does not refuse ? or #; changing it changes 22.x runtime behaviour
+- 2026-11-13T20:19:21Z status=open owner=burndown by=epic-21-runner note=Planner ruling: if ever closed, the fix goes through AddressAllowed with a Lane D test change
+
+### DW-1291: An MCP add or removal whose runner restart fails answers 500 server_error, although McpOps kept the change
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: McpOps answers failed after a kept change when RestartRunners fails (22.2 contract); Web.McpSettings maps failed to 500 as the spec says; the section reloads the list, which shows the truth
+- 2026-11-13T23:03:21Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec maps every outcome but added/removed/saved to 500; McpOps' restart-failure contract is 22.2's
+
+### DW-1292: A 403 inside Settings > Tools and MCP servers shows the section's denied text, not the page's denied view
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: med | footprint: in-story
+- evidence: the section is rendered through ngComponentOutlet, which binds no output, and the spec gives the section its own denied state (loading/ready/off/denied/failed)
+- 2026-11-13T23:03:22Z status=by-design owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=spec-bound: the section's states are ruled; a page-level forward needs an injected seam
+
+### DW-1293: McpOps checks only @{ and emptiness of a handed-over MCP secret; the length and character rule lives in the route
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: SaveEntry refuses @{ and an empty secret; the 1 to 4,096 printable-ASCII rule is Web.McpSettings.AddFields'; AddMcpServer is accepted from web_admin only, whose one submitter is that route
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if a second web_admin submitter of AddMcpServer appears
+
+### DW-1294: An exception thrown in McpOps Register after SaveEntry would leave the entry and wallet secret without undo
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: after SaveEntry only WriteAudit runs, which returns a status; SaveEntry and DropEntry never throw; OnAdd's catch (22.2) undoes nothing, as for Grant before
+- 2026-11-13T23:03:22Z status=wontfix-theoretical owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=real only if WriteAudit or a later step can throw
+
+### DW-1295: The MCP e2e cleanup never revokes the server's IRIS resource, and no leftovers check names it
+- source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (code review 2) | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/mcp.ts dropMcpServer and api/mcp.spec.ts cleanup delete row, entry, key and collection but call no Install.Step.Mcp.Revoke; only a failed DELETE in finally leaves a resource, on a throwaway stack
+- 2026-11-13T23:03:22Z status=wontfix-accepted owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=cr note=reopen_if=a live sign-in or sign-in-2 run reports a leftover OcuTalon_MCP_zz* resource or grant
 ### DW-1282: Initial web bundle has ~1.9 kB of headroom under its 1 MB cap (998.08 kB after 21.4 moved its MCP section to a lazy chunk); move the Settings sections and the History and Usage pages into lazy chunks so the initial bundle regains at least 50 kB of headroom
 - source: orchestrator; Story 21.4 pass 2 finding; Contest Planner ruling 2026-11-13 | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 21.4 pass 2: initial bundle 1,011,990 bytes with the MCP section (from 992,400), 998.08 kB after lazy-loading it
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
 
+### DW-1304: Consider auditing refused UNREGISTERED MCP tool calls later: the gate refuses them before any audit step, so they leave only a denied agent step and no audit entry
+- source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+- evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
+- 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
 ### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
 - source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process

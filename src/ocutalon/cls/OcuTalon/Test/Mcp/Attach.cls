@@ -14,7 +14,7 @@
 ///   - TestChangedTool (Story 22.2): a classified tool whose description the mock changes between two builds is unclassified with the new fingerprint after the second build,
 ///     a Tool entry is audited, and each admin session gets one mcp.toolChanged notice;
 ///   - TestCommands (Story 22.2): through Commands.Submit and CommandsIn with the production running, an AddMcpServer makes the row, the resource, the grant and the audit entry
-///     and restarts the runner jobs, whose build then lists the tools; a ClassifyTool keeps the fingerprint and is audited; a ClassifyTool of origin tool is refused; a
+///     and restarts the runner jobs, whose build then lists the tools and sends the handed-over secret as the bearer token (Story 21.4); a ClassifyTool keeps the fingerprint and is audited; a ClassifyTool of origin tool is refused; a
 ///     RemoveMcpServer removes the rows, the resource and the grant;
 ///   - TestTurnManager (row 2): the manager that a request with turn tools composes lists the mock's tools too;
 ///   - TestTurnServerDown: the server is down when a request composes its manager: the probe says no, and the request still gets its manager, without the server's tools;
@@ -40,7 +40,8 @@
 ///     held), TestChangedAtGate (QA: the row goes stale after the turn composed, so the gate's own question finds the mismatch: the call is held, the gate clears the row with
 ///     one entry and one notice, and a second call adds none), TestRugPullDescription and TestRugPullSchema (a classified tool that ran as read-only is changed under the same name by its server; it is then held in a user's
 ///     turn and denied in an untrusted and a tainted one, and the mock sees no second call), TestRemovedServer (the server is removed after the turn's map was built: the call
-///     is denied with UNREGISTERED, no request, no taint, and the mock sees no call),
+///     is denied with UNREGISTERED, no request, no taint, one MCP audit entry for the removal and none for the denied calls, and the mock sees no call; a turn started after the removal
+///     lists none of the server's tools, and a call of one of them by name is not found and runs nothing),
 ///     TestReadOnlyTurnSkills (an agent that declares skills keeps its own manager, which holds no MCP server, so none of the server's tools is offered: one warning for each
 ///     build, and the mock sees no call), TestMapFailures (a host class that throws, a ClassificationClass setting that is not usable and a manager that cannot be listed
 ///     are one warning each and never an error of the request);
@@ -346,14 +347,21 @@ Method TestCommands()
 		Do $$$AssertTrue(0, ..McpOpsReason())
 		Quit
 	}
-	Do ..Entry(, 1)
+	// McpOps writes the wallet secret and the entry itself (Story 21.4): the test starts only the mock, which expects the bearer token, and hands the secret over
+	Do ..Ok(##class(OcuTalon.Test.Mcp.Mock).Start(.port, , "Authorization", "Bearer " _ ..Secret), "the mock starts")
+	Set ..Port = port
+	Set ..UsedPort = port
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set before = ..RunnerJobs()
 	Set command = ##class(OcuTalon.Msg.Command.AddMcpServer).%New()
 	Set command.Server = ..Server
 	Set command.Url = "http://127.0.0.1:" _ ..Port _ "/mcp"
 	Set command.ActingUser = ..#USER
-	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result), "the add reaches CommandsIn")
+	Do ..Ok(##class(OcuTalon.Core.SecretHandoff).Put(..Secret, .uri), "the secret is offered to the hand-off")
+	Set command.Handoff = uri
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	Do ..Ok(sc, "the add reaches CommandsIn")
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|added|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEADDED, "the add is answered added")
 	Set row = ..Row()
 	Do $$$AssertTrue($IsObject(row), "the row exists")
@@ -371,6 +379,14 @@ Method TestCommands()
 	Do ..Ok(host.Adapter.BuildAgent(), "the build of a runner attaches the server that the command added")
 	Set listed = ..ToolsText()
 	Do $$$AssertEquals(listed, "zz_delete_ticket|unclassified|available,zz_lookup|unclassified|available", "as unclassified and available")
+	Set sent = 0, unmatched = 0
+	Set iterator = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%GetIterator()
+	While iterator.%GetNext(, .request) {
+		If request.client = "iris" Continue
+		Set sent = sent + 1
+		If request.auth '= "matched" Set unmatched = unmatched + 1
+	}
+	Do $$$AssertEquals((sent > 0) _ "|" _ unmatched, "1|0", "AI Hub's client sent the handed-over secret as the bearer token with every request")
 	Set fingerprint = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup").Fingerprint
 	Do $$$AssertEquals($Length(fingerprint), 64, "zz_lookup has a fingerprint")
 	// a classification keeps the fingerprint and is audited
@@ -401,7 +417,7 @@ Method TestCommands()
 	Set remove.ActingUser = ..#USER
 	Do ..Ok(##class(OcuTalon.Core.Commands).Submit(remove, "web_admin", .result), "the remove reaches CommandsIn")
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "1|removed|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEREMOVED, "the remove is answered removed")
-	Do $$$AssertEquals(..Leftovers(), "the Config Store entry, the wallet secret, the wallet collection, a mock node or job", "the row, the tool rows, the resource and the grant are gone")
+	Do $$$AssertEquals(..Leftovers(), "a mock node or job", "the row, the tool rows, the resource, the grant, McpOps' entry, wallet secret and collection are gone")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools), "Tools of the server is an error")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server, , 2)
 	Set changes = ""
@@ -664,8 +680,10 @@ Method TestMapFailures()
 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 }
 
-/// Story 22.8, AC 5: a server removed through McpOps after the turn's map was built, while the runner still lists its tools. A call to a tool of it is denied with UNREGISTERED in
-/// a user's turn and in an untrusted one, raises no approval request, taints nothing, and the mock sees no tools/call.
+/// Story 22.8, AC 5: a server removed through McpOps. In a user's turn whose map was built before the removal, while the runner still lists the server's tools, a call to a tool
+/// of it is denied with UNREGISTERED, raises no approval request and taints nothing; the removal is the one MCP audit entry for the server, the denied calls add none, and the
+/// mock sees no tools/call. A turn that starts after the removal composes a manager that lists none of the server's tools (and no call_mcp_tool), so a call of one of them by
+/// name is ToolNotFound, runs nothing, raises no approval request, taints nothing, and the mock still sees no tools/call.
 Method TestRemovedServer()
 {
 	If ..Guard() Quit
@@ -676,25 +694,40 @@ Method TestRemovedServer()
 	If '$IsObject(adapter.Agent) Quit
 	Do ..Classify("zz_lookup", "read-only")
 	Set unregistered = $Parameter("OcuTalon.Bridge.Policy.Gate", "UNREGISTERED")
-	For provenance = "user", "untrusted" {
-		Set owner = ..BeginTurn(provenance)
-		Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "a " _ provenance _ " turn composes its manager, which lists the server's tools")
-		If provenance = "user" {
-			Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(..Server), "the server is registered when the map is built")
-			Do ..RemoveThroughItem()
-		}
-		Set result = adapter.CallTool("zz_lookup", {"id": "1"})
-		Do $$$AssertTrue(result [ unregistered, "the call to a tool of the removed server in a " _ provenance _ " turn is denied with UNREGISTERED")
-		Set result = adapter.CallTool("zz_delete_ticket", {"id": "1"})
-		Do $$$AssertTrue(result [ unregistered, "so is the call to its other tool")
-		Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 0, "nothing taints the turn")
-		Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(owner)
-		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Gate).ApprovalRows(owner), 0, "and no approval request exists")
-		Do adapter.CloseTurn()
-		Do ##class(OcuTalon.Bridge.Context).End()
-	}
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set owner = ..BeginTurn("user")
+	Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "a user's turn composes its manager, which lists the server's tools")
+	Do $$$AssertEquals(..Listed(adapter.Agent.ToolManager, "zz_lookup") _ "|" _ ..Listed(adapter.Agent.ToolManager, "zz_delete_ticket"), "1|1", "the manager lists both tools of the server")
+	Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(..Server), "the server is registered when the map is built")
+	Do ..RemoveThroughItem()
+	Set result = adapter.CallTool("zz_lookup", {"id": "1"})
+	Do $$$AssertTrue(result [ unregistered, "the call to a tool of the removed server in a user's turn is denied with UNREGISTERED")
+	Set result = adapter.CallTool("zz_delete_ticket", {"id": "1"})
+	Do $$$AssertTrue(result [ unregistered, "so is the call to its other tool")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 0, "nothing taints the turn")
+	Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(owner)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Gate).ApprovalRows(owner), 0, "and no approval request exists")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server)
+	Do $$$AssertEquals(entries.%Size() _ "|" _ $Select(entries.%Size(): entries.%Get(0).data.change, 1: ""), "1|removed", "the removal is the one MCP audit entry of the server")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "MCP", "MCP", ..Server).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Tool", "Tool", ..Server).%Size(), 1, "and the denied calls add no MCP or Tool entry")
+	Do adapter.CloseTurn()
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set owner = ..BeginTurn("untrusted")
+	Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "a turn that starts after the removal composes its manager")
+	Set manager = adapter.Agent.ToolManager
+	Do $$$AssertEquals(..Listed(manager, "zz_lookup") _ "|" _ ..Listed(manager, "zz_delete_ticket") _ "|" _ ..Listed(manager, "call_mcp_tool"), "0|0|0", "which lists none of the server's tools and no call_mcp_tool: " _ ..Names(manager))
+	Set result = adapter.CallTool("zz_lookup", {"id": "1"})
+	Do $$$AssertTrue(result [ "ToolNotFound", "a call of a tool of the removed server by name is not found: " _ $Extract(result, 1, 120))
+	Set result = adapter.CallTool("zz_delete_ticket", {"id": "1"})
+	Do $$$AssertTrue(result [ "ToolNotFound", "so is the call to its other tool: " _ $Extract(result, 1, 120))
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 0, "nothing taints the turn")
+	Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(owner)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Gate).ApprovalRows(owner), 0, "and no approval request exists")
+	Do adapter.CloseTurn()
+	Do ##class(OcuTalon.Bridge.Context).End()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%Size() > 0, 1, "control: the mock answered the requests of the build")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.Mock).Calls(..Port, "zz_lookup") + ##class(OcuTalon.Test.Mcp.Mock).Calls(..Port, "zz_delete_ticket"), 0, "and it got no tools/call")
+	Do $$$AssertEquals(..ToolCalls(), 0, "from any client")
 }
 
 /// Story 22.9, AC 1: a registered server that accepts the connection, reads the request and never answers. The build is OK within 10 s, the probe gives up, AI Hub's client
@@ -1690,6 +1723,8 @@ Method Remove() [ Private ]
 	If ##class(%ConfigStore.Configuration).Exists(entry) Do ##class(%ConfigStore.Configuration).Delete(entry)
 	If ##class(%Wallet.Secret).Exists(..Collection() _ ".Key") Do ##class(%Wallet.KeyValue).Delete(..Collection() _ ".Key")
 	If ##class(%Wallet.Collection).Exists(..Collection()) Do ##class(%Wallet.Collection).Delete(..Collection())
+	If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ ..Server _ ".Key") Do ##class(%Wallet.KeyValue).Delete("OcuTalon_MCP_" _ ..Server _ ".Key")
+	If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ ..Server) Do ##class(%Wallet.Collection).Delete("OcuTalon_MCP_" _ ..Server)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..Server)
 	If ##class(OcuTalon.Mcp.Server).NameIndexExists(..Server, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 	Do ##class(OcuTalon.Install.Step.Mcp).Revoke(..Server)
@@ -1708,6 +1743,8 @@ Method Leftovers() As %String [ Private ]
 	If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ ..Server) Set places = places _ $ListBuild("the Config Store entry")
 	If ##class(%Wallet.Secret).Exists(..Collection() _ ".Key") Set places = places _ $ListBuild("the wallet secret")
 	If ##class(%Wallet.Collection).Exists(..Collection()) Set places = places _ $ListBuild("the wallet collection")
+	If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ ..Server _ ".Key") Set places = places _ $ListBuild("McpOps' wallet secret")
+	If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ ..Server) Set places = places _ $ListBuild("McpOps' wallet collection")
 	If ..UsedPort, $Data(^IRIS.Temp.OcuTalonMcpMock(..UsedPort)) || ##class(OcuTalon.Test.Mcp.Mock).Running(..UsedPort) Set places = places _ $ListBuild("a mock node or job")
 	Quit $ListToString(places, ", ")
 }

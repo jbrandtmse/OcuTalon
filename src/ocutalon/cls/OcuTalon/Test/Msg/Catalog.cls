@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 144 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 145 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -80,7 +80,8 @@ Method TestEntries()
 	// Story 41.15 (Contest Planner ruling 2026-11-10): memory.learnedSaved adds one key to Story 23.2's 138 here; with Story 23.5's press.approvedPartner (plain union at the integrate-forward), 140 in all.
 	// Story 35.3 (Contest Planner ruling 2026-11-11, PUBLIC TEXT T1-T3): settings.webhooksOffOnDemo, webhookBadName and webhookBadSecret take the Core count to 143.
 	// Story 21.7 (Contest Planner ruling 2026-11-12, PUBLIC TEXT E1): email.digestSubject takes the Core count to 144.
-	Do $$$AssertEquals(keys.core.%Size(), 144, "the expected Core list has 144 keys")
+	// Story 21.4 (Contest Planner ruling 2026-11-12, PUBLIC TEXT T1): settings.mcpOffOnDemo takes the Core count to 145.
+	Do $$$AssertEquals(keys.core.%Size(), 145, "the expected Core list has 145 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -88,7 +89,7 @@ Method TestEntries()
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
 	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 144 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 145 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -1159,6 +1160,7 @@ XData Keys [ MimeType = application/json ]
   "settings.webhookAddress",
   "settings.webhookNameTaken",
   "settings.webhooksOffOnDemo",
+  "settings.mcpOffOnDemo",
   "settings.webhookBadName",
   "settings.webhookBadSecret",
   "settings.secretSet",
@@ -1746,6 +1748,7 @@ XData Fixtures [ MimeType = application/json ]
  "settings.webhookAddress": {"slots": {"address": "https://example.com/ocutalon/hook/zzref"}, "text": "Send events with POST to https://example.com/ocutalon/hook/zzref."},
  "settings.webhookNameTaken": {"slots": {"name": "Billing"}, "text": "A webhook called 'Billing' already exists. Nothing was changed."},
  "settings.webhooksOffOnDemo": {"slots": {}, "text": "Webhooks are off on the online demo, so it has no public webhook address. They work on your own install."},
+ "settings.mcpOffOnDemo": {"slots": {}, "text": "MCP servers are off on the online demo: nobody can add one, and OcuTalon reaches none. They work on your own install."},
  "settings.webhookBadName": {"slots": {}, "text": "Enter a name of 1 to 64 characters. Nothing was changed."},
  "settings.webhookBadSecret": {"slots": {}, "text": "Use a secret of 16 to 256 characters: letters, digits and punctuation, with no spaces. Nothing was changed."},
  "settings.secretSet": {"slots": {}, "text": "Saved, and never shown again. Type a new value to replace it."},
