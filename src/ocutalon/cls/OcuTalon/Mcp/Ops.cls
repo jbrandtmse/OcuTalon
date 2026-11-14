@@ -3,8 +3,11 @@
 /// OcuTalon.Msg.CommandResult, and it answers SetSourcePoll and RemoveSourcePoll too (Story 22.5):
 ///   - SetSourcePoll makes one Read-only tool of a registered server a source, or changes that source: the one BackgroundCheck row of Kind source of the command's session
 ///     with that name (Watch.Ops SetSource), in one transaction with its MCP audit entry (change source_set, outcome created or updated; the entry never holds an argument),
-///     then one CheckChanged. It answers saved with the row's Ref, or not_read_only, not_found, bad_name, bad_arguments or bad_interval, and a refusal writes nothing;
+///     then one CheckChanged. It answers saved with the row's Ref, or not_read_only, not_found, bad_name, reserved_name, bad_arguments or bad_interval, and a refusal writes nothing;
 ///     a command whose session has no row is failed, and an audit that fails undoes the change (not_audited).
+///   - A source's name may not be the one the digest's coverage list gives the connected mailbox (Checks.Coverage ENTRYMAILBOX), in any letter case, after the trim: that is the outcome
+///     reserved_name with MESSAGESOURCERESERVED, so the list never shows two entries of one name (DW-1325). "My Mailbox" and "Mailboxes" are different names and are accepted. The
+///     Settings relay (Story 21.5) reads the outcome.
 ///   - RemoveSourcePoll removes the source of a Ref, whatever admin set it, in one transaction with its audit entry (source_removed), then sends a CheckChanged with Stopped 1.
 ///     It answers removed, or not_found, or not_audited when the audit fails (the source stays). RemoveMcpServer removes the sources of the server too, each in its own
 ///     transaction, after the drop of the entry and the wallet secret and before Restart; a source that cannot be removed stays, with one warning that names its Ref.
@@ -76,6 +79,8 @@ Parameter MESSAGESAVED = "Saved";
 Parameter MESSAGENOTREADONLY = "Only a Read-only tool can be a source. Nothing was changed.";
 
 Parameter MESSAGESOURCENAME = "A source's name is 1 to 100 characters. Nothing was changed.";
+
+Parameter MESSAGESOURCERESERVED = "That name belongs to the connected mailbox. Choose another name.";
 
 Parameter MESSAGESOURCEARGUMENTS = "A source's arguments must be a JSON object of up to 4,000 characters, with no secret in it. Nothing was changed.";
 
@@ -205,6 +210,7 @@ Method OnSetSource(request As OcuTalon.Msg.Command.SetSourcePoll, Output respons
 	If tool.Classification '= "read-only" Quit ..Answer(.response, 0, "not_read_only", ..#MESSAGENOTREADONLY)
 	Set name = $ZStrip(request.Name, "<>W")
 	If ($Length(name) < 1) || ($Length(name) > ..#NAMEMAX) || ($ZStrip(name, "*C") '= name) Quit ..Answer(.response, 0, "bad_name", ..#MESSAGESOURCENAME)
+	If $ZConvert(name, "L") = $ZConvert(##class(OcuTalon.Checks.Coverage).#ENTRYMAILBOX, "L") Quit ..Answer(.response, 0, "reserved_name", ..#MESSAGESOURCERESERVED)
 	Set arguments = ..Normalised(request.Arguments)
 	If arguments = "" Quit ..Answer(.response, 0, "bad_arguments", ..#MESSAGESOURCEARGUMENTS)
 	Set interval = request.IntervalMinutes

@@ -28,7 +28,8 @@ Property DisplayName As %String(MAXLEN = 128);
 /// The IRIS user who asked for the check.
 Property AskedBy As %String(MAXLEN = 128);
 
-/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these.
+/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these. For a source, it is when its target
+/// (server, tool, arguments) was last set (Story 22.13, DW-1328): coverage counts only the runs since.
 Property CreatedAt As %String(MAXLEN = 20);
 
 /// When the check is next due.

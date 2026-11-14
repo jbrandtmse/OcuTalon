@@ -2,7 +2,8 @@
 title: 'Story 22.13: Keep source names, staleness and repoints honest on the coverage list'
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f17c050c782868ce57a76b30b8fff3f276f03146'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -10,7 +11,14 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-22-11-run-source-polls-through-the-governed-proxy.md'
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      A source's coverage with an empty window end (Current uses now) has no test.
+    evidence: |-
+      Current takes NowUtc() when toUtc is empty; every new coverage test passes an explicit window. Replacing NowUtc() with "" would read every old run as current (Apart returns 0) and no test would fail. A test in the style of TestMailboxNoWindow, with a source and an earlier run, would settle it.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Checks/Coverage.cls (Current)
+    severity: low
 ---
 
 <intent-contract>
@@ -130,6 +138,35 @@ Paths are under `src/ocutalon/cls/OcuTalon/`. Line numbers are at `6a5a730a` (fe
 
 ## Review Triage Log
 
+### 2026-11-14 -- Review pass
+- verdicts: 25 findings -- high 0, medium 0, low 9, false 16, maybe-false 0
+- findings:
+  - `[false]` `reject` Blind: a repointed source reads missed straight away -- the spec's matrix row 4 and 6 say so ("missed from the span's start, as for a new row today"); a new row behaves the same.
+  - `[false]` `reject` Blind and Edge: a source already named "Mailbox" is not migrated -- Design Notes decided 3 (22.5 is unreleased, no install has one); deleting rows is excluded.
+  - `[false]` `reject` Blind: the reserved-name message lacks "Nothing was changed." -- the text is Planner-approved verbatim; no other text may ship.
+  - `[low]` `patch` Blind: the loop that skips the gaps for a carried run is unexplained -- one contract comment added above the loop in `Checks/Coverage.cls`.
+  - `[low]` `reject` Blind: Coverage header comment hard to read -- cosmetic, the exception is stated once in rule (2).
+  - `[low]` `defer` Blind and Verification-gap: the empty-window-end branch of Current has no test -- recorded in `deferred:`.
+  - `[low]` `reject` Blind: the max(window, interval) branch, the "since" of a carried unreachable run and REPOINTRESETS 0 are untested -- the spec's Pinning mutations name REPOINTRESETS 0 and it is observed red; the window term cannot change a result (see below); the streak start is the carried run by the spec's "same latest-run rules" over one run.
+  - `[false]` `reject` Blind: a Compose test for the lead keeping "Mailbox" when not_checked -- TestCheckedListMailboxLower and TestNotEverythingMailboxLower assert the coverage line label; the lead is unchanged code.
+  - `[low]` `reject` Blind: coverage tests read rows by position -- the rows are fixed (four vitals, then sources in creation order) as in the sibling tests.
+  - `[low]` `reject` Edge: the carried run's streak start under-reports an outage -- the spec's rule takes the one run; fixing it loads more runs and adds branches for a rare long-interval case.
+  - `[low]` `reject` Edge and Verification-gap: the window term of max(window, interval + 180 s) never decides, because the earlier run is always before the window's start -- true, but it is the Planner's wording and it changes no result; no harm named.
+  - `[false]` `reject` Edge: unreadable times pass as current -- RanAt is written by the system, never malformed.
+  - `[false]` `reject` Edge: an in-flight poll of the old target lands after the repoint -- 22.11's run and baseline rule; out of this story by the intent.
+  - `[low]` `reject` Edge: a run in the same second as the new CreatedAt counts -- an unlikely race; the fix changes the shared Runs query.
+  - `[false]` `reject` Edge: a window that ended before the repoint reads missed with an empty span -- the span clipping is pre-existing for a new row.
+  - `[false]` `reject` Edge: reserved_name has no consumer yet -- 21.5's mapping is lane C's bullet, ruled at ~13:20Z item 3.
+  - `[false]` `reject` Edge: a source row with no interval skips the CreatedAt bound -- McpOps allows 5 to 1,440 minutes only, so no such source exists.
+  - `[false]` `reject` Edge: the RecordRun and Runs docs and the spine are not updated -- RecordRun's doc does not describe staleness; the spine is the lead's update.
+  - `[low]` `patch` Verification-gap: Reported, NextDueAt and the CheckRun rows are not pinned on a repoint -- tests extended: Reported kept and NextDueAt now in `TestRepointMovesCreatedAt`, Reported kept in `TestSameTargetKeepsCreatedAt`, the CheckRun row kept in `TestSourceRepointCountsOnlySince`.
+  - `[false]` `reject` Verification-gap (other): new tests are self-contained and the nine mutations map to assertions -- no defect claimed.
+  - `[false]` `reject` Intent audit: reading C1 and D1 implemented; NextDueAt not asserted (covered by the patch above); Compose tests use Feed, the real mailbox row is covered by the existing TestMailboxRealSeams -- descriptive, no defect.
+  - `[false]` `reject` Intent audit: reservation only at the McpOps handler -- the intent names McpOps (reading A1).
+  - `[false]` `reject` Intent audit: carry-in only when the span has no run -- matrix row 2 says "no run in the window".
+  - `[false]` `reject` Intent audit: no Settings surface exercised -- Web and Core are excluded by the intent.
+  - `[false]` `reject` Verification-gap first attempt: diff path typo, no review -- re-run with the right path.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-18 (coverage; amended for DW-1327), AD-28 (the all-clear only from `Render`; the mailbox is not a watch), AD-29 (lanes), AD-32 (catalog keys; the sentences fill existing slots), AD-33 (`Checks` writes the run fields; untouched). No AC contradicts an AD's Rule except DW-1327, which amends AD-18's staleness rule for sources by the Planner's ruling. No NFR trips Rule 5.
@@ -214,7 +251,19 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Carved by the lead from 22.11's planned spec at the Planner's split (~13:20Z Nov 14), through the orchestrator's quick gate; no new public text.
+Implemented the split of 22.11 as specified:
+- DW-1325: `Mcp/Ops.cls` answers `reserved_name` (new `MESSAGESOURCERESERVED`) for the name "Mailbox" in any letter case, after the trim; nothing is written.
+- DW-1327: `Checks/Coverage.cls` extends `EarlierRun` (optional CreatedAt bound; returns result, reason, finding) and adds `Current`; a source with no run in the span takes its newest run since CreatedAt as its latest run when it is within max(window, interval x 60 + 180 s) of the window's end; other kinds unchanged.
+- DW-1328: `Watch/Ops.cls` adds `REPOINTRESETS = 1`; a changed server, tool or arguments moves CreatedAt to now; interval-only and case-only updates keep it.
+- Mailbox sentences: `Digest/Process.cls` adds `MAILBOXINSENTENCE` ("the mailbox") for "I checked" and `whatFailed`; labels unchanged.
+- `Data/BackgroundCheck.cls`: doc only.
+- Tests: `Test/Mcp/SourceSet.cls` (3 new), `Test/Digest/Coverage.cls` (4 new, `Clean` also deletes source rows, `RunCount` helper), `Test/Digest/Compose.cls` (1 changed, 2 new).
+
+Review: 25 findings from four layers; 2 patched (a loop comment; repoint tests now pin Reported, NextDueAt and the CheckRun row), 1 deferred (empty window end untested), 22 rejected with reasons in the triage log. Follow-up review recommended: false.
+
+Verification (warm stack e22s13iw, torn down): `Test.Mcp.SourceSet`, `Test.Digest.Coverage`, `Test.Digest.Compose` (loop, after the last patch), then `Test.Mcp.Ops`, `Test.Mcp.SourceSetProduction`, `Test.Watch.Ops`, `Test.Digest.AllClear`, `Test.Digest.EvalCase`, `Test.Digest.TelegramText`, `Test.Msg.Catalog` all passed; `test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh`, `test-readme.sh` exit 0. All nine Pinning mutations were observed red and reverted byte-identical (checksums compared).
+
+Residual risks: the window term of max(window, interval + 180 s) cannot change a result (the earlier run is always before the window's start), so the effective limit is interval x 60 + 180 s; the Planner's wording is kept. The spine updates (AD-18, AD-28) are the lead's.
