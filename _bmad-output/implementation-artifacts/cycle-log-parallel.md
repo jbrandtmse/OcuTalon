@@ -4145,3 +4145,10 @@
 2026-11-14T14:42:15Z	Epic 22	ci_green_verified	sha=16772e40
 2026-11-14T14:42:15Z	Epic 22	amendments_verified	amendments=epics_22.13_inserted+22.11_trimmed,AD-18,AD-28 ok=true
 2026-11-14T14:42:15Z	Epic 22	merge_enqueued	part=22.13 head=16772e40 feature=ba276d3a
+2026-11-14T14:44:36Z	Epic 22	epic_merged_to_feature	part=22.13 feature_sha=f403bf664 conflicts=tracker(ours+set;valid) merged_tree_pins=readme,boundaries,class-rules,storage,release-notes,web_2089_pass verified_on_origin=yes ci=own_run deps_hash=rerecorded(split_22.13)
+2026-11-14T14:53:45Z	Epic 26	runner_reported	PUBLIC_TEXT story=26.2_gate head=e43fda8e(hold_ref) items=demo_off+telegram_guard,trace,cost,gap_until_25.6(H1/H2),3_new_texts,veto_1-6,DW-1321_alt_fix,DW-1313_move_to_25.6
+2026-11-14T14:55:03Z	Epic 26	owner_decision	via=contest_planner 26.2=APPROVED(H2_READSFILES=0_incl_Telegram;texts_1-3_to_25.6;demo_guard;injection_pins;10MB_read_cap;token_URL_pins;pool_STOP_10s/45s;DW-1321_line_in_PART_READY;DW-1313->25.6) file=prompts/story-262-rulings-20261114.md
+2026-11-14T15:00:20Z	Epic 22	runner_reported	PUBLIC_TEXT story=22.11_regate(poll_run_only) head=b5d41842(hold_ref) veto=reason_words,Reported_shape(hashes) triage_STOP_kept est_risk=60s_wait_vs_Decide_timer
+2026-11-14T15:00:44Z	Epic 22	owner_decision	via=contest_planner 22.11_regate=APPROVED(veto_1_reason_words,veto_2_Reported_shape,runner_calls) Task0_pre-ruling=(a)_one_poll_in_flight_auto_if_trips;pass_iff_STOP_criteria+no_queue_staleness(pinned);else_STOP
+2026-11-14T15:00:53Z	Epic 26	runner_ended	reason=hold(early_at_clean_boundary) head=32472435(hold/OCT-epic26-20261114) open_ci=none task0=10p_1.0s,cap_3.3s(under_STOP) next=26.2_implement_after_HOLD_OFF
+2026-11-14T15:36:26Z	Run	ci_green_verified	head=f403bf66(feature;+25.5+22.13) runs=43606442301,43606442298 attempt=1
