@@ -43,7 +43,7 @@ test('RS1: on the real state there is no Roles entry in the Settings navigation'
   const state = (await (await page.request.get(STATE)).json()) as Record<string, unknown>;
   expect(state['rolesAssignable'], 'the real state: no STEP6ROLES on this branch').toBe(false);
   await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(sectionsNav(page).getByRole('link'), 'seven sections, no Roles').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode']);
+  await expect(sectionsNav(page).getByRole('link'), 'eight sections, no Roles').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers']);
   await page.evaluate(() => {
     location.hash = '#/settings/roles';
   });
