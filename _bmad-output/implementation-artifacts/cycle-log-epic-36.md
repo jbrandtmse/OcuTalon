@@ -233,3 +233,4 @@
 2026-11-14T14:02:36Z	Epic 36	epic_status_done	stories=36.1,36.2,36.3,36.4,36.5,36.6,36.7 note=36.3_CI_pending_at_42ab53c5
 2026-11-14T14:02:36Z	Epic 36	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet unresolved_high_med_avg=1.0(first_pass:36.1=2,36.2=3,36.3=0,36.4=2,36.5=0,36.6=0,36.7=0) metric=unresolved rework_stories=2(36.1,36.4;causes=guard_tests/CI_count/directive/ruling,not_language_semantics) review_loop_thrash=0 rework_lang_defects=0 result=hold applied=false
 2026-11-14T14:02:36Z	Epic 36	epic_retro_skipped	reason=policy(gates.retrospective=skip)
+2026-11-14T14:45:51Z	Story 36.3	ci_resolved	branch=OCT-epic36 sha=42ab53c5 runs=43601944978,43601944955 result=success failed=none
