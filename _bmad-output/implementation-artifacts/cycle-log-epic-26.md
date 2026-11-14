@@ -43,3 +43,5 @@
 2026-11-14T09:18:09Z	Story 26.3	ci_red_classified	run=43576051616 workflow=.github/workflows/ci.yml class=story test=web/scripts/files-sources.test.mjs(2_assertions:Agent/Content.cls_first_Core.Files.Open_caller;.Content_pattern_matches_class_name) job=web first_red=39405fff note=lane-a_43576051618_green;other_ci_jobs_green_or_running
 2026-11-14T09:18:09Z	Story 26.3	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI1(web:files-sources.test.mjs) scope_baseline=39405fff
 2026-11-14T09:18:15Z	Story 26.3	stage_spawned	stage=implement spawn_at=2026-11-14T09:18:15Z model=sonnet agent_name=26-3-caption-a-photo-and-keep-the-caption-as-a-memory-implement-2 cycle_iteration=2
+2026-11-14T09:23:59Z	Story 26.3	dev_complete	spawn_at=2026-11-14T09:18:15Z model=sonnet build_sha=53ebbdd1 baseline_revision=8180ab28 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 cycle_iteration=2 rework=1 note=web_unit_2028_pass;mutations_written
+2026-11-14T09:23:59Z	Story 26.3	stage_spawned	stage=code-review spawn_at=2026-11-14T09:23:59Z model=opus agent_name=26-3-caption-a-photo-and-keep-the-caption-as-a-memory-code-review-2 cycle_iteration=2
