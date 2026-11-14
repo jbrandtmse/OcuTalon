@@ -7821,11 +7821,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T00:39:36Z status=decision-pending owner=burndown by=harvest note=for_the_Planner:waive_the_verbatim-Result_mutation_or_rule_a_pin(e.g._assert_the_Result_part_equals_a_fixed_outcome_set);DW-1296_audit_is_related
 - 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
 - 2026-11-14T00:51:07Z status=decision-pending owner=burndown by=cr note=cr4:claim_holds(Result/Denied_fixed_words;answer_pinned_by_Test.Tools.Email);only_Error_part(AI_Hub_text)_unpinned
+- 2026-11-14T03:57:56Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Planner_02:00Z:verbatim-Result_mutation_WAIVED;Error_part_pinned:StepBuffer_fixed_'Error:_the_email_tool_call_failed.'+TestEmailStepErrorIsAFixedSentence+TestEmailToolErrorLeavesNoAddressInTheTrace(mutation_red)
 
 ### DW-1306: docs/security-overview.md is stale since 22.7: L125 says 'Every built-in tool is safe.' (send_email is a built-in tool that is risky per call), and 'Who may answer' (L142-146) does not mention the interim admin-only approval of an email to anyone else (DW-1262)
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 22.7 rework-4 code review (outside the rework range; public text): docs/security-overview.md:125, :142-146
 - 2026-11-14T00:54:37Z status=decision-pending owner=burndown by=cr note=human=Planner_PUBLIC_TEXT:the_corrected_L125_sentence_and_a_Who-may-answer_line_for_email;22.7_merge_gate?
+- 2026-11-14T03:57:56Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=docs/security-overview.md:125_ruled_text+:146_approved_Who-may-answer_bullet(Planner_02:00Z/03:40Z);follow-up_DW-1314(call_mcp_tool_omission,decision-pending)
 ### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
 - source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
@@ -7835,3 +7837,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: count by the Planner: 9 cancelled, 4 canceled
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
+
+### DW-1314: docs/security-overview.md L125 (ruled 22.7 text) says every built-in tool is safe except send_email and that each risky built-in action is a fix kind, but the Built-in tools table lists call_mcp_tool as per-call (risky by default) and its risky calls take a tool_call approval, not a fix kind
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, edge-case-hunter) | severity: med | fix-risk: low | footprint: in-story
+- evidence: docs/security-overview.md:12 lists call_mcp_tool (OcuTalon.Tools.McpCall, CLASSIFICATIONCALLMCPTOOL=risky, per-call rule) under Built-in tools; Bridge/Policy/Gate.cls:256-290 holds a risky call as Kind tool_call, not a Fix.Kind. L125 is the Planner's verbatim text, so a fix is a ruling.
+- 2026-11-14T03:55:09Z status=decision-pending owner=burndown by=cr note=ruled public text (Planner 02:00Z/03:40Z Nov 14); rewording needs a Planner ruling; overview L207 says MCP is not in this release
+
+### DW-1315: The ruled hand-edited lines of docs/security-overview.md (L125's send_email sentences and the 'Who may answer' email bullet, L146) have no pin, so a later edit or regeneration could drop or reword them unnoticed
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, verification-gap) | severity: med | fix-risk: low | footprint: in-story
+- evidence: Rule 19: no test in docker/tests, ci or Test/* names either text (verification-gap search); both sit outside the generated sections; spec deferred entry 6 and the rework-6 Verification line say so.
+- 2026-11-14T03:55:09Z status=routed owner=burndown by=cr note=add a test-readme.sh or release-sequence overview pin for both ruled texts; outside the final pass's three ruled items
