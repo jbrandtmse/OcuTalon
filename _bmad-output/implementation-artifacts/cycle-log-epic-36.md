@@ -242,3 +242,8 @@
 2026-11-14T17:42:38Z	Story 36.8	ledger_adjudicated	owned=1 resolved=1(DW-1287) new=2(DW-1338,DW-1339_decision-pending:veto_V3,V1/V2_for_the_Planner)
 2026-11-14T17:42:38Z	Story 36.8	smoke_complete	method=lint(test-class-rules_10_PASS_incl_web-global-reads,boundaries,ci-config;planted_ZzPlanted_red_earlier) result=pass
 2026-11-14T17:42:38Z	Story 36.8	fresh_check	env=worktree_on_feature_23fafe59(ancestor) tests=test-class-rules+boundaries+ci-config result=pass
+2026-11-14T18:27:11Z	Story 36.8	ci_resolved	branch=OCT-epic36-s368 sha=8009b184 runs=43622582261,43622582258 result=success (merged_cf3fee0e)
+2026-11-14T18:27:11Z	Epic 36	planner_ruling	source=epic-36-rulings-20261113-2130.md(~18:30Z) items=DW-1338_accepted_low(wontfix-accepted;new_baseline_entries_need_Planner);DW-1339_low_burndown_post-contest;V2_AD-13_sentence;standing_rule_IRIS_MCP_names_server_profile_never_demo_or_shared
+2026-11-14T18:27:11Z	Epic 36	spine_amended	ad=AD-13 marker=[AMENDED_2026-11-14,Story_36.8,Contest_Planner_V2] text=web-global-reads_names_OcuTalon.Web.*_scope;callees_not_followed(DW-1339);baseline_changes_only_by_Planner(DW-1338) replaced=still_covers_only_SQL_prepares..DW-1287 lint_spine=no_new_findings(10_before,10_after)
+2026-11-14T18:27:11Z	Epic 36	integrated_forward	feature=cf3fee0e conflicts=none checks=test-class-rules,boundaries,test-readme
+2026-11-14T18:27:11Z	Epic 36	epic_runner_complete	stories=36.1-36.8_done note=waiting;records+spine_sentence_for_the_orchestrator_to_merge
