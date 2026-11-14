@@ -364,6 +364,42 @@ export interface WebhookError {
   fields?: { name?: string; secret?: string };
 }
 
+/** One MCP server as GET /ocutalon/api/v1/settings/mcp lists it (Story 21.4): never a secret, a `secret://` reference or a fingerprint. `status` is `attached`, `unavailable` or "" (never checked). */
+export interface McpServerRow {
+  name: string;
+  address: string;
+  status: string;
+  tools: number;
+  unclassified: number;
+  pending: number;
+}
+
+/** One discovered tool of an MCP server: its classification is `unclassified`, `read-only` or `risky`, and its status `available`, `unavailable` or `refused`. */
+export interface McpToolRow {
+  server: string;
+  name: string;
+  classification: string;
+  status: string;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/mcp: the servers sorted by name, and the tools of all of them, server by server in that order and by name within a server. */
+export interface McpSettings {
+  servers: McpServerRow[];
+  tools: McpToolRow[];
+}
+
+/** The 200 answer to the MCP settings changes: `added`, `removed` or `saved`, with the server's own message. */
+export interface McpChanged {
+  result: 'added' | 'removed' | 'saved';
+  message: string;
+}
+
+/** The error body of a refused MCP settings call: `{error: {code, message}}`, and for `bad_mcp_server` the refused fields, each with its text. */
+export interface McpError {
+  error: { code: string; message: string };
+  fields?: { name?: string; address?: string; secret?: string };
+}
+
 /** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */
 export interface DocumentsList {
   documents: DocumentPayload[];

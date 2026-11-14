@@ -328,7 +328,7 @@ test('O6: a GET with no on-call member hides the section, and its address opens 
     await route.fulfill({ response, json: body });
   });
   await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(sectionsNav(page).getByRole('link'), 'the navigation has no On call').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode']);
+  await expect(sectionsNav(page).getByRole('link'), 'the navigation has no On call').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers']);
   await sectionsNav(page).getByRole('link', { name: 'Demo mode', exact: true }).click();
   await expect(page.getByRole('heading', { level: 2 }), 'Demo mode is open first, so that Models cannot already be showing').toHaveText('Demo mode');
   await page.evaluate(() => {

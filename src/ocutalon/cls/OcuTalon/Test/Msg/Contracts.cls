@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix", "CreateWebhook", "SetWebhookSecret", "AckPage", "SaveSqlWatch", "ListOnCallUsers")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat", "MarkNoise", "ForgetPrecedent", "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "SetSourcePoll", "RemoveSourcePoll", "SendEmail", "ProposeFix", "CreateWebhook", "SetWebhookSecret", "AckPage", "SaveSqlWatch", "ListOnCallUsers", "ListMcpServers")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -557,6 +557,7 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Server": "%String(MAXLEN=40)",
    "Url": "%String(MAXLEN=2000)",
+   "Handoff": "%String(MAXLEN=128)",
    "ActingUser": "%String(MAXLEN=160)"
   }
  },
@@ -657,6 +658,15 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Action": "%String(MAXLEN=16)",
    "PageOrigin": "%String(MAXLEN=300)",
+   "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.ListMcpServers": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
    "ActingUser": "%String(MAXLEN=160)"
   }
  },

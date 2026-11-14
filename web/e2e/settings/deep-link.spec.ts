@@ -8,7 +8,7 @@ import { NAV_LINKS_ADMIN } from '../support/header-nav';
  * signs in, then opens a NEW page in the same context at the page's hash (a real document load, so the router builds the lazy chunk from the address and not
  * from a link press), waits for the page's own GET to answer 200, checks the page, reloads it and checks it again. Every console error and page error from
  * before the first load is collected without a filter, so a lazy chunk that fails to load ("Failed to load resource") fails the case. The cases save nothing.
- *   D1  #/settings (titled Settings \u00B7 OcuTalon, the h1, the eight sections, Models, the header marks Settings) and #/settings/check-thresholds (its h2 and fields, its
+ *   D1  #/settings (titled Settings \u00B7 OcuTalon, the h1, the nine sections, Models, the header marks Settings) and #/settings/check-thresholds (its h2 and fields, its
  *       section link current);
  *   D2  #/history (titled History \u00B7 OcuTalon, the hidden h1, the tablist with Decisions selected, the header marks History);
  *   D3  #/usage (titled Usage \u00B7 OcuTalon, the h1, its table or its empty text, the header marks Usage);
@@ -16,7 +16,7 @@ import { NAV_LINKS_ADMIN } from '../support/header-nav';
  *       Stay keeps the section and the typed value, Leave without saving goes on (S6 reaches the page by link presses; here the chunk comes with the document load).
  */
 const API = '/ocutalon/api/v1';
-const SECTION_NAMES = ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode'];
+const SECTION_NAMES = ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers'];
 const THRESHOLD_LABELS = [
   'Disk free space below (%)',
   'Journal free space below (%)',
@@ -78,7 +78,7 @@ async function expectCurrent(page: Page, current: string): Promise<void> {
 async function expectSettings(page: Page): Promise<void> {
   await expect(page, 'titled Settings').toHaveTitle('Settings \u00B7 OcuTalon');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
-  await expect(sectionsNav(page).getByRole('link'), 'the eight sections').toHaveText(SECTION_NAMES);
+  await expect(sectionsNav(page).getByRole('link'), 'the nine sections').toHaveText(SECTION_NAMES);
   await expect(page.getByRole('heading', { level: 2 }), '#/settings opens Models').toHaveText('Models');
   await expectCurrent(page, 'Settings');
 }
@@ -86,7 +86,7 @@ async function expectSettings(page: Page): Promise<void> {
 async function expectThresholds(page: Page): Promise<void> {
   await expect(page, 'titled Settings').toHaveTitle('Settings \u00B7 OcuTalon');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
-  await expect(sectionsNav(page).getByRole('link'), 'the eight sections').toHaveText(SECTION_NAMES);
+  await expect(sectionsNav(page).getByRole('link'), 'the nine sections').toHaveText(SECTION_NAMES);
   await expect(page.getByRole('heading', { level: 2 }), 'the section of the address').toHaveText('Check thresholds');
   await expect(sectionsNav(page).getByRole('link', { name: 'Check thresholds', exact: true }), 'its link is current').toHaveAttribute('aria-current', 'true');
   for (const label of THRESHOLD_LABELS) {

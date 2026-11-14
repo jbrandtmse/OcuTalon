@@ -91,6 +91,8 @@
 /// TestModel (origin web_admin) sends Bridge.Settings.TestRequest's request to Decide synchronously, waits at most TESTWAIT seconds, and answers the outcome
 /// tested with Data {answered, seconds, reason} (an expired wait gives reason timeout), or refused with Data {"fields": ["agent"]} for an agent that
 /// TestRequest refuses. It writes no setting and no audit entry; the Decision and Usage rows of the test request are Decide's, as Bridge.Settings.TestRequest describes.
+/// ListMcpServers (Story 21.4, origin web_admin) is the read behind Settings > Tools and MCP servers: ListMcp answers it here, in this job, because the REST process cannot
+/// read the servers' tools, their entries or the pending requests of other owners. It writes nothing. McpOps, not this class, writes an MCP server's row, entry and wallet secret.
 /// CreateWebhook and SetWebhookSecret (Story 35.3, origin web_admin) take the secret from the command's Handoff uri through SecretHandoff.Take, never from a
 /// property, a message or a log. On the online demo both answer not_available and write nothing. CreateWebhook validates the name and the secret (Data.Webhook
 /// NameProblem, SecretProblem, NameTaken), writes the Settings audit entry first (setting webhook.<Ref>, from empty, to the name), then saves the Webhook row
@@ -197,6 +199,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.TestModel" Quit ..TestModel(command)
 	If class = "OcuTalon.Msg.Command.MailSignIn" Quit ..SignIn(command)
 	If class = "OcuTalon.Msg.Command.ListOnCallUsers" Quit ..ListOnCallUsers()
+	If class = "OcuTalon.Msg.Command.ListMcpServers" Quit ..ListMcp(command)
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
 	If class = "OcuTalon.Msg.Command.ProposePersona" Quit ..Propose(command)
@@ -2188,20 +2191,6 @@ ClassMethod RestartIn(name As %String) As %Status [ Internal ]
 	Quit ##class(OcuTalon.Bridge.Timeouts).Restart(name, list, 0)
 }
 
-/// Writes an MCP server's wallet secret and its Config Store entry AI.MCP.OcuTalon_<server> (AD-19, AD-21). Not built: Story 21.4 builds it.
-/// Answers the error code 5003 and writes nothing, so that no caller believes a secret was stored.
-ClassMethod SaveMcpEntry(server As %String, url As %String, secret As %String) As %Status
-{
-	Quit $SYSTEM.Status.Error(5003)
-}
-
-/// Removes an MCP server's wallet secret and its Config Store entry (AD-19, AD-21). Not built: Story 21.4 builds it. Answers the error code 5003
-/// and removes nothing.
-ClassMethod RemoveMcpEntry(server As %String) As %Status
-{
-	Quit $SYSTEM.Status.Error(5003)
-}
-
 /// 1 when the status is the answer "not implemented" (code 5003) of a bridge stub.
 ClassMethod NotImplemented(sc As %Status) As %Boolean [ Private ]
 {
@@ -2372,8 +2361,47 @@ ClassMethod WebhookResult(outcome As %String, fields As %DynamicObject) As OcuTa
 	Quit ..Result(0, outcome, ..#MESSAGENOTSAVED, {"fields": (fields)}.%ToJSON())
 }
 
-/// The web text of a webhook catalog key: settings.refusedExpansion takes value as its marker, settings.webhookNameTaken as its name; every other key has no slot.
-/// The REST route renders its field errors here too. An unreadable key gives the plain not-saved text.
+/// Carries out a ListMcpServers and returns the CommandResult to answer (Story 21.4; see the class description): Ok 1, outcome listed and Data the body of GET
+/// /v1/settings/mcp, {"servers":[{name, address, status, tools, unclassified, pending}], "tools":[{server, name, classification, status}]}, the servers in the order of Mcp.Attach
+/// Servers, which gives none on the online demo. The status is the row's AttachStatus (attached, unavailable or empty); the address is the url of the server's entry read without
+/// resolving any placeholder or secret (empty when the entry is missing); tools, unclassified and the tools array come from Mcp.Ops Tools(server), and pending from Ownership
+/// PendingToolCalls. No secret, secret:// reference or fingerprint is read into the answer. The online demo is not_available with the text settings.mcpOffOnDemo, and a read that
+/// fails is failed.
+Method ListMcp(command As OcuTalon.Msg.Command.ListMcpServers) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.mcpOffOnDemo"))
+	Set servers = []
+	Set tools = []
+	Try {
+		Set sc = ##class(OcuTalon.Mcp.Attach).Servers(.names)
+		Set iterator = $Select($$$ISOK(sc): names.%GetIterator(), 1: "")
+		While $$$ISOK(sc) && $IsObject(iterator) && iterator.%GetNext(, .item) {
+			Set name = item.server
+			Set row = ##class(OcuTalon.Mcp.Server).NameIndexOpen(name)
+			If '$IsObject(row) Continue
+			Set address = ""
+			If $$$ISOK(##class(OcuTalon.Bridge.ConfigStore).Details(item.config, .details)) && $IsObject(details) && (details.%GetTypeOf("url") = "string") Set address = details.url
+			Set sc = ##class(OcuTalon.Mcp.Ops).Tools(name, .list)
+			If $$$ISERR(sc) Quit
+			Set pending = ##class(OcuTalon.Data.Ownership).PendingToolCalls(name, .sc)
+			If $$$ISERR(sc) Quit
+			Set unclassified = 0
+			Set toolIterator = list.%GetIterator()
+			While toolIterator.%GetNext(, .tool) {
+				If tool.classification = "unclassified" Set unclassified = unclassified + 1
+				Do tools.%Push({"server": (name), "name": (tool.name), "classification": (tool.classification), "status": (tool.status)})
+			}
+			Do servers.%Push({"name": (name), "address": (address), "status": (row.AttachStatus), "tools": (list.%Size()), "unclassified": (unclassified), "pending": (pending)})
+		}
+	} Catch exception {
+		Set sc = $SYSTEM.Status.Error(5001, "The MCP servers could not be read")
+	}
+	If $$$ISERR(sc) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Quit ..Result(1, "listed", "", {"servers": (servers), "tools": (tools)}.%ToJSON())
+}
+
+/// The web text of a webhook or MCP settings catalog key (settings.mcpOffOnDemo too, for the MCP routes, ListMcp and the MCP section): settings.refusedExpansion takes value as its marker,
+/// settings.webhookNameTaken as its name; every other key has no slot. The REST routes render their field errors here too. An unreadable key gives the plain not-saved text.
 ClassMethod WebhookFieldText(key As %String, value As %String = "") As %String
 {
 	Set slots = $Case(key, "settings.refusedExpansion": {"marker": (value)}, "settings.webhookNameTaken": {"name": (value)}, : {})

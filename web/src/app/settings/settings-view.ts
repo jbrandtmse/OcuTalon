@@ -7,7 +7,8 @@
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the eight sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
+ * - SETTINGS_SECTIONS is the nine sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
+ *   The ninth, Tools and MCP servers (Story 21.4), is mcp-view.ts.
  * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
  * - pageOf and settingsMatch are page-shell-view.ts's (the eager shell needs them, so they live there); this module re-exports them. SETTINGS_TEXTS's title, unsaved, stay and leave are SHELL_TEXTS's.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
@@ -41,6 +42,7 @@ export const SETTINGS_TEXTS = {
     checkThresholds: 'Check thresholds',
     onCall: 'On call',
     demoMode: 'Demo mode',
+    mcp: 'Tools and MCP servers',
   },
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
@@ -151,7 +153,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The eight sections in the UX's order (On call after Check thresholds, so that Demo mode stays last). */
+/** The nine sections in the UX's order (On call after Check thresholds, so that Demo mode stays before Tools and MCP servers). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -161,6 +163,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
   { slug: 'on-call', label: SETTINGS_TEXTS.sections.onCall },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
+  { slug: 'mcp', label: SETTINGS_TEXTS.sections.mcp },
 ];
 
 /** The slug of the section that an address part names, or models (the first) for an unknown or missing one. */

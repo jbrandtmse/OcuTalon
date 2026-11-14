@@ -113,6 +113,9 @@
 ///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
 ///   - The on-call route (Story 36.4; POST /v1/settings/on-call) is OcuTalon.Web.OnCallSettings', forwarded by its own map: admin only, with the section's body handed to
 ///     SettingsOps through SecretHandoff so that no on-call value is in a command or a trace, and 409 not_available on the online demo before the body is read.
+///   - The MCP settings routes (Story 21.4; GET /v1/settings/mcp, POST /v1/settings/mcp/servers, DELETE /v1/settings/mcp/servers/:server, POST /v1/settings/mcp/classify) are
+///     OcuTalon.Web.McpSettings', forwarded by its own map: admin only, 409 not_available on the online demo before the body is read, a server's secret handed to McpOps through
+///     SecretHandoff and never in a command, and the list read through the command ListMcpServers, which SettingsOps answers in its own job.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -298,6 +301,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 <Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
 <Map Prefix="/v1/settings/on-call" Forward="OcuTalon.Web.OnCallSettings"/>
+<Map Prefix="/v1/settings/mcp" Forward="OcuTalon.Web.McpSettings"/>
 </Routes>
 }
 
@@ -1138,6 +1142,33 @@ ClassMethod SettingsBody(Output body As %DynamicObject) As %Boolean [ Private ]
 	If '$IsObject(parsed) || 'parsed.%IsA("%Library.DynamicObject") Quit 0
 	Set body = parsed
 	Quit 1
+}
+
+/// Puts the secret into its handoff, sets the uri on the command's Handoff (an empty secret is an error, unless optional is 1, which then offers nothing and leaves Handoff empty), submits the command with origin web_admin (Submit) and returns its CommandResult
+/// in result. The handoff is discarded on every path, an error thrown included, so no event resource outlives the request. The status is an error when the handoff could not be
+/// made, the submit failed or anything threw; the secret is never logged or kept. Web.HookSettings and Web.McpSettings share it (Story 21.4).
+ClassMethod HandOff(command As OcuTalon.Msg.Command, secret As %String, Output result As OcuTalon.Msg.CommandResult, optional As %Boolean = 0) As %Status [ Private ]
+{
+	Set uri = ""
+	Set result = ""
+	Try {
+		Set sc = $SYSTEM.Status.OK()
+		If 'optional || ($Get(secret) '= "") {
+			Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
+			If $SYSTEM.Status.IsOK(sc) Set command.Handoff = uri
+		}
+		If $SYSTEM.Status.IsOK(sc) Set sc = ..Submit(command, .result)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	Quit sc
+}
+
+/// Submits the command with origin web_admin and returns its CommandResult in result. A test subclass overrides it.
+ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 }
 
 /// Every route whose story hasn't shipped: 501 not_built. arg is the route's :ref or :name.
