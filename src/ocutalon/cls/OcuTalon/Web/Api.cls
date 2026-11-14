@@ -104,7 +104,7 @@
 ///     anything else that fails 500 server_error. Every 503 search_busy carries the header Retry-After (SEARCHRETRYAFTER seconds). On the online demo a search past the message
 ///     allowance is 429 allowance with the messages route's body (retryAt, limit), and nothing was searched; the list and the pinned read never count.
 ///     POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory, and DELETE /v1/memory/items/:ref submits ForgetMemory, each with
-///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin or an unpin; 500 for a forget); not_built 501; anything else 500
+///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin or an unpin; 500 for a forget); pin_photo 409 (a pin of a photo's caption only); not_built 501; anything else 500
 ///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
@@ -224,6 +224,9 @@ Parameter MESSAGETOOOLD = "This notice is too old to mark as noise. Nothing was 
 
 /// The message of the 409 over_cap of the pin route.
 Parameter MESSAGEOVERCAP = "That would go over the 1,000-token limit. Unpin something first.";
+
+/// The message of the 409 pin_photo of the pin route (Story 26.3): the memory is the caption of a photo.
+Parameter MESSAGEPINPHOTO = "This memory came from a photo, so it can't be pinned.";
 
 /// The most characters of the search text of GET /v1/memory/items: the length of Data.Memory's Text.
 Parameter MEMORYQUERYMAX = 2000;
@@ -2245,7 +2248,7 @@ ClassMethod ForgetMemory(ref As %String) As %Status
 /// The one body of the three memory item writes: submits the command of the verb (PinMemory, UnpinMemory or ForgetMemory) for the ref and the session
 /// (Ownership.SessionRef, never the client's) with origin web_user through SubmitMemory. A ref that is empty or longer than MEMORYREFMAX names no memory
 /// and is 404 not_found before anything is submitted; whether the ref is the session's own is MemoryOps' check. A session that can't be read, an error
-/// status or no result is 500 server_error. The answer: Ok 200 {"result":"done"}; not_found 404; over_cap 409 with MESSAGEOVERCAP (a pin or unpin only);
+/// status or no result is 500 server_error. The answer: Ok 200 {"result":"done"}; not_found 404; over_cap 409 with MESSAGEOVERCAP (a pin or unpin only); pin_photo 409 with MESSAGEPINPHOTO (a pin only);
 /// not_built 501; anything else 500 server_error.
 ClassMethod MemoryItemCommand(verb As %String, ref As %String) As %Status [ Private ]
 {
@@ -2266,6 +2269,7 @@ ClassMethod MemoryItemCommand(verb As %String, ref As %String) As %Status [ Priv
 	Set outcome = result.Outcome
 	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If (outcome = "over_cap") && (verb '= "ForgetMemory") Quit ..Fail(409, "over_cap", ..#MESSAGEOVERCAP)
+	If (outcome = "pin_photo") && (verb = "PinMemory") Quit ..Fail(409, "pin_photo", ..#MESSAGEPINPHOTO)
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The "_verb_" was answered "_outcome))
 }

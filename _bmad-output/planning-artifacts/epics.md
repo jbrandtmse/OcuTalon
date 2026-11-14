@@ -151,7 +151,7 @@ IDs are the PRD's own, so every story traces back to `prd.md`. The tag in bracke
 - FR-70 [Personality]: OcuTalon may propose a new persona only in the person's own untainted turn, as an approval request showing the current and proposed text; nothing changes unless the person approves, the first answer wins, the request expires after 24 hours, every answer is audited, a stale proposal fails with "Nothing was changed.", and the online demo offers no proposals.
 - FR-71 [Personality]: A daily note built by code with no model call from the day's decisions, incidents, approval requests and reminders, never holding an item's sender, subject or body, a tool result or model-written text; today's and yesterday's notes (at most 2,000 characters a day) are read at each conversation session's start and shown on the Memory card; per session on the online demo.
 - FR-72 [Personality]: Only a person's answers ("This was noise" on a tell-now or act notice, approving or rejecting a request) become precedents, never OcuTalon's own decisions; an arriving item's decision sees at most 3 of the same kind as examples, never rules, with no vectors; the Memory card lists them and each can be forgotten at once; a decision alone records none, and a tool-submitted noise mark is refused.
-- FR-73 [Personality; after FR-41]: OcuTalon may save a durable fact on its own only in the person's own untainted turn (at compaction only if the event for it is added at Epic 41's re-open); each memory is marked told or learned by code; nothing from arriving content is ever saved; forgetting removes the memory, its search entries, any pin and every later session start, without rewriting the current conversation; poisoning and forgetting cases in the evaluation set.
+- FR-73 [Personality; after FR-41]: OcuTalon may save a durable fact on its own only in the person's own untainted turn (at compaction only if the event for it is added at Epic 41's re-open); each memory is marked told or learned by code; nothing from arriving content is ever saved, except the caption of a photo the user sent, which is saved with origin `photo`, taints any turn that recalls it, and can't be pinned [AMENDED 2026-11-14, Story 26.3, Contest Planner ruling V2]; forgetting removes the memory, its search entries, any pin and every later session start, without rewriting the current conversation; poisoning and forgetting cases in the evaluation set.
 - FR-74 [Personality; after FR-41]: A core memory of the person's own pins only, read at each conversation session's start, under a hard 1,000-token cap (4 characters a token), a pin past the cap refused; unpinning and forgetting from the Memory card.
 
 ### NonFunctional Requirements
@@ -7821,6 +7821,27 @@ So that someone who can read traces does not learn them.
 
 - DW-1255: audit: personal data in traced SaveSettings.Changes (the email channel's address and user) moves to the SecretHandoff; the security overview states what the trace role sees (ledger; routed by the orchestrator 2026-11-13)
 
+### Story 21.15: The sign-in tests never run across the daily digest's time
+
+> [ADDED 2026-11-14, Contest Planner, DW-1081 root cause] Epic 21 burndown story on lane C; test-only, no product change and no new text; lands before the 1.0.10 RC.
+
+As a maintainer,
+I want the browser test stacks to keep the daily digest's time away from the run,
+So that chat.spec C1 and shell.spec row 8 do not fail because the clock passed 08:00 while the suite ran.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/test-sign-in.sh` seeds a stack (every project: chromium, sign-in-2 and sign-in-3)
+**When** it seeds the README account
+**Then** it sets `digest.time` to the instance-zone clock 12 hours from now (the time of day, modulo 24 hours), through `OcuTalon.Data.Time`, so that no zone offset brings it back inside the run
+**And** it prints the time it set, and the script fails if that time is within 2 hours of the instance clock now, either way round the day
+
+**Given** the specs that read or save the digest time (`settings/email.spec.ts` E7, `settings/settings.spec.ts` S10)
+**When** they run on such a stack
+**Then** none assumes the 08:00 default, and a time a spec saves for a moment stays as far from the run as the seed
+
+- DW-1081: shell.spec row 8 'a fresh session shows the empty chat panel' failing in CI is the daily digest (Digest.Process, digest.time 08:00) falling due during the run, not a random flake (ledger; Contest Planner, ~09:15Z Nov 14)
+
 ### Story 21.6: Send email over SMTP
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.
@@ -8795,6 +8816,9 @@ So that I can ask about a file without adding it as a document first.
 
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
 - DW-1270: 37.1's obligation for 26.2: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; mind Docs.Extract's up-to-45 s run in Conversation's job (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- DW-1312: the security overview for photos: add "A chat turn with a photo also carries that photo." to the model-request bullet, and say photos are never in the trace while captions are, like chat replies (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner rulings 9-10)
+- DW-1313: the memory card shows "This memory came from a photo, so it can't be pinned." for a 409 pin_photo instead of the over-cap notice, in a lazy chunk (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner ruling V3)
+- DW-1321: a photo turn's decide (triage) request carries the photo ask but no image; when photos reach Decide, give the PHOTOASK line only to the turn request and a neutral line to the decide request (ledger; routed by cr 2026-11-14, Story 26.3)
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
 
@@ -10282,6 +10306,35 @@ So that saving the form never silently drops a person's Telegram channel.
 **Then** the server refuses it with the existing unknown-user refusal and nothing is saved; a test pins this through the page
 
 - DW-1308: when the on-call user list cannot be had (users [] on busy/fail), the On call form unchecks a stored paired user's Telegram box, so the next save silently drops the Telegram channel (ledger; routed by the Planner rulings 2026-11-14)
+
+### Story 36.7: Epic 36 burn-down: an upgrade removes the previous builds' bundle files from the served web folder
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, ~05:00Z Nov 14): DW-1320 blocks the 1.0.10 RC; no public claim and no release-note line]
+
+As an OcuTalon operator who upgrades in place,
+I want the upgrade to remove the old builds' hashed bundle files from the served web folder,
+So that the folder holds exactly the new build's bundle and old code never piles up there.
+
+**Acceptance Criteria:**
+
+**Given** an installed OcuTalon whose served web folder `csp/ocutalon-web/` holds hashed bundle files (names matching the installer's STALEFILES pattern: `main-`, `chunk-`, `polyfills-` and `styles-<hash>`) that the new build does not contain, including leftovers of earlier upgrades
+**When** the upgrade installs the new build
+**Then** the installer removes each of those files, and every file of the new build is served
+
+**Given** the same upgrade
+**When** it removes files
+**Then** it removes only files whose names match the STALEFILES pattern and are not in the new build, never "anything not in the build"; the spec lists every file the installer or the runtime writes into that folder, and a test shows each one survives the upgrade
+
+**Given** the release upgrade harness rehearsal from v1.0.9 with an extra old `main-XXXXXXXX.js` planted in the served folder before the upgrade
+**When** the upgrade completes
+**Then** the served folder's file list equals the new build's output (any extra file fails), and reverting the fix turns that check red
+
+**Given** `release/upgrade-harness.sh`
+**When** any release runs it
+**Then** a permanent stale-file row checks that the served web folder matches the candidate's build output after the upgrade; there is no public claim and no release-note line about it
+
+- DW-1320: An in-place upgrade leaves the previous build's main-<hash>.js in the served web folder csp/ocutalon-web/ (ledger; routed by the Planner ruling 2026-11-14 ~05:00Z; blocks the 1.0.10 RC)
+
 
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 

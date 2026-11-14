@@ -4098,3 +4098,26 @@
 2026-11-14T09:50:05Z	Epic 25	ci_green_verified	sha=de92b6e4
 2026-11-14T09:50:05Z	Epic 25	amendments_verified	amendments=spine_AD-13,AD-24,epics_25.4_AC1,EXPERIENCE.md:1143 extensions=Install/Step/Roles.cls(granted) ok=true
 2026-11-14T09:50:05Z	Epic 25	merge_enqueued	part=25.4 head=de92b6e4 feature=958c63fb
+2026-11-14T09:50:45Z	Epic 25	epic_merged_to_feature	part=25.4 feature_sha=423f8148 code=de92b6e4(identical) ci=green_by_identity(feature_runs_cancelled) verified_on_origin=yes bundle=884.58kB
+2026-11-14T10:22:19Z	Epic 21	runner_reported	PART_READY story=21.15 code_head=58c17af5 runs=43579849186,43579849192 guard_proven residual=60s_setting_cache
+2026-11-14T10:22:19Z	Epic 21	ci_green_verified	sha=58c17af5
+2026-11-14T10:22:19Z	Epic 21	merge_enqueued	part=21.15 head=58c17af5 feature=423f8148
+2026-11-14T10:25:07Z	Epic 21	epic_merged_to_feature	part=21.15 feature_sha=ae6c6009 merged_tree_pins=test-readme,boundaries,ci-config,lint_pass DW-1081=resolved ci=own_run_required(58c17af5+25.4)
+2026-11-14T11:22:53Z	Epic 26	runner_reported	PART_READY story=26.3 head=8ab6a725 runs=43581056590(att2_DW-1094),43581056587 story_red_fixed=files-sources.test(rework1) protocol_violation=nohup_bg_checks(logged)
+2026-11-14T11:22:53Z	Epic 26	ci_green_verified	sha=8ab6a725
+2026-11-14T11:22:53Z	Epic 26	amendments_verified	amendments=FR-73(prd+epics),spine_AD-1/21/31,epics_26.2_bullets extensions=CommandsIn,CommandsStep3,Web/Api(pin_check) ok=true
+2026-11-14T11:22:53Z	Epic 26	merge_enqueued	part=26.3 head=8ab6a725 feature=ae6c6009
+2026-11-14T11:24:49Z	Epic 26	epic_merged_to_feature	part=26.3 feature_sha=ef40062b conflicts=tracker(ours+set;valid) merged_tree_pins=readme,boundaries,class-rules,bridge-guide,web_2070/2070_pass verified_on_origin=yes ci=own_run
+2026-11-14T11:25:18Z	Epic 26	runner_ended	reason=waiting waiting_on=epic-25 head=a370d1fb(records;hold/OCT-epic26-20261114) runner=ae04eaae70db7166b
+2026-11-14T12:06:31Z	Run	ci_red_classified	head=ae6c6009 run=43585177876 job=shards-11_lane-a@Fix test=Fix.Partial_TestCopiesFailAgain class=flake(DW-494) action=no_rerun(superseded_by_ef40062b_runs_43589903973,43589904034)
+2026-11-14T12:10:39Z	Epic 36	runner_reported	PART_READY story=36.7 head=c57cc619 runs=43584428205(att2_DW-333),43584428164 bundle_delta=+0.94kB(885.52_with_25.4) harness_v1.0.9=14/14_pass_stale-files_row mutation=red DW-1320=resolved note=removed-file_lines_at_WARN(AD-23_steps_only_STEP/WARN)
+2026-11-14T12:10:39Z	Epic 36	ci_green_verified	sha=c57cc619
+2026-11-14T12:10:39Z	Epic 36	amendments_verified	amendments=spine_AD-23+lazy-routes_sentences,epics_36.7_charter extensions=release/upgrade-harness.sh,release/ipm-install.sh,Install/Step/Web.cls(granted_V5/V6) ok=true
+2026-11-14T12:10:39Z	Epic 36	merge_enqueued	part=36.7 head=c57cc619 feature=ef40062b
+2026-11-14T12:13:32Z	Epic 36	epic_merged_to_feature	part=36.7 feature_sha=d2c2fb0d conflicts=tracker(ours+set;valid) merged_tree_pins=readme,boundaries,class-rules,compose-file,upgrade-harness,release-notes,web_2082/2082,lint_pass verified_on_origin=yes ci=own_run DW-1320=resolved(1.0.10_RC_blocker_cleared)
+2026-11-14T12:14:01Z	Epic 36	owner_decision	via=contest_planner 36.7_accepted RC_blocker_cleared V1_WARN_ok(no_AD-23_amend) DW-1330_wontfix_accepted
+2026-11-14T12:14:23Z	Epic 36	runner_ended	reason=waiting waiting_on=22.6 local=c3e9bb06(records_unpushed) merged=36.1,36.2,36.4,36.5,36.6,36.7 left=36.3
+2026-11-14T12:22:29Z	Epic 22	runner_reported	PART_READY stories=22.6+22.5 head=931e6260 runs=43584720772,43584720770 source_names_bare=pinned separate=the_Mailbox_capital_M
+2026-11-14T12:22:29Z	Epic 22	ci_green_verified	sha=931e6260
+2026-11-14T12:22:29Z	Epic 22	amendments_verified	amendments=epics_22.11_inserted(split)+22.5_ACs_moved,22.5_spec_intent(DW-1326),spine_AD-18/28/S20,docs(22.6_ruled_texts) extensions=Test/Data/Tables.cls,Test/Live/Payloads.cls,payloads.ts(V11_granted),test-readme.sh_rule_docs(R1) ok=true
+2026-11-14T12:22:29Z	Epic 22	merge_enqueued	parts=22.6+22.5 head=931e6260 feature=d2c2fb0d
