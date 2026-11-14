@@ -4107,3 +4107,10 @@
 2026-11-14T11:22:53Z	Epic 26	ci_green_verified	sha=8ab6a725
 2026-11-14T11:22:53Z	Epic 26	amendments_verified	amendments=FR-73(prd+epics),spine_AD-1/21/31,epics_26.2_bullets extensions=CommandsIn,CommandsStep3,Web/Api(pin_check) ok=true
 2026-11-14T11:22:53Z	Epic 26	merge_enqueued	part=26.3 head=8ab6a725 feature=ae6c6009
+2026-11-14T11:24:49Z	Epic 26	epic_merged_to_feature	part=26.3 feature_sha=ef40062b conflicts=tracker(ours+set;valid) merged_tree_pins=readme,boundaries,class-rules,bridge-guide,web_2070/2070_pass verified_on_origin=yes ci=own_run
+2026-11-14T11:25:18Z	Epic 26	runner_ended	reason=waiting waiting_on=epic-25 head=a370d1fb(records;hold/OCT-epic26-20261114) runner=ae04eaae70db7166b
+2026-11-14T12:06:31Z	Run	ci_red_classified	head=ae6c6009 run=43585177876 job=shards-11_lane-a@Fix test=Fix.Partial_TestCopiesFailAgain class=flake(DW-494) action=no_rerun(superseded_by_ef40062b_runs_43589903973,43589904034)
+2026-11-14T12:10:39Z	Epic 36	runner_reported	PART_READY story=36.7 head=c57cc619 runs=43584428205(att2_DW-333),43584428164 bundle_delta=+0.94kB(885.52_with_25.4) harness_v1.0.9=14/14_pass_stale-files_row mutation=red DW-1320=resolved note=removed-file_lines_at_WARN(AD-23_steps_only_STEP/WARN)
+2026-11-14T12:10:39Z	Epic 36	ci_green_verified	sha=c57cc619
+2026-11-14T12:10:39Z	Epic 36	amendments_verified	amendments=spine_AD-23+lazy-routes_sentences,epics_36.7_charter extensions=release/upgrade-harness.sh,release/ipm-install.sh,Install/Step/Web.cls(granted_V5/V6) ok=true
+2026-11-14T12:10:39Z	Epic 36	merge_enqueued	part=36.7 head=c57cc619 feature=ef40062b
