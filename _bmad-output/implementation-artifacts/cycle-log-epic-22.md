@@ -298,3 +298,6 @@
 2026-11-14T03:15:17Z	Story 22.7	rework_cap_override	cap=3 used=5 authorized_by=owner via=Contest_Planner(final_pass_03:40Z,orchestrator_relay) items=R6-1,R6-2,R6-3 close=next_review_without_high
 2026-11-14T03:15:17Z	Story 22.7	rework_opened	cycle_iteration=7 iteration=6(cap_override) trigger=cap_override items=R6-1,R6-2,R6-3 scope_baseline=1f340ffb
 2026-11-14T03:15:17Z	Story 22.7	stage_spawned	stage=implement spawn_at=2026-11-14T03:15:17Z model=sonnet agent_name=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone-implement-7 cycle_iteration=7 effort=high note=final_pass
+2026-11-14T03:43:52Z	Story 22.7	ci_resolved	story=22.7 sha=6ed84c73 runs=43541933213,43541933129 result=success failed=none via=none resolved_at=next_push(rework4_code_green_on_CI)
+2026-11-14T03:43:52Z	Story 22.7	dev_complete	spawn_at=2026-11-14T03:16:00Z model=sonnet build_sha=7782ea22 baseline_revision=4f6457ba cycle_iteration=7 review_loop_iteration=0 followup_review_recommended=false deferred=0 items=R6-1(patch),R6-2(approved_bullet),R6-3(MCP-reroute_test,no_code_change) P1=holds
+2026-11-14T03:43:52Z	Story 22.7	stage_spawned	stage=code-review spawn_at=2026-11-14T03:43:52Z model=opus agent_name=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone-code-review-5 cycle_iteration=7 effort=high note=scoped_final_pass(4f6457ba..HEAD)
