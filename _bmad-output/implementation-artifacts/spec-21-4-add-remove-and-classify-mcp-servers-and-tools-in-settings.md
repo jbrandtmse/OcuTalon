@@ -2,9 +2,9 @@
 title: 'Story 21.4: Add, remove and classify MCP servers and tools in Settings'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '96bbbcd8ecb47dfd42eafb0b83cf1785d8099cd1'
-review_loop_iteration: 0
+review_loop_iteration: 1
 followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-21-context.md'
@@ -327,6 +327,9 @@ Rejected (each with its reason; ledger rows `by=cr` where filed):
   - New Lane A run-only items: `Test.Mcp.Approval`'s three removal tests and `Test.Mcp.Attach` `TestRemovedServer`. `Attach` `TestCommands` :404 and `Leftovers` change.
   - T1 gets its catalog home (Decided 11). T9 goes to GUIDE.md (0.30 is in). The S6 anchor is corrected: AD-1 has no MCP-verbs sub-bullet, so S6 goes after the step-4 `CreateWebhook` sub-bullet.
   - Contended edits are re-listed for 21.10 and 21.14 (in flight).
+
+### Review Findings ([CI] rework 1, 2026-11-14)
+- [ ] [Review][CI] `web/e2e/api/mcp.spec.ts` M2 posts a chat message as the README admin (`/ocutalon/api/v1/messages`, "zz hello", about l.145) so that a runner builds, and never removes that turn. In CI run 43541569138 (`iris (shards-10)`, live:sign-in, head 435c5cc8) the next specs for the same account went red: `chat/chat.spec.ts` C1 (the empty chat headline was not found) and `frame/frame.spec.ts` F1 ("Recent decisions, 1" where 0 was expected). Fix: clean M2's chat turn and its AI session and decision records in the spec's own clean-up, following the existing pattern (`persona-approval.spec.ts`: `RunnerFixture.SessionMark()` before, then `DropSince(mark)` and `WaitRecords()` after; or `cleanFixtureRows` / the support helper that removes the posted turn). Prove it by running M2 and then chat.spec C1 and frame.spec F1 in ONE live run on the same stack, in that order; both must be green. Do not weaken C1 or F1.
 
 ## Review Triage Log
 
