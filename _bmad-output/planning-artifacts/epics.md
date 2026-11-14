@@ -10387,6 +10387,30 @@ So that the folder holds exactly the new build's bundle and old code never piles
 - DW-1320: An in-place upgrade leaves the previous build's main-<hash>.js in the served web folder csp/ocutalon-web/ (ledger; routed by the Planner ruling 2026-11-14 ~05:00Z; blocks the 1.0.10 RC)
 
 
+### Story 36.8: Epic 36 burn-down: the AD-13 lint flags direct global reads of product storage in web-process classes
+
+[AMENDED 2026-11-14, chartered by the runner as Epic 36's burn-down story on the Contest Planner's binding ruling (prompts/epic-36-rulings-20261113-2130.md, ~17:10Z Nov 14): DW-1287; self-contained lint and test work; existing violations are reported, not fixed]
+
+As an OcuTalon maintainer,
+I want the AD-13 check to catch a web-process class that reads product storage globals directly,
+So that the web layer keeps reading stored rows only through the owning classes, Ownership or a read verb, as AD-13 now says.
+
+**Acceptance Criteria:**
+
+**Given** the class-rules lint that holds AD-13's checkable rule (the unchecked-prepare allow-list)
+**When** it runs over the web-process classes
+**Then** it also flags a direct read of a product storage global (`$Order`, `$Get`, `$Data` or a reference on `^OcuTalonP.*` and the other product storage globals) or an `%OpenId` over another class's extent, outside the owning class's own methods and `Ownership`, naming the class, method and line
+
+**Given** the current tree
+**When** the extended lint runs
+**Then** every existing violation is reported in this story's evidence and the spec, and none is fixed here (unless it is a one-line move the ruling clearly covers); the lint's baseline makes the current tree pass while a new violation fails
+
+**Given** a planted violation in a fixture web class
+**When** the lint runs
+**Then** it fails naming the planted read, and a mutation that disables the new check makes that test fail
+
+- DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (ledger; routed by the Planner ruling 2026-11-14 ~17:10Z)
+
 ## Epic 37: Step 6's contracts: approver roles named, and the Usage page (step 6)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 26.1 and 25.1, moved whole and verbatim as Stories 37.1 and 37.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 6's names fixed in the spine and in code as stubs, and a user sees tokens and cost over time on the Usage page, so that Epics 25 and 26 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 25 and 26) and its partner in this epic.
