@@ -348,3 +348,5 @@
 2026-11-14T12:52:49Z	Story 21.10	stage_spawned	stage=implement spawn_at=2026-11-14T12:52:49Z model=sonnet effort=high agent_name=21-10-implement-1 cycle_iteration=1
 2026-11-14T14:33:19Z	Story 21.10	dev_complete	model=sonnet effort=high build_sha=3d4c521bf baseline_revision=51a716e48 review=30_findings(high0,med1_patched,low9,false14) deferred=0 followup=false live_answers=24/24 demo-path=pass bundle=886kB/921kB d3_equals_catalog=yes notes=DW-1314_says_MCP_servers_section_but_heading_is_MCP_tools(kept_ruled);approval-request-card_css_244B_over_4kB_warning;V12_unchanged
 2026-11-14T14:33:19Z	Story 21.10	stage_spawned	stage=qa spawn_at=2026-11-14T14:33:19Z model=sonnet effort=high agent_name=21-10-qa-1 cycle_iteration=1 timebox=15:05Z
+2026-11-14T15:08:12Z	Story 21.10	qa_complete	model=sonnet tests=TelegramOut(TestToolCallFits:4097_boundary,cancel_edit;TestToolCallTooLong:break_at_boundary,no_high_surrogate_end) mutations_demonstrated=9 findings=none
+2026-11-14T15:08:12Z	Story 21.10	stage_spawned	stage=code-review spawn_at=2026-11-14T15:08:12Z model=opus effort=high agent_name=21-10-code-review-1 cycle_iteration=1 timebox=15:40Z
