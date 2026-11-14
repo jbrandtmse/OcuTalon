@@ -4152,3 +4152,7 @@
 2026-11-14T15:00:44Z	Epic 22	owner_decision	via=contest_planner 22.11_regate=APPROVED(veto_1_reason_words,veto_2_Reported_shape,runner_calls) Task0_pre-ruling=(a)_one_poll_in_flight_auto_if_trips;pass_iff_STOP_criteria+no_queue_staleness(pinned);else_STOP
 2026-11-14T15:00:53Z	Epic 26	runner_ended	reason=hold(early_at_clean_boundary) head=32472435(hold/OCT-epic26-20261114) open_ci=none task0=10p_1.0s,cap_3.3s(under_STOP) next=26.2_implement_after_HOLD_OFF
 2026-11-14T15:36:26Z	Run	ci_green_verified	head=f403bf66(feature;+25.5+22.13) runs=43606442301,43606442298 attempt=1
+2026-11-14T15:44:12Z	Run	ci_cancelled	runs=43611679712,43611679763(records-only_1195f4bf) note=status_read_queued_but_jobs_had_started_on_self-hosted; every_cancelled_job_ran_its_Tear_down_step(ipm-install_only_reached_Set_up) -> no_leftover_expected; lesson_reinforced=check_job_steps_not_run_status
+2026-11-14T15:44:51Z	Epic 21	runner_ended	reason=hold head=f82fb8c17(pushed,story_21.10) base=f138fcf8(conflicts_7_files_with_f403bf66,not_identity) ci=43611736264,43611736267(queued_at_hold) planner_items=V12_Canceled,DW-1314_heading_mismatch(MCP_servers_vs_MCP_tools),css_budget_+244B
+2026-11-14T15:55:50Z	Epic 36	runner_ended	reason=hold PART_READY=36.3@42ab53c5(runs_43601944978,43601944955) epic_close_head=9d389150(ci_43606743361_shards-5_red:guide.spec_Q6_main_not_loaded_after_reload=DW-333?) watch=2nd_reload_timeout_today_after_36.7_handler
+2026-11-14T15:55:50Z	Epic 36	merge_enqueued	part=36.3 head=42ab53c5 feature=1195f4bf(pre-hold,docs-only)
