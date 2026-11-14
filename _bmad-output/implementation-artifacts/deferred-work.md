@@ -8154,3 +8154,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover.md (code review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: OnSetSource refuses only ENTRYMAILBOX (Planner ruling ~09:40Z/~13:20Z named Mailbox). A source named 'the mailbox' reads 'I checked the mailbox and the mailbox'; one named 'database space' gives two such coverage lines. Each needs a deliberate admin choice; a wider list needs new public text.
 - 2026-11-14T13:37:44Z status=wontfix-accepted owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=reopen_if=an admin reports, or a digest shows, two coverage entries or two checked names that read the same
+
+### DW-1340: Telegram: a paired chat's file is fetched and stored before the allowance is consulted, so an over-allowance chat can force a download of up to 10 MB per message that is then discarded
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Channel/Telegram/In.cls File runs Fetch and Store before Turn reaches Core.Allowance; unreachable until 25.6 flips READSFILES
+- 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=check the allowance before getFile
+
+### DW-1341: Api.Download bounds each read (8 s) and the bytes (10 MB) but not the total time, so a slow-drip body can hold the poll job for minutes
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: %Net.HttpRequest.Timeout is per read; CappedStream throws only on size; unreachable until 25.6
+- 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=a deadline check in CappedStream.Write
+
+### DW-1342: Story 25.6 must add the production readable-PDF and photo Telegram turns (TelegramChat with the reader on) and a web turn: today the Telegram fetch-to-Item join is verified through the probe seam
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 26.2 ships READSFILES 0 (H2); the fetch path is first exercised end to end when 25.6 flips it
+- 2026-11-14T17:44:30Z status=routed owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=harvest note=25.6 flips READSFILES
+
+### DW-1343: Planner condition 1 says a PDF turn is TAINTED; the runner sets Tainted only for image content or an allowed tool call, so a text-only PDF turn is untrusted by provenance with Tainted 0 and the tests pin the UNTRUSTED denial, not the flag
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: story-262-rulings condition 1; Test.Agent.SentFiles injection pins
+- 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=code review decides: meet the flag within AD-10, or route to the Planner
