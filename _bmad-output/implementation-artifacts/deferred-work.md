@@ -7884,3 +7884,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
 - 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
 
+
+### DW-1323: flake: shard lane-a@Watch Test.Watch.Summary TestFixedDismissed: the Dismiss does not answer 1|closed and the summary row is missing (<INVALID OREF> at TestFixedDismissed+27)
+- source: CI run 43567216780 iris(shards-8) on OCT-epic36 39af54d9 | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: CI 43567216780 job iris(shards-8) lane-a@Watch: 'the Dismiss closes the incident' and 'the summary holds each part' failed; the same class at the same commit passed on a fresh lane-B throwaway (e36cw1, 4.79s); feature 9a851935's shards-8 passed; Epic 36 changes no Watch, IncidentManager or Dismiss code
+- 2026-11-14T07:08:12Z status=routed owner=burndown by=runner note=flake class: one rerun per job; first occurrence
