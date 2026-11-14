@@ -157,3 +157,4 @@
 2026-11-14T00:01:35Z	Story 36.5	committed	sha=4bedaad2 submodules= ci=held(CI_HOLD) pushed=no missing=none note=QA+review+DW-1282_resolved;implement_ebe17be8
 2026-11-14T00:01:35Z	Epic 36	spine_amended	ad=AD-13 marker=[AMENDED_2026-11-13,Story_36.4,Contest_Planner_DW-1278_ruling] text=direct_global_reads_count;read_verb_to_owning_Ops;user_lists_via_SecretHandoff;lint=DW-1287 new_ids=none
 2026-11-14T00:01:35Z	Story 36.4	rework_opened	cycle_iteration=4 iteration=3 trigger=planner_ruling(epic-36-rulings-20261113-2130_s2;DW-1278_approved) items=OnCallUsers_behind_SettingsOps_read_verb+SecretHandoff_return,spine_contract_row,bundle_record_update scope_baseline=pending_rework_commit
+2026-11-14T00:01:43Z	Story 36.4	stage_spawned	stage=implement spawn_at=2026-11-14T00:01:43Z model=sonnet agent_name=36-4-set-the-on-call-person-and-backup-in-settings-implement-4 cycle_iteration=4 effort=high note=rework_3_of_3 rework_commit=4959542a
