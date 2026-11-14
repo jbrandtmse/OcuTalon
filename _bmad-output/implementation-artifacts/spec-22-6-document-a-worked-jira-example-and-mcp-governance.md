@@ -262,6 +262,10 @@ deferred:
 - Rule 3: docs-only diff, so not a user-facing code surface. The form's e2e test (`web/e2e/settings/mcp.spec.ts`) is 21.4's. Rule 19: no test was added or changed, and every AC has a `mutation:` line (verification-gap layer). Rule 6: no AD mismatch (AD-21 S11 and S20, AD-10, AD-11 and AD-17 text unchanged by this diff).
 - Exit: one HIGH, so the story does not close. It waits for the PUBLIC TEXT ruling on DW-1324 (sprint-status `in-progress`).
 
+- [ ] [Review] **R8-1 (DW-1324, Contest Planner ~07:45Z Nov 14, approved verbatim)**: `docs/mcp-jira-example.md:14` becomes, word for word: "In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:" (replacing "In Settings > Tools and MCP servers, press **Add server** and fill in:"). Update the spec's Public text P1 to match.
+- [ ] [Review] **R8-2 (Planner ~07:45Z, approved)**: in `docs/mcp-jira-example.md:57` replace "Each call of a server's tool writes an audit entry" with "Each call of a server's tool that runs writes an audit entry"; the rest of that sentence stays exactly as it is. Update the spec's Public text P1 to match.
+- [ ] [Review] **R8-3 (pins)**: pin BOTH lines in `docker/tests/test-release-sequence.sh` (`mcp_doc_problems` / the worked example's line pins), each with one fault control and a `mutation:` line (restore the old line 14 -> its pin red; drop "that runs" from line 57 -> its pin red). Change nothing else. Then resolve DW-1324 in the spec's records (the lead writes the ledger trailer).
+
 ## Spec Change Log
 
 - 2026-11-13 (runner, Planner ruling M (4)): gate APPROVED with the text conditions above; Story 22.12 to be inserted in epics.md.
