@@ -1,0 +1,25 @@
+{
+  "name": "send-email-trace-own",
+  "match": {
+    "marker": "send-email-trace-own"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "send_email",
+        "input": {
+          "recipients": [
+            "zzr4owner@example.test"
+          ],
+          "subject": "zzr4subject own marker",
+          "text": "zzr4text own marker: this is the email you asked for."
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I've sent the email to your address."
+    }
+  ]
+}

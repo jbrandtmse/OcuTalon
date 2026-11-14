@@ -111,6 +111,8 @@
 ///     by its own map: the CSP session's own decisions, filtered and paged, and the incidents it sees, paged, with the stored summary as text.
 ///   - The webhook routes (Story 35.3; GET and POST /v1/settings/channels/webhooks, POST /v1/settings/channels/webhooks/:ref/secret) are OcuTalon.Web.HookSettings', forwarded
 ///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
+///   - The on-call route (Story 36.4; POST /v1/settings/on-call) is OcuTalon.Web.OnCallSettings', forwarded by its own map: admin only, with the section's body handed to
+///     SettingsOps through SecretHandoff so that no on-call value is in a command or a trace, and 409 not_available on the online demo before the body is read.
 ///   - The MCP settings routes (Story 21.4; GET /v1/settings/mcp, POST /v1/settings/mcp/servers, DELETE /v1/settings/mcp/servers/:server, POST /v1/settings/mcp/classify) are
 ///     OcuTalon.Web.McpSettings', forwarded by its own map: admin only, 409 not_available on the online demo before the body is read, a server's secret handed to McpOps through
 ///     SecretHandoff and never in a command, and the list read through the command ListMcpServers, which SettingsOps answers in its own job.
@@ -301,6 +303,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/usage" Forward="OcuTalon.Web.Usage"/>
 <Map Prefix="/v1/history" Forward="OcuTalon.Web.History"/>
 <Map Prefix="/v1/settings/channels/webhooks" Forward="OcuTalon.Web.HookSettings"/>
+<Map Prefix="/v1/settings/on-call" Forward="OcuTalon.Web.OnCallSettings"/>
 <Map Prefix="/v1/settings/mcp" Forward="OcuTalon.Web.McpSettings"/>
 </Routes>
 }
@@ -710,7 +713,7 @@ ClassMethod AnswerApproval(ref As %String) As %Status
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(row) || (row.State = "cancelled") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If '..AnswerBody(.action, .channel) Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
-	Set kind = row.Kind
+	Set kind = $Select((row.Kind = "fix") && (row.FixKind = ##class(OcuTalon.Fix.Kind.Email).#NAME): ##class(OcuTalon.Fix.Kind.Email).#NAME, 1: row.Kind)
 	Kill row
 	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, action, channel, .result, .answeringRef)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
@@ -741,7 +744,7 @@ ClassMethod AnswerBody(Output action As %String, Output channel As %String) As %
 ///   - already_answered: 409 with the catalog's late-press text of the winner and the request's payload, naming the answerer
 ///     when the install is local and the row's AnsweredBy is not the signed-in user (compared without case);
 ///   - expired: 409 with the catalog's expired text at the row's ExpiresAt and the payload;
-///   - not_found: 404; not_allowed: 403 (the approver text of the request's kind); bad_answer: 400;
+///   - not_found: 404; not_allowed: 403 (the approver text of the request's kind; AnswerApproval hands a fix request of the kind email as the kind email, which has the general one); bad_answer: 400;
 ///   - anything else, and any failed read or render: 500 server_error.
 ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %String, result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
 {

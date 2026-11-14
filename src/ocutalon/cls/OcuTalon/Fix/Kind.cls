@@ -16,7 +16,7 @@
 ///       Execute carries the fix out for the targets given (those that passed), one by one, and registers each copy on the run (the FixRun row the executor
 ///       made for the request). result holds {"resent": the copies made, "skipped": [{"id", "reason"}]} for the targets it left out.
 ///   - TARGETTYPE is what the targets name: "message" (the default; header ids of the incident's failed messages), "item" (Ens.Config.Item ids of the incident's
-///     production, one per item) or "contact" (Fix.PartnerContacts ids of the incident's production, one per recipient); DIAGNOSED is 1 when the diagnosis may name the kind (Watch.Msg.DiagnosisPayload accepts only those) and ASKED is 1 when the user may
+///     production, one per item) or "contact" (Fix.PartnerContacts ids of the incident's production, one per recipient) or "recipient" (the positions 1..n of the recipients of an email, which has no incident, Story 22.7); DIAGNOSED is 1 when the diagnosis may name the kind (Watch.Msg.DiagnosisPayload accepts only those) and ASKED is 1 when the user may
 ///     ask for it in the chat (propose_fix, Story 23.2); NOSTART and NOREAD are the kind's own plain reasons for a run that could not start and for one that could not
 ///     read the production, where the executor's say resend (empty means the executor's);
 ///   - DRAFTED is 1 when the kind's text is drafted by the model through IncidentManager before its dry run (the dry run then holds the drafted text); MOVES is 0 when the
@@ -72,7 +72,7 @@ Parameter NOTSETUP;
 Parameter ERRORSTATUS = "Error";
 
 /// The kinds that exist, as class names, comma-separated.
-Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute,OcuTalon.Fix.Kind.PartnerWarning";
+Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute,OcuTalon.Fix.Kind.PartnerWarning,OcuTalon.Fix.Kind.Email";
 
 /// The classes of KINDS that are compiled and extend this class, as a list.
 ClassMethod Classes() As %List
