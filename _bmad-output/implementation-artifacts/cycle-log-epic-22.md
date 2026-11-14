@@ -405,3 +405,5 @@
 2026-11-14T14:41:23Z	Epic 22	ci_resolved	sha=16772e40 result=success runs=43601299721(ci),43601299691(lane-a) flake_reruns=0 stories=22.13
 2026-11-14T14:45:03Z	Epic 22	integrated_forward	feature=f403bf66(22.13+25.5) head=dfd2e84b conflicts=none
 2026-11-14T14:45:03Z	Story 22.11	replan_opened	spec_status=draft reason=poll_run_only_after_22.13_split(Planner_~13:20Z);Task0_STOP_kept
+2026-11-14T14:47:03Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(22.13_spine+epics;25.5) model=opus words=1356 branch=OCT-epic22
+2026-11-14T14:47:03Z	Story 22.11	stage_spawned	stage=plan spawn_at=2026-11-14T14:47:03Z model=opus agent_name=22-11-run-source-polls-through-the-governed-proxy-plan-2 cycle_iteration=2 effort=high branch=OCT-epic22 note=re-plan(poll_run_only)
