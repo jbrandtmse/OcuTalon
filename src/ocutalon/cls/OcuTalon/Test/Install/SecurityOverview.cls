@@ -334,6 +334,27 @@ Method TestFixKindRows()
 	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), sentence), "and the fix kinds section holds it as a line of its own")
 }
 
+/// Story 22.6: the privileges section holds the sentence about the resource of each MCP server (MCPSTATEMENT) once, word for word, as a line of its own after the Roles table and before
+/// "### With demo mode on", and the names in it are the installer's (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE).
+Method TestMcpResourceStatement()
+{
+	Set lf = $Char(10)
+	Set sentence = "Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`, with no public permission, and `OcuTalonServiceRole` holds U on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "MCPSTATEMENT"), sentence, "the MCP resource sentence is the ruled one, word for word")
+	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Mcp", "RESOURCEPREFIX") _ "<server>", "OcuTalon_MCP_<server>", "the resource it names is the one that the Mcp area makes")
+	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Mcp", "PERMISSION") _ "|" _ $Parameter("OcuTalon.Install.Step.Users", "SERVICEROLE"), "U|OcuTalonServiceRole", "with the permission and the role that the Mcp area grants")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set text = sections("privileges")
+	Do $$$AssertTrue(..HasLine(text, sentence), "the privileges section holds it as a line of its own")
+	Do $$$AssertEquals($Length(text, sentence) - 1, 1, "once")
+	Set start = $Find(text, sentence) - $Length(sentence)
+	Set before = $Extract(text, 1, start - 1)
+	Set after = $Extract(text, start + $Length(sentence), *)
+	Do $$$AssertTrue($Find(before, lf _ "### Roles" _ lf) > 0, "after the Roles heading")
+	Do $$$AssertEquals($Extract(before, $Length(before) - 2, *), "|" _ lf _ lf, "right after the last row of the Roles table")
+	Do $$$AssertEquals($Extract(after, 1, $Length(lf _ lf _ "### With demo mode on" _ lf)), lf _ lf _ "### With demo mode on" _ lf, "and right before the demo mode section")
+}
+
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
 /// on its code and data databases. The trace role's SQL SELECT on Ens.MessageHeader is listed in OCUTALON, and in OCUORDERS with demo mode on. The
 /// service user holds exactly the service role with login disabled, and /ocutalon and /ocutalon/api, alone of the Web step's applications but for the

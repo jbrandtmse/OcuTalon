@@ -1,16 +1,24 @@
 ---
 title: 'Story 22.5: Poll a read-only MCP tool as a source'
 type: 'feature'
-created: '2026-11-12'
-status: 'ready-for-dev'
+created: '2026-11-14'
+status: 'done'
+baseline_revision: 'bd547e51831adee962a2b16a42419c1526b6c805'
+baseline_commit: 'e867f883c0735488288f513943582c42630be1b3'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-22-context.md'
-  - '{project-root}/_bmad-output/implementation-artifacts/spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md'
-  - '{project-root}/_bmad-output/implementation-artifacts/spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md'
-warnings: ['oversized', 'multiple-goals']
-deferred: []
+warnings: ['oversized']
+deferred:
+  - summary: >-
+      A source named like a fixed coverage entry (Mailbox, IRIS instance, database space, journal space, license use, system log) gives two coverage rows with one entry text.
+    evidence: |-
+      OnSetSource checks only the name's length and control characters; Coverage.Build adds the fixed entries and the source rows under their own names, so the digest line cannot say which one failed.
+      A refusal needs a reason text the admin can read; the approved bad_name text ("1 to 100 characters") would mislead, so a new public string is needed (veto item 5, the Planner's).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Mcp/Ops.cls OnSetSource
+    severity: low
 ---
 
 <intent-contract>
@@ -79,342 +87,423 @@ deferred: []
 
 </intent-contract>
 
+
+**Scope of this story (Part A, Contest Planner ruling C, 2026-11-12; epics.md 22.5 `[AMENDED 2026-11-14]`).** The intent block above is preserved verbatim and is shared with Story 22.11. This story delivers its matrix rows **Set, Update, Refused, Remove, Server removed, Mailbox and Digest lead**, the coverage side of **Server down** and **No longer read-only** (the digest line that a recorded run gives), and the McpOps half of the **Online demo** rule. The run, the Items, the stop and the bridge belong to Story 22.11 (Design Notes, "Moved to 22.11"). No `source` row is run in this story: `Checks` reads only `production` and `queues` rows (`DueOf`), so a source shows as "didn't run" until 22.11.
+
 ## Code Map
 
-Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/`.
+Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/` or `web/`. Line numbers are at `6d36d945` (after 22.4, 21.4, 22.7, 22.3, 22.9).
 
 - **The command side:**
-  - `Mcp/Ops.cls`:
-    - `MessageMap` L60-72; `Refusal` L494, which covers origin, sender, acting user and the demo.
-    - `Classify` L210, the validate, save, audit and undo pattern; `McpData`/`Common` L525-554; `Answer`/`Failed` L555-571.
-    - `Notify`/`Send` L413-456, the admin notices, with the seams `AdminSessions`, `Notice` and `WriteAudit`.
-    - `Unregister` L167-199: TCOMMIT at L190. 22.4 inserts its cancel there too.
-    - The class doc L3 says it has no handler for the source verbs.
+  - `Mcp/Ops.cls` (22.4's and 21.4's edits merged):
+    - class doc L1-28; L3 says it has no handler for the source verbs, so `CommandsIn` answers `failed` (DW-1137).
+    - `MESSAGE*` L47-65; `MessageMap` L72-85 (three `MapItem`s).
+    - `OnClassify` L134-149 is the handler shape: `Refusal`, `Lock(server)`, Try, `Lock -`.
+    - `Unregister` L190-225: TSTART L203, row deletes and `Revoke`, `WriteAudit` and TROLLBACK on failure, TCOMMIT L215, then 22.4's `CancelPending` L221, 21.4's `DropEntry(stored)` L222, `Set restart = 1` L223. `stored` (L196) is the row's own name (`NameGetStored`).
+    - `Classify` L302-324: validate, save, audit, undo.
+    - `Refusal` L586-601 (21.4's rule, reused unchanged): not the sender `CommandsIn`, origin not `web_admin`, origin `tool` or `Bridge.Context.Active()`, or an empty `ActingUser` gives `not_allowed` with `CommandsIn` `MESSAGENOTFROMTOOL` or `MESSAGEADMINONLY` and one warning; the online demo (`OnlineDemo()` L677) gives `not_allowed` with `MESSAGENOTALLOWED`.
+    - `Lock` L610; `McpData` L617; `Common` L639; `Answer` L647 (no `Ref` argument); `Failed` L658; the seams `OnlineDemo` L677, `AdminSessions` L683, `Notice` L689, `Restart` L695, `WriteAudit` L701.
   - `Watch/Ops.cls`:
-    - `OnStart` L84-129 is the row-write pattern: lock, natural key, `%Save`, `Changed`.
-    - `RefOf` L264; `Changed`/`SendChanged` L235-262; `KIND`/`QUEUEKIND` L29-34.
-  - `Msg/Command/SetSourcePoll.cls` (`Server`, `Tool`, `Name`, `Arguments`, `IntervalMinutes`, `ActingUser`) and `RemoveSourcePoll.cls` (`SourceRef`): Lane B, read only. `Core/CommandsIn.cls` L359-360 routes both to McpOps.
-  - `Mcp/ToolClassification.cls`: `ServerToolIndexOpen`, `Classification` (`read-only`, `risky` or `unclassified`) and `Fingerprint`. `Mcp/Server.cls` `NAMEPATTERN`.
-- **The bridge side:**
-  - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
-    - `Admit` L852-858: tool needs provenance `user` and an approval Ref.
-    - `RunnerFor` L868; `RUNNERS` L142 (`decide:TriageAgent`); `OnRequest` L325-362, where tool skips `Held` and `Precheck`.
-    - `OnResponse` L404-453, where tool gets no retry or resend; `Conclude` L1384.
-    - `ConcludeTool` L1489-1523, `RecordFallback` (about L1600-1660), `FireEvent` L1725 and `ResponseFromRow` L1766, which gives a tool Reply with no Text.
-  - `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
-    - `Answer` L791-843: tool goes to `Replay.Run` at L800.
-    - `BuildAgent` L269-292: it needs a provider, so a replay fails `no_key` without one (Decide L180-199).
-    - `Govern` L476, `BuildTurnManager` L610-660, `EndTurnTools` L701 and 22.4's `ProxyManager`.
-  - `src/bridge/cls/OcuTalon/Bridge/Replay.cls` L68-131: the tool-run pattern (Context, StepBuffer, ExecuteTool, step records, release on every path). Copy its shape, not its approval steps.
-  - `src/bridge/cls/OcuTalon/Bridge/Context.cls`:
-    - `Begin` L68-86 copies Kind and Provenance and resets taint.
-    - `SetMcpTools` L136-162 and `McpFingerprint` L164; 22.3's `McpToolref`; 22.4's `NoteReplayRefusal`/`ReplayRefusal`.
-  - `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`:
-    - `Decision` L171-207: the untrusted rule L182-183; `replay` (kind `REPLAYKIND`) L184-185 needs a grant for every call; taint L201-204.
-    - `REPLAYKIND` L100; 22.3's `MCPPROXY` and its direct-proxy classification.
-  - `src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls` -- `REASONS` L27 and the defaults L30-57; 22.3's `ProxyToolSet`, 22.4's `ServerOf`. `Mcp/Attach.cls` overrides them (L20-60).
-  - `src/bridge/cls/OcuTalon/Bridge/Audit.cls` L17-41 and L149-166: `SHAPEMCP` and `MCPCHANGES`; 22.3 adds `called`/`refused` and the call shape `change,server,tool,outcome`.
-  - `Mcp/Proxy.cls` (22.3, 22.4): `Call` steps 1-5 (demo, rows, entry, header, `ListTool`, fingerprint), which 22.5 shares with `Listed`; the refusal word through `NoteReplayRefusal`.
-  - `Core/BridgeSink.cls` L440-463 (read only): a `turn.step` is published only for the running turn's ItemId, so a poll's step reaches no chat.
+    - `KIND` L29, `QUEUEKIND` L32, `FIELDS` L64, `CHECKS` L67, `LOGCHANGED` L69.
+    - `OnStart` L84-128 is the row-write pattern (lock, natural key, `%Save`, answer).
+    - `Fields` L222; `Changed` L235 and `SendChanged` L256 are instance methods of WatchOps' own item, so McpOps cannot call them.
+    - `RefOf` L264-276 (one SQL branch per kind's natural key); `Lock` L279 (`^OcuTalon.Watch(sessionRef)`); `Answer` L286 (with `ref`).
+  - `Data/BackgroundCheck.cls`: `Kind` doc L15; `Reported` L45; the `RecordRun` trigger L52-55; storage values 1-15.
+  - Read only: `Msg/Command/SetSourcePoll.cls` L6-21 (`Server` 40, `Tool` 128, `Name` 100, `Arguments`, `IntervalMinutes`, `ActingUser`), `RemoveSourcePoll.cls` L6-9 (`SourceRef`, `ActingUser`), `Msg/CommandResult.cls` `Ref` L15, `Core/CommandsIn.cls` routes L364-365, `Checks/Msg/CheckChanged.cls`.
+  - `Mcp/Server.cls` `NAMEPATTERN` L12; `Mcp/ToolClassification.cls` `CLASSIFICATIONS` L17, `Tool` EXACT collation L23, `ServerToolIndexOpen`.
+- **The audit:** `src/bridge/cls/OcuTalon/Bridge/Audit.cls`: doc L4-5 and L35-36; `SHAPEMCPCALL` L37; `MCPCHANGES` L46; `CALLCHANGES` L49; the outcome rule (one lower-case word, at most 24 letters) L85.
 - **The checks side:**
-  - `Checks/Process.cls`:
-    - `Tick` L216-284: insert after the queue block L246-257.
-    - `DueOf` L875, `RowOf` L532 (`ROWCOLUMNS` L127), `Record` L608-641 (with `keep`, which leaves NextDueAt), `SendOwn` L391, `FindingItem` L704 and `Announce` L834.
-    - The queue block L857-985 is the precedent for an appended block. `SendQuiet` L500 is the bounded-send precedent. There is no `OnResponse` yet.
-  - `Data/BackgroundCheck.cls` -- storage values 1-15; the `RecordRun` trigger (on a `LastRunAt` change) calls `Checks.Coverage.RecordRun`.
+  - `Checks/Process.cls`: `REASON*` L151-159. `Due` L507 and `DueOf` L876 select one Kind, so no `source` row runs. `Changed` L811-831 publishes `Live.Payload.Check.FromRow(row)` for a start and a stopped payload from the message's fields. Append parameters only, at the end of the class.
   - `Checks/Coverage.cls`:
-    - `Build` L128-162; `WatchRow` L273-333 (`MISSEDSECONDS` L41 is fixed at 180 s; the unreachable streak L313-321); `EntryOf` L386, which gives `DisplayName` for any non-production kind.
-    - `ReasonOf`/`KeyOf` L463-477; `RecordRun` L479; `Add` L179.
-  - `Checks/Render.cls` -- `Build` L46-78 orders the rows failed, then not checked, then passed. `checks.everythingElsePassed` exists in `Msg/Catalog/Watch.cls` L70 and is never returned today.
-  - `Digest/Process.cls`:
-    - parts L606-644 (the checks part L620: `{checkKey, whatFailed}`); `Verdict` L677-704 (`Render` L683, `allClear` L702);
-    - `DigestNotification` L715; the Coverage seam L848.
-  - `Channel/DigestText.cls` L1-12 (read only) renders the parts up to the first `AFTERLINES` key, then `lines`, then the rest. Check whether `Channel/Telegram/Out.cls` L13 and L164 rebuild the checks part from the CheckRows; if they do, the lead must apply there too (Lane A).
-  - `Channel/Email/In.cls` `Owner()` L58 and `Channel/Email/Adapter.cls` `MARK` L38, `REASONUNREACHABLE` L41 and `Record` L312-333: read only. `Data/StatusMark.cls` `Get` L39.
-  - `Msg/Catalog/Watch.cls` (accepted, unchanged):
-    - `digest.notCheckedUnreachable` L504, `digest.notCheckedError` L512, `digest.notCheckedStale` L546 and `digest.notCheckedStopped` L561;
-    - `mcp.sourceStopped` L1044-1084.
-  - `Live/Payload/Check.cls` `FromRow` L45. `/v1/state` builds the same payload (`Web/Api.cls` L1401, read only).
+    - doc L1-27 (L4: "There are no source rows until step 4."); `MISSEDSECONDS` L41; `KEY*` L89-105; `KIND` L108; `NOTCHECKED` L111.
+    - `Build` L128-162: the background-check loop L152-160, after which the mailbox row goes.
+    - `Add` L179; `WatchRow` L273-333: the gap comparison L306, the unreachable streak L316-324.
+    - `EntryOf` L386 (any non-production kind is its `DisplayName`); `ReasonOf` L463-468; `KeyOf` L470-474; `RecordRun` L479-490.
+  - `Checks/Render.cls`: `KEY*` L17-26; `Build` L46-78 orders failed, then not checked, then passed; `Row` L81-95.
+- **The digest:**
+  - `Digest/Process.cls`: doc L28-37 (the parts list); `Finish` L488-560, the checks part at L516; `Verdict` L573-601 (Render's `ordered` at L580); `Joined` L669; the `Rows` seam L680.
+  - Read only: `Channel/DigestText.cls` renders the parts up to the first `AFTERLINES` key, then the `lines`, then the rest, one piece per line. `Channel/Telegram/Out.cls` L192-193 renders a digest through `DigestText`, so nothing there rebuilds the checks part and it needs no change.
+  - Read only, the mailbox: `Channel/Email/In.cls` `Owner()` L91 (`email.owner`, a SessionRef); `Channel/Email/Adapter.cls` `MARK` L47, `REASONUNREACHABLE` L54, `Record` L382-401 (`{at, ok, reason, lastOkAt}`); `Data/StatusMark.cls` `Get` L39.
+  - Read only, the catalog (`Msg/Catalog/Watch.cls`): `checks.everythingElsePassed` L70, `digest.notCheckedUnreachable` L504, `digest.notCheckedError` L512, `digest.notCheckedStale` L546, `digest.notCheckedStopped` L561.
+- **The payload:** `Live/Payload/Check.cls`: `Finding` L33, then `TraceHeaderId` L36; `FromRow` L45-63. `/v1/state` builds rail checks with `FromRow` (`Web/Api.cls` L1458, read only).
 - **Tests and fixtures:**
-  - `Test/Mcp/Mock.cls` -- `tools/call` L313-317 answers "The mock ran <tool>". Add a settable answer.
-  - `Test/Mcp/Attach.cls` -- the shadow runner, `Register`, `Use`, `Leaks` and `LoggedSecret`.
-  - `Test/Mcp/Ops.cls` -- `TestOnlineDemo` L206, `TestRemove` L255.
-  - `Test/Checks/Queues.cls` and `QueueProbe.cls` -- the Tick seam pattern.
-  - `Test/Digest/Coverage.cls` -- `Run` L579, `Slots` L594, `TestUnreachableStreak` L335.
-  - `Test/Digest/Compose.cls` `TestPartOrder` L316-344; `Test/Digest/AllClear.cls` `ProbeCase.Watched` L168.
+  - `Test/Mcp/OpsProbe.cls` (doc L1-9, seams L48-86); `Test/Mcp/Ops.cls`: `TestOnlineDemo` L215, `TestOnlineDemoRealFlag` L236, helpers `Run` L776, `MakeServer` L822, `MakeTool` L830, `MakeAdmin` L842, `Clean` L984.
+  - `Test/Digest/CoverageProbe.cls` (the seam subclass); `Test/Digest/Coverage.cls`: `TestReasonMap` L315, `TestUnreachableStreak` L335, `Run` L579, `Slots` L594.
+  - `Test/Digest/Compose.cls` `TestPartOrder` L322; `Test/Checks/Render.cls`; `Test/Bridge/Audit.cls` `TestMcpCallShape` L67.
+  - `Test/Eval/Watch.cls` `TestFields` L139: `FIELDS` must name every stored property. `Test/Eval/Report.cls` `TestWatchEveryField` L865: its value table (L878) needs a value for every `FIELDS` name.
+- **Lane B pins** (the lane exception in Design Notes):
+  - `Test/Data/Tables.cls` L555-576: the `BackgroundCheck` contract.
+  - `Test/Live/Payloads.cls` L1278-1293: the `Payload.Check` contract.
+  - `web/src/app/live/payloads.ts` L345-359 `CheckPayload` is generated by `web/scripts/payloads.mjs`. Its `--check` runs in `npm run build` (`web/package.json` L13). `web/scripts/payloads.test.mjs` L119 requires `traceNamespace` then `traceUrl` last.
 
 ## Tasks & Acceptance
 
 **Execution:**
 
-The tasks are grouped as Part A (row, coverage, digest; no bridge change) and Part B (the run). This makes the split in Design Notes mechanical if the lead applies it.
+- [ ] `src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls`:
+  - Append `Server` (`%String`, MAXLEN 40), `Tool` (MAXLEN 128), `Arguments` (MAXLEN "", the admin's JSON) and `IntervalMinutes` (`%Integer`), as storage values 16-19.
+  - Each property's doc says "a source row's; empty for every other kind". The `Kind` doc lists `production`, `queues` and `source`.
+- [ ] `src/ocutalon/cls/OcuTalon/Watch/Ops.cls` (the row methods; AD-18's one creator class):
+  - Append `Parameter SOURCEKIND = "source"`, and append `Server,Tool,Arguments,IntervalMinutes` to `FIELDS`.
+  - Extend `RefOf` with a `source` branch, whose natural key is (SessionRef, Kind, DisplayName).
+  - Add `SetSource(sessionRef, server, tool, name, arguments, intervalMinutes, askedBy, Output ref, Output created) As %Status`. It follows `OnStart`'s pattern, under `Lock(sessionRef)`:
+    - a repeat of the natural key updates that row and keeps its Ref;
+    - a new row gets a new Ref, `CreatedAt` now and empty run fields;
+    - every save sets `NextDueAt` to now.
+  - Add `RemoveSource(ref, Output fields) As %Status`:
+    - it deletes only a row of Kind `source`, under `Lock` of its session;
+    - `fields` is `Fields(row)` read before the delete;
+    - a missing row, or another kind, gives "" fields and OK.
+  - Add `SourcesOf(server) As %DynamicArray`: the Refs of that server's `source` rows, in ID order.
+  - Add a class-doc bullet: the source row (AD-18), created and removed only through these methods, which McpOps calls.
+- [ ] `src/bridge/cls/OcuTalon/Bridge/Audit.cls`:
+  - Append `source_set,source_removed` to `MCPCHANGES` and to `CALLCHANGES`, so that they take `SHAPEMCPCALL` (`change,server,tool,outcome`).
+  - Restate the docs at L4-5 and L35-36: the call shape is "a proxy call, or a source set or removed by McpOps".
+- [ ] `src/ocutalon/cls/OcuTalon/Mcp/Ops.cls` (after 22.4's and 21.4's lines; Design Notes, edit order):
+  - **The map and the doc.** Add two `MapItem`s: `SetSourcePoll` to `OnSetSource` and `RemoveSourcePoll` to `OnRemoveSource`. Replace the L3 sentence with one bullet for each verb.
+  - **`OnSetSource`** runs, in order:
+    1. `Refusal(request, "SetSourcePoll")`;
+    2. the session: a `SessionRef` that is empty or has no `Data.Session` row answers `failed` (CommandsIn `MESSAGEFAILED`), with one warning;
+    3. the server: it must match `NAMEPATTERN` and have a row, else `not_found` `MESSAGENOSERVER`;
+    4. the tool: it must have a `ToolClassification` row, else `not_found` `MESSAGENOTOOL`; its classification must be `read-only`, else `not_read_only` `MESSAGENOTREADONLY`;
+    5. the name, trimmed: it must be 1 to `NAMEMAX` characters with no control character, else `bad_name` `MESSAGESOURCENAME`;
+    6. the arguments: "" means `{}`. Otherwise they must parse to a JSON object, whose `%ToJSON()` text is at most `ARGUMENTSMAX` characters and holds neither `secret://` (in any letter case) nor `@{`, else `bad_arguments` `MESSAGESOURCEARGUMENTS`;
+    7. the interval: a whole number from `INTERVALMIN` to `INTERVALMAX`, else `bad_interval` `MESSAGESOURCEINTERVAL`;
+    8. under `Lock(server)`, in one transaction (`Unregister`'s pattern): `Watch.Ops.SetSource` with the server row's stored name, the normalised arguments and `AskedBy` the `ActingUser`, then `WriteAudit("MCP", {change: source_set, server, tool, outcome: created|updated} + Common)`. An audit failure rolls back and answers `not_audited`;
+    9. after the commit, `Changed(ref, sessionRef, 0, "source", displayName)`;
+    10. the answer: Ok, outcome `saved`, `MESSAGESAVED` and the row's `Ref`. `Answer` gains an optional `ref`, as `Watch.Ops.Answer` has.
+  - **`OnRemoveSource`** runs `Refusal`, then opens the row by `SourceRef`. No row, or another kind, answers `not_found` `MESSAGENOSOURCE`. Then, under `Lock` of the row's server, in one transaction: `Watch.Ops.RemoveSource`, then the audit `source_removed` (outcome `removed`). An audit failure rolls back and answers `not_audited`. After the commit it calls `Changed(ref, owner, 1, "source", displayName)` and answers Ok, `removed`, `MESSAGESOURCEREMOVED`.
+  - **`RemoveSources(server, request)`** (private): for each Ref from `SourcesOf(server)`, it removes the row and audits it (`source_removed`, in the remover's name) in its own transaction, then calls `Changed`. A failure is one warning and leaves that source. `Unregister` calls it between L222 (`DropEntry`) and L223.
+  - **`Changed(...)` and the seam `SendChanged(message)`**: the `CheckChanged` (Kind `source`, empty Namespace and Production), sent with `..SendRequestAsync(..#CHECKS, message)`. A failed send is one warning.
+  - **New parameters:** the five `MESSAGE*` under Public text; `CHECKS` "Checks"; `INTERVALMIN` 5, `INTERVALMAX` 1440, `NAMEMAX` 100 and `ARGUMENTSMAX` 4000.
+- [ ] `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- append only `SOURCEKIND` "source", `REASONSOURCEUNREACHABLE` and `REASONNOTREADONLY` (texts under Public text), each with a doc line naming Story 22.11 as their run's writer.
+- [ ] `src/ocutalon/cls/OcuTalon/Checks/Coverage.cls`:
+  - **The gap.** In `WatchRow`, a `source` row's gap is `IntervalMinutes`×60 + `MISSEDSECONDS`. Every other kind, and a source with no interval, keeps `MISSEDSECONDS`.
+  - **The stopped streak.** `KeyOf` maps `stopped` to the new `KEYSTOPPED` (`digest.notCheckedStopped`). Its time is the first run of the trailing streak of `stopped` runs, as for unreachable.
+  - **The reasons.** `ReasonOf` maps `REASONSOURCEUNREACHABLE` to `unreachable` and `REASONNOTREADONLY` to `stopped`.
+  - **The mailbox.** After the background-check loop, `Build` adds `MailboxRow(sessionRef, fromUtc, toUtc, rows, lines)`. It uses `Add`, and the private seams `Mark()` (`StatusMark.Get(Channel.Email.Adapter MARK)`) and `MailOwner()` (`Channel.Email.In.Owner()`). There is no row unless `MailOwner()` is the session and the mark is not "". Its rules:
+    - passed when `ok` is 1, `fromUtc` ≤ `at` ≤ `toUtc`, and `at` is at most `MAILSTALESECONDS` before `toUtc`;
+    - `digest.notCheckedStale` {entry, time `at`} for any other mark with `ok` 1 (finding `FINDINGSTALE`);
+    - `digest.notCheckedUnreachable` {entry, time `lastOkAt`, else `at`} when `ok` is 0 with the adapter's `REASONUNREACHABLE` (finding the mark's reason);
+    - `digest.notCheckedError` {entry, time `at`} for `ok` 0 with any other reason, and {entry, time now} for a mark that cannot be read.
+  - Add `ENTRYMAILBOX` and `MAILSTALESECONDS` 900. Replace the doc's L4 sentence, and describe the source gap, `stopped` and the mailbox.
+- [ ] `src/ocutalon/cls/OcuTalon/Checks/Render.cls`:
+  - Append `KEYELSEPASSED = "checks.everythingElsePassed"`.
+  - Append the pure `RestKey(rows) As %String` over Render's output rows. It gives `KEYELSEPASSED` when no row is `failed`, at least one is `not_checked` and at least one `passed`. Anything else gives "", and it never throws. Add a doc bullet.
+- [ ] `src/ocutalon/cls/OcuTalon/Digest/Process.cls`:
+  - Add the private `Lead(rows, lines, vitals) As %DynamicArray`. Over the watched rows (those after the vitals), when `Render.RestKey` of Render's ordered rows is not "", it returns the `lines` of the watched rows that Render classes `not_checked`, in row order. Otherwise it returns [].
+  - In `Finish`, when `Lead` is not empty, the checks part (L516) becomes those lines followed by `{key: KEYELSEPASSED, slots: {}}`.
+  - `CatalogKey`, `AllClear`, `Verdict`, the eval path and every other part stay unchanged. Restate doc item 3.
+- [ ] `src/ocutalon/cls/OcuTalon/Live/Payload/Check.cls` -- add `IntervalMinutes` (`%Integer`, `%JSONFIELDNAME = "intervalMinutes"`) right after `Finding`, so the generated interface keeps `traceUrl` last. `FromRow` sets it from the row, which leaves it empty for other kinds.
+- [ ] **Lane exception (routed by the lead before implement; Design Notes).** Without a recorded ruling in `## Spec Change Log`, implement stops with `## Clarification Needed`, as the intent's Never rule says. With it:
+  - `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`: the `BackgroundCheck` contract gains the four properties;
+  - `src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls`: the `Payload.Check` contract gains `"IntervalMinutes": "%Integer(%JSONFIELDNAME=intervalMinutes)"`;
+  - `web/src/app/live/payloads.ts`: regenerated with `node web/scripts/payloads.mjs`, which adds the one generated line `intervalMinutes?: number;`.
+- [ ] Tests (every matrix row this story owns; hermetic fixtures, removed after each test; one class per call):
+  - **`Test/Mcp/OpsProbe.cls`:** add a `SendChanged` seam that records each `CheckChanged` in `^||ZzOps("changed", n)` and sends nothing.
+  - **`Test/Mcp/SourceSet.cls` (new),** through the probe's shadow handler with sender `CommandsIn`:
+    - `TestSet` and `TestUpdate`: the row's values, the Ref kept, one `CheckChanged` each, and the `MCP` audit entry `source_set` `created`/`updated`, with no argument in it;
+    - `TestSetRefusedNotReadOnly`: risky and unclassified tools;
+    - `TestSetRefused`: each other refusal row, plus the unknown session; each writes no row, no audit entry and no `CheckChanged`;
+    - `TestRemoveSource`, including another admin's removal and `not_found`;
+    - `TestServerRemovedRemovesSources`: audit order `removed`, then `source_removed`, and another server's source untouched;
+    - `TestSourceAuditFails`: both verbs roll back;
+    - `TestOnlineDemoSources`: the probe flag and the real `onlineDemo` setting; each verb is `not_allowed`, with no row;
+    - `TestCoverageReadsTheSource` (the Integration AC): `Test.Digest.CoverageProbe.Build` for the session gives the entry "Jira", not checked with `digest.notCheckedMissed` and no runs, and `Live.Payload.Check.FromRow` of the row gives `kind` `source` and `intervalMinutes` 15.
+  - **`Test/Mcp/Ops.cls`:** `TestOnlineDemo` and `TestOnlineDemoRealFlag` add both verbs.
+  - **`Test/Bridge/Audit.cls`:** `TestMcpCallShape` adds `source_set` and `source_removed` to the call shape; `added` keeps the old one.
+  - **`Test/Checks/Render.cls`:** `TestRestKey` covers each of these: none failed with some not checked and some passed; one failed; nothing passed; all passed; not an array.
+  - **`Test/Digest/CoverageProbe.cls`:** add `Mark` and `MailOwner` seams from `^||CoverageProbe("mark")` and `^||CoverageProbe("owner")`.
+  - **`Test/Digest/Coverage.cls`:**
+    - `TestSourceIntervalGap`: runs 15 minutes apart pass, and a gap over 15×60+180 s is missed;
+    - `TestStoppedStreak`;
+    - `TestReasonMap` gains the two new phrases;
+    - `TestMailboxPassed`, `TestMailboxStale`, `TestMailboxUnreachable`, `TestMailboxError`, `TestMailboxOtherOwner`.
+  - **`Test/Digest/Compose.cls` `TestNotCheckedLead`:** a real `source` row "Jira" (through `Watch.Ops.SetSource`, `CreatedAt` 02:10 local) has unreachable CheckRun rows every 15 minutes from 02:10 to the window's end, and a `queues` row has passed runs. The rows come from `CoverageProbe.Build`. It pins:
+    - the checks part, `[digest.notCheckedUnreachable {entry Jira, time 02:10}, checks.everythingElsePassed]`;
+    - the rendered text, which holds the line "Not checked: Jira (unreachable since 02:10)." followed by the line "Everything else I checked passed.";
+    - AllClear 0, and neither "Everything I checked passed." nor "Your IRIS system is healthy" in the checks part.
 
-- [ ] **Task 0** (implement stage). Run on lane D's warm throwaway, tag `e22s5iw`, with scratch classes `ZzT5`, which are removed afterwards. Record each answer in `_bmad-output/implementation-artifacts/evidence/22-5-task0-poll.md`:
-  1. **The manager.** In TriageAgent's job, build a standalone governed `%AI.ToolMgr` (`%New`, `RegisterToolSet(ProxyToolSet())`, `Govern`) with no `BuildAgent` and no model key. Then, inside a poll context, run `ExecuteTool("call_mcp_tool", {server, tool, arguments})`. Record:
-     - whether the gate and the step audit run;
-     - whether a step record is written;
-     - what is returned for a result, for a proxy refusal and for a gate denial.
-
-     If the standalone manager works, use it. If it fails, use 22.4's `ProxyManager` after `BuildAgent`; then a poll on an install with no key fails (`error`). Record the error text.
-  2. **The async answer.** `Checks` (PoolSize 1) sends `SendRequestAsync(Decide, request, 1, <Ref>)` and gets the Reply in `OnResponse`, with `%SessionId` the Tick's session. A second `Tick` sent while the poll waits on a silent mock (`Mock.Silence`) is handled before the poll answers. Record the timings.
-- [ ] **Part A** -- `src/ocutalon/cls/OcuTalon/Data/BackgroundCheck.cls` -- append:
-  - `Server` (MAXLEN 40), `Tool` (128), `Arguments` (MAXLEN "", canonical JSON) and `IntervalMinutes` (`%Integer`), storage values 16-19. Each property's doc says "a source row's; empty for every other kind".
-  - Kind's doc lists `production`, `queues` and `source`.
-- [ ] **Part A** -- `Watch/Ops.cls`:
-  - Append `Parameter SOURCEKIND = "source"`.
-  - `SetSource(sessionRef, server, tool, name, arguments, intervalMinutes, askedBy, Output ref, Output created) As %Status`, under `Lock(sessionRef)`:
-    - the natural key is (SessionRef, Kind `source`, DisplayName), so a repeat updates the row and keeps its Ref;
-    - `CreatedAt` is set on a new row only; `NextDueAt` is now; the run fields are emptied on a new row.
-  - `RemoveSource(ref, Output fields) As %Status`: deletes only a `source` row; `fields` returns `Fields(row)` before the delete; a missing row gives "" fields and OK.
-  - `SourcesOf(server) As %DynamicArray`: the Refs of a server's source rows.
-  - Append a class-doc bullet.
-- [ ] **Part A** -- `Mcp/Ops.cls`:
-  - Two `MapItem`s, `SetSourcePoll` to `OnSetSource` and `RemoveSourcePoll` to `OnRemoveSource`. Replace the doc sentence at L3.
-  - `OnSetSource` runs, in order:
-    1. `Refusal`;
-    2. the matrix's validation (`NAMEPATTERN` and row, tool row, `read-only`, name, arguments, interval), with the canonical JSON through `%FromJSON`/`%ToJSON` (an empty value means `{}`);
-    3. under `Lock(server)`, `Watch.Ops.SetSource`;
-    4. `WriteAudit("MCP", {change: source_set, server, tool, outcome: created|updated} + Common)`. If the audit fails, the row is undone (deleted if new, restored if updated) and the outcome is `not_audited`;
-    5. `CheckChanged` (`SendRequestAsync("Checks", …)`, Kind `source`, DisplayName);
-    6. the answer, with `Ref` set.
-  - `OnRemoveSource` does the same with `RemoveSource`, `source_removed` and `Stopped` 1.
-  - In `Unregister`, after the commit: `RemoveSources(server, request)`, which runs `SourcesOf`, then removes, audits and sends `CheckChanged` for each.
-  - New public `SourceStopped(source, tool, server, time) As %Status`: sends `mcp.sourceStopped` to every admin session through `AdminSessions`/`Send` (it extends `Notify`).
-  - New parameters: the `MESSAGE*` texts under Public text, plus `INTERVALMIN` 5, `INTERVALMAX` 1440, `NAMEMAX` 100 and `ARGUMENTSMAX` 4000.
-- [ ] **Part A** -- `src/bridge/cls/OcuTalon/Bridge/Audit.cls` -- `MCPCHANGES` gains `source_set` and `source_removed`, with 22.3's call shape `change,server,tool,outcome`.
-- [ ] **Part A** -- `Checks/Process.cls` -- append only the parameters `SOURCEKIND` "source", `REASONSOURCEUNREACHABLE` and `REASONNOTREADONLY` (texts under Public text), so that Coverage can name them before Part B exists.
-- [ ] **Part A** -- `Checks/Coverage.cls`:
-  - **The missed gap.** In `WatchRow`, the gap for a `source` row is `IntervalMinutes`×60 + `MISSEDSECONDS`; every other kind keeps `MISSEDSECONDS`.
-  - **The stopped streak.** `stopped` is treated like the unreachable streak: the time is the first run of the trailing `stopped` streak.
-  - **ReasonOf.** It maps `REASONSOURCEUNREACHABLE` to `unreachable` and `REASONNOTREADONLY` to `stopped`.
-  - **KeyOf.** It maps `stopped` to `KEYSTOPPED` = `digest.notCheckedStopped`.
-  - **The mailbox.** `Build` appends the mailbox row (`MailboxRow`, the matrix's rules, with the seam `Mark()` = `StatusMark.Get("emailPoll")` and the seam `MailOwner()` = `Channel.Email.In.Owner()`), after the background-check rows. Add `ENTRYMAILBOX` and `MAILSTALESECONDS` 900.
-  - Replace the doc's "There are no source rows until step 4."
-- [ ] **Part A** -- `Checks/Render.cls` -- append `KEYELSEPASSED = "checks.everythingElsePassed"` and the pure `RestKey(rows) As %String`:
-  - it gives `KEYELSEPASSED` when Render's ordered rows have no `failed` row, at least one `not_checked` and at least one `passed`;
-  - otherwise it gives "".
-- [ ] **Part A** -- `Digest/Process.cls`:
-  - When `Render.RestKey(ordered)` is not "", the checks part becomes the `lines` entries of the watched not-checked rows, in order, followed by `{key: KEYELSEPASSED}`.
-  - `CatalogKey`, `AllClear` and every other part stay as they are.
-  - If Task 0 finds that Telegram rebuilds the part from the rows, apply the same in `Channel/Telegram/Out.cls`.
-- [ ] **Part A** -- `Live/Payload/Check.cls` -- append `IntervalMinutes` (`intervalMinutes`), which `FromRow` sets from the row (empty for other kinds).
-- [ ] **Part B** -- `src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls` -- `PollCall(source, Output server, Output tool, Output arguments, Output toolref, Output fingerprint) As %String`:
-  - the default answers `invalid`;
-  - the answer is "" or a `REASONS` word, plus `notreadonly`.
-- [ ] **Part B** -- `Mcp/Attach.cls` overrides `PollCall`:
-  1. The `source` row by Ref gives server, tool and arguments; no row, or another kind, gives `invalid`.
-  2. The `ToolClassification` row must be `read-only`; otherwise it answers `notreadonly`.
-  3. `Mcp.Proxy.Listed(server, tool, .toolref, .fingerprint)` gives the live fingerprint through 22.3's client.
-- [ ] **Part B** -- `Mcp/Proxy.cls`:
-  - New `Listed(server, tool, Output toolref, Output fingerprint) As %String`, sharing `Call`'s steps 1-5 through one private method (Rule 2).
-  - In any `tool`-kind context (a replay or a poll), every refusal calls `Context.NoteReplayRefusal(<word>)`.
-  - It still writes no row.
-- [ ] **Part B** -- `src/bridge/cls/OcuTalon/Bridge/Context.cls`:
-  - New `IsPoll()`: Kind `tool` and Provenance `untrusted`.
-  - New `SeedMcp(server, toolref, tool, fingerprint)`: sets node `mcp` and 22.3's server-to-toolref node.
-  - The `NoteReplayRefusal`/`ReplayRefusal` doc says "a replay's or a poll's".
-- [ ] **Part B** -- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`:
-  - `replay` becomes Kind `tool` and Provenance `user`.
-  - In a poll (`IsPoll`), any call whose name is not `MCPPROXY` is denied `FAILED`. A proxy call is classified and checked as 22.3 specifies. There is no grant, and the untrusted rule applies.
-  - Restate the class doc.
-- [ ] **Part B** -- `src/bridge/cls/OcuTalon/Bridge/Poll.cls` (new). `Run(adapter, request, superSession, Output reply) As %Status` runs:
-  1. Parse Input `{"source"}`; a value that is not a Ref is a failure Reply `invalid`.
-  2. Build the manager (Task 0's variant).
-  3. `Context.Begin`.
-  4. `PollCall`; a non-empty word ends the run with that word.
-  5. `SeedMcp`.
-  6. `StepBuffer.Start`.
-  7. `ExecuteTool(Gate.#MCPPROXY, {server, tool, arguments})`.
-  8. Build the Reply:
-     - Text: the value, only when `ReplayRefusal()` is "" and the call returned a value;
-     - Tainted 1 when the call ran; ToolsRun; Steps; AgentStepCount; DurationMs;
-     - FailureText: "" or one word (`unreachable`, `timeout`, `failed`, `changed`, `notfound`, `demo`, `denied` for a gate denial or `ToolAccessDenied`, `notreadonly` or `invalid`).
-
-  The context, the step buffer and any swapped manager are ended or restored on every path. The class doc states the contract.
-- [ ] **Part B** -- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- in `Answer`, a tool request whose Provenance is `untrusted` goes to `Poll.Run`; every other tool request goes to `Replay.Run` as now.
-- [ ] **Part B** -- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
-  - **Admit.** A tool request with provenance `untrusted` is admitted when its Input is the JSON `{"source": <a Ref>}`. A user tool request stays a replay.
-  - **RunnerFor.** A poll goes to the `decide` runner of `RUNNERS`.
-  - **No Decision row.** On every path (success, a runner failure, the timer), a poll writes no `Decision` row and fires no `decision.recorded`.
-  - **The answer.** A poll is answered with the runner's Reply: its Text, Tainted, Steps and FailureText, plus `DecisionRef`. A timer gives Fallback 1, FallbackReason `timeout` and FailureText `timeout`.
-  - Update the docs of `Admit`, `RunnerFor` and `ConcludeTool`.
-- [ ] **Part B** -- `Checks/Process.cls`:
-  - **Tick.** One new Try block after the queue block calls `RunSources(tickAt)`.
-  - **The appended block** (`POLLITEM` "Decide" and the log parameters, beside Part A's `SOURCEKIND` and reason parameters):
-    - **`RunSources`:** takes the due `source` rows (`DueOf`, `ROWCOLUMNS` plus the new columns, read by Ref) and skips them all on the demo. For each row:
-      1. Schedule: one UPDATE sets `NextDueAt` = tick + `IntervalMinutes`.
-      2. If the classification (seam `SourceClass(server, tool)`) is not `read-only`, record a stopped run now through `Record(…, keep 1)`. `SourceStopped` is sent on the transition.
-      3. Otherwise send the async request: kind `tool`, provenance `untrusted`, a new ItemId, OwnerRef the row's session, TraceRef, channel `system`, Summary "Source poll", Input `{"source": Ref}`, completion key the Ref.
-    - **`OnResponse`:** maps the Reply to the run (see the matrix) and calls `Record(row, tickAt, runAt, result, finding, reported, items, 1)`:
-      - `denied` or `notreadonly` re-reads the classification: if it is not `read-only`, the run is stopped; otherwise it is `error`;
-      - the first successful run is the baseline;
-      - a new answer (SHA-256 hex not in `seen`) becomes one Item through `SourceItem`;
-      - `Reported` is `{"seen": [newest 50], "baseline": 1, "stopped": ""|"not_read_only"}`.
-    - The row is published as a `check` event (`Record` does it).
-- [ ] **Part B** -- `Test/Mcp/Mock.cls` -- `Answer(port, text)` sets the `tools/call` text for `zz_lookup`, and `Stop` clears it.
-- [ ] Tests (every matrix row; hermetic `Register`/`Leaks`; one class per call):
-  - `Test/Mcp/SourceSet.cls` (new; McpOps with its seams) -- Set, Update, every Refused row, Remove, Server removed, demo, audit-failure undo, `CheckChanged` sent.
-  - `Test/Mcp/SourceRun.cls` (new; shadow runner, mock and production on the warm stack):
-    - the Due, first run, New result, Seen before, Server down and No longer read-only rows;
-    - a changed tool cleared through `ClassifyMcp` and then stopped;
-    - no model request in the CI mock's log for the poll, and one decide request for the new Item;
-    - no `Decision` row; the step label; the `MCP` `called` entry;
-    - the no-secret, no-URL and no-argument scan of messages, logs, audit and step labels (`LoggedSecret`).
-  - `Test/Bridge/Poll.cls` (new) -- Admit (poll accepted, malformed refused, user tool unchanged), RunnerFor, the Gate poll rules (only the proxy, no grant, untrusted), no Decision row on the success and timer paths, the bridge-alone default `invalid`.
-  - `Test/Bridge/Gate.cls` -- replay rows unchanged; a poll context denies a non-proxy call.
-  - `Test/Checks/Render.cls` -- the `RestKey` rows (none failed with some not checked and some passed; a failed row; nothing passed; all passed).
-  - `Test/Digest/Coverage.cls` -- the source interval gap, the stopped streak, the reason map rows and the Mailbox rows.
-  - `Test/Digest/Compose.cls` -- `TestNotCheckedLead`, the fixture: source "Jira" with unreachable `CheckRun` rows from 02:10 local, the others passed. It pins the exact rendered text, AllClear 0 and that neither "Everything I checked passed." nor "Your IRIS system is healthy" appears. `TestPartOrder` is unchanged.
-  - `Test/Mcp/Ops.cls` -- `TestRemove` asserts the sources are removed; `TestOnlineDemo` adds both verbs.
+    `TestPartOrder` is unchanged.
+  - **`Test/Eval/Report.cls`:** in `TestWatchEveryField`, the value table gains `Server`, `Tool`, `Arguments` and `IntervalMinutes`. It is a Lane A test that Rule 19 requires; see Design Notes.
 
 **Acceptance Criteria:**
-- Given a source-poll command for a tool classified Read-only, when `McpOps` handles it, then one `BackgroundCheck` row of Kind `source` exists, owned by the command's admin session, with the tool, its canonical arguments and its interval. A tool that isn't Read-only is refused with `not_read_only` and writes nothing. Mutation: skip the classification check → `TestSetRefusedNotReadOnly` red.
-- Given a due source poll, when `Checks` runs it on the Tick, then a `tool` request goes through `Decide`, and the runner runs `call_mcp_tool` with no model. The gate, the step audit (step "Running zz_lookup on zz") and the `MCP` `called` audit entry apply. Mutation: route the poll to the native tool → red (`TestPollRuns`: no `MCP` entry).
-- Given a poll's answer not seen before (after the baseline), when it is recorded, then exactly one untrusted Item reaches `Intake` and gets an attention decision (the Integration AC: Intake consumes it, and one decide request appears in the model mock's log). The same answer again sends nothing. Mutation: skip the `seen` check → `TestSeenBefore` red.
-- Given each run, when it is recorded, then the row's `LastRunAt`, `Result`, `Finding`, `LastRunHeaderId` (the Tick's session) and `NextDueAt` (tick + interval) are set, one `CheckRun` row is written, and a `check` event carries `kind` `source` and `intervalMinutes`.
-- Given a source whose tool was classified Risky, when it is next due, then no request reaches the mock, the run is `not_checked` with Reason `stopped`, every admin gets one `mcp.sourceStopped` (none on the next stopped run), and the digest line is `digest.notCheckedStopped`. Mutation: send the notice on every stopped run → red.
-- Given the step 4 test (the mock down since 02:10 local in the fixture runs, everything else passed), when the digest is composed, then its parts lead the checks part with `digest.notCheckedUnreachable` {entry "Jira", time 02:10} and `checks.everythingElsePassed`. The text renders "Not checked: Jira (unreachable since 02:10). Everything else I checked passed.", and `AllClear` is 0. Mutation: keep `checks.notEverythingRestPassed` → `TestNotCheckedLead` red.
-- Given the mailbox owner's session and an `emailPoll` mark with `ok` 0 and the unreachable reason, when coverage is built, then the Mailbox row is `digest.notCheckedUnreachable`. With `ok` 1 and a recent `at`, the row is passed. Mutation: list the mailbox as passed whatever `ok` says → red.
-- Given an online-demo install, when either verb arrives or a Tick runs, then the verb answers `not_allowed`, no `source` row is written or run, and the demo path, `Test.Bridge.Gate` and the replay tests are unchanged.
+
+- Given a `SetSourcePoll` for a tool classified Read-only from an admin's session, when `McpOps` handles it, then one `BackgroundCheck` row of Kind `source` exists, owned by that session, with the server, the tool, the arguments as JSON and the interval. A risky or unclassified tool is refused with `not_read_only` and writes nothing. Mutation: skip the classification check → `TestSetRefusedNotReadOnly` red.
+- Given a session with a `source` row, when `Checks.Coverage.Build` runs (the Integration AC: consumer `Coverage`, reading the row that `McpOps` wrote), then the row is the entry named by `DisplayName`. It counts as checked only when its recorded runs in the window passed with gaps of at most `IntervalMinutes`×60+180 s; otherwise it is not checked with its reason (unreachable, error, timeout, stopped or missed). Mutation: keep the 180 s gap for a source → `TestSourceIntervalGap` red.
+- Given the mailbox owner's session and an `emailPoll` mark with `ok` 0 and the unreachable reason, when coverage is built, then the Mailbox row is `digest.notCheckedUnreachable`. With `ok` 1 and a recent `at` in the window it is passed. Mutation: list the mailbox as passed whatever `ok` says → `TestMailboxUnreachable` red.
+- Given the step 4 fixture (source "Jira" unreachable since 02:10 local, the other check passed), when the digest is composed, then its checks part leads with `digest.notCheckedUnreachable` {Jira, 02:10} and `checks.everythingElsePassed`, it renders as the two lines in the Tasks, and `AllClear` is 0. Mutation: keep `checks.notEverythingRestPassed` in the lead → `TestNotCheckedLead` red.
+- Given a server with sources, when `RemoveMcpServer` commits, then each of its `source` rows is removed and audited with one `CheckChanged`, and other servers' sources stay. Mutation: drop the `RemoveSources` call → `TestServerRemovedRemovesSources` red.
+- Given an online-demo install, when either verb arrives, then it answers `not_allowed` and no `source` row is written. The demo path and every existing `Test.Mcp.Ops` row are unchanged. Mutation: skip `Refusal` in `OnSetSource` → `TestOnlineDemoSources` red.
+
+### Review Findings
+
+Code review, 2026-11-14 (follow-up review; four layers, full mode). Patches applied in the review pass, each class green on the lane D warm stack (tag e22s5crw, torn down).
+
+- [x] [Review][Patch] HIGH (AD-28): a session whose only watched row was the Mailbox got `checks.allPassed` and AllClear 1 ("I checked the Mailbox. Everything I checked passed."), but AD-28 gives `checks.nothingWatched` when the session watches nothing. Fixed: `Verdict` treats Render's single Mailbox row as nothing watched; pinned by `TestMailboxOnlyNothingWatched` [src/ocutalon/cls/OcuTalon/Digest/Process.cls Verdict]
+- [x] [Review][Patch] MED: the lead with two or more not-checked rows had no test (cutting `Lead` to its first line stayed green); `TestNotCheckedLeadTwo` added [src/ocutalon/cls/OcuTalon/Test/Digest/Compose.cls]
+- [x] [Review][Patch] MED: `SaveSource`'s re-check under the server's lock was unpinned. It is reachable because `ClearChanged` and `RecordAttach` run in other jobs. Added the `OpsProbe` `Lock` seam and `TestSetRecheckUnderLock` [src/ocutalon/cls/OcuTalon/Test/Mcp/OpsProbe.cls, Test/Mcp/SourceSet.cls]
+- [x] [Review][Patch] MED (Rule 1): no test showed that the real McpOps sends `CheckChanged` to Checks. `TestSetUpdateRemove` now counts McpOps-to-Checks requests, and `TestRefusalsAtTheRoute` asserts none [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSetProduction.cls]
+- [x] [Review][Patch] MED (Rule 1): the Mailbox row was tested only through probe seams. `TestMailboxRealSeams` uses the real `email.owner` and the mark `Channel.Email.Adapter.Record` writes, then puts both back [src/ocutalon/cls/OcuTalon/Test/Digest/Coverage.cls]
+- [x] [Review][Patch] MED (Rule 19 hermeticity): the new online-demo asserts in `Test.Mcp.Ops` could leave a source row on a red run. They now delete the session's rows, inside 22.5's own added lines [src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls]
+- [x] [Review][Patch] LOW (Rule 19): AC2's integration test could not see the interval and had no `mutation:` line. It now records runs 15 minutes apart that pass only by the row's interval; mutation recorded [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls TestCoverageReadsTheSource]
+- [x] [Review][Patch] LOW (Rule 19): removed an assertion that could not fail (`$Data` right after `Kill`) [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls TestOnlineDemoSources]
+- [x] [Review][Patch] LOW: the cascade's warning now names the source's Ref, so an admin can remove a source that stayed [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls RemoveSources]
+- [x] [Review][Patch] LOW (Rule 14): the McpOps class doc left out `not_allowed`, `not_audited`, `failed`, the shared `Refusal`, the cascade's place in the order and the `SendChanged` seam. Corrected in 22.5's own bullets; 21.4's lines are unchanged [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls class doc]
+- [x] [Review][Patch] LOW: `KEYELSEPASSED` was inserted mid-class in an append-only file; moved to the end [src/ocutalon/cls/OcuTalon/Checks/Render.cls]
+- [x] [Review][Defer] MED: a source passes coverage on its latest run although earlier runs in the window were not checked. That is AD-18 rule 5, but the intent says "all passed", and no existing line says "recovered". DW-1326, decision-pending, owner 22.11 (reachable only once 22.11 records runs) [Checks/Coverage.cls WatchRow]
+- [x] [Review][Defer] MED: a source whose interval is longer than the digest span (for example a requested digest soon after the scheduled one) shows as stale (AD-18 rule 2). DW-1327, decision-pending, owner 22.11 [Checks/Coverage.cls WatchRow]
+- [x] [Review][Defer] MED: an update that repoints a source keeps `Reported` (22.11's seen hashes and baseline) and its run history. DW-1328, routed to 22.11 [Watch/Ops.cls SetSource]
+- [x] [Review][Defer] MED (Rule 20, lead): the spec's Spine updates (AD-18: source gap, `stopped`, the Mailbox entry; AD-28: `RestKey` and the lead) are not in the spine yet. This review adds one: the connected mailbox is not a watch (AD-28). DW-1329, open, owner 22.5, for the lead before merge [ARCHITECTURE-SPINE.md]
+- [x] [Review][Defer] LOW: a source named like a fixed coverage entry (Edge Case Hunter again). Occurrence added to DW-1325, which is with the Planner.
+
+Rejected:
+- `false`: races between SetSource and RemoveMcpServer or ClassifyTool, lock keys in another letter case, and a source moved after `SourcesOf` listed it (Blind Hunter, Edge Case Hunter, Acceptance Auditor). The McpOps item has `PoolSize="1"` (`Production.cls`), so its handlers never interleave. The other-job writers (`ClearChanged`, `RecordAttach`) are covered by the now-pinned re-check.
+- `false`: a name made only of no-break spaces slips past `bad_name`. Measured on slot D: `$ZStrip($C(160,160,160),"<>W")` is "", so the name is refused.
+- `false`: an empty-Server source row makes `Lock` throw. `SetSource` cannot write one, because the server is validated (as dispositioned in the implement review).
+- `false`: QA's `SourceSetProduction.cls` is uncommitted. Stage outputs are committed by the lead.
+- `false`: `TestNotCheckedLead` pins "the Jira". It pins today's rendering; a ruling on NEW public text 1 would bring its own change.
+- `low` (by-design): the not-checked line shows in the lead and again in the coverage list. The Tasks say the checks part becomes those lines, and this was recorded as a residual risk.
+- `low` (by-design): the arguments check refuses only `secret://` and `@{` (veto 1, AD-19), and its message is ruled public text.
+- `low`: an ok mailbox mark with a future time passes when `toUtc` is empty. The only product caller (`Digest.Rows`) always passes `WindowEnd`.
+- `low`: an ok mark newer than `toUtc` reads as stale; a failed mark from before the window is reported with its own time. Both are conservative (not checked), and the timing window is seconds.
+- `low`: a passed row with an unreadable time makes the lead print a passed line. Coverage always writes valid times.
+- `low`: `Lead` repeats `Verdict`'s four-line watched slicing; `Finish` uses Render's constant rather than `RestKey`'s return. Both are still Render's key; the fix adds parameters.
+- `low`: no real-path test of a server removal with sources (it restarts runner jobs; the probe pins it, as QA recorded); the lock-failure branches have no test.
+- `low`: a moved source's old server never logs the move, and leftover sources are not cleaned up automatically. Both need a failed audit write; the warning now names the Ref.
+- `low`: mid-class placement in `Mcp/Ops.cls`. Story 21.5 implements only after 22.5 merges (ruling D), so there is no merge-conflict risk.
+
+- [x] [Review] **R9-1 (Contest Planner ruling ~08:10Z Nov 14, item 2)**: in the digest's "I checked" list, a SOURCE row's name appears exactly as the admin typed it, with NO "the " before it (example: "I checked the Orders production, Jira and the mailbox."); every other entry keeps its "the ". It is one branch where `Digest/Process.cls` `Finish` builds `named` (L516 pushes `"the "_entry` today): the verdict must carry which checked entries are source rows (from the coverage rows' kind), and no new catalog string or key is added. Pin it with a test that renders a digest covering a production, a source named `Jira` and the mailbox and asserts the exact "I checked ..." text, with a `mutation:` line (restore the unconditional "the " -> red). ALSO report, without changing anything, how the mailbox entry renders in that same line (`Checks.Coverage` `ENTRYMAILBOX` is "Mailbox": if the text reads "the Mailbox" with a capital M, record that exact text under Design Notes for the lead to report; do NOT change `ENTRYMAILBOX` or any text). If the source branch cannot be done without a new catalog string, HALT `blocked` for a `PUBLIC TEXT:`.
+
+Code review, 2026-11-14 (R9-1 rework re-review, iteration 1; diff `e867f883..HEAD`; four layers, full mode). No HIGH. Checklist held: only a source row loses its "the " (`Verdict` flags a row only when its `kind` is the string `source`, and `checked` and `sources` are pushed in the same block, so they stay aligned); no catalog string, key or `ENTRYMAILBOX` changed; `kind` breaks no consumer of the rows (`Checks.Render` rebuilds rows without it, `Live.Payload.Part.CheckRow.ListFromJSON` copies only the four named fields, the web `CheckRow` fields are optional, eval digest cases carry no `kind` and expose only `Named` and `Checked`); "the Mailbox" (capital M) is reported in Design Notes and unchanged. NEW public text 1 ("the Jira") is superseded by R9-1: the digest now reads "Jira".
+
+- [x] [Review][Patch] MED (Rule 20): AD-18 still gave the digest's coverage rows as exactly `{result, entry, finding, checkedAt}`, but a source's row now also carries `kind`. Recorded in AD-18 as an amendment citing the Planner's ruling R9-1: only `Digest.Process` reads `kind`, and Render and the page's rows drop it [ARCHITECTURE-SPINE.md AD-18, digest `rows`]
+- [x] [Review][Patch] LOW: the rework's re-verification was narrower than what changed. Closed in this pass on the lane D warm stack (tag e22s5cr2w, torn down). Its image was built from this tree, so the doc-patched `Coverage.cls` was compiled. `Test.Digest.Compose`, `EvalCase`, `TelegramText` and `Send` passed. `TestCheckedListSourceBare` and `TestNotCheckedLead` each passed when run alone. The `Finish` mutation was shown red again (see `## Verification`).
+- [x] [Review][Defer] MED (outside the range, pre-existing): if a source named "Mailbox" is the session's only watch, the digest reads as nothing watched. It is never an all-clear, and AD-28 holds. Same root cause as DW-1325 (a source named like a fixed entry); occurrence appended, still decision-pending with the Planner. The row's `kind` can now tell the two apart [Digest/Process.cls Verdict nothingWatched]
+
+Rejected:
+- `low` (`wontfix-accepted`, reopen_if=the `kind` stamp in `Coverage.Build` moves inside the `Try`): no test drives a source's `WatchRow` into the Catch. The stamp sits after the Try/Catch, so it tags the Catch row today. Finding it would need a refactor, and the round-1 triage closed the same root cause.
+- `low`: the spec text still describes "the Jira" in three places: Public text NEW item 1, the first Auto Run Result's residual risk, and the round-1 rejected item. Fixing them means editing the spec under review. This block records that R9-1 supersedes them.
+- `low`: R9-1 appears only as a `[Review]` item, with no AC or matrix row. Fixing that means editing the spec. Its pinning tests have `mutation:` lines under `## Verification`.
+- `low`: the cycle-log `dev_complete` row (its `baseline_revision`, the missing `story_base`/`files`, a `spawn_at` that differs by 21 s) disagrees with the spec frontmatter. That row is lead bookkeeping, which this stage does not write; reported to the lead.
+- `false`: "`sources` reads the raw rows, against 'no verdict is made from the raw results'". The `Verdict` doc's bullets say `checked` and `sources` come from the watched rows. The Render-only sentence covers `checkKey`, `named` and `failed`. `sources` is a naming flag that never sets the key or AllClear.
+- `false`: "`kind` reaches stored payloads". It sits in the Notification's `Slots.rows` and in the Delivery's `CheckRows` JSON, but no reader reads it (`ListFromJSON` copies named fields only).
 
 ## Spec Change Log
 
+- 2026-11-14 (runner, orchestrator ruling ~07:45Z): **veto item 11 GRANTED** as a footprint extension: the additive contract appends in `Test/Data/Tables.cls` (BackgroundCheck's four columns) and `Test/Live/Payloads.cls` (`Payload.Check` `IntervalMinutes`), and the regenerated line in `web/src/app/live/payloads.ts` (generated, not hand-written web code, so the initial-bundle rule does not apply). These override the Never line for exactly those three edits. NEW public text 1 ("the Jira" in the I-checked list) is with the Planner and does not block implement: ship no new text.
+
 ## Review Triage Log
+
+### 2026-11-14 -- Review pass
+- verdicts: 22 findings -- high 0, medium 6, low 12, false 4, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind 1 and Edge 1 (one root cause): MailboxRow set `known` only after `Mark()` returned, so a throwing mark left no Mailbox row instead of `digest.notCheckedError` -- fixed (`known = 1` right after the owner check); pinned by `TestMailboxMarkUnreadable`, mutation recorded.
+  - `[low]` `[patch]` Blind 2 and Edge 4 (one root cause): the read-only check ran before the server lock, so a concurrent ClassifyTool could slip a source onto a risky tool -- fixed (`SaveSource` re-opens the tool under the lock and answers `not_found` / `not_read_only`); it is the same guard the early check applies, and the run side (22.11) stops such a source on its first run, so no test of the interleaving was added.
+  - `[low]` `[defer]` Blind 3 and Edge 7 (one root cause): a source can take a fixed coverage entry's name -- real, but the refusal needs a new public text (veto item 5), so it is in `deferred:`.
+  - `[low]` `[reject]` Blind 4: the `source_set` and `source_removed` audit entries omit the name and interval -- the spec pins the call shape `change,server,tool,outcome` (and AD-19 keeps arguments out); a spec-bound shape, `by-design`.
+  - `[medium]` `[patch]` Blind 5 and Gap 1 (one root cause): the `RemoveSources` failure path (one source fails, the removal stands, the loop continues) had no test -- `TestServerRemovedSourceFails` added with an OpsProbe seam; mutation recorded.
+  - `[medium]` `[patch]` Blind 6 and Gap 1: the probe's `changedError` switch was never used, so "a failed send is one warning" was unpinned -- `TestSendChangedFails` added; mutation recorded.
+  - `[low]` `[reject]` Blind 7: `SOURCEKIND` is defined in both `Checks.Process` and `Watch.Ops` -- both are named by the spec's tasks (each class's own constant), the value is a stored Kind, and `test-class-rules` is green; one-word constants, no divergence path worth a cross-class reference.
+  - `[false]` `[reject]` Blind 8 and Edge 5: `OnRemoveSource` locks the server read before the lock -- the removal is by Ref and `Watch.Ops` serialises every row write under `Lock(sessionRef)`, and removing the source the admin named is correct whichever server it points at.
+  - `[false]` `[reject]` Blind 9: the spec's Auto Run Result block still said ready-for-dev -- finalize writes it; not a defect of the diff.
+  - `[low]` `[patch]` Edge 2: an empty `toUtc` made `Apart` return 0, so any ok mark counted as passed -- fixed (the staleness is measured against now); `TestMailboxNoWindow`, mutation recorded.
+  - `[low]` `[reject]` Edge 3: a mark with `ok` neither 0 nor 1 is reported as an error at its own time instead of an unreadable mark at now -- both are `digest.notCheckedError`, not checked; cosmetic time difference, no false all-clear.
+  - `[low]` `[reject]` Edge 6: a hand-made source row with an empty Server would make `Lock` throw -- `SetSource` cannot create one (the server is validated), so only a hand-written row reaches it (`wontfix-theoretical`; it would then fail, never succeed wrongly).
+  - `[low]` `[reject]` Edge 8: shortening a source's interval marks earlier runs missed -- the direction is conservative (no false all-clear) and the update resets `NextDueAt`; the window heals in one interval (`wontfix-accepted`, reopen_if a story pins history across an interval change).
+  - `[medium]` `[patch]` Gap 2: no digest-level test with a failed, a not-checked and a passed row -- `TestNotCheckedLeadWithFailure` added (no lead, `checks.notEverythingRestPassed` names both, AllClear 0).
+  - `[low]` `[patch]` Gap 3: `Watch.Ops.RemoveSource`'s kind guard and `SourcesOf`'s exact match were tested only behind McpOps' pre-checks -- `TestWatchOpsRemoveSourceKind` added.
+  - `[low]` `[patch]` Gap 4: the cascaded `source_removed` entries asserted only the `change` word -- `TestServerRemovedRemovesSources` now asserts user, session, channel, server, tool and outcome.
+  - `[false]` `[reject]` Intent 1 (descriptive): the diff implements the admin, row and digest surfaces and not the poll run, Items or stop -- the spec's Scope paragraph (Planner ruling C) moves those to Story 22.11, and the lead's note binds; no defect.
+  - Rule 19: the reviewers found every added test able to fail, and every AC's pinning test has a `mutation:` line (twelve in all).
+
+### 2026-11-14 -- Review pass (R9-1 rework; follow-up pass, diff = the rework delta since HEAD e867f883)
+- verdicts: 8 findings -- high 0, medium 0, low 3, false 5, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind 3: the Coverage row-shape doc read as if Render reads `kind` -- reworded: `kind` is its own sentence and names its consumer (Digest.Process); doc only.
+  - `[low]` `[reject]` Blind 1 and Gap other 1 (one root cause): no `Test.Digest.Coverage` assertion on `kind` -- `TestNotCheckedLead` goes through the real `Coverage.Build` and pins the source row bare and the queue row with "the"; its renamed-`kind` mutation is recorded red; a second assertion adds nothing (`wontfix-accepted`).
+  - `[low]` `[reject]` Blind 2 and Gap other 2 (one root cause): `kind` goes on the last row, so a `WatchRow` that appends and then throws tags only the Catch row -- that row is the one the digest shows for the source, and it is the one that must be bare; a partial append before a throw does not exist in `WatchRow` (`wontfix-theoretical`).
+  - `[false]` `[reject]` Blind 4, Edge 1, Gap other 3 (one root cause): a row with no `kind` (an eval digest case's rows) reads "the Jira" -- a missing `kind` keeps the old text, no false all-clear; the eval result exposes only `checked` and `named` (not the rendered list), so nothing observable differs; no stored row carries digest rows.
+  - `[false]` `[reject]` Intent 1 (descriptive): the contract does not say how the "I checked" list names a source; the diff implements the Contest Planner's ruling R9-1 (bare name, no new text), and `TestNotCheckedLead`'s pin changed with that ruling, not shortened.
+  - `[false]` `[reject]` Intent 2 (descriptive): the `kind` member widens the coverage row shape -- it is the item's own requirement ("from the coverage rows' kind"); `Test.Core.WebChatOut` stays green, and no Lane B payload pin lists these rows.
+  - `[false]` `[reject]` Intent 3 (descriptive): `sources` added to the verdict -- the item's own requirement.
+  - `[false]` `[reject]` Intent 4 (descriptive): tests exercise the digest level while the intent's matrix is at coverage level -- both levels are pinned (`TestCheckedListSourceBare` at the digest, `TestNotCheckedLead` through `Build`).
+
+### 2026-11-14 -- Code review (R9-1 rework re-review, iteration 1; diff e867f883..HEAD)
+- verdicts: 10 findings -- high 0, medium 2, low 6, false 2, maybe-false 0 (Blind Hunter 6, Edge Case Hunter 1, Verification Gap 2, Acceptance Auditor 3, with overlaps)
+- `[medium]` `[patch]` Blind 3a: AD-18's coverage-row shape now records the source row's `kind` (Rule 20), citing the Planner's ruling. Fix-risk low (one spine sentence); in-story.
+- `[low]` `[patch]` Blind 4: re-verification closed in this pass (four classes, both pins alone, the mutation red again; lane D warm stack, torn down).
+- `[medium]` `[defer]` Edge 1: a lone source named "Mailbox" reads as nothing watched. Pre-existing and outside the range, not HIGH; occurrence appended to DW-1325 (decision-pending, owner burndown).
+- `[low]` `[reject]` Gap 1 (Catch-path `kind` untested), AA 1+2 with Blind 1 (stale "the Jira" text in the spec), Blind 2 (no AC row), Blind 5 (cycle-log fields): see Rejected under Review Findings.
+- `[false]` `[reject]` Blind 3b (`sources` from raw rows) and the informational note on `kind` in stored payloads (Gap other, AA info).
+- Rule 19: both pinning tests carry `mutation:` lines; the `Finish` one was re-demonstrated. Rule 3: the digest is exercised through the real `Handle` on IRIS, unchanged from round 1.
 
 ## Design Notes
 
 **Governing ADs (Rule 6):**
-- AD-1: commands; `web_admin` only.
-- AD-2: the bridge names no host class (`PollCall` is an extension).
-- AD-4: ownership.
-- AD-5: no state in memory.
-- AD-6: `tool` request kind, "from step 4, a source poll"; no model; throwaway.
-- AD-10: the gate, untrusted provenance, taint, the fingerprint at call time.
+- AD-1: commands, `web_admin` only (`Refusal`).
+- AD-4: the row belongs to the command's session.
+- AD-5: "due" and "stale" live on rows and the mark, never in memory.
+- AD-12: the payload is owned by its publisher's lane, and its TypeScript interface is generated in `web/`, which is why the lane exception covers `payloads.ts`.
 - AD-17: one audit writer.
-- AD-18: `BackgroundCheck`, the source row type, `Checks` the run writer, `CheckRun`, the coverage rules.
-- AD-21: "Source polls call `call_mcp_tool` through a `tool` request to `Decide`".
+- AD-18: the source row type, `Watch.Ops` the one creator, `Checks` the run writer, `CheckChanged`, the coverage rules.
+- AD-19: no secret in the arguments.
+- AD-21: the verbs; no MCP on the online demo.
 - AD-25: the demo.
-- AD-28: the all-clear only from `Render`.
+- AD-28: the all-clear and the reserved sentences come only from `Checks.Render` (`RestKey`).
 - AD-29: lanes.
-- AD-30: untrusted items to `Intake`.
-- AD-31: extensions.
-- AD-32: notices are catalog keys.
-- AD-33: one owner per table; `Checks` is the one publisher of `check`.
+- AD-32: catalog keys.
+- AD-33: one owner per table and event; `Checks` publishes `check`.
 
-No AC contradicts an AD's Rule. AD-10 is silent on polls, so S19 below records the rule.
+AD-6, AD-10 and the S-records S11 and S12 govern the poll and move with it to 22.11. No "S20" record exists in the spine at `6d36d945` (searched). No AC contradicts an AD's Rule, and no NFR trips Rule 5.
+
+**Moved to 22.11 (ruling C; one line each):**
+- `src/bridge/.../Poll.cls` (new): the poll runner on a governed proxy-only manager.
+- `Ext/McpServers.cls` `PollCall` (default `invalid`) and the `Mcp/Attach.cls` override.
+- `Mcp/Proxy.cls` `Listed`, and `NoteReplayRefusal` in poll contexts.
+- `Context.cls` `IsPoll` and `SeedMcp`.
+- `Policy/Gate.cls`: a poll admits only the proxy, with no grant and the untrusted rule.
+- `Adapter/Agent.cls`: a tool request with provenance `untrusted` goes to `Poll.Run`.
+- `Process/Decide.cls`: `Admit`, `RunnerFor`, and no `Decision` row for a poll.
+- `Checks/Process.cls` `RunSources`, `OnResponse` and `SourceItem` (the Tick block). 22.5 adds only the three parameters.
+- `Mcp/Ops.cls` `SourceStopped` (the `mcp.sourceStopped` notice).
+- `Test/Mcp/Mock.cls`: a settable `tools/call` answer.
+- Task 0 (the standalone manager and async-answer measurements).
+- The tests `Test/Mcp/SourceRun.cls`, `Test/Bridge/Poll.cls` and the Gate's poll rows, with the mutations `TestPollRuns`, `TestSeenBefore`, `TestStoppedNotifiesOnce`, `TestPollNoDecisionRow` and `TestPollNoGrant`.
+- The decided items on whole-answer results, the baseline, TriageAgent, the live listing, the Ref-only request, async runs, no Decision row and a stopped source that keeps recording.
+- The residual `Data.Precedent.KeyFor` (no key form for a poll Item).
+- `Digest.Data.CheckRun.Reason`'s doc gains `stopped` with 22.11, its first writer.
+
+**ACs already met by delivered code:** none. `Mcp/Ops.cls` L3 and its three `MapItem`s show no handler, so `CommandsIn` answers `failed` (DW-1137, by design until 22.5). `Coverage` has no source branch and no mailbox row (L4). `Render` never returns `checks.everythingElsePassed`. The prerequisites are delivered: the catalog keys (35.1), the verbs and routes (35.2), the `emailPoll` mark (21.2), and `Refusal`, `Unregister` and the 22.4 cancel (21.4, 22.4).
+
+**`Mcp/Ops.cls` edit order:** 22.4 (done), then 21.4 (done), then 22.5. 22.5 adds lines after 21.4's:
+- two `MapItem`s;
+- the L3 doc sentence replaced;
+- one call in `Unregister` after 21.4's `DropEntry` (L222);
+- appended methods and parameters;
+- `Answer` gains an optional `ref`.
+
+Story 21.5 (lane C) implements only after 22.5 merges (ruling D). 22.5 builds no Settings route, form, list or rail line; "Polled every {n} minutes" and `SettingsOps.ListMcp`'s `sources` are 21.5's. 21.5's spec relays this story's outcomes and `MESSAGE*` texts verbatim: `saved` with `Ref`, `removed`, `not_read_only`, `not_found`, `bad_name`, `bad_arguments`, `bad_interval`, `not_allowed`, `not_audited` and `failed`.
+
+**Lane exception (for the lead to route before implement; NEW, see Veto item 11).** The approved columns and payload member break three Lane B pins, which the intent's Never list forbids this story to edit:
+- `Test.Data.Tables` (the table contract);
+- `Test.Live.Payloads` (the payload contract);
+- `web/src/app/live/payloads.ts`, which the web build's `payloads.mjs --check` requires to match the class. Without it, the `web` job and every browser unit go red.
+
+Each is a mechanical append, with precedent: 22.4 and 22.7 each added one entry to `Test.Data.Tables`. `payloads.test.mjs` needs no change, because `IntervalMinutes` sits before the trace fields. Alternative, if the lead declines: move the payload member to 21.5. That is a scope move, owner-only. The column pin has no alternative, since the columns are AD-18's.
+
+**R9-1 (Planner ruling item 2): how the entries render in the "I checked" line.** A source row's name stands as typed, with no "the " (a source row carries `kind` "source" from `Checks.Coverage.Build`, and `Digest.Process.Verdict` hands the lead `sources`, parallel to `checked`). Every other entry keeps its "the ". Reported, not changed: the Mailbox entry (`ENTRYMAILBOX` "Mailbox") renders as "the Mailbox", with a capital M. Measured by `TestCheckedListSourceBare` (production, source "Jira", mailbox):
+- when a row failed or was not checked: `I checked the Orders production, Jira and the Mailbox.`
+- when every entry passed: `I checked the Orders production, Jira and the Mailbox (all running, no errors, no backlog).`
 
 **Decided in-stage:**
-1. **A result is the tool's whole text answer.** One new answer becomes one Item, de-duplicated by its SHA-256 against the newest 50 seen. The other readings were one Item per content part, or per JSON array element. Per part would need 22.3's proxy to return parts and would gain nothing for single-part tools such as the Jira example. 22.6 can document it.
-2. **The first successful run is a baseline.** It records what it saw and sends no Item, as a production watch does (AD-18), so setting up a source does not flood the decisions.
-3. **The poll runs on TriageAgent.** That is the `decide` runner. ChatAgent would queue polls behind users' turns. There is no new production item.
-4. **The call map comes from a live listing.** The listing goes through OcuTalon's client (`PollCall` → `Proxy.Listed`) in the runner job, so `ClassifyMcp` clears a changed tool exactly as a turn's map does (22.8). The proxy then re-lists before `tools/call`, which costs one extra `tools/list` per poll (2 s bound). The other options were seeding the stored fingerprint (a changed tool would never be cleared) or AI Hub's listing (the hang residual).
-5. **The request carries the source's Ref only.** Arguments stay in the row and never travel in a message.
-6. **Polls are asynchronous.** `OnResponse` records them, so a silent server never blocks the Tick's production checks. A synchronous send could hold `Checks` past `MISSEDSECONDS` and mark watches missed. `NextDueAt` advances at the send.
-7. **No `Decision` row for a poll.** It is no decision, it calls no model, and a row per poll would inflate `RunCost`'s decisions count (`Ownership` L1241).
-8. **A stopped source keeps recording.** It records a not-checked run at each interval (Reason `stopped`) and calls nothing, so the digest says why. It resumes by itself once the tool is Read-only again.
-9. **The limits.** The interval is 5 to 1,440 minutes and the arguments at most 4,000 characters, with no `secret://` or `@{`. The natural key is (session, `source`, name). The mailbox counts as stale after 900 s.
-10. **Any admin may remove any source.** A source belongs to the session that set it, for its Items and its digest.
-11. **Removing a server removes its sources.**
-12. **The digest lead.** It applies only when nothing failed, so the failed case keeps its pinned wording (UX L788). The duplicate line in the coverage list below matches the failed case's pattern.
-13. **No split inside this spec, but one is recommended (below).**
-
-**Split recommendation (for the lead, at the spec gate; product default 6).** The story touches about 17 source files.
-- **Part A** keeps 22.5 and can ship alone: the row, the verbs, coverage with the mailbox, the digest lead, the payload member. Its tests use `CheckRun` fixtures, and a source with no runs reads "didn't run", which is honest.
-- **Part B** would be a new story, 22.11 "Run source polls through the governed proxy": the bridge's poll, the run, the Items and the stop.
-
-The tasks are labelled for this split.
+1. **A Lane A test outside the intent's list.** `Test/Eval/Report.cls`'s value table must follow `FIELDS` (Rule 19). `Test.Eval.Watch` needs no edit once `FIELDS` names the new columns.
+2. **A command with no session row** answers `failed` with CommandsIn's existing `MESSAGEFAILED`. The admin route always sends one, so no new outcome or text is added.
+3. **The name.** It is trimmed, and a control character makes it `bad_name`. The natural key matches it in any letter case (`DisplayName`'s default collation), and an update stores the name as last given.
+4. **The arguments** are normalised by `%FromJSON`/`%ToJSON`, with member order kept. The length limit applies to that text, and `secret://` is matched in any letter case.
+5. **Transactions.** The row change and its audit entry share one transaction, as in `Unregister` (Rule 2: extend the sibling), instead of an undo. `CheckChanged` goes after the commit.
+6. **Names and locks.** The row stores the `Mcp.Server` row's own name, so `RemoveSources` finds it under `stored`. A remove locks the row's server.
+7. **The mailbox window rule is conservative (AD-28).** An ok mark outside the window, or more than 900 s before its end, is stale, never passed.
+8. **The digest lines.** The two sentences render as consecutive lines, because `DigestText` puts one piece on each line. The test pins both lines.
+9. **`digest.checked` composition is unchanged** ("the " + entry). See Public text NEW 1.
+10. **Approved items kept from the earlier plan:** the limits; any admin may remove any source; removing a server removes its sources; the lead applies only when nothing failed, so `TestPartOrder` and the failed case keep their wording.
+11. **`multiple-goals` is cleared.** What remains is one epic story's ACs about one source entry's place on the coverage list.
 
 **Extend, don't copy (Rule 2):**
-- `Poll.Run` follows `Replay.Execute`'s shape but runs no approval steps, so it is a separate class rather than a branch: the approval gate (`StartExecution`) must never apply to a poll.
-- `Proxy.Listed` shares `Call`'s prefix. `SourceStopped` extends `Notify`/`Send`. `SetSource` follows `OnStart`.
-- The run reuses `DueOf`, `Record`, `SendOwn` and `Announce`. The coverage reuses `WatchRow`'s streak, and the mailbox reuses `Add`.
+- `SetSource` extends `OnStart`'s row write; `RefOf` gains a branch.
+- `OnSetSource` and `OnRemoveSource` follow `OnClassify` with `Unregister`'s transaction; `Answer` follows `Watch.Ops.Answer`.
+- `MailboxRow` reuses `Add`; the stopped streak reuses the unreachable streak's loop.
+- `RestKey` reads Render's own ordered rows.
+- **A copy, with its reason:** McpOps' `Changed`/`SendChanged` (about 15 lines) repeat `Watch.Ops.Changed`/`SendChanged`, because a `SendRequestAsync` must be made by the sending item's own instance.
 
-**Integration ACs (Rule 1):** these are new:
-- `Bridge.Poll`, `McpServersClass.PollCall`, `Watch.Ops.SetSource`/`RemoveSource`/`SourcesOf`, `Mcp.Ops.SourceStopped`, `Render.RestKey`, `Coverage.MailboxRow` and the `intervalMinutes` member.
-
-Their consumers in this story are real:
-- `Checks` → `Decide` → TriageAgent → `Intake`, which produces an ItemDecision (AC 3);
-- `Digest` → `DigestText`, which produces the rendered sentence (AC 6);
-- `McpOps` → `Checks`, which publishes the `check` event (AC 4).
+**Integration ACs (Rule 1):** the new surfaces are `Watch.Ops.SetSource`/`RemoveSource`/`SourcesOf`, McpOps' two handlers, `Render.RestKey`, `Coverage.MailboxRow` and the `intervalMinutes` member. Their consumers in this story:
+- `Checks.Coverage.Build` reads the row that `McpOps` wrote (AC 2, `TestCoverageReadsTheSource`);
+- `Digest` → `DigestText` renders the lead (AC 4);
+- `Live.Payload.Check.FromRow`, which `Checks.Changed` and `/v1/state` use, carries `intervalMinutes`.
 
 **Consumes:**
-- 22.2: the rows and the read-only classification.
-- 22.3: `call_mcp_tool`, `Proxy`, `Client.ListTool`, `McpToolref` and the `MCP` audit.
-- 22.4: `ProxyManager`, `NoteReplayRefusal` and `Attach.Toolref`. The hold path is not used: a poll is never held.
-- 22.8: `ClassifyMcp` and `ClearChanged`.
-- 22.9: the bounds.
+- 22.2: the tool rows and classifications.
+- 21.4 and 22.4: `Refusal` and `Unregister`.
+- 35.1 and 35.2: the verbs and keys.
 - 17.5-17.7: coverage and the digest.
 - 21.2: the `emailPoll` mark.
-- 35.1/35.2: the verbs and the accepted keys.
+- 23.7: the queue row, the precedent for a non-production kind.
 
 **Consumed-by:**
-- 21.5 (Lane B): the Settings form submits both verbs, and the rail renders a source's schedule from `intervalMinutes`.
-- 22.6: documents polls, whole-answer results, the baseline and the stop.
-- 22.10: keeps `PollCall`'s listing on OcuTalon's client.
+- 22.11: it runs the rows (`Server`, `Tool`, `Arguments`, `IntervalMinutes`, `NextDueAt`), writes `REASON*` findings and `stopped` runs, and sends `mcp.sourceStopped`.
+- 21.5: the form, the list and the rail's schedule line, from the verbs, outcomes, columns and `intervalMinutes`.
+- 22.12: the docs.
+- 23.8: `sql_query` rows are scheduled by `IntervalMinutes` (AD-18).
 
-**Contended edits (for the lead to route before implement):**
-- `Mcp/Ops.cls` (Epic 21, lane C) -- **non-append changes, so they go to the orchestrator:**
-  - two `MapItem`s inside `MessageMap`;
-  - the class-doc sentence at L3 replaced;
-  - one call inserted in `Unregister` after the commit, where 22.4 also inserts.
+**Contended edits (for the lead):**
+- `Mcp/Ops.cls`: the edit order above.
+- `Checks/Process.cls`: appended parameters only.
+- `Data/BackgroundCheck.cls`: appended; 23.8 appends after it, from storage value 20.
+- `Checks/Coverage.cls`, non-append: `WatchRow`'s gap and streak, two `$Case` arms, one call in `Build`, the doc.
+- `Checks/Render.cls`: append only.
+- The lane exception above.
 
-  Everything else is appended methods and parameters.
-- `Checks/Process.cls` and `Data/BackgroundCheck.cls` (Story 36.1, plain-union ruling):
-  - `Process`: one Try block inserted in `Tick` and a class-doc bullet; the rest is an appended block plus `OnResponse`;
-  - `BackgroundCheck`: appended properties and storage values 16-19.
-- `Checks/Coverage.cls` and `Checks/Render.cls` (Checks plain-union):
-  - `Coverage`, non-append: `WatchRow`'s gap and streak, two `$Case` arms, one call in `Build`, one doc line;
-  - `Render`: append only.
-
-**Ledger inbox (Rule 17):** (none). DW-1210 and DW-1211 belong to 22.10, not here.
-
-**Residual for the lead to route:** `Data.Precedent.KeyFor` (Lane B) has no key form for a poll Item (channel `system` without `Slots.production` gives ""). AD-21 names "the source for … polls", so precedents do not yet learn from source Items. Suggested owner: a Lane B story; this goes through the lead, never this stage.
+**Ledger inbox (Rule 17):** `LEDGER slice 22-5-poll-a-read-only-mcp-tool-as-a-source` is empty.
 
 **Spine updates for the lead (Rule 20):**
-- S19 (AD-6 and AD-10): a `tool` request with provenance `untrusted` is a source poll:
-  - its Input is `{"source": Ref}`, and it runs on the `decide` runner;
-  - it runs exactly one `call_mcp_tool` on a governed proxy-only manager, with the map seeded by `PollCall`;
-  - the gate admits only the proxy, with no grant and the untrusted rule;
-  - there is no Decision row or event, and the Reply carries the answer text and a reason word.
-- S20 (AD-31): `McpServersClass.PollCall`, default `invalid`.
-- S21 (AD-18): the source columns; async runs; whole-answer results with a baseline; stopped runs with one `mcp.sourceStopped`; the `CheckRun` Reason `stopped`; the gap of interval + 180 s; the Mailbox entry from `emailPoll`; sources removed with their server.
-- S22 (AD-28): `Render.RestKey` and the digest's not-checked lead.
+- AD-18: the source columns; the gap of interval + 180 s; the Mailbox entry from `emailPoll` (owner session only, 900 s, the conservative window); sources removed with their server; the CheckRun Reason `stopped` mapping.
+- AD-28: `Render.RestKey` and the digest's not-checked lead.
+
+The poll records (the earlier plan's S19 to S21 run parts) go with 22.11.
 
 ## Veto items
 
+Approved by the Contest Planner (veto 1-10), kept verbatim. The scope tags in brackets are new.
+
 1. **Stored columns.** `OcuTalon.Data.BackgroundCheck` gains `Server`, `Tool`, `Arguments` (the admin's JSON; never a secret: `secret://` and `@{` are refused) and `IntervalMinutes`, appended to the default storage. There is no new table, and retention is unchanged (rows live until removed; `CheckRun` keeps AD-27's purge).
    - Online demo: never written.
+   - [22.5]
 2. **A stored value.** `Digest.Data.CheckRun.Reason` gains `stopped`.
    - Online demo: never written.
+   - [22.5 maps it in coverage; 22.11 writes it]
 3. **Outward actions.** Each due poll sends one `tools/list` (the seed) and then the proxy's `initialize`, `tools/list` and `tools/call` to an admin-registered server, every 5 to 1,440 minutes, bounded at 2/2/2/20 s.
    - Online demo: none (no row; `MCPDEMO`).
+   - [22.11]
 4. **Security posture.**
    - A poll runs with provenance `untrusted`, so only a Read-only tool runs, and it is never held.
    - The answer text is stored in the Reply message and the Item, as an email's body is (untrusted).
    - Arguments are only in the row, never in a message, log or audit entry.
    - Online demo: unchanged.
+   - [22.5 keeps arguments out of every audit entry, log and notice; the rest is 22.11's]
 5. **An access rule.** Any admin may set or remove a source (origin `web_admin`). A source's Items and digest entry belong to the session that set it.
    - Online demo: refused.
+   - [22.5]
 6. **Notices.** The accepted `mcp.sourceStopped` goes to every admin session on a stop.
    - Online demo: never sent.
+   - [22.11]
 7. **Bridge request semantics and the extension (S19, S20).**
    - Online demo: no change.
+   - [22.11]
 8. **A live payload member.** The `check` event and `/v1/state` gain the optional member `intervalMinutes`.
    - Online demo: empty for every row.
+   - [22.5]
 9. **An AC part moved (veto window 7 and 8).** "So the page shows the source's schedule" needs a `source` branch in Lane B's `web/src/app/rail/rail-view.ts`.
    - This story already delivers the generic last run and result (L244-263) and publishes `nextDueAt` and `intervalMinutes`.
    - Proposed: a `DW-n` bullet on Lane B's Story 21.5 to render "Polled every {n} minutes" (text below, for 21.5's approval). Alternative: a ruled lane exception like 22.4's R1, a plain union with Epic 23's rail work.
    - Online demo: no sources.
+   - [ruled: 21.5]
 10. No new route, privilege, role, grant, resource, production item, retention or web dependency.
+    - [holds for 22.5]
+11. **NEW: a lane exception (not a veto category; listed for visibility).** Three Lane B files each get a mechanical edit (Design Notes):
+    - one generated line in `web/src/app/live/payloads.ts`;
+    - one contract entry in `Test/Live/Payloads.cls`;
+    - four in `Test/Data/Tables.cls`.
+
+    It adds no web dependency, route or behaviour. Online demo: no change.
 
 ## Public text
 
-**New (needs approval):**
+**Approved (the nine strings, verbatim):**
 
 | File / parameter | Where it shows | Text |
 | --- | --- | --- |
-| `Checks/Process.cls` `REASONSOURCEUNREACHABLE` | a source's finding (rail, coverage row) | "Couldn't reach its MCP server" |
-| `Checks/Process.cls` `REASONNOTREADONLY` | a stopped source's finding | "Its tool is no longer Read-only" |
+| `Checks/Process.cls` `REASONSOURCEUNREACHABLE` | a source's finding (rail, coverage row), written by 22.11 | "Couldn't reach its MCP server" |
+| `Checks/Process.cls` `REASONNOTREADONLY` | a stopped source's finding, written by 22.11 | "Its tool is no longer Read-only" |
 | `Checks/Coverage.cls` `ENTRYMAILBOX` | the digest's coverage entry | "Mailbox" |
 | `Mcp/Ops.cls` `MESSAGENOTREADONLY` | the Settings answer (21.5) | "Only a Read-only tool can be a source. Nothing was changed." |
 | `Mcp/Ops.cls` `MESSAGESOURCENAME` | the Settings answer | "A source's name is 1 to 100 characters. Nothing was changed." |
@@ -422,67 +511,69 @@ Their consumers in this story are real:
 | `Mcp/Ops.cls` `MESSAGESOURCEINTERVAL` | the Settings answer | "A source is polled every 5 to 1,440 minutes. Nothing was changed." |
 | `Mcp/Ops.cls` `MESSAGENOSOURCE` | the Settings answer | "There is no source with that reference. Nothing was changed." |
 | `Mcp/Ops.cls` `MESSAGESOURCEREMOVED` | the Settings answer | "The source was removed." |
-| (for 21.5, not shipped here) the rail's `checkScheduleSource` | the rail | "Polled every {n} minutes" |
+
+"Polled every {n} minutes" belongs to 21.5 and is not shipped here.
+
+**NEW (for the Planner):**
+1. **The digest's "I checked" part with source and mailbox entries.** The existing `digest.checked` composition puts "the " before every watched entry. A digest that watches the Orders production, a source "Jira" and the mailbox therefore reads "I checked the Orders production, the Jira and the Mailbox." No string is added or changed, but the rendering is new. Online demo: no source or mailbox row, so it never shows there.
+
+   Recommended: accept for this release. Alternative: a follow-up story that names source rows without "the ", which needs the row's kind on the coverage row (a shared-surface change).
 
 **Existing, reused:**
-- **From UX/PRD:** EXPERIENCE.md L173 and L611, UX-DR106 and UX-DR122: "Not checked: Jira (unreachable since 02:10). Everything else I checked passed.", built from `digest.notCheckedUnreachable` and `checks.everythingElsePassed`.
-- **From 35.1** (accepted, planner-2026-11-09-35.1): `mcp.sourceStopped` and `digest.notCheckedStopped`.
+- **From UX/PRD:** EXPERIENCE.md L173 and L611, UX-DR106, UX-DR122: "Not checked: Jira (unreachable since 02:10). Everything else I checked passed.", built from `digest.notCheckedUnreachable` and `checks.everythingElsePassed`.
+- **From 35.1** (accepted): `digest.notCheckedStopped`.
 - **Already in use:**
-  - `digest.notCheckedError`, `digest.notCheckedStale` and `digest.notCheckedTimeout`;
-  - `REASONTIMEOUT` "No answer in time" and `REASONREAD` "Couldn't be read";
-  - `MESSAGESAVED` "Saved", `MESSAGENOSERVER` and `MESSAGENOTOOL`;
-  - `CommandsIn`'s refusal texts;
-  - 22.3's step label "Running {tool} on {server}" and its `MCP*` refusals.
-- **Not product text:** the Item's Subject is the admin's own source name.
+  - `digest.notCheckedError`, `digest.notCheckedStale` and `digest.notCheckedMissed`;
+  - `FINDINGSTALE`;
+  - the email adapter's `REASON*` texts, as the mailbox row's finding;
+  - `MESSAGESAVED`, `MESSAGENOSERVER` and `MESSAGENOTOOL`;
+  - CommandsIn's `MESSAGEFAILED` and its refusal texts.
 
-**Findability (proposed, not decided):** no More to try item, because the feature is admin-only, MCP is off on the online demo, and there is no UI until 21.5. Story 22.6 carries the public explanation and could add a "New since 1.0.0" line beside its worked Jira example.
+**Findability:** none in this story, because there is no UI until 21.5. Story 22.12 documents the source.
 
 ## Verification
 
-Each `ci/iris.sh` call carries the lane's variables: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=22 stage=implement'`.
-- Check `ci/warm.sh status` first.
-- Run `OCUTALON_RUN_TAG=e22s5iw ci/warm.sh up` once, then `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e22s5iw` on each class call.
-- Run `ci/warm.sh down` at the end, even after a failure.
-- One class per foreground call, with `timeout: 600000`; each must finish inside about 150 s.
-- Never two `iris_execute_tests` calls in one message. Pass `server` `ocutalon-slot-d` and `namespace` `OCUTALON` on every IRIS MCP call.
+Each `ci/iris.sh` and `ci/warm.sh` call carries the lane's variables:
+`OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=22 stage=implement'`.
+- Warm runs add `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e22s5iw`; fresh runs use `OCUTALON_RUN_TAG=e22s5i`.
+- Run one class per foreground call, with `timeout: 600000`. Each must finish inside about 150 s.
+- Never put two `iris_execute_tests` calls in one message. Pass `server` `ocutalon-slot-d` and `namespace` `OCUTALON` on every IRIS MCP call (read-only lookups).
 
 **Commands:**
-- (loop) `ci/iris.sh class OcuTalon.Test.Mcp.SourceSet` -- expected: `CLASS … passed`
-- (loop) `ci/iris.sh class OcuTalon.Test.Mcp.SourceRun` -- expected: passed (warm stack, production)
-- (loop) `ci/iris.sh class OcuTalon.Test.Bridge.Poll` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Bridge.Gate` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Bridge.Decide` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Bridge.Ext` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Mcp.Ops` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Mcp.Proxy` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Checks.Queues` -- expected: passed (the Tick is unchanged for queues)
-- (loop) `ci/iris.sh class OcuTalon.Test.Checks.Runs` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Checks.Render` -- expected: passed (`RestKey` rows added here)
-- (loop) `ci/iris.sh class OcuTalon.Test.Digest.Coverage` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Digest.Compose` -- expected: passed (`TestPartOrder` unchanged)
-- (loop) `ci/iris.sh class OcuTalon.Test.Digest.AllClear` -- expected: passed
-- (loop) `ci/iris.sh class OcuTalon.Test.Digest.TelegramText` -- expected: passed
-- (loop) `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-ci-config.sh` -- expected: exit 0
+- (once) `ci/warm.sh status`, then `OCUTALON_RUN_TAG=e22s5iw ci/warm.sh up` -- expected: a ready warm stack.
+- (loop) Warm, each `ci/iris.sh class <Class>` -- expected: `CLASS … passed`:
+  - `OcuTalon.Test.Mcp.SourceSet`
+  - `OcuTalon.Test.Mcp.Ops`
+  - `OcuTalon.Test.Bridge.Audit`
+  - `OcuTalon.Test.Checks.Render`
+  - `OcuTalon.Test.Digest.Coverage`
+  - `OcuTalon.Test.Digest.Compose`
+  - `OcuTalon.Test.Digest.AllClear`
+  - `OcuTalon.Test.Eval.Watch`
+- (once) Warm, each `ci/iris.sh class <Class>` -- expected: passed:
+  - `OcuTalon.Test.Eval.Report`
+  - `OcuTalon.Test.Watch.Ops`
+  - `OcuTalon.Test.Core.CommandsStep4`
+  - `OcuTalon.Test.Digest.TelegramText`
+  - `OcuTalon.Test.Digest.RecordTrigger`
+  - `OcuTalon.Test.Checks.Runs`
+  - `OcuTalon.Test.Checks.Queues`
+- (once, after the lane exception) Warm, `ci/iris.sh class OcuTalon.Test.Data.Tables` and `ci/iris.sh class OcuTalon.Test.Live.Payloads` -- expected: passed.
+- (once) `cd web && node scripts/payloads.mjs --check && node --test scripts/payloads.test.mjs` -- expected: exit 0.
+- (once) `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-storage.sh` and `bash docker/tests/test-ci-config.sh`, one per call -- expected: exit 0.
+- (once) `OCUTALON_RUN_TAG=e22s5iw ci/warm.sh down` -- also after a failure.
+- (once) Fresh: `OCUTALON_RUN_TAG=e22s5i ci/iris.sh class OcuTalon.Test.Mcp.SourceSet`, then `OCUTALON_RUN_TAG=e22s5i ci/iris.sh teardown` -- expected: passed on a fresh stack, then torn down.
 
-There are no `(once)` lines. CI runs the full suite, and the lead runs Rule 19's fresh-environment check.
-
-**CI:** new_units: none. There is no new live unit and no new group. The new classes join existing shard pieces:
-- `Test.Mcp.*` in `shard:lane-a@rest` (group `shards-2`, about 1,636 s of units planned against the 32-minute cap of 1,920 s, so about 280 s of headroom; this story adds about 60 to 120 s (inference));
-- `Test.Bridge.Poll` in `shard:lane-a@Bridge` (`shards-9`, about 1,665 s planned, so about 255 s of headroom);
-- the `Test.Digest` methods in `shard:lane-a@Install,Digest,Eval` (`shards`, a few seconds).
+**CI:** no new unit or group. `Test.Mcp.SourceSet` joins `shard:lane-a@rest` (`shards-2`), and the `Test.Digest` methods join `shard:lane-a@Install,Digest,Eval` (`shards`), each a few seconds (inference). A web-input change (`Live/`, `web/`) also runs the `web` job.
 
 **Shared surfaces:**
-- the `BackgroundCheck` columns;
-- the `check` payload's members;
-- `MCPCHANGES`;
-- the `CheckRun` Reason values;
-- the coverage rows, now with the Mailbox entry (tests that count rows: `Test.Digest.*`);
-- the digest's checks part in the not-checked case;
-- `Decide.Admit`'s tool rule;
-- the gate's `replay` rule;
-- `Ext.McpServers` (`Test.Bridge.Ext`);
-- the mock's `tools/call` answer;
-- `Ownership.AdminSessions` notices.
+- `BackgroundCheck`'s columns: `Test.Data.Tables`, `Test.Eval.Watch` `FIELDS`, and `Test.Eval.Report`'s value table. `Fields` JSON in `Test.Eval.In` and `WatchOwners` stays consistent by construction.
+- The `check` payload's members: `Test.Live.Payloads`, `web/src/app/live/payloads.ts` and `payloads.test.mjs`.
+- `MCPCHANGES` and `CALLCHANGES`: `Test.Bridge.Audit`.
+- The `CheckRun` Reason values (`stopped`).
+- The coverage rows: the Mailbox row appears only for the mailbox owner's session.
+- The digest's checks part when nothing failed and something was not checked.
+- McpOps' `MessageMap` and `Answer`.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
@@ -491,16 +582,74 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | Mutation | Test that goes red |
 | --- | --- |
 | Skip the read-only check in `OnSetSource` | `TestSetRefusedNotReadOnly` |
-| The poll calls the native tool, or bypasses the gate | `TestPollRuns` |
-| Skip the `seen` check | `TestSeenBefore` |
-| Send the stop notice on every stopped run | `TestStoppedNotifiesOnce` |
-| Keep `checks.notEverythingRestPassed` in the lead | `TestNotCheckedLead` |
 | A source keeps the 180 s gap | `TestSourceIntervalGap` |
 | Mailbox passed whatever `ok` says | `TestMailboxUnreachable` |
-| A poll writes a Decision row | `TestPollNoDecisionRow` |
-| The gate requires a grant in a poll | `TestPollNoGrant` |
+| Keep `checks.notEverythingRestPassed` in the lead | `TestNotCheckedLead` |
+| Drop `RemoveSources` from `Unregister` | `TestServerRemovedRemovesSources` |
+| Skip `Refusal` in `OnSetSource` | `TestOnlineDemoSources` |
+| `KeyOf` maps `stopped` to the error key | `TestStoppedStreak` |
+| `RestKey` ignores failed rows | `TestRestKey` |
+
+**Mutations observed (implement stage; each applied, seen red on the warm stack, reverted byte-identical with `git status --short` and `git diff --stat` unchanged):**
+
+- AC1 `mutation:` skipped the `read-only` check in `OnSetSource` -> `TestSetRefusedNotReadOnly` red (5 asserts: both refusals, no row, no `CheckChanged`, no audit entry).
+- AC2 `mutation:` a source keeps the 180 s gap (removed the interval gap line in `WatchRow`) -> `TestSourceIntervalGap` red (the 15-minute and the edge sources become missed).
+- AC3 `mutation:` the mailbox row passes whatever `ok` says (`If (mark.ok = 1) || (mark.ok = 0)`) -> `TestMailboxUnreachable` red (4 asserts).
+- AC4 `mutation:` kept `checks.notEverythingRestPassed` in the lead (`If lead.%Size() > 0` made `If 0`) -> `TestNotCheckedLead` red.
+- AC5 `mutation:` dropped the `RemoveSources` call from `Unregister` -> `TestServerRemovedRemovesSources` red (sources stay, no `CheckChanged`, audit order).
+- AC6 `mutation:` skipped `Refusal` in `OnSetSource` -> `TestOnlineDemoSources` red (the set is carried out on the demo, by the probe's switch and by the real setting).
+- `mutation:` `KeyOf` maps `stopped` to the error key -> `TestStoppedStreak` red (4 asserts).
+- `mutation:` `RestKey` ignores failed rows -> `TestRestKey` red ("one failed row: no key").
+- `mutation:` set `known = 1` only after `Mark()` returns in `MailboxRow` -> `TestMailboxMarkUnreadable` red (no Mailbox row for an unreadable mark).
+- `mutation:` `MailboxRow` measured the staleness against `toUtc` when it is empty (`Apart(at, toUtc)`) -> `TestMailboxNoWindow` red (a mark days old passed).
+- `mutation:` the `Changed` warning path rethrows -> `TestSendChangedFails` red (the set is not answered).
+- `mutation:` `RemoveSources` stops at the first failed source -> `TestServerRemovedSourceFails` red (the second source stays, no `CheckChanged`, no audit entry for it).
+
+**QA stage (2026-11-14; lane D warm throwaway, tag e22s5qw, torn down).** Every other 22.5 AC and matrix row named in the QA brief already has a pinning test with a `mutation:` line above (the online-demo refusal of both verbs, an admin removing another session's source, a removed server removing its sources, the interval and argument limits). The one gap was the real path: all of `Test.Mcp.SourceSet` calls McpOps' handler through a probe's shadow instance, so nothing ran `Commands.Submit` -> real `CommandsIn` route -> the running McpOps job -> the real audit writer for the source verbs.
+
+- (QA) new test file `src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSetProduction.cls` (3 tests, extends `Test.Core.InProduction`, runs in throwaways and CI only, one class per call: `ci/iris.sh class OcuTalon.Test.Mcp.SourceSetProduction`). A McpOps item job reads its message map and code when it starts, so each mutation below was applied, the class reloaded by a first run, the `McpOps` item disabled and enabled in the warm container, and the class run again.
+- (QA) `mutation:` changed the `SetSourcePoll` MapItem's MessageType in `Mcp/Ops.cls` so the real McpOps no longer handles the verb -> `TestSetUpdateRemove` red ("the set is carried out by McpOps", "the answer's Ref names a row"), and `TestRefusalsAtTheRoute` and `TestOnlineDemoReal` red on their controls.
+- (QA) `mutation:` skipped the read-only check in `OnSetSource` and in `SaveSource` (`If 0 Quit`) -> `TestRefusalsAtTheRoute` red (risky tool not refused, row and audit entry written).
+- (QA) `mutation:` skipped `Refusal` in `OnSetSource` and `OnRemoveSource` (`Set response = ""`) -> `TestOnlineDemoReal` red (set and removal carried out on the demo setting, row changed, audited).
+- Each mutation was reverted by restoring the saved copy (`cmp` identical); `git status --short` showed only the new test file and `git diff --stat` was empty before and after. The class then passed twice more after a McpOps restart (hermetic: rerun order-free; `OnAfterOneTest` restores the `onlineDemo` setting and removes the source rows, tool rows and server row, and asserts none is left). `test-class-rules.sh` and `test-ci-config.sh` exit 0; `ci/iris.sh classes` lists the class (discoverable in the default run).
+- (code review) `mutation:` AC2 integration: removed the interval gap line in `WatchRow` -> `TestCoverageReadsTheSource` red (the McpOps-written row's runs 15 minutes apart are missed).
+- (code review) `mutation:` `Verdict` back to `nothingWatched = (ordered.%Size() = 0)` -> `TestMailboxOnlyNothingWatched` red (a Mailbox alone gives `checks.allPassed`; 5 asserts).
+- (code review) `mutation:` `Lead` keeps only its first not-checked line -> `TestNotCheckedLeadTwo` red.
+- (code review) `mutation:` deleted the server and tool re-check in `SaveSource` -> `TestSetRecheckUnderLock` red (3 asserts).
+- (code review) `mutation:` `SendChanged` returns OK without sending (McpOps restarted after the reload) -> `SourceSetProduction` `TestSetUpdateRemove` red (3 asserts).
+- (code review) `mutation:` `Coverage.MailOwner()` returns "" -> `TestMailboxRealSeams` red (2 asserts).
+- (code review) Each mutation was restored from a saved copy (`cmp` identical); `git status --short` and `git diff --stat` matched the pre-mutation baseline. After the restore and a McpOps restart, `Test.Mcp.SourceSet`, `Test.Mcp.SourceSetProduction`, `Test.Mcp.Ops`, `Test.Digest.Compose`, `Test.Digest.Coverage`, `Test.Checks.Render`, `Test.Digest.AllClear`, `Test.Digest.TelegramText` and `Test.Digest.EvalCase` passed on the warm stack; `test-boundaries.sh` and `test-class-rules.sh` exit 0.
+- (R9-1 rework; lane D warm throwaway, tag e22s5jw, torn down) `mutation:` restored the unconditional `"the "_entry` before each checked entry in `Digest/Process.cls` `Finish` -> `TestCheckedListSourceBare` red (4 asserts: the `checked` slot and the rendered line, for the quiet and the failed variant) and `TestNotCheckedLead` red (1 assert); reverted from a saved copy (`git status --short` and `git diff --stat` identical to before). `mutation:` `Coverage.Build` sets the source row's `kind` under another name -> `TestNotCheckedLead` red (1 assert: the real rows carry no kind, so "the Jira" returns). After the revert: `Test.Digest.Compose`, `Test.Digest.Coverage`, `Test.Digest.AllClear`, `Test.Core.WebChatOut`, `Test.Msg.Catalog` and `Test.Mcp.SourceSet` passed; `test-class-rules.sh` and `test-boundaries.sh` exit 0.
+- (R9-1 re-review; lane D warm throwaway, tag e22s5cr2w, torn down) `mutation:` restored the unconditional `"the "_entry` in `Digest/Process.cls` `Finish` -> `TestCheckedListSourceBare` red again; reverted from a saved copy (`cmp` identical; `git status --short` and `git diff --stat` unchanged). After the revert, `Test.Digest.Compose` passed. Before the mutation, `Test.Digest.Compose`, `Test.Digest.EvalCase`, `Test.Digest.TelegramText` and `Test.Digest.Send` passed, and `TestCheckedListSourceBare` and `TestNotCheckedLead` each passed when run alone.
+- Not added: a real-path `RemoveMcpServer` with sources (it restarts the runner jobs, as `Test.Mcp.Attach` `TestCommands` shows; `TestServerRemovedRemovesSources` and `TestServerRemovedSourceFails` pin the cascade through the probe, with their `mutation:` lines above).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Part A of Story 22.5: the `source` row, the two McpOps verbs (`SetSourcePoll`, `RemoveSourcePoll`) with their audit and `CheckChanged`, sources removed with their server, the coverage side (source gap of interval x 60 + 180 s, the `stopped` streak, the Mailbox row from `emailPoll`), `Render.RestKey` and the digest's not-checked lead, and the `intervalMinutes` payload member. Nothing runs a `source` row yet (Story 22.11).
+
+**Files changed** (under `src/ocutalon/cls/OcuTalon/` unless noted):
+- `Data/BackgroundCheck.cls`: `Server`, `Tool`, `Arguments`, `IntervalMinutes` (storage 16-19).
+- `Watch/Ops.cls`: `SOURCEKIND`, `FIELDS`, `RefOf` branch, `SetSource`, `RemoveSource`, `SourcesOf`.
+- `Mcp/Ops.cls`: the two handlers, `SaveSource`, `RemoveRow`, `RemoveSources` (called from `Unregister`), `Changed`/`SendChanged`, `Normalised`, the five public texts and limits.
+- `src/bridge/cls/OcuTalon/Bridge/Audit.cls`: `source_set` and `source_removed` take the MCP call shape.
+- `Checks/Process.cls`: `SOURCEKIND`, `REASONSOURCEUNREACHABLE`, `REASONNOTREADONLY`.
+- `Checks/Coverage.cls`: source gap, `KEYSTOPPED`, reason maps, `MailboxRow`.
+- `Checks/Render.cls`: `KEYELSEPASSED`, `RestKey`. `Digest/Process.cls`: `Lead`, `Finish`.
+- `Live/Payload/Check.cls`: `IntervalMinutes`. Lane exception (veto 11, granted): `Test/Data/Tables.cls`, `Test/Live/Payloads.cls`, `web/src/app/live/payloads.ts` (regenerated, one line).
+- Tests: new `Test/Mcp/SourceSet.cls` (13 tests); extended `Test/Mcp/Ops.cls`, `Test/Mcp/OpsProbe.cls`, `Test/Bridge/Audit.cls`, `Test/Checks/Render.cls`, `Test/Digest/Coverage.cls`, `Test/Digest/CoverageProbe.cls`, `Test/Digest/Compose.cls`, `Test/Eval/Report.cls`.
+
+**Review.** 22 findings from four layers: patches applied 7 entries (medium 3: the unreadable-mark Mailbox row, the untested failure paths, the digest lead with a failed row; low 4), 1 deferred (a source named like a fixed coverage entry; needs a new public text), 12 rejected with their reasons in the triage log. Follow-up review recommended: true, for the unverified risk that the patch pass added a probe seam (`sourceAuditError`), the `SaveSource` re-check (no interleaving test) and four tests without a second independent review; the patched classes ran green.
+
+**Verification (all on the warm stack unless noted).** Passed: `Test.Mcp.SourceSet`, `Test.Mcp.Ops`, `Test.Bridge.Audit`, `Test.Checks.Render`, `Test.Digest.Coverage`, `Test.Digest.Compose`, `Test.Digest.AllClear`, `Test.Eval.Watch` (loop, after the last patch); `Test.Eval.Report`, `Test.Watch.Ops`, `Test.Core.CommandsStep4`, `Test.Digest.TelegramText`, `Test.Digest.RecordTrigger`, `Test.Checks.Runs`, `Test.Checks.Queues`, `Test.Data.Tables`, `Test.Live.Payloads` (once); `payloads.mjs --check` current and `payloads.test.mjs` 20/20; `test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh` exit 0; `Test.Mcp.SourceSet` passed on a fresh stack (tag e22s5i) and was torn down; the warm stack was brought down.
+
+**Residual risks.** The digest shows a not-checked line in both the lead and the coverage list (the spec's text pin). NEW public text 1 ("the Jira" in the I-checked list) stays with the Planner. The `SaveSource` re-check is not exercised by an interleaved test.
+
+**Rework R9-1 (this pass only; follow-up pass).** Status: done. Blocking condition: none.
+- Change: in the digest's "I checked" list a source row's name stands as the admin typed it, with no "the "; every other entry keeps it. `Checks/Coverage.cls` `Build` stamps `kind` "source" on a source's coverage row; `Digest/Process.cls` `Verdict` carries `sources` (parallel to `checked`) and `Finish` skips the "the " for a flagged entry. No catalog string, key or `ENTRYMAILBOX` change. Tests: `TestCheckedListSourceBare` (new) and `TestNotCheckedLead` (its "the Jira" pin now reads "Jira"), both in `Test/Digest/Compose.cls`; mutations under `## Verification`.
+- Mailbox, reported not changed: it renders as "the Mailbox" (capital M); see Design Notes.
+- Review: 8 findings -- patched 1 (low, a doc sentence), rejected 7 with reasons in the triage log, deferred 0. Follow-up review recommended: false (no high patched).
+- Verification: `Test.Digest.Compose`, `Coverage`, `AllClear`, `Test.Core.WebChatOut`, `Test.Msg.Catalog` and `Test.Mcp.SourceSet` passed on the lane D warm stack (tag e22s5jw, brought down); `test-class-rules.sh` and `test-boundaries.sh` exit 0 (rerun after the doc patch).
+- Residual risk: the doc-only patch to `Coverage.cls` was not recompiled on a stack; a row with no `kind` keeps "the ".

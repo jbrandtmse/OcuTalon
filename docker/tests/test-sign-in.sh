@@ -333,6 +333,45 @@ else
   die "the events could not be seeded"
 fi
 
+# --- Story 21.15 (DW-1081): the daily digest's time, away from the run ---
+
+# Digest.Process makes every session due once today's digest.time (08:00 when unset) falls after its CreatedAt, so a stack seeded
+# before that clock and run across it puts the digest into the README account's chat, and chat.spec C1 and shell.spec row 8 find
+# no empty chat. The seed sets digest.time to the instance-zone clock 12 hours from now (a time of day, so modulo 24 hours), read
+# through Data.Time.ToLocal, which converts in the instance zone with its daylight-saving time, so no zone offset brings it back
+# inside the run. It prints the time it set and fails unless that time is at least 2 hours from the instance clock now, either
+# way round the day. OCUTALON_DIGEST_SHIFT_SECONDS (whole seconds, 43200 by default) moves the time; it exists only so that the
+# guard's failure can be shown.
+digest_shift=${OCUTALON_DIGEST_SHIFT_SECONDS:-43200}
+case $digest_shift in
+  '' | *[!0-9]*) die "OCUTALON_DIGEST_SHIFT_SECONDS must be whole seconds, not '$digest_shift'" ;;
+esac
+digested=$(printf '%s\n' \
+  'Set now=##class(OcuTalon.Data.Time).NowUtc(),here=##class(OcuTalon.Data.Time).ToLocal(now)' \
+  "Set there=##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(now,$digest_shift))" \
+  'Set sc=##class(OcuTalon.Data.Setting).Set("digest.time",$Extract($Piece(there,"T",2),1,5))' \
+  'Write !,"CHK|digest-set|",$System.Status.IsOK(sc)' \
+  'Write !,"CHK|digest-time|",##class(OcuTalon.Data.Setting).Fresh("digest.time")' \
+  'Write !,"CHK|instance-time|",$Extract($Piece(here,"T",2),1,5)' \
+  'Halt' | iris_script OCUTALON)
+digest_time=$(printf '%s\n' "$digested" | sed -n 's/^CHK|digest-time|//p')
+instance_time=$(printf '%s\n' "$digested" | sed -n 's/^CHK|instance-time|//p')
+if ! printf '%s\n' "$digested" | grep -qx 'CHK|digest-set|1' \
+    || ! printf '%s\n' "$digest_time" | grep -Eqx '([01][0-9]|2[0-3]):[0-5][0-9]' \
+    || ! printf '%s\n' "$instance_time" | grep -Eqx '([01][0-9]|2[0-3]):[0-5][0-9]'; then
+  printf '%s\n' "$digested" | cut -c1-200
+  die "the daily digest's time could not be set away from the run"
+fi
+digest_minutes=$((10#${digest_time%:*} * 60 + 10#${digest_time#*:}))
+instance_minutes=$((10#${instance_time%:*} * 60 + 10#${instance_time#*:}))
+digest_gap=$(((digest_minutes - instance_minutes + 1440) % 1440))
+if [ $((1440 - digest_gap)) -lt "$digest_gap" ]; then digest_gap=$((1440 - digest_gap)); fi
+echo "DIGEST digest.time $digest_time, instance clock $instance_time, $digest_gap minutes apart"
+if [ "$digest_gap" -lt 120 ]; then
+  die "the daily digest's time $digest_time is within 2 hours of the instance clock $instance_time: a run could cross it"
+fi
+pass "the daily digest's time is $digest_time, $digest_gap minutes from the instance clock $instance_time, so no run reaches it"
+
 # --- Story 0.3, rows 3 to 13, and Story 0.5, rows 13 to 19: the browser ---
 
 remaining=$((deadline - SECONDS))

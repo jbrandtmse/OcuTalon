@@ -1290,6 +1290,7 @@ XData Contracts [ MimeType = application/json ]
    "LastRunAt": "%String(%JSONFIELDNAME=lastRunAt,MAXLEN=20)",
    "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
    "Finding": "%String(%JSONFIELDNAME=finding,MAXLEN=1000)",
+   "IntervalMinutes": "%Integer(%JSONFIELDNAME=intervalMinutes)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
    "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
   }

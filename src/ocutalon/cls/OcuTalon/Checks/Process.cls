@@ -978,6 +978,16 @@ Method ReadQueues(namespace As %String, production As %String, Output queues As 
 	Quit ##class(OcuTalon.Watch.Reader).Failures(namespace, production, "", 0, , , , , , .queues)
 }
 
+/// The kind of a source row (Story 22.5), the Watch.Ops SOURCEKIND: a Read-only MCP tool that is polled on a schedule. Story 22.11 runs it.
+Parameter SOURCEKIND = "source";
+
+/// The finding of a source run that could not reach the tool's MCP server (public text), written by the run of Story 22.11. Coverage ReasonOf maps it to unreachable.
+Parameter REASONSOURCEUNREACHABLE = "Couldn't reach its MCP server";
+
+/// The finding of a source run that was not made because the source's tool is no longer Read-only (public text), written by the run of Story 22.11. Coverage ReasonOf
+/// maps it to stopped.
+Parameter REASONNOTREADONLY = "Its tool is no longer Read-only";
+
 Storage Default
 {
 <Type>%Storage.Persistent</Type>

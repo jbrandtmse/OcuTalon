@@ -49,7 +49,7 @@ Property SessionBroken As %Boolean [ InitialExpression = 0 ];
 /// status and never a fallback.
 Property Busy As %Boolean [ InitialExpression = 0 ];
 
-/// JSON a tool may fill, such as check rows (AD-6).
+/// JSON a tool may fill, such as check rows (AD-6); Decide adds the members of its ContentClass Accepted to it (AD-31).
 Property HostData As %String(MAXLEN = "");
 
 /// The provider's stop reason from Response.Extra, such as refusal or max_tokens; empty when it reports none (AD-8).
