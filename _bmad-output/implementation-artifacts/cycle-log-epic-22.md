@@ -384,3 +384,4 @@
 2026-11-14T12:21:38Z	Epic 22	ci_resolved	sha=931e6260 result=success runs=43584720772(ci),43584720770(lane-a) flake_reruns=0 note=harness_backgrounded_one_bounded_poll(no_&;no_tests)
 2026-11-14T12:32:46Z	Epic 22	integrated_forward	feature=f138fcf8 head=b51412df conflicts=none note=records_c196b450_carried(push_with_next_push)
 2026-11-14T12:32:46Z	Story 22.11	planner_rulings_applied	source=<coordination>/prompts/epic-22-rulings-20261113-1715.md#~09:40Z_Nov_14 DW-1325=routed_to_22.11(refuse_Mailbox) DW-1326=resolved(22.5_spec_intent_amended_with_marker;missed_in_22.5s_pass_before_push;spec_text_only) DW-1327=routed_to_22.11(max(window,interval)) DW-1328=orchestrator_line_"a_repointed_source_keeps_its_old_state"(no_Planner_text_in_file;epics_bullet_says_reset)->plan_records_and_flags
+2026-11-14T12:35:50Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(22.5_spine_records;feature_f138fcf8) model=opus words=1162 branch=OCT-epic22
