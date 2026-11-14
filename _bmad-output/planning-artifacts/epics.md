@@ -7821,6 +7821,27 @@ So that someone who can read traces does not learn them.
 
 - DW-1255: audit: personal data in traced SaveSettings.Changes (the email channel's address and user) moves to the SecretHandoff; the security overview states what the trace role sees (ledger; routed by the orchestrator 2026-11-13)
 
+### Story 21.15: The sign-in tests never run across the daily digest's time
+
+> [ADDED 2026-11-14, Contest Planner, DW-1081 root cause] Epic 21 burndown story on lane C; test-only, no product change and no new text; lands before the 1.0.10 RC.
+
+As a maintainer,
+I want the browser test stacks to keep the daily digest's time away from the run,
+So that chat.spec C1 and shell.spec row 8 do not fail because the clock passed 08:00 while the suite ran.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/test-sign-in.sh` seeds a stack (every project: chromium, sign-in-2 and sign-in-3)
+**When** it seeds the README account
+**Then** it sets `digest.time` to the instance-zone clock 12 hours from now (the time of day, modulo 24 hours), through `OcuTalon.Data.Time`, so that no zone offset brings it back inside the run
+**And** it prints the time it set, and the script fails if that time is within 2 hours of the instance clock now, either way round the day
+
+**Given** the specs that read or save the digest time (`settings/email.spec.ts` E7, `settings/settings.spec.ts` S10)
+**When** they run on such a stack
+**Then** none assumes the 08:00 default, and a time a spec saves for a moment stays as far from the run as the seed
+
+- DW-1081: shell.spec row 8 'a fresh session shows the empty chat panel' failing in CI is the daily digest (Digest.Process, digest.time 08:00) falling due during the run, not a random flake (ledger; Contest Planner, ~09:15Z Nov 14)
+
 ### Story 21.6: Send email over SMTP
 
 > [AMENDED 2026-11-11, split from Story 21.2 at its spec gate, ruled by the Epic 21 runner (unattended, decide: doctrine U5)] Criteria moved verbatim from Story 21.2; runs after 21.2 and before 21.3, which reuses `EmailIn` and `EmailOut`.
