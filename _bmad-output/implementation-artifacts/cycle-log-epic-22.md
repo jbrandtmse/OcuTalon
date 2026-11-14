@@ -380,3 +380,4 @@
 2026-11-14T10:13:58Z	Story 22.5	report_error	fault=lead field=dev_complete(cycle_iteration=2) reported=baseline_revision=e867f883 actual=spec_baseline_revision_bd547e51(review_baseline_commit_e867f883) impact=none
 2026-11-14T10:13:58Z	Story 22.5	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
 2026-11-14T10:19:19Z	Epic 22	integrated_forward	feature=423f8148 head=bfb3b8d9 merged=wip/22-6(94013b12),wip/22-5(c16eef62) conflicts_resolved=cycle-log(union),sprint-status(regenerated;22.5+22.6_done;22.11_backlog) pins=test-readme,test-boundaries,test-release-notes,test-class-rules,test-ci-config,test-storage,test-release-sequence_rc0;web_node_suite_2068_pass spine_lint=unchanged
+2026-11-14T10:19:52Z	Epic 22	committed	sha=931e6260 stories=22.6,22.5 ci=pending runs=43584720772,43584720770
