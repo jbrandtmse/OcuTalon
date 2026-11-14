@@ -115,6 +115,13 @@ deferred: []
 - `docker/tests/test-compose-file.sh`: one check that `Web.cls`'s `BUILDFOLDERS` holds both manifests' bundle `FileCopy` names, read from `src/module.xml` and `module.xml`.
 - `_bmad-output/implementation-artifacts/evidence/36-7-upgrade-from-v1.0.9.md`, new and records only: the rehearsal's record section, the served and build lists, and the mutation run's `stale files` row.
 
+**Execution (added by the Planner's gate ruling, 2026-11-14 ~06:00Z):**
+- `Web.cls`: guard (v) in `RemoveStaleBundle`/`Prepare` (no readable, non-empty build list with `index.html` -> delete nothing, `WARN Web`, OK); each removal logged as `removed old web file <name>` at the Web step's progress level.
+- `Test/Web/Install.cls`: one test per guard (i), (ii), (iv), (v), each with a `mutation:` line.
+- `release/ipm-install.sh` check 25: measure that the module `Root` resolves and `BuildFolder()` finds the new build on a real IPM install (STOP if not).
+- Web reload handler (V4): root-level (e.g. `app.config.ts` router `withNavigationErrorHandler` or an equivalent root provider), one full page load of the target URL per URL, guarded by a `sessionStorage` flag in try/catch, no new text; node tests for its pure logic and a Playwright test (a 404 lazy chunk on /usage: exactly one reload; restored -> renders; still missing -> no second reload) with a `mutation:` line; report the initial bundle delta.
+- Architecture spine: one sentence in AD-23 (the cleanup) and one at the lazy-routes description (the handler), each marked `[AMENDED 2026-11-14, Story 36.7, Contest Planner gate ruling]`.
+
 **Acceptance Criteria:**
 - AC1, removal. Given an installed vN whose served folder holds hashed bundle files that vN+1 lacks, when the container is recreated from vN+1, then each of them is gone and the served folder holds every file of the image's bundle byte for byte (`live:install-upgrade`, the new check).
 - AC2, narrow. Given the same upgrade with the survivors planted, when it completes, then each survivor is kept with its content and nothing else beyond the bundle remains. The full rule is pinned by `TestRemoveStaleBundle` (survivors, guards, nested, `.map`, missing folders).
@@ -123,6 +130,8 @@ deferred: []
 - AC5, permanent row (ruling point 4). Given any harness run, when its record is written, then the table holds a `stale files` row after `private globals`, the row counts toward `Result:`, and `docker/tests/test-upgrade-harness.sh` passes with rule `stale-files`.
 
 ## Spec Change Log
+
+- 2026-11-14, Contest Planner gate ruling (~06:00Z) applied by the runner: guard (v), V1 log lines, V4 reload handler, V7 plant always, V11 spine sentences (Design Notes > Contest Planner rulings at the gate; Execution additions). Branch integrated forward onto feature 9a851935.
 
 ## Review Triage Log
 
@@ -158,6 +167,16 @@ Nothing here contradicts an AD. Recommended to the lead (Rule 20, the lead's cal
 **Ledger inbox:**
 - DW-1320 is addressed in full (AC1 to AC5).
 - DW-1300 (the optimizer's `_`/`-` chunk names) stays `wontfix-accepted`. With `STALEFILES` unchanged, such names would not be deleted either. `lazy-routes.test.mjs` pins `NG_BUILD_OPTIMIZE_CHUNKS=0`.
+
+### Contest Planner rulings at the gate (2026-11-14 ~06:00Z, binding; `.coordination/prompts/epic-36-rulings-20261113-2130.md`, "36.7 gate")
+
+- **AC 2 file list:** accepted as written. **Delete rule (i)-(iv):** accepted.
+- **ADD guard (v), fail safe.** If the new build's list cannot be read, is empty, or has no `index.html` (for example the installed module's `Root` does not resolve), delete NOTHING, log a `WARN Web` line, and the start succeeds. `release/ipm-install.sh` check 25 must MEASURE that `Root` resolves on a real IPM install; if it does not, STOP and report (no workaround).
+- **One test per guard in `Test/Web/Install.cls`, each with a mutation that turns it red:** a pattern-matching file in a subfolder survives (i); an admin file that does not match survives (ii); a served `index.html` that differs from the build's means nothing is deleted (iv); an unreadable or empty source list means nothing is deleted (v).
+- **V1 not silent:** each removed file is named in the install log at the level the Web step uses for its normal progress lines, for example `removed old web file main-JCJUH3RN.js`.
+- **V2:** accepted. **V3:** a note only. **V5, V6:** proceed. **V7:** plant always, and the record says so. **V8, V9, V10:** confirmed; the 1.0.10 Phase 2 check that the served folder equals the build stands.
+- **V4: ADD a reload handler in this story.** Web-only, in the app root, no new text. It acts only when a lazy route's chunk fails to load during navigation, and then does ONE full page load of the target URL. A per-URL flag in `sessionStorage`, inside try/catch, stops a second reload; if storage is unavailable it does not reload and today's behaviour stays. No reload loop is possible. E2E: make a lazy chunk answer 404 and navigate to /usage: exactly one reload; with the chunk restored the page renders; with it still missing there is no second reload. Mutation: the handler removed turns the test red. Report the initial bundle delta (Story 36.5's 878.98 kB is the baseline; the cap stays 921 kB and `maximumError` 1MB).
+- **V11: YES.** One sentence in AD-23 for the cleanup, and one where the architecture describes the lazy routes (Story 36.5) for the reload handler. Internal docs only. No public claim and no release-note line.
 
 ### Gate item 1: the file list for AC2, and the delete rule
 
