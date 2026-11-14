@@ -193,3 +193,4 @@
 2026-11-14T04:31:56Z	Epic 36	planner_ruling	source=epic-36-rulings-20261113-2130.md(~05:00Z) items=36.5_condition_met_merged_bc624f44;DW-1320_blocks_1.0.10_RC_as_burndown_36.7(5_ACs);online-demo_leftovers_via_installer
 2026-11-14T04:31:56Z	Story 36.7	ledger_burndown_chartered	key=36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun owns=DW-1320 branch=OCT-epic36-s367(local,from_feature_bc624f44) charter_commit=8a11468b note=s365_scratch_worktree_removed(remote_branch_kept)
 2026-11-14T04:31:56Z	Story 36.7	stage_spawned	stage=plan spawn_at=2026-11-14T04:31:56Z model=opus agent_name=36-7-plan-1 cycle_iteration=1 effort=high worktree=scratch_s367wt
+2026-11-14T04:50:57Z	Story 36.7	story_created	spec=spec-36-7-epic-36-burn-down-an-upgrade-removes-the-previous-builds-bun.md branch=OCT-epic36-s367(local) head=27ec5e7e model=opus gate=PUBLIC_TEXT(file_list,harness_row,veto_items) finding=IPM_0.10.10_FileCopy_never_deletes_on_Linux
