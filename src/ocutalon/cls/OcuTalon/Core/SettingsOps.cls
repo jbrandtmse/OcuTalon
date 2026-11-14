@@ -107,7 +107,9 @@
 /// primaryEmail, primaryChannels, the backup ones, escalationMinutes) and never a value. The seven oncall.* keys are written by SaveProduct, each change with
 /// its Settings audit entry (from, to, the admin's user and session) and then its row, in one transaction. On the online demo it answers not_available and
 /// Values has no on-call member. Values adds on-call {the seven values, users [{user, paired}], pagesBuilt}, never on the online demo. No on-call value is in
-/// a log line, a result or a message.
+/// a log line, a result or a message. The users of the section come from the production job: Values (the web process) sends a ListOnCallUsers (origin web_admin, a
+/// read) and takes the list [{user, paired}] from the handoff that the answer names in Data {"handoff": uri}, never from the sessions' or pairings' storage, and
+/// answers users [] when that fails; no user name is in the command or its result.
 Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 {
 
@@ -194,6 +196,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.SaveSettings" Quit ..Save(command)
 	If class = "OcuTalon.Msg.Command.TestModel" Quit ..TestModel(command)
 	If class = "OcuTalon.Msg.Command.MailSignIn" Quit ..SignIn(command)
+	If class = "OcuTalon.Msg.Command.ListOnCallUsers" Quit ..ListOnCallUsers()
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
 	If class = "OcuTalon.Msg.Command.ProposePersona" Quit ..Propose(command)
@@ -2535,9 +2538,9 @@ ClassMethod OnCallChannels(text As %String) As %List [ Private ]
 	Quit ordered
 }
 
-/// The OcuTalon users, as a signed-in admin's request can read them: users(<upper-cased name>) is the name as a Data.Session row holds it, for every row that has
-/// an IRIS user, and paired(<upper-cased name>) is set when one of the user's sessions has a Data.Pairing row (a chat row has a SessionRef only while it is
-/// paired). The rows are read by object access from their extents, because the web process holds no SQL privilege on the tables (as Data.Webhook.ForSession reads).
+/// The OcuTalon users, read in the production job (the save's validation and the ListOnCallUsers handler call it; the web process never does): users(<upper-cased
+/// name>) is the name as a Data.Session row holds it, for every row that has an IRIS user, and paired(<upper-cased name>) is set when one of the user's sessions has a
+/// Data.Pairing row (a chat row has a SessionRef only while it is paired). The rows are read by object access from their extents.
 ClassMethod OnCallUsers(Output users, Output paired) [ Private ]
 {
 	Kill users, paired
@@ -2560,9 +2563,67 @@ ClassMethod OnCallUsers(Output users, Output paired) [ Private ]
 	}
 }
 
+/// Carries out a ListOnCallUsers (Story 36.4, DW-1278; origin web_admin) in the production job: the roster of OnCallUsers as a JSON array [{user, paired}], once per
+/// upper-cased name and in the order of those names, is offered to SecretHandoff, and the answer is Ok 1, Outcome listed and Data {"handoff": uri}. The list is in no
+/// message, result, log line or notice, because the trace role reads every traced message. On the online demo it answers not_available and offers nothing.
+Method ListOnCallUsers() As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEONCALLOFF)
+	Do ..OnCallUsers(.names, .paired)
+	Set list = []
+	Set key = ""
+	For {
+		Set key = $Order(names(key), 1, name)
+		Quit:key=""
+		Set one = {}
+		Do one.%Set("user", name, "string")
+		Do one.%Set("paired", $Data(paired(key)) > 0, "boolean")
+		Do list.%Push(one)
+	}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(list.%ToJSON(), .uri)
+	If $$$ISERR(sc) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Quit ..Result(1, "listed", "", {"handoff": (uri)}.%ToJSON())
+}
+
+/// The users of the on-call section for the web process: a ListOnCallUsers through SubmitRoster, whose handoff is taken once. It answers [{user, paired}] as
+/// ListOnCallUsers made it, and [] when the command is refused, fails, gets no answer, or the handoff is missing or is not a list of users. It never throws.
+ClassMethod OnCallRoster() As %DynamicArray [ Private ]
+{
+	Set users = []
+	Try {
+		Set sc = ..SubmitRoster(##class(OcuTalon.Msg.Command.ListOnCallUsers).%New(), .result)
+		If $$$ISERR(sc) || '$IsObject(result) || 'result.Ok || (result.Outcome '= "listed") Quit
+		Set uri = {}.%FromJSON(result.Data).handoff
+		If $$$ISERR(..TakeSecret(uri, .text)) Quit
+		Set list = ##class(%DynamicAbstractObject).%FromJSON(text)
+		Kill text
+		If '$IsObject(list) || 'list.%IsA("%Library.DynamicArray") Quit
+		Set found = []
+		Set iterator = list.%GetIterator()
+		While iterator.%GetNext(, .one) {
+			If '$IsObject(one) || 'one.%IsA("%Library.DynamicObject") || (one.%GetTypeOf("user") '= "string") || (one.%GetTypeOf("paired") '= "boolean") Quit
+			Set copy = {}
+			Do copy.%Set("user", one.user, "string")
+			Do copy.%Set("paired", one.paired, "boolean")
+			Do found.%Push(copy)
+		}
+		If found.%Size() = list.%Size() Set users = found
+	} Catch {
+		Set users = []
+	}
+	Quit users
+}
+
+/// The one submit of OnCallRoster: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitRoster(command As OcuTalon.Msg.Command.ListOnCallUsers, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+}
+
 /// The on-call member of GET /v1/settings, read from the rows and never from the cache: the seven stored values (an absent row reads as the default; the minutes as a
 /// number, and the default for a stored value that is not a whole number), users (each IRIS user with a Data.Session row, once whatever the case of the name, in the order of the upper-cased names, with paired: 1 when one of
-/// the user's sessions has a paired chat) and pagesBuilt (1 when OcuTalon.Data.Page is compiled).
+/// the user's sessions has a paired chat, as OnCallRoster brings them from the production job) and pagesBuilt (1 when OcuTalon.Data.Page is compiled). It runs in the web
+/// process and reads no storage global of the sessions or the pairings.
 ClassMethod OnCallValues() As %DynamicObject
 {
 	Set values = {}
@@ -2576,18 +2637,7 @@ ClassMethod OnCallValues() As %DynamicObject
 			Do values.%Set(field.name, stored, "string")
 		}
 	}
-	Do ..OnCallUsers(.names, .paired)
-	Set users = []
-	Set key = ""
-	For {
-		Set key = $Order(names(key), 1, name)
-		Quit:key=""
-		Set one = {}
-		Do one.%Set("user", name, "string")
-		Do one.%Set("paired", $Data(paired(key)) > 0, "boolean")
-		Do users.%Push(one)
-	}
-	Do values.%Set("users", users)
+	Do values.%Set("users", ..OnCallRoster())
 	Do values.%Set("pagesBuilt", ##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Data.Page"), "boolean")
 	Quit values
 }

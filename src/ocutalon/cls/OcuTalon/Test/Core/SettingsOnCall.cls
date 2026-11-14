@@ -16,7 +16,14 @@
 ///   - TestOnlineDemo: with the flag set the save is not_available with the accepted text, the handoff is gone and nothing is written; Values has no on-call member;
 ///   - TestHandoffMissing: a handoff with nothing behind it is failed, and Changes that are not exactly the handoff are refused, so that no body is read from them;
 ///   - TestValues: the on-call member's shape, defaults, stored values, users (sorted, once, with paired) and pagesBuilt;
-///   - TestTextOffOnDemo: the off-on-demo text is the accepted one, verbatim.
+///   - TestTextOffOnDemo: the off-on-demo text is the accepted one, verbatim;
+///   - TestUsersComeFromTheVerb (DW-1278): Values asks for the users with one ListOnCallUsers of origin web_admin, the production job's handler answers Ok 1 listed with only
+///     {"handoff": uri} in Data (no user name in it), the web process takes the handoff once, and the users are the fixture users, once each, sorted, with paired;
+///   - TestUsersFailureIsEmpty (DW-1278): a submit that fails, throws, is busy or has no handoff, and a handoff that is not JSON, not an array or holds a bad row, each give
+///     users [] with the rest of the member intact, and every handoff that the case made is taken and gone;
+///   - TestOnlineDemoAsksNoOne (DW-1278): on the online demo Values submits nothing, and a ListOnCallUsers that reaches the handler is not_available with no handoff;
+///   - TestRosterNotReadInTheWebProcess (DW-1278): the source of Values, OnCallValues, OnCallRoster and SubmitRoster holds no walk over the session or pairing storage, no
+///     %OpenId and no call of OnCallUsers.
 Class OcuTalon.Test.Core.SettingsOnCall Extends %UnitTest.TestCase
 {
 
@@ -170,7 +177,7 @@ Method TestUserNameOverTheBoundIsRefused()
 	Set rs = statement.%Execute(over, ref)
 	Do $$$AssertEquals(rs.%SQLCODE, 0, "and made: the roster holds a user name over the bound")
 	Set found = ""
-	Set iterator = ##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call").users.%GetIterator()
+	Set iterator = ..Page().sections.%Get("on-call").users.%GetIterator()
 	While iterator.%GetNext(, .one) {
 		If (one.user = exact) || (one.user = over) Set found = found_$ListBuild($Length(one.user))
 	}
@@ -339,11 +346,101 @@ Method TestOnlineDemo()
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0), "the handoff is gone")
 	Do $$$AssertEquals(left, "", "and held nothing for anyone")
 	Do $$$AssertEquals(..Rows()_"|"_..Audits(), "0|0", "nothing was written or audited")
-	Set values = ##class(OcuTalon.Core.SettingsOps).Values()
+	Set values = ..Page()
 	Do $$$AssertEquals(values.sections.%IsDefined("on-call"), 0, "Values has no on-call member")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "roster")), 0, "and submitted no ListOnCallUsers")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
-	Set values = ##class(OcuTalon.Core.SettingsOps).Values()
+	Set values = ..Page()
 	Do $$$AssertEquals(values.sections.%IsDefined("on-call"), 1, "and has one when the flag is off")
+}
+
+/// Values asks for the users with one ListOnCallUsers of origin web_admin; the handler in the production job answers Ok 1 listed with Data that is exactly {"handoff": uri}, so that
+/// no user name is in the result, and the web process takes the list from the handoff, which is then gone. The users are each fixture user once, in the order of the upper-cased
+/// names, paired when any one of their sessions has a paired chat.
+Method TestUsersComeFromTheVerb()
+{
+	Set b = ..User("b", 0), a = ..User("a", 1)
+	Set values = ..Page().sections.%Get("on-call")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "roster")), 1, "one ListOnCallUsers was submitted for the page")
+	Set found = ""
+	Set iterator = values.users.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Do $$$AssertEquals(one.%Size()_"|"_one.%GetTypeOf("user")_"|"_one.%GetTypeOf("paired"), "2|string|boolean", "each user has a name and a paired flag")
+		If $Extract(one.user, 1, $Length("zzoc"_..Tag)) '= ("zzoc"_..Tag) Continue
+		Set found = found_$ListBuild(one.user_"="_one.paired)
+	}
+	Do $$$AssertEquals($ListToString(found), a_"=1,"_b_"=0", "the fixture users come back through the verb, sorted, with paired")
+	Set command = ##class(OcuTalon.Msg.Command.ListOnCallUsers).%New()
+	Set result = ..Carry(command)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|listed|", "the handler answers Ok 1, listed")
+	Do $$$AssertTrue($Match(result.Data, "^\{""handoff"":""secret://handoff/[0-9A-F]{32}""\}$"), "and its Data is exactly {""handoff"": uri}")
+	Do $$$AssertTrue(result.Data '[ a, "no user name is in its Data")
+	Do $$$AssertTrue(result.Data '[ b, "of either fixture user")
+	Set uri = {}.%FromJSON(result.Data).handoff
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .text, 0), "the list is in the handoff")
+	Do $$$AssertTrue(text [ a, "and names the fixture user")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .again, 0), "and is gone once taken")
+	Do $$$AssertEquals(again, "", "leaving nothing")
+}
+
+/// A page whose users cannot be had is still the whole member: users [] and every other value as stored, and the handoff that a case made is gone.
+Method TestUsersFailureIsEmpty()
+{
+	Set user = ..User("f", 1)
+	Do ..Save(..Body(..Role("user", user, "a@x.io", "telegram"), ..Role("nobody", "", "", ""), 40))
+	Set answers = $ListBuild("error", "throw", "busy", "nohandoff", "garbled", "notlist", "badrow", "shortrow")
+	Set position = 0
+	While $ListNext(answers, position, answer) {
+		Kill ^OcuTalonTest("SettingsOpsProbe", "roster")
+		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "roster") = answer
+		Set values = ..Page().sections.%Get("on-call")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "roster")), 1, answer_": one ListOnCallUsers was submitted")
+		Do $$$AssertEquals(values.%GetTypeOf("users")_"|"_values.users.%Size(), "array|0", answer_": users is []")
+		Do $$$AssertEquals(values.primaryUser_"|"_values.primaryChannels_"|"_values.escalationMinutes_"|"_values.pagesBuilt, user_"|telegram|40|"_(##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Data.Page") + 0), answer_": the rest of the member is as stored")
+		Set uri = $Get(^OcuTalonTest("SettingsOpsProbe", "roster", "uri", 1))
+		If $Case(answer, "garbled": 1, "notlist": 1, "badrow": 1, "shortrow": 1, : 0) {
+			Do $$$AssertTrue(uri '= "", answer_": the case made a handoff")
+			Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0), answer_": and it is gone")
+			Do $$$AssertEquals($Get(left), "", answer_": with nothing left in it")
+		}
+	}
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "roster")
+	Set listed = ""
+	Set iterator = ..Page().sections.%Get("on-call").users.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If one.user = user Set listed = one.user_"="_one.paired
+	}
+	Do $$$AssertEquals(listed, user_"=1", "and with no failure the fixture user is listed again, paired")
+}
+
+/// On the online demo Values submits nothing, and a ListOnCallUsers that reaches the handler is not_available and offers no handoff.
+Method TestOnlineDemoAsksNoOne()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ..User("d", 0)
+	Do ..Page()
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "roster")), 0, "Values submits no ListOnCallUsers")
+	Set result = ..Carry(##class(OcuTalon.Msg.Command.ListOnCallUsers).%New())
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|not_available|", "the handler is not_available and offers no handoff")
+	Do $$$AssertEquals(result.Message, "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.", "with the accepted text")
+}
+
+/// The web-process path of the users holds no read of the sessions' or pairings' storage: the source of Values, OnCallValues, OnCallRoster and SubmitRoster has no $Order over an
+/// OcuTalonP global, no %OpenId and no call of OnCallUsers, which only the production job's handler makes. The scan has a positive control: OnCallUsers itself holds all three.
+Method TestRosterNotReadInTheWebProcess()
+{
+	Set bad = ""
+	For method = "Values", "OnCallValues", "OnCallRoster", "SubmitRoster" {
+		Set source = ..Source(method)
+		Do $$$AssertTrue(source '= "", method_" has source to scan")
+		For needle = "$Order(^OcuTalonP", "%OpenId", "OnCallUsers(", "^OcuTalonP." {
+			If source [ needle Set bad = bad_$ListBuild(method_" holds "_needle)
+		}
+	}
+	Do $$$AssertEquals($ListToString(bad, "; "), "", "no web-process method reads the storage or calls OnCallUsers")
+	Set reads = ..Source("OnCallUsers")
+	Do $$$AssertTrue((reads [ "$Order(^OcuTalonP") && (reads [ "%OpenId"), "positive control: OnCallUsers does read both")
+	Do $$$AssertTrue(..Source("ListOnCallUsers") [ "OnCallUsers(", "and the handler calls it")
 }
 
 Method TestHandoffMissing()
@@ -365,7 +462,7 @@ Method TestHandoffMissing()
 
 Method TestValues()
 {
-	Set values = ##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call")
+	Set values = ..Page().sections.%Get("on-call")
 	Set names = ""
 	Set iterator = values.%GetIterator()
 	While iterator.%GetNext(.name) {
@@ -379,7 +476,7 @@ Method TestValues()
 	Set b = ..User("b", 0), a = ..User("a", 1), c = ..User("c", 0)
 	Do ##class(OcuTalon.Test.Data.Fixture).Session(c)
 	Do ##class(OcuTalon.Test.Data.Fixture).Pairing(##class(OcuTalon.Test.Data.Fixture).Session(c))
-	Set values = ##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call")
+	Set values = ..Page().sections.%Get("on-call")
 	Set found = "", seen = ""
 	Set iterator = values.users.%GetIterator()
 	While iterator.%GetNext(, .one) {
@@ -389,12 +486,12 @@ Method TestValues()
 	}
 	Do $$$AssertEquals($ListToString(found), a_"=1,"_b_"=0,"_c_"=1", "the fixture users are listed once each, sorted, and a user is paired when any one of their sessions is")
 	Do ..Save(..Body(..Role("user", a, "a@x.io", "telegram"), ..Role("email", "", "b@x.io", "email"), 40))
-	Set values = ##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call")
+	Set values = ..Page().sections.%Get("on-call")
 	Do $$$AssertEquals(values.primaryUser_"|"_values.primaryEmail_"|"_values.primaryChannels_"|"_values.backupUser_"|"_values.backupEmail_"|"_values.backupChannels_"|"_values.escalationMinutes, a_"|a@x.io|telegram||b@x.io|email|40", "the stored values")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("oncall.escalationMinutes")
 	Set row.Value = "abc"
 	Do row.%Save()
-	Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call").escalationMinutes, 15, "a stored value that is not a whole number reads as the default")
+	Do $$$AssertEquals(..Page().sections.%Get("on-call").escalationMinutes, 15, "a stored value that is not a whole number reads as the default")
 }
 
 Method TestTextOffOnDemo()
@@ -517,10 +614,30 @@ Method Fields(result As OcuTalon.Msg.CommandResult) As %String [ Private ]
 	Quit text
 }
 
+/// The page's values as the web process reads them: Values on the probe, whose SubmitRoster hands the ListOnCallUsers to the real handler.
+Method Page() As %DynamicObject [ Private ]
+{
+	Quit $ClassMethod(..#PROBE, "Values")
+}
+
+/// The source text of a method of OcuTalon.Core.SettingsOps, "" when it has none.
+ClassMethod Source(method As %String) As %String [ Private ]
+{
+	Set definition = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Core.SettingsOps||"_method)
+	If '$IsObject(definition) Quit ""
+	Set text = ""
+	Set stream = definition.Implementation
+	Do stream.Rewind()
+	While 'stream.AtEnd {
+		Set text = text_stream.Read(32000)
+	}
+	Quit text
+}
+
 /// A member of the on-call part of Values.
 Method OnCallValue(name As %String) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Core.SettingsOps).Values().sections.%Get("on-call").%Get(name)
+	Quit ..Page().sections.%Get("on-call").%Get(name)
 }
 
 Method Reset() [ Private ]

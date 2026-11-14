@@ -14,6 +14,8 @@
 ///     the IRIS audit entries (the positive control) and in no event log row, message header, SaveSettings, CommandResult or Notification row, or ^OcuTalon* global
 ///     but the setting rows (and, for the user name, the session row that makes the user). None of them is in a trace global either (Ens.MessageBodyD/S,
 ///     Ens.MessageHeaderD, Ens.Util.LogD).
+///   - TestUsersListedThroughTheVerb (DW-1278): GET /v1/settings lists a fixture user with paired in the on-call member, through one real ListOnCallUsers (origin web_admin)
+///     that the production's SettingsOps answers with Data that is exactly {"handoff": uri}; the user name is in no trace global (TraceLeaks) and the handoff is gone.
 Class OcuTalon.Test.Web.OnCallSettingsApi Extends %UnitTest.TestCase
 {
 
@@ -277,6 +279,42 @@ Method TestValuesOnlyInTheAuditLog()
 	Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", primary), "", "no trace global holds the on-call person's address")
 	Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", backup), "", "no trace global holds the backup's address")
 	Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", user), "", "no trace global holds the user name")
+}
+
+/// DW-1278: the page's users come back through the real production. A fixture user whose name only the user list carries is in the on-call member of GET /v1/settings,
+/// not paired; exactly one ListOnCallUsers command and one result of outcome listed were made, the result's Data is exactly {"handoff": uri} and that handoff is gone;
+/// and no trace global holds the user name, which a list in the CommandResult would put there.
+Method TestUsersListedThroughTheVerb()
+{
+	If '..Guard() Quit
+	Set tag = $Random(1000000000)
+	Set user = "zzocroster"_tag_"u"
+	Do ..Session(user)
+	Set header = ##class(OcuTalon.Test.Web.WebhookTools).LastHeader()
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM OcuTalon_Msg.CommandResult")
+	Set mark = $Select(result.%Next(): +result.%GetData(1), 1: 0)
+	Set text = ..Call("Settings", "", ..A, .response)
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "GET /v1/settings is 200 JSON: "_$Extract(text, 1, 200))
+	Set found = ""
+	Set iterator = {}.%FromJSON(text).sections.%Get("on-call").users.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If one.user = user Set found = one.user_"|"_one.paired_"|"_one.%GetTypeOf("paired")
+	}
+	Do $$$AssertEquals(found, user_"|0|boolean", "the fixture user is listed, not paired")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Msg.Command.ListOnCallUsers' AND SourceConfigName = 'CommandsIn' AND TargetConfigName = 'SettingsOps'", header)
+	Do rows.%Next()
+	Do $$$AssertEquals(rows.%GetData(1), 1, "one ListOnCallUsers went from CommandsIn to SettingsOps")
+	Set results = ##class(%SQL.Statement).%ExecDirect(, "SELECT Data FROM OcuTalon_Msg.CommandResult WHERE ID > ? AND Outcome = 'listed' AND Data LIKE '%handoff%'", mark)
+	Set count = 0
+	While results.%Next() {
+		Set count = count + 1
+		Set data = results.%GetData(1)
+		Do $$$AssertTrue($Match(data, "^\{""handoff"":""secret://handoff/[0-9A-F]{32}""\}$"), "the result's Data is exactly {""handoff"": uri}")
+		Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take({}.%FromJSON(data).handoff, .left, 0), "and the handoff is gone")
+	}
+	Do $$$AssertEquals(count, 1, "one result of outcome listed was made")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(user), "", "no trace global holds the user name")
+	Do $$$AssertEquals(..TableHolds("OcuTalon_Msg.CommandResult", mark, user), 0, "no CommandResult holds it")
 }
 
 /// --- helpers ---

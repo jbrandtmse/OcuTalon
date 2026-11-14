@@ -18,6 +18,8 @@
 ///     card's search, is web_user only and no tool verb either;
 ///   - ListPinnedMemories, the read behind the Memory card's Pinned tab, is web_user only and no tool verb, and is sent with the search's bounded wait
 ///     (Story 41.13);
+///   - ListOnCallUsers, the read behind Settings > On call's list of users (Story 36.4, DW-1278), is web_admin only and no tool verb, goes to SettingsOps, and is sent with
+///     the same bounded wait: no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0);
 ///   - on the online demo (Data.Setting onlineDemo = 1) each SearchMemory counts as one of the session's messages through Allowance.TryConsumeRead,
 ///     before anything is sent and without a Turn or an allowance window; past the limit the answer is Outcome allowance (Ok 0) with Data {retryAt, limit}
 ///     (Story 41.13). The list, the pinned read and every other verb never count;
@@ -187,6 +189,7 @@ Method Send(target As %String, request As Ens.Request, Output response As %Libra
 	}
 	If request.%IsA("OcuTalon.Msg.Command.ListPinnedMemories") Quit ..SendSearch(target, request, .response)
 	If request.%IsA("OcuTalon.Msg.Command.SearchMemory") Quit ..SendSearch(target, request, .response)
+	If request.%IsA("OcuTalon.Msg.Command.ListOnCallUsers") Quit ..SendSearch(target, request, .response)
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
 }
 
@@ -364,7 +367,8 @@ XData Routes [ MimeType = application/json ]
  {"verb": "ProposeFix", "owner": "IncidentManager", "origins": "tool"},
  {"verb": "ListPinnedMemories", "owner": "MemoryOps", "origins": "web_user"},
  {"verb": "AckPage", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram"},
- {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"}
+ {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"},
+ {"verb": "ListOnCallUsers", "owner": "SettingsOps", "origins": "web_admin"}
 ]
 }
 
