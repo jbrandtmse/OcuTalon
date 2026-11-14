@@ -56,7 +56,7 @@ deferred:
 
   It never reaches AI Hub's MCP client and never calls a model.
 - **Untrusted.** A poll's request has provenance `untrusted`. Only a safe, read-only classification runs, and anything else is denied (`UNTRUSTED`), never held. Results reach `Intake` only as untrusted Items, never as trusted output.
-- **No false all-clear (AD-28).** A source counts as checked only when its runs in the window all passed. Otherwise it is not checked, with its reason. The reserved sentence still comes only from `Checks.Render`.
+- **No false all-clear (AD-28).** A source counts as checked by its latest run in the window, as AD-18 rules for every background check: when that run passed and no gap, miss or staleness rule applies, it is checked; otherwise it is not checked, with its reason. A failed run still comes as its own notice, so the latest run is enough. [AMENDED 2026-11-14, DW-1326, Contest Planner ruling ~09:40Z Nov 14 (the latest run counts, per AD-18), recorded by the lead after 22.5 merged; it read "A source counts as checked only when its runs in the window all passed. Otherwise it is not checked, with its reason."] The reserved sentence still comes only from `Checks.Render`.
 - **AD-5.** Nothing that decides "due", "seen" or "stopped" lives in memory. It lives on the row (`NextDueAt`, `Reported`).
 - **Online demo.** `McpOps` refuses both verbs with `not_allowed` (its existing `Refusal`). No source row can exist there. `Checks` skips any `source` row when `Watch.Reader.OnlineDemo()` is 1, and the proxy refuses with `MCPDEMO`. The demo path, `Test.Bridge.Gate`, `Test.Bridge.Approval` and the replay path stay unchanged.
 

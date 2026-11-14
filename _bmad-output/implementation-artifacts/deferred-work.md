@@ -8089,16 +8089,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T08:55:59Z status=decision-pending owner=burndown by=harvest note=human=Planner_PUBLIC_TEXT:a_refusal_string_for_a_reserved_source_name,_or_accept
 - 2026-11-14T09:30:55Z occurrence=22-5-poll-a-read-only-mcp-tool-as-a-source
 - 2026-11-14T10:10:47Z occurrence=22-5-poll-a-read-only-mcp-tool-as-a-source by=cr note=R9-1 cr: a lone source named Mailbox reads as nothing watched (never all-clear); row kind now tells the two apart
+- 2026-11-14T12:32:38Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=lead note=Planner_ruling_~09:40Z_Nov_14:refuse_Mailbox(case+spaces),own_reason_code,verbatim_text,3_inputs+mutation
 
 ### DW-1326: A source row passes coverage on its latest run although earlier runs in the window were not checked
 - source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
 - evidence: Coverage.WatchRow rule (5) takes the latest run for every kind (AD-18), but the intent says a source counts as checked only when its runs in the window all passed. No existing line says 'recovered'; reachable once 22.11 records runs.
 - 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: not checked when any run in span failed; needs a line (missed text says didn't run) or AD-18 rule 5 kept for sources
+- 2026-11-14T12:32:38Z status=resolved-by:22-5-poll-a-read-only-mcp-tool-as-a-source by=lead note=Planner_ruling_~09:40Z_Nov_14:latest_run_counts(AD-18);22.5_spec_intent_amended_with_marker(spec_text_only;no_code)
 
 ### DW-1327: A source whose interval is longer than the digest span (e.g. a requested digest soon after the scheduled one) shows stale
 - source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: med | footprint: in-story
 - evidence: WatchRow: no run in the span plus an earlier run gives digest.notCheckedStale (AD-18 rule 2), even when that run is within IntervalMinutes x 60 + 180 s of toUtc. Reachable once 22.11 records runs.
 - 2026-11-14T09:30:55Z status=decision-pending owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=rec: a source whose last run is within its interval+180 s of toUtc takes that run; AD-18 rule 2 amendment
+- 2026-11-14T12:32:39Z status=routed owner=22-11-run-source-polls-through-the-governed-proxy by=lead note=Planner_ruling_~09:40Z_Nov_14:staleness_vs_max(window,interval);30h_not_stale,50h_stale
 
 ### DW-1328: An update that repoints a source (server, tool or arguments) keeps its Reported state and run history
 - source: _bmad-output/implementation-artifacts/spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md (code review) | severity: med | fix-risk: low | footprint: in-epic
