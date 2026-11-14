@@ -4102,3 +4102,8 @@
 2026-11-14T10:22:19Z	Epic 21	runner_reported	PART_READY story=21.15 code_head=58c17af5 runs=43579849186,43579849192 guard_proven residual=60s_setting_cache
 2026-11-14T10:22:19Z	Epic 21	ci_green_verified	sha=58c17af5
 2026-11-14T10:22:19Z	Epic 21	merge_enqueued	part=21.15 head=58c17af5 feature=423f8148
+2026-11-14T10:25:07Z	Epic 21	epic_merged_to_feature	part=21.15 feature_sha=ae6c6009 merged_tree_pins=test-readme,boundaries,ci-config,lint_pass DW-1081=resolved ci=own_run_required(58c17af5+25.4)
+2026-11-14T11:22:53Z	Epic 26	runner_reported	PART_READY story=26.3 head=8ab6a725 runs=43581056590(att2_DW-1094),43581056587 story_red_fixed=files-sources.test(rework1) protocol_violation=nohup_bg_checks(logged)
+2026-11-14T11:22:53Z	Epic 26	ci_green_verified	sha=8ab6a725
+2026-11-14T11:22:53Z	Epic 26	amendments_verified	amendments=FR-73(prd+epics),spine_AD-1/21/31,epics_26.2_bullets extensions=CommandsIn,CommandsStep3,Web/Api(pin_check) ok=true
+2026-11-14T11:22:53Z	Epic 26	merge_enqueued	part=26.3 head=8ab6a725 feature=ae6c6009
