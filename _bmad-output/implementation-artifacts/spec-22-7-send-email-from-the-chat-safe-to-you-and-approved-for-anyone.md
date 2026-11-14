@@ -2,7 +2,7 @@
 title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
 type: 'feature'
 created: '2026-11-12'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'aa67d691f2d8b601b12272ee39e953b7e39fe2b8'
 baseline_commit: 'aa67d691f2d8b601b12272ee39e953b7e39fe2b8'
 review_loop_iteration: 0
@@ -396,6 +396,11 @@ Rejected:
 - `low` Carried recipients still match the row through `Authorised`'s case-insensitive set comparison and a row without subject or text keeps the command's own (acceptance 3): pre-existing, accepted in rework 3; FixExecutor carries none of the three.
 - `reject` (outside the rework range and not HIGH) docs/security-overview.md:125 "Every built-in tool is safe" and "Who may answer" (L142-146) predate this rework and do not mention send_email or the interim admin-only email approval (blind 5); reported to the lead.
 - `reject` (fix edits the spec under review) The Rework 4 design note and Verification entry call `Test.Bridge.Steps` a pin of the Result part while DW-1305 says it has no failing pin (blind 2).
+
+- [ ] [Review] **R5-4a (Contest Planner ~02:00Z Nov 14, merge gate DW-1306 (a); ruling in prompts/epic-22-rulings-20261113-1715.md, last section)**: in `docs/security-overview.md` L125, replace the two sentences "Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run." with, word for word: "Every built-in tool is safe except `send_email`, which code classifies per call: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do." (if that paragraph is generated, change it through `Install.SecurityOverview` and regenerate on a lane-D throwaway). FIRST check that every `Fix.Kind` subclass's approval request shows what it will do (a dry run, or the exact text and recipients): list each kind with file:line in the spec; if any kind does not, HALT `blocked` for a `PLANNER REPORT:`. Update the pins the change trips, never the wording.
+- [ ] [Review] **R5-4b (DW-1306 (b))**: in `docs/security-overview.md` "Who may answer", add right after the approval-role bullet, word for word: "- for an email to anyone but the connected mailbox's own address, only the session that asked for it, and only if its user holds `OcuTalonAdmin`;" FIRST check each clause against `Core/AnswersIn.cls` rule 3 (only the session's own request is visible), `Fix.Kind.Email.MayApprove` / `Core/AnswerOps.cls` and `Bridge.Approval` `Answer`'s RequiredRole; record file:line evidence in the spec; if any clause is false, HALT `blocked` for a `PLANNER REPORT:`. Update the pins it trips, never the wording.
+- [ ] [Review] **R5-5 (DW-1305 pin; within the existing StepBuffer grant: Records' send_email handling)**: for a `send_email` step, the record's Error part is the fixed sentence "Error: the email tool call failed." (never the tool's error detail). Test: a stubbed tool error whose detail quotes a unique marker address; scan ^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD with `Test.Core.SecretHandoff.TraceLeaks`: the marker must be absent. `mutation:` restore the error detail -> the test red. The earlier "verbatim Result" mutation is WAIVED by the Planner (record it as waived in `## Verification`). The MCP record rule stays unchanged.
+- **R5 rule**: R5-4a, R5-4b and R5-5 land together in ONE pass or HALT `blocked` with the evidence; anything else found is a HALT, never fixed.
 
 ## Spec Change Log
 
