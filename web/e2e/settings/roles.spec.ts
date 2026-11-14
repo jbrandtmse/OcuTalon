@@ -58,7 +58,7 @@ test('RS2: with roles assignable, the admin lists, grants and removes by keyboar
   await signInReadmeLoaded(page);
   try {
     await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-    await expect(sectionsNav(page).getByRole('link'), 'Roles is the last entry').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Roles']);
+    await expect(sectionsNav(page).getByRole('link'), 'Roles is the last entry').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'Demo mode', 'Tools and MCP servers', 'Roles']);
     const link = sectionsNav(page).getByRole('link', { name: 'Roles', exact: true });
     await link.focus();
     await page.keyboard.press('Enter');

@@ -22,6 +22,8 @@ import type {
   MailSignInStarted,
   MailboxAccepted,
   MailboxEmail,
+  McpChanged,
+  McpSettings,
   MessageAccepted,
   MessagePost,
   ModelTestAnswer,
@@ -105,6 +107,32 @@ export class ApiClient {
    */
   saveRole(user: string, role: string, grant: boolean): Observable<RoleSaved> {
     return this.http.post<RoleSaved>(`${BASE}/settings/roles`, { user, role, grant });
+  }
+
+  /**
+   * The MCP servers and their tools (Story 21.4): a GET that answers 200 `{servers, tools}`. A 403 (not an admin) and a 409 `not_available` (the online demo)
+   * fail as an HttpErrorResponse whose `error` is the body.
+   */
+  mcpSettings(): Observable<McpSettings> {
+    return this.http.get<McpSettings>(`${BASE}/settings/mcp`);
+  }
+
+  /**
+   * Adds an MCP server: a POST of `{name, address}` and, when one was typed, `{secret}`. The secret is sent once and never comes back. A 400 `bad_mcp_server`
+   * (with `fields`), a 403, a 409 and a 500 fail as an HttpErrorResponse.
+   */
+  addMcpServer(body: { name: string; address: string; secret?: string }): Observable<McpChanged> {
+    return this.http.post<McpChanged>(`${BASE}/settings/mcp/servers`, body);
+  }
+
+  /** Removes an MCP server: a DELETE that answers 200 `{result: 'removed', message}`. A 404 (no such server), a 403, a 409 and a 500 fail as an HttpErrorResponse. */
+  removeMcpServer(server: string): Observable<McpChanged> {
+    return this.http.delete<McpChanged>(`${BASE}/settings/mcp/servers/${encodeURIComponent(server)}`, { body: {} });
+  }
+
+  /** Classifies one tool of an MCP server: a POST of `{server, tool, classification}` that answers 200 `{result: 'saved', message}`. */
+  classifyMcpTool(server: string, tool: string, classification: string): Observable<McpChanged> {
+    return this.http.post<McpChanged>(`${BASE}/settings/mcp/classify`, { server, tool, classification });
   }
 
   /**

@@ -28,7 +28,7 @@ Parameter PROBE = "OcuTalon.Test.Web.ApiProbe";
 Parameter WRITINGGETS = "/v1/memory/items,/v1/memory/pinned";
 
 /// The GET routes of the release, as "<url>" with each :name kept, comma-separated. A GET route that is not here must be classified before this class passes.
-Parameter GETROUTES = "/v1/state,/v1/events,/v1/persona,/v1/heartbeat,/v1/memory/precedents,/v1/memory/notes,/v1/memory/items,/v1/memory/pinned,/v1/settings,/v1/documents,/v1/documents/:ref,/v1/usage,/v1/history/decisions,/v1/history/incidents,/v1/settings/channels/webhooks,/v1/settings/roles";
+Parameter GETROUTES = "/v1/state,/v1/events,/v1/persona,/v1/heartbeat,/v1/memory/precedents,/v1/memory/notes,/v1/memory/items,/v1/memory/pinned,/v1/settings,/v1/documents,/v1/documents/:ref,/v1/usage,/v1/history/decisions,/v1/history/incidents,/v1/settings/channels/webhooks,/v1/settings/roles,/v1/settings/mcp";
 
 Property SavedOnline As %String;
 
