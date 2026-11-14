@@ -3,6 +3,7 @@
 /// copyrighted text. Not a test case.
 ///   - Pdf(.pages, count, padTo, encrypt): a PDF of count pages, the content stream of page n in pages(n); with padTo, an unreferenced padding stream that makes
 ///     the file exactly padTo bytes; with encrypt, an /Encrypt entry with fixed hex /O and /U (no password opens it);
+///   - PdfText(text, comment) and DocxText(text): a one-page PDF and a one-paragraph Word file of the text, the PDF with an optional comment line after its header;
 ///   - TextPage(.lines, count) is a page content stream that shows the lines; Pdf3(), PdfDrawing(), PdfEncrypted(), PdfJunk(), PdfPadded(size), PdfPages(count)
 ///     (dense text pages, which take a PDF reader about 50 ms each), PdfBigText() (more than MAXTEXT characters);
 ///   - Zip(.entries, count): a stored zip (CRC-32 from $ZCRC mode 7); entries(n) is the name, entries(n, "data") its bytes, entries(n, "declare") a
@@ -95,8 +96,9 @@ ClassMethod NL() As %String [ CodeMode = expression ]
 $Char(10)
 }
 
-/// A PDF; see the class text. pages(n) is the content stream of page n; with filter (for example FlateDecode) each content stream names it as its /Filter.
-ClassMethod Pdf(ByRef pages, count As %Integer, padTo As %Integer = 0, encrypt As %Boolean = 0, filter As %String = "") As %Stream.TmpBinary
+/// A PDF; see the class text. pages(n) is the content stream of page n; with filter (for example FlateDecode) each content stream names it as its /Filter; with
+/// comment, a comment line (a percent sign and the comment) follows the header, so that its text is in the bytes and never in the text of a page.
+ClassMethod Pdf(ByRef pages, count As %Integer, padTo As %Integer = 0, encrypt As %Boolean = 0, filter As %String = "", comment As %String = "") As %Stream.TmpBinary
 {
 	Set nl = ..NL()
 	Set kids = ""
@@ -117,7 +119,7 @@ ClassMethod Pdf(ByRef pages, count As %Integer, padTo As %Integer = 0, encrypt A
 		Set objects(total) = "<< /Filter /Standard /V 1 /R 2 /O <" _ ..Hex(32, "11") _ "> /U <" _ ..Hex(32, "22") _ "> /P -44 >>"
 		Set extra = " /Encrypt " _ total _ " 0 R /ID [<" _ ..Hex(16, "ab") _ "> <" _ ..Hex(16, "ab") _ ">]"
 	}
-	Set head = "%PDF-1.4" _ nl
+	Set head = "%PDF-1.4" _ nl _ $Select(comment '= "": "%" _ comment _ nl, 1: "")
 	Set position = $Length(head)
 	Set body = head
 	For i = 1:1:total {
@@ -195,6 +197,14 @@ ClassMethod PdfDrawing() As %Stream.TmpBinary
 {
 	Set pages(1) = "0 0 m 300 300 l S 10 10 m 100 10 l S"
 	Quit ..Pdf(.pages, 1)
+}
+
+/// A one-page PDF that shows the text as one line (the text holds no parenthesis or backslash); comment, when given, is a comment line of the bytes after the header.
+ClassMethod PdfText(text As %String, comment As %String = "") As %Stream.TmpBinary
+{
+	Set lines(1) = text
+	Set pages(1) = ..TextPage(.lines, 1)
+	Quit ..Pdf(.pages, 1, 0, 0, "", comment)
 }
 
 /// A PDF with an /Encrypt entry that the empty password does not open.
@@ -312,6 +322,12 @@ ClassMethod Docx(body As %String, declare As %Integer = 0, raw As %String = "", 
 	}
 	Set entries(5, "data") = styles _ "</w:styles>"
 	Quit ..Zip(.entries, 5)
+}
+
+/// A Word file of one paragraph, the text (which holds no markup characters).
+ClassMethod DocxText(text As %String) As %Stream.TmpBinary
+{
+	Quit ..Docx(..Paragraph(text))
 }
 
 /// Title, Heading 1 "Rotating the certificate", a paragraph, Heading 2, a paragraph, a 2x2 table and a last paragraph.

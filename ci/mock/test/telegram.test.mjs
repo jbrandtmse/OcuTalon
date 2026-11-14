@@ -470,6 +470,19 @@ test('mock files: a queued reply for getFile wins over the registry, and reset c
   });
 });
 
+test('mock files: a file of over 10 MB registers and downloads whole (a flat pattern, no stack overflow)', async () => {
+  await withServer({}, async ({ base }) => {
+    const bytes = Buffer.alloc(10 * 1024 * 1024 + 1, 0x20);
+    const big = { ...FIXTURE, fileId: 'big-1', filePath: 'documents/big_1.pdf', base64: bytes.toString('base64') };
+    const registered = await control(base, 'files', 'POST', big);
+    assert.equal(registered.status, 200);
+    assert.equal(registered.json.size, bytes.length);
+    const file = await download(base, DUMMY, big.filePath);
+    assert.equal(file.status, 200);
+    assert.equal(file.bytes.length, bytes.length);
+  });
+});
+
 test('mock files: registering the same id or path again replaces the file, and a bad body is 400', async () => {
   await withServer({}, async ({ base }) => {
     await control(base, 'files', 'POST', FIXTURE);
@@ -488,6 +501,8 @@ test('mock files: registering the same id or path again replaces the file, and a
       [{ ...FIXTURE, filePath: 'a//b.pdf' }, 'an empty path part'],
       [{ ...FIXTURE, contentType: 'pdf' }, 'a content type that is no media type'],
       [{ ...FIXTURE, base64: '!!' }, 'bad base64'],
+      [{ ...FIXTURE, base64: 'QUJDRA' }, 'base64 with no padding'],
+      [{ ...FIXTURE, base64: 'QUJD====' }, 'base64 with too much padding'],
       [{ ...FIXTURE, base64: 5 }, 'base64 that is not a string'],
     ];
     for (const [payload, what] of cases) {

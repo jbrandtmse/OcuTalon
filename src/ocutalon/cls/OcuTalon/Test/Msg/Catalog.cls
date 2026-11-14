@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 154 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 154 keys of OcuTalon.Msg.Catalog.Core and the 121 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -89,9 +89,10 @@ Method TestEntries()
 	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
-	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
+	// Story 26.2 (Contest Planner Public Text ruling 2026-11-14, with the H2 gate of the same day): files.tooLarge, files.unreadable and files.offOnDemo (Telegram's refusals) and files.noReader (the existing no-reader reply, while no reader is on) take the Watch count to 121.
+	Do $$$AssertEquals(keys.watch.%Size(), 121, "the expected Watch list has 121 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 154 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 121 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1303,7 +1304,11 @@ XData Keys [ MimeType = application/json ]
   "mcp.toolChanged",
   "mcp.replayToolChanged",
   "mcp.sourceStopped",
-  "watch.queueBacklog"
+  "watch.queueBacklog",
+  "files.tooLarge",
+  "files.unreadable",
+  "files.offOnDemo",
+  "files.noReader"
  ]
 }
 }
@@ -1748,6 +1753,10 @@ XData Fixtures [ MimeType = application/json ]
  "mcp.replayToolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed."},
  "mcp.sourceStopped": {"slots": {"source": "Open tickets", "tool": "lookup", "server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "The source Open tickets stopped polling at 14:15 ET, because its tool lookup on Tickets is no longer Read-only. Your digest lists it as not checked."},
  "watch.queueBacklog": {"slots": {"itemName": "QueueSink", "production": "Orders", "count": 105, "time": "2026-10-16T18:12:00Z", "oldestAt": "2026-10-16T18:02:00Z"}, "text": "The QueueSink queue in the Orders production had 105 messages waiting at 14:12 ET, the oldest since 14:02 ET.\nWhy now: you asked me to watch queue backlogs."},
+ "files.tooLarge": {"slots": {"size": "10.1 MB"}, "text": "That file is 10.1 MB; the limit is 10 MB."},
+ "files.unreadable": {"slots": {"reason": "it isn't a PDF, Word (.docx), JPEG or PNG file"}, "text": "I couldn't read that file: it isn't a PDF, Word (.docx), JPEG or PNG file."},
+ "files.offOnDemo": {"slots": {}, "text": "Sending files is off on the online demo. It works on your own install."},
+ "files.noReader": {"slots": {"name": "report.pdf"}, "text": "I got report.pdf, but I can't read files yet."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
  "settings.emailAddress": {"slots": {}, "text": "Your email address"},

@@ -5,7 +5,7 @@ Include Ensemble
 /// CI ONLY (Rule 21), like OcuTalon.Test.Channel.LiveCase, which they extend. NEEDS: the running OcuTalon.Production and the CI mock with its
 /// dummy token, the Telegram seam (set and put back by LiveCase.BeginPairing) and demo mode on. Where any is missing, every test fails with the
 /// reason. OnBeforeAllTests points the runners' keys at the mock (as Test.Schedule.ReminderChat does) and runs BeginPairing for the fixture
-/// chats 84017734130 to 84017734136; OnAfterAllTests runs EndPairing first (the turns of the fixture sessions are settled while the keys
+/// chats 84017734130 to 84017734138; OnAfterAllTests runs EndPairing first (the turns of the fixture sessions are settled while the keys
 /// still point at the mock, then adopted and removed with their Decision rows; its status, the items' stop and the mock's reset, is part
 /// of the class's status), then puts the keys back and removes the AI sessions that the turns saved. A fixture session (zztgchat...) is paired with its chat
 /// through the real /start path (LiveCase.PairChat). The mock numbers its default sendMessage answers 1, 2, 3, ... after its reset, so a
@@ -26,15 +26,19 @@ Include Ensemble
 ///     phone's (or the phone-channel rendering for the two allowance keys, which the phone does not get), each has its telegram Delivery row
 ///     with the kind, the approval Ref and <ChatRef>:<message_id>, and an answered notification, once TelegramOut has handled it, has sent
 ///     no message but edited the incident.withFix message once and recorded one answered row;
-///   - TestEmptyTurn: a paired chat's messages with no text (a sticker, a photo with a caption) and one of white space only make no Item to
+///   - TestEmptyTurn: a paired chat's messages with no text and no file (a sticker) and one of white space only make no Item to
 ///     Conversation, no Turn, no Notification and no text to the chat;
+///   - TestFileTurn (Story 26.2; the Planner's ruling H2): while READSFILES is 0 a paired chat's PDF with a caption, and its photo, get the fixed reply "I got {name}, but I can't read files yet." (the file's name,
+///     photo.jpg for a photo) with no getFile, no download, no SentFile row, no Item and no Turn; a document that reports 10,485,761 bytes gets "That file is 10.1 MB; the limit is 10 MB." and no call; on the online demo
+///     the chat gets "Sending files is off on the online demo. It works on your own install." and no call; a chat that is not paired gets the not-paired text and no call. No event-log row, header, body or audit entry holds the
+///     token or "file/bot". The fetch itself is Test.Channel.TelegramFile's, with the reader switched on in the probe;
 ///   - TestNoIdentity: after a Telegram turn, a pairing and two notices, no header, body, agent step, event-log row or audit entry holds the
 ///     chat's id or name, and no live event holds the chat's id; only the Pairing row holds both.
 Class OcuTalon.Test.Channel.TelegramChat Extends OcuTalon.Test.Channel.LiveCase
 {
 
 /// The fixture chat ids.
-Parameter CHATS = "84017734130,84017734131,84017734132,84017734133,84017734134,84017734135,84017734136";
+Parameter CHATS = "84017734130,84017734131,84017734132,84017734133,84017734134,84017734135,84017734136,84017734137,84017734138";
 
 /// The longest, in seconds, to wait for a turn.
 Parameter WAITTURN = 90;
@@ -538,13 +542,8 @@ Method TestEmptyTurn()
 		Do sticker.message.%Remove("text")
 		Set sticker.message.sticker = {"file_id": "zzsticker", "emoji": "zz"}
 		Do ..Send(sticker)
-		Set photo = ..PrivateMessage(chatId, "Zqempty")
-		Do photo.message.%Remove("text")
-		Set photo.message.photo = [{"file_id": "zzphoto", "width": 1, "height": 1}]
-		Set photo.message.caption = "zz a caption is no turn"
-		Do ..Send(photo)
 		Do ..Send(..PrivateMessage(chatId, "", "   "))
-		Do $$$AssertTrue(..Handled(), "TelegramIn handled all three")
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled both")
 		Hang 1
 		Do $$$AssertEquals(..Items(mark).%Size(), 0, "no Item goes to Conversation")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Turns(session).Count(), 0, "the session has no Turn")
@@ -553,6 +552,98 @@ Method TestEmptyTurn()
 	} Catch ex {
 		Do $$$AssertTrue(0, "the empty-turn test failed: "_..Safe(ex))
 	}
+}
+
+/// While READSFILES is 0 a paired chat's document and photo get the fixed no-reader reply and nothing is fetched or stored; the size check comes first, the demo guard before both, and an unpaired chat gets the not-paired text.
+Method TestFileTurn()
+{
+	If '..Go() Quit
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set saved = $ClassMethod(settings, "Get", "onlineDemo")
+	Try {
+		Set chatId = 84017734137
+		Set stranger = 84017734138
+		Set token = $SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMTOKENVAR)
+		Set session = ..Paired(chatId, "Zqfile", .chatRef)
+		Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 0, "nothing reads a file on this branch, so the product's switch is off")
+		Set stream = ##class(OcuTalon.Test.Docs.Samples).PdfText("zz26s2 chat [[mock:file-read]]")
+		Do stream.Rewind()
+		Set bytes = stream.Read(stream.Size)
+		Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("files", {"fileId": "zzChatPdf", "filePath": "documents/zzchat.pdf", "contentType": "application/pdf", "base64": ($SYSTEM.Encryption.Base64Encode(bytes, 1))}), "a PDF is registered on the mock, which a fetch would take")
+		Set mark = ..HeaderMark()
+		Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+		Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set document = ..PrivateMessage(chatId, "Zqfile", "")
+		Do document.message.%Remove("text")
+		Set document.message.document = {"file_id": "zzChatPdf", "file_name": "zz26s2.pdf", "file_size": (stream.Size)}
+		Set document.message.caption = "zz caption"
+		Do ..Send(document)
+		Set photo = ..PrivateMessage(chatId, "Zqfile", "")
+		Do photo.message.%Remove("text")
+		Set photo.message.photo = [{"file_id": "zzSmall", "width": 90, "height": 90}, {"file_id": "zzChatPdf", "width": 800, "height": 800}]
+		Set photo.message.caption = "zz photo caption"
+		Do ..Send(photo)
+		Set big = ..PrivateMessage(chatId, "Zqfile", "")
+		Do big.message.%Remove("text")
+		Set big.message.document = {"file_id": "zzChatPdf", "file_name": "big.pdf", "file_size": (##class(OcuTalon.Core.Files).#FILEMAX + 1)}
+		Do ..Send(big)
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled the three files")
+		Set texts = ..TextsAfter(chatId, 4)
+		Do $$$AssertEquals(texts.%ToJSON(), [(##class(OcuTalon.Test.Channel.TelegramPair).#CONFIRMATION), (##class(OcuTalon.Core.Files).NoReaderText("zz26s2.pdf")), (##class(OcuTalon.Core.Files).NoReaderText("photo.jpg")), "That file is 10.1 MB; the limit is 10 MB."].%ToJSON(), "the chat gets the confirmation, the no-reader reply for the PDF and for the photo, and the too-large text")
+		Do $$$AssertEquals(..Fetches(), "", "the mock got no getFile and no download")
+		Do $$$AssertEquals(..Items(mark).%Size(), 0, "no Item goes to Conversation")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Turns(session).Count(), 0, "the session has no Turn")
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.SentFile WHERE SessionRef = ?", session)
+		Do rows.%Next()
+		Do $$$AssertEquals(rows.%GetData(1), 0, "and no SentFile row")
+
+		// The online demo: the off text, and no call.
+		Do $ClassMethod(settings, "Set", "onlineDemo", 1)
+		Do ..Send(document)
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled the demo's file")
+		Set texts = ..TextsAfter(chatId, 5)
+		Do $$$AssertEquals(texts.%Get(texts.%Size() - 1), ##class(OcuTalon.Core.Files).#TEXTOFFONDEMO, "on the online demo the chat gets the off text")
+		Do $ClassMethod(settings, "Set", "onlineDemo", saved)
+
+		// A chat that is not paired.
+		Set strange = ..PrivateMessage(stranger, "Zqstranger", "")
+		Do strange.message.%Remove("text")
+		Set strange.message.document = {"file_id": "zzChatPdf", "file_name": "zz26s2.pdf", "file_size": 100}
+		Do ..Send(strange)
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled the stranger's file")
+		Set texts = ..TextsAfter(stranger, 1)
+		Do $$$AssertEquals(texts.%ToJSON(), [(##class(OcuTalon.Test.Channel.TelegramPair).#NOTPAIRED)].%ToJSON(), "the unpaired chat gets the not-paired text")
+		Do $$$AssertEquals(..Fetches(), "", "and still no getFile and no download")
+		Do $$$AssertEquals(..Items(mark).%Size(), 0, "and still no Item")
+
+		// No token and no download address anywhere.
+		Set places = {}
+		Set places.headers = ..RowsText("SELECT * FROM Ens.MessageHeader WHERE ID > ?", mark)
+		Set places.bodies = ..Bodies(mark)
+		Set places.audit = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit).%ToJSON()
+		Do $$$AssertTrue(token '= "", "the scan has a token to look for")
+		For value = token, "file/bot", "documents/zzchat" {
+			Set what = $Select(value = token: "the token", 1: "'"_value_"'")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(log, value), 0, "no event-log row holds "_what)
+			For place = "headers", "bodies", "audit" {
+				Do $$$AssertNotTrue($Find(places.%Get(place), value), "the "_place_" hold no "_what)
+			}
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the file-turn test failed: "_..Safe(ex))
+	}
+	Do $ClassMethod(settings, "Set", "onlineDemo", saved)
+}
+
+/// The getFile and download calls that the mock got, comma-separated, "" for none.
+Method Fetches() As %String [ Private ]
+{
+	Set methods = ""
+	Set iterator = ##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()
+	While iterator.%GetNext(, .call) {
+		If (call.method = "getFile") || (call.method = "download") Set methods = methods _ $Select(methods = "": "", 1: ",") _ call.method
+	}
+	Quit methods
 }
 
 /// No Telegram identity outside the Pairing row (AC6).

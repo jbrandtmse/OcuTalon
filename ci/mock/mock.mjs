@@ -341,7 +341,8 @@ export function createMock({ scenarios, logDir, out }) {
       return problem('filePath is a relative path of letters, digits, ".", "_", "-" and "/", with no empty, "." or ".." part');
     }
     if (typeof contentType !== 'string' || !/^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+$/.test(contentType)) return problem('contentType is a media type such as application/pdf');
-    if (typeof base64 !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) return problem('base64 is the file in base64');
+    // A flat pattern and a length check: a pattern that repeats a group overflows the regular-expression stack on a file of megabytes.
+    if (typeof base64 !== 'string' || base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) return problem('base64 is the file in base64');
     const bytes = Buffer.from(base64, 'base64');
     for (const [id, file] of tg.files) if (id === fileId || file.filePath === filePath) tg.files.delete(id);
     tg.files.set(fileId, { filePath, contentType, bytes });

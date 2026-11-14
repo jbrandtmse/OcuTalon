@@ -5,7 +5,7 @@
 ///   - TestFileItemBecomesTurn: a web file Item and a Telegram file Item each become a Turn of their own session with SentFile set from the stored row (exactly ref, name,
 ///     mediaType and size), no text, the Item's channel, and the queued chat.message carries sentFile with those four keys;
 ///   - TestSentFileFromTheRow: an Item whose file name, media type and size differ from its stored row gives a Turn whose SentFile is the row's (Core.Files.Describe);
-///   - TestNoReaderReply: with no reader (the real Core.Files.Readable), each of the two turns ends done with the reply "I got {name}, but I can't read files yet." (the
+///   - TestNoReaderReply: with no reader (the probe's seam forced off, so that the test holds after Story 25.6 turns READSFILES on), each of the two turns ends done with the reply "I got {name}, but I can't read files yet." (the
 ///     safe name), nothing is sent to Decide, the done chat.message carries the reply and sentFile, one Outbound goes to Notify with that text and the turn's channel, and
 ///     the turn is not tainted;
 ///   - TestReaderTurnIsUntrusted: with a reader (the probe's seam), the decide and the turn request both carry provenance untrusted, the Item that ItemOf rebuilds is untrusted
@@ -116,7 +116,7 @@ Method TestSentFileFromTheRow()
 
 Method TestNoReaderReply()
 {
-	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 0, "nothing reads a file on this branch")
+	Set ^OcuTalonTest("ConversationProbe", ..Number, "reader") = 0
 	For channel = "web", "telegram" {
 		Set session = ..Session(channel)
 		Set file = ..Store(session, channel, "zz<b>"_channel_".pdf")

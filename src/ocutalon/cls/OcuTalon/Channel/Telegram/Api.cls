@@ -1,15 +1,18 @@
 /// The Telegram Bot API client of TelegramIn and TelegramOut (Story 12.2; AD-14, AD-19, NFR-11). It is the one place that builds a
-/// Bot API request, with %Net.HttpRequest, and the one place that reads the bot token.
+/// Bot API request, with %Net.HttpRequest, and the one place that reads the bot token: Call for a method, and Download (Story 26.2) for the file that getFile names.
 ///   - Call reads the token from the environment on every call (TOKENVAR) and keeps it nowhere: not in a property, a setting, a row,
 ///     a global, a message, a trace entry, a log line or a status text. It builds a new request object for every call, because a reused
 ///     one sends the previous URL as its Referer, and it follows no redirect.
-///   - Every error text that Call or Failure returns is a fixed phrase with the method, the HTTP status and Telegram's description. It
+///   - Download reads the token the same way, for GET <base path>/file/bot<token>/<file path>, with no redirect, no gzip and the raw bytes, and answers them as a stream that
+///     holds at most DOWNLOADMAX bytes (CappedStream): the read stops at that limit whatever size getFile or the update reported. The file path is checked first and is only
+///     what getFile answered; the URL it builds holds the token, so no text, error, log row or message ever holds that URL, the path or the token.
+///   - Every error text that Call, Download or Failure returns is a fixed phrase with the method, the HTTP status and Telegram's description. It
 ///     never holds the URL, the path, a host or the token, and it goes through Safe.
 ///   - The base (the ApiBase host setting) is http(s)://host[:port][/path]. Only an https base gets Https and the SSL configuration
 ///     (the SSLConfig host setting); an http base makes a plain request whatever the configuration names (AD-19, AD-22).
 ///   - Split cuts a text into parts of at most LIMIT UTF-16 units, as Telegram counts, at the last line break inside the limit, else at
 ///     the limit, and never inside a surrogate pair. It drops a blank part, which Telegram would refuse.
-Class OcuTalon.Channel.Telegram.Api Extends %RegisteredObject
+Class OcuTalon.Channel.Telegram.Api Extends %RegisteredObject [ DependsOn = OcuTalon.Core.Files ]
 {
 
 /// The environment variable that holds the bot token.
@@ -26,6 +29,12 @@ Parameter SSLCONFIG = "OcuTalonClient";
 
 /// The most UTF-16 units of one message text.
 Parameter LIMIT = 4096;
+
+/// The most bytes that Download reads: the sent-file limit of Core.Files (10 MB).
+Parameter DOWNLOADMAX = {##class(OcuTalon.Core.Files).#FILEMAX};
+
+/// What a file path that Download takes looks like (a path that getFile answered): 1 to 200 of letters, digits, dot, slash, underscore and hyphen.
+Parameter PATHPATTERN = "^[A-Za-z0-9._/-]{1,200}$";
 
 /// The setting whose value Endpoint refuses, as the error names it.
 Parameter BASESETTING = "ApiBase";
@@ -85,6 +94,89 @@ ClassMethod Call(base As %String, sslConfig As %String, method As %String, param
 		Set sc = $SYSTEM.Status.Error(5001, ..Safe("The Telegram call "_$Get(method)_" failed ("_exception.Name_")"))
 	}
 	Quit answer
+}
+
+/// The bytes of the file that getFile named by filePath, as a rewound stream of at most DOWNLOADMAX bytes, or "" with sc set. httpStatus is the HTTP status of the answer when
+/// there was one; a status other than 200 is an error status and no stream. tooLarge is 1 when the body went over DOWNLOADMAX: the read was cut off there, and the answer is "" with an
+/// error status. filePath must match PATHPATTERN and have no empty, "." or ".." part, else the error names no value. seconds is the read timeout. Every error text is a fixed phrase
+/// through Safe, with no URL, path or token.
+ClassMethod Download(base As %String, sslConfig As %String, filePath As %String, seconds As %Integer, Output httpStatus As %Integer, Output sc As %Status, Output tooLarge As %Boolean) As %Stream.TmpBinary
+{
+	Set httpStatus = ""
+	Set sc = $SYSTEM.Status.OK()
+	Set tooLarge = 0
+	Set stream = ""
+	Try {
+		Set filePath = $Get(filePath)
+		If '..PathOk(filePath) {
+			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was not made: the file path is not one that getFile answers")
+			Quit
+		}
+		Set sc = ..Endpoint($Get(base), .server, .port, .https, .prefix)
+		If $SYSTEM.Status.IsError(sc) Quit
+		Set token = $SYSTEM.Util.GetEnviron(..#TOKENVAR)
+		If token = "" {
+			Set sc = $SYSTEM.Status.Error(5001, ..Safe("The Telegram file download was not made: no bot token is set in the environment"))
+			Quit
+		}
+		Set request = ##class(%Net.HttpRequest).%New()
+		Set request.Server = server
+		Set request.Port = port
+		Set request.FollowRedirect = 0
+		Set request.Timeout = +$Get(seconds, 8)
+		Set request.ReadRawMode = 1
+		Set request.AcceptGzip = 0
+		If https {
+			Set request.Https = 1
+			Set request.SSLConfiguration = $Get(sslConfig)
+		}
+		Set capped = ##class(OcuTalon.Channel.Telegram.CappedStream).%New()
+		Set capped.Limit = ..#DOWNLOADMAX
+		Set request.ResponseStream = capped
+		Set get = request.Get(prefix_"/file/bot"_token_"/"_filePath)
+		Kill token
+		Set response = request.HttpResponse
+		If $IsObject(response) Set httpStatus = response.StatusCode
+		If capped.Exceeded {
+			Set tooLarge = 1
+			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was cut off: the file is over the limit")
+			Quit
+		}
+		If $SYSTEM.Status.IsError(get) || '$IsObject(response) {
+			Set sc = $SYSTEM.Status.Error(5001, ..Safe("The Telegram file download did not get an answer from the Bot API (error "_$SYSTEM.Status.GetErrorCodes(get)_")"))
+			Quit
+		}
+		If httpStatus '= 200 {
+			Set sc = $SYSTEM.Status.Error(5001, ..Safe("Telegram answered the file download with HTTP "_httpStatus))
+			Quit
+		}
+		Do capped.Rewind()
+		Set stream = capped
+	} Catch exception {
+		Set stream = ""
+		If $IsObject($Get(capped)) && capped.Exceeded {
+			Set tooLarge = 1
+			Set sc = $SYSTEM.Status.Error(5001, "The Telegram file download was cut off: the file is over the limit")
+		} Else {
+			Set sc = $SYSTEM.Status.Error(5001, ..Safe("The Telegram file download failed ("_exception.Name_")"))
+		}
+	}
+	Quit stream
+}
+
+/// 1 when the path is a file path that Download takes: it matches PATHPATTERN and has no empty, "." or ".." part.
+ClassMethod PathOk(filePath As %String) As %Boolean
+{
+	If '$Match($Get(filePath), ..#PATHPATTERN) Quit 0
+	Set ok = 1
+	For i = 1:1:$Length(filePath, "/") {
+		Set part = $Piece(filePath, "/", i)
+		If (part = "") || (part = ".") || (part = "..") {
+			Set ok = 0
+			Quit
+		}
+	}
+	Quit ok
 }
 
 /// The text of a Bot API answer that is not a success: a fixed phrase with the method, the HTTP status and Telegram's description (at

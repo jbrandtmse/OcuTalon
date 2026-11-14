@@ -12,7 +12,8 @@
 ///     without it, a role nobody holds, an unknown or malformed Ref and an empty user, with kind empty, 1 for an answered and expired row (state and expiry
 ///     are Answer's), and it writes nothing and publishes no event;
 ///   - TestRoleCalls: Install.Step.Roles.Assign (Story 25.4) refuses %All with an error that names it, and Holders does not answer 5003; no role changes;
-///   - TestReadFileStub: Agent.Input.ReadFile is a stub until Stories 26.2 and 26.3: 5003 and {}.
+///   - TestReadFileNoFile: Agent.Input.ReadFile of an Item with no FileRef is "not implemented" (5003 and {}); of an Item whose PDF is gone (Stories 26.2 and 26.3 built the branches) it is OK and
+///     {fileRef, kind document, read 0, reason failed, text}.
 Class OcuTalon.Test.Bridge.Api Extends %UnitTest.TestCase
 {
 
@@ -165,17 +166,20 @@ Method TestRoleCalls()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
 }
 
-/// ReadFile of an Item with a file answers 5003 and {}.
-Method TestReadFileStub()
+/// ReadFile of an Item with no file answers 5003 and {}; of an Item whose PDF is gone, read 0 failed.
+Method TestReadFileNoFile()
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()
-	Set item.FileRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set item.SessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set item.FileMediaType = "application/pdf"
 	Set result = "zz"
 	Set sc = ##class(OcuTalon.Agent.Input).ReadFile(item, .result)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "ReadFile answers 'not implemented'")
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "ReadFile of an Item with no FileRef answers 'not implemented'")
 	Do $$$AssertEquals(result.%ToJSON(), "{}", "and the result is empty")
+	Set item.FileRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ##class(OcuTalon.Agent.Input).ReadFile(item, .result)
+	Do $$$AssertStatusOK(sc, "ReadFile of an Item whose PDF is gone answers OK")
+	Do $$$AssertEquals(result.%ToJSON(), {"fileRef": (item.FileRef), "kind": "document", "read": 0, "reason": "failed", "text": (##class(OcuTalon.Docs.Extract).Failure("failed"))}.%ToJSON(), "with read 0, the reason failed and Docs.Extract's text")
 }
 
 }

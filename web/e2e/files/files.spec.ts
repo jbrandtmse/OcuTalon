@@ -9,7 +9,7 @@ import { announcements, recordAnnouncements } from '../support/page';
 
 /**
  * Story 25.3, sending a file from the chat, in a real browser against a real stack. Every case stubs /state with `changeSnapshot`, setting `filesReadable` and
- * `onlineDemo` itself, so that no case depends on this branch's flag (the paperclip is hidden on every real state until Story 26.2 makes the install able to read a file);
+ * `onlineDemo` itself, so that no case depends on this branch's flag (the paperclip is hidden on every real state until Story 25.6 makes the install able to read a file);
  * the route and the turn are the real ones, so the reply is the real no-reader reply, "I got {name}, but I can't read files yet.". Each case signs in as the panel
  * fixture user and removes the file rows and the file turns of its session afterwards. A fixture file has the real signature of its type.
  */
@@ -229,7 +229,7 @@ test('with filesReadable false there is no paperclip, and a drop sends nothing a
   expect(posts()).toBe(0);
 });
 
-test('on the real state, with no stub, the paperclip is hidden because the install cannot read a file yet (a tripwire for Story 26.2)', async ({ page }) => {
+test('on the real state, with no stub, the paperclip is hidden because the install cannot read a file yet (a tripwire for Story 25.6)', async ({ page }) => {
   // No changeSnapshot here: this is the page as every real install shows it on this branch. The stubbed cases above cannot hide a regression of the real flag.
   const posts = watchFilePosts(page);
   const { user, password } = fixtureUser('PANEL');
