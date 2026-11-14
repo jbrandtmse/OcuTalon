@@ -324,3 +324,6 @@
 2026-11-13T23:52:10Z	Story 21.4	ledger_adjudicated	owned=DW-1041 resolved=1 slice_after=empty
 2026-11-13T23:53:14Z	Epic 21	integrated	feature=848ae83c(62db09e0_21.14_merge+37.1+records) merge=local conflicts_resolved=Test/Contract/Ac.cls(union:21.4_drops_SaveMcpEntry/RemoveMcpEntry+37.1_adds_4;floor_91;doc_merged),sprint-status.yaml(feature_side_regenerated,re-set_21-4=done) spine=auto-merged_lint_10_low
 2026-11-14T00:00:09Z	Story 21.4	lead_fix	file=docker/tests/test-readme.sh rule=new-since(NS_WANT_adds_T9_bullet_MCP_servers_in_Settings;count_16->17;auto_missing_self-test_covers_it) reason=pass2_never_ran_test-readme result=all_rules_passed
+2026-11-14T00:02:41Z	Story 21.4	smoke_complete	method=other(live_sign-in_part_2/16_api/mcp.spec.ts_M1-M5_20/20_mock_MCP+real_runner_build;live_sign-in-2_part_10/12_B1-B10_16/16;CR_fresh_stacks) result=pass defects_caught=0 torn_down
+2026-11-14T00:02:41Z	Story 21.4	fresh_check	env=recipe(fresh_warm_e21s4fw_on_merged_tree_28d8e5fc) tests=Contract.Ac,McpSettingsApi,SettingsMcp,CommandsStep4,Mcp.Attach:TestRemovedServer,Mcp.Ops,Msg.Catalog result=pass order=forward,reverse torn_down
+2026-11-14T00:02:41Z	Story 21.4	local_ready	head=pending_commit code_base=feature_848ae83c push=held(CI_HOLD_since_19:41Z)
