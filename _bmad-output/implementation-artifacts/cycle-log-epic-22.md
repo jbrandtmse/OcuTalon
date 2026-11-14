@@ -308,3 +308,4 @@
 2026-11-14T04:04:03Z	Story 22.7	fresh_check	env=recipe(new_lane-D_warm_stack_e22s7f6w) tests=2(Bridge.Steps,Fix.Email) result=pass order=forward,reverse
 2026-11-14T05:54:05Z	Story 22.7	ci_red_classified	run=43554772670 workflow=.github/workflows/ci.yml class=flake test=iris(production)_live:production_row_21(DW-306:wanted_CHK|start-fails|1|1_got_empty) action=one_rerun_of_failed_jobs(attempt_2,05:54Z)
 2026-11-14T06:22:13Z	Epic 22	runner_resumed	note=post-crash(owner_computer);records_from_the_cut_turn_kept_and_committed_locally head=522228a5
+2026-11-14T06:36:35Z	Story 22.7	ci_resolved	story=22.7 sha=522228a5 runs=43554772670,43554772690 result=success failed=none via=none resolved_at=part_ready note=attempt2_green(iris(production)_DW-306_flake_passed_on_its_one_rerun)
