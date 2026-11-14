@@ -8813,6 +8813,27 @@ So that a read file can join my documents and a photo is remembered.
 **And** the guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged ("offers to add it to your documents" with this story; "a photo's caption is saved to memory" with Story 26.3) (UX-DR147)
 - DW-1269: 37.1's obligation for 25.6: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; it renders the read result and the member caption, naming the carriers; 'no file content in a production message body' means no bytes and no image (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
 
+### Story 25.7: Epic 25 burn-down: a cancelled CI job's stack no longer blocks its runner's web port
+
+[ADDED 2026-11-14, Contest Planner, DW-1335 runner-port cleanup]
+
+As the maintainer of the CI,
+I want every IRIS job to clear a stack that a cancelled job left on its runner's fixed web port,
+So that one cancel doesn't fail every later browser unit on that runner.
+
+**Acceptance Criteria:**
+
+**Given** a CI job on a self-hosted runner with its fixed web port (one job runs per runner, so a compose stack that publishes that port is by definition a leftover)
+**When** `ci/iris.sh` starts, before anything binds the port
+**Then** it removes every compose stack that publishes THIS runner's fixed web port, and logs the project it removed
+**And** it never touches a stack on another runner's port, nor anything without a published port
+
+**Given** a test that plants a compose project bound to the runner's port and another on a different port
+**When** the job start runs
+**Then** the planted leftover is removed and the job proceeds, and the stack on the other port survives; with the cleanup skipped, the test fails (a demonstrated mutation)
+**And** nothing changes in the product, and there is no new public text (test and CI only)
+- DW-1335: infra: a cancelled job's stack holds the runner's fixed web port, and every later browser unit on that runner fails at live_web_port (ledger; routed by the orchestrator 2026-11-14, Contest Planner ruling ~13:25Z)
+
 ## Epic 26: Approver roles and reading files (step 6)
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.
