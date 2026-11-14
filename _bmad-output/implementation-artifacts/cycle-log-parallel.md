@@ -4070,3 +4070,16 @@
 2026-11-14T06:37:00Z	Epic 22	ci_green_verified	sha=522228a5 runs=43554772670(att2),43554772690
 2026-11-14T06:37:00Z	Epic 22	amendments_verified	amendments=security-overview_125+146(ruled),GUIDE_P1,spine_AD-10_W8-W9+AD-16 extensions=StepBuffer.cls(granted),Email_Out/CommandsIn/SendEmail/Approval_payload/AnswerOps ok=true
 2026-11-14T06:37:00Z	Epic 22	merge_enqueued	part=22.7 head=522228a5 feature=9a851935(red:section_pins,not_22.7)
+2026-11-14T06:39:06Z	Epic 22	epic_merged_to_feature	part=22.7 feature_sha=5de8aec9 conflicts=tracker(ours+set_22-7=done,22-6=ready-for-dev;valid) merged_tree_pins=test-readme+boundaries+release-notes_pass verified_on_origin=yes ci=runs_cancelled(feature_red_on_section_pins;full_CI_on_lane_B_fix_merge)
+2026-11-14T06:39:14Z	Run	owner_decision	via=contest_planner QUOTA_HOLD_at_14:30Z(usage_57pct_06:38Z) pre-hold=land+push_local_work(WIP_to_hold/*) at_hold=HOLD_STATE_to_Planner resume=on_HOLD_OFF
+2026-11-14T06:39:43Z	Epic 22	dispatch_note	lane_D=22.6_local(verify_at_merge,address_rules,no_push_until_feature_fixed) quota_hold_14:30Z_relayed
+2026-11-14T06:39:56Z	Epic 21	owner_decision	via=contest_planner DW-1314=line125_rewording(send_email+call_mcp_tool) DW-1315=pins(+22.7_line) both_in_21.10_commit text_only
+2026-11-14T06:40:05Z	Run	owner_decision	via=contest_planner QUOTA_HOLD_moved_14:30Z->16:00Z reminders=15:43Z,16:01Z
+2026-11-14T07:12:58Z	Epic 22	runner_reported	PUBLIC_TEXT story=22.6 five-claim_check=1_false(DW-1324:Add_server_step_order,mcp-jira-example.md:14) rest_true(address_rules,SaveEntry_only_writer) local=wip/22-6@191842c3 integrated=5de8aec9
+2026-11-14T07:13:16Z	Epic 22	owner_decision	via=contest_planner 22.6_texts_approved(DW-1324_step_order,line57_that_runs)+pins+mutations 22.5/22.11_may_plan
+2026-11-14T07:34:35Z	Epic 22	runner_reported	PUBLIC_TEXT story=22.5_re-plan(Part_A;22.11_inserted=split) local=wip/22-5@81abdf91 items=V11_lane_B_contract_appends,digest_the-quirk hold_refs_pushed=3
+2026-11-14T07:34:35Z	Epic 22	orchestrator_ruling	story=22.5 V11=footprint_extension_GRANTED(Test/Data/Tables.cls,Test/Live/Payloads.cls,generated_web/src/app/live/payloads.ts;additive_contract_appends) deps_hash=rerecord_at_merge(reason=split)
+2026-11-14T07:35:02Z	Epic 22	owner_decision	via=contest_planner 22.5_re-plan+22.11_split_approved V11_no_veto item2=source_name_without_the(in_22.5_if_one_branch_else_low_DW_pre-RC) mailbox_case_check
+2026-11-14T07:49:02Z	Epic 36	runner_reported	PART_READY story=36.4+36.6 head=39af54d9 runs=43567216780(att2:DW-1323_new_flake_Watch.Summary),43567216781 sections=9_union bundle=882.45kB demo_mode=already_shown_on_feature(9a851935_SECTION_NAMES)
+2026-11-14T07:49:02Z	Epic 36	ci_green_verified	sha=39af54d9 runs=43567216780(att2),43567216781
+2026-11-14T07:49:02Z	Epic 36	merge_enqueued	part=36.4+36.6 head=39af54d9 feature=5de8aec9 fixes=feature_red_section_pins
