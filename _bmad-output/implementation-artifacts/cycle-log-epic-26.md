@@ -49,3 +49,4 @@
 2026-11-14T09:32:22Z	Story 26.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=after_rework1
 2026-11-14T09:32:22Z	Story 26.3	smoke_complete	method=cli(npm_--prefix_web_test_2030/2030;node_--test_files-sources.test.mjs;test-boundaries) result=pass iterations=2 defects_caught=0 evidence=foreground_output note=rework_touches_only_a_web_source-rule_test;IRIS_smoke_of_iteration_1_stands
 2026-11-14T09:32:22Z	Story 26.3	fresh_check	env=clean-checkout(node_test_runner,no_state) tests=files-sources.test.mjs result=pass order=forward,reverse(node_--test_on_one_file;stateless_source_scan)
+2026-11-14T09:32:32Z	Epic 26	integrated_forward	feature=958c63fb(records_only;a5fc95e9_green) head=f1213565 conflicts_resolved=none
