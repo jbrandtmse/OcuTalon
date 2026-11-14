@@ -309,3 +309,5 @@
 2026-11-14T07:14:07Z	Epic 22	branch_created	branch=wip/22-5 from=origin/feature@5de8aec9(22.7+21.4_merged) by=orchestrator_order local_only
 2026-11-14T07:14:07Z	Epic 22	story_inserted	story=22-11-run-source-polls-through-the-governed-proxy source=split_of_22.5(Part_B) ruling=Planner_C_2026-11-12(approved) amendments=epics.md_22.5_block(run+stop_ACs_moved,[AMENDED]) note=orchestrator_re-records_epics_md_hash(reason=split)
 2026-11-14T07:14:07Z	Story 22.5	replan_opened	spec_status=ready-for-dev->draft reason=re-check_against_merged_21.4+Part_A_only(ruling_C);Mcp/Ops.cls_order_22.4->21.4->22.5;21.5_implements_after_22.5_merges(ruling_D)
+2026-11-14T07:17:07Z	Epic 22	epic_context_compiled	reason=planning_artifact_newer(22.11_inserted;21.4_merged) model=opus words=1371 branch=wip/22-5
+2026-11-14T07:17:07Z	Story 22.5	stage_spawned	stage=plan spawn_at=2026-11-14T07:17:07Z model=opus agent_name=22-5-poll-a-read-only-mcp-tool-as-a-source-plan-2 cycle_iteration=2 effort=high branch=wip/22-5 note=re-plan(Part_A)
