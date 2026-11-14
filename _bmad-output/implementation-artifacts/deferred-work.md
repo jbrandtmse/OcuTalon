@@ -7756,3 +7756,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: count by the Planner: 9 cancelled, 4 canceled
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
+
+### DW-1310: RoleSettings.Refusal's ViewerOnly backup check (Web/Api.cls:388) reads the session's roles, not the live role set; OnPreDispatch already refuses the case first on every Roles URL
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=found after the three-item cap; not fixed in 25.4
+
+### DW-1311: SessionEvents records AdminAtSignIn from the roles at sign-in (Data/Ownership.cls:832), so a removed admin keeps getting admin-routed items until next sign-in
+- source: orchestrator; 25.4 runner out-of-scope finding | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 25.4 LOCAL READY report 47bc45f3
+- 2026-11-14T01:31:59Z status=routed owner=burndown by=orchestrator note=related to DW-1290's live re-read

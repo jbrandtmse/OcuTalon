@@ -4026,3 +4026,23 @@
 2026-11-14T00:04:39Z	Run	owner_decision	via=contest_planner bundle_order_if_over_cap=25.4_first,21.4_waits_DW-1282
 2026-11-14T00:05:05Z	Run	owner_decision	via=contest_planner bundle_order_REVISED=21.4_first,25.4_waits_DW-1282(if_over_cap) laneC_plan=accepted(21.5_refresh,21.9_plan_to_gate;implement_waits_changed_flag)
 2026-11-14T01:31:16Z	Run	ci_hold_off	via=contest_planner main=9b38cd39(v1.0.9;ci_43532254168,lane-a_43532254109_green) feature=08190d5c(merge-back+records;runs_cancelled_by_release_fork) next=records_tip_push_to_rerun_feature_CI;LOCAL_READY_branches_integrate_forward_over_08190d5c
+2026-11-14T01:31:59Z	Run	bundle_measure	combined_21.4+25.4_over_08190d5c=not_buildable(10_conflicts:Web/Api.cls,CommandsIn.cls,Contract/Ac.cls,Msg/Contracts.cls,settings-view.ts,settings-page.ts,api-client.ts,web/scripts tests) estimate=~1003kB(over_cap) ruling_applied=21.4_first,25.4_after_DW-1282(36.5_LOCAL_READY_878.98kB)
+2026-11-14T01:32:53Z	Epic 25	runner_ended	reason=waiting waiting_on=21.4+36.5_merged head=ecce6b7a(local,21_unpushed) story=25.4_LOCAL_READY
+2026-11-14T01:32:53Z	Run	ci_hold_off_relayed	C=push_21.4_first B=push_36.5+36.4 D=push_22.7 A=25.4_waits(21.4+36.5) 26=gate_with_Planner
+2026-11-14T01:35:31Z	Run	owner_decision	via=contest_planner C:212_text_approved,21.5_V8,21.9_V1-V2(V3_text_first);D:22.7_merge_gated_DW-1306(a,b)+DW-1305_pin;B:DW-1308_before(36.6),36.5_first_if_separable,NG_BUILD_OPTIMIZE_CHUNKS_3_conditions;A:26.3_gate_approved(caption_like_chat,photo_origin,pin_photo,V5_edit)
+2026-11-14T02:28:20Z	Epic 36	runner_reported	CI_WAIT head=76606093(36.5+36.4) runs=43541579361,43541579444(queued_since_01:36Z;18_runners_busy) relayed=rulings(36.6_before,36.5_split_if_separable,NG_BUILD_3_conditions)
+2026-11-14T02:28:52Z	Run	ci_green_verified	head=86264c83(feature;1.0.9_merge-back+records) runs=43541090062(ci),43541090131(lane-a) attempt=1
+2026-11-14T02:38:01Z	Epic 36	runner_reported	CI_WAIT story=36.5 branch=OCT-epic36-s365 head=40428606 runs=43547225049,43547225103 initial=878.98kB IPM_before=6930794; 36.6=STOPPED(users:[]_ambiguous;options_a_web-only/b_server) local=448dfa99
+2026-11-14T02:38:01Z	Epic 36	ci_cancelled	runs=43541579361,43541579444(76606093_combined;36.4_cannot_merge_before_36.6;frees_runners)
+2026-11-14T02:38:24Z	Epic 36	owner_decision	via=contest_planner 36.5_split_accepted 36.6=(a)_web-only+binding_verification(unknown_user_refused,unpaired_telegram_refused_else_STOP,busy_save_fails_visibly)+tests
+2026-11-14T02:40:06Z	Epic 22	runner_reported	CI_WAIT story=22.7 head=6ed84c73 runs=43541933213,43541933129 runner_claim=stuck_runners orchestrator_check=not_stuck(18_busy_on_live_jobs_of_OCT-epic21/22;IRIS_jobs_started_02:20-02:39Z;saturation)
+2026-11-14T03:14:30Z	Epic 22	runner_reported	PLANNER_REPORT story=22.7 DW-1306b_bullet_false(reject_needs_no_admin;AnswerOps.cls:60-62,Email.cls:256-259) rest_verified+set_aside(22-7-rework5-attempt.patch) CI_6ed84c73=12_green,7_running
+2026-11-14T03:14:51Z	Epic 22	owner_decision	via=contest_planner story=22.7 who-may-answer_bullet=approved(answer_by_session,approve_needs_admin) final_pass=3_items(patch,bullet,MCP-reroute_test_only) merge=after_21.4
+2026-11-14T04:09:37Z	Epic 36	runner_reported	PART_READY story=36.5 branch=OCT-epic36-s365 head=40428606 runs=43547225049,43547225103(att2;DW-625_quiesce_flake) IPM=6930794->6937863(+7069) upgrade_cond=partial(CI_install-upgrade_is_self-upgrade_not_from_v1.0.9); 36.6=done_local(ddb47055;0H0M)
+2026-11-14T04:11:36Z	Epic 36	owner_decision	via=contest_planner 36.5_upgrade_from_v1.0.9=REQUIRED(harness_rehearsal,phase_by_phase,stale_files+deep_link+rows;row6_one_rerun) merge_order=first_ready_of_36.5/21.4 DW-625=ratified_flake 36.6=push_and_gate
+2026-11-14T04:11:59Z	Epic 36	owner_decision	via=contest_planner 36.5_harness_record=push_records-only_tip(green_by_identity_over_40428606)
+2026-11-14T04:28:47Z	Epic 36	runner_reported	36.5_harness_v1.0.9: stale_files=STOP(main-JCJUH3RN.js_v1.0.9_main_left;module.xml_FileCopy_no_delete;pre-existing;DW-1320_med) deep_link=pass rows=13/13_pass evidence=74b10a14(local,OCT-epic36-s365); CI_WAIT_36.4+36.5+36.6 head=4a74d329 runs=43555521311,43555521307
+2026-11-14T04:29:43Z	Epic 36	owner_decision	via=contest_planner DW-1320=not_blocking_36.5,blocks_1.0.10_RC(burndown_story,5_ACs) 36.5_condition2=met
+2026-11-14T04:29:43Z	Epic 36	ci_green_verified	sha=40428606(OCT-epic36-s365) runs=43547225049(ci),43547225103(lane-a,att2_DW-625) evidence=74b10a14(records-only)
+2026-11-14T04:29:43Z	Epic 36	amendments_verified	amendments=epics_36.5_charter extensions=web/package.json(NG_BUILD_OPTIMIZE_CHUNKS=0,DW-1300) ok=true
+2026-11-14T04:29:43Z	Epic 36	merge_enqueued	part=36.5(DW-1282) head=74b10a14 feature=86264c83 order=first_ready(21.4_pending)
