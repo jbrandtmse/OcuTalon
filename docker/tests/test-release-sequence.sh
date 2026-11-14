@@ -2189,7 +2189,7 @@ OVW_MCP_AUDIT='- `MCP`: a server added or removed, or a tool called or refused;'
 OVW_MCP_OPENING="On a local or IPM install, an admin can add MCP servers, and their tools become OcuTalon's tools under the same gate, approval and audit as the built-in ones."
 OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them."
 
-# ovw_mcp_example_lines: the lines of the worked example that say how to classify a tool and how OcuTalon governs MCP tools, one per line, each pinned word for
+# ovw_mcp_example_lines: the ruled lines of the worked example (how to classify a tool, how OcuTalon governs MCP tools, how to add a server), one per line, each pinned word for
 # word as a whole line (the classification table's rows, the Read-only rule, the refusal line, the governance bullets and the line that opens the Add server step).
 ovw_mcp_example_lines() {
   cat << 'EOF'
