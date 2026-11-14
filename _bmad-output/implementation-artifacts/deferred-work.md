@@ -8179,6 +8179,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: story-262-rulings condition 1; Test.Agent.SentFiles injection pins
 - 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=code review decides: meet the flag within AD-10, or route to the Planner
 - 2026-11-14T18:32:43Z status=decision-pending owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=Planner: literal Tainted for a text PDF conflicts with AD-10 taint def; protection met via provenance; see CR clarification
+- 2026-11-14T18:58:37Z status=by-design by=spec_gate note=Contest Planner ruling DW-1343 option A: for outside content untrusted counts as tainted; AD-10 3b added; pins cited in the spec's Verification (Gate:TestUntrustedTurnRunsOnlySafeReadOnly, :TestTaintedTurnRunsOnlySafeReadOnly, :TestProxyDirectIsClassifiedAsTheNativeCall, :TestProxyUnknownServer, Fix.AskedTurns:TestInjectedTurn, SentFiles:TestInjectionTurn, :TestInjectedEmail; one gate path Policy/Gate.cls:222)
 
 ### DW-1345: Telegram: a download cut off at 10 MB is answered 'That file is 10.1 MB' whatever its real size
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md (code review) | severity: low | fix-risk: low | footprint: in-story
