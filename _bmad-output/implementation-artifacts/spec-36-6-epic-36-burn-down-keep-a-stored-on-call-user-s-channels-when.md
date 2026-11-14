@@ -77,6 +77,33 @@ deferred: []
 - Given a user the list holds unpaired, when On call loads or the user is chosen, then Telegram is unchecked and disabled with its line (O1 and the node tests, unchanged).
 - The initial bundle stays at or below 921,000 bytes (`web/scripts/initial-bundle.test.mjs`).
 
+### Review Findings
+
+Code review 2026-11-14 (Tier 1, full mode, diff `8c46cffa..d69359da`; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, none failed). 25 raw findings, 20 after grouping: 0 decision-needed, 5 patch (applied), 3 defer (ledger, terminal), 12 rejected. Verdicts: high 0, medium 0, low 10, false 10. Rule 3: met (O13 and O16 run against the real server; QA's live part 12/15 on lane-B `e36s6q1`, 26 passed). Rule 6: no AD violated (AD-14, AD-19, AD-29). No `SETTINGS_TEXTS` key, `ux-strings.test.mjs` or server file changed.
+
+- [x] [Review][Patch] The `on-call-view.ts` header bullet dropped the person-by-email case from `telegramState`'s contract [web/src/app/settings/on-call-view.ts:9] — restored ("not for a person by email, and not for a user the list shows without a paired chat").
+- [x] [Review][Patch] Node case title lacked the possessive, and its mutation line quoted it truncated [web/scripts/on-call-view.test.mjs:175] — title now "keeps both roles' stored boxes, and sends them, while the list is unavailable"; the mutation line quotes it in full.
+- [x] [Review][Patch] AC1's no-new-text clause had no `mutation:` line [web/scripts/on-call-view.test.mjs:36] — a `listUnavailable` key added to `SETTINGS_TEXTS.onCall` turned "are shown byte for byte" red; reverted, line recorded under Verification.
+- [x] [Review][Patch] AC5 (bundle at most 921 kB) had no `mutation:` line [web/scripts/initial-bundle.test.mjs:21] — the Settings route made eager turned the test red at 978.39 kB; reverted, line recorded under Verification.
+- [x] [Review][Patch] No re-run recorded after the QA additions — re-ran at review: `on-call-view.test.mjs` 25 pass, `npm --prefix web test` 2005 pass, lint pass, build initial total 878.98 kB and `initial-bundle.test.mjs` pass; tree byte-identical after each mutation.
+- [x] [Review][Defer] List `[]` at load, Telegram checked for an unlisted user during a pending save, and an answer listing them unpaired leaves the box checked and disabled [web/src/app/settings/on-call-section.ts:395] — deferred: DW-1316 `wontfix-accepted` (narrow race; the next save is refused, not silent; re-pick or Leave without saving recovers).
+- [x] [Review][Defer] O13/O16 leave an unknown on-call user if the run is hard-killed between the save and afterEach; a reused instance's next `restoreOnCall` then gets 400 [web/e2e/settings/on-call.spec.ts:513] — deferred: DW-1317 `wontfix-accepted` (`finally` and afterEach cover every normal failure; fresh lane-B and CI instances never hit it).
+- [x] [Review][Defer] Story 36.4's spec and the epic context's kept rules still say Telegram only for a paired session — deferred: DW-1318 `wontfix-accepted` (fix edits other specs; the 36.6 entry in the epic context and the code docs carry the new rule).
+
+Rejected:
+- `low` The spec's Auto Run Result, Commands ("O1-O13", part 13/15) and Code Map predate QA's O14-O16 and the part move to 12/15 (blind-hunter, verification-gap, acceptance-auditor) — the fix edits the spec under review; Tests Added and the Verification mutation lines carry the current set.
+- `low` The frontmatter `created` date (11-14) follows the 11-13 change-log entry (blind-hunter) — UTC vs local date; the fix edits the spec.
+- `false` O14/O15 matchers omit the emails and persons (blind-hunter) — the address path does not depend on the list; O12 pins both roles' emails with the list unavailable, and O14/O15 pin the channels.
+- `false` O14/O15 lack O12's "nothing was written" read (blind-hunter) — both stubs fulfil the POST and `posted.length === 1` holds; afterEach restores regardless, so no write can leak.
+- `false` O13 lacks O16's "no error under the other role" check (blind-hunter) — O13's backup is Nobody, which the server never refuses by user (`TestRefusals`); no reachable double refusal.
+- `false` The e2e header credits O12-O16 to Story 36.4 (blind-hunter) — "Story 36.4" names the section under test; per Rule 14 the header states what each case pins, not its history.
+- `false` Re-picking a stored user the list lacks takes `chose()`'s unpaired default (edge-case-hunter) — unreachable: `personOptions` lists that user only while the role's form holds them, so no `change` event can choose them; `chose()` is unchanged by the spec.
+- `false` `auditSince(mark, 0)` is one immediate read (edge-case-hunter, verification-gap) — the audit row is written synchronously before the answer, and the read follows the page showing the refusal; O3 uses the same pattern.
+- `false` AC4's mutation line names O1, which needs an unpaired README admin (verification-gap) — the line states that condition, and the same mutation is recorded red in the environment-free node test (bob); O14 pins the listed-unpaired case too.
+- `false` O13's `not.toBe('')` is weaker than `toBe(user)`, and O13/O16's `not.toBeChecked` passes under the old rule (verification-gap) — the 200 save binds the stored user, every later assertion keys on it, and `toBeEnabled` plus the zero-count line discriminate.
+- `false` The spec says `done` while the tracker says `review` (acceptance-auditor) — the tracker is synced at the end of this review.
+- `false` The matrix's "the form is clean" is not asserted (acceptance-auditor) — both the form and its baseline come from `onCallFormOf`, so the load is clean with or without the defect; nothing for a test to pin.
+
 ## Spec Change Log
 
 - 2026-11-13: O13's fixture user is `zzo13<stamp>`, not `zz-o13-<stamp>`: `seedOtherSession` accepts only letters, digits and underscore. The behaviour is as specified.
@@ -149,7 +176,7 @@ No AD's Rule changes.
 - AC4: `telegramState` answers `enabled` for every user → `on-call-view.test.mjs` red (bob) and O1 red on an unpaired README admin.
 
 **Mutation results (implement stage; each reverted by hand, `git diff` byte-identical to the fixed tree):**
-- mutation: `telegramState` reverted so a user the list lacks is `unpaired` (`users.find(...)?.paired !== true`) → O12 red (`toBeChecked` failed on the stored Telegram box; O13 not reached in the serial run) and `on-call-view.test.mjs` red (3 cases: "is not judged for a user the list does not hold", "keeps the stored boxes of a user the list does not hold", "keeps both roles stored boxes, and sends them").
+- mutation: `telegramState` reverted so a user the list lacks is `unpaired` (`users.find(...)?.paired !== true`) → O12 red (`toBeChecked` failed on the stored Telegram box; O13 not reached in the serial run) and `on-call-view.test.mjs` red (3 cases: "is not judged for a user the list does not hold", "keeps the stored boxes of a user the list does not hold", "keeps both roles' stored boxes, and sends them, while the list is unavailable").
 - mutation: `fieldErrorText('primaryUser')` returns the `noChannel` text → O11 red first (the serial run then skips O13); narrowed to a user named `zzo13*` so O11 passes → O13 red (expected the unknown-user text, received the `noChannel` text).
 - mutation: `telegramState` never answers `unpaired` → `on-call-view.test.mjs` red (bob, "is disabled for a user who hasn't paired", and 3 more) and O1 red (`toBeDisabled` failed on the unpaired README admin).
 - mutation (QA): `onCallFormOf` reads the backup against `[]` instead of `values.users` → `on-call-view.test.mjs` red ("judges the backup by the list as it judges the on-call person, whoever the other role is").
@@ -157,6 +184,8 @@ No AD's Rule changes.
 - mutation (QA): `roleFormOf` returns `telegram: boxes.telegram` (a listed unpaired user's stored Telegram is kept checked) → O14 red (`not.toBeChecked` failed on the listed unpaired user's Telegram; O1 to O13 pass) and `on-call-view.test.mjs` red (3 cases).
 - mutation (QA): `roleFormOf` returns `mail: boxes.mail || users.length === 0` (Email forced on while the list is empty) → O15 red (`not.toBeChecked` failed on the backup's Email; O1 to O14 pass) and `on-call-view.test.mjs` red (the Telegram-only case).
 - mutation (QA): `fieldErrorText('backupUser')` returns the `noChannel` text → O16 red (expected the unknown-user text under the backup, received the `noChannel` text; O1 to O15 pass).
+- mutation (code review, AC1 no-new-text clause): a `listUnavailable` key added to `SETTINGS_TEXTS.onCall` in `settings-view.ts` → `on-call-view.test.mjs` red ("are shown byte for byte"; 24 pass, 1 fail).
+- mutation (code review, AC5): the Settings route in `app.config.ts` made eager (`component: SettingsPage` in place of `loadComponent`) → `initial-bundle.test.mjs` red ("holds at most 921 kB": the initial total is 978.39 kB).
 
 ## Auto Run Result
 

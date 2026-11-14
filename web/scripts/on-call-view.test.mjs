@@ -172,7 +172,7 @@ describe('the form', () => {
     assert.equal(onCallFormOf(values({ primaryUser: 'bob', primaryChannels: 'telegram,email' })).primary.telegram, false, 'bob, listed and unpaired, still reads false');
   });
 
-  it('keeps both roles stored boxes, and sends them, while the list is unavailable', () => {
+  it("keeps both roles' stored boxes, and sends them, while the list is unavailable", () => {
     const form = onCallFormOf(
       values({ users: [], primaryUser: 'alice', primaryChannels: 'telegram,email', backupUser: 'gone', backupEmail: 'g@x.io', backupChannels: 'telegram,email' }),
     );

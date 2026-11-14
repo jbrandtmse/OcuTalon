@@ -6,8 +6,9 @@
  * - A role (the on-call person, the backup) is a person: nobody, an OcuTalon user (a name from the server's list) or someone by email, with an email address
  *   and the channels to page by. The select's values are `nobody`, `user:<name>` and `email`, so that no user name can be mistaken for a choice.
  * - personOf reads a stored role's person from its user and address; onCallFormOf builds the form from the server's values; onCallBody is the body of a save.
- * - telegramState says whether the Telegram box can be chosen: not for a user the list shows without a paired chat. A user the list does not hold is not judged:
- *   the stored boxes stay as stored, and the server's save-time checks decide. defaultChannels is what the boxes hold when a person is chosen.
+ * - telegramState says whether the Telegram box can be chosen: not for a person by email, and not for a user the list shows without a paired chat. A user the
+ *   list does not hold is not judged: the stored boxes stay as stored, and the server's save-time checks decide. defaultChannels is what the boxes hold when
+ *   a person is chosen.
  * - fieldErrorText is the accepted text of a refused field; personOptions is the Person select's choices, and a stored user who has lost their session row
  *   stays in the list.
  * - isOnCallDirty compares a form with its saved one, ignoring what a hidden control holds.

@@ -3972,6 +3972,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: U-235 (veto, kept by the Contest Planner 2026-11-03T09:22:15Z#706): the larger rework is out of 1.0.0; Story 0.13 retries once on #453 instead; the DW-612 check found #453 on a fresh first start (41419787515) and install-start row 2 (41577358713, 41577710442)
 - 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (U-235); keeps AD-23's merge-at-every-start promise (repair a mapping removed by hand) through a cheaper check
+- 2026-11-14T04:00:20Z occurrence=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages note=CI run 43547225103 attempt 1 (lane-a) ipm-install-p on OCT-epic36-s365 40428606: part p, the install in USER after the uninstall ended 'ERROR! Cannot quiesce the system for namespace reactivation' (Initialize FAILURE); green on the one rerun of the failed job (attempt 2)
 
 ### DW-632: flake: live:floor web/e2e/floor/guide.spec.ts:740 M12 (Show me with no pending notification focuses the phone feed; a jump to step 3 hands focus to an inactive box) hit the 120 s test timeout in the floor project in CI
 - source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7793,6 +7794,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SettingsOps PoolSize 1; TestModel holds it up to TESTWAIT 45 s > SEARCHTIMEOUT 20 s, so a GET during a model test answers users []; on-call-view.ts roleFormOf: telegram = boxes.telegram && telegramState(...)='enabled', and telegramState of a user absent from [] is unpaired; channelsOf then sends 'email' only
 - 2026-11-14T01:11:36Z status=escalated owner=burndown by=cr note=last rework iteration; ruling-bound (users [] with no new text): keep stored boxes when the list is unavailable, or unqueue the read
 - 2026-11-14T02:42:05Z status=routed owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=merge_gate note=Planner rulings 2026-11-14 (~02:00Z s6, ~03:00Z option (a)): fixed before 36.4 merges as burn-down Story 36.6, web-only, no new text
+- 2026-11-14T04:02:03Z status=resolved-by:36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=adjudication note=Story 36.6 (70f1880a, QA d69359da, review patches): telegramState answers unpaired only for a listed user with paired false; a stored user the list lacks keeps the stored boxes and the server decides at save; pinned by e2e O12/O15 (users [] keeps telegram in the POST) and O13/O16 (a removed user refused with the unknown-user text), node cases; web-only, no new text
 
 ### DW-1309: 36.4: a ListOnCallUsers handler that runs after CommandsIn gave up (SEARCHTIMEOUT 20 s, busy) offers its user-name list to SecretHandoff and nobody takes it; it stays in shared memory until restart
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-story
@@ -7808,3 +7810,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; DW-1286 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: count by the Planner: 9 cancelled, 4 canceled
 - 2026-11-13T21:58:25Z status=routed owner=burndown by=orchestrator note=21.4's T7 takes 'cancelled' now if 21.4 is before LOCAL READY, else when this DW lands; 22.6's example uses 'cancelled' (DW-1286)
+
+### DW-1316: 36.6: list [] at load, Telegram checked for an unlisted user during a pending save, and a response listing them unpaired leaves the box checked and disabled
+- source: spec-36-6 code-review | severity: low | fix-risk: med | footprint: in-story
+- evidence: on-call-section.ts succeeded(): an edited form is kept while users() refreshes; telegramState then reads unpaired but the kept box stays checked. Next save is refused (noChannel), not silent; person re-pick or Leave without saving recovers.
+- 2026-11-14T03:59:46Z status=wontfix-accepted owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=cr note=needs list [] then a list in the save answer within one pending save; reopen_if=a report or test shows a checked disabled Telegram box
+
+### DW-1317: 36.6: O13/O16 store a user then delete their session row; a run killed before afterEach leaves an unknown on-call user, so a reused instance's next restoreOnCall gets 400
+- source: spec-36-6 code-review | severity: low | fix-risk: med | footprint: in-story
+- evidence: on-call.spec.ts O13/O16 clean the row in finally and afterEach restores original, so normal failures are safe; only a hard kill in that window on a warm (reused) instance leaks. Fresh lane-B and CI instances never hit it.
+- 2026-11-14T03:59:46Z status=wontfix-accepted owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=cr note=loud, recoverable by a reset; reopen_if=a sign-in-2 run fails in afterEach with 'the on-call values are restored: 400' naming zzo13 or zzo16
+
+### DW-1318: 36.6: spec-36-4 (Telegram only for a paired session, else disabled) and epic-36-context's kept rules don't note that a stored user the list lacks now has Telegram enabled
+- source: spec-36-6 code-review | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 36.4 spec ~L195 and epic-36-context.md L22 state the paired-only rule; the 36.6 entry (epic-36-context L20) and on-call-view.ts docs state the new rule; the server's save check is unchanged (AD-19).
+- 2026-11-14T03:59:46Z status=wontfix-accepted owner=36-6-epic-36-burn-down-keep-a-stored-on-call-user-s-channels-when by=cr note=done story record; the context is regenerated by the pre-warm; reopen_if=a later plan cites the 36.4 rule to disable Telegram for a user the list lacks
