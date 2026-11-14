@@ -49,6 +49,7 @@
 ///     defines waits for the whole TIMEOUT and ends with no answer), and when the send fails because EmailOut is not registered in the running production.
 ///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 ///     A ListPinnedMemories that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 41.13).
+///     A ListOnCallUsers that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) the same way (Story 36.4).
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.
@@ -212,6 +213,7 @@ Method SearchAllowance(command As OcuTalon.Msg.Command.SearchMemory) As OcuTalon
 /// is answered here as a CommandResult with Ok 0 and Outcome busy (the Message is the gate's failed sentence); the owner still finishes the request, and
 /// nothing is changed by it.
 /// A ListPinnedMemories is sent the same way (Story 41.13).
+/// A ListOnCallUsers is sent the same way (Story 36.4).
 Method SendSearch(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Set sc = ..SendRequestSync(target, request, .response, ..#SEARCHTIMEOUT)
@@ -325,6 +327,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// Step 4 (Story 35.2, AD-1, AD-21): the MCP verbs go to McpOps from web_admin only, and SendEmail to EmailOut from tool (own address only,
 /// Carry) and system. SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 /// MailSignIn (Story 21.3, AD-1) starts or checks the mailbox's OAuth2 sign-in and goes to SettingsOps from web_admin only: neither the model nor any tool can send it.
+/// ListOnCallUsers (a read, Story 36.4) goes to SettingsOps from web_admin only, not from system, and is no tool verb.
 XData Routes [ MimeType = application/json ]
 {
 [

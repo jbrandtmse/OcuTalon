@@ -7745,6 +7745,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Core/SettingsOps.cls OnCallUsers: $Order(^OcuTalonP.SessionD) and (^OcuTalonP.PairingD) with %OpenId, chosen in-stage (Decided 19) because the web process holds no SQL privilege; V4 allows the admin-only list but no ruling covers this read path; the precedents (Webhook.ForSession, Upload) walk their own class's globals
 - 2026-11-13T16:56:16Z status=escalated owner=burndown by=cr note=security posture (AD-13): rule whether an admin roster read by object access is allowed, or move it into Data.Session/Ownership
 - 2026-11-13T22:00:16Z owner=36-4-set-the-on-call-person-and-backup-in-settings by=merge_gate note=Planner ruling 2026-11-13: approved; 36.4 moves OnCallUsers behind SettingsOps in the background process before it merges; AD-13 amendment; lint is DW-1287
+- 2026-11-14T01:17:26Z status=resolved-by:36-4-set-the-on-call-person-and-backup-in-settings by=adjudication note=rework 3 (a8de7e29 + re-review patches): GET /v1/settings sends the ListOnCallUsers read verb (web_admin only) to SettingsOps, which runs OnCallUsers in the production job and returns the list only through SecretHandoff; the web process reads no Data.Session/Data.Pairing storage (pinned by SettingsOnCall.TestRosterNotReadInTheWebProcess); AD-13 amended (4959542a); the lint is DW-1287
 
 ### DW-1279: Web.OnCallSettings copies Web.HookSettings' OnlineDemo and Submit verbatim and Hand nearly (Rule 2), instead of a shared settings hand-off in Web.Api
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
@@ -7786,3 +7787,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review (verification-gap) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Unverified inference: the full suite ran green locally with the build in parallel (2000 pass, 14.5 s). Moving the build to its own step is a .github/workflows change this story rules out.
 - 2026-11-13T23:51:33Z status=wontfix-theoretical owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=real if a web/scripts timing assertion fails in the ci web job Unit tests step while initial-bundle.test.mjs builds
+
+### DW-1308: 36.4: when the on-call user list cannot be had (users [] on busy/fail), the On call form unchecks a stored paired user's Telegram box with the 'no paired chat' line, so the next on-call save silently drops the Telegram channel
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SettingsOps PoolSize 1; TestModel holds it up to TESTWAIT 45 s > SEARCHTIMEOUT 20 s, so a GET during a model test answers users []; on-call-view.ts roleFormOf: telegram = boxes.telegram && telegramState(...)='enabled', and telegramState of a user absent from [] is unpaired; channelsOf then sends 'email' only
+- 2026-11-14T01:11:36Z status=escalated owner=burndown by=cr note=last rework iteration; ruling-bound (users [] with no new text): keep stored boxes when the list is unavailable, or unqueue the read
+
+### DW-1309: 36.4: a ListOnCallUsers handler that runs after CommandsIn gave up (SEARCHTIMEOUT 20 s, busy) offers its user-name list to SecretHandoff and nobody takes it; it stays in shared memory until restart
+- source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: No web-side handle (the uri is in the unseen result); reachable on a healthy production, not only a wedged one: SettingsOps PoolSize 1 and TestModel waits up to 45 s; memory only, 128-bit name, never a trace or a global (related: DW-1155, no expiry)
+- 2026-11-14T01:11:36Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=SecretHandoff gains an expiry/sweep, or a leftover OcuTalonHandoff* event is seen after GETs outside a model test; fix: skip Put when request age>=20s

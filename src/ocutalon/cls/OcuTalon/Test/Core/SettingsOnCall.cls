@@ -426,7 +426,8 @@ Method TestOnlineDemoAsksNoOne()
 }
 
 /// The web-process path of the users holds no read of the sessions' or pairings' storage: the source of Values, OnCallValues, OnCallRoster and SubmitRoster has no $Order over an
-/// OcuTalonP global, no %OpenId and no call of OnCallUsers, which only the production job's handler makes. The scan has a positive control: OnCallUsers itself holds all three.
+/// OcuTalonP global, no %OpenId and no call of OnCallUsers, which only the production job's handler makes. The scan has positive controls: OnCallUsers itself holds the storage walk and the
+/// %OpenId, and the handler ListOnCallUsers calls OnCallUsers.
 Method TestRosterNotReadInTheWebProcess()
 {
 	Set bad = ""

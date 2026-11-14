@@ -15,7 +15,8 @@
 ///     but the setting rows (and, for the user name, the session row that makes the user). None of them is in a trace global either (Ens.MessageBodyD/S,
 ///     Ens.MessageHeaderD, Ens.Util.LogD).
 ///   - TestUsersListedThroughTheVerb (DW-1278): GET /v1/settings lists a fixture user with paired in the on-call member, through one real ListOnCallUsers (origin web_admin)
-///     that the production's SettingsOps answers with Data that is exactly {"handoff": uri}; the user name is in no trace global (TraceLeaks) and the handoff is gone.
+///     that has no SessionRef and that the production's SettingsOps answers with Data that is exactly {"handoff": uri}; the user name is in no trace global
+///     (TraceLeaks) and the handoff is gone.
 Class OcuTalon.Test.Web.OnCallSettingsApi Extends %UnitTest.TestCase
 {
 
@@ -282,7 +283,8 @@ Method TestValuesOnlyInTheAuditLog()
 }
 
 /// DW-1278: the page's users come back through the real production. A fixture user whose name only the user list carries is in the on-call member of GET /v1/settings,
-/// not paired; exactly one ListOnCallUsers command and one result of outcome listed were made, the result's Data is exactly {"handoff": uri} and that handoff is gone;
+/// not paired; exactly one ListOnCallUsers command, with no SessionRef (the evaluation counts only a session's commands), and one result of outcome listed were made,
+/// the result's Data is exactly {"handoff": uri} and that handoff is gone;
 /// and no trace global holds the user name, which a list in the CommandResult would put there.
 Method TestUsersListedThroughTheVerb()
 {
@@ -304,6 +306,12 @@ Method TestUsersListedThroughTheVerb()
 	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Msg.Command.ListOnCallUsers' AND SourceConfigName = 'CommandsIn' AND TargetConfigName = 'SettingsOps'", header)
 	Do rows.%Next()
 	Do $$$AssertEquals(rows.%GetData(1), 1, "one ListOnCallUsers went from CommandsIn to SettingsOps")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT c.SessionRef FROM OcuTalon_Msg.Command c JOIN Ens.MessageHeader h ON h.MessageBodyId = c.ID WHERE h.ID > ? AND h.MessageBodyClassName = 'OcuTalon.Msg.Command.ListOnCallUsers' AND h.SourceConfigName = 'CommandsIn'", header)
+	Set refs = ""
+	While rows.%Next() {
+		Set refs = refs_$ListBuild(rows.%GetData(1))
+	}
+	Do $$$AssertEquals($ListLength(refs)_"|"_$ListToString(refs, ","), "1|", "and it has no SessionRef, so the evaluation, which counts a session's commands, never counts it")
 	Set results = ##class(%SQL.Statement).%ExecDirect(, "SELECT Data FROM OcuTalon_Msg.CommandResult WHERE ID > ? AND Outcome = 'listed' AND Data LIKE '%handoff%'", mark)
 	Set count = 0
 	While results.%Next() {
