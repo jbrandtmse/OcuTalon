@@ -105,6 +105,8 @@ describe('the page speaks only through the Announcer', () => {
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
       'app/banners/banner-stack.ts',
+      // Sending a file from the chat: a refusal or a failed send, once (Story 25.3).
+      'app/chat/chat-files.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
       'app/chat/got-it.ts',

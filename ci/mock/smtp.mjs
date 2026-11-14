@@ -1,24 +1,31 @@
 // The SMTP stub of the CI mock (Story 21.6; AD-22, Lane B mock behaviour): a plain-TCP SMTP server that receives mail and a control side.
 // It is a test fixture: no real mail server, no real address, no real credential, no relay, no TLS. createSmtp() returns
 //   {listen(port, host, cb), close(), handleControl(req, res, pathname, raw), state(), reset()}.
-// The SMTP side answers EHLO, HELO, AUTH PLAIN and AUTH LOGIN, MAIL, RCPT, DATA, RSET, NOOP and QUIT. EHLO advertises AUTH PLAIN LOGIN and
-// never STARTTLS, so a client that asks for STARTTLS meets a server without it (the client must then send nothing). AUTH is accepted
+// The SMTP side answers EHLO, HELO, AUTH PLAIN, AUTH LOGIN and AUTH XOAUTH2, MAIL, RCPT, DATA, RSET, NOOP and QUIT. EHLO advertises AUTH PLAIN LOGIN XOAUTH2 (XOAUTH2
+// last, so that a password client, which takes the first mechanism it knows, picks PLAIN) and never STARTTLS, so a client that asks for STARTTLS meets a server without it (the client must then send nothing). AUTH is accepted
 // whatever it holds (unless the failure mode says otherwise); the password is discarded at once and never stored, logged or echoed: the
-// stub keeps only the count of the logins that it accepted and the last user name. A mail is never relayed: it is parsed and kept in the
+// stub keeps only the count of the logins that it accepted and the last user name. AUTH XOAUTH2 (Story 21.8) answers "334 " (or takes the initial response
+// in the command), reads one base64 line and checks it with the validator that createSmtp({checkAccessToken}) was given (the fake OAuth2 server's, so only
+// an unexpired, unrevoked token passes; with none, nothing passes): 235 logs in, anything else is 535; the token is checked and dropped, never stored,
+// logged or echoed. A mail is never relayed: it is parsed and kept in the
 // state, up to MAX_MESSAGES (the oldest go first).
 // The control side is served by the mock's HTTP port (server.mjs routes /_mock/smtp/ here):
 //   POST /_mock/smtp/failure  {"mode":"none"|"refuse"|"auth"|"reject"|"error"}
 //        refuse: the connection is closed at once, with no greeting; auth: AUTH is answered 535; reject: RCPT is answered 550;
 //        error: DATA is answered 554
 //   POST /_mock/smtp/reset    no mail, no failure, every count 0
-//   GET  /_mock/smtp/state    {"messages":[{"from","to":[...],"subject","text","headerFrom","headerTo","contentType","parts","attachments"}],
-//                              "connections":n,"logins":n,"user":"<last user>","failure":"<mode>","commands":{"RCPT":n,...}}
+//   GET  /_mock/smtp/state    {"messages":[{"from","to":[...],"subject","text","headerFrom","headerTo","contentType","parts","attachments","xOcutalonRef"}],
+//                              "connections":n,"logins":n,"xoauth2":n,"xoauth2Refused":n,"user":"<last user>","failure":"<mode>","commands":{"RCPT":n,...}}
+//                             (logins counts every accepted login, xoauth2 those that were XOAUTH2; the failure mode auth refuses XOAUTH2 too; no token value)
 //                             (a line that is not a command word, such as the bytes of a TLS handshake, is counted under "(other)")
 // A message's from and to are the envelope (MAIL FROM and RCPT TO addresses); headerFrom and headerTo are the decoded header lines; subject
 // and text are decoded (encoded words, base64, quoted-printable, UTF-8); text is the first text/plain part; parts counts the MIME leaf parts
-// (1 for a message with no multipart) and attachments the parts that are marked as an attachment or carry a file name. Any other path is a 404.
+// (1 for a message with no multipart) and attachments the parts that are marked as an attachment or carry a file name.
+// xOcutalonRef is the value of the X-OcuTalon-Ref header (the name is matched without regard to case, a folded header is unfolded, the
+// value is trimmed) and '' when the mail has none. Any other path is a 404.
 
 import net from 'node:net';
+import { parseXoauth2 } from './oauth.mjs';
 
 export const FAILURES = ['none', 'refuse', 'auth', 'reject', 'error'];
 export const MAX_MESSAGES = 100;
@@ -114,6 +121,7 @@ export function parse(raw, envelope) {
     contentType: top.headers['content-type'] ?? 'text/plain',
     parts: all.length,
     attachments: all.filter((p) => /attachment/i.test(p.headers['content-disposition'] ?? '') || param(p.headers['content-disposition'], 'filename') !== null || param(p.headers['content-type'], 'name') !== null).length,
+    xOcutalonRef: top.headers['x-ocutalon-ref'] ?? '',
   };
 }
 
@@ -122,21 +130,21 @@ function address(arg) {
   return m === null ? arg.trim() : m[1];
 }
 
-export function createSmtp() {
+export function createSmtp({ checkAccessToken = () => false } = {}) {
   let messages = [];
   let failure = 'none';
-  let counts = { connections: 0, logins: 0, commands: {}, user: '' };
+  let counts = { connections: 0, logins: 0, xoauth2: 0, xoauth2Refused: 0, commands: {}, user: '' };
   const sockets = new Set();
   let server = null;
 
   function reset() {
     messages = [];
     failure = 'none';
-    counts = { connections: 0, logins: 0, commands: {}, user: '' };
+    counts = { connections: 0, logins: 0, xoauth2: 0, xoauth2Refused: 0, commands: {}, user: '' };
   }
 
   function state() {
-    return { messages: messages.map((m) => ({ ...m, to: [...m.to] })), connections: counts.connections, logins: counts.logins, user: counts.user, failure, commands: { ...counts.commands } };
+    return { messages: messages.map((m) => ({ ...m, to: [...m.to] })), connections: counts.connections, logins: counts.logins, xoauth2: counts.xoauth2, xoauth2Refused: counts.xoauth2Refused, user: counts.user, failure, commands: { ...counts.commands } };
   }
 
   // The user name of an AUTH PLAIN payload (authzid NUL user NUL password); the password part is dropped here and goes no further.
@@ -166,6 +174,16 @@ export function createSmtp() {
       counts.user = user;
       send('235 2.7.0 authenticated');
     };
+    const xoauth2 = (text) => {
+      const parsed = failure === 'auth' ? null : parseXoauth2(text);
+      if (parsed !== null && checkAccessToken(parsed.token)) {
+        counts.xoauth2 += 1;
+        login(parsed.user);
+      } else {
+        counts.xoauth2Refused += 1;
+        send('535 5.7.8 invalid token');
+      }
+    };
     const command = (line) => {
       const space = line.indexOf(' ');
       const word = (space === -1 ? line : line.slice(0, space)).toUpperCase();
@@ -177,7 +195,7 @@ export function createSmtp() {
         socket.end();
       } else if (verb === 'EHLO') {
         send('250-stub.example hello');
-        send('250-AUTH PLAIN LOGIN');
+        send('250-AUTH PLAIN LOGIN XOAUTH2');
         send('250 8BITMIME');
       } else if (verb === 'HELO') {
         send('250 stub.example hello');
@@ -200,6 +218,13 @@ export function createSmtp() {
           } else {
             mode = 'loginUser';
             send('334 VXNlcm5hbWU6');
+          }
+        } else if ((mechanism ?? '').toUpperCase() === 'XOAUTH2') {
+          if (payload !== undefined && payload !== '') {
+            xoauth2(payload);
+          } else {
+            mode = 'xoauth2';
+            send('334 ');
           }
         } else {
           send('504 5.5.4 mechanism not supported');
@@ -249,6 +274,9 @@ export function createSmtp() {
       } else if (mode === 'plain') {
         mode = 'command';
         login(plainUser(text));
+      } else if (mode === 'xoauth2') {
+        mode = 'command';
+        xoauth2(text);
       } else if (mode === 'loginUser') {
         loginUser = Buffer.from(text, 'base64').toString('utf8');
         mode = 'loginPassword';

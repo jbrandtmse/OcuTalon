@@ -3,11 +3,13 @@
 /// OcuTalon.Test.Core.CommandsOwner instead of the production. The real Interoperability path is the job of
 /// OcuTalon.Test.Core.CommandsInProduction. The oracle of the origin rules and every text are written out here, never read from
 /// CommandsIn.
-///   - TestRoutes: each of the 12 verbs, with an origin it accepts, reaches exactly its owner item with the same object, key,
+///   - TestRoutes: each of the 14 verbs (AckPage from each origin it accepts), with an origin it accepts, reaches exactly its owner item with the same object, key,
 ///     session and origin, and the owner's result comes back as the same object; Dismiss arrives as an IncidentCommand;
 ///   - TestOriginRules: every verb by every origin, "zz" and "" included, is routed or refused as the oracle says, and a refusal
 ///     sends nothing;
 ///   - TestToolGovernanceRefused: SetDemoMode, SetPersona, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
+///   - TestStepFiveRefusals (Story 36.2): AckPage from tool, timer, system, "zz" and "", and SaveSqlWatch from every origin but
+///     web_admin, "zz" and "" included, are not_allowed with the existing text and send nothing;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
 ///   - TestPersonaVerbsInsideAContext: inside a context SetPersona that says web_user is refused and ProposePersona that says
 ///     web_user is routed; outside it the origin rules apply;
@@ -64,8 +66,8 @@ Method OnAfterAllTests() As %Status
 Method TestRoutes()
 {
 	Set session = ..Session("routes")
-	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "CancelReminder|ReminderOps|web_admin", "ListReminders|ReminderOps|telegram", "StartWatch|WatchOps|tool", "StopWatch|WatchOps|timer", "Dismiss|IncidentManager|web_user", "SetDemoMode|SettingsOps|system", "SetPersona|SettingsOps|web_user", "ProposePersona|SettingsOps|tool", "Pair|SessionOps|telegram", "Unpair|SessionOps|web_user", "EndSession|SessionOps|web_admin")
-	Do $$$AssertEquals($ListLength(table), 12, "all 12 verbs are tried")
+	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "CancelReminder|ReminderOps|web_admin", "ListReminders|ReminderOps|telegram", "StartWatch|WatchOps|tool", "StopWatch|WatchOps|timer", "Dismiss|IncidentManager|web_user", "SetDemoMode|SettingsOps|system", "SetPersona|SettingsOps|web_user", "ProposePersona|SettingsOps|tool", "Pair|SessionOps|telegram", "Unpair|SessionOps|web_user", "EndSession|SessionOps|web_admin", "AckPage|IncidentManager|telegram", "AckPage|IncidentManager|web_user", "AckPage|IncidentManager|web_admin", "SaveSqlWatch|WatchOps|web_admin")
+	Do $$$AssertEquals($ListLength(table), 16, "all 16 verb and origin pairs are tried")
 	For i = 1:1:$ListLength(table) {
 		Set verb = $Piece($List(table, i), "|", 1)
 		Set owner = $Piece($List(table, i), "|", 2)
@@ -152,6 +154,31 @@ Method TestToolGovernanceRefused()
 	Do probe.OnProcessInput(command, .output)
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|unknown_command", "an IncidentCommand from a tool is not a command of the table")
 	Do $$$AssertEquals(..Calls(), 0, "nothing was sent to any owner")
+}
+
+/// The step 5 verbs (Story 36.2; AD-1): AckPage is no tool verb, and SaveSqlWatch is an admin's alone, so a demo visitor (web_user)
+/// cannot save a query. Each refusal is not_allowed with the existing text, and nothing is sent.
+Method TestStepFiveRefusals()
+{
+	Set session = ..Session("stepfive")
+	Set tool = "That can't be done from the chat. Nothing was changed."
+	Set other = "OcuTalon can't take that command from here. Nothing was changed."
+	Set table = $ListBuild("AckPage|tool|" _ tool, "SaveSqlWatch|tool|" _ tool, "SaveSqlWatch|web_user|" _ other, "SaveSqlWatch|telegram|" _ other, "SaveSqlWatch|timer|" _ other, "SaveSqlWatch|system|" _ other, "AckPage|timer|" _ other, "AckPage|system|" _ other)
+	Set table = table _ $ListBuild("AckPage|zz|" _ other, "AckPage||" _ other, "SaveSqlWatch|zz|" _ other, "SaveSqlWatch||" _ other)
+	Do $$$AssertEquals($ListLength(table), 12, "all 12 refused verb and origin pairs are tried")
+	For i = 1:1:$ListLength(table) {
+		Set verb = $Piece($List(table, i), "|", 1)
+		Set origin = $Piece($List(table, i), "|", 2)
+		Set message = $Piece($List(table, i), "|", 3)
+		Set label = verb _ " from " _ origin
+		Set probe = ..NewProbe("ok")
+		Set command = ..NewCommand(verb, origin, session, "zzkey" _ ..Number _ i)
+		Set sc = probe.OnProcessInput(command, .output)
+		Do $$$AssertStatusOK(sc, label _ " is answered with a status that is OK")
+		Do $$$AssertEquals(output.Ok _ "|" _ output.Outcome, "0|not_allowed", label _ " is not_allowed")
+		Do $$$AssertEquals(output.Message, message, label _ " says why")
+		Do $$$AssertEquals(..Calls(), 0, label _ " sends nothing")
+	}
 }
 
 /// While a bridge context is active the origin is tool, whatever the command says: SetDemoMode that says web_admin is refused

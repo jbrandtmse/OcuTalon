@@ -84,11 +84,23 @@
 #   held-out-names  (Story 0.27) the name, the subject line and the text of every case below eval/held-out/ are read at run time, and none appears in a tracked
 #                 or not-ignored file outside eval/held-out/, eval/results/, _bmad-output/, _bmad/ and, for the four incident names only, the fixture of the test
 #                 feed (src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls); the failure names the file, never the text;
+#   main-set-texts  (Story 0.35) the subject, the text, the sender and the precedent summaries of every top-level eval/<case>/case.json are read at run time, and
+#                 the body of no XData INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words of one of them (lower-cased, punctuation
+#                 folded), a whole subject of 3 or more words, or a distinctive token of one (4 or more characters with an @, an inner capital, a digit mixed with other
+#                 characters or a dotted name, matched in any letter case; a token is also read in the parts between its ', =, |, <, >, @ and -; tokens that start with
+#                 OcuTalon are exempt); a block whose body can't be read, or no block at all, fails too; the failure names the file, never the text;
+#   held-out-texts  (Story 0.35, QA) the same reading of every eval/held-out/<case>/case.json (subject, text, sender, precedent summaries): the body of no XData
+#                 INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words of one of them, a whole subject of 3 or more words or a
+#                 distinctive token of one; the failure names the file, never the text;
 #   compare       (Story 0.27) eval/compare.mjs, on synthetic report folders of Report.Build's shape: the comparison of an agent folder and a rules-only folder
 #                 (comparison.json of ocutalon.evalComparison/1 and comparison.md in the agent folder, the COMPARISON line), per case and in total, with the main
 #                 set's items and incidents, the held-out row, the needed-you-now count, the three unsafe kinds and the cost of each side; set-1.json read before
 #                 set.json; --column; exit 1 and nothing written for different cases, a missing file, a file that is not a report or a report that is not a
 #                 rules-only one; exit 2 and a usage line for any other arguments. A bad sample is the script with one edit;
+#   readme-column (Story 0.29) the README's "### With the agent and with fixed rules only" holds the date, the main set's routine item and incident counts and, for
+#                 each of the seven rows (by its first cell, once), the fixed-rules cell that `node eval/compare.mjs --column eval/results` gives; a changed README
+#                 cell, a changed report, a missing, repeated or renamed row, a date or count that differs, a missing heading, README or report are flagged. The agent
+#                 column's text is not read;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
 #   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 11; no
@@ -882,14 +894,21 @@ import path from 'node:path';
 // The held-out names stay out of every other file (Story 0.27): the names, subject lines and item texts of eval/held-out/*/case.json are read at run time, and
 // none appears in a file of the tree outside the allow-list (the set itself, its committed report, the specs, and the test feed's fixture, which may hold the
 // four incident names and nothing else of them). A failure names the file, never the text.
-const [root, filesPath] = process.argv.slice(2);
+// With the third argument main (Story 0.35) the program reads the main set instead: the subject, text and sender of every top-level eval/<case>/case.json and the
+// summaries of its precedents, and flags each tracked .cls below src/ whose XData INSTRUCTIONS body holds 5 consecutive words of one of them (lower-cased,
+// punctuation folded), a whole subject of 3 or more words, or a distinctive token of one (4 or more characters with an @, an inner capital, a digit mixed with
+// other characters or a dotted name, matched in any letter case; each part of a token between ', =, |, <, >, @ and - is read as a token too; a token that starts
+// with OcuTalon is the product's own name and is exempt). An INSTRUCTIONS header with no body on its next line, and a tree with no INSTRUCTIONS block, are
+// violations. Item texts anywhere else pass. A failure names the file, never the text.
+// With the third argument held (Story 0.35, QA) it does the same for the cases of eval/held-out/, so no prompt holds a run or token of the held-out set either.
+const [root, filesPath, mode] = process.argv.slice(2);
 const FIXTURE = 'src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls';
 const ALLOWED = ['eval/held-out/', 'eval/results/', '_bmad-output/', '_bmad/'];
 const out = [];
 const bad = (file, rule) => out.push(`${file}: ${rule}`);
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-try {
-  const all = fs.readFileSync(filesPath, 'utf8').split('\n').filter(Boolean);
+
+function heldOutNames(all) {
   const names = [];
   const incidentNames = new Set();
   const phrases = [];
@@ -926,6 +945,86 @@ try {
       bad(file, 'names a held-out case, subject line or item text (held-out-names)');
     }
   }
+}
+
+const RUN = 5;
+const SUBJECTWORDS = 3;
+const words = (s) => s.toLowerCase().replace(/\u2019/g, "'").replace(/[^a-z0-9']+/g, ' ').split(' ').map((w) => w.replace(/^'+|'+$/g, '')).filter(Boolean);
+const distinctive = (w) => w.length >= 4 && !/^ocutalon/i.test(w) && (w.includes('@') || /[a-z][A-Z]/.test(w) || (/\d/.test(w) && /\D/.test(w)) || /[a-z]\.[a-z]/i.test(w));
+const regexEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function mainSetTexts(all, held = false) {
+  const label = held ? 'held-out-texts' : 'main-set-texts';
+  const caseFile = held ? /^eval\/held-out\/[^/]+\/case\.json$/ : /^eval\/[^/]+\/case\.json$/;
+  const texts = [];
+  const subjects = [];
+  for (const file of all.filter((f) => caseFile.test(f) && (held || !/^eval\/(held-out|mock-wrong|persona-cases)\//.test(f)))) {
+    let c;
+    try {
+      c = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+    } catch {
+      bad(file, `could not be read as a case (${label})`);
+      continue;
+    }
+    if (!isObject(c) || !isObject(c.item)) continue;
+    for (const key of ['subject', 'text', 'sender']) if (typeof c.item[key] === 'string' && c.item[key].trim() !== '') texts.push(c.item[key]);
+    if (typeof c.item.subject === 'string' && words(c.item.subject).length >= SUBJECTWORDS) subjects.push(words(c.item.subject).join(' '));
+    if (Array.isArray(c.precedents)) for (const p of c.precedents) if (isObject(p) && typeof p.summary === 'string' && p.summary.trim() !== '') texts.push(p.summary);
+  }
+  if (texts.length === 0) bad(held ? 'eval/held-out' : 'eval', `holds no ${held ? 'held-out' : 'main-set'} item text to read (${label})`);
+  const runs = new Set();
+  const tokens = new Set();
+  for (const text of texts) {
+    const w = words(text);
+    for (let i = 0; i + RUN <= w.length; i++) runs.add(w.slice(i, i + RUN).join(' '));
+    for (const raw of text.split(/[\s/,;:()]+/)) {
+      const token = raw.replace(/^[^A-Za-z0-9@]+|[^A-Za-z0-9]+$/g, '');
+      for (const part of [token, ...token.split(/['\u2019=|<>@-]+/)]) {
+        const t = part.replace(/^[^A-Za-z0-9@]+|[^A-Za-z0-9]+$/g, '');
+        if (distinctive(t)) tokens.add(t);
+      }
+    }
+  }
+  const patterns = [...tokens].map((token) => new RegExp(`(?<![A-Za-z0-9])${regexEscape(token)}(?![A-Za-z0-9])`, 'i'));
+  let prompts = 0;
+  for (const file of all.filter((f) => f.startsWith('src/') && f.endsWith('.cls'))) {
+    let source;
+    try {
+      source = fs.readFileSync(path.join(root, file), 'utf8');
+    } catch {
+      continue;
+    }
+    const lines = source.split(/\r?\n/);
+    let hit = false;
+    for (let i = 0; i < lines.length && !hit; i++) {
+      if (!/^\s*XData\s+INSTRUCTIONS\b/i.test(lines[i])) continue;
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === '') j++;
+      if (lines[j] === undefined || lines[j].trim() !== '{') {
+        bad(file, `has an XData INSTRUCTIONS block whose body could not be read (${label})`);
+        continue;
+      }
+      prompts++;
+      const body = [];
+      for (j++; j < lines.length && !/^\}\s*$/.test(lines[j]); j++) body.push(lines[j]);
+      const bodyText = body.join('\n');
+      const w = words(bodyText);
+      const joined = ` ${w.join(' ')} `;
+      for (let k = 0; k + RUN <= w.length && !hit; k++) if (runs.has(w.slice(k, k + RUN).join(' '))) hit = true;
+      if (!hit) hit = subjects.some((s) => joined.includes(` ${s} `));
+      if (!hit) hit = patterns.some((re) => re.test(bodyText));
+    }
+    if (hit) bad(file, `names a ${held ? 'held-out' : 'main-set'} item text in a prompt (${label})`);
+  }
+  if (prompts === 0) bad('src', `holds no XData INSTRUCTIONS block to read (${label})`);
+}
+
+try {
+  const all = fs.readFileSync(filesPath, 'utf8').split('\n').filter(Boolean);
+  if (mode === 'main') mainSetTexts(all);
+  else if (mode === 'held') mainSetTexts(all, true);
+  else if (mode === undefined) heldOutNames(all);
+  else bad('check-held-out-names', 'unknown mode');
 } catch {
   bad('check-held-out-names', 'could not read the tree');
 }
@@ -1224,6 +1323,66 @@ try {
   bad(`could not be checked: ${error && error.message ? error.message.split('\n')[0] : 'error'}`);
 }
 for (const dir of folders) fs.rmSync(dir, { recursive: true, force: true });
+process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
+EOF
+
+cat > "$tmp/check-readme-column.mjs" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+// The README's comparison of the agent and the fixed rules (Story 0.29): the fixed-rules column, the date, <I> and <J> of "### With the agent and with fixed
+// rules only" equal `node eval/compare.mjs --column eval/results` of the same tree, row by row.
+const [root] = process.argv.slice(2);
+const HEADING = '### With the agent and with fixed rules only';
+const out = [];
+const bad = (why) => out.push(`README.md: ${why}`);
+try {
+  const readme = path.join(root, 'README.md');
+  if (!fs.existsSync(readme)) {
+    bad('the file is missing');
+  } else {
+    const lines = fs.readFileSync(readme, 'utf8').split('\n');
+    const at = lines.indexOf(HEADING);
+    if (at < 0) {
+      bad(`no heading "${HEADING}"`);
+    } else {
+      let end = lines.findIndex((line, index) => index > at && /^#{1,3} /.test(line));
+      if (end < 0) end = lines.length;
+      const block = lines.slice(at + 1, end);
+      const result = spawnSync(process.execPath, [path.join(root, 'eval/compare.mjs'), '--column', path.join(root, 'eval/results')], { encoding: 'utf8' });
+      if (result.status !== 0) {
+        bad(`node eval/compare.mjs --column eval/results does not end with exit 0 (exit ${result.status})`);
+      } else {
+        const column = [];
+        for (const line of result.stdout.split('\n')) {
+          const bar = line.indexOf('|');
+          if (bar > 0) column.push([line.slice(0, bar), line.slice(bar + 1)]);
+        }
+        const value = (key) => (column.find(([name]) => name === key) || [])[1];
+        const said = /It ran with no model and no key on ([A-Z][a-z]+ [0-9]{1,2}) on the recorded evaluation set \(\[eval\]\(eval\)\): ([0-9]+) routine items and ([0-9]+) incidents in the main set/.exec(block.join('\n'));
+        if (!said) {
+          bad('the paragraph under the heading has no date, routine item count and incident count to read');
+        } else {
+          if (said[1] !== value('date')) bad(`the date is "${said[1]}", compare.mjs --column gives "${value('date')}"`);
+          if (said[2] !== value('main-items')) bad(`the routine item count is "${said[2]}", compare.mjs --column gives "${value('main-items')}"`);
+          if (said[3] !== value('main-incidents')) bad(`the incident count is "${said[3]}", compare.mjs --column gives "${value('main-incidents')}"`);
+        }
+        const rows = block.filter((line) => line.startsWith('| ')).map((line) => line.replace(/^\| /, '').replace(/ \|$/, '').split(' | '));
+        const labels = column.filter(([name]) => name !== 'date' && name !== 'main-items' && name !== 'main-incidents');
+        if (labels.length === 0) bad('compare.mjs --column gives no row');
+        for (const [label, cell] of labels) {
+          const found = rows.filter((row) => row[0] === label);
+          if (found.length !== 1) bad(`row "${label}": the table has ${found.length} rows with this first cell, not 1`);
+          else if (found[0].length !== 3) bad(`row "${label}": the row has ${found[0].length} cells, not 3`);
+          else if (found[0][2] !== cell) bad(`row "${label}": the fixed-rules cell is "${found[0][2]}", compare.mjs --column gives "${cell}"`);
+        }
+      }
+    }
+  }
+} catch (error) {
+  bad(`could not be checked: ${error && error.message ? error.message.split('\n')[0] : 'error'}`);
+}
 process.stdout.write(out.length ? `${out.join('\n')}\n` : '');
 EOF
 
@@ -2364,6 +2523,92 @@ variant('held-out-names', 'bad-item-text', `src/ocutalon/cls/OcuTalon/Zz.cls: ${
 variant('held-out-names', 'bad-name-in-script', `docker/tests/zz.sh: ${NAMEHIT}`, heldTree((f) => { f['docker/tests/zz.sh'] = `#!/bin/sh\necho ${HELDINCIDENTS[3]}\n`; }));
 variant('held-out-names', 'bad-no-cases', 'eval/held-out: holds no case to read the names from', heldTree((f) => { for (const k of Object.keys(f)) if (k.startsWith('eval/held-out/')) delete f[k]; }));
 
+// main-set-texts (Story 0.35): the body of an XData INSTRUCTIONS block that holds a main-set sentence, 5 consecutive words, a whole subject of 3 or more words or
+// a distinctive token. mainTree holds one main-set case and one prompt of generic words.
+const MAINPROMPT = 'src/ocutalon/cls/OcuTalon/Agent/Zz.cls';
+const MAINSENTENCE = 'The Zz archive feed stopped sending files at midnight and nobody has restarted ZzImporter since then.';
+const MAINPRECEDENT = 'Zz precedent of the nightly archive skipped on purpose and kept for the digest';
+const mainCase = () => ({
+  ...base('zz-main-1', 'item', { outcome: 'digest' }),
+  item: {
+    itemId: 'zz-main-1',
+    channel: 'mailbox',
+    provenance: 'untrusted',
+    sender: 'Zz Desk <zz@partner.example>',
+    subject: 'Zz archive feed stopped again',
+    text: `${MAINSENTENCE} A second sentence of the item that is long enough to count as one on its own.`,
+  },
+  precedents: [{ summary: MAINPRECEDENT, outcome: 'digest', answer: 'fine', daysAgo: 3 }],
+});
+const mainPrompt = (body, outside = '') => `${outside}Class OcuTalon.Agent.Zz Extends %AI.Agent
+{
+
+/// The static system prompt.
+XData INSTRUCTIONS [ MimeType = text/markdown ]
+{
+You are a zz agent that watches a production for its owner. ${body}
+}
+
+}
+`;
+const GENERIC = 'Decide from the message alone and keep it short.';
+const mainTree = (prompt, mutate = () => {}) => (f) => {
+  for (const k of Object.keys(f)) delete f[k];
+  f['eval/zz-main-1/case.json'] = mainCase();
+  f['README.md'] = 'Nothing about the main set is named here.\n';
+  f[MAINPROMPT] = mainPrompt(prompt);
+  mutate(f);
+};
+const MAINHIT = `${MAINPROMPT}: names a main-set item text in a prompt (main-set-texts)`;
+variant('main-set-texts', 'good', '', mainTree(GENERIC));
+variant('main-set-texts', 'good-four-words', '', mainTree('Watch for a job that stopped sending files at night, which is a digest item.'));
+variant('main-set-texts', 'good-outside-prompt', '', mainTree(GENERIC, (f) => {
+  f[MAINPROMPT] = mainPrompt(GENERIC, `/// ${MAINSENTENCE}\n/// ${MAINPRECEDENT}\n`).replace('\n}\n', `\n}\n\nXData TOOLSETS [ MimeType = application/json ]\n{\n"${MAINSENTENCE}" ZzImporter zz@partner.example\n}\n`);
+  f['src/ocutalon/cls/OcuTalon/Test/Zz.cls'] = `Class OcuTalon.Test.Zz\n{\n\n/// ${MAINSENTENCE}\nParameter TEXT = "${MAINSENTENCE}";\n\n}\n`;
+  f['_bmad-output/spec.md'] = `${MAINSENTENCE} ${MAINPRECEDENT}\n`;
+}));
+variant('main-set-texts', 'good-product-name', '', mainTree('Use OcuTalonRunner only for the product itself.', (f) => { f['eval/zz-main-1/case.json'].item.text += ' The OcuTalonRunner is mentioned once.'; }));
+variant('main-set-texts', 'bad-sentence-in-prompt', MAINHIT, mainTree(MAINSENTENCE));
+variant('main-set-texts', 'bad-five-words', MAINHIT, mainTree('Treat feed stopped sending files at the weekend as a digest item.'));
+variant('main-set-texts', 'bad-subject', MAINHIT, mainTree('Treat a zz roster review as a digest item.', (f) => { f['eval/zz-main-1/case.json'].item.subject = 'Zz roster review'; }));
+variant('main-set-texts', 'bad-token', MAINHIT, mainTree('Ask the user whether ZzImporter should be restarted.'));
+variant('main-set-texts', 'bad-precedent-summary', MAINHIT, mainTree('Treat a nightly archive skipped on purpose as a digest item.'));
+variant('main-set-texts', 'good-short-subject', '', mainTree('Treat a zz roster as a digest item.', (f) => { f['eval/zz-main-1/case.json'].item.subject = 'Zz roster'; }));
+variant('main-set-texts', 'bad-sender', MAINHIT, mainTree('Write to zz@partner.example about it.'));
+variant('main-set-texts', 'bad-token-joined', MAINHIT, mainTree('Ask the user about the ZzFeeder component.', (f) => { f['eval/zz-main-1/case.json'].item.text += ' Check ZzFeeder/zzlog next.'; }));
+variant('main-set-texts', 'bad-brace-in-body', MAINHIT, mainTree(`${GENERIC}\n  }\n${MAINSENTENCE}`));
+variant('main-set-texts', 'bad-unreadable-case', 'eval/zz-bad/case.json: could not be read as a case (main-set-texts)', mainTree(GENERIC, (f) => { f['eval/zz-bad/case.json'] = '{not json'; }));
+variant('main-set-texts', 'bad-no-cases', 'eval: holds no main-set item text to read (main-set-texts)', mainTree(GENERIC, (f) => { delete f['eval/zz-main-1/case.json']; }));
+variant('main-set-texts', 'bad-token-digit', MAINHIT, mainTree('Ask the user about zz4711 today.', (f) => { f['eval/zz-main-1/case.json'].item.text += ' Build zz4711 is out.'; }));
+variant('main-set-texts', 'bad-token-dotted', MAINHIT, mainTree('Read zzfeed.config before you decide.', (f) => { f['eval/zz-main-1/case.json'].item.text += ' See zzfeed.config for it.'; }));
+variant('main-set-texts', 'bad-token-suffixed', MAINHIT, mainTree('Ask whether ZzLoader should run.', (f) => { f['eval/zz-main-1/case.json'].item.text += " The ZzLoader's queue grew."; }));
+variant('main-set-texts', 'bad-unread-header', `${MAINPROMPT}: has an XData INSTRUCTIONS block whose body could not be read (main-set-texts)`, mainTree(GENERIC, (f) => { f[MAINPROMPT] = f[MAINPROMPT].replace('text/markdown ]\n{', 'text/markdown ] {'); }));
+variant('main-set-texts', 'bad-no-prompts', 'src: holds no XData INSTRUCTIONS block to read (main-set-texts)', mainTree(GENERIC, (f) => { delete f[MAINPROMPT]; }));
+const OTHERSENTENCE = 'The quarterly zz roster audit found three duplicate ZzRoster entries in the ledger today.';
+variant('main-set-texts', 'good-other-folders-not-read', '', mainTree(OTHERSENTENCE, (f) => {
+  for (const dir of ['held-out', 'mock-wrong', 'persona-cases']) f[`eval/${dir}/zz-other/case.json`] = { ...mainCase(), item: { ...mainCase().item, subject: 'Quarterly zz roster audit', text: OTHERSENTENCE }, precedents: [] };
+}));
+
+// held-out-texts (Story 0.35, QA): the same detectors over the held-out cases. heldTextTree is mainTree with the case moved below eval/held-out/.
+const HELDCASE = 'eval/held-out/zz-held-1/case.json';
+const heldTextTree = (prompt, mutate = () => {}) => mainTree(prompt, (f) => {
+  f[HELDCASE] = f['eval/zz-main-1/case.json'];
+  delete f['eval/zz-main-1/case.json'];
+  mutate(f);
+});
+const HELDHIT = `${MAINPROMPT}: names a held-out item text in a prompt (held-out-texts)`;
+variant('held-out-texts', 'good', '', heldTextTree(GENERIC));
+variant('held-out-texts', 'good-four-words', '', heldTextTree('Watch for a job that stopped sending files at night, which is a digest item.'));
+variant('held-out-texts', 'good-main-set-text-not-read', '', mainTree(MAINSENTENCE, (f) => {
+  f[HELDCASE] = { ...mainCase(), item: { ...mainCase().item, subject: 'Unrelated held topic', sender: 'Other <other@elsewhere.test>', text: 'A held out message about something else altogether.' }, precedents: [] };
+}));
+variant('held-out-texts', 'bad-five-words', HELDHIT, heldTextTree('Treat feed stopped sending files at the weekend as a digest item.'));
+variant('held-out-texts', 'bad-sentence-in-prompt', HELDHIT, heldTextTree(MAINSENTENCE));
+variant('held-out-texts', 'bad-subject', HELDHIT, heldTextTree('Treat a zz roster review as a digest item.', (f) => { f[HELDCASE].item.subject = 'Zz roster review'; }));
+variant('held-out-texts', 'bad-token', HELDHIT, heldTextTree('Ask the user whether ZzImporter should be restarted.'));
+variant('held-out-texts', 'bad-precedent-summary', HELDHIT, heldTextTree('Treat a nightly archive skipped on purpose as a digest item.'));
+variant('held-out-texts', 'bad-no-cases', 'eval/held-out: holds no held-out item text to read (held-out-texts)', heldTextTree(GENERIC, (f) => { delete f[HELDCASE]; }));
+
 // compare: the good sample is the repository's eval/compare.mjs, and each bad sample is it with one edit (compared throws when the text to edit is missing, so a
 // bad sample never silently equals the good one).
 const COMPARE = fs.readFileSync(path.join(process.cwd(), 'eval/compare.mjs'), 'utf8');
@@ -2407,6 +2652,55 @@ variant('compare', 'bad-usage-exit-1', 'do not print a usage line with exit 2', 
 variant('compare', 'bad-column-priced', '--column gives a cell for a rules-only report with a priced decision', (f) => { f['eval/compare.mjs'] = compared([['if (side.cost.priced > 0 || side.cost.largestTokens !== null) {', 'if (false) {']]); });
 variant('compare', 'bad-agent-cost-none', 'an agent with no priced decision is shown as having asked no model', (f) => { f['eval/compare.mjs'] = compared([["return fixedRules ? NONE_CELL : 'not known';", 'return NONE_CELL;']]); });
 variant('compare', 'bad-column-none-cell', '--column does not print the date', (f) => { f['eval/compare.mjs'] = compared([["export const NONE_CELL = 'none: no model request';", "export const NONE_CELL = 'n/a';"]]); });
+// readme-column: the good sample is the repository's eval/compare.mjs over two synthetic rules-only reports and a README whose comparison equals the column
+// they give; each bad sample is it with one edit.
+const COLUMNREPORT = (items, incidents, builtAt = '2026-11-12T10:00:00Z') => ({
+  run: 'zz-run', folder: '/opt/ocutalon/eval/', builtAt, rulesOnly: true,
+  scores: { items: { right: items[0], total: items[1] }, incidents: { right: incidents[0], total: incidents[1] } },
+  cases: [], fallbacks: [], notComplete: [], unscored: [], skipped: [], tellNowMissed: [],
+  cost: { priced: 0, meanUSD: null, unpriced: [] }, size: { largestTokens: null, unknown: [] }, actions: { approvals: 0, commands: 0, settingChanges: 0, fixRuns: 0 },
+});
+const COLUMNHEAD = '### With the agent and with fixed rules only';
+const COLUMNROWS = [
+  ['Routine attention decisions right (main set)', '3 of 4'],
+  ['Incidents with the right cause and the right field or item at fault (main set)', '1 of 2'],
+  ['Held-out cases right (8 items, 4 incidents)', '1 of 3'],
+  ["Items that needed you now but weren't told now", '0'],
+  ['Unsafe outcomes', '0'],
+  ['Cost of one attention decision', 'none: no model request'],
+  ['Largest model request', 'none: no model request'],
+];
+const columnReadme = (date = 'November 12', items = '4', incidents = '2', rows = COLUMNROWS) => [
+  '# Zz', '', '## Measured', '', '| What was measured | Result |', '| --- | --- |', '| Routine attention decisions right | 21 of 24 |', '', COLUMNHEAD, '',
+  `Fixed rules only is a fallback. It ran with no model and no key on ${date} on the recorded evaluation set ([eval](eval)): ${items} routine items and ${incidents} incidents in the main set, plus 12 held-out cases.`, '',
+  '| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |', '| --- | --- | --- |',
+  ...rows.map(([label, cell]) => `| ${label} | measured at release 1.0.9 | ${cell} |`), '', 'An unsafe outcome is a change made without approval.', '', '## More', '',
+].join('\n');
+const columnGood = (f) => {
+  f['eval/compare.mjs'] = compared();
+  f['eval/results/rules-only.json'] = COLUMNREPORT([3, 4], [1, 2]);
+  f['eval/results/rules-only-held-out.json'] = COLUMNREPORT([1, 2], [0, 1]);
+  f['README.md'] = columnReadme();
+};
+variant('readme-column', 'good', '', columnGood);
+variant('readme-column', 'good-agent-text-free', '', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(/measured at release 1\.0\.9/g, '21 of 24 on a live model'); });
+variant('readme-column', 'bad-cell-changed', 'row "Routine attention decisions right (main set)": the fixed-rules cell is "5 of 4"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| 3 of 4 |', '| 5 of 4 |'); });
+variant('readme-column', 'bad-cell-text-changed', 'row "Largest model request": the fixed-rules cell is "none"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(/\| Largest model request \| measured at release 1\.0\.9 \| none: no model request \|/, '| Largest model request | measured at release 1.0.9 | none |'); });
+variant('readme-column', 'bad-report-changed', 'row "Routine attention decisions right (main set)": the fixed-rules cell is "3 of 4", compare.mjs --column gives "2 of 4"', (f) => { columnGood(f); f['eval/results/rules-only.json'].scores.items.right = 2; });
+variant('readme-column', 'bad-held-out-report-changed', 'row "Held-out cases right (8 items, 4 incidents)": the fixed-rules cell is "1 of 3", compare.mjs --column gives "2 of 3"', (f) => { columnGood(f); f['eval/results/rules-only-held-out.json'].scores.items.right = 2; });
+variant('readme-column', 'bad-row-missing', 'row "Unsafe outcomes": the table has 0 rows', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '2', COLUMNROWS.filter(([label]) => label !== 'Unsafe outcomes')); });
+variant('readme-column', 'bad-row-twice', 'row "Unsafe outcomes": the table has 2 rows', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '2', [...COLUMNROWS, COLUMNROWS[4]]); });
+variant('readme-column', 'bad-row-renamed', 'row "Largest model request": the table has 0 rows', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Largest model request |', '| Largest request |'); });
+variant('readme-column', 'bad-date', 'the date is "November 11", compare.mjs --column gives "November 12"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 11'); });
+variant('readme-column', 'bad-date-report', 'the date is "November 12", compare.mjs --column gives "November 13"', (f) => { columnGood(f); f['eval/results/rules-only.json'].builtAt = '2026-11-13T09:00:00Z'; });
+variant('readme-column', 'bad-main-items', 'the routine item count is "5", compare.mjs --column gives "4"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '5'); });
+variant('readme-column', 'bad-main-incidents', 'the incident count is "3", compare.mjs --column gives "2"', (f) => { columnGood(f); f['README.md'] = columnReadme('November 12', '4', '3'); });
+variant('readme-column', 'bad-no-heading', 'no heading "### With the agent and with fixed rules only"', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace(COLUMNHEAD, '### With and without'); });
+variant('readme-column', 'bad-no-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only.json']; });
+variant('readme-column', 'bad-no-held-out-report', 'does not end with exit 0', (f) => { columnGood(f); delete f['eval/results/rules-only-held-out.json']; });
+variant('readme-column', 'bad-row-four-cells', 'row "Unsafe outcomes": the row has 4 cells, not 3', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('| Unsafe outcomes | measured at release 1.0.9 | 0 |', '| Unsafe outcomes | measured at release 1.0.9 | 0 | x |'); });
+variant('readme-column', 'bad-paragraph-unreadable', 'the paragraph under the heading has no date, routine item count and incident count to read', (f) => { columnGood(f); f['README.md'] = f['README.md'].replace('on the recorded evaluation set', 'on the evaluation set'); });
+variant('readme-column', 'bad-no-readme', 'README.md: the file is missing', (f) => { columnGood(f); delete f['README.md']; });
 EOF
 
 # --- the rules ---
@@ -2472,9 +2766,27 @@ check_held_out_names() {
   node "$tmp/check-held-out-names.mjs" "$1" "$tmp/files.txt" 2>&1 || echo "check-held-out-names: the program failed"
 }
 
+# check_main_set_texts <root>: the files that hold a main-set item text in an XData INSTRUCTIONS block (read from the tree's own top-level
+# eval/<case>/case.json; see check-held-out-names.mjs, third argument main). The real tree lists what git tracks or has not ignored.
+check_main_set_texts() {
+  feed_files "$1" > "$tmp/files.txt"
+  node "$tmp/check-held-out-names.mjs" "$1" "$tmp/files.txt" main 2>&1 || echo "check-main-set-texts: the program failed"
+}
+
+# check_held_out_texts <root>: the files that hold a held-out item text in an XData INSTRUCTIONS block (see check-held-out-names.mjs, third argument held).
+check_held_out_texts() {
+  feed_files "$1" > "$tmp/files.txt"
+  node "$tmp/check-held-out-names.mjs" "$1" "$tmp/files.txt" held 2>&1 || echo "check-held-out-texts: the program failed"
+}
+
 # check_compare <root>: the violations of eval/compare.mjs of the tree on synthetic report folders (see check-compare.mjs).
 check_compare() {
   node "$tmp/check-compare.mjs" "$1" 2>&1 || echo "eval/compare.mjs: the check failed"
+}
+
+# check_readme_column <root>: the violations of the README's comparison against `eval/compare.mjs --column eval/results` of the tree (see check-readme-column.mjs).
+check_readme_column() {
+  node "$tmp/check-readme-column.mjs" "$1" 2>&1 || echo "README.md: the check failed"
 }
 
 # feed_files <root>: the files of the tree, relative to the root, one per line. The real tree lists what git tracks or has not ignored; a synthetic tree
@@ -4071,7 +4383,10 @@ rule incidents "the incident cases of eval/ are at least 11, no cause category a
 rule held-out "eval/held-out/ holds exactly 12 case folders, 8 items (2 for each outcome) and 4 incidents, every one held out, each incident's snapshot sourced from the test feed, and no file outside a case folder" check_held_out
 rule held-out-frozen "the SHA-256 of each of the 12 eval/held-out/*/case.json files is one of the 12 pinned values (the commit 6af31dab), and every pinned value is the value of a file" check_held_out_frozen
 rule held-out-names "no tracked or not-ignored file outside eval/held-out/, eval/results/, the specs and the feed's fixture (the four incident names only) names a held-out case, subject line or item text, which are read from eval/held-out/*/case.json" check_held_out_names
+rule main-set-texts "no XData INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words, a whole subject of 3 or more words or a distinctive token (tokens that start with OcuTalon excepted) of a main-set item's subject, text, sender or precedent summary, which are read from the top-level eval/*/case.json" check_main_set_texts
+rule held-out-texts "no XData INSTRUCTIONS block of a tracked or not-ignored .cls below src/ holds 5 consecutive words, a whole subject of 3 or more words or a distinctive token (tokens that start with OcuTalon excepted) of a held-out item's subject, text, sender or precedent summary, which are read from eval/held-out/*/case.json" check_held_out_texts
 rule compare "eval/compare.mjs writes the comparison of an agent folder and a rules-only folder with the per-case and total figures, the three unsafe kinds and the needed-you-now count, prints the column, reads set-1.json first, refuses a mismatch, a missing file and a file that is not a report with exit 1 and nothing written, and a wrong usage with exit 2" check_compare
+rule readme-column "the README comparison of the agent and the fixed rules has the date, the main set's routine item and incident counts and every fixed-rules cell that node eval/compare.mjs --column eval/results gives, row by row" check_readme_column
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle, runs bash eval/run.sh and then bash eval/key-proof.sh before its teardown, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts

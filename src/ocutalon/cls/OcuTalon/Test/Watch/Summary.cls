@@ -688,7 +688,7 @@ Method TestText()
 	Set row.Summary = "{""parts"":[{""key"":""summary.noFixRan"",""slots"":{}}],""lines"":[]}"
 	Do $$$AssertStatusOK(row.%Save(), "a summary is stored")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Summary).Text(incident, "phone", .sc), "No fix ran, so nothing was changed.", "it renders from the row, one line per part")
-	Do $$$AssertEquals(##class(OcuTalon.Watch.Summary).Text(incident, "email", .sc)_"|"_$SYSTEM.Status.IsError(sc), "|1", "a channel that is not rendered is an error")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Summary).Text(incident, "fax", .sc)_"|"_$SYSTEM.Status.IsError(sc), "|1", "a channel that is not rendered is an error")
 }
 
 /// Story 23.2 (AC14): an incident with a suspend, a resume and a reroute request has each kind's requested line and the item kinds' own end lines, and the item runs add nothing

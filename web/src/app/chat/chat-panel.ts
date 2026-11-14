@@ -23,11 +23,13 @@ import type { ApprovalPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
 import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus, type LostFocus } from '../shared/focus-rule';
+import { FileDrop } from '../shared/file-drop';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { revealRing } from '../shared/reveal-ring';
 import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard, landed } from './chat-announcements';
+import { ChatFiles } from './chat-files';
 import { ChatOutbox } from './chat-outbox';
 import { CHAT_TEXTS, chatView, isFreshChat, liveRequest, type ChatEntryView } from './chat-view';
 import { Composer } from './composer';
@@ -126,6 +128,9 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  * it scrolls to the bottom with no smooth scroll and focuses the first entry that arrived or changed meanwhile; it hides once
  * the list is at the bottom. A new message that this page sends (ChatOutbox.send, from the composer or later from the demo guide) scrolls the list to the bottom, as the user's own action.
  *
+ * A drop of files on the chat is a second way to send a file, beside the composer's paperclip (Story 25.3, UX-DR129): the chat takes the drop only
+ * while the snapshot's `filesReadable` is true, and on the online demo it shows the off text; otherwise it binds no handler and the browser's own handling stays.
+ *
  * A 1 s clock ticks only while a turn is running, for the elapsed seconds that the indicator adds after 10 s. The page notes
  * when it first saw each turn running. The step labels of the live store (turn.step events, by the running turn's ref) reach the
  * indicator through chatView.
@@ -133,6 +138,7 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
 @Component({
   selector: 'app-chat-panel',
   imports: [ApprovalRequestCard, Composer, EmptyChat, Icon, IncidentCard, NoticeCard, OcutalonReply, UserMessage],
+  hostDirectives: [FileDrop],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -204,6 +210,10 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
       overflow-y: auto;
       scroll-padding: var(--space-scroll-gutter);
     }
+    :host(.dragging) {
+      outline: 2px dashed var(--action);
+      outline-offset: calc(-1 * var(--space-2));
+    }
     @media ${LAYOUT_QUERIES.stacked} {
       :host {
         flex: none;
@@ -267,6 +277,8 @@ export class ChatPanel {
   protected readonly live = inject(LiveState);
   private readonly demoView = inject(DemoView);
   protected readonly outbox = inject(ChatOutbox);
+  private readonly chatFiles = inject(ChatFiles);
+  private readonly fileDrop = inject(FileDrop, { self: true });
   protected readonly dismissals = inject(Dismissals);
   protected readonly texts = CHAT_TEXTS;
   private readonly injector = inject(Injector);
@@ -292,6 +304,18 @@ export class ChatPanel {
   private heard: ChatHeard | undefined;
   /** The first entry that arrived or changed while the list was scrolled up. */
   private target: Target | undefined;
+
+  /** The paperclip and the drop (files-view.fileControls): the chat takes a drop only while the install can read a file or it is the online demo. */
+  protected readonly fileControls = this.chatFiles.controls;
+
+  /** A drop on the chat: on the online demo the off text, else the files go to ChatFiles. */
+  protected dropped(files: File[]): void {
+    if (this.fileControls().drop === 'off') {
+      this.chatFiles.refuseOnDemo();
+      return;
+    }
+    void this.chatFiles.add(files);
+  }
 
   /** True in the demo view: the empty chat points at the demo guide. */
   protected readonly demo = computed(() => this.demoView.on());
@@ -355,6 +379,8 @@ export class ChatPanel {
   protected readonly unseen = signal(false);
 
   constructor() {
+    this.fileDrop.files.subscribe((files) => this.dropped(files));
+    effect(() => this.fileDrop.active.set(this.fileControls().drop !== 'none'));
     effect(() => this.noteArrivals(this.entries()));
     effect(() => {
       const entries = this.entries();

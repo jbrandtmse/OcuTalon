@@ -35,7 +35,7 @@ To run OcuTalon on your own machine instead:
 
 | Criterion | Where to look |
 | --- | --- |
-| Complexity | One Interoperability production of over 40 items runs three AI Hub agents: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). OcuTalon's own outbound adapter extends AI Hub's agent adapter and adds a gate that checks every tool call before it runs ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)). Approvals are Workflow tasks, memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |
+| Complexity | One Interoperability production of over 40 items runs three AI Hub agents, each an `%AI.Agent`: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). It is built from the platform's own parts. OcuTalon's outbound adapter extends AI Hub's `EnsLib.AI.Agent.OutboundAdapter` ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)), and the gate that checks every tool call before it runs is an `%AI.Policy.Authorization` ([Gate.cls](src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls)). Each Visual Trace step comes from an `%AI.Policy.Audit` and an `%AI.Shell.StreamRenderer`, documents use AI Hub's RAG knowledge base over IRIS vector search, and each agent's provider connection and its timeouts are AI Hub Config Store entries. On the Interoperability side, approvals are `EnsLib.Workflow` tasks, a fix resends with `Ens.MessageHeader.ResendDuplicatedMessage`, and every approval lands in the IRIS audit log. Memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |
 | Clarity of Instructions | The online demo needs no install, and the local path above is four steps. `./install.sh` checks Docker, Docker Compose and the image first, and a failed check prints the exact fix ([Troubleshooting](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#troubleshooting)). [Install it with IPM](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-with-ipm) gives both commands. Over 30 rules in [docker/tests/test-readme.sh](docker/tests/test-readme.sh) check this README in CI. |
 | Developer Experience | [The bridge guide](docs/bridge-guide.md) shows how to put an AI decision step in your own production, with an example whose commands an automated check runs as written. Each model request and tool call is its own Visual Trace step, and each decision's message carries its tokens and cost. Over 300 test classes with over 3,000 tests, and over 70 browser test files, run in [CI](.github/workflows/ci.yml), where a model mock ([ci/mock](ci/mock)) stands in for the model, so no key is needed. |
 | Applicability | [What you can use it for](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#what-you-can-use-it-for): a partner feed that breaks, a production watched quietly, and an AI step in your own production. IPM installs it into an IRIS instance you already run, on AI Hub build 154 or 109. It implements the community idea [DPI-I-689](https://ideas.intersystems.com/ideas/DPI-I-689). |
@@ -65,13 +65,13 @@ The guide lists what is new since release 1.0.0 for your integrations, your docu
 
 ## Measured
 
-From the real-model evaluation of release 1.0.4 (Claude Haiku 5.5, November 8), the persona sweep and the online demo's usage log for November 1 to 7:
+From the real-model evaluation of release 1.0.9 (Claude Haiku 5.5, November 13) and the online demo's usage log for November 1 to 7:
 
 | What was measured | Result |
 | --- | --- |
 | Incidents diagnosed with the right cause and fix | 11 of 11 (target: 9) |
-| Routine attention decisions right | 21 of 24 (target: 22) |
-| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
+| Routine attention decisions right | 22 of 24 (target: 22) |
+| The demo's incident diagnosed with the right fix, on a live model | 10 of 10 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
 | Cost of one attention decision | about $0.0001 on average, $0.0003 at most |
@@ -80,9 +80,25 @@ From the real-model evaluation of release 1.0.4 (Claude Haiku 5.5, November 8), 
 
 Where the money goes and how to cap it, with the numbers: [What an always-on AI assistant costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris).
 
+### With the agent and with fixed rules only
+
+Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on November 12 on the recorded evaluation set ([eval](eval)): 24 routine items and 11 incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.9 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself.
+
+| What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |
+| --- | --- | --- |
+| Routine attention decisions right (main set) | 22 of 24 | 6 of 24 |
+| Incidents with the right cause and the right field or item at fault (main set) | 11 of 11 | 0 of 11 |
+| Held-out cases right (8 items, 4 incidents) | 12 of 12 | 2 of 12 |
+| Items that needed you now but weren't told now | 1 | 0 |
+| Unsafe outcomes | 0 | 0 |
+| Cost of one attention decision | about $0.0001 on average, $0.0003 at most | none: no model request |
+| Largest model request | 9,892 tokens | none: no model request |
+
+An unsafe outcome is a change made without a person's approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent's run by `node eval/compare.mjs`.
+
 ## More
 
-[The OcuTalon guide](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md) has the rest: [New since 1.0.0](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#new-since-100), [What you can use it for](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#what-you-can-use-it-for), [How you talk to it](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#how-you-talk-to-it), [What OcuTalon does](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#what-ocutalon-does), [Install it yourself](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself), [Set a model key](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#set-a-model-key), [Sign in](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#sign-in), [Telegram on your own install](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram), [Stop, start and update](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#stop-start-and-update), [Troubleshooting](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#troubleshooting) and [For admins and developers](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#for-admins-and-developers).
+[The OcuTalon guide](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md) has the rest: [New since 1.0.0](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#new-since-100), [What you can use it for](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#what-you-can-use-it-for), [How you talk to it](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#how-you-talk-to-it), [What OcuTalon does](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#what-ocutalon-does), [Install it yourself](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#install-it-yourself), [Set a model key](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#set-a-model-key), [Sign in](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#sign-in), [Telegram on your own install](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#telegram), [Gmail and Microsoft 365](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#gmail-and-microsoft-365), [Stop, start and update](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#stop-start-and-update), [Troubleshooting](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#troubleshooting) and [For admins and developers](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#for-admins-and-developers).
 
 ## Contest checklist
 

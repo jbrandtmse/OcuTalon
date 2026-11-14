@@ -57,4 +57,8 @@ Parameter INCIDENTSUMMARY = "incident_summary";
 /// The fix tool of Story 23.2 (AD-1, AD-10, AD-16): asks for approval of a suspend, a resume or a reroute. Not a release-1 tool, so RELEASE1 does not list it.
 Parameter PROPOSEFIX = "propose_fix";
 
+/// The governed proxy of Story 22.3 (AD-10, AD-21, AD-22): the one way a call reaches an MCP server. It is not a release-1 tool, so RELEASE1 does not list it. The bridge's
+/// Policy.Gate holds the same name (MCPPROXY), because the bridge cannot name this class; a test pins them equal.
+Parameter CALLMCPTOOL = "call_mcp_tool";
+
 }

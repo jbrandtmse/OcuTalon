@@ -8,6 +8,9 @@
 // makeTree(extra, omit) is a fresh copy of the committed scenarios plus the extra files ({'A/x.json': data}) minus the omitted names of A/,
 // in a temporary folder that the caller removes. withServer({files, omit}, fn) runs fn({base, mock, lines, logFile, readLog}) against a
 // fresh in-process server on 127.0.0.1 over such a tree and a fresh log folder, and removes both afterwards.
+// oauthSession(base) drives the fake OAuth2 server of a spawned mock (base is http://127.0.0.1:<port>) the way IRIS's client does and answers
+//   {control, token, issue}: control(route, body) posts to /_mock/oauth/<route>, token(provider, form) posts the token step, and issue(provider, expiresIn)
+//   sets the dummy client pair (and expiresIn when given), runs consent and the code exchange, and answers {accessToken, refreshToken, expiresIn}.
 // spawnServer starts no server until it is called and removes nothing.
 
 import assert from 'node:assert/strict';
@@ -102,4 +105,29 @@ export function spawnServer(serverPath, args) {
     }
   };
   return { child, out, stdout: () => stdout, stderr: () => err.join(''), exited, exitWithin, waitFor };
+}
+
+export const OAUTH_CLIENT = { clientId: `client-${'a'.repeat(8)}.example`, clientSecret: `sec-${'z'.repeat(12)}-oauth` };
+const OAUTH_BACK = 'http://127.0.0.1:52773/csp/sys/oauth2/OAuth2.Response.cls';
+
+export function oauthSession(base) {
+  const root = `${base}/_mock/oauth`;
+  const control = async (route, body) => {
+    const res = await fetch(`${root}/${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+    return { status: res.status, json: await res.json() };
+  };
+  const token = async (provider, form) => {
+    const res = await fetch(`${root}/${provider}/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form).toString() });
+    return { status: res.status, json: await res.json() };
+  };
+  const issue = async (provider = 'google', expiresIn = undefined) => {
+    await control('client', OAUTH_CLIENT);
+    if (expiresIn !== undefined) await control('mode', { expiresIn });
+    const query = new URLSearchParams({ client_id: OAUTH_CLIENT.clientId, redirect_uri: OAUTH_BACK, scope: 'https://mail.google.com/ offline_access', response_type: 'code', state: 's' });
+    const consent = await fetch(`${root}/${provider}/authorize?${query}`, { redirect: 'manual' });
+    const code = new URL(consent.headers.get('location')).searchParams.get('code');
+    const done = await token(provider, { grant_type: 'authorization_code', code, redirect_uri: OAUTH_BACK, client_id: OAUTH_CLIENT.clientId, client_secret: OAUTH_CLIENT.clientSecret });
+    return { accessToken: done.json.access_token, refreshToken: done.json.refresh_token, expiresIn: done.json.expires_in, scope: done.json.scope };
+  };
+  return { control, token, issue };
 }

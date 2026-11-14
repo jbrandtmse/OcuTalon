@@ -2,7 +2,9 @@ Include Ensemble
 
 /// ReminderOps, the business operation that carries out the three reminder commands, SetReminder, ListReminders and CancelReminder
 /// (AD-1, AD-4, AD-5, AD-18). The Reminder row is the truth. Every verb first checks the command's session (an empty SessionRef, or
-/// one that names no Session row, is refused no_session). Then:
+/// one that names no Session row, is refused no_session), except that a SetReminder whose Kind is neither "" nor reminder (an escalation
+/// timer, Story 24.3) is answered before that check: Ok 0, outcome not_built, with CommandsIn's MESSAGENOTBUILT, and nothing is stored.
+/// Then:
 ///   - SetReminder applies the repeat rule for a non-empty IdempotencyKey, resolves the one due form to a UTC DueAt (Reminder.Resolve:
 ///     a refusal creates nothing), then
 ///     - saves the Reminder row (pending) with the command's key;
@@ -98,6 +100,7 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 /// Sets the reminder of the command and returns the CommandResult to answer.
 Method Set(command As OcuTalon.Msg.Command.SetReminder, now As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
+	If (command.Kind '= "") && (command.Kind '= "reminder") Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
 	If '..SessionExists(command.SessionRef) Quit ..Refuse("no_session")
 	If command.IdempotencyKey '= "" {
 		Set first = ..KeyedRow("IdempotencyKey", command.SessionRef, command.IdempotencyKey)

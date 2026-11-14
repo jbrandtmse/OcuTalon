@@ -16,7 +16,8 @@
 # The upgrade images are built from a copy of the build context in a temporary directory, through an override
 # that names it, so the working tree is never changed. The project is unique, publishes no host port and
 # receives no keys. An EXIT trap removes the project with its volume and images. Every wait ends by an overall
-# deadline, so even a failing run ends within about 9 minutes.
+# deadline, so even a failing run ends: 540 s when OCUTALON_LIVE_DEADLINE is unset and the script runs on its own, 1200 s in CI;
+# through ci/iris.sh live (CI's 1200 s or unset) the unit's floor in ci/units.sh (unit_live_deadline) raises it. Rows 6 and 7 print how long each of their three waits took (MEASURED), pass or fail.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose and the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
@@ -116,9 +117,9 @@ fi
 live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
-if ! wait_started_ready 400; then
+if ! wait_started_ready "$LIVE_FIRST_START_WAIT"; then
   start_log | tail -n 30 | cut -c1-200
-  die "the first start did not end ready within 400 s"
+  die "the first start did not end ready within $LIVE_FIRST_START_WAIT s"
 fi
 check_installed "first start" "$v0"
 set_probes
@@ -167,9 +168,13 @@ fi
 v1=$(bump_patch "$v0" 1)
 make_image_context "$tmp/ctx-v1" "$v1"
 recreate_with "$tmp/ctx-v1"
-if ! wait_started_ready 200; then
+wait_began=$SECONDS
+wait_started_ready 300
+wait_rc=$?
+echo "MEASURED row 6: the upgrade took $((SECONDS - wait_began)) s to ready"
+if [ "$wait_rc" -ne 0 ]; then
   start_log | tail -n 30 | cut -c1-200
-  die "row 6 the upgrade did not end ready within 200 s"
+  die "row 6 the upgrade did not end ready within 300 s"
 fi
 expected_run "cleared" "present $ipm_version" "already mapped" "ok" "loaded (version $v0 to $v1)" "$v1" > "$tmp/expected.row6"
 check_log "row 6" "$tmp/expected.row6"
@@ -202,9 +207,13 @@ check_security "row 15 after the upgrade"
 v2=$(bump_patch "$v1" 1)
 make_image_context "$tmp/ctx-v2" "$v2" broken
 recreate_with "$tmp/ctx-v2"
-if ! wait_started_log 200; then
+wait_began=$SECONDS
+wait_started_log 300
+wait_rc=$?
+echo "MEASURED row 7: the start with a failing step took $((SECONDS - wait_began)) s to end"
+if [ "$wait_rc" -ne 0 ]; then
   start_log | tail -n 30 | cut -c1-200
-  die "row 7 the start with a failing step did not end within 200 s"
+  die "row 7 the start with a failing step did not end within 300 s"
 fi
 log_steps > "$tmp/actual.row7"
 if grep -q '^STEP SSL FAILED ' "$tmp/actual.row7"; then
@@ -253,9 +262,13 @@ fi
 v3=$(bump_patch "$v1" 2)
 make_image_context "$tmp/ctx-v3" "$v3"
 recreate_with "$tmp/ctx-v3"
-if ! wait_started_ready 200; then
+wait_began=$SECONDS
+wait_started_ready 330
+wait_rc=$?
+echo "MEASURED row 7: the next good image took $((SECONDS - wait_began)) s to ready"
+if [ "$wait_rc" -ne 0 ]; then
   start_log | tail -n 30 | cut -c1-200
-  die "row 7 the next good image did not end ready within 200 s"
+  die "row 7 the next good image did not end ready within 330 s"
 fi
 check_installed "row 7 the next good image" "$v3"
 check_probes "row 7 after the next good image"

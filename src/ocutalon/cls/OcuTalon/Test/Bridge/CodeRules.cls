@@ -79,8 +79,8 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES), and, since the gate holds a risky call (Story 3.6), the classes that
 /// Approval.Raise runs inside the callback: the approval API, the service that starts the hold, the reference generator, the clock, the request row
 /// that it validates and saves, and the start message that the service sends. Since the approval payload asks the notice's rule for the either-way line
-/// (Story 7.8), the notice (Watch.Notice, whose Reading FromRow calls) and the date reader it calls (Fix.Reformat), and, since the memory tools embed a memory's text inside the callback (Story 19.2), the embedding endpoint (Memory.Embedding), which queues the Python work to a worker and holds no Python itself, and, since the document extraction (Story 19.6), the queue-and-wait base of the Python workers (Memory.Worker) and the caller side of the extraction (Docs.Extract), which hold no Python either, and, since the gate classifies an MCP call through OcuTalon's classification class (Story 22.8), the classes that the changed-tool clear of Mcp.Classification runs inside the callback: the clear and the class that writes it (Mcp.Ops), the rows that it opens (Mcp.ToolClassification, Mcp.Server), the MCP servers class that Decide asks (Mcp.Attach), the one audit writer (Bridge.Audit), the service that sends the admin notice (Core.NoticesIn) and the notice itself (Msg.Notification).
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun,OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat,OcuTalon.Memory.Embedding,OcuTalon.Memory,OcuTalon.Tools.HostData,OcuTalon.Memory.Worker,OcuTalon.Docs.Extract,OcuTalon.Docs.Embedding,OcuTalon.Bridge.Citations,OcuTalon.Bridge.HostData,OcuTalon.Mcp.Ops,OcuTalon.Mcp.ToolClassification,OcuTalon.Mcp.Server,OcuTalon.Mcp.Attach,OcuTalon.Bridge.Audit,OcuTalon.Core.NoticesIn,OcuTalon.Msg.Notification";
+/// (Story 7.8), the notice (Watch.Notice, whose Reading FromRow calls) and the date reader it calls (Fix.Reformat), and, since the memory tools embed a memory's text inside the callback (Story 19.2), the embedding endpoint (Memory.Embedding), which queues the Python work to a worker and holds no Python itself, and, since the document extraction (Story 19.6), the queue-and-wait base of the Python workers (Memory.Worker) and the caller side of the extraction (Docs.Extract), which hold no Python either, and, since the gate classifies an MCP call through OcuTalon's classification class (Story 22.8), the classes that the changed-tool clear of Mcp.Classification runs inside the callback: the clear and the class that writes it (Mcp.Ops), the rows that it opens (Mcp.ToolClassification, Mcp.Server), the MCP servers class that Decide asks (Mcp.Attach), the one audit writer (Bridge.Audit), the service that sends the admin notice (Core.NoticesIn) and the notice itself (Msg.Notification), and, since the governed proxy call_mcp_tool runs inside the callback (Story 22.3), the proxy that it calls (Mcp.Proxy), OcuTalon's MCP client (Mcp.Client), the resource name of a server (Install.Step.Mcp, only its ResourceOf, which the class Mcp.Classification calls) and the one reader of a Config Store entry (Bridge.ConfigStore), and, since Watch.Reader keeps a salted hash of a secret setting value (Story 36.1), the hash helpers of the webhook rows (Data.Webhook).
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun,OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat,OcuTalon.Memory.Embedding,OcuTalon.Memory,OcuTalon.Tools.HostData,OcuTalon.Memory.Worker,OcuTalon.Docs.Extract,OcuTalon.Docs.Embedding,OcuTalon.Bridge.Citations,OcuTalon.Bridge.HostData,OcuTalon.Mcp.Ops,OcuTalon.Mcp.ToolClassification,OcuTalon.Mcp.Server,OcuTalon.Mcp.Attach,OcuTalon.Bridge.Audit,OcuTalon.Core.NoticesIn,OcuTalon.Msg.Notification,OcuTalon.Mcp.Proxy,OcuTalon.Mcp.Client,OcuTalon.Install.Step.Mcp,OcuTalon.Bridge.ConfigStore,OcuTalon.Data.Webhook";
 
 /// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck). Since the read tools of the Diagnosis agent (Story 5.4) read an incident's evidence: the evidence pack (Watch.EvidencePack), the group row it reads (Data.FailureGroup) and the pure helpers it calls for an error sentence and a pattern (Watch.ErrorText, Watch.Settle).
 Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
@@ -101,9 +101,9 @@ Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|
 /// request (the Approval API and the other bridge classes of approvals, ApprovalStartIn, the table or globals, AnswersIn, EnsLib.Workflow), classifying a tool
 /// (the names ToolClassification and ClassificationClass), changing a setting (SettingsOps, the Setting table or globals, Accessor.WriteDefault, Timeouts.Apply
 /// and Restart, the writers of the public settings, every Ens.Director method that changes a production, and the creation or deletion of an Ens.Config
-/// object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps), pairing a chat (SessionOps, the Pairing table or globals) and a command
+/// object: reading one is not flagged), adding an MCP server (OcuTalon.Mcp, McpOps; the one class OcuTalon.Mcp.Proxy, which only calls a registered server's tool, is allowed: Story 22.3) or granting the permission on its resource (Install.Step.Mcp Grant, Grants and Revoke; its reader ResourceOf is not flagged), pairing a chat (SessionOps, the Pairing table or globals) and a command
 /// class outside the package OcuTalon.Msg.Command (IncidentCommand).
-Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
+Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp(?![._]proxy(?![\w.]))|install[._]step[._]mcp\W{1,4}(grants?|revoke)\b|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
 
 /// The command classes that a tool may submit (AD-1: the verbs that CommandsIn accepts from origin tool and that exist): any other
 /// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). ProposePersona is the persona tool's verb (Story 40.5). SendDigest (Story 17.6) takes no recipient. SaveMemory and ForgetMemory are the memory tools' verbs (Story 19.3). ProposeFix is the fix tool's verb (Story 23.2).
@@ -741,6 +741,63 @@ Method TestNoToolReachesAGovernanceCommand()
 	Do $$$AssertTrue(toolsets '< 2, "the agents have toolsets (Diagnosis and Chat): "_toolsets)
 }
 
+/// The governed proxy (OcuTalon.Mcp.Proxy, Story 22.3) is the one class of OcuTalon.Mcp that a tool may name, because it only calls a registered server's tool: it changes no
+/// row, no setting, no approval and no classification. Its code lines name no %Save, %Delete, %New or %KillExtent, no class of OcuTalon.Mcp.Ops but the reader AddressAllowed (not
+/// through $ClassMethod either), no ClearChanged, no SettingsOps and no approval class. The scanner is first shown to flag samples that break each rule, and to pass the
+/// readers and a comment line.
+Method TestProxyWritesNothing()
+{
+	Set tab = $Char(9)
+	Set bad = $ListBuild(
+		tab_"Set sc = row.%Save()",
+		tab_"Do ##class(OcuTalon.Mcp.ToolClassification).%DeleteId(1)",
+		tab_"Set row = ##class(OcuTalon.Mcp.ToolClassification).%New()",
+		tab_"Do ##class(OcuTalon.Mcp.Server).%KillExtent()",
+		tab_"Do ##class(OcuTalon.Mcp.Ops).ClearChanged(server, tool, fingerprint)",
+		tab_"Do ##class(OcuTalon.Mcp.Ops).Classify(server, tool, ""risky"")",
+		tab_"Do $ClassMethod(""OcuTalon.Mcp.Ops"", ""Remove"", server)",
+		tab_"Do ##class(OcuTalon.Core.SettingsOps).Put(""Decide"", ""Model"", ""x"")",
+		tab_"Do ##class(OcuTalon.Bridge.Approval).Raise(request)",
+		tab_"Do ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()")
+	Set position = 0
+	While $ListNext(bad, position, line) {
+		Do $$$AssertTrue(..ProxyProblem(line) '= "", "the scan flags: "_$Translate(line, tab, " "))
+	}
+	Set good = "/// Never calls ClearChanged or %Save, and names OcuTalon.Mcp.Ops only in this comment."_$Char(10)_
+		tab_"// Do ##class(OcuTalon.Mcp.Ops).Remove(server)"_$Char(10)_
+		tab_"If '##class(OcuTalon.Mcp.Ops).AddressAllowed(url) Quit"_$Char(10)_
+		tab_"Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, tool)"
+	Do $$$AssertEquals(..ProxyProblem(good), "", "and passes the readers, a comment line and the one allowed Ops method: "_..ProxyProblem(good))
+	If $$$ISERR(##class(OcuTalon.Test.Bridge.Source).Text("OcuTalon.Mcp.Proxy", .text)) || (text = "") {
+		Do $$$AssertTrue(0, "the source of OcuTalon.Mcp.Proxy can be read")
+		Quit
+	}
+	Do $$$AssertEquals(..ProxyProblem(text), "", "OcuTalon.Mcp.Proxy changes nothing: it names no writer, no Ops method but AddressAllowed, no SettingsOps and no approval class")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, "OcuTalon.Mcp.Client", 1), "control: it does name the client that it calls")
+}
+
+/// What OcuTalon.Mcp.Proxy may not name (see TestProxyWritesNothing): "" when the code lines of the text are clean, otherwise the reasons.
+ClassMethod ProxyProblem(text As %String) As %String [ Private ]
+{
+	Set problems = ""
+	If ##class(OcuTalon.Test.Bridge.Source).Matches(text, "%(save|delete|deleteid|deleteextent|killextent|new)\b|clearchanged|settingsops|approval") {
+		Set problems = "names a writer, ClearChanged, SettingsOps or an approval class"
+	}
+	Set lines = ##class(OcuTalon.Test.Bridge.Source).CodeLines(text)
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		If $Locate(line, "(?i)ocutalon\.mcp\.ops[""']") Set problems = problems _ $Select(problems = "": "", 1: "; ") _ "names Ops through $ClassMethod"
+		Set start = 1
+		For {
+			Set at = $Locate(line, "(?i)ocutalon\.mcp\.ops\s*\)\s*\.\s*\w+", start, end, found)
+			Quit:'at
+			If $ZConvert($Piece(found, ".", *), "L") '= "addressallowed" Set problems = problems _ $Select(problems = "": "", 1: "; ") _ "calls Ops " _ $Piece(found, ".", *)
+			Set start = end
+		}
+	}
+	Quit problems
+}
+
 /// The helper that the scans share. A comment line is a line that starts, after white space, with //, ///, ;, #; or ##;; the scans
 /// read every other line, one with a trailing comment included. A match is made in any case, and as plain text when asked for, so
 /// that a pattern such as {{ needs no escape.
@@ -826,6 +883,11 @@ Method TestToolCodeScan()
 		tab_"Do ##class(Ens.Config.Production).%Delete(oid)",
 		tab_"Do ##class(Ens.Config.DefaultSettings).%KillExtent()",
 		tab_"Set server = ##class(OcuTalon.Mcp.Server).%New()",
+		tab_"Do ##class(OcuTalon.Mcp.ProxyWriter).Add(""x"")",
+		tab_"Do ##class(OcuTalon.Mcp.Proxy.Extra).Add(""x"")",
+		tab_"Do ##class(OcuTalon.Install.Step.Mcp).Grant(server)",
+		tab_"Set sc = ##class(OcuTalon.Install.Step.Mcp).Revoke(server)",
+		tab_"Do ##class(OcuTalon.Mcp).Add(""x"")",
 		tab_"Do ##class(OcuTalon.Core.McpOps).Add(""x"")",
 		tab_"Do ##class(OcuTalon.Core.SessionOps).Pair(code)",
 		tab_"Set row = ##class(OcuTalon.Data.Pairing).%OpenId(1)",
@@ -877,9 +939,12 @@ Method TestToolCodeScan()
 		tab_"Set priority = ##class(Ens.Director).GetAutoStartRecommendedPriority()"_lf_
 		tab_"Set demo = ##class(OcuTalon.Data.Public.Settings).Get(""onlineDemo"")"_lf_
 		tab_"Set text =""Say that you approve it, and that the setting is ToolOption or a classification word"""_lf_
-		tab_"Set result = ##class(OcuTalon.Msg.CommandResult).%New()"
+		tab_"Set result = ##class(OcuTalon.Msg.CommandResult).%New()"_lf_
+		tab_"Set answer = ##class(OcuTalon.Mcp.Proxy).Call(server, tool, arguments, room)"_lf_
+		tab_"Set answer = $ClassMethod(""OcuTalon.Mcp.Proxy"", ""Call"", server, tool)"_lf_
+		tab_"Set resource = ##class(OcuTalon.Install.Step.Mcp).ResourceOf(server, .sc)"
 	Set clean = ..ToolCodeClean("", .problems, governed)
-	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string and has the governance names in comments: "_problems)
+	Do $$$AssertEquals(clean, 1, "and one that submits the tool commands, creates a business service, reads an Ens.Config object, says approve in a string, calls the one class of OcuTalon.Mcp that a tool may name (the governed proxy, Story 22.3) and has the governance names in comments: "_problems)
 	Do $$$AssertEquals(problems, "", "and has nothing to say")
 	Set clean = ..ToolCodeClean("OcuTalon.Tools.WatchReads", .problems)
 	Do $$$AssertEquals(clean, 1, "the Watch tools provider is clean: "_problems)

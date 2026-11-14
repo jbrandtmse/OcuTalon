@@ -37,7 +37,7 @@ Include Ensemble
 /// chat's ChatRef, a catalog key and no text; Notify decides where it goes. An error thrown while carrying out a command is logged and
 /// answers failed. The pool of the item is 1, so its commands are handled one at a time.
 /// Unlink is the one way a chat is unlinked, and End calls it.
-/// From step 3, End first drops the session's documents, memories and uploads (OcuTalon.Docs.DropSession, OcuTalon.Memory.DropSession and OcuTalon.Data.Upload.DropSession, AD-4, AD-21).
+/// From step 3, End first drops the session's documents, memories and uploads (OcuTalon.Docs.DropSession, OcuTalon.Memory.DropSession and OcuTalon.Data.Upload.DropSession, AD-4, AD-21), and, from step 6, its sent files (OcuTalon.Data.SentFile.DropSession).
 Class OcuTalon.Core.SessionOps Extends Ens.BusinessOperation
 {
 
@@ -594,7 +594,7 @@ ClassMethod Result(ok As %Boolean, outcome As %String, message As %String) As Oc
 	Quit result
 }
 
-/// End's step 3 drops: the session's documents, then its memories, then its uploads (the bytes of files not yet taken by DocumentOps), each in its own Try. The result is the number of drops that failed
+/// End's step 3 drops: the session's documents, then its memories, then its uploads (the bytes of files not yet taken by DocumentOps), then its sent files (the files it sent from the chat, Story 25.3), each in its own Try. The result is the number of drops that failed
 /// (an error status or an error thrown), each a warning.
 Method EndDocumentsAndMemories(sessionRef As %String) As %Integer [ Private ]
 {
@@ -620,6 +620,13 @@ Method EndDocumentsAndMemories(sessionRef As %String) As %Integer [ Private ]
 		Set failed = failed + 1
 		Do ..Warn("the uploads of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
 	}
+	Try {
+		Set sc = ..DropSentFiles(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the sent files of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the sent files of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
 	Quit failed
 }
 
@@ -639,6 +646,12 @@ Method DropMemories(sessionRef As %String) As %Status [ Private ]
 Method DropUploads(sessionRef As %String) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Data.Upload).DropSession(sessionRef)
+}
+
+/// The one call that drops a session's sent files (Lane B; a seam for the tests).
+Method DropSentFiles(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Data.SentFile).DropSession(sessionRef)
 }
 
 }

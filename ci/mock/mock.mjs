@@ -13,12 +13,16 @@
 //   POST /_mock/telegram/replies       {"scenario":"<telegram scenario>"} or {"method":"<method>","replies":[<telegram reply>,...]}:
 //                                      the replies answer that method's next calls in order
 //   GET  /_mock/telegram/calls         {"calls":[{seq, ts, method, params}, ...]}, every Bot API call with a token, in order
-//   POST /_mock/telegram/reset         clears the updates, the queued replies, the calls and the counters
+//   POST /_mock/telegram/files         {"fileId","filePath","contentType","base64"}: registers a fixture file that getFile and the download serve
+//   POST /_mock/telegram/reset         clears the updates, the queued replies, the calls, the files and the counters
+//   GET  /file/bot<token>/<file_path>  the download of a registered file (Story 25.3): its bytes with its Content-Type and Content-Length; an empty token is a 401,
+//                                      a method other than GET a 405 and an unknown path a 404, as Bot API errors; it is recorded in the calls as {method: "download", params: {file_path}}
 // A Bot API call is answered by the first queued reply of its method; else getUpdates by the update queue (updates below the offset
 // are dropped, and a negative offset is a 400; with none queued it waits until one is queued or min(timeout, 50) seconds pass, then answers an empty list, and a
 // client that hangs up ends the wait; a reply queued for getUpdates while it waits answers it at once); else by the default of the method: getMe the bot ocutalon_ci_bot, sendMessage and
-// editMessageText a Message with a counted message_id, the chat.id as given and the text, answerCallbackQuery true. An empty token is a
-// 401, getFile (Story 25.3) and any other method a 404, all as Bot API errors {"ok":false,"error_code","description"}. The token is
+// editMessageText a Message with a counted message_id, the chat.id as given and the text, answerCallbackQuery true, getFile (Story 25.3) the
+// {file_id, file_unique_id, file_size, file_path} of a registered file (an unknown file_id is a 400 "Bad Request: invalid file_id"). An empty token is a
+// 401 and any other method a 404, all as Bot API errors {"ok":false,"error_code","description"}. The token is
 // never logged: the path is /bot[redacted]/<method> and the entry holds tokenLength; a Bot API call logs its method and parameter names
 // (never their values) as the file line's request. A telegram scenario is never selected by a model request.
 // The checks of POST /v1/messages run in this order: the key; a JSON object body; no stream:true; messages a non-empty list;
@@ -48,6 +52,7 @@
 // hung-up client cancels.
 
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { BOT_METHODS, checkTelegramReplies, findMarkers, isObject, isSummaryVariant, parseLabel } from './scenarios.mjs';
 
@@ -59,6 +64,11 @@ export const MAX_COUNTDOWN = 1000;
 export const LOG_FILE = 'requests.jsonl';
 // A Bot API path: /bot<token>/<method>. The token may be empty (a 401).
 export const BOT_PATH = /^\/bot([^/]*)\/([^/]*)$/;
+// A fixture file's id, and its path: relative, in letters, digits and a few marks.
+const FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const FILE_PATH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
+// A file download path: /file/bot<token>/<file_path>. The token may be empty (a 401).
+export const FILE_PATH = /^\/file\/bot([^/]*)\/(.+)$/;
 // The longest that getUpdates waits for an update, in seconds.
 export const MAX_POLL_SECONDS = 50;
 export const MAX_UPDATES = 100;
@@ -186,7 +196,7 @@ function summarizeRequest(body) {
 
 function shortPath(p) {
   const cut = p.length > 200 ? `${p.slice(0, 200)}...` : p;
-  return cut.replace(/^\/bot[^/]+/, '/bot[redacted]');
+  return cut.replace(/^\/bot[^/]+/, '/bot[redacted]').replace(/^\/file\/bot[^/]+\//, '/file/bot[redacted]/');
 }
 
 // botError(status, description): the body of a Bot API error.
@@ -233,7 +243,7 @@ export function createMock({ scenarios, logDir, out }) {
   const logPath = logDir ? path.join(logDir, LOG_FILE) : null;
   let counter = 0;
   // The Bot API side: the queued updates, the queued replies by method, the calls, the counters, and the long polls that wait.
-  const tg = { updates: [], replies: new Map(), calls: [], nextUpdateId: 1, nextMessageId: 1, waiters: new Set() };
+  const tg = { updates: [], replies: new Map(), calls: [], files: new Map(), nextUpdateId: 1, nextMessageId: 1, waiters: new Set() };
 
   function emit(entry, body, summary = summarizeRequest(body)) {
     const line = redact(JSON.stringify(entry));
@@ -248,6 +258,12 @@ export function createMock({ scenarios, logDir, out }) {
     const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
     res.writeHead(status, { ...headers, 'content-length': String(Buffer.byteLength(text)) });
     res.end(text);
+  }
+
+  function sendBytes(res, status, headers, bytes) {
+    if (res.destroyed || res.writableEnded) return;
+    res.writeHead(status, { ...headers, 'content-length': String(bytes.length) });
+    res.end(bytes);
   }
 
   function sendJson(res, status, payload, extra = {}) {
@@ -309,6 +325,34 @@ export function createMock({ scenarios, logDir, out }) {
     sendJson(res, 404, errorBody(404, `CI mock: no route for ${req.method} ${shortPath(pathname)}`));
   }
 
+  // POST /_mock/telegram/files: registers the fixture file {"fileId","filePath","contentType","base64"}; the same fileId or filePath again replaces it.
+  function registerFile(res, raw) {
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = null;
+    }
+    const problem = (message) => sendJson(res, 400, errorBody(400, `CI mock: ${message}`));
+    if (!isObject(data)) return problem('the files body is not a JSON object');
+    const { fileId, filePath, contentType, base64 } = data;
+    if (typeof fileId !== 'string' || !FILE_ID_PATTERN.test(fileId)) return problem('fileId is a string of 1 to 64 letters, digits, "_" and "-"');
+    if (typeof filePath !== 'string' || !FILE_PATH_PATTERN.test(filePath) || filePath.split('/').some((part) => part === '' || part === '.' || part === '..')) {
+      return problem('filePath is a relative path of letters, digits, ".", "_", "-" and "/", with no empty, "." or ".." part');
+    }
+    if (typeof contentType !== 'string' || !/^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+$/.test(contentType)) return problem('contentType is a media type such as application/pdf');
+    if (typeof base64 !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) return problem('base64 is the file in base64');
+    const bytes = Buffer.from(base64, 'base64');
+    for (const [id, file] of tg.files) if (id === fileId || file.filePath === filePath) tg.files.delete(id);
+    tg.files.set(fileId, { filePath, contentType, bytes });
+    sendJson(res, 200, { ok: true, fileId, filePath, size: bytes.length });
+  }
+
+  // The getFile result of a registered file.
+  function fileResult(fileId, file) {
+    return { file_id: fileId, file_unique_id: `u${createHash('sha256').update(fileId).digest('hex').slice(0, 15)}`, file_size: file.bytes.length, file_path: file.filePath };
+  }
+
   function wakeWaiters() {
     for (const wake of [...tg.waiters]) wake();
   }
@@ -331,10 +375,15 @@ export function createMock({ scenarios, logDir, out }) {
       tg.updates = [];
       tg.replies = new Map();
       tg.calls = [];
+      tg.files = new Map();
       tg.nextUpdateId = 1;
       tg.nextMessageId = 1;
       wakeWaiters();
       sendJson(res, 200, { ok: true });
+      return;
+    }
+    if (route === 'files' && req.method === 'POST') {
+      registerFile(res, raw);
       return;
     }
     if ((route === 'updates' || route === 'replies') && req.method === 'POST') {
@@ -376,8 +425,7 @@ export function createMock({ scenarios, logDir, out }) {
         return;
       }
       if (typeof data.method !== 'string' || !BOT_METHODS.includes(data.method)) {
-        const hint = data.method === 'getFile' ? 'getFile arrives in Story 25.3' : `the method must be one of ${BOT_METHODS.join(', ')}`;
-        sendJson(res, 400, errorBody(400, `CI mock: ${hint}`));
+        sendJson(res, 400, errorBody(400, `CI mock: the method must be one of ${BOT_METHODS.join(', ')}`));
         return;
       }
       const problems = checkTelegramReplies(data.replies, 'replies');
@@ -558,10 +606,6 @@ export function createMock({ scenarios, logDir, out }) {
       refuse(400, 'bad-body', error);
       return;
     }
-    if (method === 'getFile') {
-      refuse(404, 'get-file', 'CI mock: getFile arrives in Story 25.3');
-      return;
-    }
     if (!BOT_METHODS.includes(method)) {
       refuse(404, 'unknown-method', `CI mock: the Bot API method ${method.slice(0, 40)} is not served`);
       return;
@@ -604,6 +648,14 @@ export function createMock({ scenarios, logDir, out }) {
         entry.selectedBy = ready.length > 0 ? 'updates' : 'empty';
         reply = { status: 200, body: { ok: true, result: ready } };
       }
+    } else if (method === 'getFile') {
+      entry.selectedBy = 'default';
+      const file = typeof params.file_id === 'string' ? tg.files.get(params.file_id) : undefined;
+      if (file === undefined) {
+        refuse(400, 'bad-file-id', 'Bad Request: invalid file_id');
+        return;
+      }
+      reply = { status: 200, body: { ok: true, result: fileResult(params.file_id, file) } };
     } else {
       entry.selectedBy = 'default';
       reply = { status: 200, body: defaultAnswer(method, params, () => tg.nextMessageId++) };
@@ -620,6 +672,56 @@ export function createMock({ scenarios, logDir, out }) {
     }
   }
 
+  // One file download (Story 25.3): GET /file/bot<token>/<file_path>. The log entry has the shape of a Bot API call's, with tokenLength; the call is
+  // recorded as {method: "download", params: {file_path}}.
+  function handleDownload(req, res, match, headers, n, pathname) {
+    const token = match[1];
+    const filePath = match[2];
+    const entry = {
+      ts: new Date().toISOString(),
+      id: n,
+      method: req.method,
+      path: shortPath(pathname),
+      status: null,
+      scenario: null,
+      selectedBy: 'telegram',
+      marker: null,
+      step: null,
+      countdown: null,
+      headerNames: Object.keys(headers).map((h) => h.toLowerCase()),
+      keyLength: typeof headers['x-api-key'] === 'string' ? headers['x-api-key'].length : 0,
+      tokenLength: token.length,
+      rejected: null,
+      model: null,
+      maxTokens: null,
+    };
+    const summary = { botMethod: 'download', paramNames: ['file_path'] };
+    const refuse = (status, rejected, description) => {
+      entry.status = status;
+      entry.rejected = rejected;
+      emit(entry, null, summary);
+      sendJson(res, status, botError(status, description), { 'request-id': `req_mock_${n}` });
+    };
+    if (token === '') {
+      refuse(401, 'no-token', 'Unauthorized');
+      return;
+    }
+    if (req.method !== 'GET') {
+      refuse(405, 'method', `CI mock: a file download takes GET, not ${req.method}`);
+      return;
+    }
+    tg.calls.push({ seq: tg.calls.length + 1, ts: entry.ts, method: 'download', params: { file_path: filePath } });
+    const file = [...tg.files.values()].find((f) => f.filePath === filePath);
+    if (file === undefined) {
+      refuse(404, 'unknown-file', 'Not Found');
+      return;
+    }
+    entry.status = 200;
+    entry.selectedBy = 'default';
+    emit(entry, null, summary);
+    sendBytes(res, 200, { 'content-type': file.contentType, 'request-id': `req_mock_${n}` }, file.bytes);
+  }
+
   async function handle(req, res) {
     try {
       const url = req.url || '/';
@@ -634,6 +736,11 @@ export function createMock({ scenarios, logDir, out }) {
       counter += 1;
       const n = counter;
       const headers = req.headers || {};
+      const fileMatch = FILE_PATH.exec(pathname);
+      if (fileMatch !== null) {
+        handleDownload(req, res, fileMatch, headers, n, pathname);
+        return;
+      }
       const botMatch = BOT_PATH.exec(pathname);
       if (botMatch !== null) {
         await handleBot(req, res, botMatch, query, raw, headers, n, pathname);

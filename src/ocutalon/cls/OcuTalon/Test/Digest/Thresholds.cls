@@ -100,7 +100,12 @@ Method TestDigestSeeds()
 				Set compared = compared + 1
 			}
 			If field.key = "digest.channels" {
-				Do $$$AssertEquals($Parameter("OcuTalon.Digest.Process", "CHANNELSDEFAULT"), field.default, field.key_": the digest's default is the section's default")
+				Set defaults = $ListFromString(field.default)
+				Set names = $ListBuild("web", "phone", "telegram", "email")
+				Set at = 0
+				While $ListNext(names, at, name) {
+					Do $$$AssertEquals(##class(OcuTalon.Core.Rule.Functions).DigestNamed(name), ''$ListFind(defaults, name), field.key_": with no row, Notify's rule names "_name_" exactly when the section's default does")
+				}
 				Set compared = compared + 1
 			}
 		}

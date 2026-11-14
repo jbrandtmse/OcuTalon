@@ -129,7 +129,7 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,admin,onlineDemo,demoMode,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,admin,onlineDemo,demoMode,filesReadable,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
 	Do $$$AssertEquals(body.%GetTypeOf("mailbox")_"|"_body.mailbox.%Size(), "array|0", "mailbox is an empty array for a session with no mail")
 	Do $$$AssertEquals(body.%GetTypeOf("phone")_"|"_body.phone.%Size(), "array|0", "phone is an empty array for a session with no phone message")
 	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
@@ -137,6 +137,8 @@ Method TestStateBody()
 	Do $$$AssertEquals(body.user, session.IrisUser, "user is the session row's")
 	Do $$$AssertEquals(body.user, "zzapistate"_..Number, "and the fixture session's user")
 	Do $$$AssertEquals(body.%GetTypeOf("onlineDemo")_body.%GetTypeOf("demoMode"), "booleanboolean", "the two flags are booleans")
+	Do $$$AssertEquals(body.%GetTypeOf("filesReadable"), "boolean", "filesReadable is a boolean")
+	Do $$$AssertEquals(body.filesReadable, ##class(OcuTalon.Core.Files).Readable(), "and it is Core.Files.Readable()")
 	Set keys = ""
 	Set iterator = body.models.%GetIterator()
 	While iterator.%GetNext(.key) {

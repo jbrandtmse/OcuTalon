@@ -1,10 +1,12 @@
 import { expect, test, type Locator, type Page } from './support/fixtures';
 
 import { README_ACCOUNT } from './sign-in/helpers';
+import { phoneShows } from './support/approvals';
 import { dropPhone, pointKeys, restoreKeys } from './support/devices';
 import { composerOf, inMs, railOf, replyOf, signInReadmeLoaded } from './support/floor';
 import { chk, irisScript, quoted } from './support/iris';
 import { forget, prepare, sessionRef } from './support/persona';
+import { blockLiveSocket } from './support/socket';
 
 /**
  * Story 40.6 (PA1 and PA2), a proposed persona answered on the page, in a real browser against the stack that test-sign-in.sh seeds, signed
@@ -17,6 +19,10 @@ import { forget, prepare, sessionRef } from './support/persona';
  *     /v1/persona reads pirate and the Persona card shows Pirate with no pending note;
  *   - PA2: the same with Reject: "Rejected from the web chat at ... Nothing was changed.", the persona stays Professional and no applied
  *     notice shows.
+ *   - PA2 also asserts that the rail row is gone within 5 s of the press, and PA3 rejects the same request on the simulated phone's
+ *     message and asserts the same bound (Story 23.12; a real request has a real hold, so its reply is short). Both run with the live socket closed, as on the
+ *     online demo, so that a pushed event cannot take the row off the rail; the polls run, so these cases pin the bound on a real request,
+ *     and rail/rail-answer.spec.ts (RA1, RA2), which holds the polls, pins that the reply alone does it.
  * beforeAll points the runners' keys at the CI mock; afterAll puts them back, drops the AI sessions the turns saved and waits until the
  * runners have recorded their restored keys. After each case the account's persona keys, its `setting` requests, its turns and the
  * notices of the case are removed again, because other specs expect the defaults.
@@ -81,13 +87,19 @@ async function presetRead(page: Page): Promise<string> {
   return ((await response.json()) as { preset: string }).preset;
 }
 
-/** Runs a case as the README account with the persona cleared before and the case's rows removed after, with the page signed in and loaded. */
-async function withProposal(page: Page, body: () => Promise<void>): Promise<void> {
+/**
+ * Runs a case as the README account with the persona cleared before and the case's rows removed after, with the page signed in and loaded.
+ * With `pollsOnly` the page's live socket is closed before it loads, so that the polls are its only live path, as on the online demo.
+ */
+async function withProposal(page: Page, body: () => Promise<void>, pollsOnly = false): Promise<void> {
   const ref = await sessionRef();
   const since = inMs(0);
   await forget(ref);
   try {
     await prepare(ref);
+    if (pollsOnly) {
+      await blockLiveSocket(page);
+    }
     await signInReadmeLoaded(page);
     await body();
   } finally {
@@ -140,11 +152,35 @@ test('PA2: rejecting a proposed persona changes nothing and shows no applied not
   test.setTimeout(240_000);
   await withProposal(page, async () => {
     const card = await propose(page);
+    const row = railOf(page).locator('li.row').filter({ hasText: TITLE });
+    await expect(row, 'the rail lists the request before the press').toHaveCount(1);
+    const pressedAt = Date.now();
     await card.getByRole('button', { name: 'Reject: change how OcuTalon talks to you', exact: true }).click();
+    await expect(row, 'the rail row is gone within 5 s of the press').toHaveCount(0, { timeout: 5000 });
+    console.log(`PERSONA PA2 web: the rail row was gone ${Date.now() - pressedAt} ms after the press`);
     const status = card.locator('p.status');
     await expect(status, "the card's status line").toHaveText(/^Rejected from the web chat at \S+.* Nothing was changed\.$/, { timeout: WAIT_MS });
     await expect(card.locator('.setting-note'), 'the note is gone').toHaveCount(0);
     expect(await presetRead(page), 'the persona stays Professional').toBe('professional');
     await expect(page.locator('app-chat-panel').getByText(APPLIED, { exact: true }), 'no applied notice shows').toHaveCount(0);
-  });
+  }, true);
+});
+
+test('PA3: rejecting a proposed persona on the simulated phone takes its row off the rail within 5 s of the press', async ({ page }) => {
+  test.setTimeout(240_000);
+  await withProposal(page, async () => {
+    const card = await propose(page);
+    const row = railOf(page).locator('li.row').filter({ hasText: TITLE });
+    await expect(row, 'the rail lists the request before the press').toHaveCount(1);
+    const request = ((await row.getAttribute('data-row-key')) ?? '').replace(/^approvals:/, '');
+    expect(request, "the rail row names the request's Ref").not.toBe('');
+    const { message } = await phoneShows(page, README_ACCOUNT.user, request);
+    const pressedAt = Date.now();
+    await message.getByRole('button', { name: 'Reject: change how OcuTalon talks to you', exact: true }).click();
+    await expect(row, 'the rail row is gone within 5 s of the press').toHaveCount(0, { timeout: 5000 });
+    console.log(`PERSONA PA3 phone: the rail row was gone ${Date.now() - pressedAt} ms after the press`);
+    await expect(card.locator('p.status'), "the card's status line").toHaveText(/^Rejected from the simulated phone at \S+/, { timeout: WAIT_MS });
+    expect(await presetRead(page), 'the persona stays Professional').toBe('professional');
+    await expect(page.locator('app-chat-panel').getByText(APPLIED, { exact: true }), 'no applied notice shows').toHaveCount(0);
+  }, true);
 });

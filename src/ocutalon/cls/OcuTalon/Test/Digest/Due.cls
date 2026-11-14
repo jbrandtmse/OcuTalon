@@ -19,8 +19,8 @@
 ///   - TestOnlineDemoSkipped (DW-874; AD-18 as amended 2026-11-07): on the online demo the scheduled run queues no Compose for any session, the one with a resume
 ///     hash (a visitor) and the one without (ended) alike, while on a local install both get one; a visitor's SendDigest (origin tool) on the online demo still
 ///     queues one requested Compose with an empty DueAt and is answered Ok and sending;
-///   - TestOnlineDemoResends: the tick on the online demo still gives a digest that missed a channel its resend: one Notification to the web chat it missed, and
-///     the Sent row counts the attempt, lists the web chat as reached and misses none; its routing row is the probe's TRACESESSION's, which Clean deletes.
+///   - TestTickResendsNothing (Story 21.7): the tick, on the online demo as on a local install, sends nothing for a Sent row that names a missed channel (a
+///     row written before Notify became the one route): Digest has no direct send to a channel's item, so the row is left as it is.
 Class OcuTalon.Test.Digest.Due Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
@@ -317,7 +317,7 @@ Method TestOnlineDemoSkipped()
 	If composes.%Size() = 1 Do $$$AssertEquals(composes.%Get(0).session_"|"_composes.%Get(0).kind_"|"_composes.%Get(0).dueAt, visitor_"|requested|", "for the visitor, requested, with an empty DueAt")
 }
 
-Method TestOnlineDemoResends()
+Method TestTickResendsNothing()
 {
 	Set visitor = ..Session("2030-06-03T07:30:00", ##class(OcuTalon.Bridge.Ids).NewRef())
 	Set host = ..Host(visitor)
@@ -333,14 +333,13 @@ Method TestOnlineDemoResends()
 	Set sent.Attempts = 0
 	Do $$$AssertStatusOK(sent.%Save(), "a digest that missed the web channel is stored")
 	Set id = sent.%Id()
-	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
-	Do ..Tick(host, "2030-06-03T08:01:00")
-	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "compose"), 0, "the tick queues no Compose")
-	Set again = ##class(OcuTalon.Digest.Data.Sent).%OpenId(id)
-	Do $$$AssertEquals(again.Attempts, 1, "but the digest that missed a channel is given its resend (the attempt is counted)")
-	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "notice"), 1, "one Notification is sent again")
-	If $ClassMethod(..#PROBE, "Count", "notice") = 1 Do $$$AssertEquals($List($ClassMethod(..#PROBE, "Record", "notice", 1), 6), "WebChatOut", "to the web chat, the channel it missed")
-	Do $$$AssertEquals(again.Channels_"|"_again.Failed, "web|", "and the Sent row lists the web chat as reached and misses none")
+	For online = 1, 0 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
+		Do ..Tick(host, "2030-06-03T08:01:00")
+		Set again = ##class(OcuTalon.Digest.Data.Sent).%OpenId(id)
+		Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "notice"), 0, "online demo "_online_": no Notification is sent again")
+		Do $$$AssertEquals(again.Channels_"|"_again.Failed_"|"_again.Attempts, "|web|0", "online demo "_online_": and the Sent row is left as it was")
+	}
 }
 
 }

@@ -12,6 +12,8 @@ import type { DocumentPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
 import { CONFIRM_TITLE_ID, CONFIRMED, ConfirmDialog, ConfirmRequest } from '../shared/confirm-dialog';
 import { Dialogs } from '../shared/dialogs';
+import { FileDrop } from '../shared/file-drop';
+import { encode } from '../shared/file-encode';
 import { ServerButton } from '../shared/server-button';
 import { ACCEPT, DOCUMENTS_TEXTS, DOCUMENT_PARAM, docRef, formatSize, refusedText, rows, sampleListed, type DocumentRow, type LocalRow } from './documents-view';
 import { SampleRunbook } from './sample-runbook';
@@ -48,16 +50,14 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
  */
 @Component({
   selector: 'app-documents-page',
-  imports: [ServerButton],
+  imports: [FileDrop, ServerButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main
       class="documents"
       tabindex="-1"
-      [class.dragging]="dragging()"
-      (dragover)="dragOver($event)"
-      (dragleave)="dragLeave($event)"
-      (drop)="dropped($event)"
+      appFileDrop
+      (files)="addFiles($event)"
     >
       <h1 id="documents-heading" class="heading">{{ texts.heading }}</h1>
       <div class="bar">
@@ -212,9 +212,6 @@ export class DocumentsPage {
   private readonly param = toSignal(this.route.queryParamMap);
   private opening = 0;
 
-  /** True while files are dragged over the page: the outline shows. */
-  protected readonly dragging = signal(false);
-
   /** True once GET /v1/documents has answered; the empty text shows only then. */
   protected readonly loaded = signal(false);
 
@@ -318,26 +315,6 @@ export class DocumentsPage {
     return DOCUMENTS_TEXTS.removeName.replace('{name}', () => row.name);
   }
 
-  protected dragOver(event: DragEvent): void {
-    if (event.dataTransfer?.types.includes('Files')) {
-      event.preventDefault();
-      this.dragging.set(true);
-    }
-  }
-
-  protected dragLeave(event: DragEvent): void {
-    const host = event.currentTarget as HTMLElement;
-    if (!(event.relatedTarget instanceof Node) || !host.contains(event.relatedTarget)) {
-      this.dragging.set(false);
-    }
-  }
-
-  protected dropped(event: DragEvent): void {
-    event.preventDefault();
-    this.dragging.set(false);
-    void this.addFiles(Array.from(event.dataTransfer?.files ?? []));
-  }
-
   protected picked(input: HTMLInputElement): void {
     const files = Array.from(input.files ?? []);
     input.value = '';
@@ -410,7 +387,7 @@ export class DocumentsPage {
   }
 
   /** Gives each file to the route, one after the other. */
-  private async addFiles(files: readonly File[]): Promise<void> {
+  protected async addFiles(files: readonly File[]): Promise<void> {
     for (const file of files) {
       await this.addFile(file);
     }
@@ -421,7 +398,7 @@ export class DocumentsPage {
     const id = (this.lastId += 1);
     this.local.update((list) => [{ id, kind: 'pending', name: file.name, size: file.size, at: new Date().toISOString() }, ...list]);
     try {
-      const content = await this.encode(file);
+      const content = await encode(file);
       const answer = await firstValueFrom(this.api.addDocument(file.name, content));
       this.own.add(answer.ref);
       this.patch(id, { ref: answer.ref });
@@ -463,16 +440,6 @@ export class DocumentsPage {
 
   private patch(id: number, change: Partial<LocalRow>): void {
     this.local.update((list) => list.map((entry) => (entry.id === id ? { ...entry, ...change } : entry)));
-  }
-
-  /** The file's bytes in base64, with no data-URL prefix. */
-  private encode(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(reader.error);
-      reader.onload = () => resolve(String(reader.result).replace(/^[^,]*,/, ''));
-      reader.readAsDataURL(file);
-    });
   }
 
   /** GET /v1/documents: the list the server holds now. */

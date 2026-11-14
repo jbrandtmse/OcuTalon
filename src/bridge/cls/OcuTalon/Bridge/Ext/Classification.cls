@@ -22,13 +22,16 @@ ClassMethod Classify(source As %String, name As %String, arguments As %DynamicOb
 	Quit ""
 }
 
-/// The answer for an MCP call, as {"classification": "safe", "risky" or "", "readOnly": 1 or 0, "registered": 1 or 0}, or "" for none:
+/// The answer for an MCP call, as {"classification": "safe", "risky" or "", "readOnly": 1 or 0, "registered": 1 or 0} and, optionally, "resource", or "" for none:
 ///   - classification and readOnly are the tool's classification (any other value counts as none), and readOnly 1 counts only with safe;
-///   - registered 0 says that the tool's server is not registered, and the gate denies the call at once (UNREGISTERED), before any other step.
+///   - registered 0 says that the tool's server is not registered, and the gate denies the call at once (UNREGISTERED), before any other step;
+///   - resource, when present and not empty, is the name of the IRIS resource that the service user needs the Use permission on to call a tool of this server
+///     (Story 22.3): the gate checks it for the call, right after the registration, and denies the call with its privilege sentence when the user lacks it. An answer with
+///     no resource, as the default gives, is not checked, so the bridge alone checks nothing.
 /// source is the toolref of the MCP tool, name the tool's name and fingerprint the turn's fingerprint for the tool. A host that keeps a classification
 /// for the fingerprint it was given for answers none for a fingerprint that differs, and may clear that classification from here (a changed tool, AD-21).
 /// The gate calls this method inside AI Hub's authorization callback, and the runner calls it once for each MCP tool when a request composes its tools, outside
-/// every callback: it makes no AI Hub call and runs no Python (AD-6). Returns the answer of Classify, with readOnly 0 and registered 1, by default.
+/// every callback: it makes no AI Hub call and runs no Python (AD-6). Returns the answer of Classify, with readOnly 0 and registered 1 and no resource, by default.
 ClassMethod ClassifyMcp(source As %String, name As %String, fingerprint As %String = "") As %DynamicObject
 {
 	Quit {"classification": (..Classify(source, name)), "readOnly": 0, "registered": 1}

@@ -18,7 +18,7 @@ const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
 const { GUIDE_URL, README_URL } = await import(app('links.ts'));
-const { applyEvents, fromSnapshot } = await import(app('live', 'live-store.ts'));
+const { applyEvents, fromSnapshot, withAnswer } = await import(app('live', 'live-store.ts'));
 
 /** Thursday 22 October 2026, 14:13:30 UTC. */
 const NOW = Date.parse('2026-10-22T14:13:30Z');
@@ -361,6 +361,17 @@ describe('approval requests', () => {
       assert.deepEqual(keys(section(railView(current, format()), 'approvals')), ['approvals:a2'], state);
       assert.equal(section(railView(current, format()), 'approvals').heading, 'Approval requests (1)', state);
     }
+  });
+
+  it('drops a request at once when the reply of its answer press is taken in, and keeps the other (Story 23.12)', () => {
+    const store = fromSnapshot(snapshot({ approvals: [approval('a1'), approval('a2')] }));
+    assert.equal(section(railView(store, format()), 'approvals').heading, 'Approval requests (2)');
+    const next = withAnswer(store, approval('a1', { state: 'rejected' }));
+    const rail = section(railView(next, format()), 'approvals');
+    assert.deepEqual(keys(rail), ['approvals:a2']);
+    assert.equal(rail.heading, 'Approval requests (1)');
+    assert.equal(pendingApprovals(next).length, 1);
+    assert.equal(pendingApprovals(store).length, 2, 'the earlier store is unchanged');
   });
 
   it('adds a raised request that an event brings', () => {
