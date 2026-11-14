@@ -2,8 +2,8 @@
 title: 'Story 36.8: Epic 36 burn-down: the AD-13 lint flags direct global reads of product storage in web-process classes'
 type: 'chore'
 created: '2026-11-14'
-status: 'ready-for-dev'
-baseline_revision: '0faed5df3a39fb05a541809388d9a926448957e1'
+status: 'done'
+baseline_revision: '6e9ef429c46797370a5c80c01b4075dd4b0fe8bb'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -94,6 +94,33 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-11-14 -- Review pass
+- verdicts: 23 findings -- high 0, medium 0, low 17, false 4, maybe-false 0 (2 intent-alignment readings are descriptive, logged as `n/a`)
+- findings:
+  - `[low]` `[reject]` Blind: a baseline entry ignores repeat counts -- the spec's Design Notes accept the repeat of the same target in the same method; the fix is a counting scheme, more than a direct correction.
+  - `[low]` `[reject]` Blind: the spine's DW-1287 sentence is stale -- the intent forbids editing the spine; it is Planner veto item V2, reported by the lead.
+  - `[low]` `[reject]` Blind: the four baseline entries name no owner -- veto item V3 and the `deferred:` list already route them to a follow-on; naming a story id here would invent one.
+  - `[low]` `[patch]` Blind: detection gaps (dynamic names, SQL, split lines) are not stated -- header comment of the script now lists the known limits (comment-only change, script re-run green).
+  - `[low]` `[reject]` Blind: an inherited index yields no `<Index>Open` form -- all 40 registry classes extend `%Persistent` directly, so nothing is missed today; limit now stated in the header.
+  - `[low]` `[reject]` Blind: a trailing comment after code is scanned as code -- no such line names a product global in the tree; SCAN_COMMON is shared and must stay unchanged; limit stated in the header.
+  - `[low]` `[reject]` Edge: repeats of a baselined Class:Method:Target pass -- same as the first row (accepted limit).
+  - `[low]` `[patch]` Edge: `$ZObjClassMethod` and a variable class or method escape -- a static-lint limit; named in the header.
+  - `[low]` `[patch]` Edge: a call split over lines is missed -- the existing scanners share the single-line shape; named in the header.
+  - `[low]` `[patch]` Edge: a computed global name escapes -- named in the header (the spec's Design Notes already list indirection).
+  - `[low]` `[patch]` Edge: embedded or dynamic SQL escapes -- `no-embedded-sql` bans `&sql(`; dynamic SQL named in the header.
+  - `[low]` `[reject]` Edge: an inherited index is missed -- same as the Blind row above.
+  - `[low]` `[reject]` Edge: block and trailing comments scanned as code -- same as the Blind row above.
+  - `[low]` `[reject]` Edge: an empty file list makes awk wait on stdin -- the same shape as every existing rule, and the tree always lists its classes.
+  - `[low]` `[reject]` Gap: no `mutation:` line for AC4 and others -- the fix edits this build's spec; AC4 was run as the planted check in Verification and all seven recorded mutations were run red.
+  - `[low]` `[reject]` Gap: the `name_stale` `baseline:` mapping is not pinned by a sample -- mutation 5 observes the mapped message; only the text would degrade, the rule still FAILs.
+  - `[low]` `[reject]` Gap (other): samples read the real registry -- guarded by loud FAIL lines (count, file, RefIndex), and the sample classes live under the mktemp folder.
+  - `[false]` `[reject]` Gap (other): attention item on inherited indexes and repeats -- no defect shown today (see above rows).
+  - `[n/a]` `[reject]` Intent: reading B (callee reads of the web process) is not scanned -- the intent says "in every class of the package OcuTalon.Web"; callee reads are reported in `deferred:` and veto item V1.
+  - `[n/a]` `[reject]` Intent: the four baselined reads are generated index calls, not `%OpenId` or a global walk -- the Approach says "each generated row-access call"; reading D.
+  - `[false]` `[reject]` Intent: only literal call forms are seen -- stated limit.
+  - `[false]` `[reject]` Intent: tests exercise text, not the IRIS compiler -- the intent is a static lint with synthetic samples.
+  - `[false]` `[reject]` Intent: CI wiring is not in the diff -- `ci/units.sh:6` CHECK_SCRIPTS already holds `class-rules`.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -150,5 +177,11 @@ Shared surfaces: the script's set of PASS/FAIL lines (one new line; `ci/checks.s
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (halted after planning, as the invocation directed)
+Status: done
+Blocking condition: none
+
+- Summary: added the rule `web-global-reads` to `docker/tests/test-class-rules.sh` (scanner `web_reads`, helpers `class_file` and `product_classes`, `ALLOW_WEB_READS` empty, `BASELINE_WEB_READS` with the four reads, `name_stale` extended for `baseline:`, samples, exact-output planted check, registry guard, header bullet). No product class changed.
+- Files changed: `docker/tests/test-class-rules.sh` (the rule); this spec (status, baseline_revision, logs).
+- Review: 23 findings, 5 patched as one comment-only change (known limits listed in the header), the rest rejected with reasons in the triage log; nothing deferred beyond the two existing `deferred:` items. Follow-up review recommended: false (no high or medium patched).
+- Verification: `bash docker/tests/test-class-rules.sh` exit 0 with nine PASS lines (the eight existing ones byte-identical); `bash -n` and the non-ASCII grep clean; `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-ci-config.sh` pass; planted `ZzPlanted.cls` exits 1 naming `ZzPlanted.cls:<line> OcuTalon.Web.ZzPlanted:Run ^OcuTalonP.SessionD`, then exit 0 after deletion; all seven mutations shown red and reverted byte-identical.
+- Residual risks: the lint is static and web-package only (callee reads, computed names, split lines, SQL, trailing comments); the baseline passes repeats of the same Class:Method:Target; veto items V1 to V3 stay with the Planner (the spine's DW-1287 sentence is stale).

@@ -234,3 +234,5 @@
 2026-11-14T16:46:59Z	Story 36.8	stage_spawned	stage=plan spawn_at=2026-11-14T16:46:59Z model=opus agent_name=36-8-plan-1 cycle_iteration=1 effort=high
 2026-11-14T17:03:10Z	Story 36.8	story_created	model=opus rule=web-global-reads(test-class-rules.sh) scope=OcuTalon.Web.** existing_violations=4(Api:CurrentSession,Live:Frame,Live:Heartbeat:Session.RefIndexOpen;Hook:Authenticated:Session.RefIndexExists)->baseline,reported callee_reads_not_linted=7(scope_limit) veto_for_planner=V1(callee_follow-on),V2(spine_AD-13_sentence_after_merge),V3(route_4_reads) note=none_blocking;spine_left_unamended
 2026-11-14T17:03:10Z	Story 36.8	stage_spawned	stage=implement spawn_at=2026-11-14T17:03:10Z model=sonnet agent_name=36-8-implement-1 cycle_iteration=1 effort=high
+2026-11-14T17:19:40Z	Story 36.8	dev_complete	model=sonnet rule=web-global-reads baseline=4 mutations=7 checks=test-class-rules(9_PASS),boundaries,ci-config,planted_ZzPlanted.cls_red build-auto_review=23(1_comment_patch)
+2026-11-14T17:19:40Z	Story 36.8	stage_spawned	stage=qa spawn_at=2026-11-14T17:19:40Z model=sonnet agent_name=36-8-qa-1 cycle_iteration=1 effort=high
