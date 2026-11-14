@@ -7931,3 +7931,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, verification-gap) | severity: med | fix-risk: low | footprint: in-story
 - evidence: Rule 19: no test in docker/tests, ci or Test/* names either text (verification-gap search); both sit outside the generated sections; spec deferred entry 6 and the rework-6 Verification line say so.
 - 2026-11-14T03:55:09Z status=routed owner=burndown by=cr note=add a test-readme.sh or release-sequence overview pin for both ruled texts; outside the final pass's three ruled items
+
+### DW-1325: A source poll can be named like a fixed coverage entry (for example 'Mailbox'), so the digest's coverage list shows two entries with one name; refusing such a name needs a new public string
+- source: spec-22-5-poll-a-read-only-mcp-tool-as-a-source.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: 22.5 implement review (4fc55afb): Checks/Coverage.cls adds the Mailbox row beside source rows named by the admin
+- 2026-11-14T08:55:59Z status=decision-pending owner=burndown by=harvest note=human=Planner_PUBLIC_TEXT:a_refusal_string_for_a_reserved_source_name,_or_accept
