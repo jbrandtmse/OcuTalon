@@ -34,6 +34,19 @@
 #     literals, parentheses, braces and JSON-array brackets; a "[" is the operator when the character before it ends an operand, and a "]"
 #     closes an array only when one is open. An assertion that spans lines is named at its first line; the Class:Method entries of
 #     ALLOW_CONCAT are the exceptions, and an entry that matches no assertion fails as stale.
+#   - web-global-reads (AD-13, DW-1287): in a class of the package OcuTalon.Web or a sub-package (a package matches by whole name), no code
+#     line that names a product storage global (^OcuTalonP. or ^OcuTalonBP., also as an extended reference ^|"ns"| or ^["ns"] and inside a
+#     string literal; a process-private ^|| name is not one) and no generated row-access call on a product class of src/short-names.tsv
+#     (##class(<class>).<form>( or $ClassMethod("<class>", "<form>"), where the form is %OpenId, %ExistsId, %Open, %Exists or <Index>Open
+#     or <Index>Exists of an index the class declares). A hit is named file:line Class:Method and what is read. The Class:Method entries
+#     of ALLOW_WEB_READS are the sanctioned methods, and the Class:Method:Target entries of BASELINE_WEB_READS are the reads that are
+#     reported and not yet moved; an entry that matches no read fails as stale. Known limits of a static check: methods that the web
+#     process calls in other packages are not scanned; nor are a global or class name that is built at run time (concatenation,
+#     indirection, a variable in $ClassMethod), a naked global reference ^(sub), the spelling $ZObjClassMethod, a short class name that
+#     an Import resolves, a <Property>GetStored call, a row opened by following a reference property, a [ Language = python ] method, a
+#     macro that expands to a read, a call split over several lines, embedded or dynamic SQL, an index that a product class inherits
+#     (none does today), or a comment after code on the same line (it is scanned as code); and a baseline entry passes every repeat of
+#     its own Class:Method:Target.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -59,6 +72,19 @@ OcuTalon.Live.Event:Since"
 # added here goes in the change that parenthesises the line, or the stale check fails.
 ALLOW_CONCAT=""
 SAMPLE_ALLOW_CONCAT="OcuTalon.Zz.Allowed:Run"
+
+# The web-process methods that the Planner sanctions to read product storage directly (AD-13), Class:Method, one per line. None is sanctioned: the
+# owning classes' methods and Ownership.Rows are outside OcuTalon.Web, so the rule never scans them.
+ALLOW_WEB_READS=""
+SAMPLE_ALLOW_WEB_READS="OcuTalon.Web.ZzAllowed:Run"
+
+# The reads of product storage that web classes make today (DW-1287), Class:Method:Target, one per line: reported by Story 36.8 and not yet
+# moved behind their owning class. An entry leaves this list in the change that moves its read, or the stale check fails.
+BASELINE_WEB_READS="OcuTalon.Web.Api:CurrentSession:OcuTalon.Data.Session.RefIndexOpen
+OcuTalon.Web.Live:Frame:OcuTalon.Data.Session.RefIndexOpen
+OcuTalon.Web.Live:Heartbeat:OcuTalon.Data.Session.RefIndexOpen
+OcuTalon.Web.Hook:Authenticated:OcuTalon.Data.Session.RefIndexExists"
+SAMPLE_BASELINE_WEB_READS="OcuTalon.Web.ZzKnown:Run:OcuTalon.Data.Session.RefIndexOpen"
 
 # The packages that may use %AI (AD-2), by whole name; a sub-package belongs to its package.
 AI_PACKAGES="OcuTalon.Bridge OcuTalon.BridgeExample OcuTalon.Agent OcuTalon.Tools OcuTalon.Docs OcuTalon.Memory OcuTalon.Mcp OcuTalon.Install OcuTalon.Test"
@@ -307,6 +333,82 @@ trace_join() {
   ' "$@"
 }
 
+# class_file <Class>: the .cls file of a class of src/ (the first of src/*/cls), or nothing.
+class_file() {
+  ls src/*/cls/"$(printf '%s' "$1" | tr . /)".cls 2>/dev/null | head -n 1
+}
+
+# product_classes: one "Class Index1 Index2 ..." per class of src/short-names.tsv (the product classes, AD-3), joined with ";" (no newline, so that
+# it can be an awk -v value). The indexes are the "Index <Name>" declarations of the class's file; each makes <Name>Open and <Name>Exists.
+product_classes() {
+  awk -F'\t' 'NR > 1 && $3 != "" { print $3 }' src/short-names.tsv | while IFS= read -r c; do
+    f=$(class_file "$c")
+    printf '%s %s\n' "$c" "$([ -n "$f" ] && awk '/^Index[ \t]/ { printf "%s ", $2 }' "$f")"
+  done | tr '\n' ';' | sed 's/;$//'
+}
+
+# web_reads <file>...: file:line Class:Method Target of each code line of a class of OcuTalon.Web (or a sub-package; whole package name) that
+# names a product storage global (^OcuTalonP. or ^OcuTalonBP., with or without an extended reference, also inside a string literal), or calls a
+# row-access form on a product class (WEB_PRODUCTS, from product_classes) as ##class(X).M( or $ClassMethod("X", "M". Target is the global (without
+# the namespace part) or Class.Method. The reads of ALLOW_WEB_READS (Class:Method) and BASELINE_WEB_READS (Class:Method:Target) are not named; with
+# STALE=1, also an "allow-list:" or "baseline:" line for each entry that no read uses.
+web_reads() {
+  awk -v allowlist="$(printf '%s' "$ALLOW_WEB_READS" | tr '\n' ' ')" -v baseline="$(printf '%s' "$BASELINE_WEB_READS" | tr '\n' ' ')" \
+    -v products="$WEB_PRODUCTS" -v stale="${STALE:-0}" "$SCAN_COMMON"'
+    BEGIN {
+      np = split(products, prow, ";")
+      for (bi = 1; bi <= np; bi++) {
+        pk = split(prow[bi], pw, " "); pc = tolower(pw[1]); prod[pc] = pw[1]
+        form[pc, "%openid"] = 1; form[pc, "%existsid"] = 1; form[pc, "%open"] = 1; form[pc, "%exists"] = 1
+        for (bj = 2; bj <= pk; bj++) { form[pc, tolower(pw[bj]) "open"] = 1; form[pc, tolower(pw[bj]) "exists"] = 1 }
+      }
+      nb = split(baseline, bl, " ")
+      for (bi = 1; bi <= nb; bi++) base[tolower(bl[bi])] = 1
+    }
+    function report(ln, target,   key) {
+      if (allowed(ln)) return
+      key = tolower(clsAt[ln] ":" memberAt[ln] ":" target)
+      if (key in base) { bused[key] = 1; return }
+      print fname ":" ln " " clsAt[ln] ":" memberAt[ln] " " target
+    }
+    function product_call(ln, c, m) {
+      if ((tolower(c) in prod) && ((tolower(c), tolower(m)) in form)) report(ln, prod[tolower(c)] "." m)
+    }
+    function process(   i, s, ls, g, t, c, m, q) {
+      if (nlines == 0) return
+      if (index(tolower(cls), "ocutalon.web.") != 1) return
+      for (i = 1; i <= nlines; i++) {
+        if (body[i] == "") continue
+        s = body[i]
+        while (match(s, /\^(\|[^|]+\||\[[^]]*\])?OcuTalonB?P\.[A-Za-z0-9.]*/)) {
+          g = substr(s, RSTART, RLENGTH)
+          sub(/^\^(\|[^|]+\||\[[^]]*\])?/, "^", g)
+          report(i, g)
+          s = substr(s, RSTART + RLENGTH)
+        }
+        s = body[i]; ls = tolower(s)
+        while (match(ls, /##class\([ \t]*[a-z0-9.%]+[ \t]*\)\.[a-z0-9%]+[ \t]*\(/)) {
+          t = substr(s, RSTART, RLENGTH)
+          s = substr(s, RSTART + RLENGTH); ls = substr(ls, RSTART + RLENGTH)
+          c = t; sub(/^##class\([ \t]*/, "", c); sub(/[ \t]*\).*$/, "", c)
+          m = t; sub(/^[^)]*\)\./, "", m); sub(/[ \t]*\($/, "", m)
+          product_call(i, c, m)
+        }
+        s = body[i]; ls = tolower(s)
+        while (match(ls, /\$classmethod\([ \t]*"[a-z0-9.%]+"[ \t]*,[ \t]*"[a-z0-9%]+"/)) {
+          t = substr(s, RSTART, RLENGTH)
+          s = substr(s, RSTART + RLENGTH); ls = substr(ls, RSTART + RLENGTH)
+          split(t, q, "\"")
+          product_call(i, q[2], q[4])
+        }
+      }
+    }
+    END {
+      if (stale == 1) for (bi = 1; bi <= nb; bi++) if (!(tolower(bl[bi]) in bused)) print "baseline:" bl[bi]
+    }
+  ' "$@"
+}
+
 # --- the synthetic classes ---
 
 # A class file: write_class <dir> <Class> <body lines...>; the body goes between the braces.
@@ -421,13 +523,16 @@ fi
 
 # --- unchecked-prepare ---
 
-# name_stale: the lines of unchecked_prepares, a stale allow-list entry named at its line in this script.
+# name_stale: the lines of unchecked_prepares and web_reads, a stale allow-list or baseline entry named at its line in this script.
 name_stale() {
   local h entry
   while IFS= read -r h; do
     if [ "${h#allow-list:}" != "$h" ]; then
       entry=${h#allow-list:}
       echo "docker/tests/test-class-rules.sh:$(grep -n -F -- "$entry" "$0" | head -n 1 | cut -d: -f1) stale allow-list entry $entry"
+    elif [ "${h#baseline:}" != "$h" ]; then
+      entry=${h#baseline:}
+      echo "docker/tests/test-class-rules.sh:$(grep -n -F -- "$entry" "$0" | head -n 1 | cut -d: -f1) stale baseline entry $entry"
     else
       echo "$h"
     fi
@@ -516,6 +621,178 @@ if [ "$samples_ok" -eq 1 ]; then
     fails=$((fails + 1))
   else
     echo "PASS unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
+  fi
+fi
+
+# --- web-global-reads ---
+
+# The product classes come from the registry, and the real list is guarded: every class of the registry is listed, has a file, and Session carries RefIndex.
+WEB_PRODUCTS=$(product_classes)
+wr_guard_ok=1
+wr_reg=$(awk -F'\t' 'NR > 1 && $3 != "" { n++ } END { print n + 0 }' src/short-names.tsv)
+wr_listed=$(printf '%s' "$WEB_PRODUCTS" | tr ';' '\n' | grep -c .)
+if [ "$wr_reg" -eq 0 ] || [ "$wr_listed" -ne "$wr_reg" ]; then
+  echo "FAIL web-global-reads: product_classes lists $wr_listed class(es), the registry has $wr_reg"
+  fails=$((fails + 1)); wr_guard_ok=0
+fi
+for wr_c in $(awk -F'\t' 'NR > 1 && $3 != "" { print $3 }' src/short-names.tsv); do
+  if [ -z "$(class_file "$wr_c")" ]; then
+    echo "FAIL web-global-reads: the registry class $wr_c has no file in src/*/cls"
+    fails=$((fails + 1)); wr_guard_ok=0
+  fi
+done
+if ! printf '%s' "$WEB_PRODUCTS" | tr ';' '\n' | grep -Eq '^OcuTalon\.Data\.Session (.* )?RefIndex( |$)'; then
+  echo "FAIL web-global-reads: product_classes does not list the index RefIndex of OcuTalon.Data.Session"
+  fails=$((fails + 1)); wr_guard_ok=0
+fi
+
+wr_class() { # wr_class <sample> <Class> <method> <line>...: a class with one method that holds the lines
+  local sample=$1 class=$2 method=$3
+  shift 3
+  write_class "wr/$sample" "$class" "ClassMethod $method()" '{' "$@" '}'
+}
+# wr_scan <file>...: the scan of the real tree, with the stale check and each stale entry named at its line in this script.
+wr_scan() {
+  STALE=1 web_reads "$@" | name_stale
+}
+mkdir -p "$tmp/wr"
+real_allow_web=$ALLOW_WEB_READS
+real_base_web=$BASELINE_WEB_READS
+# The samples use a fixed list of product classes, so they do not depend on the registry; the real scan uses the guarded registry list.
+real_products=$WEB_PRODUCTS
+WEB_PRODUCTS="OcuTalon.Data.Session RefIndex;OcuTalon.Data.Webhook;OcuTalon.Data.Ownership"
+ALLOW_WEB_READS=""
+BASELINE_WEB_READS=""
+wr_a=$(wr_class a OcuTalon.Web.ZzA Run '	Set id = $Order(^OcuTalonP.SessionD(""))')
+wr_forms=$(wr_class forms OcuTalon.Web.ZzForms Run \
+  '	Set a = $Get(^OcuTalonBP.DecisionD(1))' \
+  '	Set b = $Data(^OcuTalonP.SessionI("a", 1))' \
+  '	Merge x = ^OcuTalonP.SessionD' \
+  '	Set g = "^OcuTalonP.SessionD"' \
+  '	Set c = $Get(^|"OCUTALON"|OcuTalonP.SessionD(1))' \
+  '	Set d = $Get(^["OCUTALON"]OcuTalonP.SessionD(1))')
+wr_rows=$(wr_class rows OcuTalon.Web.Public.ZzB Run \
+  '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)' \
+  '	Set b = ##class(OcuTalon.Data.Session).%ExistsId(id)' \
+  '	Set c = ##class(OcuTalon.Data.Session).%Open(oid)' \
+  '	Set d = ##class(OcuTalon.Data.Session).%Exists(oid)' \
+  '	Set e = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' \
+  '	Set f = ##class(OcuTalon.Data.Session).RefIndexExists(ref)' \
+  '	Set g = ##class(ocutalon.data.SESSION).%openid(id)' \
+  '	Set h = $ClassMethod("OcuTalon.Data.Session", "%OpenId", id)')
+wr_clean=$(wr_class clean OcuTalon.Web.ZzClean Run \
+  '	Set a = ##class(OcuTalon.Data.Webhook).ForSession(ref)' \
+  '	Set b = ##class(OcuTalon.Data.Ownership).Rows(ref)' \
+  '	Set c = ##class(OcuTalon.Data.Session).SignOuts(ref)' \
+  '	Set d = $Get(^Ens.Runtime("x"))' \
+  '	Set e = $Order(@store@(id))' \
+  '	Set f = $Get(^||OcuTalonP.X)' \
+  '	Set g = ##class(%Dictionary.CompiledXData).%OpenId(id)' \
+  '	Set h = $Get(^OcuTalonPublic("x"))' \
+  '	Set i = $Get(^OcuTalon.Runtime("x"))' \
+  '	Set j = $Get(^ocutalonp.SessionD(1))' \
+  '	Do ##class(OcuTalon.Data.Session).%DeleteId(id)' \
+  '	Do session.%Save()' \
+  '	Set k = ##class(OcuTalon.Data.Session).Other(id)' \
+  '	Set l = $ClassMethod("OcuTalon.Data.Session", "SignOuts", id)' \
+  '	Set o = ##class(OcuTalon.Zz.NotRegistered).%OpenId(id)' \
+  '	Set p = ##class(OcuTalon.Zz.NotRegistered).RefIndexOpen(ref)' \
+  '	Set q = $ClassMethod("OcuTalon.Zz.NotRegistered", "%OpenId", id)' \
+  '	Set r = ##class(OcuTalon.Data.Session).NoSuchIndexOpen(ref)' \
+  '	// Set m = ##class(OcuTalon.Data.Session).%OpenId(id) and $Get(^OcuTalonP.SessionD(1))' \
+  '	; Set n = $Get(^OcuTalonBP.DecisionD(1))')
+wr_doc=$(write_class wr/doc OcuTalon.Web.ZzDoc '/// Never read ^OcuTalonP.SessionD or call ##class(OcuTalon.Data.Session).%OpenId( here.' 'ClassMethod Run()' '{' '	Quit 1' '}')
+wr_out1=$(wr_class out1 OcuTalon.Data.Session Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
+wr_out2=$(wr_class out2 OcuTalon.Webhook.ZzX Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
+wr_out3=$(wr_class out3 OcuTalon.Test.Web.ZzX Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
+wr_out4=$(wr_class out4 OcuTalon.Webs.ZzX Run '	Set id = $Order(^OcuTalonP.SessionD(""))')
+wr_deep=$(wr_class deep OcuTalon.Web.Public.Deep.ZzC Run '	Set id = $Order(^OcuTalonP.SessionD(""))' '	Set a = ##class(OcuTalon.Data.Session).%OpenId(id)')
+wr_mixed=$(wr_class mixed OcuTalon.Web.ZzMixed Run \
+  '	If $Data(^OcuTalonP.SessionD(id)), ##class(OcuTalon.Data.Session).%ExistsId(id) Quit $Order(^OcuTalonBP.DecisionI(""))' \
+  '	Set a = ##class(OcuTalon.Data.Webhook).ForSession(ref), b = $Get(^OcuTalonP.SessionD(1))')
+samples_ok=$wr_guard_ok
+expect_flagged "web-global-reads" web_reads "$wr_a" 1
+expect_flagged "web-global-reads" web_reads "$wr_deep" 2
+expect_flagged "web-global-reads" web_reads "$wr_mixed" 4
+expect_flagged "web-global-reads" web_reads "$wr_forms" 6
+expect_flagged "web-global-reads" web_reads "$wr_rows" 8
+for f in "$wr_clean" "$wr_doc" "$wr_out1" "$wr_out2" "$wr_out3" "$wr_out4"; do expect_clean "web-global-reads" web_reads "$f"; done
+# The hit names file:line, Class:Method and the target, with no namespace part and the registry spelling of the class.
+call_line=$(grep -n 'OcuTalonP.SessionD' "$wr_a" | cut -d: -f1)
+if [ "$(web_reads "$wr_a")" != "$wr_a:$call_line OcuTalon.Web.ZzA:Run ^OcuTalonP.SessionD" ]; then
+  echo "FAIL web-global-reads: the planted read is not named as file:line Class:Method Target ($(web_reads "$wr_a" | sed "s#$tmp/##"))"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(web_reads "$wr_forms" | grep -c ' \^OcuTalonB\{0,1\}P\.[A-Za-z0-9.]*$')" != 6 ] || web_reads "$wr_forms" | grep -qi 'OCUTALON"'; then
+  echo "FAIL web-global-reads: a global target keeps its namespace part, or is not named as a global"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(web_reads "$wr_rows" | grep -c ' OcuTalon\.Data\.Session\.[A-Za-z%]*$')" != 8 ]; then
+  echo "FAIL web-global-reads: a row-access target is not named as Class.Method with the registry spelling of the class"
+  fails=$((fails + 1)); samples_ok=0
+fi
+# The allow-list: an allowed method is not named and its entry is not stale; an entry whose method holds no read is stale; another method is named.
+ALLOW_WEB_READS=$SAMPLE_ALLOW_WEB_READS
+wr_allowed=$(wr_class allowed OcuTalon.Web.ZzAllowed Run '	Set id = $Order(^OcuTalonP.SessionD(""))')
+wr_allowed_plus=$(write_class wr/allowed-plus OcuTalon.Web.ZzAllowed 'ClassMethod Run()' '{' '	Set id = $Order(^OcuTalonP.SessionD(""))' '}' 'ClassMethod Other()' '{' '	Set id = $Order(^OcuTalonP.SessionD(""))' '}')
+if [ -n "$(STALE=1 web_reads "$wr_allowed")" ]; then
+  echo "FAIL web-global-reads: an allowed read is flagged, or its entry is reported stale"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(STALE=1 web_reads "$wr_clean")" != "allow-list:OcuTalon.Web.ZzAllowed:Run" ]; then
+  echo "FAIL web-global-reads: an allow-list entry that matches no read is not reported stale"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(web_reads "$wr_allowed_plus")" != "$wr_allowed_plus:$(grep -n 'OcuTalonP.SessionD' "$wr_allowed_plus" | tail -n 1 | cut -d: -f1) OcuTalon.Web.ZzAllowed:Other ^OcuTalonP.SessionD" ]; then
+  echo "FAIL web-global-reads: a read in a method other than the allowed one is not named alone"
+  fails=$((fails + 1)); samples_ok=0
+fi
+ALLOW_WEB_READS=""
+# The baseline: a baselined read is not named and its entry is not stale; a new read in the same method is named; an entry whose read is gone is stale.
+BASELINE_WEB_READS=$SAMPLE_BASELINE_WEB_READS
+wr_known=$(wr_class known OcuTalon.Web.ZzKnown Run '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)')
+wr_known_plus=$(wr_class known-plus OcuTalon.Web.ZzKnown Run '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '	Set t = ##class(OcuTalon.Data.Session).%OpenId(id)')
+wr_known_gone=$(wr_class known-gone OcuTalon.Web.ZzKnown Run '	Quit 1')
+if [ -n "$(STALE=1 web_reads "$wr_known")" ]; then
+  echo "FAIL web-global-reads: a baselined read is flagged, or its entry is reported stale"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(STALE=1 web_reads "$wr_known_plus")" != "$wr_known_plus:$(grep -n '%OpenId' "$wr_known_plus" | cut -d: -f1) OcuTalon.Web.ZzKnown:Run OcuTalon.Data.Session.%OpenId" ]; then
+  echo "FAIL web-global-reads: a new read in a baselined method is not named alone ($(STALE=1 web_reads "$wr_known_plus" | sed "s#$tmp/##" | tr '\n' ' '))"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(STALE=1 web_reads "$wr_known_gone")" != "baseline:OcuTalon.Web.ZzKnown:Run:OcuTalon.Data.Session.RefIndexOpen" ]; then
+  echo "FAIL web-global-reads: a baseline entry whose read is gone is not reported stale"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ "$(wr_scan "$wr_known_gone")" != "docker/tests/test-class-rules.sh:$(grep -n -F 'SAMPLE_BASELINE_WEB_READS=' "$0" | head -n 1 | cut -d: -f1) stale baseline entry OcuTalon.Web.ZzKnown:Run:OcuTalon.Data.Session.RefIndexOpen" ]; then
+  echo "FAIL web-global-reads: the real-tree scan does not name a stale baseline entry at its line in this script"
+  fails=$((fails + 1)); samples_ok=0
+fi
+# A baselined read is keyed by class and method too: the same read in another method, or in another class, is named.
+wr_known_method=$(write_class wr/known-method OcuTalon.Web.ZzKnown 'ClassMethod Run()' '{' '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '}' 'ClassMethod Other()' '{' '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)' '}')
+wr_known_class=$(wr_class known-class OcuTalon.Web.ZzKnownB Run '	Set s = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)')
+if [ "$(web_reads "$wr_known_method")" != "$wr_known_method:$(grep -n 'RefIndexOpen' "$wr_known_method" | tail -n 1 | cut -d: -f1) OcuTalon.Web.ZzKnown:Other OcuTalon.Data.Session.RefIndexOpen" ]; then
+  echo "FAIL web-global-reads: the baselined read in another method of the class is not named alone ($(web_reads "$wr_known_method" | sed "s#$tmp/##" | tr '\n' ' '))"
+  fails=$((fails + 1)); samples_ok=0
+fi
+expect_flagged "web-global-reads" web_reads "$wr_known_class" 1
+ALLOW_WEB_READS=$real_allow_web
+BASELINE_WEB_READS=$real_base_web
+WEB_PRODUCTS=$real_products
+if [ "$samples_ok" -eq 1 ]; then
+  hits=$(
+    IFS='
+'
+    set -f
+    wr_scan $(scan_files src | grep '\.cls$')
+  )
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
+    echo "FAIL web-global-reads: no class of OcuTalon.Web reads a product storage global or a product class's rows directly, beyond the baseline, and each entry matches a read"
+    fails=$((fails + 1))
+  else
+    echo "PASS web-global-reads: no class of OcuTalon.Web reads a product storage global or a product class's rows directly, beyond the baseline, and each entry matches a read"
   fi
 fi
 
