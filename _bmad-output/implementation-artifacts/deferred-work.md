@@ -5624,6 +5624,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Adapter/Agent.cls Answer hands kind tool to Replay.Run before any composition; Replay.cls:65 adapter.Agent.ToolManager.ExecuteTool; documents is held (and so replayed) only when Decide's ToolClassification row cannot be read (Install/Step/Production.cls:294), and a host's own risky turn tool always would be
 - 2026-11-08T11:22:28Z status=decision-pending owner=burndown by=cr note=product call: Replay composes the approval owner's turn tools, or the guide states a turn tool must be classified safe; spec matrix Other kinds composes nothing for tool
 - 2026-11-08T12:32:34Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=owner note=planner_ruling(owner_delegation,orchestrator_relay):accepted_as_recommended:the_bridge_guide_says_a_turn_tool_must_be_classified_safe;the_line_is_NEW_text(PUBLIC_TEXT_proposed_in_the_part-2_contract,for_docs/bridge-guide.md:315);lands_in_22.6_unless_the_Planner_rules_it_into_1.0.4;reopen_if=a_turn_tool_call_is_ever_held_for_approval
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=docs/bridge-guide.md_TurnTools_bullet_P6(approved_turn-tool_sentence);test-bridge-guide.sh_turntools_pins_it(mutation:delete_the_sentence->red)
 
 ### DW-951: The upgrade harness's new api_get polls GET /v1/documents with no unique probe query, unlike state_get, so a gateway-kept answer could be read
 - source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
@@ -7504,6 +7505,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
 - 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
 - 2026-11-13T05:14:19Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:recorded_in_AD-21_S11_as_a_measured_known_limit(31s_vs_2s);22.6_guide_MCP_section_states_it;no_public_hard-deadline_claim;22.10_deferred
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Time_limits_paragraph_word_for_word_in_docs/mcp-jira-example.md+docs/security-overview.md(measured_31s/36s,mid-request_residual,no_hard_deadline);overviewdoc_OVW_MCP_LIMITS+deadline_checks;spine_AD-21_S11_record
 
 ### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
@@ -7528,6 +7530,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
 - 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
 - 2026-11-13T05:14:18Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:test_that_a_server_tool_named_call_mcp_tool_or_any_built-in_name_is_refused_under_the_CURRENT_design;fix_narrowly_if_not
+- 2026-11-13T21:33:00Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Bridge/Adapter/Agent.cls_proxy_registered_first+call_mcp_tool_built-in_when_the_host_names_a_proxy;Test.Mcp.Attach_TestProxyNameRefused,TestProxyNameNotShadowing,TestProxyNoneAdded,TestProxyNameKeptWithoutProxy,TestProxyNameRefusedAfterRest;spine_S20
 
 ### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
@@ -7872,6 +7875,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: RoleSettings.ShapeFields types only; the frozen I/O matrix (Unknown user, Role refused rows) and Decided in-stage 5 fix the 400 user_unknown/role answers, which the client gets unchanged; Assign refuses before any change
 - 2026-11-13T23:26:30Z status=by-design owner=25-4-assign-approver-and-viewer-roles-in-settings by=cr note=spec-bound: frozen matrix rows + Decided in-stage 5; no name leaves the handoff; reopens only via spec amendment
+### DW-1286: docs/mcp-jira-example.md spells 'the request is canceled' while every other public text and the code use 'cancelled' (approval.cancelled, the overview's Approval audit line)
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: P1 is ruled verbatim (Planner M(4)), so the one-letter change to 'cancelled' rewrites approved public text; the reviewer may not patch it. Grep: docs/mcp-jira-example.md is the only 'canceled' in the public docs.
+- 2026-11-13T21:29:41Z status=decision-pending owner=burndown by=cr note=22.6 CR BH9: Planner to approve 'cancelled' in P1 (one word) or keep as ruled
+- 2026-11-14T07:12:22Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Planner_approved;docs/mcp-jira-example.md:48_reads_cancelled(30c7f33e)
 ### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
 - source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
@@ -8052,3 +8060,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
 - 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
 
+### DW-1324: PUBLIC TEXT: docs/mcp-jira-example.md:14 'press Add server and fill in:' is false of the merged 21.4 form (fields always shown; the Add server button submits them)
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review, VERIFY AT MERGE) | severity: high | fix-risk: low | footprint: in-story
+- evidence: web/src/app/settings/mcp-section.ts:111-166: the Name/Address/Secret fields sit under the 'Add server' heading with no toggle, and the Add server button (:166, add :508) sends them; web/e2e/settings/mcp.spec.ts:103-121 fills then clicks. P1 is ruled verbatim, so the reviewer may not reword it (21.4's AC at epics.md:7685 has the same order).
+- 2026-11-14T07:09:49Z status=decision-pending owner=22-6-document-a-worked-jira-example-and-mcp-governance by=cr note=suggest 'In Settings > Tools and MCP servers, fill in the fields under Add server, then press the Add server button:'
+- 2026-11-14T07:59:52Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Planner_approved_07:45Z:docs/mcp-jira-example.md:14+:57(that_runs)_word_for_word;pinned(ruled_lines_14,13)+controls;mutations_red(801c16f3)
