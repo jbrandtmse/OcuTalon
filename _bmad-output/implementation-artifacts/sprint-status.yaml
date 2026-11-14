@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-14-2026 09:51
+last_updated: 11-14-2026 12:20
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -376,7 +376,7 @@ development_status:
   25-2-filter-past-decisions-and-incidents-on-the-history-page: done
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
   25-4-assign-approver-and-viewer-roles-in-settings: done
-  25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: in-progress
+  25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: review
   25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
   epic-25-retrospective: optional
 

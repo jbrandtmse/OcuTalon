@@ -167,3 +167,6 @@
 2026-11-14T09:51:34Z	Epic 25	integrated_forward	feature=423f8148(25.4_merged) head=d6cbe5b1 conflicts_resolved=none code_diff=none boundaries=pass
 2026-11-14T09:51:34Z	Story 25.5	spec_revalidated	precondition=met(22.7+25.4_on_feature) owned_ledger=DW-1268,DW-1281,DW-1303 rulings=story-255-rulings-20261113.md(recorded) note=spec_change_log_dispatch_note
 2026-11-14T09:51:34Z	Story 25.5	stage_spawned	stage=implement spawn_at=2026-11-14T09:51:34Z model=sonnet agent_name=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi-implement-1 cycle_iteration=1 story_base=d6cbe5b1
+2026-11-14T12:20:05Z	Story 25.5	dev_complete	spawn_at=2026-11-14T09:53Z model=sonnet build_sha=4ffcfdac baseline_revision=fa5b336d story_base=fa5b336d review_loop_iteration=0 followup_review_recommended=false deferred=0 files=56 loc_added=1595 loc_removed=163 cycle_iteration=1 initial_bundle=886.81kB new_units=none spine=AD-11_additive_bullets+AD-11_Telegram_not_allowed_slot_amended(extension,report_to_orchestrator) note=harness_backgrounded_stage_waited
+2026-11-14T12:20:05Z	Story 25.5	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none
+2026-11-14T12:20:05Z	Story 25.5	stage_spawned	stage=qa spawn_at=2026-11-14T12:20:05Z model=sonnet agent_name=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi-qa-1 cycle_iteration=1
