@@ -124,7 +124,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's 
 
 ## Approval and audit
 
-Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe except `send_email`, which code classifies per call: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do.
+Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe except `send_email` and `call_mcp_tool`, which are classified per call. Code classifies `send_email`: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. `call_mcp_tool` takes the admin's classification of the server's tool at its current fingerprint, and an unclassified tool counts as risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do. A risky MCP call waits for a person's approval of that exact call, as the MCP servers section below describes.
 
 Content that didn't come from the user (for example a simulated email, or a failed message's body):
 
@@ -135,7 +135,7 @@ Content that didn't come from the user (for example a simulated email, or a fail
 
 Each risky action is one approval request, held as one IRIS Workflow task:
 
-- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).
+- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and each of its inputs on a line of its own through the redactor, with the full call kept in the approval record (a tool call). In Telegram, an approval request for a tool call that is too long for one message shows only its start, with no Approve button.
 - The first answer wins.
 - It is re-checked before acting: the row must still be approved and unexpired, the service user must hold the kind's resources, and the kind runs its own re-check.
 - It expires after 24 hours.
@@ -218,7 +218,7 @@ On a local or IPM install, an admin can add MCP servers, and their tools become 
 - An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.
 - A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads.
 - Every call goes through the governed tool `call_mcp_tool` (the Built-in tools table), which checks before the call that the tool still has the name, description and input schema it was classified with, and runs nothing if it changed.
-- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry.
+- Every call passes the gate, an approval request when needed (showing the tool, its server and each of its inputs on a line of its own, through the redactor, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry. A request too long to show in full on Telegram has no Approve button there.
 - Results are untrusted content.
 - Removing a server cancels its pending approval requests.
 

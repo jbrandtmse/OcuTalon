@@ -45,7 +45,10 @@
 ///     status of an edit always fits. A label that cannot be rendered is an error and nothing is sent. Its Delivery row also records
 ///     the ApprovalRef and the last part's text, which the edit needs: OcuTalon.Bridge.Redact.Text of it, or "" when the redactor
 ///     returns UNCHECKED. The text holds no chat id and no name, because a notice is rendered from the catalog and the notification's
-///     slots. A row with no ApprovalRef and every row of kind answered keep the text "";
+///     slots. A row with no ApprovalRef and every row of kind answered keep the text "". A tool call's request (kind approval, a
+///     catalog key of TOOLKEYS) whose text is over Api LIMIT units is sent as one message with no buttons: its start, a line break
+///     and the line of TOOLONGKEY, at most BUTTONLIMIT units, with the head cut after a line break where it can; its Delivery row
+///     keeps that text and the ApprovalRef as a message with buttons does, so that the edit of an answer or a cancel still works;
 ///   - the edit in place: a Notification of the kind answered finds the session's newest telegram Delivery row of its ApprovalRef
 ///     (Ownership.DeliveryFor). With no row, or a row with no stored text or no message id, nothing is sent and there is one warning.
 ///     When that row is of the kind answered, nothing is sent: the first answer stays. Otherwise editMessageText replaces the message
@@ -104,6 +107,11 @@ Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,d
 
 /// The notification kinds whose message carries the Approve and Reject buttons when it has an approval Ref.
 Parameter BUTTONKINDS = "incident,approval";
+
+/// The catalog keys of a tool call's request, and the key of the line that ends one that is too long for a message.
+Parameter TOOLKEYS = "toolCall.request,toolCall.requestOnServer";
+
+Parameter TOOLONGKEY = "toolCall.inputsTooLong";
 
 /// The notification kinds whose message carries the Got it button when it has a decision Ref, and the catalog key of the button.
 Parameter GOTITKINDS = "tellnow";
@@ -198,14 +206,42 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	}
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Set markup = ""
-	If $ListFind($ListFromString(..#BUTTONKINDS), request.Kind) && (request.ApprovalRef '= "") {
+	Set cut = 0
+	If (request.Kind = "approval") && $ListFind($ListFromString(..#TOOLKEYS), request.CatalogKey) && ($Length(text) > ##class(OcuTalon.Channel.Telegram.Api).#LIMIT) {
+		Set text = ..CutRequest(text, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit sc
+		Set cut = 1
+	} ElseIf $ListFind($ListFromString(..#BUTTONKINDS), request.Kind) && (request.ApprovalRef '= "") {
 		Set markup = ..Keyboard(request.ApprovalRef, .sc)
 		If $SYSTEM.Status.IsError(sc) Quit sc
 	} ElseIf $ListFind($ListFromString(..#GOTITKINDS), request.Kind) && (request.DecisionRef '= "") {
 		Set markup = ..GotItKeyboard(request.DecisionRef, .sc)
 		If $SYSTEM.Status.IsError(sc) Quit sc
 	}
-	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, request.ApprovalRef, request.Kind, request.DecisionRef, markup)
+	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, request.ApprovalRef, request.Kind, request.DecisionRef, markup, cut)
+}
+
+/// The text of a tool call's request that is over Api LIMIT units, cut to one message: its head, a line break and the line of TOOLONGKEY, at most
+/// BUTTONLIMIT units. The head is the text up to its last line break at which all three fit, else its first units that fit, never ending on a high surrogate.
+Method CutRequest(text As %String, Output sc As %Status) As %String [ Private ]
+{
+	Set line = ##class(OcuTalon.Msg.Catalog).Render(..#TOOLONGKEY, "", ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Set room = ..#BUTTONLIMIT - 1 - $Length(line)
+	Set window = $Extract(text, 1, room + 1)
+	Set head = ""
+	For position = $Length(window):-1:2 {
+		If $Extract(window, position) = $Char(10) {
+			Set head = $Extract(window, 1, position - 1)
+			Quit
+		}
+	}
+	If head = "" {
+		Set head = $Extract(text, 1, room)
+		Set last = $Ascii(head, $Length(head))
+		If (last >= 55296) && (last <= 56319) Set head = $Extract(head, 1, *-1)
+	}
+	Quit head_$Char(10)_line
 }
 
 /// The inline keyboard of a request's notice: one row with the Approve and Reject buttons, whose callback data is the action and the
@@ -250,14 +286,14 @@ Method Target(ownerChatRef As %String, sessionRef As %String, Output chatRef As 
 	Quit $$$OK
 }
 
-/// Sends the text to the chat and, for a message with a SessionRef, records its Delivery row. A message with buttons (markup is an object)
-/// keeps the last part's text in its row. A failed Record is one warning only.
-Method Deliver(sessionRef As %String, chatRef As %String, chatId As %String, text As %String, approvalRef As %String, kind As %String, decisionRef As %String, markup As %DynamicObject = "") As %Status [ Private ]
+/// Sends the text to the chat and, for a message with a SessionRef, records its Delivery row. A message with buttons (markup is an object),
+/// or one that keep is 1 for (a cut tool-call request), keeps the last part's text in its row. A failed Record is one warning only.
+Method Deliver(sessionRef As %String, chatRef As %String, chatId As %String, text As %String, approvalRef As %String, kind As %String, decisionRef As %String, markup As %DynamicObject = "", keep As %Boolean = 0) As %Status [ Private ]
 {
 	Set sc = ..Send(chatId, text, .messageId, .sent, markup, $Select($IsObject(markup): ..#BUTTONLIMIT, 1: ""), .lastText)
 	If $SYSTEM.Status.IsError(sc) || 'sent || (sessionRef = "") Quit sc
 	Set kept = ""
-	If $IsObject(markup) {
+	If $IsObject(markup) || keep {
 		Set kept = ##class(OcuTalon.Bridge.Redact).Text(lastText)
 		If kept = ##class(OcuTalon.Bridge.Redact).#UNCHECKED Set kept = ""
 	}

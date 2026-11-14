@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Response, type Route } from '../support/fixtures';
 
-import { signIn } from '../sign-in/helpers';
+import { envelope, signIn } from '../sign-in/helpers';
 import { DRY_RUN, messageOf, noticeOnPhone, phoneOf, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, composerOf, inMs, mainOf, railOf, unique, loadedAfter } from '../support/floor';
@@ -22,8 +22,10 @@ import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenC
  * X7 the phone holding its feed for a pending request and X8 an answer from elsewhere, shown within 2 s of its event and announced once by
  * the card. QA adds X9 (Reject on the phone) and X10 (a reload keeps the stored messages). X12 (Story 31.5) is a tool call's request on the
  * phone: its server form, Approve, the server's in-place answered line, the second answer's refusal and the result message.
- * X13 (Story 31.6) is the same tool call in the web chat: the card with the phone's exact text, an answer from the card or from the
- * phone (the first wins), the result as a new notice, and the plain notice that the request becomes after a reload.
+ * X13 (Story 31.6; Story 21.10) is the same tool call in the web chat: the card with the phone's exact text, the reason and every input
+ * whole, an answer from the card or from the phone (the first wins), the result as a new notice, and the plain notice that the request
+ * becomes after a reload. X14 (Story 21.10) is a request that its MCP server's removal cancels: the card, the phone and the rail row
+ * follow, and a press answers nothing.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -778,6 +780,28 @@ test('X11: with the Demo view off the request is answerable in the chat, and the
 });
 
 /**
+ * Sets a request's ToolArguments to four inputs, in this order: to "ops", a 280-character note, a value with two spaces, and a value that
+ * holds a zero-width space, U+202E, U+E0041, U+2028, CR LF and a tab. The characters are built in the ObjectScript text with $Char, never
+ * written in this file.
+ */
+async function setToolArguments(ref: string, note: string): Promise<void> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      'If \'$IsObject(r) { Write !,"CHK|args|0" Halt }',
+      'Set a={}',
+      'Do a.%Set("to","ops")',
+      `Do a.%Set("note",${quoted(note)})`,
+      'Do a.%Set("spaced","a  b")',
+      'Do a.%Set("odd","a"_$Char(8203)_"b"_$Char(8238)_"c"_$Char(56128,56385)_"d"_$Char(8232)_"e"_$Char(13,10)_"f"_$Char(9)_"g h")',
+      'Set r.ToolArguments=a.%ToJSON()',
+      'Write !,"CHK|args|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'args') !== '1') throw new Error(`the request's arguments could not be set (${lines.join(' ')})`);
+}
+
+/**
  * Sets the given properties of a request's row (names are letters only) and saves it, as the bridge would hold a replayable call.
  */
 async function setApprovalFields(ref: string, fields: Record<string, string>): Promise<void> {
@@ -813,7 +837,7 @@ async function newestPhoneMessage(user: string): Promise<{ approvalRef: string; 
 
 /**
  * X12 (Story 31.5): a tool call's request on the phone. A replayable session tool call on an MCP server raises its notice: the phone shows
- * "Run {tool} on {server}", the call's inputs on one line and the no-dry-run sentence, with Approve and Reject. Approve on the phone
+ * "Run {tool} on {server}", the reason, the call's inputs on a line each and the no-dry-run sentence, with Approve and Reject. Approve on the phone
  * answers 200 and the server edits the request's message in place within 5 s of the reply; a second answer is refused and changes
  * nothing; the result is a new message with no buttons, and the request's message keeps its line.
  */
@@ -822,7 +846,7 @@ test('X12: a tool call\'s request reaches the phone with Approve and Reject, the
   const rows: string[] = [];
   const start = startOf();
   const tool = 'zz_tool_x12';
-  const text = `Run ${tool} on zzx12\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once.`;
+  const text = `Run ${tool} on zzx12\nWhy: ${tool} counts as risky, so it runs only after an approval.\nInputs:\nto: "ops"\nNo dry run is available for this tool. Approving runs exactly this call once.`;
   try {
     const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null, requiredRole: 'OcuTalonUser' });
     rows.push(request);
@@ -839,8 +863,8 @@ test('X12: a tool call\'s request reaches the phone with Approve and Reject, the
     expect(stored?.answer, 'and has no answer yet').toBe('');
     const message = messageOf(page, ref);
     await expect(message, 'the phone shows it').toHaveCount(1, { timeout: CARD_MS });
-    const approve = message.getByRole('button', { name: `Approve: run ${tool}`, exact: true });
-    const reject = message.getByRole('button', { name: `Reject: run ${tool}`, exact: true });
+    const approve = message.getByRole('button', { name: `Approve: run ${tool} on zzx12`, exact: true });
+    const reject = message.getByRole('button', { name: `Reject: run ${tool} on zzx12`, exact: true });
     await expect(approve, 'with Approve').toHaveCount(1);
     await expect(reject, 'and Reject').toHaveCount(1);
 
@@ -884,8 +908,10 @@ test('X12: a tool call\'s request reaches the phone with Approve and Reject, the
 });
 
 /**
- * X13 (Story 31.6): a tool call's request in the web chat. A replayable session tool call on an MCP server raises a card whose text is
- * the phone's exactly (the server form, the inputs line cut at 200 characters), with Approve and Reject named by its first line.
+ * X13 (Story 31.6; Story 21.10): a tool call's request in the web chat. A replayable session tool call on an MCP server raises a card whose
+ * text is the phone's exactly (the server form, the reason, and each input on a line of its own, whole), with Approve and Reject named by its
+ * first line. A 280-character value shows whole, a value with two spaces shows both, and a value with invisible characters shows as the one
+ * escaped line (V10), on the card and on the phone. The request's rail row reads "Run {tool} on {server}" and has no button.
  * Approve on the card answers 200, the card's status follows within 2 s and the phone's request message within 5 s; a second answer
  * from the phone is refused and nothing changes. A request that the phone answers first shows that answer on its card. The result is
  * a new notice with no buttons and the card keeps its status. After a reload the answered request is a plain notice with its text and
@@ -900,7 +926,8 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
   const seedRequest = async (name: string): Promise<string> => {
     const request = await seedApproval(user, { kind: 'tool_call', toolName: name, dryRun: null, requiredRole: 'OcuTalonUser' });
     rows.push(request);
-    await setApprovalFields(request, { ToolSource: 'mcp:zzx13', Runner: 'ChatAgent', ToolArguments: JSON.stringify({ to: 'ops', note: longNote }) });
+    await setApprovalFields(request, { ToolSource: 'mcp:zzx13', Runner: 'ChatAgent' });
+    await setToolArguments(request, longNote);
     return request;
   };
   try {
@@ -918,11 +945,23 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
     // The helper reads the stored text through the terminal, which writes a character outside ASCII as "?".
     expect(action.replace(/[^\x00-\x7F]/g, '?'), "the card's text is the phone's text").toBe(phoneText);
     const lines = action.split('\n');
-    expect(lines[0], 'its first line names the tool and the server').toBe(`Run ${tool} on zzx13`);
-    expect(lines[1]?.startsWith('Inputs: '), 'its second line is the inputs').toBe(true);
-    const inputs = (lines[1] ?? '').slice('Inputs: '.length);
-    expect(inputs.length, 'the inputs are cut at 200 characters').toBe(200);
-    expect(inputs.endsWith('\u2026'), 'and end with the ellipsis').toBe(true);
+    // The expected lines are ASCII: the escapes of the invisible characters are written out, never the characters.
+    const oddLine = 'odd: "a\\u200Bb\\u202Ec\\uDB40\\uDC41d\\u2028e\\u000D\\u000Af\\u0009g h"';
+    expect(lines, "the card's lines are the request, its reason, each input whole, with its spaces and its invisible characters escaped, and the no-dry-run sentence").toEqual([
+      `Run ${tool} on zzx13`,
+      `Why: ${tool} counts as risky, so it runs only after an approval.`,
+      'Inputs:',
+      'to: "ops"',
+      `note: "${longNote}"`,
+      'spaced: "a  b"',
+      oddLine,
+      'No dry run is available for this tool. Approving runs exactly this call once.',
+    ]);
+    const phoneRef = (await phoneMessage(user, request))?.ref ?? '';
+    await expect(messageOf(page, phoneRef), 'the phone shows the escaped line too').toContainText(oddLine, { timeout: CARD_MS });
+    const railRow = rowOfRequest(page, request);
+    await expect(railRow.locator('.title'), 'the rail row reads the action and the server').toHaveText(`Run ${tool} on zzx13`, { timeout: CARD_MS });
+    await expect(railRow.getByRole('button'), 'and has no answer button').toHaveCount(0);
     const approve = card.getByRole('button', { name: `Approve: run ${tool} on zzx13`, exact: true });
     const reject = card.getByRole('button', { name: `Reject: run ${tool} on zzx13`, exact: true });
     await expect(approve, 'Approve is named by the first line').toHaveCount(1);
@@ -1023,6 +1062,58 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
     await expect(pendingCard, 'after a reload a pending request is a live card again').toHaveCount(1, { timeout: CARD_MS });
     await expect(pendingCard.getByRole('button', { name: `Approve: run ${tool}c on zzx13`, exact: true }), 'with Approve').toHaveCount(1);
     await expect(pendingCard.getByRole('button', { name: `Reject: run ${tool}c on zzx13`, exact: true }), 'and Reject').toHaveCount(1);
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * X14 (Story 21.10): a request that its MCP server's removal cancels. A pending MCP-form request shows its card, its rail row ("Run {tool} on
+ * {server}") and its phone message with buttons. Approval.Cancel then cancels it with no Mcp.Server row of that name: within one live update the
+ * rail row is gone, the card shows "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." in place of its buttons, the
+ * phone's line is the same text with no buttons, and a press through the answer route is a 404.
+ */
+test('X14: a request that its removed MCP server cancels shows the cancelled status on the card and the phone, leaves the rail, and answers nothing', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  const tool = 'zz_tool_x14';
+  try {
+    const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null, requiredRole: 'OcuTalonUser' });
+    rows.push(request);
+    await setApprovalFields(request, { ToolSource: 'mcp:remote:@{config:AI.MCP.OcuTalon_zzx14}', Runner: 'ChatAgent', ToolArguments: '{"to":"ops"}' });
+    await open(page);
+    await sinkEvent(user, 'approval.raised', { ref: request });
+
+    const card = requestCard(page, request);
+    await expect(card, 'the web chat shows the request as a card').toHaveCount(1, { timeout: CARD_MS });
+    await expect(rowOfRequest(page, request).locator('.title'), 'the rail has its row').toHaveText(`Run ${tool} on zzx14`, { timeout: CARD_MS });
+    let ref = '';
+    await expect
+      .poll(async () => (ref = (await phoneMessage(user, request))?.ref ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
+      .not.toBe('');
+    const message = messageOf(page, ref);
+    await expect(message.getByRole('button', { name: `Approve: run ${tool} on zzx14`, exact: true }), 'the phone has Approve').toHaveCount(1, { timeout: CARD_MS });
+    await expect(card.getByRole('button', { name: `Approve: run ${tool} on zzx14`, exact: true }), 'and so has the card').toHaveCount(1);
+
+    const lines = await irisScript(
+      [`Set sc=##class(OcuTalon.Bridge.Approval).Cancel(${quoted(request)})`, 'Write !,"CHK|cancel|",$System.Status.IsOK(sc)'].join('\n'),
+    );
+    expect(chk(lines, 'cancel'), 'the request is cancelled').toBe('1');
+    const status = /^Canceled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\.$/;
+    await expect(rowOfRequest(page, request), 'the rail row leaves within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+    await expect(card.locator('p.status'), "the card's status says the server was removed").toHaveText(/Canceled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\./, { timeout: ONE_UPDATE_MS });
+    await expect(card.locator('.buttons'), 'in place of its buttons').toHaveCount(0);
+    await expect
+      .poll(() => phoneMessage(user, request).then((one) => one?.answer ?? ''), { message: "the phone's line is the cancelled text", timeout: PHONE_MS })
+      .toMatch(status);
+    await expect(lineOf(message), 'on the phone too').toHaveText(/Canceled at \d{1,2}:\d\d: the MCP server zzx14 was removed\. Nothing was changed\./, { timeout: CARD_MS });
+    await expect(message.locator('.buttons'), 'with no buttons').toHaveCount(0);
+    const press = await page.request.post(`/ocutalon/api/v1/approvals/${request}/answer`, { headers: envelope(), data: { action: 'approve', channel: 'web' } });
+    expect(press.status(), 'a press through the answer route is a 404').toBe(404);
+    const row = await readApproval(request);
+    expect(row.state + '|' + row.action, 'and nothing was answered').toBe('cancelled|');
   } finally {
     await dropPhone(user, start);
     await cleanFixtureRows(rows);

@@ -35,7 +35,7 @@
 // CHANNEL_NAMES renders as given); a time, count, cost or text slot takes the string the caller formatted (the page formats times,
 // costs and counts itself, AD-32), cleaned like any string slot. A text slot is allowed for the keys of TEXT_SLOT_KEYS only: the
 // whatFailed of checks.notEverything and checks.notEverythingRestPassed (built by the page from the check rows, DW-90), the user of
-// the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped, the reason of
+// the four answered.*By texts, the server of answered.canceled, the failReason of result.failedAgain and result.failedAndSkipped, the reason of
 // result.couldNotStart, and the item, production and to of result.itemSuspended, itemResumed, itemSkipped and rerouted. A sentence
 // slot (a plain sentence that the text follows with a full stop) is allowed for the keys of SENTENCE_SLOT_KEYS only, the reason of
 // result.itemSkipped and result.itemNotChanged; it renders as a text slot does, except that the full stop after it is not doubled
@@ -95,6 +95,7 @@ export const LISTED_KEYS = [
   'answered.alreadyRejected',
   'answered.alreadyApprovedBy',
   'answered.alreadyRejectedBy',
+  'answered.canceled',
   'result.allThrough',
   'result.failedAgain',
   'result.skipped',
@@ -135,6 +136,7 @@ export const TEXT_SLOT_KEYS = [
   'answered.rejectedBy',
   'answered.alreadyApprovedBy',
   'answered.alreadyRejectedBy',
+  'answered.canceled',
   'result.failedAgain',
   'result.failedAndSkipped',
   'result.couldNotStart',

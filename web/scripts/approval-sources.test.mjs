@@ -242,6 +242,13 @@ describe('the texts', () => {
     assert.match(literal(card, 'styles'), /\.partner-notice \{\s*white-space: pre-line;/, 'the notice keeps its line breaks');
   });
 
+  it('draws a request text with its runs of spaces kept: the action carries the text class, and that class is pre-wrap', () => {
+    const card = file(files, 'approval-request-card.ts');
+    assert.match(card.code, /<p class="action" \[class\.text\]="request\(\) !== ''">/, 'the action takes the text class when the card has a request text');
+    assert.match(literal(card, 'styles'), /\.action\.text \{\s*white-space: pre-wrap;/, 'a request text keeps its runs of spaces');
+    assert.match(literal(card, 'styles'), /\.action \{[^}]*white-space: pre-line;/, 'every other action keeps only its line breaks');
+  });
+
   it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {
     for (const one of files) assert.doesNotMatch(one.code, /innerhtml|outerhtml|bypassSecurity|DomSanitizer/i, one.name);
   });

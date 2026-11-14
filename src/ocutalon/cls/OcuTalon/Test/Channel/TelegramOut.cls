@@ -897,6 +897,183 @@ Method TestButtons()
 	Do ..Cleanup()
 }
 
+/// Story 21.10 (V4, V8, V9): a tool call's request whose text is over 4,096 units is one message with no buttons: its head, a line break and the line of toolCall.inputsTooLong,
+/// at most 3,840 units, the head cut after a line break where it can be; its Delivery row keeps the Ref and the text, and an answered.canceled notification then edits it in place.
+Method TestToolCallTooLong()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8630
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set line = "The inputs are too long to show here. See them on your OcuTalon page before you approve."
+		Set big = ""
+		For i = 1:1:500 Set big = big_"0123456789"
+		Set approval = ..NewRef()
+		Set slots = {"tool": "zz_t", "server": "zzS", "inputs": [{"name": "note", "value": (""""_big_"""")}]}
+		Set rendered = ##class(OcuTalon.Msg.Catalog).Render("toolCall.requestOnServer", slots, "telegram")
+		Do $$$AssertTrue($Length(rendered) > 4096, "the request renders to more than 4,096 units: "_$Length(rendered))
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "toolCall.requestOnServer", slots, approval), .response), "it is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "as one sendMessage")
+		Set messageId = ..LastId(chatId)
+		Set head = $Piece(rendered, $Char(10), 1, 3)
+		If calls.%Size() = 1 {
+			Set params = calls.%Get(0).params
+			Do $$$AssertEquals(params.%IsDefined("reply_markup"), 0, "with no reply_markup: no Approve and no Reject")
+			Do $$$AssertEquals(params.text, head_$Char(10)_line, "its text is the head, a line break and the line")
+			Do $$$AssertTrue($Extract(params.text, 1, 15) = "Run zz_t on zzS", "the head starts with the request")
+			Do $$$AssertTrue($Length(params.text) '> 3840, "and it is 3,840 units or fewer")
+		}
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 1, "one Delivery row")
+		If rows.Count() = 1 {
+			Do $$$AssertEquals(rows.GetAt(1).Kind_"|"_rows.GetAt(1).ApprovalRef_"|"_rows.GetAt(1).ChannelMessageId, "approval|"_approval_"|"_ref_":"_messageId, "of kind approval with the Ref and the message id")
+			Do $$$AssertEquals(rows.GetAt(1).Text, ##class(OcuTalon.Bridge.Redact).Text(head_$Char(10)_line), "and the text that was sent")
+		}
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set cancel = {"time": (time), "server": "zzS"}
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, "answered.canceled", cancel), .response), "an answered.canceled notification is sent")
+		Set edits = ..EditsTo(chatId)
+		Do $$$AssertEquals(edits.%Size(), 1, "it edits the message once")
+		If edits.%Size() = 1 {
+			Do $$$AssertEquals(edits.%Get(0).text, ##class(OcuTalon.Bridge.Redact).Text(head_$Char(10)_line)_$Char(10, 10)_##class(OcuTalon.Msg.Catalog).Render("answered.canceled", cancel, "telegram"), "in place: the stored text, a blank line and the status")
+			Do $$$AssertEquals(edits.%Get(0).%IsDefined("reply_markup"), 0, "with no keyboard")
+			Do $$$AssertEquals(edits.%Get(0)."message_id", +messageId, "of that message")
+		}
+		Do $$$AssertEquals(..SentTo(chatId).%Size(), 1, "and nothing else is sent")
+
+		Set many = []
+		For i = 1:1:60 Do many.%Push({"name": ("n"_i), "value": (""""_$Extract(big, 1, 90)_"""")})
+		Set slots = {"tool": "zz_t", "inputs": (many)}
+		Set rendered = ##class(OcuTalon.Msg.Catalog).Render("toolCall.request", slots, "telegram")
+		Do $$$AssertTrue($Length(rendered) > 4096, "a request of 60 inputs renders to more than 4,096 units: "_$Length(rendered))
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "toolCall.request", slots, ..NewRef()), .response), "it is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 2, "as one more sendMessage")
+		If calls.%Size() = 2 {
+			Set text = calls.%Get(1).params.text
+			Do $$$AssertEquals(calls.%Get(1).params.%IsDefined("reply_markup"), 0, "with no buttons")
+			Do $$$AssertEquals($Piece(text, $Char(10), $Length(text, $Char(10))), line, "ending with the line")
+			Do $$$AssertTrue($Length(text) '> 3840, "at most 3,840 units")
+			Set cut = $Piece(text, $Char(10), 1, $Length(text, $Char(10)) - 1)
+			Do $$$AssertEquals(cut, $Piece(rendered, $Char(10), 1, $Length(cut, $Char(10))), "the head is lines of the request, cut after a line break")
+			Do $$$AssertTrue($Length(cut, $Char(10)) > 8, "and it holds many inputs: "_$Length(cut, $Char(10)))
+			Do $$$AssertTrue($Length(cut) + 1 + $Length(line) '> 3840, "it fits")
+			Do $$$AssertTrue($Length($Piece(rendered, $Char(10), 1, $Length(cut, $Char(10)) + 1)) + 1 + $Length(line) > 3840, "and one more line would not")
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the too-long test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// Story 21.10 (V4, V8, V10): a tool call's request of exactly 4,096 units is shown whole, with Approve and Reject on the last part as any message with buttons, and an input
+/// that holds invisible characters shows as the one escaped line.
+Method TestToolCallFits()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8631
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set note = "a"_$Char(8203)_"b"_$Char(8238)_"c"_$Char(56128,56385)_"d"_$Char(8232)_"e"_$Char(13,10)_"f"_$Char(9)_"g h"
+		Set line = "note: ""a\u200Bb\u202Ec\uDB40\uDC41d\u2028e\u000D\u000Af\u0009g h"""
+		Set approval = ..NewRef()
+		Set slots = {"tool": "zz_t", "server": "zzS", "inputs": [{"name": "note", "value": (""""_note_"""")}, {"name": "p1", "value": ("""""")}, {"name": "p2", "value": ("""""")}, {"name": "p3", "value": ("""""")}, {"name": "p4", "value": ("""""")}]}
+		Set base = $Length(##class(OcuTalon.Msg.Catalog).Render("toolCall.requestOnServer", slots, "telegram"))
+		Set extra = 4096 - base
+		For n = 1:1:4 {
+			Set pad = ""
+			For i = 1:1:$Select(n = 4: extra - (3 * (extra \ 4)), 1: extra \ 4) Set pad = pad_"p"
+			Do slots.inputs.%Set(n, {"name": ("p"_n), "value": (""""_pad_"""")})
+		}
+		Set rendered = ##class(OcuTalon.Msg.Catalog).Render("toolCall.requestOnServer", slots, "telegram")
+		Do $$$AssertEquals($Length(rendered), 4096, "the request renders to exactly 4,096 units")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "toolCall.requestOnServer", slots, approval), .response), "it is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertTrue(calls.%Size() '< 2, "in two parts or more, as every message with buttons that is over 3,840 units: "_calls.%Size())
+		Set joined = "", marked = 0, lastMarked = 0, longest = 0
+		For i = 0:1:calls.%Size() - 1 {
+			Set params = calls.%Get(i).params
+			Set joined = joined_$Select(i = 0: "", 1: $Char(10))_params.text
+			If $Length(params.text) > longest Set longest = $Length(params.text)
+			If params.%IsDefined("reply_markup") {
+				Set marked = marked + 1
+				If i = (calls.%Size() - 1) Set lastMarked = 1
+			}
+		}
+		Do $$$AssertTrue(longest '> 3840, "each part is 3,840 units or fewer")
+		Do $$$AssertEquals(joined, rendered, "the parts together are the whole request")
+		Do $$$AssertEquals(marked_"|"_lastMarked, "1|1", "only the last part has the buttons")
+		Do $$$AssertEquals(calls.%Get(calls.%Size() - 1).params."reply_markup".%ToJSON(), {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_approval)}, {"text": "Reject", "callback_data": ("reject:"_approval)}]]}.%ToJSON(), "Approve and Reject")
+		Do $$$AssertEquals($Length(joined, line) - 1, 1, "the sent text holds the escaped line once")
+		For code = 8203, 8238, 8232, 13, 9 {
+			Do $$$AssertTrue(joined '[ $Char(code), "and no character U+"_$ZHex(code))
+		}
+		Do $$$AssertTrue(joined '[ $Char(56128), "nor a tag character")
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 1, "one Delivery row")
+		If rows.Count() = 1 Do $$$AssertEquals(rows.GetAt(1).ApprovalRef, approval, "with the request's Ref")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the fits test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// Story 21.10 (V8): the cut is for a tool call's request only: a request of any other key or kind that is over 4,096 units still splits at 3,840 units with Approve and Reject on the last part.
+Method TestLongFixRequestUnchanged()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8632
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set words = ""
+		While $Length(words) < 5000 {
+			Set words = words _ "word" _ $Length(words) _ " "
+		}
+		Set words = $Extract(words, 1, 4999) _ "x"
+		Set n = 0
+		For kind = "incident", "approval" {
+			Set approval = ..NewRef()
+			Set notice = ..Notification(session, kind, "notice.tellNow", {"whatHappened": (words), "reason": "you asked to hear about disk space"}, approval)
+			Set expected = ##class(OcuTalon.Msg.Catalog).Render("notice.tellNow", notice.Slots, "telegram", .sc)
+			Do $$$AssertStatusOK(sc, kind_": the long request renders")
+			Do $$$AssertTrue($Length(expected) > 4096, kind_": it is over 4,096 units")
+			Set before = ..SentTo(chatId).%Size()
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), kind_": it is sent")
+			Set all = ..SentTo(chatId)
+			Set count = all.%Size() - before
+			Do $$$AssertTrue(count '< 2, kind_": in two parts or more: "_count)
+			Set joined = "", marked = 0, lastMarked = 0, longest = 0
+			For i = before:1:all.%Size() - 1 {
+				Set params = all.%Get(i).params
+				Set joined = joined_params.text
+				If $Length(params.text) > longest Set longest = $Length(params.text)
+				If params.%IsDefined("reply_markup") {
+					Set marked = marked + 1
+					If i = (all.%Size() - 1) Set lastMarked = 1
+				}
+			}
+			Do $$$AssertTrue(longest '> 3840, kind_": each part is 3,840 units or fewer")
+			Do $$$AssertEquals(joined, expected, kind_": the parts together are the rendered text")
+			Do $$$AssertEquals(marked_"|"_lastMarked, "1|1", kind_": the last part, and only it, has the buttons")
+			Do $$$AssertEquals(all.%Get(all.%Size() - 1).params."reply_markup".%ToJSON(), {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_approval)}, {"text": "Reject", "callback_data": ("reject:"_approval)}]]}.%ToJSON(), kind_": Approve and Reject")
+			Do $$$AssertTrue($Find(joined, "The inputs are too long") = 0, kind_": and it has no line about inputs")
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the long-request test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
 /// AC1: only a request notice with an ApprovalRef has buttons; the other notices keep a row with no text.
 Method TestNoButtons()
 {

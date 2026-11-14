@@ -112,6 +112,7 @@ describe('the fixed strings', () => {
         reroute: 'Reroute {n} {noun} to {to}',
         partner: 'Send a delay notice',
         runTool: 'Run {toolName}',
+        runToolOn: 'Run {toolName} on {server}',
         changePersona: 'Change how OcuTalon talks to you',
         showInChat: 'Show in the chat: {action}',
         raised: 'Raised {when}',
@@ -306,6 +307,8 @@ describe('approval requests', () => {
     assert.equal(approvalTitle(approval('a', { dryRun: { affected: 0, itemNoun: { one: 'order', other: 'orders' } } })), 'Repair and resend 0 orders');
     assert.equal(approvalTitle(approval('a', { dryRun: undefined })), 'Repair and resend');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', dryRun: undefined })), 'Run zz_tool');
+    assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', server: 'zzS', dryRun: undefined })), 'Run zz_tool on zzS', 'a tool call that names its MCP server');
+    assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', server: '  ', dryRun: undefined })), 'Run zz_tool', 'a blank server names none');
     assert.equal(approvalTitle(approval('a', { fixKind: 'suspend_item', dryRun: { item: 'OrdersToWarehouse' } })), 'Suspend OrdersToWarehouse');
     assert.equal(approvalTitle(approval('a', { fixKind: 'resume_item', dryRun: { item: 'OrdersToWarehouse' } })), 'Resume OrdersToWarehouse');
     assert.equal(approvalTitle(approval('a', { fixKind: 'reroute', dryRun: { affected: 50, to: 'OrdersForReview', itemNoun: { one: 'order', other: 'orders' } } })), 'Reroute 50 orders to OrdersForReview');

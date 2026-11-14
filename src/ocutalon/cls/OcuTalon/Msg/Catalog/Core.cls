@@ -592,21 +592,26 @@ XData Entries [ MimeType = application/json ]
   "source": "EXPERIENCE Message Catalog / Personality notices / Persona stale"
  },
  "toolCall.request": {
-  "text": "Run {tool}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
+  "text": "Run {tool}\nWhy: {tool} counts as risky, so it runs only after an approval.\nInputs:\n{inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
   "slots": {
    "tool": "text",
-   "inputs": "text"
+   "inputs": "inputs"
   },
-  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request"
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request, Story 21.10 T1 and T2"
  },
  "toolCall.requestOnServer": {
-  "text": "Run {tool} on {server}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
+  "text": "Run {tool} on {server}\nWhy: {tool} counts as risky, so it runs only after an approval.\nInputs:\n{inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
   "slots": {
    "tool": "text",
    "server": "text",
-   "inputs": "text"
+   "inputs": "inputs"
   },
-  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request, on an MCP server"
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request, on an MCP server, Story 21.10 T1 and T2"
+ },
+ "toolCall.inputsTooLong": {
+  "text": "The inputs are too long to show here. See them on your OcuTalon page before you approve.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Tool calls / Telegram, inputs too long"
  },
  "toolCall.done": {
   "text": "{tool} ran once at {time}.",

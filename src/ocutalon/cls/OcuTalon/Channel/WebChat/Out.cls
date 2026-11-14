@@ -24,7 +24,7 @@
 ///     its Ref and now carries handledAt, and then records the Delivery row of kind handled (no text, no ChannelMessageId). A row of kind
 ///     handled (a second press), or no card, records the Delivery row only, with no event;
 ///   - Notification of a tool-call card (Story 31.6; ToolCallCard: kind approval or result, an ApprovalRef, and a CatalogKey that is
-///     one of Core.BridgeSink's five tool-call keys): it takes the same card path, so the chat shows the request with Approve and
+///     one of Core.BridgeSink's six tool-call keys): it takes the same card path, so the chat shows the request with Approve and
 ///     Reject, the result and DW-454's held-call reason from the one Notification that the bridge sink built (DW-601). The persona
 ///     notices of Core.SettingsOps (Story 40.6) take the same path: its KEYPROPOSED (kind approval), KEYAPPLIED and KEYSTALE (kind
 ///     result), read by $Parameter, with an ApprovalRef; the kind answered stays a Delivery row only. The one result without an ApprovalRef that takes this path is
@@ -104,14 +104,14 @@ Method OnHandled(request As OcuTalon.Msg.Notification) As %Status [ Private ]
 }
 
 /// 1 when the notification is a tool-call card or a persona card: kind approval or result, an ApprovalRef, and one of the bridge sink's
-/// five tool-call catalog keys or SettingsOps' three persona keys (read from their parameters, never copied); also a result with the catalog key
+/// six tool-call catalog keys or SettingsOps' three persona keys (read from their parameters, never copied); also a result with the catalog key
 /// Watch.Notice KEYPARTNERNOTDRAFTED, which has no ApprovalRef.
 Method ToolCallCard(request As OcuTalon.Msg.Notification) As %Boolean [ Private ]
 {
 	If (request.Kind '= "approval") && (request.Kind '= "result") Quit 0
 	If (request.Kind = "result") && (request.CatalogKey = $Parameter("OcuTalon.Watch.Notice", "KEYPARTNERNOTDRAFTED")) Quit 1
 	If request.ApprovalRef = "" Quit 0
-	Set keys = $ListBuild($Parameter("OcuTalon.Core.BridgeSink", "KEYREQUEST"), $Parameter("OcuTalon.Core.BridgeSink", "KEYREQUESTON"), $Parameter("OcuTalon.Core.BridgeSink", "KEYDONE"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILED"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILEDWHY"), $Parameter("OcuTalon.Core.SettingsOps", "KEYPROPOSED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYAPPLIED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYSTALE"))
+	Set keys = $ListBuild($Parameter("OcuTalon.Core.BridgeSink", "KEYREQUEST"), $Parameter("OcuTalon.Core.BridgeSink", "KEYREQUESTON"), $Parameter("OcuTalon.Core.BridgeSink", "KEYDONE"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILED"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILEDWHY"), $Parameter("OcuTalon.Core.BridgeSink", "KEYCHANGED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYPROPOSED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYAPPLIED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYSTALE"))
 	Quit $ListFind(keys, request.CatalogKey) > 0
 }
 

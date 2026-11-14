@@ -2,7 +2,8 @@
 title: 'Story 21.10: Answer tool-call approval requests on every channel'
 type: 'feature'
 created: '2026-11-12'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '51a716e482b3df60f5aa46a9bffc6aa5f4bc7c01'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -241,6 +242,34 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-14 - Review pass
+- verdicts: 24 rows covering the 30 findings the layers reported (blind 14, edge 8, verification-gap 8, intent 0; findings that share a root cause share a row) - high 0, medium 1, low 9, false 14, maybe-false 0
+- findings:
+  - `[false]` `[reject]` BH1 `answered.canceled` depends on the order of Unregister and the event - Code Map: `Mcp/Ops` `Unregister` calls `CancelPending` after the removal commits, so the row is gone; the unreal-removal test path is a LOW test addition with no reachable failure.
+  - `[false]` `[reject]` BH2 / EH3 the cancelled status vanishes after a reload - ledger DW-592 (wontfix-accepted, U-254): after a reload a cancelled card is a plain notice; the spec's Design Notes say so.
+  - `[false]` `[reject]` BH3 / EH1 unreadable arguments send no notice - Decided 7 (fail closed) and the matrix row "Unreadable arguments"; Raise refuses such arguments, so only a hand-made row reaches it.
+  - `[low]` `[reject]` BH4 the cut branch does not test `ApprovalRef` - `Compose` always sets the row's Ref on a tool-call notice, so a cut request without a Ref cannot occur; a guard would add a branch for nothing.
+  - `[low]` `[reject]` BH5 / VG `CutRequest` fallback (no line break) and surrogate trim untested - reachable only with a tool or server name of about 3,700 characters; unlikely in everyday use, and a test is more than a direct correction.
+  - `[false]` `[reject]` BH6 the 4,096 threshold disagrees with the docs - Decided 11 and the ruled V4/V9 text name 4,096; the docs say "too long for one message" as ruled word for word.
+  - `[false]` `[reject]` BH7 / EH2 / EH8 "never cut" removes the size bound - V4 is ruled (no cut); Decided 3: one model reply bounds the arguments (max_tokens 8,000, about 32,000 characters), well inside ObjectScript string limits.
+  - `[false]` `[reject]` BH8 / EH4 the card may differ from the call that runs because of the JSON round trip - `Bridge.Replay` line 113 parses the same stored text with `%FromJSON`, so duplicate keys and numbers read the same way on replay.
+  - `[false]` `[reject]` BH9 / EH5 / EH6 `Visible` leaves blank-looking characters outside Cc, Cf, Zl and Zp, and names are unquoted - V10's definition is ruled and pinned (Design Notes "V10 definition"); extending it is a product call, not this story's.
+  - `[low]` `[reject]` BH10 the ruled DW-1314 text says "the MCP servers section below" while the heading is "MCP tools" - the text is ruled word for word by the Planner (V11, ~07:20Z); changing public text is a veto item. Reported to the Planner in the run report; no code change.
+  - `[false]` `[reject]` BH11 a long unbroken input overflows the card - the base `.action` rule already sets `overflow-wrap: anywhere`; `.action.text` only changes `white-space`.
+  - `[low]` `[patch]` BH12 the spine's S1 rewrote earlier text with no [AMENDED] marker - fixed: S1 now carries `[AMENDED 2026-11-14, Story 21.10 ... it read "this part built in Story 21.5"]`; spine lint still 10 baseline findings.
+  - `[false]` `[reject]` BH13 the Jira example is only partly tied to the catalog - the spec's task fixes the check at the first and last lines (D3); the middle lines are not quoted in the example.
+  - `[false]` `[reject]` BH14 `KEYCHANGED` and the rewritten changed-result test are unrelated - DW-1232 is a task, AC and pin of this story.
+  - `[false]` `[reject]` EH7 `TOOLKEYS` copies the sink's keys - the spec names the two parameters and their values (V8 grant); Lane A does not read Lane B's parameters.
+  - `[medium]` `[patch]` VG1 no test observes the card's `white-space: pre-wrap` (X13 reads `textContent`) - fixed: a source test in `web/scripts/approval-sources.test.mjs` pins the `text` class binding and the `.action.text` rule; mutation: `.action.text` set to `pre-line` -> `approval-sources.test.mjs` red (36 pass, 1 fail), reverted byte-identical (`cmp`), green again.
+  - `[low]` `[reject]` VG2 the web render of an over-4,096 request is not pinned - nothing in the render path or `WebChat.Out` caps text; the sink row pins the 5,000-character value and X13 pins a long note whole on the card; a cap would have to be added first.
+  - `[low]` `[reject]` VG3 the event's `cancelledAt` for a non-replayable MCP row is not asserted - such a row exists only for a call held before `ToolSource` existed; unlikely, and the test needs the sink's publish capture.
+  - `[low]` `[patch]` VG4 no control changes the catalog's first line in the D3 check - fixed: a control "a catalog copy with its first line changed" in `test-release-sequence.sh` rule `overviewdoc`; mutation: the first-line comparison replaced by `true` -> `overviewdoc` red ("got '', wanted ..."), restored byte-identical (`cmp`), green again.
+  - `[low]` `[reject]` VG5 `TestApprovedCallReachesThePhone` builds its expected text from the production `InputsOf` - `TestToolCallInputsLine` pins `InputsOf` and X12/X13 pin the literal text; this test pins the route to the phone.
+  - `[low]` `[reject]` VG6 `TestCancelledEditsInPlace` waits a fixed time to prove no second message - it can only give a false green, never a flake; unlikely to matter.
+  - `[false]` `[reject]` VG7 names are shown unquoted - same root cause as BH9 (V10 ruled).
+  - `[false]` `[reject]` VG8 the `UNCHECKED` branch of `InputsOf` is an equivalent mutant - the reviewer's own note: `%FromJSON` of the marker fails and gives the same result; no defect.
+  - `[false]` `[reject]` IA the intent-alignment auditor (descriptive; no finding): the diff implements the reading "server notices and payloads plus the web client", proven in the browser by X13 and X14; no divergence from the intent.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -371,7 +400,7 @@ The sink's JSON text holds `%ToJSON`'s short escapes, which the sink normalizes 
 - ~07:20Z Nov 14: DW-1314's paragraph text and DW-1315's pins land in 21.10's commit, text only.
 - ~22:00Z cross-lane note: StepBuffer's two rules (see Contended files).
 
-**Read at implement (Task 0):** (filled by the implement stage)
+**Read at implement (Task 0):** (a) 22.4 is merged: `CancelPending` at `src/bridge/cls/OcuTalon/Bridge/Approval.cls`:463, called by `Mcp/Ops.cls`:327, and R1's `KEYCHANGED` is in `BridgeSink` (one grep each); C1 is met. (b) R1's regions in `BridgeSink` (the `KEYCHANGED` parameter and the result branch) are untouched; the class doc's `approval.result` bullet too. (c) T1, T2, V9, D1, D2, D3 and DW-1314 are used word for word. (d) 22.6 is merged: D2 replaces 22.6's P2 bullet and D3 edits its example; 37.1 touched no Telegram file. (e) The quoted lines of `docs/mcp-jira-example.md`:46, the overview :127, :138, :221 and `test-readme.sh` :1680-1681 read as quoted; D3's two quoted strings equal the catalog's first and last lines of `toolCall.requestOnServer` ("Run add_comment on Jira" and the no-dry-run sentence), so there is no D3 mismatch. Small decisions made unattended: the internal slot type `visible` (name and value of one `inputs` line, filled by `Fill` so a value is never read as a placeholder); `Escapes` (JSON short escapes to `\uXXXX`, upper-case hex) is private in `BridgeSink`; `Deliver` gets an optional `keep` argument for the cut Telegram message; the rail-title change also names the phone's buttons ("Approve: run {tool} on {server}"), so X12 now expects that name; `web/e2e/support/devices.ts` `phoneMessage` now escapes a backslash before it encodes a line break, because X13's text holds `\uXXXX`; `ux-strings.test.mjs` lists the two new page strings under the UX source; `Catalog.test.mjs` counts the tenth answered key. The architecture spine and EXPERIENCE.md edits (the last Docs task) were written by the build-auto stage after the implement pass: S1 to S3 in the spine (S3 worded without braces, "name and value pairs, one line `name: value` each", so `lint_spine.py` reports the same 10 baseline findings; S1 carries an [AMENDED] marker for the earlier text it replaces), and in EXPERIENCE.md the Step 4 tool-call bullet and two catalog rows.
 
 ## Veto items
 
@@ -432,6 +461,16 @@ Run every command from the worktree root, after `git rev-parse --show-toplevel` 
 
 Criterion: every test added or changed passes on a fresh environment, in either order.
 
+**Rule 19, mutations run at implement (each applied, observed red, reverted byte-identical; `git status --short` and `git diff --stat` unchanged after every revert):**
+- `Test.Core.BridgeSink` (warm): mutation: `InputsOf` back to one line -> red (`TestToolCallInputsLine`, `TestToolCallInputsVisible`, `TestToolCallNoticeKinds`); mutation: the 200-character cut kept -> red (`TestToolCallInputsLine` "a 5,000-character value is whole"); mutation: each value redacted alone, the whole object not -> red (`TestToolCallInputsLine` secret by key and nested key); mutation: no short-escape normalization -> red (`TestToolCallInputsLine`, `TestToolCallInputsVisible`); mutation: no cancelled branch -> red (`TestToolCallCancelledOnlyForARemovedServer`); mutation: `CanceledServer` without the `Registered` check -> red (same test, the still-registered row); mutation: `CancelledAt` never set -> red (same test, the event row).
+- `Test.Msg.Catalog` (warm): mutation: no "Why:" line in `toolCall.requestOnServer` -> red (`TestInputsSlot`, `TestLocalInstallEveryKey`, the fixtures); mutation: `INPUTLINE` without `{value}` -> red; mutation: `Visible` without the Cf ranges -> red (`TestVisible`); mutation: an astral character escaped as one unit -> red (`TestVisible`); mutation: `inputs` through `Clean` -> red (`TestInputsSlot`, the spaces row).
+- `Test.Live.Payloads`: mutation: `FromRow` without `Server` -> red (`TestApprovalServer`). `Test.Core.WebChatOut`: mutation: `KEYCHANGED` left out of `ToolCallCard` -> red (`TestToolCallCards`, "six cards").
+- `Test.Channel.TelegramOut` (warm): mutation: the length check removed -> red (`TestToolCallFits`); mutation: the cut branch never taken -> red (`TestToolCallTooLong`); mutation: `>=` for `>` (`'<`) -> red (`TestToolCallFits`); mutation: the `TOOLKEYS` filter removed -> red (`TestLongFixRequestUnchanged`); mutation: the kept text dropped (`|| keep` removed) -> red (`TestToolCallTooLong`, the edit).
+- `Test.Core.ToolCallNotices` (fresh `e21s10i`): mutation: no cancelled branch -> red (`TestCancelledEditsInPlace`); mutation: `KEYCHANGED` left out of `ToolCallCard` -> red (`TestChangedResultSendsANotice`).
+- Web: mutation: `statusOf` without the cancelled case -> `approval-view.test.mjs` red; mutation: `approvalTitle` ignoring `server` -> `rail-view.test.mjs` red.
+- Live `answers` (fresh): mutation: no cancelled branch in `BridgeSink` -> X14 red (23 passed, 1 failed).
+- Docs rules: the controls of `test-readme.sh docs` (D1's and D2's Telegram sentences deleted, the DW-1314 text's two changes, "the email trace line changed") and the two controls of `test-release-sequence.sh overviewdoc` (the example's first quoted string changed; a catalog copy with its last line changed) are red inside the rules, which exit 0.
+
 **Commands:**
 - (once) `<vars> OCUTALON_RUN_TAG=e21s10iw ci/warm.sh up` -- ready.
 - (loop) `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s10iw ci/iris.sh class OcuTalon.Test.Core.BridgeSink` -- passed. Mutations:
@@ -457,7 +496,29 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - (once each, also after a failure) `<vars> OCUTALON_RUN_TAG=e21s10iw ci/warm.sh down` and `<vars> OCUTALON_RUN_TAG=e21s10i ci/iris.sh teardown`.
 - (once, after S1-S3) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- no finding beyond the baseline.
 
+- Review pass (build-auto), mutations of the patches: mutation: `.action.text { white-space: pre-wrap }` changed to `pre-line` in `approval-request-card.ts` -> `web/scripts/approval-sources.test.mjs` red (36 pass, 1 fail), reverted byte-identical, green again; mutation: the first-line comparison of `mcp_approval_problems` replaced by `true` -> `test-release-sequence.sh overviewdoc` red (the new first-line control), restored byte-identical, `PASS overviewdoc`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Tool-call approval requests now show a code-written "Why:" line and their exact inputs as labelled lines (new `inputs` slot type, `Visible` for the V10 characters, no 200-character cut) on the web, the phone and Telegram. The approval payload carries `server` and `cancelledAt`. A request cancelled because its MCP server was removed sends `answered.canceled`, which edits the phone and Telegram messages in place and gives the web card a cancelled status; the rail row reads "Run {tool} on {server}". A Telegram request over 4,096 units is cut with the V9 line and no buttons (V8). The web chat draws `mcp.replayToolChanged` as a card (DW-1232). D1, D2, D3 and the DW-1314 paragraph are in the guide with their pins (DW-1266, DW-1314, DW-1315). S1 to S3 are in the spine and the tool-call bullet and two catalog rows in EXPERIENCE.md.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog.cls`, `Msg/Catalog/Core.cls`: the `inputs` type, `Visible`, T1/T2, `toolCall.inputsTooLong`.
+- `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls`, `Live/Payload/Approval.cls`: `InputsOf` array, `CanceledServer`, the cancelled branch, `server` and `cancelledAt`.
+- `src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls`: `KEYCHANGED` card (DW-1232).
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls`: the two parameters and the over-long branch (V8 grant); `Test/Channel/TelegramOut.cls`: the three granted tests.
+- Tests: `Test/Core/BridgeSink.cls`, `BridgeSinkNoticeProbe.cls`, `ToolCallNotices.cls`, `WebChatOut.cls`, `Test/Demo/SimPhoneOut.cls`, `Test/Live/Payloads.cls`, `Test/Msg/Catalog.cls`.
+- Web: `catalog.mjs`, generated `catalog.ts` and `payloads.ts`, `approval-view.ts`, `approval-request-card.ts`, `rail-view.ts`, the web unit tests, `e2e/answers/answers.spec.ts` (X12, X13, new X14), `e2e/support/devices.ts`, `playwright-projects.test.mjs`.
+- Docs and pins: `docs/security-overview.md`, `docs/mcp-jira-example.md`, `docker/tests/test-readme.sh`, `test-release-sequence.sh`, `test-answers.sh`.
+- Planning: `ARCHITECTURE-SPINE.md` (S1 to S3), `EXPERIENCE.md`.
+
+**Review.** One pass, four layers (blind, edge-case, verification-gap, intent-alignment): 24 triage rows, high 0, medium 1, low 9, false 14. Patches applied (3): a source test pinning the card's `pre-wrap` (medium), a first-line control for the D3 catalog check (low), the spine's S1 [AMENDED] marker (low). Deferred: none. Every rejected finding is in the Review Triage Log with its reason; the reasons are rulings (V4, V10, V11, Decided 7 and 11, DW-592), a disproving read of the code, or a low that is unlikely and costs more than a correction.
+
+**Follow-up review recommendation:** `false` (no high patched; one medium patched).
+
+**Verification performed.** At implement: warm lane-C `Test.Msg.Catalog`, `Test.Core.BridgeSink`, `Test.Live.Payloads`, `Test.Core.WebChatOut`, `Test.Demo.SimPhoneOut`, `Test.Channel.TelegramOut`, `Test.Core.AnswersIn`; fresh `Test.Core.ToolCallNotices`, `live answers` (24 passed: X1-X14, C1-C10) and `live demo-path`; `node --test web/scripts/` (initial bundle 886 kB under the 921 kB cap), `npm run build`, `tsc -p tsconfig.e2e.json`, `catalog.mjs --check`, `payloads.mjs --check`; `test-readme.sh`, `test-release-sequence.sh overviewdoc`, `test-class-rules.sh`, `test-boundaries.sh`. After the review patches: `node --test web/scripts/` (2,084 pass), `test-release-sequence.sh overviewdoc` PASS, `lint_spine.py` the same 10 baseline findings as before the edits, no new non-ASCII byte in any added line. The two review-pass mutations are in `## Verification`. Stacks `e21s10iw` and `e21s10i` are down.
+
+**Residual risks.** `npm run build` warns that the `approval-request-card` stylesheet is 244 bytes over its 4 kB budget (a warning; not compared with the state before this story). The ruled DW-1314 text says "the MCP servers section below" while the section is headed "MCP tools" (ruled word for word; for the Planner). V12 ("canceled") is unchanged. A stage detail: the implement subagent started two `warm.sh up` runs in a detached subshell (a Rule 21 deviation); both finished and were torn down.

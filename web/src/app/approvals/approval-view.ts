@@ -12,7 +12,8 @@
  *   dry run with "Nothing has changed yet.", Approve and Reject and the expiry. Any other state has the label "Approval request",
  *   the answered status in place of the two buttons, and the dry run as a record: the fixed-targets line, the expiry and "Nothing
  *   has changed yet." go.
- * - The status texts are the catalog's answered.* keys. The answerer is named only when the install is local (not the online demo)
+ * - The status texts are the catalog's answered.* keys. A cancelled request has one only when the payload carries `cancelledAt` and
+ *   `server` (a tool call whose MCP server was removed, Story 21.10): answered.canceled, in the rejected tone with the circle-slash icon. The answerer is named only when the install is local (not the online demo)
  *   and `answeredBy` is not the signed-in user, compared without case. Times are page times with the zone name when it differs
  *   from the instance's.
  * - A dry run that is not an object, or has no numeric `affected`, leaves out the fixed-targets line and the dry run block, and
@@ -381,6 +382,10 @@ function statusOf(approval: ApprovalPayload, ctx: ApprovalContext): AnswerStatus
       return { text: ctx.render(`answered.rejected${named}`, answeredSlots(approval, ctx)), tone: 'rejected', icon: 'circle-slash' };
     case 'expired':
       return { text: ctx.render('answered.expired', { time: ctx.timeBeside(approval.expiresAt ?? '') }), tone: 'expired', icon: 'clock' };
+    case 'cancelled':
+      return textOf(approval.cancelledAt) !== '' && textOf(approval.server) !== ''
+        ? { text: ctx.render('answered.canceled', { time: ctx.timeBeside(approval.cancelledAt ?? ''), server: textOf(approval.server) }), tone: 'rejected', icon: 'circle-slash' }
+        : undefined;
     default:
       return undefined;
   }

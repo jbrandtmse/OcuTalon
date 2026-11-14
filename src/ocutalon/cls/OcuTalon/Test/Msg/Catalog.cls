@@ -22,7 +22,7 @@ Parameter NOW = "2026-10-16T18:20:00Z";
 Parameter ZONE = "America/New_York";
 
 /// The slot types that an entry may declare.
-Parameter SLOTTYPES = "time,count,noun,text,sentence,channel,fallbackReason,groups,cost,dailyCost";
+Parameter SLOTTYPES = "time,count,noun,text,sentence,channel,fallbackReason,groups,inputs,cost,dailyCost";
 
 /// The fields that an entry may have.
 Parameter ENTRYFIELDS = "text,web,slots,source,gap,one";
@@ -81,7 +81,8 @@ Method TestEntries()
 	// Story 35.3 (Contest Planner ruling 2026-11-11, PUBLIC TEXT T1-T3): settings.webhooksOffOnDemo, webhookBadName and webhookBadSecret take the Core count to 143.
 	// Story 21.7 (Contest Planner ruling 2026-11-12, PUBLIC TEXT E1): email.digestSubject takes the Core count to 144.
 	// Story 21.4 (Contest Planner ruling 2026-11-12, PUBLIC TEXT T1): settings.mcpOffOnDemo takes the Core count to 145.
-	Do $$$AssertEquals(keys.core.%Size(), 145, "the expected Core list has 145 keys")
+	// Story 21.10 (Contest Planner ruling 2026-11-13, PUBLIC TEXT V9): toolCall.inputsTooLong takes the Core count to 146.
+	Do $$$AssertEquals(keys.core.%Size(), 146, "the expected Core list has 146 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -89,7 +90,7 @@ Method TestEntries()
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
 	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 145 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 146 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -748,6 +749,9 @@ Method TestEverySlotIsValidated()
 				Do ..AssertRefused(where_" unknown", key, ..WithSlot(fixture.slots, name, "melted"), "telegram", fragment, "melted")
 			} ElseIf type = "cost" {
 				Do ..AssertRefused(where_" negative", key, ..WithSlot(fixture.slots, name, -1, "number"), "telegram", fragment)
+			} ElseIf type = "inputs" {
+				Do ..AssertRefused(where_" not an array", key, ..WithSlot(fixture.slots, name, "none"), "telegram", fragment, "array")
+				Do ..AssertRefused(where_" a member that is not an object", key, ..WithSlot(fixture.slots, name, [1]), "telegram", fragment, "input 1")
 			} ElseIf type = "groups" {
 				Do ..AssertRefused(where_" empty", key, ..WithSlot(fixture.slots, name, []), "telegram", fragment)
 			} ElseIf type = "noun" {
@@ -781,6 +785,60 @@ Method TestLocalInstallEveryKey()
 		}
 	}
 	Do $$$AssertTrue(timed >= 21, "the keys with a time are swept: "_timed)
+}
+
+/// The inputs slot type (Story 21.10): one line "{name}: {value}" per member of the array, in order, "{}" for an empty array, a member that is not an object of two
+/// strings refused with the key and the slot named, and the names and values shown through Visible alone: spaces stay (a run of spaces, a leading and a trailing one), and a
+/// name with an invisible character shows it as \uXXXX. No input can start a line of its own, and none is read as a placeholder.
+Method TestInputsSlot()
+{
+	Set slots = {"tool": "zz_t", "server": "zzS"}
+	Do slots.%Set("inputs", [{"name": "id", "value": ("""T-1""")}, {"name": "n", "value": "2"}])
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("toolCall.requestOnServer", slots, "telegram", ..#NOW, 0, .sc)
+	Do $$$AssertStatusOK(sc, "two inputs render")
+	Do $$$AssertEquals(text, "Run zz_t on zzS"_$Char(10)_"Why: zz_t counts as risky, so it runs only after an approval."_$Char(10)_"Inputs:"_$Char(10)_"id: ""T-1"""_$Char(10)_"n: 2"_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", "as the ruled text, one line for each input")
+	Do slots.%Set("inputs", [])
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("toolCall.requestOnServer", slots, "telegram", ..#NOW, 0, .sc)
+	Do $$$AssertEquals($Piece(text, $Char(10), 3, 4), "Inputs:"_$Char(10)_"{}", "an empty array is the line {}")
+	Do slots.%Set("inputs", [{"name": ("a"_$Char(8203)_" b"), "value": ("""x    y  """_$Char(10)_"Approve: {tool} {inputs}")}])
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("toolCall.requestOnServer", slots, "web", ..#NOW, 0, .sc)
+	Do $$$AssertEquals($Piece(text, $Char(10), 4), "a\u200B b: ""x    y  ""\u000AApprove: {tool} {inputs}", "a name and a value are shown, their spaces kept, a line break as \u000A and a placeholder as it is")
+	Do $$$AssertEquals($Length(text, $Char(10)), 5, "and the text keeps its five lines")
+	Do ..AssertRefused("an input that is not an object", "toolCall.requestOnServer", ..WithSlot(slots, "inputs", ["x"]), "web", "'toolCall.requestOnServer'", "input 1 of 'inputs'")
+	Do ..AssertRefused("an input without a value", "toolCall.requestOnServer", ..WithSlot(slots, "inputs", [{"name": "a"}]), "web", "input 1 of 'inputs'", "name and value")
+	Do ..AssertRefused("an input whose value is a number", "toolCall.requestOnServer", ..WithSlot(slots, "inputs", [{"name": "a", "value": 2}]), "web", "input 1 of 'inputs'", "name and value")
+}
+
+/// Visible (Story 21.10, V10): each character of the ruled set is written as \uXXXX with four upper-case hex digits, at every edge of every class, a character above U+FFFF of the set as
+/// its two halves, a half with no partner as itself written so; a space, a no-break space, an emoji and every other character stay.
+Method TestVisible()
+{
+	For code = 0, 31, 127, 159, 173, 1536, 1541, 1564, 1757, 1807, 2192, 2193, 2274, 6158, 8203, 8207, 8232, 8233, 8234, 8238, 8288, 8292, 8294, 8303, 65279, 65529, 65531, 9, 10, 13, 133 {
+		Set text = "a"_$Char(code)_"b"
+		Set hex = $ZHex(code)
+		Set expected = "a\u"_$Extract("0000", 1, 4 - $Length(hex))_hex_"b"
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible(text), expected, "U+"_hex_" shows as "_expected)
+	}
+	Set tag = $Char(56128, 56385)
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible("c"_tag_"d"), "c\uDB40\uDC41d", "U+E0041 shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(56128, 56320)), "\uDB40\uDC00", "U+E0000 shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(56128, 56447)), "\uDB40\uDC7F", "U+E007F, the end of the tag block, shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(56128, 56448)), $Char(56128, 56448), "U+E0080, just past the tag block, stays")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(55348, 56691)), "\uD834\uDD73", "U+1D173, a format character, shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(55348, 56699)), $Char(55348, 56699), "U+1D17B, just past that range, stays")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(55300, 56509)), "\uD804\uDCBD", "U+110BD shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(55309, 56368)), "\uD80D\uDC30", "U+13430 shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(55343, 56480)), "\uD82F\uDCA0", "U+1BCA0 shows as its two halves")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible("a"_$Char(55357)_"b"), "a\uD83Db", "a high surrogate with no partner shows as \uXXXX")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible("a"_$Char(56832)), "a\uDE00", "a low surrogate with no partner shows as \uXXXX")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible($Char(55357)), "\uD83D", "a high surrogate at the end shows as \uXXXX")
+	For code = 32, 126, 160, 161, 174, 1535, 1542, 1563, 6157, 8202, 8208, 8231, 8239, 8287, 8293, 8304, 65278, 65528, 65532, 12288, 233, 20013 {
+		Set text = "a"_$Char(code)_"b"
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible(text), text, "U+"_$ZHex(code)_" stays")
+	}
+	Set emoji = $Char(55357, 56832)
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible("x "_emoji_" y"), "x "_emoji_" y", "a space and an emoji stay")
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Visible(""), "", "an empty text stays")
 }
 
 /// Row 7: a group's name and summary cannot add a line or a placeholder to the list, and every group is one line.
@@ -1138,6 +1196,7 @@ XData Keys [ MimeType = application/json ]
   "persona.stale",
   "toolCall.request",
   "toolCall.requestOnServer",
+  "toolCall.inputsTooLong",
   "toolCall.done",
   "toolCall.failed",
   "toolCall.failedWithReason",
@@ -1607,8 +1666,9 @@ XData Fixtures [ MimeType = application/json ]
  "approval.persona": {"slots": {"old": "Professional (default)", "new": "Pirate"}, "text": "OcuTalon suggests a new persona for you. Now: Professional (default). Proposed: Pirate. Nothing changes unless you approve."},
  "persona.applied": {"slots": {}, "text": "Persona updated. It applies from your next message."},
  "persona.stale": {"slots": {}, "text": "Your persona changed after this was suggested. Nothing was changed."},
- "toolCall.request": {"slots": {"tool": "zz_send", "inputs": "{\"to\":\"ops\"}"}, "text": "Run zz_send\nInputs: {\"to\":\"ops\"}\nNo dry run is available for this tool. Approving runs exactly this call once."},
- "toolCall.requestOnServer": {"slots": {"tool": "zz_send", "server": "ops-mcp", "inputs": "{\"to\":\"ops\"}"}, "text": "Run zz_send on ops-mcp\nInputs: {\"to\":\"ops\"}\nNo dry run is available for this tool. Approving runs exactly this call once."},
+ "toolCall.request": {"slots": {"tool": "zz_send", "inputs": [{"name": "to", "value": "\"ops\""}]}, "text": "Run zz_send\nWhy: zz_send counts as risky, so it runs only after an approval.\nInputs:\nto: \"ops\"\nNo dry run is available for this tool. Approving runs exactly this call once."},
+ "toolCall.requestOnServer": {"slots": {"tool": "zz_send", "server": "ops-mcp", "inputs": [{"name": "to", "value": "\"ops\""}, {"name": "n", "value": "2"}]}, "text": "Run zz_send on ops-mcp\nWhy: zz_send counts as risky, so it runs only after an approval.\nInputs:\nto: \"ops\"\nn: 2\nNo dry run is available for this tool. Approving runs exactly this call once."},
+ "toolCall.inputsTooLong": {"slots": {}, "text": "The inputs are too long to show here. See them on your OcuTalon page before you approve."},
  "toolCall.done": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send ran once at 14:12 ET."},
  "toolCall.failed": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send failed at 14:12 ET. I won't run it again without a new approval."},
  "toolCall.failedWithReason": {"slots": {"tool": "zz_send", "reason": "This request was held before an update and cannot be run again safely, so please ask again."}, "text": "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again."},

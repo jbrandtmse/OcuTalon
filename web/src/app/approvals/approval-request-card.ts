@@ -99,7 +99,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  * of this request: where the answer took focus it is already spoken.
  *
  * The chat panel also draws it for a tool call's request (Story 31.6): with the request text as `request`, the action is that text
- * (its lines kept) and the buttons are named by its first line.
+ * (its lines kept, and its runs of spaces: `white-space: pre-wrap`, so an input's spaces show as the notice wrote them) and the buttons are named by its first line.
  *
  * The card is a section that the chat's New messages button can focus (tabindex -1). Focus: when an update replaces the focused
  * Approve or Reject, the shared focus rule (shared/focus-rule.ts) puts it on the status line (tabindex -1). The card moves no
@@ -112,7 +112,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
   template: `
     <section [class]="'request bar-' + view().bar" data-part="approval" [attr.data-key]="view().ref" tabindex="-1" [attr.aria-labelledby]="labelId">
       <div class="label" [class.pending]="view().pending" [id]="labelId">{{ view().label }}</div>
-      <p class="action">{{ view().action }}</p>
+      <p class="action" [class.text]="request() !== ''">{{ view().action }}</p>
       @if (view().fixedTargets) {
         <p class="fixed">{{ view().fixedTargets }}</p>
       }
@@ -295,6 +295,9 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
       font-size: var(--type-body-font-size);
       font-weight: var(--type-body-strong-font-weight);
       line-height: var(--type-body-line-height);
+    }
+    .action.text {
+      white-space: pre-wrap;
     }
     .fixed {
       margin-top: var(--space-1);

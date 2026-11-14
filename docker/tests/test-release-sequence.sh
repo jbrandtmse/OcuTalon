@@ -2324,7 +2324,27 @@ ovw_doc_problems() {
   return 0
 }
 
-# mcp_doc_problems <file>: one line per problem of the worked example (Story 22.6), nothing for a good file: its title, ASCII only and no machine path, an address
+# The approval sentence of the worked example's third step (Story 21.10, D3), and the catalog entry whose first and last lines its two quoted strings are.
+OVW_MCP_APPROVAL='The chat shows an approval request that reads "Run add_comment on Jira", says why it waits, lists each of its inputs on a line of its own and ends with "No dry run is available for this tool. Approving runs exactly this call once."'
+OVW_MCP_CATALOG=src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls
+
+# mcp_approval_problems <file> [<catalog class>]: one line per problem of the approval sentence of the worked example: it is not in the file exactly once, or the
+# catalog's toolCall.requestOnServer text (the Entries block of the class, whose lines are joined by \n) has a first line that, with {tool} add_comment and {server} Jira, is not
+# "Run add_comment on Jira", or a last line that is not "No dry run is available for this tool. Approving runs exactly this call once.".
+mcp_approval_problems() {
+  local f=$1 catalog=${2:-} text first last
+  [ -n "$catalog" ] || catalog=$OVW_MCP_CATALOG
+  [ "$(grep -cF -e "$OVW_MCP_APPROVAL" "$f")" -eq 1 ] || echo "the example lacks the approval sentence of step 3 exactly once"
+  text=$(awk '/^ "toolCall.requestOnServer": \{/ { on = 1; next } on && /^  "text": "/ { sub(/^  "text": "/, ""); sub(/",$/, ""); print; exit }' "$catalog")
+  first=${text%%\\n*}
+  last=${text##*\\n}
+  first=${first//\{tool\}/add_comment}
+  first=${first//\{server\}/Jira}
+  [ "$first" = 'Run add_comment on Jira' ] || echo "the catalog's first line of the tool call request is not the example's first quoted string"
+  [ "$last" = 'No dry run is available for this tool. Approving runs exactly this call once.' ] || echo "the catalog's last line of the tool call request is not the example's last quoted string"
+}
+
+# mcp_doc_problems <file> [<catalog class>]: one line per problem of the worked example (Story 22.6), nothing for a good file: its title, ASCII only and no machine path, an address
 # only on example.com (a secret:// reference is no address), the shared texts word for word and no other "deadline" line, the lines of ovw_mcp_example_lines word for
 # word, no text about the changed-tool replay path or source polls, the sentence that says MCP is off on the online demo, the expiry sentence and the link to the
 # overview's MCP section.
@@ -2357,6 +2377,7 @@ EOF
     grep -qF -e "A request that nobody answers within $((v / 3600)) hours expires." "$f" || echo "the example lacks the sentence that a request expires after $((v / 3600)) hours"
   fi
   grep -qF -e '](security-overview.md#mcp-tools)' "$f" || echo "the example does not link the overview's MCP tools section"
+  mcp_approval_problems "$f" "${2:-}"
   return 0
 }
 
@@ -2499,6 +2520,12 @@ a line other than the time-limits paragraph mentions a deadline"
   sed "s/^- Each call of a server's tool that runs writes/- Each call of a server's tool writes/" "$ex" > "$d/e-audit.md"
   eq "control: \"that runs\" dropped from the audit bullet in the example" "$(mcp_doc_problems "$d/e-audit.md")" "the example lacks ruled line 13 of its classification and governance text word for word"
   sed 's/](security-overview\.md#mcp-tools)/](security-overview.md)/' "$ex" > "$d/e-link.md"
+  sed 's/reads "Run add_comment on Jira"/reads "Run add_comment on Jira Cloud"/' "$ex" > "$d/e-approval.md"
+  eq "control: the example's first quoted string changed" "$(mcp_doc_problems "$d/e-approval.md")" "the example lacks the approval sentence of step 3 exactly once"
+  sed 's/Approving runs exactly this call once\./Approving runs this call./' "$OVW_MCP_CATALOG" > "$d/catalog.cls"
+  eq "control: a catalog copy with its last line changed" "$(mcp_doc_problems "$ex" "$d/catalog.cls")" "the catalog's last line of the tool call request is not the example's last quoted string"
+  sed 's/"text": "Run {tool} on {server}\\nWhy/"text": "Run {tool} at {server}\\nWhy/' "$OVW_MCP_CATALOG" > "$d/catalog-first.cls"
+  eq "control: a catalog copy with its first line changed" "$(mcp_doc_problems "$ex" "$d/catalog-first.cls")" "the catalog's first line of the tool call request is not the example's first quoted string"
   eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5
   # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)

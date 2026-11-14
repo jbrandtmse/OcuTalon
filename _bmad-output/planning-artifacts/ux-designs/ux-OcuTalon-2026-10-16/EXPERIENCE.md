@@ -967,6 +967,8 @@ Banners stack in this table's order.
 | Tool shadows a built-in (`mcp.toolShadowsBuiltIn`, admins' chat notice) | "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed." |
 | Tool changed (`mcp.toolChanged`, admins' chat notice) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval." |
 | Approved call, tool changed (`mcp.replayToolChanged`, result of the approved tool-call request, every channel) | "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." |
+| Tool-call approval request (`toolCall.request` and `toolCall.requestOnServer`, every channel) [ADDED 2026-11-14, Story 21.10] | "Run {tool} on {server}", then "Why: {tool} counts as risky, so it runs only after an approval.", then "Inputs:", then one line "{name}: {value}" per input ("{}" for none), then "No dry run is available for this tool. Approving runs exactly this call once." (`toolCall.request` has no " on {server}") |
+| Tool-call inputs too long (`toolCall.inputsTooLong`, Telegram only) [ADDED 2026-11-14, Story 21.10] | "The inputs are too long to show here. See them on your OcuTalon page before you approve." |
 | Source stopped (`mcp.sourceStopped`, admins' chat notice) | "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked." |
 | Digest, not checked: stopped (`digest.notCheckedStopped`, digest coverage line) | "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only)." |
 
@@ -1143,7 +1145,7 @@ Lighter specs. Components with behavior of their own are under Component Pattern
   - **A changed tool** returns to Unclassified (FR-48). Admins are told by a banner in Settings and by a notice card in the chat.
 - **Sources:** a read-only tool can be set as a source poll (FR-50), and it then joins the digest's coverage list.
 - [ADDED 2026-11-09, Story 35.2] **Settings › Channels** (email, webhooks), the changed-tool banner and the source-poll form take their texts from the Message Catalog block "Settings and requests (step 4)".
-- **The approval request for a tool call** shows "Run {tool} on {server}" and the exact inputs as labeled lines. Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17).
+- **The approval request for a tool call** shows "Run {tool} on {server}", "Why: {tool} counts as risky, so it runs only after an approval." and the exact inputs as labeled lines, "{name}: {value}", each value as JSON and never cut ("{}" for a call with no inputs). Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17). In Telegram, a request too long for one message shows its start with no Approve button and ends with "The inputs are too long to show here. See them on your OcuTalon page before you approve." [AMENDED 2026-11-14, Story 21.10]
 
 ### Step 5: more fixes (brief)
 

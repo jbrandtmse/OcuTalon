@@ -249,6 +249,8 @@ export interface ApprovalPayload {
   answeredAt?: string;
   result?: string;
   finishedAt?: string;
+  server?: string;
+  cancelledAt?: string;
   traceHeaderId?: number;
   traceNamespace?: string;
   traceUrl?: string;

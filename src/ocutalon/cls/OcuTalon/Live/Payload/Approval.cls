@@ -50,6 +50,13 @@ Property Result As %String(%JSONFIELDNAME = "result", MAXLEN = 32);
 /// When the action finished, UTC to the second.
 Property FinishedAt As %String(%JSONFIELDNAME = "finishedAt", MAXLEN = 20);
 
+/// The MCP server of a tool call, the name that Core.BridgeSink ServerOf reads from the request's ToolSource; empty for any other request. The bare mcp: form gives back its whole
+/// rest, so the length is the ToolSource's.
+Property Server As %String(%JSONFIELDNAME = "server", MAXLEN = 512);
+
+/// When the request was cancelled because its MCP server was removed, UTC to the second. Only Core.BridgeSink sets it, on the event of that cancellation; a row has no source for it.
+Property CancelledAt As %String(%JSONFIELDNAME = "cancelledAt", MAXLEN = 20);
+
 /// The trace session id of the request's incident (AD-26); absent when the request has no incident that the session can
 /// see, or the incident has no trace.
 Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
@@ -65,7 +72,7 @@ Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 1
 /// addresses: its part holds the recipients as plain addresses, the exact text as the notice and the exact subject as before, every other field empty, simulated 0, eitherWay 0 and no
 /// reading. A dry run of an email request that is not as expected leaves those members out, and the part is still there, never an error. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
 /// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
-/// stays empty. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
+/// stays empty, and so does cancelledAt. A tool_call row's server is ServerOf(ToolSource), empty when the source names none. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
 /// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
 /// TraceHeaderId, traceHeaderId is that id and traceNamespace the current namespace. Otherwise the payload has no target.
 ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %String = "") As OcuTalon.Live.Payload.Approval
@@ -85,6 +92,7 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 	Set payload.AnsweredAt = row.AnsweredAt
 	Set payload.Result = row.Result
 	Set payload.FinishedAt = row.FinishedAt
+	If row.Kind = "tool_call" Set payload.Server = ##class(OcuTalon.Core.BridgeSink).ServerOf(row.ToolSource)
 	If (sessionRef '= "") && (row.IncidentRef '= "") {
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(row.IncidentRef, sessionRef, .sc)
 		If $SYSTEM.Status.IsOK(sc), $IsObject(incident), incident.TraceHeaderId '= "" {

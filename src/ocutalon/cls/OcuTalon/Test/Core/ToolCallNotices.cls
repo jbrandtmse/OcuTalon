@@ -10,8 +10,10 @@
 ///   - the same test, for the web chat: a row of kind approval with the same text as the phone's, a row of kind result with the web
 ///     render of toolCall.done (these two are the chat's cards, in RecentNotices), and the answered notice's row with no
 ///     ChannelMessageId, which is not a card;
-///   - TestChangedResultSendsANotice (Story 22.4, R1): a call that ends with the result changed (an approved MCP call whose tool changed) sends the owner a result notice: the web
-///     chat gets a row of kind result for the request;
+///   - TestChangedResultSendsANotice (Story 22.4, R1; DW-1232): a call that ends with the result changed (an approved MCP call whose tool changed) sends the owner a result notice: the web
+///     chat gets a card of kind result for the request with the web render of mcp.replayToolChanged, and the phone a new message with its phone render;
+///   - TestCancelledEditsInPlace (Story 21.10): an MCP request whose server has no row, cancelled through Approval Cancel, becomes the phone render of answered.canceled in its own
+///     message, with no second message, and the web chat has the answered notice's row only;
 ///   - TestRejectedAndExpiredEditInPlace: a rejected call gets the render of answered.rejected and an expired one the render of
 ///     answered.expired in the request's message, and neither adds a message.
 ///   - TestHeldReasonReachesTheWebChat (DW-454): an old held call closed by Decide with the bridge's sentence reaches the web chat as
@@ -57,7 +59,7 @@ Method TestApprovedCallReachesThePhone()
 	Do $$$AssertTrue($IsObject(message), "the phone gets the request's message within "_..#WAIT_" seconds")
 	If '$IsObject(message) Quit
 	Set row = ..Request(ref)
-	Set expected = ..Render("toolCall.request", {"tool": (..#TOOL), "inputs": (##class(OcuTalon.Bridge.Redact).Text(row.ToolArguments))})
+	Set expected = ..Render("toolCall.request", {"tool": (..#TOOL), "inputs": (##class(OcuTalon.Core.BridgeSink).InputsOf(row.ToolArguments))})
 	Do $$$AssertEquals(message.Text, expected, "its text is the phone render of toolCall.request")
 	Do $$$AssertEquals($Piece(message.Text, $Char(10), 1), "Run "_..#TOOL, "which starts with the tool")
 	Do $$$AssertEquals(message.ApprovalRef_"|"_message.Answer, ref_"|", "it carries the request's Ref, so that the phone draws Approve and Reject, and no answer")
@@ -137,14 +139,53 @@ Method TestChangedResultSendsANotice()
 	Set session = ..Session("changed")
 	Set ref = ..HeldCall(session)
 	If ref = "" Quit
+	Set request = ..WaitWebRow(session, "approval", 1)
+	Do $$$AssertTrue($IsObject(request), "the web chat has the request's card first")
 	Set row = ..Request(ref)
 	Set row.State = "executing"
-	Do $$$AssertStatusOK(row.%Save(), "the request is executing")
+	Set row.ToolSource = "mcp:remote:@{config:AI.MCP.OcuTalon_zzchanged}"
+	Do $$$AssertStatusOK(row.%Save(), "the request is executing, and its source names an MCP server")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).FinishExecution(ref, "changed"), "the run ends with the result changed")
-	Set web = ..WaitWebRow(session, "result", 0)
-	Do $$$AssertTrue($IsObject(web), "the web chat gets a row of kind result")
-	If $IsObject(web) Do $$$AssertEquals(web.ApprovalRef, ref, "for the request")
+	Set web = ..WaitWebRow(session, "result", 1)
+	Do $$$AssertTrue($IsObject(web), "the web chat gets a card of kind result")
+	Set slots = {"tool": (..#TOOL), "server": "zzchanged"}
+	If $IsObject(web) {
+		Do $$$AssertEquals(web.ApprovalRef, ref, "for the request")
+		Do $$$AssertEquals(web.Text, ..Render("mcp.replayToolChanged", slots, "web"), "with the web render of mcp.replayToolChanged")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 2, "so the request and the changed result are the web chat's two cards")
+	}
+	Set phone = ..WaitMessage(session, "", 2)
+	Do $$$AssertTrue($IsObject(phone), "the phone gets a new message")
+	If $IsObject(phone) Do $$$AssertEquals(phone.Text_"|"_phone.ApprovalRef, ..Render("mcp.replayToolChanged", slots)_"|", "with the phone render of mcp.replayToolChanged and no buttons")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(ref, "State") _ "|" _ ##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(ref, "Result"), "failed|changed", "the request ended failed with the result changed")
+}
+
+/// Story 21.10: an MCP request whose server has no Mcp.Server row, cancelled through Approval Cancel (the call of Mcp.Ops Unregister), edits the request's phone message in place
+/// to the phone render of answered.canceled {time, server}, adds no second message, and gives the web chat the answered notice's row with no text and no message id.
+Method TestCancelledEditsInPlace()
+{
+	If '..Guard() Quit
+	If '..UseReplayAgent() Quit
+	Set session = ..Session("cancelled")
+	Set ref = ..HeldCall(session)
+	If ref = "" Quit
+	Set message = ..WaitMessage(session, ref, 1)
+	Do $$$AssertTrue($IsObject(message), "the request reaches the phone")
+	If '$IsObject(message) Quit
+	Set row = ..Request(ref)
+	Set row.ToolSource = "mcp:remote:@{config:AI.MCP.OcuTalon_zzcancel}"
+	Do $$$AssertStatusOK(row.%Save(), "the request's source names an MCP server that has no row")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Server).NameIndexExists("zzcancel"), 0, "the server is not registered")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Cancel(ref), "the request is cancelled")
+	Set answered = ..WaitAnswer(message.Ref)
+	Do $$$AssertTrue($Extract(answered.Answer, 1, 12) = "Canceled at ", "the request's message has the render of answered.canceled as its Answer: "_..Facts(ref, session))
+	Do $$$AssertTrue(answered.Answer [ "the MCP server zzcancel was removed. Nothing was changed.", "which names the server and says that nothing was changed")
+	Do $$$AssertEquals(answered.Text_"|"_answered.ApprovalRef, message.Text_"|"_ref, "and keeps its text and request")
+	Hang 2
+	Do $$$AssertEquals(..PhoneCount(session), 1, "and the phone has no second message")
+	Set webAnswered = ..WaitWebRow(session, "answered", 0)
+	Do $$$AssertTrue($IsObject(webAnswered), "the web chat has the answered notice's row")
+	If $IsObject(webAnswered) Do $$$AssertEquals(webAnswered.ChannelMessageId_"|"_webAnswered.Text, "|", "with no message id and no text")
 }
 
 Method TestRejectedAndExpiredEditInPlace()

@@ -1672,15 +1672,17 @@ chk_licence() {
   fi
 }
 
-# docs (Story 31.3, AC 2 and AC 7): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
+# docs (Story 31.3, AC 2 and AC 7; Story 21.10 pins L111, L187 and APPROVAL_TAIL, DW-1266, DW-1314 and DW-1315): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
 BRIDGE_BULLET_START='- InterSystems AI Hub, build 154, '
 BRIDGE_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet.'
 IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
 IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.'
-L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
-L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry."
+L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and each of its inputs on a line of its own through the redactor, with the full call kept in the approval record (a tool call). In Telegram, an approval request for a tool call that is too long for one message shows only its start, with no Approve button.'
+L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and each of its inputs on a line of its own, through the redactor, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry. A request too long to show in full on Telegram has no Approve button there."
 L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
 L2115="- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it."
+APPROVAL_TAIL="Every built-in tool is safe except \`send_email\` and \`call_mcp_tool\`, which are classified per call. Code classifies \`send_email\`: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. \`call_mcp_tool\` takes the admin's classification of the server's tool at its current fingerprint, and an unclassified tool counts as risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do. A risky MCP call waits for a person's approval of that exact call, as the MCP servers section below describes."
+APPROVAL_FRAME="## Approval and audit"
 MCP_FRAME="## MCP tools"
 chk_docs() {
   if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
@@ -1698,6 +1700,12 @@ chk_docs() {
   if [ "$(grep -c -x -F -- "$L2115" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about the trace and an email's content once"; fi
   if ! awk -v p="$L2114" -v l="$L2115" 'prev == p && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
     echo "docs: the trace and an email's content line is not the bullet right after the trace role's sentence"
+  fi
+  if [ "$(awk -v t="$APPROVAL_TAIL" '{ n = length($0); m = length(t); if (n >= m && substr($0, n - m + 1) == t) c++ } END { print c + 0 }' "$3")" -ne 1 ]; then
+    echo "docs: $SECOV_DOC does not hold exactly one line that ends with the ruled text about the classification of the built-in tools"
+  fi
+  if ! awk -v f="$APPROVAL_FRAME" -v t="$APPROVAL_TAIL" '$0 == f { a = 1; next } a && $0 != "" { n = length($0); m = length(t); ok = (n >= m && substr($0, n - m + 1) == t); a = 0 } END { exit !ok }' "$3"; then
+    echo "docs: the ruled text about the classification of the built-in tools is not the first paragraph under \"$APPROVAL_FRAME\""
   fi
   if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
   if ! awk -v f="$MCP_FRAME" -v l="$L187" '/^#/ && a && !b { h = 1 } $0 == f { a = NR } $0 == l { b = NR } END { exit !(a && b && a < b && !h) }' "$3"; then
@@ -3220,7 +3228,10 @@ rule_docs() {
   st 'the IPM page without the build 109 sentence' 2 "$ipmdoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds\./, "") } { print }' chk_docs
   st 'the IPM page sentence changed' 2 "$ipmdoc_p" '{ sub(/was run on fresh IRIS for Health instances of both builds/, "has not been tested") } { print }' chk_docs
   st 'the approval section back to the exact call' 3 "$secov_p" 'index($0, "- It is fixed to exact targets and shows its dry run (a fix), or the tool") == 1 { print "- It is fixed to exact targets and shows its dry run (a fix) or the exact call (a tool call)."; next } { print }' chk_docs
-  st 'the approval section line without the 200 characters' 3 "$secov_p" '{ sub(/, cut to 200 characters/, "") } { print }' chk_docs
+  st 'the approval section line without its Telegram sentence' 3 "$secov_p" '{ sub(/ In Telegram, an approval request for a tool call that is too long for one message shows only its start, with no Approve button\./, "") } { print }' chk_docs
+  st 'the MCP rules line without its Telegram sentence' 3 "$secov_p" '{ sub(/ A request too long to show in full on Telegram has no Approve button there\./, "") } { print }' chk_docs
+  st 'the built-in tools without call_mcp_tool' 3 "$secov_p" '{ sub(/`send_email` and `call_mcp_tool`, which are classified per call\./, "`send_email`, which code classifies per call.") } { print }' chk_docs
+  st 'the built-in tools paragraph without its last sentence' 3 "$secov_p" '{ sub(/ A risky MCP call waits for a person.s approval of that exact call, as the MCP servers section below describes\./, "") } { print }' chk_docs
   st 'the MCP rules back to the exact call' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step."; next } { print }' chk_docs
   st 'the MCP rules line without the full call kept' 3 "$secov_p" '{ sub(/, with the full call kept in the approval record\), an audit entry/, "), an audit entry") } { print }' chk_docs
   st 'the MCP tools heading removed' 3 "$secov_p" '!/^## MCP tools$/' chk_docs
@@ -3233,7 +3244,7 @@ rule_docs() {
   st 'the trace role sentence changed' 3 "$secov_p" '{ sub(/an email.s sender, subject and text/, "an email subject") } { print }' chk_docs
   st 'the trace role sentence moved down one bullet' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
   st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
-  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the four ruled lines of the security overview are there, word for word' chk_docs
+  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the ruled lines of the security overview, the ones about an approval request for a tool call included, are there, word for word' chk_docs
 }
 
 rule_word_cap() {

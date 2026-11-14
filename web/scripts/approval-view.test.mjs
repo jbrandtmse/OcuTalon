@@ -436,6 +436,19 @@ describe('an answered card', () => {
     });
   });
 
+  it('reads a cancelled request of a removed MCP server as canceled, only with cancelledAt and server (Story 21.10)', () => {
+    const tool = (over = {}) => pending({ kind: 'tool_call', state: 'cancelled', incidentRef: undefined, toolName: 'zz_t', dryRun: undefined, ...over });
+    assert.deepEqual(approvalView(tool({ server: 'zzS', cancelledAt: '2026-10-27T14:20:00Z' }), ctx()).status, {
+      text: 'Canceled at 14:20: the MCP server zzS was removed. Nothing was changed.',
+      tone: 'rejected',
+      icon: 'circle-slash',
+    });
+    assert.equal(approvalView(tool({ server: 'zzS', cancelledAt: '2026-10-27T14:20:00Z' }), ctx()).pending, false);
+    assert.equal(approvalView(tool({ server: 'zzS' }), ctx()).status, undefined, 'a cancel with no cancelledAt (a session end) shows no status');
+    assert.equal(approvalView(tool({ cancelledAt: '2026-10-27T14:20:00Z' }), ctx()).status, undefined, 'and one with no server shows none');
+    assert.equal(approvalView(tool(), ctx()).status, undefined);
+  });
+
   it('reads the channel by its name, and the time as a page time that names the zone when the browser\'s differs', () => {
     assert.equal(approvalView(answered('approved', { answeredChannel: 'phone' }), ctx()).status.text, 'Approved from the simulated phone at 14:15');
     assert.equal(approvalView(answered('approved', { answeredChannel: 'telegram' }), ctx()).status.text, 'Approved from Telegram at 14:15');

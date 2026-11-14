@@ -199,7 +199,7 @@ Method TestIncidentKindsRecordOnly()
 	Do ..AssertRecordOnly(..Session("incident"), $ListFromString(##class(OcuTalon.Channel.WebChat.Out).#INCIDENTKINDS), "the incident kinds")
 }
 
-/// A tool call's notices (Story 31.6) are cards of the web chat: each of the five keys of Core.BridgeSink, sent with its kind
+/// A tool call's notices (Story 31.6) are cards of the web chat: each of the six keys of Core.BridgeSink (the sixth, mcp.replayToolChanged, is the card of an approved MCP call that was refused because its tool changed, DW-1232), sent with its kind
 /// (approval for the two request keys, result for the others), an ApprovalRef and its slots (and a DecisionRef for the held-call
 /// reason), is rendered for the web, recorded with a new ChannelMessageId, the ApprovalRef, the kind and the DecisionRef, published
 /// as one notification event whose payload carries the approvalRef and the text, and listed in RecentNotices. These record their
@@ -212,12 +212,14 @@ Method TestToolCallCards()
 	Set session = ..Session("toolcall")
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	Set clock = ##class(OcuTalon.Data.Time).ForMessage(now, now)
-	Set inputs = "{""to"":""ops""}"
-	Set cases = $ListBuild($ListBuild("approval", "toolCall.request", ({"tool": "zz_send", "inputs": (inputs)}).%ToJSON(), "Run zz_send"_$Char(10)_"Inputs: "_inputs_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", ""))
-	Set cases = cases_$ListBuild($ListBuild("approval", "toolCall.requestOnServer", ({"tool": "zz_send", "server": "ops-mcp", "inputs": (inputs)}).%ToJSON(), "Run zz_send on ops-mcp"_$Char(10)_"Inputs: "_inputs_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", ""))
+	Set inputs = [{"name": "to", "value": ("""ops""")}]
+	Set why = "Why: zz_send counts as risky, so it runs only after an approval."
+	Set cases = $ListBuild($ListBuild("approval", "toolCall.request", ({"tool": "zz_send", "inputs": (inputs)}).%ToJSON(), "Run zz_send"_$Char(10)_why_$Char(10)_"Inputs:"_$Char(10)_"to: ""ops"""_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", ""))
+	Set cases = cases_$ListBuild($ListBuild("approval", "toolCall.requestOnServer", ({"tool": "zz_send", "server": "ops-mcp", "inputs": (inputs)}).%ToJSON(), "Run zz_send on ops-mcp"_$Char(10)_why_$Char(10)_"Inputs:"_$Char(10)_"to: ""ops"""_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", ""))
 	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.done", ({"tool": "zz_send", "time": (now)}).%ToJSON(), "zz_send ran once at "_clock_".", ""))
 	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.failed", ({"tool": "zz_send", "time": (now)}).%ToJSON(), "zz_send failed at "_clock_". I won't run it again without a new approval.", ""))
 	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.failedWithReason", ({"tool": "zz_send", "reason": "This request was held before an update and cannot be run again safely, so please ask again."}).%ToJSON(), "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again.", "ZzToolDecision"))
+	Set cases = cases_$ListBuild($ListBuild("result", "mcp.replayToolChanged", ({"tool": "zz_send", "server": "ops-mcp"}).%ToJSON(), "zz_send on ops-mcp didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed.", ""))
 	Set position = 0, n = 0
 	While $ListNext(cases, position, case) {
 		Set n = n + 1
@@ -242,7 +244,7 @@ Method TestToolCallCards()
 		}
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), n, key_": and the card is in RecentNotices")
 	}
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 5, "five cards")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 6, "six cards")
 
 	Set quiet = ..Session("toolcallquiet")
 	Set noRef = ..Notification(quiet, "approval", "toolCall.request", {"tool": "zz_send", "inputs": (inputs)})

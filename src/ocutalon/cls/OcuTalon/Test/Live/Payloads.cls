@@ -367,6 +367,27 @@ Method TestFromRowRequestKinds()
 	Do $ClassMethod(fixture, "Clean", reroute_","_suspend_","_repair_","_row.Ref)
 }
 
+/// The server of a tool call (Story 21.10): FromRow gives Core.BridgeSink ServerOf(ToolSource) for a tool_call row, the name of the attach form, the whole rest of a bare mcp: form, and
+/// nothing for a class source or another kind; cancelledAt is never set by FromRow.
+Method TestApprovalServer()
+{
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Ref = "ZzServerRef"_..Number
+	Set request.Kind = "tool_call"
+	Set request.State = "cancelled"
+	Set request.ToolName = "zz_t"
+	For case = "mcp:remote:@{config:AI.MCP.OcuTalon_zzS}|zzS", "mcp:zzbare|zzbare", "OcuTalon.Test.Bridge.ZzReplayTool|", "|" {
+		Set request.ToolSource = $Piece(case, "|", 1)
+		Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+		Do $$$AssertEquals(payload.Server_"|"_payload.CancelledAt, $Piece(case, "|", 2)_"|", "the source '"_$Piece(case, "|", 1)_"' gives the server '"_$Piece(case, "|", 2)_"' and no cancelledAt")
+	}
+	Set request.ToolSource = "mcp:remote:@{config:AI.MCP.OcuTalon_zzS}"
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Payload.Approval).FromRow(request).%JSONExportToString(.json), "the payload exports")
+	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(json).server, "zzS", "the JSON member is server")
+	Set request.Kind = "fix"
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).Server, "", "a request of another kind has none")
+}
+
 /// A partner delay notice (Story 23.5; AC2, AC14): FromRow gives the dry run part the notice (with its line breaks), every recipient as "Name <address>" and simulated; no repair key is set, the exported JSON
 /// holds notice, recipients and simulated true and none of the repair keys, and a request of another kind has none of the three. The incident payload lists the request with its fixKind and no item or count.
 Method TestApprovalPartnerNotice()
@@ -1237,6 +1258,8 @@ XData Contracts [ MimeType = application/json ]
    "AnsweredAt": "%String(%JSONFIELDNAME=answeredAt,MAXLEN=20)",
    "Result": "%String(%JSONFIELDNAME=result,MAXLEN=32)",
    "FinishedAt": "%String(%JSONFIELDNAME=finishedAt,MAXLEN=20)",
+   "Server": "%String(%JSONFIELDNAME=server,MAXLEN=512)",
+   "CancelledAt": "%String(%JSONFIELDNAME=cancelledAt,MAXLEN=20)",
    "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
    "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)"
   }
