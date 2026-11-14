@@ -359,3 +359,5 @@
 2026-11-14T16:53:00Z	Story 21.10	fresh_check	env=merged_tree(1cb336d15) warm_e21s10mw:Msg.Catalog,BridgeSink,TelegramOut,WebChatOut,ToolCallNotices_pass;live_answers_25/25;node_2091/0;test-readme,boundaries_pass torn_down
 2026-11-14T16:53:49Z	Story 21.10	pushed	head=07928c52f ci=pending runs=43618045215,43618045286 feature_base=23fafe59b
 2026-11-14T16:53:49Z	Story 21.5	stage_spawned	stage=implement spawn_at=2026-11-14T16:53:49Z model=sonnet effort=high agent_name=21-5-implement-1 cycle_iteration=1 branch=OCT-epic21-s215 base=07928c52f note=22.5_merged;V8_approved
+2026-11-14T19:05:17Z	Story 21.5	dev_complete	model=sonnet effort=high build_sha=4830d2cc8 branch=OCT-epic21-s215 review=28(high0,med3,low25;8_patched) followup=false bundle=888.96kB(+0.56kB,V8) task0=22.5_matches_except_reserved_name(22.13;mapped_400_bad_source_name,McpOps_text_relayed,no_new_text)->reported;22.11_not_merged(T7_not_in_GUIDE);coverage_test_exists(22.5)
+2026-11-14T19:05:17Z	Story 21.5	stage_spawned	stage=qa spawn_at=2026-11-14T19:05:17Z model=sonnet effort=high agent_name=21-5-qa-1 cycle_iteration=1 timebox=19:40Z
