@@ -401,3 +401,4 @@
 2026-11-14T13:41:04Z	Story 22.13	ledger_adjudicated	owned=3 resolved=3(DW-1325,DW-1327,DW-1328) reowned=0 terminal=1(DW-1336)
 2026-11-14T13:44:45Z	Story 22.13	smoke_complete	method=other(lane-D_new_warm_e22s13fc:Test.Mcp.SourceSetProduction(real_CommandsIn->McpOps),Test.Digest.AllClear) result=pass iterations=1 defects_caught=0 torn_down=e22s13fc
 2026-11-14T13:44:45Z	Story 22.13	fresh_check	env=recipe(new_lane-D_warm_stack_e22s13fc) tests=Test.Mcp.SourceSet,Test.Digest.Coverage,Test.Digest.Compose result=pass order=forward,reverse
+2026-11-14T13:45:59Z	Epic 22	committed	sha=16772e40 stories=22.13 ci=pending runs=43601299721(ci),43601299691(lane-a) note=records_c196b450..carried
