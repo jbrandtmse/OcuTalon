@@ -4180,3 +4180,9 @@
 2026-11-14T19:30:47Z	Epic 25	runner_reported	PART_READY story=25.7(DW-1335) head=647d4c9a runs=43627052496,43627052520 narrowings=own-pattern_stacks_only,self-hosted_only DW-1344=med_decision(no-port_leftovers)
 2026-11-14T19:30:47Z	Epic 25	ci_green_verified	sha=647d4c9a
 2026-11-14T19:30:47Z	Epic 25	merge_enqueued	part=25.7 head=647d4c9a
+2026-11-14T19:35:04Z	Epic 25	epic_merged_to_feature	part=25.7 feature_sha=d96e4e6ef merged_tree_pins=ci-config,ci-sweep,boundaries,lib-live_pass verified_on_origin=yes ci=own_run DW-1335=resolved
+2026-11-14T19:35:31Z	Epic 25	owner_decision	via=contest_planner 25.7_accepted(no_veto_on_narrowings) DW-1344=low_accepted(hosts_clean_19:35Z)
+2026-11-14T19:41:37Z	Epic 21	runner_reported	PART_READY story=21.10 code_head=5e2c5f069 runs=43623786098,43623786065 base_has=f403bf66 note=report_arrived_via_hold_message(earlier_PART_READY_not_seen_by_orchestrator)
+2026-11-14T19:41:37Z	Epic 21	ci_green_verified	sha=5e2c5f069
+2026-11-14T19:41:37Z	Epic 21	amendments_verified	amendments=security-overview(D1,D2,DW-1314+pointer),docs(D3),catalog(V9,V12_Cancelled),EXPERIENCE_rows extensions=Channel/Telegram/Out.cls+TelegramOut_tests(V8) ok=true
+2026-11-14T19:41:37Z	Epic 21	merge_enqueued	part=21.10 head=5e2c5f069 feature=d96e4e6e

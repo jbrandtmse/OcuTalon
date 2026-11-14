@@ -8158,6 +8158,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block.md (code review) | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: compose.throwaway.yml resets ports, so only browser units publish one; the DW-1335 cancel left a stack, and the same cancel in a port-less unit leaves IRIS containers holding memory and disk on a shared CI host. Unverified on a host: settle with a read-only docker ps of compose projects on a CI host (owner or Planner only).
 - 2026-11-14T18:09:20Z status=escalated owner=burndown by=cr note=unverified; a fix needs a runner identity on each project (ruling 3 forbids touching port-less stacks); hosts go after Nov 15
+- 2026-11-14T19:35:31Z status=wontfix-accepted owner=burndown by=orchestrator note=Planner: severity low; hosts inspected clean 2026-11-14 ~19:35Z (ci-b, ci-c, ci-d docker ps -a: zero containers); reopen_if=port-less leftovers ever appear (bring to the Planner)
 ### DW-1337: The approval-request-card stylesheet is 244 bytes over its 4 kB anyComponentStyle warning budget after Story 21.10
 - source: orchestrator; 21.10 hold report | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 21.10 build at f82fb8c17: warning only
