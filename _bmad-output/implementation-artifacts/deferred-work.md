@@ -7830,6 +7830,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: P1 is ruled verbatim (Planner M(4)), so the one-letter change to 'cancelled' rewrites approved public text; the reviewer may not patch it. Grep: docs/mcp-jira-example.md is the only 'canceled' in the public docs.
 - 2026-11-13T21:29:41Z status=decision-pending owner=burndown by=cr note=22.6 CR BH9: Planner to approve 'cancelled' in P1 (one word) or keep as ruled
+- 2026-11-14T07:12:22Z status=resolved-by:22-6-document-a-worked-jira-example-and-mcp-governance by=adjudication note=Planner_approved;docs/mcp-jira-example.md:48_reads_cancelled(30c7f33e)
 ### DW-1280: Test.Bridge.ModelChange:TestSetModelEveryAgent flakes in CI: 'DiagnosisAgent was not restarted'
 - source: ci run 43457520830 (OCT-epic21 4af1db03, iris shards-9) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
@@ -7938,3 +7939,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, verification-gap) | severity: med | fix-risk: low | footprint: in-story
 - evidence: Rule 19: no test in docker/tests, ci or Test/* names either text (verification-gap search); both sit outside the generated sections; spec deferred entry 6 and the rework-6 Verification line say so.
 - 2026-11-14T03:55:09Z status=routed owner=burndown by=cr note=add a test-readme.sh or release-sequence overview pin for both ruled texts; outside the final pass's three ruled items
+
+### DW-1324: PUBLIC TEXT: docs/mcp-jira-example.md:14 'press Add server and fill in:' is false of the merged 21.4 form (fields always shown; the Add server button submits them)
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md (code-review, VERIFY AT MERGE) | severity: high | fix-risk: low | footprint: in-story
+- evidence: web/src/app/settings/mcp-section.ts:111-166: the Name/Address/Secret fields sit under the 'Add server' heading with no toggle, and the Add server button (:166, add :508) sends them; web/e2e/settings/mcp.spec.ts:103-121 fills then clicks. P1 is ruled verbatim, so the reviewer may not reword it (21.4's AC at epics.md:7685 has the same order).
+- 2026-11-14T07:09:49Z status=decision-pending owner=22-6-document-a-worked-jira-example-and-mcp-governance by=cr note=suggest 'In Settings > Tools and MCP servers, fill in the fields under Add server, then press the Add server button:'
