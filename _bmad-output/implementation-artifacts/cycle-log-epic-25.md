@@ -150,3 +150,4 @@
 2026-11-14T01:15:52Z	Story 25.4	ledger_adjudicated	owned=2 resolved=2(DW-1290,DW-1297) reowned=0 terminal=0 note=DW-1307_resolved_by_spine_write;DW-1303_routed_25.5
 2026-11-14T01:15:52Z	Story 25.4	smoke_complete	method=browser(lead:fresh_lane-A_stack_e25s4s4;live_sign-in-2_part_17/20_9/9_incl_RS3_no-op_text) result=pass iterations=2 defects_caught=0 evidence=scratchpad/e25s4/smoke2-s2p17.log bundle_initial=997.59kB(lead_build;roles-section_lazy_9.42kB) model=claude-opus-5-5
 2026-11-14T01:15:52Z	Story 25.4	fresh_check	env=recipe(fresh_warm_stack_e25s4h,torn_down;e25s4g_partial_start_torn_down) tests=Web.LiveRolesApi,Web.RolesApi,Web.ViewerApi result=pass order=forward,reverse
+2026-11-14T01:15:52Z	Story 25.4	committed	sha=d8af9b17 submodules= ci=hold(not_pushed;CI_HOLD) runs=none fix_for=25.4 rework=1 amendments=ARCHITECTURE-SPINE.md(AD-13_x2),epics.md(DW-1303_bullet_25.5) note=LOCAL_READY
