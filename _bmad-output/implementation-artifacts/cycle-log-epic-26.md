@@ -23,3 +23,4 @@
 2026-11-14T04:21:23Z	Story 26.3	protocol_violation	stage=implement depth=1 agent=26-3-caption-a-photo-and-keep-the-caption-as-a-memory-implement-1 violation=harness_backgrounded_Agent_call_despite_run_in_background_false consequence=none(runner_touched_no_file_until_completion) detected_by=runner outcome=waited
 2026-11-14T04:21:23Z	Story 26.3	spine_updated	ad=AD-1(origins_line_117,CommandsIn_line_120) reason=decision_sheet(planner_ruling_V2,V6) by=runner story=26-3 lint=10_low_before_and_after note=photo_origin_in_FEATUREORIGINS_not_Msg.Enum(implement_decided_in-stage_1)
 2026-11-14T04:21:23Z	Story 26.3	adr_verifications_complete	tool=none acs=none result=none_required evidence=no_AD_commits_agent-time_tooling;Task0_measurement_in-stage mutations=none model=claude-opus-5-5
+2026-11-14T04:21:44Z	Story 26.3	stage_spawned	stage=qa spawn_at=2026-11-14T04:21:44Z model=sonnet agent_name=26-3-caption-a-photo-and-keep-the-caption-as-a-memory-qa-1 cycle_iteration=1
