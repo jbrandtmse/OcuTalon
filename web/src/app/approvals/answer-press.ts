@@ -120,8 +120,11 @@ export class AnswerPress {
     }
   }
 
-  /** Drops the refused state: the store's payload for the request changed, so the server's own answer decides again. */
+  /** Drops the refused state and the notice that repeats its sentence: the store's payload for the request changed, so the server's own answer decides again. */
   clearRefused(): void {
+    if (this.refused() !== '' && this.replyNotice() === this.refused()) {
+      this.replyNotice.set('');
+    }
     this.refused.set('');
   }
 

@@ -115,6 +115,7 @@ describe('what a reply hands to the host (answered)', () => {
     assert.equal(handed.length, 0, 'it hands nothing to the store');
     subject.clearRefused();
     assert.equal(subject.refused(), '', 'clearRefused ends the state');
+    assert.equal(subject.notice(), '', 'and drops the notice that repeated the sentence, so restored buttons carry no stale refusal');
     for (const reply of [{ status: 404, body: { error: { code: 'not_found', message: 'x' } } }, { status: 500, body: { error: { code: 'server_error', message: 'y' } } }, { status: 0, body: undefined }, { status: 200, body: null }]) {
       const other = press(reply);
       other.subject.press('app-1', 'approve');

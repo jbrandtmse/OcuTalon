@@ -255,6 +255,36 @@ Paths are relative to `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 - AC 8: Given a non-admin's risky email to another address, when the gate holds it, then no request is raised and the turn's refusal is PUBLIC TEXT 10. An admin's request is raised as before.
 - DW-1268: AC 1, AC 3, AC 4 and the catalog task.
 
+### Review Findings
+
+Code review (bmad-code-review, 2026-11-14, full mode, review tier full-opus: `_bmad/custom/model-overrides.yaml` is absent, so every layer ran with no model override; four layers: blind, edge, verification-gap, acceptance). 23 entries after grouping: high 0, medium 2, low 17, false 4. 5 patched, 1 deferred (ledger, wontfix-accepted), 17 rejected.
+
+- [x] [Review][Patch] The refused state ended but its notice stayed: after `clearRefused`, restored Approve and Reject carried the stale warning "Only an approver ..." (medium; edge+acceptance) [web/src/app/approvals/answer-press.ts:124] -- `clearRefused` also drops the reply notice when it repeats the refused sentence; `answer-press.test.mjs` asserts the notice is gone.
+- [x] [Review][Patch] `AnswersInWebRoles.EnsureRole`/`RestoreRoles` near-copied 25.4's `Test.Install.RolesAssign.EnsureRoles`/`DropRoles` with no recorded reason (medium, Rule 2; blind) [src/ocutalon/cls/OcuTalon/Test/Core/AnswersInWebRoles.cls:605] -- `RolesAssign.EnsureRoles(roles = FIXTUREROLES)` takes a role list and `RemoveRole` is public; `EnsureRole` and `RestoreRoles` call `EnsureRoles`, `DropRoles` and `RemoveRole`.
+- [x] [Review][Patch] AD-24 did not record the `self_viewer` refusal of `Roles.Assign`/`Refusal` (low; acceptance) [ARCHITECTURE-SPINE.md, AD-24 `Assign` bullet] -- one additive sub-bullet `[ADDED 2026-11-14, Story 25.5, DW-1303, Contest Planner's 25.4 final ruling 1]`; `lint_spine.py` unchanged (`"ok": false`, the same 10 low findings as at HEAD).
+- [x] [Review][Patch] The `FixtureKind` doc did not name `APPROVER` (low; blind) [web/e2e/support/iris.ts:50] -- the kind and its roles are named.
+- [x] [Review][Patch] AC 6's only mutation changed the test double, not product code (low, Rule 19; verification) [spec `## Verification`] -- a product mutation was applied, observed red and reverted byte-identical; its line is under Mutations.
+- [x] [Review][Defer] No test reads the per-recipient `answerable` of `BridgeSink`'s `approval` event for a watcher of an instance incident (recipient is not the owner) [src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:165] -- deferred: DW-1333 `wontfix-accepted` (a `Test.Core.BridgeSink` case is more than 15 lines; local installs only; the press is still refused by rule 6).
+
+**Rejected:**
+- (low, edge) An email approve refused by `Approval.Answer`'s own role check under the lock is labelled `admin` -- theoretical (a role removed in the milliseconds before the lock), Decided 6; a fix needs a second `MayApprove` call.
+- (low, edge+acceptance) After a refused email Approve the page and phone also drop Reject -- reachable only after a role removal after the raise (the raise refuses non-admins); the next payload restores both buttons.
+- (low, edge+blind+acceptance) A raise with an owner Ref that has no `Session` row audits the job's `$Username` and gives the admin sentence -- wontfix-theoretical: the gate raises only from a user turn, which always has a `Session` row; real if a caller passes an owner Ref that names no session.
+- (low, edge) `SaveRoles` with an empty `ActingUser` skips `self_viewer` -- wontfix-theoretical: `Web.RoleSettings` always sets the call's IRIS user; real if another caller submits `SaveSettings` with no acting user.
+- (low, edge) `roles.spec.ts` R6's `finally` does not remove a viewer role that a regression granted -- failure path only, and a locked-out admin can't remove it through the API; more than a direct correction.
+- (low, edge+blind+verification) AC 6's "told why ... on Telegram" is not rendered -- by-design: `TelegramIn` is Lane A's, and Story 26.4's planned AC renders the sentence from the catalog (AD-11's new bullet names `RefusalKey`); this story's Telegram contract is AC 4's slots.
+- (low, blind) The refused state lives per surface: a refusal on the card leaves the phone's buttons until its own press -- reachable only with a stale payload after a role change, the other press gets the same sentence; a shared per-request state is more than a direct correction.
+- (low, blind) Every 403, not only `not_allowed`, takes the request into the can't-answer state -- the other 403s (`no_role`, `read_only`, the envelope codes) also mean the press cannot succeed, the status shows the server's own sentence, and the next payload decides again.
+- (low, blind) The raise check does not ensure the owner holds the row's `RequiredRole`, so the spine's "never raised" overstates -- the `RequiredRole` rule applies to every request kind alike (not this story's); the AD-16 sentence's scope is the admin rule; rewording an AD sentence is a veto item.
+- (false, blind) The review record's counts do not add up -- two `[patch]` rows share the one V3 fix, so 3 patches is right; the fix would edit the spec under review.
+- (false, acceptance) New web code went into the initial bundle (DW-1282) -- the edits are to the chat's card and phone, which must render in the chat; the only new section text (Roles) is in the lazy `roles-section` chunk; 886.81 kB.
+- (low, acceptance) The AD-11 Telegram amendment keeps the superseded words in place -- form only; reported to the lead as this story's one amending spine edit.
+- (false, acceptance) `MayApprove`'s doc comment changed although "its hunk is not changed" -- the Boundaries line is about `AnswerOps.Carry`'s hunk, which is unchanged; `MayApprove`'s body is byte-identical.
+- (low, acceptance) The spec's "Never: Edit GUIDE.md" contradicts ruling Q6 -- the `[Ruling]` task records the Q6 exception; the fix would edit the spec under review.
+- (false, acceptance) `Answerable`'s `InitialExpression` is 0 and `lint_spine` is `"ok": false` -- both recorded (Decided 12, 23); every product builder goes through `FromRow`, which sets 1.
+- (low, verification) V2's phone half asserts a notification the test sends -- the precedent of `answers.spec.ts` X3; AC 5's pin is `TestMalformedSessionRefNeverReaches`, and the phone copy is covered by `live demo-path`.
+- (low, blind) `test-sign-in.sh`'s comment block does not describe `ZzApprover` -- it describes Story 2's users only (25.4's viewer and role-target users are not in it either); the loop's label names the fixture.
+
 ## Spec Change Log
 
 - 2026-11-14 ~09:55Z, lead: implement dispatch. Precondition met: 22.7 (lane D, DW-1262 interim `MayApprove` in `AnswerOps.Carry`, `Fix/Kind/Email.cls`) and 25.4 (Roles, viewer, live role re-read in `Web.Api.OnPreDispatch`; `Install.Step.Roles.Refusal`) are merged on feature 423f8148 and integrated into this branch. The "22.7 email DW" is ledgered as DW-1281 (owner this story; Q1 (a) closes it). Owned ledger: DW-1268, DW-1281, DW-1303. The code base moved since planning: re-read every file this spec names at HEAD before editing (the plan read 22.7 from `origin/OCT-epic22`); where the spec's line numbers or the 22.7 code differ from HEAD, follow HEAD and the spec's intent, and record each difference under Design Notes "Decided in-stage". New web code goes in lazy chunks only (standing rule DW-1282; the initial bundle is 884.58 kB and must stay under its 1 MB cap). The dev slot `ocutalon-slot-a` is shared with the Epic 26 runner: run tests on lane-A throwaways only.
@@ -508,6 +538,8 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC 8: mutation: remove the `MayApprove` call in `Raise` (`If 0 {`) -> `Test.Fix.Email:TestNonAdminEmailIsRefusedAtRaise` goes red.
 - AC 1 (route sentence): mutation: `AnswerResponse` sets `kind = ""` after reading the refusal -> `Test.Web.Api:TestAnswerRefusalSentences` goes red (resend and tool).
 - AC 3 (refused state ends): mutation: the card's `clearRefused` effect body is removed -> `phone/approver.spec.ts` V3 goes red.
+- AC 6 (product): mutation: `Live.Payload.Approval.Answerable` asks `MayAnswer` for `$Username` instead of the session row's `IrisUser` -> `AnswersInWebRoles:TestApproverMatrix` goes red (the holder of the kind's role and the holder of `OcuTalonApprover` are refused) (code review, warm throwaway `e25s5cw`, reverted byte-identical).
+- AC 3 (refused state ends without its notice): mutation: `AnswerPress.clearRefused` no longer drops the reply notice -> `answer-press.test.mjs` goes red ("and drops the notice that repeated the sentence") (code review, reverted byte-identical).
 - DW-1303: mutation: skip the `self_viewer` check in `Roles.Refusal` -> `Test.Install.RolesAssign:TestSelfViewerRefused` goes red and `api/roles.spec.ts` R6 goes red. mutation: `SaveRoles` asks `Refusal` without `command.ActingUser, grant` -> `Test.Core.SettingsRoles:TestRefusalIsAskedWithTheActingUser` goes red.
 
 **Run results (implement, 2026-11-14).**
@@ -517,6 +549,23 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `docker/tests/test-readme.sh`, `test-boundaries.sh` and `test-class-rules.sh` pass. `lint_spine.py`: see Decided 23. Not run (the parent's once commands): `live demo-path`, `live answers`, `live cards`, `npm --prefix web test`, `npm --prefix web run lint`, `bash ci/checks.sh`.
 - Parent's once commands (2026-11-14, throwaway `e25s5i`): `live demo-path` passes; `live answers` passes (24; the first run failed X5c, which had not opened the page, fixed); `live cards` passes (31); `npm --prefix web test` (2075), `npm --prefix web run lint` and `npm --prefix web run build` pass; all 32 `CHECK_SCRIPTS` blocks of `ci/checks.sh` pass (run one by one). After the review patches: `Test.Web.Api` passes on `e25s5iw`, `live sign-in-2 --part 13/24` passes with V3's recovery, `test-boundaries.sh`, `test-class-rules.sh`, `test-ci-changes.sh`, node tests and lint pass.
 - Initial bundle after `npm --prefix web run build`: 886.81 kB (cap 1 MB; was 884.58 kB). The Roles text is in the lazy chunk `roles-section`.
+
+**Code review run (2026-11-14, lane-A warm throwaway `e25s5cw`, torn down):** after the review patches, `Test.Core.AnswersInWebRoles` (22 s), `Test.Install.RolesAssign`, `Test.Web.RolesApi` and `Test.Web.LiveRolesApi` pass; `npm --prefix web test` (2075), `npm --prefix web run lint`, `tsc -p web/tsconfig.app.json`, `test-boundaries.sh` and `test-class-rules.sh` pass.
+
+**QA pass (bmad-qa-generate-e2e-tests, 2026-11-14; lane-A warm throwaway `e25s5qw`, torn down; no test file added or changed, every gap probe went red, so the existing tests pin these rows).** Each mutation was applied, observed red and reverted byte-identical from a copy saved in the QA scratch folder:
+- Matrix "No session row" (rule 5): mutation: remove `If '$IsObject(session) Quit ..Refuse("not_found", ...)` in `AnswersIn.OnProcessInput` -> `AnswersIn:TestRoleCheckBeforeHandOver` goes red ("a Ref-shaped SessionRef with no Session row is not_found").
+- Matrix "Shape first": mutation: move the action/channel `bad_answer` line after rule 6 -> `AnswersIn:TestRoleCheckBeforeHandOver` goes red (bad action, bad channel, "none of them asked the role check").
+- Matrix "Payload ... MayAnswer error": mutation: `Answerable`'s `Catch` sets `may = 1` -> `AnswersIn:TestPayloadAnswerable` goes red ("an error of the role check is not answerable").
+- Matrix "Payload ... every other payload has answerable true": mutation: drop `row.State = "pending"` from `FromRow`'s condition -> `AnswersIn:TestPayloadAnswerable` goes red (an answered request, and the count of role checks).
+- Ruling "existing audit outcome, no address" (AC 8): mutation: `Fix.Kind.Email.Raise` skips its `Audit(..#AUDITREFUSED, ...)` -> `Test.Fix.Email:TestNonAdminEmailIsRefusedAtRaise` goes red ("one Action entry of the action email for each refusal").
+- AC 7 over the route: mutation: `AnswerResponse` always sets `admin = 0` -> `Test.Web.Api:TestAnswerRefusalSentences` goes red (the `{"kind":"email","admin":true}` case).
+- DW-1303 (case-insensitive acting user): mutation: `Roles.Refusal` compares `actingUser = lower` without `$ZConvert(..., "L")` -> `Test.Install.RolesAssign:TestSelfViewerRefused` goes red.
+- DW-1303 (own removal stays allowed): mutation: `Roles.Refusal` drops `''grant` -> `TestSelfViewerRefused` goes red ("removing one's own viewer role is not refused").
+- AC 3 (refused press, at once): mutation: `answer-press.ts` `replied` no longer sets `refused` for a `notAllowed` outcome -> `answer-press.test.mjs` goes red.
+- AC 3 (phone, absent versus false): mutation: `phone-view.ts` drops `approval?.answerable !== false` from `buttons` -> `phone-view.test.mjs` goes red.
+- AC 3 (card, pending only): mutation: `approval-view.ts` drops `pending &&` from `cannotAnswer` -> `approval-view.test.mjs` goes red.
+- Ruling Q6 (GUIDE sentence): mutation: GUIDE.md's "Only an OcuTalon admin can have OcuTalon email another address" becomes "Any user can have ..." -> `docker/tests/test-readme.sh` fails 1 rule (clean tree: all rules pass).
+- Test files added by QA: (none).
 
 ## Auto Run Result
 

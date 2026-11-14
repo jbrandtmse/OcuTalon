@@ -602,30 +602,23 @@ ClassMethod Roles() As %String [ Private ]
 	Quit roles
 }
 
-/// Makes the fixture role (in %SYS, with no resources) when the instance does not have it, and keeps it for RestoreRoles. 1 when it made it.
+/// Makes the fixture role (with no resources, Test.Install.RolesAssign EnsureRoles) when the instance does not have it, and keeps it for RestoreRoles. 1 when it made it.
 Method EnsureRole(name As %String) As %Boolean [ Private ]
 {
-	New $Namespace
-	Set $Namespace = "%SYS"
-	If ##class(Security.Roles).Exists(name) Quit 0
-	If $$$ISERR(##class(Security.Roles).Create(name, "OcuTalon test fixture", "")) Quit 0
-	Set ..MadeRoles = ..MadeRoles_$Select(..MadeRoles = "": "", 1: ",")_name
+	Set made = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles(name)
+	If made = "" Quit 0
+	Set ..MadeRoles = ..MadeRoles_$Select(..MadeRoles = "": "", 1: ",")_made
 	Quit 1
 }
 
-/// Takes back the grant to the README account, and deletes the roles that EnsureRole made.
+/// Takes back the grant to the README account, and deletes the roles that EnsureRole made (Test.Install.RolesAssign DropRoles).
 Method RestoreRoles() [ Private ]
 {
-	Set readme = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
-	New $Namespace
-	Set $Namespace = "%SYS"
 	If ..GrantedReadme {
-		Do ##class(Security.Users).RemoveRoles(readme, "OcuTalonApprover")
+		Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER, "OcuTalonApprover")
 		Set ..GrantedReadme = 0
 	}
-	For i = 1:1:$Length(..MadeRoles, ",") {
-		If $Piece(..MadeRoles, ",", i) '= "" Do ##class(Security.Roles).Delete($Piece(..MadeRoles, ",", i))
-	}
+	Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(..MadeRoles)
 	Set ..MadeRoles = ""
 }
 

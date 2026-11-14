@@ -7683,6 +7683,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-11 S1; Planner V6/V8
 - 2026-11-13T13:24:13Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 
 ### DW-1269: 25.6 obligation from 37.1: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; renders the read result (fileRef, kind, read, reason, text, chars, cut, addable) and the HostData member caption (memoryRef, text), naming the carriers; Add to documents by fileRef. 'No file content in a production message body' = no bytes and no image (extracted text may reach the turn)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7822,6 +7823,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner P1/P2 (epic-22-rulings-20261113-1715): Ownership.cls:97 APPROVALVISIBLE owner-only; Web/Api.cls:699-703 404; AnswerOps.cls:62 MayApprove needs OcuTalonAdmin; fails closed (expires after EXPIRYSECONDS)
 - 2026-11-13T18:50:36Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=orchestrator note=Planner_P2:interim_acceptable(fails_closed);25.5_lets_an_approver_answer_or_refuses_at_raise_with_a_clear_message
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 ### DW-1272: Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
 - evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
@@ -7917,6 +7919,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Install/Step/Roles.cls Refusal and Web/RoleSettings.cls have no acting-user check (grep self/actingUser at 8d2db7ce); Planner 25.4 final ruling 1 (story-254-rulings-20261113.md, ~00:05Z Nov 14)
 - 2026-11-13T23:56:04Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=lead note=Planner ruling: report-only check found no refusal; routed to 25.5 with reason self_viewer and the given text (PUBLIC TEXT approved by the ruling)
+- 2026-11-14T12:59:25Z status=resolved-by:25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=adjudication note=4ffcfdac+review_patches;see_spec_Verification_mutations(AC1-8,DW-1303,raise_refusal)
 
 ### DW-1307: AD-13 still says OcuTalonAdmin is read from the session's $Roles and applies until the session ends, but 25.4 now reads it from the live role set (Planner final ruling 2, DW-1290); the spine needs the Rule 20 write
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md (code review, rework iteration 1) | severity: med | fix-risk: low | footprint: in-epic
@@ -8051,3 +8054,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T22:00:16Z owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=burndown note=chartered now as Story 36.5 on the Planner's ruling (option b): lazy Settings, History, Usage routes; initial bundle <= 921 kB; deep-link + reload tests
 - 2026-11-13T23:53:44Z status=resolved-by:36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=adjudication note=Story 36.5 (ebe17be8 + review patches): Settings, History and Usage load lazily; initial total 878.98 kB (was 1,007.44 kB eager), maximumError stays 1MB; pinned by web/scripts/initial-bundle.test.mjs (<=921,000 bytes) and deep-link/reload e2e D1-D4
 
+
+### DW-1333: No test reads the per-recipient answerable of BridgeSink's approval event for a watcher of an instance incident (recipient differs from the owner)
+- source: code review of spec-25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: BridgeSink.cls:165 builds FromRow(row, recipient); every test of the event payload uses a session-owned row (recipient = owner), so FromRow(row, ownerRef) there would stay green. Local installs only; the server still refuses the press (rule 6).
+- 2026-11-14T12:53:24Z status=wontfix-accepted owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=cr note=a Test.Core.BridgeSink case is more than 15 lines; reopen_if=an instance watcher without the role sees Approve and Reject on a fresh event

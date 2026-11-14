@@ -471,8 +471,8 @@ ClassMethod AppRoles() As %String
 	Quit roles
 }
 
-/// Takes the role off an IRIS account if it holds it, so that a refusal that failed leaves a system account as it was.
-ClassMethod RemoveRole(user As %String, role As %String) [ Private ]
+/// Takes the role off an IRIS account if it holds it, so that a refusal that failed leaves a system account as it was (and AnswersInWebRoles takes back its grants).
+ClassMethod RemoveRole(user As %String, role As %String)
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
@@ -481,14 +481,15 @@ ClassMethod RemoveRole(user As %String, role As %String) [ Private ]
 	Do ##class(Security.Users).RemoveRoles(user, .names)
 }
 
-/// Makes each role of FIXTUREROLES that the instance does not have, with no resources; returns the names that it made.
-ClassMethod EnsureRoles() As %String
+/// Makes each role of roles (a comma list, FIXTUREROLES when none is given) that the instance does not have, with no resources; returns the names that it made.
+ClassMethod EnsureRoles(roles As %String = {..#FIXTUREROLES}) As %String
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
 	Set made = ""
-	For i = 1:1:$Length(..#FIXTUREROLES, ",") {
-		Set role = $Piece(..#FIXTUREROLES, ",", i)
+	For i = 1:1:$Length(roles, ",") {
+		Set role = $Piece(roles, ",", i)
+		If role = "" Continue
 		If '##class(Security.Roles).Exists(role) {
 			If $$$ISOK(##class(Security.Roles).Create(role, "OcuTalon test fixture", "")) Set made = made_$Select(made = "": "", 1: ",")_role
 		}
