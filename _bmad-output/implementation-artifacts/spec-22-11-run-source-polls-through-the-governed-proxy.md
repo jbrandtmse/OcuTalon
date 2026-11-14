@@ -2,7 +2,7 @@
 title: 'Story 22.11: Run source polls through the governed proxy'
 type: 'feature'
 created: '2026-11-14'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'ddc72f7082a07d70a93b0977d2f30ab2b82428a9'
 review_loop_iteration: 0
 followup_review_recommended: true
@@ -357,6 +357,8 @@ Code review 2026-11-14 (Tier 1, full mode; layers blind-hunter, edge-case-hunter
   - Rework iteration 1 (code review's five MED and three LOW open `[Review][Patch]` items, plus DW-1346's allowance) re-opens the story; `status` set to `in-progress`.
 
 - 2026-11-14 (lead, after the re-review). **DW-1353 closed in-story:** `Test/Digest/CoverageProbe.cls` (Story 22.5's file, Lane A) now overrides `PollingSources` with `^||CoverageProbe("polling")` (0 by default), so no other session's or test's source row changes a source's allowance in `Test.Digest.Coverage`. Proof on a new lane-D stack (`e22s11lpw`): with three leftover non-stopped source rows of another session, `Test.Digest.Coverage` passed; mutation (override removed) turned `TestSourceIntervalGap` and `TestSourceLongIntervalStale` red; reverted byte-identically. The re-review's HIGH (an AD-18 wording overclaim, no behaviour change) is accepted as resolved inline. DW-1346's ruled formula leaves three polls held near Decide's 60 s timer stale (the ruling's own 3-source test cannot pass at 60 s per source); `TestSlowQueueNeverStale` uses five sources; decision-pending with the Planner (recommendation about 120 s per source).
+
+- 2026-11-14 (lead). **DW-1346 ruled, Contest Planner ~23:00Z Nov 14 (BINDING)**, quoted from `<coordination>/prompts/epic-22-rulings-20261113-1715.md`: "The allowance becomes: interval + max(180 s, QUEUESECONDS × N), with QUEUESECONDS = 120 as ONE constant. N counts every non-stopped source in the install. It is computed in Checks.Coverage, with no column. KEEP the 3-slow-sources test (none marked stale), and add a mutation: QUEUESECONDS back to 60 turns it red. The AD-18 and docs wording fix ("never marked stale" removed) is accepted. The new wording states the allowance plainly, without "never"." Status set to `in-progress` for this ruled change (a lead-dispatched implement pass, then a scoped re-review).
 
 ## Review Triage Log
 
