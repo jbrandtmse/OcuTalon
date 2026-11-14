@@ -31,7 +31,9 @@ Include Ensemble
 ///   1. the greeting of the compose hour in the instance zone;
 ///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
 ///   3. digest.checkedQuiet when no entry is named, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass, failed
-///      first, for the two keys that name them); with nothing watched, digest.nothingWatched alone;
+///      first, for the two keys that name them), except that when no row failed, at least one is not checked and at least one passed (Render RestKey) the key of Render
+///      is replaced by the coverage line of each not-checked row, in row order, then checks.everythingElsePassed (Lead; Story 22.5); with nothing watched,
+///      digest.nothingWatched alone;
 ///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none (a tell-now or act Decision counts only when it was recorded at or after the Compose's WindowStart);
 ///   5. what was saved for later: digest.savedNone, digest.saved with the summary, or digest.savedNoSummary with the fallback reason;
 ///   6. digest.cost, the cost of yesterday (OcuTalon.Digest.Cost).
@@ -501,6 +503,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	Set cost = ..Cost(sessionRef, at, .sc)
 	If $$$ISERR(sc) Quit sc
 	Set checkKey = verdict.checkKey
+	Set lead = ..Lead(rows, lines, vitals)
 	Set parts = []
 	Do parts.%Push({"key": (..Greeting(at)), "slots": {}})
 	Do parts.%Push(verdict.vitalsPart)
@@ -513,7 +516,15 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 			Do named.%Push("the "_entry)
 		}
 		Do parts.%Push({"key": ($Select(verdict.named.%Size() = 0: "digest.checkedQuiet", 1: "digest.checked")), "slots": {"checked": (..Joined(named))}})
-		Do parts.%Push({"key": (checkKey), "slots": ($Select(verdict.named.%Size() > 0: {"whatFailed": (..Joined(verdict.named))}, 1: {}))})
+		If lead.%Size() > 0 {
+			Set iterator = lead.%GetIterator()
+			While iterator.%GetNext(, .line) {
+				Do parts.%Push(line)
+			}
+			Do parts.%Push({"key": (##class(OcuTalon.Checks.Render).#KEYELSEPASSED), "slots": {}})
+		} Else {
+			Do parts.%Push({"key": (checkKey), "slots": ($Select(verdict.named.%Size() > 0: {"whatFailed": (..Joined(verdict.named))}, 1: {}))})
+		}
 	}
 	If needs.count > 0 {
 		Set what = ""
@@ -598,6 +609,31 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	Do verdict.%Set("nothingWatched", nothingWatched, "boolean")
 	Do verdict.%Set("allClear", (checkKey = ##class(OcuTalon.Checks.Render).#KEYALLPASSED) && (vitalsPart.key = "digest.healthy") && (needs.count = 0), "boolean")
 	Quit $$$OK
+}
+
+/// The lead of the digest's checks part (Story 22.5): when Render RestKey of Render's ordered watched rows (those after the vital rows) is not "", the coverage lines
+/// (lines, which parallel rows) of the watched rows that Render classes not_checked, in row order; else []. It never throws, and an error gives [].
+Method Lead(rows As %DynamicArray, lines As %DynamicArray, vitals As %DynamicObject) As %DynamicArray [ Private ]
+{
+	Set lead = []
+	Try {
+		Set first = vitals.rows.%Size()
+		Set watched = []
+		For i = first:1:rows.%Size() - 1 {
+			Do watched.%Push(rows.%Get(i))
+		}
+		Do ##class(OcuTalon.Checks.Render).Render(watched, .ordered)
+		If ##class(OcuTalon.Checks.Render).RestKey(ordered) = "" Quit
+		For i = first:1:rows.%Size() - 1 {
+			Set single = []
+			Do single.%Push(rows.%Get(i))
+			Do ##class(OcuTalon.Checks.Render).Render(single, .one)
+			If (one.%Size() = 1) && (one.%Get(0).result = "not_checked") Do lead.%Push(lines.%Get(i))
+		}
+	} Catch {
+		Set lead = []
+	}
+	Quit lead
 }
 
 /// 1 when the row is an object whose entry is a string that is not blank (Render's rule for an element that is a result).

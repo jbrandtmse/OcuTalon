@@ -1,7 +1,8 @@
 /// The coverage list of the daily digest (Story 17.5; AD-18, AD-28, AD-33): every entry that was or was not checked, each passed, failed, or not
 /// checked with a reason. Only Checks says whether an entry passed, so the digest takes its rows and lines from here and never from a model.
 ///   - Build gives the rows, in this order, and never drops an entry: the five vital signs (IRIS instance, database space, journal space, license
-///     use, system log), then one row per background check of the session in ID order. There are no source rows until step 4. A row is
+///     use, system log), then one row per background check of the session in ID order (a source row is the entry named by its DisplayName), then the Mailbox row (see
+///     MailboxRow) when the session owns the connected mailbox. A row is
 ///     {"result" (passed, failed or not_checked), "entry", "finding", "checkedAt" (UTC, YYYY-MM-DDThh:mm:ssZ)}, the shape that Checks.Render
 ///     reads. lines holds one {"key", "slots"} for each row, in the rows' order: the catalog line of the row (digest.passed, digest.failed or
 ///     digest.notChecked<Reason>). vitals is {"rows" (the five vital rows), "figures" {"upDays", "databasesFull", "licenseUse"}}; a figure is a
@@ -17,7 +18,13 @@
 ///     missed from the span's start to toUtc; (3) missed: two consecutive runs, the span's start and the first run, or the last run and toUtc are
 ///     more than MISSEDSECONDS apart (the first such gap); (4) the latest run is not_checked: its reason gives error, timeout or unreachable
 ///     (an empty or unknown reason is error), for unreachable since the first run of the unbroken streak of unreachable runs that ends at the
-///     latest; (5) otherwise the latest run's result.
+///     latest, and stopped (Story 22.5: the source's tool is no longer Read-only) since the first run of the unbroken streak of stopped runs that
+///     ends at the latest; (5) otherwise the latest run's result. For rule (3) the gap of a source row (Kind source) with an IntervalMinutes is
+///     IntervalMinutes x 60 + MISSEDSECONDS seconds, since it runs once in each interval; any other row keeps MISSEDSECONDS.
+///   - The Mailbox row (Story 22.5) is there only for the session that owns the connected mailbox (Channel.Email.In Owner) and only once the mark emailPoll
+///     exists. It is passed when the mark says ok, its time is in the span and at most MAILSTALESECONDS before the end of the span; not checked when the mark says ok
+///     but is older (stale); not checked as unreachable, with the time of the last good poll, for a failed poll whose reason is the adapter's REASONUNREACHABLE; and not
+///     checked as an error for any other failed poll and for a mark that cannot be read.
 ///   - A production watch whose result comes from rule 5 adds a live read of the production (Watch.Reader.Failures, from the span's start, in one
 ///     switch): anything it finds makes the row failed with the live finding at the read time, and a read that cannot be made makes it not_checked
 ///     (unreachable, timeout or error), as the same reasons of Checks.Process do. The rules of that read are Checks.Process's public class methods
@@ -40,6 +47,9 @@ Parameter KEYPREFIX = "checks.thresholds.";
 /// The most seconds between two runs, or between a run and an end of the span, before the check counts as having missed (AD-18).
 Parameter MISSEDSECONDS = 180;
 
+/// The most seconds before the end of the span that the last poll of the mailbox may have been made for the Mailbox row to be passed.
+Parameter MAILSTALESECONDS = 900;
+
 /// The entries of the vital signs (public text).
 Parameter ENTRYINSTANCE = "IRIS instance";
 
@@ -50,6 +60,9 @@ Parameter ENTRYJOURNAL = "journal space";
 Parameter ENTRYLICENSE = "license use";
 
 Parameter ENTRYLOG = "system log";
+
+/// The entry of the connected mailbox (public text).
+Parameter ENTRYMAILBOX = "Mailbox";
 
 /// The findings of a failed vital sign and of a failed live read (public text; {name}, {percent}, {count} and {minutes} are filled in).
 Parameter FINDINGDATABASE = "{name} {percent}% free";
@@ -104,6 +117,8 @@ Parameter KEYPAUSED = "digest.notCheckedPaused";
 
 Parameter KEYSIZELIMIT = "digest.notCheckedSizeLimit";
 
+Parameter KEYSTOPPED = "digest.notCheckedStopped";
+
 /// The kind of check that has a live read, and the owner literal of what no session owns (Checks.Process).
 Parameter KIND = "production";
 
@@ -156,6 +171,7 @@ ClassMethod Build(sessionRef As %String, fromUtc As %String, toUtc As %String, O
 			Do ..Add(rows, lines, ..#NOTCHECKED, ..EntryOf(check), ##class(OcuTalon.Checks.Process).#REASONREAD, now, ..#KEYERROR, {"entry": (..EntryOf(check)), "time": (now)})
 		}
 	}
+	Do ..MailboxRow(sessionRef, fromUtc, toUtc, rows, lines)
 	Quit $$$OK
 }
 
@@ -296,9 +312,11 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	}
 	Set previous = spanStart
 	Set missed = 0
+	Set allowed = ..#MISSEDSECONDS
+	If (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0) Set allowed = (check.IntervalMinutes * 60) + ..#MISSEDSECONDS
 	For i = 0:1:runs.%Size() {
 		Set next = $Select(i = runs.%Size(): toUtc, 1: runs.%Get(i).ranAt)
-		If ..Apart(previous, next) > ..#MISSEDSECONDS {
+		If ..Apart(previous, next) > allowed {
 			Do ..Add(rows, lines, ..#NOTCHECKED, entry, ..#FINDINGMISSED, previous, ..#KEYMISSED, {"entry": (entry), "from": (previous), "to": (next)})
 			Set missed = 1
 			Quit
@@ -310,10 +328,10 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	If latest.result = ..#NOTCHECKED {
 		Set key = ..KeyOf(latest.reason)
 		Set time = latest.ranAt
-		If key = ..#KEYUNREACHABLE {
+		If (key = ..#KEYUNREACHABLE) || (key = ..#KEYSTOPPED) {
 			For j = runs.%Size() - 1:-1:0 {
 				Set run = runs.%Get(j)
-				If (run.result '= ..#NOTCHECKED) || (run.reason '= "unreachable") Quit
+				If (run.result '= ..#NOTCHECKED) || (run.reason '= latest.reason) Quit
 				Set time = run.ranAt
 			}
 		}
@@ -328,6 +346,47 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 		If ..Live(check, entry, spanStart, limit, rows, lines) Quit
 	}
 	Do ..AddChecked(rows, lines, entry, $Select(latest.result = "failed": latest.finding, 1: ""), latest.ranAt)
+}
+
+/// The Mailbox row (Story 22.5; AD-28): none unless MailOwner is the session and the mark emailPoll exists. The mark is {at, ok, reason, lastOkAt} (Channel.Email.Adapter Record).
+/// Passed when ok is 1, at is in the span and at most MAILSTALESECONDS before toUtc (before now when toUtc is empty). Not checked, with FINDINGSTALE, when ok is 1 but at is outside the span or older
+/// (digest.notCheckedStale). Not checked as unreachable, since lastOkAt (else at), when ok is 0 and the reason is the adapter's REASONUNREACHABLE. Not checked as an error
+/// (at) for any other failed poll, and (now) for a mark that cannot be read. An error after the owner is known adds the error row; it never throws.
+ClassMethod MailboxRow(sessionRef As %String, fromUtc As %String, toUtc As %String, rows As %DynamicArray, lines As %DynamicArray) [ Private ]
+{
+	Set entry = ..#ENTRYMAILBOX
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set known = 0
+	Set end = $Select(toUtc = "": now, 1: toUtc)
+	Try {
+		If ($Get(sessionRef) = "") || (..MailOwner() '= sessionRef) Quit
+		Set known = 1
+		Set raw = ..Mark()
+		If raw = "" Quit
+		Set mark = {}.%FromJSON(raw)
+		Set at = $Select(mark.%GetTypeOf("at") = "string": mark.at, 1: "")
+		If at '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" {
+			Do ..AddUnread(rows, lines, entry, now)
+			Quit
+		}
+		Set reason = $Select(mark.%GetTypeOf("reason") = "string": mark.reason, 1: "")
+		If mark.ok = 1 {
+			Set inSpan = ((fromUtc = "") || '(fromUtc ] at)) && ((toUtc = "") || '(at ] toUtc))
+			If inSpan && (..Apart(at, end) <= ..#MAILSTALESECONDS) {
+				Do ..AddChecked(rows, lines, entry, "", at)
+			} Else {
+				Do ..Add(rows, lines, ..#NOTCHECKED, entry, ..#FINDINGSTALE, at, ..#KEYSTALE, {"entry": (entry), "time": (at)})
+			}
+		} ElseIf (mark.ok = 0) && (reason = ##class(OcuTalon.Channel.Email.Adapter).#REASONUNREACHABLE) {
+			Set lastOkAt = $Select(mark.%GetTypeOf("lastOkAt") = "string": mark.lastOkAt, 1: "")
+			Set time = $Select(lastOkAt '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z": at, 1: lastOkAt)
+			Do ..Add(rows, lines, ..#NOTCHECKED, entry, reason, at, ..#KEYUNREACHABLE, {"entry": (entry), "time": (time)})
+		} Else {
+			Do ..Add(rows, lines, ..#NOTCHECKED, entry, $Select(reason = "": ##class(OcuTalon.Checks.Process).#REASONREAD, 1: reason), at, ..#KEYERROR, {"entry": (entry), "time": (at)})
+		}
+	} Catch {
+		If known Do ..AddUnread(rows, lines, entry, now)
+	}
 }
 
 /// The live read of a production watch. 1 when it added the row (the production has a finding now, or could not be read), 0 when it found
@@ -452,6 +511,18 @@ ClassMethod Read(namespace As %String, production As %String, from As %String, l
 	Quit ##class(OcuTalon.Watch.Reader).Failures(namespace, production, from, limit, .rows, .state, .disabled, .stoppedAt, .errored, .queues)
 }
 
+/// The value of the mark emailPoll (Data.StatusMark Get), "" when there is none. A seam for the tests.
+ClassMethod Mark() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Channel.Email.Adapter).#MARK)
+}
+
+/// The Ref of the session that owns the connected mailbox (Channel.Email.In Owner), "" for none. A seam for the tests.
+ClassMethod MailOwner() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Channel.Email.In).Owner()
+}
+
 /// The gaps of the heartbeat that overlap the span: Schedule.Heartbeat.Gaps. A seam for the tests.
 ClassMethod Gaps(fromUtc As %String, toUtc As %String) As %DynamicArray [ Private ]
 {
@@ -459,17 +530,17 @@ ClassMethod Gaps(fromUtc As %String, toUtc As %String) As %DynamicArray [ Privat
 }
 
 /// The Reason of a not_checked run (the Reason of its CheckRun row) for the phrase that Checks.Process gave as its finding: timeout for REASONTIMEOUT,
-/// unreachable for REASONUNREADABLE and REASONNOTCURRENT, and error for anything else. RecordRun and the live read (Live) both take their reason from it.
+/// unreachable for REASONUNREADABLE, REASONNOTCURRENT and REASONSOURCEUNREACHABLE, stopped for REASONNOTREADONLY, and error for anything else. RecordRun and the live read (Live) both take their reason from it.
 ClassMethod ReasonOf(finding As %String) As %String [ Private ]
 {
 	Set process = "OcuTalon.Checks.Process"
-	Quit $Case(finding, $Parameter(process, "REASONTIMEOUT"): "timeout", $Parameter(process, "REASONUNREADABLE"): "unreachable", $Parameter(process, "REASONNOTCURRENT"): "unreachable", : "error")
+	Quit $Case(finding, $Parameter(process, "REASONTIMEOUT"): "timeout", $Parameter(process, "REASONUNREADABLE"): "unreachable", $Parameter(process, "REASONNOTCURRENT"): "unreachable", $Parameter(process, "REASONSOURCEUNREACHABLE"): "unreachable", $Parameter(process, "REASONNOTREADONLY"): "stopped", : "error")
 }
 
-/// The catalog key of a not_checked row for its Reason (ReasonOf): KEYTIMEOUT for timeout, KEYUNREACHABLE for unreachable, else KEYERROR.
+/// The catalog key of a not_checked row for its Reason (ReasonOf): KEYTIMEOUT for timeout, KEYUNREACHABLE for unreachable, KEYSTOPPED for stopped, else KEYERROR.
 ClassMethod KeyOf(reason As %String) As %String [ Private ]
 {
-	Quit $Case(reason, "timeout": ..#KEYTIMEOUT, "unreachable": ..#KEYUNREACHABLE, : ..#KEYERROR)
+	Quit $Case(reason, "timeout": ..#KEYTIMEOUT, "unreachable": ..#KEYUNREACHABLE, "stopped": ..#KEYSTOPPED, : ..#KEYERROR)
 }
 
 /// Records one run of a background check as a Digest.Data.CheckRun row, the one writer of the table (see the class description). The Reason of

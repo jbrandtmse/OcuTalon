@@ -2,13 +2,22 @@
 title: 'Story 22.5: Poll a read-only MCP tool as a source'
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'bd547e51831adee962a2b16a42419c1526b6c805'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-22-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A source named like a fixed coverage entry (Mailbox, IRIS instance, database space, journal space, license use, system log) gives two coverage rows with one entry text.
+    evidence: |-
+      OnSetSource checks only the name's length and control characters; Coverage.Build adds the fixed entries and the source rows under their own names, so the digest line cannot say which one failed.
+      A refusal needs a reason text the admin can read; the approved bad_name text ("1 to 100 characters") would mislead, so a new public string is needed (veto item 5, the Planner's).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Mcp/Ops.cls OnSetSource
+    severity: low
 ---
 
 <intent-contract>
@@ -231,6 +240,28 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - 2026-11-14 (runner, orchestrator ruling ~07:45Z): **veto item 11 GRANTED** as a footprint extension: the additive contract appends in `Test/Data/Tables.cls` (BackgroundCheck's four columns) and `Test/Live/Payloads.cls` (`Payload.Check` `IntervalMinutes`), and the regenerated line in `web/src/app/live/payloads.ts` (generated, not hand-written web code, so the initial-bundle rule does not apply). These override the Never line for exactly those three edits. NEW public text 1 ("the Jira" in the I-checked list) is with the Planner and does not block implement: ship no new text.
 
 ## Review Triage Log
+
+### 2026-11-14 -- Review pass
+- verdicts: 22 findings -- high 0, medium 6, low 12, false 4, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind 1 and Edge 1 (one root cause): MailboxRow set `known` only after `Mark()` returned, so a throwing mark left no Mailbox row instead of `digest.notCheckedError` -- fixed (`known = 1` right after the owner check); pinned by `TestMailboxMarkUnreadable`, mutation recorded.
+  - `[low]` `[patch]` Blind 2 and Edge 4 (one root cause): the read-only check ran before the server lock, so a concurrent ClassifyTool could slip a source onto a risky tool -- fixed (`SaveSource` re-opens the tool under the lock and answers `not_found` / `not_read_only`); it is the same guard the early check applies, and the run side (22.11) stops such a source on its first run, so no test of the interleaving was added.
+  - `[low]` `[defer]` Blind 3 and Edge 7 (one root cause): a source can take a fixed coverage entry's name -- real, but the refusal needs a new public text (veto item 5), so it is in `deferred:`.
+  - `[low]` `[reject]` Blind 4: the `source_set` and `source_removed` audit entries omit the name and interval -- the spec pins the call shape `change,server,tool,outcome` (and AD-19 keeps arguments out); a spec-bound shape, `by-design`.
+  - `[medium]` `[patch]` Blind 5 and Gap 1 (one root cause): the `RemoveSources` failure path (one source fails, the removal stands, the loop continues) had no test -- `TestServerRemovedSourceFails` added with an OpsProbe seam; mutation recorded.
+  - `[medium]` `[patch]` Blind 6 and Gap 1: the probe's `changedError` switch was never used, so "a failed send is one warning" was unpinned -- `TestSendChangedFails` added; mutation recorded.
+  - `[low]` `[reject]` Blind 7: `SOURCEKIND` is defined in both `Checks.Process` and `Watch.Ops` -- both are named by the spec's tasks (each class's own constant), the value is a stored Kind, and `test-class-rules` is green; one-word constants, no divergence path worth a cross-class reference.
+  - `[false]` `[reject]` Blind 8 and Edge 5: `OnRemoveSource` locks the server read before the lock -- the removal is by Ref and `Watch.Ops` serialises every row write under `Lock(sessionRef)`, and removing the source the admin named is correct whichever server it points at.
+  - `[false]` `[reject]` Blind 9: the spec's Auto Run Result block still said ready-for-dev -- finalize writes it; not a defect of the diff.
+  - `[low]` `[patch]` Edge 2: an empty `toUtc` made `Apart` return 0, so any ok mark counted as passed -- fixed (the staleness is measured against now); `TestMailboxNoWindow`, mutation recorded.
+  - `[low]` `[reject]` Edge 3: a mark with `ok` neither 0 nor 1 is reported as an error at its own time instead of an unreadable mark at now -- both are `digest.notCheckedError`, not checked; cosmetic time difference, no false all-clear.
+  - `[low]` `[reject]` Edge 6: a hand-made source row with an empty Server would make `Lock` throw -- `SetSource` cannot create one (the server is validated), so only a hand-written row reaches it (`wontfix-theoretical`; it would then fail, never succeed wrongly).
+  - `[low]` `[reject]` Edge 8: shortening a source's interval marks earlier runs missed -- the direction is conservative (no false all-clear) and the update resets `NextDueAt`; the window heals in one interval (`wontfix-accepted`, reopen_if a story pins history across an interval change).
+  - `[medium]` `[patch]` Gap 2: no digest-level test with a failed, a not-checked and a passed row -- `TestNotCheckedLeadWithFailure` added (no lead, `checks.notEverythingRestPassed` names both, AllClear 0).
+  - `[low]` `[patch]` Gap 3: `Watch.Ops.RemoveSource`'s kind guard and `SourcesOf`'s exact match were tested only behind McpOps' pre-checks -- `TestWatchOpsRemoveSourceKind` added.
+  - `[low]` `[patch]` Gap 4: the cascaded `source_removed` entries asserted only the `change` word -- `TestServerRemovedRemovesSources` now asserts user, session, channel, server, tool and outcome.
+  - `[false]` `[reject]` Intent 1 (descriptive): the diff implements the admin, row and digest surfaces and not the poll run, Items or stop -- the spec's Scope paragraph (Planner ruling C) moves those to Story 22.11, and the lead's note binds; no defect.
+  - Rule 19: the reviewers found every added test able to fail, and every AC's pinning test has a `mutation:` line (twelve in all).
 
 ## Design Notes
 
@@ -480,7 +511,41 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 | `KeyOf` maps `stopped` to the error key | `TestStoppedStreak` |
 | `RestKey` ignores failed rows | `TestRestKey` |
 
+**Mutations observed (implement stage; each applied, seen red on the warm stack, reverted byte-identical with `git status --short` and `git diff --stat` unchanged):**
+
+- AC1 `mutation:` skipped the `read-only` check in `OnSetSource` -> `TestSetRefusedNotReadOnly` red (5 asserts: both refusals, no row, no `CheckChanged`, no audit entry).
+- AC2 `mutation:` a source keeps the 180 s gap (removed the interval gap line in `WatchRow`) -> `TestSourceIntervalGap` red (the 15-minute and the edge sources become missed).
+- AC3 `mutation:` the mailbox row passes whatever `ok` says (`If (mark.ok = 1) || (mark.ok = 0)`) -> `TestMailboxUnreachable` red (4 asserts).
+- AC4 `mutation:` kept `checks.notEverythingRestPassed` in the lead (`If lead.%Size() > 0` made `If 0`) -> `TestNotCheckedLead` red.
+- AC5 `mutation:` dropped the `RemoveSources` call from `Unregister` -> `TestServerRemovedRemovesSources` red (sources stay, no `CheckChanged`, audit order).
+- AC6 `mutation:` skipped `Refusal` in `OnSetSource` -> `TestOnlineDemoSources` red (the set is carried out on the demo, by the probe's switch and by the real setting).
+- `mutation:` `KeyOf` maps `stopped` to the error key -> `TestStoppedStreak` red (4 asserts).
+- `mutation:` `RestKey` ignores failed rows -> `TestRestKey` red ("one failed row: no key").
+- `mutation:` set `known = 1` only after `Mark()` returns in `MailboxRow` -> `TestMailboxMarkUnreadable` red (no Mailbox row for an unreadable mark).
+- `mutation:` `MailboxRow` measured the staleness against `toUtc` when it is empty (`Apart(at, toUtc)`) -> `TestMailboxNoWindow` red (a mark days old passed).
+- `mutation:` the `Changed` warning path rethrows -> `TestSendChangedFails` red (the set is not answered).
+- `mutation:` `RemoveSources` stops at the first failed source -> `TestServerRemovedSourceFails` red (the second source stays, no `CheckChanged`, no audit entry for it).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Part A of Story 22.5: the `source` row, the two McpOps verbs (`SetSourcePoll`, `RemoveSourcePoll`) with their audit and `CheckChanged`, sources removed with their server, the coverage side (source gap of interval x 60 + 180 s, the `stopped` streak, the Mailbox row from `emailPoll`), `Render.RestKey` and the digest's not-checked lead, and the `intervalMinutes` payload member. Nothing runs a `source` row yet (Story 22.11).
+
+**Files changed** (under `src/ocutalon/cls/OcuTalon/` unless noted):
+- `Data/BackgroundCheck.cls`: `Server`, `Tool`, `Arguments`, `IntervalMinutes` (storage 16-19).
+- `Watch/Ops.cls`: `SOURCEKIND`, `FIELDS`, `RefOf` branch, `SetSource`, `RemoveSource`, `SourcesOf`.
+- `Mcp/Ops.cls`: the two handlers, `SaveSource`, `RemoveRow`, `RemoveSources` (called from `Unregister`), `Changed`/`SendChanged`, `Normalised`, the five public texts and limits.
+- `src/bridge/cls/OcuTalon/Bridge/Audit.cls`: `source_set` and `source_removed` take the MCP call shape.
+- `Checks/Process.cls`: `SOURCEKIND`, `REASONSOURCEUNREACHABLE`, `REASONNOTREADONLY`.
+- `Checks/Coverage.cls`: source gap, `KEYSTOPPED`, reason maps, `MailboxRow`.
+- `Checks/Render.cls`: `KEYELSEPASSED`, `RestKey`. `Digest/Process.cls`: `Lead`, `Finish`.
+- `Live/Payload/Check.cls`: `IntervalMinutes`. Lane exception (veto 11, granted): `Test/Data/Tables.cls`, `Test/Live/Payloads.cls`, `web/src/app/live/payloads.ts` (regenerated, one line).
+- Tests: new `Test/Mcp/SourceSet.cls` (13 tests); extended `Test/Mcp/Ops.cls`, `Test/Mcp/OpsProbe.cls`, `Test/Bridge/Audit.cls`, `Test/Checks/Render.cls`, `Test/Digest/Coverage.cls`, `Test/Digest/CoverageProbe.cls`, `Test/Digest/Compose.cls`, `Test/Eval/Report.cls`.
+
+**Review.** 22 findings from four layers: patches applied 7 entries (medium 3: the unreadable-mark Mailbox row, the untested failure paths, the digest lead with a failed row; low 4), 1 deferred (a source named like a fixed coverage entry; needs a new public text), 12 rejected with their reasons in the triage log. Follow-up review recommended: true, for the unverified risk that the patch pass added a probe seam (`sourceAuditError`), the `SaveSource` re-check (no interleaving test) and four tests without a second independent review; the patched classes ran green.
+
+**Verification (all on the warm stack unless noted).** Passed: `Test.Mcp.SourceSet`, `Test.Mcp.Ops`, `Test.Bridge.Audit`, `Test.Checks.Render`, `Test.Digest.Coverage`, `Test.Digest.Compose`, `Test.Digest.AllClear`, `Test.Eval.Watch` (loop, after the last patch); `Test.Eval.Report`, `Test.Watch.Ops`, `Test.Core.CommandsStep4`, `Test.Digest.TelegramText`, `Test.Digest.RecordTrigger`, `Test.Checks.Runs`, `Test.Checks.Queues`, `Test.Data.Tables`, `Test.Live.Payloads` (once); `payloads.mjs --check` current and `payloads.test.mjs` 20/20; `test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh` exit 0; `Test.Mcp.SourceSet` passed on a fresh stack (tag e22s5i) and was torn down; the warm stack was brought down.
+
+**Residual risks.** The digest shows a not-checked line in both the lead and the coverage list (the spec's text pin). NEW public text 1 ("the Jira" in the I-checked list) stays with the Planner. The `SaveSource` re-check is not exercised by an interleaved test.

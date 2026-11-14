@@ -11,7 +11,11 @@
 ///   - TestBeatLeavesCoverageAlone: an update of a check's row that leaves its LastRunAt as it was (what a heartbeat beat would be, if it touched the row)
 ///     writes no CheckRun and leaves Build's rows and lines as they were, the vital rows' time (the clock) left out;
 ///   - TestGapsSignature: the seam Gaps agrees with Schedule.Heartbeat.Gaps;
-///   - TestFixedStrings: the ruled text and the digest line, byte for byte.
+///   - TestFixedStrings: the ruled text and the digest line, byte for byte;
+///   - TestSourceIntervalGap, TestStoppedStreak (Story 22.5): a source row's gap is its interval plus MISSEDSECONDS, and the stopped runs of a source give
+///     digest.notCheckedStopped since the first run of their trailing streak; TestReasonMap also pins the two phrases of Checks.Process that a source's run writes;
+///   - TestMailboxPassed, TestMailboxStale, TestMailboxUnreachable, TestMailboxError, TestMailboxMarkUnreadable, TestMailboxNoWindow, TestMailboxOtherOwner (Story 22.5): the Mailbox row of the session that owns the
+///     connected mailbox, from the mark emailPoll (fed through the probe), after the background-check rows, and no row for any other session.
 Class OcuTalon.Test.Digest.Coverage Extends %UnitTest.TestCase
 {
 
@@ -329,6 +333,211 @@ Method TestReasonMap()
 		Do $$$AssertEquals(row.result_"|"_row.finding_"|"_row.checkedAt, "not_checked|Couldn't be read|2030-06-01T11:59:30Z", "reason '"_$List(cases, i)_"': not_checked with the run's finding and time")
 		Do $$$AssertEquals(line.key_"|"_line.slots.time_"|"_line.slots.entry, $List(keys, i)_"|2030-06-01T11:59:30Z|"_row.entry, "reason '"_$List(cases, i)_"' is "_$List(keys, i))
 	}
+	// Story 22.5: the two phrases that a source's run writes, recorded as RecordRun records a run
+	Set process = "OcuTalon.Checks.Process"
+	Set phrases = $ListBuild($Parameter(process, "REASONSOURCEUNREACHABLE"), $Parameter(process, "REASONNOTREADONLY"))
+	Set reasons = $ListBuild("unreachable", "stopped")
+	Set keys = $ListBuild("digest.notCheckedUnreachable", "digest.notCheckedStopped")
+	For i = 1:1:2 {
+		Set ref = ..Watch(session, "Zz.Phrase"_i, "Phrase"_i)
+		Do ..Every(ref, session, "2030-06-01T11:50:30Z", 9, 60)
+		Do $ClassMethod("OcuTalon.Checks.Coverage", "RecordRun", ref, session, "2030-06-01T11:59:30Z", "not_checked", $List(phrases, i))
+		Set read = ##class(%SQL.Statement).%ExecDirect(, "SELECT Reason FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ? AND RanAt = ?", ref, "2030-06-01T11:59:30Z")
+		Do read.%Next()
+		Do $$$AssertEquals(read.%Get("Reason"), $List(reasons, i), "'"_$List(phrases, i)_"' is recorded with the reason "_$List(reasons, i))
+	}
+	Do ..Built(session, .rows, .lines)
+	For i = 1:1:2 {
+		Set row = rows.%Get(9 + i)
+		Set line = lines.%Get(9 + i)
+		Do $$$AssertEquals(row.result_"|"_row.finding_"|"_line.key_"|"_line.slots.time, "not_checked|"_$List(phrases, i)_"|"_$List(keys, i)_"|2030-06-01T11:59:30Z", "'"_$List(phrases, i)_"': not_checked, on the line "_$List(keys, i))
+	}
+}
+
+/// Story 22.5: a source row (Kind source) with an IntervalMinutes runs once in each interval, so its gap is IntervalMinutes x 60 + MISSEDSECONDS seconds; every other
+/// row, and a source with no interval, keeps MISSEDSECONDS. The span is four hours, so that the gaps are longer than the 180 seconds.
+Method TestSourceIntervalGap()
+{
+	Set session = ..Session()
+	Set every = ..Source(session, "Every15", 15)
+	Do ..Every(every, session, "2030-06-01T08:00:30Z", 16, 900)
+	Set edge = ..Source(session, "Edge", 15)
+	Do ..Every(edge, session, "2030-06-01T08:00:30Z", 14, 1080)
+	Set slow = ..Source(session, "Slow", 15)
+	Do ..Run(slow, session, "2030-06-01T08:00:30Z", "passed")
+	Do ..Every(slow, session, "2030-06-01T08:21:30Z", 15, 900)
+	Set production = ..Watch(session, "Zz.Gap", "Prod")
+	Do ..Every(production, session, "2030-06-01T08:00:30Z", 16, 900)
+	Set none = ..Source(session, "NoInterval", "")
+	Do ..Every(none, session, "2030-06-01T08:00:30Z", 16, 900)
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T08:00:00Z", "2030-06-01T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Get(5).entry_"|"_rows.%Get(5).result_"|"_rows.%Get(5).checkedAt, "Every15|passed|2030-06-01T11:45:30Z", "a source whose runs are 15 minutes apart passed, at its latest run")
+	Do $$$AssertEquals(lines.%Get(5).key, "digest.passed", "on a passed line")
+	Do $$$AssertEquals(rows.%Get(6).entry_"|"_rows.%Get(6).result, "Edge|passed", "runs exactly the interval plus 180 seconds apart are not a gap")
+	Do $$$AssertEquals(rows.%Get(7).entry_"|"_rows.%Get(7).result_"|"_rows.%Get(7).finding, "Slow|not_checked|The check didn't run", "a gap of 21 minutes in a 15-minute source is missed")
+	Do $$$AssertEquals(lines.%Get(6).key, "digest.passed", "control: the line of the edge")
+	Do $$$AssertEquals(lines.%Get(7).key_"|"_lines.%Get(7).slots.from_"|"_lines.%Get(7).slots.to, "digest.notCheckedMissed|2030-06-01T08:00:30Z|2030-06-01T08:21:30Z", "from the run before the gap to the run after it")
+	Do $$$AssertEquals(rows.%Get(8).entry_"|"_rows.%Get(8).result_"|"_lines.%Get(8).key, "Prod production|not_checked|digest.notCheckedMissed", "a production watch with the same 15-minute runs is missed: its gap is 180 seconds")
+	Do $$$AssertEquals(rows.%Get(9).entry_"|"_rows.%Get(9).result_"|"_lines.%Get(9).key, "NoInterval|not_checked|digest.notCheckedMissed", "a source with no interval keeps the 180 seconds")
+}
+
+/// Story 22.5: the stopped runs of a source (Reason stopped) give digest.notCheckedStopped, since the first run of the unbroken streak of stopped runs that ends at the
+/// latest run; an earlier stopped streak, and unreachable runs, do not count.
+Method TestStoppedStreak()
+{
+	Set session = ..Session()
+	Set finding = ##class(OcuTalon.Checks.Process).#REASONNOTREADONLY
+	Set later = ..Source(session, "Later", 1)
+	Do ..Slots(later, session, "pppppspsss")
+	Set after = ..Source(session, "AfterUnreachable", 1)
+	Do ..Slots(after, session, "ppppuussss")
+	Set mixed = ..Source(session, "Mixed", 1)
+	Do ..Slots(mixed, session, "pppppppsuu")
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "not_checked|"_finding_"|2030-06-01T11:57:30Z", "not checked, with the run's finding, at the first run of the trailing streak")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.time_"|"_lines.%Get(5).slots.entry, "digest.notCheckedStopped|2030-06-01T11:57:30Z|Later", "on the stopped line, not the error line, since the first run of the trailing streak and not of an earlier one")
+	Do $$$AssertEquals(lines.%Get(6).key_"|"_lines.%Get(6).slots.time, "digest.notCheckedStopped|2030-06-01T11:56:30Z", "an earlier unreachable run does not start the streak")
+	Do $$$AssertEquals(lines.%Get(7).key_"|"_lines.%Get(7).slots.time, "digest.notCheckedUnreachable|2030-06-01T11:58:30Z", "a stopped run before the unreachable streak does not start it")
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(lines.%Get(5).key, lines.%Get(5).slots, "telegram", "2030-06-01T12:00:00Z", 0, .sc)
+	Do $$$AssertStatusOK(sc, "the line renders")
+	Do $$$AssertTrue(($Extract(text, 1, 39) = "Not checked: Later (stopped polling at ") && ($Extract(text, *-34, *) = ": its tool is no longer Read-only)."), "as the catalog says: "_text)
+}
+
+/// Story 22.5: the Mailbox row of the session that owns the mailbox, from the mark emailPoll {at, ok, reason, lastOkAt}: passed when ok and the poll was at most 900 seconds before the
+/// end of the span and inside it.
+Method TestMailboxPassed()
+{
+	Set session = ..Session()
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:55:00Z", 1, "", "2030-06-01T11:55:00Z"))
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size(), 6, "the five vital signs and the Mailbox")
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).entry_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "passed|Mailbox||2030-06-01T11:55:00Z", "an ok poll in the span is passed, at the poll's time")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.entry_"|"_lines.%Get(5).slots.time, "digest.passed|Mailbox|2030-06-01T11:55:00Z", "on a passed line")
+	Set watch = ..Watch(session, "Zz.Mail", "Orders")
+	Do ..Every(watch, session, "2030-06-01T11:50:30Z", 10, 60)
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size() _ "|" _ rows.%Get(5).entry _ "|" _ rows.%Get(6).entry, "7|Orders production|Mailbox", "the Mailbox row comes after the background-check rows")
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:45:00Z", 1, "", "2030-06-01T11:45:00Z"))
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T08:00:00Z", "2030-06-01T12:00:00Z", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK over four hours")
+	Do $$$AssertEquals(rows.%Get(6).result_"|"_rows.%Get(6).checkedAt, "passed|2030-06-01T11:45:00Z", "a poll exactly 900 seconds before the end of the span is passed")
+	Do ..Mail(session, session, ..Mark("2030-06-01T12:00:00Z", 1, "", "2030-06-01T12:00:00Z"))
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T08:00:00Z", "2030-06-01T12:00:00Z", .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(6).result, "passed", "and a poll at the end of the span")
+}
+
+/// Story 22.5: an ok mark that is not in the span, or older than 900 seconds before its end, is stale, never passed (the conservative rule).
+Method TestMailboxStale()
+{
+	Set session = ..Session()
+	Set finding = $Parameter(..#PROBE, "FINDINGSTALE")
+	Do ..Mail(session, session, ..Mark("2030-06-01T08:00:00Z", 1, "", "2030-06-01T08:00:00Z"))
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "not_checked|"_finding_"|2030-06-01T08:00:00Z", "an ok poll before the span is stale, at the poll's time")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.entry_"|"_lines.%Get(5).slots.time, "digest.notCheckedStale|Mailbox|2030-06-01T08:00:00Z", "on the stale line")
+	For at = "2030-06-01T11:44:59Z", "2030-06-01T12:00:01Z" {
+		Do ..Mail(session, session, ..Mark(at, 1, "", at))
+		Set sc = $ClassMethod(..#PROBE, "Build", session, "2030-06-01T08:00:00Z", "2030-06-01T12:00:00Z", .rows, .lines)
+		Do $$$AssertEquals(rows.%Get(5).result_"|"_lines.%Get(5).key, "not_checked|digest.notCheckedStale", "an ok poll at "_at_" in a span that ends at 12:00:00 is stale: older than 900 seconds, or after the span")
+	}
+}
+
+/// Story 22.5: a failed poll with the adapter's unreachable reason is not checked as unreachable, since the last good poll (else since the poll). A mark that is ok is never
+/// listed as passed whatever else it says, and a mark that is not ok never is either.
+Method TestMailboxUnreachable()
+{
+	Set session = ..Session()
+	Set reason = ##class(OcuTalon.Channel.Email.Adapter).#REASONUNREACHABLE
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:58:00Z", 0, reason, "2030-06-01T02:10:00Z"))
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).entry_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "not_checked|Mailbox|"_reason_"|2030-06-01T11:58:00Z", "an unreachable mail server is not checked, with the adapter's reason as its finding")
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.entry_"|"_lines.%Get(5).slots.time, "digest.notCheckedUnreachable|Mailbox|2030-06-01T02:10:00Z", "on the unreachable line, since the last good poll")
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:58:00Z", 0, reason, ""))
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.time, "digest.notCheckedUnreachable|2030-06-01T11:58:00Z", "with no good poll, since the failed poll")
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:58:00Z", 0, reason, "2030-06-01T11:57:00Z"))
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result, "not_checked", "a poll that failed a minute after a good one is not checked, never passed")
+}
+
+/// Story 22.5: any other failed poll is an error, at the poll's time; a mark that cannot be read is an error at the time of the build.
+Method TestMailboxError()
+{
+	Set session = ..Session()
+	For reason = ##class(OcuTalon.Channel.Email.Adapter).#REASONREFUSED, ##class(OcuTalon.Channel.Email.Adapter).#REASONUNREADABLE {
+		Do ..Mail(session, session, ..Mark("2030-06-01T11:58:00Z", 0, reason, "2030-06-01T02:10:00Z"))
+		Do ..Built(session, .rows, .lines)
+		Do $$$AssertEquals(rows.%Get(5).result_"|"_rows.%Get(5).finding_"|"_rows.%Get(5).checkedAt, "not_checked|"_reason_"|2030-06-01T11:58:00Z", "'"_reason_"': not checked, with that reason")
+		Do $$$AssertEquals(lines.%Get(5).key_"|"_lines.%Get(5).slots.entry_"|"_lines.%Get(5).slots.time, "digest.notCheckedError|Mailbox|2030-06-01T11:58:00Z", "on the error line, at the poll's time")
+	}
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:58:00Z", 0, "", ""))
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).finding_"|"_lines.%Get(5).key, ##class(OcuTalon.Checks.Process).#REASONREAD_"|digest.notCheckedError", "a failed poll with no reason has the standard reason")
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	For text = "not json{", "[1]", "5", "{""ok"": 1}", "{""at"": ""yesterday"", ""ok"": 1}" {
+		Do ..Mail(session, session, text)
+		Do ..Built(session, .rows, .lines)
+		Do $$$AssertEquals(rows.%Size() _ "|" _ rows.%Get(5).result _ "|" _ rows.%Get(5).entry _ "|" _ lines.%Get(5).key, "6|not_checked|Mailbox|digest.notCheckedError", "the mark '"_text_"' cannot be read: an error, never passed")
+		Do $$$AssertTrue('(before ]] lines.%Get(5).slots.time), "at the time of the build: "_lines.%Get(5).slots.time)
+	}
+}
+
+/// Story 22.5: a mark that cannot be read (Mark throws) for the owner's session is one error row at the time of the build, not checked and never a throw or a missing row.
+Method TestMailboxMarkUnreadable()
+{
+	Set session = ..Session()
+	Do ..Mail(session, session, ..Mark("2030-06-01T11:58:00Z", 1, "", "2030-06-01T11:58:00Z"))
+	Set ^||CoverageProbe("markError") = 1
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = $ClassMethod(..#PROBE, "Build", session, ..#FROM, ..#TO, .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK and does not throw")
+	Do $$$AssertEquals(rows.%Size() _ "|" _ lines.%Size(), "6|6", "the five vital signs and one Mailbox row")
+	If rows.%Size() = 6 {
+		Do $$$AssertEquals(rows.%Get(5).result _ "|" _ rows.%Get(5).entry _ "|" _ lines.%Get(5).key, "not_checked|Mailbox|digest.notCheckedError", "the mailbox is not checked, on the error line")
+		Do $$$AssertTrue('(before ]] lines.%Get(5).slots.time), "at the time of the build: "_lines.%Get(5).slots.time)
+	}
+	Kill ^||CoverageProbe("markError")
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(5).result, "passed", "control: the same mark is passed when it can be read")
+	Do ..Mail(session, "", "")
+	Set ^||CoverageProbe("markError") = 1
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size(), 5, "a mark that cannot be read is no row for a session that does not own the mailbox")
+}
+
+/// Story 22.5: with no end to the span (toUtc empty) the staleness of an ok mark is measured against now, so an old mark is stale, never passed.
+Method TestMailboxNoWindow()
+{
+	Set session = ..Session()
+	Set old = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -3 * 86400)
+	Do ..Mail(session, session, ..Mark(old, 1, "", old))
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "", "", .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK with no span")
+	Do $$$AssertEquals(rows.%Get(rows.%Size() - 1).entry _ "|" _ rows.%Get(rows.%Size() - 1).result _ "|" _ lines.%Get(lines.%Size() - 1).key _ "|" _ lines.%Get(lines.%Size() - 1).slots.time, "Mailbox|not_checked|digest.notCheckedStale|" _ old, "an ok mark days old is stale, at its time, not passed")
+	Set recent = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -60)
+	Do ..Mail(session, session, ..Mark(recent, 1, "", recent))
+	Set sc = $ClassMethod(..#PROBE, "Build", session, "", "", .rows, .lines)
+	Do $$$AssertEquals(rows.%Get(rows.%Size() - 1).result _ "|" _ rows.%Get(rows.%Size() - 1).checkedAt, "passed|" _ recent, "control: an ok mark a minute old is passed")
+}
+
+/// Story 22.5: no Mailbox row for another owner's session, for a mailbox with no owner, or for an owner with no mark.
+Method TestMailboxOtherOwner()
+{
+	Set session = ..Session()
+	Set other = ..Session()
+	Set mark = ..Mark("2030-06-01T11:58:00Z", 1, "", "2030-06-01T11:58:00Z")
+	Do ..Mail(session, other, mark)
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size() _ "|" _ lines.%Size(), "5|5", "another session owns the mailbox: no Mailbox row for this one")
+	Do ..Built(other, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size() _ "|" _ rows.%Get(5).entry, "6|Mailbox", "and the owner has it")
+	Do ..Mail(session, "", mark)
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size(), 5, "a mailbox with no owner: no Mailbox row")
+	Do ..Mail(session, session, "")
+	Do ..Built(session, .rows, .lines)
+	Do $$$AssertEquals(rows.%Size(), 5, "an owner with no mark: no Mailbox row")
 }
 
 /// Rule 4, unreachable: the time is the first run of the unbroken streak of unreachable runs that ends at the latest.
@@ -575,6 +784,30 @@ Method Watch(session As %String, production As %String, name As %String, fields 
 	Quit ref
 }
 
+/// A fixture source row of the session (Story 22.5), created before the window, polled every interval minutes; its Ref.
+Method Source(session As %String, name As %String, interval As %String) As %String
+{
+	Quit ..Watch(session, "", name, {"Kind": "source", "Namespace": "", "Server": "zz", "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": (interval)})
+}
+
+/// Feeds the probe the owner of the mailbox and the text of the mark emailPoll.
+Method Mail(session As %String, owner As %String, mark As %String)
+{
+	Do $ClassMethod(..#PROBE, "FeedOwner", owner)
+	Do $ClassMethod(..#PROBE, "FeedMark", mark)
+}
+
+/// The text of a mark emailPoll, as the adapter records it.
+ClassMethod Mark(at As %String, ok As %Boolean, reason As %String, lastOkAt As %String) As %String
+{
+	Set mark = {}
+	Do mark.%Set("at", at, "string")
+	Do mark.%Set("ok", +ok, "number")
+	Do mark.%Set("reason", reason, "string")
+	Do mark.%Set("lastOkAt", lastOkAt, "string")
+	Quit mark.%ToJSON()
+}
+
 /// One CheckRun of the check, written as it is (not through RecordRun, so that a reason can be anything).
 Method Run(ref As %String, session As %String, ranAt As %String, result As %String, reason As %String = "", finding As %String = "")
 {
@@ -590,7 +823,7 @@ Method Every(ref As %String, session As %String, first As %String, count As %Int
 	}
 }
 
-/// Ten runs a minute apart from 11:50:30, one for each character of codes: p passed, f failed, u not_checked unreachable, t not_checked timeout, e not_checked error.
+/// Ten runs a minute apart from 11:50:30, one for each character of codes: p passed, f failed, u not_checked unreachable, t not_checked timeout, e not_checked error, s not_checked stopped.
 Method Slots(ref As %String, session As %String, codes As %String)
 {
 	For i = 1:1:$Length(codes) {
@@ -601,6 +834,7 @@ Method Slots(ref As %String, session As %String, codes As %String)
 		If code = "u" Do ..Run(ref, session, at, "not_checked", "unreachable", "No read access to its namespace")
 		If code = "t" Do ..Run(ref, session, at, "not_checked", "timeout", "No answer in time")
 		If code = "e" Do ..Run(ref, session, at, "not_checked", "error", "Couldn't be read")
+		If code = "s" Do ..Run(ref, session, at, "not_checked", "stopped", ##class(OcuTalon.Checks.Process).#REASONNOTREADONLY)
 	}
 }
 

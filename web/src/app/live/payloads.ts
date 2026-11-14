@@ -353,6 +353,7 @@ export interface CheckPayload {
   lastRunAt?: string;
   result?: string;
   finding?: string;
+  intervalMinutes?: number;
   traceHeaderId?: number;
   traceNamespace?: string;
   traceUrl?: string;

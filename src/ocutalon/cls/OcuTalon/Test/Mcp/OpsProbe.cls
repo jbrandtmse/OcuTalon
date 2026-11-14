@@ -5,7 +5,10 @@
 ///   - Notice records each notification in ^||ZzOps("notice", n) as a list of the session, the kind, the catalog key and the slots (and answers an error
 ///     when ^||ZzOps("noticeError") is 1), and sends nothing;
 ///   - Restart counts its calls in ^||ZzOps("restarts") and answers an error when ^||ZzOps("restartError") is 1; it restarts nothing;
-///   - WriteAudit answers an error when ^||ZzOps("auditError") is 1, else it writes the entry through the real writer.
+///   - WriteAudit answers an error when ^||ZzOps("auditError") is 1, else it writes the entry through the real writer; when ^||ZzOps("sourceAuditError") is "all" it also
+///     answers an error for each entry whose change is source_removed, and when it is "first" for the first such entry only (counted in ^||ZzOps("sourceAudits"));
+///   - SendChanged (Story 22.5) records each CheckChanged in ^||ZzOps("changed", n) as a list of the check's Ref, the session, Stopped, the kind, the namespace, the
+///     production and the display name (and answers an error when ^||ZzOps("changedError") is 1), and sends nothing.
 /// Shadow gives a probe whose request header names the sender, as the production does, and a test calls its MessageHandler with a command.
 Class OcuTalon.Test.Mcp.OpsProbe Extends OcuTalon.Mcp.Ops
 {
@@ -78,9 +81,33 @@ ClassMethod Restart() As %Status [ Private ]
 	Quit $SYSTEM.Status.OK()
 }
 
+Method SendChanged(message As OcuTalon.Checks.Msg.CheckChanged) As %Status [ Private ]
+{
+	If $Get(^||ZzOps("changedError")) = 1 Quit $SYSTEM.Status.Error(5001, "zz the check change failed on purpose")
+	Set ^||ZzOps("changed", $Increment(^||ZzOps("changed"))) = $ListBuild(message.CheckRef, message.SessionRef, message.Stopped, message.Kind, message.Namespace, message.Production, message.DisplayName)
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The CheckChanged messages recorded so far, as a %DynamicArray of {"ref", "session", "stopped", "kind", "namespace", "production", "displayName"}.
+ClassMethod Changes() As %DynamicArray
+{
+	Set changes = []
+	Set n = ""
+	For {
+		Set n = $Order(^||ZzOps("changed", n), 1, entry)
+		Quit:n=""
+		Do changes.%Push({"ref": ($List(entry, 1)), "session": ($List(entry, 2)), "stopped": ($List(entry, 3)), "kind": ($List(entry, 4)), "namespace": ($List(entry, 5)), "production": ($List(entry, 6)), "displayName": ($List(entry, 7))})
+	}
+	Quit changes
+}
+
 ClassMethod WriteAudit(type As %String, data As %DynamicObject) As %Status [ Private ]
 {
 	If $Get(^||ZzOps("auditError")) = 1 Quit $SYSTEM.Status.Error(5001, "zz the audit failed on purpose")
+	If ($Get(^||ZzOps("sourceAuditError")) '= "") && (data.change = "source_removed") {
+		Set count = $Increment(^||ZzOps("sourceAudits"))
+		If (^||ZzOps("sourceAuditError") = "all") || (count = 1) Quit $SYSTEM.Status.Error(5001, "zz the audit of a source removal failed on purpose")
+	}
 	Quit ##super(type, data)
 }
 
