@@ -61,4 +61,7 @@ Parameter PROPOSEFIX = "propose_fix";
 /// Policy.Gate holds the same name (MCPPROXY), because the bridge cannot name this class; a test pins them equal.
 Parameter CALLMCPTOOL = "call_mcp_tool";
 
+/// The email tool of Story 22.7 (AD-1, AD-10, AD-16): sends at once to the user's own address and holds anything else for approval. Not a release-1 tool, so RELEASE1 does not list it.
+Parameter SENDEMAIL = "send_email";
+
 }

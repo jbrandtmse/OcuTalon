@@ -28,6 +28,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `save_memory` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Saving a memory | safe | no | yes | none |
 | `search_memories` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Searching your memories | safe | yes | yes | none |
 | `send_digest` | `OcuTalon.Tools.DigestTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Sending your digest | safe | no | yes | none |
+| `send_email` | `OcuTalon.Tools.EmailTools` | `OcuTalon.Tools.Email` | `OcuTalon.Agent.Chat` | Sending an email | per call: safe when every recipient is the user's own email address; otherwise risky, so it waits for approval | no | yes | none |
 | `set_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Setting a reminder | safe | no | yes | none |
 | `start_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Starting a watch | safe | no | yes | none |
 | `stop_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Stopping a watch | safe | no | yes | none |
@@ -41,6 +42,7 @@ One tool has no class of its own: `documents`, the search over your added docume
 
 | Class | Name | Classification | Resources |
 | --- | --- | --- | --- |
+| `OcuTalon.Fix.Kind.Email` | `email` | risky | none |
 | `OcuTalon.Fix.Kind.PartnerWarning` | `partner_warning` | risky | none |
 | `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |
@@ -120,7 +122,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's 
 
 ## Approval and audit
 
-Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
+Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe except `send_email`, which code classifies per call: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do.
 
 Content that didn't come from the user (for example a simulated email, or a failed message's body):
 
@@ -140,6 +142,7 @@ Each risky action is one approval request, held as one IRIS Workflow task:
 Who may answer:
 
 - a holder of the role named in the bridge's approval-role setting, which OcuTalon seeds with `OcuTalonUser`;
+- an email to anyone but the connected mailbox's own address can be answered only by the session that asked for it, and can be approved only if its user holds `OcuTalonAdmin`;
 - on the online demo, only the session that owns the request;
 - never a tool's own job.
 
@@ -162,6 +165,7 @@ Roles and accounts:
 - `OcuTalonAdmin` switches demo mode with the documented terminal command.
 - `OcuTalonTraceViewer` is the trace role: Use on the four `%Ens_*` resources, Read on the data and code databases, `SELECT` on `Ens.MessageHeader`, and nothing on the private database.
 - Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text.
+- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it.
 - The local (README) account holds all three roles. The online demo account holds `OcuTalonUser` and `OcuTalonTraceViewer`. The read-only account holds `OcuTalonTraceViewer` alone.
 - The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly seven: the six trace and message-viewer pages and `%CSP.Broker`. It can't use the OcuTalon page or its API.
 - As the Privileges tables show, no OcuTalon role holds `%All`.

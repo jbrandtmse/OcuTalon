@@ -61,7 +61,9 @@ Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 1
 /// into its part (left absent when the row holds none or it can't be read). A partner_warning request (Story 23.5) has the DryRun {notice, recipients, simulated}: its part holds
 /// only the notice, the recipients as "Name <address>" and simulated, with no repair keys and no reading. A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
 /// its part holds only before and after, each the old or new object's text, the string itself when it is one, and "" when it is missing; every other
-/// field of the part stays empty, eitherWay is 0 and Reading is not asked. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
+/// field of the part stays empty, eitherWay is 0 and Reading is not asked. An email request (a fix request of the kind email, Story 22.7) has the DryRun {to, subject, text}, with to an array of
+/// addresses: its part holds the recipients as plain addresses, the exact text as the notice and the exact subject as before, every other field empty, simulated 0, eitherWay 0 and no
+/// reading. A dry run of an email request that is not as expected leaves those members out, and the part is still there, never an error. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
 /// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
 /// stays empty. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
 /// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
@@ -112,6 +114,11 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 				Set payload.DryRun = part
 				Quit
 			}
+			If (row.Kind = "fix") && (row.FixKind = "email") {
+				Do ..EmailPart(dry, part)
+				Set payload.DryRun = part
+				Quit
+			}
 			Set part.Affected = dry.affected
 			Set part.Resend = dry.resend
 			Set part.LeftOut = dry.leftOut
@@ -138,6 +145,23 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 		}
 	}
 	Quit payload
+}
+
+/// Fills the part of an email request from its dry run {to, subject, text}: every address of the array to as a plain string in Recipients, the text in Notice and the subject in
+/// Before. A member that is missing or not of its type is left out, and so is the whole list when one entry of to is not a string, so that no object reference is ever shown.
+ClassMethod EmailPart(dry As %DynamicObject, part As OcuTalon.Live.Payload.Part.DryRun) [ Private ]
+{
+	If dry.%GetTypeOf("to") = "array" {
+		Set clean = 1
+		For i = 0:1:dry.to.%Size() - 1 {
+			If dry.to.%GetTypeOf(i) '= "string" Set clean = 0
+		}
+		If clean {
+			For i = 0:1:dry.to.%Size() - 1 Do part.Recipients.Insert(dry.to.%Get(i))
+		}
+	}
+	If dry.%GetTypeOf("text") = "string" Set part.Notice = dry.text
+	If dry.%GetTypeOf("subject") = "string" Set part.Before = dry.subject
 }
 
 /// The text of the setting DryRun's value of the name (old or new): the object's text, the string itself, else "".

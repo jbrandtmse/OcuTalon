@@ -8016,6 +8016,7 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **Given** the documentation in `docs/`
 **When** this story merges
 **Then** a worked example connects a Jira MCP server over HTTPS with its credential as a `secret://` IRIS Wallet reference, classifies its tools (searches read-only; creating, changing or commenting on tickets risky), sets "new tickets assigned to me" as a source poll, and shows the digest's Jira entry and a held risky call (FR-50, FR-48, UX-DR106)
+**And** [AMENDED 2026-11-13, Contest Planner ruling M (4) (Rule 5 split, veto 2 approved): the source half of this criterion -- setting "new tickets assigned to me" as a source poll, the digest's Jira entry and the source half of the release check -- moved to Story 22.12; this story documents the tools half only]
 **And** this story supplies the worked example's path under `docs/`, from which Lane B's Story 36.2 (was 24.1) adds the README link, so it needs no Lane B action (FR-58, AD-29)
 
 **Given** the security overview, whose MCP section Epic 14 wrote for releases without MCP support
@@ -8032,6 +8033,8 @@ So that I can extend OcuTalon safely and show my security reviewer how it is gov
 **When** it describes classifying MCP tools
 **Then** it says that an MCP tool that runs operating-system commands or arbitrary code must be classified risky, in the same words as the security overview, and Lane B's Story 36.2 (was 24.1) copies that sentence into the README's admin section with the link (FR-10, FR-61)
 - [AMENDED 2026-11-13, Contest Planner ruling F(2) on DW-1232] Until Story 21.10 merges (the web and phone cards for `mcp.replayToolChanged`), no release notes, guide or More to try text describes the changed-tool replay path; if a release carries 22.4 without 21.10, the notes leave that path out.
+- DW-1228: a test confirms that a server tool named `call_mcp_tool` (or any built-in tool name) is refused under the current design ("Refused: a built-in tool has this name"); fix narrowly if it is not (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
+- DW-1221: the guide's MCP section states the measured known limit (a slow server can hold a request about 31 s past the 2 s bound; AD-21 S11), and no text claims a hard MCP deadline (ledger; routed by orchestrator 2026-11-13, Contest Planner ruling H)
 
 ### Story 22.7: Send email from the chat, safe to you and approved for anyone else
 
@@ -8054,7 +8057,7 @@ So that email to me just goes and email to anyone else waits for my approval.
 **Given** a risky call in a user's turn
 **When** the gate decides
 **Then** nothing is sent: an approval request for the email fix kind under `OcuTalon.Fix.Kind` is raised, whose dry run shows the exact text and every recipient, and after approval `FixExecutor` sends exactly that email once through `EmailOut`, trusting only the approved row, and reports the result (FR-44, FR-8, NFR-13, AD-16)
-**And** the request has no incident, so its `approval`, `answered` and `result` notifications come from Lane B's `OcuTalon.Core.BridgeSink` (Story 21.5), as a tool call's do, not from `IncidentManager`; until Story 21.5 merges, the tests check only that the request has no `IncidentRef` and that `IncidentManager` sends nothing for it (FR-8, AD-31)
+**And** the request has no incident, so its `approval`, `answered` and `result` notifications come from Lane B's `OcuTalon.Core.BridgeSink` (Story 21.11) [AMENDED 2026-11-13, Contest Planner ruling H (c): the criterion moved from Story 21.5 to Story 21.11 when Epic 21 split it; it read "Story 21.5"], as a tool call's do, not from `IncidentManager`; until Story 21.11 merges, the tests check only that the request has no `IncidentRef` and that `IncidentManager` sends nothing for it (FR-8, AD-31)
 
 **Given** an untrusted or tainted turn
 **When** it asks to send email to anyone
@@ -8124,7 +8127,21 @@ So that a server that stops answering in the middle of a request can never hold 
 **When** the runner lists its tools or the model calls one of them
 **Then** OcuTalon's own Streamable HTTP client (Story 22.3's, with Story 22.9's bounds) does the listing and the call, both give up within a bounded time with a clear error, and the turn goes on without that server's tools; AI Hub's MCP client is no longer used for listing or calling, and the gate, classification by fingerprint, approval and audit apply exactly as before (FR-47, FR-48, FR-49, AD-10, AD-21, AD-31)
 **And** AD-21's "AI Hub lists, OcuTalon calls" rule and its Story 22.9 residual note are amended to match (AD-21)
-- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)
+- [AMENDED 2026-11-13, Contest Planner ruling H: the AD-21 re-architecture this story proposes is DECLINED for the contest window; the story is deferred to the owner's decision after the contest and is not built in this release. DW-1221 moved to Story 22.6 (recorded as a measured known limit in AD-21 S11); it read "- DW-1221: Mcp.Client has no total deadline per request (Timeout is per read), so a server that trickles bytes can hold a runner job past CALLSECONDS (ledger; routed by harvest 2026-11-12)"]
+
+### Story 22.12: Document polling a Jira MCP tool as a source
+
+As a production developer,
+I want the worked Jira example to show a read-only Jira MCP tool polled as a source, with the source on my digest's coverage list,
+So that I can set up new-ticket polling the governed way.
+
+**Lane:** A. **Depends on:** Stories 22.5 and 22.11 (the polled source) and Lane B's Story 21.5 merged (story-level). [ADDED 2026-11-13, Contest Planner ruling M (4): split from Story 22.6's first criterion; same release]
+
+**Acceptance Criteria:**
+
+**Given** the worked example `docs/mcp-jira-example.md` from Story 22.6
+**When** this story merges
+**Then** it sets "new tickets assigned to me" as a source poll of a Read-only Jira search tool, shows the source's entry on the digest's coverage list (checked, or not checked with its reason), and the source half of the release check covers it, with every sentence true of the code at merge and brought to the Planner as PUBLIC TEXT (FR-50, FR-36, AD-28)
 
 ## Epic 23: Deeper IRIS watch (step 5)
 

@@ -3411,6 +3411,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
 - 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
 - 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
+- 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -6914,6 +6915,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 07:52:08Z: the first-run-in-USER checks passed; the second run in OCUTALON took 126 s and failed at Initialize with the CPF merge error; 25.2 changes no install, Install or IPM file
 - 2026-11-11T08:31:54Z status=routed owner=burndown by=orchestrator note=infra class (first occurrence): an IRIS CPF merge ((-100)) failed during the IPM install; one rerun per occurrence; real if it recurs on an install-touching head
 - 2026-11-12T02:06:01Z occurrence=0-26 note=OCT-epic0 540dfce5 lane-a run 43134792086 ipm-install: Shell() in USER Initialize FAILURE, CPF merge zf(-100) exited 7; 0.26 changes README/tests only; one rerun
+- 2026-11-13T16:54:16Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=OCT-epic22_f0cc2010_ci_run_43454578653_browser_live:online-demo:package_Initialize_FAILURE_CPF_merge_zf(-100)_exit_7(the_image_is_1.0.8);no_test_ran;re-judged_on_the_rework_head
 - 2026-11-13T01:54:34Z occurrence=0-29 by=runner note=run_43331999232_job_131578715028_iris(production)_on_ocutalon-ci-4_live:production-restart_first_start:'Error_merging_CPF_file._$zf(-100)_exited_with_7'(Initialize_FAILURE,no_test_ran);OCT-epic0_ab9bc6f7(0.33+0.29);rerun_failed_jobs
 ### DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7114,6 +7116,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Email/Out.cls system path reads Bridge.Data.ApprovalRequest; tests seed the row; S1 spine sub-bullet records the contract
 - 2026-11-11T23:31:06Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=22.7 confirms both contracts with a test through the real FixExecutor and Replay.Run
 - 2026-11-12T00:31:01Z occurrence=21-6-send-email-over-smtp by=cr note=also: Gate taints a context before a non-trustedOutput call runs, so CleanTurn refuses 22.7's safe own-address send unless TRUSTEDOUTPUT 1
+- 2026-11-13T08:06:03Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Test.Fix.Email_e2e(gate-raised_request,approved,real_EmailOut_send_once;origin_system;ApprovalRef);replay_part_n/a(risky_path_sends_via_FixExecutor)
 
 ### DW-1167: EmailIn takes in the mail OcuTalon itself sent to the own address (a tool email, and with 21.7 every digest) as a new untrusted item: EmailOut marks nothing and EmailIn filters nothing
 - source: spec-21-6-send-email-over-smtp.md | severity: med | fix-risk: med | footprint: in-epic
@@ -7493,6 +7496,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Exchange sets OpenTimeout/Timeout only; same property as 22.9 Probe; AD-21 accepts the residual for this release
 - 2026-11-12T20:12:17Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=harvest note=measure a 1-byte/s trickle; bound in 22.10's bounded client
 - 2026-11-12T21:11:47Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy
+- 2026-11-13T05:14:19Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:recorded_in_AD-21_S11_as_a_measured_known_limit(31s_vs_2s);22.6_guide_MCP_section_states_it;no_public_hard-deadline_claim;22.10_deferred
 
 ### DW-1222: Gate rewrite mark ^||OcuTalonBP.McpRewrite is a single slot; two native MCP calls whose first passes interleave would mis-handle the second pass (unverified)
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: low | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
@@ -7516,6 +7520,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-3-call-mcp-tools-only-through-the-governed-proxy.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: OfferServers AddTool(spec) runs before OfferProxy RegisterToolSet; AttachServers refuses only names of the agent's own tools, so a server tool named call_mcp_tool is not refused. Either outcome (registration error drops every server; the server's tool shadows the proxy) is unmeasured.
 - 2026-11-12T21:11:47Z status=routed owner=22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie by=cr note=maybe-false, would be medium: settle with a mock tool named call_mcp_tool; refuse the name at attach or register the proxy first
+- 2026-11-13T05:14:18Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=orchestrator note=Planner_H:test_that_a_server_tool_named_call_mcp_tool_or_any_built-in_name_is_refused_under_the_CURRENT_design;fix_narrowly_if_not
 
 ### DW-1232: The mcp.replayToolChanged notice (R1) renders no text on the web chat and phone cards: Channel.WebChat.Out.ToolCallCard draws only the bridge sink's five toolCall.* keys
 - source: spec-22-4-hold-risky-and-unclassified-mcp-calls-for-approval.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls
@@ -7724,6 +7729,46 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
 - evidence: found by the 22.7 plan; EmailOut keys de-duplication on ApprovalRef only; Channel/Email is Epic 21's (contended)
 - 2026-11-13T01:59:09Z status=escalated owner=burndown by=harvest note=for the orchestrator: a Lane C fix (Epic 21) before or with 22.7
+- 2026-11-13T05:14:18Z status=routed owner=burndown by=orchestrator note=Planner_H(ii):Lane_C_new_Story_21.13_fixes_it_before_22.7_merges;test=re-sent_turn_same_key_sends_once
+- 2026-11-13T07:03:52Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=22.7_safe_path_same-turn-twice_pin_waits_for_21.13
+- 2026-11-13T13:29:45Z status=resolved-by:21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com by=adjudication note=21.13_merged_into_feature(ce9716c6);EmailOut_claims_a_keyed_tool_send_by_session;integrated_into_OCT-epic22_at_5432678a;DW-1253_resolved_by_the_same_story
+
+### DW-1256: The own-address check is copied into Fix.Kind.Email.OwnAddressOnly (22.7) because the originals are private in CommandsIn and EmailOut; unify after the contest
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+- evidence: Planner H (a) approved the forced copy with a unification entry for after the contest
+- 2026-11-13T05:14:19Z status=routed owner=burndown by=harvest note=post-contest: make CommandsIn and EmailOut call one shared check (Lane C)
+
+### DW-1261: The approval card for an email request shows recipients as an object reference (2@%Library.DynamicArray) and no subject or text, so a user could approve an email the card does not show (Planner H (iii) requires the exact content on the card)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: high | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls
+- evidence: 22.7 Task 0: the Live approval payload renders dryRun.to as an object reference; the card is Story 21.11's (Lane B/C, contended); the stored dry run is exact
+- 2026-11-13T07:03:52Z status=escalated owner=burndown by=harvest note=for the orchestrator: 22.7's merge must also wait for the card fix (21.11 or a Live payload fix in Lane B), per ruling H (iii)
+- 2026-11-13T09:22:32Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=orchestrator note=Planner_M(1):fix_inside_22.7(Live_payload_footprint_extension);22.7_waits
+- 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=079df180:Live.Payload.Approval.EmailPart(recipients_as_addresses,notice=text,before=subject_from_the_stored_row);Test.Fix.EmailCard_unit+real-HTTP_/api/v1/state(two_users,isolation);web_rendering_is_21.10/21.11
+
+### DW-1262: A non-owner session's send_email to the mailbox owner's address is raised as an approval and, once approved, sent from the owner's mailbox with that session as SessionRef
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+- evidence: matrix row says raised; product question whether a non-owner may send through the owner's mailbox at all
+- 2026-11-13T07:03:52Z status=decision-pending owner=burndown by=harvest note=product ruling needed (Planner)
+- 2026-11-13T07:47:28Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=cr note=also_send-time:_mailbox_reconnected_by_another_session_between_raise_and_approval_sends_from_the_new_owner's_mailbox
+- 2026-11-13T09:22:32Z status=routed owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=orchestrator note=Planner_M(2):interim_admin-only_approval_for_email_to_others(test)+guide_sentence;resolved_by_this_interim+25.5
+- 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Planner_M(2)_interim:AnswerOps.Carry->Fix.Kind.Email.MayApprove(OcuTalonAdmin_unless_own_address_of_the_row_owner);Test.Fix.EmailRoute+Test.Fix.Email;Story_25.5_completes_it;guide_sentence_PUBLIC_TEXT_to_the_Planner
+
+### DW-1263: The MESSAGEFAILED exception and never-submitted paths of an approved email have no test
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+- evidence: needs a probe seam
+- 2026-11-13T07:03:52Z status=open owner=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=harvest note=in-story: QA adds a probe-seam test or closes with reopen_if
+- 2026-11-13T08:06:03Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Test.Fix.Executor_TestEmailSendThatFailsInsideEndsFailedOnce,TestEmailNeverSubmittedIsNotSent,TestEmailStartFails+Test.Fix.Email_TestCommandsInGivesNoAnswerEndsFailed;mutations_red
+
+### DW-1264: flake: live:demo-switch steps 5 and 8 'the chat or the rail differs from S0' (23 of 33, 25 of 25 answers) in CI shards-3; green on one unchanged rerun
+- source: cycle-log-epic-22.md | severity: med | fix-risk: low | footprint: docker/tests/test-demo-switch.sh
+- evidence: a758d17a ci 43370177969 attempt 1 shards-3 red, attempt 2 green; the S0 hash covers /state chat+rail, so a rail item changing during the switch (inference) would explain it
+- 2026-11-13T09:04:32Z status=routed owner=burndown by=flake note=find what in /state.rail changes across the demo switch; pin or exclude it
+- 2026-11-13T09:22:32Z note=Planner_M(3):CI_flake_family_one_rerun_allowed
+
+### DW-1265: P2 and the worked example in docs say MCP results are cut to 200 characters; Story 21.10 removes the cut and must update P2 and the example in the same commit
+- source: spec-22-6-document-a-worked-jira-example-and-mcp-governance.md | severity: low | fix-risk: low | footprint: docs/mcp-jira-example.md
+- evidence: Planner ruling M (4)(c)
+- 2026-11-13T09:22:33Z status=routed owner=burndown by=harvest note=orchestrator: DW bullet on Story 21.10 (another epic's block)
 
 ### DW-1266: 22.6's guide text P2 ('cut to 200 characters') and its worked example must match the code: when 21.10 removes the 200-character inputs cut, update P2 and the worked example in the same commit
 - source: Contest Planner 22.6 gate ruling M(4), 2026-11-13 | severity: low | fix-risk: low | footprint: in-epic
@@ -7745,10 +7790,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: OnCallSettings.cls OnlineDemo/Submit equal HookSettings.cls:35-38,141-144; Hand differs only in the Offer seam, Changes vs Handoff and the not_available branch; the spec's own 24.2 note says extend, don't copy
 - 2026-11-13T16:56:16Z status=wontfix-accepted owner=36-4-set-the-on-call-person-and-backup-in-settings by=cr note=reopen_if=a third settings route copies Hand (Story 24.2 partner contacts): then move OnlineDemo, Submit and Hand into Web.Api
+### DW-1274: Spine lags 22.7 rework 1: AD-1/AD-14/AD-16 still say SendEmail carries the recipients (tool: every recipient is the own address; system: the row's recipients), AD-11 has no AnswerOps admin-only email rule, AD-16's payload field list has no email row
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Code now sends the marker own (tool) and an empty Recipients (system, EmailOut reads the row), AnswerOps.Carry asks Fix.Kind.Email.MayApprove, and Live FromRow reuses Recipients/Notice/Before for email; spine lines 109-133, 413, 583, 590 describe the old shape
+- 2026-11-13T15:16:08Z status=routed owner=burndown by=cr note=lead: Rule 20 W5 amendment before merge (Planner rulings DW-1255 rule 4, M(1), M(2)); code matches the rulings
+- 2026-11-13T15:19:12Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=spine_AD-10_record_bullet_W5-W7(stored-row_SendEmail,email_card_payload,interim_admin_approver);lint_unchanged
+- 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
+- 2026-11-14T00:51:08Z status=routed owner=burndown by=cr note=cr4:lead_Rule20:W5/AD-16_subject+text_from_row(P4a);AD-9/W2_send_email_step=name+count(R4-2)
+- 2026-11-14T00:54:38Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=rework4:spine_AD-10_record_W8(P4a)+W9(step_record);AD-16_email_bullet_AMENDED_2026-11-14;lint_unchanged
+
+### DW-1275: Test.Fix.EmailRoute depends on the test process's IRIS user: it answers as $Username, asserts that user lacks OcuTalonAdmin and makes its request require that user's first role, so a runner account with OcuTalonAdmin (e.g. ocutalon) turns it red
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: EmailRoute Setup L46-57 and HeldRole L71-75 read $Username's roles; Web.Api only accepts a session of the signed-in user, so a self-made non-admin needs the real-HTTP sign-in of Test.Fix.EmailCard; same pattern in Test.Core.AnswersInProduction:444
+- 2026-11-13T15:16:08Z status=routed owner=burndown by=cr note=fails red not green; fix: drive the answer route over real HTTP as a fixture non-admin (EmailCard SignIn); browser envelope unmeasured
 ### DW-1273: Known regression from Story 0.35: finding-orders-stopped and finding-results-stopped (expected act) went to tellnow in 3 of 5 NEW A/B attempts (4 misses in 10), against 0 of 18 on OLD; the new wording ('switched off or disabled ... a change someone chose to make') pulls a stopped production in with the disabled items
 - source: spec-0-35-routine-attention-decisions-meet-their-target.md | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: release-evidence/ab-035/RESULT.md (Contest Planner A/B, 2026-11-13); not unsafe: Tell now still tells the person at once
 - 2026-11-13T14:41:41Z status=routed owner=0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi by=runner note=Story 0.37 (planning only in this dispatch; Saturday's release, after 1.0.9): separate the two by MEANING (a disabled item is a choice -> tellnow; a production that stopped is a fault -> act), never by copying case text; gate: the same A/B ship rule (a)-(e)
+
+### DW-1281: A non-admin's email request is raised but no one can answer it until it expires: 25.5 must either let an approver answer it, or refuse at raise time with a clear message
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner P1/P2 (epic-22-rulings-20261113-1715): Ownership.cls:97 APPROVALVISIBLE owner-only; Web/Api.cls:699-703 404; AnswerOps.cls:62 MayApprove needs OcuTalonAdmin; fails closed (expires after EXPIRYSECONDS)
+- 2026-11-13T18:50:36Z status=routed owner=25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi by=orchestrator note=Planner_P2:interim_acceptable(fails_closed);25.5_lets_an_approver_answer_or_refuses_at_raise_with_a_clear_message
 ### DW-1272: Test.Watch.SettingSecret (Story 36.1) scans the trace by Ens.MessageHeader.Description only and has no TraceLeaks assertion
 - source: spec-21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace.md | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Watch/SettingSecret.cls
 - evidence: ruling L lists retrofit sites by story (21.2, 21.3, 21.8, 35.3, 22.3, 22.4); 36.1 is not listed; a secret in a stored message body would pass that scan (SettingSecret.cls:254)
@@ -7804,6 +7867,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 21.4 ruling 1 (~00:20Z Nov 14) | severity: low | fix-risk: med | footprint: src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
 - evidence: Gate.cls:212 Denial(UNREGISTERED) before every other step; StepAudit.%LogDenial records a step-buffer step only; Test.Mcp.Attach:TestRemovedServer pins that denials add no audit entry
 - 2026-11-14T00:07:38Z status=open owner=burndown by=epic-21-runner note=Planner ruling: no 22.x gate change now; docs/security-overview.md MCP bullet corrected to match the code
+### DW-1296: Audit every built-in tool's step record (Inputs and Result, Bridge/Adapter/StepBuffer.cls) for data the stored-row rule covers, including the partner delay notice route, Telegram and the memory/remember tools; list each tool and what its record shows
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner 22:00Z ruling (epic-22-rulings-20261113-1715.md): StepBuffer.InputsOf (L144) records a built-in tool's arguments verbatim in the turn's step summary (L132), which lands in ^Ens.MessageBodyD; 22.7 fixes send_email only
+- 2026-11-13T23:12:49Z status=routed owner=burndown by=orchestrator note=Planner_22:00Z:audit_DW;not_22.7_work;not_a_1.0.9_blocker
+
+### DW-1305: No automated test pins that the send_email tool answer and the gate's refusal, denial and error sentences stay free of addresses, subject and text, so the Result part of a send_email step record has no failing pin (the ruled 'verbatim Result' mutation is not observable)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rework 4 R4-2/R4-3: three chat turns (own, other, malformed) show only fixed words after Result:/Denied:; Planner 22:00Z ruling item 3 asked for that mutation
+- 2026-11-14T00:39:36Z status=decision-pending owner=burndown by=harvest note=for_the_Planner:waive_the_verbatim-Result_mutation_or_rule_a_pin(e.g._assert_the_Result_part_equals_a_fixed_outcome_set);DW-1296_audit_is_related
+- 2026-11-14T00:51:07Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone
+- 2026-11-14T00:51:07Z status=decision-pending owner=burndown by=cr note=cr4:claim_holds(Result/Denied_fixed_words;answer_pinned_by_Test.Tools.Email);only_Error_part(AI_Hub_text)_unpinned
+- 2026-11-14T03:57:56Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=Planner_02:00Z:verbatim-Result_mutation_WAIVED;Error_part_pinned:StepBuffer_fixed_'Error:_the_email_tool_call_failed.'+TestEmailStepErrorIsAFixedSentence+TestEmailToolErrorLeavesNoAddressInTheTrace(mutation_red)
+
+### DW-1306: docs/security-overview.md is stale since 22.7: L125 says 'Every built-in tool is safe.' (send_email is a built-in tool that is risky per call), and 'Who may answer' (L142-146) does not mention the interim admin-only approval of an email to anyone else (DW-1262)
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 22.7 rework-4 code review (outside the rework range; public text): docs/security-overview.md:125, :142-146
+- 2026-11-14T00:54:37Z status=decision-pending owner=burndown by=cr note=human=Planner_PUBLIC_TEXT:the_corrected_L125_sentence_and_a_Who-may-answer_line_for_email;22.7_merge_gate?
+- 2026-11-14T03:57:56Z status=resolved-by:22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone by=adjudication note=docs/security-overview.md:125_ruled_text+:146_approved_Who-may-answer_bullet(Planner_02:00Z/03:40Z);follow-up_DW-1314(call_mcp_tool_omission,decision-pending)
 ### DW-1287: AD-13 lint does not check direct global reads of product storage in web-process classes (AD-13 now covers them, per the Contest Planner's DW-1278 ruling); extend the checkable rule to flag them
 - source: orchestrator; Story 36.4 DW-1278 ruling, Contest Planner 2026-11-13 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 36.4's SettingsOps.OnCallUsers walked the Session and Pairing globals in the web process
@@ -7841,3 +7922,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md code review (verification-gap) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Unverified inference: the full suite ran green locally with the build in parallel (2000 pass, 14.5 s). Moving the build to its own step is a .github/workflows change this story rules out.
 - 2026-11-13T23:51:33Z status=wontfix-theoretical owner=36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages by=cr note=real if a web/scripts timing assertion fails in the ci web job Unit tests step while initial-bundle.test.mjs builds
+### DW-1314: docs/security-overview.md L125 (ruled 22.7 text) says every built-in tool is safe except send_email and that each risky built-in action is a fix kind, but the Built-in tools table lists call_mcp_tool as per-call (risky by default) and its risky calls take a tool_call approval, not a fix kind
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, edge-case-hunter) | severity: med | fix-risk: low | footprint: in-story
+- evidence: docs/security-overview.md:12 lists call_mcp_tool (OcuTalon.Tools.McpCall, CLASSIFICATIONCALLMCPTOOL=risky, per-call rule) under Built-in tools; Bridge/Policy/Gate.cls:256-290 holds a risky call as Kind tool_call, not a Fix.Kind. L125 is the Planner's verbatim text, so a fix is a ruling.
+- 2026-11-14T03:55:09Z status=decision-pending owner=burndown by=cr note=ruled public text (Planner 02:00Z/03:40Z Nov 14); rewording needs a Planner ruling; overview L207 says MCP is not in this release
+
+### DW-1315: The ruled hand-edited lines of docs/security-overview.md (L125's send_email sentences and the 'Who may answer' email bullet, L146) have no pin, so a later edit or regeneration could drop or reword them unnoticed
+- source: spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md (code review 2026-11-14, verification-gap) | severity: med | fix-risk: low | footprint: in-story
+- evidence: Rule 19: no test in docker/tests, ci or Test/* names either text (verification-gap search); both sit outside the generated sections; spec deferred entry 6 and the rework-6 Verification line say so.
+- 2026-11-14T03:55:09Z status=routed owner=burndown by=cr note=add a test-readme.sh or release-sequence overview pin for both ruled texts; outside the final pass's three ruled items
