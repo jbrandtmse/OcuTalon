@@ -373,3 +373,7 @@
 2026-11-14T21:45:46Z	Epic 21	integrated	merged=OCT-epic21-s215(21.5)+feature_a6821f1d4(21.10_merge_42e7b3ec_and_later) conflicts=cycle-log(union),sprint-status(feature_side,re-set_21-5_done) spine=auto-merged generated=catalog.ts,payloads.ts_regenerated_identical
 2026-11-14T22:16:46Z	Story 21.5	smoke_complete	method=other(live_sign-in_part_2/16_M1,M7,M8;sign-in-2_9/12_B11-B13;sign-in-2_7/12_R5) result=pass defects_caught=0 torn_down
 2026-11-14T22:16:46Z	Story 21.5	fresh_check	env=recipe(fresh_warm_e21s5fw_on_merged_tree_fec4e2335) tests=McpSettingsApi,SettingsMcp,CommandsStep4,Msg.Catalog,HookSettingsApi result=pass order=forward,reverse torn_down static=node_2102/0,test-readme,mcp-notices,boundaries,class-rules_pass
+2026-11-14T23:05:48Z	Story 21.5	pushed	head=19de55b83 runs=43647278273,43647278336 feature_base=a6821f1d4
+2026-11-14T23:05:48Z	Story 21.5	ci_resolved	sha=19de55b83 result=success runs=43647278273,43647278336
+2026-11-14T23:05:48Z	Story 21.5	part_ready	parts=21.5 code_head=19de55b83 ci=success records=local
+2026-11-14T23:05:48Z	Epic 21	note	DW-1347(22.11_code-review_entry,on_OCT-epic22_ledger)_plan_waits_for_22.11_on_feature(not_in_1.0.10)
