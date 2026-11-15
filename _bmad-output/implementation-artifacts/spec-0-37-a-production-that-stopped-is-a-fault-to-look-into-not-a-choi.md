@@ -248,6 +248,14 @@ The evidence from 0.35 (release-evidence/ab-035/RESULT.md):
 
 - 2026-11-15 (plan stage, lane C, local only, push freeze): planned from the epics block, DW-1273, 0.35's spec and A/B record, and the two Planner prompts. Status ready-for-dev. The A/B ship question goes to the gate as a choice of two options, with A recommended.
 
+## Spec gate rulings (Contest Planner, ~16:00Z Nov 15, BINDING)
+
+- (a) Text APPROVED verbatim: the new Triage.cls lines 26 and 27, exactly as in Design Notes.
+- (b) Crossing CONFIRMED: lane C edits `Agent/Triage.cls` and `Test/Agent/Instructions.cls` within the footprint; `docker/tests/test-eval-set.sh` is only run.
+- (c) and (d): none.
+- (e) OPTION A. The key-holder A/B is a MERGE CONDITION, run by the Planner after the push: OLD = feature at that time, NEW = 0.37, N = 3 attempts each, up to one rerun set. Bars (a)-(e) as at 0.35, plus (f) the two stopped findings right in at least 2N-1 of 2N NEW decisions; (g) the two disabled findings right in at least 2N-1 of 2N NEW decisions; (h) no other eval item worse from OLD to NEW by more than the noise floor ruled at 0.35. A fallback counts as a miss. 0.37 stays held_merge until the Planner reports PASS; on FAIL it returns to lane C with the per-item misses. The epics AC stays as written.
+- 0.37 is not in 1.0.11.
+
 ## Verification
 
 **What this lane can show without a model key:** that the text is what the Planner approved (AC1), that it is pinned (AC2), that it holds no case text (AC3), that the other paragraphs' pins still hold (AC4), and that nothing else changed (AC5). **What it cannot show:** whether the real model now gets the stopped findings right and the disabled findings still right (AC6). This lane has no key, works locally only, and the push freeze stops the key-holder's run on a pushed head. That number comes only from the Planner's A/B (Option A) or a post-merge real-model run (Option B). Mock CI routes by `MOCKKEY`, so it cannot score wording.
