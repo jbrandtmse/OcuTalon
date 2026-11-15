@@ -2087,6 +2087,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T03:24:48Z occurrence=22-4-hold-risky-and-unclassified-mcp-calls-for-approval note=af886ee3_ci_43344958166_iris(production)_row21_wanted_CHK|start-fails|1|1_got_empty
 - 2026-11-14T05:25:54Z occurrence=22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone note=OCT-epic22_522228a5_ci_run_43554772670_job_132325025906_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;one_rerun_of_failed_jobs
 - 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
+- 2026-11-14T20:30:14Z occurrence=OCT-epic26-294565a3 by=orchestrator note=run 43632972453 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty' (ci-18); not rerun: QUOTA HOLD; one rerun after HOLD OFF
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8176,3 +8177,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: a static scan cannot follow ..M() chains, calls on objects, $ClassMethod with variable names, indirection or Xecute; DW-1278's own case was a callee read
 - 2026-11-14T17:40:27Z status=decision-pending owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=runner note=veto V1 for the Planner: a follow-on story extending the rule to callees needs a ruling on which Ownership accessors count as allowed (an AD-13 wording question); V2: AD-13's sentence naming DW-1287 is stale after 36.8 merges
 - 2026-11-14T18:22:15Z status=routed owner=burndown by=merge_gate note=Planner ruling ~18:30Z Nov 14 (V1): low burndown DW for after the contest
+
+### DW-1352: Test.Mcp.SourceSet TestUpdate asserts 22.5's 'CreatedAt kept' for an update that 22.13 now treats as a repoint (new tool + arguments): Watch/Ops.cls:251 moves CreatedAt to now (ruled DW-1328 RESET); it passes only when create and update share a second (Data/Time.cls:21 NowUtc has whole seconds)
+- source: orchestrator; feature 42e7b3ec ci 43633699261 attempt 1 shards-2; lane D diagnosis | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
+- 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
