@@ -1153,7 +1153,8 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 ///     Ens.Director.UpdateProduction updates the running production. It never edits a System Default Setting row or a class, and it calls no OcuTalon class there (AD-3).
 ///     When the update fails after the save, the earlier stored state is written back, saved and the production updated again: if that works the entry is unreached with the
 ///     code "refused" and nothing is changed; if it fails too, the entry is unreached with the code "notapplied" and "reason" (the first error's text), and the setting may be left
-///     changed. An entry's optional "updateErrors" N, which only a test sets (no kind's plan has it), makes the first N calls of UpdateProduction answer an error without calling it.
+///     changed; the reason is the error's own sentence (Watch.ErrorText Sentence: no "ERROR #<n>: " or "ERROR <Ens>Name: " prefix, its first line). An entry's optional
+///     "updateErrors" N, which only a test sets (no kind's plan has it), makes the first N calls of UpdateProduction answer an Ens error, as UpdateProduction's own are, without calling it.
 ///   - an item change, {"id" (the Ens.Config.Item id), "action" (disable or enable), "item", "production"}: the item is opened by its id and must still be the named item of the
 ///     named production in the state the action leaves (enabled for disable, as IRIS runs it: its stored Enabled unless a System Default Setting Enabled overrides it), and
 ///     Ens.Director.EnableConfigItem(production||item, enable) changes it.
@@ -1224,7 +1225,7 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 							Set sc = definition.%Save()
 							Set saved = $$$ISOK(sc)
 							Set updates = 0
-							If saved Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $SYSTEM.Status.Error(5001, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+							If saved Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
 							If $$$ISOK(sc) {
 								Set code = "done"
 							} Else {
@@ -1250,7 +1251,7 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 										}
 										If inserted Do item.Settings.RemoveAt(item.Settings.Count())
 										Set sc = definition.%Save()
-										If $$$ISOK(sc) Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $SYSTEM.Status.Error(5001, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+										If $$$ISOK(sc) Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
 									} Catch restoreError {
 										Set sc = restoreError.AsStatus()
 									}
@@ -1353,7 +1354,7 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 			If code '= "stopped" $$$LOGWARNING(..#LOGCOPY_id_": "_##class(OcuTalon.Bridge.Redact).Text(detail))
 			Set last = {"id": (id), "code": (code)}
 			If code = "notapplied" {
-				If $Extract(detail, 1, 7) = "ERROR #" Set detail = $ZStrip($Piece(detail, ":", 2, *), "<W")
+				Set detail = ##class(OcuTalon.Watch.ErrorText).Sentence(detail)
 				Do last.%Set("reason", detail, "string")
 			}
 			Do unreached.%Push(last)

@@ -744,27 +744,35 @@ ClassMethod PlanEntry(expect As %String, value As %String, updateErrors As %Inte
 
 /// DW-1365 (Planner pre-push ruling 2026-11-15), the restore works: Ens.Director.UpdateProduction fails once after the definition was saved with the new value (the test-only
 /// updateErrors 1), InProduction writes the earlier value back, saves and updates again: the entry is unreached as refused with the production's error, the item's stored settings and
-/// value are as they were, and so "Nothing was changed" is true. mutation: the restore block of InProduction taken out.
+/// value are as they were, and so "Nothing was changed" is true. The second update is the real Ens.Director.UpdateProduction: the Orders event log gains exactly one "updating" line
+/// of the production from this job (the first, forced, call writes none). mutation: the restore block of InProduction taken out; the restore's UpdateProduction replaced by $$$OK.
 Method TestUpdateFailureRestores()
 {
 	If '..Ready() Quit
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "beta"), "the stored Host setting is beta")
 	Set stored = ..Stored(..#FAILING)
+	Set floor = ..Top("Ens_Util.Log", ..#ORDERS)
 	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..PlanEntry("beta", "alpha", 1))], "", .done, .skipped, .unreached)
 	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
 	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code, "1|refused", "as refused")
 	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", ..#NOTE), stored_"|beta", "the earlier value was written back: the stored settings and the value are as they were")
+	Set log = ..LogSince(floor)
+	// the lines of this job have no config name; Ens.ScheduleHandler's own update after an item restart names itself
+	Do $$$AssertEquals($Length(" / "_log, " / : Production '"_..#ORDERSPRODUCTION_"' updating") - 1, 1, "the restore updated the running production once: "_log)
 }
 
 /// DW-1365, the restore fails too: Ens.Director.UpdateProduction fails twice (updateErrors 2), so the earlier value is written back but the production cannot apply it: the entry is
-/// unreached as notapplied with the production's error as its reason, without the "ERROR #" prefix. mutation: the code of that entry set to refused.
+/// unreached as notapplied with the production's error as its reason, without the "ERROR <Ens>Name: " prefix of an Ens error, and the stored settings hold the earlier value again.
+/// mutation: the code of that entry set to refused; the reason cleaned of an "ERROR #" prefix only.
 Method TestUpdateFailureNotApplied()
 {
 	If '..Ready() Quit
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "beta"), "the stored Host setting is beta")
+	Set stored = ..Stored(..#FAILING)
 	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..PlanEntry("beta", "alpha", 2))], "", .done, .skipped, .unreached)
 	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
 	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(0).reason, "1|notapplied|the update was refused by the test", "as notapplied, with the production's error")
+	Do $$$AssertEquals(..Stored(..#FAILING), stored, "the earlier value was written back to the definition")
 	// without the test-only member the same entry is carried out
 	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..PlanEntry("beta", "alpha", 0))], "", .done, .skipped, .unreached)
 	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size()_"|"_..Effective(..#FAILING, "Host", ..#NOTE), "1|0|0|alpha", "with no forced failure the entry is done and the value is alpha")

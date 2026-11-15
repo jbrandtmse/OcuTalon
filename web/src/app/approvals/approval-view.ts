@@ -564,6 +564,10 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
+ * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting, item and value of the incident's settingChange): `completed` above 0 is
+ *   result.settingRestored or result.rollbackUndone (after), success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (reason), partial,
+ *   `triangle-alert`; a skip whose reason ends as the kind's CHANGEDAGAIN is result.settingChangedSince, partial; any other reason is result.itemNotChanged, partial. A run still
+ *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.

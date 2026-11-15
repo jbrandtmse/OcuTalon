@@ -2,7 +2,7 @@
 title: 'Story 23.3: Name the setting change behind an incident and offer its rollback'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'dfa7a1407ede74401312bb3694a64f023763afd5'
 baseline_commit: 'dfa7a1407ede74401312bb3694a64f023763afd5'
 review_loop_iteration: 0
@@ -443,7 +443,35 @@ Rejected (verdict and reason):
 - [x] [Review] P3 (Test.Watch.SettingHistory): pin the new `default` field of `Watch.Reader.Settings`: at full 1 no entry has a `default` member; at full 2 an entry has `default`, and an entry of a credential setting has none. Mutation: write `default` regardless of the level, or drop `'credential` in `SettingEntry`; the test must turn red.
 - [x] [Review] P4 (Verification): demonstrate and record `mutation:` lines (name the mutation, apply it, observe red, revert byte-identical with `cmp` against a copy taken before) for: `Watch.SettingCause.ResultKey` (the new `Unreached > 0` branch returns the item-not-changed key instead), `ResultSlots` (drop the reason slot), the `Msg.Catalog.Watch` entry text (change one word; `Test.Msg.Catalog` or the web catalog check must go red), and the web mirror `web/scripts/catalog.mjs` slot type (`node web/scripts/catalog.mjs --check` or `catalog.test.mjs`). Write them under "Mutations run for rework iteration 1" in `## Verification`.
 
+**Code review 2026-11-15, rework re-review (iteration 1 of 3; bmad-code-review over `dfa7a1407..HEAD`; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; 21 raw findings, 6 entries after grouping; dispositions per Rule 15).** Planner checklist: DW-1365 met (restore, both keys, verbatim text, forced failure on both paths with mutations, the seam reachable only from a test: plans are built only by `RollbackSetting.Entry` and `UndoRollback.Plan`; `SuspendItem` untouched); DW-1366 met for the server (dry-run After from the current default, run-time re-check, mutations), its web result band filed as DW-1378; DW-1358 met (no 11; the 13s are `<`/`>=` floors that fail when cases are lost); the TestMeasuredRemoval SKIP is a printed `Timing` figure (status 2) with the removal asserted after it (AC15 byte-identical); DW-1377 closed `wontfix-theoretical` (`irislib/Ens/Director.cls` UpdateProduction sets `$ZT="Trap"` and returns every error as a status); DW-1376 left decision-pending.
+- [x] [Review][Patch] MED A not-applied run's reason kept the "ERROR <Ens>Name: " prefix: only "ERROR #" was stripped, and every real failure of Ens.Director.UpdateProduction is an Ens error, so result.settingSavedNotApplied would read "...couldn't apply it: ERROR <Ens>ErrCanNotAcquireRuntimeLock: ..." [src/ocutalon/cls/OcuTalon/Fix/Executor.cls InProduction] — the reason is now `Watch.ErrorText.Sentence` (both prefixes, first line; the block runs after the namespace switch back), and the test seam answers an Ens error as UpdateProduction does, so `TestUpdateFailureNotApplied` pins the strip (fix-risk low: one line and the seam's error code)
+- [x] [Review][Patch] MED (Rule 19) The restore's second, real Ens.Director.UpdateProduction call was unobserved: replacing it by `$$$OK` left every restore test green [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls TestUpdateFailureRestores] — the test now asserts exactly one "Production '...' updating" line of its own job in the Orders event log (fix-risk low: test only)
+- [x] [Review][Defer] MED The web result band of a done undo_rollback reads its after from the incident's recorded settingChange.newValue, not the approved dry run's After: in the DW-1366 case the card says "back to 7" while the item and the chat notice say 9 [web/src/app/approvals/approval-view.ts settingResultView] — deferred: escalated DW-1378 owner=burndown (fix-risk med: needs the dry run's after on the request part of /api/v1/state, a new API field with its payload regen and real-HTTP pin)
+- [x] [Review][Patch] LOW `TestUpdateFailureNotApplied` did not pin that the earlier value is written back to the definition on the not-applied path [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls]
+- [x] [Review][Patch] LOW Contract comments: `Watch.Reader.Settings` and `Current` did not name full 2 and `default`; `resultView` listed no setting-kind bands though `settingResultView` points to it [src/ocutalon/cls/OcuTalon/Watch/Reader.cls, web/src/app/approvals/approval-view.ts]
+- [x] [Review][Defer] LOW DW-1377 (a throw from UpdateProduction skips the restore) is theoretical — closed in the ledger: wontfix-theoretical (reopen if a later IRIS build drops UpdateProduction's `$ZT` trap)
+
+Rejected (verdict and reason):
+- false: the DW-1358 13s should read the count (Auditor) — the Planner's criterion accepts a `>=` floor that fails when cases are lost; none is an equality.
+- false: the forcing seam is reachable (Auditor, as a check) — no non-test code builds a plan entry with `updateErrors`.
+- false: the restore's failure goes unlogged (Blind) — a failed second UpdateProduction logs its own status (`irislib/Ens/Director.cls` Exit, `$$$LOGSTATUS`); only a failed restore `%Save` is unlogged, rare and still reported notapplied.
+- low: the DW-1366 re-check sits in Plan, not InProduction (Auditor) — the ruling's "at run time" is met; a sub-second window in one job (rejected before as Edge 6).
+- low: the forced failure and the session key are pinned in two tests (Auditor) — each half has its own mutation (rejected before as Intent 1).
+- low: a PopulateVirtualSettings throw gives default "" and CHANGEDAGAIN, not NOREAD (Edge) — it refuses safely; a new branch for an unshown case.
+- low: `default` is wrong for a registry-valued setting (Edge) — the row's Source is production there, so no undo reads it.
+- reject: spec contract sections (matrix rows, AC15 wording, Task step 3) not updated (Blind) — edits the spec under review.
+- reject: the story-level Auto Run Result was replaced by the rework's (Blind, Edge) — build-auto's section of the spec under review; the earlier block is in git (8f6d2e2a), reported to the lead.
+- reject: `followup_review_recommended: false` (Blind) — build-auto's frontmatter.
+- reject: spec `status: done` against sprint-status `review` (Auditor) — build-auto's machine state; the sprint status is synced by this review.
+- reject: spec says done while DW-1377 is open (Blind) — DW-1377 is closed above.
+
+
+**Rework iteration 2 (lead's fresh-environment check, 2026-11-15 ~12:10Z; Rule 19 hermeticity; HIGH):**
+- [ ] [Smoke] Fresh check, reverse order, red: on a NEW lane-B warm stack, `OcuTalon.Test.Watch.Rollback` followed by `OcuTalon.Test.Install.SecurityOverview` makes `TestPrivilegesMatchSecurityRecords` fail with "OcuTalonTraceViewer holds exactly the listed resources (demo mode on)" (reproduced twice: tags e23b3fcr and e23b3fw2; forward order, where SecurityOverview runs before the Watch classes, passes). Find what `Test.Watch.Rollback` (or the `Test.Watch.Case` helpers it uses: `SetOnlineDemo`, `RevokeRole`, `GrantRole`, the Roles step it may re-run) leaves changed in the OcuTalonTraceViewer role (or in demo mode / the onlineDemo flag) after its OnAfterOneTest/OnAfterAllTests, and make the test put it back exactly, also after a failure. If the leftover comes from a pre-existing `Test.Watch.Case` helper that other classes share, fix it there (it is this story's test that exposed it) and say so. Pin it: a check at the end of `Test.Watch.Rollback` (or in the helper) that the trace role's resources equal what they were before the class ran, with a mutation (skipping the put-back turns it red). Then verify on a fresh lane-B warm stack: `Test.Watch.Rollback` then `Test.Install.SecurityOverview`, and `Test.Install.SecurityOverview` then `Test.Watch.Rollback`, both green.
+
 ## Spec Change Log
+
+- 2026-11-15 ~12:15Z (lead, rework iteration 2 of 3, trigger: fresh check reverse-order red, Rule 19): re-opened `in-progress` for the OcuTalonTraceViewer leftover after `Test.Watch.Rollback`.
 
 - 2026-11-15 (implementer, rework iteration 1): DW-1365, DW-1366, the DW-1358 count condition and the TestMeasuredRemoval SKIP done; mutation lines under "Mutations run for rework iteration 1" in Verification.
   - DW-1358 finding: `docker/tests/test-readme.sh` has no incident count pin (none found). The eval pins that carry a literal count are floors, not README counts: `docker/tests/test-eval-set.sh:730` `MIN_INCIDENTS = 13` (and its rule text at :107 and :4414, the fixture variants at :2025 and :2040), `Test/Eval/Cases.cls:207` (`incidents >= 13`) and `Test/Eval/Record.cls:602` (`>= 13`, comments at :13 and :573); none holds 11. Every other count there is read from the eval folders (`incidents` in Cases, `$ListLength(cases)` against `replayed` in Record) or from the report (`compare.mjs --column`). The floors guard against a dropped case, so reading them from the set would make them tautologies; they were left, for the Planner's decision with DW-1358.
@@ -881,6 +909,12 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: P4 slots (warm), `SettingCause.ResultSlots` without its reason slot: `TestSettingNotApplied` red ("which renders as ruled").
 - mutation: P4 catalog text (warm), "check" changed to "verify" in the `Msg.Catalog.Watch` entry of `result.settingSavedNotApplied`: `Test.Msg.Catalog` red (`TestEveryKeyOnEveryChannel` and `TestLocalInstallEveryKey` for the key on every channel).
 - mutation: P4 web mirror, `result.settingSavedNotApplied` taken out of `SENTENCE_SLOT_KEYS` in `web/scripts/catalog.mjs`: `node web/scripts/catalog.mjs --check` exit 1 ("the slot 'reason' of type 'sentence', which the page does not render") and `node --test web/scripts/catalog.test.mjs` exit 1. Every mutation above reverted from a copy taken before and confirmed with `cmp` (and `git diff` identical for `SettingCause.cls`).
+
+**Mutations run by the rework re-review (code review 2026-11-15, warm lane-B throwaway), each applied, observed red and reverted (`cmp` against the copy taken before):**
+- mutation: restore update, the restore's `##class(Ens.Director).UpdateProduction(...)` in `Fix.Executor.InProduction` replaced by `$$$OK`: `Test.Watch.Rollback` `TestUpdateFailureRestores` red ("the restore updated the running production once": no updating line).
+- mutation: reason prefix, the `Watch.ErrorText.Sentence` line of `InProduction` put back as the old `If $Extract(detail, 1, 7) = "ERROR #"` strip: `TestUpdateFailureNotApplied` red ("as notapplied, with the production's error": the reason keeps "ERROR <Ens>ErrGeneral: ").
+
+**Verified for the rework re-review:** `Test.Watch.Rollback` (whole class, on a lane-B stack started from the final tree: passed, 51 s), `Test.Watch.SettingHistory` and `Test.Fix.ItemKinds` (passed); `npm --prefix web test` (2100 tests) and `npm --prefix web run lint` pass.
 
 **Verified for the review patches of rework iteration 1 (P1 to P4):** `Test.Watch.Rollback` (whole class, fresh lane-B throwaway: passed, 52 s), `Test.Watch.SettingHistory`, `Test.Fix.ItemKinds` and `Test.Msg.Catalog` (warm throwaway: passed); `node web/scripts/catalog.mjs --check` and `node --test web/scripts/catalog.test.mjs` pass. No production code changed in this pass.
 
