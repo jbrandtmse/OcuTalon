@@ -4367,3 +4367,5 @@
 2026-11-15T18:38:04Z	Epic 23	ci_green_verified	story=23.3 head=8d57cadc1(OCT-epic23-s233) runs=43741249586(att2),43741249556 note=lane_B_report_pending;verified_by_gate
 2026-11-15T18:38:04Z	Epic 23	merge_enqueued	story=23.3 (1.0.12)
 2026-11-15T18:45:51Z	Epic 23	merged	story=23.3 merge=8c71bef6e pins=pass web=pass lint=pass
+2026-11-15T18:46:31Z	Run	ci_green_verified	head=9b9898a53(0.37_merge) runs=43742359975(att2;att1=DW-1388_ci-7),43742360023
+2026-11-15T18:58:29Z	Run	ci_red_classified	head=16cdbf568(Epic25_completion) run=43746506248 shards-6(ci-29)=DW-349(+DW-453_TestRunAgain) shards-4(ci-35)=DW-1388(6th) lane-a=green action=no_rerun(superseded_by_8c71bef6e)
