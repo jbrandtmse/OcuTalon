@@ -4417,3 +4417,4 @@
 2026-11-15T23:12:37Z	Epic 21	owner_decision	via=contest_planner DW-1205+494=SHIP(cond3_first;release_note_plain) DW-1410=HIGH_follow-up(triage_demo_path_first;session-level_hint)
 2026-11-15T23:12:47Z	Run	note	DW-1410_ledger_entry_lives_in_lane_C_branch(OCT-epic21-dw1205);routing_trailer_to_be_added_after_DW-1205_merges
 2026-11-15T23:17:17Z	Epic 21	runner_reported	DW-1410_triage=NO(demo_and_guide_paths_not_reply-waiting) order=DW-1205_push,DW-1389,DW-1410 suggest=MED relayed=contest_planner
+2026-11-15T23:17:30Z	Epic 21	owner_decision	via=contest_planner DW-1410=HIGH(order:DW-1205,DW-1389,DW-1410;lead_BP-instance_check;session_signal_comparison_only;time_limit_bound_pin)
