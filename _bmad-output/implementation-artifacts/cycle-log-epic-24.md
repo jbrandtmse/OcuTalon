@@ -25,3 +25,5 @@
 2026-11-15T18:29:18Z	Story 24.2	ci_red	sha=ef4bc70a run=43743751426 job=iris(image) runner=ocutalon-ci-23 class=Test.Data.Tables TestEveryTableIsRegistered(OcuTalon.Data.PartnerContact_has_a_registry_row) classification=story-caused(not_runner/port/DW-1099) other_jobs=all_green lane-a=43743751291_green
 2026-11-15T18:29:18Z	Story 24.2	ci_fix	file=Test/Data/Tables.cls(XData_Registry_row_PartnerContact) verified=fresh_lane-D_e24s2cf_Test.Data.Tables_pass(red_in_CI_before)
 2026-11-15T19:26:15Z	Story 24.2	ci_resolved	sha=136cd1dc result=success runs=43747033320(ci;attempt_2_after_ledgered_flake_DW-987_install-fresh_L2_on_ocutalon-ci-24;rerun_on_ocutalon-ci-35),43747033290(lane-a) flake_reruns=1 earlier=ef4bc70a_story_red_fixed
+2026-11-15T19:31:01Z	Epic 24	integrated_forward	feature=4dc77140(24.2_merged;23.3) head=36371b6b conflicts=none
+2026-11-15T19:31:01Z	Story 24.4	stage_spawned	stage=plan spawn_at=2026-11-15T19:31:01Z model=opus agent_name=24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t-plan-1 cycle_iteration=1 effort=high branch=OCT-epic24 by=lane_D(lane_exception)
