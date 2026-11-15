@@ -4339,3 +4339,4 @@
 2026-11-15T16:26:56Z	Epic 25	merge_enqueued	story=25.6 (1.0.12)
 2026-11-15T16:29:46Z	Epic 25	merged	story=25.6 merge=7622f6df8 pins=pass web=pass lint=pass
 2026-11-15T16:29:55Z	Run	planner_notified	25.6_merged DW-1205=2nd_red_real(owner_proposal:laneC_after_0.37_push_and_23.3_merge) DW-1382=new_flake_cand(ci-31,not_port)
+2026-11-15T16:30:49Z	Run	owner_decision	via=contest_planner DW-1205=REAL,owner=lane_C(after_0.37_push_and_23.3_merge;investigate_with_DW-494) DW-1382=noted(new_runners_1/66_vs_old_1/15;report_runner_names)
