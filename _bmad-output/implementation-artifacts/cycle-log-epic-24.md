@@ -24,3 +24,4 @@
 2026-11-15T17:54:42Z	Story 24.2	committed	sha=pushed_below
 2026-11-15T18:29:18Z	Story 24.2	ci_red	sha=ef4bc70a run=43743751426 job=iris(image) runner=ocutalon-ci-23 class=Test.Data.Tables TestEveryTableIsRegistered(OcuTalon.Data.PartnerContact_has_a_registry_row) classification=story-caused(not_runner/port/DW-1099) other_jobs=all_green lane-a=43743751291_green
 2026-11-15T18:29:18Z	Story 24.2	ci_fix	file=Test/Data/Tables.cls(XData_Registry_row_PartnerContact) verified=fresh_lane-D_e24s2cf_Test.Data.Tables_pass(red_in_CI_before)
+2026-11-15T19:26:15Z	Story 24.2	ci_resolved	sha=136cd1dc result=success runs=43747033320(ci;attempt_2_after_ledgered_flake_DW-987_install-fresh_L2_on_ocutalon-ci-24;rerun_on_ocutalon-ci-35),43747033290(lane-a) flake_reruns=1 earlier=ef4bc70a_story_red_fixed
