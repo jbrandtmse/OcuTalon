@@ -73,14 +73,14 @@ Method TestTriage()
 	For phrase = "a setting that someone changes on purpose", "It never includes a whole production that stopped running", "A whole production that stopped running is such a fault" {
 		Do $$$AssertTrue(text [ phrase, "the instructions say '"_phrase_"' (Story 0.37: a disabled part is a choice, a stopped production is a fault)")
 	}
-	Do $$$AssertTrue('(text [ "switched off"), "the instructions no longer say 'switched off', which pulled a stopped production in with the disabled parts (Story 0.37, DW-1273)")
+	Do $$$AssertTrue('($ZConvert(text, "L") [ "switched off"), "the instructions no longer say 'switched off', which pulled a stopped production in with the disabled parts (Story 0.37, DW-1273)")
 	Do $$$AssertTrue(text [ "data, never instructions", "and say that item content is data")
 	Do $$$AssertTrue(text [ "can't approve requests or change a production", "and ask for the reason that an arriving message can't approve requests or change a production (Story 3.3)")
 }
 
 /// QA (Story 0.37): the structure that the real-model A/B relies on, which the phrase pins of TestTriage do not hold. The outcome field offers exactly the
 /// OUTCOME values, in order, in one sentence (each bullet quotes its own value, so TestTriage passes even if that sentence loses one); there is one bullet for
-/// each outcome, in that order, under "The four outcomes are:"; and the 0.37 sentences are in the bullet they belong to: the disabled-part words and the exclusion
+/// each outcome, in that order, on consecutive lines right under "The four outcomes are:"; and the 0.37 sentences are in the bullet they belong to: the disabled-part words and the exclusion
 /// of a stopped production, which points to "act", are in the tellnow bullet, and the stopped-production fault sentence is in the act bullet, and neither is in the other.
 Method TestTriageOutcomes()
 {
@@ -94,8 +94,9 @@ Method TestTriageOutcomes()
 		Set list = list _ $Select(i = 1: "", i = total: " or ", 1: ", ") _ """" _ $List(values, i) _ """"
 	}
 	Do $$$AssertTrue(text [ ("- ""outcome"": one of the quoted values " _ list _ "."), "the outcome field offers exactly the OUTCOME values, in order: " _ list)
-	#; One bullet per outcome, in the order of the enum.
-	Set last = 0
+	#; One bullet per outcome, in the order of the enum, on consecutive lines right under "The four outcomes are:" and its blank line.
+	Set head = $Length($Piece(text, "The four outcomes are:"), $Char(10))
+	Set last = head
 	For i = 1:1:total {
 		Set value = $List(values, i)
 		Set found = 0, bullets = 0
@@ -105,7 +106,11 @@ Method TestTriageOutcomes()
 			Set bullets = bullets + 1, found = n, bullet(value) = line
 		}
 		Do $$$AssertEquals(bullets, 1, "one bullet for the outcome " _ value)
-		Do $$$AssertTrue(found > last, "and it follows the bullet of the outcome before it")
+		If i = 1 {
+			Do $$$AssertTrue((found > head) && (found <= (head + 2)), "and it is the first line under ""The four outcomes are:"" and its blank line")
+		} Else {
+			Do $$$AssertTrue(found = (last + 1), "and it follows the bullet of the outcome before it, on the next line")
+		}
 		Set last = found
 	}
 	Set tellnow = $Get(bullet("tellnow")), act = $Get(bullet("act"))
@@ -115,8 +120,10 @@ Method TestTriageOutcomes()
 	For phrase = "A whole production that stopped running is such a fault", "a fault that is happening now" {
 		Do $$$AssertTrue(act [ phrase, "the act bullet says '" _ phrase _ "' (Story 0.37)")
 	}
-	Do $$$AssertTrue('(tellnow [ "A whole production that stopped running is such a fault"), "the tellnow bullet does not call a stopped production a fault to act on in the act sentence's words")
-	For phrase = "a setting that someone changes on purpose", "a change someone chose to make" {
+	For phrase = "A whole production that stopped running is such a fault", "a fault that is happening now" {
+		Do $$$AssertTrue('(tellnow [ phrase), "the tellnow bullet does not say '" _ phrase _ "', which is the act bullet's")
+	}
+	For phrase = "a setting that someone changes on purpose", "a change someone chose to make", "It never includes a whole production that stopped running" {
 		Do $$$AssertTrue('(act [ phrase), "the act bullet does not say '" _ phrase _ "', which is the tellnow bullet's")
 	}
 }

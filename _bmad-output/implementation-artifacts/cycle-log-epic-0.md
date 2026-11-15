@@ -1037,3 +1037,4 @@
 2026-11-15T15:42:37Z	Story 0.37	stage_spawned	stage=qa spawn_at=2026-11-15T15:42:37Z model=sonnet effort=high agent_name=0-37-qa-1 cycle_iteration=1
 2026-11-15T15:48:42Z	Story 0.37	qa_complete	model=sonnet commit=929cfd407 tests=TestTriageOutcomes(outcome_set+order,tellnow/act_bullet_placement,separation) mutations_demonstrated=4 findings=none
 2026-11-15T15:48:42Z	Story 0.37	stage_spawned	stage=code-review spawn_at=2026-11-15T15:48:42Z model=opus effort=high agent_name=0-37-code-review-1 cycle_iteration=1
+2026-11-15T16:07:40Z	Story 0.37	cr_complete	model=opus findings=18(7_low_patched,11_rejected) high=0 med=0 ad_mismatch=none for_planner=2(heartbeat_whole-production-stopped_beat,user_chat_production_stopped:may_pull_to_act;bar_h_cannot_see;text_under_ruling_a) ledger=none unresolved_high_med=0 final_status=done note=brief_named_HEAD_92ba23a34(lead_slip);reviewed_4053a0aea rule3=Instructions_pass,eval-set_guards,heartbeat,class-rules,boundaries_pass
