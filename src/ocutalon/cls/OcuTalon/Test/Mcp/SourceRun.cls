@@ -12,7 +12,7 @@
 ///   - TestEmptyAnswer (matrix 3): an empty answer is passed, never an Item, and not a hash; it can be the baseline;
 ///   - TestLongAnswerChangedPastCut (DW-1347, matrix 2-4): the same cut Text with two different answerHash values (a change past the cut, which the shown text does not hold) is the baseline,
 ///     then one Item whose Text is the cut Text with its note, then no Item for the same hash again; seen holds both hashes, newest last;
-///   - TestNoAnswerHash (DW-1347, matrix 5-6): a passed Reply with text and no usable answerHash (no HostData, not JSON, no member, upper-case hex, 63 characters) is not_checked with REASONREAD
+///   - TestNoAnswerHash (DW-1347, matrix 5-6): a passed Reply with text and no usable answerHash (no HostData, not JSON, no member, a number, an array, upper-case hex, 63 characters, 65 characters, a character that is not hex) is not_checked with REASONREAD
 ///     (CheckRun Reason error), sends no Item and leaves seen and baseline as they were; an empty text is passed with no Item, with no hash or with the hash of the empty text, and seen is as it was;
 ///   - TestUnreachable, TestTimeout, TestOtherFailure (matrix 4): the words unreachable, timeout and any other, an error status of Decide included, are not_checked with
 ///     REASONSOURCEUNREACHABLE, REASONTIMEOUT and REASONREAD, and the CheckRun Reason is unreachable, timeout and error; a failed run is never the baseline;
@@ -251,7 +251,7 @@ Method TestNoAnswerHash()
 	Set host = ..Host()
 	Set ref = ..Source(..Owner("nohash"), "Jira")
 	Set good = ..Hash("T-1 open")
-	Set bad = $ListBuild("none", "raw:not json", "raw:{}", "raw:{""answerHash"": 5}", $ZConvert(good, "U"), $Extract(good, 1, 63))
+	Set bad = $ListBuild("none", "raw:not json", "raw:{}", "raw:{""answerHash"": 5}", $ZConvert(good, "U"), $Extract(good, 1, 63), good _ "0", "g" _ $Extract(good, 2, 64), "raw:{""answerHash"": " _ $Translate($Justify("", 64), " ", "1") _ "}", "raw:{""answerHash"": [""" _ good _ """]}")
 	// a text with no hash is not the baseline either
 	Do ..Run(host, ref, 0, "T-1 open", "none")
 	Set row = ..Stored(ref)

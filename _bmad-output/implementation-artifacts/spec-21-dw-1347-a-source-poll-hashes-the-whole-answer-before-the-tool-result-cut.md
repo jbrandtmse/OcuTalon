@@ -244,6 +244,13 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - Lead checks after the handoff: `npm test` in `web/` (the node suite): 2104 tests, 0 failed. `bash docker/tests/test-boundaries.sh`: all rules passed. `git diff --name-only 8966d4c18` lists only the footprint files (this spec, the spine, four product classes, four test classes). The spine's `updated:` is 2026-11-15; `lint_spine.py` reports no `ad_id` or `ad_fields` finding and the same 10 low `placeholder` findings (`ok: false`) as the spine at the base, none in the amended lines. The spine folder has no `.memlog.md` (it is gitignored and absent), so no memlog line was appended.
 - Shared surfaces: none (no list, menu, roster, schema or count that other tests assert on changes).
 
+**QA records** (lane C warm throwaway `e21dwqw`; each mutation applied alone, red observed, reverted byte for byte, `git status --short` and `git diff --stat` as before, `OcuTalon.Test.Mcp.SourceRun` green again on the same stack):
+- Gap weighed and closed: `TestNoAnswerHash` took the forms none, not JSON, no member, a number of 5, upper-case hex and 63 characters. The matrix's "wrong length or not hex" was pinned only for 63 characters and upper case, so a hash of 65 characters, one of 64 characters with a letter that is not hex, a 64-digit JSON number (not a string) and a 64-hex array member are added to its list. No new test method.
+- mutation: the match in `Checks.SourceAnswer` allows a longer hash (`{64}` -> `{64,}`) -> `TestNoAnswerHash` red (the 65-character form: "not_checked with REASONREAD", then the cascade of "no Item is sent");
+- mutation: the match allows letters beyond f (`[0-9a-f]` -> `[0-9a-z]`) -> `TestNoAnswerHash` red (the form with a "g": "not_checked with REASONREAD", "no Item is sent", "seen and baseline are as they were");
+- mutation: drop the string check on the member (`data.%GetTypeOf(...) = "string") && `) -> `TestNoAnswerHash` red (the 64-digit JSON number form: "not_checked with REASONREAD", "no Item is sent", "seen and baseline are as they were").
+- Gaps weighed and not added (already pinned, or no new behavior): the same long answer again (`TestLongAnswerChangedPastCut` step 3), a short answer's hash as before (the abc and euro vectors in `TestPollWholeAnswerHash`, the 22.11 oracle in `SourceRun`), the 50-hash window (`TestSeenBefore`, which feeds whole-answer hashes through `Answer`), a chat call's HostData and cut (`TestProxyCut`), an empty answer with a hash (`TestNoAnswerHash`). A hash of 64 hex characters plus a final line break is also rejected (probed, passes; no mutation separates it, so not added). No product bug found.
+
 ## Review Triage Log
 
 ### 2026-11-15 - Review pass
