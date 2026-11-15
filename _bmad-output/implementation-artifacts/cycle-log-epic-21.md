@@ -448,3 +448,5 @@
 2026-11-15T13:30:22Z	DW-1371	integrated	feature=999138505(unchanged;no_merge_needed)
 2026-11-15T13:30:22Z	DW-1371	fresh_check	env=b1cddd242 warm_e21dw1371fw:Mcp.Approval,Mcp.SourceRun,Mcp.Proxy,Bridge.Poll,Mcp.Attach_pass boundaries,class-rules=pass torn_down
 2026-11-15T17:54:19Z	DW-1388	stage_spawned	stage=plan spawn_at=2026-11-15T17:54:19Z model=opus effort=high agent_name=dw-1388-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1388 worktree=.worktrees/epic-21-dw1388 base=9b9898a53 severity=HIGH(Planner) scope=B13_Remove_the_source_Existing_timeout(test,_or_UI_if_at_fault)
+2026-11-15T18:04:49Z	DW-1388	story_created	model=opus effort=high branch=OCT-epic21-dw1388 base=c284c6d14 build_status=ready-for-dev size=XS veto=none(test-only) cause=test_race(lazy_MCP_GET_after_gone=true) hits=4(ci-16,ci-55,ci-29,ci-10_new) fix=gone=true_in_DELETE_404_route(as_B10) mutations=M1(2s_GET_delay_repro),M2,M3
+2026-11-15T18:04:49Z	DW-1388	stage_spawned	stage=implement spawn_at=2026-11-15T18:04:49Z model=sonnet effort=high agent_name=dw-1388-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1388
