@@ -240,3 +240,4 @@
 2026-11-15T16:54:14Z	Epic 25	epic_runner_complete	stories=6(25.2,25.3,25.4,25.5,25.7,25.6) retro=accepted-with-open-items ledger=open_before=7,open_after=0,overflow=2,drain_ratio=0.87
 2026-11-15T18:25:53Z	Epic 25	burndown_story_chartered	story=25.8 key=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale entries=5(DW-1120,DW-1121,DW-1122,DW-1386,DW-1387) branch=OCT-epic25-s258(from_feature_16cdbf568) worktree=.worktrees/epic-25-s258 source=prompts/lane-a-burndown-20261115.md#2 marker=ADDED_2026-11-15_Contest_Planner_A2 exception=AD-33(listed_web_files)
 2026-11-15T18:25:53Z	Epic 25	ledger_routed_planned	story=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale entries=5 excess=0 by=merge_gate
+2026-11-15T18:28:51Z	Epic 25	epic_context_compiled	reason=planning_artifact_newer(25.8_chartered) model=opus words=913
