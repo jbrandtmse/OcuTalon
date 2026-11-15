@@ -4254,3 +4254,7 @@
 2026-11-15T07:28:43Z	Epic 22	ci_green_verified	head=4764fc56 base=afd4ff35a
 2026-11-15T07:28:43Z	Epic 22	amendments_verified	DW-1346_option1_applied Task0_option_a(pre-ruled)
 2026-11-15T07:28:43Z	Epic 22	merge_enqueued	story=22.11 head=4764fc56
+2026-11-15T07:31:17Z	Epic 22	merged	story=22.11 merge=2e6366b00 conflicts=none pins=pass
+2026-11-15T07:31:17Z	Epic 22	owner_decision	via=contest_planner 22.12: P1a=approved P1b=approved+fix("The poll itself asks no model; only a new item's attention decision does.",pin;coverage_pinned_to_code_constants) P2=approved(regenerate_overview) veto_remove_22.6_guard=approved GUIDE_T7=lane_B_follow-up epics_1013_pointer=in_22.12 DW-1347=same-commit_rule merge_order=22.15,then_22.12/25.6_as_ready
+2026-11-15T07:31:17Z	Epic 22	ci_green_verified	story=22.15 head=0a2d53d2b runs=43667820676,43667820662
+2026-11-15T07:31:17Z	Epic 22	merge_enqueued	story=22.15 head=0a2d53d2b into=feature@2e6366b00
