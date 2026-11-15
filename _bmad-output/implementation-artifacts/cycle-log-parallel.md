@@ -4321,3 +4321,4 @@
 2026-11-15T15:02:10Z	Run	push_freeze_lifted	via=contest_planner runners=54(+36_ci-21..56_on_ci-e..j) rule=release_PR_first;report_port/DW-1099_on_runner>=21_at_once
 2026-11-15T15:08:11Z	Epic 0	runner_reported	PLANNER_REPORT story=0.37 head=0da3c5f60(local,OCT-epic0-s037) change=Triage.cls_26-27+pins guards=pass A/B=option_A_recommended(bars_f,g) relayed=contest_planner
 2026-11-15T15:08:31Z	Epic 0	owner_decision	via=contest_planner 0.37:(a)=approved_verbatim (b)=crossing_confirmed (e)=OPTION_A(A/B_merge_condition,N=3,bars_a-h,held_merge_until_PASS) file=prompts/story-037-rulings-20261115.md
+2026-11-15T15:19:11Z	Epic 24	runner_reported	PLANNER_REPORT story=24.2 head=d0c21814(local,OCT-epic24) choices=G1(A_recommended),G2(a_recommended) new_text=settings.partnersNotYet vetoes=ListProductions,TABLE_param,audit_names,spine_contracts relayed=contest_planner
