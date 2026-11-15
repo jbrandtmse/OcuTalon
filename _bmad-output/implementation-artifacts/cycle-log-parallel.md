@@ -4324,3 +4324,5 @@
 2026-11-15T15:19:11Z	Epic 24	runner_reported	PLANNER_REPORT story=24.2 head=d0c21814(local,OCT-epic24) choices=G1(A_recommended),G2(a_recommended) new_text=settings.partnersNotYet vetoes=ListProductions,TABLE_param,audit_names,spine_contracts relayed=contest_planner
 2026-11-15T15:19:38Z	Epic 24	owner_decision	via=contest_planner 24.2:G1=B_split(24.5_SQL_watches_waits_23.8) G2=a_hidden_until_TABLE=1(no_not-yet_text;23.10_switches) vetoes:ListProductions_approved(not_tool_usable_pin),TABLE_contract,audit_refs+changed_fields_only(no_values;leak_scan_extends_to_audit),spine_bullets scope=granted_contacts_half file=prompts/story-242-rulings-20261115.md
 2026-11-15T15:20:04Z	Epic 23	owner_decision	via=contest_planner new_story=23.13(Partner_warnings_go_to_the_Settings_contacts;laneB;after_23.4,23.8_and_24.2_merge;TABLE=1)
+2026-11-15T15:31:56Z	Run	ci_green_verified	head=a1b4f2e2c(1.0.11_base) runs=43726997245,43726997243(att1)
+2026-11-15T15:31:56Z	Run	planner_notified	"1.0.11 REQUIRED GREEN a1b4f2e2c" 25.6=not_in 23.3=not_in
