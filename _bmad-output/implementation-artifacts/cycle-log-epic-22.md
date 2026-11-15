@@ -469,3 +469,4 @@
 2026-11-15T10:10:32Z	Story 22.12	fresh_check	env=n/a(docs+bash_pins;no_IRIS_class) result=pass
 2026-11-15T10:10:32Z	Story 22.12	committed	sha=HEAD_pushed_below
 2026-11-15T10:11:51Z	Story 22.12	ci_pending	sha=70c05d0a runs=43702792429(ci),43702792409(lane-a)
+2026-11-15T11:32:16Z	Story 22.12	ci_resolved	sha=70c05d0a result=success runs=43702792429(ci;attempt_2_after_ledgered_flake_DW-626_shards-8),43702792409(lane-a) flake_reruns=1
