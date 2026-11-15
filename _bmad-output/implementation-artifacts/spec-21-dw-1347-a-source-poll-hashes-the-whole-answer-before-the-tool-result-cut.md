@@ -2,8 +2,8 @@
 title: 'DW-1347: A source poll hashes the whole answer before the tool-result cut'
 type: 'bugfix'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: '5f8292f89e7eecf841e9e82b43a1499d2750b4cb'
+status: 'done'
+baseline_revision: '8966d4c18b46b8bb8ae114273eab9e4901483dfd'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -223,12 +223,64 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 
 **Mutations:** one per AC as listed under Acceptance Criteria. Record each as `mutation: <change> -> <test that went red>`. Revert it byte for byte, and check that `git status --short` and `git diff --stat` are as before.
 
-**Task 0 records:** (to be written by the implement stage)
+**Task 0 records** (lane C warm throwaway `e21dwiw`, before any product change; base 8966d4c18):
+- Item 1: `git grep -n "compares whole answers" -- docs/mcp-jira-example.md docker/tests/test-release-sequence.sh` finds nothing (exit 1). 22.12's sentence is not on the base, so this commit edits neither file.
+- Item 2 (the defect, observed): the mock answered A (50,000 "a") then A' (A with its last character "b"), and `Bridge.Poll.Run` ran for a Read-only source. Both Replies have the same `Text`, 40,000 characters long, ending in a line break and "[cut by OcuTalon: 39949 of 50000 characters shown]", with no failure word (`same=1`). The defect is as the ledger describes it.
+- Item 3 (the hash bound): the `Checks.HashOf` formula (`SHAHash(256, $ZConvert(text, "O", "UTF8"))` and the hex loop) over 1,000,000 characters of `$Char(8364)` gave 64 hex characters, no `<MAXSTRING>`, in 2.4 ms. `AnswerHash` uses that formula; no stream-hash fallback is needed.
+
+**Implement records** (lane C warm throwaway `e21dwiw`; each mutation applied alone, red observed, reverted byte for byte, `git status --short` and `git diff --stat` as before, and the class green again on the same stack):
+- mutation: `Checks` hashes the Reply's text again (`Set hash = AnswerHash(text)` at the hash line, in place of `HashOf(text)`) -> `TestLongAnswerChangedPastCut` red ("a change past the cut is one Item", "the same whole answer again sends no Item", "seen holds both hashes"); `OcuTalon.Test.Mcp.SourceRun` green after the revert.
+- mutation: `Noted` hashes the text cut to R (`AnswerHash($Extract(answer.text, 1, 40000))`) -> `TestPollWholeAnswerHash` red ("the first answerHash is the hash of the whole answer", "the second is the hash of the changed answer", "and they differ"); `OcuTalon.Test.Bridge.Poll` green after the revert.
+- mutation: drop `Poll.Run`'s HostData copy (`Set reply.HostData = hostData`) -> `TestPollRunWords` red ("its HostData is the answerHash, the SHA-256 of the answer"); `OcuTalon.Test.Bridge.Poll` green after the revert.
+- mutation: drop the copy line in `PollAnswer` (`Set response.HostData = runnerReply.HostData`) -> `TestPollNoDecisionRow` red ("and the runner's HostData, with its answerHash of 64 hex characters", "the answerHash is 64 lower-case hex characters"); `OcuTalon.Test.Bridge.Poll` green after the revert.
+- mutation: fall back to `AnswerHash(text)` when the hash is "" (in place of the error outcome) -> `TestNoAnswerHash` red (every bad form: REASONREAD, Reason `error`, no Item, seen and baseline as they were); `OcuTalon.Test.Mcp.SourceRun` green after the revert.
+- mutation: drop the `IsPoll()` condition in `Noted`'s hash branch -> `TestProxyCut` red ("a chat call notes no answerHash: no member is in the turn's HostData"); `OcuTalon.Test.Mcp.Attach` green after the revert.
+- mutation: drop `Decide.PollAnswer`'s HostData copy -> `TestLongAnswerChangedPastCutInProduction` red ("one Item went from Checks to Intake, though the answer changed only past the cut", "the poll's Reply carries the answerHash of the whole answer"; the run records error); `OcuTalon.Test.Mcp.SourceRunProduction` green after the revert.
+- Warm, passing on the final tree: `OcuTalon.Test.Mcp.SourceRun`, `OcuTalon.Test.Bridge.Poll`, `OcuTalon.Test.Mcp.Attach`, `OcuTalon.Test.Mcp.Proxy`, `OcuTalon.Test.Mcp.SourceRunProduction`, `OcuTalon.Test.Bridge.Decide`, `OcuTalon.Test.Bridge.CodeRules`, `OcuTalon.Test.Tools.Result`, `OcuTalon.Test.Checks.Runs`. `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-class-rules.sh`: exit 0.
+- Review patches (two mediums; each mutation applied alone, red observed, reverted byte for byte, `git status --short` and `git diff --stat` as before, class green again on the same stack):
+  - mutation: delete `If text = "" Set hash = ""` in `Checks.RecordSource` -> `TestNoAnswerHash` red ("an empty text with the hash of the empty text is passed, with no Item, and seen is as it was"); `OcuTalon.Test.Mcp.SourceRun` green after the revert.
+  - mutation: `AnswerHash` hashes `text` without `$ZConvert(text, "O", "UTF8")` -> `TestPollWholeAnswerHash` red ("a character beyond 255 is hashed as UTF-8"); `OcuTalon.Test.Bridge.Poll` green after the revert.
+  - `TestPollWholeAnswerHash` carries no `Poll.Run` case with a character beyond 255: the mock's transport answers such a character as "?" (measured), so the UTF-8 pin is the direct `AnswerHash` call against the SHA-256 digest of the euro sign.
+- Lead checks after the handoff: `npm test` in `web/` (the node suite): 2104 tests, 0 failed. `bash docker/tests/test-boundaries.sh`: all rules passed. `git diff --name-only 8966d4c18` lists only the footprint files (this spec, the spine, four product classes, four test classes). The spine's `updated:` is 2026-11-15; `lint_spine.py` reports no `ad_id` or `ad_fields` finding and the same 10 low `placeholder` findings (`ok: false`) as the spine at the base, none in the amended lines. The spine folder has no `.memlog.md` (it is gitignored and absent), so no memlog line was appended.
+- Shared surfaces: none (no list, menu, roster, schema or count that other tests assert on changes).
+
+## Review Triage Log
+
+### 2026-11-15 - Review pass
+- verdicts: 20 findings (blind hunter 9, edge hunter 5, verification-gap 6; the intent auditor is descriptive) - high 0, medium 3 (two entries), low 17, false 0, maybe-false 0
+- findings:
+  - Blind hunter 1, edge hunter 2 (`Noted`/`AnswerHash` fail silently, no log): `[low]` `reject` - the spec says the failure is ignored; a missing hash shows as "Couldn't be read" on the coverage list, and a log line is more code than a cosmetic gain.
+  - Blind hunter 2 (`$` in `^[0-9a-f]{64}$` also matches before a final line break): `[low]` `reject` - only the proxy writes `answerHash`, and it writes 64 hex characters; no reachable input.
+  - Blind hunter 3 and verification-gap 2 (no known-vector or non-ASCII hash test): `[medium]` `patch` - real: dropping the UTF-8 conversion kept every test green while a wide-character answer would hash to "". Fixed: `TestPollWholeAnswerHash` asserts `AnswerHash` against the SHA-256 vector of "abc" and of the euro sign; mutation recorded.
+  - Blind hunter 4 (the failure branch of `Noted` is untested): `[low]` `reject` - it needs failure injection into `SHAHash`; the spec asks only that a failure is ignored.
+  - Blind hunter 5 (the hash formula exists in `Channel.Email.Out` too): `[low]` `reject` - pre-existing sibling that this fix does not touch; `Proxy.AnswerHash` is the moved body of `Checks.HashOf`, which is removed, so this adds no copy.
+  - Blind hunter 6 (an Item whose Text equals the last one's): `[low]` `reject` - by-design: the Item's Text stays the answer as cut (the Planner's ruling in the spec's intent).
+  - Blind hunter 7, edge hunter 1 (one extra Item after upgrade for a long answer): `[low]` `reject` - by-design: Veto item 3 approved it, no migration.
+  - Blind hunter 8, edge hunter 4 (the hash is parsed for every Reply): `[low]` `reject` - harmless and the parse is in a Try; a guard adds a branch for no user-visible change.
+  - Blind hunter 9 (the spec does not cite `MAXBODY` for the hash bound): `[low]` `reject` - the fix would edit this build's spec; the Code Map already cites `MAXBODY`.
+  - Edge hunter 3 (`Context.Current()` empty between two sets in `Poll.Run`): `[low]` `reject` - `Run` begins the context itself, so it is never empty there.
+  - Edge hunter 5 (AC 7 says "unchanged" but existing assertions gain a HostData check): `[low]` `reject` - the spec's own task list asks for those additions.
+  - Verification-gap 1 (an empty text with a valid hash of the empty text is not tested): `[medium]` `patch` - real: the proxy hashes an empty text too, so `RecordSource`'s `If text = "" Set hash = ""` is the only guard against an empty Item and no test pinned it. Fixed: `TestNoAnswerHash` runs an empty text with `Hash("")` and asserts passed, no Item and `seen` as it was; mutation recorded.
+  - Verification-gap 3 (no direct test of `Proxy.AnswerHash` or the `Noted` Try/Catch): `[low]` `reject` - `AnswerHash` is now pinned directly (patch above); the Catch needs failure injection (see blind hunter 4).
+  - Verification-gap 4 (the refusal's empty HostData has no distinguishing mutation): `[low]` `reject` - an equivalent mutant: the proxy writes nothing for a refusal, so copying on every path still gives an empty HostData.
+  - Verification-gap 5 (the mock is restored only at the end of two tests): `[low]` `reject` - the existing tests (`TestProxyCut`) do the same, and the next test sets the mock text it needs.
+  - Verification-gap 6 (`Result.Return` in `TestLongAnswerChangedPastCut` assumes no leaked context): `[low]` `reject` - the test's own "fills the room" assertion would fail loudly.
+  - Intent-alignment (descriptive, no findings): the implemented reading is the proxy's answer path, HostData carried by `Poll.Run` and `Decide.PollAnswer`, and `Checks` comparing the member; it reports no divergence from the intent.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none. The spec gate decides Veto items 1-4.
+Status: done
+Blocking condition: none
 
-- Summary: the plan only; nothing is implemented.
-- Size: medium. Four product files, about 30 changed lines. Four test classes, about 150 lines. Two spine sentences. No oversized warning.
+- Summary: a source poll now compares the SHA-256 of the whole tool answer, taken in `Mcp.Proxy` before the tool-result cut and carried in the Reply's HostData member `answerHash`. A change only past the cut sends one Item (its Text is still the cut answer). A passed answer with text and no usable `answerHash` is not checked with `REASONREAD`; there is no fallback to hashing the cut text. Task 0 on the lane C throwaway: 22.12's sentence is not on the base (no doc or pin edit), the defect reproduced (same cut Text for A and A'), and a 1,000,000-character hash took 2.4 ms with no `<MAXSTRING>`.
+- Files changed:
+  - `src/ocutalon/cls/OcuTalon/Mcp/Proxy.cls`: `ANSWERHASH`, `AnswerHash`, `Noted` notes the hash for a poll's text answer.
+  - `src/bridge/cls/OcuTalon/Bridge/Poll.cls`: `Run` copies the context's HostData on the text path.
+  - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `PollAnswer` copies `HostData`.
+  - `src/ocutalon/cls/OcuTalon/Checks/Process.cls`: `SourceAnswer` and `RecordSource` use `answerHash`; `HashOf` removed.
+  - `src/ocutalon/cls/OcuTalon/Test/Mcp/SourceRun.cls`, `Test/Bridge/Poll.cls`, `Test/Mcp/Attach.cls`, `Test/Mcp/SourceRunProduction.cls`: the pins and the integration test.
+  - `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: AD-6 "Source polls" and AD-18 "Source polls, Part B" amended word for word, `updated:` 2026-11-15.
+- Review findings: 20 reported, no high. 3 medium rows in 2 entries patched (the empty-text-with-hash pin; the UTF-8 hash pin, found by two layers). 17 low rows rejected with their reasons in the triage log. None deferred.
+- Follow-up review recommendation: `false` (no high was patched, per the run's instruction; two mediums were patched, each with a recorded mutation).
+- Verification: warm classes `SourceRun`, `Bridge.Poll`, `Mcp.Attach`, `Mcp.Proxy`, `SourceRunProduction`, `Bridge.Decide`, `Bridge.CodeRules`, `Tools.Result`, `Checks.Runs` passed (`SourceRun` and `Bridge.Poll` again after the review patches); `test-boundaries.sh` and `test-class-rules.sh` exit 0; the node suite (`npm test` in `web/`) 2104 passed; nine mutation lines recorded under `## Verification`, including the Planner's CONDITION (`TestLongAnswerChangedPastCut` red when `Checks` hashes the cut text again, green after).
+- Residual risks: the first poll after the fix sends one extra Item for a source whose stored hash came from a cut long answer (approved, no migration). The spine lint reports the same 10 low placeholder findings as at the base (`ok: false`); none is in the amended lines. 22.12 (lane D) still has to carry the Public text line and its pin at its own integrate. The handoff subagent launched two warm test classes in one message once (both passed); noted as a Rule 18 slip.

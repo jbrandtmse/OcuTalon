@@ -10,6 +10,10 @@
 ///     its hash joins seen, and a send of the Item that fails is one warning and is not sent again;
 ///   - TestSeenBefore (matrix 3): an answer whose hash is in seen sends no Item; seen keeps the newest 50 hashes, so the oldest answer is new again;
 ///   - TestEmptyAnswer (matrix 3): an empty answer is passed, never an Item, and not a hash; it can be the baseline;
+///   - TestLongAnswerChangedPastCut (DW-1347, matrix 2-4): the same cut Text with two different answerHash values (a change past the cut, which the shown text does not hold) is the baseline,
+///     then one Item whose Text is the cut Text with its note, then no Item for the same hash again; seen holds both hashes, newest last;
+///   - TestNoAnswerHash (DW-1347, matrix 5-6): a passed Reply with text and no usable answerHash (no HostData, not JSON, no member, upper-case hex, 63 characters) is not_checked with REASONREAD
+///     (CheckRun Reason error), sends no Item and leaves seen and baseline as they were; an empty text is passed with no Item, with no hash or with the hash of the empty text, and seen is as it was;
 ///   - TestUnreachable, TestTimeout, TestOtherFailure (matrix 4): the words unreachable, timeout and any other, an error status of Decide included, are not_checked with
 ///     REASONSOURCEUNREACHABLE, REASONTIMEOUT and REASONREAD, and the CheckRun Reason is unreachable, timeout and error; a failed run is never the baseline;
 ///   - TestStoppedBeforeSend, TestStoppedAfterDenial, TestStoppedChanged (matrix 5): a source whose tool is no longer Read-only makes no poll and records not_checked with
@@ -205,6 +209,72 @@ Method TestEmptyAnswer()
 	Do $$$AssertEquals(..Stored(ref).Result _ "|" _ ..FindingItems().%Size(), "passed|0", "an empty answer is passed and never an Item")
 	Do ..Run(host, ref, 2, "T-1")
 	Do $$$AssertEquals(..FindingItems().%Size(), 1, "and the next answer with text is one")
+}
+
+/// matrix 2-4 (DW-1347, see the class description): two long answers that differ only past the cut have the same cut Text and different hashes.
+Method TestLongAnswerChangedPastCut()
+{
+	Set host = ..Host()
+	Set ref = ..Source(..Owner("longcut"), "Jira")
+	Set long = $Translate($Justify("", 50000), " ", "a")
+	Set changed = $Extract(long, 1, 49999) _ "b"
+	Set cut = ##class(OcuTalon.Tools.Result).Return(long)
+	Do $$$AssertEquals(cut, ##class(OcuTalon.Tools.Result).Return(changed), "the two answers have the same cut text")
+	Do $$$AssertEquals($Length(cut), ##class(OcuTalon.Tools.Result).Room(), "which fills the room")
+	Do ..ForceDue(ref)
+	Do ..Tick(host, ..At(0))
+	Do ..Answer(host, ref, cut, "", "", ..Hash(long))
+	Do $$$AssertEquals(..FindingItems().%Size(), 0, "the baseline sends no Item")
+	Do ..ForceDue(ref)
+	Do ..Tick(host, ..At(20))
+	Do ..Answer(host, ref, cut, "", "", ..Hash(changed))
+	Set items = ..FindingItems()
+	Do $$$AssertEquals(items.%Size(), 1, "a change past the cut is one Item")
+	If items.%Size() = 1 {
+		Set text = items.%Get(0).text
+		Do $$$AssertEquals(text, cut, "its Text is the cut text")
+		Set suffix = " of 50000 characters shown]"
+		Do $$$AssertTrue(($Length(text) '> ##class(OcuTalon.Tools.Result).Room()) && ($Extract(text, $Length(text) - $Length(suffix) + 1, $Length(text)) = suffix) && (text [ "[cut by OcuTalon: "), "of at most the room, ending with the note")
+	}
+	Do ..ForceDue(ref)
+	Do ..Tick(host, ..At(40))
+	Do ..Answer(host, ref, cut, "", "", ..Hash(changed))
+	Do $$$AssertEquals(..FindingItems().%Size(), 1, "the same whole answer again sends no Item")
+	Set reported = ##class(%DynamicAbstractObject).%FromJSON(..Stored(ref).Reported)
+	Do $$$AssertEquals(reported.seen.%Size() _ "|" _ reported.seen.%Get(0) _ "|" _ reported.seen.%Get(1), "2|" _ ..Hash(long) _ "|" _ ..Hash(changed), "seen holds both hashes, newest last")
+	Do $$$AssertEquals(..Stored(ref).Result, "passed", "the run is passed")
+}
+
+/// matrix 5-6 (DW-1347, see the class description).
+Method TestNoAnswerHash()
+{
+	Set host = ..Host()
+	Set ref = ..Source(..Owner("nohash"), "Jira")
+	Set good = ..Hash("T-1 open")
+	Set bad = $ListBuild("none", "raw:not json", "raw:{}", "raw:{""answerHash"": 5}", $ZConvert(good, "U"), $Extract(good, 1, 63))
+	// a text with no hash is not the baseline either
+	Do ..Run(host, ref, 0, "T-1 open", "none")
+	Set row = ..Stored(ref)
+	Do $$$AssertEquals(row.Result _ "|" _ row.Finding _ "|" _ ##class(%DynamicAbstractObject).%FromJSON(row.Reported).baseline, "not_checked|" _ $Parameter(..#PROBE, "REASONREAD") _ "|0", "a first answer with no hash is not_checked and not the baseline")
+	// a baseline, so that seen and baseline have values to keep
+	Do ..Run(host, ref, 1, "T-1 open")
+	Set before = ..Stored(ref).Reported
+	Do $$$AssertEquals(##class(%DynamicAbstractObject).%FromJSON(before).baseline, 1, "the baseline is made")
+	For i = 1:1:$ListLength(bad) {
+		Set form = $ListGet(bad, i)
+		Do ..Run(host, ref, i + 1, "T-2 open", form)
+		Set row = ..Stored(ref)
+		Do $$$AssertEquals(row.Result _ "|" _ row.Finding, "not_checked|" _ $Parameter(..#PROBE, "REASONREAD"), "(" _ form _ ") not_checked with REASONREAD")
+		Do $$$AssertEquals(..RunOf(ref).reason, "error", "(" _ form _ ") the CheckRun Reason is error")
+		Do $$$AssertEquals(..FindingItems().%Size(), 0, "(" _ form _ ") no Item is sent")
+		Do $$$AssertEquals(row.Reported, before, "(" _ form _ ") seen and baseline are as they were")
+	}
+	Do ..Run(host, ref, 20, "", "none")
+	Do $$$AssertEquals(..Stored(ref).Result _ "|" _ ..FindingItems().%Size(), "passed|0", "an empty text with no hash is passed, with no Item")
+	// the proxy hashes an empty text too, and the hash of the empty text is no new answer
+	Do ..Run(host, ref, 21, "", ..Hash(""))
+	Set kept = ##class(%DynamicAbstractObject).%FromJSON(..Stored(ref).Reported).seen
+	Do $$$AssertEquals(..Stored(ref).Result _ "|" _ ..FindingItems().%Size() _ "|" _ kept.%Size() _ "|" _ kept.%Get(0), "passed|0|1|" _ ..Hash("T-1 open"), "an empty text with the hash of the empty text is passed, with no Item, and seen is as it was")
 }
 
 /// matrix 4, the server is down (see the class description).
@@ -689,11 +759,11 @@ ClassMethod At(n As %Integer) As %String
 }
 
 /// A Tick at step n, and the answer to the poll that it sent (text, or the failure word when word is not empty).
-Method Run(host As OcuTalon.Test.Mcp.SourceProbe, ref As %String, n As %Integer, text As %String)
+Method Run(host As OcuTalon.Test.Mcp.SourceProbe, ref As %String, n As %Integer, text As %String, hash As %String = "auto")
 {
 	Do ..ForceDue(ref)
 	Do ..Tick(host, ..At(n * 20))
-	Do ..Answer(host, ref, text)
+	Do ..Answer(host, ref, text, "", "", hash)
 }
 
 /// Makes the row due again, as 15 minutes would.
@@ -703,8 +773,9 @@ Method ForceDue(ref As %String)
 }
 
 /// Feeds the answer of a poll of the row to OnResponse, as Decide gives it: the Reply with the text and the failure word. word "no reply" gives no Reply, and "error status" is
-/// the error of Decide's call (OnError). sentAt is the time of the send, now unless given.
-Method Answer(host As OcuTalon.Test.Mcp.SourceProbe, ref As %String, text As %String, word As %String = "", sentAt As %String = "")
+/// the error of Decide's call (OnError). sentAt is the time of the send, now unless given. hash is the HostData of the Reply: "auto" is {"answerHash": <Hash of the text>} when the text is
+/// not empty, "none" leaves it empty, "raw:<json>" is that text as it is, and any other value is put as the member answerHash.
+Method Answer(host As OcuTalon.Test.Mcp.SourceProbe, ref As %String, text As %String, word As %String = "", sentAt As %String = "", hash As %String = "auto")
 {
 	If sentAt = "" Set sentAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set key = ref _ "|" _ sentAt
@@ -718,6 +789,13 @@ Method Answer(host As OcuTalon.Test.Mcp.SourceProbe, ref As %String, text As %St
 	If $IsObject(reply) {
 		Set reply.Text = text
 		Set reply.FailureText = word
+		If hash = "auto" {
+			If text '= "" Set reply.HostData = {"answerHash": (..Hash(text))}.%ToJSON()
+		} ElseIf $Extract(hash, 1, 4) = "raw:" {
+			Set reply.HostData = $Extract(hash, 5, *)
+		} ElseIf hash '= "none" {
+			Set reply.HostData = {"answerHash": (hash)}.%ToJSON()
+		}
 	}
 	Do $$$AssertStatusOK(host.OnResponse(request, .out, "", reply, key), "OnResponse takes the answer")
 }
