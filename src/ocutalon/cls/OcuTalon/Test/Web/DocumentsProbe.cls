@@ -2,7 +2,7 @@
 /// production (Story 34.2; AD-22). It has no Test methods and the product never refers to it. Submit records each command under
 /// ^OcuTalonTest("DocumentsProbe", "submits", n) (n counted in "submits"): class, origin (the class's ORIGIN, which the real Submit passes to
 /// Commands.Submit), name, contentType, uploadRef, size (the bytes of the Upload row the command names, read when the command arrives),
-/// uploadSessionRef (that row's SessionRef), sessionRef and documentRef. It answers by
+/// uploadSessionRef (that row's SessionRef), sessionRef, documentRef and props (Held: every property value of the command, which the bytes-leak scan of TestAddFromFile reads). It answers by
 /// ^OcuTalonTest("DocumentsProbe", "answer"): "" is a done command (Ok 1, Ref zzDocRef0123456789abcd; a done AddDocument takes its Upload row,
 /// as DocumentOps does, unless ^OcuTalonTest("DocumentsProbe", "keep") is set), "not_built", "not_found", "failed" and
 /// any other word are a CommandResult with Ok 0 and that Outcome, "status" is an error status, "throw" throws an error, "okerror" is an Ok result with an error status and "none" is OK with no result. The route's sweep measures its hour from ^OcuTalonTest("DocumentsProbe", "now") when it is set, else from SLOTNOW (2000-01-01, so it deletes no real row), and "throw" there makes the sweep throw (SweepNow). The owner item is running
@@ -20,6 +20,7 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 	Set @call@("class") = $ClassName(command)
 	Set @call@("origin") = ..#ORIGIN
 	Set @call@("sessionRef") = command.SessionRef
+	Set @call@("props") = ..Held(command)
 	If command.%IsA("OcuTalon.Msg.Command.AddDocument") {
 		Set @call@("name") = command.Name
 		Set @call@("contentType") = command.ContentType
@@ -53,6 +54,21 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 		Set result.Outcome = answer
 	}
 	Quit $SYSTEM.Status.OK()
+}
+
+/// Every property value of the command as "name=value" lines (an object-valued property as "[object]"; the properties of the persistence layer, whose names start
+/// with a percent sign, left out): what a command carries as data, which a scan for the bytes of a file reads.
+ClassMethod Held(command As OcuTalon.Msg.Command) As %String
+{
+	Set held = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ? ORDER BY Name", $ClassName(command))
+	While result.%Next() {
+		Set name = result.%GetData(1)
+		If $Extract(name) = "%" Continue
+		Set value = $Property(command, name)
+		Set held = held_name_"="_$Select($IsObject(value): "[object]", 1: value)_$Char(10)
+	}
+	Quit held
 }
 
 /// The JSON body of the text route, built by the route's own TextBody; when the test set ^OcuTalonTest("DocumentsProbe", "textfail"), that

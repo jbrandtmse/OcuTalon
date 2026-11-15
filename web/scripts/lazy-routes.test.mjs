@@ -84,6 +84,10 @@ describe('the pages load lazily', () => {
     );
   });
 
+  it('no static import from the entry point reaches the file reply controls or the pin-photo text (Story 25.6; DW-1282)', () => {
+    assert.deepEqual(eager.filter((file) => /(^|\/)(file-reply|file-reply-view|pin-photo-text)\.ts$/.test(file)), []);
+  });
+
   it('the shell module imports nothing, so the shell never pulls a page in through it', () => {
     assert.deepEqual(staticImports(join(appDir, 'shared', 'page-shell-view.ts')), []);
   });

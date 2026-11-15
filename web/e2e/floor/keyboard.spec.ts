@@ -381,10 +381,10 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
       expect(reading, `Tab ${i + 1} lands on an element`).not.toBeNull();
       await expectStopRing(page, reading!);
       stops.push(reading!.what);
-      if (await page.locator('app-composer button').evaluate((el) => el === document.activeElement)) break;
+      if (await page.locator('app-composer button').last().evaluate((el) => el === document.activeElement)) break;
     }
     expect(stops[0], 'the walk starts at the first skip link').toContain(SKIP_CHAT);
-    expect(stops[stops.length - 1], 'and ends at Send, the composer\'s (the walk breaks at the button of app-composer)').toContain('Send');
+    expect(stops[stops.length - 1], 'and ends at Send, the composer\'s (the walk breaks at the last button of app-composer; the paperclip comes before it, files being on)').toContain('Send');
     expect(stops.filter((one) => one.includes('"Step ')).length, 'it passed the five steps of the demo guide, before main').toBe(5);
     expect(stops.filter((one) => one === 'button "Send"').length, 'and two Send buttons: the guide\'s prompt bar, then the composer\'s').toBe(2);
     expect(stops.filter((one) => /^a[ #]/.test(one) && one.includes('Trace')).length, 'it passed the Trace link of every rail row').toBeGreaterThanOrEqual(12);
@@ -401,7 +401,9 @@ test('K4: no focus ring is clipped, at every tab stop of a page whose rail and c
     await expect(newMessages, 'a turn that lands while the list is scrolled up shows New messages').toBeVisible();
     await composerOf(page).focus();
     await page.keyboard.press(keys.back);
-    await expect(newMessages, 'Shift+Tab from the composer reaches it').toBeFocused();
+    await expect(page.getByRole('button', { name: 'Send a file', exact: true }), 'Shift+Tab from the field reaches the paperclip first (files are on, Story 25.6)').toBeFocused();
+    await page.keyboard.press(keys.back);
+    await expect(newMessages, 'and the next Shift+Tab reaches it').toBeFocused();
     const newReading = (await readFocus(page))!;
     await expectRing(page, newReading, 'New messages');
     expectRingInside(newReading, 'New messages');
