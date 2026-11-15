@@ -17,6 +17,9 @@
 ///   - ToolsReadOnly: 1 only when the row's last attach was attached and every tool row of the server that is not in the row's RefusedTools (a refused tool never
 ///     runs) is classified read-only; an attached server with no such row counts as 1. A server whose last attach was unavailable or never happened, a server with no
 ///     row, an empty name and any error count as 0. It reads and writes nothing else (DW-724).
+///   - PollCall (Story 22.11): prepares the call of the source whose Ref is given, from the source's own row, in this order: the row must exist, be of Kind source and hold arguments that are a JSON object or none (else invalid); the
+///     tool's OcuTalon.Mcp.ToolClassification row must exist (else notfound) and be read-only (else notreadonly); Mcp.Proxy Listed gives the live toolref and fingerprint, or its word; and
+///     the live fingerprint must be the row's (else changed). The arguments are the row's alone. It answers "" with every output set, or one word of POLLREASONS with every output empty.
 Class OcuTalon.Mcp.Attach Extends OcuTalon.Bridge.Ext.McpServers
 {
 
@@ -102,6 +105,46 @@ ClassMethod ToolsReadOnly(server As %String) As %Boolean
 	} Catch {
 	}
 	Quit 0
+}
+
+ClassMethod PollCall(source As %String, Output server As %String, Output tool As %String, Output arguments As %DynamicObject, Output toolref As %String, Output fingerprint As %String) As %String
+{
+	Set server = ""
+	Set tool = ""
+	Set arguments = ""
+	Set toolref = ""
+	Set fingerprint = ""
+	Set word = "invalid"
+	Try {
+		Set row = $Select($Match($Get(source), "^[A-Za-z0-9_-]{22}$"): ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(source), 1: "")
+		If '$IsObject(row) || (row.Kind '= ##class(OcuTalon.Watch.Ops).#SOURCEKIND) Return "invalid"
+		Set live = row.Server
+		Set name = row.Tool
+		Set object = $Select($ZStrip(row.Arguments, "*WC") = "": {}, 1: {}.%FromJSON(row.Arguments))
+		If '$IsObject(object) || 'object.%IsA("%Library.DynamicObject") Return "invalid"
+		Set classified = $Select($Match(live, ##class(OcuTalon.Mcp.Server).#NAMEPATTERN) && (name '= ""): ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(live, name), 1: "")
+		If '$IsObject(classified) Return "notfound"
+		If classified.Classification '= "read-only" Return "notreadonly"
+		Set word = ##class(OcuTalon.Mcp.Proxy).Listed(live, name, .listedRef, .listedFingerprint)
+		If word '= "" Return word
+		If listedFingerprint '= classified.Fingerprint Return "changed"
+		Set server = live
+		Set tool = name
+		Set arguments = object
+		Set toolref = listedRef
+		Set fingerprint = listedFingerprint
+		Set word = ""
+	} Catch {
+		Set word = "invalid"
+	}
+	If word '= "" {
+		Set server = ""
+		Set tool = ""
+		Set arguments = ""
+		Set toolref = ""
+		Set fingerprint = ""
+	}
+	Quit word
 }
 
 }

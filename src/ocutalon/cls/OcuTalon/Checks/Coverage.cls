@@ -17,14 +17,20 @@
 ///   - A background check's result comes from the runs that Digest.Data.CheckRun recorded in the span, max(fromUtc, CreatedAt) to toUtc. The first
 ///     rule that applies wins: (1) paused: a heartbeat gap overlaps the span; (2) no run in the span: stale when an earlier run exists, else
 ///     missed from the span's start to toUtc, except that a source row (Kind source, with an IntervalMinutes) takes its newest run at or after its CreatedAt and before
-///     the span as its latest run, through rules (4) and (5), when that run is at most max(the window, IntervalMinutes x 60 + MISSEDSECONDS seconds) before the end of the
+///     the span as its latest run, through rules (4) and (5), when that run is at most max(the window, IntervalMinutes x 60 + SourceSlack seconds) before the end of the
 ///     window (toUtc, or now when it is empty), since a source polled less often than the digest spans has no run in some windows (Story 22.13; DW-1327); a source's runs
 ///     before its CreatedAt never count, so a source with none since reads missed, not stale; (3) missed: two consecutive runs, the span's start and the first run, or the last run and toUtc are
 ///     more than MISSEDSECONDS apart (the first such gap); (4) the latest run is not_checked: its reason gives error, timeout or unreachable
 ///     (an empty or unknown reason is error), for unreachable since the first run of the unbroken streak of unreachable runs that ends at the
 ///     latest, and stopped (Story 22.5: the source's tool is no longer Read-only) since the first run of the unbroken streak of stopped runs that
 ///     ends at the latest; (5) otherwise the latest run's result. For rule (3) the gap of a source row (Kind source) with an IntervalMinutes is
-///     IntervalMinutes x 60 + MISSEDSECONDS seconds, since it runs once in each interval; any other row keeps MISSEDSECONDS.
+///     IntervalMinutes x 60 + SourceSlack seconds, since it runs once in each interval; any other row keeps MISSEDSECONDS. SourceSlack is max(MISSEDSECONDS, QUEUESECONDS x the number of
+///     sources that are not stopped), read once for each Build (PollingSources): a source's runs may be up to IntervalMinutes x 60 + max(180 s, 120 s x the non-stopped sources of the install)
+///     seconds apart before it reads stale or missed, that is up to max(180 s, 120 s x those sources) late beyond its interval (DW-1346). Checks sends one poll for the whole install at a Tick
+///     (Story 22.11), so a source that waits in that queue is allowed QUEUESECONDS for each source that is not stopped. Decide answers a poll within its timer (60 s by default, MAXTIMER 110 s
+///     at most), so the next source is sent at the latest at the second Tick after a send, about 120 s later, which QUEUESECONDS covers (inference from the code); a raised timer only narrows
+///     the margin before that Tick. An answer that is lost holds the in-flight mark for Checks.Process INFLIGHTSECONDS (150 s) and delays the next send to the third Tick, about 180 s, and a wait
+///     beyond the allowance reads stale or missed.
 ///   - The Mailbox row (Story 22.5) is there only for the session that owns the connected mailbox (Channel.Email.In Owner) and only once the mark emailPoll
 ///     exists. It is passed when the mark says ok, its time is in the span and at most MAILSTALESECONDS before the end of the span; not checked when the mark says ok
 ///     but is older (stale); not checked as unreachable, with the time of the last good poll, for a failed poll whose reason is the adapter's REASONUNREACHABLE; and not
@@ -50,6 +56,10 @@ Parameter KEYPREFIX = "checks.thresholds.";
 
 /// The most seconds between two runs, or between a run and an end of the span, before the check counts as having missed (AD-18).
 Parameter MISSEDSECONDS = 180;
+
+/// The seconds that a source's poll is allowed to wait in the queue of one poll, for each source that is not stopped, beyond its interval (the ruled allowance of DW-1346, the one constant): a poll
+/// that Decide answers within its timer (60 seconds by default, 110 at most) holds the queue until the second Tick after its send, about 120 seconds for each source ahead.
+Parameter QUEUESECONDS = 120;
 
 /// The most seconds before the end of the span that the last poll of the mailbox may have been made for the Mailbox row to be passed.
 Parameter MAILSTALESECONDS = 900;
@@ -155,6 +165,7 @@ ClassMethod Build(sessionRef As %String, fromUtc As %String, toUtc As %String, O
 	Set toUtc = $Get(toUtc)
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	Set limit = ..Limits()
+	Set slack = ..SourceSlack(..PollingSources())
 	Set namespaces = ""
 	For i = 1:1:checks.Count() {
 		Set check = checks.GetAt(i)
@@ -171,7 +182,7 @@ ClassMethod Build(sessionRef As %String, fromUtc As %String, toUtc As %String, O
 		Set check = checks.GetAt(i)
 		Set before = rows.%Size()
 		Try {
-			Do ..WatchRow(check, fromUtc, toUtc, limit, rows, lines)
+			Do ..WatchRow(check, fromUtc, toUtc, limit, slack, rows, lines)
 		} Catch exception {
 			Do ..Add(rows, lines, ..#NOTCHECKED, ..EntryOf(check), ##class(OcuTalon.Checks.Process).#REASONREAD, now, ..#KEYERROR, {"entry": (..EntryOf(check)), "time": (now)})
 		}
@@ -292,7 +303,7 @@ ClassMethod DatabaseRow(databases As %DynamicArray, limit As %DynamicObject, now
 
 /// The row of one background check: its history (the runs of CheckRun in the span, or, for a source with none, its newest run since its CreatedAt when Current holds),
 /// then, for a production watch whose result stands on its latest run, the live read.
-ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String, toUtc As %String, limit As %DynamicObject, rows As %DynamicArray, lines As %DynamicArray) [ Private ]
+ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String, toUtc As %String, limit As %DynamicObject, slack As %Integer, rows As %DynamicArray, lines As %DynamicArray) [ Private ]
 {
 	Set entry = ..EntryOf(check)
 	Set spanStart = $Select(check.CreatedAt = "": fromUtc, fromUtc = "": check.CreatedAt, fromUtc ] check.CreatedAt: fromUtc, 1: check.CreatedAt)
@@ -311,7 +322,7 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	Set isSource = (check.Kind = ##class(OcuTalon.Checks.Process).#SOURCEKIND) && (+check.IntervalMinutes > 0)
 	If runs.%Size() = 0 {
 		Set earlier = ..EarlierRun(check.Ref, spanStart, $Select(isSource: check.CreatedAt, 1: ""), .earlierRun)
-		If (earlier '= "") && isSource && ..Current(earlier, fromUtc, toUtc, check.IntervalMinutes) {
+		If (earlier '= "") && isSource && ..Current(earlier, fromUtc, toUtc, check.IntervalMinutes, slack) {
 			Do runs.%Push(earlierRun)
 			Set carried = 1
 		} ElseIf earlier '= "" {
@@ -325,7 +336,7 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	Set previous = spanStart
 	Set missed = 0
 	Set allowed = ..#MISSEDSECONDS
-	If isSource Set allowed = (check.IntervalMinutes * 60) + ..#MISSEDSECONDS
+	If isSource Set allowed = (check.IntervalMinutes * 60) + slack
 	// A carried run was vetted by Current, so the loop over the gaps does not run for it.
 	For i = 0:1:$Select(carried: -1, 1: runs.%Size()) {
 		Set next = $Select(i = runs.%Size(): toUtc, 1: runs.%Get(i).ranAt)
@@ -493,14 +504,47 @@ ClassMethod EarlierRun(checkRef As %String, spanStart As %String, notBefore As %
 }
 
 /// 1 when a source's run at ranAt, before the span, is recent enough to stand as the source's latest run: at most max(the window's length, intervalMinutes x 60 +
-/// MISSEDSECONDS seconds) before the end of the window (toUtc, or now when it is empty). Story 22.13; DW-1327.
-ClassMethod Current(ranAt As %String, fromUtc As %String, toUtc As %String, intervalMinutes As %Integer) As %Boolean [ Private ]
+/// slack seconds) before the end of the window (toUtc, or now when it is empty); slack is SourceSlack's. Story 22.13; DW-1327; DW-1346.
+ClassMethod Current(ranAt As %String, fromUtc As %String, toUtc As %String, intervalMinutes As %Integer, slack As %Integer) As %Boolean [ Private ]
 {
 	Set end = $Select(toUtc = "": ##class(OcuTalon.Data.Time).NowUtc(), 1: toUtc)
-	Set allowed = (intervalMinutes * 60) + ..#MISSEDSECONDS
+	Set allowed = (intervalMinutes * 60) + slack
 	Set window = ..Apart(fromUtc, end)
 	If window > allowed Set allowed = window
 	Quit ..Apart(ranAt, end) <= allowed
+}
+
+/// The seconds that a source may be late beyond its interval before it reads stale or missed (DW-1346): max(MISSEDSECONDS, QUEUESECONDS x sources), that is max(180 s, 120 s x sources), where sources is
+/// the number of sources that are not stopped (PollingSources). Checks sends one poll for the whole install at a Tick, and the poll of a source that waits behind the others' is allowed QUEUESECONDS for each one.
+ClassMethod SourceSlack(sources As %Integer) As %Integer [ Private ]
+{
+	Set slack = (+sources) * ..#QUEUESECONDS
+	Quit $Select(slack > ..#MISSEDSECONDS: slack, 1: ..#MISSEDSECONDS)
+}
+
+/// The number of source rows of the install (Kind source, every owner) that are not stopped, which is the most that can be waiting for the one poll of a Tick (option (a) of Story 22.11 is
+/// install-wide). A row is stopped when the stopped member of its Reported is not empty; a Reported that cannot be read counts as not stopped. It is a read of the rows, with no column of its own
+/// (AD-5), once for each Build, and a read that fails gives 0, so that SourceSlack falls back to MISSEDSECONDS.
+ClassMethod PollingSources() As %Integer [ Private ]
+{
+	Set count = 0
+	Try {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Reported FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ?", ##class(OcuTalon.Checks.Process).#SOURCEKIND)
+		If rs.%SQLCODE < 0 Quit
+		While rs.%Next() {
+			Set stopped = 0
+			Try {
+				Set state = ##class(%DynamicAbstractObject).%FromJSON(rs.%GetData(1))
+				Set stopped = ($IsObject(state) && (state.%GetTypeOf("stopped") = "string") && (state.stopped '= ""))
+			} Catch {
+				Set stopped = 0
+			}
+			If 'stopped Set count = count + 1
+		}
+	} Catch {
+		Set count = 0
+	}
+	Quit count
 }
 
 /// The seconds from one UTC time to a later one; 0 when either is unreadable.

@@ -8164,6 +8164,39 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OnSetSource refuses only ENTRYMAILBOX (Planner ruling ~09:40Z/~13:20Z named Mailbox). A source named 'the mailbox' reads 'I checked the mailbox and the mailbox'; one named 'database space' gives two such coverage lines. Each needs a deliberate admin choice; a wider list needs new public text.
 - 2026-11-14T13:37:44Z status=wontfix-accepted owner=22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover by=cr note=reopen_if=an admin reports, or a digest shows, two coverage entries or two checked names that read the same
 
+### DW-1346: Source polls: option (a) caps the install at one poll per Tick, so more due sources than their interval in minutes (or polls that run to Decide's timer) read stale
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: RunSources/PollInFlight: one mark install-wide; N sources need N Ticks; a poll that runs to Decide's 60 s timer can hold the mark past the next Tick (3 such sources about 240 s > 180 s, inference). Check 2 measured only for 3 sources in 4 mock modes.
+- 2026-11-14T19:28:17Z status=decision-pending owner=burndown by=cr note=Planner: option (b) poll runner or (c) TriageAgent PoolSize 2, or send the next due source from OnResponse
+- 2026-11-14T23:40:11Z occurrence=22-11-run-source-polls-through-the-governed-proxy
+- 2026-11-14T23:40:11Z status=decision-pending owner=burndown by=cr note=ruled ~20:40Z: cap stays, max(180,60xN) coded; residual: timer-length polls cost poll+Tick each (3rd ~240s); rec 120s/source
+- 2026-11-15T00:19:03Z status=resolved-by:22-11-run-source-polls-through-the-governed-proxy by=lead note=Planner_~23:00Z_option_1:QUEUESECONDS=120;3_slow_sources_test;mutation_60_red
+
+### DW-1347: Source polls: a poll answer is cut at the tool-result room, so the hash and the Item hold cut text plus the cut note, and a change past the cut that keeps the length is missed
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Tools/McpCall CallMcpTool passes the room to Proxy.Call; Poll.Run hashes what was shown. Not measured against an answer beyond the room.
+- 2026-11-14T19:28:17Z status=escalated owner=burndown by=cr note=fix in Tools/McpCall (room empty for a poll) is outside 22.11's footprint
+
+### DW-1348: Source polls: a run recorded in the same second as a repoint keeps the old seen history (start-afresh rule is LastRunAt before CreatedAt, second resolution)
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: StateOf/SourceAnswer compare second-resolution stamps; one-second window per repoint could send one extra Item or hide one.
+- 2026-11-14T19:28:17Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=a test or trace shows an Item from the old target after a repoint
+
+### DW-1349: Proxy.Listed's online-demo word has no test of its own
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: The demo is held at Checks.RunSources (TestOnlineDemoNoPoll, TestOnlineDemoNoPollInProduction) and by MCPDEMO on call_mcp_tool; a direct Listed call on the demo is not asserted.
+- 2026-11-14T19:28:17Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=a poll request reaches Bridge.Poll on an install with onlineDemo 1
+
+### DW-1350: Source polls: option (a)'s in-flight mark is an inflight member inside a source row's Reported, beyond the approved {seen, baseline, stopped} shape (no column)
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: low | footprint: in-story
+- evidence: Checks MarkInFlight writes Reported with inflight (the send time) from the send to the answer's record; veto 2 approved only {seen, baseline, stopped}; the ~15:10Z pre-ruling put the state on the row and allowed no column.
+- 2026-11-14T19:28:59Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the stored member (veto window: stored data); reviewer: consistent with the pre-ruling, transient, time only
+
+### DW-1353: Coverage's install-wide source count (DW-1346) makes Test.Digest.Coverage's source boundary tests depend on other sessions' source rows
+- source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review, rework 1) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Coverage.PollingSources counts every non-stopped source row of the install; one leftover row turned TestSourceLongIntervalStale red on the warm stack (and one a second older is stale), green once removed; two turn TestSourceIntervalGap red. Lane B test (Test/Digest/**).
+- 2026-11-14T23:40:11Z status=escalated owner=burndown by=cr note=Lane B file 22.11 may not edit; fix: CoverageProbe overrides PollingSources to count only the test's own rows
+- 2026-11-14T23:56:26Z status=resolved-by:22-11-run-source-polls-through-the-governed-proxy by=lead note=Test/Digest/CoverageProbe.cls_overrides_PollingSources(^||CoverageProbe(polling),default_0);CoverageProbe_is_in_22.5s_footprint(Lane_A);proof:3_leftover_source_rows->Coverage_green;mutation_override_removed->TestSourceIntervalGap+TestSourceLongIntervalStale_red
 ### DW-1351: The rail's checks hint 'To stop, ask: "Stop watching Orders."' also shows beside source rows, which stop only in Settings
 - source: spec-21-5 code review | severity: low | fix-risk: low | footprint: in-epic
 - evidence: RAIL_TEXTS.hintChecks (rail-view.ts :43) is one fixed hint for the whole checks section; Story 21.5 adds source rows to that section, and a source is removed in Settings > Tools and MCP servers, not by a Stop watching request. A fix needs a new ruled text.

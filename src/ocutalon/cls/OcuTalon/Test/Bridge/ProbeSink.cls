@@ -35,6 +35,22 @@ ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObj
 	Quit $$$OK
 }
 
+/// The types of the events that this process's calls recorded, in order, comma-separated.
+ClassMethod Types() As %String
+{
+	Set types = ""
+	For n = 1:1:+$Get(^||ZzProbeSink) {
+		Set types = types _ $Select(types = "": "", 1: ",") _ $List($Get(^||ZzProbeSink(n)), 1)
+	}
+	Quit types
+}
+
+/// The number of calls that this process recorded.
+ClassMethod Calls() As %Integer
+{
+	Quit +$Get(^||ZzProbeSink)
+}
+
 /// 1 when any process holds the lock of the day's mark, ^OcuTalonBP.UsageCapped(day), at this moment, as the lock table shows it
 /// (^$LOCK); otherwise 0.
 ClassMethod LockHeld(day As %String) As %Boolean

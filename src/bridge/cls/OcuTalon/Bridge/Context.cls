@@ -15,6 +15,9 @@
 /// call that replaces a native one (Story 22.3). Like the grant, the map is not a field, and Begin and End kill it. A tool that is not in the map has no fingerprint.
 /// Story 22.4: once TakeGrant consumed the grant it keeps the approved call (source, name, ToolFingerprint) in a node of its own (ApprovedFingerprint), and the governed
 /// proxy notes the reason word of a replay that it refused (NoteReplayRefusal, ReplayRefusal); both nodes are outside FIELDS, and Begin and End kill them.
+/// The context of a source poll (Story 22.11; AD-6, AD-10, AD-21) is a context of kind tool and provenance untrusted (IsPoll). It holds no grant. Its map is seeded from one live
+/// listing (SeedMcp: one server and one tool, with the same key checks as SetMcpTools), so that the gate classifies the poll's one call of the governed proxy as the native call of the
+/// tool, and the proxy notes the word of a refusal as it does for a replay.
 Class OcuTalon.Bridge.Context Extends %RegisteredObject
 {
 
@@ -159,7 +162,7 @@ ClassMethod SetMcpTools(catalog As %DynamicArray, servers As %DynamicObject = ""
 	If $IsObject(servers) && servers.%IsA("%Library.DynamicObject") {
 		Set named = servers.%GetIterator()
 		While named.%GetNext(.host, .toolref, .type) {
-			If (type '= "string") || '..IsMcpRef(toolref) || (host = "") || ($Length(host) > ..#MCPKEYMAX) || ($Length(toolref) > ..#MCPKEYMAX) Continue
+			If (type '= "string") || '..ServerKeyOk(host, toolref) Continue
 			Try {
 				Set ^||OcuTalonBP.Context(..#MCPSERVERS, host) = toolref
 			} Catch {
@@ -171,7 +174,7 @@ ClassMethod SetMcpTools(catalog As %DynamicArray, servers As %DynamicObject = ""
 		If '$IsObject(tool) || (tool.%GetTypeOf("tool_ref") '= "string") || (tool.%GetTypeOf("name") '= "string") Continue
 		Set server = tool.%Get("tool_ref")
 		Set name = tool.%Get("name")
-		If '..IsMcpRef(server) || (name = "") || ($Length(server) > ..#MCPKEYMAX) || ($Length(name) > ..#MCPKEYMAX) Continue
+		If '..ToolKeyOk(server, name) Continue
 		Set fingerprint = ""
 		Try {
 			Set fingerprint = ..ToolFingerprint(server, name, tool.%Get("description"), tool.%Get("parameters"))
@@ -185,6 +188,45 @@ ClassMethod SetMcpTools(catalog As %DynamicArray, servers As %DynamicObject = ""
 		}
 	}
 	Quit $SYSTEM.Status.OK()
+}
+
+/// 1 when the active context is the context of a source poll: the Kind is tool and the Provenance is untrusted (Story 22.11). A replay's Provenance is user. 0 when there is no context.
+ClassMethod IsPoll() As %Boolean
+{
+	If '..Active() Quit 0
+	Quit ($Get(^||OcuTalonBP.Context("Kind")) = "tool") && ($Get(^||OcuTalonBP.Context("Provenance")) = "untrusted")
+}
+
+/// Replaces the turn's MCP map with one entry for a source poll (Story 22.11): the fingerprint of the tool of the name on the server's toolref, and the host's name
+/// for that server. The keys are checked as SetMcpTools checks them (ServerKeyOk, ToolKeyOk); the fingerprint must not be empty. An error, and the old map left as it was,
+/// when there is no context or a key or the fingerprint is not usable; it never throws.
+ClassMethod SeedMcp(server As %String, toolref As %String, tool As %String, fingerprint As %String) As %Status
+{
+	If '..Active() Quit $SYSTEM.Status.Error(5001, "There is no context to seed the MCP map of the poll into")
+	If '..ServerKeyOk($Get(server), $Get(toolref)) || '..ToolKeyOk($Get(toolref), $Get(tool)) || ($Get(fingerprint) = "") {
+		Quit $SYSTEM.Status.Error(5001, "The server, the toolref, the tool or the fingerprint of the poll cannot be keyed into the MCP map")
+	}
+	Try {
+		Kill ^||OcuTalonBP.Context(..#MCP), ^||OcuTalonBP.Context(..#MCPSERVERS)
+		Set ^||OcuTalonBP.Context(..#MCPSERVERS, server) = toolref
+		Set ^||OcuTalonBP.Context(..#MCP, toolref, tool) = fingerprint
+	} Catch {
+		Kill ^||OcuTalonBP.Context(..#MCP), ^||OcuTalonBP.Context(..#MCPSERVERS)
+		Return $SYSTEM.Status.Error(5001, "The MCP map of the poll cannot be keyed")
+	}
+	Quit $SYSTEM.Status.OK()
+}
+
+/// 1 when the host's name for a server and its toolref can key the map's server node: the toolref starts mcp:, and both are not empty and at most MCPKEYMAX characters.
+ClassMethod ServerKeyOk(host As %String, toolref As %String) As %Boolean [ Private ]
+{
+	Quit ..IsMcpRef(toolref) && (host '= "") && ($Length(host) <= ..#MCPKEYMAX) && ($Length(toolref) <= ..#MCPKEYMAX)
+}
+
+/// 1 when a tool_ref and a tool name can key the map's tool node: the tool_ref starts mcp:, and both are not empty and at most MCPKEYMAX characters.
+ClassMethod ToolKeyOk(toolref As %String, name As %String) As %Boolean [ Private ]
+{
+	Quit ..IsMcpRef(toolref) && (name '= "") && ($Length(toolref) <= ..#MCPKEYMAX) && ($Length(name) <= ..#MCPKEYMAX)
 }
 
 /// The fingerprint that the turn's MCP map holds for the tool of the name on the server (the tool_ref), or "" when the map has none, there is no map or no
@@ -321,7 +363,7 @@ ClassMethod ApprovedFingerprint(tool As %String) As %String
 	Quit $Select(tool = $ListGet(approved, 2): $ListGet(approved, 3), 1: "")
 }
 
-/// Notes the reason word of a replay whose proxy call was refused (the proxy's changed, failed, timeout or demo; failed and timeout can come after the request reached the
+/// Notes the reason word of a replay's or a poll's proxy call that was refused (the proxy's changed, failed, timeout or demo; failed and timeout can come after the request reached the
 /// server), so that the replay can tell a refusal from a result: the tool answers a sentence either way. The last word noted stands. It does nothing for an empty word and when there is no context; it never throws.
 ClassMethod NoteReplayRefusal(word As %String)
 {
@@ -332,7 +374,7 @@ ClassMethod NoteReplayRefusal(word As %String)
 	}
 }
 
-/// The reason word that NoteReplayRefusal noted in this context, or "" when there is none. It never throws.
+/// The reason word that NoteReplayRefusal noted in this context (a replay's or a poll's), or "" when there is none. It never throws.
 ClassMethod ReplayRefusal() As %String
 {
 	If '..Active() Quit ""
