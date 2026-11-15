@@ -2,7 +2,7 @@
 title: 'Story 24.4: Show the new fixes, partner warnings and setting changes on the cards'
 type: 'feature'
 created: '2026-11-15'
-status: 'blocked'
+status: 'draft'
 baseline_revision: '243e45ba76ad628c995c3cb903aa5df8fe363e30'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -170,6 +170,40 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
   - Tab reaches Show details and the undo card's Approve, in that order, with a visible focus ring.
 
 ## Spec Change Log
+
+- 2026-11-15 (lead). **REDACTOR RULING, Contest Planner ~21:30Z Nov 15 (BINDING; supersedes V1's condition; a 1.0.12 BLOCKER)**, quoted in full:
+
+  > ## REDACTOR RULING (Contest Planner, ~21:30Z). BINDING. OPTION 2, EXTENDED, and a 1.0.12 BLOCKER
+  > 23.3 shipped the exposure to feature, so it must close before the 1.0.12 cut. It supersedes V1's condition above.
+  > 
+  > ### One redactor, on the SERVER
+  > Use OcuTalon.Bridge.Redact.Text, applied on the server everywhere a setting's before, after, old or new value is SHOWN:
+  > 1. **Approval payload.** In Live/Payload/Approval.cls, the rollback's and the undo's Before and After.
+  > 2. **Incident payload.** In Live/Payload/Incident.cls, Change, which feeds the new evidence-panel rows.
+  > 3. **Notice texts** (web chat, phone page, Telegram). Fill these slots from the REDACTED value; the slot fill is in Watch/Notice and SettingCause:
+  >    - incident.rollbackRequest and incident.undoRollbackRequest: {before} and {after};
+  >    - result.settingRestored and result.rollbackUndone: {after};
+  >    - any summary line that carries a value.
+  > 4. **Trace and logs.** Check the Ens trace and the logs. If any message body carries the raw before or after, make it carry a reference or the redacted value instead, and pin that.
+  > 
+  > ### NOT redacted
+  > The stored ApprovalRequest.DryRun and the value the rollback writes stay raw, because execution must restore the exact earlier value.
+  > - Pin: a rollback of a token-bearing URL restores it byte for byte, while every view of it is redacted.
+  > 
+  > ### Pins
+  > - A token-bearing URL is redacted on the web card, the phone page, the Telegram text and the evidence panel.
+  > - A plain value is unchanged.
+  > 
+  > ### Grant
+  > Lane D may edit Live/Payload/Approval.cls, Live/Payload/Incident.cls, and the slot fill in Watch/Notice and SettingCause, under this ruling.
+  > 
+  > ### Redact.Text patterns
+  > If Redact.Text's patterns miss a common secret shape (URL user:password, token=, key=, Bearer), add the pattern IN Redact.Text itself, so logs benefit too. Write no second redactor in the web.
+  > 
+  > ### Contention
+  > Lane B (23.8, the DW-1396 follow-up) and lane C (DW-1205) are also working in Watch and Fix. The rule is a plain union: whoever pushes second integrates and flags any overlapping hunks.
+
+  The implement stage had blocked on V1's condition (no redactor existed: `RollbackSetting.DryRun` L86-90 stores raw values; `Live/Payload/Approval.cls` L122-123/L148-149 and `Incident.cls` `Change` copy raw; the web interpolates raw). Status reset to `draft` for a re-plan that folds this ruling in.
 
 - 2026-11-15 (lead). **Gate ruled, Contest Planner ~21:00Z Nov 15 (BINDING)**, quoted in full from `<coordination>/prompts/story-244-rulings-20261115.md`:
 
