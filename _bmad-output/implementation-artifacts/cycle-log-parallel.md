@@ -4314,3 +4314,7 @@
 2026-11-15T14:56:17Z	Run	owner_decision	via=contest_planner 1.0.11_base=a1b4f2e2c(or_records-only_above) 25.6,23.3=NOT_in_1.0.11(->1.0.12) rule=only_records_land_until_REQUIRED_GREEN_sent
 2026-11-15T14:56:17Z	Epic 22	runner_reported	PART_READY 22.12=70c05d0a(merged_adbb0ace9) 21.11=ccf1a835(merged_a1b4f2e2c) note=QA_added_2nd_TelegramOut_test_beyond_V5(kept_on_merit;asked_Planner) epic-22=only_22.10_deferred_left
 2026-11-15T14:56:17Z	Epic 22	runner_ended	reason=waiting(no_item)
+2026-11-15T14:56:43Z	Run	planner_notified	cancel_43720376656_left_nothing(ci-b_2_dead_swept;0_on_ci-b/c/d) runners=+36(ocutalon-ci-21..56,six_temp_hosts,joining_over_next_hour)
+2026-11-15T14:57:03Z	Run	owner_decision	via=contest_planner 21.11_V5_2nd_TelegramOut_test=accepted_footprint_extension laneC=plan_0.37(A/B_choice_at_gate) laneD=plan_24.2(else_24.4) push_freeze=lifts_at_>=12_new_runners,one_lane_at_a_time,release_PR_first
+2026-11-15T14:57:15Z	Epic 0	dispatched	lane=C runner=a782ad9fd103aa691 task=0.37_plan_to_spec_gate(local) prompt=prompts/local-plans-20261115.md
+2026-11-15T14:57:15Z	Epic 24	dispatched	lane=D(exception) runner=a32f5289d7494a1ef task=24.2_or_24.4_plan_to_spec_gate(local)
