@@ -19,8 +19,9 @@ Include Ensemble
 /// decision.recorded and turn.step publish only for a session: the owners eval and instance publish nothing for them.
 /// The notices of a tool call (Story 31.5, AD-31, AD-32) go through the Notice seam beside the approval event, for a request of
 /// kind tool_call that a session owns, that Ownership.Approval reads for it and that is replayable (ToolSource and Runner both set,
-/// the inverse of Decide.HeldBeforeUpdate). A fix is IncidentManager's and a setting its owner's, so neither gets one here. Each
-/// notification is built from the row as read, with SessionRef the owner, ApprovalRef the row's Ref and IncidentRef the row's:
+/// the inverse of Decide.HeldBeforeUpdate), and also for a standalone email request (Story 21.11, below). Any other fix is IncidentManager's
+/// and a setting its owner's, so neither gets one here. Each notification is built from the row as read, with SessionRef the owner,
+/// ApprovalRef the row's Ref and IncidentRef the row's:
 ///   - approval.raised: kind approval, toolCall.requestOnServer {tool, server, inputs} when ServerOf(ToolSource) names the MCP
 ///     server, else toolCall.request {tool, inputs}. inputs is InputsOf(ToolArguments): the bridge's redactor over the whole
 ///     arguments, then one {name, value} per top-level member in the stored order, the value its JSON text, never cut; an empty
@@ -36,6 +37,16 @@ Include Ensemble
 ///     CanceledServer names the server (a replayable MCP call whose server has no Mcp.Server row any more), else nothing: a session
 ///     end, a call of a developer's tool and a fix cancel quietly. The approval event for the same cancellation carries that time
 ///     as cancelledAt.
+/// A standalone email request (Story 21.11; Standalone: a row of kind fix with no IncidentRef and FixKind email, read through Ownership.Approval
+/// for a session that exists) takes the same path, with these notices in place of a tool call's:
+///   - approval.raised: kind approval, fix.emailRequest with empty Slots. The recipients, the subject and the text are never in a Notification (it
+///     is an Ens message, so they would be in the trace, Story 22.7 P4): each *Out operation renders the request through RequestText, which reads the
+///     stored dry run by the ApprovalRef and fills the inputs slot, as kind summary renders its stored summary;
+///   - approval.answered and approval.expired: the answered.* notices of a tool call, with no change; approval.cancelled sends nothing (CanceledServer
+///     needs a replayable tool call), as every fix cancels quietly;
+///   - approval.result: kind result, fix.emailSent for Result done, and fix.emailNotSent {reason = EmailReason} for failed or interrupted; an empty
+///     Result or FinishedAt sends nothing. The reason is the run's FixRun Reason only when it is one of the accepted sentences of EmailReasons, else
+///     Channel.Email.Out's MESSAGEFAILED; a raw error text never reaches a notice.
 /// A request held before ToolSource and Runner existed (either is empty) is closed failed by Decide and gets no notice from
 /// approval.result. Its fallback Decision (kind tool, Fallback 1, a first Reasons line) is the one that speaks, on
 /// decision.recorded, when the row is failed and not replayable: one kind result notice with DecisionRef set, and for a first line
@@ -77,6 +88,9 @@ Parameter ERRORDAILYCAP = "BridgeSink could not send the daily-cap message: ";
 
 Parameter ERRORTOOLNOTICE = "BridgeSink could not send a tool-call notice: ";
 
+/// The start of the error of a request text that can't be made; the request's Ref follows and nothing else (no recipient, subject or text).
+Parameter ERRORREQUESTTEXT = "The email request can't be shown: ";
+
 /// The kind of a tool-call request, as the bridge stores it, and of its fallback Decision.
 Parameter TOOLCALL = "tool_call";
 
@@ -101,6 +115,17 @@ Parameter KEYFAILEDWHY = "toolCall.failedWithReason";
 
 /// The key of the notice for an approved MCP call that was refused because its tool changed after the request was made (Result changed, Story 22.4).
 Parameter KEYCHANGED = "mcp.replayToolChanged";
+
+/// The kind of a fix request, the FixKind of an email, and the catalog keys of a standalone email request's notices (Story 21.11).
+Parameter FIXKIND = "fix";
+
+Parameter EMAILKIND = "email";
+
+Parameter KEYEMAILREQUEST = "fix.emailRequest";
+
+Parameter KEYEMAILSENT = "fix.emailSent";
+
+Parameter KEYEMAILNOTSENT = "fix.emailNotSent";
 
 Parameter KEYAPPROVED = "answered.approved";
 
@@ -215,7 +240,7 @@ ClassMethod Recorded(ownerRef As %String, payload As %DynamicObject) [ Private ]
 }
 
 /// The notice of a tool call for the approval.* event of type: sends the Notification that ToolNoticeOf builds from the request's
-/// row, when the owner is a session that exists, reads the row through Ownership.Approval, and the row is a replayable tool_call.
+/// row, when the owner is a session that exists, reads the row through Ownership.Approval, and the row is a replayable tool_call or a standalone email request.
 /// A failed read or send is one warning that names the type and the Ref. cancelledAt is the time of an approval.cancelled event. It never throws.
 ClassMethod ToolNotice(type As %String, ownerRef As %String, ref As %String, cancelledAt As %String = "") [ Private ]
 {
@@ -226,7 +251,7 @@ ClassMethod ToolNotice(type As %String, ownerRef As %String, ref As %String, can
 			$$$LOGWARNING(..#ERRORTOOLNOTICE_type_", request "_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
 			Quit
 		}
-		If '..Replayable(row) Quit
+		If '..Replayable(row) && '..Standalone(row) Quit
 		Set notice = ..ToolNoticeOf(type, row, cancelledAt)
 		If '$IsObject(notice) Quit
 		Set notice.SessionRef = ownerRef
@@ -243,11 +268,24 @@ ClassMethod Replayable(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Boolean 
 	Quit $IsObject(row) && (row.Kind = ..#TOOLCALL) && (row.ToolSource '= "") && (row.Runner '= "")
 }
 
+/// 1 when the row is a standalone email request (Story 21.11): kind fix, no IncidentRef and FixKind email. Every other fix is IncidentManager's.
+ClassMethod Standalone(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Boolean [ Private ]
+{
+	Quit $IsObject(row) && (row.Kind = ..#FIXKIND) && (row.IncidentRef = "") && (row.FixKind = ..#EMAILKIND)
+}
+
 /// The Notification (no SessionRef) for the approval.* event of type from the row, or "" when that event sends nothing. A raised
 /// request whose arguments can't be read sends nothing and logs one warning that names its Ref. cancelledAt is the time of an
 /// approval.cancelled event.
 ClassMethod ToolNoticeOf(type As %String, row As OcuTalon.Bridge.Data.ApprovalRequest, cancelledAt As %String = "") As OcuTalon.Msg.Notification [ Private ]
 {
+	Set standalone = ..Standalone(row)
+	If standalone && (type = ..#APPROVALRAISED) Quit ..Compose(..#APPROVALKIND, ..#KEYEMAILREQUEST, {}, row)
+	If standalone && (type = ..#APPROVALRESULT) {
+		If (row.FinishedAt = "") || '$ListFind($ListBuild("done", "failed", "interrupted"), row.Result) Quit ""
+		If row.Result = "done" Quit ..Compose(..#RESULTKIND, ..#KEYEMAILSENT, {}, row)
+		Quit ..Compose(..#RESULTKIND, ..#KEYEMAILNOTSENT, {"reason": (..EmailReason(row))}, row)
+	}
 	If type = ..#APPROVALRAISED {
 		Set slots = {"tool": (row.ToolName)}
 		Set server = ..ServerOf(row.ToolSource)
@@ -322,6 +360,71 @@ ClassMethod CanceledServer(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Stri
 ClassMethod Registered(server As %String) As %Boolean [ Private ]
 {
 	Quit ''##class(OcuTalon.Mcp.Server).NameIndexExists(server)
+}
+
+/// The sentences that an email run's notice may give as its reason: Channel.Email.Out's refusals and failures and Fix.Kind.Email's EMAILNOSTART, read from
+/// their parameters and never copied.
+ClassMethod EmailReasons() As %List [ Private ]
+{
+	Set out = "OcuTalon.Channel.Email.Out"
+	Set reasons = $ListBuild($Parameter("OcuTalon.Fix.Kind.Email", "EMAILNOSTART"))
+	For name = "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEUNREACHABLE", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE", "MESSAGEFAILED", "MESSAGEMAYHAVESENT" {
+		Set reasons = reasons_$ListBuild($Parameter(out, name))
+	}
+	Quit reasons
+}
+
+/// The reason of a standalone email request's not-sent notice: the Reason of the request's FixRun (object access, read only) when it is one of EmailReasons,
+/// else Channel.Email.Out's MESSAGEFAILED (a raw error, an empty reason, an interrupted run and a run that can't be read).
+ClassMethod EmailReason(row As OcuTalon.Bridge.Data.ApprovalRequest) As %String [ Private ]
+{
+	Set reason = ""
+	Try {
+		Set run = ##class(OcuTalon.Data.FixRun).OfRequest(row.Ref)
+		If $IsObject(run) Set reason = run.Reason
+	} Catch {
+		Set reason = ""
+	}
+	If (reason '= "") && $ListFind(..EmailReasons(), reason) Quit reason
+	Quit $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+}
+
+/// The text of a standalone email request's notification for the channel, which each *Out operation calls (Story 21.11): the notification holds no recipient,
+/// subject or text, so they are read here. The request is read through Ownership.Approval by its ApprovalRef for its SessionRef and must be Standalone; its stored
+/// DryRun is InputsOf (redacted whole, then one line each for to, subject and text, never cut, with V10's escapes), merged into the notification's slots as inputs
+/// when its key is KEYEMAILREQUEST (the slots of any other key stay as they are),
+/// and the text is Msg.Catalog.Render of its CatalogKey. A row that is not readable, not the session's, not an email or whose dry run is not a JSON object gives ""
+/// and an error that names only the Ref, whatever failed (fail closed): the caller sends nothing.
+ClassMethod RequestText(notification As OcuTalon.Msg.Notification, channel As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	Set ref = notification.ApprovalRef
+	Try {
+		Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, notification.SessionRef, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit
+		If '..Standalone(row) {
+			Set sc = $SYSTEM.Status.Error(5001, ..#ERRORREQUESTTEXT_ref)
+			Quit
+		}
+		Set slots = ##class(%DynamicAbstractObject).%FromJSON($Select(notification.Slots '= "": notification.Slots, 1: "{}"))
+		If notification.CatalogKey = ..#KEYEMAILREQUEST {
+			Set inputs = ..InputsOf(row.DryRun)
+			If '$IsObject(inputs) || ($ZStrip(row.DryRun, "*WC") = "") {
+				Set sc = $SYSTEM.Status.Error(5001, ..#ERRORREQUESTTEXT_ref)
+				Quit
+			}
+			Set slots.inputs = inputs
+		}
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(notification.CatalogKey, slots, channel, .sc)
+	} Catch exception {
+		Set text = ""
+		Set sc = $SYSTEM.Status.Error(5001, ..#ERRORREQUESTTEXT_ref)
+	}
+	If $SYSTEM.Status.IsError(sc) {
+		Set sc = $SYSTEM.Status.Error(5001, ..#ERRORREQUESTTEXT_ref)
+		Quit ""
+	}
+	Quit text
 }
 
 /// The call's arguments for a notice, as an array of {name, value} in the stored order. Bridge.Redact.Text runs on the whole

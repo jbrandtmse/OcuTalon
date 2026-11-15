@@ -12,8 +12,8 @@
 ///     the incident card is their web form;
 ///   - TestAllowanceCards (Story 16.9): the kind allowance is a card: the session allowance notice and the daily-cap message are
 ///     rendered for the web, with " ET" on the online demo, recorded with no fallback reason and published as one notification event;
-///   - TestToolCallCards (Story 31.6): a tool call's request, result and held-call reason (the five Core.BridgeSink keys, kind approval or
-///     result, with an ApprovalRef) are cards: rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, published as
+///   - TestToolCallCards (Story 31.6; Story 21.11): a tool call's request, result and held-call reason, and a standalone email request and its two results (the nine Core.BridgeSink keys, kind approval or
+///     result, with an ApprovalRef; the email request's text is its row's stored dry run, and an unreadable or another session's row is an error with no card) are cards: rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, published as
 ///     one notification event and in RecentNotices; a toolCall key with no ApprovalRef, the kind answered, a fix's request
 ///     (incident.laterRequest) and a fix's result (result.allThrough) record their Delivery row only;
 ///   - TestPartnerNotDraftedCard (Story 23.5; AC-NOTDRAFTED-WEB): result.partnerNotDrafted (kind result, no ApprovalRef) is a card of the web chat: rendered for the web, recorded with a ChannelMessageId, no ApprovalRef and
@@ -199,8 +199,9 @@ Method TestIncidentKindsRecordOnly()
 	Do ..AssertRecordOnly(..Session("incident"), $ListFromString(##class(OcuTalon.Channel.WebChat.Out).#INCIDENTKINDS), "the incident kinds")
 }
 
-/// A tool call's notices (Story 31.6) are cards of the web chat: each of the six keys of Core.BridgeSink (the sixth, mcp.replayToolChanged, is the card of an approved MCP call that was refused because its tool changed, DW-1232), sent with its kind
-/// (approval for the two request keys, result for the others), an ApprovalRef and its slots (and a DecisionRef for the held-call
+/// A tool call's notices (Story 31.6) are cards of the web chat: each of the nine keys of Core.BridgeSink (the sixth, mcp.replayToolChanged, is the card of an approved MCP call that was refused because its tool changed, DW-1232; the last three,
+/// fix.emailRequest, fix.emailSent and fix.emailNotSent, are a standalone email request's, Story 21.11: the request's text is the stored dry run of its row, read by the ApprovalRef, since its Slots are empty), sent with its kind
+/// (approval for the request keys, result for the others), an ApprovalRef and its slots (and a DecisionRef for the held-call
 /// reason), is rendered for the web, recorded with a new ChannelMessageId, the ApprovalRef, the kind and the DecisionRef, published
 /// as one notification event whose payload carries the approvalRef and the text, and listed in RecentNotices. These record their
 /// Delivery row only, with no text, no message id and no event, and are not in RecentNotices: a toolCall.request with no
@@ -220,19 +221,26 @@ Method TestToolCallCards()
 	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.failed", ({"tool": "zz_send", "time": (now)}).%ToJSON(), "zz_send failed at "_clock_". I won't run it again without a new approval.", ""))
 	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.failedWithReason", ({"tool": "zz_send", "reason": "This request was held before an update and cannot be run again safely, so please ask again."}).%ToJSON(), "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again.", "ZzToolDecision"))
 	Set cases = cases_$ListBuild($ListBuild("result", "mcp.replayToolChanged", ({"tool": "zz_send", "server": "ops-mcp"}).%ToJSON(), "zz_send on ops-mcp didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed.", ""))
+	Set email = ..EmailRow(session, {"DryRun": ({"to": ["bob@example.test", "ann@example.test"], "subject": "Late  order", "text": ("Hi Bob,"_$Char(13, 10)_$Char(9)_"Sorry.")}.%ToJSON())})
+	Set lf = $Char(10)
+	Set emailText = "Send an email"_lf_"Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval."_lf_"Dry run:"_lf_"to: [""bob@example.test"",""ann@example.test""]"_lf_"subject: ""Late  order"""_lf_"text: ""Hi Bob,\u000D\u000A\u0009Sorry."""_lf_"Approving sends exactly this email once."
+	Set cases = cases_$ListBuild($ListBuild("approval", "fix.emailRequest", "{}", emailText, "", email))
+	Set cases = cases_$ListBuild($ListBuild("result", "fix.emailSent", "{}", "The email was sent.", ""))
+	Set cases = cases_$ListBuild($ListBuild("result", "fix.emailNotSent", ({"reason": "No outgoing mail server is connected, so the email wasn't sent."}).%ToJSON(), "No outgoing mail server is connected, so the email wasn't sent.", ""))
 	Set position = 0, n = 0
 	While $ListNext(cases, position, case) {
 		Set n = n + 1
 		Set kind = $List(case, 1), key = $List(case, 2), expected = $List(case, 4), decisionRef = $List(case, 5)
+		Set approvalRef = $Select($ListLength(case) > 5: $List(case, 6), 1: "ZzToolApproval"_n)
 		Set notification = ..Notification(session, kind, key, {}.%FromJSON($List(case, 3)))
-		Set notification.ApprovalRef = "ZzToolApproval"_n
+		Set notification.ApprovalRef = approvalRef
 		Set notification.DecisionRef = decisionRef
 		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), key_": the notification is delivered")
 		Set row = ..Newest(session)
 		Do $$$AssertEquals(..Rows(session), n, key_": one row more")
 		Do $$$AssertTrue($IsObject(row), key_": the newest card of the session exists")
 		If '$IsObject(row) Continue
-		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "web|"_kind_"|ZzToolApproval"_n_"|"_decisionRef, key_": its channel, kind, ApprovalRef and DecisionRef")
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "web|"_kind_"|"_approvalRef_"|"_decisionRef, key_": its channel, kind, ApprovalRef and DecisionRef")
 		Do $$$AssertEquals(row.Text, expected, key_": the text rendered for the web")
 		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), key_": a new message id: "_row.ChannelMessageId)
 		Do $$$AssertEquals(row.DueAt_"|"_row.FallbackReason, "|", key_": no due time and no reason")
@@ -240,11 +248,31 @@ Method TestToolCallCards()
 		Do $$$AssertEquals(events.%Size(), n, key_": one more notification event")
 		If events.%Size() = n {
 			Set payload = events.%Get(n - 1).payload
-			Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.approvalRef_"|"_payload.decisionRef_"|"_payload.text, row.ChannelMessageId_"|"_kind_"|ZzToolApproval"_n_"|"_decisionRef_"|"_expected, key_": the payload carries the Ref, kind, approvalRef, decisionRef and text")
+			Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.approvalRef_"|"_payload.decisionRef_"|"_payload.text, row.ChannelMessageId_"|"_kind_"|"_approvalRef_"|"_decisionRef_"|"_expected, key_": the payload carries the Ref, kind, approvalRef, decisionRef and text")
 		}
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), n, key_": and the card is in RecentNotices")
 	}
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 6, "six cards")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 9, "nine cards")
+	Do $$$AssertEquals(..Newest(session).Text [ "bob@example.test", 0, "the newest card (a result) holds no recipient")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
+	Set found = 0
+	For i = 1:1:rows.Count() {
+		If rows.GetAt(i).Text = emailText Set found = found + 1
+	}
+	Do $$$AssertEquals(found, 1, "and exactly one card holds the email's dry run, the request's")
+
+	Set stranger = ..Session("emailother")
+	Set theirs = ..Notification(stranger, "approval", "fix.emailRequest", {})
+	Set theirs.ApprovalRef = email
+	Set before = ..Rows(stranger)
+	Do $$$AssertTrue($SYSTEM.Status.IsError(..Out().OnNotification(theirs, .response)), "an email request of another session's row is an error")
+	Do $$$AssertEquals(..Rows(stranger)_"|"_..Notifications(stranger).%Size(), before_"|0", "with no row and no event")
+	Set bad = ..EmailRow(session, {"DryRun": "not json"})
+	Set unread = ..Notification(session, "approval", "fix.emailRequest", {})
+	Set unread.ApprovalRef = bad
+	Set before = ..Rows(session)
+	Do $$$AssertTrue($SYSTEM.Status.IsError(..Out().OnNotification(unread, .response)), "an email request whose dry run can't be read is an error")
+	Do $$$AssertEquals(..Rows(session), before, "with no row")
 
 	Set quiet = ..Session("toolcallquiet")
 	Set noRef = ..Notification(quiet, "approval", "toolCall.request", {"tool": "zz_send", "inputs": (inputs)})
@@ -773,6 +801,20 @@ Method Out() As OcuTalon.Channel.WebChat.Out [ Private ]
 	Set out = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Channel.WebChat.Out", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of the operation is made")
 	Quit out
+}
+
+/// A standalone email request of the session (kind fix, FixKind email, no incident), recorded for the clean-up; fields, an object of property names and values, is set after
+/// the defaults.
+Method EmailRow(session As %String, fields As %DynamicObject) As %String [ Private ]
+{
+	Set row = {"Kind": "fix", "FixKind": "email"}
+	Set iterator = fields.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Do row.%Set(key, value)
+	}
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , row)
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Quit ref
 }
 
 /// A Notification of the kind with the catalog key and its slots (an object).

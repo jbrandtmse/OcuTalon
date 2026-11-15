@@ -2,7 +2,8 @@
 title: 'Story 21.11: Show standalone fix requests with their reason and dry run on every channel'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7f2ae7d5a9f70315e5cbce0345765c8051eb4a4f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -198,6 +199,35 @@ All of it was checked on `OCT-epic21-s2111` at `21497b51d35a7257d17670c8b5a18e44
 
 ## Review Triage Log
 
+### 2026-11-15 - Review pass
+- verdicts: 25 findings - high 0, medium 0, low 23, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: Telegram's `STOREDKEYS` hard-codes the key while the other channels read `KEYEMAILREQUEST` by `$Parameter` -- V5 grants exactly "a parameter `STOREDKEYS`" in Lane A's class, which must not reference more of Lane B's surface; a rename would be caught by `TestEmailRequestRendersTheStoredDryRun`.
+  - `[low]` `[reject]` Blind: the card shows redacted text while "Approving sends exactly this email once" -- spec-bound: 21.10's Decided 9 runs the redactor on the whole dry run first and the matrix has the "Secret in text" row.
+  - `[low]` `[reject]` Blind: an unreadable dry run gives the user no explanation -- spec-bound: the Boundaries and the matrix's "Unreadable" row fail closed with no text.
+  - `[low]` `[reject]` Blind: `EmailReason` never looks at `row.Result` for `interrupted` -- unreachable: `Fix.Run.MarkOne` leaves an interrupted run with an empty Reason, so `MESSAGEFAILED` results; any other string is not in the allow-list (the near-miss rows).
+  - `[low]` `[reject]` Blind: no upper bound on a Telegram email request -- spec-bound: Decided 3 and the Planner's V8 KEEP.
+  - `[low]` `[reject]` Blind: no Telegram test of `fix.emailSent` and `fix.emailNotSent` -- they take Telegram's generic path (no new branch), covered by `Test.Msg.Catalog` and `TestStandaloneEmailNotices`.
+  - `[low]` `[reject]` Blind: `approvalTitle` does not test `incidentRef` -- spec-bound: Decided 1 (an email fix never has an incident, `IncidentManager.RaiseFix` always sets one) and the Tasks name `kind fix with fixKind email`.
+  - `[low]` `[reject]` Blind: N1's text is a literal in six tests -- a wording change is a Planner ruling and the tests are meant to pin the exact words; a shared constant would hide a drift.
+  - `[low]` `[reject]` Blind: `TestToolCallCards` checks only the newest result card -- `fix.emailSent` and `fix.emailNotSent` are each asserted with their own row and card.
+  - `[low]` `[reject]` Edge: a dry run that is an object without to, subject or text shows an empty "Dry run:" -- unreachable: `Fix.Kind.Email.DryRun` always writes the three members, and nothing else creates an email row.
+  - `[low]` `[reject]` Edge: members in another order, or extra ones, are shown as stored -- spec-bound: "in the stored order" and Decided 2.
+  - `[low]` `[reject]` Edge: a request answered before its `*Out` renders it is still delivered with buttons -- the same ordering as 21.10's tool-call path; the answered edit then finds the Delivery row, and "the first answer wins everywhere" is the AC.
+  - `[low]` `[reject]` Edge: an interrupted run with an accepted Reason shows that Reason -- same evidence as the fourth row: that state is not reachable.
+  - `[low]` `[reject]` Edge: an unknown Result sends nothing and logs nothing -- `FinishExecution` takes only `done`, `failed` and `interrupted`.
+  - `[low]` `[reject]` Edge: `EmailReason`'s `Catch` is silent -- the fallback is the safe sentence `MESSAGEFAILED`, and a warning would add a log line for a state with no user-visible cost.
+  - `[false]` `[reject]` Edge: `ToolNotice` never checks `OwnerRef` for an email row -- it reads the row through `Ownership.Approval(ref, ownerRef)`, whose `APPROVALVISIBLE` returns only the owner's row, and an instance row needs a matching Incident, which a standalone email (`IncidentRef` "") never has.
+  - `[low]` `[patch]` Verification gap: pins with no `mutation:` line (phone branch, web branch, answered and expired, result done, the `IncidentRef` clause, `RequestText`'s guards, Telegram's cut) -- patched: each mutation applied, observed red and reverted byte-identical; the lines are in `## Verification`.
+  - `[low]` `[patch]` Verification gap: `RequestText`'s `row.OwnerRef '= notification.SessionRef` clause is dead -- verified: `Ownership.Approval` already filters by owner and an instance row needs an incident, so the mutation stayed green; patched by deleting the clause.
+  - `[low]` `[reject]` Verification gap: the fixed `Hang 2` before the "no second phone message" check -- `WaitAnswer` has already seen the answered edit, so the absence check follows the event it guards.
+  - `[low]` `[reject]` Verification gap: Telegram is not in the trace pin -- `Telegram/Out` writes no message text to a log (its warnings carry `Api.Safe` error text only) and sends over HTTP, not an Ens message.
+  - `[false]` `[reject]` Verification gap: chat id 8633 may collide -- no other test uses it and the test removes its own rows.
+  - `[low]` `[reject]` Intent: the row's origin (`Fix.Kind.Email.Raise`) is not exercised by the new tests -- the spec names 22.7's `Test.Fix.Email` P4 methods, run unchanged, as that check, and Task 0 read the row's shape.
+  - `[low]` `[reject]` Intent: the rail's gate does not check `incidentRef` while `Standalone` does -- same evidence as the seventh row.
+  - `[low]` `[reject]` Intent: no new test asserts the online demo is unchanged -- the spec's check is `live demo-path`, which passed, and no demo-flag branch was added.
+  - `[low]` `[reject]` Intent: no Telegram end-to-end test -- the spec's Telegram pin is `TelegramOut` `TestEmailRequestRendersTheStoredDryRun` (one test, V5).
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -256,6 +286,8 @@ No AC contradicts an AD's Rule.
 **Ledger:** the inbox (`slice 21-11-...`) is empty. 22.7's card entry is resolved by 22.7 (`EmailPart`). This story gives the email row's channels their text, so the security overview's "shows first exactly what it will do" (DW-1306) holds on every channel.
 
 **Bundle:** one string and one branch in `rail-view.ts` (well under 1 kB), against the 921 kB budget (886 kB measured at 21.10). No new dependency or chunk.
+
+**Read at implement (Task 0):** (a) `Fix/Executor.cls` `Finish` still calls `End` (which saves `Reason` on the FixRun) before `Close` (which fires `FinishExecution` and so `approval.result`). (b) `Fix.Kind.Email.DryRun` is still `{to, subject, text}`. (c) The `*Out` render branches sit where the Code Map says (`summary`'s branch in SimPhone, WebChat and Telegram `OnNotification`; `WebChat.Out.ToolCallCard`'s `$Parameter` list). (d) V1 to V8 are ruled (Spec gate rulings above): N1 to N4 word for word, V5 granted for `Channel/Telegram/Out.cls` and `Test/Channel/TelegramOut.cls` only. Small decisions made while implementing: the `EmailReasons` allow-list reads the ten sentences by `$Parameter`; `RequestText` merges `inputs` only for the key `fix.emailRequest` (any other key renders from its own slots), and requires `row.OwnerRef` to be the notification's `SessionRef`; every failure of `RequestText` is replaced by one error that names only the Ref; the "nine cards" count in `TestToolCallCards` is the nine BridgeSink keys (six tool-call, three email) in the web card path; the Telegram test and `EmailRequestNotices` create their own `zz` rows and remove them. A throwaway `node_modules` copy of the sibling worktree's (same lockfile) served the web tests.
 
 ## Veto items
 
@@ -322,6 +354,25 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - The Telegram `STOREDKEYS` branch removed -> `TestEmailRequestRendersTheStoredDryRun` red.
 - `approvalTitle` without the email branch -> `rail-view.test.mjs` red.
 
+**Mutations observed (Rule 19; each applied, red, reverted byte-identical with `cmp`, `git status --short` and `git diff --stat` unchanged):**
+- mutation: `ToolNotice` gate `'..Replayable(row) && '..Standalone(row)` cut to `'..Replayable(row)` -> `Test.Core.BridgeSink:TestStandaloneEmailNotices` red.
+- mutation: `Standalone` without the `FixKind` check -> `Test.Core.BridgeSink:TestToolCallNoticesOnlyForReplayableSessionRows` red ("no notice was sent for any of them").
+- mutation: `EmailReason` passes any non-empty reason through -> `TestStandaloneEmailNotices` red (the raw-reason, `interrupted` and near-miss rows).
+- mutation: `RequestText` fills `inputs` from the dry run folded to one `text` line in place of `InputsOf` -> `TestRequestTextFillsTheDryRun` red (exact phone, web and telegram text).
+- mutation (V6, the trace pin): the raise composes `{"inputs": InputsOf(DryRun)}` into `Slots` instead of `{}` -> `Test.Core.EmailRequestNotices` red: "every one holds the key and empty Slots", and "no trace global holds" the recipients, the subject and the text.
+- mutation: the "Why:" line cut from N1 -> `Test.Msg.Catalog` red (`TestEveryKeyOnEveryChannel`, `TestLocalInstallEveryKey`).
+- mutation: `KEYEMAILREQUEST` left out of `ToolCallCard` -> `Test.Core.WebChatOut` `TestToolCallCards` red, and `live answers` X15 red (the only failure: 25 passed, 1 failed).
+- mutation: the Telegram `STOREDKEYS` branch made `ElseIf 0` -> `Test.Channel.TelegramOut:TestEmailRequestRendersTheStoredDryRun` red.
+- mutation: `approvalTitle` without the email branch -> `web/scripts/rail-view.test.mjs` red ("Repair and resend", expected "Send an email").
+- mutation (review pass): the SimPhone `fix.emailRequest` render branch made `ElseIf 0` -> `Test.Demo.SimPhoneOut:TestEmailRequestMessage` red.
+- mutation (review pass): the WebChat `fix.emailRequest` render branch made `ElseIf 0` -> `Test.Core.WebChatOut` `TestToolCallCards` red.
+- mutation (review pass): an expired standalone email request sends nothing -> `TestStandaloneEmailNotices` red.
+- mutation (review pass): `done` composes `fix.emailNotSent` -> `TestStandaloneEmailNotices` red ("result done: of kind result with the key fix.emailSent").
+- mutation (review pass): `Standalone` without the `IncidentRef = ""` clause -> `TestStandaloneEmailNotices` red (the incident row sends no notice).
+- mutation (review pass): `RequestText` without its `Standalone` check -> `TestRequestTextFillsTheDryRun` red.
+- mutation (review pass): `RequestText` without the empty-dry-run check -> `TestRequestTextFillsTheDryRun` red.
+- mutation (review pass): `fix.emailRequest` added to Telegram's `TOOLKEYS` (the tool-call cut) -> `TestEmailRequestRendersTheStoredDryRun` red (the long request is cut and has no buttons on its last part).
+
 **Commands:**
 - (once) `<vars> OCUTALON_RUN_TAG=e21s11dw ci/warm.sh up` -- ready.
 - (loop) `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s11dw ci/iris.sh class OcuTalon.Test.Core.BridgeSink` -- passed.
@@ -339,7 +390,24 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only; nothing is implemented. The spec passed the READY FOR DEVELOPMENT check after one review pass. Before implement, the gate must rule veto items V1 to V8 (new texts N1 to N4, the Lane A Telegram edit, the stored-text note, and spine items S1 and S2).
+**Summary.** A standalone email request (kind `fix`, no incident, FixKind `email`, a session owner) now reaches every channel. `BridgeSink` raises `fix.emailRequest` with empty `Slots`, reuses a tool call's `answered.*` branches, and sends `fix.emailSent` or `fix.emailNotSent` {reason} (an accepted sentence, else `MESSAGEFAILED`). Each `*Out` operation renders the request through the new `BridgeSink.RequestText`, which reads the stored dry run by the ApprovalRef, so no recipient, subject or text is in a Notification or the Ens trace (V6 pin: `Test.Core.EmailRequestNotices`, mutation shown red). The rail row reads "Send an email". S1 (AD-32) and S2 (AD-31) are in the spine; N1-N4 are in EXPERIENCE.md.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`: N1-N3.
+- `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls`: keys, `Standalone`, `EmailReasons`, `EmailReason`, `RequestText`, the `ToolNotice` gate and the `ToolNoticeOf` branches, class doc.
+- `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls`, `Channel/WebChat/Out.cls`: the request branch; WebChat's `ToolCallCard` lists the three keys.
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls`: `STOREDKEYS`, one render branch, one doc line (V5).
+- `web/src/app/rail/rail-view.ts`: `RAIL_TEXTS.sendEmail` and the `approvalTitle` branch.
+- Tests: `Test/Core/BridgeSink.cls`, `Test/Core/EmailRequestNotices.cls` (new, live), `Test/Core/WebChatOut.cls`, `Test/Demo/SimPhoneOut.cls`, `Test/Channel/TelegramOut.cls` (one test), `Test/Msg/Catalog.cls`, `web/scripts/rail-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/scripts/playwright-projects.test.mjs`, `web/e2e/answers/answers.spec.ts` (X15), `docker/tests/test-answers.sh`.
+- Docs: `ARCHITECTURE-SPINE.md` (S1, S2), `EXPERIENCE.md` (N1-N4).
+
+**Review.** 25 findings from four layers: 0 high, 0 medium, 23 low, 2 false. Two low patches applied: the review's missing `mutation:` lines were run and recorded (eight more, each red and reverted), and the dead `row.OwnerRef` clause in `RequestText` was deleted. The other 21 were rejected with their reasons in the Review Triage Log. No deferrals.
+
+**Follow-up review recommended:** false (no high or medium patch).
+
+**Verification (final tree, lane D).** Warm: `BridgeSink`, `Msg.Catalog` (158 Core keys), `WebChatOut`, `SimPhoneOut`, `TelegramOut`, and the Fix.Email P4 methods `TestApprovedEmailIsInNoTraceGlobal` and `TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace` passed. Fresh: `EmailRequestNotices` passed; `live answers` passed (26 cases, X1-X15 and C1-C10); `live demo-path` passed. `catalog.mjs --check` current, `node --test web/scripts/` 2,115 pass, `tsc -p tsconfig.e2e.json` clean, `npm run build` clean, `test-class-rules.sh` and `test-boundaries.sh` pass, `lint_spine.py` 10 findings, the same as the baseline. The nine spec mutations and nine more were each observed red and reverted with `cmp`. All stacks were torn down.
+
+**Residual risks.** The new tests build the email row by fixture; the real raise path is covered only by 22.7's unchanged P4 tests. A Telegram request with a very long text splits into many messages (Decided 3, V8 KEEP). The spec's "nine BridgeSink and SettingsOps keys" is nine BridgeSink keys in `ToolCallCard` (six tool-call and three email).

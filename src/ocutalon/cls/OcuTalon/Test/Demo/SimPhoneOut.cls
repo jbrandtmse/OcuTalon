@@ -14,6 +14,10 @@
 ///     evidence and the sample error as it is, no ApprovalRef (no buttons) and no DecisionRef, with its Delivery row and one event; a missing summary is an error;
 ///   - TestSummaryBuiltMessage (QA; AC 14): the summary that Watch.Summary.Build makes of an incident whose cause, fix and sample error hold markup (the sample error longer than a
 ///     notice's error summary) is one phone message whose text shows the markup as it came and the sample error cut to the notice's length;
+///   - TestEmailRequestMessage (Story 21.11; AD-32): an approval notification with the key fix.emailRequest and empty Slots is one phone message whose text is
+///     Core.BridgeSink.RequestText: the stored dry run of the email's row, read by the ApprovalRef (the recipients, the subject and the text, whole, with the line break
+///     and the tab as \uXXXX and the spaces kept), keeping the ApprovalRef so that it has Approve and Reject, with its Delivery row and one event; an unreadable dry
+///     run, another session's row and a deleted row are an error with no message, row or event;
 ///   - TestOnlyRequestKindsCarryARequest: tellnow, reminder, answered and an incident with no request give no message with an
 ///     ApprovalRef;
 ///   - TestAnsweredEditsInPlace: an answered notification sets the Answer of the delivered message, keeping its Ref and Text,
@@ -658,6 +662,56 @@ Method TestLaterRequestHasItsOwnButtons()
 	}
 	Do $$$AssertEquals(later.Text, ##class(OcuTalon.Msg.Catalog).RenderAt("incident.laterRequest", slots.%ToJSON(), "phone", now, 0), "the later message has the later request's text")
 	Do $$$AssertEquals(..Phones(session).%Size(), 2, "and each has its event")
+}
+
+/// A standalone email request (Story 21.11) is one phone message with the text of BridgeSink.RequestText: the dry run of its stored row, not of the notification, whose Slots
+/// are empty. The message keeps the ApprovalRef (Approve and Reject), has no Answer, and has one Delivery row (kind approval, no text) and one phone event. A row whose dry run is
+/// not JSON, another session's row and a Ref with no row are errors with no message, no row and no event, and the error names no recipient.
+Method TestEmailRequestMessage()
+{
+	Set session = ..Session("email")
+	Set dry = {"to": ["bob@example.test", "ann@example.test"], "subject": "Late  order", "text": ("Hi Bob,"_$Char(13, 10)_$Char(9)_"Sorry.")}.%ToJSON()
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"Kind": "fix", "FixKind": "email", "DryRun": (dry)})
+	Set ..Refs = ..Refs_","_ref
+	Set lf = $Char(10)
+	Set expected = "Send an email"_lf_"Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval."_lf_"Dry run:"_lf_"to: [""bob@example.test"",""ann@example.test""]"_lf_"subject: ""Late  order"""_lf_"text: ""Hi Bob,\u000D\u000A\u0009Sorry."""_lf_"Approving sends exactly this email once."
+	Set notification = ..Notification(session, "approval", "fix.emailRequest", {})
+	Set notification.ApprovalRef = ref
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the email request is delivered")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+	Do $$$AssertEquals(rows.Count(), 1, "one phone message")
+	If rows.Count() '= 1 Quit
+	Set message = ..Message(rows.GetAt(1).Ref)
+	Do $$$AssertEquals(message.Text, expected, "its text is the email's stored dry run")
+	Do $$$AssertEquals(message.ApprovalRef_"|"_message.Answer, ref_"|", "it keeps the ApprovalRef, so it has Approve and Reject, and has no Answer")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row")
+	If deliveries.Count() = 1 {
+		Set delivery = deliveries.GetAt(1)
+		Do $$$AssertEquals(delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.ApprovalRef_"|"_delivery.Text, "phone|"_message.Ref_"|approval|"_ref_"|", "its channel, the message's Ref, the kind and the request, with no text")
+	}
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one phone event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.approvalRef_"|"_events.%Get(0).payload.text, ref_"|"_expected, "carrying the approvalRef and the text")
+	Do $$$AssertEquals(notification.Slots, "{}", "the notification's Slots stay empty")
+
+	Set other = ..Session("emailother")
+	Set bad = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"Kind": "fix", "FixKind": "email", "DryRun": "not json bob@example.test"})
+	Set gone = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_bad
+	Set before = ..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size()
+	For each = bad, gone {
+		Set broken = ..Notification(session, "approval", "fix.emailRequest", {})
+		Set broken.ApprovalRef = each
+		Set sc = ..Out().OnNotification(broken, .response)
+		Do $$$AssertStatusNotOK(sc, "an email request of an unreadable or missing row is an error")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) '[ "bob@example.test", "and the error names no recipient")
+	}
+	Set theirs = ..Notification(other, "approval", "fix.emailRequest", {})
+	Set theirs.ApprovalRef = ref
+	Do $$$AssertStatusNotOK(..Out().OnNotification(theirs, .response), "another session's row is an error")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size(), before, "none adds a message, row or event for the session")
+	Do $$$AssertEquals(..PhoneCount(other), 0, "and the other session has no message")
 }
 
 /// Only the kinds incident and approval keep an ApprovalRef: a tellnow and a reminder that carry one give a message with none,

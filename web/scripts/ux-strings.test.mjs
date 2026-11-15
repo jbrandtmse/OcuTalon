@@ -391,6 +391,7 @@ const SOURCES = {
     'To cancel, ask: "Cancel my reminder to stretch."',
     'Run {toolName}',
     'Run {toolName} on {server}',
+    'Send an email',
     'expires {when}',
     '{name} production',
     'Live, plus a check every minute',
