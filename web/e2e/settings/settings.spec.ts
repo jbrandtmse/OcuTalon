@@ -5,6 +5,7 @@ import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { NAV_LINKS_ADMIN } from '../support/header-nav';
 import { announcements, recordAnnouncements } from '../support/page';
 import { adminAtSignIn, fixtureUser } from '../support/iris';
+import { partnerShown } from '../support/partner-contacts';
 
 /**
  * Story 33.2, the settings page for an admin (S1 to S8, with S1t, S1f, S3b, S4b, S5b, S6b, S6c, S7b and S7c), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
@@ -13,7 +14,7 @@ import { adminAtSignIn, fixtureUser } from '../support/iris';
  * leaves the README account's Session.AdminAtSignIn at 1 and the live fixture user's at 0, the values their own sign-ins write.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
-const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'on-call', 'demo-mode', 'mcp'] as const;
+const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'on-call', 'partner-contacts', 'demo-mode', 'mcp'] as const;
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const DEMO_SAVED = 'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.';
 const FAILED = "Couldn't save. Nothing was changed.";
@@ -59,9 +60,10 @@ async function openThresholds(page: Page): Promise<void> {
   await expect(field(page, 'diskFreePercent')).toBeVisible();
 }
 
-/** S1: the header navigation, the title and the nine sections in the UX's order. */
-test('S1: an admin sees Chat and Settings in the header, and Settings opens the page with its nine sections', async ({ page }) => {
+/** S1: the header navigation, the title and the sections in the UX's order: nine, and Partner contacts after On call exactly when the real GET carries its member (Story 24.2; the state of OcuTalon.Fix.PartnerContacts' TABLE). */
+test('S1: an admin sees Chat and Settings in the header, and Settings opens the page with its sections', async ({ page }) => {
   await signInReadmeLoaded(page);
+  const partners = await partnerShown(page.request);
   const guide = page.getByRole('region', { name: 'Demo guide' });
   await expect(guide, 'the main page has the demo guide (demo mode on)').toHaveCount(1);
   const nav = pagesNav(page);
@@ -79,14 +81,15 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
   await expect(nav.getByRole('link', { name: 'Settings', exact: true }), 'Settings is now the current page').toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'Chat', exact: true })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { level: 1 }), 'one h1').toHaveText('Settings');
-  await expect(sectionsNav(page).getByRole('link'), 'the sections, in the UX order').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers']);
+  await expect(sectionsNav(page).getByRole('link'), 'the sections, in the UX order').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', ...(partners ? ['Partner contacts'] : []), 'Demo mode', 'Tools and MCP servers']);
   await expect(page.getByRole('heading', { level: 2 }), '#/settings opens Models').toHaveText('Models');
   await expect(page.getByText("This part of OcuTalon isn't built yet."), 'Models is built').toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save changes' }), 'Models has its Save changes button').toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Skip to chat', exact: true }), 'the skip links belong to the main page').toHaveCount(0);
   await expect(guide, 'and so does the demo guide').toHaveCount(0);
 
-  for (const [slug, label] of [['budgets', 'Budgets'], ['channels', 'Channels'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone'], ['check-thresholds', 'Check thresholds'], ['on-call', 'On call'], ['demo-mode', 'Demo mode'], ['mcp', 'Tools and MCP servers'], ['models', 'Models']] as const) {
+  const reached: Array<readonly [string, string]> = [['budgets', 'Budgets'], ['channels', 'Channels'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone'], ['check-thresholds', 'Check thresholds'], ['on-call', 'On call'], ...(partners ? [['partner-contacts', 'Partner contacts'] as const] : []), ['demo-mode', 'Demo mode'], ['mcp', 'Tools and MCP servers'], ['models', 'Models']];
+  for (const [slug, label] of reached) {
     const link = sectionsNav(page).getByRole('link', { name: label, exact: true });
     await link.focus();
     await page.keyboard.press('Enter');
@@ -121,6 +124,7 @@ test('S1t: the settings page is titled Settings \u00B7 OcuTalon', async ({ page 
 /** S1f: a page whose GET /v1/settings fails shows the load error with Retry, and Retry loads the sections. */
 test('S1f: a failed load shows the load error, and Retry loads the page', async ({ page }) => {
   await signInReadmeLoaded(page);
+  const partners = await partnerShown(page.request);
   let failures = 1;
   await page.route('**/api/v1/settings', (route) =>
     route.request().method() === 'GET' && failures-- > 0
@@ -134,7 +138,7 @@ test('S1f: a failed load shows the load error, and Retry loads the page', async 
     await expect(sectionsNav(page), 'no sections').toHaveCount(0);
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
     await expect(page.getByRole('heading', { level: 2 }), 'Retry loads the page').toHaveText('Models');
-    await expect(sectionsNav(page).getByRole('link')).toHaveCount(9);
+    await expect(sectionsNav(page).getByRole('link')).toHaveCount(partners ? 10 : 9);
   } finally {
     await page.unroute('**/api/v1/settings');
   }
@@ -492,7 +496,7 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
   }
 });
 
-/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on GET /v1/settings, on the POST of each of the nine sections, on the digest send and on a check-thresholds POST without the envelope. */
+/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on GET /v1/settings, on the POST of each of the sections that save (the Partner contacts route included), on the digest send and on a check-thresholds POST without the envelope. */
 test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));

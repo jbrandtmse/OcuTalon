@@ -6,7 +6,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { AgentModels, EmailValues, OnCallValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
+import type { AgentModels, EmailValues, OnCallValues, PartnerContactsValues, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { telegramPaused } from '../rail/telegram-card/telegram-card-view';
 import { Announcer } from '../shared/announcer';
@@ -18,7 +18,8 @@ import { DailyDigestSection } from './daily-digest-section';
 import { DemoModeSection } from './demo-mode-section';
 import { ModelsSection } from './models-section';
 import { OnCallSection } from './on-call-section';
-import { emailBoxShown, type ModelsForm, modelsValuesOf, sectionLabel, ROLES_SLUG, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, shownSections, telegramBoxShown, type ThresholdNumbers } from './settings-view';
+import { PartnerContactsSection } from './partner-contacts-section';
+import { emailBoxShown, listedSections, type ModelsForm, modelsValuesOf, openedSlug, sectionLabel, ROLES_SLUG, sectionPath, sectionSlug, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers, VALUE_SECTIONS } from './settings-view';
 import { TimeZoneSection } from './time-zone-section';
 
 /** The id of the load error's text, which Retry is described by. */
@@ -31,7 +32,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
  *
  * The page asks GET /v1/settings once when it opens, and the answer decides what it shows (D10): the sections for an admin; for a 403, the denied
  * view, "Only OcuTalon admins can open settings." with a link back to the chat; for any other failure, the load error with Retry. Models, Budgets, Check
- * thresholds, On call (Story 36.4), Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
+ * thresholds, On call (Story 36.4), Partner contacts (Story 24.2), Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
  * save (Story 18.2). Tools and MCP servers (Story 21.4) loads its own list and has its own forms (mcp-section.ts, loaded the first time the section opens, so that its code stays out of the initial bundle, which is near its 1 MB budget). Every section is built; an unknown address opens Models.
  *
  * Unsaved changes: the open form tells the page whether it differs from its saved values (`dirty`). While it does, leaving by a link or the browser's
@@ -39,7 +40,7 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
  */
 @Component({
   selector: 'app-settings-page',
-  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, NgComponentOutlet, OnCallSection, RouterLink, ServerButton, TimeZoneSection],
+  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, NgComponentOutlet, OnCallSection, PartnerContactsSection, RouterLink, ServerButton, TimeZoneSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="settings" tabindex="-1" [attr.data-settings]="status()" [attr.aria-busy]="status() === 'loading' ? 'true' : null">
@@ -70,6 +71,11 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                 @case ('on-call') {
                   @if (onCall(); as values) {
                     <app-on-call-section [values]="values" (saved)="keepOnCall($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
+                  }
+                }
+                @case ('partner-contacts') {
+                  @if (partners(); as values) {
+                    <app-partner-contacts-section [values]="values" (saved)="keepPartners($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
                   }
                 }
                 @case ('channels') {
@@ -254,11 +260,17 @@ export class SettingsPage {
   /** The On call values: the server sends none on the online demo, so that the section is neither listed nor opened there (Story 36.4). */
   protected readonly onCall = computed<OnCallValues | undefined>(() => this.data()?.sections['on-call']);
 
-  /** The sections that the navigation lists: Roles only while roles can be assigned (shownSections), On call only while the server sends its values. */
-  protected readonly sections = computed(() => shownSections(this.rolesShown()).filter((section) => section.slug !== 'on-call' || this.onCall() !== undefined));
+  /** The Partner contacts values: the server sends none on the online demo, or while OcuTalon.Fix.PartnerContacts has no TABLE = 1, so that the section is neither listed nor opened then (Story 24.2). */
+  protected readonly partners = computed<PartnerContactsValues | undefined>(() => this.data()?.sections['partner-contacts']);
 
-  /** The open section's slug: the address's, or Models (the first) for On call when the server sends none. */
-  protected readonly active = computed(() => (this.requested() === 'on-call' && this.data() !== undefined && this.onCall() === undefined ? SETTINGS_SECTIONS[0].slug : this.requested()));
+  /** The sections of VALUE_SECTIONS whose values the server sent. */
+  private readonly sent = computed<ReadonlySet<string>>(() => new Set(VALUE_SECTIONS.filter((slug) => this.data()?.sections[slug as keyof SettingsSections] !== undefined)));
+
+  /** The sections that the navigation lists: Roles only while roles can be assigned (shownSections), On call and Partner contacts only while the server sends their values. */
+  protected readonly sections = computed(() => listedSections(this.rolesShown(), this.sent()));
+
+  /** The open section's slug: the address's, or Models (the first) for On call or Partner contacts when the server sends no values for it. */
+  protected readonly active = computed(() => openedSlug(this.requested(), this.data() !== undefined, this.sent()));
 
   protected readonly label = computed(() => sectionLabel(this.active()));
   /** The Tools and MCP servers section, set once its code has loaded (Story 21.4): it is imported when the section first opens, not with the page. */
@@ -348,6 +360,10 @@ export class SettingsPage {
 
   protected keepOnCall(values: OnCallValues): void {
     this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'on-call': values } }));
+  }
+
+  protected keepPartners(values: PartnerContactsValues): void {
+    this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'partner-contacts': values } }));
   }
 
   protected keepDailyDigest(values: SettingsSections['daily-digest']): void {

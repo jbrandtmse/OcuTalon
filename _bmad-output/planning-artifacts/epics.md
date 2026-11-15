@@ -8608,14 +8608,8 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** `SettingsOps` writes the partner-contact table, the change applies within a minute and is audited as a settings change, and these contacts are the only addresses a partner warning from Lane A's Story 23.5 can ever be sent to (FR-29, FR-17, FR-9)
 **And** an address that isn't valid is a field error and nothing is saved (UX-DR36)
 
-**Given** the SQL query watches section
-**When** an admin saves a query with its name and schedule
-**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
-**And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
+[AMENDED 2026-11-15, Contest Planner split of 24.2 (G1 (B), ~16:30Z Nov 15): the SQL query watches section and its removal moved, word for word, to Story 24.5; 24.2 is partner contacts only; its partner-contacts section stays hidden until Lane A's Story 23.13 sets `Fix.PartnerContacts` `TABLE = 1` (G2 (a)); its audit records `partnerContact.<Ref>` and which fields changed, never their values]
 
-**Given** a saved query
-**When** the admin removes it
-**Then** the removal goes to `WatchOps` by the same command path, the check stops, and it leaves the list and the rail within one live update (FR-33, AD-1, NFR-9)
 
 **Given** a user without the admin role
 **When** they call either section's routes
@@ -8688,6 +8682,35 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
+
+### Story 24.5: Set saved SQL query watches in Settings
+
+[ADDED 2026-11-15, Contest Planner split of 24.2]
+
+**Lane:** B. **Depends on:** Lane A's Story 23.8 merged (story-level: `WatchOps` handles `SaveSqlWatch`); its plan starts after 23.8 merges.
+
+As an admin,
+I want to save SQL queries for OcuTalon to watch,
+So that data conditions are watched without writing code.
+
+**Acceptance Criteria:**
+
+**Given** the SQL query watches section
+**When** an admin saves a query with its name and schedule
+**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
+**And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
+
+**Given** a saved query
+**When** the admin removes it
+**Then** the removal goes to `WatchOps` by the same command path, the check stops, and it leaves the list and the rail within one live update (FR-33, AD-1, NFR-9)
+
+**Given** a user without the admin role
+**When** they call the section's routes
+**Then** the routes refuse with 403 and nothing changes (FR-17, AD-13)
+
+**Given** automated tests and a Playwright spec under `web/e2e/`
+**When** they save, refuse and remove queries
+**Then** the submitted commands' fields and the audit entries match, and the section works by keyboard with every control labelled (NFR-25, UX-DR130)
 
 ## Epic 25: Usage, history and files in the page (step 6)
 

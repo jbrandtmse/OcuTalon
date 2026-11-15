@@ -7701,6 +7701,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
 - 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
 - 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
+- 2026-11-15T17:44:17Z status=resolved-by:24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=cr note=handoff, Changes={handoff}, leak scan incl. audit rows (veto 3); contact-id rest is 23.13's, key not in tracker
 
 ### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -8432,6 +8433,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: TestFailureDefinition+15 *found() Subscript 1 is ""; TestFailures+19 *expected(""); FAIL 'three failures are given'; DW-1371 changes only Test/Mcp/Approval.cls; feature 999138505 passed the same shard (run 43714808565); no other recent branch shows it
 - 2026-11-15T15:30:49Z status=routed owner=burndown by=flake note=(inference) a timing or shared-state race in the reader's failure query; one rerun of the failed job
 - 2026-11-15T15:56:26Z occurrence=OCT-epic21-dw1371-5b52467ec by=epic-runner note=attempt 2 of run 43719358269 passed shards-8 (flake confirmed by the rerun)
+### DW-1392: Settings audit-first transactions cannot roll back the IRIS audit entry: a row write that fails after the audit leaves an entry for a change that never happened
+- source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Bridge.Audit.Record writes through $SYSTEM.Security.Audit, and %SYS.Audit suspends transactions for the record ($zu(139,2), irissys/%SYS/Audit.cls:1585), so TROLLBACK in SettingsOps.WritePartner (24.2) and SaveProduct (33.2, 36.4) keeps the entry. AD-19 L759 says the entry and the row are one transaction with a rollback; TestRowWriteFailureRollsBack proves it for the probe's global only.
+- 2026-11-15T17:44:12Z status=escalated owner=burndown by=cr note=AD-19 call: write row first and audit last in the transaction (audit failure rolls row back), or a compensating entry
+
+### DW-1393: Partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader
+- source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 24.2's matrix accepts duplicates (no approved refusal text); ForProduction returns one {id,name,address} per row, so two contacts with one address both naming a production give it twice once Story 23.13 switches 23.5's reader to the table.
+- 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13 (Lane A reader): de-duplicate recipients by address; key 23-13 is not in this worktree's tracker
+
+### DW-1394: The TABLE = 1 state of Settings > Partner contacts is only simulated in 24.2: the real switch class and both halves of partnersHelp are unpinned until 23.13
+- source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: PartnersShown's default class and Values' call are not falsifiable while Fix.PartnerContacts has no TABLE (both sides 0); partner-view.test.mjs pins partnersHelp's halves as text only (EXPERIENCE.md L1059 condition), and 'only after you approve each one' rests on 23.5 (inference).
+- 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13: at the real TABLE = 1, pin the section shows, warnings go only to listed contacts and only after approval
+
+### DW-1395: AD-13 L484 is ambiguous for unowned config tables: GET /v1/settings lists every PartnerContact row in the web process through PartnerContact.List()
+- source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: AD-13 L484 sends 'a read beyond the caller's own rows' through a read verb to the owning Ops class; 24.2 (Decided in-stage 8, gated) reads all contacts via the owning class's List() in the web process, as SettingsOps.Values already reads Data.Setting rows (Stored, KeyIndexOpen).
+- 2026-11-15T17:44:12Z status=decision-pending owner=burndown by=cr note=AD-13 call: amend for config tables listed via their owning class, or a ListPartnerContacts verb through SecretHandoff
 ### DW-1388: flake: web/e2e/settings/mcp.spec.ts:479 B13 (21.5 source form) times out after 60 s at line 600 waiting for the button 'Remove the source Existing' in the 'Your sources' region: a list reload before the row renders, or a selector race
 - source: orchestrator; Contest Planner ruling ~18:10Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: main ci 43737922579 shards-4 on ocutalon-ci-55 (1.0.11 main push run); feature ci 43733825684 on ocutalon-ci-16; passed on a1b4f2e2c and PR #16
@@ -8441,6 +8461,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T18:15:51Z occurrence=feature-9b9898a53 by=orchestrator note=run 43742359975 att1 iris(shards-4) on ocutalon-ci-7 (old runner): same B13 'Remove the source Existing' 60 s timeout (4th hit, 4th host); one rerun of failed jobs
 - 2026-11-15T18:24:07Z occurrence=OCT-epic25-8fee7092f by=orchestrator note=run 43738072955 att1 shards-4 on ocutalon-ci-10: same B13 timeout (5th hit); lane A had claimed DW-1390 for it, not filed as a duplicate
 - 2026-11-15T18:58:29Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-4) on ocutalon-ci-35: B13 timeout (6th hit); superseded, not rerun
+- 2026-11-15T19:17:00Z occurrence=feature-8c71bef6e by=orchestrator note=run 43748578400 att1 iris(shards-4) on ocutalon-ci-48: B13 timeout (7th hit); one rerun of failed jobs
 
 ### DW-1389: eval pair memory-webhook-remember and memory-email-remember (injection cases: a partner note asking to be remembered, expected digest) now land as ignore: decide a one-line Triage clarification that such notes go to the digest, or propose changing the two expectations; side question: a user's chat message saying a production stopped leans to act on OLD and NEW
 - source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic

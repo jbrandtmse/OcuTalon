@@ -2,13 +2,14 @@ import { expect, test, type Locator, type Page, type Response } from '../support
 
 import { signInReadmeLoaded } from '../support/floor';
 import { NAV_LINKS_ADMIN } from '../support/header-nav';
+import { partnerShown } from '../support/partner-contacts';
 
 /**
  * Story 36.5, the lazily loaded Settings, History and Usage pages opened by their address (D1 to D4; the sign-in-2 unit), signed in as the README admin. Each case
  * signs in, then opens a NEW page in the same context at the page's hash (a real document load, so the router builds the lazy chunk from the address and not
  * from a link press), waits for the page's own GET to answer 200, checks the page, reloads it and checks it again. Every console error and page error from
  * before the first load is collected without a filter, so a lazy chunk that fails to load ("Failed to load resource") fails the case. The cases save nothing.
- *   D1  #/settings (titled Settings \u00B7 OcuTalon, the h1, the nine sections, Models, the header marks Settings) and #/settings/check-thresholds (its h2 and fields, its
+ *   D1  #/settings (titled Settings \u00B7 OcuTalon, the h1, the sections, Models, the header marks Settings) and #/settings/check-thresholds (its h2 and fields, its
  *       section link current);
  *   D2  #/history (titled History \u00B7 OcuTalon, the hidden h1, the tablist with Decisions selected, the header marks History);
  *   D3  #/usage (titled Usage \u00B7 OcuTalon, the h1, its table or its empty text, the header marks Usage);
@@ -16,7 +17,8 @@ import { NAV_LINKS_ADMIN } from '../support/header-nav';
  *       Stay keeps the section and the typed value, Leave without saving goes on (S6 reaches the page by link presses; here the chunk comes with the document load).
  */
 const API = '/ocutalon/api/v1';
-const SECTION_NAMES = ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers'];
+/** The sections, in the UX's order: Partner contacts follows On call exactly when the real GET carries its member (Story 24.2; OcuTalon.Fix.PartnerContacts' TABLE). */
+const sectionNames = (partners: boolean): string[] => ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', ...(partners ? ['Partner contacts'] : []), 'Demo mode', 'Tools and MCP servers'];
 const THRESHOLD_LABELS = [
   'Disk free space below (%)',
   'Journal free space below (%)',
@@ -76,17 +78,19 @@ async function expectCurrent(page: Page, current: string): Promise<void> {
 }
 
 async function expectSettings(page: Page): Promise<void> {
+  const partners = await partnerShown(page.request);
   await expect(page, 'titled Settings').toHaveTitle('Settings \u00B7 OcuTalon');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
-  await expect(sectionsNav(page).getByRole('link'), 'the nine sections').toHaveText(SECTION_NAMES);
+  await expect(sectionsNav(page).getByRole('link'), 'the sections').toHaveText(sectionNames(partners));
   await expect(page.getByRole('heading', { level: 2 }), '#/settings opens Models').toHaveText('Models');
   await expectCurrent(page, 'Settings');
 }
 
 async function expectThresholds(page: Page): Promise<void> {
+  const partners = await partnerShown(page.request);
   await expect(page, 'titled Settings').toHaveTitle('Settings \u00B7 OcuTalon');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
-  await expect(sectionsNav(page).getByRole('link'), 'the nine sections').toHaveText(SECTION_NAMES);
+  await expect(sectionsNav(page).getByRole('link'), 'the sections').toHaveText(sectionNames(partners));
   await expect(page.getByRole('heading', { level: 2 }), 'the section of the address').toHaveText('Check thresholds');
   await expect(sectionsNav(page).getByRole('link', { name: 'Check thresholds', exact: true }), 'its link is current').toHaveAttribute('aria-current', 'true');
   for (const label of THRESHOLD_LABELS) {

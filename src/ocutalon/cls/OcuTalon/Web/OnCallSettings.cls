@@ -8,6 +8,7 @@
 /// The body holds contact data that Visual Trace would show to any account with the trace role, so the command never holds it: the route offers the body to
 /// OcuTalon.Core.SecretHandoff (Put) before the submit, the SaveSettings command's Changes is exactly {"handoff": uri}, and the handoff is discarded on every
 /// path after the offer, an error included. No answer, log line or message holds an on-call value. The command is submitted with origin web_admin.
+/// The class is the parent of OcuTalon.Web.PartnerSettings, which has its own Slug and OffText and no other difference.
 Class OcuTalon.Web.OnCallSettings Extends OcuTalon.Web.Api
 {
 
@@ -24,11 +25,23 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
 }
 
+/// The slug of the settings section that the route saves, which is the SaveSettings command's Slug.
+ClassMethod Slug() As %String
+{
+	Quit "on-call"
+}
+
+/// The accepted text of the 409 not_available that the online demo gets: the section's off-on-demo text.
+ClassMethod OffText() As %String
+{
+	Quit ##class(OcuTalon.Core.SettingsOps).#MESSAGEONCALLOFF
+}
+
 /// "" when the route may run, else the refusal that has been written: 403 not_admin for a user without OcuTalonAdmin, 409 not_available on the online demo.
 ClassMethod Refusal() As %Status [ Private ]
 {
 	If '..IsAdmin() Quit ..Fail(403, "not_admin", ..#MESSAGENOTADMIN)
-	If ..OnlineDemo() Quit ..Fail(409, "not_available", ##class(OcuTalon.Core.SettingsOps).#MESSAGEONCALLOFF)
+	If ..OnlineDemo() Quit ..Fail(409, "not_available", ..OffText())
 	Quit ""
 }
 
@@ -41,7 +54,7 @@ ClassMethod Save() As %Status
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
-	Set command.Slug = "on-call"
+	Set command.Slug = ..Slug()
 	Set command.ActingUser = $USERNAME
 	Set command.SessionRef = sessionRef
 	Quit ..Hand(command, body)
@@ -61,7 +74,7 @@ ClassMethod Hand(command As OcuTalon.Msg.Command.SaveSettings, body As %DynamicO
 		If $SYSTEM.Status.IsError(sc) {
 			Set answer = ..ServerError(sc)
 		} ElseIf $IsObject(result) && (result.Outcome = "not_available") {
-			Set answer = ..Fail(409, "not_available", ##class(OcuTalon.Core.SettingsOps).#MESSAGEONCALLOFF)
+			Set answer = ..Fail(409, "not_available", ..OffText())
 		} Else {
 			Set answer = ..Answer(result, "")
 		}

@@ -29,6 +29,7 @@ const {
   isDigestFormDirty,
   isDirty,
   isModelsDirty,
+  listedSections,
   modelOptions,
   modelsBody,
   modelsFieldNames,
@@ -36,6 +37,7 @@ const {
   modelsValuesOf,
   modelsView,
   noKeyReason,
+  openedSlug,
   pageOf,
   providerLabel,
   refusalKind,
@@ -52,6 +54,7 @@ const {
   storedChannels,
   telegramBoxShown,
   textsOf,
+  VALUE_SECTIONS,
   zoneBody,
   zoneOptions,
 } = view;
@@ -59,24 +62,24 @@ const {
 const DEFAULTS = { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 };
 
 describe('the sections', () => {
-  it('are the nine of the UX, in its order, then Roles, each with a slug of its own', () => {
+  it('are the ten of the UX, in its order, then Roles, each with a slug of its own', () => {
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.label),
-      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers', 'Roles'],
+      ['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Partner contacts', 'Demo mode', 'Tools and MCP servers', 'Roles'],
     );
     assert.deepEqual(
       SETTINGS_SECTIONS.map((section) => section.slug),
-      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'demo-mode', 'mcp', 'roles'],
+      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'partner-contacts', 'demo-mode', 'mcp', 'roles'],
     );
-    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 10);
+    assert.equal(new Set(SETTINGS_SECTIONS.map((section) => section.slug)).size, 11);
   });
 
   it('list Roles only when roles can be assigned, and open Models for the address of a hidden Roles', () => {
     assert.deepEqual(
       shownSections(false).map((section) => section.slug),
-      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'demo-mode', 'mcp'],
+      ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'partner-contacts', 'demo-mode', 'mcp'],
     );
-    assert.equal(shownSections(true).length, 10);
+    assert.equal(shownSections(true).length, 11);
     assert.equal(sectionSlug('roles', false), 'models');
     assert.equal(sectionSlug('roles', true), 'roles');
     assert.equal(sectionSlug('roles'), 'roles');
@@ -92,6 +95,31 @@ describe('the sections', () => {
     }
     assert.equal(sectionLabel('zz'), 'Models');
     assert.deepEqual(sectionPath('budgets'), ['/settings', 'budgets']);
+  });
+});
+
+describe('the sections that exist only while the server sends their values', () => {
+  const slugs = (sections) => sections.map((section) => section.slug);
+
+  it('are On call and Partner contacts', () => {
+    assert.deepEqual([...VALUE_SECTIONS], ['on-call', 'partner-contacts']);
+  });
+
+  it('are listed only while the server sent each one\'s values, and Partner contacts only at its own switch (an absent member hides it)', () => {
+    assert.deepEqual(slugs(listedSections(false, new Set(['on-call', 'partner-contacts']))), ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'partner-contacts', 'demo-mode', 'mcp']);
+    assert.deepEqual(slugs(listedSections(false, new Set(['on-call']))), ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'on-call', 'demo-mode', 'mcp']);
+    assert.deepEqual(slugs(listedSections(true, new Set())), ['models', 'budgets', 'channels', 'daily-digest', 'time-zone', 'check-thresholds', 'demo-mode', 'mcp', 'roles']);
+    assert.ok(!slugs(listedSections(true, new Set(['on-call']))).includes('partner-contacts'));
+  });
+
+  it('open Models for their address once the page has loaded and the values are absent, and the address as it is otherwise', () => {
+    for (const slug of ['on-call', 'partner-contacts']) {
+      assert.equal(openedSlug(slug, true, new Set()), 'models', `${slug} absent`);
+      assert.equal(openedSlug(slug, true, new Set([slug])), slug, `${slug} present`);
+      assert.equal(openedSlug(slug, false, new Set()), slug, `${slug} before the values load`);
+    }
+    assert.equal(openedSlug('budgets', true, new Set()), 'budgets');
+    assert.equal(openedSlug('partner-contacts', true, new Set(['on-call'])), 'models');
   });
 });
 
