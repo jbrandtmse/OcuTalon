@@ -396,12 +396,17 @@ export interface McpServerRow {
   pending: number;
 }
 
-/** One discovered tool of an MCP server: its classification is `unclassified`, `read-only` or `risky`, and its status `available`, `unavailable` or `refused`. */
+/**
+ * One discovered tool of an MCP server: its classification is `unclassified`, `read-only` or `risky`, and its status `available`, `unavailable` or `refused`.
+ * `changed` is true while McpOps' fingerprint check has made the tool Unclassified and no admin has classified it since; it can be true for a refused tool.
+ * It is optional so that an older answer reads as false.
+ */
 export interface McpToolRow {
   server: string;
   name: string;
   classification: string;
   status: string;
+  changed?: boolean;
 }
 
 /** One source poll of the caller's session in GET /ocutalon/api/v1/settings/mcp (Story 21.5); the arguments are never listed. */

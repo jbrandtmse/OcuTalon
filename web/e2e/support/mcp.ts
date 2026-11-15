@@ -53,6 +53,25 @@ export async function dropMcpServer(name: string, refs: string[] = []): Promise<
   if (chk(out, 'dropped') !== '1') throw new Error(`the fixture server ${name} could not be removed (${out.join(' ')})`);
 }
 
+/**
+ * Makes a fixture server's classified tool changed with Lane A's real ClearChanged (Story 21.9), through the Ops probe: the tool becomes unclassified and
+ * marked changed, for a notice-free admin list (`^||ZzOps("admins")` is empty, so no chat of another test gets a notice). With `refused`, the server's row then
+ * names the tool in RefusedTools, as a later attach that refuses it leaves it.
+ */
+export async function clearChangedTool(server: string, tool: string, refused = false): Promise<void> {
+  const lines = [
+    'Set ^||ZzOps("admins")=""',
+    `Write !,"CHK|clear|",$System.Status.IsOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(${quoted(server)},${quoted(tool)},"zzfp2"))`,
+    ...(refused
+      ? [`Set r=##class(OcuTalon.Mcp.Server).NameIndexOpen(${quoted(server)}) Set r.RefusedTools=r.RefusedTools_$ListBuild(${quoted(tool)}) Write !,"CHK|refuse|",$System.Status.IsOK(r.%Save())`]
+      : []),
+  ];
+  const out = await irisScript(lines.join('\n'));
+  if (chk(out, 'clear') !== '1' || (refused && chk(out, 'refuse') !== '1')) {
+    throw new Error(`the tool ${tool} of ${server} could not be made changed (${out.join(' ')})`);
+  }
+}
+
 /** What a server leaves: its row, its tool rows, its Config Store entry, its wallet key and its wallet collection (each a count or 0 / 1). */
 export interface Leftovers {
   row: number;
