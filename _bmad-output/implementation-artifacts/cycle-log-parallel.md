@@ -4352,3 +4352,4 @@
 2026-11-15T17:40:41Z	Run	ci_red_classified	head=7622f6df8(25.6_merge) run=43735777142 att1 shards-11(ci-38) Test.Fix.Asked:TestSuspendAndUndo class=new_DW_DW-1391(MED;Fix_family->laneC_with_DW-1205/494) note=orchestrator_missed_this_feature_red(not_reported_at_25.6_merge)
 2026-11-15T17:41:09Z	Run	ci_red_classified	head=475a86e44(DW-1371_merge) run=43733825684 shards-4(ci-16) class=DW-1388(mcp.spec_B13) superseded=yes
 2026-11-15T17:41:09Z	Run	process_fix	orchestrator_now_verifies_each_merge_feature_run(missed_7622f6df8_and_475a86e44_reds)
+2026-11-15T17:53:36Z	Run	ci_red_classified	head=b337f61d9(1.0.11_merge-back) run=43738026674 shards-5(ci-48)=DW-555(chrome-error_goto) shards-4(ci-29)=DW-1388 action=no_rerun(superseded_by_df475cc64,9b9898a53)
