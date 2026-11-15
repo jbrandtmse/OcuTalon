@@ -160,6 +160,45 @@ The body is `{action, ref, name, email, productions}`: `action` is `save` or `re
 - AC8. Given a non-admin, when they call the route, then it is 403 `not_admin`. Given the online demo, when an admin calls it or loads Settings, then it is 409 `not_available` with `partnersOffOnDemo` before the body is read, GET has no member, and nothing is written.
 - AC9. Given the Playwright spec, when the section is used by keyboard alone, then every control is labelled, Remove names its contact, and the stored contacts and audit entries match what was submitted (NFR-25, UX-DR130).
 
+### Review Findings
+
+Code review 2026-11-15 (lane D; Tier 1, full, baseline 836f45ab; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 47 raw findings, 32 entries: high 0, med 6, low 6 kept, 20 rejected. Rulings checked and held: no SQL watch code, no "not yet" text, no Lane A file and no `TABLE`, the section hidden unless `TABLE` is exactly 1, `ListProductions` web_admin only with the 20 s wait, `not_available` on the demo and no tool verb, the audit holds `partnerContact.<Ref>` and field names only, the leak scan covers the audit rows, and every shipped string matches EXPERIENCE.md L1077 and L1083-1093.
+
+- [x] [Review][Decision] AD-13 L484 and the web-process contact list (acceptance-auditor) -- `PartnerValues` reads every row through `PartnerContact.List()` in the web process, while L484 sends "a read beyond the caller's own rows" through a read verb. Judged not a clear mismatch: the gated spec (Decided in-stage 8) chose the owning class's own method, and `SettingsOps.Values` already reads the unowned `Data.Setting` rows the same way (`Stored`). Kept as built; the AD's wording is for the owner: DW-1395 decision-pending (med, fix-risk med).
+- [x] [Review][Patch] Near-copy: `TestListProductionsRouting` repeated 33 of `TestListOnCallUsersRouting`'s 35 lines (Rule 2, med) [src/ocutalon/cls/OcuTalon/Test/Core/CommandsRouting.cls] -- both now call one private `ReadVerbRouting(verb, session)`; the bridge-context case stays in the ListProductions test. Warm `CommandsRouting` green; mutation below.
+- [x] [Review][Patch] `TestTableStates`' TABLE 0 case passed for a missing class too (verification-gap, Rule 19 hermeticity, med) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsPartners.cls] -- preconditions added: this class's `TABLE` is "1", the web probe's is "0", and `Test.Core.SettingsOnCall` is compiled.
+- [x] [Review][Patch] `PartnerContact.List()`'s order was unpinned (verification-gap, low) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsPartners.cls] -- new `TestListOrder` (upper-cased name, then Ref); mutation below.
+- [x] [Review][Patch] `WritePartner` logged a failed row write's status text, which can quote the rejected value (acceptance-auditor, Never: no partner value in a `$$$LOG*` or status text, low) [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:WritePartner] -- logs the error codes only.
+- [x] [Review][Patch] `Web.PartnerSettings`' description said no answer holds a name or address, but a 200's sections hold the contacts while the section is shown (blind-hunter, low) [src/ocutalon/cls/OcuTalon/Web/PartnerSettings.cls] -- corrected.
+- [x] [Review][Patch] The Playwright spec's header said "P1 to P4" (verification-gap, acceptance-auditor, low) [web/e2e/settings/partner-contacts.spec.ts:4] -- "P1 to P9".
+- [x] [Review][Defer] The real IRIS audit entry is not rolled back with the row (blind-hunter, edge-case-hunter, acceptance-auditor) [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:WritePartner] -- deferred: pre-existing (`SaveProduct` of 33.2/36.4 has the same order). `%SYS.Audit` suspends transactions for the record (`$zu(139,2)`, `irissys/%SYS/Audit.cls:1585`), so a row write that fails after the audit leaves an entry for a change that never happened (no value in it). `TestRowWriteFailureRollsBack` pins the probe's global only. DW-1392 escalated (med): an AD-19 call.
+- [x] [Review][Defer] Duplicate names and addresses are accepted (blind-hunter, edge-case-hunter) [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:PartnerProblems] -- deferred: no approved refusal text, and the consumer de-duplicates. DW-1393 routed (med) for Story 23.13.
+- [x] [Review][Defer] The real `TABLE = 1` state (the default switch class, both halves of `partnersHelp` as behaviour) cannot be pinned before 23.13 (verification-gap, acceptance-auditor) [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:PartnersShown] -- deferred: at TABLE 0 a wrong default class also gives 0. DW-1394 routed (med) for Story 23.13.
+- [x] [Review][Defer] Spine records for the lead (acceptance-auditor, blind-hunter; low) -- deferred: spine edits are the lead's (Rule 20). The `ListProductions` row says "watched productions" but `Reader.Productions()` lists every readable production. The Tables line names the reader twice and omits `List()` and `RefOpen()`. AD-29's cross-area table has no row for `SettingsOps` calling Lane A's `Watch.Reader.Productions()`, nor for `PartnerContact.ForProduction` called by Lane A.
+- [x] [Review][Defer] EXPERIENCE.md L1163 and the `settings.sql*` rows still name Story 24.2 (acceptance-auditor; low) -- deferred: split bookkeeping for the lead (24.5).
+
+Rejected:
+- low: productions JSON over the 4000-character MAXLEN fails as 500 (blind, edge) -- needs about 50 productions; a guard would also remove `TestRowWriteFailureRollsBack`'s trigger; stays wontfix-accepted, reopen_if an instance lists 50 or more productions.
+- low: "Choose at least one production" for a stale or repeated production (blind, edge) -- approved text, spec-bound; a stale box is shown ticked and unticking it saves.
+- low: an empty or failed roster shows no boxes and no reason (blind, edge) -- a reason is new public text, which 24.2 may not ship.
+- low: two bounded waits on one GET with a wedged production (blind) -- by-design (Decided in-stage 4 and 7).
+- low: a 409 on Remove keeps the forms live (blind, edge) -- reachable only from a stale page on the demo; the fix adds a branch.
+- low: `List()` hits INVALID OREF if a row is deleted between its two passes (edge) -- a microsecond race between two admins; the fix adds a guard.
+- false: an empty Name or Ref breaks `List()`'s subscripts (edge) -- `SettingsOps` is the only writer and always sets both (name 1-128 characters, `NewRef`).
+- false: `PartnerValues` throws when `List()` throws (edge) -- no path to a throw shown.
+- low: two namespaces' productions with one display name give identical boxes (edge) -- spec-bound (boxes labelled by `displayName`); reopen by spec amendment.
+- low: a ticked new-form production dropped after a roster refresh (edge) -- the roster changes only with a save's answer.
+- false: a 200 without the member after the switch turns off (edge) -- `TABLE` is a compile-time parameter.
+- low: a contact another admin removed fails with the generic text until reload (edge) -- multi-admin race; the fix adds a branch.
+- low: no test for focus after a productions-only refusal (verification-gap) -- test-only gap; AC3's pinning tests P3 and P8 hold.
+- low: the section's `dirtyChange` is not exercised (verification-gap) -- no AC names it.
+- low: AC parts without their own mutation line (verification-gap) -- Rule 19 asks one per AC; every AC has one.
+- false: `PartnerAuditForm`'s mutation line names only P4 (verification-gap) -- under-reporting, not a defect.
+- false: `TestRowWriteFailureRollsBack` assumes `^OcuTalonTest` is journaled (verification-gap) -- if it were not, the test would go red, not green.
+- low: Save changes takes its accessible name from a `[label]` string, not `aria-labelledby` (acceptance-auditor) -- AC9 holds; no new string.
+- low: `SettingsPartners` says "Safe on a slot" (acceptance-auditor) -- a property of the class; it runs on throwaways.
+- spec edit: the Review Triage Log ends at "Blind 9" (cut in 3b96d19d), Task 0's measurement is not recorded, Auto Run Result says P1-P7, and Shared surfaces omits `roles.spec.ts`, `deep-link.spec.ts`, `mcp-view.test.mjs` and `floor-sources.test.mjs` (verification-gap, acceptance-auditor) -- fixes edit the spec; reported to the lead.
+
 ## Spec Change Log
 
 - 2026-11-15 (lead). **Gate ruled, Contest Planner ~16:30Z Nov 15 (BINDING; corrected by the orchestrator: the Lane A story is 23.13, not 23.10)**, quoted in full from `<coordination>/prompts/story-242-rulings-20261115.md`:
@@ -365,6 +404,10 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: `PartnerAuditForm` names every field on each side of an edit (the `ListFind` test replaced by `1`) -> Playwright P4 red ("one audit entry naming only the changed field")
 - mutation: the focus selector of a refused name pointed at the address field -> Playwright P8 red (`toBeFocused`)
 - mutation: the section's `form` refusal branch made unreachable -> Playwright P9 red (the failed text is not under the button; P5 is red too, because a 500 takes the same branch, so P9 was shown red with P5 skipped for that run)
+
+**Code review (2026-11-15, lane D, warm `e24s2crw`; each mutation reverted `cmp`-identical and the class green again on the same stack).** `SettingsPartners`, `CommandsRouting` and `PartnerSettingsApi` pass warm after the review patches; `test-class-rules.sh` passes.
+- mutation: `List()` ordered by the exact-case name (the `$ZConvert(..., "U")` dropped) -> `SettingsPartners.TestListOrder` red
+- mutation: `ListOnCallUsers` and `ListProductions` added to `TOOLVERBS` -> `CommandsRouting.TestListOnCallUsersRouting` and `TestListProductionsRouting` red (through the shared `ReadVerbRouting`; the bridge-context case red too)
 
 ## Auto Run Result
 

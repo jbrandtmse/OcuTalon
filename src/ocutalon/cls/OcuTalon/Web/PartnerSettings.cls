@@ -8,7 +8,7 @@
 ///   - On the online demo it answers 409 not_available with SettingsOps' MESSAGEPARTNERSOFF before the body is read: nothing is offered, submitted or written.
 /// The route does not read the TABLE switch of OcuTalon.Fix.PartnerContacts: only the page's section is shown by it.
 /// The body holds a contact's name and address, which Visual Trace would show to any account with the trace role, so the command never holds it: the body goes to OcuTalon.Core.SecretHandoff
-/// before the submit, the SaveSettings command's Changes is exactly {"handoff": uri}, and the handoff is discarded on every path. No answer, log line or message holds a name or an address.
+/// before the submit, the SaveSettings command's Changes is exactly {"handoff": uri}, and the handoff is discarded on every path. No refusal, log line or message holds a name or an address; a 200's sections hold the stored contacts only while the section is shown.
 Class OcuTalon.Web.PartnerSettings Extends OcuTalon.Web.OnCallSettings
 {
 

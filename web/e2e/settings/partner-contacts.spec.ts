@@ -7,7 +7,7 @@ import { announcements, recordAnnouncements } from '../support/page';
 import { PARTNER_API, aProduction, auditMark, auditSince, forProduction, partnerMember, removeZzContacts, type PartnerProduction } from '../support/partner-contacts';
 
 /**
- * Story 24.2, the Partner contacts section of Settings in a real browser, signed in as the README admin (P1 to P4; the sign-in-2 unit). The section shows only while the
+ * Story 24.2, the Partner contacts section of Settings in a real browser, signed in as the README admin (P1 to P9; the sign-in-2 unit). The section shows only while the
  * real GET /v1/settings carries the `partner-contacts` member, which it does only once OcuTalon.Fix.PartnerContacts has TABLE = 1 (Story 23.13). So these cases simulate
  * that one state and nothing else: a `page.route` on every settings answer fetches the real answer, then adds `sections['partner-contacts']` as the server's own
  * PartnerValues() builds it in a fresh IRIS process. The POSTs reach the real route, SecretHandoff, SettingsOps and the real rows and audit log. The cases run one

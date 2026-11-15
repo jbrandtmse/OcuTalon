@@ -3062,7 +3062,7 @@ Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As 
 		}
 		If $$$ISERR(sc) {
 			TROLLBACK 1
-			$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+			$$$LOGERROR("A partner contact could not be written: error "_$SYSTEM.Status.GetErrorCodes(sc))
 			Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 		}
 		TCOMMIT

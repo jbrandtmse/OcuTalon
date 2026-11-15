@@ -14,6 +14,7 @@
 ///     and an edited-away or removed contact is gone at once;
 ///   - TestTableStates: PartnersShown is 1 for a class that declares TABLE = 1 and 0 for one that declares TABLE = 0, for one with no TABLE, and for a class that does not exist;
 ///     the real Values has the member exactly when the real PartnersShown is 1;
+///   - TestListOrder: List gives the contacts by the upper-cased name, then by Ref;
 ///   - TestSectionShownAtTableOne: with the switch on, Values has the member {contacts, productions} with the stored contacts and the productions; off, it has none;
 ///   - TestListProductionsVerb: the verb answers Ok 1 listed with exactly two scripted productions as {namespace, production, displayName} only, and with the productions
 ///     of Watch.Reader as the same three fields, not_available on the online demo, and failed when the reader throws;
@@ -330,6 +331,9 @@ Method TestForProductionOnlyStoredContacts()
 Method TestTableStates()
 {
 	Set ops = "OcuTalon.Core.SettingsOps"
+	Do $$$AssertEquals($Parameter("OcuTalon.Test.Core.SettingsPartners", "TABLE"), "1", "this class declares TABLE = 1")
+	Do $$$AssertEquals($Parameter("OcuTalon.Test.Web.PartnerSettingsProbe", "TABLE"), "0", "the web probe is compiled and declares TABLE = 0, so its case is the 0 state and not a missing class")
+	Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Test.Core.SettingsOnCall"), "the class with no TABLE is compiled")
 	Do $$$AssertEquals($ClassMethod(ops, "PartnersShown", "OcuTalon.Test.Core.SettingsPartners"), 1, "a class with TABLE = 1 shows the section")
 	Do $$$AssertEquals($ClassMethod(ops, "PartnersShown", "OcuTalon.Test.Web.PartnerSettingsProbe"), 0, "a class with TABLE = 0 does not")
 	Do $$$AssertEquals($ClassMethod(ops, "PartnersShown", "OcuTalon.Test.Core.SettingsOnCall"), 0, "a class with no TABLE does not")
@@ -341,6 +345,23 @@ Method TestTableStates()
 	Do $$$AssertEquals(values.sections.%IsDefined("partner-contacts"), real, "Values has the member exactly when PartnersShown is 1")
 	Set ^OcuTalonTest("SettingsOpsProbe", "table") = 0
 	Do $$$AssertEquals(..Page().sections.%IsDefined("partner-contacts"), 0, "and not when the switch is off")
+}
+
+Method TestListOrder()
+{
+	Set a = ..Entry(1)
+	For suffix = "b", "A", "C", "D", "D" {
+		Do ..Save("", ..Name(suffix), ..Email($Case(suffix, "D": "d"_$Increment(n), : $ZConvert(suffix, "L"))), [(a)])
+	}
+	Set mine = "", refs = ""
+	Set iterator = ##class(OcuTalon.Data.PartnerContact).List().%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If $Extract(one.name, 1, $Length(..Name(""))) '= ..Name("") Continue
+		Set mine = mine_$Select(mine = "": "", 1: ",")_$Piece(one.name, " ", 2)
+		If $Piece(one.name, " ", 2) = "D" Set refs = refs_$ListBuild(one.ref)
+	}
+	Do $$$AssertEquals(mine, "A,b,C,D,D", "List orders by the upper-cased name, not by ID or by the exact case")
+	Do $$$AssertTrue($List(refs, 1) ']] $List(refs, 2), "and two contacts of one name by their Ref")
 }
 
 Method TestSectionShownAtTableOne()
