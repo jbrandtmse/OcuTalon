@@ -4349,3 +4349,4 @@
 2026-11-15T17:32:38Z	Epic 0	merge_enqueued	story=0.37 head=c8f7a3f39 (1.0.12)
 2026-11-15T17:39:53Z	Epic 0	merged	story=0.37 merge=9b9898a53 (after_A/B_PASS)
 2026-11-15T17:39:53Z	Run	dw_opened	DW-1389(LOW,memory-*-remember_digest->ignore_pair+chat_stopped_side_question) owner=lane_C_after_DW-1205/494
+2026-11-15T17:40:41Z	Run	ci_red_classified	head=7622f6df8(25.6_merge) run=43735777142 att1 shards-11(ci-38) Test.Fix.Asked:TestSuspendAndUndo class=new_DW_DW-1391(MED;Fix_family->laneC_with_DW-1205/494) note=orchestrator_missed_this_feature_red(not_reported_at_25.6_merge)

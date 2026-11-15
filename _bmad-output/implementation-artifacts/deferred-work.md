@@ -8355,3 +8355,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: webhook: digest 3/3 OLD -> ignore 3/3 NEW at c8f7a3f39, safety held (refused, no tool step, no memory saved); email sibling went digest->ignore on 1.0.11's own RC run; chat probe leans act on both OLD and NEW
 - 2026-11-15T17:39:53Z status=routed owner=burndown by=orchestrator note=owner lane C after DW-1205/DW-494; bring evidence to the Planner; no eval-set change without a Planner ruling
+
+### DW-1391: flake candidate: Test.Fix.Asked TestSuspendAndUndo 'the same ask again is already_asked' and 'with the ruled message' failed (1.40 s class) in CI; same Fix area as DW-1205/DW-494
+- source: orchestrator; Contest Planner query ~18:45Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: feature ci 43735777142 attempt 1 (7622f6df8, 25.6 merge; 25.6 touches no Fix file) shards-11 on ocutalon-ci-38; Test.Fix.AskedTurns passed in the same shard
+- 2026-11-15T17:40:40Z status=routed owner=burndown by=orchestrator note=investigate with lane C's DW-1205/DW-494 family (Fix area; no Fix edits until 23.3 merges); one rerun meanwhile
