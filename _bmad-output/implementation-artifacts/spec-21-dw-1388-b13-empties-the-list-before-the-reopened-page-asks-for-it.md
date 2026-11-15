@@ -256,6 +256,24 @@ done
 - `cd web && npm test`: 518 suites, 2124 pass, 0 fail. `bash docker/tests/test-boundaries.sh`: all rules passed.
 - Shared surfaces: none (one test's own mock state).
 
+**QA records (QA stage, lane C, run tags e21dw1388q*; no test change was needed):**
+- Scope: the same race (a mock state flipped after a reload, before the lazy section's own GET) in `web/e2e/settings/mcp.spec.ts`, and in the sibling settings specs. Verdict per candidate:
+  - B13 steps (a)-(c), the three earlier `reopen()` calls (L573, L581, L595 as of `7150eb0f5`): safe. After each, the only flips are `save` and `removal`, and those are read only inside the POST and DELETE routes, which the test's own click starts. `gone` does not change until (d), so a late list GET answers the same list at any time.
+  - B13 step (d): fixed. The click needs the row, the row needs the list GET answered (with `gone` false), and the DELETE can only follow the click, so the flip in the DELETE route comes after every GET that the test depends on. The reload GET after the 404 starts only after that answer.
+  - B10: safe. It already flips `gone` inside its DELETE route and never reloads.
+  - B8, B9 (`gets` counters): safe. The counters are bumped by the requests themselves, and each assertion waits on the UI that the earlier answer made.
+  - B3 (L167) and B14 (L656), `page.reload()` with no mock: safe. No route state changes after the reload; B14's `/classify` route is unrouted before it.
+  - B1, B2, B4-B7, B11, B12: no reload or no state flip: safe.
+  - `web/e2e/support/mcp.ts`: fixtures only (seed, drop, leftovers). It has no `reopen` and no route.
+  - Sibling specs, no true race, so nothing to report as a finding: `email.spec.ts` L175, `on-call.spec.ts` L205, `settings.spec.ts` L170, L599 and L834 reload against the real server with no `page.route` state that changes afterwards (the S13c route only decorates a real GET); `deep-link.spec.ts` reloads wait for the section's own GET with `waitForResponse` and flip nothing; `webhooks.spec.ts` WS4 flips `failing = false` only after the load error and Retry are visible, which means the failing GET has been answered (WS3's `mode` is read only by POST).
+- Determinism, both orderings of the list GET and the 404 Remove (scratch edits, each reverted byte for byte with `cmp`, shim kept in scratch and deleted; `B13_REPEAT=5`, `B13_BURN=0`; each run 5 of 5 green, about 15 s per B13):
+  - mutation: M1 (hold every `GET /settings/mcp` 2 s), fixed test -> green 5 of 5 (the GET comes late, after the Remove button is clicked or not at all needed).
+  - mutation: M4 (hold the `DELETE /sources/zzsrc13` 2 s, the GET immediate), fixed test -> green 5 of 5 (the Remove answers late, and the reload GET still follows the answer).
+  - Together with the implement stage's 30 of 30 with no injection (GET at its natural time), the fix holds for the GET before and after any step the test takes, and for a DELETE that answers late.
+- No new pin: nothing was added to the test, so no new `mutation:` line beyond M1 and M4 above, which are scratch checks of the existing pin.
+- Findings outside `mcp.spec.ts`: none.
+- Runs: `ci/iris.sh build` ok; two shim runs (M1, M4) as above. Teardown run for each tag; no stack of this stage is up.
+
 ## Review Triage Log
 
 ### 2026-11-15 - Review pass
