@@ -30,7 +30,7 @@
 ///   - TestOneInFlightNoQueueStale: with three due sources and polls that wait, one poll is sent at a time, the others keep their NextDueAt and are sent at
 ///     the next Tick after an answer; a mark 140 seconds old still holds (INFLIGHTSECONDS is 150) and one 160 seconds old holds nothing, and the third source's send sets its NextDueAt at the Tick that sends it;
 ///   - TestSlowQueueOfThreeNotStale (DW-1346): three sources due together whose polls each run to Decide's timer plus a Tick and so queue one behind another, the source in position i running 120 x i seconds later than its interval (the third about 240 seconds), are none of them
-///     stale or missed in Coverage.Build, whether the run is in the span (the gap) or before it (Current); the allowance is max(180, 120 x the sources that are not stopped) seconds beyond the interval, and the oracles are its numbers as literals: a run 1200 seconds before the end of the span stands and one 1300 seconds before no longer does (900 + 360); with two of the three stopped one counts and the allowance is the 180 seconds floor, so the third source's 240 seconds read not checked in the span and a run 1050 seconds before the end of the span stands; the test fails, and does not skip, when another source of the install is polling (its count would add to the allowance);
+///     stale or missed in Coverage.Build, whether the run is in the span (the gap) or before it (Current); the allowance is max(180, 120 x the sources that are not stopped) seconds beyond the interval, and the oracles are its numbers as literals: a run 1200 seconds before the end of the span stands and one 1300 seconds before no longer does (900 + 360); with two of the three stopped one counts and the allowance is the 180 seconds floor, so the third source's 240 seconds read not checked in the span and a run 1050 seconds before the end of the span stands; the coverage is built through Test.Mcp.SourceRunCoverage, which leaves out of the count the sources of the install that are not the test's and not stopped, so a source row that another session or test left does not change the allowance;
 ///   - TestStopNoticeFailureIsOneWarning: an unreadable list of admins at a stop is the one warning of Mcp.Ops Notify and none of Checks.
 Class OcuTalon.Test.Mcp.SourceRun Extends %UnitTest.TestCase
 {
@@ -103,6 +103,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", ..#REALSERVER)
 	Kill ^||ZzOps
 	Do $ClassMethod(..#PROBE, "Reset")
+	Do ##class(OcuTalon.Test.Mcp.SourceRunCoverage).Reset()
 	Quit $$$OK
 }
 
@@ -586,9 +587,7 @@ Method TestSlowQueueOfThreeNotStale()
 		Do ##class(OcuTalon.Checks.Coverage).RecordRun(ref, session, second, "passed", "")
 		If second ] last Set last = second
 	}
-	// the oracles are for exactly three counting sources: a source of the install that is not this test's and not stopped would add to the allowance and leave the assertions that it is small (and
-	// so the mutations of QUEUESECONDS, the floor and the count of stopped sources) unable to fail, so a stack that holds one fails here, loudly, and not quietly green
-	Do $$$AssertEquals(..OtherSources(), 0, "no other source of the install is polling (the allowance of three sources is what the assertions below check)")
+	// the oracles are for exactly the three sources of the test: ResultsOf builds through SourceRunCoverage, which leaves the other sources of the install out of the count
 	// the gap between the two runs of each source (both in the span): 900, 1020 and 1140 seconds, against 900 + 360
 	Set from = ##class(OcuTalon.Data.Time).AddSeconds(first, -60)
 	Set to = ##class(OcuTalon.Data.Time).AddSeconds(last, 30)
@@ -811,18 +810,20 @@ Method AssertResults(session As %String, from As %String, to As %String, expecte
 	}
 }
 
-/// The result of each entry of the session's coverage from from to to, by entry name.
+/// The result of each entry of the session's coverage from from to to, by entry name, built by Test.Mcp.SourceRunCoverage with the sources of the install that are not the
+/// test's and not stopped (OtherSources, counted just before) left out of the count.
 Method ResultsOf(session As %String, from As %String, to As %String, Output results)
 {
 	Kill results
-	Do $$$AssertStatusOK(##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines, .vitals), "the coverage is built")
+	Do ##class(OcuTalon.Test.Mcp.SourceRunCoverage).Others(..OtherSources())
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.SourceRunCoverage).Build(session, from, to, .rows, .lines, .vitals), "the coverage is built")
 	Set iterator = rows.%GetIterator()
 	While iterator.%GetNext(, .row) {
 		Set results(row.entry) = row.result
 	}
 }
 
-/// The sources of the install of the real Kind that are not this test's and not stopped: the ones that Coverage counts besides the fixtures (none on a fresh stack).
+/// The sources of the install of the real Kind that are not this test's and not stopped: the ones that Coverage counts besides the fixtures, which ResultsOf leaves out.
 Method OtherSources() As %Integer
 {
 	Set count = 0

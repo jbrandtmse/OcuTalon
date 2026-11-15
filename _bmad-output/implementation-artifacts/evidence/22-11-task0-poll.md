@@ -81,9 +81,9 @@ notification and each `tools/list` page, up to 10 pages) plus a connect bound, s
 trickles bytes holds it longer (S11: 31 s and 36 s measured against 2 s and 20 s). Only Decide's timer (60 s by default) bounds a poll. A poll that runs to that timer can keep the
 mark past the next Tick, so 3 such sources due at once could take up to 4 Ticks (about 240 s), past the 180 s allowance (inference). Check 2 holds for the four measured modes.
 
-Rework note (2026-11-14, DW-1346; the numbers above are unchanged): coverage's allowance for a source is now interval + max(180 s, 60 s x the number of sources that are not stopped), so check 2's "inside interval + 180 s" reads as inside that allowance; for 3 sources it is still 180 s, and the 240 s case above is not covered by it (inference).
+Rework note (2026-11-14, DW-1346; the numbers above are unchanged; superseded by Rework note 2 below): coverage's allowance for a source is now interval + max(180 s, 60 s x the number of sources that are not stopped), so check 2's "inside interval + 180 s" reads as inside that allowance; for 3 sources it is still 180 s, and the 240 s case above is not covered by it (inference).
 
-Rework note 2 (2026-11-14, DW-1346 ruled, Contest Planner ~23:00Z; no measured number changes): coverage's allowance for a source is now interval + max(180 s, 120 s x the number of sources that are not stopped), so the 240 s case of the code review note above (a poll that runs to Decide's default 60 s timer) is inside it for 3 sources (360 s); a timer raised above 60 s or a lost answer that holds the in-flight mark is not covered.
+Rework note 2 (2026-11-14, DW-1346 ruled, Contest Planner ~23:00Z; no measured number changes): coverage's allowance for a source is now interval + max(180 s, 120 s x the number of sources that are not stopped), so the 240 s case of the code review note above (a poll that runs to Decide's default 60 s timer) is inside it for 3 sources (360 s). Decide answers a poll within its timer (110 s at most), so with a raised timer the next source is still sent by the second Tick after a send, about 120 s later, with less margin (inference from the code); a lost answer holds the in-flight mark for 150 s and delays the next send to the third Tick, about 180 s, which is not covered.
 
 So option (a) passes both checks: the story is not halted.
 
