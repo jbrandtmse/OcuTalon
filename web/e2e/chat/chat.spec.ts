@@ -674,7 +674,7 @@ test('C6: scrolled up, a new turn leaves the list where it is and New messages t
   expect(Math.abs(buttonBox.x + buttonBox.width / 2 - (composer.x + composer.width / 2)), 'centred over the composer').toBeLessThanOrEqual(1);
   expect(buttonBox.y + buttonBox.height, 'above the composer').toBeLessThanOrEqual(composer.y);
   await field.focus();
-  // The composer's own controls come before its field in the tab order: on this install files are readable, so the paperclip is the first stop back.
+  // The paperclip is the one composer control before the field in the tab order (Send comes after it); files are readable on this install, so it is the first stop back.
   const attach = page.getByRole('button', { name: 'Send a file', exact: true });
   await expect(attach, 'the paperclip is shown on this install').toBeVisible();
   await page.keyboard.press('Shift+Tab');

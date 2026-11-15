@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-11-14'
 status: 'done'
 baseline_revision: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
-baseline_commit: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
+baseline_commit: '3b0fd2670ed944f83b95427e4f0342508fd254f4'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -332,6 +332,16 @@ Rejected:
 - (duplicate) `lint_spine.py` "ok": false -- DW-638.
 - (false) memory-card MC14b/c "nothing was pinned" cannot fail -- it fails if the route stub stops matching and the real server pins.
 - (low) `TestMarkerReachesNothing` now sees a damaged read -- the property is pinned for a readable PDF by `TestNoExtractedText`.
+
+Code review 2026-11-15, rework 1 (diff `3b0fd267..HEAD` plus the working tree; Blind Hunter 4, Edge Case Hunter 0, Verification Gap 0, Acceptance Auditor 0 findings plus 1 wording note; 1 patch, 0 defer, 4 rejected; high 0, medium 0). The `[CI]` checklist holds: C6 still reaches New messages by keyboard from the field, before the composer in tab order; no file under `web/src` changed, so the paperclip is not moved, hidden or reordered; `e2e/chat/**` runs only in the `chromium` project (an own install, files readable), and no other Tab or Shift+Tab walk in `web/e2e`, `web/e2e-online`, `web/e2e-capture` or `web/scripts` starting at or passing through the composer is broken; the three `mutation:` lines match the run logs (single Shift+Tab, `tabindex="-1"` and the hidden paperclip each red only at C6; the final file green), and `composer.ts` and `chat-files.ts` are byte-identical to the saved copies.
+
+- [x] [Review][Patch] [low] C6's new comment said "the composer's own controls come before its field", but only the paperclip does; Send comes after the field -- reworded to name the paperclip as the one control before the field [web/e2e/chat/chat.spec.ts:677]
+
+Rejected:
+- (spec edit) The rework record names only `web/e2e` and `web/scripts`, not `web/e2e-online` and `web/e2e-capture` -- checked here: neither has a walk from the composer (and the online demo hides the paperclip); this pass's summary above names them.
+- (spec edit) "Residual risks: none named" leaves out C6's new dependence on the paperclip -- the dependence is the task's intended outcome ("or be shown to depend on it as intended"), and the hidden-paperclip mutation records it.
+- (low) The paperclip locator is written inline in `chat.spec.ts` and `floor/keyboard.spec.ts` while `files/files.spec.ts` has a `paperclip(page)` helper -- a label change fails all three loudly; a shared helper touches two files outside this rework for no reachable defect.
+- (spec edit) The Acceptance Auditor's note that the `floor/layout.spec.ts` and `floor/keyboard.spec.ts` page walks start at the top of the page, not in "the header, a card, a dialog or the chat list" -- both stop at Send and neither is broken; the conclusion holds.
 
 ## Spec Change Log
 
@@ -675,6 +685,7 @@ Lane-A fresh throwaways (tags `e25s6r5`, `e25s6r5m`, `e25s6r5h`, `e25s6r5b`, `e2
 - mutation: `composer.ts` gives the paperclip `tabindex="-1"` (out of the tab order; restored byte-identical, `cmp` clean) -> C6 red at "the paperclip is the first stop back from the field" (live `sign-in --part 5/17`, the only red).
 - mutation: the paperclip hidden (`ChatFiles.controls` given `filesReadable` false; restored byte-identical, `cmp` clean) -> C6 red at "the paperclip is shown on this install" (element not found; live `sign-in --part 5/17`, the only red).
 - Runs, all green after the final edit: `live sign-in --part 5/17` (chat.spec, 21 passed); parts `6/17` (decision, 14), `7/17` (notice, 21), `8/17` (sources, 15) and `9/17` (try-it and documents, 23) ran on the same product and unchanged specs; `npm --prefix web test` (2,123 pass), `npm --prefix web run lint`, `docker/tests/test-boundaries.sh`.
+- Code review (rework 1): the three lines above were checked against the run logs (each mutation red only at C6, the final file green on lane A's web port 52801). The review's one patch changes only C6's comment; `npm --prefix web run lint` passes after it. No stack was started.
 
 ## Auto Run Result
 
