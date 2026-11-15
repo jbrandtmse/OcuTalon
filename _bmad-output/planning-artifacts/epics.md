@@ -8352,7 +8352,7 @@ So that someone answers every incident even when the people watching are away.
 
 **Given** the watched production's IRIS Managed Alerts
 **When** paging is configured and an incident pages
-**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration (FR-28)
+**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration, except an approved rollback_setting or undo_rollback that puts back the user's own earlier value (FR-28) [AMENDED 2026-11-15, Story 23.4, Contest Planner ruling DW-1380: it read "and no OcuTalon class writes alert configuration"]
 **And** with no on-call person configured, as always on the online demo, no page is sent and nothing else changes (FR-28)
 
 **Given** automated tests in `OcuTalon.Test.Watch`

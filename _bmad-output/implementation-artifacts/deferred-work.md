@@ -8313,6 +8313,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.SettingCause SummaryRunKey returns empty for Completed 0 with Unreached>0 (c968df2b)
 - 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
+- 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:approved_for_1.0.12_new_text_summary.settingSavedNotApplied='{time}: {setting} on {target} was changed, but the production couldn't apply it.'_pin_on_restore-failed_path;not_a_23.3_re-push
 
 ### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
@@ -8324,6 +8325,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: medium | fix-risk: med | footprint: in-story
 - evidence: web/src/app/approvals/approval-view.ts settingResultView takes after = change?.newValue for undo_rollback; IncidentRequest (web/src/app/live/payloads.ts) carries no dry-run after, while IncidentManager.ResultExtra uses the dry run's after for the chat notice
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
+- 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:follow-up_for_1.0.12_with_new_/api/v1/state_field;CONDITION_band_must_not_contradict_chat_result_line;else_show_catalog_result_text
 
 ### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -8364,3 +8366,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 23.4 plan reading (d)4; 23.3 RollbackSetting accepts any recorded SettingChange row on the failing item
 - 2026-11-15T14:08:34Z status=decision-pending owner=burndown by=spec_gate note=Planner call: exclude alert settings from rollback (a 23.3 follow-up) or accept (a user-approved restore of their own earlier value is not OcuTalon configuring alerts)
+- 2026-11-15T14:11:08Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15:accepted_as_user-approved_restore(no_exclusion);23.4_AC_amended;23.4_AC15_pins_no_other_class_writes_alert_configuration

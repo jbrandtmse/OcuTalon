@@ -29,7 +29,7 @@ deferred: []
 - With `onlineDemo` 1, `Watch.Paging` refuses by code, before reading any on-call key: no row, no Notification, no timer ask, no audit, even when on-call values are set. On the demo `AckPage` answers `not_found` and `Msg.Escalation` does nothing.
 - No on-call value (user name, address) goes into a production message, a log line, a trace or an audit entry. The page's `Slots` carry none. `Watch.Paging.Text` resolves `{backup}` and `{person}` at render time from the rows and the keys. No Telegram chat id or display name appears anywhere.
 - Every text comes from catalog keys: the five APPROVED `page.*` texts verbatim, plus the NEW keys listed in `## Design Notes` (b) once the Planner accepts them.
-- IRIS Managed Alerts are never changed. No product class writes alert configuration.
+- IRIS Managed Alerts are never changed. No OcuTalon class writes alert configuration, except an approved rollback_setting or undo_rollback that puts back the user's own earlier value (Planner ruling DW-1380, 2026-11-15).
 
 **Never:**
 - Edit `Core/Rule/Notify.cls`, `EmailOut`, `Schedule/ReminderOps.cls`, `Data/Reminder.cls`, `Core/CommandsIn.cls`, `Core/SettingsOps.cls`, `Web/Api.cls`, `web/src/app/settings/**` or any Lane B contract of AD-29's list. Those belong to 24.3, 36.x or Lane C.
@@ -183,15 +183,27 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 - AC7: Given seeded pages and a real container kill and restart (`live:production-restart`), when each page's `Msg.Escalation` arrives twice after the start, then only the unacknowledged page of the open incident gets a backup row, exactly one.
 - AC8: Given OCUORDERS with an AlertManager fixture and on-call configured, when a break pages, then every alert setting of every item reads as before, a `ManagedAlert` row for `OrdersFromPartner` exists after the page, and `no-alert-config` passes on the tree.
 - AC9: Given a closed incident with page rows older than `daysToKeep`, when the Watch area's `Purge` runs, then its page rows are gone and newer ones stay (`Test.Watch.Lifecycle` `TestPurge`).
-- AC10 (Integration, Rule 1; DW-1277): Given `Data.Page` compiled, when the README admin reads `GET /api/v1/settings` over real HTTP, then `pagesBuilt` is true, and the On call section in the browser shows no "OcuTalon doesn't send pages yet" line (`PagingLive`; `web/e2e/settings/on-call.spec.ts` O1).
+- AC10 (Integration, Rule 1; DW-1277): Given `Data.Page` compiled, when the README admin reads `GET /api/v1/settings` over real HTTP, then `pagesBuilt` is true, and the On call section in the browser shows, in place of "OcuTalon doesn't send pages yet", the line "OcuTalon pages the on-call person in their paired Telegram chat only. It doesn't page by email or escalate to the backup." (Planner ruling 2026-11-15, deviation 2 CHANGED; 24.3 replaces it) (`PagingLive`; `web/e2e/settings/on-call.spec.ts` O1).
 - AC11 (Rule 3): Given a watched incident with a page, when the LIVE `OcuTalonUser` reads `GET /api/v1/state`, then the incident lists `page` {state, pagedAt, acknowledgedAt, channel} and no person. A second session does not list it (`incident-page.spec.ts`).
 - AC12: Given any test above, then no message, log line, trace or audit entry holds a chat id, a display name, `oncall.*.user` or `oncall.*.email`.
 
+- AC13 (Planner ruling 2026-11-15, veto 1 CONDITION): the paged person (user name or email address) never appears in the Ens trace (message bodies and headers OcuTalon writes), the audit (`page` / `page_acknowledged` carry references only), `GET /api/v1/state`, the `incident` event, or the logs (event log / OcuTalon logs). Pin EACH of the five with its own assertion on a real page (a distinctive fixture person name searched for), each with a mutation that turns it red (e.g. putting the person into the audit description).
+- AC14 (Planner ruling 2026-11-15, deviation 2 CHANGED): replace the On call section's "OcuTalon doesn't send pages yet" line with, verbatim: "OcuTalon pages the on-call person in their paired Telegram chat only. It doesn't page by email or escalate to the backup." Shown when `pagesBuilt` is true (the not-yet line stays only for `pagesBuilt` false). Pin it in the web catalog/ux-strings tests and in `web/e2e/settings/on-call.spec.ts` O1 (Lane C's two-line change granted); mutation: the old line or no line turns it red. No release-check tool.
+- AC15 (Planner ruling DW-1380, 2026-11-15): a test pins that no OcuTalon class other than the approved `rollback_setting` / `undo_rollback` path writes alert configuration (source scan of the product classes for writes to alert settings / Managed Alerts configuration, with the two rollback kinds as the only allowed writers through `Fix.Executor`), with a mutation (a planted write in another class turns it red).
+
 ## Spec Change Log
+
+- 2026-11-15 ~14:35Z (lead, Planner gate): APPROVED with conditions (prompts/story-234-rulings-20261115.md). Added AC13 (the person never in trace, audit, /api/v1/state, incident event or logs; each pinned), AC14 (the new Settings line replaces the not-yet line, verbatim), AC15 (no other class writes alert configuration). AC10 and the Boundaries alert line amended; epics.md 23.4 AC amended with marker (DW-1380). All proposed public text approved verbatim. Targets 1.0.12.
 
 ## Review Triage Log
 
 ## Design Notes
+
+### Planner rulings, 2026-11-15 (binding; prompts/story-234-rulings-20261115.md)
+- Veto items 1-5 APPROVED, with the CONDITION that the person never appears in the Ens trace, the audit, /api/v1/state, the incident event or the logs (AC13).
+- Deviation 1, 3, 5, 6 APPROVED/ACCEPTED as written. Deviation 2 CHANGED: the new Settings line (AC14); no release-check tool; releases are not blocked on 24.3. Deviation 4: DW-1380 accepted as a user-approved restore, AC amended, pinned (AC15).
+- Public text APPROVED verbatim: page.onCallAlone, page.onCallEmailAlone (as in this spec), page.causeUnknown "I couldn't work out the cause", the one-minute forms, and the new Settings line.
+- Contention: Lane D Watch/** hooks plain union (whoever pushes second integrates and flags overlapping hunks); Lane C's on-call.spec.ts two-line change GRANTED; the Settings line change in `web/src/app/settings/on-call-section.ts` (or wherever the line is rendered) is part of this ruling. shards-8 growth noted; measured time reported at PART READY.
 
 ### For the Planner's gate
 
