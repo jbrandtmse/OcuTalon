@@ -4374,3 +4374,5 @@
 2026-11-15T19:17:00Z	Run	ci_red_classified	head=8c71bef6e(23.3_merge) run=43748578400 shards-4(ci-48)=DW-1388(7th) lane-a=green action=rerun_failed_once
 2026-11-15T19:26:51Z	Epic 24	runner_reported	PART_READY story=24.2 head=136cd1dca runs=43747033320,43747033290(att2;att1=DW-987_ci-24) split=24.5_chartered escalations=DW-1392(AD-19_audit_outside_txn),DW-1395(AD-13_ambiguous) burndown=DW-1393,DW-1394(->23.13)
 2026-11-15T19:26:51Z	Epic 24	merge_enqueued	story=24.2 (1.0.12)
+2026-11-15T19:30:03Z	Epic 24	merged	story=24.2 merge=4dc771402 epics_md_hash=re-recorded 24.5_wait=23.8
+2026-11-15T19:30:14Z	Run	planner_notified	24.2_merged DW-1392(AD-19_ruling_needed),DW-1395,DW-1393/1394->23.13 laneD_next=24.4_proposed
