@@ -418,3 +418,8 @@
 2026-11-15T07:55:23Z	Story 21.9	integrated	feature=97e062daf(22.11+22.15) merge=e6d254677 node=2114/0 SettingsMcp=pass McpSettingsApi=pass CommandsStep4=pass live=sign-in-2_part18/24_20/20 lint=10_low test-readme=pass
 2026-11-15T10:14:44Z	DW-1347	integrated	feature=20b60564f(21.9) merge=30ceb87a5 conflicts=cycle-log(union) node=2114/0 boundaries,class-rules,readme=pass lint=10_low
 2026-11-15T10:14:44Z	DW-1347	fresh_check	env=merged_tree(30ceb87a5) warm_e21dwfw:Mcp.SourceRun,Bridge.Poll,Mcp.Proxy,Bridge.Decide,Bridge.CodeRules,Tools.Result,Checks.Runs,Core.SettingsMcp,Mcp.SourceRunProduction,Mcp.Attach_pass torn_down
+2026-11-15T12:02:15Z	DW-1347	ci_flake	run=43703149281 job=132778446850 iris(production) row21=DW-306(known_flake,occurrence_logged) action=rerun_failed_once
+2026-11-15T12:30:12Z	DW-1347	ci_resolved	sha=30d487a32 result=success runs=43703149281(attempt2_after_DW-306_flake),43703149107
+2026-11-15T12:30:12Z	DW-1347	part_ready	parts=DW-1347 code_head=30d487a32 ci=success records=local
+2026-11-15T12:38:18Z	DW-1347	merged	feature=999138505 dw1372=confirmed_by_Planner(AD-31_no_edit)
+2026-11-15T12:38:18Z	DW-1371	stage_spawned	stage=plan spawn_at=2026-11-15T12:38:18Z model=opus effort=high agent_name=dw-1371-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1371 worktree=.worktrees/epic-21-dw1347(reused) base=999138505 scope=tests_only(replay_writes_no_answerHash)
