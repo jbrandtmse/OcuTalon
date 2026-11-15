@@ -450,3 +450,4 @@
 2026-11-15T15:30:55Z	DW-1371	ci_flake	run=43719358269 job=132827772132 iris(shards-8)@ocutalon-ci-18 Watch.Reader_TestFailures/TestFailureDefinition_SUBSCRIPT=DW-1381(new_flake_entry) action=rerun_failed_once
 2026-11-15T15:56:26Z	DW-1371	ci_resolved	sha=5b52467ec result=success runs=43719358269(attempt2_after_DW-1381_flake),43719358288
 2026-11-15T15:56:26Z	DW-1371	part_ready	parts=DW-1371 code_head=5b52467ec ci=success records=local
+2026-11-15T17:19:30Z	DW-1205	stage_spawned	stage=investigate spawn_at=2026-11-15T17:19:30Z model=opus effort=high agent_name=dw-1205-investigate-1 branch=OCT-epic21-dw1205 base=b337f61d9 scope=investigation_only(with_DW-494;no_Fix/*_or_FixExecutor_edits_until_23.3_merges) ruling=Planner_~17:20Z+orchestrator_investigation_only
