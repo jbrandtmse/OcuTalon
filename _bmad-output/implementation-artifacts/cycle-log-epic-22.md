@@ -446,3 +446,4 @@
 2026-11-15T01:29:07Z	Story 22.11	fresh_check	env=recipe(new_lane-D_warm_stack_e22s11pfw;warm+throwaway_locks_held_by_lead) tests=Test.Mcp.SourceRun,Test.Digest.Coverage result=pass torn_down=e22s11pfw note=e22s15qw_stack_seen_up(not_mine;untouched)
 2026-11-15T01:29:07Z	Story 22.11	committed	sha=LOCAL(OCT-epic22;CI_HOLD) ci=none_yet
 2026-11-15T01:29:41Z	Epic 22	runner_ended	reason=waiting waiting_on=CI-HOLD-OFF branch=OCT-epic22 head=e28224c2(=origin_hold/OCT-epic22-20261114) local_ready=22.14(OCT-epic22-s2214_6ba4068d),22.11(e28224c2) pushed=origin/OCT-epic22_16772e40 open_runs=none
+2026-11-15T03:50:30Z	Story 22.14	committed	sha=6ba4068d branch=OCT-epic22-s2214(pushed;base_42e7b3ec) ci=pending runs=43674059161(ci),43674059261(lane-a)
