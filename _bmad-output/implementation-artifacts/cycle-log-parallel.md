@@ -4283,3 +4283,5 @@
 2026-11-15T09:41:53Z	Run	owner_decision	via=contest_planner 1.0.11_protocol: signal="1.0.11 REQUIRED GREEN <sha>"(+25.6/23.3_status,run_ids) then_records-only_until_RELEASE_CUT_DONE QUIET_ON/OFF_during_upgrade_harness laneD_21.11_exception=approved
 2026-11-15T09:42:05Z	Run	owner_decision	via=contest_planner CORRECTION:no_feature_merge_hold_during_1.0.11(cut_from_reported_sha);only_QUIET_ON/OFF_pause
 2026-11-15T09:44:36Z	Run	owner_decision	via=contest_planner 1.0.11:no_QUIET_window(oMLX_off);QUIET_ON_only_if_harness_row_fails_on_load
+2026-11-15T09:59:44Z	Epic 23	runner_reported	PART_READY story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731(queued) conditions_a_b=kept 23.3=Task0_pass,dev+QA+CR_done,local_aeab8bb61 escalations=DW-1365(MED),DW-1366,DW-1370,DW-1358,footprint_Demo/Orders/Review.cls relayed=contest_planner
+2026-11-15T09:59:44Z	Epic 23	runner_resumed	lane=B task=23.3_smoke..PART_READY
