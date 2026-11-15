@@ -1497,6 +1497,7 @@ die: settings project, candidate: the start did not end ready within 400 s"
       row() { :; }; attach_stack() { :; }; preflight() { :; }; load_seed() { :; }; opt() { echo 9.9.9; }
       env_get() { :; }; env_set() { echo "past: env_set" >> "$r"; exit 3; }; marker() { :; }; fail() { :; }; pass() { :; }; keys_point() { echo 0; }
       dc() { case $* in "ps -q iris") echo cid ;; esac; }
+      started_at() { echo 2026-01-01T00:00:00Z; }
       live_pop_file() { :; }; live_track_image() { :; }
       start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
       wait_started_ready() { return "$waited"; }
@@ -1518,6 +1519,37 @@ die: upgrade: the candidate did not end ready within 400 s"
   # The five starts each count right after their wait, before any die.
   eq "ready_or_die serves three starts" "$(grep -c '^  ready_or_die "' release/upgrade-harness.sh)" 3
   eq "the upgrade's wait is followed by its count" "$(grep -A1 'wait_started_ready 400 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, candidate"'
+
+  # new_cid (1.0.10 rc1): after an up, cid is the one container of THIS start. dc ps answers from a script of answers, one per call
+  # (the last repeats); started_at answers per id. The old code took the first answer as it came, so the old container's id, or two
+  # ids, were kept and the readiness wait read the previous start's log.
+  nc_run() { # nc_run <answers file> <old id> <old StartedAt>: prints cid or the die
+    (
+      ans=$1 total=$(grep -c '^' "$1") cnt=$1.n
+      echo 0 > "$cnt"
+      dc() { # a file counts the calls: dc runs inside $(...)
+        local n
+        case $* in "ps -q iris") n=$(($(cat "$cnt") + 1)); echo "$n" > "$cnt"; [ "$n" -le "$total" ] || n=$total; sed -n "${n}p" "$ans" | tr ',' '\n' ;; esac
+      }
+      started_at() { case $cid in old) echo T1 ;; new) echo T2 ;; same) echo T1 ;; *) echo "" ;; esac; }
+      sleep() { :; }
+      die() { echo "die: $1"; exit 1; }
+      P=proj BUILD_UP_WAIT=3
+      new_cid "settings project" "$2" "$3"
+      echo "cid=$cid"
+    ) 2>&1
+  }
+  printf '%s\n' old old new > "$tmp/nc.a"
+  eq "new_cid waits past the old container still listed after the up" "$(nc_run "$tmp/nc.a" old T1)" "cid=new"
+  printf '%s\n' old,new new > "$tmp/nc.b"
+  eq "new_cid waits past two ids during the recreate" "$(nc_run "$tmp/nc.b" old T1)" "cid=new"
+  printf '%s\n' new > "$tmp/nc.c"
+  eq "new_cid takes a first start's one container" "$(nc_run "$tmp/nc.c" "" "")" "cid=new"
+  printf '%s\n' same > "$tmp/nc.d"
+  eq "new_cid dies on the same container with the same start" "$(nc_run "$tmp/nc.d" same T1)" "die: settings project: no new iris container in project proj after the start (ids: same)"
+  eq "build_up takes its id through new_cid" "$(grep -c '^  new_cid "\$1" "\$old" "\$old_start"$' release/upgrade-harness.sh)" 1
+  eq "the upgrade takes its id through new_cid" "$(grep -c '^  new_cid "upgrade" "\$old" "\$old_start"$' release/upgrade-harness.sh)" 1
+  eq "no start takes its id unchecked from dc ps after an up" "$(grep -B3 'cid=$(dc ps -q iris)' release/upgrade-harness.sh | grep -c 'dc up')" 0
   eq "the restart's wait is followed by its count" "$(grep -A1 'wait_started_ready 300 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, restart"'
   eq "ready_or_die counts straight after its wait" "$(grep -A1 'wait_started_ready "\$2" || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "$1"'
 
