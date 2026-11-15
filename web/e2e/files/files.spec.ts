@@ -3,7 +3,7 @@ import { expect, test, type JSHandle, type Locator, type Page, type Request } fr
 import { envelope, signIn, signInOverHttp } from '../sign-in/helpers';
 import { STATE, changeSnapshot, post } from '../support/api';
 import { pointKeys, restoreKeys } from '../support/devices';
-import { chatItem, taken } from '../support/files';
+import { chatItem, fileTransfer, taken } from '../support/files';
 import { loadedAfter } from '../support/floor';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
@@ -136,11 +136,7 @@ for (const type of TYPES) {
 test('a drop on the chat is the second way', async ({ page }) => {
   const posts = watchFilePosts(page);
   await open(page, { filesReadable: true, onlineDemo: false });
-  const transfer = await page.evaluateHandle(() => {
-    const data = new DataTransfer();
-    data.items.add(new File(['%PDF-1.4 dropped'], 'zz-dropped.pdf', { type: 'application/pdf' }));
-    return data;
-  });
+  const transfer = await fileTransfer(page, 'zz-dropped.pdf');
   const surface = page.locator('app-chat-panel');
   const field = page.getByRole('textbox', { name: 'Message OcuTalon' });
   expect(await taken(field, 'drop', await textTransfer(page)), 'a drop of text on the field is left to the field').toBe(false);
@@ -214,11 +210,7 @@ test('with filesReadable false there is no paperclip, and a drop sends nothing a
   const posts = watchFilePosts(page);
   await open(page, { filesReadable: false, onlineDemo: false });
   await expect(paperclip(page)).toHaveCount(0);
-  const transfer = await page.evaluateHandle(() => {
-    const data = new DataTransfer();
-    data.items.add(new File(['%PDF-1.4 dropped'], 'zz-ignored.pdf', { type: 'application/pdf' }));
-    return data;
-  });
+  const transfer = await fileTransfer(page, 'zz-ignored.pdf');
   const surface = page.locator('app-chat-panel');
   expect(await taken(surface, 'dragover', transfer), 'no handler takes the drag').toBe(false);
   expect(await taken(surface, 'drop', transfer), 'nor the drop: the browser keeps its own handling').toBe(false);
@@ -333,11 +325,7 @@ test('on the online demo there is no paperclip, and a drop shows the off text', 
   const posts = watchFilePosts(page);
   await open(page, { filesReadable: true, onlineDemo: true });
   await expect(paperclip(page)).toHaveCount(0);
-  const transfer = await page.evaluateHandle(() => {
-    const data = new DataTransfer();
-    data.items.add(new File(['%PDF-1.4 dropped'], 'zz-demo.pdf', { type: 'application/pdf' }));
-    return data;
-  });
+  const transfer = await fileTransfer(page, 'zz-demo.pdf');
   const surface = page.locator('app-chat-panel');
   // A drag of text into the field is the field's own: the drop is not taken, and no off text shows for it.
   expect(await taken(page.getByRole('textbox', { name: 'Message OcuTalon' }), 'drop', await textTransfer(page)), 'a drop of text on the field is left to the field').toBe(false);

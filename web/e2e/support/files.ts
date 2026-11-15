@@ -2,7 +2,7 @@ import type { JSHandle, Locator, Page } from '@playwright/test';
 
 /**
  * What the specs that send or drop files share: the drag helpers (a dispatched drag event, and a transfer that carries a PDF) and a done chat.message as a
- * stubbed snapshot holds it (changeSnapshot). files.spec.ts (Story 25.3, 25.6) and viewer.spec.ts (Story 25.4) use them.
+ * stubbed snapshot holds it (changeSnapshot). files.spec.ts and viewer.spec.ts use them.
  */
 
 /** Dispatches a drag event of that type with the transfer on the element and says whether a handler took it: true when one cancelled the browser's own handling. */

@@ -538,6 +538,7 @@ test('U16: a failure that waits for the live region\'s one-second gap is not ann
   expect(await announcements(page, failed), 'the second failure waits for the gap: the error was announced once').toBe(1);
   await retry.press('Enter');
   await expect.poll(() => answered, 'the third read is answered').toBe(true);
+  await expect(region, 'the page handled the answer before its clock runs: the retract emptied the region').toHaveText('');
   await stepUntil(page, async () => (await tableOf(page).count()) === 1, 2000, 'the answer shows its table');
   await expect(block).toHaveCount(0);
   await page.clock.runFor(1500);

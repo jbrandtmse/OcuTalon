@@ -94,6 +94,30 @@ deferred: []
 - AC5 (DW-1387): Given a viewer on the Documents page, when files are dragged over it or dropped on it, then no handler takes them, no outline shows and nothing is posted (V5 and the viewer-sources pin). D6 stays green for a user.
 - AC6: Given the change, when `npm --prefix web test` runs, then `initial-bundle.test.mjs` (at most 921,000 bytes), `ux-strings.test.mjs` and `lazy-routes.test.mjs` pass. `git diff --stat` shows only the AD-33 file list, with no new user-visible string.
 
+### Review Findings
+
+Code review (stage review, 2026-11-15; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; QA folded in). 0 decision-needed, 6 patch (all applied), 6 ledgered, 6 rejected. Re-run after the patches on a Lane A throwaway (tag e25s8r): `npm --prefix web test` 2136 pass (initial bundle within 921 kB), lint exit 0, `live sign-in` part 17/17 16 passed, 15/17 24 passed, 10/17 21 passed (its first run had one unchanged-test flake, DW-1407), torn down with 0 leftovers.
+
+- [x] [Review][Patch] U16 stepped the frozen page clock before the page had handled read 3 (a late response could let the 1 s gap pass first; false red only) [web/e2e/usage/usage.spec.ts:541] — U16 now waits in real time for the retract's synchronous `clear` to empty the region before it steps the clock; low, fix-risk low, in-story.
+- [x] [Review][Patch] The AC1 `mutation:` line named a mutation (retract and `failed` reset deleted) that goes red at the table step, not at the checks it recorded [spec `## Verification`] — re-observed with the retract alone deleted; line corrected; low, closed in pass (Rule 19).
+- [x] [Review][Patch] The AC2 `mutation:` count was stale after the implement-stage review patch (4 red of 31, now 6 red of 34) [spec `## Verification`] — re-run and corrected; low, closed in pass.
+- [x] [Review][Patch] AC6 had no `mutation:` line [spec `## Verification`] — an unruled template text in UsagePage turns `ux-strings.test.mjs` red; line added; low, closed in pass.
+- [x] [Review][Patch] Rule 2: `support/files.ts` added `fileTransfer` while `files.spec.ts` kept three inline copies of the same PDF transfer [web/e2e/files/files.spec.ts:139,217,336] — switched to the helper (same names, same bytes); the helper header no longer narrates stories; low, fix-risk low, in-story. `documents.spec.ts:178` is off AD-33's list: DW-1402 wontfix-accepted.
+- [x] [Review][Patch] V5's discrimination rested on the helper's transfer carrying `Files`, and its outline check ran before the page rendered [web/e2e/sign-in/viewer.spec.ts:127-131] — added a control that the transfer carries `Files`, and the outline check now runs after a frame and a task (the zoneless render); low, fix-risk low, in-story.
+- [x] [Review][Defer] A viewer's drop on Documents opens the file in the tab (the browser's own handling) [web/src/app/documents/documents-page.ts:62] — DW-1401 by-design: the spec's Never list leaves the drop to the browser, as the chat does for a viewer; reopens only by spec amendment.
+- [x] [Review][Defer] The `data-failures` reset on an answer has no observing test [web/src/app/usage/usage-page.ts:474, web/src/app/history/history-page.ts:551] — DW-1403 wontfix-theoretical: a test anchor with no reader after an answer.
+- [x] [Review][Defer] H15's tail has the same clock-before-answer shape that U16 had [web/e2e/history/history.spec.ts:560] — DW-1404 wontfix-theoretical: about 43 clock steps of margin, never seen red; pre-existing tail.
+- [x] [Review][Defer] A page left while its failed-read announcement waits in the gap has the error spoken on the next page [web/src/app/usage/usage-page.ts:480, web/src/app/history/history-page.ts:562] — DW-1405 wontfix-accepted with a reopen_if probe; pre-existing for History, rare (two failures within 1 s, then navigation within the gap).
+- [x] [Review][Defer] Flake: the paperclip-by-keyboard test timed out waiting for `filechooser` once, green on an unchanged rerun [web/e2e/files/files.spec.ts:117] — DW-1407 routed owner=burndown; the test is not changed by this story.
+
+Rejected:
+- `false` Edge: `retract` after `dispose()` calls the LiveAnnouncer after disposal — the Announcer is root-provided and disposes only at app teardown, so nothing retracts after it.
+- `false` Blind: the spec says `done` before Retro A1 and the fresh check — those are the lead's `(once)` gates by the spec's own Verification; `status` is build-auto's machine state.
+- `false` Blind: the Runtime command holds a placeholder — an absolute path in a tracked file fails `test-boundaries.sh`; the fix would also edit the spec's intent sections.
+- `low` Blind: the cycle log's `dev_complete` spawn time differs from `stage_spawned` by about a minute — the lead's append-only log; not a review write.
+- `false` Blind: comments credit Story 25.4 — they name where the snapshot's `viewer` flag comes from (contract); the usage header's seeding sentence holds for U16 too.
+- `false` Verification gap: U16 and H15 hermeticity — observation only; the file's `beforeEach` seeds and clears, V4 and V5 use page-scoped routes.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -203,12 +227,13 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC6: no new test. The existing gates (`initial-bundle`, `ux-strings`, `lazy-routes`) are the check.
 
 **Mutation results** (implement stage; each applied, red observed, reverted, and `git status --short` and `git diff --stat` unchanged afterwards):
-- mutation: AC1 deleted the retract and the `failed` reset in UsagePage's answer path -> U16 red (ERROR announced twice, the region holds ERROR).
-- mutation: AC2 `AnnounceQueue.retract` clears for any non-empty text -> four "retract guard" cases red (27 pass, 4 fail; green again after the revert, 31 pass). Re-run by the lead.
+- mutation: AC1 (re-observed in code review, after U16 gained its real-time wait) deleted only `this.announcer.retract(USAGE_TEXTS.error)` in UsagePage's answer path, keeping the `failed` reset -> U16 red at "the page handled the answer before its clock runs: the retract emptied the region" (the region still held "Couldn't load your usage."; 1 failed, 15 passed, part 17/17, tag e25s8r). Reverted; `git diff -- web/src` empty.
+- mutation: AC2 `AnnounceQueue.retract` clears for any non-empty text -> six "retract guard" cases red (28 pass, 6 fail; green again after the revert, 34 pass). Re-run in code review against the 34 cases.
 - mutation: AC2 (review patch) `say()` records `lastText = text` for joined and counted texts -> the joined-text and count-text recall cases red (32 pass, 2 fail); `retract` drops `text !== ''` -> the empty-message case on a fresh queue red (33 pass, 1 fail). Reverted; 34 pass.
 - mutation: AC3 `HistoryPage.refused` ignores a failure while `failed()` is true -> H15 red at `data-failures="2"`. The old H15 (without the two new lines) stayed green under the same mutation, which is the hole DW-1122 names.
 - mutation: AC4 `file-reply.ts` passes `false` for `viewer` -> V4 red; `controlsOf` ignores `viewer` -> the `file-reply-view.test.mjs` viewer case red.
 - mutation: AC5 `[active]="!viewer()"` removed -> V5 red (the dragover is cancelled) and the viewer-sources documents case red.
+- mutation: AC6 (code review) an unruled text run `<p>Try again later.</p>` added to UsagePage's failed block -> `ux-strings.test.mjs` "has an entry for every inventory string" red (12 pass, 1 fail). Reverted; 13 pass.
 
 ## Auto Run Result
 

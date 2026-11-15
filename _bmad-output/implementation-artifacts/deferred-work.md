@@ -6950,6 +6950,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=apply HistoryPage.arrived's retract pattern to UsagePage with a frozen-clock browser pin like H15
 - 2026-11-15T16:32:37Z status=decision-pending owner=burndown by=burndown note=to_x0:no_open_story_owns_the_web_Announcer_or_the_Usage/History_pages(25.2,36.5_done);decide_whether_a_Lane_B_web_gap-fill_story_takes_DW-1120..1122_together(retract_on_Usage_like_History+a_behavioural_retract-guard_pin+an_H15_precondition)_or_accept
 - 2026-11-15T18:25:44Z status=routed owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=merge_gate note=Contest_Planner_approved_retro_A2_2026-11-15(prompts/lane-a-burndown-20261115.md_section_2);Story_25.8_chartered
+- 2026-11-15T21:09:02Z status=resolved-by:25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=adjudication note=2b1d21b6+cr:usage-page.ts_retracts_USAGE_TEXTS.error_on_answer;U16(browser,frozen_clock)_red_without_the_retract
 
 ### DW-1121: Announcer.retract's lastSpoken guard, which keeps it from emptying another page's announcement, has only a source-regex pin
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
@@ -6957,6 +6958,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=behavioural pin: retract after a different text was spoken leaves the region alone (browser case, or bookkeeping in AnnounceQueue)
 - 2026-11-15T16:32:37Z status=decision-pending owner=burndown by=burndown note=to_x0:no_open_story_owns_the_web_Announcer_or_the_Usage/History_pages(25.2,36.5_done);decide_whether_a_Lane_B_web_gap-fill_story_takes_DW-1120..1122_together(retract_on_Usage_like_History+a_behavioural_retract-guard_pin+an_H15_precondition)_or_accept
 - 2026-11-15T18:25:44Z status=routed owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=merge_gate note=Contest_Planner_approved_retro_A2_2026-11-15(prompts/lane-a-burndown-20261115.md_section_2);Story_25.8_chartered
+- 2026-11-15T21:09:02Z status=resolved-by:25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=adjudication note=2b1d21b6:guard_moved_into_AnnounceQueue(clear);announce-queue.test.mjs_retract-guard_cases_behavioural;6/34_red_under_mutation
 
 ### DW-1122: H15 presses Retry a second time with no page-side signal that the second failure was handled; a reversed order would pass without exercising the queued case
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
@@ -6964,6 +6966,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
 - 2026-11-15T16:32:37Z status=decision-pending owner=burndown by=burndown note=to_x0:no_open_story_owns_the_web_Announcer_or_the_Usage/History_pages(25.2,36.5_done);decide_whether_a_Lane_B_web_gap-fill_story_takes_DW-1120..1122_together(retract_on_Usage_like_History+a_behavioural_retract-guard_pin+an_H15_precondition)_or_accept
 - 2026-11-15T18:25:44Z status=routed owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=merge_gate note=Contest_Planner_approved_retro_A2_2026-11-15(prompts/lane-a-burndown-20261115.md_section_2);Story_25.8_chartered
+- 2026-11-15T21:09:02Z status=resolved-by:25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=adjudication note=2b1d21b6:data-failures_page-side_signal;H15_waits_on_data-failures=2;old_H15_stayed_green_under_the_AC3_mutation,new_H15_red
 
 ### DW-1127: 35.3: rotation's Settings audit entry shows [redacted] for from/to where C3 said empty strings
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
@@ -8385,9 +8388,41 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/src/app/chat/file-reply.ts:23-31 never reads isViewer; viewer-sources.test.mjs GUARDED (lines 25-40) has no chat/file-reply.ts; server side sound: Web/Api.cls:354-357 ViewerMay, Test.Web.ViewerApi TestEveryWriteRouteRefusesAViewer
 - 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(hide_FileReply_add_for_isViewer,keep_the_chip;add_chat/file-reply.ts_to_GUARDED)
 - 2026-11-15T18:25:45Z status=routed owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=merge_gate note=Contest_Planner_approved_retro_A2_2026-11-15(prompts/lane-a-burndown-20261115.md_section_2);Story_25.8_chartered
+- 2026-11-15T21:09:02Z status=resolved-by:25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=adjudication note=2b1d21b6:file-reply.ts_hides_Add_to_documents_for_isViewer;controlsOf_viewer_required;GUARDED_has_chat/file-reply.ts;V4(browser,real_ZzViewer,POST_403_read_only)
 
 ### DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (FileDrop active defaults to true; only addFiles returns early)
 - source: epic-25 retrospective 2026-11-15 (cross-story review: 25.3 shared FileDrop x 25.4 viewer gating) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/documents/documents-page.ts:60 appFileDrop with no [active]; :396 addFiles returns for a viewer; shared/file-drop.ts:15 active=model(true) binds dragover/drop with preventDefault; chat-panel turns the drop off for viewers
 - 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(bind_[active]=!viewer()_and_pin_it_in_viewer-sources.test.mjs)
 - 2026-11-15T18:25:45Z status=routed owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=merge_gate note=Contest_Planner_approved_retro_A2_2026-11-15(prompts/lane-a-burndown-20261115.md_section_2);Story_25.8_chartered
+- 2026-11-15T21:09:02Z status=resolved-by:25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=adjudication note=2b1d21b6+cr:documents-page.ts_[active]=!viewer();V5(browser)+viewer-sources_pin;viewer_drop_left_to_the_browser(DW-1401_by-design)
+
+### DW-1401: A viewer's file drop on the Documents page falls to the browser's own handling, which opens the file in the tab and leaves the app
+- source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: documents-page.ts binds appFileDrop [active]="!viewer()"; with no handler, Chrome's default drop opens the PDF in the tab. The spec's Never list leaves the drop to the browser, as the chat does for a viewer.
+- 2026-11-15T20:15:51Z status=by-design owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=spec-bound (Never: drop left to the browser's own handling, chat precedent); reopens only via spec amendment
+
+### DW-1402: documents.spec.ts:178 still builds its PDF DataTransfer inline instead of support/files.ts fileTransfer
+- source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: support/files.ts adds fileTransfer(page, name); review switched files.spec.ts's three inline copies to it; documents.spec.ts is not on AD-33's Story 25.8 file list.
+- 2026-11-15T20:15:51Z status=wontfix-accepted owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=reopen_if=a story that touches documents.spec.ts or changes the drop transfer shape finds two builders to update
+
+### DW-1403: The data-failures reset to 0 on an answer (UsagePage, HistoryPage) is not observed by any test
+- source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: failures.set(0) in usage-page.ts and history-page.ts answer paths; H15 and U16 only wait on '2' after the first failure and never fail after an answer.
+- 2026-11-15T20:15:51Z status=wontfix-theoretical owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=test anchor only; real when a test or product code reads data-failures after an answer
+
+### DW-1404: H15 steps the frozen page clock while it waits for the answer, before the page has handled read 3
+- source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: history.spec.ts H15 tail: expect.poll(answered) then stepUntil(rows===5); answered only means the route was fulfilled, so a very late response could let the 1 s gap pass first (false red only). U16 now waits in real time on the region.
+- 2026-11-15T20:15:51Z status=wontfix-theoretical owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=about 43 clock steps of margin; real if H15 goes red at 'the answer shows its five rows' or with ERROR announced twice
+
+### DW-1405: A page left while its failed-read announcement waits in the root Announcer's gap has that error spoken on the next page
+- source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: UsagePage and HistoryPage retract only on an answer; the root AnnounceQueue keeps a waiting ERROR after the page is destroyed (two failures within 1 s, then navigation within the gap).
+- 2026-11-15T20:15:51Z status=wontfix-accepted owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=reopen_if=a screen-reader or e2e check hears a Usage or History error after navigating away
+
+### DW-1407: flake: files.spec.ts:108 paperclip by keyboard (Enter) timed out waiting 30 s for the filechooser event; green on an unchanged rerun
+- source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Lane A throwaway e25s8r, live sign-in part 10/17: 1 failed (page.waitForEvent filechooser at files.spec.ts:117 after keyboard Enter on the focused paperclip), 20 passed; rerun 21 passed. The test is not changed by Story 25.8.
+- 2026-11-15T21:04:16Z status=routed owner=burndown by=cr note=one sighting at code review of 25.8; the paperclip test is Story 25.3's, unchanged here

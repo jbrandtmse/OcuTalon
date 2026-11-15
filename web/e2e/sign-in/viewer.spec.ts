@@ -125,8 +125,10 @@ test('V5: a viewer\'s Documents page takes no drag and no drop of a file, and po
   const main = page.locator('main.documents');
   await expect(page.getByRole('button', { name: 'Add documents', exact: true }), 'control: a viewer has no add button').toHaveCount(0);
   const transfer = await fileTransfer(page, 'zz-viewer-drop.pdf');
+  expect(await transfer.evaluate((data) => data.types.includes('Files')), 'control: the transfer carries a file').toBe(true);
   expect(await taken(main, 'dragover', transfer), 'no handler takes the drag').toBe(false);
-  await expect(main, 'no outline shows').not.toHaveClass(/dragging/);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))));
+  await expect(main, 'no outline shows after the page has rendered the drag').not.toHaveClass(/dragging/);
   expect(await taken(main, 'drop', transfer), 'nor the drop: the browser keeps its own handling').toBe(false);
   await expect(main).not.toHaveClass(/dragging/);
   await page.waitForTimeout(500);
