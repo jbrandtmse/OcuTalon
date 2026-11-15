@@ -2,7 +2,7 @@
 title: 'Story 23.3: Name the setting change behind an incident and offer its rollback'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'c19ad67e3f461cb09d6af0f9b3f3c6894329ad8d'
 baseline_commit: 'c19ad67e3f461cb09d6af0f9b3f3c6894329ad8d'
 review_loop_iteration: 0
@@ -488,7 +488,16 @@ Rejected (verdict and reason):
 - false: spec `status: 'done'` against sprint-status `review` (Edge, Auditor). This is build-auto's machine state; this review syncs the sprint status.
 - reject: Auto Run Result counts ("14 rows rejected": 11 findings in 10 rows), the missing stack e23b3r2e, the "unverified … Planned fix" sub-bullet left under a ticked item, and the files list leaving out the bookkeeping files (Blind, Edge, Auditor). Each fix edits build-auto's sections of the spec under review; reported to the lead.
 
+
+**Rework iteration 3 (CI red on 5445b0e4, ci run 43720395242; story class; on branch OCT-epic23-s233):**
+- [ ] [CI] iris(image) job 132830914292: `OcuTalon.Test.Data.Tables` `TestContracts` failed "OcuTalon.Data.Incident has exactly its contract: property SettingChangeRef is not in the contract" -- add `"SettingChangeRef": "%String(MAXLEN=64)"` to Data.Incident's contract in `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (approved as veto item 5), and any storage/index part of that contract the property needs; check the other contract readers of Data.Incident (`Test/Contract.cls`, `Test/Contract/Checker.cls`, `Test/Live/Payloads.cls`) for the same shape.
+- [ ] [CI] iris(production) job 132830914517: `OcuTalon.Test.Channel.TelegramChat` `TestNotices` failed "there are 34 Watch notice keys" and "there are 40 of them": 23.3's new `incident.`/`result.` keys in `Msg.Catalog.Watch` raised both counts. Update the count and the expected list to match the catalog; prefer reading the count from the catalog over a literal (orchestrator), keeping an assertion that can still fail (e.g. every catalog key appears exactly once in the rendered rows). Every new key's rendered Telegram text must be the approved text.
+- Also grep the other test classes for literal counts of `Msg.Catalog.Watch` keys or `Data.Incident` properties that 23.3 changed and that the story's own runs did not cover (Rule 19 shared surfaces) and fix any found.
+- (test-production row 21 was the ledgered DW-306 flake; no change.)
+
 ## Spec Change Log
+
+- 2026-11-15 ~16:50Z (lead, rework iteration 3 of 3, trigger: CI red on 5445b0e4, two story pins on shared surfaces): re-opened on branch OCT-epic23-s233 (from 5445b0e4, so the unreviewed 23.4 work on OCT-epic23 is not carried).
 
 - 2026-11-15 ~12:15Z (lead, rework iteration 2 of 3, trigger: fresh check reverse-order red, Rule 19): re-opened `in-progress` for the OcuTalonTraceViewer leftover after `Test.Watch.Rollback`.
 
