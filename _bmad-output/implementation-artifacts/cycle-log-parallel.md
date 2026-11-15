@@ -4331,3 +4331,5 @@
 2026-11-15T15:39:03Z	Run	owner_decision	via=contest_planner SCOPE_HOLD epics=27,28(owner_leaning_drop) rule=no_dispatch/plan/spec,no_epics/tracker_edits
 2026-11-15T16:08:20Z	Epic 21	runner_reported	PART_READY story=DW-1371 head=5b52467ec runs=43719358269(att2;att1=DW-1381_flake),43719358288 note=report_not_received_directly;verified_by_gate
 2026-11-15T16:08:20Z	Epic 21	merge_enqueued	story=DW-1371 (1.0.12)
+2026-11-15T16:08:57Z	Epic 21	merged	story=DW-1371 merge=475a86e44
+2026-11-15T16:09:06Z	Epic 0	runner_status	0.37 CR=0H/0M,7_lows_patched(pins_only) integrated=cc5f85fb6 fresh=running notes_to_Planner=heartbeat_and_chat_stopped_may_pull_to_act(no_eval_case)
