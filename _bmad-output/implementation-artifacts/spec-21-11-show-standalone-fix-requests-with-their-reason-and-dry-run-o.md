@@ -194,6 +194,8 @@ All of it was checked on `OCT-epic21-s2111` at `21497b51d35a7257d17670c8b5a18e44
 
 ## Spec Change Log
 
+- 2026-11-15 (lane D lead). **Lane exception (orchestrator, Planner 1.0.11 priority):** lane D builds 21.11 because lane C is on DW-1347; lane C does not touch this branch. Runtime moves to lane D: slot `ocutalon-slot-d`, port 52804, the `lane-d` lock folder, tags `e21s11dw` (warm) and `e21s11d` (fresh). Integrated over feature 20b60564 (includes 21.9). DW-1347's files stay out of scope (`Mcp.Proxy`, `Bridge.Poll`, `Bridge.Process.Decide`, Bridge `HostData`/`Reply`, `Checks.Process`, `Test.Mcp.Source*`, `Test.Bridge.Poll`). The spine's AD-31 S2 is additive, written under `spine.lock`.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -295,9 +297,9 @@ There is no new command, route, grant, role, privilege, table, column, retention
 
 ## Verification
 
-Run every command from the worktree root, after `git rev-parse --show-toplevel` matches it. Lane C only.
-- `<vars>` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
-- Tags: warm `e21s11iw` and fresh `e21s11i`. `<stage>` is the running stage's name (implement, qa, review). In the commands, `...` repeats the previous line's prefix up to `class`.
+Run every command from the worktree root, after `git rev-parse --show-toplevel` matches it. Lane D only (lane exception, below).
+- `<vars>` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
+- Tags: warm `e21s11dw` and fresh `e21s11d`. `<stage>` is the running stage's name (implement, qa, review). In the commands, `...` repeats the previous line's prefix up to `class`.
 - One command per foreground call, with `timeout: 600000`, each sized to about 150 s. One class per call; split a slow class with `class <Class>:<Method>`. Never two test runs in one message, and one `iris_execute_tests` per message, with `server` and `namespace`. Never a slot or another lane's stack. Tear down only this stage's tags. If a call is backgrounded, wait in bounded foreground polls, never `Monitor`.
 
 **Shared surfaces:**
@@ -321,19 +323,19 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - `approvalTitle` without the email branch -> `rail-view.test.mjs` red.
 
 **Commands:**
-- (once) `<vars> OCUTALON_RUN_TAG=e21s11iw ci/warm.sh up` -- ready.
-- (loop) `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s11iw ci/iris.sh class OcuTalon.Test.Core.BridgeSink` -- passed.
+- (once) `<vars> OCUTALON_RUN_TAG=e21s11dw ci/warm.sh up` -- ready.
+- (loop) `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s11dw ci/iris.sh class OcuTalon.Test.Core.BridgeSink` -- passed.
 - (loop) `... class OcuTalon.Test.Msg.Catalog` -- passed.
 - (loop, one per call) `... class OcuTalon.Test.Core.WebChatOut`, `... OcuTalon.Test.Demo.SimPhoneOut`, `... OcuTalon.Test.Channel.TelegramOut` -- passed.
 - (once, one method per call) `... class OcuTalon.Test.Fix.Email:TestApprovedEmailIsInNoTraceGlobal`, then `...:TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace` -- passed, unchanged (P4 with the new notices in the production).
-- (once) `<vars> OCUTALON_RUN_TAG=e21s11i ci/iris.sh class OcuTalon.Test.Core.EmailRequestNotices` (fresh) -- passed.
+- (once) `<vars> OCUTALON_RUN_TAG=e21s11d ci/iris.sh class OcuTalon.Test.Core.EmailRequestNotices` (fresh) -- passed.
 - (once) `cd web && node scripts/catalog.mjs --check`, then (once) `node --test web/scripts/` (the 921 kB budget included) -- passed.
 - (once each) `cd web && npx tsc -p tsconfig.e2e.json --noEmit` and `cd web && npm run build` -- clean.
-- (once) `<vars> OCUTALON_RUN_TAG=e21s11i ci/iris.sh build`, then (once) `<vars> OCUTALON_RUN_TAG=e21s11i ci/iris.sh live answers` -- passed: X1-X15, C1-C10. **Browser:** Chromium, project `answers`. This unit cannot be split, and it runs longer than 150 s (446 s in CI), so expect the harness to background it and poll.
-- (once) `<vars> OCUTALON_RUN_TAG=e21s11i ci/iris.sh live demo-path` -- passed (online-demo safety).
+- (once) `<vars> OCUTALON_RUN_TAG=e21s11d ci/iris.sh build`, then (once) `<vars> OCUTALON_RUN_TAG=e21s11d ci/iris.sh live answers` -- passed: X1-X15, C1-C10. **Browser:** Chromium, project `answers`. This unit cannot be split, and it runs longer than 150 s (446 s in CI), so expect the harness to background it and poll.
+- (once) `<vars> OCUTALON_RUN_TAG=e21s11d ci/iris.sh live demo-path` -- passed (online-demo safety).
 - (once each) `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` -- pass.
 - (once, after S1 and S2) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- no finding beyond the baseline.
-- (once each, also after a failure) `<vars> OCUTALON_RUN_TAG=e21s11iw ci/warm.sh down` and `<vars> OCUTALON_RUN_TAG=e21s11i ci/iris.sh teardown`.
+- (once each, also after a failure) `<vars> OCUTALON_RUN_TAG=e21s11dw ci/warm.sh down` and `<vars> OCUTALON_RUN_TAG=e21s11d ci/iris.sh teardown`.
 
 ## Auto Run Result
 
