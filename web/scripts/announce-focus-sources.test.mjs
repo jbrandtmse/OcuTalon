@@ -175,7 +175,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/settings/daily-digest-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 18.2)'],
     'app/settings/demo-mode-section.ts': [1, 'the switch takes focus when the user\'s own Save changes is refused or the Demo step fails (Story 33.2)'],
     'app/settings/email-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 21.2)'],
-    'app/settings/mcp-section.ts': [2, 'the first field in error takes focus after the user\'s own Add server, and the Servers heading takes focus after the user\'s own confirmed Remove, when the dialog has given focus back and the row they pressed is gone (Story 21.4)'],
+    'app/settings/mcp-section.ts': [2, 'the first field in error takes focus after the user\'s own Add server, and the Servers heading takes focus after the user\'s own confirmed Remove, when the dialog has given focus back and the row they pressed is gone (Story 21.4); in the source form (Story 21.5) the same call moves focus to Source name when the user opens it, to the first field in error after the user\'s own Save changes, back to the tool\'s button after a saved source or Cancel, and to the Your sources heading after the user\'s own Remove of a source'],
     'app/settings/time-zone-section.ts': [1, 'the select takes focus after the user\'s own Save changes is refused for the zone (Story 18.2)'],
     'app/settings/on-call-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 36.4)'],
     'app/settings/webhooks-section.ts': [1, 'the first field in error takes focus after the user\'s own Create webhook or Save changes (Story 35.3)'],

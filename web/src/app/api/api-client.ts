@@ -23,6 +23,7 @@ import type {
   MailboxAccepted,
   MailboxEmail,
   McpChanged,
+  McpSourceBody,
   McpSettings,
   MessageAccepted,
   MessagePost,
@@ -133,6 +134,16 @@ export class ApiClient {
   /** Classifies one tool of an MCP server: a POST of `{server, tool, classification}` that answers 200 `{result: 'saved', message}`. */
   classifyMcpTool(server: string, tool: string, classification: string): Observable<McpChanged> {
     return this.http.post<McpChanged>(`${BASE}/settings/mcp/classify`, { server, tool, classification });
+  }
+
+  /** Sets a source poll: a POST of `{server, tool, name, arguments, intervalMinutes}` that answers 200 `{result: 'saved', message, ref}` (Story 21.5). A 400 `bad_source` (with `fields`), a 403, a 404, a 409 and a 500 fail as an HttpErrorResponse. */
+  setMcpSource(body: McpSourceBody): Observable<McpChanged> {
+    return this.http.post<McpChanged>(`${BASE}/settings/mcp/sources`, body);
+  }
+
+  /** Removes a source poll of the caller's session: a DELETE that answers 200 `{result: 'removed', message}`. A 404, a 403, a 409 and a 500 fail as an HttpErrorResponse. */
+  removeMcpSource(ref: string): Observable<McpChanged> {
+    return this.http.delete<McpChanged>(`${BASE}/settings/mcp/sources/${encodeURIComponent(ref)}`, { body: {} });
   }
 
   /**

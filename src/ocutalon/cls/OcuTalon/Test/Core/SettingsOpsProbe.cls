@@ -231,6 +231,16 @@ Method BridgeSet(name As %String, value As %String, Output old As %String) As %S
 	Quit $$$OK
 }
 
+/// SettingsOps.SourceRows, unless a test sets ^OcuTalonTest("SettingsOpsProbe", "answer", "sources") to "error": then the read of the session's checks fails (QA, Story 21.5).
+ClassMethod SourceRows(sessionRef As %String, Output sources As %DynamicArray) As %Status [ Private ]
+{
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "sources")) = "error" {
+		Set sources = []
+		Quit $SYSTEM.Status.Error(5001, "zz sources failed")
+	}
+	Quit ##super(sessionRef, .sources)
+}
+
 /// The guarded write of SettingsOps, which is private there, for the tests.
 ClassMethod Guarded(key As %String, value As %String) As %Status
 {
