@@ -13,6 +13,7 @@
 ///     that are no object and an incident that was not noticed are not_allowed; the dry run is not asked for any of them;
 ///   - TestRejectedAndExpired (AC7): the outcome rejected or expired of such a request returns the incident to open with that variant and tells the session;
 ///   - TestNoticeKeys: Notice AskedKey, AskedSlots, ResultKey, ResultSlots and NoFixKey (DW-823) for the new kinds.
+/// The fixture incidents' last failure is now: a quiet one (more than IncidentManager QUIETSECONDS old) would be closed by a heartbeat Tick's closeQuiet while a test runs.
 Class OcuTalon.Test.Fix.Asked Extends %UnitTest.TestCase
 {
 
@@ -138,6 +139,71 @@ Method TestSuspendAndUndo()
 	Do $$$AssertEquals(host.Raised.%Size(), 2, "exactly one resume request was raised, besides the suspend")
 	Set stored = {}.%FromJSON(host.Raised.%Get(1).dryRun)
 	Do $$$AssertEquals(host.Raised.%Get(1).fixKind_"|"_host.Raised.%Get(1).fixTargets_"|"_stored.item_"|"_stored.before_"|"_stored.after, "resume_item|5|OrdersToWarehouse|disabled|enabled", "with its own dry run, and nothing changes until it is approved")
+}
+
+/// A done rollback_setting request of the incident that changed its setting (a FixRun with Completed 1), for the change; the request's Ref.
+Method DoneRollback(owner As %String, incident As %String, change As %String, kind As %String = "rollback_setting") As %String
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, "done", , {"Ref": (ref), "FixKind": (kind), "FixParameters": ({"change": (change)}.%ToJSON()), "FixTargets": "5", "ResultTarget": "IncidentManager"})
+	Set ..Refs = ..Refs_","_request
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, ref, {"Total": 1, "Completed": 1})
+	Quit ref
+}
+
+/// Story 23.3 (AC4, AC14; AD-15, AD-16): undo_rollback is asked in the chat and takes its change from the incident's rollback that is still to undo (AskedParameters). With no done
+/// rollback it is refused with NOTHINGTOUNDO and no dry run is asked; with one, a request is raised with the undo notice, a second ask while it waits is already_asked, a closed
+/// incident takes it too and stays closed, and an incident's state never moves. Once the undo is done the rollback is spent: a further ask is refused (one undo for each
+/// rollback, and an undo is not undone).
+Method TestUndoRollbackAsked()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("undorb")
+	Set incident = ..Incident(owner, "resolved")
+	Set none = ..Ask(host, owner, incident, "undo_rollback", {})
+	Do $$$AssertEquals(none.Ok_"|"_none.Outcome_"|"_none.Message, "0|refused|There is no rollback of that setting to undo, so no request was raised.", "with no done rollback the ask is refused with NOTHINGTOUNDO")
+	Do $$$AssertEquals($Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0)_"|"_$Select($IsObject(host.Asks): host.Asks.%Size(), 1: 0), "0|0", "and no dry run is asked and nothing is raised")
+	Set change = "zzchangeref0000000001"
+	Set rollback = ..DoneRollback(owner, incident, change)
+	Set host.DryAnswer = ..Answer("5", {"item": "OrdersFromPartner", "field": "TargetConfigName", "before": "OrdersToWarehous", "after": "OrdersToWarehouse"})
+	Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set undo = host.RaiseRef
+	Set first = ..Ask(host, owner, incident, "undo_rollback", {})
+	Do $$$AssertEquals(first.Outcome_"|"_first.Ref, "raised|"_undo, "with a done rollback the undo is raised")
+	Do $$$AssertEquals(host.Asks.%Size(), 1, "one dry run is asked")
+	Set asked = {}.%FromJSON(host.Asks.%Get(0).parameters)
+	Do $$$AssertEquals(asked.change, change, "for the change of the rollback, which the kind filled in (the model gave no parameter)")
+	Set note = host.Sent.%Get(host.Sent.%Size() - 1)
+	Do $$$AssertEquals(note.catalogKey_"|"_note.slots, "incident.undoRollbackRequest|{""setting"":""TargetConfigName"",""target"":""OrdersFromPartner"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", "the notice is incident.undoRollbackRequest with the setting, the item and the two values")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident's state did not move")
+	// the request's row, as Approval.Raise would have made it
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, "pending", , {"Ref": (undo), "FixKind": "undo_rollback", "FixParameters": ({"change": (change)}.%ToJSON()), "FixTargets": "5", "ResultTarget": "IncidentManager"})
+	Set ..Refs = ..Refs_","_request
+	Set again = ..Ask(host, owner, incident, "undo_rollback", {})
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "0|already_asked", "asking again while the undo waits is already_asked")
+	Do $$$AssertEquals(host.Raised.%Size()_"|"_host.Asks.%Size(), "1|1", "so there is exactly one undo request and one dry run")
+	// the incident closes: the undo is still askable, and the incident stays closed
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(undo)
+	Set row.State = "cancelled"
+	Do $$$AssertStatusOK(row.%Save(), "the first undo is cancelled")
+	Kill row
+	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set stored.State = "closed"
+	Set stored.ClosedAt = ..T(-60)
+	Do $$$AssertStatusOK(stored.%Save(), "and the incident is closed")
+	Kill stored
+	Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set late = ..Ask(host, owner, incident, "undo_rollback", {})
+	Do $$$AssertEquals(late.Outcome_"|"_late.Ref, "raised|"_host.RaiseRef, "after the close the undo is still raised")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "closed", "and the incident stays closed")
+	// a rollback is undone once
+	Set spent = ..DoneRollback(owner, incident, change, "undo_rollback")
+	Set done = ..Ask(host, owner, incident, "undo_rollback", {})
+	Do $$$AssertEquals(done.Outcome_"|"_done.Message, "refused|There is no rollback of that setting to undo, so no request was raised.", "once the undo is done the rollback is spent: a further ask is refused, and an undo is never itself undone")
+	// a kind that never moves the incident and is not askable on a closed one is not_found there
+	Set other = ..Ask(host, owner, incident, "suspend_item", {"item": "OrdersToWarehouse"})
+	Do $$$AssertEquals(other.Outcome, "not_found", "while any other fix kind is not_found on a closed incident")
 }
 
 /// Story 23.9 (AC3, AC4): the undo of a suspend that holds its incident is the owning session's. A resolved incident with a done suspend_item run (a real FixRun) takes the owner's resume ask as
@@ -331,10 +397,10 @@ ClassMethod T(seconds As %Integer) As %String
 	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), seconds)
 }
 
-/// A fixture incident of the owner in the state (noticed unless fields say otherwise) with a failure group of 3 orders at OrdersFromPartner; its Ref.
+/// A fixture incident of the owner in the state (noticed unless fields say otherwise) with a failure group of 3 orders at OrdersFromPartner, whose last failure is now, so that the quiet sweep of the heartbeat never closes it under the test; its Ref.
 Method Incident(owner As %String, state As %String, fields As %DynamicObject = "") As %String
 {
-	Set all = {"State": (state), "OpenVariant": "", "FirstAt": (..T(-7200)), "LastAt": (..T(-3600)), "Count": 3, "NoticeCount": 3, "ItemNoun": (..#NOUN), "Cause": "The partner changed the date format.", "FixSummary": "repair the date and resend the orders"}
+	Set all = {"State": (state), "OpenVariant": "", "FirstAt": (..T(-7200)), "LastAt": (..T(0)), "Count": 3, "NoticeCount": 3, "ItemNoun": (..#NOUN), "Cause": "The partner changed the date format.", "FixSummary": "repair the date and resend the orders"}
 	If $IsObject(fields) {
 		Set iterator = fields.%GetIterator()
 		While iterator.%GetNext(.name, .value) {
@@ -356,8 +422,10 @@ Method Incident(owner As %String, state As %String, fields As %DynamicObject = "
 	Set group.Count = 3
 	Set group.NoticeCount = 3
 	Set group.FirstAt = ..T(-7200)
-	Set group.LastAt = ..T(-3600)
+	Set group.LastAt = ..T(0)
 	$$$ThrowOnError(group.%Save())
+	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Settle).Quiet(stored.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), ##class(OcuTalon.Watch.IncidentManager).#QUIETSECONDS), 0, "the fixture incident is not quiet, so no heartbeat closes it under the test")
 	Quit ref
 }
 

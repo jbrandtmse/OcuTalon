@@ -56,6 +56,16 @@ Property Groups As list Of OcuTalon.Live.Payload.Part.IncidentGroup(%JSONFIELDNA
 /// The incident's approval requests.
 Property Requests As list Of OcuTalon.Live.Payload.Part.IncidentRequest(%JSONFIELDNAME = "requests");
 
+/// The setting change that the diagnosis named as the cause, and the whole minutes from it to the first failure (Story 23.3); both are absent when it named none, and on the
+/// online demo.
+Property SettingChange As OcuTalon.Live.Payload.Part.SettingChange(%JSONFIELDNAME = "settingChange");
+
+Property GapMinutes As %Integer(%JSONFIELDNAME = "gapMinutes");
+
+/// The page that the incident's first notice sent (Story 23.4): state, when it was sent, and the first acknowledgement's time and channel. Absent when the incident was not paged
+/// and on the online demo; it names no person.
+Property Page As OcuTalon.Live.Payload.Part.Page(%JSONFIELDNAME = "page");
+
 /// The evidence behind the diagnosis.
 Property Evidence As OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME = "evidence");
 
@@ -72,8 +82,9 @@ Property TraceTargets As OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFI
 ///     last two in the watched namespace; each is left out when its id is empty;
 ///   - requests: one {ref, state, result} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result is the stored
 ///     result of the request's run (Data.FixRun OfRequest: total, resent, completed, failedAgain, skipped, unreached (absent unless the resend stopped partway), interrupted and reason) once that run has ended
-///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended.
-/// A row without any of them gives a payload without the four fields.
+///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended;
+///   - page (Story 23.4): {state, pagedAt, acknowledgedAt, channel} from the incident's Page rows (Data.Page OfIncident), absent when it has none and on the online demo.
+/// A row without any of them gives a payload without the five fields.
 ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Incident
 {
 	Set payload = ..%New()
@@ -102,8 +113,43 @@ ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Inci
 			Set payload.ItemNoun = ""
 		}
 	}
+	Do ..Change(payload, row)
+	Do ..Paged(payload, row)
 	Do ..Details(payload, row)
 	Quit payload
+}
+
+/// Fills page from the incident's Page rows, by object access only (Watch.Paging.PagePayload); it stays empty when the incident has none and on the online demo.
+ClassMethod Paged(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Data.Incident) [ Private ]
+{
+	Set page = ##class(OcuTalon.Watch.Paging).PagePayload(row.Ref)
+	If '$IsObject(page) Quit
+	Set part = ##class(OcuTalon.Live.Payload.Part.Page).%New()
+	Set part.State = page.state
+	Set part.PagedAt = page.pagedAt
+	Set part.AcknowledgedAt = page.acknowledgedAt
+	Set part.Channel = page.channel
+	Set payload.Page = part
+}
+
+/// Fills settingChange and gapMinutes from the SettingChange row that the incident names (Incident SettingChangeRef), by object access only; both stay empty when it names none
+/// or the row is gone. The values of a secret are blank in the row.
+ClassMethod Change(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Data.Incident) [ Private ]
+{
+	If row.SettingChangeRef = "" Quit
+	Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(row.SettingChangeRef)
+	If '$IsObject(change) Quit
+	Set part = ##class(OcuTalon.Live.Payload.Part.SettingChange).%New()
+	Set part.Item = change.Item
+	Set part.Target = change.Target
+	Set part.Setting = change.Setting
+	Set part.OldValue = change.OldValue
+	Set part.NewValue = change.NewValue
+	Set part.Credential = +change.Credential
+	Set part.DetectedAt = change.DetectedAt
+	Set payload.SettingChange = part
+	Set minutes = ##class(OcuTalon.Watch.SettingCause).GapMinutes(change.DetectedAt, row.FirstAt)
+	If minutes '= "" Set payload.GapMinutes = minutes
 }
 
 /// Fills groups, evidence, traceTargets and requests of the payload from the rows of the incident (see FromRow).
@@ -161,11 +207,15 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 }
 
 /// Fills the item and the count of a request part for the fix kinds the user asks for in the chat: the item of a suspend or resume, the target item of a reroute and the
-/// count of its dry run. Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
+/// count of its dry run, and the item of a setting kind's dry run (Story 23.3). Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
 ClassMethod Chosen(part As OcuTalon.Live.Payload.Part.IncidentRequest, request As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 {
-	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute"), request.FixKind) Quit
+	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute", "rollback_setting", "undo_rollback"), request.FixKind) Quit
 	Try {
+		If (request.FixKind = "rollback_setting") || (request.FixKind = "undo_rollback") {
+			Set part.Item = {}.%FromJSON(request.DryRun).%Get("item")
+			Quit
+		}
 		Set parameters = {}.%FromJSON(request.FixParameters)
 		Set part.Item = $Select(request.FixKind = "reroute": parameters.%Get("target"), 1: parameters.%Get("item"))
 		If request.FixKind = "reroute" Set part.Count = {}.%FromJSON(request.DryRun).%Get("affected")

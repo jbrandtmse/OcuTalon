@@ -48,9 +48,9 @@ function catalogText(key) {
 }
 
 describe('the section in the page\'s navigation', () => {
-  it('is the ninth section, last, with the slug mcp', () => {
-    assert.equal(shownSections(false).length, 9);
-    assert.deepEqual(shownSections(false)[8], { slug: 'mcp', label: 'Tools and MCP servers' });
+  it('is the last section before Roles, with the slug mcp', () => {
+    assert.equal(shownSections(false).length, 10);
+    assert.deepEqual(shownSections(false)[9], { slug: 'mcp', label: 'Tools and MCP servers' });
     assert.equal(SETTINGS_TEXTS.sections.mcp, 'Tools and MCP servers');
   });
 });

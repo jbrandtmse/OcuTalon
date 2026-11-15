@@ -1,0 +1,13 @@
+{
+  "name": "orders-target-to-review",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three good orders from the simulated partner fail at OrdersForReview, a few seconds after the Host setting TargetConfigName of OrdersFromPartner changed from OrdersToWarehouse to OrdersForReview, an item that takes only partner orders. The case is right only for a setting change at TargetConfigName with no fix, because the change is not on the item that failed (Story 23.3).",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "setting_change",
+    "elementAtFault": "TargetConfigName",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

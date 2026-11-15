@@ -308,6 +308,8 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 		If request.%IsA("OcuTalon.Bridge.Msg.ApprovalOutcome") Quit ..Outcome(request)
 		If request.%IsA("OcuTalon.Fix.Msg.FixResult") Quit ..Result(request)
 		If request.%IsA("OcuTalon.Eval.Msg.IncidentCase") Quit ..EvalCase(request)
+		If request.%IsA("OcuTalon.Msg.Command.AckPage") Quit ..Acknowledged(request, .response)
+		If request.%IsA("OcuTalon.Msg.Escalation") Quit ..Escalated(request)
 	}
 	Quit $SYSTEM.Status.Error(5001, "IncidentManager does not handle a request of the class '"_$Select($IsObject(request): $ClassName(request), 1: "none")_"'")
 }
@@ -625,7 +627,7 @@ Method AskLater(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 	For i = 1:1:$Length(incident.RequestRefs, ",") {
 		Set ref = $Piece(incident.RequestRefs, ",", i)
 		Set found = $Select(ref = "": "", 1: ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref))
-		If '$IsObject(found) || (found.IncidentRef '= incident.Ref) || (found.FixKind = "") || '##class(OcuTalon.Fix.Kind).Diagnosed(found.FixKind) Continue
+		If '$IsObject(found) || (found.IncidentRef '= incident.Ref) || (found.FixKind = "") || '##class(OcuTalon.Fix.Kind).Diagnosed(found.FixKind) || ($Parameter(##class(OcuTalon.Fix.Kind).ForName(found.FixKind), "TARGETTYPE") '= "message") Continue
 		Set request = found
 		Quit
 	}
@@ -792,6 +794,7 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 	Set incident.CauseCategory = ""
 	Set incident.Element = ""
 	Set incident.FixSummary = ""
+	Set incident.SettingChangeRef = ""
 	Set fix = ""
 	If 'answer.Fallback {
 		Set sc = $$$OK
@@ -802,6 +805,10 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 			Set incident.Element = diagnosis.elementAtFault
 			Set incident.FixSummary = diagnosis.fixSummary
 			Set fix = {"fixKind": (diagnosis.fixKind), "fixParameters": (diagnosis.fixParameters)}
+			If (diagnosis.causeCategory = ##class(OcuTalon.Watch.Notice).#SETTINGCATEGORY) && ##class(OcuTalon.Watch.SettingCause).Named(incident, diagnosis.elementAtFault, .named) {
+				Set incident.SettingChangeRef = named.ref
+				If ##class(OcuTalon.Watch.SettingCause).Offers(diagnosis.fixKind) Set fix = {"fixKind": (diagnosis.fixKind), "fixParameters": {"change": (named.ref)}}
+			}
 			If $IsObject(diagnosis.itemNoun) && (diagnosis.itemNoun.one '= "") && (diagnosis.itemNoun.other '= "") {
 				Set incident.ItemNoun = {"one": (diagnosis.itemNoun.one), "other": (diagnosis.itemNoun.other)}.%ToJSON()
 			}
@@ -851,7 +858,7 @@ Method Notice(ref As %String, fix As %DynamicObject = "") [ Private ]
 	Try {
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If '..Open(incident) Quit
-		Set key = ##class(OcuTalon.Watch.Notice).Key(incident)
+		Set key = ##class(OcuTalon.Watch.Notice).Key(incident, $Select($IsObject(fix): fix.fixKind, 1: ""))
 		If key = "" {
 			Do ..Propose(incident, fix)
 			Quit
@@ -1068,7 +1075,7 @@ Method Asked(command As OcuTalon.Msg.Command.ProposeFix, Output response As OcuT
 {
 	Set response = ""
 	Set incident = $Select(command.IncidentRef = "": "", 1: ##class(OcuTalon.Data.Incident).RefIndexOpen(command.IncidentRef))
-	If '$IsObject(incident) || (incident.State = ..#CLOSED) Quit ..Verdict(.response, 0, "not_found", ..#MESSAGENOTFOUND)
+	If '$IsObject(incident) || ((incident.State = ..#CLOSED) && '##class(OcuTalon.Fix.Kind).AskedClosed(##class(OcuTalon.Fix.Kind).ForName(command.FixKind))) Quit ..Verdict(.response, 0, "not_found", ..#MESSAGENOTFOUND)
 	Try {
 		Set recipients = ##class(OcuTalon.Data.Session).Recipients(incident.OwnerRef, incident.Ref, .sc)
 		If $$$ISERR(sc) {
@@ -1096,6 +1103,14 @@ Method Asked(command As OcuTalon.Msg.Command.ProposeFix, Output response As OcuT
 		}
 		If $Parameter(class, "DRAFTED") {
 			Set sc = ..AskedDraft(incident, command, class, parameters, .response)
+			Quit
+		}
+		Set sc = $ClassMethod(class, "AskedParameters", incident, .parameters)
+		If $$$ISERR(sc) {
+			Set reason = $ZStrip($SYSTEM.Status.GetOneErrorText(sc), "<>W")
+			If $Extract(reason, 1, 7) = "ERROR #" Set reason = $ZStrip($Piece(reason, ":", 2, *), "<W")
+			If $Extract(reason, *) = "." Set reason = $Extract(reason, 1, *-1)
+			Set sc = ..Verdict(.response, 0, "refused", reason_..#MESSAGEREFUSED, "", incident)
 			Quit
 		}
 		Set text = parameters.%ToJSON()
@@ -1395,6 +1410,8 @@ Method Deliver(incident As OcuTalon.Data.Incident, state As %String, variant As 
 	Set sc = ..Move(incident, state, variant, ..Notification(incident, ..#NOTICEKIND, key, slots, approvalRef))
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGNOTICE_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	} Else {
+		Do ..Page(incident, slots)
 	}
 	Quit sc
 }
@@ -1447,6 +1464,7 @@ Method Apply(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 	Set sc = ..Move(incident, to, variant, notification)
 	If $$$ISERR(sc) Quit sc
 	Set accepted = 1
+	If (to = ..#CLOSED) && (from '= ..#CLOSED) Do ..Unpage(incident)
 	If execute '= "" Do ..Execute(incident, $Select(execute = ##class(OcuTalon.Watch.Transitions).#OWN: own, 1: earliest))
 	Set resolves = (event = ##class(OcuTalon.Watch.Transitions).#FINISHED) && (to = ##class(OcuTalon.Watch.Transitions).#RESOLVED)
 	Set reopens = ((event = ##class(OcuTalon.Watch.Transitions).#REJECTED) || (event = ##class(OcuTalon.Watch.Transitions).#EXPIRED)) && (to = ..#OPEN)
@@ -1709,7 +1727,15 @@ Method ResultExtra(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Da
 	Set extra = {}
 	Try {
 		Set parameters = {}.%FromJSON(row.FixParameters)
-		If (parameters.%Get("item") '= "") || (parameters.%Get("target") '= "") {
+		If ##class(OcuTalon.Watch.SettingCause).IsSetting(parameters) {
+			Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(parameters.%Get("change"))
+			If $IsObject(change) {
+				Set extra = {}
+				Do extra.%Set("setting", change.Setting, "string")
+				Do extra.%Set("target", change.Item, "string")
+				Do extra.%Set("after", {}.%FromJSON(row.DryRun).%Get("after"), "string")
+			}
+		} ElseIf (parameters.%Get("item") '= "") || (parameters.%Get("target") '= "") {
 			Set extra = {"item": (parameters.%Get("item")), "production": (##class(OcuTalon.Fix.Kind).ProductionName(incident)), "to": (parameters.%Get("target"))}
 		}
 	} Catch {
@@ -1742,7 +1768,7 @@ Method Event(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 /// at once (Execute), after the notification. A move that cannot be saved is the error status.
 Method Aside(incident As OcuTalon.Data.Incident, event As %String, own As %String, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
 {
-	If incident.State = ..#CLOSED Quit ..Closed(incident, event, own, notification)
+	If (incident.State = ..#CLOSED) && ('..Owns(incident, own, .row) || '##class(OcuTalon.Fix.Kind).AskedClosed(##class(OcuTalon.Fix.Kind).ForName(row.FixKind))) Quit ..Closed(incident, event, own, notification)
 	Set sc = ..Move(incident, incident.State, incident.OpenVariant, notification)
 	If $$$ISERR(sc) Quit sc
 	If event = ..#APPROVED Do ..Execute(incident, own)
@@ -1825,6 +1851,8 @@ ClassMethod PurgeOne(id As %String, cutoff As %String) As %Status [ Private ]
 			}
 			Set runs = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", incident.Ref)
 			If runs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The fix runs of the incident "_incident.Ref_" could not be deleted: "_runs.%Message))
+			Set pages = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE IncidentRef = ?", incident.Ref)
+			If pages.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The pages of the incident "_incident.Ref_" could not be deleted: "_pages.%Message))
 			$$$ThrowOnError(##class(OcuTalon.Data.Incident).%DeleteId(id))
 		}
 		TCOMMIT
@@ -1977,6 +2005,134 @@ Method EvalDeliver(case As OcuTalon.Eval.Msg.IncidentCase, decision As OcuTalon.
 Method SendEval(decision As OcuTalon.Msg.ItemDecision) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#EVALSINK, decision, 0)
+}
+
+/// Pages the on-call person for the incident's first notice (Story 23.4; AD-15; Watch.Paging decides and records): the page's Notification goes through SendNotice, the escalation
+/// timer is asked for with SendCommand (its Ref, when the answer has one, is recorded on the page), the action is audited and the incident event is published again so that its
+/// page member shows. Each step that fails logs one Type 3 warning (the incident's Ref and the step, never an on-call value); the notice, the row and the other steps stand.
+Method Page(incident As OcuTalon.Data.Incident, slots As %DynamicObject) [ Private ]
+{
+	Try {
+		Set ref = ##class(OcuTalon.Watch.Paging).Notice(incident, slots, .notice, .delay)
+		If ref = "" Quit
+		Do ..Paged(incident, ref, notice, ##class(OcuTalon.Watch.Paging).#AUDITPAGE)
+		If delay > 0 Do ..Arm(incident, ref, delay)
+		Do ..Tell(incident, ..#INCIDENTEVENT, ##class(OcuTalon.Live.Payload.Incident).FromRow(incident))
+	} Catch exception {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGPAGE_incident.Ref_": "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
+	}
+}
+
+/// Sends the page's Notification and audits it, each failure one Type 3 warning: the page row stands whether or not the send did.
+Method Paged(incident As OcuTalon.Data.Incident, ref As %String, notice As OcuTalon.Msg.Notification, action As %String) [ Private ]
+{
+	Set sc = ..SendNotice(notice)
+	If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGPAGE_incident.Ref_": the page was not sent ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
+	Set sc = ##class(OcuTalon.Watch.Paging).Audit(action, ref, $Select($$$ISOK(sc): "sent", 1: "not_sent"))
+	If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGPAGE_incident.Ref_": the page was not audited ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
+}
+
+/// Asks for the escalation timer of the page, from origin system, and records its Ref on the page when the answer has one (an answer with none, as ReminderOps gives until Story 24.3,
+/// records none). A failed ask logs one Type 3 warning.
+Method Arm(incident As OcuTalon.Data.Incident, ref As %String, delay As %Integer) [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
+	Set command.Kind = "escalation"
+	Set command.IncidentRef = incident.Ref
+	Set command.PageRef = ref
+	Set command.DelaySeconds = delay
+	Set sc = ..SendCommand(command, "system", .result)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGPAGE_incident.Ref_": the escalation was not asked for ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
+		Quit
+	}
+	If $IsObject(result) && result.Ok && (result.Ref '= "") {
+		Set sc = ##class(OcuTalon.Watch.Paging).Armed(ref, result.Ref)
+		If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGPAGE_incident.Ref_": the escalation's Ref was not recorded ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
+	}
+}
+
+/// Submits a command from the origin (system for paging), through the one way in (AD-1), and waits for its answer (a seam for the tests).
+Method SendCommand(command As OcuTalon.Msg.Command, origin As %String, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, origin, .result)
+}
+
+/// An escalation message that fell due: pages the backup once while the on-call page is unacknowledged and the incident is open (Watch.Paging.Escalate re-reads the rows),
+/// and publishes the incident again. It answers nothing, and an error is one Type 3 warning, never an error status.
+Method Escalated(message As OcuTalon.Msg.Escalation) As %Status [ Private ]
+{
+	Try {
+		Set ref = ##class(OcuTalon.Watch.Paging).Escalate(message, .notice)
+		If ref '= "" {
+			Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(message.IncidentRef)
+			Do ..Paged(incident, ref, notice, ##class(OcuTalon.Watch.Paging).#AUDITPAGE)
+			If incident.NoticedAt '= "" Do ..Tell(incident, ..#INCIDENTEVENT, ##class(OcuTalon.Live.Payload.Incident).FromRow(incident))
+		}
+	} Catch exception {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGESCALATE_message.IncidentRef_": "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
+	}
+	Quit $$$OK
+}
+
+/// An AckPage command (Story 23.4): Watch.Paging records the acknowledgement and answers handled, already_handled or not_found, which is the CommandResult. A first
+/// acknowledgement then cancels the page's escalation timer, sends one handled Notification to the page's session, audits it and publishes the incident again.
+Method Acknowledged(command As OcuTalon.Msg.Command.AckPage, Output response As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Set response = ""
+	Try {
+		Set answer = ##class(OcuTalon.Watch.Paging).Acknowledge(command)
+		If answer.page '= "" Do ..Followed(answer.page, command)
+		Return ..Verdict(.response, answer.ok, answer.outcome, answer.message)
+	} Catch exception {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGACK_command.Ref_": "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
+		Return ..Verdict(.response, 0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+}
+
+/// What follows a first acknowledgement of the page: the escalation timer is cancelled (when the page has one and it has not fired: the backup has no page yet), the handled
+/// Notification goes to the session, the action is audited with the acknowledging session and the incident event is published again. Each failure, an exception included, is
+/// one Type 3 warning; the acknowledgement stands and Acknowledged still answers handled.
+Method Followed(ref As %String, command As OcuTalon.Msg.Command.AckPage) [ Private ]
+{
+	Try {
+		Set page = ##class(OcuTalon.Data.Page).RefIndexOpen(ref)
+		If '$IsObject(page) Quit
+		If (page.EscalationRef '= "") && '##class(OcuTalon.Data.Page).IncidentRoleIndexExists(page.IncidentRef, ##class(OcuTalon.Watch.Paging).#BACKUP) Do ..Cancel(page.IncidentRef, page.EscalationRef)
+		Set sc = ..SendNotice(##class(OcuTalon.Watch.Paging).Handled(page, command.SessionRef))
+		If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGACK_page.IncidentRef_": the handled notice was not sent ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
+		Set sc = ##class(OcuTalon.Watch.Paging).Audit(##class(OcuTalon.Watch.Paging).#AUDITACK, ref, "acknowledged", command.Channel, command.SessionRef)
+		If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGACK_page.IncidentRef_": the acknowledgement was not audited ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(page.IncidentRef)
+		If $IsObject(incident) && (incident.NoticedAt '= "") Do ..Tell(incident, ..#INCIDENTEVENT, ##class(OcuTalon.Live.Payload.Incident).FromRow(incident))
+	} Catch exception {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGACK_ref_": "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
+	}
+}
+
+/// Cancels the escalation timers of the closed incident's unacknowledged pages, from origin system. A failed cancel is one Type 3 warning, and a later Escalation changes nothing.
+Method Unpage(incident As OcuTalon.Data.Incident) [ Private ]
+{
+	Try {
+		Set refs = ##class(OcuTalon.Watch.Paging).Closing(incident)
+		Set position = 0
+		While $ListNext(refs, position, ref) {
+			Do ..Cancel(incident.Ref, ref)
+		}
+	} Catch exception {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGUNPAGE_incident.Ref_": "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
+	}
+}
+
+/// Asks ReminderOps to cancel the escalation timer, from origin system; a refusal or a failure is one Type 3 warning.
+Method Cancel(incidentRef As %String, reminderRef As %String) [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
+	Set command.ReminderRef = reminderRef
+	Set sc = ..SendCommand(command, "system", .result)
+	If $$$ISERR(sc) || '$IsObject(result) || 'result.Ok {
+		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGUNPAGE_incidentRef_": the cancel was not done ("_$Select($$$ISERR(sc): $SYSTEM.Status.GetErrorCodes(sc), $IsObject(result): result.Outcome, 1: "no answer")_")")
+	}
 }
 
 Storage Default

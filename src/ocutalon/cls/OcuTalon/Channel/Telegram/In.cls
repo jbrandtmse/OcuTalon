@@ -49,6 +49,7 @@ Include Ensemble
 ///     session), the Ref is a reference, the paired session has a telegram Delivery row for that Ref (Ownership.DeliveryByRef), and the chat of that row's
 ///     message id is the pressing chat. Any other press submits nothing. Every Got it press is answered with answerCallbackQuery and no text, so the
 ///     press adds no text of its own; a failed Submit is one warning.
+///     When that Delivery row is of the kind page (Story 23.4), the press submits Msg.Command.AckPage {Ref, Channel telegram, SessionRef} instead, under the same checks.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
 ///     A refusal queues nothing and calls no model: with a retryAt, and on the first refusal of the window only, Notify gets the
@@ -437,6 +438,14 @@ Method GotIt(chatRef As %String, decisionRef As %String) [ Private ]
 	If '$IsObject(chat) || (chat.SessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(decisionRef) || '##class(OcuTalon.Bridge.Approval).IsRef(chat.SessionRef) Quit
 	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(decisionRef, ..#CHANNEL, chat.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) || ($Piece(row.ChannelMessageId, ":", 1) '= chatRef) Quit
+	If row.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
+		Set page = ##class(OcuTalon.Msg.Command.AckPage).%New()
+		Set page.Ref = decisionRef
+		Set page.Channel = ..#CHANNEL
+		Set page.SessionRef = chat.SessionRef
+		Do ..Outcome(page, ..#LOGGOTIT)
+		Quit
+	}
 	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
 	Set command.Ref = decisionRef
 	Set command.Channel = ..#CHANNEL
@@ -478,6 +487,7 @@ Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObj
 		If $IsObject(dry) {
 			If dry.Item '= "" Do slots.%Set("item", dry.Item, "string")
 			If dry.To '= "" Do slots.%Set("to", dry.To, "string")
+			If dry.Field '= "" Do slots.%Set("setting", dry.Field, "string")
 		}
 	} Catch {
 	}
@@ -495,6 +505,9 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 		If (kind = "suspend_item") || (kind = "resume_item") {
 			If slots.%Get("item") = "" Quit ""
 			Set key = $Select(kind = "suspend_item": "press.approvedSuspend", 1: "press.approvedResume"), use = {"item": (slots.item)}
+		} ElseIf (kind = "rollback_setting") || (kind = "undo_rollback") {
+			If (slots.%Get("setting") = "") || (slots.%Get("item") = "") Quit ""
+			Set key = $Select(kind = "rollback_setting": "press.approvedRollback", 1: "press.approvedUndoRollback"), use = {"setting": (slots.setting), "target": (slots.item)}
 		} ElseIf kind = "reroute" {
 			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
 			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}

@@ -1091,7 +1091,7 @@ Banners stack in this table's order.
 | `settings.partnerBadName`, Settings > Partner contacts, field error | "Enter a name of 1 to 128 characters. Nothing was changed." |
 | `settings.partnerNoProduction`, Settings > Partner contacts, field error | "Choose at least one production. Nothing was changed." |
 | `settings.partnersOffOnDemo`, Settings > Partner contacts, the 409 `not_available` body | "Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install." |
-| `settings.sqlSection`, Settings nav label and heading, Story 24.2 | "SQL query watches" |
+| `settings.sqlSection`, Settings nav label and heading, Story 24.5 (split from 24.2, Contest Planner ~16:30Z Nov 15; every `settings.sql*` row below is 24.5's) | "SQL query watches" |
 | `settings.sqlHelp`, Settings > SQL query watches, help (Planner ruling 2026-11-12: replaces the wording that said the query runs as a user that can only read; that claim may be added only once Story 23.8's test proves the reader user is refused INSERT, UPDATE, DELETE and DDL) | "OcuTalon runs each query on its schedule and tells you when the result changes." |
 | `settings.sqlName`, Settings > SQL query watches, field label | "Name" |
 | `settings.sqlQuery`, Settings > SQL query watches, field label | "Query (one SELECT statement)" |

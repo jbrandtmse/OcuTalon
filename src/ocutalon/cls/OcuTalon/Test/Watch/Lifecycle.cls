@@ -109,7 +109,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	For i = 1:1:$Length(..Incidents, ",") {
-		If $Piece(..Incidents, ",", i) '= "" Do ..DropGroups($Piece(..Incidents, ",", i)), ..DropRuns($Piece(..Incidents, ",", i))
+		If $Piece(..Incidents, ",", i) '= "" Do ..DropGroups($Piece(..Incidents, ",", i)), ..DropRuns($Piece(..Incidents, ",", i)), ..DropPages($Piece(..Incidents, ",", i))
 	}
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
@@ -1100,6 +1100,7 @@ Method TestPurge()
 	Do ..Group(closing, 2)
 	Do ..Run(closing)
 	Do ..Run(closing)
+	Do ..PageRows(closing)
 	Do ..Command(host, "closeForReplay", closing, "")
 	Set closedAt = ..Row(closing).closedAt
 	Do $$$AssertTrue(closedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "a close sets ClosedAt: "_closedAt)
@@ -1113,16 +1114,19 @@ Method TestPurge()
 	Set young89 = ..Incident(a, "closed", {"ClosedAt": (young)})
 	Do ..Group(young89, 1)
 	Do ..Run(young89)
+	Do ..PageRows(young89)
 	Set openOld = ..Incident(a, "open", {"FirstAt": (old), "LastAt": (old)})
 	Do ..Group(openOld, 1)
+	Do ..PageRows(openOld)
 	Set noClosedAt = ..Incident(a, "closed", {"FirstAt": (old), "LastAt": (old)})
 	Do ..Group(noClosedAt, 1)
 	Set fixing = ..Incident(a, "fixing", {"FirstAt": (old), "LastAt": (old)})
 	Do ..Group(fixing, 1)
 
 	Do $$$AssertStatusOK(##class(OcuTalon.Watch.IncidentManager).Purge(90), "Purge(90) is OK")
-	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing)_"|"_..Runs(closing), "0|0|0", "the incident closed 91 days ago, its two groups and its two fix runs are gone")
-	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89)_"|"_..Runs(young89), "1|1|1", "the one closed 89 days ago stays, with its group and its fix run")
+	Do $$$AssertEquals(..Exists(closing)_"|"_..Groups(closing)_"|"_..Runs(closing)_"|"_..PageCount(closing), "0|0|0|0", "the incident closed 91 days ago, its two groups, its two fix runs and its two page rows are gone")
+	Do $$$AssertEquals(..Exists(young89)_"|"_..Groups(young89)_"|"_..Runs(young89)_"|"_..PageCount(young89), "1|1|1|2", "the one closed 89 days ago stays, with its group, its fix run and its page rows")
+	Do $$$AssertEquals(..PageCount(openOld), 2, "and so do the page rows of an old open incident")
 	Do $$$AssertEquals(..Exists(closing), 0, "the summarized incident's row, and so its summary, is gone")
 	Do $$$AssertTrue(##class(OcuTalon.Data.Incident).RefIndexOpen(kept).Summary [ "summary.title", "a summarized incident closed 89 days ago keeps its summary")
 	Do $$$AssertEquals(..Exists(openOld)_"|"_..Groups(openOld), "1|1", "an old open incident stays")
@@ -1467,6 +1471,34 @@ Method Group(incident As %String, seq As %Integer, seen As %String = "", askedFr
 	Set group.FirstAt = "2030-01-01T09:00:00Z"
 	Set group.LastAt = "2030-01-01T09:30:00Z"
 	Do $$$AssertStatusOK(group.%Save(), "a group of the incident is saved")
+}
+
+/// Two page rows of the incident, the on-call page and the backup's.
+Method PageRows(incident As %String)
+{
+	For role = "oncall", "backup" {
+		Set page = ##class(OcuTalon.Data.Page).%New()
+		Set page.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set page.IncidentRef = incident
+		Set page.Role = role
+		Set page.Person = "zzlife"_..Number
+		Set page.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
+		Do $$$AssertStatusOK(page.%Save(), "the "_role_" page of the incident is saved")
+	}
+}
+
+/// The number of page rows of the incident.
+ClassMethod PageCount(incident As %String) As %Integer
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Page WHERE IncidentRef = ?", incident)
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// Deletes the page rows of the incident.
+ClassMethod DropPages(incident As %String)
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE IncidentRef = ?", incident)
 }
 
 /// Deletes the failure groups of the incident.

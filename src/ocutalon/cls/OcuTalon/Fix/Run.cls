@@ -122,6 +122,31 @@ ClassMethod Suspended(namespace As %String, production As %String, since As %Str
 	Quit names
 }
 
+/// The Ref of the SettingChange of the incident's rollback that is still to undo (Story 23.3; AD-16): the newest done rollback_setting request of the incident that changed its setting
+/// (its run's Completed is above 0), when no done undo_rollback that changed a setting comes after it; "" when there is none. A done undo ends the rollback it undid, so each rollback has
+/// one undo and an undo is never itself undone. It reads the rows by SQL and writes nothing.
+ClassMethod RolledBack(incidentRef As %String) As %String
+{
+	If $Get(incidentRef) = "" Quit ""
+	Set rollback = $Parameter("OcuTalon.Fix.Kind.RollbackSetting", "NAME")
+	Set undo = $Parameter("OcuTalon.Fix.Kind.UndoRollback", "NAME")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT a.FixKind, a.FixParameters FROM OcuTalon_Data.FixRun r JOIN OcuTalon_Bridge_Data.ApprovalRequest a ON a.Ref = r.ApprovalRef WHERE r.IncidentRef = ? AND a.State = 'done' AND r.Completed > 0 AND a.FixKind IN (?, ?) ORDER BY r.ID", incidentRef, rollback, undo)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, rs.%Message))
+	Set pending = ""
+	While rs.%Next() {
+		If rs.%GetData(1) = undo {
+			Set pending = ""
+			Continue
+		}
+		Try {
+			Set pending = {}.%FromJSON(rs.%GetData(2)).change
+		} Catch {
+			Set pending = ""
+		}
+	}
+	Quit pending
+}
+
 /// 1 when the incident holds a suspend: it is the holder (see the class description) of an item of its namespace and production. Reads through Suspended and writes nothing.
 ClassMethod Holds(incident As OcuTalon.Data.Incident) As %Boolean
 {

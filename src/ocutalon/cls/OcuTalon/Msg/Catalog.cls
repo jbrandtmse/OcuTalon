@@ -7,6 +7,10 @@
 /// and its text holds {name} placeholders for exactly its declared slots. The slot types:
 ///   time           UTC YYYY-MM-DDThh:mm:ssZ, shown through Data.Time.ForMessage, with " ET" on the online demo;
 ///   count          a JSON integer of 0 or more, as digits;
+///   minutes        a JSON integer of 0 or more, as a length of time in a sentence (Story 23.3): 0 is "less than a minute", 1 is "one minute", 2 to 9 are "two minutes" to
+///                  "nine minutes", and 10 or more is digits with a thousands separator and "minutes", as in "12 minutes" and "1,212 minutes";
+///   cause          a string, rendered as a sentence, or an object {setting, target, time, minutes}, rendered through the text of incident.settingChangeCause as
+///                  fallbackReason renders its entry (Story 23.3);
 ///   noun           {"one": ..., "other": ...}, the form for the entry's count slot: one when it is 1, else other;
 ///   text           a string written by code;
 ///   sentence       a plain sentence written by the model, with no time;
@@ -174,6 +178,16 @@ ClassMethod SlotText(context As %String, name As %String, types As %DynamicObjec
 		Quit formatted_$Select(onlineDemo: " ET", 1: "")
 	}
 	If type = "count" Quit ..Count(context, name, values)
+	If type = "minutes" Quit ..Minutes(context, name, values)
+	If type = "cause" {
+		If values.%GetTypeOf(name) = "object" {
+			Set entry = ..Find("incident.settingChangeCause")
+			Set inner = ..Fill(context_", slot '"_name_"'", entry.text, entry.slots, values.%Get(name), now, onlineDemo)
+			If (following = ".") && ($Extract(inner, $Length(inner)) = ".") Set inner = $Extract(inner, 1, $Length(inner) - 1)
+			Quit inner
+		}
+		Set type = "sentence"
+	}
 	If (type = "text") || (type = "sentence") {
 		Set value = ..Clean(..Value(context, name, values, "string"))
 		If value = "" Do ..Fail(context_": the slot '"_name_"' is empty")
@@ -344,6 +358,16 @@ ClassMethod Amount(context As %String, name As %String, values As %DynamicObject
 	Set value = ..Value(context, name, values, "number")
 	If value < 0 Do ..Fail(context_": the slot '"_name_"' is a negative amount")
 	Quit value
+}
+
+/// The slot as a length of time in minutes, by the minutes rule (see the class description).
+ClassMethod Minutes(context As %String, name As %String, values As %DynamicObject) As %String [ Private ]
+{
+	Set value = ..Count(context, name, values)
+	If value = 0 Quit "less than a minute"
+	If value = 1 Quit "one minute"
+	If value < 10 Quit $Piece("two,three,four,five,six,seven,eight,nine", ",", value - 1)_" minutes"
+	Quit $FNumber(value, ",", 0)_" minutes"
 }
 
 /// The slot as a whole number of 0 or more.

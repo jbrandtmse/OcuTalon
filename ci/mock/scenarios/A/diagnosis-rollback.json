@@ -1,0 +1,12 @@
+{
+  "name": "diagnosis-rollback",
+  "match": {
+    "marker": "diagnosis-rollback"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"causeCategory\":\"setting_change\",\"elementAtFault\":\"ZzFixtureNote\",\"evidence\":[\"settingChanges\",\"ZzFixtureNote\"],\"fixKind\":\"rollback_setting\",\"cause\":\"A setting of the failing item was changed just before the failures began, so the item no longer behaves as it did.\",\"fixSummary\":\"\",\"itemNoun\":{\"one\":\"order\",\"other\":\"orders\"},\"reasons\":[\"The evidence pack lists a change of ZzFixtureNote on the failing item shortly before the first failure.\"],\"confidence\":0.8}"
+    }
+  ]
+}

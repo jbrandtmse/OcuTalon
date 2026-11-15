@@ -102,6 +102,9 @@ Parameter FIXABLE = "open,resolved";
 
 Parameter WARNABLE = "open,awaiting_approval,fixing,resolved";
 
+/// The answer of propose_fix for undo_rollback when no incident of the session has a rollback to undo (outcome nothing; text for the model).
+Parameter NOROLLBACK = "There is no rollback to undo, so no request was raised.";
+
 /// The reason that propose_fix gives for a partner_warning when the session has no incident that is not closed.
 Parameter NOWARNING = "There's no open incident to warn the partner about, so no delay notice was drafted";
 
@@ -197,13 +200,21 @@ ClassMethod DismissIncident(production As %String(DESCRIPTION = "The name of the
 /// any incident that is not closed. It raises an approval request with a dry run and changes nothing until the user approves it. The answer has an outcome. raised: the request
 /// is raised; approvalRef says which, and the user sees it in the chat. drafting: for partner_warning, the notice is being drafted and will come as an approval request.
 /// already_asked: the same request is already waiting. refused: the message says why the fix can't be done. nothing: there is nothing to do, for example no failed message to
-/// reroute. ambiguous, unknown_incident and no_incident are as for dismiss_incident. Anything else: the message says why nothing was raised.
-ClassMethod ProposeFix(kind As %String(DESCRIPTION = "One of suspend_item, resume_item, reroute or partner_warning."), item As %String(DESCRIPTION = "The name of the production item to suspend or resume; for reroute, the name of the item to send the failed messages to. For partner_warning leave it out.") = "", production As %String(DESCRIPTION = "The name of the production the incident is about, exactly as the user gave it, such as Orders. Only when the user names one.") = "", incident As %String(DESCRIPTION = "Only when an earlier answer listed incidents and the user picked one: that incident's ref. Otherwise leave it out.") = "") As %DynamicObject
+/// reroute. ambiguous, unknown_incident and no_incident are as for dismiss_incident. undo_rollback (Story 23.3) puts back the value that OcuTalon's rollback of a setting replaced: it
+/// takes no item and works on the session's newest incident, open, resolved or closed, that has such a rollback; with none the outcome is nothing. Anything else: the message says why nothing was raised.
+ClassMethod ProposeFix(kind As %String(DESCRIPTION = "One of suspend_item, resume_item, reroute, partner_warning or undo_rollback."), item As %String(DESCRIPTION = "The name of the production item to suspend or resume; for reroute, the name of the item to send the failed messages to. For partner_warning leave it out.") = "", production As %String(DESCRIPTION = "The name of the production the incident is about, exactly as the user gave it, such as Orders. Only when the user names one.") = "", incident As %String(DESCRIPTION = "Only when an earlier answer listed incidents and the user picked one: that incident's ref. Otherwise leave it out.") = "") As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
 	If $IsObject(refusal) Quit ..Return(refusal)
 	Set warning = (kind = "partner_warning")
-	Set refusal = ##class(OcuTalon.Tools.WatchAnswers).ResolveIncident(production, incident, context.OwnerRef, .match, $Select(warning: ..#WARNABLE, 1: ..#FIXABLE))
+	Set class = ##class(OcuTalon.Fix.Kind).ForName(kind)
+	Set states = $Select((class '= "") && ($Parameter(class, "ASKEDSTATES") '= ""): $Parameter(class, "ASKEDSTATES"), warning: ..#WARNABLE, 1: ..#FIXABLE)
+	If kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME {
+		If '##class(OcuTalon.Tools.WatchAnswers).RolledBack(context.OwnerRef, states, .match) Quit ..Return({"ok": false, "outcome": "nothing", "message": (..#NOROLLBACK)})
+		Set refusal = ""
+	} Else {
+		Set refusal = ##class(OcuTalon.Tools.WatchAnswers).ResolveIncident(production, incident, context.OwnerRef, .match, states)
+	}
 	If $IsObject(refusal) {
 		If (kind = "reroute") && (refusal.outcome = "no_incident") Set refusal = {"ok": false, "outcome": "nothing", "message": (##class(OcuTalon.Watch.IncidentManager).#MESSAGENOTHING)}
 		If warning && (refusal.outcome = "no_incident") Set refusal = {"ok": false, "outcome": "refused", "message": (..#NOWARNING)}
@@ -212,7 +223,7 @@ ClassMethod ProposeFix(kind As %String(DESCRIPTION = "One of suspend_item, resum
 	Set command = ##class(OcuTalon.Msg.Command.ProposeFix).%New()
 	Set command.IncidentRef = match.ref
 	Set command.FixKind = kind
-	Set command.Parameters = $Select(warning && (item = ""): {}, kind = "reroute": {"target": (item)}, 1: {"item": (item)}).%ToJSON()
+	Set command.Parameters = $Select(warning && (item = ""): {}, kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: {}, kind = "reroute": {"target": (item)}, 1: {"item": (item)}).%ToJSON()
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Run(command, .result)
 	If $IsObject(refusal) Quit ..Return(refusal)
 	Set answer = ##class(OcuTalon.Tools.CommandCall).Answer(result)

@@ -20,7 +20,9 @@
 /// the send ({..., key, level, marks}), and the later waiter's seams are overridden for the same reason: Start (a waiter's Settle
 /// request) records {ref, sessionId} in Started and answers OK, or an error when FailStart is set; LaterAlarm records the seconds in Alarms. Wake(ref) is OnResponse with
 /// the later alarm's key, LaterDried(ref, ask, result) and LaterUndried(ref, error) are OnResponse and OnError with the later dry run's key. It is not an item of any
-/// production.
+/// production. Since Story 23.4 it overrides SendCommand the same way: it records each command in Commands and answers not_built, as ReminderOps does for an escalation until Story 24.3,
+/// or Ok 1 with the fixture Ref ZzProbeEscalation0001 when CommandOk is set, or an error when FailCommand is set. SendNotice also throws an exception, after it recorded the Notification, when
+/// ThrowNotice is set.
 Class OcuTalon.Test.Watch.IncidentProbe Extends OcuTalon.Watch.IncidentManager
 {
 
@@ -71,6 +73,19 @@ Property FailRaise As %Boolean [ InitialExpression = 0, Transient ];
 
 /// The Ref that RaiseRequest answers; empty for the fixture Ref.
 Property RaiseRef As %String(MAXLEN = 22) [ Transient ];
+
+/// The commands that SendCommand recorded, in order, each {class, kind, incidentRef, pageRef, delaySeconds, reminderRef, origin}: origin is the one the caller passed to SendCommand.
+Property Commands As %DynamicArray [ Transient ];
+
+/// 1 to make SendCommand answer Ok 1 with the Ref ZzProbeEscalation0001 (the escalation timer that Story 24.3's ReminderOps will answer with); 0 for the answer that ReminderOps gives
+/// until then: Ok 0, outcome not_built, no Ref.
+Property CommandOk As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 1 to make SendCommand answer an error (after it recorded the command).
+Property FailCommand As %Boolean [ InitialExpression = 0, Transient ];
+
+/// 1 to make SendNotice throw an exception (after it recorded the Notification).
+Property ThrowNotice As %Boolean [ InitialExpression = 0, Transient ];
 
 /// The Refs that CancelRequest recorded, in order.
 Property Cancelled As %DynamicArray [ Transient ];
@@ -280,11 +295,33 @@ Method QuietNow() As %String [ Private ]
 	Quit ##super()
 }
 
+/// Records the command instead of submitting it, and answers as CommandOk says (see the Commands, CommandOk and FailCommand properties).
+Method SendCommand(command As OcuTalon.Msg.Command, origin As %String, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	If '$IsObject(..Commands) Set ..Commands = []
+	Set entry = {"class": ($ClassName(command)), "origin": (origin)}
+	If command.%IsA("OcuTalon.Msg.Command.SetReminder") {
+		Set entry.kind = command.Kind
+		Set entry.incidentRef = command.IncidentRef
+		Set entry.pageRef = command.PageRef
+		Set entry.delaySeconds = command.DelaySeconds
+	}
+	If command.%IsA("OcuTalon.Msg.Command.CancelReminder") Set entry.reminderRef = command.ReminderRef
+	Do ..Commands.%Push(entry)
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set result.Ok = ..CommandOk
+	Set result.Outcome = $Select(..CommandOk: "set", 1: "not_built")
+	Set result.Ref = $Select(..CommandOk && command.%IsA("OcuTalon.Msg.Command.SetReminder"): "ZzProbeEscalation0001", 1: "")
+	If ..FailCommand Quit $SYSTEM.Status.Error(5001, "The command is refused")
+	Quit $$$OK
+}
+
 /// Records the Notification instead of sending it.
 Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
 {
 	If '$IsObject(..Sent) Set ..Sent = []
 	Do ..Sent.%Push({"sessionRef": (notification.SessionRef), "kind": (notification.Kind), "catalogKey": (notification.CatalogKey), "slots": (notification.Slots), "approvalRef": (notification.ApprovalRef), "incidentRef": (notification.IncidentRef), "decisionRef": (notification.DecisionRef)})
+	If ..ThrowNotice Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "The send is refused with an exception"))
 	If $ListFind($ListFromString(..FailFor), notification.SessionRef) Quit $SYSTEM.Status.Error(5001, "The send to "_notification.SessionRef_" is refused")
 	Quit $$$OK
 }

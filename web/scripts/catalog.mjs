@@ -39,7 +39,7 @@
 // the four answered.*By texts, the server of answered.canceled, the failReason of result.failedAgain and result.failedAndSkipped, the reason of
 // result.couldNotStart, and the item, production and to of result.itemSuspended, itemResumed, itemSkipped and rerouted. A sentence
 // slot (a plain sentence that the text follows with a full stop) is allowed for the keys of SENTENCE_SLOT_KEYS only, the reason of
-// result.itemSkipped and result.itemNotChanged; it renders as a text slot does, except that the full stop after it is not doubled
+// result.itemSkipped and result.itemNotChanged, and the production's error in result.settingSavedNotApplied; it renders as a text slot does, except that the full stop after it is not doubled
 // when the sentence ends with one, and is left out when the sentence ends with "?", "!" or an ellipsis, as the server's renderer does.
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
@@ -119,6 +119,11 @@ export const LISTED_KEYS = [
   'result.itemSkipped',
   'result.itemNotChanged',
   'result.rerouted',
+  'result.settingRestored',
+  'result.settingChangedSince',
+  'result.rollbackUndone',
+  'result.settingSavedNotApplied',
+  'incident.settingChangeCause',
   'audit.recorded',
   'incident.eitherWayLine',
   'button.gotIt',
@@ -132,7 +137,7 @@ const LINE_START = 'becomes {after}. ';
 const LINE_END = " I'll resend";
 export const REASON_PREFIX = 'fallbackReason.';
 /** The slot types that every listed key may declare (a key of TEXT_SLOT_KEYS may also declare text, a key of SENTENCE_SLOT_KEYS sentence): a fallbackReason slot gives its reason text, a channel slot the channel's name, a noun slot the form of {one, other} that the count slot chooses, the others take the caller's formatted string. */
-const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun'];
+const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun', 'minutes'];
 /**
  * The keys that may also declare a text slot, which takes the caller's formatted string: the whatFailed that the page fills from
  * the check rows (DW-90), the user of the four answered.*By texts, the failReason of result.failedAgain and result.failedAndSkipped,
@@ -154,12 +159,17 @@ export const TEXT_SLOT_KEYS = [
   'result.itemResumed',
   'result.itemSkipped',
   'result.rerouted',
+  'result.settingRestored',
+  'result.settingChangedSince',
+  'result.rollbackUndone',
+  'result.settingSavedNotApplied',
+  'incident.settingChangeCause',
   'incident.eitherWayLine',
   'memory.learnedSaved',
 ];
 const TEXT_SLOT_TYPE = 'text';
 /** The keys that may also declare a sentence slot, a plain sentence that the text follows with a full stop: the reason of the two result texts that say why an item was not changed. */
-export const SENTENCE_SLOT_KEYS = ['result.itemSkipped', 'result.itemNotChanged'];
+export const SENTENCE_SLOT_KEYS = ['result.itemSkipped', 'result.itemNotChanged', 'result.settingSavedNotApplied'];
 const SENTENCE_SLOT_TYPE = 'sentence';
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */
 const REASON_SLOT_TYPE = 'fallbackReason';
@@ -375,11 +385,23 @@ function nounText(value: unknown, slots: PageSlots): string {
   return cleanSlot(cleanSlot(Object.hasOwn(slots, 'count') ? slots['count'] : undefined) === '1' ? forms['one'] : forms['other']);
 }
 
-/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, a noun slot its form, the others the cleaned string. */
+/** A length of time in minutes as a sentence reads it (the minutes slot type, Story 23.3): 0 is "less than a minute", 1 is "one minute", 2 to 9 are "two minutes" to "nine minutes", and 10 or more is digits with a thousands separator ("12 minutes", "1,212 minutes"). A value that is missing, null or empty, or not a whole number of 0 or more, gives an empty string. */
+function minutesText(value: unknown): string {
+  const text = typeof value === 'number' ? String(value) : cleanSlot(value);
+  if (text === '') return '';
+  const count = Number(text);
+  if (!Number.isInteger(count) || count < 0) return '';
+  if (count === 0) return 'less than a minute';
+  if (count === 1) return 'one minute';
+  if (count < 10) return ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][count - 2] + ' minutes';
+  return count.toLocaleString('en-US') + ' minutes';
+}
+
+/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, a noun slot its form, a minutes slot its length of time, the others the cleaned string. */
 function slotText(types: Readonly<Record<string, string>>, name: string, slots: PageSlots): string {
   const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
   const type = Object.hasOwn(types, name) ? types[name] : '';
-  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : cleanSlot(value);
+  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : type === 'minutes' ? minutesText(value) : cleanSlot(value);
 }
 
 /** The text of a slot and the full stop that follows it in the template (empty when none does): a sentence slot never doubles the stop (a sentence that ends with one keeps that one), and a sentence that ends with "?", "!" or an ellipsis takes none. */

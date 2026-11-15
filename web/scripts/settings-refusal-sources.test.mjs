@@ -18,7 +18,7 @@ const file = (name) => {
   return found;
 };
 
-const SAVING = ['budgets', 'check-thresholds', 'daily-digest', 'demo-mode', 'models', 'on-call', 'time-zone'];
+const SAVING = ['budgets', 'check-thresholds', 'daily-digest', 'demo-mode', 'models', 'on-call', 'partner-contacts', 'time-zone'];
 
 describe('the settings sections share one refusal classifier', () => {
   for (const name of SAVING) {

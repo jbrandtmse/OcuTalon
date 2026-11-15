@@ -8,7 +8,7 @@
 ///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
 ///     privileges of the trace role, the service user and the application roles of the web applications;
 ///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
-///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2),
+///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2) and, after it, PRODUCTIONCONFIGSTATEMENT about the local install's one %Ens_ProductionConfig grant (Story 23.3),
 ///     and the privileges section has the sentence MCPSTATEMENT after the Roles table, about the resource that each MCP server has (Story 22.6), built from the installer's own names
 ///     (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE), so that it cannot drift from the grant;
 ///   - Splice replaces the text between the markers of each key in a document and nothing else; Regenerate does that for a file.
@@ -34,7 +34,10 @@ Parameter RAGSTATEMENT = "One tool has no class of its own: `documents`, the sea
 
 /// The sentence after the fix kinds table, word for word: an online-demo install leaves the item kinds' resource off the service role (Install.Step.Fix Grants), so
 /// the item kinds can run on a local install only. The privileges tables below list the role's grants for a local install.
-Parameter ONLINESTATEMENT = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.";
+Parameter ONLINESTATEMENT = "On the online demo, OcuTalonServiceRole holds neither %Ens_ConfigItemRun:U nor %Ens_ProductionConfig:W, so OcuTalon can't suspend or resume items or change settings there.";
+
+/// The sentence after ONLINESTATEMENT, word for word (Story 23.3, the Contest Planner's ruling of 2026-11-15): why the service role holds %Ens_ProductionConfig:W on a local install, and that no other role does.
+Parameter PRODUCTIONCONFIGSTATEMENT = "On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only because rollback_setting and undo_rollback declare it: each puts back one setting of a watched production's item after an approval, and no other OcuTalon role holds %Ens_ProductionConfig.";
 
 /// The sentence after the Roles table (Story 22.6), word for word: the resource that each registered MCP server has and the service role's permission on it, as Install.Step.Mcp
 /// grants them, and the demo, where no server can be added. Its names come from the installer, so the sentence follows the grant.
@@ -396,7 +399,7 @@ ClassMethod FixKindsText(model As %DynamicObject) As %String
 	While iterator.%GetNext(, .kind) {
 		Set text = text_"| "_..Code(kind.class)_" | "_..Code(kind.name)_" | "_..Cell(kind.classification)_" | "_..Pairs(kind.resources)_" |"_$Char(10)
 	}
-	Quit text_$Char(10)_..#ONLINESTATEMENT_$Char(10)_$Char(10)
+	Quit text_$Char(10)_..#ONLINESTATEMENT_$Char(10)_..#PRODUCTIONCONFIGSTATEMENT_$Char(10)_$Char(10)
 }
 
 /// The privileges section: the roles, the grants that only demo mode adds, the SQL privileges, the service user and the application roles.

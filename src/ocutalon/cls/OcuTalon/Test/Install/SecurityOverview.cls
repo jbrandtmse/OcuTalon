@@ -329,9 +329,14 @@ Method TestFixKindRows()
 		Do $$$AssertTrue(..HasLine(sections("fix-kinds"), expectedRow), "the table holds "_expectedRow)
 	}
 	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), "| Class | Name | Classification | Resources |"), "and has a Classification column")
-	Set sentence = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there."
-	Do $$$AssertEquals($Parameter(..#GENERATOR, "ONLINESTATEMENT"), sentence, "the online demo sentence is the ruled one, word for word")
+	Set sentence = "On the online demo, OcuTalonServiceRole holds neither %Ens_ConfigItemRun:U nor %Ens_ProductionConfig:W, so OcuTalon can't suspend or resume items or change settings there."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "ONLINESTATEMENT"), sentence, "the online demo sentence is the ruled one, word for word (Story 23.3)")
 	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), sentence), "and the fix kinds section holds it as a line of its own")
+	Set own = "On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only because rollback_setting and undo_rollback declare it: each puts back one setting of a watched production's item after an approval, and no other OcuTalon role holds %Ens_ProductionConfig."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "PRODUCTIONCONFIGSTATEMENT"), own, "the sentence after it is the ruled one, word for word")
+	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), own), "and the section holds it as a line of its own, after the online demo sentence")
+	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), "| `OcuTalon.Fix.Kind.RollbackSetting` | `rollback_setting` | risky | `%Ens_ProductionConfig:W` |"), "the table lists rollback_setting")
+	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), "| `OcuTalon.Fix.Kind.UndoRollback` | `undo_rollback` | risky | `%Ens_ProductionConfig:W` |"), "and undo_rollback")
 }
 
 /// Story 22.6: the privileges section holds the sentence about the resource of each MCP server (MCPSTATEMENT) once, word for word, as a line of its own after the Roles table and before

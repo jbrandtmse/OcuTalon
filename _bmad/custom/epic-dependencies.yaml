@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "886e75207864de3537b7d1e73149cba14297f2002b2305ae726e10165d5c61ad"   # re-recorded 2026-11-14 at the 22.6+22.5 merge (reasons: split 22.11->22.11/22.13; split 22.5->22.5/22.11; burndown 36.5-36.7, 21.15; owner-approved 0.36, 0.37; rule5 amendments)
+epics_md_hash: "7974ffa45ff0a5207a170259b8ea001966eaf9a22f1f9054922f8012a6d6f952"   # re-recorded 2026-11-15 at the DW-1400 merge (reasons: 23.13 chartered, Contest Planner; 23.8 parked note; split 24.2->24.2/24.5 earlier today)
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -382,6 +382,8 @@ epics:
             # [AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (i)] epic-level edge on epic-36 lifted to story level: 23.3 waits on 36.1, 23.4 and 23.8 on 36.2; 23.6, 23.2 and 23.5 have no Epic 36 dependency.
             # [AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (iii)] 23.5 sends through the existing SimMailbox channel; real email (EmailOut) moves to a parked 23.5 follow-up under Epic 21, so 23.5 no longer waits on epics 21 and 22 (partner-contact source: see the 23.5 note, pending)
             paths_hint: ["src/ocutalon/cls/OcuTalon/{Watch,Fix,Checks}/**", "src/ocutalon/cls/OcuTalon/Data/{BackgroundCheck,Incident,Page}*.cls", "src/ocutalon/cls/OcuTalon/Install/Step/{Roles,Users}.cls", "src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/ocutalon/cls/OcuTalon/Tools/**", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls", "src/ocutalon/cls/OcuTalon/Test/{Watch,Fix,Checks,Install}/**", "eval/**", "ci/mock/scenarios/A/**", "docs/**"],
+            # [AMENDED 2026-11-15, Contest Planner] 23.13 (partner warnings go to the Settings contacts) waits on 24.2's table and reader, and runs after 23.4 and 23.8
+            story_waits_stories: {"23.13": ["24.2"]},
             story_waits: {"23.2": epic-14,                  # real: the overview's generated list shows the new kinds
                           "23.3": epic-36,                  # real: 36.1's setting-history names (re-plan (i))
                           "23.4": epic-36,                  # real: 36.2's keys and verbs (re-plan (i))
@@ -389,6 +391,8 @@ epics:
                           "23.8": [epic-14, epic-36]}}      # real: the overview lists the read-only SQL user (M4); 36.2's keys and verbs (re-plan (i))
   epic-24: {lane: pool, depends_on: [epic-36], submodules: [],                        # Lane B's files; real: 36.2's sections, keys and verbs, 36.1's paging contract; "Epic 21" is real only for 24.3, now its wait
             paths_hint: ["web/src/app/{settings,incidents,approvals,phone,rail}/**", "web/src/app/api/**", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "src/ocutalon/cls/OcuTalon/Core/{SettingsOps,CommandsIn}.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Schedule/**", "src/ocutalon/cls/OcuTalon/Data/{Reminder,PartnerContact,Delivery}*.cls", "src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls", "src/ocutalon/cls/OcuTalon/Test/{Core,Schedule,Channel,Web}/**", "web/e2e/**"],
+            # [AMENDED 2026-11-15, Contest Planner split of 24.2] 24.5 (saved SQL query watches in Settings) waits on Lane A's Story 23.8 (WatchOps handles SaveSqlWatch); its plan starts after 23.8 merges
+            story_waits_stories: {"24.5": ["23.8"]},
             story_waits: {"24.3": epic-21}}                 # real: pages by email through EmailOut
 
   # ---- step 6

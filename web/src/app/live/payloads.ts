@@ -135,11 +135,28 @@ export interface Memory {
   savedAt?: string;
 }
 
+export interface Page {
+  state?: string;
+  pagedAt?: string;
+  acknowledgedAt?: string;
+  channel?: string;
+}
+
 export interface SentFile {
   ref?: string;
   name?: string;
   mediaType?: string;
   size?: number;
+}
+
+export interface SettingChange {
+  item?: string;
+  target?: string;
+  setting?: string;
+  oldValue?: string;
+  newValue?: string;
+  credential?: boolean;
+  detectedAt?: string;
 }
 
 export interface StatusSlots {
@@ -351,6 +368,9 @@ export interface IncidentPayload {
   decisionRef?: string;
   groups?: IncidentGroup[];
   requests?: IncidentRequest[];
+  settingChange?: SettingChange;
+  gapMinutes?: number;
+  page?: Page;
   evidence?: IncidentEvidence;
   traceTargets?: IncidentTraceTargets;
 }

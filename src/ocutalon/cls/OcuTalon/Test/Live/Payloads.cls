@@ -1,4 +1,4 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 38 payload
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 40 payload
 /// and part classes (Story 41.15 adds the part Learned and the chat message's learned; Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 38, "the contracts hold the 38 payload and part classes")
+	Do $$$AssertEquals(classes, 40, "the contracts hold the 40 payload and part classes (Story 23.3 adds Part.SettingChange, Story 23.4 Part.Page)")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -1408,6 +1408,9 @@ XData Contracts [ MimeType = application/json ]
    "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
    "Groups": "list Of OcuTalon.Live.Payload.Part.IncidentGroup(%JSONFIELDNAME=groups)",
    "Requests": "list Of OcuTalon.Live.Payload.Part.IncidentRequest(%JSONFIELDNAME=requests)",
+   "SettingChange": "OcuTalon.Live.Payload.Part.SettingChange(%JSONFIELDNAME=settingChange)",
+   "GapMinutes": "%Integer(%JSONFIELDNAME=gapMinutes)",
+   "Page": "OcuTalon.Live.Payload.Part.Page(%JSONFIELDNAME=page)",
    "Evidence": "OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME=evidence)",
    "TraceTargets": "OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFIELDNAME=traceTargets)"
   }
@@ -1606,6 +1609,27 @@ XData Contracts [ MimeType = application/json ]
    "Count": "%Integer(%JSONFIELDNAME=count)",
    "FirstAt": "%String(%JSONFIELDNAME=firstAt,MAXLEN=20)",
    "LastAt": "%String(%JSONFIELDNAME=lastAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.SettingChange": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Item": "%String(%JSONFIELDNAME=item,MAXLEN=256)",
+   "Target": "%String(%JSONFIELDNAME=target,MAXLEN=32)",
+   "Setting": "%String(%JSONFIELDNAME=setting,MAXLEN=256)",
+   "OldValue": "%String(%JSONFIELDNAME=oldValue,MAXLEN=2000)",
+   "NewValue": "%String(%JSONFIELDNAME=newValue,MAXLEN=2000)",
+   "Credential": "%Boolean(%JSONFIELDNAME=credential)",
+   "DetectedAt": "%String(%JSONFIELDNAME=detectedAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Page": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=16)",
+   "PagedAt": "%String(%JSONFIELDNAME=pagedAt,MAXLEN=20)",
+   "AcknowledgedAt": "%String(%JSONFIELDNAME=acknowledgedAt,MAXLEN=20)",
+   "Channel": "%String(%JSONFIELDNAME=channel,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.Part.IncidentGroup": {

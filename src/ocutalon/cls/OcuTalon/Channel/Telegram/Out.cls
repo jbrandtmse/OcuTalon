@@ -35,6 +35,10 @@
 ///   - a summary (Story 23.6): a Notification of the kind summary is a plain-text message like a digest, with the text of OcuTalon.Watch.Summary.Text(IncidentRef,
 ///     "telegram", .sc): the incident's stored summary, one catalog line per part, sent exactly as written with no parse mode and no buttons, as one message when it
 ///     fits and otherwise cut at line breaks (Api.Split). A summary that cannot be read or rendered is an error and nothing is sent;
+///   - a page (Story 23.4): a Notification of the kind page is a plain-text message with the text of OcuTalon.Watch.Paging.Text(notification, "telegram", .sc): the
+///     catalog text of the page, with the backup's or the paged person's name read when it renders (no name is in the Notification), sent exactly as written with no parse
+///     mode, and with the Got it button of a tell-now message when it has a DecisionRef, the page's Ref. Its Delivery row keeps the text and the DecisionRef. A handled
+///     Notification for the page edits it in place like a tell-now message, with the time of Handled.Marked, else of Page.Marked (the page's acknowledgement);
 ///   - the Got it button (Story 17.6): a Notification of the kind tellnow that has a DecisionRef is sent with one inline button, the
 ///     catalog key button.gotIt, whose callback data is "gotit:<DecisionRef>", in the reply_markup of its last part only. It is split like a
 ///     message with the Approve and Reject buttons, and its Delivery row keeps the last part's text (redacted) and its DecisionRef, which
@@ -105,7 +109,7 @@ Parameter LOGEDIT = "TelegramOut could not edit a message: ";
 Parameter LOGNOHANDLED = "TelegramOut did not edit a handled notice's message: no stored message with its text, or no handled marker, was found.";
 
 /// The notification kinds that the chat gets as a new message (answered and handled edit a message instead).
-Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest,summary";
+Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest,summary,page";
 
 /// The notification kinds whose message carries the Approve and Reject buttons when it has an approval Ref.
 Parameter BUTTONKINDS = "incident,approval";
@@ -119,7 +123,7 @@ Parameter TOOLONGKEY = "toolCall.inputsTooLong";
 Parameter STOREDKEYS = "fix.emailRequest";
 
 /// The notification kinds whose message carries the Got it button when it has a decision Ref, and the catalog key of the button.
-Parameter GOTITKINDS = "tellnow";
+Parameter GOTITKINDS = "tellnow,page";
 
 Parameter GOTITKEY = "button.gotIt";
 
@@ -206,6 +210,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
+	} ElseIf request.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
+		Set text = ##class(OcuTalon.Watch.Paging).Text(request, ..#TEXTCHANNEL, .sc)
 	} ElseIf (request.Kind = "approval") && $ListFind($ListFromString(..#STOREDKEYS), request.CatalogKey) {
 		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {
@@ -366,6 +372,7 @@ Method EditHandled(request As OcuTalon.Msg.Notification) As %Status [ Private ]
 	Set messageId = $Piece($Select($IsObject(row): row.ChannelMessageId, 1: ""), ":", 2, *)
 	Set chat = $Select(chatRef '= "": ##class(OcuTalon.Data.Pairing).Chat(chatRef), 1: "")
 	Set marked = ##class(OcuTalon.Data.Handled).Marked(request.DecisionRef)
+	If marked = "" Set marked = ##class(OcuTalon.Data.Page).Marked(request.DecisionRef)
 	If '$IsObject(row) || (row.Text = "") || (messageId '? 1.N) || '$IsObject(chat) || (marked = "") {
 		$$$LOGWARNING(..#LOGNOHANDLED)
 		Quit $$$OK

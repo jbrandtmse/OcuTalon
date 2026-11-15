@@ -8352,7 +8352,7 @@ So that someone answers every incident even when the people watching are away.
 
 **Given** the watched production's IRIS Managed Alerts
 **When** paging is configured and an incident pages
-**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration (FR-28)
+**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration, except an approved rollback_setting or undo_rollback that puts back the user's own earlier value (FR-28) [AMENDED 2026-11-15, Story 23.4, Contest Planner ruling DW-1380: it read "and no OcuTalon class writes alert configuration"]
 **And** with no on-call person configured, as always on the online demo, no page is sent and nothing else changes (FR-28)
 
 **Given** automated tests in `OcuTalon.Test.Watch`
@@ -8589,6 +8589,27 @@ So that the rail never shows a request as still waiting after I have answered it
 
 - DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view) (ledger; routed by owner 2026-11-11)
 
+### Story 23.13: Partner warnings go to the Settings contacts
+
+[ADDED 2026-11-15, Contest Planner (prompts/story-242-rulings-20261115.md, "23.13 replaces 23.10"): Lane A files, run by lane B (Epic 23's runner); after 23.4 and 23.8, and only once Lane B's Story 24.2 has merged]
+
+As an admin,
+I want a partner warning to go only to the contacts I set for that production in Settings,
+So that the people who hear about a delay are the ones I chose.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's Story 24.2 merged (its partner contacts table and Settings section)
+**When** this story lands
+**Then** `Fix.PartnerContacts` reads the contacts from 24.2's table, and its `TABLE` parameter is set to 1, which is the switch that shows 24.2's Settings section (the section shows only when `TABLE` = 1; both states pinned)
+**And** DW-1254's contact-id change applies to 23.5's warnings: a warning names contacts by id, and their names and addresses never appear in a traced message, log or audit beyond what DW-1254 allows
+
+**Given** a partner warning for an incident in a watched production
+**When** it is approved and sent
+**Then** it goes only to the contacts set for that production, and the leak scan still passes
+- DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
+- DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
@@ -8608,14 +8629,8 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** `SettingsOps` writes the partner-contact table, the change applies within a minute and is audited as a settings change, and these contacts are the only addresses a partner warning from Lane A's Story 23.5 can ever be sent to (FR-29, FR-17, FR-9)
 **And** an address that isn't valid is a field error and nothing is saved (UX-DR36)
 
-**Given** the SQL query watches section
-**When** an admin saves a query with its name and schedule
-**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
-**And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
+[AMENDED 2026-11-15, Contest Planner split of 24.2 (G1 (B), ~16:30Z Nov 15): the SQL query watches section and its removal moved, word for word, to Story 24.5; 24.2 is partner contacts only; its partner-contacts section stays hidden until Lane A's Story 23.13 sets `Fix.PartnerContacts` `TABLE = 1` (G2 (a)); its audit records `partnerContact.<Ref>` and which fields changed, never their values]
 
-**Given** a saved query
-**When** the admin removes it
-**Then** the removal goes to `WatchOps` by the same command path, the check stops, and it leaves the list and the rail within one live update (FR-33, AD-1, NFR-9)
 
 **Given** a user without the admin role
 **When** they call either section's routes
@@ -8688,6 +8703,35 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
+
+### Story 24.5: Set saved SQL query watches in Settings
+
+[ADDED 2026-11-15, Contest Planner split of 24.2]
+
+**Lane:** B. **Depends on:** Lane A's Story 23.8 merged (story-level: `WatchOps` handles `SaveSqlWatch`); its plan starts after 23.8 merges.
+
+As an admin,
+I want to save SQL queries for OcuTalon to watch,
+So that data conditions are watched without writing code.
+
+**Acceptance Criteria:**
+
+**Given** the SQL query watches section
+**When** an admin saves a query with its name and schedule
+**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
+**And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
+
+**Given** a saved query
+**When** the admin removes it
+**Then** the removal goes to `WatchOps` by the same command path, the check stops, and it leaves the list and the rail within one live update (FR-33, AD-1, NFR-9)
+
+**Given** a user without the admin role
+**When** they call the section's routes
+**Then** the routes refuse with 403 and nothing changes (FR-17, AD-13)
+
+**Given** automated tests and a Playwright spec under `web/e2e/`
+**When** they save, refuse and remove queries
+**Then** the submitted commands' fields and the audit entries match, and the section works by keyboard with every control labelled (NFR-25, UX-DR130)
 
 ## Epic 25: Usage, history and files in the page (step 6)
 

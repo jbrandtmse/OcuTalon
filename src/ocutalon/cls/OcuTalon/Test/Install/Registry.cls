@@ -621,7 +621,8 @@ Method TestMalformedResourcesFailTheStep()
 }
 
 /// Matrix row 5: a declaration of a forbidden resource fails the Roles step with a status that names the area, the role and the resource,
-/// whatever the case of the resource, and no role is created or changed. AD-24's seven resources are the list.
+/// whatever the case of the resource, and no role is created or changed. AD-24's seven resources are the list. The one exception, Roles FORBIDDENEXCEPTION (Story 23.3), is read
+/// here too: its resource and permission are refused for any role but its own.
 Method TestForbiddenGrantRefused()
 {
 	Set list = "%All,%Development,%Ens_MessageEditResend,%Ens_MessageDiscard,%Ens_ProductionRun,%Ens_ProductionConfig,%Ens_WorkflowConfig"
@@ -645,6 +646,14 @@ Method TestForbiddenGrantRefused()
 		Do $$$AssertStatusNotOK(sc, "the Roles step refuses "_resource)
 		Do $$$AssertTrue((text [ bad) && (text [ forbiddenRole) && (text [ resource), "and the error names the area, the role and "_resource)
 	}
+	// the one exception (Roles FORBIDDENEXCEPTION) is the exact triple: its own resource and permission are still refused for any other role
+	Set exception = $Parameter("OcuTalon.Install.Step.Roles", "FORBIDDENEXCEPTION")
+	Do $$$AssertTrue($Piece(exception, ":", 1) '= forbiddenRole, "the fixture role is not the exception's role")
+	Set ^OcuTalonTest("Registry", ..Number, "forbidden") = $Piece(exception, ":", 2)
+	Set ^OcuTalonTest("Registry", ..Number, "forbiddenPermission") = $Piece(exception, ":", 3)
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Run()
+	Kill ^OcuTalonTest("Registry", ..Number, "forbiddenPermission")
+	Do $$$AssertStatusNotOK(sc, "the Roles step refuses the exception's own "_$Piece(exception, ":", 2, 3)_" to a role that is not "_$Piece(exception, ":", 1))
 	Do $$$AssertEquals(..RoleResources(forbiddenRole), "<none>", "the forbidden role was not created")
 	Do $$$AssertEquals(..Sorted(..RoleResources(..Role)), byHand, "and no role was changed: the fixture role keeps its extra grant")
 	Do ..Delete(bad)
@@ -728,7 +737,7 @@ Method TestEveryRole()
 	While $ListNext(roles, position, role) {
 		Set resources = ..ReadRole(role)
 		For i = 1:1:$Length(resources, ",") {
-			If $ListFind(forbidden, $ZConvert($Piece($Piece(resources, ",", i), ":", 1), "U")) Set bad = bad _ " " _ role _ " holds " _ $Piece(resources, ",", i)
+			If $ListFind(forbidden, $ZConvert($Piece($Piece(resources, ",", i), ":", 1), "U")) && ((role_":"_$Piece(resources, ",", i)) '= $Parameter("OcuTalon.Install.Step.Roles", "FORBIDDENEXCEPTION")) Set bad = bad _ " " _ role _ " holds " _ $Piece(resources, ",", i)
 		}
 		If ..RoleGranted(role) '= "" Set bad = bad _ " " _ role _ " is granted " _ ..RoleGranted(role)
 	}
@@ -749,13 +758,66 @@ Method TestEveryRole()
 		Set held = ..UserResources(account)
 		Set found = ""
 		For i = 1:1:$Length(held, ",") {
-			If $ListFind(forbidden, $ZConvert($Piece($Piece(held, ",", i), ":", 1), "U")) Set found = found _ " " _ $Piece(held, ",", i)
+			If $ListFind(forbidden, $ZConvert($Piece($Piece(held, ",", i), ":", 1), "U")) && (($Piece($Parameter("OcuTalon.Install.Step.Roles", "FORBIDDENEXCEPTION"), ":", 2, 3) '= $Piece(held, ",", i)) || (account '= ..#SERVICEUSER)) Set found = found _ " " _ $Piece(held, ",", i)
 		}
 		Do $$$AssertEquals(found, "", account_" holds no forbidden resource, the Workflow configuration included")
 	}
 	Do $$$AssertTrue(..UserResources(demoUser) [ "%Ens_Portal", "control: the resources of an account are read, so an empty answer is not a failed read")
 	Do ..RemoveUser(demoUser)
 	Do ..RemoveUser(readonlyUser)
+}
+
+/// Story 23.3 (AC6, AC16; AD-24): FORBIDDENEXCEPTION is exactly one triple, the service role's write of %Ens_ProductionConfig. Add skips the refusal only for that exact role, resource and
+/// permission: Read or Update on it, the same Write for any other role and the same Write in another case are still refused, and no role but the service role holds any
+/// %Ens_ProductionConfig privilege after the Roles step, on a local install (the service role holds exactly W) and on an online-demo install (nobody holds any).
+Method TestProductionConfigIsTheServiceRolesAlone()
+{
+	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Roles", "FORBIDDENEXCEPTION"), "OcuTalonServiceRole:%Ens_ProductionConfig:W", "the one exception is the service role's write of %Ens_ProductionConfig")
+	Do $$$AssertEquals($Length($Parameter("OcuTalon.Install.Step.Roles", "FORBIDDENEXCEPTION"), ","), 1, "and it is one triple")
+	Set before = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	For online = 0, 1 {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online), "onlineDemo is "_online)
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs")
+		Set roles = ..OcuTalonRoles()
+		Set held = ""
+		Set position = 0
+		While $ListNext(roles, position, role) {
+			Set resources = ..ReadRole(role)
+			For i = 1:1:$Length(resources, ",") {
+				If $ZConvert($Piece($Piece(resources, ",", i), ":", 1), "U") = "%ENS_PRODUCTIONCONFIG" Set held = held _ " " _ role _ ":" _ $Piece(resources, ",", i)
+			}
+		}
+		Do $$$AssertEquals(held, $Select(online: "", 1: " OcuTalonServiceRole:%Ens_ProductionConfig:W"), $Select(online: "an online-demo install: no OcuTalon role holds a %Ens_ProductionConfig privilege", 1: "a local install: only the service role holds one, and it is W"))
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", $Select(before = "": 0, 1: before))
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs again with the flag as it was")
+}
+
+/// Story 23.3 (AC6; AD-24): the one exception of the forbidden list is exact. A fixture area that declares %Ens_ProductionConfig for the service role with Read, Update, Write and Update
+/// or Read and Write, for another OcuTalon role with Write, or for the service role under another spelling of the resource, is refused by the Roles step with an error that names the area, the
+/// role and the resource, and no role is changed; the same declaration with Write for the service role is the exception and is composed.
+Method TestForbiddenExceptionIsExact()
+{
+	Set service = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE
+	Do ..RemoveRoles()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs")
+	Set bad = "OcuTalon.Install.Step.ZzzExact"_..Number
+	Do $$$AssertStatusOK(..Create("FixtureExactPair", bad, ..Number), "the fixture area compiles")
+	Set cases = $ListBuild($ListBuild(service, "R"), $ListBuild(service, "U"), $ListBuild(service, "RW"), $ListBuild(service, "WU"), $ListBuild("OcuTalonApprover", "W"), $ListBuild("OcuTalonViewer", "W"), $ListBuild("OcuTalonZzFixture"_..Number_"Exact", "W"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set ^OcuTalonTest("Registry", ..Number, "role") = $List(case, 1)
+		Set ^OcuTalonTest("Registry", ..Number, "permission") = $List(case, 2)
+		Set sc = ##class(OcuTalon.Install.Step.Roles).Run()
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertStatusNotOK(sc, "the Roles step refuses "_$List(case, 2)_" on %Ens_ProductionConfig for "_$List(case, 1))
+		Do $$$AssertTrue((text [ bad) && (text [ $List(case, 1)) && (text [ "%Ens_ProductionConfig"), "and the error names the area, the role and the resource: "_$Extract(text, 1, 200))
+	}
+	Set ^OcuTalonTest("Registry", ..Number, "role") = service
+	Set ^OcuTalonTest("Registry", ..Number, "permission") = "W"
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "Write on %Ens_ProductionConfig for the service role is the exception, and is composed")
+	Do ..Delete(bad)
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs without the area")
 }
 
 /// Row 5, the other side: only AD-24's seven names are refused. Resources whose names begin like a forbidden one, and the ones that later tools
@@ -1534,6 +1596,19 @@ Class @CLASS@ Extends %AI.ToolSet [ Abstract ]
 }
 
 /// An area that declares a resource for @ROLE@ that the test chooses: the resource is read from the test's global.
+XData FixtureExactPair [ MimeType = text/plain ]
+{
+Class @CLASS@ Extends OcuTalon.Install.Step
+{
+
+ClassMethod Grants() As %DynamicArray
+{
+	Quit [{"role":(^OcuTalonTest("Registry", @N@, "role")),"resource":"%Ens_ProductionConfig","permission":(^OcuTalonTest("Registry", @N@, "permission"))}]
+}
+
+}
+}
+
 XData FixtureForbidden [ MimeType = text/plain ]
 {
 Class @CLASS@ Extends OcuTalon.Install.Step
@@ -1541,7 +1616,7 @@ Class @CLASS@ Extends OcuTalon.Install.Step
 
 ClassMethod Grants() As %DynamicArray
 {
-	Quit [{"role":"@ROLE@","resource":(^OcuTalonTest("Registry", @N@, "forbidden")),"permission":"U"}]
+	Quit [{"role":"@ROLE@","resource":(^OcuTalonTest("Registry", @N@, "forbidden")),"permission":($Get(^OcuTalonTest("Registry", @N@, "forbiddenPermission"), "U"))}]
 }
 
 }
