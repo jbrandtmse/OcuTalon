@@ -4270,3 +4270,5 @@
 2026-11-15T08:31:55Z	Run	ci_rerun	run=43690544372 attempt=2 failed_only(shards-6,DW-349) lane-a_43690544341=success
 2026-11-15T08:53:58Z	Epic 21	runner_reported	PART_READY story=21.9 head=6d44d4750 runs=43692114733,43692114775 base=97e062daf merge=held(feature_merge_hold) gates=DW-1347(706466a80,a-d),21.11(b67be9277,V1-V8) relayed=contest_planner
 2026-11-15T08:53:58Z	Epic 21	runner_ended	reason=clarification waiting_on=DW-1347+21.11_rulings
+2026-11-15T08:54:38Z	Epic 21	owner_decision	via=contest_planner DW-1347=approved(design,long-answer-past-cut_test_mutation,text_fixed,option_a_line_in_22.12,laneA_stays_out_of_Mcp/Bridge/Checks,no_migration,AD-6/31/18B) 21.11=approved(N1_reworded_connected_mailbox,V2-V4,V5_grant,V6_trace_refs-only_pin,V7,V8_keep) order=DW-1347,21.11 21.9=merges_first_after_hold
+2026-11-15T08:54:54Z	Run	rulings_relayed	lane_C=resume(DW-1347_implement) lane_D=queued(22.12_carries_DW-1347_line;note:mid-stage_send_backgrounded_one_tool_call) lane_A=queued(stay_out_of_DW-1347_files)
