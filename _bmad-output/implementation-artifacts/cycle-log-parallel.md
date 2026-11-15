@@ -4279,3 +4279,14 @@
 2026-11-15T09:00:33Z	Epic 21	merged	story=21.9 merge=6d50bac12 conflicts=none pins=pass web=pass lint=pass
 2026-11-15T09:39:12Z	Run	owner_decision	via=contest_planner 1.0.11_required=26.2,22.14,21.5,22.11,22.15,21.9(in)+DW-1347,21.11,22.12,GUIDE_T7 optional=25.6(if_PART_READY),23.3(only_if_merged_in_time) priority=laneC_DW-1347,laneD_22.12
 2026-11-15T09:39:12Z	Run	lane_exception	21.11->lane_D(worktree_epic-21-s2111,after_22.12_push) reason=no_shared_code_files_with_DW-1347(AD-31_spine_additive_under_lock) GUIDE_T7->lane_B(OCT-epic23-guide-t7,at_23.3_pause) planner_notified=ETAs(feature_green_all_required~16:45Z)
+2026-11-15T09:40:07Z	Run	ci_green_verified	head=6d50bac12(21.9_merged) runs=43697126331,43697126346 tip=20b60564f(records_only;iris_jobs_skipped_by_What_changed)
+2026-11-15T09:41:53Z	Run	owner_decision	via=contest_planner 1.0.11_protocol: signal="1.0.11 REQUIRED GREEN <sha>"(+25.6/23.3_status,run_ids) then_records-only_until_RELEASE_CUT_DONE QUIET_ON/OFF_during_upgrade_harness laneD_21.11_exception=approved
+2026-11-15T09:42:05Z	Run	owner_decision	via=contest_planner CORRECTION:no_feature_merge_hold_during_1.0.11(cut_from_reported_sha);only_QUIET_ON/OFF_pause
+2026-11-15T09:44:36Z	Run	owner_decision	via=contest_planner 1.0.11:no_QUIET_window(oMLX_off);QUIET_ON_only_if_harness_row_fails_on_load
+2026-11-15T09:59:44Z	Epic 23	runner_reported	PART_READY story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731(queued) conditions_a_b=kept 23.3=Task0_pass,dev+QA+CR_done,local_aeab8bb61 escalations=DW-1365(MED),DW-1366,DW-1370,DW-1358,footprint_Demo/Orders/Review.cls relayed=contest_planner
+2026-11-15T09:59:44Z	Epic 23	runner_resumed	lane=B task=23.3_smoke..PART_READY
+2026-11-15T10:00:10Z	Epic 23	owner_decision	via=contest_planner 23.3_pre-push: DW-1365=fix_in_23.3(restore+retry;new_text_result.settingSavedNotApplied;2_path_pin;23.2_suspend_new_DW_MED_1.0.12) DW-1366=fix_in_23.3(After_from_current_SysDefault,run-time_recheck->settingChangedSince;>45min->report) DW-1370=noted DW-1358=no_README_edit;pins_read_count_from_eval_set Review.cls=approved
+2026-11-15T10:06:04Z	Epic 21	runner_status	DW-1347 CR=20(0H;2MED_patched) integrated=30ceb87a5 fresh_check=running ETA_PART_READY~12:00Z DW-1372=AD-31_no_new_text(confirm_asked) DW-1371=LOW_accepted
+2026-11-15T10:06:18Z	Epic 21	owner_decision	via=contest_planner DW-1372=confirmed(no_AD-31_edit) DW-1371=follow-up_1.0.12
+2026-11-15T10:12:49Z	Epic 23	ci_green_verified	story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731
+2026-11-15T10:12:49Z	Epic 23	merge_enqueued	story=GUIDE-T7 (1.0.11 required)
