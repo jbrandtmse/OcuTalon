@@ -121,6 +121,8 @@ Include Ensemble
 ///     3/3/3/0/0 after a second read; an entry with no inFlight is not in flight;
 ///   - TestSweepLeavesAnInFlightCopy (DW-1205, DW-494; AC 3): an unmarked run past its wait with a copy that is Completed and in flight is left (no result, no EndedAt, no entry), and the next
 ///     Sweep, with no copy in flight, ends it 3/3/0/3/0 with the reason of the failed copy;
+///   - TestSweepCutsOffAnInFlightCopyOfAMarkedRun (DW-1205, DW-494; QA, Matrix 7): a marked run (a restart) with copies that are Completed and in flight counts them as cut off, not as completed: 3 targets,
+///     3 copies, two in flight and one not, end 3|3|1|0|0 with Interrupted 2 and the interrupted text;
 ///   - TestSweepLeavesRunsOfTheWaiter (AC 5): unmarked runs inside their wait, with a copy still queued, whose read is not read,
 ///     with no ResentAt or whose request is done get no result, no EndedAt and no close, and Sweep logs no warning and reads the copies of exactly the runs that get that far;
 ///   - TestSweepEndsEveryRunWhoseCopiesAreDone (AC 3, AC 4; Story 30.5): the unmarked branch ends a run past its wait once all its copies are done, whenever the last was done: after the wait, at its
@@ -1912,6 +1914,21 @@ Method TestSweepLeavesAnInFlightCopy()
 	Set results = $ClassMethod(probe, "Sweep")
 	Do $$$AssertEquals(results.Count(), 1, "the next Sweep, with no copy in flight, returns the run's result")
 	Do ..AssertDone(results, ref, incident, "3|3|0|3|0", "the order date still wasn't accepted", "result.failedAgain", "0 of 3 orders went through. 3 failed again (the order date still wasn't accepted). I won't retry them without a new approval.", "done|done|finished", "the run ends once IRIS has let go of its copy")
+}
+
+Method TestSweepCutsOffAnInFlightCopyOfAMarkedRun()
+{
+	Set probe = "OcuTalon.Test.Fix.RunProbe"
+	Set owner = ..Owner("inflightmarked")
+	Set incident = ..Incident(owner)
+	Set statuses = ..CannedAt(9671, 3, "Completed", ..Stamp(-5))
+	Do statuses.%Set("9671", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (..Stamp(-5)), "inFlight": true})
+	Do statuses.%Set("9673", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (..Stamp(-5)), "inFlight": true})
+	Set ref = ..MarkedRun(owner, incident, 3, "9671,9672,9673", statuses)
+	Do $ClassMethod(probe, "Narrow", ..Incidents)
+	Set results = $ClassMethod(probe, "Sweep")
+	Do $$$AssertEquals(results.Count(), 1, "Sweep returns the one FixResult of the marked run")
+	Do ..AssertCut(results, ref, "3|3|1|0|0", 1, 2, "result.interrupted", "The resend stopped when OcuTalon restarted: 1 of 3 orders went through. The other 2 need a new approval.", "two copies that are Completed but in flight are cut off, the third is completed")
 }
 
 Method TestSweepLeavesRunsOfTheWaiter()

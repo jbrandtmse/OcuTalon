@@ -313,3 +313,43 @@ Blocking condition: none
 - Follow-up review recommendation: `false` (no patch was applied).
 - Verification: Task 0 and condition 1 to 3 numbers, mutation lines, scripts and builds under `## Verification`: probe old 12/300 unloaded and 21/300 loaded, fixed 0/300 and 0/300, without the second read 2/300 loaded; `Test.Fix.*` shard 29 of 29 and `Test.Watch.Evidence` on builds 154 and 109; `Test.Fix.Scale` 21.50 s to 22.14 s; both scripts exit 0; the spine lint has 12 low findings at the baseline and after.
 - Residual risks: the `Xecute` seam in `Reader.Current` (process-private, set only by `TestInFlightEntryReadFails`); a copy held by a hung job counts as running until Ens lets go (Matrix row 6, approved).
+
+## QA Pass (2026-11-15, lane C, build 154)
+
+Tests only; no product change. Warm stack `e21dw1205qw` for the mutations, a freshly started stack `e21dw1205qr` (no product class reloaded after its start) for the regression; both torn down.
+
+**1. The Xecute seam (`^||OcuTalonFlightSeam`, `Reader.Current`), assessed for the lead and the review**
+- No rule bans it today. `Test.Bridge.CodeRules.ToolCodeClean` (no XECUTE) runs over `OcuTalon.Tools` classes and tool providers only; `Test.Bridge.Keys` (`INDIRECTION`) over the bridge's `Status`; `Test.Fix.Reformat` `TestStaticScan` over `Fix.Reformat` and `RepairResend`. `Watch.Reader` is in `CodeRules` `READERCLASSES`, but the callback rule scanned there looks only for `%AI` references and Python, and `test-class-rules.sh` has no Xecute rule. The class-rules and boundaries scripts exit 0 with it. AD-10 and the tool-class rule show the intent: shipped code that a tool can reach runs no Xecute.
+- Risk is low (a process-private global, set by no product code, killed on use) but it is the only `Xecute` in `src/`, in a class the AI Hub callback runs, and the next scan that is widened to `READERCLASSES` (or an Open Exchange or security scan) flags it.
+- Narrower seam, validated on the warm stack (applied temporarily, reverted byte for byte): the seam holds a status number, not code. The entry read throws and the second read is compared with the seeded status instead of the row's; no Xecute and no write to an Ens global. A genuine failure is not feasible in a throwaway (it needs a global mapping change in %SYS that would also break the running production's jobs).
+- Recommendation: replace the Xecute with the data seam below. With the seeded status 8 and the header really Completed (9), `TestInFlightEntryReadFails` passes (green); with `If 'flightHeld {` made `If 0 {` it is red ("a failed read of the entries does not make it done ..."). The same seam also lets the test add the control the review asked for: a failed entry read whose seeded status equals the row's gives inFlight 0.
+```
+ Set flightHeld = 0
++Set flightFirst = result.%GetData(12)
+ Try {
+   Set flightSeam = $Get(^||OcuTalonFlightSeam)       // a status number, set by a test only
+   If flightSeam '= "" {
+     Kill ^||OcuTalonFlightSeam
+-    Xecute flightSeam
++    Set flightFirst = flightSeam
++    $$$ThrowStatus($SYSTEM.Status.Error(5001, "flight seam"))
+   }
+   ... $Order loop unchanged ...
+ }
+ ...
+-If flightRead.%Next() && (flightRead.%GetData(1) '= result.%GetData(12)) Set flightHeld = 1
++If flightRead.%Next() && (flightRead.%GetData(1) '= flightFirst) Set flightHeld = 1
+```
+In the test: `Set ^||OcuTalonFlightSeam = 8` in place of the Xecute string, no UPDATE of the header.
+
+**2. Gaps against the ACs and the matrix**
+- BO and BP paths: the reader is host-agnostic (it reads the header's status and the entry, `Ens/Queue.cls:317` sets the entry for every host, `Ens/Host.cls:646` kills it; BP `Actor.cls:452`/`:483`, BO `BusinessOperation.cls:384`/`:412` have the same Completed, Error, kill order). The live tests use a BP (`OrdersFromPartner`, Translator). A scratch probe (never committed, loaded in the throwaway only) sent failing messages to a BO (`OrdersForReview`, given a WarehouseOrder) under CPU load: 5 runs (300 and 300 trials with backlog 10, 300 with backlog 10 that also counted, 100 and 100 with backlog 100; each pair with and without `inFlight`), 0 wrong in every run; in the 500 trials that counted, 0 reads saw a copy Completed while held and 46 saw a held header (Error, kept running by the rule). The BO's Completed-to-Error window was too narrow to observe (the BO finishes in about 1 ms); the BP window is the one that produced the reds. No BO test added: it would be the same code path and could not be made to fail.
+- A successful copy briefly held, then let go: covered (`TestInFlightCopyIsStillRunning` B: Completed + inFlight, then Completed; `TestInFlightHeader`: held then killed, running 1 then completed 1).
+- A header in `^Ens.ActiveMessage` for an unrelated job: covered by `TestInFlightHeader` (the fake entry holds H; E is not held and gives inFlight 0, and Tally running 1 only for H). mutation: treat any entry as holding the header (`If flightId = id` made `If flightId '= ""`) -> `TestInFlightHeader` red ("a header that no job holds has inFlight 0", "Read carries inFlight", "Tally gives completed 0, failed again 1, running 1"); reverted, `cmp` equal.
+- `Fix/Run.cls` Sweep `EndMarked` with an in-flight copy at restart (Matrix 7): REAL GAP, no test. Added `TestSweepCutsOffAnInFlightCopyOfAMarkedRun` in `Test/Fix/Executor.cls`: a marked run of 3 targets and 3 copies, two Completed and in flight and one Completed, ends 3|3|1|0|0 with Interrupted 2, the key `result.interrupted` and the text "1 of 3 orders went through. The other 2 need a new approval." mutation: drop the `inFlight` test in `Tally` (`If $IsObject(entry) && entry.inFlight {` made `If 0 && ...`) -> the new test red (counts 3|3|1|0|0, Interrupted 1, key, text, the stored run), `TestSweepCutsOffAnInFlightCopyOfAMarkedRun` green again after the revert (`cmp` equal, `git status` and `git diff --stat` as before).
+
+**3. Regression at the real level** (fresh stack, one `yes` per core (16) in the container, killed after): `Test.Fix.Reroute` 10/10 passed (7.1 s to 15.4 s), `Test.Fix.Partial` 10/10 passed (51 s to 73 s). `Test.Fix.Executor` 1 of 1 and `Test.Watch.Evidence` 1 of 1 passed warm, with the new test in; `bash docker/tests/test-class-rules.sh` exit 0.
+
+**Findings for the lead**
+- A SYNC-queue copy (`$$$queueIsNotSyncQueue` is false, `Ens/Queue.cls:317`) never has an active-message entry, so for it only the second status read protects; it leaves a window of a few ms between the two reads. The resend path sends asynchronously, so no fix copy is affected today.
+- A marked run (restart) counts a copy that is Completed and in flight as cut off (Matrix 7, approved): the user is told that the copy needs a new approval although it is about to complete. Rare (only a copy taken up again after the start can be in flight); recorded, no change.
