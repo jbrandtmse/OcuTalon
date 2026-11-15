@@ -256,6 +256,13 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
   - `web/e2e/memory-card.spec.ts`: a mocked 409 `pin_photo` shows the sentence, and `over_cap` still shows overCap.
   - Floor and keyboard specs updated for the visible paperclip.
 
+- [ ] [Ruling] Contest Planner rulings on the Planner Gate (~04:50Z 2026-11-15, `.coordination/prompts/story-256-rulings-20261115.md`, BINDING):
+  - P1: both texts approved verbatim, "Added to your documents." and "Couldn't add it to your documents. Nothing was changed."; pin both (Msg.Catalog or the view test).
+  - P2: approved IN this story: text 3's GUIDE sentence ships as "OcuTalon reads it, offers to add a PDF or Word file to your documents, and saves a photo's caption to memory." (the rest of text 3 verbatim). Update the `docker/tests/test-readme.sh` / `NS_WANT` pin to match; the drop-text-3 mutation must still go red. FALLBACK: if the pin change spreads beyond `test-readme.sh` and `NS_WANT`, ship text 3 verbatim instead and record the new sentence under Design Notes as a follow-up for the Planner (the lead reports it as `PLANNER REPORT:`).
+  - P3: the `FileRead` and `Caption` JSON columns on `Data.Turn` (storage 28-29) approved, on condition: `TestNoExtractedText` asserts neither column holds the extracted text, a copy of its characters, or any bytes (the hygiene mutation).
+  - P4: `POST /api/v1/documents {fileRef}` approved, with conditions: (a) a fileRef of another user or another session gets EXACTLY the same answer (status and body) as a fileRef that does not exist — pin it as a row in `TestAddFromFile`; (b) the size and type limits are those of a direct upload, the type from the bytes, never the name; (c) no bytes and no extracted text in the response, the log or the trace.
+  - P5: accepted; no Telegram chip, Add button or line.
+  - More to try: none.
 **Acceptance Criteria:**
 - Given a local install at this story's HEAD, when `GET /api/v1/state` is read and the chat is opened, then `filesReadable` is true, `$Parameter("OcuTalon.Agent.Input","READSFILES")` is 1, and the paperclip and drop show. On the online demo the route still answers 409 `not_available` before the body, the paperclip is hidden, a drop shows the off text, and a Telegram file gets `files.offOnDemo` with no getFile.
 - Given a signed-in user on a local install, when they send a damaged PDF through `POST /api/v1/files`, then the done `chat.message` reply is "I couldn't read that file: {reason}." (its code's plain reason), `fileRead.read` is 0, and no Decide request, Decision or model request exists for its Item.
@@ -272,9 +279,13 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
 
 ## Spec Change Log
 
+- 2026-11-15 ~04:55Z, lead: Planner Gate ruled (`story-256-rulings-20261115.md`): P1 approved verbatim (pin), P2 approved in this story (with the test-readme/NS_WANT fallback), P3 approved with TestNoExtractedText, P4 approved with (a)-(c), P5 accepted. Worked into Tasks & Acceptance as the `[Ruling]` item.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Planner rulings (2026-11-15 ~04:50Z, binding; `.coordination/prompts/story-256-rulings-20261115.md`).** P1 approved verbatim; P2 approved in 25.6 (GUIDE sentence "OcuTalon reads it, offers to add a PDF or Word file to your documents, and saves a photo's caption to memory.", fallback to text 3 verbatim if the pin change spreads beyond test-readme.sh/NS_WANT); P3 approved with TestNoExtractedText; P4 approved with (a) same answer for another user's/session's fileRef as a missing one, (b) direct-upload limits, type from bytes, (c) no bytes/extracted text in response, log or trace; P5 accepted. Merge after 22.15; integrate forward before the push.
 
 **Governing ADs:**
 - **AD-21:** the read result, the unreadable path, the photo caption memory and the documents route.
