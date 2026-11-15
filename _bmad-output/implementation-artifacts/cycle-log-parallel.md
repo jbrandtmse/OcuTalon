@@ -4229,3 +4229,5 @@
 2026-11-15T03:50:27Z	Epic 26	merge_enqueued	story=26.2 head=294565a3 into=feature@3ec00a58+records
 2026-11-15T03:56:04Z	Epic 26	merged	story=26.2 merge=6730eda7e conflicts=Test/Msg/Catalog.cls(Watch121+Core155),tracker pins=pass(readme,boundaries,class-rules,release-notes,bridge-guide,storage,ci-config,web,lint,mock) feature_ci=pending
 2026-11-15T03:56:23Z	Epic 25	runner_resumed	lane=A task=25.6(READSFILES=1,texts_1-3,DW-1313,AD-21_sentence) base=feature_6730eda7e
+2026-11-15T04:04:11Z	Run	planner_notified	lane_status: A=25.6 B=idle(no_epic_assigned;not_parked)->dispatching_23 C=21.9_local D=22.14_CI(22.11_parked_by_design_until_21.5) feature=6730eda7e
+2026-11-15T04:04:11Z	Epic 23	dispatched	lane=B slot=ocutalon-slot-b port=52802 scope=[23.3(plan_to_Planner_first),23.4,23.8] base=6730eda7e(ff) prompt=prompts/dispatch-epic-23-lane-b-20261115.md runner=a5ebc5996d74bf717
