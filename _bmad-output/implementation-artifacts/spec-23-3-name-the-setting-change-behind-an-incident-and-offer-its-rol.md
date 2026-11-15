@@ -1,0 +1,572 @@
+---
+title: 'Story 23.3: Name the setting change behind an incident and offer its rollback'
+type: 'feature'
+created: '2026-11-15'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-36-1-record-the-setting-history-of-each-watched-production.md'
+warnings: [oversized]
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Story 36.1 records every setting change of a watched production, but nothing uses the history. An incident caused by a changed setting is not linked to it, and OcuTalon cannot offer to put the setting back. DW-1225 also moved the rollback kind's grant, its one forbidden-list exception and the security-overview changes into this story.
+
+**Approach:** A new Lane A class, `OcuTalon.Watch.SettingCause`, does four things. It lists the production's `SettingChange` rows from the 24 hours before the first failure in the evidence pack. It resolves the change that a `setting_change` diagnosis names. It works out the gap in whole minutes. It builds the notice's cause slot, which is rendered through `incident.settingChangeCause`.
+
+Two new fix kinds act on settings:
+- `rollback_setting`, which the diagnosis may offer, restores the change's old value.
+- `undo_rollback`, which the user asks for in the chat, puts back the value the rollback replaced.
+
+Both kinds declare `%Ens_ProductionConfig:W` with `ONLINEGRANT` 0. Both write the setting from `Fix.Executor.InProduction`, the one namespace-switching method. The online demo has no setting history and no grant, and both kinds refuse there with ONLINESHARED.
+
+## Boundaries & Constraints
+
+**Always:**
+- Each action waits for one approval, with a dry run that changes nothing (AD-16). The executor reads the kind, parameters and targets from the approved row only. It checks the kind's `RESOURCES` for the service user before it runs (`Executor.Unchecked`).
+- At write time, inside `InProduction`, the executor reads the setting's current effective value again. If that value differs from the one expected (the change's new value for a rollback, its old value for an undo), it changes nothing and reports the skip (`result.settingChangedSince`).
+- A rollback writes the old value as the failing item's own stored setting, for the change's `Target` (Host or Adapter). It never edits a System Default Setting row, a class or another item.
+- Only changes on the incident's failing item are accepted, and that covers its adapter and the System Default Settings that apply to it.
+- Secret-valued changes (`Credential` 1) are never offered, and neither is any change with an empty value or a value over 1,000 characters.
+- Producers never render (AD-32). Every user-facing server text is a catalog key: the gap is an integer slot and the setting cause is a structured slot. Comments state the contract only (Rule 14).
+- Nothing names who made a change. The pack, the notice and the payload carry only what `SettingChange` holds.
+- On the online demo (`onlineDemo` 1), setting history stays off (36.1 V4). Both kinds refuse with ONLINESHARED. `Install.Step.Fix.Grants` leaves `%Ens_ProductionConfig:W` off `OcuTalonServiceRole`.
+- Every destructive or cross-namespace test runs on a fresh lane-B throwaway (`ci/iris.sh`, `ci/warm.sh`), never on slot B.
+
+**Never:**
+- No new `/api/v1` route, live-event type or table. No grant to the user, demo, trace, viewer, approver or public roles. `%Ens_ProductionConfig` is never granted with R or U, and never to another role.
+- The diagnosis never offers `rollback_setting` for any category but `setting_change`. The guide's incident stays on repair and resend.
+- No automatic rollback, no rollback of a secret, no `UpdateProduction` from a dry run, and no `SaveToClass` (decided below).
+- No edit of a contended file beyond the hunks listed under "For the Planner's gate" (c). Nothing under `irislib/` or `irissys/`. No edit of a done story's spec.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Pack lists changes | 3 `SettingChange` rows of the failing production: 2 in the 24 h before `FirstAt`, 1 older | pack `settingChanges` holds the 2, newest first: `{item, target, setting, oldValue, newValue, source, credential, detectedAt}`; no `settingChangesNote` | No error expected |
+| Pack cut | 14 rows in the window | the 10 newest are listed, with `settingChangesNote` "[cut by OcuTalon: 10 of 14 setting changes shown]"; a value over 500 characters is cut, with its own note | Cut and said |
+| Window edges | a row detected after `FirstAt`, one exactly 24 h before, one before the production's oldest snapshot | only rows with `FirstAt` - 24 h <= `DetectedAt` <= `FirstAt` and `DetectedAt` > the oldest `TakenAt` | Excluded silently |
+| Secret change | a `Credential` 1 row in the window | listed with blank values and `credential` true; never offered for rollback | Not offered |
+| Cause named, rollback offered | diagnosis `setting_change`, `elementAtFault` `TargetConfigName`, `fixKind` `rollback_setting`; window row on the failing item; current value = the new value | `Incident.SettingChangeRef` is set. The dry run is `{item, field, before: current, after: old}`, and one request is raised. The notice is `incident.rollbackRequest`, whose `{cause}` renders as "The feed broke four minutes after this setting changed: TargetConfigName on OrdersFromPartner, at 14:02." | No error expected |
+| Cause named, no rollback | diagnosis `setting_change` naming a window row, no `fixKind` (or the kind refused) | `incident.noFix` whose `{cause}` is the same setting-cause sentence | Kind reason logged, no fix |
+| Diagnosis names an unlisted setting | `fixKind` `rollback_setting`, `elementAtFault` names no listed change | payload check fails, so the existing fallback route runs | Existing route |
+| Rollback approved | approved row; current = new value | `InProduction` sets the stored setting to the old value, then calls `Ens.Director.UpdateProduction`. Result: Completed 1, Resent 0. The notice is `result.settingRestored`. The incident is `resolved`, and one Action audit entry names the setting, item and production, with no values. | No error expected |
+| Changed again | current value differs from the change's new value at write time | nothing written; Skipped 1; `result.settingChangedSince` | Reported, not retried |
+| Missing resource | service role lacks `%Ens_ProductionConfig:W` | could not start: `NOTALLOWED`, `result.itemNotChanged` | Plain reason |
+| Undo asked | after a done rollback, the chat asks `propose_fix` `{kind: undo_rollback}` twice | one `undo_rollback` request (the second ask is `already_asked`); dry run `{before: old, after: new}`; the incident's state does not move | No second request |
+| Undo after close | the incident closed after a done rollback | the undo is still raised (MOVES 0); approved, it restores the new value: `result.rollbackUndone` | No error expected |
+| Nothing to undo | no done rollback on the session's incidents | tool outcome `nothing`, "There is no rollback to undo, so no request was raised." | Plain answer |
+| Online demo | `onlineDemo` 1 | no history rows, so the pack lists none. Both kinds refuse with ONLINESHARED; with that check bypassed, Execute ends `NOTALLOWED` (no grant). | Plain reason |
+| No approved row | `Execute` for a pending, rejected or unknown Ref of either kind | nothing written | Existing refusal |
+
+</intent-contract>
+
+## Code Map
+
+All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-level folder.
+
+**The setting history (36.1)**
+- `Watch/SettingHistory.cls`:
+  - `Diff`/`Change` (148-182): a row's `Source` is the later entry's source, or the earlier entry's when the setting is gone.
+  - `VALUEMAX` 2000 (28); off on the online demo (38); the first snapshot records no change (91).
+- `Data/SettingChange.cls`: `RefIndex` (50), `ProductionIndex On (Namespace, Production, DetectedAt)` (52), `Credential` rows blank (35-45).
+- `Data/SettingSnapshot.cls`: `ProductionIndex` (41) and `Newest` (44-49); there is no oldest helper.
+- `Watch/Reader.cls`: `Settings(namespace, production, full, salts, .marks, .settings)` (540-559) gives the current effective `{item, target, setting, value, source, credential}`, and the dry run filters it. `OnlineDemo()` (175).
+
+**The evidence pack and the diagnosis**
+- `Watch/EvidencePack.cls` (421 lines):
+  - `Build` (84-101) dispatches to `Live` (104-116) or `Recorded` (119-136); `Detail` (145-160); `Input` (232-235).
+  - It has no size limit and no cut marker today. The cut-note precedent is `Tools/Result.cls:26` `CUTNOTE`.
+- `Watch/Msg/DiagnosisPayload.cls`:
+  - `CAUSECATEGORIES` (21) already holds `setting_change`; `FIXCATEGORY` (24).
+  - `%OnValidateObject` 61-91: any other category refuses a fixKind at 78-82. `CheckFix` 95-113 calls `FromInput`.
+- `Agent/Diagnosis.cls` INSTRUCTIONS 20-46: line 24 lists the pack's contents and line 34 allows `repair_resend` only.
+
+**The incident notice and summary**
+- `Watch/Notice.cls`:
+  - `Key` 164-170 (`setting_change` gives `incident.noFix` at 169); `Slots` 182-206, with `cause` at 194-199.
+  - `NoFixKey` 210-215; `AskedKey` 219-222 and `AskedSlots` 226-277; `WithFixKey` 282-288.
+  - `WithFixSlots` 332-390 needs FixSummary and `resend` >= 1 at 350-366.
+  - `ResultKey` 393-412 (item branch 404-407) and `ResultSlots` 429-506; `Common` 509-526.
+- `Watch/IncidentManager.cls`:
+  - `Diagnose`/`DiagnoseRequest` 728-770; `Answered` 787-822 (the fix object at 804); `Notice` 849-869.
+  - `Propose`/`Ask`/`SendDryRun` 874-923; `Proposed` 965-1035; `RaiseFix` 1040-1057.
+  - `Asked` 1067-1122: recipients, `ASKED`, the MOVES check at 1092 and `AlreadyAsked` at 1102 and 1312-1321.
+  - The later round at 628 re-asks `Diagnosed` kinds. `ResultExtra` 1707-1719; `Moves` 1778-1781 and `Aside` 1732.
+- `Watch/Summary.cls`: `Build` 72-103 (non-message runs left out of the sums at 75), `RequestEvents` 146-161, `RunEvents` 183-210.
+
+**The fix kinds and the executor**
+- `Fix/Kind.cls`:
+  - Parameters 34-72 (`TARGETTYPE`, `DIAGNOSED`, `ASKED`, `ONLINEGRANT`, `MOVES`, `NOSTART`, `NOREAD`); `KINDS` 75.
+  - `Classes`/`Names`/`ForName`/`DiagnosedNames`/`Diagnosed`/`Check`/`CheckParameters` 78-160; `Ready` 225; `DryRun`/`Recheck`/`Execute` 311-329.
+- `Fix/Kind/SuspendItem.cls`: the sibling for the new kinds. Reasons as parameters (32-41), `Refusal` (77-82), `DryRun` (51-68), the shared `Plan` (117-145), `Execute` through `InProduction` (105). `Fix/Kind/ResumeItem.cls` is the undo-by-subclass precedent.
+- `Fix/Executor.cls`:
+  - `DryRun`/`Work` 177-220; `Execute` 223-260; `Missing`/`Unchecked` 387-404 (`Gate.MissingOf` reads the ServiceUser setting).
+  - `Run` 408-502: a non-message type ends in the generic `changed` branch at 474-481, and `NotRunning` at 433.
+  - `CouldNotStart` 594-609; `ActionEntry`/`ActionTarget` 775-812.
+  - `InProduction` 1145-1262: the item branch is `action'=""` at 1165, so a setting entry must be told apart BEFORE it. `SkipReason` 1266-1281.
+- `Fix/Run.cls`: `Suspended` 66-123 collects every `TARGETTYPE` "item" kind, so the new kinds must not use "item". `Data/FixRun.cls` has no field for a replaced value, and none is needed (Design Notes).
+- `irislib/Ens/Director.cls`:
+  - `EnableConfigItem` 1561-1642 is the model: open the production, change it, `%Save`, `UpdateProduction`.
+  - `GetItemSettingValue(cfg, type, setting, .sc)` 1755; `SetItemSettingValue` 1804-1844 is not used (it calls `SaveToClass` through an unexported portal class).
+  - `UpdateProduction` 159-177 restarts only items whose `Checksum` changed (988-994).
+- `irislib/Ens/Config/Item.cls`: `FindSettingByName(name, target)` 345; `Checksum` 245-256.
+
+**The chat tool**
+- `Tools/WatchTools.cls`: `FIXABLE` 101, `WARNABLE` 103, `ProposeFix` 201 (parameters built at 215).
+- `Agent/Chat.cls:65-66`: the propose_fix instructions. `Tools/Watching.cls`: the tool row and its description.
+
+**Grants and the security overview**
+- `Install/Step/Fix.cls` `Grants`/`GrantsOf` 36-59 (ONLINEGRANT at 49).
+- `Install/Step/Roles.cls`: `FORBIDDEN` 15, enforced in `Add` 309-311 (resource only, before the permission). `Apply` 348-352 rewrites the role at each start.
+- `Install/Step/Users.cls:40,43`: SERVICEUSER and SERVICEROLE.
+- `Install/SecurityOverview.cls`: `ONLINESTATEMENT` 37, `FixKindRows` 215-230, `RoleRows` 233-261, `FixKindsText` 391-400. `docs/security-overview.md` 40-54 and 56-108, regenerated by `docker/tests/test-security-overview.sh --write` (live unit `security-overview`).
+
+**The catalog, payloads and Telegram**
+- `Msg/Catalog.cls`: `SlotText` 162-207, where `fallbackReason` is the nested-entry precedent at 192-197. `Count` 350.
+- `Msg/Catalog/Watch.cls`: append after the last entry (`files.noReader`, about 1122). `Msg/Catalog/Core.cls` holds the `press.` keys.
+- `Data/Incident.cls`: `FirstAt` 36, `Cause` 45, `CauseCategory` 48, `Element` 51.
+- `Live/Payload/Incident.cls` (Lane A): properties 6-63, `FromRow` 77-107, and `Chosen` 167. Object access only (64-67).
+- `Live/Payload/Part/` holds the part classes. `Live/Payload/Approval.cls:121-124` is the `kind = "setting"` branch for OcuTalon's own settings, so do not reuse it.
+- `Channel/Telegram/In.cls`: `FixSlots` 468-482, `PressText` 487+.
+
+**The evaluation set and the mock**
+- `Eval/Record.cls`: `Capture` 57-74; the doc at 7-17 refuses a fixKind outside data_format_change.
+- `Test/Eval/Record.cls`: `RECIPES` 53, `Recipes()` 185, `TestCommittedIsCurrent`, and ">= 11" at 418.
+- `Test/Eval/Cases.cls:207`; `docker/tests/test-eval-set.sh` 725-776 and 801.
+- `ci/mock/scenarios/A/diagnosis-nofix.json` gives the marker-scenario shape. There is no scenario count pin (`ci/mock/test/scenarios.test.mjs:130`). The `propose-fix-*.json` scenarios cover the chat.
+
+**Web**
+- `web/src/app/approvals/approval-view.ts`: `APPROVAL_TEXTS` 56-90, `itemDryRunView` 259-274, `dryRunView` 294-322 and `resultView` 536-640. `settingView` is for persona settings, so do not use it.
+- `web/src/app/rail/rail-view.ts` 43-51 and 187-213.
+- `web/src/app/incidents/incident-view.ts` 44-52 and 254-275.
+- `web/scripts/catalog.mjs` 15-40 and 103 generate `web/src/app/msg/catalog.ts`. `web/scripts/payloads.mjs` generates `web/src/app/live/payloads.ts`.
+- Test pins:
+  - `web/scripts/{approval-view,rail-view,incident-view,phone-view,payloads,ux-strings}.test.mjs`. The `ruled` table of `ux-strings.test.mjs` starts at 782, and 23.2's entries are at 858-873.
+  - `web/e2e/cards/approval-card.spec.ts`.
+
+**Guide and README**
+- `GUIDE.md` "New since 1.0.0": "#### Your integrations", with "Queue backlogs between digests" at about line 13.
+- `docker/tests/test-readme.sh` `NS_WANT` 1060-1085.
+
+**Tests to extend**
+- Fix: `Test/Fix/Kind.cls` (63, 84-86, `TestGrants` 202-233), `Test/Fix/ItemKinds.cls` (37-38, `TestGrants` 56-86), `Test/Fix/PartnerWarning.cls:111-112`, `Test/Fix/Refused.cls` (loops over every kind).
+- Watch: `Test/Watch/Payload.cls:194`; `Test/Watch/Case.cls` (`SetOnlineDemo` 392, `RoleResources` 402, `RevokeRole` 434, `Tick` 686).
+- The setting fixtures: `Test/Watch/SettingHistory.cls` (`ChangeStored` 222-254, `Changes` 305) and `Test/Watch/OrdersDefinition.cls` (`ITEM` OrdersFromPartner, `NOTE` ZzFixtureNote).
+- Install: `Test/Install/Registry.cls` (`TestForbiddenGrantRefused` 625-653, `TestEveryRole` 720-759), `Test/Web/Install.cls` (`CheckGrants` 411-412, `Forbidden` 1082-1086), `Test/Install/SecurityOverview.cls` (326, 332-334, `TestPrivilegesMatchSecurityRecords` 643+).
+- Other: `Test/Msg/Catalog.cls` (counts 85-92, Keys and Fixtures), `Test/Live/Payloads.cls` (`EXPECTED` 14, `TestIncidentPayload` 99-186), `Test/Watch/Summary.cls`, `Test/Channel/TelegramIn.cls`.
+
+## Tasks & Acceptance
+
+**Execution:**
+
+**Task 0: measure first**
+
+Measure these on a fresh lane-B throwaway, from the `FixExecutor` job, through the live case of `Test.Watch.Rollback` with a real `Execute`. Write the figures under Design Notes › Measured.
+- (a) Switched to OCUORDERS, set the stored Host setting `ZzFixtureNote` of `OrdersFromPartner` (`Ens.Config.Production.%OpenId`, the item's `Settings` list, then `%Save`), then call `Ens.Director.UpdateProduction(Ens.Director.GetRunningProductionUpdateTimeout())`. Expected:
+  - it returns OK and does not deadlock;
+  - FixExecutor's own job survives, and only the target item restarts (the event log's "modified item to be updated");
+  - `GetItemSettingValue` returns the new value;
+  - the class definition of `OcuTalon.Demo.Orders.Production` is unchanged (`%Dictionary.ClassDefinition` TimeChanged before and after);
+  - the counter moves, and the next Tick records one `SettingChange` with Source `production`;
+  - record the duration.
+- (b) The same for an Adapter target, and for removing a stored setting (the inherited value applies again).
+- (c) `$SYSTEM.Security.CheckUserPermission("OcuTalonService", "%Ens_ProductionConfig", "W")` is 1 after the Fix step on a local install, and 0 with `onlineDemo` 1 after the Roles step reruns.
+
+If (a) fails, or needs any privilege beyond `%Ens_ProductionConfig:W`, HALT with `## Clarification Needed` and widen nothing. Already settled in plan by reading irislib: `Ens.Config.*` and `Ens.Director` check no resource, and only the portal checks `%Ens_ProductionConfig:WRITE` (`irislib/EnsPortal/ProductionConfig.cls:29,6427`).
+
+**Lane A: the setting cause and the evidence pack**
+- `Watch/SettingCause.cls` (new, Lane A). It holds the window and the cut, the named change, the gap, the cause slot, and the setting-kind notice helpers.
+  - The window rule. A row is listed when it is of the incident's namespace and production, and when `FirstAt` - 86400 s <= `DetectedAt` <= `FirstAt` and `DetectedAt` > the production's oldest snapshot `TakenAt`.
+  - `Window(namespace, production, firstAt, .rows)` reads the rows newest first, by `ProductionIndex`.
+  - `AddTo(pack, source)`: for a live source it adds the window rows to the pack. For a recorded snapshot it applies the same rule to the snapshot's optional `settingChanges` array, against the pack's `firstAt`. It adds `settingChanges` (at most `MAXCHANGES` 10, each value at most `MAXVALUE` 500 characters) and, when cut, `settingChangesNote`.
+  - `Named(incident or pack, elementAtFault, .row)`: the newest window row whose `setting` equals the element, on the failing item first.
+  - `GapMinutes(detectedAt, firstAt)`: whole minutes, rounded half up.
+  - `CauseSlot(incident, .slot)`: `{"setting", "target": item, "time": detectedAt, "minutes": gap}`, or "" when the incident names no change.
+  - The setting-kind keys and slots that `Notice` and `Summary` call: `RequestKey`, `ResultKey`, `ResultSlots`, `SummaryLines`.
+- `Watch/EvidencePack.cls`: one line in `Build` after the Live/Recorded dispatch, `Do ##class(OcuTalon.Watch.SettingCause).AddTo(pack, source)`.
+- `Eval/Record.cls`: `Capture` also writes the window rows into `snapshot.json` as `settingChanges`, with the same fields as the pack. The case check lets a fixKind be any kind whose `CATEGORY` is the case's category.
+- `Watch/Msg/DiagnosisPayload.cls`: a fixKind is allowed when `Fix.Kind.DiagnosedFor(CauseCategory)` lists it. For `rollback_setting`, three rules apply:
+  - fixParameters and fixSummary are absent;
+  - `elementAtFault` must name a setting that the pack's `settingChanges` lists (read through `EvidencePack.FromInput`, extended to return them);
+  - the data_format_change rules are unchanged.
+- `Agent/Diagnosis.cls` INSTRUCTIONS (agent text, `## Public Text` › Agent text):
+  - the pack lists recent setting changes;
+  - `setting_change` names the setting as `elementAtFault`;
+  - `fixKind` `rollback_setting` is used only for a listed change on the failing item that is not a secret.
+
+**Lane A: the incident and its notices**
+- `Data/Incident.cls`: append `Property SettingChangeRef As %String(MAXLEN = 64)` (the `SettingChange` Ref that the diagnosis named), with storage appended (AD-5).
+- `Watch/IncidentManager.cls`:
+  - `Answered`: for `setting_change`, set `SettingChangeRef` from `SettingCause.Named`. For `rollback_setting`, the fix parameters are `{"change": <that Ref>}`.
+  - The later round (628) re-asks only kinds of `TARGETTYPE` "message".
+  - `ResultExtra` gains `setting`, `target` and `after` for setting kinds.
+  - `Asked`: a kind may fill its parameters through `Fix.Kind.AskedParameters(incident, .parameters)`, and a MOVES 0 kind may be asked on a `closed` incident when its `ASKEDSTATES` lists `closed`.
+- `Watch/Notice.cls`:
+  - `Key`: `setting_change` with a rollback fixKind gives "", the Propose path.
+  - `WithFixKey`/`WithFixSlots`: for `TARGETTYPE` "setting", the key is `incident.rollbackRequest`, with slots `{count, itemNoun, time, cause, setting, target, before, after}`. There is no fixSummary or resend requirement.
+  - `Slots` for `incident.noFix`: `cause` is `SettingCause.CauseSlot` when it is set, else the model's sentence.
+  - `AskedKey`/`AskedSlots`, `ResultKey`/`ResultSlots`: setting kinds delegate to `SettingCause`. Each is one small hook, listed under (c).
+- `Watch/Summary.cls`:
+  - `RequestEvents`: `summary.requestedRollback` and `summary.requestedUndoRollback`.
+  - `RunEvents`: for setting kinds, `summary.settingRestored`, `summary.rollbackUndone` or `summary.settingNotChanged`.
+  - `Build`: every non-message `TARGETTYPE` stays out of the message sums.
+
+**Lane A: the fix kinds and the executor**
+- `Fix/Kind.cls`:
+  - Append `,OcuTalon.Fix.Kind.RollbackSetting,OcuTalon.Fix.Kind.UndoRollback` to `KINDS`. Document `TARGETTYPE` "setting" (targets are `SettingChange` row ids).
+  - Add `Parameter CATEGORY` ("data_format_change" on RepairResend, "setting_change" on RollbackSetting) with `DiagnosedFor(category)`. `DiagnosedNames()` stays the list of every kind with DIAGNOSED 1.
+  - Add `Parameter ASKEDSTATES = "open,resolved"` (PartnerWarning: WARNABLE's list) and `AskedParameters(incident, .parameters)`, which returns OK unchanged by default.
+- `Fix/Kind/RollbackSetting.cls` (new). Its parameters:
+  - `NAME` rollback_setting, `PARAMETERS` change, `RESOURCES` `%Ens_ProductionConfig:W`, `TARGETTYPE` setting, `CATEGORY` setting_change;
+  - `DIAGNOSED` 1, `ASKED` 0, `ONLINEGRANT` 0, `MOVES` 1;
+  - the reasons of `## Public Text`.
+
+  `DryRun` refuses in this order: online demo (ONLINESHARED); OcuTalon's own production; a Ref that is not found or is of another production; not in the window; not on the failing item; `Credential` 1; an empty value or one over 1,000 characters.
+
+  It then reads the current value through `Reader.Settings`. A current value that is not the new value is refused (CHANGEDAGAIN). Otherwise `targets` is the row's `%Id` and `dryRun` is `{item, field: setting, before: current, after: old}`.
+
+  `Recheck` and `Execute` share `Plan`, as SuspendItem does. The plan entry is `{"id", "setting", "target", "item", "production", "expect": new, "value": old}`, and `Execute` runs it through `Executor.InProduction`. The result is `{"changed", "skipped", "unreached"}`.
+- `Fix/Kind/UndoRollback.cls` (new). It is `Extends RollbackSetting`, with `NAME` undo_rollback, `DIAGNOSED` 0, `ASKED` 1, `MOVES` 0, `CATEGORY` "" and `ASKEDSTATES` "open,resolved,closed".
+  - `AskedParameters` sets `change` from the incident's newest done `rollback_setting` request that changed its setting with no done `undo_rollback` after it. With none, it refuses with NOTHINGTOUNDO.
+  - `DryRun` re-applies the refusals (but not the window) and requires that the rollback exists. Current must equal the change's old value; `dryRun` is `{item, field, before: old, after: new}`.
+  - Plan entry: `expect` old, then `value` new when the change's `Source` is `production`, else `"remove": 1` (the stored setting the rollback added is removed, so the inherited value applies again).
+- `Fix/Executor.cls`:
+  - `InProduction`: a new branch BEFORE the `action` test (1165), for entries with `setting`. Inside it:
+    1. Open the production and the item (the first enabled item of that name, else the first).
+    2. Read the current value with `Ens.Director.GetItemSettingValue(prod_"||"_item, target, setting, .sc)`. If it is not `expect`, the code is "changed".
+    3. Otherwise set, insert or remove the stored `Ens.Config.Setting` (Name and Target), `%Save` the production, and call `Ens.Director.UpdateProduction(...)`. The code is "done", or "error" or "refused" with the first error.
+
+    The branch calls no OcuTalon class while it is switched (AD-3).
+  - `SkipReason`: "changed" gives the `result.settingChangedSince` reason.
+  - `ActionTarget`: "setting" gives "<setting> on <item> in <production> in <namespace>". No value is audited.
+- `Fix/Run.cls`: `RolledBack(incidentRef) As %String`, the Ref of the change of the newest done `rollback_setting` with no done `undo_rollback` after it, or "".
+
+**Lane A: the chat tool**
+- `Tools/WatchTools.cls` `ProposeFix`:
+  - the incident states come from the kind's `ASKEDSTATES`;
+  - for `undo_rollback`, the tool picks the session's newest incident in those states with `Fix.Run.RolledBack` set, and passes parameters `{}`;
+  - when there is none, it answers outcome `nothing` with the undo message.
+- `Tools/Watching.cls`: the description names `undo_rollback`.
+- `Agent/Chat.cls`: one INSTRUCTIONS line (agent text).
+
+**Grants and the security overview**
+- `Install/Step/Roles.cls`: `Parameter FORBIDDENEXCEPTION = "OcuTalonServiceRole:%Ens_ProductionConfig:W"` (one triple). `Add` skips the refusal only for that exact role, resource and permission, and every other forbidden pair is still refused.
+- `Install/SecurityOverview.cls`:
+  - `ONLINESTATEMENT` and one new sentence after it, as `## Public Text` gives them;
+  - regenerate `docs/security-overview.md` on the throwaway (`bash docker/tests/test-security-overview.sh --write`): two new fix-kind rows and the `%Ens_ProductionConfig` W row for `OcuTalonServiceRole`, declared by `Fix`.
+
+**Cross-lane: the catalog, payloads and Telegram**
+- `Msg/Catalog.cls` (Lane B, AD-33 exception) gains two slot types:
+  - `minutes`: an integer of 0 or more, rendered by `## Public Text`'s rule;
+  - `cause`: a string rendered as a `sentence`, or an object `{setting, target, time, minutes}` rendered through `incident.settingChangeCause`'s text, as `fallbackReason` nests an entry.
+- `Msg/Catalog/Watch.cls`:
+  - one appended block with every Watch key of `## Public Text`, `source` naming Story 23.3 and the Planner's ruling;
+  - `incident.noFix`'s `cause` slot type changes from `sentence` to `cause` (strings render as before).
+- `Msg/Catalog/Core.cls` (Lane B): an appended block with `press.approvedRollback` and `press.approvedUndoRollback`.
+- `Channel/Telegram/In.cls` `PressText`: a branch for the two kinds, from the dry run's `item` and `field`.
+- `Live/Payload/Part/SettingChange.cls` (new): `item`, `target`, `setting`, `oldValue`, `newValue`, `credential`, `detectedAt`.
+- `Live/Payload/Incident.cls`: `SettingChange` and `GapMinutes`, filled in `FromRow` by `SettingChange.RefIndexOpen` (object access). `Chosen` lists `undo_rollback`.
+
+**Web**
+- `web/scripts/payloads.mjs`: regenerate.
+- `web/scripts/catalog.mjs`: list the new Watch keys and `incident.settingChangeCause`, and add the `minutes` rule in TypeScript.
+- `approvals/approval-view.ts`: the `rollback_setting`/`undo_rollback` dry-run rows (Before and After of the setting), titles, actions and result bands.
+- `rail/rail-view.ts`: `approvalTitle`.
+- `incidents/incident-view.ts`: the fix sentences, the fixing lines, and the setting-cause line from `settingChange`/`gapMinutes`.
+
+**Evaluation set and mock**
+- Two new Orders recipes, recorded live with `Eval.Record`. Each has `heldOut` false, and a `snapshot.json` with `settingChanges`.
+  - (1) `eval/orders-target-renamed/`: `OrdersFromPartner`'s Host setting `TargetConfigName` changes from `OrdersToWarehouse` to the missing `OrdersToWarehous`, and good orders then fail at `OrdersFromPartner`. Expectation: `setting_change`, `TargetConfigName`, fixKind `rollback_setting`.
+  - (2) `eval/orders-target-to-review/`: the same setting changes to `OrdersForReview`, which takes only `PartnerOrder` (`Demo/Orders/Review.cls`), so the transformed orders fail at `OrdersForReview`. Expectation: `setting_change`, `TargetConfigName`, no fix, because the change is not on the failing item (OTHERITEM). That the orders fail there is an inference, measured at recording. If they do not, change `PartnerOrdersIn`'s `TargetConfigName` to a missing item instead, and record which was used.
+- Add both names to `Test/Eval/Record.cls` `RECIPES`.
+- `ci/mock/scenarios/A/diagnosis-rollback.json`: a marker scenario that replies `setting_change`, `elementAtFault` `ZzFixtureNote`, `fixKind` `rollback_setting`. `ci/mock/scenarios/A/propose-fix-undo-rollback.json`: the propose_fix `{kind: undo_rollback}` marker.
+
+**Guide**
+- `GUIDE.md`: the bullet of `## Public Text` after "Queue backlogs between digests".
+- `docker/tests/test-readme.sh` `NS_WANT`: the bullet's name in that place.
+
+**Tests**
+
+First update every pin that the Shared surfaces line names. Then add these.
+- `Test/Watch/SettingCause.cls` (new; no other namespace): the window edges, newest first, the cut and its note, the secret row, the recorded snapshot path, `Named` (the failing item first), the `GapMinutes` rounding, `CauseSlot`, and that the pack and the notice name no user.
+- `Test/Watch/Rollback.cls` (new; THROWAWAY AND CI ONLY; extends `Test.Watch.Case`):
+  - Task 0;
+  - a live setting change through `ChangeStored`, then a Tick, then failures with the `[[mock:diagnosis-rollback]]` marker, giving the notice key and its rendered text in WebChatOut, with the gap;
+  - the dry run changes nothing (the definition, the counter and the value);
+  - the approved rollback restores the value, and an audit entry is written;
+  - changed again gives a skip;
+  - NOTALLOWED through `RevokeRole`;
+  - the undo twice gives exactly one request, and the undo restores the value after the incident closed;
+  - the online-demo refusals and grants;
+  - `Execute` with no approved row.
+- `web/e2e/cards/approval-card.spec.ts` (real HTTP):
+  - as the unprivileged LIVE `OcuTalonUser`, `GET /api/v1/state` carries a seeded incident's `settingChange` and `gapMinutes`, and a seeded `rollback_setting` request's `fixKind` and dry run `field`/`before`/`after`;
+  - rejecting it through the answer route changes nothing;
+  - a second session sees neither.
+
+**Acceptance Criteria:**
+- AC1 (FR-27, AD-15, NFR-3): Given `SettingChange` rows of the failing production around the first failure, when `EvidencePack.Build` builds the pack (live or recorded), then `settingChanges` lists exactly the window's rows, newest first, with item, target, setting, values (blank for a secret) and detected time. It is cut to 10 rows and 500 characters a value, with `settingChangesNote` when cut. No older row, no row before the oldest snapshot and no author is ever listed (`Test.Watch.SettingCause`).
+- AC2 (FR-27, UX-DR146, AD-32): Given a `setting_change` diagnosis that names a listed change, when the notice is built, then its `{cause}` renders "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}." The gap is computed by code in whole minutes, and gap 4 renders "four minutes". The `incident` payload carries `settingChange` and `gapMinutes` (`Test.Watch.SettingCause`, `Test.Msg.Catalog`, `Test.Live.Payloads`, `Test.Watch.Rollback`).
+- AC3 (FR-26, FR-8, FR-9, AD-16, UX-DR77): Given such a diagnosis with `rollback_setting`, when it is proposed, then:
+  - the kind accepts only a window row on the failing item, its adapter or its applying defaults;
+  - its dry run shows Before = the current value and After = the old value, and changes nothing;
+  - after approval, `InProduction` re-checks the current value against the change's new value (skipping and reporting `result.settingChangedSince` when it differs), restores the old value, reports `result.settingRestored` and writes one Action audit entry (`Test.Watch.Rollback`, `Test.Fix.Refused`).
+- AC4 (FR-26): Given a done rollback, when the user asks to undo it (twice, before and after the incident closes), then exactly one `undo_rollback` request with its own dry run is raised. Once approved, it restores the value the rollback replaced, and the incident's state never moves (`Test.Watch.Rollback`).
+- AC5 (NFR-12, AD-3, AD-16, AD-24): Given the service role without `%Ens_ProductionConfig:W`, when either kind is executed, then it ends NOTALLOWED, and both kinds write only from `Executor.InProduction`. A source check in `Test.Watch.SettingCause` confirms that neither kind class nor `Watch/SettingCause.cls` contains `$NAMESPACE` (`Test.Watch.Rollback`, `Test.Watch.SettingCause`).
+- AC6 (DW-1225, AD-24): Given a local install, when the Roles step runs, then `OcuTalonServiceRole` holds `%Ens_ProductionConfig:W`, and the one exception `Roles.#FORBIDDENEXCEPTION` is the only allowed forbidden pair. R or U on it, or W for another role, is still refused. The overview lists both kinds, the row and the ruled sentences (`Test.Install.Registry`, `Test.Web.Install`, `Test.Fix.Kind`, `Test.Install.SecurityOverview`, `live security-overview`).
+- AC7 (online demo, V4, AD-24): Given `onlineDemo` 1, when the Fix step's grants are composed and either kind is asked, then no `%Ens_ProductionConfig` pair is granted. Both kinds refuse with ONLINESHARED, and with that check bypassed Execute ends NOTALLOWED (`Test.Watch.Rollback` `TestOnlineDemo`, `Test.Fix.Kind` `TestGrants` with `SetOnlineDemo(1)`).
+- AC8 (FR-62, FR-24, AD-22): Given the evaluation set, when this story lands, then it holds two recorded `setting_change` incidents whose snapshots carry `settingChanges`, and every run scores them on cause category and element at fault (`Test.Eval.Record`, `Test.Eval.Cases`, `test-eval-set.sh`; CI).
+- AC9 (AD-16, AD-22, Integration): Given the `diagnosis-rollback` mock scenario and a real setting change in OCUORDERS, when the incident settles, then WebChatOut records the session's notice with key `incident.rollbackRequest` and the rendered gap sentence. The dry run left the definition and the counter unchanged, and a second session gets nothing (`Test.Watch.Rollback`).
+- AC10 (Rule 3, real HTTP): Given a seeded incident that names a setting change and a seeded `rollback_setting` request, when the unprivileged LIVE `OcuTalonUser` reads `GET /api/v1/state` and rejects the request over real HTTP, then:
+  - the payload carries `settingChange`, `gapMinutes`, `fixKind` and the dry run's `field`, `before` and `after`;
+  - nothing in the production changes;
+  - a second session's state lists neither (`web/e2e/cards/approval-card.spec.ts`; CI `browser`).
+- AC11 (findability): Given `GUIDE.md` after this story, when `docker/tests/test-readme.sh` runs, then "New since 1.0.0" holds the "Setting changes behind an incident." bullet, with the ruled text, after "Queue backlogs between digests", and the check passes.
+- AC12 (eval recipe 2): Given a setting change on another item than the failing one, when the diagnosis names it, then the notice is `incident.noFix` with the setting-cause sentence, and no request is raised (`Test.Watch.SettingCause` OTHERITEM case, and eval case 2).
+
+## Spec Change Log
+
+## Review Triage Log
+
+## Design Notes
+
+### For the Planner's gate
+
+**(a) Veto items, each with its online-demo behaviour**
+
+1. **The `%Ens_ProductionConfig:W` grant to `OcuTalonServiceRole`.** It is derived from the two kinds' `RESOURCES` through `Install.Step.Fix`, on local installs only.
+   - Online demo: `ONLINEGRANT` 0 leaves it out, and `Roles.Apply` rewrites the role at each start, so a flag change removes it.
+   - Pinned by `Test.Fix.Kind` `TestGrants` (`SetOnlineDemo(1)` gives no pair), by `TestOnlineDemo` (with ONLINESHARED bypassed, Execute ends NOTALLOWED), and by Task 0 (c).
+   - The production still runs as `_Ensemble`, so this is a privilege profile, as the overview's Limits say.
+2. **Two new fix kinds.**
+   - `rollback_setting`: offered by the diagnosis.
+   - `undo_rollback`: asked in the chat, `MOVES` 0, askable on a `closed` incident.
+   - Both are risky, behind one approval and a dry run, and denied in untrusted or tainted turns (the gate on `propose_fix`). Both are listed in the overview.
+   - Online demo: both refuse with ONLINESHARED. No history row exists there, so the pack lists none, and a diagnosis there cannot name one.
+3. **The single forbidden-list exception**, `Roles.#FORBIDDENEXCEPTION` = `OcuTalonServiceRole:%Ens_ProductionConfig:W`, defined once. Every forbidden-list test reads it (`Test.Install.Registry` `TestEveryRole` and `TestForbiddenGrantRefused`, `Test.Web.Install` `CheckGrants`, `Test.Fix.Kind` `TestGrants`), and `Registry` pins that it is exactly that one triple.
+   - Online demo: the exception allows the pair but grants nothing; the omission comes from `ONLINEGRANT`.
+4. **The `ONLINESTATEMENT` change and the overview sentence** (`## Public Text`), generated by `Install/SecurityOverview.cls`. The `test-security-overview.sh` regeneration check stays green.
+5. **Stored data.**
+   - `Data.Incident` gains `SettingChangeRef` (one appended property, append-only storage, AD-5). The online demo leaves it empty.
+   - `ApprovalRequest.DryRun` uses its existing keys (`item`, `field`, `before`, `after`), so `DRYRUNKEYS` does not change.
+   - Users' production definitions change only on an approved run, with no `SaveToClass`.
+   - Retention is unchanged.
+6. **Routes.** There is no new route. `GET /api/v1/state`'s incident payload gains `settingChange` and `gapMinutes`, tested over real HTTP as the LIVE `OcuTalonUser` with a second-session check. Both are empty on the online demo.
+7. **AD amendments**, which the lead writes in the spine (Rule 20):
+   - AD-15: the pack's `settingChanges` section, its window and its limits; `Incident.SettingChangeRef`; the notice's setting cause. A MOVES 0 kind may be asked on a closed incident and never moves its state. This extends "anything on a closed incident is refused" to "any move".
+   - AD-16: the kinds, `TARGETTYPE` setting, `CATEGORY`, `ASKEDSTATES`, and the item-level restore rule.
+   - AD-24: `FORBIDDENEXCEPTION`; "the rollback fix kind" reads "the two rollback kinds", which hold one grant.
+   - AD-32: the slot types `minutes` and `cause`.
+   - AD-22: the two eval cases and the snapshot's `settingChanges`.
+
+**(b) PUBLIC TEXT.** See `## Public Text` below. Every string is there verbatim with its key and file. The approved ones are marked APPROVED (36.1, 2026-11-12), and everything else is a PROPOSAL.
+- More to try: no item is proposed. The online demo has no setting history and refuses rollback, and the local demo has no "break by a setting" action. Adding one would be a new demo action and a new public surface.
+- One GUIDE.md bullet is proposed. It is the judge-visible path, and it says "on your own install".
+
+**(c) Contended-file overlaps**
+
+Lane D, Epic 22, `Watch/**`:
+- `Watch/SettingCause.cls`: a NEW file.
+- `Watch/EvidencePack.cls`: one line in `Build`.
+- `Watch/Msg/DiagnosisPayload.cls`: the fixKind rule in `%OnValidateObject` (about 6 lines) and `CheckFix`'s listed-setting check.
+- `Watch/Notice.cls`: `Key` (+1 line); hooks in `WithFixKey`, `WithFixSlots`, `Slots` (the cause), `AskedKey`/`AskedSlots` and `ResultKey`/`ResultSlots`, each a 1-3 line `TARGETTYPE` "setting" delegation to `SettingCause`.
+- `Watch/IncidentManager.cls`: `Answered` (+4), the later round (+1), `ResultExtra` (+3), `Asked` (`ASKEDSTATES` and `AskedParameters`, about 6).
+- `Watch/Summary.cls`: `RequestEvents`/`RunEvents` delegate (+2 each), and `Build`'s type test.
+- New `Test/Watch/*` files, plus `Test/Watch/Payload.cls` (the `DiagnosedNames` pin).
+
+None of these is an end-of-file append. They are in-method hooks, as 23.2's were, so each needs the Planner's ruling: plain union, with any overlapping hunk flagged.
+
+The rest:
+- `Checks/**`: nothing.
+- Lane C, Epic 21: nothing (no `Core/SettingsOps.cls`, Settings web or `Web/Api.cls` edit).
+- Lane A, Epic 25: nothing.
+- One-name appends: `Fix/Kind.cls` `KINDS` (Fix is not contended).
+- Lane B files under an AD-33 exception request, none of them contended now: `Msg/Catalog.cls` (two slot types), `Msg/Catalog/Core.cls` (an appended block), `Live/Payload/Part/SettingChange.cls` (new), the web files above, the `web/scripts/*` tests, `web/e2e/cards/approval-card.spec.ts`, `GUIDE.md` and `docker/tests/test-readme.sh`.
+
+**(d) Deviations and readings**, each with a recommendation
+1. **Undo after the incident closes.** The APPROVED `result.settingRestored` promises "To undo it, ask me to undo the rollback." with no time limit. A rollback that works usually ends in a quiet close 15 minutes later. So the undo is `MOVES` 0 and askable on a closed incident, which takes AD-15's amendment in (a)7.
+   - Recommendation: approve.
+   - Alternative: keep undo to open and resolved incidents, and reword the sentence to "...while this incident is open...", the DW-1068 (c) precedent.
+2. **The restore is at item level.** A rollback of a System Default Setting change writes the old value on the failing item only, and never edits the shared row, which may apply to other items. This is how "the defaults that apply to it" is read. Recommendation: approve.
+3. **The window is strict:** `DetectedAt` <= `FirstAt`. A change is dated by the first Tick (up to 60 s) after it, so a change made less than one check interval before the failures began is not listed. Recommendation: accept it as a known limit (AD-15 already says the time is known only to within the check interval). The tighter path, `FailurePoller` reading the counter (AD-15 "may"), would be a follow-up.
+4. **Values.** Changes with an empty value, or one over 1,000 characters, are not offered. This avoids an unrenderable dry run and the 2,000-character cut.
+5. **`{cause}` in `incident.rollbackRequest` and `incident.noFix`** renders the code's setting-cause sentence in place of the model's sentence when a change is named. The model's sentence stays on the incident card. Its time comes from code, which a `sentence` slot may not carry.
+6. **The undo of a closed incident is not in the summary** already stored at the close (23.6 writes it once).
+
+**(e) CI.** No new unit and no `ci/units.sh` edit.
+- `Test.Watch.SettingCause` and `Test.Watch.Rollback` join `shard:lane-a@Watch` in `shards-8`, the most headroom: about 26 min planned. They add about 2-3 min (inference).
+- The `Test/Fix/*` edits touch only fast pins in `shards-11` (28m38s measured).
+- `Test.Eval.Record` (`shards`) records two more cases, about 1-2 min (inference).
+
+### Governing ADs (Rule 6)
+- AD-3: one switching method; the write is inside `InProduction`.
+- AD-5: append-only property.
+- AD-7: static instructions.
+- AD-10: the gate on `propose_fix`.
+- AD-11: approval rows.
+- AD-15: setting history, the pack, IncidentManager as the only writer, the transitions.
+- AD-16: fixed kinds, row-only execution, resources, re-check.
+- AD-17: one audit writer, no values audited.
+- AD-22: tests on throwaways, the eval set, the mock under `A/`.
+- AD-24: the service role, the one exception, the online-demo omission.
+- AD-29/AD-33: lanes and the cross-lane list above.
+- AD-32: catalog keys and slot types.
+
+No AC contradicts an AD's Rule. The only Rule text this story changes is AD-15's closed-incident clause, which (a)7 and (d)1 put to the Planner.
+
+### Already met (evidence on this branch)
+- History rows, the secret blanking, no author column, off on the demo: 36.1 (`SettingHistory.cls:38,91,148-182`; `Test.Watch.SettingHistory`, `SettingSecret`).
+- `setting_change` is a valid category (`DiagnosisPayload.cls:21`).
+- Execute is refused without an approved row (`Executor.cls:223-260`).
+- Resources are checked before a run (`Executor.cls:387-404`).
+- The overview's lists are generated from `Fix.Kind.Classes()` (`SecurityOverview.cls:215-261`).
+- The notice's Approve and Reject come from AD-32's `*Out` rule.
+
+### Decided in-stage
+1. The diagnosis names the change by `elementAtFault` (the setting's name as the pack writes it), and code resolves the Ref (`SettingCause.Named`, the failing item first). So the model never copies an opaque Ref, and a static mock reply works.
+2. The restore rules.
+   - Rollback: set the stored setting to the old value.
+   - Undo: set the stored setting back to the new value when the change's `Source` was `production`, otherwise remove the stored setting.
+
+   `Source` is the later entry's (`SettingHistory.cls:174-182`), so neither rule needs new storage.
+3. No `SaveToClass`, following `EnableConfigItem` (23.2's precedent). `SetItemSettingValue` would rewrite the demo production's class definition, which is OcuTalon's own code, through an unexported portal class.
+4. The pack section's limits: 10 rows and 500 characters a value. The note is model-facing.
+5. Later same-cause rounds re-ask only message kinds.
+6. `undo_rollback` has `CATEGORY` "" and is never diagnosed.
+
+### Integration ACs (Rule 1) and linkage (Rule 2)
+- Integration: AC9 (IncidentManager reads `SettingCause` through the pack and the notice, and WebChatOut delivers it). AC2's payload is read by the web incident card.
+- **Consumes:** `Data.SettingChange`/`SettingSnapshot` (36.1), `Watch.Reader.Settings`, `Fix.Executor`, `Bridge.Approval.Raise`, `Msg.Catalog.Render`, `Watch.Summary` (23.6), `Tools.CommandCall`.
+- **Consumed-by:** Story 23.4 (a page's `{cause}` uses the same `cause` slot type); Story 26.4 (the approver kind `rollback` maps to both kinds); Story 28.1 (summary lines).
+
+### Extend, don't copy (Rule 2)
+- `UndoRollback` extends `RollbackSetting`, as ResumeItem extends SuspendItem.
+- `RollbackSetting` follows SuspendItem's `Refusal`/`Plan` shape. It is a separate class because its targets, re-check and plan entry differ.
+- `InProduction` gains a branch, not a second switch.
+- `CATEGORY`/`DiagnosedFor` generalize `FIXCATEGORY`.
+- `ASKEDSTATES` generalizes `FIXABLE`/`WARNABLE`.
+- The `cause` slot type follows `fallbackReason`.
+- The web rows follow `itemDryRunView`.
+- The tests reuse `Test.Watch.Case` and `Test.Watch.SettingHistory`'s `ChangeStored`.
+
+### Ledger (Rule 17)
+DW-1225 is addressed: the kind and its RESOURCES (Task `Fix/Kind/RollbackSetting.cls`), the grant (AC6), the one exception (AC6, (a)3), ONLINESTATEMENT and the overview sentence (AC6, (a)4), and `incident.settingChangeCause` (AC2). `result.settingRestored` keeps its undo sentence because this story builds and tests the undo (AC4).
+
+## Public Text
+
+APPROVED verbatim (Story 36.1 rulings, 2026-11-12), in `Msg/Catalog/Watch.cls`:
+- `incident.rollbackRequest`: "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." Its web variant is the same text without " Approve?" (PROPOSAL, 23.2's rule). Slots: count, itemNoun, time, cause (`cause`), setting, target, before, after (text).
+- `result.settingRestored`: "{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback."
+- `result.settingChangedSince`: "{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval."
+- `summary.requestedRollback`: "{time}: OcuTalon asked for approval to put {setting} on {target} back."
+- `summary.settingRestored`: "{time}: {setting} on {target} was put back to its earlier value."
+- `incident.settingChangeCause`: "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}." Slots: minutes (`minutes`), setting, target (text), time (time).
+- The `rollback_setting` reasons:
+  - NOTALLOWED: "OcuTalon isn't allowed to change settings in that production"
+  - ONLINESHARED: "On the online demo every visitor shares the Orders production, so OcuTalon doesn't change its settings there; on your own install it can"
+
+PROPOSALS (new public text):
+- The `minutes` slot rule, in `Msg/Catalog.cls` and `web/scripts/catalog.mjs`: 0 is "less than a minute", 1 is "one minute", 2 to 9 are "two minutes" to "nine minutes", and 10 or more is digits with a thousands separator ("12 minutes", "1,212 minutes"). This follows EXPERIENCE.md's "Durations in sentences follow normal style ... 'four minutes after'".
+- `Msg/Catalog/Watch.cls`:
+  - `incident.undoRollbackRequest`: "I can undo the rollback of {setting} on {target}. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." Its web variant leaves out " Approve?".
+  - `result.rollbackUndone`: "The rollback is undone: {setting} on {target} is back to {after}."
+  - `summary.requestedUndoRollback`: "{time}: OcuTalon asked for approval to undo the rollback of {setting} on {target}."
+  - `summary.rollbackUndone`: "{time}: the rollback of {setting} on {target} was undone."
+  - `summary.settingNotChanged`: "{time}: {setting} on {target} was not changed."
+- `Msg/Catalog/Core.cls`:
+  - `press.approvedRollback`: "Approved. Putting {setting} on {target} back."
+  - `press.approvedUndoRollback`: "Approved. Undoing the rollback of {setting} on {target}."
+- Kind reasons, in `Fix/Kind/RollbackSetting.cls` and `UndoRollback.cls`. They are shown through `result.itemNotChanged` ("Nothing was changed: {reason}.") and given to the chat model as "{reason}, so no request was raised.".
+  - OWNPRODUCTION: "OcuTalon doesn't change the settings of its own production"
+  - NOTFOUND: "That setting change is not one OcuTalon recorded for this production"
+  - NOTINWINDOW: "That setting change is not from the 24 hours before the failures began"
+  - OTHERITEM: "That setting change is not on {item}, the item that failed"
+  - SECRET: "{setting} holds a secret, so OcuTalon doesn't put it back"
+  - VALUES: "OcuTalon puts back only values of 1 to 1,000 characters, so it can't put {setting} on {target} back"
+  - CHANGEDAGAIN: "{setting} on {target} changed again since then"
+  - NOSTART: "OcuTalon couldn't change the setting"
+  - NOREAD: "OcuTalon couldn't read the settings of that production"
+  - NOTHINGTOUNDO: "There is no rollback of that setting to undo"
+- The tool answer message (a parameter of `Tools/WatchTools.cls`, given to the model), outcome `nothing` for undo: "There is no rollback to undo, so no request was raised."
+- Web (Lane B, drafts):
+  - Rail and approval titles: "Put {setting} on {target} back" and "Undo the rollback of {setting} on {target}". Button names follow the existing lower-case rule ("Approve: put {setting} on {target} back").
+  - Dry-run rows: Before "{setting}: {before}", After "{setting}: {after}", and "Nothing has changed yet." (existing).
+  - Incident card fix sentences: "I can put {setting} on {target} back to its earlier value." and "I can undo the rollback of {setting} on {target}."
+  - Fixing lines: "Putting {setting} on {target} back…" and "Undoing the rollback of {setting} on {target}…".
+  - The setting-cause line is `incident.settingChangeCause` (approved).
+  - The result bands are the catalog's result keys.
+- `Install/SecurityOverview.cls`:
+  - `ONLINESTATEMENT`: "On the online demo, OcuTalonServiceRole holds neither %Ens_ConfigItemRun:U nor %Ens_ProductionConfig:W, so OcuTalon can't suspend or resume items or change settings there." This is 36.1's dropped draft, extended from 23.2's approved sentence.
+  - The new sentence after it: "On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only because rollback_setting and undo_rollback declare it: each puts back one setting of a watched production's item after an approval, and no other OcuTalon role holds %Ens_ProductionConfig."
+- `GUIDE.md`, "#### Your integrations", after "Queue backlogs between digests": "- **Setting changes behind an incident.** When a setting of a watched production changed in the 24 hours before its failures began, the incident names the setting, when it changed and how long before the failures, for example "The feed broke four minutes after this setting changed". When putting it back would plausibly fix the incident, OcuTalon offers that as a fix with its own dry run, and once it has run you can ask OcuTalon in the chat to undo it the same way. Setting history and rollback are off on the online demo, where every visitor shares the Orders production. Try it on your own install: in the Management Portal, change a setting of an item in a watched production so that its messages fail, wait a minute, then send messages through it."
+- Agent text, not shown to users:
+  - `Agent/Diagnosis.cls` line 24 adds: ", and the production's setting changes from the 24 hours before the first failure (settingChanges), newest first". New rule: "For a setting_change, give the setting's name as elementAtFault, written exactly as settingChanges writes it. Use "fixKind": "rollback_setting", with no fixParameters and an empty fixSummary, only when that change is on the failing item, its credential is false, and putting the old value back would plausibly fix the failures."
+  - `Agent/Chat.cls`: "If the user asks to undo a rollback that OcuTalon made, call propose_fix with kind undo_rollback. Say that nothing changes until the request is approved; with outcome refused, give the reason."
+  - The pack note: "[cut by OcuTalon: {shown} of {total} setting changes shown]", and a cut value ends "[cut by OcuTalon: 500 of {total} characters shown]".
+
+## Verification
+
+Run every command from the epic-23 worktree root (`cd` there first), one per call with `timeout: 600000`, each sized to about 150 s. Never put two test runs in one message.
+- Prefix every `ci/` call with `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=23 stage=implement'`.
+- Tags: fresh `e23b3i` and warm `e23b3iw`. At the end, run `ci/warm.sh down`, then `ci/iris.sh teardown` with `e23b3i`.
+- Every IRIS MCP call names `server` `ocutalon-slot-b` and `namespace` `OCUTALON`.
+- Settings are written only on throwaways, never on slot B.
+- Run `ci/iris.sh build` once before any browser unit.
+
+**Shared surfaces:**
+- The fix-kind list and every pin of it:
+  - `Test.Fix.Kind` (63, 84-86, `TestGrants` size 2 to 3 and its JSON);
+  - `Test.Fix.ItemKinds` 37-38, `Test.Fix.PartnerWarning` 111, `Test.Watch.Payload` 194 (`DiagnosedNames` gains `rollback_setting`; a data_format_change still allows `repair_resend` only).
+- The security overview's generated kinds list and privileges: `Test.Install.SecurityOverview` 326, 332-334, `TestPrivilegesMatchSecurityRecords`, and `docs/security-overview.md`.
+- The forbidden-privilege list tests: `Test.Install.Registry` `TestForbiddenGrantRefused`/`TestEveryRole` and `Test.Web.Install` `CheckGrants`.
+- The service role's grants and the `ONLINESTATEMENT` text.
+- The eval set's incident count:
+  - `Test.Eval.Cases` 207, `Test.Eval.Record` `RECIPES`/418, `test-eval-set.sh` pins (11 becomes 13; the Orders share and held-out 4 are unchanged);
+  - README's "11 of 11" changes only at the next release-candidate run, a release item for the Planner.
+- The CI mock scenario list: no count pin; `Test.Fix.AskedTurns` uses names.
+- The catalog key counts and Fixtures (`Test.Msg.Catalog`, Watch and Core), its slot types, and `web/src/app/msg/catalog.ts`'s generated list.
+- The `incident` payload's fields (`Test.Live.Payloads` `EXPECTED`, `web/scripts/payloads.test.mjs`) and `Data.Incident`'s properties (storage check).
+- The web texts and their pins: `APPROVAL_TEXTS`, `RAIL_TEXTS`, `INCIDENT_TEXTS` (deepEqual pins) and `ux-strings.test.mjs` `ruled`.
+- `GUIDE.md`'s `NS_WANT`.
+- The `propose_fix` description (tool-list tests) and `Watch.Summary`'s line lists.
+
+Every test added or changed passes on a fresh environment, in either order.
+
+**Commands:**
+- (once) Task 0 on a fresh throwaway: `OCUTALON_RUN_TAG=e23b3i ci/iris.sh class OcuTalon.Test.Watch.Rollback`, with its Task 0 case written first. Expected: passed, and the measured figures are printed.
+- (loop) Run `ci/warm.sh up` once with `OCUTALON_RUN_TAG=e23b3iw`. Then run `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e23b3iw ci/iris.sh class <Class>`, one call each, for these classes:
+  - `OcuTalon.Test.Watch.SettingCause`, `OcuTalon.Test.Fix.Kind`, `OcuTalon.Test.Fix.Refused`, `OcuTalon.Test.Fix.ItemKinds`, `OcuTalon.Test.Fix.PartnerWarning`;
+  - `OcuTalon.Test.Watch.Payload`, `OcuTalon.Test.Watch.Summary`, `OcuTalon.Test.Watch.Notices`;
+  - `OcuTalon.Test.Msg.Catalog`, `OcuTalon.Test.Live.Payloads`, `OcuTalon.Test.Install.SecurityOverview`, `OcuTalon.Test.Install.Registry`;
+  - `OcuTalon.Test.Channel.TelegramIn`, `OcuTalon.Test.Bridge.CodeRules`, `OcuTalon.Test.Eval.Cases`.
+
+  Expected: each prints `CLASS ... passed`.
+- (loop) Fresh, because the production's jobs must hold the new code: `OCUTALON_RUN_TAG=e23b3i ci/iris.sh class OcuTalon.Test.Watch.Rollback`, then `... class OcuTalon.Test.Web.Install`, one call each. Expected: passed.
+- (loop) `node --test web/scripts/approval-view.test.mjs web/scripts/rail-view.test.mjs web/scripts/incident-view.test.mjs web/scripts/phone-view.test.mjs`, then in one call `node --test web/scripts/payloads.test.mjs web/scripts/ux-strings.test.mjs`. Expected: pass.
+- (loop) `bash docker/tests/test-mock.sh`, then `bash docker/tests/test-readme.sh`. Expected: pass.
+- (once) `OCUTALON_RUN_TAG=e23b3i ci/iris.sh live security-overview`. Expected: no `DRIFT`.
+- (once) `OCUTALON_RUN_TAG=e23b3i ci/iris.sh class OcuTalon.Test.Eval.Record`. If it does not finish inside one call, leave it to CI (`shards`) and record the measured time.
+- (once) `npm --prefix web run lint`, then `npm --prefix web run payloads -- --check`. Expected: pass.
+- Left to CI: `web/e2e/cards/approval-card.spec.ts` (`browser`), `docker/tests/test-eval-set.sh` and the full shards.
+
+**Mutations (Rule 19).** The implement stage writes one `mutation:` line per AC. Candidates:
+- AC1: drop the lower window bound, so the 25-hour row is listed and `TestWindow` goes red.
+- AC2: render `minutes` as digits only, so the "four minutes" fixture goes red.
+- AC3: skip the `expect` comparison in `InProduction`, so `TestChangedAgain` goes red.
+- AC4: let `AlreadyAsked` ignore the parameters, so the undo-twice case goes red.
+- AC6: widen `FORBIDDENEXCEPTION` to any permission, so the R/U refusal case goes red.
+- AC7: give `ONLINEGRANT` 1, so the `SetOnlineDemo(1)` grant case goes red.
+- AC9: let the dry run call `UpdateProduction`, so the counter-unchanged assertion goes red.
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none
