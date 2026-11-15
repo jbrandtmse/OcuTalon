@@ -4318,3 +4318,4 @@
 2026-11-15T14:57:03Z	Run	owner_decision	via=contest_planner 21.11_V5_2nd_TelegramOut_test=accepted_footprint_extension laneC=plan_0.37(A/B_choice_at_gate) laneD=plan_24.2(else_24.4) push_freeze=lifts_at_>=12_new_runners,one_lane_at_a_time,release_PR_first
 2026-11-15T14:57:15Z	Epic 0	dispatched	lane=C runner=a782ad9fd103aa691 task=0.37_plan_to_spec_gate(local) prompt=prompts/local-plans-20261115.md
 2026-11-15T14:57:15Z	Epic 24	dispatched	lane=D(exception) runner=a32f5289d7494a1ef task=24.2_or_24.4_plan_to_spec_gate(local)
+2026-11-15T15:02:10Z	Run	push_freeze_lifted	via=contest_planner runners=54(+36_ci-21..56_on_ci-e..j) rule=release_PR_first;report_port/DW-1099_on_runner>=21_at_once
