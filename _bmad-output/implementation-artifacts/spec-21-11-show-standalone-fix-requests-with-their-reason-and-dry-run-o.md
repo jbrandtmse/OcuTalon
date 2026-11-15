@@ -373,6 +373,22 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - mutation (review pass): `RequestText` without the empty-dry-run check -> `TestRequestTextFillsTheDryRun` red.
 - mutation (review pass): `fix.emailRequest` added to Telegram's `TOOLKEYS` (the tool-call cut) -> `TestEmailRequestRendersTheStoredDryRun` red (the long request is cut and has no buttons on its last part).
 
+**QA additions (QA; tests only, no new file; each in a file of this story's list):** the QA stage found every AC and matrix row pinned at the sink and per-channel level, and added the runtime rows that the fixtures did not reach, on the warm stack (`e21s11dqw`):
+- (QA) `Test/Core/EmailRequestNotices.cls` `TestRealRaiseThenExpireEditsInPlace`: the request is raised through the real `Fix.Kind.Email.Raise` and `Bridge.Approval.Raise` (the production's own sink, no direct `OnEvent`); the phone and web card show the exact lines; `Approval.Expire` edits the phone message in place to `answered.expired`, with no second message, and the web chat gets the answered row; no trace global holds a marker.
+- (QA) `Test/Core/EmailRequestNotices.cls` `TestRealApproveWithNoMailServerIsReportedNotSent`: the real request is approved with EmailOut stopped (nothing can be sent); the real `FixExecutor` ends it failed with `MESSAGENOTCONNECTED` in the `FixRun`; the phone message is edited to `answered.approved`; a new phone message and a web result card are the render of `fix.emailNotSent` with that sentence, with no buttons; no trace global holds a marker.
+- (QA) `Test/Core/EmailRequestNotices.cls` `TestResultsReachThePhoneAndTheWebChat`: `FinishExecution` done gives "The email was sent." on the phone (no buttons) and as a web result card; a failed run whose `FixRun.Reason` is a raw error text gives `MESSAGEFAILED` and none of the raw text.
+- (QA) `Test/Channel/TelegramOut.cls` `TestEmailRequestEditKeepsItsStoredDryRun`: Telegram's Delivery row stores the redacted dry run as the request's text, and `answered.rejected` (from Telegram) and `answered.expired` edit the message in place to that text, a blank line and the status, with no buttons and a `sk-` secret redacted in the message, the stored text and the edit.
+- Not added: the online demo (no email request can be raised there; `Test.Fix.Email` `TestOnlineDemoSendsNothing` and `live demo-path` already pin it); the web rail's expired or rejected row (the rail's title is pinned by `rail-view.test.mjs`; the row's state text is generic and unchanged).
+
+**Mutations observed (QA; each applied on the warm stack, red, reverted; `git status --short` shows only the test files):**
+- mutation: `ToolNotice` gate cut to `'..Replayable(row)` -> `Test.Core.EmailRequestNotices` `TestRealRaiseThenExpireEditsInPlace`, `TestRealApproveWithNoMailServerIsReportedNotSent` and `TestResultsReachThePhoneAndTheWebChat` red (no message arrives), with the existing `TestRequestReachesTheChannelsAndLeavesNoTrace`.
+- mutation: `EmailReason` never passes a reason (`If 0 Quit reason`) -> `TestRealApproveWithNoMailServerIsReportedNotSent` red (the phone and web render of `fix.emailNotSent` with `MESSAGENOTCONNECTED`).
+- mutation: `EmailReason` passes any non-empty reason (`If reason '= "" Quit reason`) -> `TestResultsReachThePhoneAndTheWebChat` red (the raw reason shows).
+- mutation: the expired branch skips a standalone email row -> `TestRealRaiseThenExpireEditsInPlace` red (no `answered.expired` edit, no answered row on the web).
+- mutation: a done standalone email composes no `fix.emailSent` (`If 0 Quit ...`) -> `TestResultsReachThePhoneAndTheWebChat` red ("The email was sent." is not shown).
+- mutation (V6, the trace pin, real path): the raise composes `{"inputs": InputsOf(DryRun)}` into `Slots` -> `TestRealRaiseThenExpireEditsInPlace` red (no trace global may hold the recipients, the subject or the text).
+- mutation: Telegram's stored text of a request with buttons made empty (`Set kept = ""` in `Channel/Telegram/Out.cls`) -> `Test.Channel.TelegramOut:TestEmailRequestEditKeepsItsStoredDryRun` red (the row stores no dry run, so the edit is not made).
+
 **Commands:**
 - (once) `<vars> OCUTALON_RUN_TAG=e21s11dw ci/warm.sh up` -- ready.
 - (loop) `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s11dw ci/iris.sh class OcuTalon.Test.Core.BridgeSink` -- passed.
