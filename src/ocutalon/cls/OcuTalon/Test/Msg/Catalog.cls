@@ -82,8 +82,9 @@ Method TestEntries()
 	// Story 21.7 (Contest Planner ruling 2026-11-12, PUBLIC TEXT E1): email.digestSubject takes the Core count to 144.
 	// Story 21.4 (Contest Planner ruling 2026-11-12, PUBLIC TEXT T1): settings.mcpOffOnDemo takes the Core count to 145.
 	// Story 21.10 (Contest Planner ruling 2026-11-13, PUBLIC TEXT V9): toolCall.inputsTooLong, and Story 25.5 (Contest Planner ruling 2026-11-13, PUBLIC TEXT 1 to 9): the nine answered.notApprover* and answered.notAdmin keys, take the Core count to 155.
-		// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): press.approvedRollback and press.approvedUndoRollback take the Core count to 157.
-	Do $$$AssertEquals(keys.core.%Size(), 157, "the expected Core list has 157 keys")
+		// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): press.approvedRollback and press.approvedUndoRollback take the Core count to 157 on their own.
+	// Story 21.11 (Contest Planner ruling 2026-11-15, PUBLIC TEXT N1 to N3): fix.emailRequest, fix.emailSent and fix.emailNotSent take it to 160 with 23.3's two.
+	Do $$$AssertEquals(keys.core.%Size(), 160, "the expected Core list has 160 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -95,7 +96,7 @@ Method TestEntries()
 	// Story 23.3 (Contest Planner pre-push ruling 2026-11-15, DW-1365): result.settingSavedNotApplied takes the Watch count to 133.
 	// Story 23.4 (Contest Planner ruling 2026-11-15, Public Text): the eight page.* keys (onCall, onCallEmail, backup, backupEmail, subject, onCallAlone, onCallEmailAlone, causeUnknown) take the Watch count to 141.
 	Do $$$AssertEquals(keys.watch.%Size(), 141, "the expected Watch list has 141 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 157 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 160 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 141 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -1232,6 +1233,9 @@ XData Keys [ MimeType = application/json ]
   "toolCall.done",
   "toolCall.failed",
   "toolCall.failedWithReason",
+  "fix.emailRequest",
+  "fix.emailSent",
+  "fix.emailNotSent",
   "settings.emailHeading",
   "settings.emailHelp",
   "settings.emailAddress",
@@ -1767,6 +1771,9 @@ XData Fixtures [ MimeType = application/json ]
  "toolCall.done": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send ran once at 14:12 ET."},
  "toolCall.failed": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send failed at 14:12 ET. I won't run it again without a new approval."},
  "toolCall.failedWithReason": {"slots": {"tool": "zz_send", "reason": "This request was held before an update and cannot be run again safely, so please ask again."}, "text": "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again."},
+ "fix.emailRequest": {"slots": {"inputs": [{"name": "to", "value": "[\"bob@example.test\",\"ann@example.test\"]"}, {"name": "subject", "value": "\"Late  order\""}, {"name": "text", "value": "\"Hi Bob,\\u000D\\u000A\\u0009Sorry.\""}]}, "text": "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\nto: [\"bob@example.test\",\"ann@example.test\"]\nsubject: \"Late  order\"\ntext: \"Hi Bob,\\u000D\\u000A\\u0009Sorry.\"\nApproving sends exactly this email once."},
+ "fix.emailSent": {"slots": {}, "text": "The email was sent."},
+ "fix.emailNotSent": {"slots": {"reason": "No outgoing mail server is connected, so the email wasn't sent."}, "text": "No outgoing mail server is connected, so the email wasn't sent."},
  "watch.productionStopped": {"slots": {"production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The Orders production stopped at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.itemDisabled": {"slots": {"itemName": "order importer", "production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The order importer in the Orders production was disabled at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.unknownProduction": {"slots": {"name": "Order", "list": "Orders, Billing"}, "text": "I can't find a production called 'Order'. I can see: Orders, Billing. Which one did you mean?"},

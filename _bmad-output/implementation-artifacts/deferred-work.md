@@ -2090,6 +2090,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T20:30:14Z occurrence=OCT-epic26-294565a3 by=orchestrator note=run 43632972453 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty' (ci-18); not rerun: QUOTA HOLD; one rerun after HOLD OFF
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got empty (runners backlogged); not rerun: d53500886 (26.2's code plus a test-only change) ci 43681313101 green and 2e6366b00 ci 43690296919 production green
 - 2026-11-15T16:47:08Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
+- 2026-11-15T12:02:13Z occurrence=OCT-epic21-dw1347-30d487a32 by=epic-runner note=run 43703149281 job 132778446850 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''; DW-1347 touches neither WatchOps nor test-production; one rerun of the failed job
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4029,6 +4030,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Pre-existing in baseline 3f5f7b3e at spine lines 454, 1010, 1023, 1086, 1091; Story 39.1 adds none; stages read the check as no new finding. Fix needs the kit lint (.claude/, owner-only) or spine prose edits outside any story's ACs.
 - 2026-11-03T14:41:53Z status=wontfix-accepted owner=39-1-fix-the-heartbeat-s-names-and-contracts by=cr note=reopen_if=lint_spine reports a finding other than these 8 baseline placeholders, or a Rule 20 spine update halts on them
+- 2026-11-15T07:56:47Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th
 ### DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red once in CI image shard lane-b (1 of 88) on the integrate-forward head e75b90bc; green on the unchanged rerun
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
@@ -7712,6 +7714,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-21 S4 + Conventions S6 (DW-1231); Planner V8 + escalation ruling
 - 2026-11-13T13:24:14Z status=routed owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-15T09:56:38Z status=resolved-by:25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=adjudication note=1865bffc+qa+cr_patches;see_spec_Verification_mutations
 
 ### DW-1270: 26.2 obligation from 37.1: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; extracted text may reach the turn's Input like chat text (Planner: 26.2 does not move into the runner); mind Docs.Extract's up-to-45 s run in Conversation's job (pool size)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7996,12 +7999,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Planner rulings 263 items 9 and 10 (V1): no release route reaches Part() before READSFILES (Core/Conversation.cls:537-541)
 - 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=Contest Planner 2026-11-14; 26.2 sets READSFILES and so makes photos visible
 - 2026-11-14T14:56:33Z owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=Planner ruling H2 (story-262-rulings): texts 1-2 land in 25.6's commit with the READSFILES flip; bullet under 25.6
+- 2026-11-15T09:56:38Z status=resolved-by:25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=adjudication note=1865bffc+qa+cr_patches;see_spec_Verification_mutations
 
 ### DW-1313: Memory card: a 409 pin_photo shows the over-cap notice (memory-card.ts:705 maps every pin 409 to MEMORY_TEXTS.overCap); show 'This memory came from a photo, so it can't be pinned.' in a lazy chunk once photos are visible
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner ruling 263 V3; the route answers 409 pin_photo with the sentence from 26.3; no photo memory exists until READSFILES
 - 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=web code waits for DW-1282 headroom or goes lazy; may belong to Lane B 25.6 if it owns the card change
 - 2026-11-14T14:56:34Z owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=Planner ruling: the memory card's pin_photo notice moves to 25.6 (Lane B web, lazy chunk)
+- 2026-11-15T09:56:38Z status=resolved-by:25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=adjudication note=1865bffc+qa+cr_patches;see_spec_Verification_mutations
 
 ### DW-1319: The real-HTTP pin_photo check in web/e2e/api/memory.spec.ts (LIVE user, 409 pin_photo) was type-checked but never run and has no observed mutation
 - source: _bmad-output/implementation-artifacts/spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: in-story
@@ -8232,6 +8237,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 26.2 ships READSFILES 0 (H2); the fetch path is first exercised end to end when 25.6 flips it
 - 2026-11-14T17:44:30Z status=routed owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=harvest note=25.6 flips READSFILES
+- 2026-11-15T09:56:38Z status=resolved-by:25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=adjudication note=1865bffc+qa+cr_patches;see_spec_Verification_mutations
 
 ### DW-1343: Planner condition 1 says a PDF turn is TAINTED; the runner sets Tainted only for image content or an allowed tool call, so a text-only PDF turn is untrusted by provenance with Tainted 0 and the tests pin the UNTRUSTED denial, not the flag
 - source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: med | footprint: in-story
@@ -8332,6 +8338,42 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Test/Watch/Case.cls OcuTalonRoles+PutRolesBack vs Test/Mcp/Ops.cls OcuTalonRoles+Restore (Private, %UnitTest.TestCase); unifying moves both into a shared test tool and edits another epic's test class
 - 2026-11-15T13:11:39Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=a third role snapshot+restore helper is added, or a Roles-step change makes Ops' resources-only restore leave a role changed
+### DW-1357: The Conversation hold of a document file turn under the production's PoolSize 1 is unmeasured on the running production (one ReadFile plus two Render reads per turn); the unit harness measured 1.9 s (2-page PDF), 3.4 s (10-page) and 13.6 s (200k cap)
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/Conversation.cls ReadSentFile; Task 0 (d) unit-harness timings vs 26.2's stop lines 10 s/45 s per read
+- 2026-11-15T07:56:47Z status=routed owner=burndown by=harvest note=measure on a running production under load (the CI-budget audit or a throwaway soak)
+- 2026-11-15T09:07:11Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th
+- 2026-11-15T09:07:11Z status=routed owner=burndown by=cr note=25.6 cr: Add to documents makes DocumentOps take the instance Docs.Extract lock, which a next file turn's ReadFile waits on (unmeasured)
+
+### DW-1359: A readable document whose ReadFile succeeds can still fail a later Render re-read (timeout or lock wait), so Decide gets an empty Input and the turn falls back while FileRead says read 1, addable 1
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: Conversation.ReadSentFile reads once and Agent.Input.Render re-extracts for each request (spec Known, not changed: three reads); a second read that times out renders "" and Decide refuses it.
+- 2026-11-15T09:07:10Z status=wontfix-accepted owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=cr note=reopen_if=a done file turn with FileRead read 1 and a fallback reason (empty input) appears in a test or a smoke
+
+### DW-1360: file-reply: a component destroyed while its add POST is out still runs the answer, and afterNextRender on a destroyed injector throws into catchError, which shows and announces the failed line
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: ServerButton keeps the press subscription until the answer; file-reply.ts sets state and calls afterNextRender with its own injector in tap.
+- 2026-11-15T09:07:11Z status=wontfix-accepted owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=cr note=reopen_if=an NG0205 or a stray 'Couldn't add it to your documents' announcement after leaving the chat during an add
+
+### DW-1361: Memory card: the lazy pin-photo-text notice is set after the chunk loads, guarded only by shown, so a pin or unpin in that window can be overwritten by the late notice
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: memory-card.ts toggleFailed sets the notice in the import().then; the chunk is 119 bytes and cached after the first load.
+- 2026-11-15T09:07:11Z status=wontfix-accepted owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=cr note=reopen_if=a memory-card spec or smoke shows the photo sentence on a row other than the one pressed
+
+### DW-1362: Every Add to documents button has the same accessible name, and the Saved to memory chip does not name what was saved
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: file-reply.ts uses the UX text 'Add to documents' (EXPERIENCE.md:1161) for every turn; naming the file would be new public text (Planner gate).
+- 2026-11-15T09:07:11Z status=wontfix-accepted owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=cr note=reopen_if=an accessibility audit or the Planner asks for per-file button names
+
+### DW-1363: ReadSentFile ignores a failed turn.%Save after FileRead is set (logged only), so a readable file's turn could lose FileRead and its Add button
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Conversation.ReadSentFile logs the save status and sends decide; Replied would reload a row without FileRead.
+- 2026-11-15T09:07:11Z status=wontfix-theoretical owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=cr note=real only if a Turn %Save fails mid-turn on a healthy instance
+
+### DW-1364: The {fileRef} form's empty and too_large refusals cannot be reached through a stored file, and no test pins them
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: Core.Files.Store already refuses empty and over-FILEMAX files, so Web.Documents.FromFile's two checks are defensive only.
+- 2026-11-15T09:07:11Z status=wontfix-theoretical owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=cr note=real only if a stored file can be empty or over FILEMAX (a Store change)
 - 2026-11-15T05:27:20Z status=resolved-by:22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer by=merge_gate note=TestUpdate starts from a past CreatedAt and asserts the repoint moves it; branch ci 43674059161+43674059261 green
 ### DW-1354: flake: Test.Mcp.SourceSet:TestUpdate 'CreatedAt and the run fields are kept' failed in CI on a head that changed only web rail TypeScript
 - source: ci run 43651790835 (OCT-epic21 1ecb7150d, iris shards-2, shard:lane-a@rest) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls
@@ -8348,6 +8390,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Proxy.Noted's hash branch is guarded by IsPoll() alone; TestProxyCut pins a chat call, and no test (Test/Mcp/Approval.cls TestReplayResultIsCut) reads a replay's HostData, so widening the guard to (approved '= "") || IsPoll() stays green.
 - 2026-11-15T10:00:19Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=a change touches Proxy.Noted's IsPoll guard, or a replay Reply's HostData holds an answerHash member
+- 2026-11-15T13:21:53Z status=resolved-by:dw-1371 by=epic-runner note=TestReplayNotesNoAnswerHash pins a replay notes no answerHash (82a5da2fe; M1-M5)
 
 ### DW-1372: DW-1347 ruling (d) names an AD-31 amendment that the spec never wrote; read as the AD that Veto item 4 names
 - source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: in-story
@@ -8384,3 +8427,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: spec Verification (a443bfbb)
 - 2026-11-15T16:46:52Z status=open owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=QA to demonstrate
+### DW-1374: overviewdoc pins each ruled line of the worked example's source section only as present somewhere; an extra or moved line in section 4 passes
+- source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: mcp_doc_problems checks each ovw_mcp_example_lines line with grep -qxF over the whole file; no check that section 4 holds only ruled lines 15 to the intro-1, in order (22.6's mechanism, spec Task 1)
+- 2026-11-15T10:06:08Z status=wontfix-accepted owner=22-12-document-polling-a-jira-mcp-tool-as-a-source by=cr note=reopen_if=a later story adds or moves a line in section 4 of docs/mcp-jira-example.md without a ruled-line pin, and overviewdoc stays green
+
+### DW-1375: Three rule facts of section 4 are not read from code: the secret:// refusal, the reserved name's any-letter-case match, and the name minimum 1
+- source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: mcp_source_problems reads NAMEMAX and ENTRYMAILBOX but not Mcp/Ops.cls L216 (Length(name) < 1), L217 (ZConvert L compare) or Normalised L550 (secret:// in any case); behaviour is true today
+- 2026-11-15T10:06:08Z status=wontfix-accepted owner=22-12-document-polling-a-jira-mcp-tool-as-a-source by=cr note=reopen_if=Mcp/Ops.cls OnSetSource or Normalised drops one of these three rules while docs/mcp-jira-example.md keeps the sentence

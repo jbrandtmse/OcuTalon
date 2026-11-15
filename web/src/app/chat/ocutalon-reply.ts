@@ -1,5 +1,5 @@
-import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, type Type, computed, effect, input, signal, untracked } from '@angular/core';
 
 import { Icon } from '../icon/icon';
 import { PAGE_TEXTS, renderPageText } from '../msg/catalog';
@@ -28,14 +28,15 @@ export function replyFallbackText(catalogKey: string, fallbackReason: string): s
  * one-character ellipsis U+2026 (after 10 s the whole seconds instead): the ellipsis is revealed in three steps unless the user
  * prefers reduced motion. Once the turn is done it is the reply, left-aligned and unboxed under the mark and the name "OcuTalon":
  * the catalog's fallback sentence for a fallback, else the model's text as paragraphs and lists, and then the check results of the
- * reply, one line for each learned save that the reply announces (LearnedLines) and the sources of the answer (AnswerSources: a chip for each cited document section and each recalled memory). The decision strip comes last, after the indicator while the turn runs and after the text and the check rows once it is
+ * reply, one line for each learned save that the reply announces (LearnedLines), the controls of a sent file's reply (the Add to documents button of a read document and the
+ * Saved to memory chip of a photo, Story 25.6) and the sources of the answer (AnswerSources: a chip for each cited document section and each recalled memory). The decision strip comes last, after the indicator while the turn runs and after the text and the check rows once it is
  * done. The model's text is bound by interpolation and `[href]` only, never as HTML; its
  * links open in a new tab and say so in their names, and a labelled link shows the host it opens after its label. Nothing here is a live region, and the element takes focus only when the
  * New messages button sends it there.
  */
 @Component({
   selector: 'app-ocutalon-reply',
-  imports: [AnswerSources, CheckRows, DecisionStrip, Icon, LearnedLines, NgTemplateOutlet],
+  imports: [AnswerSources, CheckRows, DecisionStrip, Icon, LearnedLines, NgComponentOutlet, NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (turn().reply.kind !== 'none') {
@@ -86,6 +87,9 @@ export function replyFallbackText(catalogKey: string, fallbackReason: string): s
           }
           @if (turn().learned) {
             <app-learned-lines [learned]="turn().learned" />
+          }
+          @if (fileControls() && fileReply(); as component) {
+            <ng-container *ngComponentOutlet="component; inputs: fileReplyInputs()" />
           }
           @if (turn().citations || turn().memories) {
             <app-answer-sources [citations]="turn().citations" [memories]="turn().memories" />
@@ -211,6 +215,23 @@ export class OcutalonReply {
     const reply = this.turn().reply;
     return reply.kind === 'fallback' ? replyFallbackText(reply.catalogKey, reply.fallbackReason) : undefined;
   });
+
+  /** True when the turn has a control under its reply: a read document that can be added, or a photo whose caption was saved. */
+  protected readonly fileControls = computed(() => !!this.turn().fileRead?.addable || this.turn().savedCaption !== undefined);
+
+  /** The inputs of the file controls. */
+  protected readonly fileReplyInputs = computed(() => ({ fileRead: this.turn().fileRead, savedCaption: this.turn().savedCaption }));
+
+  /** The file controls' component, loaded on the first reply that needs it: a lazy chunk (DW-1282), so that no reply of text pays for it. */
+  protected readonly fileReply = signal<Type<unknown> | null>(null);
+
+  constructor() {
+    effect(() => {
+      if (this.fileControls() && untracked(this.fileReply) === null) {
+        void import('./file-reply').then((loaded) => this.fileReply.set(loaded.FileReply));
+      }
+    });
+  }
 
   protected readonly blocks = computed<ReplyBlock[]>(() => {
     const reply = this.turn().reply;

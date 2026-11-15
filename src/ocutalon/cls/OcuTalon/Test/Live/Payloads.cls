@@ -1,4 +1,4 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 38 payload
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 40 payload
 /// and part classes (Story 41.15 adds the part Learned and the chat message's learned; Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 38, "the contracts hold the 38 payload and part classes (Story 23.3 adds Part.SettingChange, Story 23.4 Part.Page)")
+	Do $$$AssertEquals(classes, 40, "the contracts hold the 40 payload and part classes (Story 23.3 adds Part.SettingChange, Story 23.4 Part.Page)")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -496,6 +496,38 @@ Method TestChatMessageLearned()
 	}
 	Do payload.%JSONExportToString(.bareJson)
 	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(bareJson).%IsDefined("learned"), 0, "and the JSON then leaves the member out")
+}
+
+/// A turn's chat message carries the read result of its file and the caption of a photo (Story 25.6): fileRead {fileRef, kind, read, addable} from the row's FileRead (a failed read exports addable 0,
+/// and a member that the row holds beyond those four, such as a text or a reason, is never exported) and caption {memoryRef, text} from the row's Caption; both are left out of the JSON
+/// for an empty column and for text that is not a JSON object.
+Method TestChatMessageFileRead()
+{
+	Set row = ##class(OcuTalon.Data.Turn).%New()
+	Set row.Ref = "zzfrd"_..Number
+	Set row.FileRead = {"fileRef": "zzf1", "kind": "document", "read": 1, "chars": 12, "cut": 0, "addable": 1, "text": "zz must not be exported"}.%ToJSON()
+	Set row.Caption = {"memoryRef": "zzcap1", "text": "A red square.", "extra": 1}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals(payload.FileRead.FileRef_"|"_payload.FileRead.Kind_"|"_payload.FileRead.Read_"|"_payload.FileRead.Addable, "zzf1|document|1|1", "the read result's four members")
+	Do $$$AssertEquals(payload.Caption.MemoryRef_"|"_payload.Caption.Text, "zzcap1|A red square.", "the caption's two members")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.fileRead.%ToJSON(), {"fileRef": "zzf1", "kind": "document", "read": 1, "addable": 1}.%ToJSON(), "fileRead is exactly {fileRef, kind, read, addable}")
+	Do $$$AssertEquals(exported.caption.%ToJSON(), {"memoryRef": "zzcap1", "text": "A red square."}.%ToJSON(), "caption is exactly {memoryRef, text}")
+	Do $$$AssertTrue(json '[ "must not be exported", "the extracted text is not exported")
+	Set row.FileRead = {"fileRef": "zzf2", "kind": "document", "read": 0, "reason": "damaged"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do payload.%JSONExportToString(.json)
+	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(json).fileRead.%ToJSON(), {"fileRef": "zzf2", "kind": "document", "read": 0, "addable": 0}.%ToJSON(), "a failed read exports read 0 and addable 0, and no reason")
+	For text = "", "not json", "[", "[1]", "5", """x""" {
+		Set row.FileRead = text, row.Caption = text
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do payload.%JSONExportToString(.json)
+		Set exported = ##class(%DynamicObject).%FromJSON(json)
+		Do $$$AssertEquals(exported.%IsDefined("fileRead")_exported.%IsDefined("caption"), "00", "'"_text_"' leaves both members out")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Part.FileRead).FromJSON(""), "", "the part of an empty column is empty")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Part.Caption).FromJSON(""), "", "so is the caption's")
 }
 
 /// A turn's chat message carries its shown decision (the triage decision, or the reply decision of a fallback) as the decision
@@ -1297,7 +1329,9 @@ XData Contracts [ MimeType = application/json ]
    "Citations": "list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME=citations)",
    "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)",
    "Learned": "list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME=learned)",
-   "SentFile": "OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME=sentFile)"
+   "SentFile": "OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME=sentFile)",
+   "FileRead": "OcuTalon.Live.Payload.Part.FileRead(%JSONFIELDNAME=fileRead)",
+   "Caption": "OcuTalon.Live.Payload.Part.Caption(%JSONFIELDNAME=caption)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -1651,6 +1685,22 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
    "Fact": "%String(%JSONFIELDNAME=fact,MAXLEN=)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Caption": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.FileRead": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "FileRef": "%String(%JSONFIELDNAME=fileRef,MAXLEN=22)",
+   "Kind": "%String(%JSONFIELDNAME=kind,MAXLEN=16)",
+   "Read": "%Integer(%JSONFIELDNAME=read)",
+   "Addable": "%Integer(%JSONFIELDNAME=addable)"
   }
  },
  "OcuTalon.Live.Payload.Part.SentFile": {

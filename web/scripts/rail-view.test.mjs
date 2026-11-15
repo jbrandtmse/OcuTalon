@@ -113,6 +113,7 @@ describe('the fixed strings', () => {
         rollback: 'Put {setting} on {target} back',
         undoRollback: 'Undo the rollback of {setting} on {target}',
         partner: 'Send a delay notice',
+        sendEmail: 'Send an email',
         runTool: 'Run {toolName}',
         runToolOn: 'Run {toolName} on {server}',
         changePersona: 'Change how OcuTalon talks to you',
@@ -323,10 +324,22 @@ describe('approval requests', () => {
     assert.equal(approvalTitle(approval('a', { fixKind: 'reroute', dryRun: { affected: 50, to: 'OrdersForReview', itemNoun: { one: 'order', other: 'orders' } } })), 'Reroute 50 orders to OrdersForReview');
     assert.equal(approvalTitle(approval('a', { fixKind: 'reroute', dryRun: { affected: 1, to: 'OrdersForReview', itemNoun: { one: 'order', other: 'orders' } } })), 'Reroute 1 order to OrdersForReview');
     assert.equal(approvalTitle(approval('a', { fixKind: 'partner_warning', dryRun: { notice: 'A.', recipients: ['A <a@x.example>'], simulated: true } })), 'Send a delay notice');
+    assert.equal(approvalTitle(approval('a', { kind: 'fix', fixKind: 'email', incidentRef: undefined, dryRun: undefined })), 'Send an email', 'a standalone email request');
+    assert.equal(approvalTitle(approval('a', { kind: 'fix', fixKind: 'email', incidentRef: undefined, dryRun: { to: ['bob@example.test'], subject: 'Late order', text: 'Hi' } })), 'Send an email', 'a dry run of an email gives no count');
     assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: { before: 'Professional (default)', after: 'Pirate' } })), 'Change how OcuTalon talks to you');
     assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: undefined })), 'Change how OcuTalon talks to you');
     const view = viewOf({ approvals: [approval('a1'), approval('a2', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } } })] });
     assert.deepEqual(titles(section(view, 'approvals')), ['Repair and resend 50 orders', 'Repair and resend 1 order']);
+  });
+
+  it('reads "Send an email" for a standalone email request, with its times and no jump (Story 21.11)', () => {
+    const request = approval('e1', { kind: 'fix', fixKind: 'email', incidentRef: undefined, dryRun: undefined });
+    const row = section(viewOf({ approvals: [request] }), 'approvals').rows[0];
+    assert.equal(row.title, 'Send an email');
+    assert.deepEqual(row.meta, ['Raised 14:13', 'expires tomorrow at 14:13']);
+    assert.equal(row.jump, undefined, 'no incident, so no card to jump to');
+    assert.equal(row.jumpName, undefined);
+    assert.equal(titles(section(viewOf({ approvals: [approval('f1', { fixKind: undefined, incidentRef: undefined, dryRun: undefined })] }), 'approvals'))[0], 'Repair and resend', 'a fix with no kind keeps its title');
   });
 
   it('shows when it was raised and when it expires, with no detail line', () => {

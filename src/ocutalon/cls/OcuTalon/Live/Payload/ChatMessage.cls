@@ -69,10 +69,16 @@ Property Learned As list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME = 
 /// The file that the user's message carries (Story 25.3): ref, name, media type and size, never the bytes; absent for a message of text.
 Property SentFile As OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME = "sentFile");
 
+/// The read result of the message's file (Story 25.6): {fileRef, kind, read, addable}, never the bytes and never the extracted text; absent for a message with no file, and for a file that no reader read.
+Property FileRead As OcuTalon.Live.Payload.Part.FileRead(%JSONFIELDNAME = "fileRead");
+
+/// The caption that a photo's usable reply saved as a memory (Story 25.6): {memoryRef, text}; absent for a message with none.
+Property Caption As OcuTalon.Live.Payload.Part.Caption(%JSONFIELDNAME = "caption");
+
 /// The payload for a turn row, with every field set from the row: ref, clientId, channel, fromGuide, state, text, replyText,
 /// the fallback's catalogKey and fallbackReason, createdAt, the trace target (the row's TraceHeaderId, in the running
 /// namespace; both stay empty while the row has none), the position of the trace target in its session's item list (both
-/// indexes, set only when the row has them), the file (sentFile, set only when the row has one), the shown decision (Decision.FromRow of the row ShownDecisionRef
+/// indexes, set only when the row has them), the file (sentFile, set only when the row has one), its read result (fileRead) and the photo's caption (caption), each set only when the row has one, the shown decision (Decision.FromRow of the row ShownDecisionRef
 /// names, read as the session's own through Ownership) with the turn's cost, the check key and rows, and the citations and
 /// memories. A read that fails leaves the decision, the cost and the rows empty; it never fails the payload.
 ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMessage
@@ -95,6 +101,8 @@ ClassMethod FromRow(row As OcuTalon.Data.Turn) As OcuTalon.Live.Payload.ChatMess
 	If row.TraceItemIndex '= "" Set payload.TraceItemIndex = row.TraceItemIndex
 	If row.TraceItemIndexNoEvents '= "" Set payload.TraceItemIndexNoEvents = row.TraceItemIndexNoEvents
 	Set payload.SentFile = ##class(OcuTalon.Live.Payload.Part.SentFile).FromJSON(row.SentFile)
+	Set payload.FileRead = ##class(OcuTalon.Live.Payload.Part.FileRead).FromJSON(row.FileRead)
+	Set payload.Caption = ##class(OcuTalon.Live.Payload.Part.Caption).FromJSON(row.Caption)
 	Do ..SetDecision(payload, row)
 	Set payload.CheckKey = row.CheckKey
 	Set list = ##class(OcuTalon.Live.Payload.Part.CheckRow).ListFromJSON(row.CheckRows)

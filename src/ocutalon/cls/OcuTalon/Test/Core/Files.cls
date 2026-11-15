@@ -15,8 +15,7 @@
 ///   - TestSetItem: SetItem sets the four file fields and never the text; the content marker is in no property of the Item;
 ///   - TestRefusalText: RefusalText gives the PUBLIC TEXT sentences, equal to Docs.Extract's frame, and SizeText equals Docs.Extract's;
 ///   - TestNoReaderText: the fixed reply, with the safe name;
-///   - TestNoReaderYet: Readable() is 0 on this branch and Agent.Input defines READSFILES as 0 (Story 26.2 added the parameter and Story 25.6 flips it, with its chip and texts, so that
-///     the feature head stays releasable); a reader class with READSFILES 1 is readable, and a class whose parameter is absent, 0 or "1 " is not.
+///   - TestReaderOn: Readable() is 1 and Agent.Input defines READSFILES as 1 (Story 25.6 flipped it); a reader class with READSFILES 1 is readable, and a class whose parameter is absent, 0 or "1 " is not.
 Class OcuTalon.Test.Core.Files Extends %UnitTest.TestCase
 {
 
@@ -212,13 +211,13 @@ Method TestNoReaderText()
 	Do $$$AssertEquals(##class(OcuTalon.Core.Files).NoReaderText("a"_$Char(10)_"<b>"_$Char(8238)_".pdf"), "I got a<b>.pdf, but I can't read files yet.", "with the safe name")
 }
 
-/// The tripwire that Story 25.6 flips: Agent.Input defines READSFILES as 0, so nothing reads a sent file yet.
-Method TestNoReaderYet()
+/// Story 25.6 turned the switch on: Agent.Input defines READSFILES as 1, so a sent file is read, and the probe's other classes still answer as they did.
+Method TestReaderOn()
 {
-	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 0, "Readable() is 0 on this branch")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 1, "Readable() is 1")
 	Do $$$AssertEquals(##class(%Dictionary.CompiledClass).%ExistsId(##class(OcuTalon.Core.Files).#READERCLASS), 1, "the class that Readable() probes exists, so its parameter is read")
 	Do $$$AssertEquals(##class(%Dictionary.CompiledParameter).%ExistsId("OcuTalon.Agent.Input||READSFILES"), 1, "Agent.Input defines READSFILES")
-	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Input", "READSFILES"), 0, "as 0, which Story 25.6 flips")
+	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Input", "READSFILES"), 1, "as 1")
 	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable("OcuTalon.Test.Core.FilesReaderProbe"), 1, "a reader class with READSFILES 1 is readable")
 	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable("OcuTalon.Test.Core.FilesReaderProbeAbsent"), 0, "a class with no READSFILES is not")
 	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable("OcuTalon.Test.Core.FilesReaderProbeZero"), 0, "READSFILES 0 is not")

@@ -50,6 +50,7 @@ export const RAIL_TEXTS = {
   rollback: 'Put {setting} on {target} back',
   undoRollback: 'Undo the rollback of {setting} on {target}',
   partner: 'Send a delay notice',
+  sendEmail: 'Send an email',
   runTool: 'Run {toolName}',
   runToolOn: 'Run {toolName} on {server}',
   changePersona: 'Change how OcuTalon talks to you',
@@ -205,7 +206,7 @@ export function readmeSection(readmeUrl: string, anchor: string): string {
 
 /**
  * The title of an approval request: "Repair and resend 50 orders" for a fix with a dry run (the noun by the count), "Repair and
- * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Send a delay notice" for a partner warning (Story 23.5), "Run zz_tool" for a tool call ("Run zz_tool on zzS" when the payload names its MCP server), and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
+ * resend" without one, "Suspend {item}", "Resume {item}" and "Reroute {n} {noun} to {to}" for the fixes the user asks for in the chat (Story 23.2), "Send a delay notice" for a partner warning (Story 23.5), "Send an email" for an email to anyone else (a fix of kind email, with no incident, Story 21.11), "Run zz_tool" for a tool call ("Run zz_tool on zzS" when the payload names its MCP server), and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
  */
 export function approvalTitle(approval: ApprovalPayload): string {
   if (approval.kind === 'setting') {
@@ -216,6 +217,9 @@ export function approvalTitle(approval: ApprovalPayload): string {
     return server === ''
       ? fill(RAIL_TEXTS.runTool, { toolName: approval.toolName ?? '' }).trim()
       : fill(RAIL_TEXTS.runToolOn, { toolName: approval.toolName ?? '', server }).trim();
+  }
+  if (approval.kind === 'fix' && approval.fixKind === 'email') {
+    return RAIL_TEXTS.sendEmail;
   }
   if (approval.fixKind === 'partner_warning') {
     return RAIL_TEXTS.partner;

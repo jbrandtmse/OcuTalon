@@ -17,6 +17,8 @@
 ///   - ThrowIn makes Join (join), Decided (decided) or RenderChecks (render) throw, for the tests of a failure inside the class;
 ///   - Reader, the seam of Core.Files.Readable: when ^OcuTalonTest("ConversationProbe", RunNumber, "reader") is set it returns that value as a boolean, otherwise it calls the
 ///     class it extends, the real probe of the code (Story 25.3);
+///   - ReadFile, the seam of Agent.Input.ReadFile: when ^OcuTalonTest("ConversationProbe", RunNumber, "readfile") is "error" it answers an error status, when it is "nonobject" an OK status
+///     and a result that is not an object, and when it is "notext" an OK status and a read 0 result with a reason and no text member (Story 25.6); otherwise it calls the class it extends, the real reader. Every call also records the turn's FileRead as it was saved at that moment;
 ///   - ItemFor and FreshAfter expose the private ItemOf and AfterTaint to the tests.
 Class OcuTalon.Test.Core.ConversationProbe Extends (OcuTalon.Core.Conversation, OcuTalon.Test.Core.ProbeSeam)
 {
@@ -92,6 +94,18 @@ Method Reader() As %Boolean [ Private ]
 	Quit ##super()
 }
 
+Method ReadFile(item As OcuTalon.Msg.Item, Output result As %DynamicObject) As %Status [ Private ]
+{
+	Set mode = $Get(^OcuTalonTest("ConversationProbe", ..RunNumber, "readfile"))
+	If mode = "error" Set result = {} Quit $SYSTEM.Status.Error(5001, "zz read failed")
+	If mode = "nonobject" Set result = "" Quit $SYSTEM.Status.OK()
+	If mode = "notext" {
+		Set result = {"fileRef": (item.FileRef), "kind": ($Select(##class(OcuTalon.Agent.Input).IsDocumentType(item.FileMediaType): "document", 1: "photo")), "read": 0, "reason": "damaged"}
+		Quit $SYSTEM.Status.OK()
+	}
+	Quit ##super(item, .result)
+}
+
 /// The Item that Conversation builds from the row for Agent.Input.Render.
 Method ItemFor(turn As OcuTalon.Data.Turn) As OcuTalon.Msg.Item
 {
@@ -111,11 +125,15 @@ Method Record(target As %String, class As %String, key As %String, required As %
 	Set call = ##super(target, class, key, required)
 	Set @call@("turnState") = ""
 	Set @call@("doneEvents") = 0
+	Set @call@("fileRead") = ""
 	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(..TurnRef)
 	If $IsObject(turn) {
 		Set @call@("turnState") = turn.State
 		Set @call@("doneEvents") = ..DoneEvents(turn)
 	}
+	// FileRead as stored, read through SQL: RefIndexOpen in this process answers Begin's own in-memory Turn, saved or not.
+	Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT FileRead FROM OcuTalon_Data.Turn WHERE Ref = ?", ..TurnRef)
+	If stored.%Next() Set @call@("fileRead") = stored.%GetData(1)
 	Quit call
 }
 
