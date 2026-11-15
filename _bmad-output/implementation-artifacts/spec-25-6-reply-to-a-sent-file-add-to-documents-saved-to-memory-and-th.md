@@ -2,11 +2,11 @@
 title: 'Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure'
 type: 'feature'
 created: '2026-11-14'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
 baseline_commit: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: ['oversized']
@@ -279,7 +279,7 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
   - P4: `POST /api/v1/documents {fileRef}` approved, with conditions: (a) a fileRef of another user or another session gets EXACTLY the same answer (status and body) as a fileRef that does not exist — pin it as a row in `TestAddFromFile`; (b) the size and type limits are those of a direct upload, the type from the bytes, never the name; (c) no bytes and no extracted text in the response, the log or the trace.
   - P5: accepted; no Telegram chip, Add button or line.
   - More to try: none.
-- [ ] [CI] iris (shards-10) live:sign-in, run 43703534065 on 6db6ca47: `web/e2e/chat/chat.spec.ts:678` C6 "Shift+Tab from the composer reaches it" (New messages) went red — expected focused, received inactive. Cause (lead's reading): with `READSFILES` = 1 the composer now shows the paperclip (25.3's control, `filesReadable` true on an own install), so Shift+Tab from the message field lands on the paperclip first. Fix the TEST's focus walk so it holds with the paperclip shown (keep its intent: New messages is reachable by keyboard from the composer, before it in the tab order), do not move or hide the paperclip, and search every e2e and web-script test for other keyboard walks from the composer that the now-visible paperclip breaks (Tab/Shift+Tab around `app-composer`), fixing each the same way. Run the chromium sign-in parts that hold `chat/*` specs and every part you change, on lane-A fresh stacks. `mutation:` hide the paperclip again (filesReadable false) → the fixed walk must still pass or be shown to depend on it as intended; record what you observe.
+- [x] [CI] iris (shards-10) live:sign-in, run 43703534065 on 6db6ca47: `web/e2e/chat/chat.spec.ts:678` C6 "Shift+Tab from the composer reaches it" (New messages) went red — expected focused, received inactive. Cause (lead's reading): with `READSFILES` = 1 the composer now shows the paperclip (25.3's control, `filesReadable` true on an own install), so Shift+Tab from the message field lands on the paperclip first. Fix the TEST's focus walk so it holds with the paperclip shown (keep its intent: New messages is reachable by keyboard from the composer, before it in the tab order), do not move or hide the paperclip, and search every e2e and web-script test for other keyboard walks from the composer that the now-visible paperclip breaks (Tab/Shift+Tab around `app-composer`), fixing each the same way. Run the chromium sign-in parts that hold `chat/*` specs and every part you change, on lane-A fresh stacks. `mutation:` hide the paperclip again (filesReadable false) → the fixed walk must still pass or be shown to depend on it as intended; record what you observe.
 **Acceptance Criteria:**
 - Given a local install at this story's HEAD, when `GET /api/v1/state` is read and the chat is opened, then `filesReadable` is true, `$Parameter("OcuTalon.Agent.Input","READSFILES")` is 1, and the paperclip and drop show. On the online demo the route still answers 409 `not_available` before the body, the paperclip is hidden, a drop shows the off text, and a Telegram file gets `files.offOnDemo` with no getFile.
 - Given a signed-in user on a local install, when they send a damaged PDF through `POST /api/v1/files`, then the done `chat.message` reply is "I couldn't read that file: {reason}." (its code's plain reason), `fileRead.read` is 0, and no Decide request, Decision or model request exists for its Item.
@@ -370,6 +370,19 @@ Rejected:
   - `[medium]` `[patch]` An unusable or fallback reply with a caption is unpinned (VG 27) -- a new TestCaptionCarried case; mutation (Sourced above the fallback exit) goes red.
   - `[medium]` `[patch]` TestFileTurn lost its no-getFile assertion for the over-limit file (VG 28) -- the fetch record is taken before that file is sent and asserted unchanged.
   - `[low]` `[patch]` The readable-PDF spec removes the document at the end of `try` (VG 29) -- removal runs in `finally`.
+
+### 2026-11-15 -- Review pass (rework 1, CI C6; diff of this pass only)
+- verdicts: 9 findings (Blind Hunter 1, Edge Case Hunter 5, Verification Gap 3; the Intent Alignment Auditor is descriptive and filed no finding) -- high 0, medium 0, low 8, false 1, maybe-false 0
+- findings:
+  - `[low]` `patch` Blind Hunter: the one-shot `attach.count()` decided the walk, so a late paperclip made a flake and the test never said which install it ran on -- the walk now expects the paperclip visible (waits) before pressing, and the branch is gone.
+  - `[low]` `patch` Edge Case Hunter: a late paperclip skips the extra press (red flake) -- same patch.
+  - `[low]` `patch` Edge Case Hunter: a count of 2 or more is read as no paperclip -- same patch (`toBeVisible` is strict and fails on two matches).
+  - `[false]` `reject` Edge Case Hunter: the paperclip present but not focusable -- `composer.ts` never disables it or removes it from the tab order; the tabindex -1 mutation shows the focus assertion catches that case.
+  - `[low]` `patch` Edge Case Hunter: attached or not read from the DOM, not from the install, so a vanished paperclip passes silently -- same patch (the mutation that hides it is red).
+  - `[low]` `reject` Edge Case Hunter: the failure message gives no focus reading -- the message names the expected stop; a reading adds code for a failure that Playwright's own call log already describes.
+  - `[low]` `patch` Verification Gap: C6's paperclip assertion could not fail with the paperclip absent -- same patch.
+  - `[low]` `patch` Verification Gap: the paperclip-focus assertion had no mutation of its own -- the tabindex -1 mutation turns it red (Verification, Rework 1).
+  - `[low]` `patch` Verification Gap: readiness of the branch decision -- same patch.
 
 ## Design Notes
 
@@ -655,6 +668,14 @@ Lane-A throwaways only (warm `e25s6cw`, fresh `e25s6c`, both torn down). Each mu
 - Not mutated (labelled): the new Telegram bytes/base64/image scan and the photo state-caption assertion (no product change that puts bytes in a body was tried), `TestReadOnDemo`'s caption (QA's `OnlineDemo` 0 mutation covers the test), and the chat-id and clean-up changes (`TestEmptyTurn` after `TestInjectedFileTurn` was not run in one call).
 - Runs, all green: `Test.Core.ConversationFiles`; `Test.Channel.TelegramChat:TestFileTurn` and `:TestInjectedFileTurn`; live `sign-in --part 10/17` (21 passed) and `--part 2/17` (21 passed); `npm --prefix web test` (2,101), `npm --prefix web run lint`, `initial-bundle.test.mjs` (ServerButton is already in the initial bundle through `got-it.ts`); `test-boundaries.sh`, `test-class-rules.sh`.
 
+### Rework 1 (CI C6, 2026-11-15)
+
+Lane-A fresh throwaways (tags `e25s6r5`, `e25s6r5m`, `e25s6r5h`, `e25s6r5b`, `e25s6r5t`, `e25s6r5u`, `e25s6r6` to `e25s6r9`), all torn down by their runs. The only test file changed is `web/e2e/chat/chat.spec.ts` (C6): the walk first expects the paperclip visible, then presses Shift+Tab from the field to the paperclip and once more to New messages. No other keyboard walk from the composer is broken by the paperclip: `floor/keyboard.spec.ts` and `files/files.spec.ts` already walk through it, `floor/devices.spec.ts` starts at Send and goes forward, and every other Tab or Shift+Tab walk in `web/e2e` and `web/scripts` starts in the header, a card, a dialog or the chat list.
+- mutation: C6 back to a single Shift+Tab from the field (the walk before this pass), restored byte-identical from a saved copy (`cmp` clean) -> `chat/chat.spec.ts` C6 red ("Shift+Tab from the composer reaches it": New messages expected focused, received inactive; live `sign-in --part 5/17`, the only red of the part).
+- mutation: `composer.ts` gives the paperclip `tabindex="-1"` (out of the tab order; restored byte-identical, `cmp` clean) -> C6 red at "the paperclip is the first stop back from the field" (live `sign-in --part 5/17`, the only red).
+- mutation: the paperclip hidden (`ChatFiles.controls` given `filesReadable` false; restored byte-identical, `cmp` clean) -> C6 red at "the paperclip is shown on this install" (element not found; live `sign-in --part 5/17`, the only red).
+- Runs, all green after the final edit: `live sign-in --part 5/17` (chat.spec, 21 passed); parts `6/17` (decision, 14), `7/17` (notice, 21), `8/17` (sources, 15) and `9/17` (try-it and documents, 23) ran on the same product and unchanged specs; `npm --prefix web test` (2,123 pass), `npm --prefix web run lint`, `docker/tests/test-boundaries.sh`.
+
 ## Auto Run Result
 
 Status: done
@@ -671,3 +692,20 @@ Blocking condition: none
 **Verification performed.** Implement stage and patch pass: the IRIS classes of the Verification list pass on the warm stack; fresh-stack shards (forward and reverse parts) pass; live `sign-in` parts 2/17 (api/files, 20 passed) and 10/17 (files/files, 21 passed), `sign-in-3` 7/8 (memory-card, 26 passed), `floor` (110), `demo-path` and `online-demo` (56) pass; `npm --prefix web test` (2,101), lint and build pass; the initial bundle is 889.70 kB against the 921,000-byte cap (`file-reply` 2.95 kB and `pin-photo-text` 119 bytes lazy). The build-auto stage re-ran the doc and web script tests, `test-boundaries`, `test-readme`, `test-heartbeat-overview`, `test-class-rules` and the six scripts the implement stage could not finish (`eval-set`, `online-host`, `online-load`, `upgrade-harness`, `rehearsal`, `release-sequence`), all passing, and `ConversationFiles`, `DocumentsApi` and `TelegramChat:TestInjectedFileTurn` on a fresh warm stack. Mutation lines are under Verification (all red observed, restored byte-identical). No new IRIS test unit or CI group.
 
 **Residual risks.** `lint_spine.py` stays `"ok": false` from 10 pre-existing placeholder findings (deferred, DW-638). The PoolSize 1 hold under load is unmeasured (deferred). A tab left open across an upgrade can lose the lazy chunk (spec "Known, not changed").
+
+### Rework 1 (CI C6, 2026-11-15)
+
+Status: done
+Blocking condition: none
+
+**Summary.** CI run 43703534065 went red at `web/e2e/chat/chat.spec.ts` C6 because the paperclip (25.3's "Send a file", before the field) is shown on an own install now that `READSFILES` is 1. C6's walk now expects the paperclip visible, presses Shift+Tab from the field to it, then once more to New messages. The paperclip is not moved, hidden or reordered, and no product file changed. A search of every Tab, Shift+Tab and `keys.next`/`keys.back` walk in `web/e2e` and `web/scripts` found no other walk from the composer that the paperclip breaks (`floor/keyboard.spec.ts` and `files/files.spec.ts` were fixed in the first pass).
+
+**Files changed.** `web/e2e/chat/chat.spec.ts` (C6).
+
+**Review findings.** 9 findings: 7 low patched (one patch, the unconditional visibility expectation), 1 low rejected (message detail), 1 false rejected (paperclip not focusable). Nothing deferred.
+
+**Follow-up review recommended: false.** No high was patched in this pass; the work has converged.
+
+**Verification performed.** Live `sign-in` parts 5/17 (21 passed), 6/17, 7/17, 8/17 and 9/17 on lane-A fresh stacks; `npm --prefix web test` (2,123 pass), lint, `test-boundaries.sh`; three mutations observed red and restored byte-identical (Verification, Rework 1).
+
+**Residual risks.** None named.
