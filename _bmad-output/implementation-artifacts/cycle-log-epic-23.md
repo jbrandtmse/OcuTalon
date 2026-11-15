@@ -440,3 +440,4 @@
 2026-11-15T20:22:57Z	Story 23.4	ledger_adjudicated	owned=1 resolved=1(DW-1396_resolved-by_23-4) reowned=0 terminal=0 cycle_iteration=2
 2026-11-15T20:35:44Z	Story 23.4	smoke_complete	method=other+browser(PagingLive_real_breaks:session-owned_never_pages,shared_pages_Telegram;live_sign-in_4/35_incident-page(e23b4s4)) result=pass iterations=2 defects_caught=0 cycle_iteration=2
 2026-11-15T20:35:44Z	Story 23.4	fresh_check	env=recipe(new_lane-B_warm_e23b4rr) tests=Watch.Paging,Watch.PagingLive,Watch.Lifecycle,Install.SecurityOverview result=pass order=reverse(lead),forward(implement+review_stacks) cycle_iteration=2
+2026-11-15T20:36:10Z	Epic 23	integrated	onto=92937a03(23.4_merge+24.2+DW-1388;feature_CI_pending) conflicts_resolved=sprint-status.yaml(feature_side,regenerated;23-4=done,23-8=ready-for-dev) code_conflicts=none
