@@ -1127,7 +1127,7 @@ The Results partner gives notice before the TLS certificate on its results endpo
 `,
     ],
     'Story 23.4 ruling (the Contest Planner under the owner\'s delegation, 2026-11-15, prompts/story-234-rulings-20261115.md, deviation 2 changed: the On call section\'s line once pages are sent)': [
-      "OcuTalon pages the on-call person in their paired Telegram chat only. It doesn't page by email or escalate to the backup.",
+      "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.",
     ],
   },
   calendar: [

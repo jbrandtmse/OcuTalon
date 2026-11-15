@@ -2,8 +2,8 @@
 title: 'Story 23.4: Decide when to page the on-call person and when to escalate to the backup'
 type: 'feature'
 created: '2026-11-15'
-status: 'in-progress'
-baseline_revision: '397fb9d248e9d08c886f22adffee08adc5ba8cdc'
+status: 'done'
+baseline_revision: '6ec1c602c0173d399be9863e59bb4b31d94aea8d'
 baseline_commit: '397fb9d248e9d08c886f22adffee08adc5ba8cdc'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -289,7 +289,7 @@ Rejected (13):
 
 
 **Rework iteration 2 (Contest Planner ruling DW-1400, ~23:00Z 2026-11-15, prompts/story-238-rulings-20261115.md "DW-1400: ADD the clause"; BINDING):**
-- [ ] [Review] DW-1400 -- the Settings On call line (AC14's `telegramOnly` text, `web/src/app/settings/on-call-section.ts` and wherever the string is defined/mirrored, e.g. the web catalog or ux-strings) becomes, verbatim: "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup." Update every pin of the old line (web node tests such as ux-strings, `web/e2e/settings/on-call.spec.ts` O1, any test-readme or docs pin) to the new text, with a demonstrated mutation (the old line turns the pin red). No other change. 24.3 replaces this line later.
+- [x] [Review] DW-1400 -- the Settings On call line (AC14's `telegramOnly` text, `web/src/app/settings/on-call-section.ts` and wherever the string is defined/mirrored, e.g. the web catalog or ux-strings) becomes, verbatim: "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup." Update every pin of the old line (web node tests such as ux-strings, `web/e2e/settings/on-call.spec.ts` O1, any test-readme or docs pin) to the new text, with a demonstrated mutation (the old line turns the pin red). No other change. 24.3 replaces this line later.
 
 ## Spec Change Log
 
@@ -377,6 +377,19 @@ Rejected (13):
   - `[false]` `[reject]` (intent) R2 (watch-scope reading) is not implemented: an untagged failure of a production that one session alone watches is an instance incident and pages; the ruling's "shared, watched production" is the instance's watched production and the owner is the one fact the code writes for it (Decided in-stage 6), so it is the implemented reading, not a divergence
   - `[false]` `[reject]` (intent) The diff's tests exercise the owner at `Notice` while the ruling's expectation is the product's observable behaviour: the live test `TestSessionBreakNeverPages` pins the observable surface (a real tagged break, no row, no Notification)
   - `[low]` `[reject]` (intent) The Break the feed service itself is not driven, only a generic tagged break: the tag is the same (the session's TraceRef as SuperSession) and the online demo is refused first by the flag
+
+### 2026-11-15 -- Review pass (rework iteration 2, DW-1400; diff `6ec1c602c..` working tree; layers: blind-hunter, edge-case-hunter, verification-gap, intent-alignment)
+- verdicts: 9 findings -- high 0, medium 0, low 7, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) AC14 and AC10 still quote the old line verbatim -- the fix is to edit the spec (the rework item and Spec Change Log already supersede them); no code or pin reads the AC text.
+  - `[low]` `[reject]` (blind) The `on-call-section.ts` doc comment does not mention the new clause -- the comment is still true (a page goes to the paired Telegram chat only) and the item says "No other change" on contended Settings code.
+  - `[low]` `[reject]` (blind) `byEmailHelp` ("also pages the backup") sits beside the new "doesn't page by email or escalate to the backup" -- pre-existing, both are Planner-approved verbatim; 24.3 replaces them together (reopen_if=24.3 keeps both lines).
+  - `[false]` `[reject]` (blind) "not for a practice Break the feed" is ungrammatical -- the Planner ruled the text verbatim (DW-1400); the diff copies it character for character.
+  - `[false]` `[reject]` (blind) No evidence that "no line" turns the unit pins red -- the pins are `deepEqual`/inventory equality on the full string, so any other value fails, and the old-line mutation was observed red.
+  - `[low]` `[reject]` (edge) carried: AC14's old text (first row of this pass).
+  - `[low]` `[reject]` (edge) carried: the `on-call-section.ts` comment (second row of this pass).
+  - `[low]` `[reject]` (verification-gap, other) The AC10 and AC14 spec text quotes the old line -- same as the first row; nothing executes it.
+  - `[low]` `[reject]` (intent-alignment, descriptive) Every pin is on the web text with no cross-check to the paging behaviour the sentence describes -- the behaviour is pinned by the DW-1396 tests (`TestSessionBreakNeverPages`, `TestSessionOwnedNeverPages`) and the item scopes this pass to the line and its pins.
 
 ## Design Notes
 
@@ -640,6 +653,10 @@ Code review, rework re-review (Stage code-review, 2026-11-15; a warm lane-B thro
 - mutation: DW-1396 (the patched live pin, with the on-call user and the backup other users), the owner test made the old `OwnerRef = eval` test: `PagingLive` `TestSessionBreakNeverPages` red ("no page row exists for the session's incident", "no page Notification carries its Ref") and no other test red.
 - Also run: `Test.Watch.Paging` passed (14.8 s) and `Test.Watch.PagingLive` passed (109.6 s, with the floor-limited `RaisedShared` and AC8 loop), unmutated; `bash docker/tests/test-class-rules.sh` passes. The floor limit is a hermeticity fix with no separate mutation: it only changes which leftover rows a test can take.
 
+Rework iteration 2 (DW-1400, the new On call line; `npm --prefix web test`, applied, observed red, restored from a copy, `git diff --stat` as before):
+- mutation: DW-1400 (AC14), `telegramOnly` in `web/src/app/settings/settings-view.ts` made the old line (no clause): `web/scripts/on-call-view.test.mjs` "are shown byte for byte" red, and `web/scripts/ux-strings.test.mjs` "has an entry for every inventory string" and "has no entry that matches no inventory string" red (3 failures of 2153); green again (2153) with the line restored.
+- mutation: DW-1400 (AC14), `web/e2e/settings/on-call.spec.ts` O1: the `TELEGRAM_ONLY` constant pins the new line with `exact: true`, so the old line in the product leaves the line absent and O1 red. Observed: with the old line in `settings-view.ts` (web bundle rebuilt), `ci/iris.sh live sign-in-2 --part 4/4` on a fresh lane-B throwaway went red on O1 ("the Telegram-only line in its place", the new text not visible; 1 failed of 58); restored from a copy, `git diff --stat` as before. The unmutated run passed (58 tests).
+
 **Verified (2026-11-15):**
 - Fresh lane-B throwaway: `Test.Watch.PagingLive` (all cases, 59.5 s), `Test.Channel.TelegramDigest` and `Test.Channel.TelegramOut` passed; `ci/iris.sh live production-restart` passed with the paging phase.
 - Warm lane-B throwaway: `Test.Watch.Paging`, `Lifecycle`, `Transitions`, `Tell`, `Closing`, `Payload`, `Summary`, `Msg.Catalog`, `Live.Payloads`, `Data.Tables`, `Install.Retention`, `Install.PrivateData`, `Core.CommandsRouting`, `Msg.Contracts`, `Schedule.Reminders`, `Core.SettingsOnCall` and `Bridge.CodeRules` passed.
@@ -667,3 +684,18 @@ Blocking condition: none
 **Verification performed (lane-B warm throwaway, tag `e23b4r1w`, one class per call).** `Test.Watch.Paging` passed (before and after the patches); `Test.Watch.PagingLive` passed twice (80 s and 88 s). Mutations: the owner test made the old `eval` test: `TestSessionOwnedNeverPages` red (four assertions after the patch; five before) and `PagingLive` `TestSessionBreakNeverPages` red (page row and Notification); the `OnlineDemo()` line of `Notice` removed: `TestOnlineDemoRefusesByCode` red on the new instance assertion; each restored byte-identical and green again. `bash docker/tests/test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh`, `npm --prefix web run lint`, `npm --prefix web test` (2132), `payloads --check` and `catalog.mjs --check` pass.
 
 **Residual risks.** The owner is the only fact that tells a shared incident from a session's: a future path that gives a shared incident a non-`instance` owner would stop paging, and Escalate, Acknowledge and Close do not re-check the owner (no row can exist for a session-owned incident). `TestSessionBreakNeverPages` checks absence after a fixed 5 s.
+
+**Summary (rework iteration 2, DW-1400; this pass only).** The On call section's `telegramOnly` line now reads, verbatim, "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup." Its three pins moved to the new text; no other change.
+
+**Files changed.**
+- `web/src/app/settings/settings-view.ts`: the `telegramOnly` text.
+- `web/scripts/on-call-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/e2e/settings/on-call.spec.ts` (O1's `TELEGRAM_ONLY`): the pins.
+- This spec: the ticked item, the two `mutation:` lines, the triage log and this result.
+
+**Review findings (this pass).** 9 findings from four layers: high 0, medium 0, low 7, false 2. Patched 0. Deferred 0. Rejected 9 with their reasons in the Review Triage Log (the AC10 and AC14 text and the section's doc comment still describing the old line, the pre-existing `byEmailHelp` beside the new line, the verbatim wording, and the web-only pins).
+
+**Follow-up review recommendation:** false. Patched this pass: high 0, medium 0, low 0.
+
+**Verification performed (lane-B fresh throwaway, tag `e23b4r2`).** `npm --prefix web test` (2153) and `npm --prefix web run lint` pass; `ci/iris.sh live sign-in-2 --part 4/4` (58 tests, with `settings/on-call.spec.ts` O1) passed on the new line and went red on O1 with the old line (tag `e23b4r2m`, restored byte-identical); `bash docker/tests/test-boundaries.sh`, `payloads --check` and `catalog.mjs --check` pass. No doc pins the line, so `test-readme.sh` was not needed. Initial web bundle 894.53 kB (cap 1 MB). Both throwaway stacks were torn down by their runs.
+
+**Residual risks.** The line is Planner-ruled public text kept in four code files; 24.3 replaces it and must change them together.
