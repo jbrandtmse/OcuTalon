@@ -4237,3 +4237,7 @@
 2026-11-15T04:35:27Z	Epic 23	runner_ended	reason=clarification story=23.3 gate=PLANNER_REPORT+PUBLIC_TEXT(vetoes_1-6,AD-15/16/24/32/22_amendments,deviations_1-6,lane_D_Watch_hooks,AD-33_exception) head=28e3a39b3(local) relayed=contest_planner
 2026-11-15T04:36:31Z	Epic 23	owner_decision	via=contest_planner 23.3=APPROVED(vetoes_1-7,AD-15/16/24/32/22,deviations,all_public_text) conditions=Task0_hard_gate,untrusted_turn_deny,no_other_role_ProductionConfig_pin,injection_eval_case,undo_latest_only+one_undo,SysDefault_undo_removes_item_entry(byte-identical_pin),union_with_laneD_Watch+25.6_Catalog,1MB_STOP,shards-8_time release=1.0.11 file=prompts/story-233-rulings-20261115.md
 2026-11-15T04:36:31Z	Epic 23	runner_resumed	lane=B task=23.3_Task0..PART_READY
+2026-11-15T05:26:56Z	Epic 22	runner_reported	PART_READY story=22.14 head=6ba4068d runs=43674059161,43674059261
+2026-11-15T05:26:56Z	Epic 22	ci_green_verified	head=6ba4068d gate=success missing=none
+2026-11-15T05:26:56Z	Epic 22	amendments_verified	test-only(Test.Mcp.SourceSet:TestUpdate) DW-1352=resolved-by_22-14_at_merge
+2026-11-15T05:26:56Z	Epic 22	merge_enqueued	story=22.14 head=6ba4068d into=feature@6730eda7e+records
