@@ -4301,3 +4301,5 @@
 2026-11-15T13:31:12Z	Epic 22	ci_green_verified	story=22.12 head=70c05d0a9 runs=43702792429,43702792409(one_DW-626_rerun) note=lane_D_busy_on_21.11;orchestrator_verified_gate_directly
 2026-11-15T13:31:12Z	Epic 22	merge_enqueued	story=22.12 (1.0.11 required)
 2026-11-15T13:42:14Z	Epic 22	merged	story=22.12 merge=adbb0ace9 pins=pass(security-overview_not_local:stale_root_throwaway_lock_2026-11-12_project_ocutalon-class-local-1794496936-70740,exited;left_untouched)
+2026-11-15T13:43:02Z	Run	stale_lock_removed	via=contest_planner_ruling project=ocutalon-class-local-1794496936-70740-1794496936-70740(container_exited_2d,pid_70740_gone) removed=container,2_volumes,network,root_throwaway-iris.lock touched_nothing_else
+2026-11-15T13:46:05Z	Run	local_check	test-security-overview@adbb0ace9=PASS(regenerated_sections_equal) stack=torn_down lock=released
