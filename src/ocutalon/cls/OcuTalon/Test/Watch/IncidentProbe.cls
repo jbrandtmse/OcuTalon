@@ -74,7 +74,7 @@ Property FailRaise As %Boolean [ InitialExpression = 0, Transient ];
 /// The Ref that RaiseRequest answers; empty for the fixture Ref.
 Property RaiseRef As %String(MAXLEN = 22) [ Transient ];
 
-/// The commands that SendCommand recorded, in order, each {class, kind, incidentRef, pageRef, delaySeconds, reminderRef, origin}: origin is system, the origin SendCommand submits with.
+/// The commands that SendCommand recorded, in order, each {class, kind, incidentRef, pageRef, delaySeconds, reminderRef, origin}: origin is the one the caller passed to SendCommand.
 Property Commands As %DynamicArray [ Transient ];
 
 /// 1 to make SendCommand answer Ok 1 with the Ref ZzProbeEscalation0001 (the escalation timer that Story 24.3's ReminderOps will answer with); 0 for the answer that ReminderOps gives
@@ -296,10 +296,10 @@ Method QuietNow() As %String [ Private ]
 }
 
 /// Records the command instead of submitting it, and answers as CommandOk says (see the Commands, CommandOk and FailCommand properties).
-Method SendCommand(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+Method SendCommand(command As OcuTalon.Msg.Command, origin As %String, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	If '$IsObject(..Commands) Set ..Commands = []
-	Set entry = {"class": ($ClassName(command)), "origin": "system"}
+	Set entry = {"class": ($ClassName(command)), "origin": (origin)}
 	If command.%IsA("OcuTalon.Msg.Command.SetReminder") {
 		Set entry.kind = command.Kind
 		Set entry.incidentRef = command.IncidentRef

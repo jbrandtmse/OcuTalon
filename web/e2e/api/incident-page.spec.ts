@@ -35,7 +35,7 @@ async function seedPage(incident: string, role: 'oncall' | 'backup', sentAt: str
       `Set p.SentAt=${quoted(sentAt)}`,
       ...(acknowledged ? [`Set p.AcknowledgedAt=${quoted(acknowledged.at)}`, `Set p.AcknowledgedChannel=${quoted(acknowledged.channel)}`] : []),
       'Set sc=p.%Save()',
-      'Write !,"CHK|page|",p.Ref',
+      'Write !,"CHK|page|",$Select($SYSTEM.Status.IsOK(sc):p.Ref,1:"")',
     ].join('\n'),
   );
   const ref = chk(lines, 'page');
@@ -68,7 +68,7 @@ test('the incident in /api/v1/state lists its page with state and times and no p
     expect(found?.payload.page, 'with its page, paged').toMatchObject({ state: 'paged', pagedAt: '2030-01-01T09:05:00Z' });
     expect(found?.payload.page?.acknowledgedAt ?? '', 'not acknowledged').toBe('');
 
-    await seedPage(incident, 'backup', '2030-01-01T09:20:00Z', { at: '2030-01-01T09:22:00Z', channel: 'telegram' });
+    const escalated = await seedPage(incident, 'backup', '2030-01-01T09:20:00Z', { at: '2030-01-01T09:22:00Z', channel: 'telegram' });
     body = (await (await request.get(STATE)).json()) as StateBody;
     found = body.chat.find((item) => item.type === 'incident' && item.payload.ref === incident);
     expect(found?.payload.page, 'once the backup acknowledged it, the page is acknowledged, when and where').toMatchObject({
@@ -80,9 +80,13 @@ test('the incident in /api/v1/state lists its page with state and times and no p
     const text = JSON.stringify(body);
     expect(text, 'the body holds no paged person').not.toContain(PERSON);
     expect(text, 'and no page Ref').not.toContain(paged);
+    expect(text, 'of either page').not.toContain(escalated);
     expect(Object.keys(found?.payload.page ?? {}).sort(), 'the page member holds only its four keys').toEqual(['acknowledgedAt', 'channel', 'pagedAt', 'state']);
 
-    const theirs = (await (await second.get(STATE)).json()) as StateBody;
+    const theirResponse = await second.get(STATE);
+    expect(theirResponse.status(), 'the second session reads its state').toBe(200);
+    const theirs = (await theirResponse.json()) as StateBody;
+    expect(Array.isArray(theirs.chat), 'and gets a state body').toBe(true);
     expect(JSON.stringify(theirs), 'a second session lists no such incident').not.toContain(incident);
   } finally {
     await second.dispose();

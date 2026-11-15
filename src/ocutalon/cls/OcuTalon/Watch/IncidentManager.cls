@@ -2041,7 +2041,7 @@ Method Arm(incident As OcuTalon.Data.Incident, ref As %String, delay As %Integer
 	Set command.IncidentRef = incident.Ref
 	Set command.PageRef = ref
 	Set command.DelaySeconds = delay
-	Set sc = ..SendCommand(command, .result)
+	Set sc = ..SendCommand(command, "system", .result)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGPAGE_incident.Ref_": the escalation was not asked for ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
 		Quit
@@ -2052,10 +2052,10 @@ Method Arm(incident As OcuTalon.Data.Incident, ref As %String, delay As %Integer
 	}
 }
 
-/// Submits a command from origin system, through the one way in (AD-1), and waits for its answer (a seam for the tests).
-Method SendCommand(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+/// Submits a command from the origin (system for paging), through the one way in (AD-1), and waits for its answer (a seam for the tests).
+Method SendCommand(command As OcuTalon.Msg.Command, origin As %String, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
-	Quit ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, origin, .result)
 }
 
 /// An escalation message that fell due: pages the backup once while the on-call page is unacknowledged and the incident is open (Watch.Paging.Escalate re-reads the rows),
@@ -2090,17 +2090,18 @@ Method Acknowledged(command As OcuTalon.Msg.Command.AckPage, Output response As 
 	}
 }
 
-/// What follows a first acknowledgement of the page: the escalation timer is cancelled (when the page has one), the handled Notification goes to the session, the action is audited
-/// and the incident event is published again. Each failure, an exception included, is one Type 3 warning; the acknowledgement stands and Acknowledged still answers handled.
+/// What follows a first acknowledgement of the page: the escalation timer is cancelled (when the page has one and it has not fired: the backup has no page yet), the handled
+/// Notification goes to the session, the action is audited with the acknowledging session and the incident event is published again. Each failure, an exception included, is
+/// one Type 3 warning; the acknowledgement stands and Acknowledged still answers handled.
 Method Followed(ref As %String, command As OcuTalon.Msg.Command.AckPage) [ Private ]
 {
 	Try {
 		Set page = ##class(OcuTalon.Data.Page).RefIndexOpen(ref)
 		If '$IsObject(page) Quit
-		If page.EscalationRef '= "" Do ..Cancel(page.IncidentRef, page.EscalationRef)
+		If (page.EscalationRef '= "") && '##class(OcuTalon.Data.Page).IncidentRoleIndexExists(page.IncidentRef, ##class(OcuTalon.Watch.Paging).#BACKUP) Do ..Cancel(page.IncidentRef, page.EscalationRef)
 		Set sc = ..SendNotice(##class(OcuTalon.Watch.Paging).Handled(page, command.SessionRef))
 		If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGACK_page.IncidentRef_": the handled notice was not sent ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
-		Set sc = ##class(OcuTalon.Watch.Paging).Audit(##class(OcuTalon.Watch.Paging).#AUDITACK, ref, "acknowledged", command.Channel)
+		Set sc = ##class(OcuTalon.Watch.Paging).Audit(##class(OcuTalon.Watch.Paging).#AUDITACK, ref, "acknowledged", command.Channel, command.SessionRef)
 		If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGACK_page.IncidentRef_": the acknowledgement was not audited ("_$SYSTEM.Status.GetErrorCodes(sc)_")")
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(page.IncidentRef)
 		If $IsObject(incident) && (incident.NoticedAt '= "") Do ..Tell(incident, ..#INCIDENTEVENT, ##class(OcuTalon.Live.Payload.Incident).FromRow(incident))
@@ -2128,7 +2129,7 @@ Method Cancel(incidentRef As %String, reminderRef As %String) [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
 	Set command.ReminderRef = reminderRef
-	Set sc = ..SendCommand(command, .result)
+	Set sc = ..SendCommand(command, "system", .result)
 	If $$$ISERR(sc) || '$IsObject(result) || 'result.Ok {
 		$$$LOGWARNING(##class(OcuTalon.Watch.Paging).#LOGUNPAGE_incidentRef_": the cancel was not done ("_$Select($$$ISERR(sc): $SYSTEM.Status.GetErrorCodes(sc), $IsObject(result): result.Outcome, 1: "no answer")_")")
 	}

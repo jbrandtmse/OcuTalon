@@ -91,6 +91,7 @@ Method OnAfterAllTests() As %Status
 	Set sc = ..AlertOff()
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..TelegramOff())
 	Do ##class(OcuTalon.Test.Watch.Paging).PutKeysBack()
+	Kill ^OcuTalonTest("WatchPaging", "saved")
 	Do ..DropAdmin()
 	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
 }
@@ -321,7 +322,7 @@ Method TestPageReachesTelegram()
 	If texts.%Size() Do ..Timing("Task 0 (b): the chat's first text: "_$Extract(texts.%Get(texts.%Size() - 1), 1, 80))
 }
 
-/// Task 0 (c): Commands.Submit of an escalation SetReminder from origin system answers not_built, with no deadlock. The in-job measurement is made by TestPage in the real run.
+/// Task 0 (c): Commands.Submit of an escalation SetReminder from origin system answers not_built, with no deadlock. The in-job ask is made by TestRealBreakPagesTelegram in the real run.
 Method TestEscalationAsk()
 {
 	If '..Ready() Quit
@@ -416,10 +417,12 @@ Method Pair(session As %String, chatId As %String, name As %String) As %Boolean 
 	Quit linked
 }
 
-
-/// Writes the on-call keys for the primary and backup users and the minutes.
+/// Writes the on-call keys for the primary and backup users and the minutes, and leaves the addresses and both channel keys without a row.
 Method SetKeys(primaryUser As %String, backupUser As %String, minutes As %Integer) [ Private ]
 {
+	For key = "oncall.primary.email", "oncall.backup.email", "oncall.primary.channels", "oncall.backup.channels" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.Paging).Write(key, ""), key_" has no row")
+	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.Paging).Write("oncall.primary.user", primaryUser), "the on-call user is set")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.Paging).Write("oncall.backup.user", backupUser), "the backup user is set")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.Paging).Write("oncall.escalationMinutes", minutes), "the minutes are set")
@@ -525,7 +528,6 @@ ClassMethod PageTrace(mark As %Integer) As %String
 		Set xml = ""
 		Do body.XMLExportToString(.xml)
 		Set text = text_rs.%GetData(2)_">"_rs.%GetData(3)_" "_rs.%GetData(6)_" "_rs.%GetData(7)_" "_xml_$Char(10)
-		Set count = $Get(count) + 1
 	}
 	Quit text
 }

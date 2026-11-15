@@ -71,7 +71,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..Incidents = ""
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingChange WHERE Namespace = ? AND Production %STARTSWITH ?", "ZZNS", "Zz.Paging"_..Number_".")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ? AND Production %STARTSWITH ?", "ZZNS", "Zz.Paging"_..Number_".")
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", ..LogMark, "IncidentManager could not")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Job = ? AND Type = 3 AND Text %STARTSWITH ?", ..LogMark, $Job, "IncidentManager could not")
 	Quit $$$OK
 }
 
@@ -112,9 +112,12 @@ ClassMethod PutKeysBack()
 	}
 }
 
-/// Writes the on-call keys: the primary user and address, the backup user and address and the minutes ("" leaves a key without a row). The rows are put back after the test.
+/// Writes the on-call keys: the primary user and address, the backup user and address and the minutes ("" leaves a key without a row), and leaves both channel keys without a
+/// row (their default). The rows are put back after the test.
 Method Keys(primaryUser As %String = "", primaryEmail As %String = "", backupUser As %String = "", backupEmail As %String = "", minutes As %String = "")
 {
+	Do $$$AssertStatusOK(..Write("oncall.primary.channels", ""), "the on-call channels are the default")
+	Do $$$AssertStatusOK(..Write("oncall.backup.channels", ""), "the backup's channels are the default")
 	Do $$$AssertStatusOK(..Write("oncall.primary.user", primaryUser), "the on-call user is set")
 	Do $$$AssertStatusOK(..Write("oncall.primary.email", primaryEmail), "the on-call address is set")
 	Do $$$AssertStatusOK(..Write("oncall.backup.user", backupUser), "the backup user is set")
@@ -254,7 +257,7 @@ Method Warned(Output text As %String) As %Integer
 {
 	Set text = ""
 	Set count = 0
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ? ORDER BY ID", ..LogMark, "IncidentManager could not")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Job = ? AND Type = 3 AND Text %STARTSWITH ? ORDER BY ID", ..LogMark, $Job, "IncidentManager could not")
 	While rs.%Next() {
 		Set count = count + 1
 		Set text = rs.%Get("Text")
@@ -596,7 +599,7 @@ Method TestAcknowledge()
 	If handled.%Size() = 1 Do $$$AssertEquals(handled.%Get(0).sessionRef_"|"_handled.%Get(0).decisionRef, sessionU_"|"_page.Ref, "to the page's session, with the page's Ref")
 	Set entries = ..Audited(mark, "page_acknowledged", page.Ref)
 	Do $$$AssertEquals(entries.%Size(), 1, "one page_acknowledged audit entry names the page")
-	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.channel, "telegram", "with the channel")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.channel_"|"_entries.%Get(0).data.sessionRef, "telegram|"_sessionU, "with the channel and the acknowledging session (AD-17)")
 	Set payloads = ..Payloads(a)
 	Set last = payloads.%Get(payloads.%Size() - 1).page
 	Do $$$AssertEquals(last.state_"|"_last.acknowledgedAt_"|"_last.channel, "acknowledged|"_page.AcknowledgedAt_"|telegram", "the last event says acknowledged, when and where")
@@ -823,6 +826,114 @@ Method TestFailuresAreWarnings()
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Do $$$AssertEquals(row.State_"|"_(row.NoticedAt '= ""), "open|1", "and the incident is noticed")
 	Do $$$AssertEquals(..Payloads(a).%Size(), 2, "the watchers got the event again, with the page")
+}
+
+/// AC1 and AC4 (Decided in-stage 1 and 2): a user with an older session that has no pairing and a newer one that has is paged in the paired one, and only that one
+/// acknowledges; a user whose one session has no pairing is paged in that session, not in instance.
+Method TestPagedSessionIsThePairedOne()
+{
+	Set user = ..User("u", .older, 0)
+	Set newer = ##class(OcuTalon.Test.Data.Fixture).Session(user)
+	Set ..Refs = ..Refs_","_newer_","_##class(OcuTalon.Test.Data.Fixture).Pairing(newer)
+	Set backup = ..User("b", .sessionB)
+	Do ..Keys(user, "", backup, "", 15)
+	Do ..Setup("paired", .a, .b, .c, .incident, .row)
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Do ..Notice(host, incident)
+	Set pages = ..Sent(host, "page")
+	Do $$$AssertEquals(pages.%Size(), 1, "one page Notification")
+	If pages.%Size() '= 1 Quit
+	Do $$$AssertEquals(pages.%Get(0).sessionRef, newer, "to the user's paired session, not the older one")
+	Set page = ..Page(incident)
+	If '$IsObject(page) Quit
+	Do $$$AssertEquals(..Answer(host, ..Ack(page.Ref, older)), "0|not_found", "the older session's AckPage answers not_found")
+	Do $$$AssertEquals(..Answer(host, ..Ack(page.Ref, newer, "telegram")), "1|handled", "the paired session's is handled")
+	Set lone = ..User("v", .only, 0)
+	Do ..Keys(lone, "", backup, "", 15)
+	Do ..Setup("lone", .a2, .b2, .c2, .incident2, .row2)
+	Set host2 = ..Host()
+	If '$IsObject(host2) Quit
+	Do ..Notice(host2, incident2)
+	Set pages = ..Sent(host2, "page")
+	Do $$$AssertEquals($Select(pages.%Size() = 1: pages.%Get(0).sessionRef, 1: "none"), only, "a user with one session and no pairing is paged in that session")
+}
+
+/// Implement-stage note 5: a recorded page.onCall Notification whose backup is cleared, or made the on-call person, before it renders is rendered as page.onCallAlone.
+Method TestAloneAtRender()
+{
+	Set user = ..User("u", .sessionU)
+	Set backup = ..User("b", .sessionB)
+	Do ..Keys(user, "", backup, "", 15)
+	Do ..Setup("render", .a, .b, .c, .incident, .row)
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Do ..Notice(host, incident)
+	Set pages = ..Sent(host, "page")
+	If pages.%Size() '= 1 {
+		Do $$$AssertEquals(pages.%Size(), 1, "one page Notification")
+		Quit
+	}
+	Set note = pages.%Get(0)
+	Do $$$AssertEquals(note.catalogKey, "page.onCall", "the page was recorded with a backup")
+	Set rendered = ##class(OcuTalon.Msg.Notification).%New()
+	Set rendered.Kind = "page"
+	Set rendered.CatalogKey = note.catalogKey
+	Set rendered.Slots = note.slots
+	Set rendered.IncidentRef = incident
+	Set expected = ##class(OcuTalon.Msg.Catalog).Render("page.onCallAlone", {}.%FromJSON(note.slots), "telegram", .expectedSc)
+	Do $$$AssertStatusOK(expectedSc, "the alone text renders from the page's slots")
+	For case = "cleared", "same" {
+		Do ..Keys(user, "", $Select(case = "same": user, 1: ""), "", 15)
+		Set text = ##class(OcuTalon.Watch.Paging).Text(rendered, "telegram", .sc)
+		Do $$$AssertStatusOK(sc, case_": the page still renders")
+		Do $$$AssertEquals(text, expected, case_": as page.onCallAlone, naming no backup")
+	}
+}
+
+/// AC4 (and AC5's R2 for the acknowledgement): an on-call page acknowledged after the escalation paged the backup asks no cancel, because its timer has fired.
+Method TestAcknowledgeAfterEscalation()
+{
+	Set user = ..User("u", .sessionU)
+	Set backup = ..User("b", .sessionB)
+	Do ..Keys(user, "", backup, "", 15)
+	Do ..Setup("ackesc", .a, .b, .c, .incident, .row)
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.CommandOk = 1
+	Do ..Notice(host, incident)
+	Set page = ..Page(incident)
+	If '$IsObject(page) Quit
+	Do $$$AssertEquals(page.EscalationRef, "ZzProbeEscalation0001", "the page has a timer")
+	Do ..Escalate(host, incident, page.Ref)
+	Do $$$AssertEquals(..Pages(incident), 2, "the backup is paged")
+	Set asked = ..Asked(host)
+	Set before = ..Warned()
+	Do $$$AssertEquals(..Answer(host, ..Ack(page.Ref, sessionU)), "1|handled", "the on-call page is then acknowledged")
+	Do $$$AssertEquals(..Asked(host)_"|"_(..Warned() - before), asked_"|0", "with no cancel asked for the timer that has fired, and no warning")
+}
+
+/// AC11: the payload's acknowledgement is the first one: when the backup acknowledged before the on-call person, its time and channel are given.
+Method TestPayloadFirstAcknowledgement()
+{
+	Set incident = "ZzPgPay"_..Number
+	Set ..Incidents = ..Incidents_$Select(..Incidents = "": "", 1: ",")_incident
+	For role = "oncall", "backup" {
+		Set page = ##class(OcuTalon.Data.Page).%New()
+		Set page.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set page.IncidentRef = incident
+		Set page.Role = role
+		Set page.Person = "zzpgpay"_..Number
+		Set page.Channels = "telegram,email"
+		Set page.SentAt = $Select(role = "oncall": "2030-01-01T09:05:00Z", 1: "2030-01-01T09:20:00Z")
+		Set page.AcknowledgedAt = $Select(role = "oncall": "2030-01-01T09:30:00Z", 1: "2030-01-01T09:25:00Z")
+		Set page.AcknowledgedChannel = $Select(role = "oncall": "web", 1: "telegram")
+		Do $$$AssertStatusOK(page.%Save(), "the "_role_" page is saved")
+	}
+	Set payload = ##class(OcuTalon.Watch.Paging).PagePayload(incident)
+	Do $$$AssertTrue($IsObject(payload), "the incident has a page payload")
+	If '$IsObject(payload) Quit
+	Do $$$AssertEquals(payload.state_"|"_payload.pagedAt_"|"_payload.acknowledgedAt_"|"_payload.channel, "acknowledged|2030-01-01T09:05:00Z|2030-01-01T09:25:00Z|telegram", "the backup's earlier acknowledgement gives the time and the channel")
 }
 
 /// AC13: the paged person's name and address are in none of the five records: the Notifications and commands (the production's messages), the audit entries, the incident payload as the page's

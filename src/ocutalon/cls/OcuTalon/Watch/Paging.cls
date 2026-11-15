@@ -1,6 +1,7 @@
 /// The decisions of paging and the writes of OcuTalon.Data.Page (Story 23.4; AD-1, AD-5, AD-14, AD-15, AD-17, AD-19, AD-25; Lane A). Every method that writes or decides
 /// is called from IncidentManager's job only, which sends what these methods give back (the Notification, the timer's ask) and publishes the incident.
-///   - OnlineDemo is checked first by every method that reads an on-call key: on the online demo nothing is read, written, sent or audited, whatever the keys hold.
+///   - OnlineDemo is checked first by Notice, Escalate, Acknowledge, PagePayload and Text, the methods through which an on-call key is read: on the online demo nothing is
+///     read, written, sent or audited, whatever the keys hold.
 ///   - Notice records the on-call page of an incident's first notice, once: the person is the primary user, else the primary address, and the page has the
 ///     session of that user (the paired one, else the first), else the session instance for an address. Nothing is recorded when no on-call person is
 ///     configured, a backup alone included. A person never gets a second page of an incident (IncidentRoleIndex is unique, and every method re-reads the rows).
@@ -297,8 +298,8 @@ ClassMethod Armed(pageRef As %String, escalationRef As %String) As %Status
 }
 
 /// The page member of the incident payload as {"state", "pagedAt", "acknowledgedAt", "channel"}, or "" when the incident has no page and on the online demo. state is acknowledged
-/// once any page of the incident is (with that page's time and channel), else escalated when the backup has a page, else paged; pagedAt is the on-call page's SentAt. It
-/// holds no person. Rows are read by object access only (AD-13).
+/// once any page of the incident is (with the time and channel of the first acknowledgement), else escalated when the backup has a page, else paged; pagedAt is the on-call
+/// page's SentAt. It holds no person. Rows are read by object access only (AD-13).
 ClassMethod PagePayload(incidentRef As %String) As %DynamicObject
 {
 	If ..OnlineDemo() Quit ""
@@ -310,11 +311,11 @@ ClassMethod PagePayload(incidentRef As %String) As %DynamicObject
 	Set channel = ""
 	If pages.Count() > 1 Set state = ..#ESCALATED
 	For i = 1:1:pages.Count() {
-		If pages.GetAt(i).AcknowledgedAt '= "" {
+		Set when = pages.GetAt(i).AcknowledgedAt
+		If (when '= "") && ((at = "") || (when ']] at)) {
 			Set state = ..#ACKNOWLEDGED
-			Set at = pages.GetAt(i).AcknowledgedAt
+			Set at = when
 			Set channel = pages.GetAt(i).AcknowledgedChannel
-			Quit
 		}
 	}
 	Quit {"state": (state), "pagedAt": (first.SentAt), "acknowledgedAt": (at), "channel": (channel)}
@@ -327,6 +328,10 @@ ClassMethod PagePayload(incidentRef As %String) As %DynamicObject
 ClassMethod Text(notification As OcuTalon.Msg.Notification, channel As %String, Output sc As %Status) As %String
 {
 	Set sc = $$$OK
+	If ..OnlineDemo() {
+		Set sc = $SYSTEM.Status.Error(5001, "Nothing is paged on the online demo")
+		Quit ""
+	}
 	Set key = notification.CatalogKey
 	Set slots = ""
 	Try {
@@ -365,8 +370,9 @@ ClassMethod Text(notification As OcuTalon.Msg.Notification, channel As %String, 
 }
 
 /// Writes the audit entry of a page (action page) or of an acknowledgement (page_acknowledged) through Bridge.Audit: the target is the page's Ref, the result a fixed word,
-/// and no person, session or address is in it. channel is the acknowledgement's channel (system for a page). OK or the error of the write.
-ClassMethod Audit(action As %String, pageRef As %String, result As %String, channel As %String = "system") As %Status
+/// and no person or address is in it. channel is the acknowledgement's channel (system for a page), and session the acknowledging session's Ref (AD-17; none for a page,
+/// which the system sends). OK or the error of the write.
+ClassMethod Audit(action As %String, pageRef As %String, result As %String, channel As %String = "system", session As %String = "") As %Status
 {
 	Set data = {}
 	Do data.%Set("action", action, "string")
@@ -375,7 +381,7 @@ ClassMethod Audit(action As %String, pageRef As %String, result As %String, chan
 	Do data.%Set("counts", {})
 	Do data.%Set("approvalRef", "", "string")
 	Do data.%Set("irisUser", $Username, "string")
-	Do data.%Set("sessionRef", "", "string")
+	Do data.%Set("sessionRef", session, "string")
 	Do data.%Set("channel", $Select($ListFind($ListFromString(..#ACKCHANNELS), channel): channel, 1: "system"), "string")
 	Quit ##class(OcuTalon.Bridge.Audit).Record("Action", data)
 }

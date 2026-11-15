@@ -18,9 +18,6 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.Page";
 /// The roles, in the order OfIncident lists them.
 Parameter ROLES = "oncall,backup";
 
-/// The status code of a %DeleteId whose row is already gone ($$$DeleteObjectNotFound).
-Parameter NOTFOUND [ Final ] = 5810;
-
 /// The public reference: 22 base64url characters from OcuTalon.Bridge.Ids.NewRef(). Compared exactly.
 Property Ref As %String(COLLATION = "EXACT", MAXLEN = 22);
 
