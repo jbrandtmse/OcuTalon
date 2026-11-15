@@ -429,3 +429,6 @@
 2026-11-15T19:40:42Z	Epic 23	story_chartered	story=23.13 key=23-13-partner-warnings-go-to-the-settings-contacts source=prompts/story-242-rulings-20261115.md(23.13_replaces_23.10) marker=[ADDED_2026-11-15,Contest_Planner] wait=24.2_merged(lane_D) order=after_23.4,23.8 owned_ledger=DW-1254(routed_by_planner) note=graph_yaml_story_wait_not_edited(orchestrator_owned)
 2026-11-15T19:40:42Z	Story 23.13	ledger_routed_planned	story=23-13 entries=1(DW-1254_in_AC) excess=0 by=planner
 2026-11-15T19:40:52Z	Epic 23	ledger_correction	DW-1254_owner_restored_to_24-2(lane_D_story;cross-epic);23.13_carries_only_the_contact-id_change_as_an_AC
+2026-11-15T19:43:02Z	Story 23.4	ruling	question=DW-1396+on-call.spec_extension choice=option_(a)_page_only_shared_watched_productions;on-call.spec_accepted;orchestrator_merges_5a6af00d_on_green category=veto(Planner_ruled) source=prompts/story-238-rulings-20261115.md policy=5086036
+2026-11-15T19:43:02Z	Story 23.4	rework_opened	cycle_iteration=2 iteration=1 trigger=planner_ruling items=DW-1396 scope_baseline=pending
+2026-11-15T19:43:02Z	Story 23.4	stage_spawned	stage=implement spawn_at=2026-11-15T19:43:02Z model=sonnet effort=high agent_name=23-4-paging-escalation-implement-2 cycle_iteration=2 rework=1

@@ -2,7 +2,7 @@
 title: 'Story 23.4: Decide when to page the on-call person and when to escalate to the backup'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'd0fb1e1d3d2077257ece724d92385dbc33a91184'
 baseline_commit: 'd0fb1e1d3d2077257ece724d92385dbc33a91184'
 review_loop_iteration: 0
@@ -260,7 +260,13 @@ Rejected (16):
 - spec-bound: the Lane C `on-call.spec.ts` change is larger than two lines (acceptance) — AC14 (the same ruling) requires O1 to pin the new line; the lead flags the hunk at the Lane C merge.
 - low: AC11's red and green runs used different part splits (acceptance) — the red was observed, and the green run contained the same spec.
 
+
+**Rework iteration 1 (Contest Planner ruling DW-1396 option (a), 2026-11-15 ~20:30Z, prompts/story-238-rulings-20261115.md "23.4"; BINDING):**
+- [ ] [Review] DW-1396 -- `Watch/Paging.cls` (and the smallest hook it needs) -- a page fires ONLY for incidents in shared, watched productions. An incident owned by one user's session (for example that user's own Break the feed, or any incident whose production/watch belongs to a single session rather than the shared watched production) never pages anyone: no Page row, no page Notification, no escalation ask, no audit entry, and nothing else changes. Decide, from the delivered code, how "shared, watched production" vs "session-owned incident" is told apart (the incident's owner/session ref, the watch's scope, demo mode's Break the feed path) and record it under Design Notes "Decided in-stage". Pin it with a test that uses a session-owned incident (Break the feed or its fixture) with on-call values set and asserts no page at all, plus the positive control (a shared watched production's incident still pages), with a demonstrated mutation (removing the check turns it red).
+
 ## Spec Change Log
+
+- 2026-11-15 ~20:40Z (lead, rework iteration 1 of 3, trigger: Planner ruling DW-1396 option (a)): re-opened for the shared-production-only paging rule. The larger on-call.spec.ts change is accepted as a footprint extension.
 
 - 2026-11-15 ~14:35Z (lead, Planner gate): APPROVED with conditions (prompts/story-234-rulings-20261115.md). Added AC13 (the person never in trace, audit, /api/v1/state, incident event or logs; each pinned), AC14 (the new Settings line replaces the not-yet line, verbatim), AC15 (no other class writes alert configuration). AC10 and the Boundaries alert line amended; epics.md 23.4 AC amended with marker (DW-1380). All proposed public text approved verbatim. Targets 1.0.12.
 
