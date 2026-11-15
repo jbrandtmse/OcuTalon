@@ -445,3 +445,4 @@
 2026-11-15T20:53:48Z	Story 23.4	committed	sha=d0084524 code_head=d0084524 story_commits=12101e6e,4d36f375 ci=pending note=DW-1396_follow-up_on_92937a03(23.4_merged)
 2026-11-15T20:53:48Z	Story 23.8	ruling	question=planner_gate_23.8 choice=approved(own_installs_only;extended_Task0_hard_gate_a-d;SELECT_results_untrusted;D1-D3_accepted;AD-18/AD-24_amended;contention_union;public_text_verbatim) category=veto(Planner_ruled) source=prompts/story-238-rulings-20261115.md policy=5086036
 2026-11-15T20:53:48Z	Story 23.8	spine_updated	ad=AD-18,AD-24 reason=planner_ruling by=runner story=23-8 lint=placeholder_low_only(12)
+2026-11-15T20:54:37Z	Story 23.8	stage_spawned	stage=implement spawn_at=2026-11-15T20:54:37Z model=sonnet effort=high agent_name=23-8-saved-sql-watch-implement-1 cycle_iteration=1 story_base=00e9a5367
