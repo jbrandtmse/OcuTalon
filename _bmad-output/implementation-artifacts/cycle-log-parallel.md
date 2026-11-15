@@ -4361,3 +4361,5 @@
 2026-11-15T18:24:07Z	Epic 25	merged	epic_completion merge=16cdbf568 epic-25=done post-merge=DW-1284_bullet_26.4,DW-1357_bullet_38.1 DW-1390=not_filed(dup_of_DW-1388,5th_hit_ci-10)
 2026-11-15T18:24:07Z	Epic 24	ci_red_classified	story=24.2 run=43743751426 image(ci-23)=STORY(PartnerContact_registry_row) host=no
 2026-11-15T18:24:35Z	Run	owner_decision	via=contest_planner DW-1388->lane_A(first;lane_C_stays_Fix_family) A2=approved(25.8_web_gap-fill:DW-1120,1121,1122,1386,1387;AD-33_exception;split_to_26.4_if_roles_needed) DW-1282=closed prompt=prompts/lane-a-burndown-20261115.md note=lane_C_had_created_.worktrees/epic-21-dw1388;awaiting_handover
+2026-11-15T18:24:55Z	Run	deviation	DW-1388_kept_on_lane_C(already_planned_76829fcc9+implementing;speed) planner_notified
+2026-11-15T18:24:55Z	Epic 25	dispatched	lane=A runner=a17cb142e7d5522c5 story=25.8_web_gap-fill(DW-1120,1121,1122,1386,1387;AD-33_exception)
