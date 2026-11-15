@@ -375,3 +375,5 @@
 2026-11-15T03:11:00Z	Story 22.15	ci_resolved	sha=0a2d53d2b result=success runs=43667820676,43667820662
 2026-11-15T03:11:00Z	Story 22.15	part_ready	branch=OCT-epic22-s2215 code_head=0a2d53d2b ci=success feature_base=a6821f1d4
 2026-11-15T03:49:44Z	Story 21.9	stage_spawned	stage=plan(refresh+gate) model=opus effort=high agent_name=21-9-plan-refresh-1 branch=OCT-epic21-s219 base=5a78458a1(22.15) ruling=refused_tools_skip(~03:15Z)
+2026-11-15T04:07:34Z	Story 21.9	spec_validated	by=plan_refresh(opus) gate=passed veto_items=none(V1-V3_closed;no_new_text;no_stored_change;no_cross-lane) ruling=refused_skip(changed===true_and_status!=refused;node+browser_B14+ObjectScript_pins) shared_with_21.5=SettingsOps.ListMcp,api-types,mcp-view,mcp-section,SettingsMcp,mcp.spec,support/mcp,spine_REST_row(second_lander_integrates) bundle_cap=921kB
+2026-11-15T04:07:34Z	Story 21.9	stage_spawned	stage=implement spawn_at=2026-11-15T04:07:34Z model=sonnet effort=high agent_name=21-9-implement-1 cycle_iteration=1 branch=OCT-epic21-s219 note=local_only_until_22.15_merges
