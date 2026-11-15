@@ -209,6 +209,26 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `src
 
 **Release check** (the source half, moved from 22.6 by ruling M (4)): the Contest Planner's REL-7 hands-on pass, on the first daily release candidate that ships 22.11 and 22.12. It follows section 4 on a clean local install with a real Jira MCP server. New tickets assigned to the user become items with decisions in Visual Trace, and the source shows on the digest's coverage list, checked, or not checked with its reason. No script runs it: `test-release-sequence.sh` pins the text only (`overviewdoc`). For the lead, see Design Notes "Cross-lane and planning items" (2).
 
+### Review Findings
+
+Code review 2026-11-15 (Tier 1, full mode, baseline `2d48d99f`; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 20 raw findings, 11 entries: high 0, medium 2, low 8, false 1. Patch menu option 1: every patch applied by the reviewer and checked off.
+
+- [x] [Review][Patch] The interval words were the test's own copy of `intervalText`, not read from code (medium; verification-gap+blind-hunter+edge-case-hunter+acceptance-auditor). `mcp_interval_words` now fills `RAIL_TEXTS.durationDay`, `durationHour`, `durationHours` and `durationMinutes` from the code root, for the six choices, the default interval and the rail line. New control: `durationMinutes` '{n} minutes' -> '{n} min'. [docker/tests/test-release-sequence.sh:2419]
+- [x] [Review][Patch] The heartbeat pin did not read `DailyFrequency`, `TimePeriod` or `TimePeriodEvery` (medium; verification-gap+blind-hunter+edge-case-hunter). All three are now required. New control: `DailyFrequency` 1 -> 0 (once a day). [docker/tests/test-release-sequence.sh:2570]
+- [x] [Review][Patch] Two controls assumed the intro is the last ruled line, while the comment says new lines are appended (low; blind-hunter). The controls now find the intro by its text, and the comment says new lines go after it. [docker/tests/test-release-sequence.sh:2195]
+- [x] [Review][Patch] The header comment's `overviewdoc` list was missing six of the facts that are read from code (low; blind-hunter). It now names them all. [docker/tests/test-release-sequence.sh:42]
+
+**Rejected** (one line each):
+- low, wontfix-accepted DW-1374 (blind-hunter+edge-case-hunter): an extra or moved line in section 4 passes, because ruled lines are pinned only as present. This is 22.6's mechanism (Task 1), and the previous pass rejected the same thing. reopen_if: a later story adds a line there without a pin.
+- low, wontfix-accepted DW-1375 (blind-hunter+edge-case-hunter): the `secret://` refusal, the reserved name's any-case match and the name minimum 1 are not read from code. The behaviour is true today (`Mcp/Ops.cls` L216, L217, L550).
+- low, approved public text (blind-hunter): the digest section has no "paused" row, and no gap from the window start to the first poll. The sentence states necessary conditions ("only when"), and the table says "for example", so no sentence is false.
+- low, true in meaning (acceptance-auditor): "The first poll that gets an answer sets a baseline: OcuTalon keeps a hash of the answer and sends nothing." On an empty first answer, `RecordSource` L1262-1265 sets the baseline and keeps no hash. Every observable consequence P1b states still holds: the next non-empty answer differs from all kept hashes and becomes an item, and an empty answer sends nothing. Not a false sentence, so no clarification.
+- low, true in meaning (acceptance-auditor): "makes no call" for a tool whose description or inputs changed. The poll still sends the proxy's tools listing (`Mcp/Attach.cls` `PollCall`, `Mcp/Proxy.cls` `Listed`), but the tool is never called. The doc's and the overview's "call" means a tool call; the overview names listings separately.
+- low, fix edits the spec (acceptance-auditor): the spec's Never list still names `_bmad-output/planning-artifacts/**`, while the binding ruling ordered the epics.md edit.
+- low, spec-bound by-design (edge-case-hunter): the interval word rule stays the doc's own (Task 3(d)). Its words are now read from code (patch 1).
+- false (edge-case-hunter): "plus 1 minutes" if a constant became 60 s. The check goes red, not green, and the approved text and its ruled line would change too.
+- By design, not counted (blind-hunter): "Even a long answer is compared whole ..." is true only once DW-1347's fix (lane C) is on feature. 22.12 merges after it (Spec Change Log).
+
 ## Spec Change Log
 
 - 2026-11-15 (lead, after implement). **DW-1347 option (a), Contest Planner ~09:10Z Nov 15 (BINDING)**, from `<coordination>/prompts/epic-22-rulings-20261113-1715.md` "22.12 and DW-1347": P1b's answer-cut sentence is replaced, verbatim, with "- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item. Even a long answer is compared whole, so a change anywhere in it makes a new item, but a long answer is cut in the item, as any tool's result is. Keep the answer short, for example with `maxResults`, so that the item holds all of it.", in the doc and in its `ovw_mcp_example_lines` pin in one commit; Code Map claim 9 takes DW-1347's spec wording (706466a80). The line is true of the code once DW-1347's fix (lane C) is on feature: 22.12 merges after DW-1347.
@@ -439,6 +459,9 @@ Each command below runs in one foreground call of about 150 s or less.
   - mutation: the stop-notice bullet duplicated in the example -> "the example's stop notice is not the catalog's mcp.sourceStopped"
   - mutation: the stop-notice count `-eq 1` -> `-ge 1` in the script -> "control: the stop notice quoted twice in the example" red
   - mutation: `mcp_source_problems` made to return at once -> every code-fact control red, by name: the two section-removed controls, the stop notice quoted twice, QUEUESECONDS 60, MISSEDSECONDS 120, QUEUESECONDS not whole minutes, SEENMAX 40, NAMEMAX 99, ENTRYMAILBOX Inbox, mcp.sourceStopped, checks.allPassed, all seven digest.* lines (digest.passed, notCheckedUnreachable, Timeout, Error, Stopped, Missed, Stale), INTERVAL_CHOICES, DEFAULT_INTERVAL, checkScheduleSource, sourceName, the seven labels (sourceHeading, sourceName, sourceArguments, sourceInterval, sources, removeButton, save), the rail heading, whatIChecked, MCPLABEL and the heartbeat
+- Code-review patches (2026-11-15, same symlink-tree method, under scratch; the tracked tree untouched):
+  - mutation: `mcp_interval_words` put back to its hard-coded words in the script copy -> "control: the rail's minutes word changed in the code" red (got '')
+  - mutation: the `"DailyFrequency": 1,` grep dropped from the heartbeat check in the script copy -> "control: the heartbeat once a day in the code" red (got '')
 
 **Commands run (implement stage):**
 - `bash docker/tests/test-release-sequence.sh overviewdoc` -> `PASS overviewdoc`

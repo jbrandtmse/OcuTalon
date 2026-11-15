@@ -41,7 +41,8 @@
 #             on example.com, the three shared texts word for word, the classification table's rows and the classification and governance lines word
 #             for word (ovw_mcp_example_lines), no other "deadline" line, no replay-path text, the source section's ruled lines (Story 22.12) and the facts that
 #             mcp_source_problems reads from the code (the stop notice, the digest lines, the allowance, the count of kept hashes, the name limit, the reserved name,
-#             the interval choices, the rail line and the Settings labels), the sentence that says MCP is off on the online demo, the expiry sentence of the approval request (the hours of Bridge.Approval EXPIRYSECONDS, read from the
+#             the all-clear sentence, the interval choices and their words, the default interval, the rail line and heading, the Settings labels, the "What I checked" list, the step
+#             label and the heartbeat's minute), the sentence that says MCP is off on the online demo, the expiry sentence of the approval request (the hours of Bridge.Approval EXPIRYSECONDS, read from the
 #             class source) and its link to the overview's MCP section; the overview's own demo-off sentence and its source bullet in its MCP tools section, the Data
 #             section's MCP bullet, the MCP audit line and the Pairing, MCP and Tool sentence of its audit section, each word for word (VG3); and
 #             the CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
@@ -2194,8 +2195,8 @@ OVW_MCP_SOURCE="An admin can make a Read-only tool a source, which OcuTalon call
 
 # ovw_mcp_example_lines: the ruled lines of the worked example, one per line, each pinned word for word as a whole line. Lines 1 to 14 (Story 22.6) are how to classify a tool, how
 # OcuTalon governs MCP tools and how to add a server: the classification table's rows, the Read-only rule, the refusal line, the governance bullets and the line that opens the
-# Add server step. Lines 15 to the last but one (Story 22.12) are every non-empty line of the worked example's source section (section 4, from its heading to the digest's
-# closing sentence), and the last line is the example's intro. New lines are appended, so that the numbers of the lines above stay.
+# Add server step. Lines 15 on (Story 22.12) are every non-empty line of the worked example's source section (section 4, from its heading to the digest's closing sentence),
+# then the example's intro, which the controls find by its text. New lines are appended after these, so that the numbers of the lines above stay.
 ovw_mcp_example_lines() {
   cat << 'EOF'
 | `search_issues` | searches tickets | Read-only |
@@ -2416,17 +2417,17 @@ mcp_code_number() { sed -n "s/^Parameter $2 = \([0-9][0-9]*\);.*\$/\1/p" "$1" 2>
 # mcp_ts_text <file> <key>: the string of a "  <key>: '...'," line of a TypeScript source, or nothing.
 mcp_ts_text() { sed -n "s/^  $2: '\([^']*\)',\$/\1/p" "$1" 2> /dev/null | head -n 1; }
 
-# mcp_interval_words <minutes>: the rail's words for an interval (intervalText of rail-view.ts): 1440 is "1 day", 60 is "1 hour", another whole number of hours is "<h> hours", any
-# other number is "<n> minutes".
+# mcp_interval_words <minutes> <rail source>: the rail's words for an interval (intervalText of rail-view.ts), from the rail source's texts: 1440 is durationDay, 60 is durationHour,
+# another whole number of hours is durationHours with its {h}, any other number is durationMinutes with its {n}.
 mcp_interval_words() {
   if [ "$1" -eq 1440 ]; then
-    echo "1 day"
+    mcp_ts_text "$2" durationDay
   elif [ "$1" -eq 60 ]; then
-    echo "1 hour"
+    mcp_ts_text "$2" durationHour
   elif [ "$1" -ge 60 ] && [ $(($1 % 60)) -eq 0 ]; then
-    echo "$(($1 / 60)) hours"
+    mcp_fill "$(mcp_ts_text "$2" durationHours)" "h=$(($1 / 60))"
   else
-    echo "$1 minutes"
+    mcp_fill "$(mcp_ts_text "$2" durationMinutes)" "n=$1"
   fi
 }
 
@@ -2507,7 +2508,7 @@ EOF
     i=0
     for n in $nums; do
       i=$((i + 1))
-      words=$(mcp_interval_words "$n")
+      words=$(mcp_interval_words "$n" "$code/$OVW_MCP_RAIL")
       if [ "$i" -eq 1 ]; then
         joined=$words
       elif [ "$i" -eq "$total" ]; then
@@ -2522,7 +2523,7 @@ EOF
   if [ -z "$def" ]; then
     echo "the code has no DEFAULT_INTERVAL"
   else
-    words=$(mcp_interval_words "$def")
+    words=$(mcp_interval_words "$def" "$code/$OVW_MCP_RAIL")
     if ! printf '%s\n' "$sec" | grep -qF -e "**Check every**: $words. " || ! printf '%s\n' "$sec" | grep -qF -e "and then every $words:"; then
       echo "the example's default interval is not the code's (DEFAULT_INTERVAL)"
     fi
@@ -2532,7 +2533,7 @@ EOF
   if [ -z "$text" ]; then
     echo "the code has no checkScheduleSource"
   else
-    line=$(mcp_fill "$text" "duration=$(mcp_interval_words 15)")
+    line=$(mcp_fill "$text" "duration=$(mcp_interval_words 15 "$code/$OVW_MCP_RAIL")")
     printf '%s\n' "$sec" | grep -qF -e "\"$line\"" || echo "the example's rail line is not the code's (checkScheduleSource)"
   fi
   # the Settings labels, each in bold
@@ -2567,7 +2568,8 @@ EOF
     line=$(mcp_fill "$text" "tool=search_issues" "server=Jira")
     printf '%s\n' "$sec" | grep -qF -e "the step \"$line\" in Visual Trace" || echo "the example's step label is not the code's (MCPLABEL)"
   fi
-  if ! grep -qF -e '"description": "Ticks the heartbeat every minute:' "$code/$OVW_MCP_SCHEDULE" 2> /dev/null || ! grep -qF -e '"DailyFrequencyTime": 0,' "$code/$OVW_MCP_SCHEDULE" || ! grep -qF -e '"DailyIncrement": 1,' "$code/$OVW_MCP_SCHEDULE"; then
+  if ! grep -qF -e '"description": "Ticks the heartbeat every minute:' "$code/$OVW_MCP_SCHEDULE" 2> /dev/null || ! grep -qF -e '"DailyFrequencyTime": 0,' "$code/$OVW_MCP_SCHEDULE" || ! grep -qF -e '"DailyIncrement": 1,' "$code/$OVW_MCP_SCHEDULE" \
+    || ! grep -qF -e '"DailyFrequency": 1,' "$code/$OVW_MCP_SCHEDULE" || ! grep -qF -e '"TimePeriod": 0,' "$code/$OVW_MCP_SCHEDULE" || ! grep -qF -e '"TimePeriodEvery": 1,' "$code/$OVW_MCP_SCHEDULE"; then
     echo "the code's heartbeat is not every minute (Schedule Tasks), so the example's background check is not every minute"
   fi
   return 0
@@ -2637,7 +2639,7 @@ ovw_code_copy() {
 }
 
 t_overviewdoc() {
-  local doc=$root/docs/security-overview.md ex=$root/$OVW_MCP_EXAMPLE d=$tmp/ovwdoc grp want last n line key label
+  local doc=$root/docs/security-overview.md ex=$root/$OVW_MCP_EXAMPLE d=$tmp/ovwdoc grp want last intro n line key label
   rm -rf "$d"
   mkdir -p "$d"
   eq "the committed overview has a good frame" "$(ovw_doc_problems "$doc")" ""
@@ -2747,7 +2749,7 @@ a line other than the time-limits paragraph mentions a deadline"
   eq "control: a replay-path line in the example" "$(mcp_doc_problems "$d/e-replay.md")" "a line describes the changed-tool replay path"
   sed 's/MCP servers are off on the online demo: nobody can add one there/MCP servers are on the online demo: anybody can add one there/' "$ex" > "$d/e-demo.md"
   eq "control: the demo sentence changed in the example" "$(mcp_doc_problems "$d/e-demo.md" | grep -v 'ruled line')" "the example lacks the sentence that says MCP is off on the online demo"
-  eq "control: the demo sentence changed in the example, the ruled line of the intro" "$(mcp_doc_problems "$d/e-demo.md" | grep 'ruled line')" "the example lacks ruled line $(ovw_mcp_example_lines | grep -c .) of its classification and governance text word for word"
+  eq "control: the demo sentence changed in the example, the ruled line of the intro" "$(mcp_doc_problems "$d/e-demo.md" | grep 'ruled line')" "the example lacks ruled line $(ovw_mcp_example_lines | grep -n '^This example adds ' | cut -d: -f1) of its classification and governance text word for word"
   sed 's/A request that nobody answers within 24 hours expires\./A request that nobody answers within 48 hours expires./' "$ex" > "$d/e-hours.md"
   eq "control: another expiry in the example" "$(mcp_doc_problems "$d/e-hours.md")" "the example lacks the sentence that a request expires after 24 hours"
   sed 's/^| `add_comment` | comments on a ticket | Risky |$/| `add_comment` | comments on a ticket | Read-only |/' "$ex" > "$d/e-row.md"
@@ -2766,12 +2768,13 @@ a line other than the time-limits paragraph mentions a deadline"
   sed 's/"text": "Run {tool} on {server}\\nWhy/"text": "Run {tool} at {server}\\nWhy/' "$OVW_MCP_CATALOG" > "$d/catalog-first.cls"
   eq "control: a catalog copy with its first line changed" "$(mcp_doc_problems "$ex" "$d/catalog-first.cls")" "the catalog's first line of the tool call request is not the example's first quoted string"
   eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
-  # controls of the source section (Story 22.12). The section removed: the ruled lines of the section, 15 to the last but one (the last is the intro), are each reported.
+  # controls of the source section (Story 22.12). The section removed: the ruled lines of the section, 15 to the one before the intro, are each reported.
   last=$(ovw_mcp_example_lines | grep -c .)
+  intro=$(ovw_mcp_example_lines | grep -n '^This example adds ' | cut -d: -f1)
   awk '/^## 4\. / { skip = 1; next } skip && /^## / { skip = 0 } !skip { print }' "$ex" > "$d/e-nosource.md"
   want=""
   n=15
-  while [ "$n" -lt "$last" ]; do
+  while [ "$n" -lt "$intro" ]; do
     want="$want${want:+
 }the example lacks ruled line $n of its classification and governance text word for word"
     n=$((n + 1))
@@ -2834,6 +2837,12 @@ a line other than the time-limits paragraph mentions a deadline"
   eq "control: MCPLABEL changed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's step label is not the code's (MCPLABEL)"
   ovw_code_copy "$d/code" "$OVW_MCP_SCHEDULE" 's/"DailyIncrement": 1,/"DailyIncrement": 5,/'
   eq "control: the heartbeat every 5 minutes in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the code's heartbeat is not every minute (Schedule Tasks), so the example's background check is not every minute"
+  ovw_code_copy "$d/code" "$OVW_MCP_SCHEDULE" 's/"DailyFrequency": 1,/"DailyFrequency": 0,/'
+  eq "control: the heartbeat once a day in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the code's heartbeat is not every minute (Schedule Tasks), so the example's background check is not every minute"
+  ovw_code_copy "$d/code" "$OVW_MCP_RAIL" "s/^\(  durationMinutes: '{n} \)minutes',/\1min',/"
+  eq "control: the rail's minutes word changed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's interval choices are not the code's (INTERVAL_CHOICES)
+the example's default interval is not the code's (DEFAULT_INTERVAL)
+the example's rail line is not the code's (checkScheduleSource)"
   rm -rf "$d/code"
   sed 's/ calls on a schedule through the same gate/ calls on a timetable through the same gate/' "$doc" > "$d/source.md"
   eq "control: a word of the source bullet in the overview" "$(ovw_doc_problems "$d/source.md")" "the MCP tools section lacks the source bullet word for word"

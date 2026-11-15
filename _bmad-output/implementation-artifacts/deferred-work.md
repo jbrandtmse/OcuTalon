@@ -8266,3 +8266,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-15-the-tool-list-reports-which-tools-changed-the-changed-flag.md code review | severity: low | fix-risk: low | footprint: in-story
 - evidence: KeepRow's refused branch keeps Changed (spec: unchanged) and Tools gives changed = Changed 1 AND unclassified, so both members show at once; 21.9's banner may list a refused tool
 - 2026-11-15T02:04:16Z status=by-design owner=22-15-the-tool-list-reports-which-tools-changed-the-changed-flag by=cr note=spec-bound (intent: refused branch unchanged); reopen via 21.9's spec if the banner must skip status refused
+
+### DW-1374: overviewdoc pins each ruled line of the worked example's source section only as present somewhere; an extra or moved line in section 4 passes
+- source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: mcp_doc_problems checks each ovw_mcp_example_lines line with grep -qxF over the whole file; no check that section 4 holds only ruled lines 15 to the intro-1, in order (22.6's mechanism, spec Task 1)
+- 2026-11-15T10:06:08Z status=wontfix-accepted owner=22-12-document-polling-a-jira-mcp-tool-as-a-source by=cr note=reopen_if=a later story adds or moves a line in section 4 of docs/mcp-jira-example.md without a ruled-line pin, and overviewdoc stays green
+
+### DW-1375: Three rule facts of section 4 are not read from code: the secret:// refusal, the reserved name's any-letter-case match, and the name minimum 1
+- source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: mcp_source_problems reads NAMEMAX and ENTRYMAILBOX but not Mcp/Ops.cls L216 (Length(name) < 1), L217 (ZConvert L compare) or Normalised L550 (secret:// in any case); behaviour is true today
+- 2026-11-15T10:06:08Z status=wontfix-accepted owner=22-12-document-polling-a-jira-mcp-tool-as-a-source by=cr note=reopen_if=Mcp/Ops.cls OnSetSource or Normalised drops one of these three rules while docs/mcp-jira-example.md keeps the sentence

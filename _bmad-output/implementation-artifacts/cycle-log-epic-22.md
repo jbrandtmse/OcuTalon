@@ -464,3 +464,7 @@
 2026-11-15T09:48:59Z	Story 22.12	dev_complete	build_sha=1c0ff28e model=sonnet baseline_revision=2d48d99f mutations=24_lines files=5(docs/mcp-jira-example.md,docs/security-overview.md,test-release-sequence.sh,epics.md,spec) security_overview=regenerated_byte-identical_generated_regions+compare_pass branch=OCT-epic22
 2026-11-15T09:48:59Z	Story 22.12	lead_patch	ruling=DW-1347_option_a(Planner_~09:10Z) changed=P1b_cut_sentence+ovw_mcp_example_lines_pin(one_commit)+Code_Map_claim_9 checks=test-release-sequence_rc0(overviewdoc_PASS),test-readme_rc0 note=line_true_once_DW-1347_on_feature(22.12_merges_after_DW-1347)
 2026-11-15T09:48:59Z	Story 22.12	stage_spawned	stage=code-review spawn_at=2026-11-15T09:48:59Z model=opus agent_name=22-12-document-polling-a-jira-mcp-tool-as-a-source-code-review-1 cycle_iteration=1 effort=high scope=2d48d99f..HEAD branch=OCT-epic22
+2026-11-15T10:10:32Z	Story 22.12	cr_complete	spawn_at=2026-11-15T09:46:00Z model=opus resolved=4(med2:interval_words_from_RAIL_TEXTS,heartbeat_constants;low2) deferred=0 dismissed=7(DW-1374,DW-1375_wontfix-accepted) high=0 med=2 low=8 rows=2 unresolved_high_med=0 final=done review_tier=full-opus checks=test-release-sequence_rc0,test-readme_rc0
+2026-11-15T10:10:32Z	Story 22.12	smoke_complete	method=other(static:test-release-sequence_overviewdoc+full,test-readme,test-security-overview_compare_by_implement) result=pass
+2026-11-15T10:10:32Z	Story 22.12	fresh_check	env=n/a(docs+bash_pins;no_IRIS_class) result=pass
+2026-11-15T10:10:32Z	Story 22.12	committed	sha=HEAD_pushed_below
