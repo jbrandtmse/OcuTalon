@@ -4400,3 +4400,4 @@
 2026-11-15T21:39:50Z	Epic 23	merge_enqueued	story=DW-1396_follow-up (1.0.12)
 2026-11-15T21:42:08Z	Epic 23	merged	story=DW-1396_follow-up merge=4760e5446
 2026-11-15T21:42:30Z	Run	planner_notified	23.8_Task0_FAIL(options_A/B/C) DW-1400 laneB=23.13_next
+2026-11-15T21:42:51Z	Epic 23	owner_decision	via=contest_planner 23.8=PARKED(option_B;owner_decision_with_scope_trim;C_refused) 24.5=waits_with_23.8 DW-1400=new_On_call_line_verbatim(pin;24.3_replaces)
