@@ -442,3 +442,6 @@
 2026-11-15T00:50:53Z	Story 22.11	cr_partial	model=opus scope=71f69aae..5857c554 high=0 med=2(hermeticity:SourceRunCoverage_probe;truthfulness:timer>60s_claim) low=4 patched_unverified=5 open=1(QUEUESECONDS_180_upper-bound_mutation) final=in-progress reason=quiet_window_tore_down_stack(no_runtime_proof)
 2026-11-15T00:50:53Z	Story 22.11	protocol_note	by=lead what=held_lane-d_warm-iris.lock+throwaway-iris.lock_during_the_quiet_window_to_stop_the_reviewer_retrying_warm.sh_up(reviewer_could_not_be_stopped);released_after_it_returned
 2026-11-15T00:50:53Z	Epic 22	runner_ended	reason=hold(RELEASE_QUIET_WINDOW) branch=OCT-epic22 stacks_up=none
+2026-11-15T01:29:07Z	Story 22.11	cr_complete	scope=71f69aae..5857c554 final=done note=proof_after_QUIET_OFF(e22s11pfw):SourceRun_green;leftover_row_green;probe_super_only_red;QUEUESECONDS_60_red;no_floor_red;stopped_counted_red;QUEUESECONDS_180_red;Digest.Coverage_green unresolved_high_med=0
+2026-11-15T01:29:07Z	Story 22.11	fresh_check	env=recipe(new_lane-D_warm_stack_e22s11pfw;warm+throwaway_locks_held_by_lead) tests=Test.Mcp.SourceRun,Test.Digest.Coverage result=pass torn_down=e22s11pfw note=e22s15qw_stack_seen_up(not_mine;untouched)
+2026-11-15T01:29:07Z	Story 22.11	committed	sha=LOCAL(OCT-epic22;CI_HOLD) ci=none_yet

@@ -354,6 +354,17 @@ Code review 2026-11-14 (Tier 1, full mode; layers blind-hunter, edge-case-hunter
 - (edge) Derive `QUEUESECONDS` from the timer in effect: false for the timer (see the second item); the lost-answer case is the ruled one constant, `by-design`, and is documented.
 - (verification-gap) The oracles leave `QUEUESECONDS` 100 to 133 passing: low; the ruling asks for literal oracles of the three-source case and its mutation (60) is red; a tighter pair adds complexity.
 
+
+**Proof of the DW-1346 re-review patches (lead, after QUIET OFF; new lane-D warm stack `e22s11pfw`, lane D's warm and throwaway locks held for the whole proof, torn down after):**
+- (once) `OcuTalon.Test.Mcp.SourceRun` -- passed (the new `Test/Mcp/SourceRunCoverage.cls` compiles).
+- (once) one leftover non-stopped source row of another session in the install -- `OcuTalon.Test.Mcp.SourceRun` still passed.
+- mutation: `SourceRunCoverage.PollingSources` reduced to `Quit ##super()` (with the leftover row) → `TestSlowQueueOfThreeNotStale` red; reverted (`cmp` identical), row deleted, class green.
+- mutation: `QUEUESECONDS` 60 → `TestSlowQueueOfThreeNotStale` red; reverted (`cmp` identical).
+- mutation: `SourceSlack` without the 180 s floor → `TestSlowQueueOfThreeNotStale` red; reverted (`cmp` identical).
+- mutation: `PollingSources` counting a stopped source → `TestSlowQueueOfThreeNotStale` red; reverted (`cmp` identical).
+- mutation: `QUEUESECONDS` 180 (the upper bound) → `TestSlowQueueOfThreeNotStale` red; reverted (`cmp` identical).
+- (once) `OcuTalon.Test.Digest.Coverage` -- passed; `OcuTalon.Test.Mcp.SourceRun` -- passed on the restored tree.
+
 ## Spec Change Log
 
 - 2026-11-14 (plan). **Contest Planner, ~09:40Z Nov 14 (BINDING):** DW-1325 (refuse "Mailbox"), DW-1326 (the latest run counts) and DW-1327 (staleness against max(window, interval)) were planned here. [Superseded by the split below; DW-1326 stays as the Always rule.]
