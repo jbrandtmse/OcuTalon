@@ -2,8 +2,8 @@
 title: 'DW-1205 + DW-494: A copy that errors is not counted as done while Ens still holds it'
 type: 'bugfix'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: 'f56f50d86844050634bbb8a065e777f34483e0ec'
+status: 'done'
+baseline_revision: 'd15f7e86116144f32f39b7bfc9328eb388d969f8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -173,6 +173,8 @@ Nothing in them is contradicted. AD-16 says when a copy is complete without sayi
 
 **Ens internals.** `^Ens.ActiveMessage` is not a documented API. `Reader` already reads Ens runtime state directly in the same method: `^Ens.Configuration("csp","Activity",...,"stopped")`, the host monitor (`$$$GetHostMonitor`), `$$$EnsProdModCounterGet` and `$$$EnsRuntime`. Through the macro, the global's name has one home (`Ensemble.inc`). Ens's own portal and monitor read it the same way (`EnsPortal/Queues.cls:536`, `Ens/MonitorService.cls:312`). The documented alternative, the `Ens.Job` `Enumerate` query (whose `ActiveMessage` column reads the same global, `Ens/Job.cls:864`), costs a query over every job for each header, for the same answer. If a later IRIS renames the global, the macro moves with it. If the global ever stops being written, `inFlight` falls back to the second status read alone, which narrows the window without closing it, and no test breaks silently, since `TestInFlightHeader` writes the global itself and so keeps passing.
 
+**The entry-read seam (gate condition 2).** The entry read sits in its own Try/Catch in `Reader.Current`. A throw (`<UNDEFINED>`, `<PROTECT>` or any other) ends the loop as "not held by the entry check" and goes on to the second status read; a failed read is never "done". To test it, `Current` reads the process-private global `^||OcuTalonFlightSeam` at the entry-read point, inside the Try: when it holds code, the global is killed and the code is run with `Xecute`. A test sets it to a line that changes the header's status and throws, which is a failed entry read plus a status change between the two reads. It is five lines, calls no OcuTalon class (AD-3), writes no Ens global, and is set by no product code, so it is never set in production. `TestInFlightEntryReadFails` is its one user.
+
 **Cost.** For each evidence header: one `$Order` pass over the active-message entries (at most one per job of the namespace) and, for a header not held, one more point read by ID. For the waiter that is per copy per pass; Task 0 item 3 measures 500 copies.
 
 **For lane A:** DW-494's and DW-1205's tests need no change. `Test.Fix.Partial` and `Test.Fix.Reroute` go green on the product fix.
@@ -211,6 +213,18 @@ CONDITIONS:
 4. DW-1391 is a SEPARATE commit, landed before DW-1205 (done: pushed as OCT-epic21-dw1391).
 5. DW-1398 (Test/Watch/Summary.cls quiet fixture) stays its own DW (not folded into DW-1391).
 
+## Run overrides (binding, from the implement stage prompt)
+
+- Baseline: `baseline_revision` is HEAD at the implement entry (`d15f7e861`, which holds DW-1391's commit and 23.3). This commit holds DW-1205 + DW-494 only. Read `git diff --name-only d15f7e861` where Verification says `f56f50d86`.
+- Condition 1 (the load probe): the lead of this run measures it (old code, fixed code, and without the second read; 300 trials unloaded and 300 under CPU load, one `yes` per core in the container) on the lane-C warm throwaway and writes it under Verification. A warm stack's production jobs keep the old code after a recompile, so the production is restarted before the post-fix probe.
+- Condition 2 (the entry read):
+  - `^Ens.ActiveMessage` is read ONLY through `$$$EnsActiveMessage`. The literal `Ens.ActiveMessage` must not appear in any added code line (grep the diff; the macro name `EnsActiveMessage` is fine).
+  - The entry read sits inside its own Try/Catch. On `<UNDEFINED>`, `<PROTECT>` or any other throw the loop ends with "not held by the entry check" and the code goes on to the second status read. A failed read is NEVER "done", and never "not in flight" without that second read.
+  - Add a test that forces the entry read to fail and shows the copy is still counted correctly. To show that the second read decides, the status of the header has to change between the first read and the second read while the entry read fails. Use a minimal `[Internal]` seam in `Reader.Current` (no new public surface): for example a process-private global read inline at the entry-read point (never a call into another OcuTalon class, AD-3), which a test sets to make the read throw and to change the header's status right there. Justify it in this spec under Design Notes, and keep it a few lines. Its `mutation:` line: treat a failed read as "not in flight" and skip the second status read -> that test goes red.
+- Condition 3 (two builds): the lead runs `Test.Fix.*` and `Test.Watch.Evidence` on build 154 and on build 109 after the code is final. The implementation subagent does not run on 109.
+- Rule 19: every pin gets a `mutation:` line, demonstrated red, then reverted byte for byte (`cmp` against a copy taken before the mutation).
+- The IRIS MCP tools, if used at all, take the explicit profile `ocutalon-slot-c`, namespace OCUTALON. The warm throwaway of this run is tag `e21dw1205iw`, lane C, already up (the lead started it; `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21dw1205iw ci/iris.sh class <Class>`).
+
 ## Verification
 
 Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
@@ -239,12 +253,63 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 
 **Mutations:** one per AC as listed under Acceptance Criteria (AC 7 is the regression list). Record each as `mutation: <change> -> <test that went red>`. Revert it byte for byte, and check that `git status --short` and `git diff --stat` are as before. For AC 6, record the probe count with the second read dropped (Task 0 item 2). If it shows 0 wrong, record that the window is too narrow to observe at this load, and that the second read stays on the ordering argument (Design Notes).
 
-**Task 0 records:** (to be written by the implement stage)
+**Task 0 records:** (lane C warm throwaway `e21dw1205iw`, build 154; scratch `ZzScratch.Race` and `ZzScratch.Probe` loaded into the throwaway only; load = one `yes > /dev/null` per core (16) inside the container for the run, killed after; `backlog` 0; each trial sends 3 failing orders and counts with the product's `Reader.Evidence` and `Executor.Tally`)
+- Item 1, the current code (after 23.3): unloaded 12 wrong of 300 (4.0%); under CPU load 21 wrong of 300 (7.0%). Every wrong trial counted 3 copies as 1 completed and 2 failed again (one trial 2 and 1), while the headers all ended Error (8). The race is still there.
+- Item 1, `ZzScratch.Probe.Watch(3)`, three runs, each showing `9a` (Completed while held) before `8a` and `8`: `1818: 2@11.6 2a@12.6 3a@12.9 9a@13.1 8a@13.5 8@13.5`, `1821: 2@6.4 2a@8.0 3a@8.4 9a@8.8 8a@9.0 8@9.1`, `1825: 2@6.4 2a@10.0 3a@10.5 9a@10.8 8a@11.1 8@11.2`.
+- Item 2, the fixed code (the scratch `Race` builds each statuses entry from `status` and `inFlight` of the failure, as `Executor.Read` does; the product's own `Reader` and `Tally` are compiled on the throwaway; the probe runs in a new process, so it runs the new code): unloaded 0 wrong of 300 (86 reads saw a copy in flight); under CPU load 0 wrong of 300 (253 in-flight reads). Condition 1 holds.
+- Item 2, without the second status read (the `$$$EnsActiveMessage` check kept, the status compare made `&& 0`, then `Reader.cls` restored byte for byte with `cmp`): under CPU load 2 wrong of 300, each a copy read Completed with `inFlight` false that ended Error. So the second read is needed.
+- Summary of Condition 1: old code unloaded 12/300, old code loaded 21/300, fixed unloaded 0/300, fixed loaded 0/300, fixed without the second read loaded 2/300.
+- Item 3, `Test.Fix.Scale` (500 copies, a fresh stack, class time as the runner prints it): 21.50 s before the change, 22.14 s after (+3%, within the 10% bound; the second run is inside the `lane-a@Fix` shard).
+- Condition 3, build 154 (default `IRIS_IMAGE`), fresh: `ci/iris.sh shard lane-a@Fix` (the 29 classes of `Test.Fix.*` that hold tests, incl. `Executor`, `Partial`, `Reroute`, `Scale`) passed, 29 of 29; `Test.Fix.Partial` and `Test.Fix.Reroute` also passed run alone on a fresh stack; `Test.Watch.Evidence` passed (fresh).
+- Condition 3, build 109 (`IRIS_IMAGE` the 2027.1.0AI.109.0 image, `$ZV` in the stack: "2027.1.0AI (Build 109U)"), fresh: the same shard `lane-a@Fix` passed, 29 of 29 (`Executor` 39.5 s, `Partial` 48.4 s, `Reroute` 7.0 s, `Scale` 19.9 s); `Test.Watch.Evidence` passed. No `docker tag` alias was needed. The helper classes of `Test/Fix` (`ExecutorProbe`, `ExecutorProbeLong`, `RunProbe`, `Snapshot`, `ZzKind`) hold no tests.
+- Warm, build 154 (the implementation pass): `Test.Fix.Executor`, `Test.Watch.Evidence`, `Test.Watch.Reader`, `Test.Watch.GoodMessages`, `Test.Fix.Recheck` and `Test.Eval.Record` passed.
+- Spine lint: 12 low findings both at `d15f7e861` (before this change) and after it (the `{...}` tokens of other lines); the stage prompt's baseline of 10 is out of date and this change adds none.
+- Scripts: `bash docker/tests/test-boundaries.sh` exit 0 ("all rules passed"); `bash docker/tests/test-class-rules.sh` exit 0 ("all rules passed"). The diff has no added code line with the literal `Ens.ActiveMessage`, no non-ASCII added line and no absolute local path in a tracked file.
+
+**Mutation records** (warm `e21dw1205iw`, build 154; each mutation applied, run, then reverted with `cmp` against a copy taken before it, and `git status --short` and `git diff --stat` the same as before):
+- AC 1 and AC 2: mutation: drop the `inFlight` test in `Tally` (`If $IsObject(entry) && entry.inFlight` made `If 0`) -> `TestInFlightCopyIsStillRunning` red (A: "the wait read twice", counts 3|3|0|3|0 and the text; B: "the wait read twice").
+- AC 3: mutation: the same `Tally` mutation -> `TestSweepLeavesAnInFlightCopy` red ("the first Sweep returns no result", "the run has no EndedAt ...", and the next Sweep's result).
+- AC 4: mutation: drop the `$$$EnsActiveMessage` loop (`Set flightJob = ""` in place of the `$Order`) -> `TestInFlightHeader` red ("inFlight 1 while a job holds it", "Read carries inFlight", "Tally gives completed 0, failed again 1, running 1").
+- AC 4: mutation: set the member without the "boolean" type -> `TestInFlightHeader` red ("inFlight is a JSON boolean", "also a JSON boolean").
+- AC 5: mutation: drop `inFlight` from `Read`'s entry -> `TestInFlightHeader` red ("Read carries inFlight", "Tally gives completed 0, failed again 1, running 1").
+- Condition 2: mutation: a failed entry read counts as "not in flight" and skips the second status read (the Catch sets a skip flag that the second read tests) -> `TestInFlightEntryReadFails` red ("a failed read of the entries does not make it done: the second read of the status gives another status, so it is in flight").
+- AC 6, the second read dropped as a unit mutation (`If 'flightHeld {` made `If 0 {`) -> `TestInFlightEntryReadFails` red, the same assert. The probe's count with the second read dropped (Task 0 item 2) is the lead's.
+
+## Review Triage Log
+
+### 2026-11-15 - Review pass
+- verdicts: 21 findings - high 0, medium 0, low 13, false 8, maybe-false 0 (rows merge a finding that two layers reported)
+- findings:
+  - `[low]` `[reject]` (blind) `Xecute` of `^||OcuTalonFlightSeam` in shipped `Reader.Current` - a process-private global cannot be set from outside the process, the cost is one `$Get` per header, and condition 2 of the gate asks for a forced entry-read failure with a minimal Internal seam justified in the spec (Design Notes). A test-build-only seam is a larger change. wontfix-accepted, reopen_if the package is scanned and the `Xecute` is flagged by the owner.
+  - `[low]` `[reject]` (edge) the same seam, "gate it on a test-only flag" - same reason; the global is the flag.
+  - `[low]` `[reject]` (blind) a failed entry read leaves no log line - a log line is new text, and the spec says "No new public text"; the degraded mode still never counts a copy as done. by-design.
+  - `[low]` `[reject]` (blind, edge) a failed second status read (or its prepare) throws out of `Current` and makes the whole read "not read" - the spec says "An SQLCODE below 0 throws like the other reads"; the outcome then makes every copy running, which is the safe side. by-design.
+  - `[low]` `[reject]` (blind, edge) a stale active-message entry of a dead job keeps a copy running - Ens recovers or kills the entries at a start and when a job's handler returns (`Ens/Job.cls:416-419`, `Ens/Director.cls:394-397`); Matrix row 6 gives the hung-job path (60 s progress result, Sweep ends the run once Ens lets go). wontfix-theoretical, would become real if Ens left an entry behind for a job that ended.
+  - `[false]` `[reject]` (edge) a header gone at the second read counts as done - the spec says a header that the second read no longer finds is not in flight (Execution), and the header's absence means the first status stands; the probe's 0 of 300 shows no wrong count from it.
+  - `[false]` `[reject]` (edge) a finished copy still held at `EndMarked` is counted as cut off - Matrix row 7 states exactly this, and Ens's start recovery means only a copy taken up again after the start can be in flight.
+  - `[low]` `[reject]` (edge, blind) the `Good` path runs the entry scan and a second read too - the spec says `inFlight` is on every failure of an evidence read, so `Good`'s failures carry it; a skip would change the shape that the spec fixes. by-design.
+  - `[low]` `[reject]` (edge) a test process killed between `SetEntry` and `OnAfterOneTest` leaves a fake entry - the key `zzOcuTalonTest:<job>` is no system name, so no Ens job reads it, and only a production start would look at it. wontfix-theoretical.
+  - `[low]` `[reject]` (blind) no test for a failed entry read with an unchanged status giving inFlight 0, and `Good`'s `inFlight` has no assertion - the failed read with a changed status is the pinned case (mutation recorded); adding a test is outside the spec's footprint. wontfix-accepted, reopen_if a mutation that treats every failed read as in flight is found to matter.
+  - `[false]` `[reject]` (blind) `inFlight` is undocumented where the evidence shape is consumed, and goes to the model through the tools - the tools read through `Watch.EvidencePack`, which copies named fields only (spec Veto item 3), so the member never reaches a tool's output; the Reader docs name it.
+  - `[false]` `[reject]` (blind) the Task 0 records and the Run overrides contradict each other - the override says the lead measures, and the lead did; the "is the lead's" wording in the mutation record points at the same numbers. A fix would edit the spec, which triage rejects.
+  - `[false]` `[reject]` (verification-gap) AC 7 has no `mutation:` line - AC 7 is the list of existing tests that must stay green, not a pin.
+  - `[false]` `[reject]` (verification-gap) the Verification commands' results are not recorded - recorded now under Verification (Scripts line).
+  - `[low]` `[reject]` (verification-gap) `## Auto Run Result` still read "ready-for-dev" - rewritten at finalize, no code change.
+  - `[low]` `[reject]` (verification-gap) the end-to-end race has no committed test - AC 6 says that no test can drive it without fault injection; the probe numbers are the evidence.
+  - `[low]` `[reject]` (verification-gap) a test process killed mid-test leaves a fake entry - same as the edge row above.
+  - `[low]` `[reject]` (intent) the executor tests feed canned `inFlight` statuses, the reader tests use a fake entry, and the double read is tested through the seam - by the spec's own design (Execution and AC 6); the live reader-to-tally chain is `TestInFlightHeader` and the probe.
+  - `[low]` `[reject]` (intent) the seam is product code run by one test - same as the first row.
+  - `[false]` `[reject]` (intent) `inFlight` may reach stored data through snapshots - the one writer of a whole snapshot is `Eval.Record.Capture`, an author-run tool (Veto item 3, approved); no FixRun, ApprovalRequest, FixResult or log line stores it.
+  - `[false]` `[reject]` (intent) the lead's probe is not the product's `Read` - the probe calls the product's `Reader.Evidence` and `Executor.Tally`, with the entry built as `Read` builds it; `TestInFlightHeader` runs `Read` itself.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none. The spec gate decides Veto items 1-5 (a product change: a `PLANNER REPORT:` is due, per the ruling).
+Status: done
+Blocking condition: none
 
-- Summary: the plan only; nothing is implemented.
-- Size: small to medium. Two product files: about 15 code lines in `Reader.Current`, 3 in `Executor.Read` and `Tally`, and about 10 doc lines. Two test classes, about 120 lines (three new methods, one cleanup, header bullets). One spine sentence. No oversized warning.
+- Summary: a copy that Ens still holds is counted as running. `Watch.Reader.Current` gives each evidence failure `inFlight` (the header is a job's active message, read through `$$$EnsActiveMessage`, or a second status read after that check gives another status; a failed entry read falls through to the second read and is never "done"); `Fix.Executor.Read` carries it and `Tally` counts an in-flight copy as running, so the waiter and both Sweep branches get the right counts. AD-16 gains the approved sentence.
+- Files changed: `src/ocutalon/cls/OcuTalon/Watch/Reader.cls` (inFlight, the entry-read seam, docs), `src/ocutalon/cls/OcuTalon/Fix/Executor.cls` (Read, Tally, docs), `src/ocutalon/cls/OcuTalon/Test/Fix/Executor.cls` (two methods), `src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls` (two methods, cleanup), `ARCHITECTURE-SPINE.md` (AD-16 sentence), `_bmad-output/implementation-artifacts/deferred-work.md` (probe notes on DW-1205 and DW-494), this spec.
+- Review findings: 21 rows from four layers; 0 high, 0 medium, 13 low, 8 false; 0 patches applied, 0 deferred, 21 rejected with their reasons in the triage log.
+- Follow-up review recommendation: `false` (no patch was applied).
+- Verification: Task 0 and condition 1 to 3 numbers, mutation lines, scripts and builds under `## Verification`: probe old 12/300 unloaded and 21/300 loaded, fixed 0/300 and 0/300, without the second read 2/300 loaded; `Test.Fix.*` shard 29 of 29 and `Test.Watch.Evidence` on builds 154 and 109; `Test.Fix.Scale` 21.50 s to 22.14 s; both scripts exit 0; the spine lint has 12 low findings at the baseline and after.
+- Residual risks: the `Xecute` seam in `Reader.Current` (process-private, set only by `TestInFlightEntryReadFails`); a copy held by a hung job counts as running until Ens lets go (Matrix row 6, approved).

@@ -26,7 +26,12 @@
 ///   - TestTraceCapped (QA): a session of 25 headers gives a trace of Reader TRACEMAX (20) entries, from Reader.Evidence, from the live pack and from a snapshot pack;
 ///   - TestToolsReadTheIncident (rows Tools in scope and out of scope): in the context of the incident and its owner the three tools give at most five failed
 ///     messages with their ids, sentence and body, the sessions' log rows and the item's settings; with no context, another ItemId or another owner each gives
-///     {"items":[]}.
+///     {"items":[]};
+///   - TestInFlightHeader (DW-1205, DW-494; AC 4, AC 5): a Completed header that a (fake) job of OCUORDERS holds as its active message (Ensemble.inc's EnsActiveMessage) is given by
+///     Reader.Evidence with inFlight 1, a JSON boolean, and one that is not held with inFlight 0; Fix.Executor Read carries inFlight and Tally counts the held copy as running (completed 0,
+///     failed again 1, running 1); once the entry is killed the copy is completed (completed 1, failed again 1, running 0);
+///   - TestInFlightEntryReadFails (DW-1205, DW-494; condition 2): when the read of the active-message entries throws (the reader's test seam ^||OcuTalonFlightSeam) and the header's status
+///     changes at that point, the header is in flight (the second read of its status decides), and a Completed header that nothing holds and nothing changes is not.
 Class OcuTalon.Test.Watch.Evidence Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
@@ -45,14 +50,47 @@ Parameter FIXTUREVALUE = "fixture-value-9d31";
 /// 1 while the fixture settings may be in the definition of the Orders production in OCUORDERS; OnAfterOneTest takes them out.
 Property SettingsAdded As %Boolean [ InitialExpression = 0 ];
 
+/// The key of the fake active-message entry in OCUORDERS that TestInFlightHeader sets; "" when there is none. OnAfterOneTest kills it.
+Property EntryKey As %String;
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
+	Kill ^||OcuTalonFlightSeam
+	If ..EntryKey '= "" {
+		Do ..KillEntry(..EntryKey)
+		Set ..EntryKey = ""
+	}
 	If ..SettingsAdded {
 		Set ..SettingsAdded = 0
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Watch.OrdersDefinition).Put(0))
 	}
 	Quit sc
+}
+
+/// Sets the active-message entry of a job of the key to the header id, in OCUORDERS. The key names no system and no job of IRIS, so no job of the production reads it as its own.
+ClassMethod SetEntry(key As %String, id As %Integer) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set $$$EnsActiveMessage(key) = id
+}
+
+/// Kills the active-message entry of the key, in OCUORDERS.
+ClassMethod KillEntry(key As %String) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Kill $$$EnsActiveMessage(key)
+}
+
+/// The failure of the header in a reader snapshot, "" when there is none.
+ClassMethod FailureOf(snapshot As %DynamicObject, id As %Integer) As %DynamicObject [ Private ]
+{
+	For i = 0:1:snapshot.failures.%Size() - 1 {
+		If snapshot.failures.%Get(i).headerId = id Quit
+	}
+	Quit $Select(i < snapshot.failures.%Size(): snapshot.failures.%Get(i), 1: "")
 }
 
 /// The snapshot in a dynamic object, or "" with the failure reported.
@@ -340,6 +378,75 @@ Method TestTraceCapped()
 	Do $$$AssertEquals(recorded.trace.%Size(), 25, "a recorded snapshot with 25 trace entries")
 	Do $$$AssertStatusOK($ClassMethod(..#PACK, "Build", recorded, .pack), "the pack is built from it")
 	If $IsObject($Get(pack)) Do $$$AssertEquals(pack.trace.%Size(), cap, "its trace holds 20 entries")
+}
+
+Method TestInFlightHeader()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("inflight")
+	Set held = ..FixtureHeader({"Status": 9})
+	Set failed = ..FixtureHeader({})
+	Do $$$AssertTrue((held '= "") && (failed '= ""), "a Completed header and an Error header are made")
+	If (held = "") || (failed = "") Quit
+	Set ..EntryKey = "zzOcuTalonTest:"_$Job
+	Do ..SetEntry(..EntryKey, held)
+	Set keys = "h"_held_",h"_failed
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", keys, .snapshot)
+	Do $$$AssertEquals(outcome, "read", "Evidence reads the two headers")
+	Set heldFailure = ..FailureOf(snapshot, held)
+	Set failedFailure = ..FailureOf(snapshot, failed)
+	Do $$$AssertTrue($IsObject(heldFailure) && $IsObject(failedFailure), "each header has its failure")
+	If '$IsObject(heldFailure) || '$IsObject(failedFailure) Quit
+	Do $$$AssertEquals(heldFailure.status_"|"_heldFailure.inFlight, "Completed|1", "inFlight 1 while a job holds it")
+	Do $$$AssertEquals(heldFailure.%GetTypeOf("inFlight"), "boolean", "inFlight is a JSON boolean")
+	Do $$$AssertEquals(failedFailure.status_"|"_failedFailure.inFlight, "Error|0", "a header that no job holds has inFlight 0")
+	Do $$$AssertEquals(failedFailure.%GetTypeOf("inFlight"), "boolean", "also a JSON boolean")
+
+	Set incident = ..Fixture(owner, held_","_failed)
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Do run.Copies.Insert(held)
+	Do run.Copies.Insert(failed)
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Do $$$AssertEquals(read, "read", "Executor Read reads the copies")
+	Do $$$AssertEquals(statuses.%Get(held).inFlight_"|"_statuses.%Get(failed).inFlight, "1|0", "Read carries inFlight")
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, statuses)
+	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "0|1|1", "Tally gives completed 0, failed again 1, running 1")
+
+	Do ..KillEntry(..EntryKey)
+	Set ..EntryKey = ""
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", keys, .snapshot)
+	Do $$$AssertEquals(outcome, "read", "Evidence reads them again")
+	Set heldFailure = ..FailureOf(snapshot, held)
+	If $IsObject(heldFailure) Do $$$AssertEquals(heldFailure.status_"|"_heldFailure.inFlight, "Completed|0", "inFlight 0 once the job lets go of it")
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, statuses)
+	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "1|1|0", "Tally gives completed 1, failed again 1, running 0")
+}
+
+Method TestInFlightEntryReadFails()
+{
+	If '..Ready() Quit
+	Set quiet = ..FixtureHeader({"Status": 9})
+	Set changing = ..FixtureHeader({"Status": 9})
+	Do $$$AssertTrue((quiet '= "") && (changing '= ""), "two Completed headers are made")
+	If (quiet = "") || (changing = "") Quit
+
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_quiet, .snapshot)
+	Set failure = ..FailureOf(snapshot, quiet)
+	Do $$$AssertTrue(outcome = "read" && $IsObject(failure), "a Completed header that nothing holds is read")
+	If $IsObject(failure) Do $$$AssertEquals(failure.status_"|"_failure.inFlight, "Completed|0", "it is not in flight")
+
+	// the read of the active-message entries throws, and the status of the header changes at that point: only the second read of the status can tell
+	Set ^||OcuTalonFlightSeam = "Do ##class(%SQL.Statement).%ExecDirect(,""UPDATE Ens.MessageHeader SET Status = 8 WHERE ID = "_changing_""") Throw ##class(%Exception.General).%New(""seam"")"
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_changing, .snapshot)
+	Do $$$AssertEquals(outcome, "read", "Evidence still reads when the read of the entries throws")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam), 0, "the seam ran once")
+	Set failure = ..FailureOf(snapshot, changing)
+	Do $$$AssertTrue($IsObject(failure), "the header has its failure")
+	If $IsObject(failure) Do $$$AssertEquals(failure.status_"|"_failure.inFlight, "Completed|1", "a failed read of the entries does not make it done: the second read of the status gives another status, so it is in flight")
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_changing, .snapshot)
+	Set failure = ..FailureOf(snapshot, changing)
+	If $IsObject(failure) Do $$$AssertEquals(failure.status_"|"_failure.inFlight, "Error|0", "at the next read it is Error and not in flight")
 }
 
 Method TestToolsReadTheIncident()

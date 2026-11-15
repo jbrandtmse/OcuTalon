@@ -49,6 +49,9 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     included: the caller redacts them. Given resent 1 (Story 7.3), each failure also gains resentBy, an array of the ids of the headers of its session
 ///     whose Description names it as resent: the ids that follow "Resent " and precede any ":" (IRIS writes "Resent <id>[,<earlier ids>][: <description>]" on a
 ///     copy, whoever resends it); without the flag the failures have no such member.
+///     Each failure also carries inFlight, a boolean: 1 when IRIS still holds the header, that is when, after its row was read, it is the active message of a job of the
+///     namespace (Ensemble.inc's EnsActiveMessage), or a second read of its status, made after that check, gives another status (IRIS sets an erroring message Completed
+///     just before Error, and lets go of it after).
 ///   - Items reads the production's items for the item fix kinds (Story 23.2) inside the same switching method and under the same two checks: one {"id", "name",
 ///     "className", "businessType", "enabled"} per item, enabled as IRIS runs it.
 ///   - Settings reads the setting history marks of a production (Story 36.1): the namespace's production-change counter and the production's start mark, and
@@ -60,7 +63,7 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
 ///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
 ///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
-///     per-header read, and gives the failures of that snapshot (the shape Evidence gives) as good.
+///     per-header read, and gives the failures of that snapshot (the shape Evidence gives) as good. Its failures carry inFlight too.
 /// The Orders identity is read from OcuTalon.Install.Step.Demo (NAMESPACE and PRODUCTION), never copied. The namespace switch is in one method,
 /// Current, which calls no OcuTalon class while it is in the other namespace. A reader runs inside AI Hub's callback, so this class makes no
 /// AI Hub call, no Python call and no session call (AD-6).
@@ -606,7 +609,7 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// and id, headers before log rows of one time. The text of a header's error is the Type 2 row whose MessageId is the header and whose SessionId
 /// matches; else the session's Type 2 row of the header's target; else the header's own ErrorStatus text when IsError; else "".
 /// When item is not empty (Evidence) it reads, instead of the failures from a time on, the evidence of the failures with the keys (comma-separated
-/// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). The body of a header
+/// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). Each failure carries inFlight (a boolean: IRIS still holds the header). The body of a header
 /// is read through the class dictionary: the stored datatype properties of its class, at most VALUEMAX characters each.
 /// A key g<header id> in keys (Good only, with limit as the most per reference) stands for the newest good messages of the same source as that header: the headers of Status 9,
 /// IsError 0 and Type 1 whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession equal the header's, highest id first, each read as a key h<id> is.
@@ -744,6 +747,8 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 					Set headers = ##class(%SQL.Statement).%New()
 					If evidence {
 						$$$ThrowOnError(headers.%Prepare("SELECT ID, SessionId, SuperSession, SourceConfigName, TargetConfigName, MessageBodyClassName, IsError, ErrorStatus, TimeProcessed, MessageBodyId, TimeCreated, Status FROM Ens.MessageHeader WHERE ID = ?", 1))
+						Set flightStatus = ##class(%SQL.Statement).%New()
+						$$$ThrowOnError(flightStatus.%Prepare("SELECT Status FROM Ens.MessageHeader WHERE ID = ?", 1))
 					} Else {
 						$$$ThrowOnError(headers.%Prepare("SELECT TOP ? ID, SessionId, SuperSession, SourceConfigName, TargetConfigName, MessageBodyClassName, IsError, ErrorStatus, TimeProcessed, MessageBodyId, TimeCreated, Status FROM Ens.MessageHeader WHERE Status = 8 AND TimeProcessed >= ? ORDER BY TimeProcessed, ID", 1))
 					}
@@ -796,6 +801,35 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 							If evidence {
 								Set failure = {"headerId": (id), "sessionId": (sessionId), "superSession": (result.%GetData(3)), "timeCreated": ($Translate($Piece(result.%GetData(11), ".", 1), " ", "T")_"Z"), "timeProcessed": ($Translate($Piece(result.%GetData(9), ".", 1), " ", "T")_"Z"), "sourceConfigName": (result.%GetData(4)), "targetConfigName": (target), "bodyClass": (result.%GetData(6)), "bodyId": (result.%GetData(10)), "status": (##class(Ens.DataType.MessageStatus).LogicalToDisplay(result.%GetData(12)))}
 								Do failure.%Set("isError", +result.%GetData(7), "boolean")
+								// inFlight: IRIS still holds the header. IRIS sets an erroring message Completed, then Error, and lets go of the active-message entry after both.
+								// So the status was read first, the entry is checked next, and an entry that is gone is followed by a second status read: a changed status is in flight.
+								// A failed entry read is never "done": the loop ends as not held and the second status read decides.
+								// ^||OcuTalonFlightSeam, set only by a test in this process, holds code that runs at the entry read (the test makes the read fail and changes the status there).
+								Set flightHeld = 0
+								Try {
+									Set flightSeam = $Get(^||OcuTalonFlightSeam)
+									If flightSeam '= "" {
+										Kill ^||OcuTalonFlightSeam
+										Xecute flightSeam
+									}
+									Set flightJob = ""
+									For {
+										Set flightJob = $Order($$$EnsActiveMessage(flightJob), 1, flightId)
+										If flightJob = "" Quit
+										If flightId = id {
+											Set flightHeld = 1
+											Quit
+										}
+									}
+								} Catch {
+									Set flightHeld = 0
+								}
+								If 'flightHeld {
+									Set flightRead = flightStatus.%Execute(id)
+									If flightRead.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, flightRead.%Message))
+									If flightRead.%Next() && (flightRead.%GetData(1) '= result.%GetData(12)) Set flightHeld = 1
+								}
+								Do failure.%Set("inFlight", flightHeld, "boolean")
 								Set failure.error = text
 								Set body = {}
 								Set bodyClass = result.%GetData(6)
