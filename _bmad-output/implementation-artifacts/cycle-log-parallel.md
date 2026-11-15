@@ -4311,3 +4311,6 @@
 2026-11-15T14:52:44Z	Epic 21	merge_enqueued	story=21.11 (1.0.11 required, last)
 2026-11-15T14:55:41Z	Epic 21	merged	story=21.11 merge=a1b4f2e2c pins=pass web=pass lint=pass
 2026-11-15T14:55:41Z	Run	ci_cancelled	run=43720376656(feature_adbb0ace9,superseded_by_a1b4f2e2c) via=Planner_EXPLICIT_OVERRIDE_of_DW-1335_rule(this_run_only)
+2026-11-15T14:56:17Z	Run	owner_decision	via=contest_planner 1.0.11_base=a1b4f2e2c(or_records-only_above) 25.6,23.3=NOT_in_1.0.11(->1.0.12) rule=only_records_land_until_REQUIRED_GREEN_sent
+2026-11-15T14:56:17Z	Epic 22	runner_reported	PART_READY 22.12=70c05d0a(merged_adbb0ace9) 21.11=ccf1a835(merged_a1b4f2e2c) note=QA_added_2nd_TelegramOut_test_beyond_V5(kept_on_merit;asked_Planner) epic-22=only_22.10_deferred_left
+2026-11-15T14:56:17Z	Epic 22	runner_ended	reason=waiting(no_item)
