@@ -121,6 +121,7 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
           [result]="resultOf(request.ref)"
           [itemNoun]="incident().itemNoun"
           [production]="production()"
+          [settingChange]="incident().settingChange"
           [dismiss]="last ? dismissTarget() : undefined"
           (toggleDetails)="open.set(!open())"
         />

@@ -278,7 +278,7 @@ Method TestUndoRollbackNothingTurn()
 	Set incident = ..NoticedIncident(a, "1")
 	Set before = ..ItemStates()
 	Set sc = ..Turn("user", "Undo the rollback. [[mock:propose-fix-undo-rollback]]", a, .request, .answer, .turnSession, .requests)
-	If '..AssertTurn(sc, answer, request, "I've asked for your approval to undo the rollback. Nothing changes until you approve it.", 1) Quit
+	If '..AssertTurn(sc, answer, request, "There is no rollback to undo, so no request was raised.", 1) Quit
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))

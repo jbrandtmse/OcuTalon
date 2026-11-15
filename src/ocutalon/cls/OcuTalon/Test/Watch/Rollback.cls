@@ -5,7 +5,8 @@ Include Ensemble
 /// setting that they change is the stored Host setting ZzFixtureNote of the failing item OrdersFromPartner (Test.Watch.OrdersDefinition), changed through the saved definition
 /// and recorded by the Tick of Checks; the definition is put back after each test.
 ///   - TestMeasured (Task 0, a hard gate): FixExecutor's own job carries out an approved rollback_setting through Fix.Executor.InProduction, which sets the stored setting in the saved
-///     definition and calls Ens.Director.UpdateProduction in OCUORDERS. The figures are logged and printed as SKIP lines (a status 2 never fails a class).
+///     definition and calls Ens.Director.UpdateProduction in OCUORDERS; every other item of OCUORDERS keeps its job. The figures are logged and printed as SKIP lines (a status 2
+///     never fails a class).
 Class OcuTalon.Test.Watch.Rollback Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
@@ -132,6 +133,18 @@ ClassMethod Jobs() As %String
 		Set key = $Order(found(key), 1, value)
 		If key = "" Quit
 		Set text = text_$Select(text = "": "", 1: ";")_$Piece(key, "|", 1)_"="_value
+	}
+	Quit text
+}
+
+/// The entries of a Jobs text that are not the failing item's, joined by ";".
+ClassMethod OtherJobs(jobs As %String) As %String
+{
+	Set text = ""
+	For i = 1:1:$Length(jobs, ";") {
+		Set one = $Piece(jobs, ";", i)
+		If (one = "") || ($Piece(one, "=", 1) = ..#FAILING) Continue
+		Set text = text_$Select(text = "": "", 1: ";")_one
 	}
 	Quit text
 }
@@ -310,6 +323,7 @@ Method Cycle(a As %String, trace As %String, target As %String) [ Private ]
 	Do ..Timing("Task 0 ("_target_"): Execute of a rollback from FixExecutor's job: "_$FNumber(seconds, "", 3)_" s (SendExecute to the end of the handler)")
 	Do ..Timing("Task 0 ("_target_"): OCUORDERS jobs before: "_jobsBefore)
 	Do ..Timing("Task 0 ("_target_"): OCUORDERS jobs after:  "_jobsAfter)
+	Do $$$AssertEquals(..OtherJobs(jobsAfter), ..OtherJobs(jobsBefore), "only the failing item restarted: every other item of OCUORDERS kept its job")
 	Do ..Timing("Task 0 ("_target_"): OCUORDERS log after the run: "_log)
 	Do $$$AssertEquals(..WaitIncidentState(incident, "resolved"), "resolved", "the incident is resolved")
 	Set answer = ..AskDryRun(incident, "rollback_setting", {"change": (change)}.%ToJSON(), trace, .dry, .sc)
@@ -425,8 +439,8 @@ Method TestNoApprovedRow()
 }
 
 /// AC5, AC7: with %Ens_ProductionConfig taken from the service role the run could not start: nothing is written, the request failed with NOTALLOWED and the session reads
-/// result.itemNotChanged. The same for an online-demo install (the public flag on, no grant), where both kinds also refuse their dry run with ONLINESHARED and the pack lists no
-/// change.
+/// result.itemNotChanged; an undo_rollback run fails the same way, with NOTALLOWED. The same for an online-demo install (the public flag on, no grant), where both kinds also refuse
+/// their dry run with ONLINESHARED and the pack lists no change.
 Method TestNotAllowedAndOnlineDemo()
 {
 	If '..Ready() Quit
@@ -473,6 +487,14 @@ Method TestNotAllowedAndOnlineDemo()
 		Set note = notes.%Get(0)
 		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc), "Nothing was changed: OcuTalon isn't allowed to change settings in that production.", "result.itemNotChanged says that nothing was changed, with the plain reason")
 	}
+	// the undo declares the same resource (inherited), and the executor checks it the same way
+	Set undo = ..Request(a, incident, "undo_rollback", parameters, answer.Targets, answer.DryRun)
+	Do $$$AssertStatusOK(..SendExecute(undo, .session), "the Execute of an undo is handled")
+	Do $$$AssertEquals(..WaitState(incident, undo, "failed"), "failed", "the undo failed")
+	Set undone = ..WaitFixResults(undo, 1)
+	Do $$$AssertEquals(undone.%Size(), 1, "one FixResult for the undo")
+	If undone.%Size() = 1 Do $$$AssertEquals(undone.%Get(0).completed_"|"_undone.%Get(0).reason, "0|"_##class(OcuTalon.Fix.Kind.RollbackSetting).#NOTALLOWED, "the undo changed nothing, with NOTALLOWED")
+	Do $$$AssertEquals(..Counter()_"|"_..Stored(..#FAILING), counter_"|"_stored, "nothing was written by the undo either")
 }
 
 /// AC2, AC3, AC9 (integration): a real setting change in OCUORDERS and a diagnosis from the mock (the marker diagnosis-rollback) at the failing item: IncidentManager names the
@@ -484,6 +506,8 @@ Method TestIncidentNamesTheChange()
 	If '..PointKeys() Quit
 	Set a = ..Prepare(.trace)
 	Set b = ..Session("rollbackother")
+	// the second session watches the Orders production too, so that a request delivered to every watcher would reach it
+	Do ..Watch(b)
 	Set change = ..Change(a, "Host", "alpha", "beta", .unused, 0)
 	If change = "" Quit
 	Set counter = ..Counter()
@@ -594,6 +618,27 @@ Method TestUndoOnlyWhileLatest()
 	Set answer = ..AskDryRun(incident, "undo_rollback", {"change": (change)}.%ToJSON(), trace, .dry, .sc)
 	Do $$$AssertTrue($IsObject(answer), "FixExecutor answers again")
 	If $IsObject(answer) Do $$$AssertEquals(answer.Reason, ##class(OcuTalon.Fix.Kind.RollbackSetting).ChangedAgain(..#NOTE, ..#FAILING), "a later change of the setting is on record: CHANGEDAGAIN though the value is the restored one")
+}
+
+/// AC14 (QA): the current value of the setting is not the one that the rollback restored, and no Tick has recorded a later change yet (the value moved since the last Tick): the dry run of the
+/// undo refuses with CHANGEDAGAIN on the value alone, a refusal that a recorded later row (TestUndoOnlyWhileLatest) does not exercise.
+Method TestUndoRefusesUnseenChange()
+{
+	If '..Ready() Quit
+	Set a = ..Prepare(.trace)
+	Set change = ..Change(a, "Host", "alpha", "beta", .incident)
+	If change = "" Quit
+	Do ..Run(a, trace, incident, "rollback_setting", change, ..#FAILING, ..#NOTE, "Host", "beta", "alpha")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#NOTE), "alpha", "the rollback put the old value back")
+	// the value moves after the rollback and no Tick records it
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "gamma"), "the setting changes again after the rollback, with no Tick after it")
+	Set rows = ..ChangeRows(..#NOTE)
+	Do $$$AssertEquals(rows.%Size(), 2, "no row records the move yet: the setting's first sight and the change")
+	Set answer = ..AskDryRun(incident, "undo_rollback", {"change": (change)}.%ToJSON(), trace, .dry, .sc)
+	Do $$$AssertTrue($IsObject(answer), "FixExecutor answers")
+	If '$IsObject(answer) Quit
+	Do $$$AssertEquals(answer.Reason, ##class(OcuTalon.Fix.Kind.RollbackSetting).ChangedAgain(..#NOTE, ..#FAILING), "the current value is not the restored one: CHANGEDAGAIN")
+	Do $$$AssertEquals(answer.Targets, "", "and the dry run names no target")
 }
 
 }

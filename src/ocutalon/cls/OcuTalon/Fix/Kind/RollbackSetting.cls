@@ -33,9 +33,6 @@ Parameter ONLINEGRANT = 0;
 
 Parameter MOVES = 1;
 
-/// 1 for the subclass that puts the new value back.
-Parameter UNDO = 0;
-
 /// The longest value, in characters, that the kind puts back.
 Parameter VALUEMAX = 1000;
 
@@ -124,7 +121,7 @@ ClassMethod Vetted(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 		Set row = ""
 		Quit ..#NOTFOUND
 	}
-	If window && '(##class(OcuTalon.Watch.SettingCause).InTime(row.DetectedAt, incident.FirstAt) && (row.DetectedAt ] ##class(OcuTalon.Watch.SettingCause).Oldest(row.Namespace, row.Production))) Quit ..#NOTINWINDOW
+	If window && '(##class(OcuTalon.Watch.SettingCause).InTime(row.DetectedAt, incident.FirstAt) && '(##class(OcuTalon.Watch.SettingCause).Oldest(row.Namespace, row.Production) ] row.DetectedAt)) Quit ..#NOTINWINDOW
 	If '$ListFind(##class(OcuTalon.Watch.SettingCause).FailingItems(incident), row.Item) Quit ..Reason(..#OTHERITEM, incident, row)
 	If row.Credential Quit ..Reason(..#SECRET, incident, row)
 	If (row.OldValue = "") || (row.NewValue = "") || ($Length(row.OldValue) > ..#VALUEMAX) || ($Length(row.NewValue) > ..#VALUEMAX) Quit ..Reason(..#VALUES, incident, row)

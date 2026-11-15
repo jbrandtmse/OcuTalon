@@ -8228,11 +8228,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: Fix.Executor.InProduction setting branch: %Save then UpdateProduction; an error gives code refused, Completed 0. UpdateProduction fails when an item does not stop in its UpdateTimeout (10 s) or the runtime lock is busy 30 s; the next production update then applies the saved value unapproved-again
 - 2026-11-15T09:55:10Z status=escalated owner=burndown by=cr note=fix-risk high: revert-on-failure or a new 'saved, not applied' text (veto); same save-then-update shape as EnableConfigItem (23.2)
+- 2026-11-15T10:04:07Z status=routed owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=planner note=Planner_pre-push_ruling_2026-11-15:fix_in_23.3(restore_earlier_value+retry_UpdateProduction;restore_ok->itemNotChanged;restore_fails->result.settingSavedNotApplied;both_paths_pinned);suspend_path_split_to_own_DW
 
 ### DW-1366: UndoRollback's dry run After is the recorded new value, not the live inherited default: after a System Default Setting edit made while the rollback's item-level entry hid it, the undo's dry run and result.rollbackUndone name a stale value
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: UndoRollback.Restored returns row.NewValue; the kind cannot read the live default without a namespace switch (AD-3), and a default edit hidden by the item-level entry records no SettingChange
 - 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=an undo of a System Default change shows an After that differs from the item's effective value after the run
+- 2026-11-15T10:04:07Z status=routed owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=planner note=Planner_pre-push_ruling_2026-11-15:fix_in_23.3(undo_dry-run_After_from_CURRENT_System_Default;run-time_recheck_effective==After_else_settingChangedSince;pin_default_change_during_rollback)
 
 ### DW-1367: AC12's notice through IncidentManager (a setting_change diagnosis whose rollback_setting dry run is refused, e.g. OTHERITEM, routed Propose to Unproposed to NoFix) has no integration test; only its pieces are pinned
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: in-story
@@ -8253,3 +8255,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: git merge-tree of OCT-epic23 with OCT-epic22, OCT-epic21 and their open story branches is clean for every source file on 2026-11-15; only sprint-status.yaml and 25.6's Test.Live.Payloads count conflict
 - 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=an integrate-forward of Lane D's Watch/** branch shows an overlapping hunk in these methods
+
+### DW-1373: 23.2's suspend/resume path has DW-1365's shape: a failed Ens.Director.UpdateProduction after the definition's %Save reports Nothing was changed though the stored Enabled flag changed
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Fix/Kind suspend_item/resume_item save-then-update (23.2), same as DW-1365
+- 2026-11-15T10:04:07Z status=routed owner=burndown by=planner note=Planner pre-push ruling 2026-11-15: own DW for 1.0.12, not in 23.3

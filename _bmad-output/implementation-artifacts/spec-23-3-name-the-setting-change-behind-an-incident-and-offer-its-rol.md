@@ -2,7 +2,7 @@
 title: 'Story 23.3: Name the setting change behind an incident and offer its rollback'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '028e4325cc81c35ac238c506eeb7f14cf19ac0a8'
 baseline_commit: '028e4325cc81c35ac238c506eeb7f14cf19ac0a8'
 review_loop_iteration: 0
@@ -407,7 +407,16 @@ Rejected (verdict and reason):
 - false: a blank rail title (Edge) — both kinds' dry runs always set field and item.
 - low: IncidentManager.Asked repeats the "ERROR #" strip of Executor (review) — three lines; a helper would be another hunk in a contended file.
 
+
+**Rework iteration 1 (Contest Planner pre-push rulings, 2026-11-15 ~10:30Z, prompts/story-233-rulings-20261115.md "Pre-push rulings"; BINDING):**
+- [ ] [Review] DW-1365 — `Fix/Executor.cls` `InProduction` setting branch, `Fix/Kind/RollbackSetting.cls`, `Fix/Kind/UndoRollback.cls` — when `Ens.Director.UpdateProduction` fails after the definition's `%Save`, write the earlier value back (`%Save`) and call `UpdateProduction` again. If that restore succeeds, keep `result.itemNotChanged` ("Nothing was changed: {reason}."), which is then true. If the restore fails, report the NEW key `result.settingSavedNotApplied` in `Msg/Catalog/Watch.cls`, approved verbatim: "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again." (slots: setting, target (text), reason (the existing reason slot type)); the run is recorded as not done and audited. Pin BOTH paths with a test that forces `UpdateProduction` to fail (a test seam, e.g. a test-only hook the executor reads, never a production code path the demo can reach), once with the restore succeeding and once with it failing; one mutation each. Add the key to the web catalog/ux-strings pins if result keys are mirrored there. Do NOT touch 23.2's suspend path (filed as DW-1373 for 1.0.12).
+- [ ] [Review] DW-1366 — `Fix/Kind/UndoRollback.cls`, `Watch/SettingCause.cls` — the undo's dry-run After is the value the item will then have: when the undo removes the item-level entry (the rolled-back change came from a System Default Setting), resolve After at DRY-RUN time from the CURRENT System Default that applies to that item (not the recorded new value). At RUN time, re-check that the effective value the removal would leave still equals the dry run's After; if not, refuse with `result.settingChangedSince` (approved; needs a new approval). Pin the case where the System Default changes while the rollback's item-level entry is in place (on a fresh lane-B throwaway), with a mutation (After from the recorded value instead of the current default must turn it red).
+- [ ] [Review] DW-1358 condition — no README edit. Confirm `docker/tests/test-readme.sh`, `docker/tests/test-eval-set.sh` and the eval test classes read the incident count from the eval set and never hard-code 11; if any pin hard-codes 11 (or 13), change it to read the count from the eval set. Record the finding (file:line, or "none found") in this spec's Spec Change Log.
+- [ ] [Review] `Test.Watch.Rollback` `TestMeasuredRemoval` printed "SKIP ... Task 0 (b): the class value of RetryInterval on OrdersFromPartner is 5" on the lead's smoke run (fresh lane-B throwaway, 10:03Z). Make sure the removal path (AC15 / Task 0 (b)) is actually exercised by a test that cannot skip on a fresh stack; if this test skips by design, name the test that pins removal instead, in Verification.
+
 ## Spec Change Log
+
+- 2026-11-15 ~10:35Z (lead, rework iteration 1 of 3, trigger: Planner pre-push rulings): re-opened `in-progress` for DW-1365, DW-1366, the DW-1358 count condition and the TestMeasuredRemoval skip. New approved public text: `result.settingSavedNotApplied`. Review.cls footprint extension approved; DW-1370 noted (plain union stands).
 
 - 2026-11-15 (lead, Planner gate): the Contest Planner APPROVED the plan with conditions (prompts/story-233-rulings-20261115.md). Added AC13-AC17 (injection marking and eval case, undo bounds, System Default undo removes the item-level entry, no other role holds %Ens_ProductionConfig, denied in untrusted or tainted turns), the Task 0 HARD GATE and the binding rulings under Design Notes. All public text approved verbatim; AD-15/16/22/24/32 amendments written in the spine by the lead.
 
@@ -673,6 +682,8 @@ PROPOSALS (new public text):
   - `Agent/Diagnosis.cls` line 24 adds: ", and the production's setting changes from the 24 hours before the first failure (settingChanges), newest first". New rule: "For a setting_change, give the setting's name as elementAtFault, written exactly as settingChanges writes it. Use "fixKind": "rollback_setting", with no fixParameters and an empty fixSummary, only when that change is on the failing item, its credential is false, and putting the old value back would plausibly fix the failures."
   - `Agent/Chat.cls`: "If the user asks to undo a rollback that OcuTalon made, call propose_fix with kind undo_rollback. Say that nothing changes until the request is approved; with outcome refused, give the reason."
   - The pack note: "[cut by OcuTalon: {shown} of {total} setting changes shown]", and a cut value ends "[cut by OcuTalon: 500 of {total} characters shown]".
+
+- APPROVED verbatim (Planner pre-push ruling 2026-11-15), `Msg/Catalog/Watch.cls`: `result.settingSavedNotApplied`: "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again."
 
 ## Verification
 

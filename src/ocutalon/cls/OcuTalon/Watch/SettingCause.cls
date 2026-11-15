@@ -1,7 +1,8 @@
 /// The setting change behind an incident (AD-15, Story 23.3; Lane A): the production's SettingChange rows from the 24 hours before the first failure, the change that a
 /// setting_change diagnosis names, the gap between the two and the cause slot of the incident's notice. It reads rows and writes nothing, and it enters no namespace.
-///   - A row is in the window when it is of the incident's namespace and production, FirstAt - WINDOWSECONDS <= DetectedAt <= FirstAt, and DetectedAt is after the TakenAt of
-///     the production's oldest snapshot. Window gives those rows newest first, as {"ref", "item", "target", "setting", "oldValue", "newValue", "source", "credential",
+///   - A row is in the window when it is of the incident's namespace and production, FirstAt - WINDOWSECONDS <= DetectedAt <= FirstAt, and DetectedAt is not before the TakenAt
+///     of the production's oldest snapshot: a production's first snapshot records no change, and a change that the oldest snapshot recorded itself is still listed once the purge
+///     has removed the snapshots before it. Window gives those rows newest first, as {"ref", "item", "target", "setting", "oldValue", "newValue", "source", "credential",
 ///     "detectedAt"}. A secret row has blank values and credential 1. Nothing names who made a change.
 ///   - AddTo puts the window into an evidence pack as settingChanges: at most MAXCHANGES rows, newest first, as {"item", "target", "setting", "oldValue", "newValue", "source",
 ///     "credential", "detectedAt"}, each value cut to MAXVALUE characters with its own note, and settingChangesNote when rows were left out. For a recorded snapshot it applies
@@ -82,7 +83,7 @@ ClassMethod Window(namespace As %String, production As %String, firstAt As %Stri
 	If start = "" Quit
 	Set oldest = ..Oldest(namespace, production)
 	If oldest = "" Quit
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.SettingChange WHERE Namespace = ? AND Production = ? AND DetectedAt >= ? AND DetectedAt <= ? AND DetectedAt > ? ORDER BY DetectedAt DESC, ID DESC", $Get(namespace), $Get(production), start, firstAt, oldest)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.SettingChange WHERE Namespace = ? AND Production = ? AND DetectedAt >= ? AND DetectedAt <= ? AND DetectedAt >= ? ORDER BY DetectedAt DESC, ID DESC", $Get(namespace), $Get(production), start, firstAt, oldest)
 	If result.%SQLCODE < 0 $$$ThrowStatus($$$ERROR($$$SQLError, result.%SQLCODE, result.%Message))
 	Set count = 0
 	While result.%Next() {

@@ -24,8 +24,6 @@ Parameter MOVES = 0;
 
 Parameter ASKEDSTATES = "open,resolved,closed";
 
-Parameter UNDO = 1;
-
 /// The change of the incident's rollback that is still to undo, for a request that the chat asks for. An error status with the NOTHINGTOUNDO reason when there is none.
 ClassMethod AskedParameters(incident As OcuTalon.Data.Incident, ByRef parameters As %DynamicObject) As %Status
 {
@@ -51,12 +49,12 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Do dryRun.%Set("item", row.Item, "string")
 	Do dryRun.%Set("field", row.Setting, "string")
 	Do dryRun.%Set("before", current, "string")
-	Do dryRun.%Set("after", ..After(row, incident), "string")
+	Do dryRun.%Set("after", ..Restored(row), "string")
 	Quit $$$OK
 }
 
 /// The reason that the change can't be undone, "" when it can, and the SettingChange row in row: the refusals of Vetted (no window), the rollback still to undo (NOTHINGTOUNDO),
-/// a later change of the setting and a current value that is not the restored one (CHANGEDAGAIN).
+/// a later change of the setting and a current value that is not the restored one (CHANGEDAGAIN); a production whose settings can't be read gives NOREAD.
 ClassMethod Undoable(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output row As OcuTalon.Data.SettingChange) As %String
 {
 	Set why = ..Vetted(incident, parameters, 0, .row)
@@ -64,7 +62,7 @@ ClassMethod Undoable(incident As OcuTalon.Data.Incident, parameters As %DynamicO
 	If ##class(OcuTalon.Fix.Run).RolledBack(incident.Ref) '= row.Ref Quit ..#NOTHINGTOUNDO
 	If ..ChangedLater(row) Quit ..Reason(..#CHANGEDAGAIN, incident, row)
 	Set sc = ..Current(incident, row, .current)
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneErrorText(sc)
+	If $$$ISERR(sc) Quit ..#NOREAD
 	If current '= ..Expected(row) Quit ..Reason(..#CHANGEDAGAIN, incident, row)
 	Quit ""
 }
@@ -86,20 +84,14 @@ ClassMethod ChangedLater(row As OcuTalon.Data.SettingChange) As %Boolean
 	Quit 0
 }
 
-/// The value that the undo leaves the setting with, as the dry run's After shows it: the change's new value. For a change of a System Default Setting that is the value the item
-/// inherits again once its stored setting is taken out.
-ClassMethod After(row As OcuTalon.Data.SettingChange, incident As OcuTalon.Data.Incident) As %String
-{
-	Quit row.NewValue
-}
-
 /// The value that the setting must have now for the undo to act: the value that the rollback restored, the change's old value.
 ClassMethod Expected(row As OcuTalon.Data.SettingChange) As %String
 {
 	Quit row.OldValue
 }
 
-/// The value that the undo leaves the setting with.
+/// The value that the undo leaves the setting with, as the dry run's After shows it: the change's new value. For a change of a System Default Setting that is the value the item
+/// inherits again once its stored setting is taken out.
 ClassMethod Restored(row As OcuTalon.Data.SettingChange) As %String
 {
 	Quit row.NewValue

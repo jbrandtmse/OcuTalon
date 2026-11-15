@@ -621,7 +621,8 @@ Method TestMalformedResourcesFailTheStep()
 }
 
 /// Matrix row 5: a declaration of a forbidden resource fails the Roles step with a status that names the area, the role and the resource,
-/// whatever the case of the resource, and no role is created or changed. AD-24's seven resources are the list.
+/// whatever the case of the resource, and no role is created or changed. AD-24's seven resources are the list. The one exception, Roles FORBIDDENEXCEPTION (Story 23.3), is read
+/// here too: its resource and permission are refused for any role but its own.
 Method TestForbiddenGrantRefused()
 {
 	Set list = "%All,%Development,%Ens_MessageEditResend,%Ens_MessageDiscard,%Ens_ProductionRun,%Ens_ProductionConfig,%Ens_WorkflowConfig"
@@ -645,6 +646,14 @@ Method TestForbiddenGrantRefused()
 		Do $$$AssertStatusNotOK(sc, "the Roles step refuses "_resource)
 		Do $$$AssertTrue((text [ bad) && (text [ forbiddenRole) && (text [ resource), "and the error names the area, the role and "_resource)
 	}
+	// the one exception (Roles FORBIDDENEXCEPTION) is the exact triple: its own resource and permission are still refused for any other role
+	Set exception = $Parameter("OcuTalon.Install.Step.Roles", "FORBIDDENEXCEPTION")
+	Do $$$AssertTrue($Piece(exception, ":", 1) '= forbiddenRole, "the fixture role is not the exception's role")
+	Set ^OcuTalonTest("Registry", ..Number, "forbidden") = $Piece(exception, ":", 2)
+	Set ^OcuTalonTest("Registry", ..Number, "forbiddenPermission") = $Piece(exception, ":", 3)
+	Set sc = ##class(OcuTalon.Install.Step.Roles).Run()
+	Kill ^OcuTalonTest("Registry", ..Number, "forbiddenPermission")
+	Do $$$AssertStatusNotOK(sc, "the Roles step refuses the exception's own "_$Piece(exception, ":", 2, 3)_" to a role that is not "_$Piece(exception, ":", 1))
 	Do $$$AssertEquals(..RoleResources(forbiddenRole), "<none>", "the forbidden role was not created")
 	Do $$$AssertEquals(..Sorted(..RoleResources(..Role)), byHand, "and no role was changed: the fixture role keeps its extra grant")
 	Do ..Delete(bad)
@@ -1607,7 +1616,7 @@ Class @CLASS@ Extends OcuTalon.Install.Step
 
 ClassMethod Grants() As %DynamicArray
 {
-	Quit [{"role":"@ROLE@","resource":(^OcuTalonTest("Registry", @N@, "forbidden")),"permission":"U"}]
+	Quit [{"role":"@ROLE@","resource":(^OcuTalonTest("Registry", @N@, "forbidden")),"permission":($Get(^OcuTalonTest("Registry", @N@, "forbiddenPermission"), "U"))}]
 }
 
 }

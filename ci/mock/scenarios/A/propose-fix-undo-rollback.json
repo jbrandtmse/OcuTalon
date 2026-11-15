@@ -15,7 +15,7 @@
     },
     {
       "status": 200,
-      "text": "I've asked for your approval to undo the rollback. Nothing changes until you approve it."
+      "text": "There is no rollback to undo, so no request was raised."
     }
   ]
 }

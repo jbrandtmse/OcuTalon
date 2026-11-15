@@ -1,7 +1,7 @@
 /// Tests of the setting change behind an incident (Story 23.3; AD-3, AD-15, AD-32): OcuTalon.Watch.SettingCause over fixture rows of its own (a namespace and a production that exist
 /// nowhere else), with no other namespace. It runs on a slot or a throwaway alike.
 ///   - TestWindow (AC1): the window's rows are those of the production from 24 hours before the first failure to it, newest first; a row after the first failure, one 25 hours
-///     before and one before the oldest snapshot are not listed, and one exactly 24 hours before is;
+///     before and one before the oldest snapshot are not listed, and one exactly 24 hours before is, as is the change that the oldest snapshot recorded itself;
 ///   - TestPackSection (AC1, AC13): the pack lists at most 10 rows with settingChangesNote, a value over 500 characters is cut with its own note, a secret row has blank values and
 ///     credential true, a pack with no change gets neither key, and the pack names no user;
 ///   - TestRecordedSnapshot (AC1, AC8): a recorded snapshot's settingChanges go through the same time rule and the same cuts, against the pack's firstAt;
@@ -12,7 +12,8 @@
 ///   - TestPayload (AC10): the incident payload names the change and the gap in minutes, with blank values for a secret, and neither when the incident names none;
 ///   - TestNoFixCause (AC12): the incident.noFix notice of a setting_change incident has the structured setting cause when it names a change, and the model's string when not;
 ///   - TestNoNamespaceSwitch (AC5): neither fix kind nor this class contains a namespace switch, so that the only write is Fix.Executor InProduction's;
-///   - TestKinds (AC3): the setting kinds' names, parameters and resources.
+///   - TestKinds (AC3): the setting kinds' names, parameters and resources;
+///   - TestUndoNoRead (AC14): the undo of a done rollback in a production whose settings can't be read gives the kind's plain NOREAD reason, in its dry run and its re-check.
 Class OcuTalon.Test.Watch.SettingCause Extends %UnitTest.TestCase
 {
 
@@ -45,6 +46,8 @@ ClassMethod Drop()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingChange WHERE Namespace = ?", ..#NAMESPACE)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ?", ..#NAMESPACE)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FailureGroup WHERE IncidentRef = ?", ..#INCIDENT)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.FixRun WHERE IncidentRef = ?", ..#INCIDENT)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef = ?", ..#INCIDENT)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Incident WHERE Ref = ?", ..#INCIDENT)
 }
 
@@ -128,13 +131,15 @@ Method TestWindow()
 	Do $$$AssertEquals(rows.%Size(), 0, "another production's rows are never listed")
 	Do ##class(OcuTalon.Watch.SettingCause).Window(..#NAMESPACE, ..#PRODUCTION, "", .rows)
 	Do $$$AssertEquals(rows.%Size(), 0, "a first failure that is not a time gives none")
-	// a row detected before the oldest snapshot is never listed, nor one detected at the second it was taken; one a second after it is
+	// a row detected before the oldest snapshot is never listed; the one that the oldest snapshot recorded itself (detected at the second it was taken: the purge removed the
+	// snapshots before it) is, and so is one a second after it
+	Do ..Change("2026-11-10T10:59:59Z", "Fails", "BeforeOldest", "a", "b")
 	Do ..Change("2026-11-10T11:00:00Z", "Fails", "AtOldest", "a", "b")
 	Do ..Change("2026-11-10T11:00:01Z", "Fails", "AfterOldest", "a", "b")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ?", ..#NAMESPACE)
 	Do ..Snapshot("2026-11-10T11:00:00Z")
 	Do ##class(OcuTalon.Watch.SettingCause).Window(..#NAMESPACE, ..#PRODUCTION, ..#FIRSTAT, .rows)
-	Do $$$AssertEquals(..Names(rows), "AtFirst@11-10T12:00,Inside@11-10T11:59,AfterOldest@11-10T11:00", "with the oldest snapshot at 11:00:00, nothing detected before it or at its second is listed, and a row a second after it is")
+	Do $$$AssertEquals(..Names(rows), "AtFirst@11-10T12:00,Inside@11-10T11:59,AfterOldest@11-10T11:00,AtOldest@11-10T11:00", "with the oldest snapshot at 11:00:00, nothing detected before it is listed, and the change it recorded itself and a row a second after it are")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ?", ..#NAMESPACE)
 	Do ##class(OcuTalon.Watch.SettingCause).Window(..#NAMESPACE, ..#PRODUCTION, ..#FIRSTAT, .rows)
 	Do $$$AssertEquals(rows.%Size(), 0, "a production with no snapshot lists none")
@@ -316,6 +321,8 @@ Method TestRefusals()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ?", ..#NAMESPACE)
 	Do ..Snapshot("2026-11-10T11:45:00Z")
 	Do $$$AssertEquals(..Refused(incident, good), "That setting change is not from the 24 hours before the failures began", "a change from before the production's oldest snapshot is NOTINWINDOW")
+	Set recorded = ..Change("2026-11-10T11:45:00Z", "Fails", "Recorded", "old", "new")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind.RollbackSetting).Vetted(incident, {"change": (recorded)}, 1, .row), "", "the change that the oldest snapshot recorded itself is in the window")
 }
 
 /// AC12: a setting_change incident that names a change (SettingChangeRef) and has no fix gets the notice incident.noFix whose cause slot is the structured setting cause; one that
@@ -372,6 +379,7 @@ Method TestPayload()
 	Set secret = ..Change("2026-11-10T11:57:00Z", "Fails", "Secret", "", "", 1)
 	Set incident.SettingChangeRef = secret
 	Set change = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident).SettingChange
+	Do $$$AssertTrue($IsObject(change), "the payload names a secret change too")
 	If $IsObject(change) Do $$$AssertEquals(change.OldValue_"|"_change.NewValue_"|"_change.Credential, "||1", "a secret has blank values and credential true")
 	Set incident.SettingChangeRef = ""
 	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident)
@@ -423,6 +431,25 @@ Method TestKinds()
 	Do $$$AssertEquals($ListToString(##class(OcuTalon.Fix.Kind).DiagnosedFor("data_format_change")), "repair_resend", "and repair_resend only for a data_format_change")
 	Do $$$AssertEquals($ListToString(##class(OcuTalon.Fix.Kind).DiagnosedFor("connection_failure")), "", "and nothing for any other category")
 	Do $$$AssertEquals(##class(OcuTalon.Fix.Kind).AskedClosed(undo)_##class(OcuTalon.Fix.Kind).AskedClosed(rollback)_##class(OcuTalon.Fix.Kind).AskedClosed("OcuTalon.Fix.Kind.PartnerWarning")_##class(OcuTalon.Fix.Kind).AskedClosed(""), "1000", "only undo_rollback may be asked for on a closed incident")
+}
+
+/// AC14: the incident has a done rollback of the change, and its production's settings can't be read (the fixture namespace exists nowhere): the undo's dry run and its re-check
+/// give the kind's plain NOREAD reason, never a status text.
+Method TestUndoNoRead()
+{
+	Do ..Snapshot("2026-11-01T00:00:00Z")
+	Set good = ..Change("2026-11-10T11:30:00Z", "Fails", "Fine", "old", "new")
+	Set incident = ..Incident("Fails")
+	Set approval = ##class(OcuTalon.Test.Data.Fixture).Approval("zzowner", ..#INCIDENT, "done", , {"FixKind": "rollback_setting", "FixParameters": ({"change": (good)}.%ToJSON())})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(..#INCIDENT, approval, {"Completed": 1})
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Run).RolledBack(..#INCIDENT), good, "the incident has a done rollback of the change")
+	Set undo = "OcuTalon.Fix.Kind.UndoRollback"
+	Set noread = ##class(OcuTalon.Fix.Kind.RollbackSetting).#NOREAD
+	Do $$$AssertEquals(..Refused(incident, good, undo), noread, "the undo's dry run gives the plain NOREAD reason")
+	Set id = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(good).%Id()
+	Do $$$AssertStatusOK($ClassMethod(undo, "Recheck", incident, {"change": (good)}, id, .passed, .skipped), "the re-check runs")
+	Do $$$AssertEquals(passed_"|"_$Select($IsObject($Get(skipped)): skipped.%ToJSON(), 1: ""), "|"_[{"id": (+id), "reason": (noread)}].%ToJSON(), "and skips the change with the same reason")
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(approval_","_..#INCIDENT)
 }
 
 }
