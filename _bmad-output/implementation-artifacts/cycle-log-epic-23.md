@@ -474,3 +474,6 @@
 2026-11-15T22:39:56Z	Story 23.13	ruling	question=EmailOut_cannot_carry choice=option_(i)(23.13_edits_Out.cls;AD-14_amended;approved-address_rule;pins;2_NEW_lines_to_Planner_before_those_surfaces) category=veto(Planner_ruled) source=prompts/story-242-rulings-20261115.md#23.13_EmailOut policy=5086036
 2026-11-15T22:39:56Z	Story 23.13	spine_updated	ad=AD-14 reason=planner_ruling by=runner story=23-13 lint=placeholder_low_only
 2026-11-15T22:39:56Z	Story 23.13	stage_spawned	stage=plan spawn_at=2026-11-15T22:39:56Z model=opus effort=high agent_name=23-13-partner-contacts-plan-3 cycle_iteration=3
+2026-11-15T22:47:48Z	Story 23.4	ci_resolved	story=23.4(DW-1400_follow-up) sha=69d17499 runs=43768251126,43768251118 result=success failed=none via=none resolved_at=part_ready
+2026-11-15T22:56:01Z	Story 23.13	story_created	spawn_at=2026-11-15T22:41:00Z model=opus effort=high cycle_iteration=3 build_status=ready-for-dev note=re-plan_send_path(mail_method_on_Fix.Kind;Out.cls_via_Mailed;executor_branch;approved-address_rule;Test.Fix.PartnerMail)
+2026-11-15T22:56:01Z	Story 23.13	spec_validated	cycle_iteration=3 planner_gate=pending(PUBLIC_TEXT:incident.partnerRequestMailbox,result.partnerSkipped;D9_email_subject_partner.emailSubject_proposed;D6-D8,D10) model=claude-opus-5-5
