@@ -2,8 +2,8 @@
 title: 'A production that stopped is a fault to look into, not a choice to report'
 type: 'bugfix'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: 'b7340cbee558af05420d4d1a8bde2741c9921eb4'
+status: 'done'
+baseline_revision: 'cd2c143e47bcd4f5e60292d4a39f144d2068fd66'
 baseline_commit: 'b7340cbee558af05420d4d1a8bde2741c9921eb4'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -247,6 +247,7 @@ The evidence from 0.35 (release-evidence/ab-035/RESULT.md):
 ## Spec Change Log
 
 - 2026-11-15 (plan stage, lane C, local only, push freeze): planned from the epics block, DW-1273, 0.35's spec and A/B record, and the two Planner prompts. Status ready-for-dev. The A/B ship question goes to the gate as a choice of two options, with A recommended.
+- 2026-11-15 (implement stage, lane C, local only): Triage.cls lines 26-27 set to the Planner-approved text; the three new phrase pins and the 'switched off' absence pin added to TestTriage; mutations recorded in Verification. No intent, constraint or acceptance text changed.
 
 ## Spec gate rulings (Contest Planner, ~16:00Z Nov 15, BINDING)
 
@@ -284,8 +285,59 @@ Shared surfaces:
 - Triage's XData INSTRUCTIONS, read by Test.Agent.Instructions, TriageUserTurn, PersonaBlock, RenderMemory, test-triage-heartbeat.sh, the `{{` checks and the three guards.
 - The INSTRUCTIONS are the cached system prompt (AD-7). The new text adds about 65 words and stays static.
 
+**Implement stage results** (local, no model, no key; AC1 and AC5 diffs against the feature base `cd2c143e4`, which is HEAD):
+- AC1: `git diff --numstat cd2c143e4 -- src ':(exclude)src/**/Test/**'` prints only `2	2	src/ocutalon/cls/OcuTalon/Agent/Triage.cls`, and the `grep '^@@'` check prints only `@@ -26,2 +26,2 @@`. Triage.cls lines 26 and 27 equal the "New lines" text extracted from this spec (cmp, byte for byte); the old lines matched the "Old lines" before the edit.
+- AC2: `OcuTalon.Test.Agent.Instructions` passed on the lane-C warm stack (tag e037iw), as did `TriageUserTurn`, `PersonaBlock` and `RenderMemory` (AC4), one class per call. `test-triage-heartbeat.sh` PASS. The stack was torn down.
+- AC3: `EVAL_SET_ONLY="held-out-names main-set-texts held-out-texts" bash docker/tests/test-eval-set.sh` printed PASS for all three.
+- AC5: the name check printed nothing on the final tree. AC6 and AC7 are the Planner's A/B and CI after the freeze.
+
+Verified by the build-auto stage on the final tree: the whole `bash docker/tests/test-eval-set.sh` (all rules passed), `test-boundaries.sh`, `test-class-rules.sh` and `test-triage-heartbeat.sh` all pass; the fresh-environment check `ci/iris.sh shard lane-a@Agent` (tag e037if, 23 classes) passed forward and with `--reverse`, and every stack was torn down.
+
+mutation: AC1 (only lines 26-27 change in product code) - appended one character to Triage line 30: the numstat check printed `3	3` and a second hunk `@@ -30 +30 @@`; restored from the saved copy, cmp identical.
+mutation: AC2 line 26 (the setting phrase, the exclusion sentence and the absence of "switched off") - restored Triage line 26 to 0.35's text and ran `OcuTalon.Test.Agent.Instructions` on the warm stack (the reload shows `WARM reloaded 1`): red, FAIL TestTriage on 'a setting that someone changes on purpose', on 'It never includes a whole production that stopped running' and on the absence of 'switched off'; restored, cmp identical, class green again on the same stack.
+mutation: AC2 line 27 (the stopped-production act sentence) - restored Triage line 27 to 0.35's text: red, FAIL TestTriage on 'A whole production that stopped running is such a fault' only; restored, cmp identical, class green again on the same stack.
+mutation: AC3 main-set-texts - appended the first sentence of finding-orders-stopped's item text as a line inside Triage's INSTRUCTIONS: `EVAL_SET_ONLY="main-set-texts"` printed `src/ocutalon/cls/OcuTalon/Agent/Triage.cls: names a main-set item text in a prompt (main-set-texts)` and `FAIL main-set-texts`, never the text; restored, cmp identical.
+mutation: AC3 held-out-texts - appended the first sentence of mail-confirmations-stopped's item text inside INSTRUCTIONS: `EVAL_SET_ONLY="held-out-texts"` printed `names a held-out item text in a prompt (held-out-texts)` and `FAIL held-out-texts`; restored, cmp identical.
+mutation: AC3 held-out-names - put mail-confirmations-stopped's whole item text in a `///` comment line outside XData in Triage.cls: `EVAL_SET_ONLY="held-out-names"` printed `names a held-out case, subject line or item text (held-out-names)` and `FAIL held-out-names`; restored, cmp identical.
+mutation: AC4 (the neighbouring INSTRUCTIONS paragraphs stay intact) - changed one word of the heartbeat paragraph, Triage line 39 ("fine" to "all fine"): `bash docker/tests/test-triage-heartbeat.sh` printed `FAIL paragraph` (and the diff showed a second hunk `@@ -39 +39 @@`); restored from the saved copy, cmp identical, the script green again. The class pins of TriageUserTurn, PersonaBlock and RenderMemory keep their own mutants from Story 0.35 and Story 39.4.
+mutation: AC5 (no README, GUIDE, catalog, mock, eval or docker change) - appended a line to README.md: the name check printed `README.md`; restored, cmp identical.
+
+## Review Triage Log
+
+### 2026-11-15 - Review pass
+- verdicts: 15 findings - high 0, medium 0, low 14, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind Hunter 1 and Edge Case Hunter 6: Auto Run Result still reads `Status: ready-for-dev` - the section is rewritten at finalize with the final status; a spec-edit fix is also out of the triage scope.
+  - `[low]` `[reject]` Blind Hunter 2: the tellnow sentence is wordy with a comma splice - the text is Planner-approved word for word (gate ruling (a), AC1); rewording it is a text change that only the Planner can make.
+  - `[low]` `[reject]` Blind Hunter 3 and Edge Case Hunter 2: one part that is stopped but not disabled is in neither bullet - act's general definition (a fault happening now) covers it and no eval case or AC is about it; adding words changes approved text. The A/B measures the neighbouring cases.
+  - `[low]` `[reject]` Blind Hunter 3: the absence pin matches only the exact words "switched off" - the pin is as the spec states it and targets DW-1273's cause; a synonym guard would be speculative.
+  - `[low]` `[reject]` Blind Hunter 4 and Edge Case Hunter 1: a whole production stopped on purpose, or with a stated cause, goes to act - this is the intent itself ("a whole production that stopped running is a fault"; spec title and AC); the cause-free qualifier is part of the approved sentence.
+  - `[low]` `[reject]` Edge Case Hunter 3: a whole production disabled as a setting is not placed - "disabled" for a whole production is outside the approved text and the cases; the exclusion names only a production that stopped running.
+  - `[low]` `[reject]` Edge Case Hunter 4 and Verification Gap other 1: a case or synonym variant of "switched off" would pass the pin - same as above, speculative hardening beyond the spec's assertion.
+  - `[low]` `[reject]` Edge Case Hunter 5: the three phrases are pinned anywhere in the text, so a move or swap of them between bullets passes - a theoretical edit; the byte-diff of lines 26-27 (AC1) already holds the placement.
+  - `[low]` `[patch]` Verification Gap: AC4 has no `mutation:` line - closed by the build stage in the review pass: one word of the heartbeat paragraph (Triage line 39) was changed, `test-triage-heartbeat.sh` went `FAIL paragraph`, restored byte for byte (cmp), green again; the line is in `## Verification`.
+  - `[low]` `[reject]` Verification Gap other 2: the three positive pins check wording, not meaning - the model's meaning is the A/B's (AC6, Planner), and the guards cover copying.
+  - `[low]` `[reject]` Verification Gap other 3: AC1 and AC5 name `b7340cbee` as their base, which would list unrelated feature changes - the implement results record that the checks ran against `cd2c143e4` (HEAD), and `baseline_revision` is `cd2c143e47`; a spec-edit fix is out of scope.
+  - `[false]` `[reject]` Intent Alignment: the spec names two eval case ids in its mutation notes, which the held-out-names guard might flag - the whole `test-eval-set.sh` passed on the tree with those notes in place (all rules passed).
+  - `[low]` `[reject]` Intent Alignment: the pins are phrase checks on the prompt text, so they do not exercise the model's classification - the intent says the real-model score can't be measured in this lane and goes to the Planner's A/B (AC6).
+  - `[low]` `[reject]` Intent Alignment: the "switched off" absence pin shows only one cause is removed - the same as the synonym row above.
+  - `[low]` `[reject]` Intent Alignment: the new act sentence's reasons steer the model and whether they work is unmeasured - AC6, the Planner's A/B, measures it.
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none for implement (local only, push freeze). The merge condition depends on the gate's ruling on the A/B ship question: Option A (recommended) holds the merge for the Planner's key-holder A/B after the freeze; Option B merges on pins and CI with a post-merge check and an epics AC amendment.
-Note: plan stage only; nothing implemented, committed or pushed. The new instruction text (Veto item (a)) goes to the Planner verbatim.
+Status: done
+Blocking condition: none
+Note: Option A is in force (gate ruling): the key-holder A/B (AC6) is a merge condition run by the Contest Planner after the push; this branch stays held_merge until the Planner reports PASS. Nothing was pushed.
+
+**Summary:** Triage.cls lines 26 and 27 are now exactly the Planner-approved "New lines" (a disabled part is a setting someone changes on purpose, so tellnow; a whole production that stopped running is a fault, so act; "switched off" is gone). `TestTriage` pins the three new phrases and the absence of "switched off", beside the two 0.35 pins.
+
+**Files changed:**
+- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls`: lines 26-27 only.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`: the new phrase loop, the absence pin and two comment clauses.
+- This spec file: status, baseline, Verification results and mutation lines, the triage log.
+
+**Review:** four layers reported 15 findings: high 0, medium 0, low 14 (13 rejected, 1 patched), false 1. Patched: AC4's missing `mutation:` line (a heartbeat-paragraph mutant, red, reverted). Every rejected finding is in the triage log with its reason; none asks for a change that the approved text allows. Follow-up review recommended: false (no high patched).
+
+**Verification:** AC1 and AC5 diff checks as specified (base `cd2c143e4`); the whole `test-eval-set.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `test-triage-heartbeat.sh` pass; `Test.Agent.Instructions`, `TriageUserTurn`, `PersonaBlock` and `RenderMemory` pass on the lane-C warm stack; `ci/iris.sh shard lane-a@Agent` (23 classes) passes forward and in reverse on a fresh stack; all mutations went red and were reverted byte for byte. Matrix rows 1-4 describe the real model's choice, so only the Planner's A/B (AC6) can cover them; rows 5-7 are covered by the pins and the guard mutants. In-flight Lane A check: no remote branch changes Triage.cls lines 26-27 (the only branch that lists the file, `origin/OCT-epic11`, does so through one merge commit and has no net diff against feature).
+
+**Residual risks:** the real-model rates (AC6) and CI on the pushed head (AC7) are unmeasured here; the exclusion sentence could pull a "will stop later" warning toward `act` (bars (a) and (b)).
