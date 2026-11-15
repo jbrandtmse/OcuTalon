@@ -4220,3 +4220,6 @@
 2026-11-15T03:11:35Z	Epic 21	runner_ended	reason=waiting waiting_on=22.15_merge(21.9),22.11_merge(DW-1347) stack=none locks=released
 2026-11-15T03:11:54Z	Run	planner_notified	22.15_PART_READY,DW-1355_by_design(21.9_banner_note) awaiting=CI_HOLD_OFF
 2026-11-15T03:12:19Z	Epic 21	owner_decision	via=contest_planner 21.9_banner=skip_tools_whose_latest_status_is_refused(despite_changed:true);test=changed+refused_no_line,changed_not_refused_line ci_hold=stays_until_CI_HOLD_OFF(main_CI_green;PR_15_awaits_owner)
+2026-11-15T03:48:53Z	Run	ci_hold_partial_off	via=contest_planner 1.0.10=main_6cba7836,tag_v1.0.10_8006eef2 allowed=story_branch_work+pushes+CI+local_stacks held=feature_merges_until_CI_HOLD_OFF(after_merge-back)
+2026-11-15T03:49:15Z	Epic 22	runner_resumed	lane=D task=push_22.14(6ba4068d2,base_42e7b3ec)+branch_CI;22.11_parked_until_21.5_merged
+2026-11-15T03:49:15Z	Epic 21	runner_resumed	lane=C task=21.9_spec_gate+local_implement(off_OCT-epic22-s2215);push_after_22.15_merged
