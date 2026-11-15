@@ -4265,3 +4265,8 @@
 2026-11-15T07:36:07Z	Run	feature_merge_hold	via=contest_planner reds=6730eda7e(ci_43674521971:production_row21,shards-8_Telegram_park),afd4ff35a(ci_43681557936:shards-11_TestCopiesFailAgain) action=triage_before_any_merge
 2026-11-15T07:37:34Z	Run	ci_red_classified	6730eda7e:production_row21=DW-306,shards-8_telegram_park=DW-1083 afd4ff35a:shards-11_TestCopiesFailAgain=DW-494(no_Fix_file_in_21.5) evidence=d53500886_ci_green,2e6366b00_iris_all_green action=no_rerun(superseded),local_repro_pending planner_notified=interim
 2026-11-15T07:56:42Z	Run	local_repro	Test.Fix.Partial@afd4ff35a=pass(48.6s;method_2/2) @97e062daf=pass(48.6s;method_2/2) stacks=torn_down
+2026-11-15T08:08:04Z	Run	ci_green_verified	head=2e6366b00(26.2+22.14+21.5+22.11) runs=43690296919,43690296910 note=all_merged_code_but_22.15_fully_green
+2026-11-15T08:19:41Z	Run	ci_red_classified	head=97e062daf run=43690544372 job=shards-6 Test.Web.GuideApi:TestOnlyTheMarkerChanges class=flake(DW-349,watch.progress_events_between_fingerprints) action=rerun_failed_after_run_completes
+2026-11-15T08:31:55Z	Run	ci_rerun	run=43690544372 attempt=2 failed_only(shards-6,DW-349) lane-a_43690544341=success
+2026-11-15T08:53:58Z	Epic 21	runner_reported	PART_READY story=21.9 head=6d44d4750 runs=43692114733,43692114775 base=97e062daf merge=held(feature_merge_hold) gates=DW-1347(706466a80,a-d),21.11(b67be9277,V1-V8) relayed=contest_planner
+2026-11-15T08:53:58Z	Epic 21	runner_ended	reason=clarification waiting_on=DW-1347+21.11_rulings
