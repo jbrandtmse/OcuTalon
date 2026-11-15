@@ -4403,3 +4403,4 @@
 2026-11-15T21:42:51Z	Epic 23	owner_decision	via=contest_planner 23.8=PARKED(option_B;owner_decision_with_scope_trim;C_refused) 24.5=waits_with_23.8 DW-1400=new_On_call_line_verbatim(pin;24.3_replaces)
 2026-11-15T22:32:17Z	Epic 23	runner_reported	DW-1400_pushed=69d17499b(runs_43768251126,43768251118) 23.8=parked(U-329) PLANNER_REPORT 23.13_gate(16853dcc3;TABLE=1,kept-draft,ids-in-trace;4_texts;AD-16_bullet) DW-1409=accepted_LOW relayed=contest_planner
 2026-11-15T22:32:40Z	Epic 23	owner_decision	via=contest_planner 23.13=APPROVED(veto2_changed:SEND_via_EmailOut_when_mailbox_connected,else_kept_draft;STOP_if_EmailOut_cannot;conditional_texts;vetoes_1,3,4;deviations_1-5;AD-16_with_sent-or-kept)
+2026-11-15T22:39:04Z	Epic 23	runner_reported	BLOCKED story=23.13 reason=EmailOut_FIXKIND=email_only(Out.cls:74,:414,:446,:514;Executor:286-289,:345;AD-14) options=i_cross-lane_in_23.13(recommended)/ii_laneB_story_first relayed=contest_planner
