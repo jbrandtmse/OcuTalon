@@ -4381,3 +4381,5 @@
 2026-11-15T19:42:30Z	Epic 23	owner_decision	via=contest_planner 23.4_on-call.spec_extension=accepted DW-1396=option_a(page_only_shared_watched;follow-up_before_1.0.12) 23.8=APPROVED(Task0_extended:a_service_only,b_no_other_resources,c_no_new_dependency,d_password_grep;untrusted_results;D1-D3;contention_granted;text_verbatim) file=prompts/story-238-rulings-20261115.md
 2026-11-15T19:44:21Z	Epic 21	ci_green_verified	story=DW-1388 head=85d831493 runs=43750643461,43750643425(att1) note=report_not_received;verified_by_gate
 2026-11-15T19:44:21Z	Epic 21	merge_enqueued	story=DW-1388(HIGH)
+2026-11-15T19:46:11Z	Epic 21	merged	story=DW-1388 merge=3242f9657
+2026-11-15T19:46:21Z	Epic 24	runner_reported	PLANNER_REPORT story=24.4 head=bb9fe0b5(local) gaps=evidence_setting-change_rows,closed-card_undo vetoes=V1_5_strings,V2_closed_card_undo,V3_web/scripts_tests relayed=contest_planner
