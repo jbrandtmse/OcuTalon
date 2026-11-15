@@ -4296,3 +4296,5 @@
 2026-11-15T12:30:49Z	Epic 21	ci_green_verified	head=30d487a32
 2026-11-15T12:30:49Z	Epic 21	amendments_verified	AD-6+AD-18B(spine);AD-31_unchanged(DW-1372_confirmed)
 2026-11-15T12:30:49Z	Epic 21	merge_enqueued	story=DW-1347 (1.0.11 required)
+2026-11-15T12:37:35Z	Epic 21	merged	story=DW-1347 merge=999138505 pins=pass
+2026-11-15T12:37:48Z	Epic 21	runner_resumed	lane=C task=DW-1371(test_only,1.0.12) branch=OCT-epic21-dw1371_from_999138505 next=23.2_suspend_DW_after_23.3_merges
