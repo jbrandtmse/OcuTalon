@@ -4250,3 +4250,7 @@
 2026-11-15T07:25:07Z	Epic 21	runner_reported	LOCAL_READY story=21.9 head=05a829efb(OCT-epic21-s219,unpushed) base=22.15_0a2d53d2b+feature_afd4ff35a refused_ruling=tested(node,B14,TestListChanged,mutations_red) DW-1356=wontfix-accepted bundle=888.40kB push=after_22.15_merged
 2026-11-15T07:25:07Z	Epic 21	runner_ended	reason=waiting waiting_on=22.15_merge
 2026-11-15T07:25:27Z	Epic 21	runner_resumed	lane=C task=21.11_spec_gate+local_cycle(OCT-epic21-s2111_from_afd4ff35a);21.9_push_on_22.15_merge
+2026-11-15T07:28:43Z	Epic 22	runner_reported	PART_READY story=22.11 head=4764fc56 runs=43682133231,43682133247 task0=silent_median+12.7s->option_a(one_in_flight)->5.7s,0_missed allowance=interval+max(180s,120s*n) PLANNER_REPORT=22.12_texts(P1a,P1b,P2,veto_remove_22.6_guard)
+2026-11-15T07:28:43Z	Epic 22	ci_green_verified	head=4764fc56 base=afd4ff35a
+2026-11-15T07:28:43Z	Epic 22	amendments_verified	DW-1346_option1_applied Task0_option_a(pre-ruled)
+2026-11-15T07:28:43Z	Epic 22	merge_enqueued	story=22.11 head=4764fc56
