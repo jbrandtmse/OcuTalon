@@ -29,6 +29,7 @@ import type {
   MessagePost,
   ModelTestAnswer,
   PairingCode,
+  PartnerContactBody,
   PublicStatus,
   RoleSaved,
   RolesList,
@@ -71,6 +72,15 @@ export class ApiClient {
    */
   saveSettings(section: string, values: object): Observable<SettingsSaved> {
     return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
+  }
+
+  /**
+   * Saves or removes one partner contact (Story 24.2): a POST of the contact's body to the Partner contacts route, which hands it to the server through a
+   * handoff, so that no name or address is in a command. The answer is {result: 'done', sections}; a 400 `bad_settings` (with `fields`: name, email, productions),
+   * a 403, a 409 `not_available` (the online demo) and a 500 fail as an HttpErrorResponse whose `error` is the body (SettingsError).
+   */
+  savePartnerContact(body: PartnerContactBody): Observable<SettingsSaved> {
+    return this.http.post<SettingsSaved>(`${BASE}/settings/partner-contacts`, body);
   }
 
   /**

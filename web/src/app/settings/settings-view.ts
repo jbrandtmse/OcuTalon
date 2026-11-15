@@ -7,7 +7,9 @@
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the ten sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
+ * - SETTINGS_SECTIONS is the eleven sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo),
+ *   and Partner contacts out while it sends no `partner-contacts` values (the online demo, or OcuTalon.Fix.PartnerContacts has no TABLE = 1): VALUE_SECTIONS are those two, and
+ *   listedSections and openedSlug are the rules of the navigation and of the address for them.
  *   The ninth, Tools and MCP servers (Story 21.4), is mcp-view.ts. Roles (Story 25.4) is last and shows only while the snapshot's `rolesAssignable` is true, so
  *   shownSections(rolesShown) leaves it out otherwise.
  * - sectionSlug turns an address part into a section's slug: an unknown, missing or hidden one opens Models.
@@ -24,6 +26,7 @@
  *   the choices of the Model and Second model selects, modelsFormOf builds the form from the server's values, modelsBody is the body of a save,
  *   isModelsDirty the rule of its form, and testResultText the line under a Test button. The Budgets section: budgetsBody and isBudgetsDirty.
  * - The On call section (Story 36.4): its fixed strings are SETTINGS_TEXTS.onCall, and its rules are on-call-view.ts.
+ * - The Partner contacts section (Story 24.2): its fixed strings are SETTINGS_TEXTS.partners (and onCall.badEmail), and its rules are partner-view.ts.
  * - refusalKind (DW-948) is the one classifier of a refused or failed save, which every section that saves or sends uses through refusal.ts.
  */
 import { pageOf, SHELL_TEXTS, settingsMatch } from '../shared/page-shell-view.ts';
@@ -42,6 +45,7 @@ export const SETTINGS_TEXTS = {
     timeZone: 'Time zone',
     checkThresholds: 'Check thresholds',
     onCall: 'On call',
+    partners: 'Partner contacts',
     demoMode: 'Demo mode',
     mcp: 'Tools and MCP servers',
     roles: 'Roles',
@@ -115,6 +119,18 @@ export const SETTINGS_TEXTS = {
     unknownUser: "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed.",
     offOnDemo: "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.",
   },
+  partners: {
+    help: 'Partner warnings go only to the people listed here, and only after you approve each one.',
+    name: 'Name',
+    email: 'Email address',
+    productions: 'Productions it concerns',
+    add: 'Add contact',
+    remove: 'Remove',
+    removeConfirm: 'Remove {name}? Partner warnings will stop going to {address}.',
+    badName: 'Enter a name of 1 to 128 characters. Nothing was changed.',
+    noProduction: 'Choose at least one production. Nothing was changed.',
+    offOnDemo: 'Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install.',
+  },
   models: {
     agents: { TriageAgent: 'Triage agent', DiagnosisAgent: 'Diagnosis agent', ChatAgent: 'Chat agent' },
     provider: 'Provider',
@@ -155,7 +171,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The ten sections in the UX's order (On call after Check thresholds, so that Demo mode stays before Tools and MCP servers); Roles is last and is shown only through shownSections(true). */
+/** The eleven sections in the UX's order (On call after Check thresholds, then Partner contacts, so that Demo mode stays before Tools and MCP servers); Roles is last and is shown only through shownSections(true). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -164,10 +180,24 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'time-zone', label: SETTINGS_TEXTS.sections.timeZone },
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
   { slug: 'on-call', label: SETTINGS_TEXTS.sections.onCall },
+  { slug: 'partner-contacts', label: SETTINGS_TEXTS.sections.partners },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
   { slug: 'mcp', label: SETTINGS_TEXTS.sections.mcp },
   { slug: 'roles', label: SETTINGS_TEXTS.sections.roles },
 ];
+
+/** The sections that exist only while the server sends their values in GET /v1/settings: On call (not on the online demo) and Partner contacts (not on the online demo, and only while OcuTalon.Fix.PartnerContacts has TABLE = 1). */
+export const VALUE_SECTIONS: readonly string[] = ['on-call', 'partner-contacts'];
+
+/** The sections the navigation lists: shownSections, less each of VALUE_SECTIONS whose values the server did not send (`sent` holds the slugs it sent). */
+export function listedSections(rolesShown: boolean, sent: ReadonlySet<string>): readonly SettingsSection[] {
+  return shownSections(rolesShown).filter((section) => !VALUE_SECTIONS.includes(section.slug) || sent.has(section.slug));
+}
+
+/** The slug that opens for the requested one: Models (the first) once the page has loaded and the requested section is one of VALUE_SECTIONS that the server did not send. */
+export function openedSlug(requested: string, loaded: boolean, sent: ReadonlySet<string>): string {
+  return loaded && VALUE_SECTIONS.includes(requested) && !sent.has(requested) ? SETTINGS_SECTIONS[0].slug : requested;
+}
 
 /** The slug of the section that exists only while roles can be assigned. */
 export const ROLES_SLUG = 'roles';
