@@ -451,3 +451,5 @@
 2026-11-15T15:56:26Z	DW-1371	ci_resolved	sha=5b52467ec result=success runs=43719358269(attempt2_after_DW-1381_flake),43719358288
 2026-11-15T15:56:26Z	DW-1371	part_ready	parts=DW-1371 code_head=5b52467ec ci=success records=local
 2026-11-15T17:19:30Z	DW-1205	stage_spawned	stage=investigate spawn_at=2026-11-15T17:19:30Z model=opus effort=high agent_name=dw-1205-investigate-1 branch=OCT-epic21-dw1205 base=b337f61d9 scope=investigation_only(with_DW-494;no_Fix/*_or_FixExecutor_edits_until_23.3_merges) ruling=Planner_~17:20Z+orchestrator_investigation_only
+2026-11-15T18:03:55Z	DW-1205	investigated	with=DW-494 cause=shared_product_race(Ens_Completed_before_Error;Executor.Tally_counts_Completed) repro=probe_7/300_unloaded,14/300_loaded;test-level_0/75 fix=one_product_change(Watch/Reader_inFlight+Executor_Read/Tally) touches=Fix/Executor.cls(after_23.3) second_Reroute_red=not_found ledger=DW-1205,DW-494(+occurrence_43156190518)
+2026-11-15T18:03:55Z	DW-1391	stage_spawned	stage=investigate(read-only,no_stack) spawn_at=2026-11-15T18:03:55Z model=opus effort=high agent_name=dw-1391-investigate-1 branch=OCT-epic21-dw1205
