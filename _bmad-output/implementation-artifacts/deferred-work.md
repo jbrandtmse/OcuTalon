@@ -8176,3 +8176,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: a static scan cannot follow ..M() chains, calls on objects, $ClassMethod with variable names, indirection or Xecute; DW-1278's own case was a callee read
 - 2026-11-14T17:40:27Z status=decision-pending owner=36-8-epic-36-burn-down-the-ad-13-lint-flags-direct-global-reads-o by=runner note=veto V1 for the Planner: a follow-on story extending the rule to callees needs a ruling on which Ownership accessors count as allowed (an AD-13 wording question); V2: AD-13's sentence naming DW-1287 is stale after 36.8 merges
 - 2026-11-14T18:22:15Z status=routed owner=burndown by=merge_gate note=Planner ruling ~18:30Z Nov 14 (V1): low burndown DW for after the contest
+
+### DW-1354: flake: Test.Mcp.SourceSet:TestUpdate 'CreatedAt and the run fields are kept' failed in CI on a head that changed only web rail TypeScript
+- source: ci run 43651790835 (OCT-epic21 1ecb7150d, iris shards-2, shard:lane-a@rest) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls
+- evidence: the parent 19de55b83 (same ObjectScript) was green; one rerun (attempt 2) green; likely a second-boundary timing assumption
+- 2026-11-15T00:53:10Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun, occurrence 1

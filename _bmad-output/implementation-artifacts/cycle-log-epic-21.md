@@ -360,3 +360,8 @@
 2026-11-14T17:55:58Z	Story 21.10	ci_red	sha=07928c52f run=43618045215 job=checks test=test-mcp-notices.sh:keys class=story(21.10_put_toolCall.request/inputsTooLong_rows_in_EXPERIENCE_MCP_notices_block_pinned_to_6_Watch_keys) lane-a=43618045286_success action=[CI]_rework_1_lead(move_2_rows_to_Settings_and_requests_(step_4)) checks=mcp-notices,test-readme,ux-strings_pass
 2026-11-14T23:11:08Z	Story 22.15	story_created	by=lead(Contest_Planner_~22:40Z) branch=OCT-epic22-s2215 base=a6821f1d4 lane_A_exception=V1(changed_member,ClearRow/ClearChanged,Classify/ClassifyTool,tests)
 2026-11-14T23:11:08Z	Story 22.15	stage_spawned	stage=implement spawn_at=2026-11-14T23:11:08Z model=sonnet effort=high agent_name=22-15-implement-1 cycle_iteration=1
+2026-11-14T23:43:42Z	Story 21.5	ci_red	sha=1ecb7150d run=43651790835 job=iris(shards-2)/shard:lane-a@rest test=Test.Mcp.SourceSet:TestUpdate(CreatedAt_and_run_fields_kept) class=flake(diff_is_rail_TS_only;19de55b83_green) action=rerun_failed_once ledger=pending(file_on_OCT-epic21)
+2026-11-15T00:53:10Z	Story 21.5	ci_resolved	sha=1ecb7150d result=success runs=43651790835(attempt2),43651790939 flake=DW-1354
+2026-11-15T00:53:10Z	Story 21.5	part_ready	parts=21.5 code_head=1ecb7150d ci=success note=DW-1351_fix_included
+2026-11-15T00:53:10Z	Story 22.15	dev_complete	build_sha=e61e0e837 branch=OCT-epic22-s2215 base=a6821f1d4 review=13(high0,med0,low11:4_patched,false2) followup=false checks=8_classes_warm,fresh_Ops/Tools,test-storage,class-rules,boundaries_pass lint_10_low next=QA,CR,push
+2026-11-15T00:53:10Z	Epic 21	parked	reason=RELEASE_QUIET_WINDOW(~00:50Z) stacks=none
