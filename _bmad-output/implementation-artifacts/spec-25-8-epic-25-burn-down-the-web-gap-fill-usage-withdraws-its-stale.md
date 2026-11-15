@@ -160,7 +160,7 @@ deferred: []
 
 **Runtime:** Lane A throwaways only. Prefix every `ci/iris.sh` call with:
 
-`OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_RUN_TAG=e25s8<x> OCUTALON_LOCK_OWNER='epic=25 stage=<stage>'`
+`OCUTALON_LOCK_DIR=<the lane-a lock folder under .worktrees/.coordination/locks> OCUTALON_TEST_WEB_PORT=52801 OCUTALON_RUN_TAG=e25s8<x> OCUTALON_LOCK_OWNER='epic=25 stage=<stage>'`
 
 Use one tag per stage (for example `e25s8i`, `e25s8q`, `e25s8r`) and end with `ci/iris.sh teardown`. Each call runs in the foreground with `timeout: 600000`. After any web change, run `ci/iris.sh build` once before the browser units (Rule 21). No slot and no MCP target is needed.
 
