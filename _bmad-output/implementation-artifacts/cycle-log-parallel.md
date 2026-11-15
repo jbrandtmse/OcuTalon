@@ -4280,3 +4280,4 @@
 2026-11-15T09:39:12Z	Run	owner_decision	via=contest_planner 1.0.11_required=26.2,22.14,21.5,22.11,22.15,21.9(in)+DW-1347,21.11,22.12,GUIDE_T7 optional=25.6(if_PART_READY),23.3(only_if_merged_in_time) priority=laneC_DW-1347,laneD_22.12
 2026-11-15T09:39:12Z	Run	lane_exception	21.11->lane_D(worktree_epic-21-s2111,after_22.12_push) reason=no_shared_code_files_with_DW-1347(AD-31_spine_additive_under_lock) GUIDE_T7->lane_B(OCT-epic23-guide-t7,at_23.3_pause) planner_notified=ETAs(feature_green_all_required~16:45Z)
 2026-11-15T09:40:07Z	Run	ci_green_verified	head=6d50bac12(21.9_merged) runs=43697126331,43697126346 tip=20b60564f(records_only;iris_jobs_skipped_by_What_changed)
+2026-11-15T09:41:53Z	Run	owner_decision	via=contest_planner 1.0.11_protocol: signal="1.0.11 REQUIRED GREEN <sha>"(+25.6/23.3_status,run_ids) then_records-only_until_RELEASE_CUT_DONE QUIET_ON/OFF_during_upgrade_harness laneD_21.11_exception=approved
