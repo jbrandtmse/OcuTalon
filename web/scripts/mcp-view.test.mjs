@@ -13,17 +13,25 @@ const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)
 const { SETTINGS_TEXTS, shownSections } = await import(app('settings', 'settings-view.ts'));
 const {
   addBody,
+  canBeSource,
   changedTools,
   CLASSIFICATION_OPTIONS,
   classificationName,
+  DEFAULT_INTERVAL,
+  INTERVAL_CHOICES,
   MCP_TEXTS,
   mcpOutcome,
   removeName,
   removeQuestion,
+  removeSourceName,
+  sourceBody,
+  sourceName,
+  sourceOutcome,
   statusText,
   toolChangedText,
   toolKey,
   toolStatusText,
+  toolText,
   visibleTools,
   withClassification,
   withoutChange,
@@ -64,7 +72,7 @@ describe('the section\'s fixed strings', () => {
     assert.equal(MCP_TEXTS.statusHelp, "A new server's tools show here once OcuTalon next uses its agents. They count as risky until you classify them.");
     assert.deepEqual(Object.values(MCP_TEXTS.form).slice(0, 3), ['Name', 'Address', 'Secret (optional)']);
     assert.equal(MCP_TEXTS.form.secretHelp, 'Sent to the server with every request. It is kept in the IRIS Wallet and never shown again.');
-    assert.deepEqual(Object.values(MCP_TEXTS.toolColumns), ['Tool', 'Server', 'Status', 'Classification']);
+    assert.deepEqual(Object.values(MCP_TEXTS.toolColumns), ['Tool', 'Server', 'Status', 'Classification', 'Source']);
     assert.deepEqual(Object.values(MCP_TEXTS.toolStatus), ['Available', 'Unavailable', 'Refused: a built-in tool has this name']);
     assert.equal(MCP_TEXTS.noTools, 'No tools yet.');
     assert.equal(MCP_TEXTS.noUnclassified, 'No unclassified tools.');
@@ -217,6 +225,7 @@ describe('withClassification', () => {
       { server: 'a', name: 'two', classification: 'unclassified', status: 'available' },
       { server: 'b', name: 'one', classification: 'unclassified', status: 'available' },
     ],
+    sources: [{ ref: 'r1', name: 'Jira', server: 'a', tool: 'one', intervalMinutes: 15 }],
   };
 
   it('changes one tool of one server and works out that server\'s unclassified count again', () => {
@@ -226,9 +235,76 @@ describe('withClassification', () => {
     assert.equal(settings.tools[0].classification, 'unclassified', 'the settings it was given are not changed');
   });
 
+  it('keeps the sources (Story 21.5)', () => {
+    assert.deepEqual(withClassification(settings, 'a', 'one', 'read-only').sources, settings.sources);
+  });
+
   it('puts the old value back', () => {
     const there = withClassification(settings, 'a', 'one', 'risky');
     assert.deepEqual(withClassification(there, 'a', 'one', 'unclassified'), settings);
+  });
+});
+
+describe('source polls (Story 21.5)', () => {
+  it('has the accepted settings.source* texts of the Message Catalog, word for word', () => {
+    assert.equal(MCP_TEXTS.sourceHeading, catalogText('settings.sourceHeading'));
+    assert.equal(MCP_TEXTS.sourceHelp, catalogText('settings.sourceHelp'));
+    assert.equal(MCP_TEXTS.sourceName, catalogText('settings.sourceName'));
+    assert.equal(MCP_TEXTS.sourceArguments, catalogText('settings.sourceArguments'));
+    assert.equal(MCP_TEXTS.sourceInterval, catalogText('settings.sourceInterval'));
+    assert.equal(MCP_TEXTS.sourceNotReadOnly, catalogText('settings.sourceNotReadOnly'));
+  });
+
+  it('has the ruled texts T1 to T6', () => {
+    assert.equal(MCP_TEXTS.sources, 'Your sources');
+    assert.deepEqual(MCP_TEXTS.sourceColumns, { source: 'Source', tool: 'Tool', interval: 'Check every' });
+    assert.equal(MCP_TEXTS.toolColumns.source, 'Source');
+    assert.equal(MCP_TEXTS.noSources, 'No sources yet.');
+    assert.equal(toolText('zz_lookup', 'zzS'), 'zz_lookup on zzS');
+    assert.equal(sourceName('zz_lookup', 'zzS'), 'Use zz_lookup on zzS as a source');
+    assert.equal(removeSourceName({ ref: 'r', name: 'Jira', server: 'zzS', tool: 't', intervalMinutes: 15 }), 'Remove the source Jira');
+    assert.equal(toolText('$&', '$1'), '$& on $1', 'a name is put in as it is');
+  });
+
+  it('offers the six intervals in the words of T4, and starts on 15 minutes', () => {
+    assert.deepEqual(INTERVAL_CHOICES, [
+      { value: 5, label: '5 minutes' },
+      { value: 15, label: '15 minutes' },
+      { value: 30, label: '30 minutes' },
+      { value: 60, label: '1 hour' },
+      { value: 360, label: '6 hours' },
+      { value: 1440, label: '1 day' },
+    ]);
+    assert.equal(DEFAULT_INTERVAL, 15);
+  });
+
+  it('lets only a Read-only tool that is not refused be a source', () => {
+    for (const status of ['available', 'unavailable']) {
+      assert.equal(canBeSource({ classification: 'read-only', status }), true, `read-only, ${status}`);
+      assert.equal(canBeSource({ classification: 'unclassified', status }), false, `unclassified, ${status}`);
+      assert.equal(canBeSource({ classification: 'risky', status }), false, `risky, ${status}`);
+    }
+    assert.equal(canBeSource({ classification: 'read-only', status: 'refused' }), false, 'a refused tool');
+  });
+
+  it('builds the body of a save with exactly five members, the name and the arguments trimmed and the interval a number', () => {
+    const body = sourceBody('zzS', 'zz_lookup', '  Jira ', ' {"q":"mine"}\n', 15);
+    assert.deepEqual(body, { server: 'zzS', tool: 'zz_lookup', name: 'Jira', arguments: '{"q":"mine"}', intervalMinutes: 15 });
+    assert.equal(typeof body.intervalMinutes, 'number');
+    assert.equal(sourceBody('s', 't', 'n', '', 5).arguments, '');
+  });
+
+  it('classifies a refused source: bad_source with fields names them, and everything else is mcpOutcome\'s', () => {
+    const fields = { tool: 'T', name: 'N', arguments: 'A', intervalMinutes: 'I' };
+    assert.deepEqual(sourceOutcome(400, { error: { code: 'bad_source', message: 'm' }, fields }), { kind: 'fields', ...fields });
+    assert.deepEqual(sourceOutcome(400, { error: { code: 'bad_source' }, fields: { arguments: 'A' } }), { kind: 'fields', tool: '', name: '', arguments: 'A', intervalMinutes: '' });
+    assert.deepEqual(sourceOutcome(400, { error: { code: 'bad_source', message: 'Couldn\'t save.' }, fields: {} }), { kind: 'form', message: 'Couldn\'t save.' });
+    assert.deepEqual(sourceOutcome(403, {}), { kind: 'denied' });
+    assert.deepEqual(sourceOutcome(409, { error: { code: 'not_available' } }), { kind: 'off' });
+    assert.deepEqual(sourceOutcome(500, { error: { code: 'server_error', message: 'Couldn\'t save.' } }), { kind: 'form', message: 'Couldn\'t save.' });
+    assert.deepEqual(sourceOutcome(404, { error: { code: 'not_found', message: 'gone' } }), { kind: 'form', message: 'gone' });
+    assert.deepEqual(sourceOutcome(400, { error: { code: 'bad_mcp_server' }, fields: { name: 'x' } }), { kind: 'form', message: '' }, 'an add\'s fields are not a source\'s');
+    assert.deepEqual(sourceOutcome(0, null), { kind: 'form', message: '' });
   });
 });
 
@@ -283,11 +359,13 @@ describe('withoutChange (Story 21.9)', () => {
       { server: 'a', name: 'two', classification: 'unclassified', status: 'available', changed: true },
       { server: 'b', name: 'one', classification: 'unclassified', status: 'available', changed: true },
     ],
+    sources: [{ ref: 'r', name: 'Jira', server: 'a', tool: 'one', intervalMinutes: 15 }],
     extra: 'kept',
   };
 
   it('changes only the named row of the named server and keeps every other member', () => {
     const next = withoutChange(settings, 'a', 'one');
+    assert.equal(next.sources, settings.sources, 'the sources stay as they were (Story 21.5)');
     assert.deepEqual(next.tools.map((tool) => tool.changed), [false, true, true]);
     assert.equal(next.extra, 'kept');
     assert.equal(next.servers, settings.servers);

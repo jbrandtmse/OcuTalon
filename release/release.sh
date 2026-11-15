@@ -759,7 +759,9 @@ ipm_pack() {
     || ipm_pack_fail install "the throwaway instance could not be started"
   waited=${OCUTALON_RELEASE_IPM_WAIT:-300}
   deadline=$((SECONDS + waited))
-  until docker exec "$IPM_C" iris qlist < /dev/null 2> /dev/null | grep -q '\^running'; do
+  # "running, since <date>" only: just after the start, qlist briefly says "running on node ? (iris.ids missing)" while the
+  # instance is still starting (sign-on inhibited), and a session then fails with "Instance is not running".
+  until docker exec "$IPM_C" iris qlist < /dev/null 2> /dev/null | grep -q '\^running, since '; do
     [ "$SECONDS" -lt "$deadline" ] || ipm_pack_fail install "the throwaway instance was not running after $waited s"
     sleep 2
   done

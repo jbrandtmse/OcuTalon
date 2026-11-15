@@ -4,6 +4,9 @@
 ///   - TestList: the matrix row "List": the servers in the order of their names with their address, status, tool count, unclassified count and pending count, and the tools
 ///     array; a server that never attached has an empty status and no tools, a server whose entry is missing has an empty address, and no secret, no secret:// reference and
 ///     no fingerprint is in the answer;
+///   - TestListSources (Story 21.5): "sources" holds only the command's own session's source rows, sorted by name, each as {ref, name, server, tool, intervalMinutes} with no arguments; a
+///     production row of the session and a source row of another session are left out, and a command with no session lists none;
+///   - TestListSourcesReadFails (QA, Story 21.5): a failed read of the session's source rows answers failed with the accepted text and no data;
 ///   - TestListChanged (Story 21.9): each tool row carries `changed`, a JSON boolean passed through from Mcp.Ops Tools for every status: a classified tool that Lane A's real
 ///     ClearChanged cleared is true (and sent each admin session one mcp.toolChanged notice), so is one cleared and then refused (the page skips it), a new and a risky tool are
 ///     false, and a classification save through the real handler makes it false again;
@@ -46,6 +49,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ..Clean()
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Do $$$AssertEquals(..Leftovers(), "", "the test leaves no row, tool row, entry or approval row behind")
 	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe, ^||ZzOps
 	Quit $$$OK
@@ -72,6 +76,7 @@ Method TestList()
 	Do $$$AssertEquals(one.%Size(), 6, "with only name, address, status, tools, unclassified and pending")
 	Set two = servers.%Get(1)
 	Do $$$AssertEquals(two.status_"|"_two.address_"|"_two.tools_"|"_two.unclassified_"|"_two.pending, "||0|0|0", "the server that never attached, with no entry: no status, no address, no tools")
+	Do $$$AssertEquals(data.%GetTypeOf("sources"), "array", "the answer has a sources array")
 	Set tools = ..Mine(data.tools)
 	Do $$$AssertEquals(tools.%Size(), 3, "the tools array holds the attached server's three tools")
 	Set text = ""
@@ -91,6 +96,55 @@ Method TestList()
 	Do $$$AssertEquals(+(json [ "secret://"), 0, "the answer holds no secret:// reference")
 	Do $$$AssertEquals(+(json [ "ingerprint"), 0, "and no fingerprint")
 	Do $$$AssertEquals(+(json [ "zzfp"), 0, "(the fixture fingerprint is not in it)")
+}
+
+/// mutation: the Kind filter removed from SourceRows -> the production row is listed (red); "arguments" added to a row -> the member count is red.
+Method TestListSources()
+{
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session("zzsrc"_..Number_"a")
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Session("zzsrc"_..Number_"b")
+	Set arguments = "{""q"":""secret-looking""}"
+	Set fields = {"Kind": "source", "Server": "zzmcplx", "Tool": "zz_lookup", "Arguments": (arguments), "IntervalMinutes": 15, "DisplayName": "Zulu"}
+	Set zulu = ##class(OcuTalon.Test.Data.Fixture).Check(mine, , , fields)
+	Do fields.%Set("DisplayName", "alpha")
+	Do fields.%Set("IntervalMinutes", 1440)
+	Set alpha = ##class(OcuTalon.Test.Data.Fixture).Check(mine, , , fields)
+	Do fields.%Set("DisplayName", "Mike")
+	Set mike = ##class(OcuTalon.Test.Data.Fixture).Check(mine, , , fields)
+	Set production = ##class(OcuTalon.Test.Data.Fixture).Check(mine)
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Check(other, , , {"Kind": "source", "Server": "zzmcplx", "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 30, "DisplayName": "Foreign"})
+	Set result = ..List(mine)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|listed", "the list is answered listed")
+	Set sources = {}.%FromJSON(result.Data).sources
+	Do $$$AssertEquals(sources.%Size(), 3, "the session's three source rows are listed: not its production row, not another session's row")
+	Set text = ""
+	Set iterator = sources.%GetIterator()
+	While iterator.%GetNext(, .item) {
+		Set text = text_$ListBuild(item.ref_"|"_item.name_"|"_item.server_"|"_item.tool_"|"_item.intervalMinutes_"|"_item.%Size())
+	}
+	Do $$$AssertEquals($ListToString(text, ";"), alpha_"|alpha|zzmcplx|zz_lookup|1440|5;"_mike_"|Mike|zzmcplx|zz_lookup|1440|5;"_zulu_"|Zulu|zzmcplx|zz_lookup|15|5", "sorted by name, each with only ref, name, server, tool and intervalMinutes")
+	Do $$$AssertEquals(+(result.Data [ "secret-looking"), 0, "and no arguments")
+	Do $$$AssertEquals(+(result.Data [ foreign)+(result.Data [ production), 0, "the other session's row and the production row are not in the answer")
+	Do $$$AssertEquals({}.%FromJSON(..List(other).Data).sources.%Size(), 1, "the other session lists its own row")
+	Do $$$AssertEquals({}.%FromJSON(..List("").Data).sources.%Size(), 0, "a command with no session lists none")
+}
+
+/// QA (Story 21.5): a read of the session's source rows that fails fails the whole list: the answer is failed with the accepted text and no data, not a list with no sources.
+/// mutation: the status of SourceRows ignored in ListMcp -> the answer is listed (red).
+Method TestListSourcesReadFails()
+{
+	Set a = ..Server("f")
+	Do ..MakeServer(a, "attached", "")
+	Set mine = ##class(OcuTalon.Test.Data.Fixture).Session("zzsrcf"_..Number)
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(mine, , , {"Kind": "source", "Server": (a), "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 15, "DisplayName": "Jira"})
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "sources") = "error"
+	Set result = ..List(mine)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "a source read that fails answers failed with the accepted text")
+	Do $$$AssertEquals(result.Data, "", "and lists nothing")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "sources")
+	Set result = ..List(mine)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|listed", "the same list is answered once the read works")
+	Do $$$AssertEquals({}.%FromJSON(result.Data).sources.%Size(), 1, "with the session's source")
 }
 
 Method TestListChanged()
@@ -268,9 +322,10 @@ Method MakeRow(kind As %String, state As %String, source As %String) [ Private ]
 }
 
 /// ListMcpServers through the real handler of a shadow SettingsOps probe.
-Method List() As OcuTalon.Msg.CommandResult [ Private ]
+Method List(sessionRef As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.ListMcpServers).%New()
+	Set command.SessionRef = sessionRef
 	Set command.ActingUser = "zzadmin"
 	Set command.Origin = "web_admin"
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)

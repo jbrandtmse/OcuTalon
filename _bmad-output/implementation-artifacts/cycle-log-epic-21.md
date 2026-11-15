@@ -382,3 +382,25 @@
 2026-11-15T05:43:01Z	Story 21.9	qa_complete	model=sonnet tests=SettingsMcp.TestListChangedUnavailable,mcp-view.test(non-boolean_changed),mcp.spec_B14(two_banners,only_own_removed) mutations_demonstrated=4 findings=none
 2026-11-15T05:43:01Z	Story 21.9	stage_spawned	stage=code-review spawn_at=2026-11-15T05:43:01Z model=opus effort=high agent_name=21-9-code-review-1 cycle_iteration=1
 2026-11-15T06:40:44Z	Story 21.9	cr_complete	model=opus findings=18(8_patched,7_rejected,3_false) high=0 med=1(^||ZzOps_switch_leak;patched) low=11 ledger=DW-1356(wontfix-accepted:banner_refreshes_on_section_reload) unresolved_high_med=0 final_status=done rule3=sign-in-2_part_19/24_pass
+2026-11-14T18:43:40Z	Story 21.10	ci_resolved	sha=5e2c5f069 result=success runs=43623786098,43623786065 feature_base=23fafe59b
+2026-11-14T18:43:40Z	Story 21.10	part_ready	parts=21.10 code_head=5e2c5f069 ci=success records=local
+2026-11-14T16:53:49Z	Story 21.10	pushed	head=07928c52f ci=pending runs=43618045215,43618045286 feature_base=23fafe59b
+2026-11-14T16:53:49Z	Story 21.5	stage_spawned	stage=implement spawn_at=2026-11-14T16:53:49Z model=sonnet effort=high agent_name=21-5-implement-1 cycle_iteration=1 branch=OCT-epic21-s215 base=07928c52f note=22.5_merged;V8_approved
+2026-11-14T19:05:17Z	Story 21.5	dev_complete	model=sonnet effort=high build_sha=4830d2cc8 branch=OCT-epic21-s215 review=28(high0,med3,low25;8_patched) followup=false bundle=888.96kB(+0.56kB,V8) task0=22.5_matches_except_reserved_name(22.13;mapped_400_bad_source_name,McpOps_text_relayed,no_new_text)->reported;22.11_not_merged(T7_not_in_GUIDE);coverage_test_exists(22.5)
+2026-11-14T19:05:17Z	Story 21.5	stage_spawned	stage=qa spawn_at=2026-11-14T19:05:17Z model=sonnet effort=high agent_name=21-5-qa-1 cycle_iteration=1 timebox=19:40Z
+2026-11-14T19:40:36Z	Story 21.5	qa_complete	model=sonnet tests=rail-view.test.mjs(intervalText_2880,61,0,-60),SettingsMcp.TestListSourcesReadFails(+SettingsOpsProbe.SourceRows_seam) mutations_demonstrated=3 findings=none
+2026-11-14T19:40:36Z	Story 21.5	parked	reason=quota_hold_20:00Z next=code-review(opus),smoke,fresh,integrate_onto_OCT-epic21+feature,push wip=hold/OCT-epic21-20261114
+2026-11-14T19:46:28Z	Story 21.5	resumed	holds_cancelled(usage_95%_trigger) rulings=reserved_name_mapping_accepted;T7_deferred_to_22.11_accepted 21.10=merged(42e7b3ec)
+2026-11-14T19:46:28Z	Story 21.5	stage_spawned	stage=code-review spawn_at=2026-11-14T19:46:28Z model=opus effort=high agent_name=21-5-code-review-1 cycle_iteration=1
+2026-11-14T20:28:41Z	Story 21.5	cr_complete	model=opus review_tier=full-opus findings=24 high=0 med=1(B11/B12_not_self-contained;patched) low=13(10_patched;DW-1351_wontfix-accepted) rejected=10 unresolved_high_med=0 final_status=done checks=McpSettingsApi,sign-in-2_9/12,node_2102,tsc,class-rules,boundaries_pass bundle=888.96kB
+2026-11-14T20:28:41Z	Story 21.5	parked	reason=QUOTA_HOLD_NOW(19:48Z) boundary=after_code-review next=smoke,fresh_check,integrate_feature(42e7b3ec+)_and_OCT-epic21_records(0e7427a77),re-run_checks,push,PART_READY
+2026-11-14T21:45:46Z	Epic 21	integrated	merged=OCT-epic21-s215(21.5)+feature_a6821f1d4(21.10_merge_42e7b3ec_and_later) conflicts=cycle-log(union),sprint-status(feature_side,re-set_21-5_done) spine=auto-merged generated=catalog.ts,payloads.ts_regenerated_identical
+2026-11-14T22:16:46Z	Story 21.5	smoke_complete	method=other(live_sign-in_part_2/16_M1,M7,M8;sign-in-2_9/12_B11-B13;sign-in-2_7/12_R5) result=pass defects_caught=0 torn_down
+2026-11-14T22:16:46Z	Story 21.5	fresh_check	env=recipe(fresh_warm_e21s5fw_on_merged_tree_fec4e2335) tests=McpSettingsApi,SettingsMcp,CommandsStep4,Msg.Catalog,HookSettingsApi result=pass order=forward,reverse torn_down static=node_2102/0,test-readme,mcp-notices,boundaries,class-rules_pass
+2026-11-14T23:05:48Z	Story 21.5	pushed	head=19de55b83 runs=43647278273,43647278336 feature_base=a6821f1d4
+2026-11-14T23:05:48Z	Story 21.5	ci_resolved	sha=19de55b83 result=success runs=43647278273,43647278336
+2026-11-14T23:05:48Z	Story 21.5	part_ready	parts=21.5 code_head=19de55b83 ci=success records=local
+2026-11-14T23:05:48Z	Epic 21	note	DW-1347(22.11_code-review_entry,on_OCT-epic22_ledger)_plan_waits_for_22.11_on_feature(not_in_1.0.10)
+2026-11-14T23:08:57Z	Story 21.5	dw1351	verdict=hint_false_for_sources(CommandsIn.cls:372_RemoveSourcePoll_web_admin_only) fix=rail-view.ts_checksHint(hidden_when_all_checks_are_sources) test=rail-view.test.mjs+mutation(red) node=2103/0 bundle=889.02kB
+2026-11-15T06:40:53Z	Story 21.9	stage_spawned	stage=integrate model=sonnet effort=high agent_name=21-9-integrate-1 feature=afd4ff35a(21.5,22.14,26.2) conflicts=10_files
+2026-11-15T07:24:47Z	Story 21.9	integrated	feature=afd4ff35a(21.5,22.14,26.2) merge=local conflicts=10_resolved_as_unions(SettingsOps_docs,SettingsMcp_tests,mcp-view,mcp-section:banners+Source_column,mcp-view.test,mcp.spec_B11-B14;spine_GET_row_both_notes;epics_22.14+22.15;tracker_feature_side) checks=node_2114/0,tsc,build,bundle_ok,SettingsMcp,McpSettingsApi,CommandsStep4,sign-in-2_18/24(B1-B14)_20/20,boundaries,class-rules,readme_pass push=held_until_22.15_merges

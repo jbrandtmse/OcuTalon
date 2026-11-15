@@ -1,8 +1,9 @@
-// Tests the source rules of the file store (Story 25.3, with Story 26.3's caller; AD-3, AD-4, AD-13, AD-21, AD-31): over the product's classes outside Test/,
+// Tests the source rules of the file store (Story 25.3, with Story 26.3's and Story 26.2's callers; AD-3, AD-4, AD-13, AD-14, AD-19, AD-21, AD-31): over the product's classes outside Test/,
 // only the five that own the table name it, only Core.Files reads a row through Ownership.SentFile and reads its Content, no class under Web/ calls
-// Core.Files.Open or names Agent.Content (no route serves a file's bytes), Agent.Content alone calls Core.Files.Open in the product (Part sends the photo
-// turn's file in the runner's job, and Readable checks that it opens for ReadFile), the URL map of Web.Files holds exactly one route (POST, the empty
-// remainder), and neither Core.Files nor Web.Files writes to a log.
+// Core.Files.Open or names Agent.Content (no route serves a file's bytes), Agent.Content and Agent.Input alone call Core.Files.Open in the product (Part sends the photo
+// turn's file in the runner's job, Readable checks that it opens for ReadFile, and Input reads a document's text in the caller's job), only Channel.Telegram.Api spells the
+// download address of a Telegram file (it holds the bot token), the URL map of Web.Files holds exactly one route (POST, the empty remainder), and neither Core.Files nor
+// Web.Files writes to a log.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -61,8 +62,8 @@ describe('no route serves a file\'s bytes (ruling 3 (ii))', () => {
     assert.deepEqual(product.filter((one) => one.name.startsWith('Web/') && /OcuTalon\.Agent\.Content\b/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('Agent.Content is the one product caller of Core.Files.Open (Story 26.2 adds its own callers here)', () => {
-    assert.deepEqual(named(/Core\.Files\)\.Open\(/), ['Agent/Content.cls'], 'Part sends the photo turn\'s file in the runner\'s job (AD-31), and Readable checks that it opens for ReadFile (AD-21 step 6)');
+  it('Agent.Content and Agent.Input are the only product callers of Core.Files.Open', () => {
+    assert.deepEqual(named(/Core\.Files\)\.Open\(/), ['Agent/Content.cls', 'Agent/Input.cls'], 'Part sends the photo turn\'s file in the runner\'s job (AD-31), Readable checks that it opens for ReadFile (AD-21 step 6), and Input\'s ReadText reads a document\'s text for Render and ReadFile (Story 26.2)');
   });
 
   it('Web.Files has one route: POST of the empty remainder', () => {
@@ -78,6 +79,12 @@ describe('no route serves a file\'s bytes (ruling 3 (ii))', () => {
   it('Web.Api maps /v1/files once, to Web.Files', () => {
     const maps = [...file('Web/Api.cls').text.matchAll(/<Map Prefix="\/v1\/files" Forward="([^"]*)"\/>/g)];
     assert.deepEqual(maps.map((one) => one[1]), ['OcuTalon.Web.Files']);
+  });
+});
+
+describe('the download address of a Telegram file holds the bot token (AD-14, AD-19; Story 26.2)', () => {
+  it('only Channel.Telegram.Api spells /file/bot', () => {
+    assert.deepEqual(named(/\/file\/bot/), ['Channel/Telegram/Api.cls']);
   });
 });
 

@@ -120,9 +120,11 @@
 ///     by its own map: admin only, for the CSP session's own webhooks, with the secret handed to SettingsOps through SecretHandoff and never in a command.
 ///   - The on-call route (Story 36.4; POST /v1/settings/on-call) is OcuTalon.Web.OnCallSettings', forwarded by its own map: admin only, with the section's body handed to
 ///     SettingsOps through SecretHandoff so that no on-call value is in a command or a trace, and 409 not_available on the online demo before the body is read.
-///   - The MCP settings routes (Story 21.4; GET /v1/settings/mcp, POST /v1/settings/mcp/servers, DELETE /v1/settings/mcp/servers/:server, POST /v1/settings/mcp/classify) are
+///   - The MCP settings routes (Story 21.4; GET /v1/settings/mcp, POST /v1/settings/mcp/servers, DELETE /v1/settings/mcp/servers/:server, POST /v1/settings/mcp/classify; Story 21.5:
+///     POST /v1/settings/mcp/sources and DELETE /v1/settings/mcp/sources/:ref) are
 ///     OcuTalon.Web.McpSettings', forwarded by its own map: admin only, 409 not_available on the online demo before the body is read, a server's secret handed to McpOps through
-///     SecretHandoff and never in a command, and the list read through the command ListMcpServers, which SettingsOps answers in its own job.
+///     SecretHandoff and never in a command, and the list (the servers, the tools and the caller's own source polls) read through the command ListMcpServers, which SettingsOps answers
+///     in its own job. A source's DELETE removes only a source row of the caller's session (else 404).
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403

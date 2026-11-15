@@ -22,10 +22,17 @@ import { approvalState, clearChangedTool, dropMcpServer, leftovers, seedMcpServe
  *   B8  a 500 on the list shows the load error with Retry, and Retry loads the list again and shows the content (QA);
  *   B9  an add answered 500 shows the server's message under the button, keeps what was typed and loads the list again (QA);
  *   B10 a removal answered 500 leaves the dialog open with the server's message and the server listed; a 404 closes it and the server and its tools leave the lists (QA).
+ *   B11 (Story 21.5) a Read-only tool's "Use as a source" opens the form, and a risky tool's is aria-disabled with the reason beside it; saving "Jira{tag}" shows "Saved", closes the
+ *       form, and lists the source under "Your sources" ("Jira{tag} | zz_lookup on {server} | 15 minutes"); its Remove takes the row off and the Saved line; a pick of Read-only
+ *       for the risky tool makes its control choosable at once;
+ *   B12 arguments that are not a JSON object show the accepted error under Arguments (JSON), and focus moves there.
+ *   B13 the source form's failed save (500) and a refused tool show form-level; a refused name and interval show under their fields with focus on the first; a 403 and a 409 on a save and
+ *       on a Remove show the denied and demo states; a later good save clears a failed Remove's message; a 404 on a Remove shows the server's message and the list loses the
+ *       source; Cancel returns focus to the opening tool's button and the next form starts empty.
  *   B14 (Story 21.9) a tool that Lane A's ClearChanged made Unclassified has one warning banner above the tools table, in the words of settings.toolChangedBanner, and
  *       its radiogroup shows Unclassified; a new tool and a changed tool that is refused have none; a pick whose save fails keeps the banner; a pick that saves
  *       shows "Saved" and the banner goes, and stays gone after a reload; a second changed tool has its own banner after the first, in table order, and the pick
- *       takes away only the banner of the tool it classified (QA);
+ *       takes away only the banner of the tool it classified (QA).
  * B7 to B10 fulfil every answer of the MCP routes themselves (no fixture server, no IRIS fixture), so they cover the section's states and nothing of the server.
  * The texts are written out here as the oracle.
  */
@@ -71,7 +78,7 @@ test('B1: the section lists a server and its tools, and Unclassified only filter
 
     const mine = tools(page).locator(`tr[data-server="${name}"]`);
     await expect(mine, 'its three tools').toHaveCount(3);
-    await expect(tools(page).getByRole('columnheader'), 'the tools headers').toHaveText(['Tool', 'Server', 'Status', 'Classification']);
+    await expect(tools(page).getByRole('columnheader'), 'the tools headers').toHaveText(['Tool', 'Server', 'Status', 'Classification', 'Source']);
     const open = tools(page).locator(`tr[data-tool="zz_open"][data-server="${name}"]`);
     await expect(open.getByRole('cell').nth(1), 'a tool\'s status').toHaveText('Available');
     const group = open.getByRole('radiogroup', { name: `Classification of zz_open on ${name}`, exact: true });
@@ -200,7 +207,7 @@ test('B4: the Remove dialog names the counts, Cancel keeps the server, and Remov
     await expect(row, 'the server leaves the list').toHaveCount(0);
     await expect(tools(page).locator(`tr[data-server="${name}"]`), 'and its tools leave the table').toHaveCount(0);
     expect(await approvalState(refs[0] ?? ''), 'the pending request is canceled').toBe('cancelled');
-    expect(await leftovers(name), 'nothing of the server is left').toEqual({ row: 0, tools: 0, entry: 0, key: 0, collection: 0 });
+    expect(await leftovers(name), 'nothing of the server is left').toMatchObject({ row: 0, tools: 0, entry: 0, key: 0, collection: 0 });
   } finally {
     await dropMcpServer(name, refs);
   }
@@ -365,6 +372,235 @@ test('B10: a removal answered 500 leaves the dialog open with the message, and a
   await expect(row, 'the server leaves the list').toHaveCount(0);
   await expect(toolRows, 'and its tools leave the table').toHaveCount(0);
   expect(deletes, 'the removal was asked for twice').toBe(2);
+});
+
+const sources = (page: Page): Locator => page.getByRole('region', { name: 'Your sources', exact: true });
+const NOT_READ_ONLY = 'Only a Read-only tool can be a source.';
+const NAME_REFUSED = "A source's name is 1 to 100 characters. Nothing was changed.";
+const INTERVAL_REFUSED = 'A source is polled every 5 to 1,440 minutes. Nothing was changed.';
+const BAD_ARGUMENTS = 'Enter the arguments as a JSON object. Nothing was changed.';
+const NOT_READ_ONLY_REFUSED = 'Only a Read-only tool can be a source. Nothing was changed.';
+const NOT_FOUND = 'OcuTalon has nothing at this address.';
+
+test('B11: a Read-only tool becomes a source and is listed and removed; a risky tool cannot be chosen', async ({ page }) => {
+  test.setTimeout(240_000);
+  const name = `zzb11${tag()}`;
+  const source = `Jira${tag()}`;
+  try {
+    await seedMcpServer(name, [{ name: 'zz_lookup', classification: 'read-only' }, { name: 'zz_delete', classification: 'risky' }]);
+    await openMcp(page);
+
+    const risky = tools(page).locator(`tr[data-tool="zz_delete"][data-server="${name}"]`);
+    const riskyButton = risky.getByRole('button', { name: `Use zz_delete on ${name} as a source`, exact: true });
+    await expect(riskyButton, "a risky tool's control can't be chosen").toHaveAttribute('aria-disabled', 'true');
+    await expect(risky.getByText(NOT_READ_ONLY, { exact: true }), 'and the reason shows beside it').toBeVisible();
+    await expect(riskyButton, 'which describes it').toHaveAttribute('aria-describedby', /mcp-source-why-\d+/);
+    await riskyButton.click({ force: true });
+    await expect(tools(page).getByRole('group', { name: 'Use as a source', exact: true }), 'a press opens nothing').toHaveCount(0);
+
+    const lookup = tools(page).locator(`tr[data-tool="zz_lookup"][data-server="${name}"]`);
+    const button = lookup.getByRole('button', { name: `Use zz_lookup on ${name} as a source`, exact: true });
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    await button.click();
+    const form = tools(page).getByRole('group', { name: 'Use as a source', exact: true });
+    await expect(form, 'the form opens').toBeVisible();
+    await expect(form.getByText(`zz_lookup on ${name}`, { exact: true }), 'for the tool').toBeVisible();
+    await expect(form.getByLabel('Source name', { exact: true }), 'focus starts on Source name').toBeFocused();
+    await expect(form.getByLabel('Check every', { exact: true }), '15 minutes is the default').toHaveValue('15');
+    await form.getByLabel('Source name', { exact: true }).fill(source);
+    await form.getByLabel('Arguments (JSON)', { exact: true }).fill('{"q":"mine"}');
+    await form.getByRole('button', { name: 'Save changes', exact: true }).click();
+
+    await expect(tools(page).locator('[data-saved="source"]'), 'Saved shows').toHaveText('Saved');
+    await expect(form, 'the form closes').toHaveCount(0);
+    await expect(button, 'and focus returns to the tool\'s button').toBeFocused();
+    const row = sources(page).locator(`tr[data-source="${source}"]`);
+    await expect(row, 'the source is listed').toBeVisible();
+    await expect(row.getByRole('rowheader'), 'with its name').toHaveText(source);
+    await expect(row.getByRole('cell'), 'its tool and its interval').toHaveText([`zz_lookup on ${name}`, '15 minutes', 'Remove']);
+
+    await row.getByRole('button', { name: `Remove the source ${source}`, exact: true }).click();
+    await expect(row, 'Remove takes the row off').toHaveCount(0);
+    await expect(tools(page).locator('[data-saved="source"]'), 'and the Saved line is gone').toHaveCount(0);
+    await expect(page.locator('#mcp-sources-heading'), 'focus lands on the "Your sources" heading').toBeFocused();
+    expect((await leftovers(name)).sources, 'no source row is left by the Remove').toBe(0);
+
+    await risky.getByRole('radiogroup', { name: `Classification of zz_delete on ${name}`, exact: true }).getByRole('radio', { name: 'Read-only', exact: true }).check();
+    await expect(riskyButton, 'a pick of Read-only makes the control choosable at once').not.toHaveAttribute('aria-disabled', 'true');
+    await expect(risky.getByText(NOT_READ_ONLY, { exact: true }), 'and the reason goes').toHaveCount(0);
+  } finally {
+    await dropMcpServer(name);
+  }
+});
+
+test('B12: arguments that are not a JSON object show their error under the field, with focus there', async ({ page }) => {
+  test.setTimeout(180_000);
+  const name = `zzb12${tag()}`;
+  const source = `Jira${tag()}`;
+  try {
+    await seedMcpServer(name, [{ name: 'zz_lookup', classification: 'read-only' }]);
+    await openMcp(page);
+    await tools(page).locator(`tr[data-tool="zz_lookup"][data-server="${name}"]`).getByRole('button', { name: `Use zz_lookup on ${name} as a source`, exact: true }).click();
+    const form = tools(page).getByRole('group', { name: 'Use as a source', exact: true });
+    await form.getByLabel('Source name', { exact: true }).fill(source);
+    await form.getByLabel('Arguments (JSON)', { exact: true }).fill('[1]');
+    await form.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(form.locator('#mcp-source-arguments-error'), 'the accepted error shows under the field').toHaveText(BAD_ARGUMENTS);
+    await expect(form.getByLabel('Arguments (JSON)', { exact: true }), 'and the field takes focus').toBeFocused();
+    await expect(sources(page).locator(`tr[data-source="${source}"]`), 'no source was made').toHaveCount(0);
+    await form.getByLabel('Arguments (JSON)', { exact: true }).fill('{}');
+    await expect(form.locator('#mcp-source-arguments-error'), 'typing clears the error').toHaveCount(0);
+  } finally {
+    await dropMcpServer(name);
+  }
+});
+
+/** A list answer with one server, two Read-only tools and the given sources of the session. */
+const sourceListBody = (rows: Array<{ ref: string; name: string; tool: string }>): string =>
+  JSON.stringify({
+    servers: [{ name: 'zzb13', address: 'https://127.0.0.1:1/mcp', status: 'attached', tools: 2, unclassified: 0, pending: 0 }],
+    tools: ['zz_a', 'zz_b'].map((tool) => ({ server: 'zzb13', name: tool, classification: 'read-only', status: 'available' })),
+    sources: rows.map((one) => ({ ref: one.ref, name: one.name, server: 'zzb13', tool: one.tool, intervalMinutes: 15 })),
+  });
+
+/** A canned answer of a route the case fulfils itself. */
+interface Answer {
+  status: number;
+  contentType: string;
+  body: string;
+}
+
+const refused = (status: number, code: string, message: string, fields?: Record<string, string>): Answer => ({
+  status,
+  contentType: 'application/json',
+  body: JSON.stringify({ error: { code, message }, ...(fields === undefined ? {} : { fields }) }),
+});
+
+test('B13: the source form shows a failed save, each refused field with focus on the first, the denied and demo states, and Cancel and reopening start clean', async ({ page }) => {
+  test.setTimeout(240_000);
+  let gone = false;
+  let save: Answer = failure;
+  let removal: Answer = failure;
+  await page.route(`**${MCP}`, async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: sourceListBody(gone ? [] : [{ ref: 'zzsrc13', name: 'Existing', tool: 'zz_b' }]) });
+    } else {
+      await route.fallback();
+    }
+  });
+  await page.route(`**${MCP}/sources`, async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill(save);
+    } else {
+      await route.fallback();
+    }
+  });
+  await page.route(`**${MCP}/sources/zzsrc13`, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill(removal);
+    } else {
+      await route.fallback();
+    }
+  });
+  const buttonOf = (tool: string): Locator => tools(page).getByRole('button', { name: `Use ${tool} on zzb13 as a source`, exact: true });
+  const formOf = (): Locator => tools(page).getByRole('group', { name: 'Use as a source', exact: true });
+  const saveAs = async (name: string): Promise<void> => {
+    await formOf().getByLabel('Source name', { exact: true }).fill(name);
+    await formOf().getByRole('button', { name: 'Save changes', exact: true }).click();
+  };
+  const reopen = async (): Promise<void> => {
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 2, name: 'Tools and MCP servers' })).toBeVisible();
+  };
+
+  await openMcp(page);
+  await buttonOf('zz_a').click();
+
+  // (a) a 500 shows the server's message form-level, under the buttons, and keeps the form and what was typed.
+  await saveAs('Jira');
+  const formError = formOf().locator('#mcp-source-error');
+  await expect(formError, "the server's message shows form-level").toHaveText(SERVER_FAILED);
+  const saveBox = await formOf().getByRole('button', { name: 'Save changes', exact: true }).boundingBox();
+  const errorBox = await formError.boundingBox();
+  expect(errorBox?.y ?? 0, 'under the buttons').toBeGreaterThan((saveBox?.y ?? Number.POSITIVE_INFINITY) + (saveBox?.height ?? 0) - 1);
+  await expect(formOf().getByLabel('Source name', { exact: true }), 'what was typed is kept').toHaveValue('Jira');
+  await expect(formOf().locator('#mcp-source-name-error, #mcp-source-arguments-error, #mcp-source-interval-error'), 'and no field shows an error').toHaveCount(0);
+  await expect(tools(page).locator('[data-saved="source"]'), 'with no success line').toHaveCount(0);
+
+  // (b) a refused name and a refused interval each show under their own field, and focus goes to the first one.
+  save = refused(400, 'bad_source', 'x', { name: NAME_REFUSED });
+  await saveAs('Jira');
+  await expect(formOf().locator('#mcp-source-name-error'), 'the name error is under Source name').toHaveText(NAME_REFUSED);
+  await expect(formOf().locator('#mcp-source-interval-error'), 'and none is under Check every').toHaveCount(0);
+  await expect(formOf().getByLabel('Source name', { exact: true }), 'focus goes to Source name').toBeFocused();
+  save = refused(400, 'bad_source', 'x', { intervalMinutes: INTERVAL_REFUSED });
+  await formOf().getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(formOf().locator('#mcp-source-interval-error'), 'the interval error is under Check every').toHaveText(INTERVAL_REFUSED);
+  await expect(formOf().locator('#mcp-source-name-error'), 'and the name error is gone').toHaveCount(0);
+  await expect(formOf().getByLabel('Check every', { exact: true }), 'focus goes to Check every').toBeFocused();
+  save = refused(400, 'bad_source', 'x', { name: NAME_REFUSED, intervalMinutes: INTERVAL_REFUSED });
+  await formOf().getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(formOf().locator('#mcp-source-name-error'), 'both show').toHaveText(NAME_REFUSED);
+  await expect(formOf().locator('#mcp-source-interval-error'), 'each under its field').toHaveText(INTERVAL_REFUSED);
+  await expect(formOf().getByLabel('Source name', { exact: true }), 'focus goes to the first refused field').toBeFocused();
+  save = refused(400, 'bad_source', 'x', { tool: NOT_READ_ONLY_REFUSED });
+  await formOf().getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(formError, "a refused tool shows McpOps' message form-level").toHaveText(NOT_READ_ONLY_REFUSED);
+  await expect(formOf().locator('#mcp-source-name-error, #mcp-source-arguments-error, #mcp-source-interval-error'), 'and under no field').toHaveCount(0);
+
+  // (e) Cancel returns focus to the opening tool's button, and the next tool's form starts empty.
+  await formOf().getByLabel('Arguments (JSON)', { exact: true }).fill('{"q":1}');
+  await formOf().getByLabel('Check every', { exact: true }).selectOption('60');
+  await formOf().getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(formOf(), 'Cancel closes the form').toHaveCount(0);
+  await expect(buttonOf('zz_a'), 'focus returns to the tool that opened it').toBeFocused();
+  await buttonOf('zz_b').click();
+  await expect(formOf().getByText('zz_b on zzb13', { exact: true }), 'the form is for the second tool').toBeVisible();
+  await expect(formOf().getByLabel('Source name', { exact: true }), 'the name starts blank').toHaveValue('');
+  await expect(formOf().getByLabel('Arguments (JSON)', { exact: true }), 'the arguments start blank').toHaveValue('');
+  await expect(formOf().getByLabel('Check every', { exact: true }), 'the interval starts at 15 minutes').toHaveValue('15');
+  await expect(formOf().locator('.field-error'), 'with no error').toHaveCount(0);
+
+  // (c) a 403 or a 409 on the save replaces the section with the denied or the demo state.
+  save = refused(403, 'not_admin', 'Only OcuTalon admins can open settings.');
+  await saveAs('Jira');
+  await expect(page.locator('[data-state="denied"]'), 'a 403 on the save shows the denied state').toHaveText('Only OcuTalon admins can open settings.');
+  await expect(formOf(), 'with no form').toHaveCount(0);
+  await reopen();
+  await buttonOf('zz_a').click();
+  save = refused(409, 'not_available', OFF);
+  await saveAs('Jira');
+  await expect(page.locator('[data-state="off"]'), 'a 409 on the save shows the demo line').toHaveText(OFF);
+  await expect(formOf(), 'with no form').toHaveCount(0);
+
+  // (c) the same two answers on a Remove, and a 500 shows the server's message under the sources.
+  await reopen();
+  const removeButton = (): Locator => sources(page).getByRole('button', { name: 'Remove the source Existing', exact: true });
+  removal = refused(500, 'server_error', SERVER_FAILED);
+  await removeButton().click();
+  await expect(page.locator('[data-error="sources"]'), 'a 500 on a Remove shows the message').toHaveText(SERVER_FAILED);
+  await expect(sources(page).locator('tr[data-source="Existing"]'), 'and the source stays listed').toBeVisible();
+  save = { status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'saved', message: 'Saved', ref: 'zzsrc14' }) };
+  await buttonOf('zz_a').click();
+  await saveAs('Jira');
+  await expect(tools(page).locator('[data-saved="source"]'), 'a later good save shows Saved').toHaveText('Saved');
+  await expect(page.locator('[data-error="sources"]'), "and clears the failed Remove's message").toHaveCount(0);
+  removal = refused(403, 'not_admin', 'Only OcuTalon admins can open settings.');
+  await removeButton().click();
+  await expect(page.locator('[data-state="denied"]'), 'a 403 on a Remove shows the denied state').toHaveText('Only OcuTalon admins can open settings.');
+  await reopen();
+  removal = refused(409, 'not_available', OFF);
+  await removeButton().click();
+  await expect(page.locator('[data-state="off"]'), 'a 409 on a Remove shows the demo line').toHaveText(OFF);
+
+  // (d) a 404 on a Remove (the source is already gone) shows the server's message, and the list loaded again no longer holds it.
+  await reopen();
+  removal = refused(404, 'not_found', NOT_FOUND);
+  gone = true;
+  await removeButton().click();
+  await expect(page.locator('[data-error="sources"]'), "a 404 on a Remove shows the server's message").toHaveText(NOT_FOUND);
+  await expect(sources(page).locator('tr[data-source="Existing"]'), 'and the source leaves the list').toHaveCount(0);
+  await expect(sources(page).getByText('No sources yet.', { exact: true }), 'which is empty').toBeVisible();
 });
 
 test('B14: a changed tool has the changed-tool banner above the table, a new or refused tool has none, and a classification takes it away', async ({ page }) => {

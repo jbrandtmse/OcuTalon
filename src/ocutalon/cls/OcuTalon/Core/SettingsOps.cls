@@ -98,7 +98,7 @@
 /// tested with Data {answered, seconds, reason} (an expired wait gives reason timeout), or refused with Data {"fields": ["agent"]} for an agent that
 /// TestRequest refuses. It writes no setting and no audit entry; the Decision and Usage rows of the test request are Decide's, as Bridge.Settings.TestRequest describes.
 /// ListMcpServers (Story 21.4, origin web_admin) is the read behind Settings > Tools and MCP servers: ListMcp answers it here, in this job, because the REST process cannot
-/// read the servers' tools, their entries or the pending requests of other owners. It writes nothing. Each tool row carries Tools' changed member (Story 21.9). McpOps, not this class, writes an MCP server's row, entry and wallet secret.
+/// read the servers' tools, their entries or the pending requests of other owners; it also lists the session's own source polls (Story 21.5). It writes nothing. Each tool row carries Tools' changed member (Story 21.9). McpOps, not this class, writes an MCP server's row, entry and wallet secret.
 /// CreateWebhook and SetWebhookSecret (Story 35.3, origin web_admin) take the secret from the command's Handoff uri through SecretHandoff.Take, never from a
 /// property, a message or a log. On the online demo both answer not_available and write nothing. CreateWebhook validates the name and the secret (Data.Webhook
 /// NameProblem, SecretProblem, NameTaken), writes the Settings audit entry first (setting webhook.<Ref>, from empty, to the name), then saves the Webhook row
@@ -2371,10 +2371,10 @@ ClassMethod WebhookResult(outcome As %String, fields As %DynamicObject) As OcuTa
 }
 
 /// Carries out a ListMcpServers and returns the CommandResult to answer (Story 21.4; see the class description): Ok 1, outcome listed and Data the body of GET
-/// /v1/settings/mcp, {"servers":[{name, address, status, tools, unclassified, pending}], "tools":[{server, name, classification, status, changed}]}, the servers in the order of Mcp.Attach
+/// /v1/settings/mcp, {"servers":[{name, address, status, tools, unclassified, pending}], "tools":[{server, name, classification, status, changed}], "sources":[{ref, name, server, tool, intervalMinutes}]}, the servers in the order of Mcp.Attach
 /// Servers, which gives none on the online demo. The status is the row's AttachStatus (attached, unavailable or empty); the address is the url of the server's entry read without
 /// resolving any placeholder or secret (empty when the entry is missing); tools, unclassified and the tools array come from Mcp.Ops Tools(server), and pending from Ownership
-/// PendingToolCalls. A tool's changed member is Tools' JSON boolean passed through for every status, a refused tool included (Story 21.9). No secret, secret:// reference or fingerprint is read into the answer. The online demo is not_available with the text settings.mcpOffOnDemo, and a read that
+/// PendingToolCalls. A tool's changed member is Tools' JSON boolean passed through for every status, a refused tool included (Story 21.9). "sources" lists the command's session's own source rows (Story 21.5) as {ref, name, server, tool, intervalMinutes}, sorted by name, never the arguments. No secret, secret:// reference or fingerprint is read into the answer. The online demo is not_available with the text settings.mcpOffOnDemo, and a read that
 /// fails is failed.
 Method ListMcp(command As OcuTalon.Msg.Command.ListMcpServers) As OcuTalon.Msg.CommandResult [ Private ]
 {
@@ -2404,11 +2404,44 @@ Method ListMcp(command As OcuTalon.Msg.Command.ListMcpServers) As OcuTalon.Msg.C
 			}
 			Do servers.%Push({"name": (name), "address": (address), "status": (row.AttachStatus), "tools": (list.%Size()), "unclassified": (unclassified), "pending": (pending)})
 		}
+		If $$$ISOK(sc) Set sc = ..SourceRows(command.SessionRef, .sources)
 	} Catch exception {
 		Set sc = $SYSTEM.Status.Error(5001, "The MCP servers could not be read")
 	}
 	If $$$ISERR(sc) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
-	Quit ..Result(1, "listed", "", {"servers": (servers), "tools": (tools)}.%ToJSON())
+	Quit ..Result(1, "listed", "", {"servers": (servers), "tools": (tools), "sources": (sources)}.%ToJSON())
+}
+
+/// The source rows of the session as [{ref, name, server, tool, intervalMinutes}], sorted by name and then by ref (the arguments are never read into the answer).
+/// Only Kind source rows of the session's own checks are kept (Ownership.Checks); a command with no session lists none, and the status is an error when the read failed.
+ClassMethod SourceRows(sessionRef As %String, Output sources As %DynamicArray) As %Status [ Private ]
+{
+	Set sources = []
+	If sessionRef = "" Quit $$$OK
+	Set rows = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
+	If $$$ISERR(sc) Quit sc
+	For index = 1:1:rows.Count() {
+		Set row = rows.GetAt(index)
+		If row.Kind '= "source" Continue
+		Set sorted($ZConvert(row.DisplayName, "U"), row.DisplayName, row.Ref) = {"ref": (row.Ref), "name": (row.DisplayName), "server": (row.Server), "tool": (row.Tool), "intervalMinutes": (row.IntervalMinutes)}
+	}
+	Set upper = ""
+	For {
+		Set upper = $Order(sorted(upper))
+		If upper = "" Quit
+		Set name = ""
+		For {
+			Set name = $Order(sorted(upper, name))
+			If name = "" Quit
+			Set ref = ""
+			For {
+				Set ref = $Order(sorted(upper, name, ref), 1, entry)
+				If ref = "" Quit
+				Do sources.%Push(entry)
+			}
+		}
+	}
+	Quit $$$OK
 }
 
 /// The web text of a webhook or MCP settings catalog key (settings.mcpOffOnDemo too, for the MCP routes, ListMcp and the MCP section): settings.refusedExpansion takes value as its marker,

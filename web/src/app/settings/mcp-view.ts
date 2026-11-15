@@ -1,6 +1,6 @@
 /**
  * The Tools and MCP servers section of Settings (Story 21.4; EXPERIENCE: Settings and requests (step 4)): the fixed strings of the section and its view rules, as a
- * framework-free module that imports only types (so Node runs it as it is). The page decides nothing (AD-12): the server judges every name, address and secret and
+ * framework-free module that imports types and, for the interval words, the rail's intervalText (so Node runs it as it is). The page decides nothing (AD-12): the server judges every name, address and secret and
  * answers each refused field with its text, and the section shows those texts as they come. The secret is write-only: it is typed and sent, cleared once the server
  * has it, and no text of this module holds one.
  * - MCP_TEXTS is every fixed string of the section. The online demo's line is the Message Catalog key settings.mcpOffOnDemo, word for word.
@@ -11,13 +11,17 @@
  * - mcpOutcome classifies a refused or failed call: 403 is denied (the section shows the page's denied text), 409 not_available is the online demo's (the section shows
  *   its own text), a 400 bad_mcp_server that names a name, an address or a secret text is a field refusal, and every other answer is a form error that carries the
  *   server's own message when it sent one.
- * - withClassification gives the settings with one tool's classification changed and its server's unclassified count worked out again.
+ * - withClassification gives the settings with one tool's classification changed and its server's unclassified count worked out again; the sources stay as they were.
  * - changedTools is the tools that get a changed-tool banner (Story 21.9): `changed` exactly true and a status that is not refused, in the given order. Both
  *   members are the server's; skipping a refused tool is the one rule the page applies to them (the server reports `changed` for every status).
  * - toolChangedText fills that banner's sentence, the Message Catalog key settings.toolChangedBanner, word for word.
- * - withoutChange gives the settings with one tool's `changed` set to false, which the section applies once a classification has saved.
+ * - withoutChange gives the settings with one tool's `changed` set to false, which the section applies once a classification has saved; the sources stay as they were.
+ * - Source polls (Story 21.5): canBeSource says whether a tool gets the "Use as a source" control (Read-only and not refused), INTERVAL_CHOICES are the six "Check every"
+ *   choices (labelled by the rail's intervalText, the module's one value import: the rail is in the initial bundle already), sourceBody is the body of a save, toolText,
+ *   sourceName and removeSourceName fill the cell and the accessible names, and sourceOutcome is mcpOutcome plus the fields that a refused source names.
  */
-import type { McpSettings, McpToolRow } from '../api/api-types';
+import type { McpSettings, McpSourceBody, McpSourceRow, McpToolRow } from '../api/api-types';
+import { intervalText } from '../rail/rail-view.ts';
 
 /** The three forms of a Remove sentence for a count of pending requests: none, one or more. */
 interface RemoveForms {
@@ -62,7 +66,7 @@ export const MCP_TEXTS = {
     } satisfies RemoveForms,
     name: 'Remove {server}',
   },
-  toolColumns: { tool: 'Tool', server: 'Server', status: 'Status', classification: 'Classification' },
+  toolColumns: { tool: 'Tool', server: 'Server', status: 'Status', classification: 'Classification', source: 'Source' },
   toolStatus: { available: 'Available', unavailable: 'Unavailable', refused: 'Refused: a built-in tool has this name' },
   noTools: 'No tools yet.',
   noUnclassified: 'No unclassified tools.',
@@ -70,8 +74,24 @@ export const MCP_TEXTS = {
   classificationName: 'Classification of {tool} on {server}',
   classifications: { unclassified: 'Unclassified (counts as risky)', 'read-only': 'Read-only', risky: 'Risky' },
   saved: 'Saved',
+  sourceHeading: 'Use as a source',
+  sourceHelp: "OcuTalon calls this tool on a schedule and decides on each new result. The source joins your digest's coverage list.",
+  sourceName: 'Source name',
+  sourceArguments: 'Arguments (JSON)',
+  sourceInterval: 'Check every',
+  sourceNotReadOnly: 'Only a Read-only tool can be a source.',
+  sources: 'Your sources',
+  sourceColumns: { source: 'Source', tool: 'Tool', interval: 'Check every' },
+  noSources: 'No sources yet.',
+  toolOn: '{tool} on {server}',
+  sourceButtonName: 'Use {tool} on {server} as a source',
+  removeSourceName: 'Remove the source {source}',
   toolChanged: '{tool} on {server} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.',
 } as const;
+
+/** The six "Check every" choices in minutes, each with its words, and the one that the form starts on. */
+export const INTERVAL_CHOICES: readonly { value: number; label: string }[] = [5, 15, 30, 60, 360, 1440].map((value) => ({ value, label: intervalText(value) }));
+export const DEFAULT_INTERVAL = 15;
 
 /** The three classifications in the order that the radiogroup lists them, each with the label of its radio. */
 export const CLASSIFICATION_OPTIONS: readonly { value: 'unclassified' | 'read-only' | 'risky'; label: string }[] = [
@@ -86,6 +106,9 @@ export type McpOutcome =
   | { kind: 'off' }
   | { kind: 'fields'; name: string; address: string; secret: string }
   | { kind: 'form'; message: string };
+
+/** What a refused or failed source call means: McpOutcome, with the fields that a refused source names in place of an add's. */
+export type SourceOutcome = Exclude<McpOutcome, { kind: 'fields' }> | { kind: 'fields'; tool: string; name: string; arguments: string; intervalMinutes: string };
 
 /** The Remove dialog's sentence for a server with `tools` tools and `pending` pending approval requests for them. */
 export function removeQuestion(server: string, tools: number, pending: number): string {
@@ -141,7 +164,7 @@ export function addBody(name: string, address: string, secret: string): { name: 
 }
 
 /** The text of a field in a body's `fields`, or '' when the body names none. */
-function fieldText(fields: unknown, key: 'name' | 'address' | 'secret'): string {
+function fieldText(fields: unknown, key: 'name' | 'address' | 'secret' | 'tool' | 'arguments' | 'intervalMinutes'): string {
   if (fields === null || typeof fields !== 'object') {
     return '';
   }
@@ -169,11 +192,52 @@ export function mcpOutcome(status: number, body: unknown): McpOutcome {
   return { kind: 'form', message: typeof sent.error?.message === 'string' ? sent.error.message : '' };
 }
 
+/** Whether a tool gets the "Use as a source" control: it is Read-only and no built-in tool has its name. The server judges the rest. */
+export function canBeSource(tool: { classification: string; status: string }): boolean {
+  return tool.classification === 'read-only' && tool.status !== 'refused';
+}
+
+/** The body of a save: the name and the arguments trimmed (the server judges them); the interval is the number that was chosen. */
+export function sourceBody(server: string, tool: string, name: string, args: string, intervalMinutes: number): McpSourceBody {
+  return { server, tool, name: name.trim(), arguments: args.trim(), intervalMinutes };
+}
+
+/** "{tool} on {server}": a source's tool cell. */
+export function toolText(tool: string, server: string): string {
+  return MCP_TEXTS.toolOn.replace('{tool}', () => tool).replace('{server}', () => server);
+}
+
+/** The accessible name of a tool's "Use as a source" button. */
+export function sourceName(tool: string, server: string): string {
+  return MCP_TEXTS.sourceButtonName.replace('{tool}', () => tool).replace('{server}', () => server);
+}
+
+/** The accessible name of a source's Remove button. */
+export function removeSourceName(source: McpSourceRow): string {
+  return MCP_TEXTS.removeSourceName.replace('{source}', () => source.name);
+}
+
+/** Classifies a refused or failed source call: a 400 bad_source that names fields is a field refusal, and every other answer is mcpOutcome's. */
+export function sourceOutcome(status: number, body: unknown): SourceOutcome {
+  const sent = body !== null && typeof body === 'object' ? (body as { error?: { code?: unknown }; fields?: unknown }) : {};
+  if (status === 400 && sent.error?.code === 'bad_source') {
+    const tool = fieldText(sent.fields, 'tool');
+    const name = fieldText(sent.fields, 'name');
+    const args = fieldText(sent.fields, 'arguments');
+    const intervalMinutes = fieldText(sent.fields, 'intervalMinutes');
+    if (tool !== '' || name !== '' || args !== '' || intervalMinutes !== '') {
+      return { kind: 'fields', tool, name, arguments: args, intervalMinutes };
+    }
+  }
+  const outcome = mcpOutcome(status, body);
+  return outcome.kind === 'fields' ? { kind: 'form', message: '' } : outcome;
+}
+
 /** The settings with one tool's classification changed and its server's unclassified count worked out again; a tool that is not listed changes nothing. */
 export function withClassification(settings: McpSettings, server: string, tool: string, classification: string): McpSettings {
   const tools = settings.tools.map((one) => (one.server === server && one.name === tool ? { ...one, classification } : one));
   const unclassified = tools.filter((one) => one.server === server && one.classification === 'unclassified').length;
-  return { servers: settings.servers.map((one) => (one.name === server ? { ...one, unclassified } : one)), tools };
+  return { ...settings, servers: settings.servers.map((one) => (one.name === server ? { ...one, unclassified } : one)), tools };
 }
 
 /** The tools that get a changed-tool banner: `changed` exactly true and a status that is not refused, in the given order. */

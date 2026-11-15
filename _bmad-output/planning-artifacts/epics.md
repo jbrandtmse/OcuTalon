@@ -8211,6 +8211,22 @@ So that the mailbox is never confused with a source, a slow source is not called
 **When** it is composed
 **Then** it reads "I checked the Orders production, Jira and the mailbox." and "Not everything: the mailbox."; where "Mailbox" is a label (coverage lines, check rows, Settings) it stays as it is (Planner ~12:45Z and ~13:20Z item 4; both sentences pinned, each with a mutation)
 
+### Story 22.14: SourceSet TestUpdate asserts the repoint RESET and no longer depends on the clock
+
+[ADDED 2026-11-14, burndown story for DW-1352, Contest Planner acceptance of lane D's diagnosis (~21:55Z Nov 14); lands after the 1.0.10 release's main CI green; test only]
+
+**Lane:** A.
+
+As a maintainer,
+I want `Test.Mcp.SourceSet`'s `TestUpdate` to assert what Story 22.13 ruled for a repoint, with no dependence on the clock,
+So that CI never fails or passes by which second two saves land in.
+
+**Acceptance Criteria:**
+
+**Given** `TestUpdate`'s update gives the source a new tool and new arguments (a repoint under DW-1328 RESET, `Watch.Ops.SetSource`)
+**When** the test checks the saved row
+**Then** it starts from a `CreatedAt` in the past and asserts that the run fields are kept and that the repoint moves `CreatedAt` to now; it passes with a one-second delay before the update and without it, and goes red with `REPOINTRESETS` 0 (DW-1352; test only, no product change)
+
 ### Story 22.15: The tool list reports which tools changed (the `changed` flag)
 
 > [ADDED 2026-11-14, Contest Planner, Lane A exception V1 for 21.9] Worked by lane C under the Lane A exception, limited to the `changed` member, ClearRow/ClearChanged, Classify/ClassifyTool and their tests. Story 21.9 builds on it.
@@ -8836,6 +8852,11 @@ So that a read file can join my documents and a photo is remembered.
 **Then** the replies match, Add to documents adds the file, and across the whole flow no file content appears in a production message body (FR-54, AD-4)
 **And** the guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged ("offers to add it to your documents" with this story; "a photo's caption is saved to memory" with Story 26.3) (UX-DR147)
 - DW-1269: 37.1's obligation for 25.6: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; it renders the read result and the member caption, naming the carriers; 'no file content in a production message body' means no bytes and no image (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- From Story 26.2 (Contest Planner ruling H2, 2026-11-14): this story sets `Agent.Input` `READSFILES` to 1 (26.2 ships it at 0), together with its chip and texts, so web and Telegram file turns reach the model only from this story on.
+- From Story 26.2 (Contest Planner ruling H2, 2026-11-14), texts approved for THIS story's commit: (1) docs/security-overview.md, model-requests bullet: "A chat turn with a PDF or Word file carries the text OcuTalon read from it, quoted as data. A chat turn with a photo also carries that photo." (2) docs/security-overview.md, after the trace-content bullet: "The trace also holds the text OcuTalon read from a file sent in the chat or Telegram, and a photo's caption, like a chat reply; a file's bytes and a photo itself are never in it." (3) GUIDE.md "New since 1.0.0", under "Your documents and memory": "- **Send a file in the chat.** On your own install, press the paperclip beside the message box, or drop a file on the chat, to send a PDF, a Word (.docx) file, or a JPEG or PNG photo of up to 10 MB; in Telegram, send it to your paired chat. OcuTalon reads it, and a photo's caption is saved to memory. Sending files is off on the online demo." Adding "offers to add it to your documents" goes to the Planner first. [ADDED 2026-11-14, Story 26.2 Planner rulings, by the epic-26 runner at the orchestrator's instruction]
+- DW-1312: the security overview for photos (texts 1 and 2 above) (ledger; re-owned from 26.2 by spec_gate 2026-11-14, ruling H2)
+- DW-1313: the memory card shows "This memory came from a photo, so it can't be pinned." for a 409 pin_photo instead of the over-cap notice, in a lazy chunk (ledger; re-owned from 26.2 by spec_gate 2026-11-14, ruling)
+- DW-1342: add the production readable-PDF and photo Telegram turns (TelegramChat with the reader on) and a web readable-file turn when this story flips READSFILES; 26.2 verified the Telegram fetch-to-Item join through its probe seam only (ledger; routed by harvest 2026-11-14, Story 26.2)
 
 ### Story 25.7: Epic 25 burn-down: a cancelled CI job's stack no longer blocks its runner's web port
 
@@ -8891,8 +8912,6 @@ So that I can ask about a file without adding it as a document first.
 
 **Release check:** checked by the Contest Planner on the demo host at this step's release [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**And** on the online demo the download goes through the outbound gateway, which must swap the dummy token on Telegram's file-download path too; the demo host's configuration, outside this repository, adds that route before this story's release reaches the online demo, and the release checklist confirms it (FR-54, AD-19, AD-25)"]
 - DW-1270: 37.1's obligation for 26.2: build Agent.Input.ReadFile for PDF and Word and set READSFILES; read the file once for ReadFile and Render in the same job, or re-read; mind Docs.Extract's up-to-45 s run in Conversation's job (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
-- DW-1312: the security overview for photos: add "A chat turn with a photo also carries that photo." to the model-request bullet, and say photos are never in the trace while captions are, like chat replies (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner rulings 9-10)
-- DW-1313: the memory card shows "This memory came from a photo, so it can't be pinned." for a 409 pin_photo instead of the over-cap notice, in a lazy chunk (ledger; routed by spec_gate 2026-11-14, Story 26.3 Planner ruling V3)
 - DW-1321: a photo turn's decide (triage) request carries the photo ask but no image; when photos reach Decide, give the PHOTOASK line only to the turn request and a neutral line to the decide request (ledger; routed by cr 2026-11-14, Story 26.3)
 
 ### Story 26.3: Caption a photo and keep the caption as a memory
