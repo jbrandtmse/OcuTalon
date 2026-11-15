@@ -118,6 +118,16 @@
 /// a log line, a result or a message. The users of the section come from the production job: Values (the web process) sends a ListOnCallUsers (origin web_admin, a
 /// read) and takes the list [{user, paired}] from the handoff that the answer names in Data {"handoff": uri}, never from the sessions' or pairings' storage, and
 /// answers users [] when that fails; no user name is in the command or its result.
+/// The partner-contacts section (Story 24.2; kind contacts, slug partner-contacts) is the only writer of OcuTalon.Data.PartnerContact. Its body is held by SecretHandoff, as
+/// the on-call body is (HandoffBody), and is {action, ref, name, email, productions} for a save (action save; ref "" for a new contact) or {action, ref} for a remove; productions is
+/// [{namespace, production}], each an entry of Watch.Reader Productions read in this job. SavePartner validates the whole body before it writes anything (PartnerProblems: a refusal
+/// names name, email or productions and never a value, and a body of the wrong shape is refused with no field), and WritePartner writes the one Settings audit entry, then inserts,
+/// updates or deletes the row, in one transaction that a failure rolls back. The entry's setting is partnerContact.<Ref>, and its from and to name WHICH fields changed (name, email,
+/// productions: PartnerAuditForm), never a value, so a contact's name and address are in no audit entry, command, result or log line, and deleting the row deletes them. A save that changes
+/// nothing writes nothing. On the online demo it answers not_available and Values has no partner-contacts member. Values adds partner-contacts {contacts, productions} only while
+/// PartnersShown is 1 (the class OcuTalon.Fix.PartnerContacts declares TABLE = 1), the contacts from PartnerContact List and the productions from ProductionsRoster. ListProductions
+/// (Story 24.2, origin web_admin; a read, no tool verb) answers Ok 1, Outcome listed and Data {"productions": [{namespace, production, displayName}]}, not_available on the online demo, and failed
+/// when Watch.Reader Productions throws.
 Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 {
 
@@ -205,6 +215,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.TestModel" Quit ..TestModel(command)
 	If class = "OcuTalon.Msg.Command.MailSignIn" Quit ..SignIn(command)
 	If class = "OcuTalon.Msg.Command.ListOnCallUsers" Quit ..ListOnCallUsers()
+	If class = "OcuTalon.Msg.Command.ListProductions" Quit ..ListProductions()
 	If class = "OcuTalon.Msg.Command.ListMcpServers" Quit ..ListMcp(command)
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
@@ -902,7 +913,7 @@ Parameter TESTWAIT = 45;
 /// The sections of the settings page. A section has a slug, a kind (product: its fields are Data.Setting keys that this class writes; bridge:
 /// its fields are bridge names that Bridge.Settings changes; demo: read here only, a SetDemoMode switches it) and its fields. A field has a name
 /// (the page's and the API's), a key (product) or the bridge name, a type (int, time, channels, bridge or flag), its default and, for an int, its
-/// range. A models section has no fields: its body is nested (SaveModels). An email section (Channels, Story 21.2) has its own save (SaveEmail) and its names are those of the form: its fields carry no key. An on-call section (Story 36.4) has its own save (SaveOnCall): its fields are the seven keyed values that it writes through SaveProduct, and the body that it validates also names each person's kind.
+/// range. A models section has no fields: its body is nested (SaveModels). An email section (Channels, Story 21.2) has its own save (SaveEmail) and its names are those of the form: its fields carry no key. An on-call section (Story 36.4) has its own save (SaveOnCall): its fields are the seven keyed values that it writes through SaveProduct, and the body that it validates also names each person's kind. A contacts section (Story 24.2) has its own save (SavePartner) and no fields: its rows are PartnerContact rows.
 XData Sections [ MimeType = application/json ]
 {
 [
@@ -940,7 +951,8 @@ XData Sections [ MimeType = application/json ]
   {"name": "backupUser", "key": "oncall.backup.user", "default": ""},
   {"name": "backupEmail", "key": "oncall.backup.email", "default": ""},
   {"name": "backupChannels", "key": "oncall.backup.channels", "default": "telegram,email"},
-  {"name": "escalationMinutes", "key": "oncall.escalationMinutes", "type": "int", "min": 1, "max": 1440, "default": "15"}]}
+  {"name": "escalationMinutes", "key": "oncall.escalationMinutes", "type": "int", "min": 1, "max": 1440, "default": "15"}]},
+ {"slug": "partner-contacts", "kind": "contacts", "fields": []}
 ]
 }
 
@@ -973,7 +985,7 @@ ClassMethod Values() As %DynamicObject
 	Set sections = {}
 	Set iterator = ..Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
-		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") || (section.kind = "roles") || (section.kind = "oncall") Continue
+		If (section.kind = "bridge") || (section.kind = "models") || (section.kind = "email") || (section.kind = "roles") || (section.kind = "oncall") || (section.kind = "contacts") Continue
 		Set values = {}
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
@@ -992,6 +1004,7 @@ ClassMethod Values() As %DynamicObject
 	}
 	If '..OnlineDemo() Do sections.%Set("channels", ..EmailValues())
 	If '..OnlineDemo() Do sections.%Set("on-call", ..OnCallValues())
+	If '..OnlineDemo() && ..PartnersShown() Do sections.%Set("partner-contacts", ..PartnerValues())
 	Quit {"sections": (sections), "bridge": (##class(OcuTalon.Bridge.Settings).Values()), "providers": (##class(OcuTalon.Bridge.Settings).Providers()), "instanceZone": (##class(OcuTalon.Bridge.Time).Zone()), "prices": (..Prices())}
 }
 
@@ -1050,6 +1063,7 @@ Method Save(command As OcuTalon.Msg.Command.SaveSettings) As OcuTalon.Msg.Comman
 	If section.kind = "email" Quit ..SaveEmail(command, changes)
 	If section.kind = "roles" Quit ..SaveRoles(command, changes)
 	If section.kind = "oncall" Quit ..SaveOnCall(command, changes)
+	If section.kind = "contacts" Quit ..SavePartner(command, changes)
 	Set bad = [], refused = 0, wanted = ""
 	Set fields = section.fields.%GetIterator()
 	While fields.%GetNext(, .field) {
@@ -2532,15 +2546,29 @@ Parameter ONCALLCHANNELS = "telegram,email";
 Parameter ONCALLUSERMAX = 128;
 
 /// Saves the on-call section of a SaveSettings command (see the class description). changes is the parsed Changes, which holds exactly {"handoff": uri}: the
-/// body of the section is behind the uri (SecretHandoff), so that no on-call value is in the command or in the trace. In order: the online demo is not_available
-/// (the handoff is discarded); any other Changes is refused; a handoff with nothing behind it is failed; a body that is not a JSON object is refused; every value is
+/// body of the section is behind the uri (SecretHandoff), so that no on-call value is in the command or in the trace. In order: HandoffBody (the online demo is
+/// not_available, any other Changes is refused, a handoff with nothing behind it is failed, a body that is not a JSON object is refused); every value is
 /// validated (OnCallProblems) and a refusal names fields only; then SaveProduct writes the changes, each after its audit entry.
 Method SaveOnCall(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
 {
+	Set refusal = ..HandoffBody(changes, ..#MESSAGEONCALLOFF, .body)
+	If $IsObject(refusal) Quit refusal
+	Set bad = ..OnCallProblems(body, .to, .odd)
+	If bad.%Size() || odd Quit ..Refused(bad)
+	Quit ..SaveProduct(command, ..Section("on-call"), .to)
+}
+
+/// The body of a section that travels through SecretHandoff (the on-call and the partner-contacts saves), taken from the handoff that changes names. It returns "" and
+/// the parsed JSON object in body, or the CommandResult to answer: not_available with offText on the online demo (the handoff is discarded first), refused with no field for
+/// a Changes that is not exactly {"handoff": uri} (the handoff is discarded) and for a body that is not a JSON object, and failed when nothing can be taken from the
+/// handoff. The text of the body is in no log line, result or global.
+Method HandoffBody(changes As %DynamicObject, offText As %String, Output body As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set body = ""
 	Set handoff = $Select(changes.%GetTypeOf("handoff") = "string": changes.handoff, 1: "")
 	If ..OnlineDemo() {
 		Do ##class(OcuTalon.Core.SecretHandoff).Discard(handoff)
-		Quit ..Result(0, "not_available", ..#MESSAGEONCALLOFF)
+		Quit ..Result(0, "not_available", offText)
 	}
 	If (changes.%Size() '= 1) || (handoff = "") {
 		Do ##class(OcuTalon.Core.SecretHandoff).Discard(handoff)
@@ -2554,10 +2582,11 @@ Method SaveOnCall(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dyna
 		Set body = ""
 	}
 	Kill text
-	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit ..Refused([])
-	Set bad = ..OnCallProblems(body, .to, .odd)
-	If bad.%Size() || odd Quit ..Refused(bad)
-	Quit ..SaveProduct(command, ..Section("on-call"), .to)
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") {
+		Set body = ""
+		Quit ..Refused([])
+	}
+	Quit ""
 }
 
 /// The refused fields of an on-call body, as a dynamic array of field names in the form's order (primaryUser, primaryEmail, primaryChannels, the backup three, then
@@ -2781,6 +2810,268 @@ ClassMethod OnCallValues() As %DynamicObject
 	Do values.%Set("users", ..OnCallRoster())
 	Do values.%Set("pagesBuilt", ##class(%Dictionary.CompiledClass).%ExistsId("OcuTalon.Data.Page"), "boolean")
 	Quit values
+}
+
+/// The Message of a partner-contacts save on the online demo (the accepted text settings.partnersOffOnDemo).
+Parameter MESSAGEPARTNERSOFF = "Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install.";
+
+/// The longest name of a partner contact, in characters.
+Parameter PARTNERNAMEMAX = 128;
+
+/// 1 when the class's TABLE parameter is exactly 1: the switch of the Partner contacts section (the cross-lane contract: OcuTalon.Fix.PartnerContacts declares it, and this
+/// class only reads it). A class that has no TABLE, a TABLE that is anything but 1, and a class that cannot be read are 0. It never throws.
+ClassMethod PartnersShown(class As %String = "OcuTalon.Fix.PartnerContacts") As %Boolean
+{
+	Set shown = 0
+	Try {
+		Set shown = ($Parameter(class, "TABLE") ? 1"1")
+	} Catch {
+		Set shown = 0
+	}
+	Quit shown
+}
+
+/// The partner-contacts member of GET /v1/settings: {contacts, productions}, the contacts as PartnerContact List gives them and the productions as ProductionsRoster
+/// gives them. Values adds it only while PartnersShown is 1 and never on the online demo.
+ClassMethod PartnerValues() As %DynamicObject
+{
+	Quit {"contacts": (##class(OcuTalon.Data.PartnerContact).List()), "productions": (..ProductionsRoster())}
+}
+
+/// The productions that Watch.Reader offers, as [{namespace, production, displayName}] (its state member is left out). It runs in the production job and throws when
+/// Reader.Productions cannot read.
+ClassMethod ProductionRows() As %DynamicArray [ Private ]
+{
+	Set rows = []
+	Set iterator = ##class(OcuTalon.Watch.Reader).Productions().%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set one = {}
+		Do one.%Set("namespace", entry.namespace, "string")
+		Do one.%Set("production", entry.production, "string")
+		Do one.%Set("displayName", entry.displayName, "string")
+		Do rows.%Push(one)
+	}
+	Quit rows
+}
+
+/// Carries out a ListProductions (Story 24.2, origin web_admin) in the production job: Ok 1, Outcome listed and Data {"productions": [{namespace, production, displayName}]}.
+/// Production names are not personal data, so the list is inline. On the online demo it answers not_available; it is failed when Watch.Reader Productions throws.
+Method ListProductions() As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..#MESSAGEPARTNERSOFF)
+	Try {
+		Set rows = ..ProductionRows()
+	} Catch exception {
+		$$$LOGERROR(exception.DisplayString())
+		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "listed", "", {"productions": (rows)}.%ToJSON())
+}
+
+/// The productions of the partner-contacts section for the web process: a ListProductions through SubmitProductions. It answers [{namespace, production, displayName}] as
+/// ListProductions made it, and [] when the command is refused, fails, gets no answer, or its Data is not a list of productions. It never throws.
+ClassMethod ProductionsRoster() As %DynamicArray [ Private ]
+{
+	Set productions = []
+	Try {
+		Set sc = ..SubmitProductions(##class(OcuTalon.Msg.Command.ListProductions).%New(), .result)
+		If $$$ISERR(sc) || '$IsObject(result) || 'result.Ok || (result.Outcome '= "listed") Quit
+		Set list = {}.%FromJSON(result.Data).productions
+		If '$IsObject(list) || 'list.%IsA("%Library.DynamicArray") Quit
+		Set found = []
+		Set iterator = list.%GetIterator()
+		While iterator.%GetNext(, .one) {
+			If '$IsObject(one) || 'one.%IsA("%Library.DynamicObject") || (one.%GetTypeOf("namespace") '= "string") || (one.%GetTypeOf("production") '= "string") || (one.%GetTypeOf("displayName") '= "string") Quit
+			Set copy = {}
+			Do copy.%Set("namespace", one.namespace, "string")
+			Do copy.%Set("production", one.production, "string")
+			Do copy.%Set("displayName", one.displayName, "string")
+			Do found.%Push(copy)
+		}
+		If found.%Size() = list.%Size() Set productions = found
+	} Catch {
+		Set productions = []
+	}
+	Quit productions
+}
+
+/// The one submit of ProductionsRoster: the command through Commands.Submit with origin web_admin. A test subclass overrides it.
+ClassMethod SubmitProductions(command As OcuTalon.Msg.Command.ListProductions, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+}
+
+/// Saves the partner-contacts section of a SaveSettings command (see the class description). changes is the parsed Changes, which holds exactly {"handoff": uri}: the body is
+/// behind the uri (SecretHandoff), so that no name or address is in the command or in the trace. In order: HandoffBody; PartnerProblems validates the whole body, and a
+/// refusal names fields only (a body of the wrong shape names none); then WritePartner writes the audit entry and the row. A production list that cannot be read is failed.
+Method SavePartner(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set refusal = ..HandoffBody(changes, ..#MESSAGEPARTNERSOFF, .body)
+	If $IsObject(refusal) Quit refusal
+	Try {
+		Set bad = ..PartnerProblems(body, .row, .odd)
+	} Catch exception {
+		$$$LOGERROR(exception.DisplayString())
+		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	If odd Quit ..Refused([])
+	If bad.%Size() Quit ..Refused(bad)
+	Quit ..WritePartner(command, .row)
+}
+
+/// The refused fields of a partner-contacts body, as a dynamic array of field names (name, email, productions, in that order), and in row the values to store when none is
+/// refused: row("action"), row("ref"), and for a save row("name"), row("email") (both trimmed) and row("productions") (the JSON text of the entries sorted by namespace, then
+/// production). odd is 1 for a body of the wrong shape: an action that is not save or remove; a member that is missing or extra (a save has exactly action, ref, name, email and
+/// productions, a remove exactly action and ref); a member of the wrong JSON type; an entry of productions that is not exactly {namespace, production} as two strings; a ref that is
+/// not an existing contact (a save may also have ref ""). A name is 1 to PARTNERNAMEMAX characters after trimming, without "@{" or a control character; an address passes IsAddress;
+/// productions are not empty, and each entry is one that Watch.Reader Productions gives (read here, in the production job) and appears once. A name never carries a value. It throws
+/// when Productions cannot be read.
+ClassMethod PartnerProblems(body As %DynamicObject, Output row, Output odd As %Boolean) As %DynamicArray [ Private ]
+{
+	Kill row
+	Set bad = [], odd = 0
+	If body.%GetTypeOf("action") '= "string" Set odd = 1 Quit bad
+	Set action = body.action
+	If (action '= "save") && (action '= "remove") Set odd = 1 Quit bad
+	Set known = $Select(action = "save": $ListBuild("action", "ref", "name", "email", "productions"), 1: $ListBuild("action", "ref"))
+	If body.%Size() '= $ListLength(known) Set odd = 1 Quit bad
+	Set position = 0
+	While $ListNext(known, position, member) {
+		If body.%GetTypeOf(member) = "unassigned" Set odd = 1
+	}
+	If odd Quit bad
+	If body.%GetTypeOf("ref") '= "string" Set odd = 1 Quit bad
+	Set ref = body.ref
+	If ($Length(ref) > 22) || ((ref '= "") && '$IsObject(##class(OcuTalon.Data.PartnerContact).RefOpen(ref))) Set odd = 1 Quit bad
+	If (action = "remove") && (ref = "") Set odd = 1 Quit bad
+	Set row("action") = action, row("ref") = ref
+	If action = "remove" Quit bad
+	If (body.%GetTypeOf("name") '= "string") || (body.%GetTypeOf("email") '= "string") || (body.%GetTypeOf("productions") '= "array") Set odd = 1 Quit bad
+	Set list = body.productions
+	Set iterator = list.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If '$IsObject(entry) || 'entry.%IsA("%Library.DynamicObject") || (entry.%Size() '= 2) || (entry.%GetTypeOf("namespace") '= "string") || (entry.%GetTypeOf("production") '= "string") Set odd = 1
+	}
+	If odd Quit bad
+	Set name = $ZStrip(body.name, "<>W")
+	If ($Length(name) < 1) || ($Length(name) > ..#PARTNERNAMEMAX) || (name [ "@{") || ..HasControl(name) Do bad.%Push("name")
+	Set email = $ZStrip(body.email, "<>W")
+	If '..IsAddress(email) Do bad.%Push("email")
+	Set productionsOk = (list.%Size() > 0)
+	If productionsOk {
+		Set current = ..ProductionRows()
+		Set seen = ""
+		Kill sorted
+		Set iterator = list.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			Set key = entry.namespace_$Char(1)_entry.production
+			If $ListFind(seen, key) || '..PartnerCurrent(current, entry.namespace, entry.production) {
+				Set productionsOk = 0
+				Quit
+			}
+			Set seen = seen_$ListBuild(key)
+			Set sorted(entry.namespace, entry.production) = ""
+		}
+	}
+	If 'productionsOk Do bad.%Push("productions")
+	If bad.%Size() Quit bad
+	Set text = []
+	Set one = ""
+	For {
+		Set one = $Order(sorted(one))
+		Quit:one=""
+		Set two = ""
+		For {
+			Set two = $Order(sorted(one, two))
+			Quit:two=""
+			Set entry = {}
+			Do entry.%Set("namespace", one, "string")
+			Do entry.%Set("production", two, "string")
+			Do text.%Push(entry)
+		}
+	}
+	Set row("name") = name, row("email") = email, row("productions") = text.%ToJSON()
+	Quit bad
+}
+
+/// 1 when the namespace and the production are an entry of the rows that ProductionRows gave.
+ClassMethod PartnerCurrent(rows As %DynamicArray, namespace As %String, production As %String) As %Boolean [ Private ]
+{
+	Set found = 0
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If (entry.namespace = namespace) && (entry.production = production) {
+			Set found = 1
+			Quit
+		}
+	}
+	Quit found
+}
+
+/// The audit form of one side of a partner contact's change (Bridge.Audit shape Settings, from or to): the names of the fields in changed that hold a value on that side, comma-joined
+/// in the order name, email, productions, and never a value. held is 1 for a side that has the contact (the row before an edit or a removal, the row after an add or an edit) and 0 for a side
+/// that has none (before an add, after a removal), which is "".
+ClassMethod PartnerAuditForm(changed As %List, held As %Boolean) As %String [ Private ]
+{
+	If 'held Quit ""
+	Set form = ""
+	For name = "name", "email", "productions" {
+		If $ListFind(changed, name) Set form = form_$Select(form = "": "", 1: ",")_name
+	}
+	Quit form
+}
+
+/// Writes a validated partner-contacts change (row, from PartnerProblems): an add (ref ""), an edit, or a removal. A save that changes nothing writes nothing and is done. Otherwise the
+/// one Settings audit entry (setting partnerContact.<Ref>, from and to as PartnerAuditForm gives them, with the admin's user, the session and the channel) is written first and then the row is
+/// inserted, updated or deleted, in one transaction: a failed audit rolls it back as not_audited, and a failed write as failed.
+Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set all = $ListBuild("name", "email", "productions")
+	Set existing = $Select(row("ref") '= "": ##class(OcuTalon.Data.PartnerContact).RefOpen(row("ref")), 1: "")
+	If row("action") = "remove" {
+		If '$IsObject(existing) Quit ..Refused([])
+		Set changed = all, ref = existing.Ref, fromHeld = 1, toHeld = 0
+	} ElseIf $IsObject(existing) {
+		Set changed = ""
+		If existing.Name '= row("name") Set changed = changed_$ListBuild("name")
+		If existing.Email '= row("email") Set changed = changed_$ListBuild("email")
+		If existing.Productions '= row("productions") Set changed = changed_$ListBuild("productions")
+		If changed = "" Quit ..Result(1, "done", ..#MESSAGESECTIONSAVED)
+		Set ref = existing.Ref, fromHeld = 1, toHeld = 1
+	} Else {
+		Set changed = all, ref = ##class(OcuTalon.Bridge.Ids).NewRef(), fromHeld = 0, toHeld = 1
+	}
+	Set level = $TLEVEL
+	TSTART
+	Try {
+		Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "partnerContact."_ref, ..PartnerAuditForm(changed, fromHeld), ..PartnerAuditForm(changed, toHeld)))
+		If $$$ISERR(sc) {
+			TROLLBACK 1
+			Set text = $SYSTEM.Status.GetErrorText(sc)
+			$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+			Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+		}
+		If row("action") = "remove" {
+			Set sc = ##class(OcuTalon.Data.PartnerContact).%DeleteId(existing.%Id())
+		} Else {
+			Set now = ##class(OcuTalon.Data.Time).NowUtc()
+			Set contact = $Select($IsObject(existing): existing, 1: ##class(OcuTalon.Data.PartnerContact).%New())
+			If '$IsObject(existing) Set contact.Ref = ref, contact.CreatedAt = now
+			Set contact.Name = row("name"), contact.Email = row("email"), contact.Productions = row("productions"), contact.UpdatedAt = now
+			Set sc = contact.%Save()
+		}
+		If $$$ISERR(sc) {
+			TROLLBACK 1
+			$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+			Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+		}
+		TCOMMIT
+	} Catch exception {
+		If $TLEVEL > level TROLLBACK 1
+		$$$LOGERROR(exception.DisplayString())
+		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "done", ..#MESSAGESECTIONSAVED)
 }
 
 }

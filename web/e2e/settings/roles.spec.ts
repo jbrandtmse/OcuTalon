@@ -3,6 +3,7 @@ import { expect, test, type APIResponse, type Locator, type Page } from '../supp
 import { STATE, changeSnapshot } from '../support/api';
 import { signInReadmeLoaded } from '../support/floor';
 import { fixtureUser } from '../support/iris';
+import { partnerShown } from '../support/partner-contacts';
 
 /**
  * Story 25.4, the Roles section of Settings in a real browser, signed in as the README admin (RS1 and RS2; the sign-in-2 unit). The roles' existence is the one thing the
@@ -42,8 +43,9 @@ test('RS1: on the real state there is no Roles entry in the Settings navigation'
   await signInReadmeLoaded(page);
   const state = (await (await page.request.get(STATE)).json()) as Record<string, unknown>;
   expect(state['rolesAssignable'], 'the real state: no STEP6ROLES on this branch').toBe(false);
+  const partners = await partnerShown(page.request);
   await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(sectionsNav(page).getByRole('link'), 'nine sections, no Roles').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers']);
+  await expect(sectionsNav(page).getByRole('link'), 'the sections, no Roles').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', ...(partners ? ['Partner contacts'] : []), 'Demo mode', 'Tools and MCP servers']);
   await page.evaluate(() => {
     location.hash = '#/settings/roles';
   });
@@ -57,8 +59,9 @@ test('RS2: with roles assignable, the admin lists, grants and removes by keyboar
   });
   await signInReadmeLoaded(page);
   try {
+    const partners = await partnerShown(page.request);
     await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
-    await expect(sectionsNav(page).getByRole('link'), 'Roles is the last entry').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', 'Demo mode', 'Tools and MCP servers', 'Roles']);
+    await expect(sectionsNav(page).getByRole('link'), 'Roles is the last entry').toHaveText(['Models', 'Budgets', 'Channels', 'Daily digest', 'Time zone', 'Check thresholds', 'On call', ...(partners ? ['Partner contacts'] : []), 'Demo mode', 'Tools and MCP servers', 'Roles']);
     const link = sectionsNav(page).getByRole('link', { name: 'Roles', exact: true });
     await link.focus();
     await page.keyboard.press('Enter');

@@ -265,7 +265,37 @@ export interface SettingsSections {
   channels?: EmailValues;
   /** The on-call person and backup (Story 36.4): never on the online demo. */
   'on-call'?: OnCallValues;
+  /** The partner contacts and the productions they can concern (Story 24.2): only while OcuTalon.Fix.PartnerContacts has TABLE = 1, never on the online demo. */
+  'partner-contacts'?: PartnerContactsValues;
 }
+
+/** A production that a partner contact can concern: its namespace and its production class (the server's Watch.Reader entries). */
+export interface PartnerProduction {
+  namespace: string;
+  production: string;
+}
+
+/** A production of the roster that the server lists for the Productions it concerns boxes: the pair and its display name. */
+export interface PartnerProductionRow extends PartnerProduction {
+  displayName: string;
+}
+
+/** A partner contact as the server stores it: its Ref, name, address and the productions it concerns. */
+export interface PartnerContact {
+  ref: string;
+  name: string;
+  email: string;
+  productions: PartnerProduction[];
+}
+
+/** The values of the Partner contacts section (Story 24.2): the stored contacts, ordered by name, and the productions that a contact can concern. */
+export interface PartnerContactsValues {
+  contacts: PartnerContact[];
+  productions: PartnerProductionRow[];
+}
+
+/** The body of POST /v1/settings/partner-contacts: one contact's save (ref is '' for a new contact) or removal. */
+export type PartnerContactBody = { action: 'save'; ref: string; name: string; email: string; productions: PartnerProduction[] } | { action: 'remove'; ref: string };
 
 /**
  * The values of the On call form (Story 36.4): for each of the two roles the IRIS user name ("" for none), the address pages are emailed to and the channels

@@ -2,14 +2,23 @@
 title: 'Story 24.2: Set partner contacts and saved SQL query watches in Settings'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '836f45ab07c5cc3658226113e5fed6c315513425'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-24-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-36-4-set-the-on-call-person-and-backup-in-settings.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      No test makes the row write fail after the audit write succeeds, so the rollback of the audit entry in WritePartner is not pinned.
+    evidence: |-
+      TestAddEditRemoveAudited fails the audit write only; SettingsPartners runs on the probe, whose audit record is outside the transaction, and the real Bridge.Audit is reached only by PartnerSettingsApi, where the productions come from the real roster and cannot exceed the 4000-character MAXLEN that would make %Save fail. Removing the TROLLBACK in the second error block keeps every test green.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:WritePartner
+    severity: medium
+
 ---
 
 <intent-contract>
@@ -208,118 +217,42 @@ The body is `{action, ref, name, email, productions}`: `action` is `save` or `re
 
 ## Review Triage Log
 
-## Design Notes
+### 2026-11-15 — Review pass
+- verdicts: 29 findings — high 0, medium 5, low 23, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: productions text over the 4000-character MAXLEN fails the save as a generic `failed` — needs about 50 listed productions; the failure rolls back and changes nothing; the fix adds a guard. wontfix-accepted, reopen_if an instance lists 50 or more productions.
+  - `[low]` `[reject]` Blind 2: an empty or failed roster gives no message — a message is new public text, which this story may not ship (only the approved strings); the section still refuses with the approved `partnerNoProduction`.
+  - `[low]` `[reject]` Blind 3: duplicate names or addresses are accepted — no AC or matrix row refuses them, it is the admin's choice, and a recipient list that repeats an address is the consumer's (23.13's reader) to de-duplicate; noted under residual risks.
+  - `[low]` `[reject]` Blind 4: two bounded round trips on one GET at TABLE 1 with a wedged production — Decided in-stage 4 and 7 chose this shape, mirroring `OnCallRoster`; by-design.
+  - `[low]` `[reject]` Blind 5: a 409 on Remove swaps the dialog text only — the section is absent on the demo, so only a stale page reaches it, and the text is correct; the fix adds a branch for an unlikely path.
+  - `[low]` `[reject]` Blind 6: `partnerBadName` does not name the `@{` and control-character causes — the string is the approved text, verbatim by the spec; spec-bound, by-design.
+  - `[low]` `[reject]` Blind 7: a no-change save shows "Recorded in the audit log" — the matrix row "Nothing changed" is 200 done with the reused saved text; spec-bound, by-design.
+  - `[low]` `[reject]` Blind 8: server and browser trim differently for NBSP — an admin must type a non-breaking space; the stored value is only a blank-looking name; unlikely, and the fix adds normalisation on both sides.
+  - `[medium]` `[patch]` Blind 9: the bridge-context refusal of `ListProductions` has no recorded mutation — patched: origin gate in `CommandsIn.Carry` mutated, `TestListProductionsRouting` and `TestContextMeansTool` red, reverted with `cmp`; its line is in `## Verification`. (The stale `## Auto Run Result
 
-### Moved to Story 24.5 (G1 (B))
+Status: done
+Blocking condition: none
 
-- The SQL query watches section and its nav entry: moved to Story 24.5.
-- The route `POST /api/v1/settings/sql-watches` and `Web.SqlWatchSettings.cls`: moved to Story 24.5.
-- `SqlBuilt()`, the 501 `not_built` answer and the "23.8 finding" on today's `failed`: moved to Story 24.5 (its plan starts after 23.8 merges, so neither is needed).
-- `SqlWatchRows` and the `CheckRows` generalization of `SourceRows`: moved to Story 24.5.
-- `sql-view.ts`, `sql-watches-section.ts`, `keepSqlWatches`, the rail-view `sql_query` case: moved to Story 24.5.
-- `SqlWatchSettingsProbe`/`SqlWatchSettingsApi`, `web/e2e/settings/sql-watches.spec.ts`, `web/e2e/api/sql-watches.spec.ts`: moved to Story 24.5.
-- `Values(sessionRef)` and Api passing `Ownership.SessionRef` (needed only for own SQL rows): moved to Story 24.5.
-- Matrix rows SQL not built, SQL save, SQL refused, SQL bad shape, SQL remove; ACs 5-8 of the earlier plan and the SQL half of AC9-AC10: moved to Story 24.5.
-- Public text `settings.sqlSection`/`sql*`, `settings.sqlOffOnDemo`, the reuse of `settings.onCallBadMinutes` and "Check every", the condition on `settings.sqlHelp`: moved to Story 24.5.
-- Decided-in-stage items 6-8 and 10 of the earlier plan (no SQL edit, refusals under Query, minutes 1-1440, query text in the trace): moved to Story 24.5.
+**Summary.** Partner contacts in Settings: `Data.PartnerContact` (private global, `ForProduction`, `List`, `RefOpen`), `SettingsOps` as its only writer (`SavePartner`/`WritePartner`: handoff only, whole-body validation, one audit entry `partnerContact.<Ref>` naming the changed fields, written first in one transaction), the web_admin read verb `ListProductions` (20 s `busy`, `not_available` on the demo, no tool verb), the route `Web.PartnerSettings`, and the Settings section, shown only while `Fix.PartnerContacts` has `TABLE = 1` (absent today, so it is hidden). No SQL code, no "not yet" text, no Lane A file, no `TABLE = 1`.
 
-### Moved to Story 23.13 (G2 (a), ruled)
+**Files changed.**
+- `src/short-names.tsv`, `Data/PartnerContact.cls` (new): the table and its readers.
+- `Msg/Command/ListProductions.cls` (new), `Core/CommandsIn.cls`: the verb, its route row and bounded send.
+- `Core/SettingsOps.cls`: the section row, `PartnersShown`, `PartnerValues`, `ListProductions`, `HandoffBody` (extracted from `SaveOnCall`), `SavePartner`, `WritePartner`, the audit form.
+- `Web/OnCallSettings.cls` (`Slug`/`OffText` overridable), `Web/PartnerSettings.cls` (new), `Web/Api.cls` (one Map line).
+- IRIS tests: `Test/Core/SettingsPartners.cls`, `Test/Web/PartnerSettingsApi.cls`, `Test/Web/PartnerSettingsProbe.cls` (new); `SettingsOpsProbe`, `CommandsRouting`, `Contracts`, `SettingsSave` extended.
+- Web: `partner-view.ts`, `partner-contacts-section.ts` (new); `settings-view.ts`, `settings-page.ts`, `api-types.ts`, `api-client.ts`.
+- Web tests: `partner-view.test.mjs` (new) and the section-list tests `settings-view`, `settings-refusal-sources`, `announce-focus-sources`, `ux-strings`, `mcp-view`, `floor-sources`; e2e `settings/partner-contacts.spec.ts` (P1 to P7), `api/partner-contacts.spec.ts` (H1 to H4), `support/partner-contacts.ts` (new); `settings.spec.ts`, `on-call.spec.ts`, `roles.spec.ts`, `deep-link.spec.ts` made state-derived for the section.
 
-- Switching 23.5's reader (`Fix.PartnerContacts.For`/`Named`) to `ForProduction`, DW-1254's contact-id change in Lane A's partner messages, and `Parameter TABLE = 1`. 24.2 only reads `TABLE`.
-- The epics AC "these contacts are the only addresses a partner warning ... can ever be sent to" is delivered by 23.13 (its ruled AC: a warning goes only to the contacts set for that production).
-- `settings.partnersHelp`'s condition (pin both halves): 24.2 pins the text verbatim and that it shows only at `TABLE = 1`. The behaviour behind "only to the people listed here" is pinned by 23.13's ruled AC, and "only after you approve each one" by 23.5's approval path (a partner warning is an approval-gated fix request; inference from 23.5's spec, not re-measured here). The text cannot show before 23.13 sets `TABLE`.
+**Review.** Four layers, 29 findings: high 0, medium 5, low 23, false 1. Patches applied (5 entries): the bridge-context mutation, P5 to P7 (500, 409, 403), a deterministic `TestListProductionsVerb`, a self-contained P4, and the AC7/AC8 mutation lines. Deferred (1): the rollback after a failing row write is unpinned. Rejected (23 low, 1 false): each with its reason in the Review Triage Log. Patched counts: high 0, medium 4, low 1.
 
-### Decided in-stage
+**Follow-up review recommended: true.** Unverified risk: the patched web tests ran once (P1 to P7 in `sign-in-2` part 17/20, 7 passed); P4's independence was reasoned and not run alone.
 
-1. The route is a forwarded Map, as 36.4's was; Api's `TestRoutes` still counts 38.
-2. One contact per save (save or remove), matching the per-contact Add, Save changes and Remove texts.
-3. Audit form (veto 3): one entry per save or removal; from = the changed fields that held a value before, to = the changed fields that hold one after, comma-joined in name, email, productions order. So an add is from "" to `name,email,productions`, a removal the reverse, and an edit of the address `email` to `email`. No value, no new word, and `Bridge.Audit` describes it as "Setting partnerContact.<Ref> changed".
-4. `GET /v1/settings` carries the member only while the section is shown, so nothing is read or sent for a hidden section (no `ListProductions` submit on each load at TABLE 0). The route and the saver ignore `TABLE`: 24.2 builds the save path now, the api spec proves it today, and 23.13 needs no route change.
-5. `PartnersShown` takes the class name with `Fix.PartnerContacts` as default, so a test pins both values against test classes that declare `TABLE`, and the real-class assertions are state-derived and survive 23.13.
-6. The Playwright UI spec simulates only the TABLE 1 state: it adds the member read from the real `PartnerValues()` (irisScript) to the real GET and POST answers; rows, audit and routes are real. Task 0 measures that `irisScript` can run it.
-7. Productions come through `ListProductions` (`Reader.Productions()` needs the production job); production names are not personal data, so its `Data` is inline, as `ListMcpServers`' is. Ruled as veto 1.
-8. The contact list is read in the web process only through `PartnerContact.List()` (AD-13, L484). The `web-global-reads` baseline is unchanged.
-9. Nav order: On call, then Partner contacts. Remove always asks `partnerRemoveConfirm`, because the section shows only while warnings use the table.
-10. The spec keeps its file name and title, which still name SQL watches: they are the sprint key and the `epics.md` title. A retitle is the lead's call (Rule 5's sprint-key step).
+**Verification.** `npm --prefix web test` 2136 pass; lint, build (initial 889.05 kB), `test-class-rules.sh`, `test-ci-config.sh`, `test-boundaries.sh` and `live storage-roundtrip` pass; warm classes `SettingsPartners`, `PartnerSettingsApi`, `OnCallSettingsApi`, `SettingsOnCall`, `CommandsRouting`, `Contracts`, `SettingsSave`, `Web.SettingsApi` and `Web.Api` pass; `PartnerSettingsApi` and `SettingsPartners` pass on a fresh stack; live `sign-in-2` parts 16 to 18 and 14 of 20 and `sign-in` part 5 of 32 pass. Every mutation of `## Verification` was seen red and reverted byte-identically (`cmp`), among them `PartnersShown` always 1 and always 0 (TABLE 0 and TABLE 1), `ListProductions` in `TOOLVERBS` (tool refusal), the bridge-context gate, and an address put into the audit entry (`TestValuesOnlyInTheRow` red, the leak scan over the audit rows). All stacks are torn down.
 
-### Governing ADs (Rule 6)
-
-AD-1 (commands, `ListProductions`), AD-3 (the private global from `short-names.tsv`), AD-13 (admin routes; web reads only through the owning class), AD-17 (`Bridge.Audit` is the only writer), AD-19 (step-5 sections, `SecretHandoff`; V3 narrowed for partner contacts by veto 3), AD-24 (personal data out of the trace), AD-25 (the online demo), AD-29 (lanes; no Lane A edit), AD-33 (one writer per table).
-
-### Integration ACs, Consumed-by, Consumes (Rules 1, 2)
-
-- **Integration AC:** AC2 (`ForProduction` read in a fresh process, as 23.13's reader will).
-- **Consumed-by:** 23.13 (`ForProduction` and the `TABLE` switch); 24.4 (a partner warning's recipients, through 23.5's reader once 23.13 switches it).
-- **Consumes:** `SecretHandoff`, `Bridge.Audit.Record`, `Watch.Reader.Productions` (through the verb), `CommandsIn`, 36.4's `Web.OnCallSettings` and `SaveOnCall` prologue.
-
-### Extend, don't copy (Rule 2)
-
-- `Web.PartnerSettings` extends `Web.OnCallSettings`, whose `Slug` and `OffText` become overridable.
-- `SavePartner` shares `HandoffBody`, extracted from `SaveOnCall`.
-- `ProductionsRoster` copies `OnCallRoster`'s shape: one answer is inline, the other a handoff.
-- `WritePartner` copies `SaveProduct`'s transaction, because it writes a row, not `Apply` keys.
-- `ListProductions` copies `ListOnCallUsers`. The leak scan reuses 36.4's helpers (`Leaks`, `TraceLeaks`, `LogText`, `TableHolds`); `TableHolds` is copied into the new test class as 36.4's is private, the reason being one helper of 12 lines.
-
-### Ledger (Rule 17)
-
-`LEDGER slice 24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings` holds DW-1254.
-- **Addressed:** the handoff, `Changes` exactly `{handoff}`, the leak scan (AC4). Its "values reach only the IRIS audit entry" is superseded by veto 3: values reach only the row, and the scan covers the audit rows.
-- **Residual:** the contact-id change in Lane A's partner messages is 23.13's (ruled), so DW-1254 is not fully `resolved-by` 24.2; at adjudication the lead re-owns the residual to 23.13's key.
-
-### Spine updates for the lead (Rule 20; vetoes 2 and 4 approved)
-
-- L767: partner contacts' audit holds `partnerContact.<Ref>` and the changed field names, never values (veto 3).
-- L770-772: `partner-contacts`' body `{action, ref, name, email, productions}` / `{action, ref}` and its 200/400/403/409/500 answers; the section is shown only while `Fix.PartnerContacts` `TABLE = 1` (the cross-lane contract, 23.13 sets it); `sql-watches` becomes Story 24.5's.
-- L1560: `ForProduction(namespace, production)` returns `[{id = row ID, name, address}]` in ID order.
-- Beside L1631: the `ListProductions` row (web_admin only, SettingsOps, 20 s `busy`, inline `Data {"productions"}`, no tool verb, not counted by the evaluation or the allowance).
-- Then `memlog.py append`, `lint_spine.py` and a refreshed `updated:`.
-
-### Release
-
-Target 1.0.12 or later. On the online demo the route answers 403 to visitors and 409 to an admin, and the section is absent.
-
-## Public text
-
-No NEW user-facing string. Shipped verbatim from EXPERIENCE.md › Settings (step 5): `settings.partnersSection`, `partnersHelp` (shown only at `TABLE = 1`), `partnerName`, `partnerEmail`, `partnerProductions`, `partnerAdd`, `partnerRemove`, `partnerRemoveConfirm`, `partnerBadName`, `partnerNoProduction`, `partnersOffOnDemo`, and `settings.badEmail`. Reused as they are: "Save changes", "Saved. Applies within a minute. Recorded in the audit log.", "Couldn't save. Nothing was changed.", "Cancel" (`MCP_TEXTS.cancel`). `settings.partnersNotYet` is refused and is not shipped.
-
-## Veto items
-
-None new. Ruled (Contest Planner, ~16:30Z Nov 15): (1) `ListProductions` APPROVED, pinned as no tool verb (AC7); (2) the `TABLE` parameter as the cross-lane contract APPROVED; (3) the audit CHANGED to ref and field names, applied (AC1, AC4); (4) the body contracts and `ForProduction`'s shape as spine bullets APPROVED (Spine updates above). Scope extensions GRANTED for this half: `Msg/Command/`, `Web/PartnerSettings.cls` and the `Web/OnCallSettings.cls` refactor, `Test/Msg/`, `short-names.tsv`, `web/scripts/`. No new role, grant, resource, retention rule, outward action, web dependency or online-demo capability.
-
-## Verification
-
-Every IRIS call runs from the worktree root with `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=24 stage=implement'`. Warm tag `e24s2iw`, fresh tag `e24s2i`. Each line is one foreground call (`timeout: 600000`) that ends inside about 150 s; one test class per call, never two test calls in one message. The web suite and each Playwright part are calls of their own.
-
-**Shared surfaces:** the Settings section list (`SETTINGS_SECTIONS`) and its nav count (state-derived for Partner contacts); the GET `/v1/settings` `sections` keys (`SettingsSave:441`); the `CommandsIn` Routes table and the verb lists in `CommandsRouting` and `Contracts`; `short-names.tsv`; the `ux-strings`, `settings-refusal-sources` and `announce-focus-sources` lists; `settings.spec.ts` S1/S1f and `on-call.spec.ts` O6.
-
-Standing criterion: every test added or changed passes on a fresh environment, in either order.
-
-**Commands:**
-- (once) `npm ci` in `web/` (`npm --prefix web ci`) -- this fresh worktree has no `web/node_modules`; the implement stage installs them first.
-- (once) `... OCUTALON_RUN_TAG=e24s2iw ci/warm.sh up` -- ready.
-- (loop) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s2iw ci/iris.sh class <C>`, one call each for `OcuTalon.Test.Core.SettingsPartners`, `Test.Web.PartnerSettingsApi`, `Test.Web.OnCallSettingsApi`, `Test.Core.SettingsOnCall`, `Test.Core.CommandsRouting`, `Test.Msg.Contracts`, `Test.Core.SettingsSave` -- each prints `CLASS … passed`. After a `SettingsOps` change, restart the item as 36.4's notes say.
-- (once) `... OCUTALON_RUN_TAG=e24s2iw ci/warm.sh down`.
-- (once) `... OCUTALON_RUN_TAG=e24s2i ci/iris.sh class OcuTalon.Test.Web.PartnerSettingsApi` -- passes on a fresh stack (the leak scan in the real production).
-- (loop) `npm --prefix web test` -- passes. Then (once) `npm --prefix web run lint` and (once) `npm --prefix web run build` -- pass with no budget error.
-- (once) `... OCUTALON_RUN_TAG=e24s2i ci/iris.sh build`; then (once each) `ci/iris.sh live sign-in-2 --part k/N` for the part holding `partner-contacts.spec.ts`, then the part(s) holding `settings.spec.ts` and `on-call.spec.ts`; then `ci/iris.sh live sign-in --part k/N` for `api/partner-contacts.spec.ts`. Find k/N with `npm --silent --prefix web run e2e:sign-in-2 -- --list --reporter=json` (or `e2e`) and `node web/scripts/e2e-part.mjs`, choosing N so each part ends inside about 150 s -- all pass.
-- (once) `bash docker/tests/test-class-rules.sh`, (once) `bash docker/tests/test-ci-config.sh`, (once) `bash docker/tests/test-boundaries.sh` -- pass. (once) `... ci/iris.sh live storage-roundtrip` -- passes (the new storage block).
-- (once) `... OCUTALON_RUN_TAG=e24s2i ci/iris.sh teardown`.
-- (once) Fresh-environment check (the lead): `ci/iris.sh shard lane-b --part k/n` and `--reverse` for the parts holding the added classes, each inside about 150 s.
-
-**Mutations (Rule 19; record each as `mutation: … → …`):**
-- AC1: skip `WriteAudit` in `WritePartner` → `SettingsPartners.TestAddEditRemoveAudited` red.
-- AC2: drop the namespace match in `ForProduction` → `TestForProductionOnlyStoredContacts` red.
-- AC3: accept `productions` [] → `TestRefusalsNameFieldsOnly` red.
-- AC4: put the address in the audit entry's `to` → `PartnerSettingsApi.TestValuesOnlyInTheRow` red (and: put the body in `Changes` → the same test red).
-- AC5: `PartnersShown` returns 1 → `SettingsPartners.TestTableStates` red; drop `partner-contacts` from the page's hide rule → `settings-view.test.mjs` hide case red.
-- AC6: `Values` omits the member when shown → `TestSectionShownAtTableOne` red; drop the help line → `partner-view.test.mjs` / `partner-contacts.spec.ts` P1 red.
-- AC7: add `ListProductions` to `TOOLVERBS` → `CommandsRouting.TestListProductionsRouting` red.
-- AC8: move the demo check after the body read → `PartnerSettingsApi.TestOnlineDemoRefusesFirst` red.
-- AC9: remove the Name label → `partner-contacts.spec.ts` P1 red.
-
-**Manual checks:** none beyond the commands.
-
-## Auto Run Result
-
-Status: ready-for-dev
-Blocking condition: none. Planning halted after the ready-for-development gate, as the invocation directed. The re-plan applies the Contest Planner's binding rulings of ~16:30Z and ~16:45Z Nov 15 (G1 (B) split, G2 (a) with no "not yet" text, vetoes 1-4, scope for the contacts half, 23.13). No new public text and no new veto item remain; the spine bullets under Design Notes are the lead's (Rule 20).
+**Residual risks.**
+- Duplicate names or addresses are accepted: 23.13's reader should de-duplicate recipients.
+- With the production wedged and `TABLE = 1`, a Settings GET can wait up to two bounded waits.
+- The handoff subagent sent two class runs in one message once (`SettingsSave` and `Contracts`); both passed and nothing raced.
+- The `TABLE = 1` page state is simulated by a route in the browser specs; its real state arrives with Story 23.13.
+- The Lane D spec edits `roles.spec.ts`, `deep-link.spec.ts`, `mcp-view.test.mjs` and `floor-sources.test.mjs` are shared-surface updates beyond the spec's list.
