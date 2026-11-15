@@ -371,3 +371,6 @@
 2026-11-15T01:51:04Z	Story 22.15	stage_spawned	stage=code-review spawn_at=2026-11-15T01:51:04Z model=opus effort=high agent_name=22-15-code-review-1 cycle_iteration=1
 2026-11-15T02:26:23Z	Story 22.15	cr_complete	model=opus findings=12 patched=4_low rejected=8 high=0 med=0 ledger=DW-1355(by-design:refused_tool_can_show_changed_true) unresolved_high_med=0 final_status=done overlap_22.11=one_doc_conflict(Ops.cls_class_doc_ClearChanged_bullet;keep_both)
 2026-11-15T02:26:34Z	Story 22.15	fresh_check	env=implement_fresh_e22s15i(Test.Mcp.Ops,Test.Mcp.Tools;forward,reverse)+CR_warm_rerun_after_patches(Ops,Tools,Classification) smoke=exempt(no_user_surface;Rule_3) feature=a6821f1d4(up_to_date)
+2026-11-15T03:11:00Z	Story 22.15	pushed	head=0a2d53d2b runs=43667820676,43667820662
+2026-11-15T03:11:00Z	Story 22.15	ci_resolved	sha=0a2d53d2b result=success runs=43667820676,43667820662
+2026-11-15T03:11:00Z	Story 22.15	part_ready	branch=OCT-epic22-s2215 code_head=0a2d53d2b ci=success feature_base=a6821f1d4
