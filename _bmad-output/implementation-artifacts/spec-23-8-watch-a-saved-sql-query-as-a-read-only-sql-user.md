@@ -185,6 +185,8 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `docs/`,
 
 ## Spec Change Log
 
+- 2026-11-15 ~20:45Z (lead, Planner gate): APPROVED with conditions (extended Task 0 hard gate a-d; SELECT results untrusted); D1-D3 accepted; AD-18/AD-24 amended in the spine; contention granted; public text approved verbatim.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -229,6 +231,19 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `docs/`,
 - `check_status` and the rail are unchanged. The rail renders any kind's row with its title, and source rows are also left out of `check_status`.
 - `EndSession` leaves the rows, as it does source rows. An admin session is durable (AD-4).
 - Ledger: none owned (`LEDGER slice` empty, `owned_ledger=0`).
+
+### Planner rulings, 2026-11-15 (binding; prompts/story-238-rulings-20261115.md "23.8")
+- APPROVED, own installs only; nothing of it exists on the online demo. Vetoes 1-6 APPROVED.
+- **Task 0 is an extended HARD GATE.** Besides refusing INSERT, UPDATE, DELETE, DDL and a SELECT on an ungranted table (each changing nothing), Task 0 must prove, on a fresh lane-B throwaway:
+  - (a) Sessions: `OcuTalonSqlReader` can open no session except SQL over one service: no Terminal, no Object or other binding, no CSP or web application, no Portal. Name the exact service it logs in through, pin it with a test, and confirm whether that service is `%Service_SQL` or `%Service_Bindings` on this build.
+  - (b) Resources: it holds no `%Development`, `%Admin_*`, `%Ens_*` or `%DB_*` resource other than `%DB_OCUTALON_DATA:R`.
+  - (c) Image: the JDBC loopback works on the shipped image as it stands. If it needs Java or any component not already in the image: STOP (HALT `blocked`, `intent gap: Task 0 (c) ...`). Never add a dependency.
+  - (d) Password: after a start, grep for the password in the CPF, the audit log, messages, the trace and the logs: it never appears.
+  Any failure of (a)-(d) or of the refusals is an `intent gap` HALT with the evidence; never work around it.
+- Untrusted content: SELECT results, and any Items they become, are untrusted content, exactly as a source's (marked, cut, never instructions).
+- D1, D2, D3 ACCEPTED; AD-18 and AD-24 amended in the spine by the lead (markers 2026-11-15, Story 23.8).
+- Contention GRANTED under the plain-union rule: Checks/Process (the Try block in Tick plus the appended block), Checks/Coverage.cls:322 (the change in place), Watch/Ops (MapItem, FIELDS, the appended block), BackgroundCheck (the two appended columns).
+- Public text APPROVED verbatim: the 11 WatchOps answers, the 2 not-checked reasons, the security-overview heading, table and SQLREADERSTATEMENT; settings.sqlOffOnDemo and settings.sqlBadName reused.
 
 ### For the Planner's gate
 
