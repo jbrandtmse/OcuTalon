@@ -4391,3 +4391,4 @@
 2026-11-15T20:03:27Z	Epic 23	merge_enqueued	story=23.4 (1.0.12)
 2026-11-15T20:13:35Z	Epic 24	runner_reported	PLANNER_REPORT 24.4_replan(4dc1225e) trace_leak=DryRunResult_raw;V5=Fix/Executor+IncidentManager(+DryRunResult_doc,Test.Watch.Rollback)_grant_needed V4=[redacted]_marker_confirm split_suggested=24.4a/24.4b relayed=contest_planner
 2026-11-15T20:13:52Z	Epic 24	owner_decision	via=contest_planner 24.4:V5=GRANTED(handoff_deleted_on_take+expiry,trace_bodies_redacted_pin,SysDefault_undo_raw_restore) V4=confirmed([redacted];bare_key=_approved) SPLIT=24.4a(blocker:redaction+V5+V1_rows)/24.4b(V2+pins)
+2026-11-15T20:16:02Z	Epic 23	merged	story=23.4 merge=92937a03e pins=pass web=pass lint=pass
