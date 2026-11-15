@@ -8353,6 +8353,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T17:24:27Z status=routed owner=burndown by=orchestrator note=ledgered flake (one rerun) until fixed; owner: lane D or lane C, whichever frees first; fix the test, or the UI if it is at fault
 - 2026-11-15T17:53:36Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-4) on ocutalon-ci-29 (new runner): mcp.spec.ts:479 B13 click 'Remove the source Existing' timeout 60 s
 - 2026-11-15T17:53:54Z status=routed owner=burndown by=orchestrator note=Contest Planner raised to HIGH (3 hits, 3 hosts, incl. main 1.0.11 push run); next free lane ahead of other burndown; assigned lane C (21.5's author) at its next boundary, before the Fix-family implementation
+- 2026-11-15T18:15:51Z occurrence=feature-9b9898a53 by=orchestrator note=run 43742359975 att1 iris(shards-4) on ocutalon-ci-7 (old runner): same B13 'Remove the source Existing' 60 s timeout (4th hit, 4th host); one rerun of failed jobs
 
 ### DW-1389: eval pair memory-webhook-remember and memory-email-remember (injection cases: a partner note asking to be remembered, expected digest) now land as ignore: decide a one-line Triage clarification that such notes go to the digest, or propose changing the two expectations; side question: a user's chat message saying a production stopped leans to act on OLD and NEW
 - source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
