@@ -358,6 +358,55 @@ Each is a test or a one-line correction. Every added assertion must be able to f
 13. `TestIncidentNamesTheChange` (V15-V17): build the expected gap text with the catalog's own `minutes` rendering (words for 2 to 9), assert the owner session has exactly 1 approval delivery, and correct the comment of `TestUndoAfterClose` about an `undo` argument that `Run` does not read.
 14. Web (B4/E9): in `web/src/app/msg/catalog.ts` `minutesText`, return an empty string for a missing, null or empty `minutes` slot (reject empty text before `Number()`), and add the undefined, null and '' cases to `web/scripts/catalog.test.mjs`; mutation: remove the guard, observe red.
 
+
+### Review Findings
+
+Code review 2026-11-15 (bmad-code-review; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; 43 raw findings, 17 entries after grouping; dispositions per Rule 15).
+
+- [x] [Review][Patch] HIGH (Rule 6, AD-15 "after its first snapshot") A change that the oldest surviving snapshot recorded itself was left out of the window: once the purge removes the snapshots before it (the first change after 90 stable days), the pack and the notice never name it and an approved rollback is skipped NOTINWINDOW. The bound is now DetectedAt >= the oldest TakenAt (AC1 still holds: nothing before the oldest snapshot is listed) [src/ocutalon/cls/OcuTalon/Watch/SettingCause.cls Window, src/ocutalon/cls/OcuTalon/Fix/Kind/RollbackSetting.cls Vetted] (fix-risk low: one comparison in each, pinned by TestWindow and TestRefusals)
+- [x] [Review][Patch] HIGH (Planner ruling: the triple "read by all four forbidden-list tests") Test.Install.Registry TestForbiddenGrantRefused did not read Roles FORBIDDENEXCEPTION; it now refuses the exception's own resource and permission to the fixture role [src/ocutalon/cls/OcuTalon/Test/Install/Registry.cls TestForbiddenGrantRefused, XData FixtureForbidden] (fix-risk low: test only)
+- [x] [Review][Patch] HIGH (Planner ruling: public text verbatim) UndoRollback.Undoable returned the status text for an unreadable production, so the dry-run reason and the skip reason read "ERROR #5001: OcuTalon couldn't read the settings of that production" [src/ocutalon/cls/OcuTalon/Fix/Kind/UndoRollback.cls Undoable; new Test.Watch.SettingCause TestUndoNoRead] (fix-risk low: one line)
+- [x] [Review][Patch] MED The open (non-compact) incident card's request band never got the setting change, so a done rollback or undo, or a changed-again skip, showed no result band on a resolved incident [web/src/app/approvals/approval-request-card.ts band, web/src/app/incidents/incident-card.ts template; pins in web/scripts/approval-sources.test.mjs] (fix-risk low)
+- [x] [Review][Patch] MED (Rule 19) AC9's "a second session gets nothing" could not fail: the second session watched nothing [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls TestIncidentNamesTheChange] (fix-risk low: test only)
+- [x] [Review][Defer] MED A failed Ens.Director.UpdateProduction after the definition's %Save reports "Nothing was changed" though the stored setting changed, and no undo is offered [src/ocutalon/cls/OcuTalon/Fix/Executor.cls InProduction] — deferred: escalated DW-1365 owner=burndown (fix-risk high: a revert of a partly applied update or a new "saved, not applied" text, a veto item; EnableConfigItem's suspend path has the same shape)
+- [x] [Review][Patch] LOW TestPayload's secret-row assertion was skipped silently when no part was built [src/ocutalon/cls/OcuTalon/Test/Watch/SettingCause.cls TestPayload]
+- [x] [Review][Patch] LOW AC5/AC7: an undo_rollback Execute with %Ens_ProductionConfig revoked was never run; it now ends NOTALLOWED with nothing written [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls TestNotAllowedAndOnlineDemo]
+- [x] [Review][Patch] LOW Task 0's "only the target item restarts" was printed, not asserted [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls Cycle, OtherJobs]
+- [x] [Review][Patch] LOW The CI mock's scripted reply in the nothing-to-undo turn said a request was raised, and the test pinned it [ci/mock/scenarios/A/propose-fix-undo-rollback.json, src/ocutalon/cls/OcuTalon/Test/Fix/AskedTurns.cls TestUndoRollbackNothingTurn]
+- [x] [Review][Patch] LOW Parameter UNDO was declared on both kinds and read nowhere [src/ocutalon/cls/OcuTalon/Fix/Kind/RollbackSetting.cls, UndoRollback.cls]
+- [x] [Review][Patch] LOW UndoRollback.After duplicated Restored (both the change's new value) [src/ocutalon/cls/OcuTalon/Fix/Kind/UndoRollback.cls]
+- [x] [Review][Defer] LOW The undo's dry-run After is the recorded new value, not the live inherited default (AD-3 limit) [UndoRollback.Restored] — deferred: wontfix-accepted DW-1366
+- [x] [Review][Defer] LOW AC12's refused-rollback notice path through IncidentManager has no integration test [Watch/IncidentManager.cls Propose/Unproposed] — deferred: wontfix-accepted DW-1367
+- [x] [Review][Defer] LOW Rule 2: UndoRollback DryRun and Plan are near-copies of RollbackSetting's [Fix/Kind/UndoRollback.cls] — deferred: wontfix-accepted DW-1368
+- [x] [Review][Defer] LOW Rule 2: SettingCause RollbackSlots and UndoSlots repeat the dry-run slot extraction [Watch/SettingCause.cls] — deferred: wontfix-accepted DW-1369
+- [x] [Review][Defer] LOW Contended Watch/** hunks beyond the listed sizes (IncidentManager ResultExtra, Notice() and Aside lines, Notice.Key's parameter, DiagnosisPayload Listed); git merge-tree with OCT-epic22 and OCT-epic21 is clean — deferred: wontfix-accepted DW-1370
+
+Rejected (verdict and reason):
+- by-design: no SaveToClass, so a recompile of the user's production class brings the XData value back (Blind, Edge) — the spec's Never list and AD-16 ("with no SaveToClass").
+- by-design: a rollback writes an item-level value even when the old value was inherited (Blind) — Decided in-stage 2 and AD-16 "restores at item level only".
+- by-design: an undo after the close is not in the stored summary (Blind) — Design Notes (d)6, accepted by the Planner.
+- by-design: the cause sentence gives the detection time (Blind) — approved text; AD-15 says the time is known only to within the check interval.
+- low: setting values are redacted for the model only (Blind) — every user-facing dry-run value (repair, reroute) is shown unredacted to its owner; only model input is redacted.
+- low: the web band reads the incident's settingChange, not the request (Blind, Edge) — wrong only after a re-diagnosis that names another change; the request part has no field or after.
+- low: test-eval-set.sh reads CATEGORY without DIAGNOSED or inheritance (Blind) — theoretical: no kind today; real once a chat-only kind sets CATEGORY.
+- reject: spec bookkeeping (dates, counts, status) (Blind, Auditor) — edits the spec under review and build-auto's state.
+- low: A14 reads the isolation in one direction and observes no production (Verification) — the A12/A13 pattern; the ownership filter is symmetric; the reject path has no executor (V12).
+- low: AC17's tainted half (Verification, Auditor) — V18, the shared gate is pinned; AC17 reads "untrusted or tainted".
+- false: per-clause mutation lines (Verification) — Rule 19 asks one mutation per AC, and each AC has one.
+- low: SettingCause tests rely on onlineDemo 0; inline restores (Verification) — an install precondition with a loud red (V14).
+- false: Vetted allows a row when the production has no snapshot (Verification) — no change row exists for a watched production without one.
+- false: Demo/Orders/Review.cls changed instead of the fallback (Auditor) — the fallback was measured to give no failure; only PartnerOrders reach OrdersForReview on every demo path (reroute resends failed PartnerOrders), so no demo behaviour changes; Test.Eval.Record (mutation AC12) and Test.Fix.Reroute pin both sides. Footprint extension, reported to the lead.
+- theoretical: a "gone" item gives the item kinds' reason (Auditor) — only in a race of milliseconds between Plan's read, which gives CHANGEDAGAIN for a missing item, and InProduction.
+- false: the chat says NOROLLBACK, not NOTHINGTOUNDO (Auditor) — the tool's ruled answer for no rollback; NOTHINGTOUNDO is the command's (B3).
+- low: a recorded snapshot's secret values reach the pack (Auditor) — V19; Capture writes them blank.
+- low: an AddTo SQL error fails the pack (Edge) — not shown reachable (B2/E6).
+- false: duplicate same-name items (Edge) — both reads prefer the one enabled item.
+- false: the undo pins a copy when the change removed a stored setting (Edge) — the row's Source is the later entry's, so such a change is not Source production and the undo removes.
+- low: an awaiting_approval incident's rollback is not found (Edge) — the spec's ASKEDSTATES; transient states.
+- low: Eval.Record with an empty timeProcessed (Edge) — recording tool; the recorded cases have times.
+- false: a blank rail title (Edge) — both kinds' dry runs always set field and item.
+- low: IncidentManager.Asked repeats the "ERROR #" strip of Executor (review) — three lines; a helper would be another hunk in a contended file.
+
 ## Spec Change Log
 
 - 2026-11-15 (lead, Planner gate): the Contest Planner APPROVED the plan with conditions (prompts/story-233-rulings-20261115.md). Added AC13-AC17 (injection marking and eval case, undo bounds, System Default undo removes the item-level entry, no other role holds %Ens_ProductionConfig, denied in untrusted or tainted turns), the Task 0 HARD GATE and the binding rulings under Design Notes. All public text approved verbatim; AD-15/16/22/24/32 amendments written in the spine by the lead.
@@ -700,7 +749,7 @@ Every test added or changed passes on a fresh environment, in either order.
 
 **Mutations run for the review patches (2026-11-14), each applied, observed red and reverted (byte-identical, `cmp`):**
 - mutation: AC1 upper bound, the `DetectedAt <= ?` condition of `SettingCause.Window` made always true: `Test.Watch.SettingCause` `TestWindow` red (the row after the first failure is listed).
-- mutation: AC1 strict bound at the oldest snapshot, `DetectedAt > ?` made `>=` in `SettingCause.Window`: `TestWindow` red (the row detected at the snapshot's own second is listed).
+- mutation: AC1 bound at the oldest snapshot (corrected at code review: the bound is now `>=`), `DetectedAt >= ?` made `>` in `SettingCause.Window` and `RollbackSetting.Vetted` made strict: `TestWindow` red (the change that the oldest snapshot recorded itself is dropped) and `TestRefusals` red (that change is NOTINWINDOW).
 - mutation: AC3 audit, `Fix.Executor.ActionTarget` without its setting branch (the target is "production in namespace"): `Test.Watch.Rollback` red in every test that runs the executor ("the entry names the setting, the item, the production and the namespace"; `TestUndoOnlyWhileLatest`, `TestMeasured`, `TestMeasuredAdapter`, `TestMeasuredRemoval`, `TestUndoAfterClose`).
 - mutation: AC3 changed again, `SettingCause.ResultKey` answering `result.itemNotChanged` for a skip with the CHANGEDAGAIN reason: `TestChangedAgain` red (`result.settingChangedSince` and its text). Removing the CHANGEDAGAIN test from `RollbackSetting.Plan` alone leaves the class green, because `Fix.Executor.InProduction` re-checks the value with the same reason; that comparison is the one the AC3 line above removes.
 - mutation: AC3 result text, `IncidentManager.ResultExtra` reading the dry run's `before` for the `after` slot: `TestUndoAfterClose` red (the restored text shows the new value, the undone text the old one).
@@ -718,6 +767,26 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: V5 Telegram, `Channel.Telegram.In.PressText` giving `press.approvedRollback` for an undo: `Test.Channel.TelegramApproval` `TestApproveKinds` red (the undo's answer text).
 - mutation: V7 minutes, `Msg.Catalog.Minutes` without the thousands separator: `Test.Msg.Catalog` `TestMinutes` red (1,212 minutes).
 - mutation: B4/E9 web, the empty-text guard removed from `minutesText` in `web/src/app/msg/catalog.ts`: `web/scripts/catalog.test.mjs` red (the undefined, null, empty and blank slots read "less than a minute").
+
+**QA stage (2026-11-15), Rule 19 mutations, each applied, observed red and reverted (byte-identical, `git diff` compared with the diff taken before):**
+- mutation: AC14 value clause (QA), the `current '= Expected` test removed from `UndoRollback.Undoable` (the dry run of an undo when the value moved and no Tick has recorded it): `Test.Watch.Rollback` `TestUndoRefusesUnseenChange` (QA) red (also `TestUndoOnlyWhileLatest`).
+- mutation: AC9 key (QA), `SettingCause.KEYROLLBACKREQUEST` changed to another key: `Test.Watch.Rollback` `TestIncidentNamesTheChange` red (the notice key, the gap sentence and the offer). The dry-run-writes half of AC9 has no mutation (see the note under the review mutations: a kind has no namespace switch).
+- mutation: AC10 browser half (QA), `Live.Payload.Incident.Change` without `Set payload.SettingChange = part`: `web/e2e/cards/approval-card.spec.ts` A14 red on a fresh lane-B throwaway through `ci/iris.sh live cards` (31 of 32 passed; unmutated 32 of 32).
+
+**QA stage, tests added or changed (QA):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls`: `TestUndoRefusesUnseenChange` (AC14, the value clause alone).
+- (QA) `web/scripts/playwright-projects.test.mjs`: the cards project's case list pin (A2 to A14, 32 cases) after Story 23.3's A14; it was stale and red.
+- (QA) `web/scripts/approval-sources.test.mjs`: the source pin of `incident-card.ts`'s `result` context function (it now passes the setting change); it was stale and red.
+
+
+**Code review (2026-11-15), Rule 19 mutations, each applied on the lane-B warm throwaway, observed red and reverted (byte-identical, `cmp` against the copy taken before):**
+- mutation: AC14 NOREAD (code review), `UndoRollback.Undoable` returning `$SYSTEM.Status.GetOneErrorText(sc)` again: `Test.Watch.SettingCause` `TestUndoNoRead` red (the dry run and the re-check give "ERROR #5001: ...").
+- mutation: AC1 oldest-snapshot bound (code review), see the corrected AC1 line above: `TestWindow` and `TestRefusals` red.
+- mutation: AC6 (code review), `Roles.Add` matching the exception on resource and permission only: `Test.Install.Registry` `TestForbiddenGrantRefused` red (the fixture role is given the exception's pair), and `TestForbiddenExceptionIsExact` red.
+- mutation: AC5/AC7 undo (code review), `UndoRollback` with an empty `RESOURCES`: `Test.Watch.Rollback` `TestNotAllowedAndOnlineDemo` red (the undo is not NOTALLOWED).
+- mutation: Task 0 restart (code review), `Test.Watch.Rollback` `OtherJobs` not leaving out the failing item: `TestMeasuredAdapter` red (the failing item's job restarted), so the assertion can fail.
+- mutation: the open card's band (code review), `approval-request-card.ts` `band` without `this.settingChange()`: `web/scripts/approval-sources.test.mjs` red.
+- AC9 isolation (code review): the second session now watches Orders, so a broadcast would reach it; no mutation run (it needs a Deliver that sends to every watcher). AC9's pinning mutation is the QA line above.
 
 ## Auto Run Result
 

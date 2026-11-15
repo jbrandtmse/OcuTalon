@@ -7622,6 +7622,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 36.1 spec gate ruling 2026-11-12, prompts/story-361-rulings-20261112.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 36.1 option (b): no unused write grant ships
 - 2026-11-12T20:22:09Z status=routed owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=orchestrator note=approved AC move into 23.3 (unplanned); bullet added to 23.3's epics.md block post-merge by the orchestrator
+- 2026-11-15T09:58:46Z status=resolved-by:23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=adjudication note=8f6d2e2a(+review_patches):Fix.Kind.RollbackSetting+UndoRollback_RESOURCES;Roles.FORBIDDENEXCEPTION_one_triple(4_tests_read_it);ONLINEGRANT_0_demo;ONLINESTATEMENT+overview_sentence;incident.settingChangeCause;undo_built_and_tested(result.settingRestored_keeps_undo_sentence);Test.Watch.Rollback,Test.Install.Registry,Test.Fix.Kind
 ### DW-1224: U-320's install-path OAuth2 scan pins only Dockerfile and docker/* and the regex's csp/sys/oauth2 alternative; dropping another pathspec entry (e.g. ci/*.sh, .github/*) or the OAuth2.(Client|ServerDefinition|AccessToken) alternative passes every row
 - source: spec-0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: docker/tests/test-compose-file.sh oauth_install_paths_clean: 58 files scanned, floor 40 catches only release/* (25); fixtures plant only /csp/sys/oauth2/OAuth2.Response.cls; gap predates 0.34 (Story 21.3)
@@ -8222,3 +8223,33 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: README.md:72,90 '11 of 11'; eval set 11->13 incidents in 8f6d2e2a
 - 2026-11-15T08:43:08Z status=decision-pending owner=burndown by=harvest note=human=Planner_at_next_release_evaluation(public_text_figures)
+
+### DW-1365: A rollback or undo whose Ens.Director.UpdateProduction fails after the definition's %Save is reported 'Nothing was changed' (result.itemNotChanged NOSTART), though the stored setting did change, and Fix.Run.RolledBack never offers its undo
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Fix.Executor.InProduction setting branch: %Save then UpdateProduction; an error gives code refused, Completed 0. UpdateProduction fails when an item does not stop in its UpdateTimeout (10 s) or the runtime lock is busy 30 s; the next production update then applies the saved value unapproved-again
+- 2026-11-15T09:55:10Z status=escalated owner=burndown by=cr note=fix-risk high: revert-on-failure or a new 'saved, not applied' text (veto); same save-then-update shape as EnableConfigItem (23.2)
+
+### DW-1366: UndoRollback's dry run After is the recorded new value, not the live inherited default: after a System Default Setting edit made while the rollback's item-level entry hid it, the undo's dry run and result.rollbackUndone name a stale value
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: UndoRollback.Restored returns row.NewValue; the kind cannot read the live default without a namespace switch (AD-3), and a default edit hidden by the item-level entry records no SettingChange
+- 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=an undo of a System Default change shows an After that differs from the item's effective value after the run
+
+### DW-1367: AC12's notice through IncidentManager (a setting_change diagnosis whose rollback_setting dry run is refused, e.g. OTHERITEM, routed Propose to Unproposed to NoFix) has no integration test; only its pieces are pinned
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestNoFixCause pins Notice.Key and Slots with no fixKind, TestRefusals pins OTHERITEM; no mock scenario names a change on another item
+- 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=a setting_change incident whose rollback dry run was refused gets a notice other than incident.noFix with the setting-cause sentence
+
+### DW-1368: UndoRollback.DryRun and Plan are near-copies of RollbackSetting's (CheckParameters, target id check, skip push, dry-run object), differing in the refusal chain and the remove flag; no reason is stated (Rule 2, weak)
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Fix/Kind/UndoRollback.cls DryRun and Plan vs Fix/Kind/RollbackSetting.cls DryRun and Plan; ResumeItem, the named precedent, only flips a parameter
+- 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=a change to the plan entry or dry-run shape of rollback_setting has to be repeated by hand in UndoRollback
+
+### DW-1369: Watch.SettingCause RollbackSlots and UndoSlots repeat the same dry-run slot extraction (field, item, before, after, string-typed) instead of one helper (Rule 2, weak)
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Watch/SettingCause.cls RollbackSlots and UndoSlots: the same 10 lines; Notice.cls calls both
+- 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=the two notices' setting, target, before or after slots differ for the same dry run
+
+### DW-1370: Story 23.3's Watch/** hunks go beyond the sizes its plan listed for the Planner's contention ruling: IncidentManager.ResultExtra +9 (listed +3), Notice() and Aside one-line edits (unlisted), Notice.Key gains a parameter, DiagnosisPayload a Listed method and doc edits
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: git merge-tree of OCT-epic23 with OCT-epic22, OCT-epic21 and their open story branches is clean for every source file on 2026-11-15; only sprint-status.yaml and 25.6's Test.Live.Payloads count conflict
+- 2026-11-15T09:55:10Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=an integrate-forward of Lane D's Watch/** branch shows an overlapping hunk in these methods
