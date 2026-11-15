@@ -170,6 +170,42 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
 
 ## Spec Change Log
 
+- 2026-11-15 (lead). **Gate ruled, Contest Planner ~21:00Z Nov 15 (BINDING)**, quoted in full from `<coordination>/prompts/story-244-rulings-20261115.md`:
+
+  > # Story 24.4 rulings (Contest Planner, about 21:00Z on 2026-11-15). BINDING.
+  > 
+  > 24.4 is APPROVED, with one condition. It targets 1.0.12.
+  > 
+  > ## V1: the five new page strings, APPROVED verbatim
+  > The strings are:
+  > - "Setting change"
+  > - "{setting} on {item}"
+  > - "Old value"
+  > - "New value"
+  > - "Detected"
+  > 
+  > CONDITION:
+  > - Old value and New value go through the SAME redactor as the rollback dry run's Before and After.
+  > - They are left out for a credential or an empty value, as proposed.
+  > - Pin it: a non-credential setting whose value holds a secret-shaped string, such as a URL with a token, shows redacted in the panel.
+  > 
+  > ## V2: APPROVED
+  > - A closed incident card draws only a rollback's undo request card.
+  > - Add the one-line EXPERIENCE.md addition.
+  > - Pin both of these:
+  >   - a closed card draws no other request kind;
+  >   - "Show in the chat" jumps to the undo request card.
+  > 
+  > ## V3: GRANTED as a footprint extension
+  > - The four web/scripts test files are allowed.
+  > - The BUTTONKINDS mutate-and-revert in a test is fine, provided it is never committed.
+  > - Leaving DW-1378 out is correct.
+  > 
+  > ## DW-1388
+  > If B13 goes red again, report it to the Planner as a regression.
+
+  Applied by the lead: EXPERIENCE.md's Incident card bullet gains the V2 sentence (with "and no other request card"). Added to Execution (binding): (a) "Old value" and "New value" go through the SAME redactor as the rollback dry run's Before and After (name it in the code; no second redactor), and are left out for a credential or an empty value; pin with a NON-credential setting whose value is secret-shaped (e.g. a URL with a token) that shows REDACTED in the panel, with a mutation (bypass the redactor -> red); (b) pin that a closed card draws NO other request kind (e.g. a pending fix or partner warning on a closed incident draws nothing), with a mutation; (c) pin that the rail's "Show in the chat" jumps to the undo request card on a closed incident, with a mutation; (d) report any B13 (DW-1388) red as a regression.
+
 ## Review Triage Log
 
 ## Design Notes
