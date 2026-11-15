@@ -72,9 +72,11 @@ describe('the sources of the controls', () => {
     assert.doesNotMatch(source('rail', 'memory-card', 'memory-card-view.ts'), /came from a photo/, 'the sentence is in the lazy module only');
   });
 
-  it('the button is a native button that posts the file ref, and each line is spoken once through the Announcer (the page has one live region)', () => {
+  it('the button is the shared ServerButton (the busy rule) that posts the file ref, and each line is spoken once through the Announcer (the page has one live region)', () => {
     const component = source('chat', 'file-reply.ts');
-    assert.match(component, /<button type="button" class="button button-secondary" \[attr\.aria-disabled\]="state\(\) === 'pending' \? 'true' : null"/);
+    assert.match(component, /import \{ ServerButton \} from '\.\.\/shared\/server-button';/);
+    assert.match(component, /<app-server-button variant="secondary" \[action\]="add">\{\{ texts\.addToDocuments \}\}<\/app-server-button>/, 'a native button with a spinner, aria-busy and aria-disabled while the post is out');
+    assert.doesNotMatch(component, /<button\b/, 'no hand-made button beside it');
     assert.equal([...component.matchAll(/<p class="line[^"]*"/g)].length, 2, 'the added line and the failed line');
     assert.match(component, /<p class="line added" tabindex="-1">\{\{ texts\.added \}\}<\/p>/, 'the added line can take focus');
     assert.match(component, /afterNextRender\(\(\) => this\.host\.nativeElement\.querySelector<HTMLElement>\('\.added'\)\?\.focus\(\)/, 'and takes it once drawn, because the pressed button is gone');

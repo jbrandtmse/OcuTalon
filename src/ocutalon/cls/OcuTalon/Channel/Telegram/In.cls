@@ -63,8 +63,9 @@ Include Ensemble
 ///   - A paired chat's file (Story 26.2; FR-54, AD-14, AD-21): a message with a document object or a photo array is handled by File, in this order, and each step that refuses
 ///     answers one pairing Notification (files.* keys) and goes no further. (1) On the online demo (public setting onlineDemo 1) nothing is fetched and the chat is answered
 ///     files.offOnDemo. (2) The size that the update reports (the document's, or the largest photo size's) over Core.Files FILEMAX is refused with files.tooLarge before any call.
-///     (3) Core.Files.Readable() is 1 from Story 25.6 (Agent.Input READSFILES), so the file goes on to Conversation, which reads it as it reads a web file. Only when it is 0 (a test's reader
-///     seam) is nothing fetched or stored and the chat answered files.noReader, which is Core.Files' reply to a file turn with no reader, so that the web chat and Telegram do not differ. A part with no file_id is files.unreadable with the reason of Docs.Extract.Reason("failed"). (4) Turn checks the
+///     (3) Core.Files.Readable() is 1 from Story 25.6 (Agent.Input READSFILES), so the file goes on to steps (4) to (6) and then to Conversation, which reads it as it reads a web
+///     file. Only when it is 0 (a test's reader seam) is nothing fetched or stored and the chat answered files.noReader, which is Core.Files' reply to a file turn with no reader,
+///     so that the web chat and Telegram do not differ. A part with no file_id is files.unreadable with the reason of Docs.Extract.Reason("failed"). (4) Turn checks the
 ///     session row and the allowance as for a text turn (the caption is the text), so that a message the allowance refuses costs no download (DW-1340). (5) getFile for the file_id (the
 ///     last, largest photo size), then Api.Download of the file_path it answers, which stops at FILEMAX bytes and at DOWNLOADSECONDS; a failure of either is one warning (no URL, path or
 ///     token) and files.unreadable with the reason of Docs.Extract.Reason("failed"); a download over the limit is files.tooLarge. (6) Core.Files.Store with channel telegram, the

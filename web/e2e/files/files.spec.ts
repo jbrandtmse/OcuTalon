@@ -311,6 +311,8 @@ test('a turn that failed to add shows the failure line and keeps the button, and
   await expect(addButton(page)).toBeVisible();
   await addButton(page).click();
   await expect(addButton(page), 'disabled while the post is out').toBeDisabled();
+  await expect(addButton(page), 'and busy, under the shared busy rule (aria-busy, never the disabled attribute)').toHaveAttribute('aria-busy', 'true');
+  await expect(addButton(page), 'so it keeps its focus').not.toHaveAttribute('disabled', /.*/);
   await addButton(page).click({ force: true });
   await expect.poll(() => documentPosts, { message: 'one press and a forced second press while the post is out make exactly one post' }).toBe(1);
   release();

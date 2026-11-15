@@ -574,8 +574,81 @@ test('injection: a PDF that asks to email x@example.com is a turn whose send_ema
       ].join('\n'),
     );
     expect(Number(chk(lines, 'denied')), "the mock log's tool result holds the UNTRUSTED denial").toBeGreaterThanOrEqual(1);
+    expect(Number(chk(lines, 'approvals')), 'and still no approval request once the turn is done').toBe(before);
   } finally {
     await clean(session, prefix);
     await restoreKeys();
+  }
+});
+
+/** The number of Upload rows of the session (the bytes of an add that the owner has not taken yet). */
+async function uploadsOf(session: string): Promise<number> {
+  const lines = await irisScript(`Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Upload WHERE SessionRef = ?",${quoted(session)})\nDo rs.%Next()\nWrite !,"CHK|n|",rs.%GetData(1)`);
+  return Number(chk(lines, 'n'));
+}
+
+test("POST /api/v1/documents {fileRef}: another session's, an unknown and a photo's ref, and a body that mixes forms, are refused over real HTTP, and add nothing (Story 25.6, ruling P4)", async ({ request, playwright, baseURL }) => {
+  test.setTimeout(240_000);
+  const live = fixtureUser('LIVE');
+  const other = fixtureUser('PANEL');
+  await signInOverHttp(request, live.user, live.password);
+  const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  const first = await sessionRefOfUser(live.user);
+  const prefix = `zzfilesdocref${Date.now()}`;
+  const names = { pdf: `zz-docref-${Date.now()}.pdf`, photo: `zz-docref-${Date.now()}.jpg` };
+  const NOT_FOUND = 'OcuTalon has nothing at this address.';
+  const BAD_DOCUMENT = 'OcuTalon can add Markdown, plain-text, PDF and Word (.docx) files up to 10 MB.';
+  const documentNames = async (context: APIRequestContext): Promise<string[]> => {
+    const list = await context.get(DOCUMENTS);
+    expect(list.status(), await list.text()).toBe(200);
+    return ((await list.json()) as { documents: Array<{ name: string }> }).documents.map((document) => document.name);
+  };
+  let secondRef = '';
+  try {
+    await signInOverHttp(second, other.user, other.password);
+    secondRef = await sessionRefOfUser(other.user);
+    const uploads = { first: await uploadsOf(first), second: await uploadsOf(secondRef) };
+    const listed = { first: await documentNames(request), second: await documentNames(second) };
+
+    // LIVE's two files: bytes with the signature of a PDF (read as damaged: the turn ends with no model call) and of a JPEG.
+    const pdfSent = await post(request, FILES, bodyOf(`${prefix}a`, names.pdf, bytesOf('pdf', 'zzdocref')));
+    expect(pdfSent.status(), await pdfSent.text()).toBe(202);
+    const pdfRef = ((await pdfSent.json()) as { file: SentFile }).file.ref;
+    const photoSent = await post(request, FILES, bodyOf(`${prefix}b`, names.photo, bytesOf('jpeg', 'zzdocref')));
+    expect(photoSent.status(), await photoSent.text()).toBe(202);
+    const photoRef = ((await photoSent.json()) as { file: SentFile }).file.ref;
+    await doneTurn(request, pdfRef, 120);
+    await doneTurn(request, photoRef, 120);
+
+    // Another session's ref answers exactly like one that does not exist: the same status and the same body, for a PDF's ref and for a photo's.
+    const unknown = await post(second, DOCUMENTS, { fileRef: 'zzUnknownFileRef000000' });
+    await expectError(unknown, 404, 'not_found', NOT_FOUND);
+    const unknownBody = await unknown.text();
+    for (const [label, ref] of [
+      ["LIVE's PDF", pdfRef],
+      ["LIVE's photo", photoRef],
+    ] as const) {
+      const response = await post(second, DOCUMENTS, { fileRef: ref });
+      expect(`${response.status()} ${await response.text()}`, `PANEL posting ${label} ref gets the answer of an unknown ref`).toBe(`404 ${unknownBody}`);
+    }
+
+    // A photo's ref, the caller's own, is not a document; a body that mixes the forms, names another member or has a fileRef that is no string is 400 with no reason.
+    const photoAdd = await post(request, DOCUMENTS, { fileRef: photoRef });
+    expect(photoAdd.status(), await photoAdd.text()).toBe(400);
+    expect(await photoAdd.json(), "a photo's ref is bad_document with wrong_type").toEqual({ error: { code: 'bad_document', message: BAD_DOCUMENT }, reason: 'wrong_type' });
+    for (const body of [{ fileRef: pdfRef, name: names.pdf, content: 'aGVsbG8=' }, { fileRef: pdfRef, content: 'aGVsbG8=' }, { fileRef: pdfRef, sessionRef: secondRef }, { fileRef: 5 }, { fileRef: [pdfRef] }]) {
+      const response = await post(request, DOCUMENTS, body);
+      await expectError(response, 400, 'bad_document', BAD_DOCUMENT);
+    }
+
+    // Nothing was added or stored: no document of either session, no Upload row, and no bytes in a refusal.
+    expect(await documentNames(request), "LIVE's documents are unchanged").toEqual(listed.first);
+    expect(await documentNames(second), "PANEL's documents are unchanged").toEqual(listed.second);
+    expect(await uploadsOf(first), 'LIVE has no Upload row more').toBe(uploads.first);
+    expect(await uploadsOf(secondRef), 'PANEL has no Upload row more').toBe(uploads.second);
+    expect((await photoAdd.text()).includes('zzdocref'), 'a refusal holds no bytes').toBe(false);
+  } finally {
+    await clean(first, prefix);
+    await second.dispose();
   }
 });

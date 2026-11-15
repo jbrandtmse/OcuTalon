@@ -22,6 +22,8 @@
 ///     the ContentType of the stored media type (pdf, docx), the session's Upload row holding the file's bytes and the CSP session's Ref; another session's ref, an unknown ref, a
 ///     purged ref and an empty ref answer exactly alike (404 not_found, the same body) with no command and no Upload row; a photo's ref is 400 bad_document with wrong_type; a body that
 ///     mixes the forms, has another member or a fileRef that is not a string is 400 bad_document with no reason; no command (every property the probe recorded) and no response holds the file's bytes or their base64, and a command that carries them is flagged by the same scan;
+///   - TestAddFromFileFailures (Story 25.6): a {"fileRef"} add that the owner answers not_built, failed, with an error status, a throw, an Ok result with an error status or no result, or that finds the owner not running, answers
+///     as the {name, content} form does (the same status and body), leaves no Upload row and leaves the stored file in place, and the same fileRef is added once the owner answers;
 ///   - TestRefusedAddsStoreNothing (DW-753): with the owner running, so that an accepted add would store a row, every refusal (wrong type, empty, a malformed body,
 ///     too_large for a .md, .txt, .pdf and .docx of 10,485,761 bytes, and the route's 413 at BODYMAX plus one byte) leaves the session with no Upload
 ///     row and nothing submitted, OnPreDispatch's 413 for both dispatch classes stops the dispatch before any route runs, and one accepted add then
@@ -423,6 +425,37 @@ Method TestAddFromFile()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Web.DocumentsProbe).Held(control) [ base64, "and one that carries its base64")
 	Do ##class(OcuTalon.Data.SentFile).DropSession(a)
 	Do ##class(OcuTalon.Data.SentFile).DropSession(b)
+}
+
+/// Story 25.6: a {"fileRef"} add that the owner does not accept answers as the {name, content} form does and leaves the stored file in place, so that the page's button, which stays after a failure, can be pressed again.
+Method TestAddFromFileFailures()
+{
+	Set a = ..Session("a")
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+	Set pdf = ..StoreFile(a, "zz-retry.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 retry text"))
+	Set cases = $ListBuild($ListBuild("not_built", 501, "not_built"), $ListBuild("failed", 500, "server_error"), $ListBuild("status", 500, "server_error"), $ListBuild("throw", 500, "server_error"), $ListBuild("okerror", 500, "server_error"), $ListBuild("none", 500, "server_error"))
+	For i = 1:1:$ListLength(cases) {
+		Set case = $List(cases, i)
+		Set ^OcuTalonTest("DocumentsProbe", "answer") = $List(case, 1)
+		Set direct = ..Call("Add", a, {"name": "a.pdf", "content": ($SYSTEM.Encryption.Base64Encode("%PDF-1.4 zz"))}.%ToJSON(), .directResponse)
+		Set body = ..Call("Add", a, {"fileRef": (pdf.ref)}.%ToJSON(), .response)
+		Do $$$AssertEquals(+response.Status_"|"_{}.%FromJSON(body).error.code, $List(case, 2)_"|"_$List(case, 3), "the owner says "_$List(case, 1)_": "_$List(case, 2)_" "_$List(case, 3))
+		Do $$$AssertEquals(response.Status_"|"_body, directResponse.Status_"|"_direct, $List(case, 1)_": the same status and body as the {name, content} form")
+		Do $$$AssertEquals(..Uploads(a), 0, $List(case, 1)_": no Upload row is left")
+		Do $$$AssertTrue($IsObject(##class(OcuTalon.Core.Files).Describe(pdf.ref, a)), $List(case, 1)_": the stored file is still there")
+	}
+	// While DocumentOps is not running nothing is submitted, and the file stays.
+	Kill ^OcuTalonTest("DocumentsProbe", "submits")
+	Set ^OcuTalonTest("DocumentsProbe", "owner") = "off"
+	Set body = ..Call("Add", a, {"fileRef": (pdf.ref)}.%ToJSON(), .response)
+	Do $$$AssertEquals(+response.Status_"|"_{}.%FromJSON(body).error.code, "501|not_built", "with the owner not running: 501 not_built")
+	Do $$$AssertEquals(..Submits()_"|"_..Uploads(a), "0|0", "nothing is submitted and no Upload row is stored")
+	Do $$$AssertTrue($IsObject(##class(OcuTalon.Core.Files).Describe(pdf.ref, a)), "and the stored file is still there")
+	// The same file is added when the owner answers again.
+	Kill ^OcuTalonTest("DocumentsProbe", "owner"), ^OcuTalonTest("DocumentsProbe", "answer")
+	Set body = ..Call("Add", a, {"fileRef": (pdf.ref)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|done", "the same fileRef is added once the owner answers")
+	Do ##class(OcuTalon.Data.SentFile).DropSession(a)
 }
 
 /// Stores the stream as a file of the session through Core.Files.Store; the file object {ref, name, mediaType, size}.

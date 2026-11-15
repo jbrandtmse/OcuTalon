@@ -17,7 +17,10 @@
 ///   - TestReadFailure: a damaged PDF ends the turn done with Docs.Extract.Failure of its reason, with no Decide send, FileRead read 0 (no text member), and the chat.message fileRead
 ///     {fileRef, kind, read 0, addable 0}; one Outbound carries the sentence;
 ///   - TestReadDocument: a readable PDF is sent to Decide (decide, then turn) after its FileRead {read 1, addable 1} was saved, and the done chat.message carries fileRead addable 1;
-///   - TestReadError: a ReadFile that answers an error status, and one whose result is not an object, end the turn with the "failed" sentence and no Decide send;
+///   - TestReadError: a ReadFile that answers an error status, one whose result is not an object and one that is read 0 with no text, for a PDF and for a photo, end the turn with the "failed" sentence
+///     and no Decide send, with FileRead of the file's kind;
+///   - TestReadPhoto: a readable photo is sent through Decide untrusted after FileRead {photo, read 1, addable 0} was saved, and its chat.message fileRead is not addable;
+///   - TestReadOnDemo: with the online demo flag set a PDF and a photo end the turn with the failed sentence, no Decide send and no Caption;
 ///   - TestCaptionCarried: a usable reply's HostData caption {memoryRef, text} is the Turn's Caption and the chat.message caption; a malformed caption is dropped; an unusable (fallback) reply that carries a caption saves nothing, so neither the Turn nor the chat.message has one;
 ///   - TestNoExtractedText: the extracted text (a content marker) and the file's bytes (a bytes marker) are in no Turn column, no chat.message and no Outbound, FileRead holds only its
 ///     members and the content marker is only in the turn requests' Input.
@@ -278,16 +281,70 @@ Method TestReadDocument()
 
 Method TestReadError()
 {
-	For mode = "error", "nonobject" {
-		Set session = ..Session("err"_mode)
-		Set file = ..StoreStream(session, "web", "zz-err-"_mode_".pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 never read"))
-		Do ..RunFile(session, file, "", mode)
-		Set row = ..Turns(session).GetAt(1)
-		Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|"_##class(OcuTalon.Docs.Extract).Failure("failed"), mode_": the turn ends with the failed sentence")
-		Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, mode_": nothing is sent to Decide")
-		Set read = {}.%FromJSON(row.FileRead)
-		Do $$$AssertEquals(read.read_"|"_read.reason_"|"_read.kind_"|"_read.fileRef, "0|failed|document|"_file.ref, mode_": FileRead is read 0, reason failed")
+	For mode = "error", "nonobject", "notext" {
+		For kind = "document", "photo" {
+			Set session = ..Session("err"_mode_kind)
+			Set label = mode_" "_kind
+			If kind = "document" {
+				Set file = ..StoreStream(session, "web", "zz-err-"_mode_".pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 never read"))
+			} Else {
+				Set file = ..StoreStream(session, "web", "zz-err-"_mode_".jpg", ##class(OcuTalon.Test.Docs.Samples).Stream($Char(255, 216, 255, 224)_"JFIF zz25s6 never read"))
+			}
+			Do ..RunFile(session, file, "", mode)
+			Set row = ..Turns(session).GetAt(1)
+			Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|"_##class(OcuTalon.Docs.Extract).Failure("failed"), label_": the turn ends with the failed sentence")
+			Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, label_": nothing is sent to Decide")
+			Do $$$AssertEquals(row.TriageDecisionRef_row.TurnDecisionRef, "", label_": and the turn has no Decision")
+			Set read = {}.%FromJSON(row.FileRead)
+			Do $$$AssertEquals(read.read_"|"_read.reason_"|"_read.kind_"|"_read.fileRef_"|"_read.%IsDefined("text"), "0|"_$Select(mode = "notext": "damaged", 1: "failed")_"|"_kind_"|"_file.ref_"|0", label_": FileRead is read 0 of the file's kind, without a text member")
+		}
 	}
+}
+
+/// A photo is read like a document: FileRead is {kind photo, read 1, addable 0}, the turn goes through Decide untrusted, and its chat.message fileRead is not addable.
+Method TestReadPhoto()
+{
+	Set session = ..Session("photo")
+	Set file = ..StoreStream(session, "web", "zz-photo.jpg", ##class(OcuTalon.Test.Docs.Samples).Stream($Char(255, 216, 255, 224)_"JFIF zz25s6 photo"))
+	Do ..RunFile(session, file)
+	Set decides = ..Sent("Decide")
+	Do $$$AssertEquals($ListLength(decides), 2, "a readable photo runs through Decide: two requests")
+	Set saved = {}.%FromJSON(..Call($List(decides, 1), "fileRead"))
+	Do $$$AssertEquals(saved.read_"|"_saved.addable_"|"_saved.kind_"|"_saved.%IsDefined("text"), "1|0|photo|0", "FileRead (photo, read 1, addable 0, no text) was saved before the decide request was sent")
+	Do $$$AssertEquals(..Call($List(decides, 1), "provenance")_"|"_..Call($List(decides, 2), "provenance"), "untrusted|untrusted", "both requests carry provenance untrusted")
+	Set row = ..Turns(session).GetAt(1)
+	Do $$$AssertEquals(row.State, "done", "the turn is done")
+	Set done = ..ChatEvents(session, row.Ref)
+	Set last = done.%Get(done.%Size() - 1).payload
+	Do $$$AssertEquals(last.fileRead.%ToJSON(), {"fileRef": (file.ref), "kind": "photo", "read": 1, "addable": 0}.%ToJSON(), "the done chat.message carries fileRead addable 0")
+}
+
+/// With the online demo flag set nothing is read (Agent.Input.ReadFile): a PDF and a photo each end the turn with the failed sentence and no Decide send, whatever the Item says.
+Method TestReadOnDemo()
+{
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Try {
+		For kind = "document", "photo" {
+			Set session = ..Session("demo"_kind)
+			If kind = "document" {
+				Set file = ..StoreStream(session, "web", "zz-demo.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 demo text"))
+			} Else {
+				Set file = ..StoreStream(session, "web", "zz-demo.jpg", ##class(OcuTalon.Test.Docs.Samples).Stream($Char(255, 216, 255, 224)_"JFIF zz25s6 demo"))
+			}
+			// The Decide double holds a usable caption reply, so that "no Caption" below fails if the turn reached Decide.
+			Do ..RunFile(session, file, {"caption": {"memoryRef": "zzdemocap", "text": "zz demo caption"}}.%ToJSON())
+			Set row = ..Turns(session).GetAt(1)
+			Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|"_##class(OcuTalon.Docs.Extract).Failure("failed"), kind_": the turn ends with the failed sentence")
+			Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, kind_": nothing is sent to Decide")
+			Set read = {}.%FromJSON(row.FileRead)
+			Do $$$AssertEquals(read.read_"|"_read.reason_"|"_read.kind, "0|failed|"_kind, kind_": FileRead is read 0, failed")
+			Do $$$AssertEquals(row.Caption, "", kind_": and the turn has no Caption")
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the demo test failed: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
 }
 
 Method TestCaptionCarried()

@@ -293,6 +293,45 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
 - Given the built web app, when `initial-bundle.test.mjs` and the lazy-import pin run, then the initial total is at most 921,000 bytes and `file-reply` and `pin-photo-text` are lazy chunks.
 - Integration (Rule 1): the consumer, the web chat page, reads `chat.message` `fileRead`/`caption` that `Conversation` publishes on the real production, and shows the button or chip (`web/e2e/files/files.spec.ts` and `api/files.spec.ts`, real HTTP). The consumer `DocumentOps` receives the AddDocument that `Web.Documents` builds from a `fileRef`, and its document appears in `GET /api/v1/documents`.
 
+### Review Findings
+
+Code review 2026-11-15 (Blind Hunter 12, Edge Case Hunter 9, Verification Gap 7, Acceptance Auditor 7 findings; 11 patch, 1 defer, 21 rejected; high 0). Every patch below was applied in the review pass.
+
+- [x] [Review][Patch] [medium] The Add to documents button hand-rolled half of the busy rule (aria-disabled only: no aria-busy, no spinner, no 10 s restore and notice; EXPERIENCE.md:423, Rule 2 reuse) -- it is now the shared `ServerButton` [web/src/app/chat/file-reply.ts:27]; the pending-add spec pins `aria-busy` and no `disabled` attribute [web/e2e/files/files.spec.ts:314]
+- [x] [Review][Patch] [medium] `TestInjectedFileTurn` used chat 84017734136, which `TestEmptyTurn` counts texts for, so the two passed only in name order -- it has its own chat 84017734139 (added to `CHATS`) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls:45]
+- [x] [Review][Patch] [medium] The Telegram file tests left their sent files and photo memories behind (DropSessions deletes neither) -- `DropFiles` deletes both after each test, on every path [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls]
+- [x] [Review][Patch] [medium] The probe recorded Begin's in-memory Turn, so "FileRead is saved before the decide request" could not fail -- `Record` reads the stored `FileRead` through SQL [src/ocutalon/cls/OcuTalon/Test/Core/ConversationProbe.cls:135]
+- [x] [Review][Patch] [medium] AC 8 had no bytes, base64 or image scan on a Telegram file turn, and no file turn's agent steps were scanned -- `TestFileTurn` scans headers, bodies, audit and both turns' steps for the PDF's and the photo's base64 and the photo's bytes [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls]
+- [x] [Review][Patch] [low] The Integration AC's caption half was unpinned on the real production -- `TestFileTurn` asserts that the photo's `/v1/state` chat item carries the Turn's caption [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls]
+- [x] [Review][Patch] [low] `TestReadOnDemo`'s "no Caption" could not fail (no caption was scripted) -- the Decide double now holds a usable caption reply [src/ocutalon/cls/OcuTalon/Test/Core/ConversationFiles.cls:336]
+- [x] [Review][Patch] [low] No `mutation:` line for the lazy `pin-photo-text` pin or for text 1 -- both applied, red observed, restored (Verification, code review)
+- [x] [Review][Patch] [low] An error status from `ReadFile` was dropped without a log entry -- `ReadSentFile` logs it [src/ocutalon/cls/OcuTalon/Core/Conversation.cls:424]
+- [x] [Review][Patch] [low] The web injection test computed `CHK|approvals` and never asserted it -- asserted equal to the count before the turn [web/e2e/api/files.spec.ts:577]
+- [x] [Review][Patch] [low] TelegramIn's class doc said a readable file "goes on to Conversation" at step (3), before steps (4) to (6) -- reworded and wrapped [src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls:66]
+- [x] [Review][Defer] [medium, unverified] Add to documents makes DocumentOps take the instance-wide `Docs.Extract` lock, which the next file turn's `ReadFile` waits on in Conversation's one job [src/ocutalon/cls/OcuTalon/Web/Documents.cls] -- deferred: an `occurrence` on DW-1357 (the PoolSize 1 hold, owner burndown); a measurement on the running production settles it
+
+Rejected:
+- (low, ledgered DW-1359 wontfix-accepted) A later `Render` re-read that fails after `ReadFile` succeeded falls back with the button shown -- the three reads are the spec's "Known, not changed".
+- (low, DW-1360 wontfix-accepted) A destroyed component's late add answer -- not shown reachable; a guard would be untested.
+- (low, DW-1361 wontfix-accepted) The memory card's late pin-photo notice race (Blind 12, Edge 8) -- a 119-byte cached chunk; needs a sequence guard.
+- (low, DW-1362 wontfix-accepted) Identical "Add to documents" names and a chip that does not name the caption -- the UX text is fixed; a per-file name is new public text.
+- (low, DW-1363 wontfix-theoretical) A failed Turn save in `ReadSentFile` -- logged; real only if a save fails on a healthy instance.
+- (low, DW-1364 wontfix-theoretical) The fileRef form's `empty`/`too_large` checks are unreachable -- `Core.Files.Store` refuses both.
+- (false) Read 0 with no `text` shows `failed` while `FileRead.reason` keeps its code (Edge 1, Acceptance 5) -- `Agent.Input.ReadFile` always sets `text` on read 0 (`:240`, `:254`); only QA's seam reaches it, on purpose.
+- (false) `ReadFile` OK with an object missing members -- every OK path of `ReadFile` sets fileRef, kind and read.
+- (by-design) A second add makes a second document -- Decided in-stage 6.
+- (known) A rejected `import('./file-reply')` -- spec "Known, not changed" (DW-1330 family).
+- (low, prior) The mount test `addable` vs `read && addable` -- the server never exports read 0 with addable 1.
+- (false) `TestCaptionCarried`'s Outbound check misses a Caption member -- `Msg.Outbound` has no Caption property; the JSON members a caption could ride (`Learned`, `Memories`) are checked.
+- (low) No "approve" injection case -- AC 7 names email and propose a fix; the approval count is asserted in every case.
+- (false) "The extracted text is never stored" -- it means no cache and no Turn column; text 2 states that the trace holds it, as for chat text (37.1).
+- (spec edit) The stale "Known, not changed" estimate and the Tasks' `role="status"` text -- spec edits; the deviations are recorded in Decided 12-13 and Task 0 (d).
+- (prior) No live web-photo caption assertion -- Decided in-stage 18 and Task 0 (c).
+- (by-design) DW-1343's `call_mcp_tool` and a caption `propose_fix` are pinned by citation -- the ruling allows the same-gate-path pins; Design Notes record them.
+- (duplicate) `lint_spine.py` "ok": false -- DW-638.
+- (false) memory-card MC14b/c "nothing was pinned" cannot fail -- it fails if the route stub stops matching and the real server pins.
+- (low) `TestMarkerReachesNothing` now sees a damaged read -- the property is pinned for a readable PDF by `TestNoExtractedText`.
+
 ## Spec Change Log
 
 - 2026-11-15 ~04:55Z, lead: Planner Gate ruled (`story-256-rulings-20261115.md`): P1 approved verbatim (pin), P2 approved in this story (with the test-readme/NS_WANT fallback), P3 approved with TestNoExtractedText, P4 approved with (a)-(c), P5 accepted. Worked into Tasks & Acceptance as the `[Ruling]` item.
@@ -580,6 +619,38 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - `lint_spine.py`: `"ok": false` at HEAD and now, 10 low placeholder findings both times, none new (Decided in-stage 21).
 
 **New IRIS test units:** none. `TestAddFromFile`, `TestReadFailure`, `TestReadDocument`, `TestReadError`, `TestCaptionCarried`, `TestNoExtractedText`, `TestChatMessageFileRead` and `TestInjectedFileTurn` are methods of classes that already run in their groups (`lane-b` Core, Live, Web; `lane-a` Channel).
+
+### QA stage (2026-11-15)
+
+Gaps found by reading the implement stage's tests against the matrix and the rulings: the "read 0 with no text" guard of `ReadSentFile` and its photo branch could not fail; no test pinned a photo through `Conversation` (FileRead photo, addable 0) or a file turn with the online demo flag set; a failed `{fileRef}` add (the owner says not_built, failed, an error, or is not running) was not pinned (the file must stay, so that the button that stays after a failure can be pressed again); the ruling P4 refusals (another session's ref the same as an unknown one, a photo's ref, mixed bodies) were pinned only through the route class, not over real HTTP with two real users.
+
+**Files (QA).**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/ConversationProbe.cls`: the `ReadFile` seam gains the mode `notext` (read 0 with a reason and no `text` member).
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/ConversationFiles.cls`: `TestReadError` runs three modes (error, nonobject, notext) for a PDF and for a photo and asserts no Decision and the file's `kind`; new `TestReadPhoto` and `TestReadOnDemo`.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls`: new `TestAddFromFileFailures`.
+- (QA) `web/e2e/api/files.spec.ts`: new `uploadsOf` helper and the test "POST /api/v1/documents {fileRef}: another session's, an unknown and a photo's ref, and a body that mixes forms, are refused over real HTTP, and add nothing" (part 2/17).
+
+No new IRIS test class, no CI group change, no product file touched.
+
+**QA mutations** (Rule 19; each applied, red observed, restored byte-identical from a copy saved in the scratch folder, `cmp` clean):
+- mutation: `ReadSentFile` swaps the `document` and `photo` branches of the fallback result's `kind` -> `Test.Core.ConversationFiles:TestReadError` red (the "error" and "nonobject" rows, document and photo).
+- mutation: `ReadSentFile` drops its `If failure = "" Set failure = Failure("failed")` line (a read 0 with no text goes on to Decide) -> `TestReadError` red for the notext rows (the sentence, "nothing is sent to Decide", "no Decision").
+- mutation: `Agent.Input.ReadFile` answers `addable 1` for a photo -> `Test.Core.ConversationFiles:TestReadPhoto` red (FileRead and chat.message fileRead).
+- mutation: `Agent.Input.OnlineDemo` answers 0 -> `Test.Core.ConversationFiles:TestReadOnDemo` red (a PDF is read on the demo, a Decide request goes out).
+- mutation: `Web.Documents.Add` discards the stored file after `FromFile` (a failed add consumes the file) -> `Test.Web.DocumentsApi:TestAddFromFileFailures` red ("the stored file is still there" for every answer, and the retry).
+- mutation: `Web.Documents.Add` accepts a body with other members (`parsed.%Size() '= 1` removed) and `FromFile` skips the `wrong_type` check -> the new real-HTTP test in `web/e2e/api/files.spec.ts` red (live, `live sign-in --part 2/17`: a photo's ref answered 200 `done`; the only red of that part).
+
+**QA runs** (lane-a throwaways, tags `e25s6qw` warm and `e25s6q` fresh, all torn down): `OcuTalon.Test.Core.ConversationFiles` passed (20 s), `OcuTalon.Test.Web.DocumentsApi` passed (1 s), `live sign-in --part 2/17` passed (21 passed, 52 s of tests, the new test 0.9 s); `npm --prefix web run lint` passed. The class `ConversationFiles` runs in the `lane-b` Core group and `DocumentsApi` in `lane-b` Web, both unchanged in `ci/units.sh`; `api/files.spec.ts` is in the chromium project.
+
+### Code review (2026-11-15)
+
+Lane-A throwaways only (warm `e25s6cw`, fresh `e25s6c`, both torn down). Each mutation applied, red observed, restored from a saved copy (`cmp` clean).
+- mutation: delete `ReadSentFile`'s `turn.%Save()` (FileRead not saved before decide) -> `Test.Core.ConversationFiles` `TestReadDocument` and `TestReadPhoto` red (the probe reads the stored FileRead); green again on the same stack after the revert.
+- mutation: `file-reply.ts` back to the hand-made `aria-disabled` button (the implement head) -> `files/files.spec.ts` "a turn that failed to add ... a pending add disables it" red on `aria-busy` (live `sign-in --part 10/17`, the only red of the part).
+- mutation: a static `import { PIN_PHOTO_TEXT } from './pin-photo-text'` in `memory-card.ts` -> `lazy-routes.test.mjs` "no static import from the entry point reaches the file reply controls or the pin-photo text" red.
+- mutation: drop "A chat turn with a photo also carries that photo." from `docs/security-overview.md` -> `test-heartbeat-overview.sh` `filetext` red.
+- Not mutated (labelled): the new Telegram bytes/base64/image scan and the photo state-caption assertion (no product change that puts bytes in a body was tried), `TestReadOnDemo`'s caption (QA's `OnlineDemo` 0 mutation covers the test), and the chat-id and clean-up changes (`TestEmptyTurn` after `TestInjectedFileTurn` was not run in one call).
+- Runs, all green: `Test.Core.ConversationFiles`; `Test.Channel.TelegramChat:TestFileTurn` and `:TestInjectedFileTurn`; live `sign-in --part 10/17` (21 passed) and `--part 2/17` (21 passed); `npm --prefix web test` (2,101), `npm --prefix web run lint`, `initial-bundle.test.mjs` (ServerButton is already in the initial bundle through `got-it.ts`); `test-boundaries.sh`, `test-class-rules.sh`.
 
 ## Auto Run Result
 

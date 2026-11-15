@@ -421,6 +421,7 @@ Method ReadSentFile(turn As OcuTalon.Data.Turn, Output failure As %String) As %B
 	Set failure = ""
 	Set sc = ..ReadFile(..ItemOf(turn), .result)
 	If $$$ISERR(sc) || '$IsObject(result) || (result.%IsA("%Library.DynamicObject") = 0) {
+		If $$$ISERR(sc) $$$LOGSTATUS(sc)
 		Set file = ##class(%DynamicAbstractObject).%FromJSON(turn.SentFile)
 		Set result = {"fileRef": (file.ref), "kind": ($Select(##class(OcuTalon.Agent.Input).IsDocumentType(file.mediaType): "document", 1: "photo")), "read": 0, "reason": "failed"}
 		Set failure = ##class(OcuTalon.Docs.Extract).Failure("failed")
