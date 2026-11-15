@@ -4337,3 +4337,5 @@
 2026-11-15T16:22:09Z	Run	release_pr_open	via=contest_planner PR=#16 release/1.0.11-rc2@799f9a8b->main runs=43735018565,43735018578(all_IRIS_jobs_started) push_hold=none rule=never_merge_to_main
 2026-11-15T16:26:56Z	Epic 25	runner_reported	PART_READY story=25.6 head=ff3078ed7 runs=43728223291(att2;att1=DW-1382_new_flake_cand_ci-31,DW-1205_2nd_red_ci-16),43728223310 bundle=890.41kB
 2026-11-15T16:26:56Z	Epic 25	merge_enqueued	story=25.6 (1.0.12)
+2026-11-15T16:29:46Z	Epic 25	merged	story=25.6 merge=7622f6df8 pins=pass web=pass lint=pass
+2026-11-15T16:29:55Z	Run	planner_notified	25.6_merged DW-1205=2nd_red_real(owner_proposal:laneC_after_0.37_push_and_23.3_merge) DW-1382=new_flake_cand(ci-31,not_port)
