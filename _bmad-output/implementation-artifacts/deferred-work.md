@@ -187,6 +187,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-20T06:51:54Z status=routed owner=0-9-the-message-catalog-and-its-one-renderer by=cr note=cause: stop right after start races Ens.ScheduleHandler on ^Ens.Runtime (5/15 vs 0/15 settled); patched in review
 - 2026-10-20T06:55:28Z status=resolved-by:0-9-the-message-catalog-and-its-one-renderer owner=0-9-the-message-catalog-and-its-one-renderer by=adjudication note=race patched in review (0/15 settled vs 5/15); the next push's iris (production) confirms, else reopen
 - 2026-11-13T17:32:55Z status=routed owner=burndown by=orchestrator note=RECURRENCE after resolved-by 0-9: run 43459664457 (OCT-epic37 f2fc3d3a) iris(production) 'another production': fixture StartProduction(ZzOther.Production) returned 0 (other-started 0), so start-refused/other-state empty; the Troubled/Suspended variant passed right after; 37.1 diff (Approval, Agent.Input, Install.Step.Roles, tests) does not touch production start; rerun --failed once
+- 2026-11-15T18:37:48Z occurrence=OCT-epic23-s233-8d57cadc1 by=orchestrator note=run 43741249586 att1 iris(production) on ocutalon-ci-18: 'another production' other-started 0, start-refused and other-state empty (3 of 8 values); attempt 2 green
 
 ### DW-29: Banner keys with a {time} slot render as message times in the instance zone, while the UX says banner times are page times in the browser's zone
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6482,6 +6483,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
 - 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
 - 2026-11-13T20:28:39Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959499 iris(browser) live:demo-path 06-trace.spec.ts:23 run-total not found after navigation to ?signedOut=1; demo path untouched by 36.4; one rerun
+- 2026-11-15T18:37:48Z occurrence=OCT-epic23-s233-8d57cadc1 by=orchestrator note=run 43741249586 att1 iris(browser) on ocutalon-ci-24: demo-path 06-trace.spec.ts:23 .finish .run-total not found while waiting for navigation; attempt 2 green
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint

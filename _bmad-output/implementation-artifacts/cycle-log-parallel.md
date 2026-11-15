@@ -4363,3 +4363,4 @@
 2026-11-15T18:24:35Z	Run	owner_decision	via=contest_planner DW-1388->lane_A(first;lane_C_stays_Fix_family) A2=approved(25.8_web_gap-fill:DW-1120,1121,1122,1386,1387;AD-33_exception;split_to_26.4_if_roles_needed) DW-1282=closed prompt=prompts/lane-a-burndown-20261115.md note=lane_C_had_created_.worktrees/epic-21-dw1388;awaiting_handover
 2026-11-15T18:24:55Z	Run	deviation	DW-1388_kept_on_lane_C(already_planned_76829fcc9+implementing;speed) planner_notified
 2026-11-15T18:24:55Z	Epic 25	dispatched	lane=A runner=a17cb142e7d5522c5 story=25.8_web_gap-fill(DW-1120,1121,1122,1386,1387;AD-33_exception)
+2026-11-15T18:37:48Z	Epic 23	ci_red_classified	story=23.3 run=43741249586(8d57cadc1) att1: browser(ci-24)=DW-1026(06-trace_run-total) production(ci-18)=DW-28(another_production) host=no att2=green
