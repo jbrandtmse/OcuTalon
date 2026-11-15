@@ -4347,3 +4347,10 @@
 2026-11-15T17:24:27Z	Run	dw_opened	DW-1388(MED,21.5_mcp.spec_B13_flake;ci-55,ci-16) owner=next_free_of_laneD/laneC 1.0.11=released(main_b2c3f6f6,tag_v1.0.11,merge-back_b337f61d)
 2026-11-15T17:32:38Z	Epic 0	owner_decision	via=contest_planner 0.37_A/B=PASS(evidence_release-evidence/ab-037/RESULT.md;a:24/22,b:34/36,c:11/11,d:0,e:30/30,f:6/6,g:6/6,h:none_worse,probes:0_actions;$0.25) flag=memory-webhook-remember_digest->ignore(accepted;new_LOW_DW_for_laneC)
 2026-11-15T17:32:38Z	Epic 0	merge_enqueued	story=0.37 head=c8f7a3f39 (1.0.12)
+2026-11-15T17:39:53Z	Epic 0	merged	story=0.37 merge=9b9898a53 (after_A/B_PASS)
+2026-11-15T17:39:53Z	Run	dw_opened	DW-1389(LOW,memory-*-remember_digest->ignore_pair+chat_stopped_side_question) owner=lane_C_after_DW-1205/494
+2026-11-15T17:40:41Z	Run	ci_red_classified	head=7622f6df8(25.6_merge) run=43735777142 att1 shards-11(ci-38) Test.Fix.Asked:TestSuspendAndUndo class=new_DW_DW-1391(MED;Fix_family->laneC_with_DW-1205/494) note=orchestrator_missed_this_feature_red(not_reported_at_25.6_merge)
+2026-11-15T17:41:09Z	Run	ci_red_classified	head=475a86e44(DW-1371_merge) run=43733825684 shards-4(ci-16) class=DW-1388(mcp.spec_B13) superseded=yes
+2026-11-15T17:41:09Z	Run	process_fix	orchestrator_now_verifies_each_merge_feature_run(missed_7622f6df8_and_475a86e44_reds)
+2026-11-15T17:53:36Z	Run	ci_red_classified	head=b337f61d9(1.0.11_merge-back) run=43738026674 shards-5(ci-48)=DW-555(chrome-error_goto) shards-4(ci-29)=DW-1388 action=no_rerun(superseded_by_df475cc64,9b9898a53)
+2026-11-15T17:53:54Z	Run	owner_decision	via=contest_planner DW-1388=HIGH(next_free_lane;test-only_unless_UI) assigned=lane_C(21.5_author;Fix_impl_blocked_on_23.3) ci-48_watch=report_2nd_DW-555_or_network_fail
