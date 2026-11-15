@@ -460,7 +460,7 @@ Method TestNotices()
 		While iterator.%GetNext(.key) {
 			If ($Extract(key, 1, 9) = "incident.") || ($Extract(key, 1, 7) = "result.") Set keys = keys _ $ListBuild(key)
 		}
-		Do $$$AssertTrue($ListLength(keys) >= 41, "the catalog holds at least the 41 Watch notice keys the story pins (the count is read from the catalog)")
+		Do $$$AssertTrue($ListLength(keys) >= 41, "the catalog holds at least the 41 Watch notice keys the story pins (the count is read from the catalog): "_$ListLength(keys))
 		For core = "notice.tellNow", "notice.tellNowFallback", "reminder.due", "reminder.late", "conversation.sessionAllowance", "conversation.dailyCap" Set keys = keys _ $ListBuild(core)
 		Set expectedRows = "", approvals = 0, position = 0, phones = 0, withFixRow = "", withFixText = ""
 		While $ListNext(keys, position, key) {
@@ -491,7 +491,7 @@ Method TestNotices()
 				Do $$$AssertEquals(text, phoneText, key_" is the catalog's text for the phone channel")
 			} Else {
 				Set phones = phones + 1
-				If kind = "result" Do $$$AssertEquals(text, fixture.text, key_" reaches the chat as the approved text")
+				If 'fixture.slots.%IsDefined("time") Do $$$AssertEquals(text, fixture.text, key_" reaches the chat as the approved text")
 				Set deadline = $ZHorolog + 20
 				For {
 					Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 100)
@@ -508,9 +508,14 @@ Method TestNotices()
 			}
 			Set expectedRows = expectedRows _ $Select(expectedRows = "": "", 1: ",") _ kind_"|"_approval_"|"_chatRef_":"_(before + 1)
 		}
-		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows, "the telegram Delivery rows have each notice's kind, its approval Ref and <ChatRef>:<message_id>")
-		Set notices = $ListLength(keys)
-		Do $$$AssertEquals($Length(..Rows(session, "telegram", "pairing"), ","), notices, "the Delivery table holds one telegram row for each of the "_notices_" notice keys, none dropped")
+		Set notices = $ListLength(keys), deadline = $ZHorolog + 20
+		For {
+			Set telegramRows = ..Rows(session, "telegram", "pairing")
+			If ($Length(telegramRows, ",") >= notices) || ($ZHorolog >= deadline) Quit
+			Hang 0.25
+		}
+		Do $$$AssertEquals(telegramRows, expectedRows, "the telegram Delivery rows have each notice's kind, its approval Ref and <ChatRef>:<message_id>")
+		Do $$$AssertEquals($Length(telegramRows, ","), notices, "the Delivery table holds one telegram row for each of the "_notices_" notice keys, none dropped")
 
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set answered = fixtures.%Get("answered.approved")
