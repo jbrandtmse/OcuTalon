@@ -416,3 +416,5 @@
 2026-11-15T10:02:41Z	DW-1347	ledger	DW-1347=resolved-by:dw-1347
 2026-11-15T07:47:05Z	Story 21.9	integrated	feature=97e062daf(22.11,22.15) conflicts=cycle-log(union),sprint-status(feature_side,re-set_21-9_done)
 2026-11-15T07:55:23Z	Story 21.9	integrated	feature=97e062daf(22.11+22.15) merge=e6d254677 node=2114/0 SettingsMcp=pass McpSettingsApi=pass CommandsStep4=pass live=sign-in-2_part18/24_20/20 lint=10_low test-readme=pass
+2026-11-15T10:14:44Z	DW-1347	integrated	feature=20b60564f(21.9) merge=30ceb87a5 conflicts=cycle-log(union) node=2114/0 boundaries,class-rules,readme=pass lint=10_low
+2026-11-15T10:14:44Z	DW-1347	fresh_check	env=merged_tree(30ceb87a5) warm_e21dwfw:Mcp.SourceRun,Bridge.Poll,Mcp.Proxy,Bridge.Decide,Bridge.CodeRules,Tools.Result,Checks.Runs,Core.SettingsMcp,Mcp.SourceRunProduction,Mcp.Attach_pass torn_down
