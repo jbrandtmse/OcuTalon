@@ -31,7 +31,8 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
     messageTime: (iso, now) => messageTime(iso, now, instanceZone, onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, instanceZone),
     itemTime: (iso, now) => pageWhen(iso, now),
-    result: (request, itemNoun, production) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production),
+    result: (request, itemNoun, production, change) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change),
+    render: (key, slots) => renderPageText(key, slots),
     reasonText: fallbackReasonText,
   };
 }
@@ -87,6 +88,9 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
       @if (view().evidenceLine) {
         <p class="evidence-line">{{ view().evidenceLine }}</p>
       }
+      @if (view().settingCauseLine) {
+        <p class="evidence-line setting-cause-line">{{ view().settingCauseLine }}</p>
+      }
       @if (view().fixSentence) {
         <p class="fix">{{ view().fixSentence }}</p>
       }
@@ -117,6 +121,7 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
           [result]="resultOf(request.ref)"
           [itemNoun]="incident().itemNoun"
           [production]="production()"
+          [settingChange]="incident().settingChange"
           [dismiss]="last ? dismissTarget() : undefined"
           (toggleDetails)="open.set(!open())"
         />

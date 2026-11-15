@@ -1,0 +1,21 @@
+{
+  "name": "propose-fix-undo-rollback",
+  "match": {
+    "marker": "propose-fix-undo-rollback"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "undo_rollback"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "There is no rollback to undo, so no request was raised."
+    }
+  ]
+}

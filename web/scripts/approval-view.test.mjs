@@ -106,6 +106,90 @@ describe('the fixes the user asks for in the chat (Story 23.2)', () => {
   });
 });
 
+describe('the rollback of a setting and its undo (Story 23.3)', () => {
+  const rollback = (over = {}) =>
+    pending({ fixKind: 'rollback_setting', incidentRef: 'R', dryRun: { item: 'OrdersFromPartner', field: 'TargetConfigName', before: 'OrdersToWarehous', after: 'OrdersToWarehouse' }, ...over });
+  const undo = (over = {}) => rollback({ fixKind: 'undo_rollback', dryRun: { item: 'OrdersFromPartner', field: 'TargetConfigName', before: 'OrdersToWarehouse', after: 'OrdersToWarehous' }, ...over });
+  const CHANGE = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', credential: false, detectedAt: '2026-10-27T14:02:00Z' };
+  const AUDIT = 'Recorded in the IRIS audit log.';
+  const ran = (over = {}) => ({ total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over });
+  const band = (fixKind, result, over = {}) => resultView({ ref: 'A', state: 'done', fixKind, item: 'OrdersFromPartner', result, ...over }, undefined, renderPageText, 'Orders', CHANGE);
+
+  it('titles the request by the rail\'s title and names the buttons by it', () => {
+    const view = approvalView(rollback(), ctx());
+    assert.equal(view.action, 'Put TargetConfigName on OrdersFromPartner back.');
+    assert.equal(view.approveName, 'Approve: put TargetConfigName on OrdersFromPartner back');
+    assert.equal(approvalView(undo(), ctx()).action, 'Undo the rollback of TargetConfigName on OrdersFromPartner.');
+    assert.equal(approvalView(undo(), ctx()).rejectName, 'Reject: undo the rollback of TargetConfigName on OrdersFromPartner');
+  });
+
+  it('shows the setting\'s value now and the value it will have, with no count and no fixed-targets line', () => {
+    const view = approvalView(rollback(), ctx());
+    assert.deepEqual(view.dryRun, { countLine: '', field: '', before: 'TargetConfigName: OrdersToWarehous', after: 'TargetConfigName: OrdersToWarehouse', eitherWay: '', resendLine: '', nothingYet: 'Nothing has changed yet.' });
+    assert.equal(view.fixedTargets, '');
+    assert.equal(approvalView(undo(), ctx()).dryRun.before, 'TargetConfigName: OrdersToWarehouse');
+    assert.equal(approvalView(rollback({ dryRun: {} }), ctx()).dryRun, undefined, 'a dry run with no setting has no block');
+    assert.equal(approvalView(rollback({ state: 'approved' }), ctx()).dryRun.nothingYet, '', 'an answered request keeps the record without the note');
+  });
+
+  it('is the success band of result.settingRestored with the old value, and of result.rollbackUndone with the new one', () => {
+    assert.deepEqual(band('rollback_setting', ran()), {
+      key: 'result.settingRestored',
+      text: 'TargetConfigName on OrdersFromPartner is back to OrdersToWarehouse. To undo it, ask me to undo the rollback.',
+      tone: 'success',
+      icon: 'circle-check',
+      audit: AUDIT,
+    });
+    assert.deepEqual(band('undo_rollback', ran()), {
+      key: 'result.rollbackUndone',
+      text: 'The rollback is undone: TargetConfigName on OrdersFromPartner is back to OrdersToWarehous.',
+      tone: 'success',
+      icon: 'circle-check',
+      audit: AUDIT,
+    });
+  });
+
+  it('is the partial band of result.settingChangedSince when the setting changed again, and of result.itemNotChanged for any other reason', () => {
+    const again = ran({ completed: 0, skipped: 1, reason: 'TargetConfigName on OrdersFromPartner changed again since then' });
+    assert.deepEqual(band('rollback_setting', again), {
+      key: 'result.settingChangedSince',
+      text: 'TargetConfigName on OrdersFromPartner was not changed: it changed again after the dry run. It needs a new approval.',
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+    const refused = ran({ completed: 0, reason: "OcuTalon isn't allowed to change settings in that production" });
+    assert.deepEqual(band('undo_rollback', refused, { state: 'failed' }), {
+      key: 'result.itemNotChanged',
+      text: "Nothing was changed: OcuTalon isn't allowed to change settings in that production.",
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+  });
+
+  it('is the partial band of result.settingSavedNotApplied when the setting was saved and the production could not apply it (the run has unreached targets and the production\'s error as its reason)', () => {
+    const saved = ran({ completed: 0, unreached: 1, reason: 'The update timed out' });
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      assert.deepEqual(band(fixKind, saved, { state: 'failed' }), {
+        key: 'result.settingSavedNotApplied',
+        text: "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again.",
+        tone: 'partial',
+        icon: 'triangle-alert',
+        audit: AUDIT,
+      });
+    }
+    assert.equal(resultView({ ref: 'A', state: 'failed', fixKind: 'rollback_setting', result: saved }, undefined, renderPageText, 'Orders', undefined), undefined, 'no setting change in the incident');
+  });
+
+  it('claims nothing for a run that is still going, was interrupted, has no reason, or lacks the setting it would name', () => {
+    assert.equal(band('rollback_setting', ran(), { state: 'executing' }), undefined, 'still going');
+    assert.equal(band('rollback_setting', ran({ completed: 0, interrupted: 1, reason: 'x' })), undefined, 'interrupted');
+    assert.equal(band('rollback_setting', ran({ completed: 0 })), undefined, 'nothing changed and no reason');
+    assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'rollback_setting', result: ran() }, undefined, renderPageText, 'Orders'), undefined, 'no setting change in the incident');
+  });
+});
+
 describe('the result band of a fix the user asked for in the chat (Story 23.2, DW-1067)', () => {
   const render = renderPageText;
   const noun = { one: 'order', other: 'orders' };
@@ -738,6 +822,7 @@ describe('the texts', () => {
       resendCopyOne: '1 repaired copy; the original stays unchanged.',
       nothingYet: 'Nothing has changed yet.',
       itemState: '{item}: {state}',
+      settingRow: '{setting}: {value}',
       rerouteBefore: 'Message {example}: {from}',
       rerouteAfter: 'Message {example}: {to}',
       rerouteCopies: '{count} copies to {to}; the originals stay unchanged.',

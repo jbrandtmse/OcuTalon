@@ -142,6 +142,16 @@ export interface SentFile {
   size?: number;
 }
 
+export interface SettingChange {
+  item?: string;
+  target?: string;
+  setting?: string;
+  oldValue?: string;
+  newValue?: string;
+  credential?: boolean;
+  detectedAt?: string;
+}
+
 export interface StatusSlots {
   limit?: number;
   cap?: number;
@@ -351,6 +361,8 @@ export interface IncidentPayload {
   decisionRef?: string;
   groups?: IncidentGroup[];
   requests?: IncidentRequest[];
+  settingChange?: SettingChange;
+  gapMinutes?: number;
   evidence?: IncidentEvidence;
   traceTargets?: IncidentTraceTargets;
 }

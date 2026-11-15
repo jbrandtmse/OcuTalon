@@ -1,0 +1,21 @@
+{
+  "name": "propose-fix-injected-rollback",
+  "match": {
+    "marker": "propose-fix-injected-rollback"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "rollback_setting"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the fix."
+    }
+  ]
+}

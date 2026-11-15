@@ -175,6 +175,29 @@ describe('the same ref again: count and fixing', () => {
     assert.equal(card.evidenceLine, 'Data format change \u00B7 order date \u00B7 52 failures grouped into this incident');
   });
 
+  it('names the setting change behind an incident, and says what its rollback and undo do (Story 23.3)', () => {
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', credential: false, detectedAt: '2026-10-22T14:08:00Z' };
+    const named = (over = {}) => full({ causeCategory: 'setting_change', element: 'TargetConfigName', settingChange: change, gapMinutes: 4, requests: [{ state: 'pending', fixKind: 'rollback_setting', item: 'OrdersFromPartner' }], ...over });
+    const render = (key, slots) => renderPageText(key, slots);
+    assert.equal(view(named(), { render }).settingCauseLine, 'The feed broke four minutes after this setting changed: TargetConfigName on OrdersFromPartner, at 14:08.');
+    assert.equal(view(named(), { render }, { onlineDemo: true }).settingCauseLine, 'The feed broke four minutes after this setting changed: TargetConfigName on OrdersFromPartner, at 14:08 ET.', 'with " ET" on the online demo');
+    assert.equal(view(named({ gapMinutes: 0 }), { render }).settingCauseLine.startsWith('The feed broke less than a minute after'), true, 'a gap of 0 minutes');
+    assert.equal(view(named({ gapMinutes: 1212 }), { render }).settingCauseLine.startsWith('The feed broke 1,212 minutes after'), true, 'a long gap');
+    assert.equal(view(named({ settingChange: undefined }), { render }).settingCauseLine, '', 'an incident that names no change has no line');
+    assert.equal(view(named({ gapMinutes: undefined }), { render }).settingCauseLine, '', 'nor one with no gap');
+    assert.equal(view(named()).settingCauseLine, '', 'nor a context with no catalog');
+    assert.equal(view(full(), { render }).settingCauseLine, '', 'an ordinary incident has none');
+    assert.equal(view(named({ state: 'closed' }), { render }).settingCauseLine, '', 'a closed card is compact');
+    assert.equal(view(named()).fixSentence, 'I can put TargetConfigName on OrdersFromPartner back to its earlier value.');
+    assert.equal(view(named({ requests: [{ state: 'pending', fixKind: 'undo_rollback', item: 'OrdersFromPartner' }] })).fixSentence, 'I can undo the rollback of TargetConfigName on OrdersFromPartner.');
+    assert.equal(view(named({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'rollback_setting', item: 'OrdersFromPartner' }] })).fixingLine, 'Putting TargetConfigName on OrdersFromPartner back\u2026');
+    assert.equal(view(named({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'undo_rollback', item: 'OrdersFromPartner' }] })).fixingLine, 'Undoing the rollback of TargetConfigName on OrdersFromPartner\u2026');
+    assert.equal(view(named({ settingChange: undefined })).fixSentence, 'I can repair and resend all 50.', 'with no change to name, the sentence is the diagnosis\'s');
+    const closed = view(named({ state: 'closed', requests: [{ ref: 'A', state: 'done', fixKind: 'rollback_setting', item: 'OrdersFromPartner', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } }] }), { result: (request, itemNoun, production, one) => resultView(request, itemNoun, renderPageText, production, one) });
+    assert.equal(closed.results[0].key, 'result.settingRestored', 'a closed card carries the result band of the rollback');
+    assert.equal(closed.results[0].text, 'TargetConfigName on OrdersFromPartner is back to OrdersToWarehouse. To undo it, ask me to undo the rollback.');
+  });
+
   it('takes the fixing count from the first executing request with a total, else noticeCount, else count', () => {
     const two = view(full({ state: 'fixing', requests: [{ state: 'pending' }, { state: 'executing' }, { state: 'executing', result: { total: 7 } }, { state: 'executing', result: { total: 9 } }] }));
     assert.equal(two.fixingLine, 'Repairing and resending 7 orders\u2026');
@@ -523,6 +546,10 @@ describe('the fixed strings', () => {
         fixSuspend: 'I can suspend {item}.',
         fixResume: 'I can resume {item}.',
         fixReroute: 'I can reroute {count} {noun} to {to}.',
+        fixRollback: 'I can put {setting} on {target} back to its earlier value.',
+        fixUndoRollback: 'I can undo the rollback of {setting} on {target}.',
+        fixingRollback: 'Putting {setting} on {target} back\u2026',
+        fixingUndoRollback: 'Undoing the rollback of {setting} on {target}\u2026',
         showDetails: 'Show details',
         nounOne: 'message',
         nounOther: 'messages',

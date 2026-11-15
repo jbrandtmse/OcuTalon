@@ -3,6 +3,8 @@
 #   bash docker/tests/record-eval.sh        records eval/orders-date-format/snapshot.json (Story 0.10)
 #   bash docker/tests/record-eval.sh feed   records the nine incidents of the test feed (Story 9.9), eval/<name>/case.json and snapshot.json
 #   bash docker/tests/record-eval.sh no-evidence   records eval/orders-date-no-evidence/case.json and snapshot.json (Story 39.6, DW-653)
+#   bash docker/tests/record-eval.sh setting   records the two setting incidents of the Orders demo, eval/orders-target-renamed/ and eval/orders-target-to-review/,
+#                                              case.json and snapshot.json of each (Story 23.3)
 #   bash docker/tests/record-eval.sh held-out [<name>]   records eval/held-out/<name>/snapshot.json for each of the four held-out incidents, or for
 #                                                        the one named (Story 0.27)
 # Any other argument exits 2 before anything starts. Each mode starts one throwaway project of its own (docker/tests/lib-live.sh, the
@@ -17,12 +19,20 @@
 # each case is copied out with jq, so it is written pretty-printed. Nothing is written unless the recording succeeded and every file is
 # JSON, is ASCII and names no home folder, and no case is orders-date-format (the default mode records that one); then every
 # eval/<name>/ is written and "record-eval: <n> feed cases written" is printed.
-# The feed mode also dies on a feed case named orders-date-no-evidence, which the no-evidence mode records.
+# The feed mode also dies on a feed case named orders-date-no-evidence, which the no-evidence mode records, or orders-target-renamed or orders-target-to-review, which the setting mode records.
 # The no-evidence mode has OcuTalon.Test.Eval.Record.RecordNoEvidence hold the Orders failures, send 3 orders from the simulated partner dated
 # 03/05/2026 (MM/DD/YYYY, a date that reads both ways, on an arrival day that matches neither reading), record their failures with
 # OcuTalon.Eval.Record as the case orders-date-no-evidence (a data-format change at OrderDate with no fix, Story 7.7) and release the hold and
 # remove the batch. Its two files are copied out with jq and checked as the feed mode's are (JSON, not empty, ASCII, no home folder); then
 # eval/orders-date-no-evidence/ is written and "record-eval: eval/orders-date-no-evidence written" is printed.
+# The setting mode has OcuTalon.Test.Eval.Record.RecordSetting hold the Orders failures and, for each of the two recipes, delete the Orders setting history, take a
+# first setting snapshot, change the Host setting TargetConfigName of OrdersFromPartner in the saved definition and the running production, take a second snapshot
+# (it dates the change, as a Tick of Checks does), send 3 good orders (YYYY-MM-DD) that then fail, record them with OcuTalon.Eval.Record (the case and the reader's
+# snapshot, with settingChanges holding the change) while the setting is still changed, and put the setting back. orders-target-renamed changes it to a name that is
+# not an item and that also carries a sentence written as an instruction to a model, with the fix rollback_setting expected; orders-target-to-review changes it to
+# OrdersForReview, where the orders fail, with no fix expected (the change is not on the item that failed). Both are setting_change at TargetConfigName. The four
+# files are copied out with jq and checked as the feed mode's are, and each snapshot must hold one settingChanges entry; then eval/<name>/ is written for each and
+# "record-eval: 2 setting cases written" is printed.
 # The held-out mode sends the inputs of the held-out incidents (Fixture XData HeldOutCases: the same feed, no expectation) and has the fixture record
 # each one; only snapshot.json of each is copied out (through jq, checked as the feed mode's files are) into eval/held-out/<name>/, beside the case.json
 # that the set already holds. It dies before it starts anything when a named incident has no eval/held-out/<name>/case.json or that file is not an
@@ -44,6 +54,8 @@ if [ "$#" -eq 1 ] && [ "$1" = feed ]; then
   mode=feed
 elif [ "$#" -eq 1 ] && [ "$1" = no-evidence ]; then
   mode=noevidence
+elif [ "$#" -eq 1 ] && [ "$1" = setting ]; then
+  mode=setting
 elif [ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out ]; then
   mode=heldout
   if [ "$#" -eq 2 ]; then
@@ -53,7 +65,7 @@ elif [ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out ]; then
     esac
   fi
 elif [ "$#" -gt 0 ]; then
-  echo "usage: record-eval.sh [feed|no-evidence|held-out [<name>]]" >&2
+  echo "usage: record-eval.sh [feed|no-evidence|setting|held-out [<name>]]" >&2
   exit 2
 fi
 
@@ -101,6 +113,7 @@ fi
 case $mode in
   feed) live_start r99f ;;
   noevidence) live_start r39e ;;
+  setting) live_start r23s ;;
   heldout) live_start r27h ;;
   *) live_start r10e ;;
 esac
@@ -137,6 +150,7 @@ if [ "$mode" = feed ]; then
       '' | *[!a-z0-9-]*) die "the feed recorded a case with the name '$name'" ;;
       orders-date-format) die "the feed recorded the case orders-date-format, which the default mode records" ;;
       orders-date-no-evidence) die "the feed recorded the case orders-date-no-evidence, which the no-evidence mode records" ;;
+      orders-target-renamed | orders-target-to-review) die "the feed recorded the case $name, which the setting mode records" ;;
     esac
     mkdir -p "$tmp/feed/$name"
     for file in case.json snapshot.json; do
@@ -188,6 +202,34 @@ if [ "$mode" = heldout ]; then
     cp "$tmp/held-out/$name/snapshot.json" "$repo/eval/held-out/$name/snapshot.json" || die "eval/held-out/$name/snapshot.json could not be written"
   done
   echo "record-eval: $count held-out snapshots written"
+  exit 0
+fi
+
+if [ "$mode" = setting ]; then
+  # The first CHK line keeps iris_script from running the recording a second time when the session prints a result late.
+  result=$(printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    'Set sc=##class(OcuTalon.Test.Eval.Record).RecordSetting("/tmp/zz-eval-setting/",.names)' \
+    'Write !,"CHK|record|",$Select($SYSTEM.Status.IsOK(sc):"ok "_names,1:$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  "))' \
+    'Halt' | session_value OCUTALON record)
+  case $result in
+    "ok "*) names=${result#ok } ;;
+    *) die "the recording failed: ${result:-no answer from the session}" ;;
+  esac
+  if [ "$names" != "orders-target-renamed,orders-target-to-review" ]; then die "the recording made '$names', not the two setting cases"; fi
+  mkdir -p "$tmp/setting"
+  for name in $(printf '%s' "$names" | tr ',' ' '); do
+    mkdir -p "$tmp/setting/$name"
+    for file in case.json snapshot.json; do
+      copy_out "/tmp/zz-eval-setting/$name/$file" "$tmp/setting/$name/$file" "$name/$file"
+    done
+    if [ "$(jq '.settingChanges | length' "$tmp/setting/$name/snapshot.json")" != 1 ]; then die "$name/snapshot.json does not hold exactly one setting change"; fi
+  done
+  for name in $(printf '%s' "$names" | tr ',' ' '); do
+    mkdir -p "eval/$name" || die "eval/$name could not be made"
+    cp "$tmp/setting/$name/case.json" "$tmp/setting/$name/snapshot.json" "eval/$name/" || die "eval/$name could not be written"
+  done
+  echo "record-eval: 2 setting cases written"
   exit 0
 fi
 

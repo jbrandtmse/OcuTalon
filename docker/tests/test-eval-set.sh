@@ -36,7 +36,8 @@
 #                                       object whose namespace and production are non-blank strings, with no other member. No other
 #                                       kind has a watch;
 #                   incident            expectation.causeCategory of the categories, an elementAtFault, and a fixKind of the fix kinds
-#                                       when the category is the fix category and empty otherwise, except that an expectation.noFix
+#                                       when the category is the fix category and, otherwise, empty or a fix kind whose CATEGORY (Fix.Kind, Story 23.3: the
+#                                       fix kinds that a diagnosis of the category may offer) is the category, except that an expectation.noFix
 #                                       (DW-653), when present, is a boolean, and when true the category is the fix category and the
 #                                       fixKind is empty (a diagnosis that proposes no fix); a snapshot, the name of a file in the
 #                                       folder whose format is ocutalon.readerSnapshot/1, with a source.namespace, source.production and
@@ -103,11 +104,11 @@
 #                 column's text is not read;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
-#   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 11; no
+#   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 13; no
 #                 cause category accounts for more than 8 of the first 10 (a diagnosis that always gives one answer cannot reach SM-2);
 #                 at least 9 of them other than the one Eval.Report DEMOCASE names have a snapshot whose source.namespace and source.production
 #                 are the test feed's, and every incident other than the demo's is either one of them or has a snapshot whose source is the
-#                 namespace and production of the Orders demo (Story 39.6, DW-653: orders-date-no-evidence; a later story that records an incident
+#                 namespace and production of the Orders demo (Story 39.6, DW-653: orders-date-no-evidence; Story 23.3: orders-target-renamed and orders-target-to-review; a later story that records an incident
 #                 elsewhere relaxes the rule in its own change); and at least 2 of the feed's incidents are held out (heldOut true), so that
 #                 prompt work never sees them;
 #   feed          (CON-3) no tracked or not-ignored file names the test feed, that is, the class OcuTalon.Test.Eval.Feed (and so every class
@@ -129,8 +130,8 @@
 #                 container tool, accepts one that is (it goes on to the preflight), and makes OCUTALON_EVAL_REPORT_DIR. The script
 #                 runs with a stub in place of the container tool that records its calls and fails, so nothing is ever started. With
 #                 LIVE_REBUILD_WEB=1 and a recording npm on the path, the preflight ends the run before the first npm process (DW-434).
-#   record-guard  docker/tests/record-eval.sh (Story 9.9, 39.6, 0.27) refuses every argument but the single word feed, the single word
-#                 no-evidence, and the word held-out alone or followed by one lower-case kebab name, with exit 2, before it sources lib-live.sh, and goes on to
+#   record-guard  docker/tests/record-eval.sh (Story 9.9, 39.6, 0.27, 23.3) refuses every argument but the single word feed, the single word
+#                 no-evidence, the single word setting, and the word held-out alone or followed by one lower-case kebab name, with exit 2, before it sources lib-live.sh, and goes on to
 #                 lib-live.sh with no argument and with each of those forms. The script runs from a copy in a folder of its
 #                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
 #   record-held-out  (Story 0.27) the held-out mode of docker/tests/record-eval.sh, run from a copy beside a stand-in for lib-live.sh (no throwaway), over two incident
@@ -280,6 +281,8 @@ const FINDINGKEYS = list('ENUM_FINDINGKEYS');
 const CATEGORIES = list('ENUM_CAUSECATEGORIES');
 const FIXKINDS = list('ENUM_FIXKINDS');
 const FIXCATEGORY = process.env.ENUM_FIXCATEGORY || '';
+// "<fix kind>:<category>" for each fix kind that a diagnosis of the category may offer (the CATEGORY of the kind's class).
+const KINDCATEGORIES = list('ENUM_KINDCATEGORIES');
 const CREDENTIALPARTS = list('ENUM_CREDENTIALPARTS').map((part) => part.toLowerCase());
 const KEYS = ['ENUM_KEYALLPASSED', 'ENUM_KEYRESTPASSED', 'ENUM_KEYNOTEVERYTHING', 'ENUM_KEYNOTHINGWATCHED'].map((name) => process.env[name] || '').filter(Boolean);
 const BEATCHANNEL = process.env.ENUM_BEATCHANNEL || '';
@@ -457,7 +460,9 @@ try {
       } else if (x.causeCategory === FIXCATEGORY) {
         if (!FIXKINDS.includes(fix)) bad(file, 'expectation.fixKind is not one of the fix kinds');
       } else if (fix !== '') {
-        bad(file, 'expectation.fixKind must be empty for a category with no fix');
+        const offered = KINDCATEGORIES.filter((entry) => entry.endsWith(`:${x.causeCategory}`)).map((entry) => entry.slice(0, entry.indexOf(':')));
+        if (offered.length === 0) bad(file, 'expectation.fixKind must be empty for a category with no fix');
+        else if (!offered.includes(fix)) bad(file, 'expectation.fixKind is not a fix kind of the category');
       }
       const name = c.snapshot;
       if (!text(name) || name.includes('/') || name.includes('\\') || !fs.existsSync(path.join(root, dir, name))) {
@@ -722,7 +727,7 @@ const FEEDNAMESPACE = process.env.ENUM_FEEDNAMESPACE || '';
 const FEEDPRODUCTION = process.env.ENUM_FEEDPRODUCTION || '';
 const DEMONAMESPACE = process.env.ENUM_DEMONAMESPACE || '';
 const DEMOPRODUCTION = process.env.ENUM_DEMOPRODUCTION || '';
-const MIN_INCIDENTS = 11;
+const MIN_INCIDENTS = 13;
 const WINDOW = 10;
 const MAX_SHARE = 8;
 const MIN_FEED = 9;
@@ -742,7 +747,7 @@ const sourcedFrom = (file, c, namespace, production) => {
   }
 };
 const fromFeed = (file, c) => sourcedFrom(file, c, FEEDNAMESPACE, FEEDPRODUCTION);
-// The Orders demo's own production is the other source of a non-demo incident (Story 39.6, DW-653: orders-date-no-evidence).
+// The Orders demo's own production is the other source of a non-demo incident (Story 39.6, DW-653: orders-date-no-evidence; Story 23.3: the two setting incidents).
 const fromOrders = (file, c) => sourcedFrom(file, c, DEMONAMESPACE, DEMOPRODUCTION);
 
 try {
@@ -1525,8 +1530,8 @@ const RECORDER_HEAD = '#!/usr/bin/env bash\nset -u\nmode=demo\n';
 const RECORDER_TAIL = '. "$(dirname "$0")/lib-live.sh"\n';
 const HELDOUT_FORM = '[ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out ]';
 const HELDOUT_NAME = "case $2 in\n      '' | *[!abcdefghijklmnopqrstuvwxyz0123456789-]* | -* | *-) exit 2 ;;\n    esac";
-const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]', second = '[ "$#" -eq 1 ] && [ "$1" = no-evidence ]', third = HELDOUT_FORM, nameTest = HELDOUT_NAME) =>
-  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif ${second}; then\n  mode=noevidence\nelif ${third}; then\n  mode=heldout\n  if [ "$#" -eq 2 ]; then\n    ${nameTest}\n  fi\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed|no-evidence|held-out [<name>]]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
+const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]', second = '[ "$#" -eq 1 ] && [ "$1" = no-evidence ]', third = HELDOUT_FORM, nameTest = HELDOUT_NAME, setting = '[ "$#" -eq 1 ] && [ "$1" = setting ]') =>
+  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif ${second}; then\n  mode=noevidence\nelif ${setting}; then\n  mode=setting\nelif ${third}; then\n  mode=heldout\n  if [ "$#" -eq 2 ]; then\n    ${nameTest}\n  fi\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed|no-evidence|setting|held-out [<name>]]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
 
 const good = () => ({
   'eval/item-good/case.json': item('item-good'),
@@ -1587,9 +1592,9 @@ const demoTree = (mutate) => (f) => {
   mutate(f);
 };
 
-// A good tree for the rule `incidents`: the demo incident, the Orders demo's no-fix incident and the nine incidents of the test feed with this release's
-// spread (data format change 4 with the two Orders incidents, validation error 2, connection failure 2, partner outage 2, unknown 1) and two held out, a
-// tail of later incidents, and a test-only case, which the rule does not read.
+// A good tree for the rule `incidents`: the demo incident, the Orders demo's no-fix incident, its two setting incidents (setting change, Story 23.3) and the nine
+// incidents of the test feed with this release's spread (data format change 4 with the two Orders incidents, validation error 2, connection failure 2, partner
+// outage 2, unknown 1) and two held out, a tail of later incidents, and a test-only case, which the rule does not read.
 const category = (name) => {
   if (!CATEGORIES.includes(name)) throw new Error(`${name} is not a cause category`);
   return name;
@@ -1619,6 +1624,9 @@ const FEEDCASES = [
 // Eight further incidents that sort after the first ten by name and share one cause category: the whole set holds more than 8 of it, the first ten hold 2.
 const TAIL = Array.from({ length: 8 }, (_, i) => `zz-tail-${i + 1}`);
 const NOEVIDENCE = 'orders-date-no-evidence';
+// The Orders demo's two setting incidents (Story 23.3): a setting change at TargetConfigName, from the Orders production itself, one with the fix rollback_setting.
+const SETTINGCASES = ['orders-target-renamed', 'orders-target-to-review'];
+const SETTINGFILES = SETTINGCASES.map((name) => `eval/${name}/case.json`);
 const incidentsGood = () => {
   const files = {};
   files[`eval/${DEMOCASE}/case.json`] = incidentIn(DEMOCASE, 'data_format_change', false);
@@ -1636,6 +1644,11 @@ const incidentsGood = () => {
   files[`eval/${NOEVIDENCE}/case.json`].expectation.fixKind = '';
   files[`eval/${NOEVIDENCE}/case.json`].expectation.noFix = true;
   files[`eval/${NOEVIDENCE}/snapshot.json`] = sourced(DEMONAMESPACE, DEMOPRODUCTION);
+  for (const name of SETTINGCASES) {
+    files[`eval/${name}/case.json`] = incidentIn(name, 'setting_change', false);
+    files[`eval/${name}/snapshot.json`] = sourced(DEMONAMESPACE, DEMOPRODUCTION);
+  }
+  files[`eval/${SETTINGCASES[0]}/case.json`].expectation.fixKind = 'rollback_setting';
   files['eval/mock-wrong/wrong-good/case.json'] = wrong('wrong-good');
   return files;
 };
@@ -1815,6 +1828,9 @@ variant('cases', 'bad-results-priced', 'has a priced or unpriced decision: a mod
 variant('cases', 'bad-results-request-size', 'has a request size: a model was asked', withRun((r) => { r.size.largestTokens = 4200; }));
 variant('cases', 'bad-results-acted', 'has an action: the run acted', withRun((r) => { r.actions.fixRuns = 1; }));
 variant('cases', 'bad-fixkind', 'expectation.fixKind is not one of the fix kinds', (f) => { f[INCIDENT].expectation.fixKind = 'nothing'; });
+variant('cases', 'good-setting-change-fix', '', (f) => { f[INCIDENT].expectation = { causeCategory: 'setting_change', elementAtFault: 'ZzElement', fixKind: 'rollback_setting' }; });
+variant('cases', 'good-setting-change-no-fix', '', (f) => { f[INCIDENT].expectation = { causeCategory: 'setting_change', elementAtFault: 'ZzElement', fixKind: '' }; });
+variant('cases', 'bad-setting-change-other-fix', 'expectation.fixKind is not a fix kind of the category', (f) => { f[INCIDENT].expectation = { causeCategory: 'setting_change', elementAtFault: 'ZzElement', fixKind: 'repair_resend' }; });
 variant('cases', 'good-nofix', '', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = true; });
 variant('cases', 'good-nofix-false', '', (f) => { f[INCIDENT].expectation.noFix = false; });
 variant('cases', 'bad-nofix-not-boolean', 'expectation.noFix is not a boolean', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = 'true'; });
@@ -2006,32 +2022,32 @@ const withoutTail = (f) => {
   }
 };
 // On the edge of the rule, and kept by it: the first ten hold 8 incidents of one cause category, and the eleventh and the later ones hold the same category
-// (9 of the first 11 and 17 of the 19); and a set of exactly 11 incidents, 9 of them from the feed, with 2 held out.
+// (9 of the first 11 and 19 of the 21); and a set of exactly 13 incidents, 9 of them from the feed, with 2 held out.
 variant('incidents', 'good-incidents-eight', '', incidentsTree((f) => {
   for (const [name] of FEEDCASES) {
     if (name === 'claims-archive-internal-error') continue;
     f[`eval/${name}/case.json`].expectation = { causeCategory: category('connection_failure'), elementAtFault: 'ZzElement', fixKind: '' };
   }
-  // orders-date-no-evidence sorts in the first ten, so that its category counts too.
-  f[`eval/${NOEVIDENCE}/case.json`].expectation = { causeCategory: category('connection_failure'), elementAtFault: 'ZzElement', fixKind: '' };
+  // orders-date-no-evidence and the two setting incidents sort in the first ten, so that their category counts too.
+  for (const file of [`eval/${NOEVIDENCE}/case.json`, ...SETTINGFILES]) f[file].expectation = { causeCategory: category('connection_failure'), elementAtFault: 'ZzElement', fixKind: '' };
 }));
-variant('incidents', 'good-incidents-eleven', '', incidentsTree(withoutTail));
+variant('incidents', 'good-incidents-thirteen', '', incidentsTree(withoutTail));
 // A second incident from the Orders demo's production, besides orders-date-no-evidence, is kept by the rule too.
 variant('incidents', 'good-incidents-orders-extra', '', incidentsTree((f) => {
   f['eval/zz-orders-extra/case.json'] = incidentIn('zz-orders-extra', 'data_format_change', false);
   f['eval/zz-orders-extra/snapshot.json'] = sourced(DEMONAMESPACE, DEMOPRODUCTION);
 }));
-variant('incidents', 'bad-incidents-few', 'the set holds fewer than 11 incident cases', incidentsTree((f) => {
+variant('incidents', 'bad-incidents-few', 'the set holds fewer than 13 incident cases', incidentsTree((f) => {
   withoutTail(f);
   delete f['eval/claims-member-missing/case.json'];
   delete f['eval/claims-member-missing/snapshot.json'];
 }));
 variant('incidents', 'bad-incidents-category', 'of the first 10 incident cases (by name) share the cause category unknown', incidentsTree((f) => {
-  for (const file of [...FEEDFILES, `eval/${NOEVIDENCE}/case.json`]) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
+  for (const file of [...FEEDFILES, `eval/${NOEVIDENCE}/case.json`, ...SETTINGFILES]) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
 }));
 variant('incidents', 'bad-incidents-category-window', 'of the first 10 incident cases (by name) share the cause category unknown', incidentsTree((f) => {
   // An eleventh case that sorts last makes the cases beyond the first ten irrelevant: the first ten still have nine of one category.
-  for (const file of [...FEEDFILES, `eval/${NOEVIDENCE}/case.json`]) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
+  for (const file of [...FEEDFILES, `eval/${NOEVIDENCE}/case.json`, ...SETTINGFILES]) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
   f['eval/zz-last/case.json'] = incidentIn('zz-last', 'connection_failure', false);
   f['eval/zz-last/snapshot.json'] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
 }));
@@ -2150,6 +2166,8 @@ variant('record-guard', 'bad-refuses-held-out-name', "'held-out billing-zz' is n
 variant('record-guard', 'bad-accepts-held-out-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, '[ "$#" -ge 1 ] && [ "$1" = held-out ]'); });
 variant('record-guard', 'bad-accepts-held-out-any-name', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, undefined, 'true'); });
 variant('record-guard', 'bad-accepts-held-out-case', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, '[ "$#" -ge 1 ] && [ "$#" -le 2 ] && [ "$1" = held-out -o "$1" = Held-out ]'); });
+variant('record-guard', 'bad-refuses-setting', "'setting' is not accepted", (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, undefined, undefined, '[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
+variant('record-guard', 'bad-accepts-setting-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, undefined, undefined, undefined, '[ "${1:-}" = setting ]'); });
 variant('record-guard', 'bad-refuses-none', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = `${RECORDER_HEAD}if [ "$#" -eq 0 ]; then\n  exit 2\nfi\n${RECORDER_TAIL}`; });
 variant('run-guard', 'bad-no-report-dir', 'OCUTALON_EVAL_REPORT_DIR is not made', (f) => { f['eval/run.sh'] = guarded({ folder: false }); });
 
@@ -2717,7 +2735,7 @@ tree_files() {
 
 run_node() { # run_node <program> <root>: the violations of the Node program on the tree
   tree_files "$2" > "$tmp/files.txt"
-  ENUM_OUTCOME="$outcomes" ENUM_CASEKINDS="$case_kinds" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXKINDS="$fix_kinds" ENUM_FIXCATEGORY="$fix_category" \
+  ENUM_OUTCOME="$outcomes" ENUM_CASEKINDS="$case_kinds" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXKINDS="$fix_kinds" ENUM_FIXCATEGORY="$fix_category" ENUM_KINDCATEGORIES="$kind_categories" \
     ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
     ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMOCASE="$demo_case" ENUM_CREDENTIALPARTS="$credential_parts" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" \
     ENUM_FEEDNAMESPACE="$feed_namespace" ENUM_FEEDPRODUCTION="$feed_production" \
@@ -2925,7 +2943,7 @@ check_run_guard() {
 
 # check_record_guard <root>: the violations of docker/tests/record-eval.sh of the tree in its use of its argument. The script runs from a copy in a
 # folder of the check's own, beside a stand-in for lib-live.sh that prints a line and exits 99: an argument that the script refuses ends with exit 2
-# before the stand-in is reached, and one that it accepts (none, the word feed, the word no-evidence, or the word held-out alone or with one lower-case kebab name)
+# before the stand-in is reached, and one that it accepts (none, the word feed, the word no-evidence, the word setting, or the word held-out alone or with one lower-case kebab name)
 # goes on to the stand-in and ends with exit 99. Nothing is ever
 # started, and nothing is written outside the folder.
 check_record_guard() {
@@ -2939,6 +2957,7 @@ check_record_guard() {
   cp "$script" "$dir/docker/tests/record-eval.sh"
   printf 'echo reached-lib-live\nexit 99\n' > "$dir/docker/tests/lib-live.sh"
   for args in bogus Feed demo feed2 -x 'feed extra' 'extra feed' 'feed feed' No-evidence no_evidence 'no-evidence extra' 'extra no-evidence' 'feed no-evidence' 'no-evidence feed' no-evidence2 \
+    'setting extra' 'extra setting' Setting setting2 'feed setting' 'setting feed' 'setting setting' 'no-evidence setting' 'setting held-out' \
     'held-out one two' 'held-out Upper' 'held-out under_score' 'held-out -lead' 'held-out trail-' 'held-out with.dot' 'held-out feed no-evidence' Held-out held-out2 'held-out-x' 'extra held-out' 'feed held-out' 'held-out held-out held-out'; do
     rc=0
     # shellcheck disable=SC2086
@@ -2957,7 +2976,7 @@ check_record_guard() {
   if [ "$rc" -ne 2 ] || grep -q reached-lib-live "$dir/out.log"; then
     echo "docker/tests/record-eval.sh: the empty name of held-out is not refused with exit 2 before the library (exit $rc)"
   fi
-  for args in '' feed no-evidence held-out 'held-out billing-zz' 'held-out a1-b2-c3'; do
+  for args in '' feed no-evidence setting held-out 'held-out billing-zz' 'held-out a1-b2-c3'; do
     rc=0
     # shellcheck disable=SC2086
     (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
@@ -4304,10 +4323,23 @@ rule() {
 
 # --- enumerations ---
 
+# kind_categories_of <folder>: "<fix kind>:<category>", comma-separated, for each class of the folder that sets CATEGORY to a category.
+kind_categories_of() {
+  local f name category pairs=""
+  for f in "$1"/*.cls; do
+    [ -f "$f" ] || continue
+    name=$(enum_value "$f" NAME)
+    category=$(enum_value "$f" CATEGORY)
+    [ -n "$name" ] && [ -n "$category" ] && pairs="$pairs${pairs:+,}$name:$category"
+  done
+  printf '%s\n' "$pairs"
+}
+
 outcomes=$(enum_value "$ENUM_FILE" OUTCOME)
 categories=$(enum_value "$DIAGNOSIS_FILE" CAUSECATEGORIES)
 fix_kinds=$(fix_kinds_of "$DIAGNOSIS_FILE" "$FIXKIND_DIR")
 fix_category=$(enum_value "$DIAGNOSIS_FILE" FIXCATEGORY)
+kind_categories=$(kind_categories_of "$FIXKIND_DIR")
 case_kinds=$(enum_value "$REPORT_FILE" CASEKINDS)
 finding_keys=$(enum_value "$REPORT_FILE" FINDINGKEYS)
 demo_case=$(enum_value "$REPORT_FILE" DEMOCASE)
@@ -4379,7 +4411,7 @@ rule cases "every case.json below eval/ has its kind, held-out flag, record, tur
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
 rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations, a command case and the three digest situations" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
-rule incidents "the incident cases of eval/ are at least 11, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's comes from it or from the Orders demo production, and at least 2 of the feed's are held out" check_incidents
+rule incidents "the incident cases of eval/ are at least 13, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's comes from it or from the Orders demo production, and at least 2 of the feed's are held out" check_incidents
 rule held-out "eval/held-out/ holds exactly 12 case folders, 8 items (2 for each outcome) and 4 incidents, every one held out, each incident's snapshot sourced from the test feed, and no file outside a case folder" check_held_out
 rule held-out-frozen "the SHA-256 of each of the 12 eval/held-out/*/case.json files is one of the 12 pinned values (the commit 6af31dab), and every pinned value is the value of a file" check_held_out_frozen
 rule held-out-names "no tracked or not-ignored file outside eval/held-out/, eval/results/, the specs and the feed's fixture (the four incident names only) names a held-out case, subject line or item text, which are read from eval/held-out/*/case.json" check_held_out_names
@@ -4391,7 +4423,7 @@ rule feed "no file that ships or installs the product names the test feed or its
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle, runs bash eval/run.sh and then bash eval/key-proof.sh before its teardown, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
-rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed, the word no-evidence, and the word held-out alone or with one lower-case kebab name, with exit 2 before it goes on to lib-live.sh, and goes on with none and with each of those forms" check_record_guard
+rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed, the word no-evidence, the word setting, and the word held-out alone or with one lower-case kebab name, with exit 2 before it goes on to lib-live.sh, and goes on with none and with each of those forms" check_record_guard
 rule record-held-out "docker/tests/record-eval.sh held-out, on a stand-in for the throwaway, writes the snapshot of every held-out incident or of the one named and says so, and refuses with exit 1 and no snapshot written a recording of fewer incidents than there are, of a case that is no held-out incident and of a changed case.json, and a named folder without a case.json or an item before anything starts" check_record_held_out
 rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), accepts --rules-only alone, with main or with held-out and refuses it with any other word or form, never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
 rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
