@@ -4,24 +4,33 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { McpSettings, McpToolRow } from '../api/api-types';
+import type { McpSettings, McpSourceRow, McpToolRow } from '../api/api-types';
 import { Icon } from '../icon/icon';
 import { LOAD_FAILED } from '../live/live-state';
+import { intervalText } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { CONFIRM_TITLE_ID, CONFIRMED, ConfirmDialog, ConfirmRequest } from '../shared/confirm-dialog';
 import { Dialogs } from '../shared/dialogs';
 import { ServerButton } from '../shared/server-button';
 import {
   addBody,
+  canBeSource,
   CLASSIFICATION_OPTIONS,
   classificationName,
+  DEFAULT_INTERVAL,
+  INTERVAL_CHOICES,
   MCP_TEXTS,
   mcpOutcome,
   removeName,
   removeQuestion,
+  removeSourceName,
+  sourceBody,
+  sourceName,
+  sourceOutcome,
   statusText,
   toolKey,
   toolStatusText,
+  toolText,
   visibleTools,
   withClassification,
 } from './mcp-view';
@@ -36,7 +45,7 @@ interface RowState {
 const BLANK: RowState = { saved: false, error: '' };
 
 /** The settings before the list has answered. */
-const NONE: McpSettings = { servers: [], tools: [] };
+const NONE: McpSettings = { servers: [], tools: [], sources: [] };
 
 /**
  * The Tools and MCP servers section of Settings (Story 21.4; FR-47, FR-48): the admin's MCP servers with an Add server form and a confirmed Remove, and the tools
@@ -50,6 +59,10 @@ const NONE: McpSettings = { servers: [], tools: [] };
  *     takes its first focus). A 200 or a 404 closes it and the server and its tools leave the lists; any other answer leaves it open with the server's message;
  *   - a radiogroup pick saves at once: the radio shows the new value and the check icon, "Saved" shows for that row and is announced; a failure puts the old value
  *     back and shows the server's message. A row that was just classified stays in the "Unclassified only" list until the section is opened again.
+ *   - Use as a source (Story 21.5): a Read-only tool's Source button opens a form below the table (Source name, Arguments (JSON), Check every) that posts the source; a tool that is
+ *     not Read-only has the button aria-disabled with the accepted reason beside it, and a refused tool has none. A 400 `bad_source` shows each refused field's text under its field
+ *     and focuses the first; a refused tool and any other failure show the server's message under the buttons. A 200 announces "Saved", closes the form, returns focus to the
+ *     tool's button and loads the list again. "Your sources" lists the session's own sources, each with a Remove that acts at once.
  * Typing in a field clears its error and the line of the last add. The section takes no part in the page's unsaved guard: nothing in it is kept on leaving.
  */
 @Component({
@@ -190,10 +203,11 @@ const NONE: McpSettings = { servers: [], tools: [] };
                     <th scope="col">{{ texts.toolColumns.server }}</th>
                     <th scope="col">{{ texts.toolColumns.status }}</th>
                     <th scope="col">{{ texts.toolColumns.classification }}</th>
+                    <th scope="col">{{ texts.toolColumns.source }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (tool of visible(); track key(tool)) {
+                  @for (tool of visible(); track key(tool); let index = $index) {
                     <tr [attr.data-tool]="tool.name" [attr.data-server]="tool.server">
                       <th scope="row" class="name">{{ tool.name }}</th>
                       <td>{{ tool.server }}</td>
@@ -217,11 +231,139 @@ const NONE: McpSettings = { servers: [], tools: [] };
                           <p class="field-error"><app-icon name="circle-alert" [size]="16" />{{ rowState(tool).error }}</p>
                         }
                       </td>
+                      <td>
+                        @if (tool.status !== 'refused') {
+                          @if (sourceable(tool)) {
+                            <button type="button" class="button button-secondary" data-source-button [attr.data-key]="key(tool)" [attr.aria-label]="sourceNameOf(tool)" (click)="openSource(tool)">
+                              {{ texts.sourceHeading }}
+                            </button>
+                          } @else {
+                            <button
+                              type="button"
+                              class="button button-secondary"
+                              data-source-button
+                              aria-disabled="true"
+                              [attr.data-key]="key(tool)"
+                              [attr.aria-label]="sourceNameOf(tool)"
+                              [attr.aria-describedby]="'mcp-source-why-' + index"
+                            >
+                              {{ texts.sourceHeading }}
+                            </button>
+                            <p class="help" [id]="'mcp-source-why-' + index">{{ texts.sourceNotReadOnly }}</p>
+                          }
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
+          }
+          @if (sourceFor(); as target) {
+            <div class="form" role="group" aria-labelledby="mcp-source-heading" data-form="source">
+              <h4 id="mcp-source-heading" class="subheading">{{ texts.sourceHeading }}</h4>
+              <p class="help">{{ toolTextOf(target.tool, target.server) }}</p>
+              <p class="help">{{ texts.sourceHelp }}</p>
+              <div class="field">
+                <label for="mcp-source-name">{{ texts.sourceName }}</label>
+                <input
+                  id="mcp-source-name"
+                  class="input"
+                  type="text"
+                  maxlength="100"
+                  autocomplete="off"
+                  [class.invalid]="sourceNameError() !== ''"
+                  [attr.aria-invalid]="sourceNameError() !== '' ? 'true' : null"
+                  [attr.aria-describedby]="sourceNameError() !== '' ? 'mcp-source-name-error' : null"
+                  [value]="sourceNameValue()"
+                  (input)="typedSource('name', $event)"
+                />
+                @if (sourceNameError() !== '') {
+                  <p class="field-error" id="mcp-source-name-error"><app-icon name="circle-alert" [size]="16" />{{ sourceNameError() }}</p>
+                }
+              </div>
+              <div class="field">
+                <label for="mcp-source-arguments">{{ texts.sourceArguments }}</label>
+                <textarea
+                  id="mcp-source-arguments"
+                  class="input"
+                  rows="4"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [class.invalid]="sourceArgumentsError() !== ''"
+                  [attr.aria-invalid]="sourceArgumentsError() !== '' ? 'true' : null"
+                  [attr.aria-describedby]="sourceArgumentsError() !== '' ? 'mcp-source-arguments-error' : null"
+                  [value]="sourceArguments()"
+                  (input)="typedSource('arguments', $event)"
+                ></textarea>
+                @if (sourceArgumentsError() !== '') {
+                  <p class="field-error" id="mcp-source-arguments-error"><app-icon name="circle-alert" [size]="16" />{{ sourceArgumentsError() }}</p>
+                }
+              </div>
+              <div class="field">
+                <label for="mcp-source-interval">{{ texts.sourceInterval }}</label>
+                <select
+                  id="mcp-source-interval"
+                  class="input"
+                  [attr.aria-invalid]="sourceIntervalError() !== '' ? 'true' : null"
+                  [attr.aria-describedby]="sourceIntervalError() !== '' ? 'mcp-source-interval-error' : null"
+                  (change)="typedSource('interval', $event)"
+                >
+                  @for (choice of intervals; track choice.value) {
+                    <option [value]="choice.value" [selected]="choice.value === sourceInterval()">{{ choice.label }}</option>
+                  }
+                </select>
+                @if (sourceIntervalError() !== '') {
+                  <p class="field-error" id="mcp-source-interval-error"><app-icon name="circle-alert" [size]="16" />{{ sourceIntervalError() }}</p>
+                }
+              </div>
+              <div class="actions">
+                <app-server-button variant="primary" [action]="saveSource" [describedBy]="sourceDescribed()">{{ saveText }}</app-server-button>
+                <button type="button" class="button button-secondary" (click)="closeSource(true)">{{ texts.cancel }}</button>
+              </div>
+              @if (sourceError() !== '') {
+                <p class="field-error" id="mcp-source-error"><app-icon name="circle-alert" [size]="16" />{{ sourceError() }}</p>
+              }
+            </div>
+          }
+          @if (sourceDone() !== '') {
+            <p class="saved" data-saved="source">{{ sourceDone() }}</p>
+          }
+        </section>
+        <section class="group" aria-labelledby="mcp-sources-heading" data-group="sources">
+          <h3 id="mcp-sources-heading" class="heading" tabindex="-1">{{ texts.sources }}</h3>
+          @if (settings().sources.length === 0) {
+            <p class="help" data-empty="sources">{{ texts.noSources }}</p>
+          } @else {
+            <div class="scroll">
+              <table class="table" aria-labelledby="mcp-sources-heading">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ texts.sourceColumns.source }}</th>
+                    <th scope="col">{{ texts.sourceColumns.tool }}</th>
+                    <th scope="col">{{ texts.sourceColumns.interval }}</th>
+                    <td></td>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (source of settings().sources; track source.ref) {
+                    <tr [attr.data-source]="source.name">
+                      <th scope="row" class="name">{{ source.name }}</th>
+                      <td>{{ toolTextOf(source.tool, source.server) }}</td>
+                      <td>{{ intervalOf(source.intervalMinutes) }}</td>
+                      <td>
+                        <button type="button" class="button button-secondary" [attr.aria-label]="removeSourceNameOf(source)" (click)="removeSource(source)">
+                          {{ texts.removeButton }}
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          @if (sourcesError() !== '') {
+            <p class="field-error" data-error="sources"><app-icon name="circle-alert" [size]="16" />{{ sourcesError() }}</p>
           }
         </section>
       }
@@ -380,6 +522,8 @@ export class McpSection {
   protected readonly denied = SETTINGS_TEXTS.denied;
   protected readonly loadFailed = LOAD_FAILED;
   protected readonly options = CLASSIFICATION_OPTIONS;
+  protected readonly intervals = INTERVAL_CHOICES;
+  protected readonly saveText = SETTINGS_TEXTS.save;
 
   /** loading until the list answers; then ready, off (the online demo), denied, or failed (the list did not load). */
   protected readonly state = signal<'loading' | 'ready' | 'off' | 'denied' | 'failed'>('loading');
@@ -393,6 +537,19 @@ export class McpSection {
   protected readonly secretError = signal('');
   protected readonly addError = signal('');
   protected readonly addDone = signal('');
+
+  /** The tool that the source form is open for, or null while it is closed; its fields, their errors, the form-level error and the line of the last save. */
+  protected readonly sourceFor = signal<{ server: string; tool: string } | null>(null);
+  protected readonly sourceNameValue = signal('');
+  protected readonly sourceArguments = signal('');
+  protected readonly sourceInterval = signal(DEFAULT_INTERVAL);
+  protected readonly sourceNameError = signal('');
+  protected readonly sourceArgumentsError = signal('');
+  protected readonly sourceIntervalError = signal('');
+  protected readonly sourceError = signal('');
+  protected readonly sourceDone = signal('');
+  /** The message of the last refused Remove of a source. */
+  protected readonly sourcesError = signal('');
 
   protected readonly onlyUnclassified = signal(false);
   private readonly picked = signal<ReadonlySet<string>>(new Set());
@@ -475,6 +632,30 @@ export class McpSection {
     return toolKey(tool.server, tool.name);
   }
 
+  protected sourceable(tool: McpToolRow): boolean {
+    return canBeSource(tool);
+  }
+
+  protected sourceNameOf(tool: McpToolRow): string {
+    return sourceName(tool.name, tool.server);
+  }
+
+  protected toolTextOf(tool: string, server: string): string {
+    return toolText(tool, server);
+  }
+
+  protected removeSourceNameOf(source: McpSourceRow): string {
+    return removeSourceName(source);
+  }
+
+  protected intervalOf(minutes: number): string {
+    return intervalText(minutes);
+  }
+
+  protected sourceDescribed(): readonly string[] {
+    return this.sourceError() !== '' ? ['mcp-source-error'] : [];
+  }
+
   protected rowState(tool: McpToolRow): RowState {
     return this.rows()[toolKey(tool.server, tool.name)] ?? BLANK;
   }
@@ -526,6 +707,105 @@ export class McpSection {
     );
   };
 
+  /** Opens the source form for a Read-only tool: empty fields, 15 minutes, and focus on Source name. A tool that is not Read-only does nothing. */
+  protected openSource(tool: McpToolRow): void {
+    if (!canBeSource(tool)) {
+      return;
+    }
+    this.clearSource();
+    this.sourceDone.set('');
+    this.sourceFor.set({ server: tool.server, tool: tool.name });
+    this.moveFocusTo('#mcp-source-name');
+  }
+
+  /** Closes the form; `back` returns focus to the button that opened it. */
+  protected closeSource(back: boolean): void {
+    const target = this.sourceFor();
+    this.sourceFor.set(null);
+    this.clearSource();
+    if (back && target !== null) {
+      this.moveFocusTo(`[data-source-button][data-key="${CSS.escape(toolKey(target.server, target.tool))}"]`);
+    }
+  }
+
+  private clearSource(): void {
+    this.sourceNameValue.set('');
+    this.sourceArguments.set('');
+    this.sourceInterval.set(DEFAULT_INTERVAL);
+    this.sourceNameError.set('');
+    this.sourceArgumentsError.set('');
+    this.sourceIntervalError.set('');
+    this.sourceError.set('');
+  }
+
+  /** A typed or chosen value of the source form: clears the field's error and the form error. */
+  protected typedSource(field: 'name' | 'arguments' | 'interval', event: Event): void {
+    const value = (event.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value;
+    if (field === 'name') {
+      this.sourceNameValue.set(value);
+      this.sourceNameError.set('');
+    } else if (field === 'arguments') {
+      this.sourceArguments.set(value);
+      this.sourceArgumentsError.set('');
+    } else {
+      this.sourceInterval.set(Number(value));
+      this.sourceIntervalError.set('');
+    }
+    this.sourceError.set('');
+  }
+
+  /** Save changes of the source form: posts the entered values; the answer decides what the section shows. */
+  protected readonly saveSource = (): Observable<unknown> => {
+    const target = this.sourceFor();
+    if (target === null) {
+      return new Observable<void>((subscriber) => subscriber.complete());
+    }
+    this.sourceDone.set('');
+    this.sourcesError.set('');
+    this.sourceNameError.set('');
+    this.sourceArgumentsError.set('');
+    this.sourceIntervalError.set('');
+    this.sourceError.set('');
+    return this.api.setMcpSource(sourceBody(target.server, target.tool, this.sourceNameValue(), this.sourceArguments(), this.sourceInterval())).pipe(
+      tap({
+        next: (answer) => {
+          this.sourceDone.set(answer.message);
+          this.announcer.announce(answer.message);
+          this.closeSource(true);
+          this.reload();
+        },
+        error: (error: unknown) => this.refusedSource(error),
+      }),
+    );
+  };
+
+  /** Remove of a source: no dialog (setting it again undoes it); a 200 announces the server's message and loads the list again, and a failure shows the server's message. */
+  protected removeSource(source: McpSourceRow): void {
+    this.sourcesError.set('');
+    this.sourceDone.set('');
+    this.api
+      .removeMcpSource(source.ref)
+      .pipe(takeUntilDestroyed(this.destroyed))
+      .subscribe({
+        next: (answer) => {
+          this.announcer.announce(answer.message);
+          this.reload();
+          this.moveFocusTo('#mcp-sources-heading');
+        },
+        error: (error: unknown) => {
+          const outcome = error instanceof HttpErrorResponse ? sourceOutcome(error.status, error.error) : ({ kind: 'form', message: '' } as const);
+          if (outcome.kind === 'denied' || outcome.kind === 'off') {
+            this.state.set(outcome.kind);
+            return;
+          }
+          const text = this.messageOf(error);
+          this.sourcesError.set(text);
+          this.announcer.announce(text);
+          this.reload();
+        },
+      });
+  }
+
   /** Opens the Remove dialog for a server; the button that opened it gets focus back when the dialog closes without removing. */
   protected askRemove(server: string, tools: number, pending: number, event: Event): void {
     const failed = (): string => this.removeFailed;
@@ -559,7 +839,7 @@ export class McpSection {
 
   /** The server is gone: it and its tools leave the lists, the list is loaded again, and focus goes to the Servers heading once the dialog has given it back. */
   private gone(server: string): void {
-    this.settings.update((one) => ({ servers: one.servers.filter((row) => row.name !== server), tools: one.tools.filter((row) => row.server !== server) }));
+    this.settings.update((one) => ({ servers: one.servers.filter((row) => row.name !== server), tools: one.tools.filter((row) => row.server !== server), sources: one.sources.filter((row) => row.server !== server) }));
     if (this.removed !== '') {
       this.announcer.announce(this.removed);
     }
@@ -633,6 +913,27 @@ export class McpSection {
     }
     const text = this.messageOf(error);
     this.addError.set(text);
+    this.announcer.announce(text);
+    this.reload();
+  }
+
+  private refusedSource(error: unknown): void {
+    const outcome = error instanceof HttpErrorResponse ? sourceOutcome(error.status, error.error) : ({ kind: 'form', message: '' } as const);
+    if (outcome.kind === 'denied' || outcome.kind === 'off') {
+      this.state.set(outcome.kind);
+      return;
+    }
+    if (outcome.kind === 'fields') {
+      this.sourceNameError.set(outcome.name);
+      this.sourceArgumentsError.set(outcome.arguments);
+      this.sourceIntervalError.set(outcome.intervalMinutes);
+      this.sourceError.set(outcome.tool);
+      this.announcer.announce([outcome.tool, outcome.name, outcome.arguments, outcome.intervalMinutes].filter((text) => text !== '').join(' '));
+      this.moveFocusTo(outcome.name !== '' ? '#mcp-source-name' : outcome.arguments !== '' ? '#mcp-source-arguments' : outcome.intervalMinutes !== '' ? '#mcp-source-interval' : '#mcp-source-name');
+      return;
+    }
+    const text = this.messageOf(error);
+    this.sourceError.set(text);
     this.announcer.announce(text);
     this.reload();
   }
