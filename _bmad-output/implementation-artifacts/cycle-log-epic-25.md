@@ -196,3 +196,7 @@
 2026-11-14T18:29:57Z	Story 25.7	smoke_complete	method=cli(lead:test-ci-sweep.sh_--live_planted_leftovers_52819(removed+logged)/52818(kept)/portless(kept);hermetic;test-ci-config,test-ci-warm,test-lib-live,boundaries) result=pass iterations=1 defects_caught=0
 2026-11-14T18:29:57Z	Story 25.7	fresh_check	env=clean-checkout(local) tests=test-ci-sweep(hermetic_x2,--live),test-ci-config result=pass order=forward,reverse
 2026-11-14T18:31:14Z	Epic 25	integrated_forward	feature=eabc5a8d head=d9a509d2f conflicts_resolved=sprint-status.yaml(feature_side,regenerated,25.7=done) story_paths_touched_by_feature=none sweep=pass boundaries=pass
+2026-11-14T18:31:47Z	Story 25.7	committed	sha=647d4c9a submodules= ci=pending runs=43627052496,43627052520 branch=OCT-epic25-s257 note=pushed_once_after_integrate_forward_eabc5a8d;records_68e7be18_included
+2026-11-14T19:29:52Z	Story 25.7	ci_resolved	story=25.7 sha=647d4c9a runs=43627052496,43627052520 result=success failed=none via=none resolved_at=part_ready
+2026-11-14T19:29:52Z	Story 25.7	story_cycle	plan_to_commit_min=~110 implement_passes=1 reviews=1 rework=0 first_ci=success models=plan:opus,implement:sonnet,qa:folded_into_cr,cr:opus
+2026-11-14T19:29:52Z	Epic 25	part_ready	story=25.7 head=647d4c9a branch=OCT-epic25-s257 ci=success(43627052496,43627052520) open=25.6(waits_26.2) burndown_gate=not_run(25.7_is_the_chartered_burndown_story_for_DW-1335)
