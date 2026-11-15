@@ -4396,3 +4396,5 @@
 2026-11-15T20:29:53Z	Run	ci_red_classified	head=3242f9657 run=43754264003 shards-5(ci-54)=DW-1406(new_flake_cand:heartbeat-card_HC6) B13=PASSED(no_regression) action=no_rerun(superseded_by_92937a03e)
 2026-11-15T20:30:09Z	Epic 24	runner_reported	PLANNER_REPORT 24.4a(c34e72d5) V6=SecretHandoff_has_no_expiry;options_a(detached_discard_60s,recommended)/b(Put_lifetime)/c(drop) relayed=contest_planner note=HC6_DW_id_is_DW-1406(corrected)
 2026-11-15T20:30:22Z	Epic 24	owner_decision	via=contest_planner 24.4a_V6=option_a(detached_60s_discard;take_first) added=missing-entry_rule(no_request,NOSTART_refusal,never_store_redacted_as_raw;pins)
+2026-11-15T21:39:50Z	Epic 23	runner_reported	PART_READY DW-1396_follow-up head=00e9a5367 runs=43760644066,43760643973 + PLANNER_REPORT 23.8_Task0_FAIL(a:login_via_%Service_Bindings,public_services;b:needs_CODE:R_or_no_role) options=A_no_role(recommended)/B_park/C_in-process DW-1400=On_call_line_clause
+2026-11-15T21:39:50Z	Epic 23	merge_enqueued	story=DW-1396_follow-up (1.0.12)
