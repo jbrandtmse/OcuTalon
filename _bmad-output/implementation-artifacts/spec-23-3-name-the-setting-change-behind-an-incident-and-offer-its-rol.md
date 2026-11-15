@@ -2,8 +2,8 @@
 title: 'Story 23.3: Name the setting change behind an incident and offer its rollback'
 type: 'feature'
 created: '2026-11-15'
-status: 'in-progress'
-baseline_revision: 'c19ad67e3f461cb09d6af0f9b3f3c6894329ad8d'
+status: 'done'
+baseline_revision: 'cd07e42ffbb328208d31f8fcdf753a12b6d90988'
 baseline_commit: 'c19ad67e3f461cb09d6af0f9b3f3c6894329ad8d'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -490,10 +490,11 @@ Rejected (verdict and reason):
 
 
 **Rework iteration 3 (CI red on 5445b0e4, ci run 43720395242; story class; on branch OCT-epic23-s233):**
-- [ ] [CI] iris(image) job 132830914292: `OcuTalon.Test.Data.Tables` `TestContracts` failed "OcuTalon.Data.Incident has exactly its contract: property SettingChangeRef is not in the contract" -- add `"SettingChangeRef": "%String(MAXLEN=64)"` to Data.Incident's contract in `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (approved as veto item 5), and any storage/index part of that contract the property needs; check the other contract readers of Data.Incident (`Test/Contract.cls`, `Test/Contract/Checker.cls`, `Test/Live/Payloads.cls`) for the same shape.
-- [ ] [CI] iris(production) job 132830914517: `OcuTalon.Test.Channel.TelegramChat` `TestNotices` failed "there are 34 Watch notice keys" and "there are 40 of them": 23.3's new `incident.`/`result.` keys in `Msg.Catalog.Watch` raised both counts. Update the count and the expected list to match the catalog; prefer reading the count from the catalog over a literal (orchestrator), keeping an assertion that can still fail (e.g. every catalog key appears exactly once in the rendered rows). Every new key's rendered Telegram text must be the approved text.
-- Also grep the other test classes for literal counts of `Msg.Catalog.Watch` keys or `Data.Incident` properties that 23.3 changed and that the story's own runs did not cover (Rule 19 shared surfaces) and fix any found.
+- [x] [CI] iris(image) job 132830914292: `OcuTalon.Test.Data.Tables` `TestContracts` failed "OcuTalon.Data.Incident has exactly its contract: property SettingChangeRef is not in the contract" -- add `"SettingChangeRef": "%String(MAXLEN=64)"` to Data.Incident's contract in `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (approved as veto item 5), and any storage/index part of that contract the property needs; check the other contract readers of Data.Incident (`Test/Contract.cls`, `Test/Contract/Checker.cls`, `Test/Live/Payloads.cls`) for the same shape.
+- [x] [CI] iris(production) job 132830914517: `OcuTalon.Test.Channel.TelegramChat` `TestNotices` failed "there are 34 Watch notice keys" and "there are 40 of them": 23.3's new `incident.`/`result.` keys in `Msg.Catalog.Watch` raised both counts. Update the count and the expected list to match the catalog; prefer reading the count from the catalog over a literal (orchestrator), keeping an assertion that can still fail (e.g. every catalog key appears exactly once in the rendered rows). Every new key's rendered Telegram text must be the approved text.
+- [x] Also grep the other test classes for literal counts of `Msg.Catalog.Watch` keys or `Data.Incident` properties that 23.3 changed and that the story's own runs did not cover (Rule 19 shared surfaces) and fix any found.
 - (test-production row 21 was the ledgered DW-306 flake; no change.)
+- Done (rework iteration 3): `Test/Data/Tables.cls` Data.Incident contract gains `SettingChangeRef` (`%String(MAXLEN=64)`; no index). `Test/Channel/TelegramChat.cls` `TestNotices` reads the key count from the catalog (a floor of 41, the catalog's own count, that fails if keys are lost), derives the row and message counts from it (the old literals 40 and 41 become 47 Delivery rows, one per key including the six core ones, and 48 handled messages with the answered one; the row count is read from the Delivery table), asserts that each result.* notice reaches the chat as the fixture's approved text, and lists `incident.rollbackRequest` and `incident.undoRollbackRequest` with the approval requests. Grep of the other contract readers (`Test/Contract.cls`, `Test/Contract/Checker.cls`, `Test/Contract/Ac.cls`, `Test/Live/Payloads.cls`: none lists Data.Incident properties) and of literal Watch/Core key counts (`Test/Msg/Catalog.cls` already at 133 and 157, `Test/Web/PublicTexts.cls`, `Test/Eval/Cases.cls`, `Test/Watch/NoticeText.cls`, `docker/tests/test-mcp-notices.sh`, `web/scripts/catalog.test.mjs`): none else changed by 23.3 holds a stale count.
 
 ## Spec Change Log
 
@@ -597,6 +598,23 @@ Rejected (verdict and reason):
   - `[low]` `[reject]` Verification 3 - no standing test pins reverse order - a pinned run order is brittle; the mechanism is pinned by `TestRolesPutBackAfterAFailure` and the order is covered by `Test.Install.SecurityOverview` in CI.
   - `[low]` `[reject]` Verification (precondition) - `TestMeasuredOnline` needs the trace role's OCUORDERS grant at its start - it fails loudly on a damaged stack, which is the point; fresh stacks are the rule (Rule 21).
   - `[low]` `[reject]` Verification (silent skip) - `If '..Ready() Quit` asserts nothing - the pre-existing pattern of every class test here; Ready() reasons are printed.
+
+### 2026-11-15 - Review pass (rework iteration 3: the two CI pins)
+- verdicts: 14 findings - high 0, medium 0, low 12, false 2, maybe-false 0 (the Intent Alignment Auditor's output was descriptive; its one divergence, that no assertion compared a new key's Telegram text with the approved text, is Edge row 4)
+- findings (layer: row):
+  - `[low]` `[patch]` Blind 1 - the Done note called the new counts "40/41" - reworded to the new values (47 rows, 48 messages).
+  - `[low]` `[patch]` Blind 2, Verification 1 - the row count was derived from the loop it checks - it is now read from the Delivery table (`..Rows`), so a dropped notice fails it; the 41 floor stays for lost keys.
+  - `[low]` `[reject]` Blind 3 - only incident./result. prefixes plus six core keys, and the grep claim shows no command - the Watch catalog has no other notice family; the grep scope is listed in the Done note.
+  - `[low]` `[reject]` Blind 4, Verification 2 - the two approval keys have no mutation - the kind is the test's own input and Telegram Out gives buttons to both kinds, so the choice is not observable here; a new surface for a list entry.
+  - `[low]` `[reject]` Blind 5 - the 30 s waits with a 47 s run - they return when the count is reached; five runs passed at 47 to 49 s.
+  - `[false]` `[reject]` Blind 6 - review_loop_iteration left at 0 - it counts bad_spec loopbacks only, and there was none.
+  - `[low]` `[reject]` Edge 1 - the floor does not catch a gained key - a gained key without a fixture fails "has a fixture", and one with it is the intended growth.
+  - `[low]` `[reject]` Edge 2 - the approval list is enumerated - the shape existed before; deriving it by suffix adds a heuristic.
+  - `[false]` `[reject]` Edge 3 - a skipped key reports only a count mismatch - each skip path asserts by key name ("has a fixture", "reached the chat") before its Continue.
+  - `[low]` `[patch]` Edge 4 - the approved Telegram text of a new key is not compared - TestNotices now asserts, for every result.* notice, that the chat text equals the fixture's approved text; mutation in Verification.
+  - `[low]` `[reject]` Verification 3 - no mutation deletes a catalog key - the floor and skip mutations stand in, and a deleted key fails Test.Msg.Catalog.
+  - `[low]` `[reject]` Other 1 - WaitRows is a lower bound - pre-existing, and the Telegram rows are compared exactly.
+  - `[low]` `[reject]` Other 2 - "notice keys" includes the six core keys - accurate, they are notices.
 
 ## Design Notes
 
@@ -982,19 +1000,26 @@ Every test added or changed passes on a fresh environment, in either order.
 - Verified (final tree, fresh stack e23b3cr3bw): `Test.Install.SecurityOverview` passed (13 s), then `Test.Watch.Rollback` passed (52 s), then `Test.Install.SecurityOverview` passed again (13 s). On e23b3cr3w the committed tree passed `Test.Watch.Rollback` (52 s) then `Test.Install.SecurityOverview` (13 s), and `Test.Watch.Grant` and `Test.Fix.ItemKinds` passed (the shared `PutBack` change). All three stacks torn down (`ci/warm.sh down`); none left.
 
 
+**Mutations run for rework iteration 3 (Rule 19), warm lane-B stack e23b3r3w (started after the last edit), each applied, observed red and reverted (`cmp` against the copy taken before), the class green again on the same stack after the revert:**
+- mutation: Data.Incident contract, the `SettingChangeRef` line taken out of `Test.Data.Tables` XData Contracts: `Test.Data.Tables` `TestContracts` red ("OcuTalon.Data.Incident has exactly its contract: property SettingChangeRef is not in the contract").
+- mutation: TestNotices row count, `Test.Channel.TelegramChat` `TestNotices` skipping one catalog key before its notification (`If key = "result.settingRestored" Continue`): red (the Delivery table holds one telegram row for each of the 47 notice keys; TelegramOut and WebChatOut handled all 47). Run on the unpatched and again on the patched test.
+- mutation: TestNotices floor, `$ListLength(keys) >= 41` made `>= 42`: `TestNotices` red ("the catalog holds at least the 41 Watch notice keys").
+- mutation: approved text, "back to" changed to "returned to" in the `Msg.Catalog.Watch` entry of `result.settingRestored`: `TestNotices` red ("result.settingRestored reaches the chat as the approved text").
+- Verified: `Test.Data.Tables` (passed, 0.3 s) and `Test.Channel.TelegramChat` (passed, 47 s) on the final tree, one class per call; `bash docker/tests/test-boundaries.sh` passed. `ci/warm.sh down` run at the end (no leftover project).
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
 
-**Summary (rework iteration 2 only).** The trace role (`OcuTalonTraceViewer`) lost its OCUORDERS database grants after `Test.Watch.Rollback`, because `TestMeasuredOnline` runs the Roles step, which rewrites every OcuTalon role from the areas' Grants only, and `Test.Watch.Case` put back only the service role. `Test.Watch.Case` now saves and puts back every OcuTalon role (`SaveRoles`, `PutRolesBack`, called by `PutBack`, so also after a failure), a shared-helper fix; `TestMeasuredOnline` uses it and asserts the roles are as before. Test code only; no product class changed.
+**Summary (rework iteration 3 only).** CI was red on two story pins on shared surfaces. `Test.Data.Tables` now lists `SettingChangeRef` in the Data.Incident contract. `Test.Channel.TelegramChat` `TestNotices` reads the Watch key count from the catalog (a floor of 41), takes its row and message counts from it (47 Delivery rows, 48 messages with the answered one; the row count is read from the Delivery table), lists `incident.rollbackRequest` and `incident.undoRollbackRequest` with the approval requests, and asserts that each result.* notice reaches the chat as the fixture's approved text. The grep of the other contract readers and literal key counts found nothing stale.
 
-**Files changed.** `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` (the role save and put-back helpers, `PutBack` order), `src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls` (`TestMeasuredOnline`, new `TestRolesPutBackAfterAFailure`), and this spec.
+**Files changed.** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls`, `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls`, and this spec.
 
-**Review.** Four layers (Intent Alignment descriptive): 22 findings, high 0, medium 5, low 17. Patches applied: 4 entries (one medium: the `PutBack` path pin; three low); none deferred; 14 rows rejected with their reasons in the triage log.
+**Review.** Four layers (Intent Alignment descriptive): 14 findings, high 0, medium 0, low 12, false 2. Patches applied: 3 entries, all low; none deferred; 10 rows rejected with their reasons in the triage log.
 
-**Follow-up review recommended: false.** Patched counts by verdict: high 0, medium 1, low 3; no high was patched, so the work has converged.
+**Follow-up review recommended: false.** Patched counts by verdict: high 0, medium 0, low 3; no high was patched, so the work has converged.
 
-**Verification performed.** Fresh lane-B warm stacks (e23b3r2a to e23b3r2h): old code red in reverse order, then green in both orders (`Test.Watch.Rollback` then `Test.Install.SecurityOverview`, and the reverse) on the final tree; three mutations red and reverted byte-identical (see Verification, "Rework iteration 2").
+**Verification performed.** Lane-B warm stack e23b3r3w, one class per call: `Test.Data.Tables` and `Test.Channel.TelegramChat` passed on the final tree; four mutations red and reverted byte-identical (see Verification, "rework iteration 3"); `bash docker/tests/test-boundaries.sh` passed; the stack was torn down.
 
-**Residual risks.** The restore writes resources and granted roles only (not a role's description); another test class that runs the Roles step must save the roles itself (`SaveRoles`).
+**Residual risks.** None beyond the CI re-run of the two classes on the runner.

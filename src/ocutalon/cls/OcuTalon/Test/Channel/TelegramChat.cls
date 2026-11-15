@@ -460,7 +460,7 @@ Method TestNotices()
 		While iterator.%GetNext(.key) {
 			If ($Extract(key, 1, 9) = "incident.") || ($Extract(key, 1, 7) = "result.") Set keys = keys _ $ListBuild(key)
 		}
-		Do $$$AssertEquals($ListLength(keys), 34, "there are 34 Watch notice keys")
+		Do $$$AssertTrue($ListLength(keys) >= 41, "the catalog holds at least the 41 Watch notice keys the story pins (the count is read from the catalog)")
 		For core = "notice.tellNow", "notice.tellNowFallback", "reminder.due", "reminder.late", "conversation.sessionAllowance", "conversation.dailyCap" Set keys = keys _ $ListBuild(core)
 		Set expectedRows = "", approvals = 0, position = 0, phones = 0, withFixRow = "", withFixText = ""
 		While $ListNext(keys, position, key) {
@@ -469,7 +469,7 @@ Method TestNotices()
 				Do $$$AssertTrue(0, key_" has a fixture")
 				Continue
 			}
-			Set kind = $Case($Piece(key, ".", 1), "incident": $Select((key = "incident.laterRequest") || (key = "incident.laterRequestEitherWay") || (key = "incident.laterRequestChecked") || (key = "incident.laterRequestEitherWayChecked") || (key = "incident.suspendRequest") || (key = "incident.resumeRequest") || (key = "incident.rerouteRequest") || (key = "incident.partnerRequest"): "approval", 1: "incident"), "result": "result", "notice": "tellnow", "reminder": "reminder", : "allowance")
+			Set kind = $Case($Piece(key, ".", 1), "incident": $Select((key = "incident.laterRequest") || (key = "incident.laterRequestEitherWay") || (key = "incident.laterRequestChecked") || (key = "incident.laterRequestEitherWayChecked") || (key = "incident.suspendRequest") || (key = "incident.resumeRequest") || (key = "incident.rerouteRequest") || (key = "incident.partnerRequest") || (key = "incident.rollbackRequest") || (key = "incident.undoRollbackRequest"): "approval", 1: "incident"), "result": "result", "notice": "tellnow", "reminder": "reminder", : "allowance")
 			Set approval = ""
 			If (kind = "incident") || (kind = "approval") {
 				Set approvals = approvals + 1
@@ -491,6 +491,7 @@ Method TestNotices()
 				Do $$$AssertEquals(text, phoneText, key_" is the catalog's text for the phone channel")
 			} Else {
 				Set phones = phones + 1
+				If kind = "result" Do $$$AssertEquals(text, fixture.text, key_" reaches the chat as the approved text")
 				Set deadline = $ZHorolog + 20
 				For {
 					Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 100)
@@ -508,13 +509,14 @@ Method TestNotices()
 			Set expectedRows = expectedRows _ $Select(expectedRows = "": "", 1: ",") _ kind_"|"_approval_"|"_chatRef_":"_(before + 1)
 		}
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows, "the telegram Delivery rows have each notice's kind, its approval Ref and <ChatRef>:<message_id>")
-		Do $$$AssertEquals($Length(expectedRows, ","), 40, "there are 40 of them")
+		Set notices = $ListLength(keys)
+		Do $$$AssertEquals($Length(..Rows(session, "telegram", "pairing"), ","), notices, "the Delivery table holds one telegram row for each of the "_notices_" notice keys, none dropped")
 
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set answered = fixtures.%Get("answered.approved")
 		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 0, "no message has been edited yet")
 		If ..ToNotify(..Notification(session, "answered", "answered.approved", answered.slots, "zzappr1"), trace) {
-			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 41, 30), "TelegramOut has handled all 40 notifications and the answered one")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", notices + 1, 30), "TelegramOut has handled all "_notices_" notifications and the answered one")
 			Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), before, "an answered Notification sends no sendMessage")
 		}
 		Set status = ##class(OcuTalon.Msg.Catalog).Render("answered.approved", answered.slots.%ToJSON(), "telegram")
@@ -523,7 +525,7 @@ Method TestNotices()
 		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, withFixText_$Char(10, 10)_status, "the incident.withFix message, with the status as its last line")
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows_",answered|zzappr1|"_withFixRow, "and records one answered telegram row, with the message's id")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 100).Count(), phones, "the phone got none of the allowance notices")
-		Do $$$AssertTrue(..WaitRows(session, "web", "*", 41, 30) >= 41, "WebChatOut has handled all 40 notifications and the answered one, so that nothing is left to write when the test ends")
+		Do $$$AssertTrue(..WaitRows(session, "web", "*", notices + 1, 30) >= (notices + 1), "WebChatOut has handled all "_notices_" notifications and the answered one, so that nothing is left to write when the test ends")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the notices test failed: "_..Safe(ex))
 	}
