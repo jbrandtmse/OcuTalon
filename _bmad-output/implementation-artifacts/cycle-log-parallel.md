@@ -4358,3 +4358,5 @@
 2026-11-15T18:15:51Z	Run	ci_red_classified	head=9b9898a53(0.37_merge) run=43742359975 shards-4(ci-7)=DW-1388(4th_hit) lane-a=green action=rerun_failed_once
 2026-11-15T18:21:46Z	Epic 25	runner_reported	EPIC_RUNNER_COMPLETE head=8fee7092f runs=43738072955(att2;att1=B13_ci-10),43738072942 retro=accepted-with-open-items burndown=DW-1283,DW-1382_wontfix;DW-1284->26-4,DW-1357->38-1 decisions=DW-1120/1121/1122/1386/1387(web_gap-fill_story)
 2026-11-15T18:21:46Z	Epic 25	merge_enqueued	epic_completion head=8fee7092f (records/retro only)
+2026-11-15T18:24:07Z	Epic 25	merged	epic_completion merge=16cdbf568 epic-25=done post-merge=DW-1284_bullet_26.4,DW-1357_bullet_38.1 DW-1390=not_filed(dup_of_DW-1388,5th_hit_ci-10)
+2026-11-15T18:24:07Z	Epic 24	ci_red_classified	story=24.2 run=43743751426 image(ci-23)=STORY(PartnerContact_registry_row) host=no
