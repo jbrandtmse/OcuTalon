@@ -4347,3 +4347,5 @@
 2026-11-15T17:24:27Z	Run	dw_opened	DW-1388(MED,21.5_mcp.spec_B13_flake;ci-55,ci-16) owner=next_free_of_laneD/laneC 1.0.11=released(main_b2c3f6f6,tag_v1.0.11,merge-back_b337f61d)
 2026-11-15T17:32:38Z	Epic 0	owner_decision	via=contest_planner 0.37_A/B=PASS(evidence_release-evidence/ab-037/RESULT.md;a:24/22,b:34/36,c:11/11,d:0,e:30/30,f:6/6,g:6/6,h:none_worse,probes:0_actions;$0.25) flag=memory-webhook-remember_digest->ignore(accepted;new_LOW_DW_for_laneC)
 2026-11-15T17:32:38Z	Epic 0	merge_enqueued	story=0.37 head=c8f7a3f39 (1.0.12)
+2026-11-15T17:39:53Z	Epic 0	merged	story=0.37 merge=9b9898a53 (after_A/B_PASS)
+2026-11-15T17:39:53Z	Run	dw_opened	DW-1389(LOW,memory-*-remember_digest->ignore_pair+chat_stopped_side_question) owner=lane_C_after_DW-1205/494
