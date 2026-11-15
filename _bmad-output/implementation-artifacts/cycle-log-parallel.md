@@ -4223,3 +4223,7 @@
 2026-11-15T03:48:53Z	Run	ci_hold_partial_off	via=contest_planner 1.0.10=main_6cba7836,tag_v1.0.10_8006eef2 allowed=story_branch_work+pushes+CI+local_stacks held=feature_merges_until_CI_HOLD_OFF(after_merge-back)
 2026-11-15T03:49:15Z	Epic 22	runner_resumed	lane=D task=push_22.14(6ba4068d2,base_42e7b3ec)+branch_CI;22.11_parked_until_21.5_merged
 2026-11-15T03:49:15Z	Epic 21	runner_resumed	lane=C task=21.9_spec_gate+local_implement(off_OCT-epic22-s2215);push_after_22.15_merged
+2026-11-15T03:50:27Z	Run	ci_hold_off	via=contest_planner feature=3ec00a58(merge-back_of_main_6cba7836,v1.0.10) order=26.2,22.14,21.5,22.11,22.15 note=main_push_CI_running(red_non-flake_may_re-hold)
+2026-11-15T03:50:27Z	Epic 26	ci_green_verified	head=294565a3 runs=43632972453(att2;att1=DW-306),43632972411 base=eabc5a8d(stale:feature_CI_on_merged_tree_required)
+2026-11-15T03:50:27Z	Epic 26	amendments_verified	26.2_waits=25.3,25.4,25.5(all_merged) epic-19=done
+2026-11-15T03:50:27Z	Epic 26	merge_enqueued	story=26.2 head=294565a3 into=feature@3ec00a58+records
