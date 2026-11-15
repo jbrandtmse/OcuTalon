@@ -2089,6 +2089,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
 - 2026-11-14T20:30:14Z occurrence=OCT-epic26-294565a3 by=orchestrator note=run 43632972453 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty' (ci-18); not rerun: QUOTA HOLD; one rerun after HOLD OFF
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got empty (runners backlogged); not rerun: d53500886 (26.2's code plus a test-only change) ci 43681313101 green and 2e6366b00 ci 43690296919 production green
+- 2026-11-15T16:47:08Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8367,3 +8368,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 23.4 plan reading (d)4; 23.3 RollbackSetting accepts any recorded SettingChange row on the failing item
 - 2026-11-15T14:08:34Z status=decision-pending owner=burndown by=spec_gate note=Planner call: exclude alert settings from rollback (a 23.3 follow-up) or accept (a user-approved restore of their own earlier value is not OcuTalon configuring alerts)
 - 2026-11-15T14:11:08Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15:accepted_as_user-approved_restore(no_exclusion);23.4_AC_amended;23.4_AC15_pins_no_other_class_writes_alert_configuration
+
+### DW-1383: 23.4 AC14 template branch (on-call-section.ts @if/@else) has no demonstrated mutation; only the text constant was mutated
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Verification (a443bfbb)
+- 2026-11-15T16:46:52Z status=open owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=QA to demonstrate
+
+### DW-1384: PagingLive.TestEscalationAsk asserts not_built and goes red when Story 24.3 builds the escalation timer
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Test.Watch.PagingLive TestEscalationAsk (a443bfbb)
+- 2026-11-15T16:46:52Z status=routed owner=burndown by=harvest note=24.3 must update the pin when it builds the timer (cross-lane)
+- 2026-11-15T16:47:08Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=harvest note=24.3_builds_the_escalation_timer_and_must_flip_this_pin
+
+### DW-1385: web/e2e/api/incident-page.spec.ts (AC11) has no demonstrated mutation
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Verification (a443bfbb)
+- 2026-11-15T16:46:52Z status=open owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=QA to demonstrate
