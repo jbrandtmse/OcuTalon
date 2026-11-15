@@ -458,3 +458,7 @@
 2026-11-15T21:45:28Z	Story 23.4	stage_spawned	stage=implement spawn_at=2026-11-15T21:45:28Z model=sonnet effort=high agent_name=23-4-paging-escalation-implement-3 cycle_iteration=3 rework=2
 2026-11-15T22:09:03Z	Story 23.4	dev_complete	spawn_at=2026-11-15T21:46:00Z model=sonnet effort=high cycle_iteration=3 rework=2 build_sha=7ad1420b baseline_revision=6ec1c602 deferred=0 change=telegramOnly_line_verbatim(DW-1400);pins_on-call-view,ux-strings,on-call.spec_O1 verified=npm_web_2153,lint,live_sign-in-2_4/4_58(e23b4r2),mutation_old_line_red bundle_initial=894.53kB
 2026-11-15T22:09:03Z	Story 23.4	stage_spawned	stage=code-review spawn_at=2026-11-15T22:09:03Z model=opus effort=high agent_name=23-4-paging-escalation-cr-3 cycle_iteration=3 baseline=6ec1c602 rework_reReview=2
+2026-11-15T22:14:50Z	Story 23.4	cr_complete	spawn_at=2026-11-15T22:10:00Z model=opus effort=high cycle_iteration=3 rework_reReview=2 resolved=1(LOW_ux-strings_source_label) wontfix_accepted=1(DW-1409) high=0 med=0 low=2 rows=13 unresolved_high_med=0 tracker=done
+2026-11-15T22:14:50Z	Story 23.4	ledger_adjudicated	owned=1 resolved=1(DW-1400) reowned=0 terminal=0 cycle_iteration=3
+2026-11-15T22:14:50Z	Story 23.4	smoke_complete	method=browser(live_sign-in-2_4/4_58_on_new_line_e23b4r2;old-line_mutation_red_e23b4r2m) result=pass iterations=1 defects_caught=0 cycle_iteration=3
+2026-11-15T22:14:50Z	Story 23.4	fresh_check	env=recipe(fresh_lane-B_e23b4r2) tests=on-call.spec_O1(live),on-call-view,ux-strings(node_2153) result=pass order=forward,reverse(node_files_independent) cycle_iteration=3
