@@ -45,6 +45,8 @@ export const RAIL_TEXTS = {
   suspend: 'Suspend {item}',
   resume: 'Resume {item}',
   reroute: 'Reroute {n} {noun} to {to}',
+  rollback: 'Put {setting} on {target} back',
+  undoRollback: 'Undo the rollback of {setting} on {target}',
   partner: 'Send a delay notice',
   runTool: 'Run {toolName}',
   runToolOn: 'Run {toolName} on {server}',
@@ -199,6 +201,9 @@ export function approvalTitle(approval: ApprovalPayload): string {
   }
   if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
     return fill(approval.fixKind === 'suspend_item' ? RAIL_TEXTS.suspend : RAIL_TEXTS.resume, { item: approval.dryRun?.item ?? '' }).trim();
+  }
+  if (approval.fixKind === 'rollback_setting' || approval.fixKind === 'undo_rollback') {
+    return fill(approval.fixKind === 'rollback_setting' ? RAIL_TEXTS.rollback : RAIL_TEXTS.undoRollback, { setting: approval.dryRun?.field ?? '', target: approval.dryRun?.item ?? '' }).trim();
   }
   const affected = approval.dryRun?.affected;
   if (approval.fixKind === 'reroute' && typeof affected === 'number') {

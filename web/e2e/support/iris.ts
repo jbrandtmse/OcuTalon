@@ -732,6 +732,8 @@ export interface SeedDryRun {
   from?: string;
   to?: string;
   example?: string;
+  /** A setting rollback's or undo's dry run (Story 23.3): the item whose setting it is (the setting is the field, the values are before and after). */
+  item?: string;
   /** A partner delay notice's dry run (Story 23.5): the exact text, each recipient as a name and an address, and simulated. */
   notice?: string;
   recipients?: ReadonlyArray<{ name: string; address: string }>;
@@ -787,6 +789,7 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
             before: fields.dryRun.before ?? '',
             after: fields.dryRun.after ?? '',
             itemNoun: fields.dryRun.itemNoun,
+            ...(fields.dryRun.item === undefined ? {} : { item: fields.dryRun.item }),
             ...(fields.dryRun.from === undefined ? {} : { from: fields.dryRun.from }),
             ...(fields.dryRun.to === undefined ? {} : { to: fields.dryRun.to }),
             ...(fields.dryRun.example === undefined ? {} : { example: fields.dryRun.example }),
@@ -1035,6 +1038,8 @@ export interface IncidentFields {
   openVariant?: string;
   /** The Refs of the incident's approval requests, comma-separated: the closed view lists the requests whose rows name the incident. */
   requestRefs?: string;
+  /** The Ref of the setting change that the incident names as its cause (Story 23.3; seedSettingChange). */
+  settingChangeRef?: string;
   /** The incident's stored summary (Story 23.6): the JSON {"parts": [{"key", "slots"}], "lines": []} that Watch.Summary builds; none by default. */
   summary?: string;
   /** When the incident was closed (UTC), the failure count, the first failure's time and the item noun (Story 25.2's History rows); the fixture's defaults when left out. */
@@ -1054,6 +1059,7 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     State: fields.state,
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
+    SettingChangeRef: fields.settingChangeRef,
     Summary: fields.summary,
     ClosedAt: fields.closedAt,
     Count: fields.count === undefined ? undefined : numeric(fields.count, 'count'),
@@ -1074,6 +1080,48 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
   const ref = chk(lines, 'incident');
   if (!ref) throw new Error(`the incident could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/** A setting change of a production (Story 23.3): the item, the setting, the two values and when it was detected (UTC). */
+export interface SettingChangeFields {
+  namespace?: string;
+  production?: string;
+  item: string;
+  setting: string;
+  oldValue: string;
+  newValue: string;
+  detectedAt: string;
+}
+
+/** Writes a Data.SettingChange row for the fields (target Host, source production, not a secret) and returns its Ref; dropSettingChange removes it. */
+export async function seedSettingChange(fields: SettingChangeFields): Promise<string> {
+  const lines = await irisScript(
+    [
+      'Set r=##class(OcuTalon.Data.SettingChange).%New()',
+      'Set r.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
+      'Set r.SnapshotRef="zzsnapshot"',
+      `Set r.Namespace=${quoted(fields.namespace ?? 'ZZNS')}`,
+      `Set r.Production=${quoted(fields.production ?? 'Zz.Fixture.Production')}`,
+      `Set r.Item=${quoted(fields.item)}`,
+      'Set r.Target="Host"',
+      `Set r.Setting=${quoted(fields.setting)}`,
+      `Set r.OldValue=${quoted(fields.oldValue)}`,
+      `Set r.NewValue=${quoted(fields.newValue)}`,
+      'Set r.Source="production"',
+      `Set r.DetectedAt=${quoted(fields.detectedAt)}`,
+      'Set sc=r.%Save()',
+      'Write !,"CHK|settingchange|",$Select($SYSTEM.Status.IsOK(sc):r.Ref,1:"")',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'settingchange');
+  if (!ref) throw new Error(`the setting change could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/** Deletes the setting change with the Ref (a row that seedSettingChange wrote). */
+export async function dropSettingChange(ref: string): Promise<void> {
+  if (!/^[A-Za-z0-9_-]+$/.test(ref)) return;
+  await irisScript(`Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.SettingChange WHERE Ref = ?","${ref}")\nWrite !,"CHK|dropped|1"`);
 }
 
 /** The fields of a FixRun row that a spec may set: the counts and reason of its result (Fixture.FixRun ends the run unless endedAt is given). */

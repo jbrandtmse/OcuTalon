@@ -47,9 +47,12 @@ One tool has no class of its own: `documents`, the search over your added docume
 | `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |
+| `OcuTalon.Fix.Kind.RollbackSetting` | `rollback_setting` | risky | `%Ens_ProductionConfig:W` |
 | `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |
+| `OcuTalon.Fix.Kind.UndoRollback` | `undo_rollback` | risky | `%Ens_ProductionConfig:W` |
 
-On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.
+On the online demo, OcuTalonServiceRole holds neither %Ens_ConfigItemRun:U nor %Ens_ProductionConfig:W, so OcuTalon can't suspend or resume items or change settings there.
+On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only because rollback_setting and undo_rollback declare it: each puts back one setting of a watched production's item after an approval, and no other OcuTalon role holds %Ens_ProductionConfig.
 
 <!-- END GENERATED fix-kinds -->
 
@@ -63,6 +66,7 @@ On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so O
 | `OcuTalonAdmin` | none | - | `Users` |
 | `OcuTalonServiceRole` | `%Ens_ConfigItemRun` | U | `Fix` |
 | `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |
+| `OcuTalonServiceRole` | `%Ens_ProductionConfig` | W | `Fix` |
 | `OcuTalonTraceViewer` | `%DB_OCUTALON_CODE` | R | `Web` |
 | `OcuTalonTraceViewer` | `%DB_OCUTALON_DATA` | R | `Web` |
 | `OcuTalonTraceViewer` | `%Ens_MessageContent` | U | `Web` |

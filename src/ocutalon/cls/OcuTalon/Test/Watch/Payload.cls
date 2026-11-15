@@ -191,7 +191,7 @@ Method TestPayloadRefused()
 		Do ..AssertRefused(reply, "a diagnosis that names the fixKind "_kind_", which only the chat can ask for (Story 23.2)")
 		Set text = $SYSTEM.Status.GetErrorText(..Check(reply))
 		Do $$$AssertTrue(text '[ "reroute,", "and the error lists only the kinds a diagnosis may name")
-		Do $$$AssertTrue(text [ ("A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedNames(), ",")), "and it is the refusal of the kind itself, not of its parameters: "_text)
+		Do $$$AssertTrue(text [ ("A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedFor("data_format_change"), ",")), "and it is the refusal of the kind itself, not of its parameters: "_text)
 	}
 	Set reply = ..Usable()
 	Set reply.cause = "  "
@@ -220,6 +220,54 @@ Method TestPayloadRefused()
 	Set reply = ..Usable()
 	Set reply.fixSummary = "resend them at 9:05"
 	Do ..AssertRefused(reply, "a fixSummary that holds a time")
+}
+
+/// A setting_change diagnosis that names a listed setting and offers the rollback (Story 23.3).
+ClassMethod Rollback() As %DynamicObject
+{
+	Quit {"outcome": "act", "causeCategory": "setting_change", "elementAtFault": "TargetConfigName", "evidence": ["settingChanges"], "fixKind": "rollback_setting", "cause": "A setting of the failing item changed just before the failures began.", "fixSummary": "", "reasons": ["The pack lists the change."], "confidence": 0.8}
+}
+
+/// Story 23.3 (AC3, AC13): a setting_change may name rollback_setting, with no fixParameters and no fixSummary, and an elementAtFault that the pack's settingChanges lists; any
+/// other category, a setting the pack does not list, a pack with no settingChanges and a data_format_change that names it are refused.
+Method TestRollbackFix()
+{
+	Set pack = ..Pack()
+	Set pack.settingChanges = [{"item": "OrdersFromPartner", "target": "Host", "setting": "TargetConfigName", "oldValue": "OrdersToWarehouse", "newValue": "OrdersToWarehous", "source": "production", "credential": false, "detectedAt": "2026-11-10T11:56:00Z"}]
+	Do ##class(OcuTalon.Bridge.ReplyCheck).End()
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "diagnose"
+	Set request.ItemId = "zzpayload"
+	Set request.OwnerRef = "instance"
+	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(pack)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ReplyCheck).Begin(request), "a check begins over a pack that lists a setting change")
+	Set sc = ..Check(..Rollback(), .payload)
+	Do $$$AssertStatusOK(sc, "a setting_change that names rollback_setting and a listed setting is accepted: "_$SYSTEM.Status.GetErrorText(sc))
+	Set reply = ..Rollback()
+	Set reply.elementAtFault = "Unlisted"
+	Do ..AssertRefused(reply, "a setting that the pack does not list")
+	Set reply = ..Rollback()
+	Set reply.fixParameters = {"field": "TargetConfigName"}
+	Do ..AssertRefused(reply, "fixParameters with rollback_setting")
+	Set reply = ..Rollback()
+	Set reply.fixSummary = "put the setting back"
+	Do ..AssertRefused(reply, "a fixSummary with rollback_setting")
+	Set reply = ..Rollback()
+	Set reply.causeCategory = "connection_failure"
+	Do ..AssertRefused(reply, "rollback_setting for a connection_failure")
+	Set reply = ..Usable()
+	Set reply.fixKind = "rollback_setting"
+	Do ..AssertRefused(reply, "rollback_setting for a data_format_change")
+	Set reply = ..Rollback()
+	Set reply.fixKind = "repair_resend"
+	Do ..AssertRefused(reply, "repair_resend for a setting_change")
+	Set reply = ..Rollback()
+	Do reply.%Remove("fixKind")
+	Do $$$AssertStatusOK(..Check(reply, .payload), "a setting_change with no fix is accepted, as before")
+	Do ##class(OcuTalon.Bridge.ReplyCheck).End()
+	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(..Pack())
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ReplyCheck).Begin(request), "a check begins over a pack with no setting change")
+	Do ..AssertRefused(..Rollback(), "rollback_setting when the pack lists no setting change (no fix is accepted without its evidence)")
 }
 
 /// Asserts that the reply is refused with an error that names the reply check.

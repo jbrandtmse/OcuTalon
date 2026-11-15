@@ -99,6 +99,9 @@ Parameter VARIANTNOFIX = "no_fix";
 /// The cause category that has a fix to propose, and the one that has no cause.
 Parameter WITHFIXCATEGORY = "data_format_change";
 
+/// The category of a diagnosis that names a setting change; with a fix kind that acts on a setting (Key's fixKind) its notice is the proposal's (Story 23.3).
+Parameter SETTINGCATEGORY = "setting_change";
+
 Parameter UNKNOWNCATEGORY = "unknown";
 
 /// The catalog keys of the notice of a fix run's result (Story 7.3).
@@ -161,10 +164,11 @@ Parameter NOERRORTEXT = "no error text";
 
 /// The catalog key of the notice for the diagnosed incident, "" when it gets none from this class (a usable data-format diagnosis with a fix summary: its
 /// notice is the with-fix notice, KEYWITHFIX; a data-format diagnosis with no fix summary gets KEYNOFIX).
-ClassMethod Key(incident As OcuTalon.Data.Incident) As %String
+ClassMethod Key(incident As OcuTalon.Data.Incident, fixKind As %String = "") As %String
 {
 	If incident.Fallback Quit ..#KEYFALLBACK
 	If incident.CauseCategory = ..#UNKNOWNCATEGORY Quit ..#KEYUNKNOWN
+	If (incident.CauseCategory = ..#SETTINGCATEGORY) && ##class(OcuTalon.Watch.SettingCause).Offers(fixKind) Quit ""
 	If incident.CauseCategory = ..#WITHFIXCATEGORY Quit $Select(..Text(incident.FixSummary) = "": ..#KEYNOFIX, 1: "")
 	Quit ..#KEYNOFIX
 }
@@ -197,6 +201,7 @@ ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects =
 			Quit ""
 		}
 		Do slots.%Set("cause", cause)
+		If (key = ..#KEYNOFIX) && ##class(OcuTalon.Watch.SettingCause).CauseSlot(incident, .settingCause) Do slots.%Set("cause", settingCause)
 		If key = ..#KEYGOODCHANGED Do slots.%Set("noun", slots.itemNoun.other)
 	}
 	Set lines = ..Groups(incident, groups, .sc)
@@ -218,7 +223,7 @@ ClassMethod NoFixKey(reason As %String) As %String
 /// other kind. Pure.
 ClassMethod AskedKey(kind As %String) As %String
 {
-	Quit $Case($Get(kind), "suspend_item": ..#KEYSUSPENDREQUEST, "resume_item": ..#KEYRESUMEREQUEST, "reroute": ..#KEYREROUTEREQUEST, "partner_warning": ..#KEYPARTNERREQUEST, : "")
+	Quit $Case($Get(kind), "suspend_item": ..#KEYSUSPENDREQUEST, "resume_item": ..#KEYRESUMEREQUEST, "reroute": ..#KEYREROUTEREQUEST, "partner_warning": ..#KEYPARTNERREQUEST, "undo_rollback": ##class(OcuTalon.Watch.SettingCause).#KEYUNDOREQUEST, : "")
 }
 
 /// The slots of the approval notice of a fix the user asked for in the chat (see the class description), from the kind's name, the dry run (a dynamic object) and the incident;
@@ -235,6 +240,7 @@ ClassMethod AskedSlots(kind As %String, dryRun As %DynamicObject, incident As Oc
 		Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" is not an object")
 		Quit ""
 	}
+	If key = ##class(OcuTalon.Watch.SettingCause).#KEYUNDOREQUEST Quit ##class(OcuTalon.Watch.SettingCause).UndoSlots(dryRun, incident, .sc)
 	If key = ..#KEYPARTNERREQUEST {
 		Set notice = ..Text(dryRun.notice)
 		Set recipients = ""
@@ -281,6 +287,7 @@ ClassMethod AskedSlots(kind As %String, dryRun As %DynamicObject, incident As Oc
 /// dry run's goodCheck counts at least one checked message (Checked), the ...CHECKED variant of that key. Pure.
 ClassMethod WithFixKey(dryRun As %DynamicObject, parameters As %String = "", later As %Boolean = 0) As %String
 {
+	If ##class(OcuTalon.Watch.SettingCause).IsSetting($Get(parameters)) Quit ##class(OcuTalon.Watch.SettingCause).#KEYROLLBACKREQUEST
 	Set eitherWay = ..Reading($Get(dryRun), $Get(parameters)) '= ""
 	Set checked = (..Checked($Get(dryRun)) > 0)
 	If later Quit $Select(eitherWay: $Select(checked: ..#KEYLATEREITHERCHECKED, 1: ..#KEYLATEREITHER), 1: $Select(checked: ..#KEYLATERCHECKED, 1: ..#KEYLATER))
@@ -333,6 +340,10 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 {
 	Set slots = ..Common(incident, .sc)
 	If $$$ISERR(sc) Quit ""
+	If ##class(OcuTalon.Watch.SettingCause).IsSetting(parameters) {
+		Set sc = ##class(OcuTalon.Watch.SettingCause).RollbackSlots(incident, dryRun, slots)
+		Quit $Select($$$ISOK(sc): slots, 1: "")
+	}
 	If $Data(count) {
 		If (count '? 1.N) || (+count < 1) {
 			Set sc = $SYSTEM.Status.Error(5001, "The count of the later request of incident "_incident.Ref_" is not a whole number of at least one")
@@ -401,6 +412,7 @@ ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, ki
 		If +result.Completed > 0 Quit ..#KEYPARTNERSENTSOME
 		Quit ..#KEYPARTNERNOTSENT
 	}
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting") Quit ##class(OcuTalon.Watch.SettingCause).ResultKey(kind, result)
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
 		If +result.Completed > 0 Quit $Select($Parameter(class, "ENABLE"): ..#KEYITEMRESUMED, 1: ..#KEYITEMSUSPENDED)
 		If +result.Skipped > 0 Quit ..#KEYITEMSKIPPED
@@ -431,6 +443,7 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Set sc = $$$OK
 	Set reason = ..Text(result.Reason)
 	If '$IsObject(extra) Set extra = {}
+	If ##class(OcuTalon.Watch.SettingCause).IsResultKey(key) Quit ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc)
 	If $ListFind($ListBuild(..#KEYPARTNERSENT, ..#KEYPARTNERSENTSOME, ..#KEYPARTNERNOTSENT, ..#KEYPARTNERKEPT), key) {
 		If key = ..#KEYPARTNERKEPT Quit {}
 		If key = ..#KEYPARTNERSENT Quit {"count": (+result.Completed)}

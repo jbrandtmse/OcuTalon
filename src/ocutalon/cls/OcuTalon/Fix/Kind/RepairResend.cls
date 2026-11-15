@@ -38,6 +38,8 @@ Parameter PARAMETERS = "field,sourceFormat,targetFormat";
 
 Parameter RESOURCES = "%Ens_MessageResend:U";
 
+Parameter CATEGORY = "data_format_change";
+
 /// The keys of the dry run of this kind: the keys of OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS that a repair and resend fills.
 Parameter DRYRUNKEYS = "affected,resend,leftOut,field,before,after,itemNoun";
 

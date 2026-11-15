@@ -4,7 +4,8 @@
 ///     EvidencePack.Build reads, and writes them with Write. Its pack is the evidence pack that Build gives the reader's answer before anything
 ///     changes it, so that a replay of the written file can be compared with what the diagnosis reads live.
 ///   - Write puts two files in <folder>/<name>/ and replaces any that is there: snapshot.json, the reader's answer (format
-///     ocutalon.readerSnapshot/1) after OcuTalon.Bridge.Redact.Text, with nothing added and nothing dropped, and case.json, the case format of Story 9.1:
+///     ocutalon.readerSnapshot/1) after OcuTalon.Bridge.Redact.Text, with nothing added and nothing dropped except that Capture adds settingChanges, the production's setting
+///     changes of the 24 hours before the first failure (Story 23.3), and case.json, the case format of Story 9.1:
 ///     {name, kind "incident", heldOut, description, snapshot "snapshot.json", expectation {causeCategory, elementAtFault, fixKind[, noFix]}, recordedBy}.
 ///     The expectation's noFix is written only when it is true (a diagnosis of a data-format change that proposes no fix, Story 7.7's no-evidence
 ///     outcome), as noFix true with fixKind "".
@@ -13,7 +14,8 @@
 ///     object whose name is lower-case kebab, whose heldOut is a boolean or absent, whose description is not blank, and whose expectation is an
 ///     object with a causeCategory of DiagnosisPayload CAUSECATEGORIES, an elementAtFault that is not blank, a noFix that is a boolean or absent
 ///     and a fixKind that is a string or absent. With noFix true the category must be DiagnosisPayload FIXCATEGORY and the fixKind empty or absent.
-///     Otherwise the fixKind is not empty exactly when the category is FIXCATEGORY); the folder is blank; the snapshot is not of the format
+///     Otherwise the fixKind is not empty when the category is FIXCATEGORY, and a fixKind that is given is one that Fix.Kind DiagnosedFor lists for the category (repair_resend
+///     for data_format_change, rollback_setting for setting_change, Story 23.3)); the folder is blank; the snapshot is not of the format
 ///     SNAPSHOTFORMAT or holds no failure; the redactor cannot check the text; or the redacted snapshot or the case holds a character that is not
 ///     ASCII or a local machine path (LOCALPATH).
 ///   - Capture refuses a case that is not valid before it reads the production, and refuses when the reader's outcome is not read or its answer holds
@@ -63,6 +65,7 @@ ClassMethod Capture(case As %DynamicObject, namespace As %String, production As 
 		Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(namespace, production, item, keys, .snapshot)
 		If outcome '= "read" $$$ThrowStatus(..Refusal(..#NOTHING_outcome))
 		If snapshot.failures.%Size() = 0 $$$ThrowStatus(..Refusal(..#NOTHING_..#NOFAILURE))
+		Do ..AddSettingChanges(snapshot, namespace, production)
 		$$$ThrowOnError(##class(OcuTalon.Watch.EvidencePack).Build(snapshot, .built))
 		$$$ThrowOnError(..Write(case, snapshot, folder))
 		Set pack = built
@@ -71,6 +74,26 @@ ClassMethod Capture(case As %DynamicObject, namespace As %String, production As 
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
+}
+
+/// Adds the production's setting changes of the 24 hours before the snapshot's first failure to the snapshot as settingChanges, with the fields of the evidence pack's section (no
+/// Ref), newest first (Watch.SettingCause Window). A production with none in that window leaves the snapshot as it is (Story 23.3).
+ClassMethod AddSettingChanges(snapshot As %DynamicObject, namespace As %String, production As %String) [ Private ]
+{
+	Set firstAt = ""
+	Set iterator = snapshot.failures.%GetIterator()
+	While iterator.%GetNext(, .failure) {
+		If (firstAt = "") || (firstAt ] failure.timeProcessed) Set firstAt = failure.timeProcessed
+	}
+	Do ##class(OcuTalon.Watch.SettingCause).Window(namespace, production, firstAt, .rows)
+	If rows.%Size() = 0 Quit
+	Set changes = []
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Do row.%Remove("ref")
+		Do changes.%Push(row)
+	}
+	Set snapshot.settingChanges = changes
 }
 
 /// Writes snapshot.json (the snapshot after Redact.Text) and case.json into <folder>/<case name>/, after the checks of the class description. When any
@@ -127,7 +150,7 @@ ClassMethod CaseRecord(case As %DynamicObject) As %DynamicObject [ Private ]
 		If fixKind '= "" $$$ThrowStatus(..Refusal("the expectation's fixKind '"_fixKind_"' is set for an expectation of no fix"))
 	} Else {
 		If (category = fixCategory) && (fixKind = "") $$$ThrowStatus(..Refusal("the expectation's fixKind is empty for the category "_category))
-		If (category '= fixCategory) && (fixKind '= "") $$$ThrowStatus(..Refusal("the expectation's fixKind '"_fixKind_"' is set for the category "_category_", which has no fix"))
+		If (fixKind '= "") && '$ListFind(##class(OcuTalon.Fix.Kind).DiagnosedFor(category), fixKind) $$$ThrowStatus(..Refusal("the expectation's fixKind '"_fixKind_"' is set for the category "_category_", which has no such fix"))
 	}
 	Set record = {"name": (name), "kind": (##class(OcuTalon.Eval.Report).#INCIDENTKIND)}
 	Do record.%Set("heldOut", +case.%Get("heldOut"), "boolean")

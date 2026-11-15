@@ -13,14 +13,15 @@
 /// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary. The fix kind is one that OcuTalon.Fix.Kind
 /// names (AD-16), and its check of the fix parameters is the last: the fields it is given are the keys of the sample body of the evidence pack that the
 /// request carried, read through OcuTalon.Bridge.ReplyCheck, which Decide begins before it checks a reply. With no check begun, or an input that is not a
-/// pack with a sample body, no fix is accepted (fail closed). Lane A.
+/// pack with a sample body, no fix is accepted (fail closed). A setting_change may name the kind that Fix.Kind DiagnosedFor lists for it (rollback_setting): with no
+/// fixParameters and no fixSummary, and an elementAtFault that names a setting in the pack's settingChanges (Listed); the kind's own check is then its dry run's. Lane A.
 Class OcuTalon.Watch.Msg.DiagnosisPayload Extends OcuTalon.Bridge.Msg.DecisionPayload
 {
 
 /// The causes that a diagnosis names, comma-separated.
 Parameter CAUSECATEGORIES = "data_format_change,connection_failure,setting_change,partner_outage,validation_error,unknown";
 
-/// The category that has a fix.
+/// The category whose fix is the data-format repair; a fixKind of any other category is the one that Fix.Kind DiagnosedFor lists for it (a setting_change may name rollback_setting).
 Parameter FIXCATEGORY = "data_format_change";
 
 /// The properties that Decide filters before it records the payload (comma-separated; a dotted name is a property of an object property, and a
@@ -71,10 +72,14 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 	If (..CauseCategory = ..#FIXCATEGORY) && (..FixKind = "") && '$IsObject(..FixParameters) && ..Blank(..FixSummary) {
 		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
 	} ElseIf ..CauseCategory = ..#FIXCATEGORY {
-		If '##class(OcuTalon.Fix.Kind).Diagnosed(..FixKind) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedNames(), ","))
+		If '$ListFind(##class(OcuTalon.Fix.Kind).DiagnosedFor(..#FIXCATEGORY), ..FixKind) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedFor(..#FIXCATEGORY), ","))
 		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
 		If ..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixSummary")
 		If '$IsObject(..FixParameters) || ..Blank(..FixParameters.Field) Quit $$$ERROR($$$GeneralError, "A data_format_change has fixParameters with a field")
+	} ElseIf (..FixKind '= "") && $ListFind(##class(OcuTalon.Fix.Kind).DiagnosedFor(..CauseCategory), ..FixKind) {
+		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' has no fixParameters")
+		If '..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' has no fixSummary")
+		If '..Listed(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' needs an elementAtFault that names a setting in the evidence pack's settingChanges")
 	} Else {
 		If ..FixKind '= "" Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixKind")
 		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixParameters")
@@ -86,8 +91,23 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 	If $Locate(..Cause, ..#CLOCKTIME) || $Locate(..FixSummary, ..#CLOCKTIME) {
 		Quit $$$ERROR($$$GeneralError, "The cause and the fixSummary hold no time of day")
 	}
+	If (..FixKind '= "") && (##class(OcuTalon.Fix.Kind).ForName(..FixKind) '= "") && ($Parameter(##class(OcuTalon.Fix.Kind).ForName(..FixKind), "TARGETTYPE") = "setting") Quit $$$OK
 	If ..FixKind '= "" Quit ..CheckFix()
 	Quit $$$OK
+}
+
+/// 1 when the name is the setting of a change that the pack of the request lists (settingChanges), read through OcuTalon.Bridge.ReplyCheck like the sample's fields; 0 with no
+/// pack, so that a fix on a setting is never accepted without evidence (fail closed).
+Method Listed(name As %String) As %Boolean [ Private ]
+{
+	If ..Blank(name) Quit 0
+	Set pack = ##class(OcuTalon.Watch.EvidencePack).FromInput(##class(OcuTalon.Bridge.ReplyCheck).Value("Input"))
+	If '$IsObject(pack) || '$IsObject(pack.settingChanges) Quit 0
+	Set iterator = pack.settingChanges.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If $IsObject(entry) && (entry.setting = name) Return 1
+	}
+	Quit 0
 }
 
 /// The fix kind's check of the fix parameters against the fields of the sample message that the request's evidence pack holds (see the class description).

@@ -91,6 +91,10 @@ const RESULT_KEYS = [
   'result.itemSkipped',
   'result.itemNotChanged',
   'result.rerouted',
+  'result.settingRestored',
+  'result.settingChangedSince',
+  'result.rollbackUndone',
+  'incident.settingChangeCause',
   'audit.recorded',
 ];
 
@@ -120,20 +124,20 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the fourteen result keys, the either-way line and the two Got it keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the eighteen result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 70);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 74);
   });
 
-  it('holds the 16 banner and action keys, the 19 answered keys and the fourteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 16 banner and action keys, the 19 answered keys and the eighteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 19);
-    assert.equal(RESULT_KEYS.length, 14);
+    assert.equal(RESULT_KEYS.length, 18);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
@@ -177,6 +181,10 @@ describe('the real tree', () => {
       'result.itemSkipped': { item: 'text', reason: 'sentence' },
       'result.itemNotChanged': { reason: 'sentence' },
       'result.rerouted': { count: 'count', itemNoun: 'noun', to: 'text' },
+      'result.settingRestored': { setting: 'text', target: 'text', after: 'text' },
+      'result.settingChangedSince': { setting: 'text', target: 'text' },
+      'result.rollbackUndone': { setting: 'text', target: 'text', after: 'text' },
+      'incident.settingChangeCause': { minutes: 'minutes', setting: 'text', target: 'text', time: 'time' },
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
       'handled.marked': { time: 'time' },
       [LEARNED_KEY]: { fact: 'text' },
@@ -324,6 +332,25 @@ describe('the result texts', () => {
   it('reads the Got it button and the handled line as the catalog gives them (Story 18.4)', () => {
     assert.equal(real.renderPageText('button.gotIt'), 'Got it');
     assert.equal(real.renderPageText('handled.marked', { time: '14:12' }), 'Marked as handled at 14:12');
+  });
+
+  it('renders the minutes slot by the ruled rule and the setting texts word for word (Story 23.3)', () => {
+    const cause = (minutes) => real.renderPageText('incident.settingChangeCause', { minutes, setting: 'TargetConfigName', target: 'OrdersFromPartner', time: '14:08 ET' });
+    const lead = 'The feed broke ';
+    const tail = ' after this setting changed: TargetConfigName on OrdersFromPartner, at 14:08 ET.';
+    const expected = new Map([[0, 'less than a minute'], [1, 'one minute'], [2, 'two minutes'], [4, 'four minutes'], [9, 'nine minutes'], [10, '10 minutes'], [12, '12 minutes'], [1212, '1,212 minutes']]);
+    for (const [minutes, words] of expected) {
+      assert.equal(cause(minutes), lead + words + tail, String(minutes));
+      assert.equal(cause(String(minutes)), lead + words + tail, `${minutes} as text`);
+    }
+    assert.equal(real.renderPageText('incident.settingChangeCause', { minutes: -1, setting: 's', target: 't', time: '14:08' }), 'The feed broke  after this setting changed: s on t, at 14:08.', 'a minutes value that is not a whole number of 0 or more gives no words');
+    for (const [label, minutes] of [['undefined', undefined], ['null', null], ['an empty string', ''], ['blank text', '  ']]) {
+      assert.equal(cause(minutes), lead + tail, `a ${label} minutes slot gives no words, never "less than a minute"`);
+    }
+    assert.equal(real.renderPageText('incident.settingChangeCause', { setting: 's', target: 't', time: '14:08' }), 'The feed broke  after this setting changed: s on t, at 14:08.', 'a missing minutes slot gives no words');
+    assert.equal(real.renderPageText('result.settingRestored', { setting: 'TargetConfigName', target: 'OrdersFromPartner', after: 'OrdersToWarehouse' }), 'TargetConfigName on OrdersFromPartner is back to OrdersToWarehouse. To undo it, ask me to undo the rollback.');
+    assert.equal(real.renderPageText('result.settingChangedSince', { setting: 'TargetConfigName', target: 'OrdersFromPartner' }), 'TargetConfigName on OrdersFromPartner was not changed: it changed again after the dry run. It needs a new approval.');
+    assert.equal(real.renderPageText('result.rollbackUndone', { setting: 'TargetConfigName', target: 'OrdersFromPartner', after: 'OrdersToWarehous' }), 'The rollback is undone: TargetConfigName on OrdersFromPartner is back to OrdersToWarehous.');
   });
 
   it('read the catalog\'s count-of-one form where the named count slot is 1, and the noun by the count slot', () => {
@@ -563,6 +590,10 @@ const RESULTS = {
   'result.itemSkipped': { text: '{item} skipped: {reason}.', slots: { item: 'text', reason: 'sentence' }, source: 'fixture' },
   'result.itemNotChanged': { text: 'Not changed: {reason}.', slots: { reason: 'sentence' }, source: 'fixture' },
   'result.rerouted': { text: 'All {count} {itemNoun} sent to {to}.', slots: { count: 'count', itemNoun: 'noun', to: 'text' }, source: 'fixture', one: { slot: 'count', text: 'The {itemNoun} sent to {to}.' } },
+  'result.settingRestored': { text: '{setting} on {target} is back to {after}.', slots: { setting: 'text', target: 'text', after: 'text' }, source: 'fixture' },
+  'result.settingChangedSince': { text: '{setting} on {target} changed again.', slots: { setting: 'text', target: 'text' }, source: 'fixture' },
+  'result.rollbackUndone': { text: 'Undone: {setting} on {target} is back to {after}.', slots: { setting: 'text', target: 'text', after: 'text' }, source: 'fixture' },
+  'incident.settingChangeCause': { text: 'The feed broke {minutes} after {setting} on {target} changed, at {time}.', slots: { minutes: 'minutes', setting: 'text', target: 'text', time: 'time' }, source: 'fixture' },
   'audit.recorded': { text: 'Logged.', slots: {}, source: 'fixture' },
 };
 
@@ -805,6 +836,10 @@ describe('the generator on a fixture', () => {
       'result.itemResumed',
       'result.itemSkipped',
       'result.rerouted',
+      'result.settingRestored',
+      'result.settingChangedSince',
+      'result.rollbackUndone',
+      'incident.settingChangeCause',
       LINE_KEY,
       LEARNED_KEY,
     ]);

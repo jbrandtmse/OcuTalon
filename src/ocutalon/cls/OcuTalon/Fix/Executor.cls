@@ -206,8 +206,8 @@ Method Work(request As OcuTalon.Fix.Msg.DryRun, Output targets As %String, Outpu
 	Set dryRun = ""
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
 	If '$IsObject(incident) Quit $$$ERROR($$$GeneralError, "There is no incident "_request.IncidentRef)
-	If incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED Quit $$$ERROR($$$GeneralError, "The incident "_request.IncidentRef_" is closed")
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
+	If (incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED) && '##class(OcuTalon.Fix.Kind).AskedClosed(class) Quit $$$ERROR($$$GeneralError, "The incident "_request.IncidentRef_" is closed")
 	If class = "" Quit $$$ERROR($$$GeneralError, "The fix kind '"_request.FixKind_"' is not one of "_$ListToString(##class(OcuTalon.Fix.Kind).Names(), ","))
 	Set parameters = ""
 	Try {
@@ -365,7 +365,7 @@ Method Unusable(row As OcuTalon.Bridge.Data.ApprovalRequest, Output incident As 
 	If '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") Quit ..#UNUSABLE
 	If '..AscendingIds(row.FixTargets) Quit ..#UNUSABLE
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
-	If '$IsObject(incident) || (incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED) Quit ..#UNUSABLE
+	If '$IsObject(incident) || ((incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED) && '##class(OcuTalon.Fix.Kind).AskedClosed(class)) Quit ..#UNUSABLE
 	Quit ""
 }
 
@@ -806,6 +806,10 @@ ClassMethod ActionTarget(row As OcuTalon.Bridge.Data.ApprovalRequest, incident A
 	}
 	If (class = "") || '$IsObject(parameters) Quit target
 	If $Parameter(class, "TARGETTYPE") = "item" Quit parameters.%Get("item")_" in "_target
+	If $Parameter(class, "TARGETTYPE") = "setting" {
+		Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(parameters.%Get("change"))
+		Quit $Select($IsObject(change): change.Setting_" on "_change.Item_" in "_target, 1: target)
+	}
 	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_" (simulated)"
 	If parameters.%Get("target") '= "" Quit target_" to "_parameters.%Get("target")
 	Quit target
@@ -1133,6 +1137,10 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 ///     the original's TargetConfigName, copy);
 ///   - a reroute, {"id", "target"} (no field): the header must still be in the status Error and its message is resent as a copy to the target item, with
 ///     ResendDuplicatedMessage(original, newId, target), which makes the copy from the header and its body as they are;
+///   - a setting change, {"id" (the SettingChange id), "setting", "target" (Host or Adapter), "item", "production", "expect", "value" and, for an undo of a System Default Setting
+///     change, "remove" 1}: the effective value of the item's setting, read with Ens.Director.GetItemSettingValue, must still be expect; then the stored Ens.Config.Setting of that
+///     name and target of the item's definition is set to value (added when the item has none), or taken out with remove, the definition is saved and
+///     Ens.Director.UpdateProduction updates the running production. It never edits a System Default Setting row or a class, and it calls no OcuTalon class there (AD-3).
 ///   - an item change, {"id" (the Ens.Config.Item id), "action" (disable or enable), "item", "production"}: the item is opened by its id and must still be the named item of the
 ///     named production in the state the action leaves (enabled for disable, as IRIS runs it: its stored Enabled unless a System Default Setting Enabled overrides it), and
 ///     Ens.Director.EnableConfigItem(production||item, enable) changes it.
@@ -1162,7 +1170,51 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 		Set newId = ""
 		Try {
 			Set $NAMESPACE = namespace
-			If entry.%Get("action") '= "" {
+			If entry.%Get("setting") '= "" {
+				Set definition = ##class(Ens.Config.Production).%OpenId(entry.production)
+				Set item = ""
+				Set found = $$$OK
+				If $IsObject(definition) Set item = definition.findItemByName(entry.item, "", .found)
+				If '$IsObject(item) || $$$ISERR(found) {
+					Set code = "gone"
+				} Else {
+					Set current = ##class(Ens.Director).GetItemSettingValue(entry.production_"||"_entry.item, entry.target, entry.setting, .read)
+					If $$$ISERR(read) || (current '= entry.expect) {
+						Set code = "changed"
+					} Else {
+						Set matched = 0
+						For j = item.Settings.Count():-1:1 {
+							Set stored = item.Settings.GetAt(j)
+							If (stored.Name '= entry.setting) || (stored.Target '= entry.target) Continue
+							Set matched = 1
+							If entry.%Get("remove") {
+								Do item.Settings.RemoveAt(j)
+							} Else {
+								Set stored.Value = entry.value
+							}
+						}
+						If 'matched && 'entry.%Get("remove") {
+							Set stored = ##class(Ens.Config.Setting).%New()
+							Set stored.Target = entry.target
+							Set stored.Name = entry.setting
+							Set stored.Value = entry.value
+							Do item.Settings.Insert(stored)
+						}
+						If 'matched && entry.%Get("remove") {
+							Set code = "changed"
+						} Else {
+							Set sc = definition.%Save()
+							If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout())
+							If $$$ISOK(sc) {
+								Set code = "done"
+							} Else {
+								Set code = "refused"
+								Set detail = $SYSTEM.Status.GetErrorText(sc)
+							}
+						}
+					}
+				}
+			} ElseIf entry.%Get("action") '= "" {
 				Set item = ##class(Ens.Config.Item).%OpenId(id)
 				If '$IsObject(item) || (item.Name '= entry.item) || '$IsObject(item.Production) || (item.Production.Name '= entry.production) {
 					Set code = "gone"
@@ -1265,6 +1317,11 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 /// entry is named in words, as the re-check names it. Any other code of an item entry gives the item kinds' NOSTART.
 ClassMethod SkipReason(code As %String, id As %String, entry As %DynamicObject) As %String [ Private ]
 {
+	If entry.%Get("setting") '= "" {
+		If code = "gone" Quit entry.item_" is no longer in the production"
+		If code = "changed" Quit ##class(OcuTalon.Fix.Kind.RollbackSetting).ChangedAgain(entry.setting, entry.item)
+		Quit ##class(OcuTalon.Fix.Kind.RollbackSetting).#NOSTART
+	}
 	If entry.%Get("action") '= "" {
 		If code = "gone" Quit entry.item_" is no longer in the production"
 		If code = "changed" Quit entry.item_" changed since the dry run"

@@ -148,6 +148,27 @@ ClassMethod ResolveIncident(production As %String, incident As %String, sessionR
 	Quit {"ok": false, "outcome": "unknown_incident", "incidents": (..Entries(candidates)), "others": (busy)}
 }
 
+/// The newest incident of the session, in one of the states, that has a rollback still to undo (Fix.Run RolledBack), in match as {"ref", "production"} (the display name of the
+/// session's own watch of the production, else the row's); 1 when there is one. A read that fails gives 0.
+ClassMethod RolledBack(sessionRef As %String, states As %String, Output match As %DynamicObject) As %Boolean
+{
+	Set match = ""
+	Set rows = ##class(OcuTalon.Data.Ownership).Incidents($Get(sessionRef), .sc)
+	If $$$ISERR(sc) || '$IsObject(rows) Quit 0
+	Do ..WatchNames($Get(sessionRef), .names)
+	Set newest = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If '$ListFind($ListFromString(states), row.State) Continue
+		If ##class(OcuTalon.Fix.Run).RolledBack(row.Ref) = "" Continue
+		If '$IsObject(newest) || '(newest.FirstAt ] row.FirstAt) Set newest = row
+	}
+	If '$IsObject(newest) Quit 0
+	Set display = $Get(names(newest.Namespace, newest.Production))
+	Set match = {"ref": (newest.Ref), "production": ($Select(display '= "": display, 1: newest.Production))}
+	Quit 1
+}
+
 /// The answer for the model to the Dismiss that the owner answered: CommandCall.Answer with the owner's outcome, the production and the ref of the
 /// entry, and, when the owner's Data is a JSON object with a string state, that state and the open variant (an empty one when the Data has none).
 ClassMethod Dismissed(result As OcuTalon.Msg.CommandResult, entry As %DynamicObject) As %DynamicObject
