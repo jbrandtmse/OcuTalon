@@ -4285,3 +4285,4 @@
 2026-11-15T09:44:36Z	Run	owner_decision	via=contest_planner 1.0.11:no_QUIET_window(oMLX_off);QUIET_ON_only_if_harness_row_fails_on_load
 2026-11-15T09:59:44Z	Epic 23	runner_reported	PART_READY story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731(queued) conditions_a_b=kept 23.3=Task0_pass,dev+QA+CR_done,local_aeab8bb61 escalations=DW-1365(MED),DW-1366,DW-1370,DW-1358,footprint_Demo/Orders/Review.cls relayed=contest_planner
 2026-11-15T09:59:44Z	Epic 23	runner_resumed	lane=B task=23.3_smoke..PART_READY
+2026-11-15T10:00:10Z	Epic 23	owner_decision	via=contest_planner 23.3_pre-push: DW-1365=fix_in_23.3(restore+retry;new_text_result.settingSavedNotApplied;2_path_pin;23.2_suspend_new_DW_MED_1.0.12) DW-1366=fix_in_23.3(After_from_current_SysDefault,run-time_recheck->settingChangedSince;>45min->report) DW-1370=noted DW-1358=no_README_edit;pins_read_count_from_eval_set Review.cls=approved
