@@ -5,14 +5,16 @@
 ///     untrusted tool request is refused naming Provenance; a user tool request is the replay's, unchanged (its ItemId must be an approval Ref);
 ///   - TestRunnerForPoll: a poll gets the runner of kind decide (TriageAgent), and a user tool request still gets its row's runner;
 ///   - TestPollNoDecisionRow: through a Decide shadow, a poll's success, its timer, a runner that fails and the answer of no runner write no Decision row and no decision.recorded,
-///     and the success sends its steps to AgentSteps; the answer is a bare Reply with the runner's text, taint, steps and failure word, and the timer's is Fallback 1 with timeout;
+///     and the success sends its steps to AgentSteps; the answer is a bare Reply with the runner's text, taint, steps, failure word and HostData, and the timer's is Fallback 1 with timeout, with no HostData;
 ///   - TestPollOnlyProxy: in a poll's context the gate denies every call but call_mcp_tool with FAILED, one that a user's turn is allowed to make included;
 ///   - TestPollNoGrant: a read-only proxy call runs in a poll's context with no grant (no grant is built or consumed), once, and the mock logs one tools/call from OcuTalon's client;
 ///   - TestPollRiskyDenied: a risky tool's proxy call is denied with UNTRUSTED, never held (no approval request), and the mock gets no tools/call;
 ///   - TestSeedMcpKeys: SeedMcp keys one tool and one server into a poll's map, and refuses no context, an empty or too long key, a toolref that is not mcp: and an empty fingerprint, leaving the map as it was;
 ///   - TestPollCallDefault: the bridge's own PollCall answers invalid, with every output empty;
-///   - TestPollRunWords: Poll.Run with OcuTalon's PollCall for a source row: the answer's text and one step on success, and the word of every refusal (invalid, notreadonly, changed,
-///     unreachable, timeout, denied; arguments that are no JSON object are invalid; a tools/call that the proxy refuses after the listing is its word, never text), with no tools/call after a refusal, and no context or step buffer left behind.
+///   - TestPollWholeAnswerHash (DW-1347): Poll.Run for an answer of 50,000 characters, then one that differs only in its last character: both Replies have the same Text (the answer as cut, of the
+///     room's length, ending with the note) and an answerHash in HostData that is the SHA-256 of the whole answer, so the two differ; AnswerHash gives the SHA-256 of the UTF-8 text, a character beyond 255 included;
+///   - TestPollRunWords: Poll.Run with OcuTalon's PollCall for a source row: the answer's text and one step on success, with HostData {"answerHash": <the hash of the text>}, and the word of every refusal (invalid, notreadonly, changed,
+///     unreachable, timeout, denied; arguments that are no JSON object are invalid; a tools/call that the proxy refuses after the listing is its word, never text), with no tools/call after a refusal, a refusal's HostData empty, and no context or step buffer left behind.
 Class OcuTalon.Test.Bridge.Poll Extends OcuTalon.Test.Mcp.JobFixture
 {
 
@@ -99,6 +101,7 @@ Method TestPollNoDecisionRow()
 	Set callRequest.DecisionRef = recorder.DecisionRef
 	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 	Set reply.Text = "T-1 open"
+	Set reply.HostData = {"answerHash": (##class(OcuTalon.Test.Mcp.SourceRun).Hash("T-1 open"))}.%ToJSON()
 	Set reply.Tainted = 1
 	Set reply.ToolsRun = 1
 	Set reply.AgentStepCount = 1
@@ -107,6 +110,8 @@ Method TestPollNoDecisionRow()
 	Do $$$AssertTrue($IsObject(out) && out.%IsA("OcuTalon.Bridge.Msg.Reply"), "the answer is a Reply")
 	If $IsObject(out) Do $$$AssertEquals(out.Text _ "|" _ out.Tainted _ "|" _ out.ToolsRun _ "|" _ out.FailureText _ "|" _ out.Fallback _ "|" _ out.DecisionRef, "T-1 open|1|1||0|", "with the runner's text, taint and tools run, no failure, no fallback and no DecisionRef")
 	If $IsObject(out) Do $$$AssertEquals(##class(%DynamicAbstractObject).%FromJSON(out.Steps).%Size(), 1, "and the steps")
+	If $IsObject(out) Do $$$AssertEquals(out.HostData, reply.HostData, "and the runner's HostData, with its answerHash of 64 hex characters")
+	If $IsObject(out) Do $$$AssertTrue($Match(out.HostData, "^\{""answerHash"":""[0-9a-f]{64}""\}$"), "the answerHash is 64 lower-case hex characters")
 	Do $$$AssertEquals(..Rows(request.ItemId), 0, "no Decision row is written")
 	Do $$$AssertEquals(..SinkTypes(), "", "and no decision.recorded is fired")
 	Set steps = 0
@@ -124,6 +129,7 @@ Method TestPollNoDecisionRow()
 	Do $$$AssertStatusOK(recorder.OnResponse(timed, .out, "", "", "timer"), "(timer) the timer ends it")
 	Do $$$AssertTrue($IsObject(out) && out.%IsA("OcuTalon.Bridge.Msg.Reply"), "(timer) with a Reply")
 	If $IsObject(out) Do $$$AssertEquals(out.Fallback _ "|" _ out.FallbackReason _ "|" _ out.FailureText _ "|" _ out.Text, "1|timeout|timeout|", "(timer) of Fallback 1, FallbackReason timeout and FailureText timeout")
+	If $IsObject(out) Do $$$AssertEquals(out.HostData, "", "(timer) and no HostData")
 	Do $$$AssertEquals(..Rows(timed.ItemId) _ "|" _ ..SinkTypes() _ "|" _ $Get(^||ZzDecideCalls("send")), "0||1", "(timer) no Decision row, no event and no second send (no retry)")
 
 	// a runner that fails: an error status, and a Reply of no object
@@ -137,6 +143,7 @@ Method TestPollNoDecisionRow()
 	Do $$$AssertStatusOK(recorder.OnError(failed, .nothing, callFailed, $$$ERROR($$$GeneralError, "zz runner failure with a url http://zz.example/secret"), "reply"), "(runner error) OnError keeps the status")
 	Do $$$AssertStatusOK(recorder.OnResponse(failed, .out, callFailed, "", "reply"), "(runner error) OnResponse answers")
 	If $IsObject(out) Do $$$AssertEquals(out.FailureText _ "|" _ out.Fallback _ "|" _ out.Text, "failed|0|", "(runner error) with the word failed, never the runner's text")
+	If $IsObject(out) Do $$$AssertEquals(out.HostData, "", "(runner error) and no HostData")
 	Do $$$AssertEquals(..Rows(failed.ItemId) _ "|" _ ..SinkTypes() _ "|" _ $Get(^||ZzDecideCalls("send")), "0||1", "(runner error) no Decision row, no event, no retry and no re-send")
 
 	// the pure answer
@@ -261,6 +268,7 @@ Method TestPollRunWords()
 	Do $$$AssertEquals(steps.%Get(0).label _ "|" _ steps.%Get(0).status, "Running zz_lookup on " _ ..#SERVER _ "|ok", "the step is labelled for the tool and the server")
 	Do $$$AssertEquals(reply.Steps [ "zzargvalue", 0, "and holds no argument value")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active() _ "|" _ ##class(OcuTalon.Bridge.Adapter.StepBuffer).Active(), "0|0", "no context and no step buffer are left behind")
+	Do $$$AssertEquals(reply.HostData, {"answerHash": (##class(OcuTalon.Test.Mcp.SourceRun).Hash("The mock ran zz_lookup"))}.%ToJSON(), "its HostData is the answerHash, the SHA-256 of the answer")
 	Set requests = $ClassMethod(..#MOCK, "Requests", ..Port)
 	Set methods = ""
 	For i = 0:1:requests.%Size() - 1 {
@@ -293,12 +301,12 @@ Method TestPollRunWords()
 	Do $ClassMethod(..#MOCK, "Call", ..Port, "silent")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Poll).Run(adapter, request, "", .reply), "(call timeout) Poll.Run answers")
 	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", "The mock ran zz_lookup")
-	Do $$$AssertEquals(reply.FailureText _ "|" _ reply.Text _ "|" _ reply.ToolsRun _ "|" _ reply.AgentStepCount, "timeout||1|1", "(call timeout) a call that the proxy refuses after the listing is the word timeout, with no text, and one step")
+	Do $$$AssertEquals(reply.FailureText _ "|" _ reply.Text _ "|" _ reply.ToolsRun _ "|" _ reply.AgentStepCount _ "|" _ reply.HostData, "timeout||1|1|", "(call timeout) a call that the proxy refuses after the listing is the word timeout, with no text, one step and no HostData")
 	Set calls = ..Calls()
 	// the gate's denial: the service role loses the Use permission
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Mcp).Revoke(..#SERVER), "the Use permission is taken away")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Poll).Run(adapter, request, "", .reply), "(denied) Poll.Run answers")
-	Do $$$AssertEquals(reply.FailureText _ "|" _ reply.Text _ "|" _ reply.ToolsRun, "denied||1", "(denied) the gate's denial is the word denied")
+	Do $$$AssertEquals(reply.FailureText _ "|" _ reply.Text _ "|" _ reply.ToolsRun _ "|" _ reply.HostData, "denied||1|", "(denied) the gate's denial is the word denied, with no HostData")
 	Do $$$AssertEquals(..Calls(), calls, "(denied) and no tools/call was made")
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Mcp).Grant(..#SERVER), "the permission is given again")
 	// a refusal of the proxy after the listing: the tool changes between the seed and the call is not made here; the server stops instead
@@ -312,11 +320,40 @@ Method TestPollRunWords()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active() _ "|" _ ##class(OcuTalon.Bridge.Adapter.StepBuffer).Active(), "0|0", "no context and no step buffer are left behind")
 }
 
+/// matrix 2-3 (DW-1347, see the class description): the whole answer is hashed before the cut.
+Method TestPollWholeAnswerHash()
+{
+	Do ..Setup()
+	Set source = ..Source("Whole", "{}")
+	Set host = ##class(OcuTalon.Test.Bridge.Runner).NewRunner(..#AGENT)
+	Set adapter = host.Adapter
+	Set request = ..NewPoll(source)
+	Set long = $Translate($Justify("", 50000), " ", "a")
+	Set changed = $Extract(long, 1, 49999) _ "b"
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", long)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Poll).Run(adapter, request, "", .first), "Poll.Run answers the long answer")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", changed)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Poll).Run(adapter, request, "", .second), "Poll.Run answers the changed one")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", "The mock ran zz_lookup")
+	Set suffix = " of 50000 characters shown]"
+	Do $$$AssertEquals(first.FailureText _ "|" _ second.FailureText, "|", "neither run fails")
+	Do $$$AssertEquals(first.Text, second.Text, "both Replies hold the same Text: the answer as cut")
+	Do $$$AssertEquals($Length(first.Text), ##class(OcuTalon.Tools.Result).Room(), "of the room's length")
+	Do $$$AssertEquals($Extract(first.Text, $Length(first.Text) - $Length(suffix) + 1, $Length(first.Text)), suffix, "ending with the note")
+	Set one = ##class(%DynamicAbstractObject).%FromJSON(first.HostData).%Get("answerHash")
+	Set two = ##class(%DynamicAbstractObject).%FromJSON(second.HostData).%Get("answerHash")
+	Do $$$AssertEquals(one, ##class(OcuTalon.Test.Mcp.SourceRun).Hash(long), "the first answerHash is the hash of the whole answer")
+	Do $$$AssertEquals(two, ##class(OcuTalon.Test.Mcp.SourceRun).Hash(changed), "the second is the hash of the changed answer")
+	Do $$$AssertTrue(one '= two, "and they differ")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Proxy).AnswerHash("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "AnswerHash of abc is the SHA-256 test vector")
+	Do $$$AssertEquals(##class(OcuTalon.Mcp.Proxy).AnswerHash($Char(8364)), "c4cc90ed3d26f12d4b08a75140970a7904035c31cbb4515a83f19b9003c00d1d", "a character beyond 255 is hashed as UTF-8")
+}
+
 /// Runs the poll and asserts that it ended with the word, with no tool run, no step and no new tools/call.
 Method Refuses(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Bridge.Msg.Request, word As %String, label As %String, calls As %Integer) [ Private ]
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Poll).Run(adapter, request, "", .reply), "(" _ word _ ") Poll.Run answers")
-	Do $$$AssertEquals(reply.FailureText _ "|" _ reply.Text _ "|" _ reply.ToolsRun _ "|" _ reply.Steps, word _ "||0|", label _ ": the word " _ word _ ", no text, no tool run and no step")
+	Do $$$AssertEquals(reply.FailureText _ "|" _ reply.Text _ "|" _ reply.ToolsRun _ "|" _ reply.Steps _ "|" _ reply.HostData, word _ "||0||", label _ ": the word " _ word _ ", no text, no tool run, no step and no HostData")
 	Do $$$AssertEquals(..Calls(), calls, label _ ": the mock got no new tools/call")
 }
 

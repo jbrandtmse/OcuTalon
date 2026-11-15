@@ -13,7 +13,7 @@ Include Ensemble
 ///      else is denied, never held; no grant is needed or taken), the step audit and the proxy's own checks apply. A gate denial is the word denied, and any other exception is failed.
 ///   7. The reply: Text is the answer's value, only when the proxy noted no refusal (Context ReplayRefusal); FailureText is "" or one word, the proxy's refusal word (demo, changed, failed or
 ///      timeout), denied, or a word of POLLREASONS from step 4; Tainted is 1 when the call returned the tool's text (a refusal returns none); ToolsRun is 1 once ExecuteTool was reached; Steps, AgentStepCount and DurationMs are as in any
-///      reply. The words are for Checks alone and are never shown to a person.
+///      reply; HostData is the context's HostData when the call returned the tool's text (the proxy's `answerHash`, the hash of the whole answer, taken before the cut), else empty. The words are for Checks alone and are never shown to a person.
 /// The context, the step buffer and the manager are let go of on every path. The reply holds no argument, URL or credential. This class names no host class (AD-2): the host is reached
 /// through the McpServersClass extension only.
 Class OcuTalon.Bridge.Poll
@@ -52,6 +52,7 @@ ClassMethod Run(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Br
 		Quit $$$OK
 	}
 	Set text = ""
+	Set hostData = ""
 	Set word = ..#FAILED
 	Set executed = 0
 	Set tainted = 0
@@ -88,6 +89,7 @@ ClassMethod Run(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Br
 				Set word = $Select($ListFind($ListFromString(##class(OcuTalon.Bridge.Ext.McpServers).#POLLREASONS), refusal): refusal, 1: ..#FAILED)
 			} ElseIf $IsObject(answer) && (answer.%GetTypeOf("value") = "string") {
 				Set text = answer.value
+				Set hostData = ##class(OcuTalon.Bridge.Context).Current().HostData
 				Set word = ""
 				Set tainted = 1
 			}
@@ -110,6 +112,7 @@ ClassMethod Run(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Br
 	If buffered Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
 	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 	Set reply.Text = text
+	Set reply.HostData = hostData
 	Set reply.ToolsRun = executed
 	Set reply.Tainted = tainted
 	Set reply.Steps = steps

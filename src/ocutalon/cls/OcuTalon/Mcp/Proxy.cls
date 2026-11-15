@@ -24,7 +24,9 @@ Include Ensemble
 ///     to read.
 ///   - The poll of a source (Story 22.11) is the same run on the context of a poll (Bridge.Context IsPoll): the gate admits it as the untrusted rule allows, with the classification row
 ///     rules of any call that is not a replay (the row must be read-only or risky and its fingerprint must be the live one), and every refusal notes its reason word as a replay's does.
-///     Listed gives the poll's seed: the toolref and the live fingerprint of the tool through the prefix of Run (steps 3 to 5), with no row, no audit entry and no tools/call.
+///     Listed gives the poll's seed: the toolref and the live fingerprint of the tool through the prefix of Run (steps 3 to 5), with no row, no audit entry and no tools/call. For a poll's
+///     text answer, Noted also puts the SHA-256 of the whole text (64 lower-case hex characters, AnswerHash) in the context's HostData member ANSWERHASH, before Call answers and so before
+///     the tool-result cut, so that the poll can tell a change past the cut; no other call writes it, and a refusal writes nothing.
 ///   - It writes no row and never clears a classification: a changed tool is refused, and the next turn's map clears the row (Story 22.8). The classes that this one runs inside
 ///     the callback make no AI Hub call and run no Python (AD-6).
 Class OcuTalon.Mcp.Proxy
@@ -35,6 +37,9 @@ Parameter TOOLMAX = 128;
 
 /// The text of a part of a result that is not text.
 Parameter OMITTED = "[non-text content omitted]";
+
+/// The HostData member through which a poll's proxy call gives the hash of the whole answer (AnswerHash), taken before the tool-result cut.
+Parameter ANSWERHASH = "answerHash";
 
 /// Runs the tool of the server with the arguments (see the class description). room, when it is not empty, is the number of characters that the model step still has room for,
 /// so that the audit entry can say cut; it changes nothing else.
@@ -57,11 +62,34 @@ ClassMethod Call(server As %String, tool As %String, arguments As %DynamicObject
 }
 
 /// The answer, after noting the word of its refusal in the context when the call is the replay of an approved one (approved is the fingerprint it was approved at, not empty)
-/// or a source poll's (Context IsPoll) and the answer is a refusal (Context NoteReplayRefusal), so that the replay or the poll can tell a refusal from a result. Any other call notes nothing.
+/// or a source poll's (Context IsPoll) and the answer is a refusal (Context NoteReplayRefusal), so that the replay or the poll can tell a refusal from a result. For a poll's text answer it
+/// puts AnswerHash of the whole text in the context's HostData member ANSWERHASH, and a failure to do so is ignored. Any other call notes nothing.
 ClassMethod Noted(answer As %DynamicObject, approved As %String) As %DynamicObject [ Private ]
 {
 	If ((approved '= "") || ##class(OcuTalon.Bridge.Context).IsPoll()) && (answer.%GetTypeOf("refusal") = "string") Do ##class(OcuTalon.Bridge.Context).NoteReplayRefusal(answer.refusal)
+	If ##class(OcuTalon.Bridge.Context).IsPoll() && (answer.%GetTypeOf("text") = "string") {
+		Try {
+			Set hash = ..AnswerHash(answer.text)
+			If hash '= "" Do ##class(OcuTalon.Bridge.HostData).Put(..#ANSWERHASH, hash)
+		} Catch {
+		}
+	}
 	Quit answer
+}
+
+/// The SHA-256 of the UTF-8 text, as 64 lower-case hexadecimal characters, or "" on any error. It never throws.
+ClassMethod AnswerHash(text As %String) As %String
+{
+	Set hex = ""
+	Try {
+		Set digest = $SYSTEM.Encryption.SHAHash(256, $ZConvert(text, "O", "UTF8"))
+		For i = 1:1:$Length(digest) {
+			Set hex = hex_$ZConvert($Extract($ZHex(256 + $Ascii(digest, i)), 2, 3), "L")
+		}
+	} Catch {
+		Set hex = ""
+	}
+	Quit hex
 }
 
 /// 1 when the server is registered and the tool has a row of it: server matches the pattern of a name and has a row of OcuTalon.Mcp.Server, tool is a name of 1 to TOOLMAX

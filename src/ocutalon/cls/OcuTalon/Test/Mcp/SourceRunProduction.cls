@@ -8,6 +8,8 @@
 ///     AgentStep messages of the poll's Decide, no Decision row for the poll's ItemId and no model request in the CI mock's log; Checks records passed, the baseline and one CheckRun row, and publishes one check event (kind source, the run's time, passed, the interval, the Tick's trace header);
 ///   - TestNewResultReachesIntake (the Integration AC): a source with a baseline whose mock answer changes sends one Item that reaches Intake and produces an ItemDecision, with one decide
 ///     request in the model mock's log (the keys are pointed at the mock for the test);
+///   - TestLongAnswerChangedPastCutInProduction (DW-1347, the integration AC): a source whose mock answers 50,000 characters gets its baseline, and when the mock then answers the same text with
+///     only its last character changed, the next run sends one Item that reaches Intake, whose Text is the answer as cut (at most the room, ending with the note); the poll's Reply carries an answerHash;
 ///   - TestNoSecretLeaks: no argument value of the source, URL or wallet secret shows in a message, an event-log row, an audit entry or a step label of the run.
 /// The QA pass adds the matrix rows that only the real runtime can show (every one restarts the Checks item first, so that it runs the classes as they are now):
 ///   - TestSourceRemovedInFlight and TestServerRemovedInFlight (matrix 6): the source row, or the server with its tool rows and its sources, is removed while the poll waits on a silent mock; the answer
@@ -164,6 +166,49 @@ Method TestNewResultReachesIntake()
 		If (entry.method = "POST") && (entry.path = "/v1/messages") && (entry.scenario = "triage") Set requests = requests + 1
 	}
 	Do $$$AssertEquals(requests, 1, "the model mock's log has one decide request (the triage scenario's message)")
+}
+
+/// A change past the cut reaches Intake (see the class description).
+Method TestLongAnswerChangedPastCutInProduction()
+{
+	If '..Ready() Quit
+	Do ..FreshChecks()
+	Do ..PointRunner()
+	Set ref = ..Prepare()
+	Set long = $Translate($Justify("", 50000), " ", "a")
+	Set changed = $Extract(long, 1, 49999) _ "b"
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", long)
+	Do ..Poll(ref)
+	Do $$$AssertEquals(..Stored(ref).Result _ "|" _ ..Items(), "passed|0", "the first poll is the baseline and sends no Item")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", changed)
+	Set before = ..Stored(ref).LastRunAt
+	Do ..Poll(ref, before)
+	Do $$$AssertEquals(..Stored(ref).Result, "passed", "the second poll is passed")
+	Set end = $ZHorolog + ..#WAIT
+	While (..Decisions() < 1) && ($ZHorolog < end) {
+		Hang 0.5
+	}
+	Do $$$AssertEquals(..Items(), 1, "one Item went from Checks to Intake, though the answer changed only past the cut")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(..Session).TraceRef
+	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
+	Set item = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Checks", "Intake")
+	Do $$$AssertEquals(item.%Size(), 1, "the Item is in the session's trace")
+	If item.%Size() = 1 {
+		Set body = ##class(OcuTalon.Msg.Item).%OpenId(item.%Get(0).bodyId)
+		Set ..ItemIds = ..ItemIds _ $ListBuild(body.ItemId)
+		Set text = body.Text
+		Set suffix = " of 50000 characters shown]"
+		Do $$$AssertTrue($Length(text) '> ##class(OcuTalon.Tools.Result).Room(), "the Item's Text is at most the room: " _ $Length(text))
+		Do $$$AssertTrue((text [ "[cut by OcuTalon: ") && ($Extract(text, $Length(text) - $Length(suffix) + 1, $Length(text)) = suffix), "and ends with the cut note")
+		Do $$$AssertEquals(text, ##class(OcuTalon.Tools.Result).Return(long), "it is the answer as cut")
+	}
+	Set reported = ##class(%DynamicAbstractObject).%FromJSON(..Stored(ref).Reported)
+	Do $$$AssertEquals(reported.seen.%Size() _ "|" _ reported.seen.%Get(0) _ "|" _ reported.seen.%Get(1), "2|" _ ..Hash(long) _ "|" _ ..Hash(changed), "seen holds the hash of each whole answer")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'Decide' AND TargetConfigName = 'Checks' AND Type = 2 ORDER BY ID DESC", ..Mark)
+	Do $$$AssertTrue(rs.%Next(), "Decide answered Checks")
+	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%OpenId(rs.%GetData(1))
+	Do $$$AssertEquals(reply.HostData, {"answerHash": (..Hash(changed))}.%ToJSON(), "the poll's Reply carries the answerHash of the whole answer")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", "The mock ran zz_lookup")
 }
 
 /// No argument, URL or secret leaks (see the class description).
