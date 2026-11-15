@@ -2,7 +2,7 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'draft'
+status: 'blocked'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -355,5 +355,18 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: EmailOut can't carry the partner warning — `src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls:74` (`FIXKIND = "email"`) with `Authorised` :514, `ApprovedRecipients` :446 and `Approved` :414: a system send is authorised only for an executing fix row of FixKind `email` whose FixParameters `recipients` is an array of addresses (and subject/text from FixParameters); a `partner_warning` row (FixKind `partner_warning`, parameters `text,to`, `to` = contact ids) is refused and nothing is sent. The rule is AD-14's EmailOut contract (spine line 542) and Lane B's file, so carrying it is an AD-14 amendment plus a Lane B change.
+
+Re-plan pass (2026-11-15, Planner 23.13 GATE, veto 2 changed). Feasibility check of the SENT path, before any re-plan; nothing below the intent block was changed, and no kept-draft-only version was planned.
+
+Evidence (the delivered path is Story 22.7's `email` kind + Story 21.6/21.13's EmailOut; 21.11 gave it its channel texts):
+1. **Bound to another kind.** `Channel/Email/Out.cls:73-74` `FIXKIND = "email"` ("the contract of Story 22.7's fix kind"). `Authorised` (:511-514), `ApprovedRecipients` (:446) and `Approved` (:414) each quit unless `row.Kind = "fix"`, `row.State = "executing"` and `row.FixKind = "email"`. A partner-warning send answers `refused` (recipients) and sends nothing.
+2. **Another recipient model.** `Out.cls:76` `FIXRECIPIENTS = "recipients"`; :447 and :517 read an array of addresses from the row's `FixParameters`. `partner_warning` has `PARAMETERS = "text,to"` (`Fix/Kind/PartnerWarning.cls:20`; AD-16, Story 36.1 bullet), and the approved 23.13 plan (veto 3) makes `to` contact ids; the addresses are only in the row's `DryRun`, resolved by the production job. No `FixParameters` member holds an address list EmailOut accepts.
+3. **Another approval shape.** `Out.cls:415-428` takes the subject and text from `FixParameters` `subject`/`text`; `partner_warning` has no `subject` (the executor renders `partner.subject` per recipient, `Fix/Executor.cls:514-532`). The executor's email branch is hard-wired too: `Fix/Executor.cls:286-289` (`SendEmail` uses `Fix.Kind.Email` only) and :345 (`Refusal(row, 1)` takes up only FixKind `email` with no incident); a partner warning has an incident and runs the contact branch (:431-444, `Deliver` to SimMailboxOut).
+4. **It is an AD and another lane's contract.** Spine AD-14 (line 542): EmailOut's origin `system` sends "only with the `ApprovalRef` of an executing approval request of kind `fix` and `FixKind` `email` whose `FixParameters` member `recipients` (an array of addresses) equals the command's recipients". As written it contradicts the new AD-16 bullet (line 621, "SENT once, through Story 21.11's EmailOut path"). `Channel/Email/Out.cls` is Lane B's (Epic 21/35.2), outside this spec's edit rights.
+5. **Texts.** 21.11's keys (`Msg/Catalog/Core.cls:685-699`): `fix.emailRequest` "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once." is a standalone (no-incident) request and does not fit; `fix.emailSent` "The email was sent." and `fix.emailNotSent` "{reason}" would fit a partner result, but only `Core/BridgeSink.cls` (:42-47, :124-128) sends them, for no-incident `email` fixes, not `IncidentManager`.
+
+What does carry over unchanged once the binding is widened: From = the connected mailbox (`email.address`), the claim by `ApprovalRef` under a lock with a `Data.Delivery` row (one approval sends at most once), refusal on the online demo, and the counts-only logging.
+
+Recommended amendment (for the Planner/lead): amend AD-14 so that EmailOut's system send accepts any executing fix row whose kind declares a mail hook, through one per-kind method on `Fix.Kind` (for example `Mail(row, .recipients, .subject, .text)`): `Fix.Kind.Email` returns today's values from `FixParameters`; `Fix.Kind.PartnerWarning` resolves the `to` ids at send time through `Fix.PartnerContacts.For` (the approved ids only; a removed contact is skipped and reported) and renders `partner.subject`. That is a Lane B change to `Channel/Email/Out.cls` (`Authorised`, `ApprovedRecipients`, `Approved`) plus a Lane A executor branch for contact plans when a mailbox is connected. Either rule it into 23.13 (cross-lane edit) or give it to a Lane B story that 23.13 waits for. Then re-dispatch this spec (`status: draft`) for the re-plan of the changed part.
