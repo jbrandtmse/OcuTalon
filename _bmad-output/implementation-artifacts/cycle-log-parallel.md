@@ -4340,3 +4340,4 @@
 2026-11-15T16:29:46Z	Epic 25	merged	story=25.6 merge=7622f6df8 pins=pass web=pass lint=pass
 2026-11-15T16:29:55Z	Run	planner_notified	25.6_merged DW-1205=2nd_red_real(owner_proposal:laneC_after_0.37_push_and_23.3_merge) DW-1382=new_flake_cand(ci-31,not_port)
 2026-11-15T16:30:49Z	Run	owner_decision	via=contest_planner DW-1205=REAL,owner=lane_C(after_0.37_push_and_23.3_merge;investigate_with_DW-494) DW-1382=noted(new_runners_1/66_vs_old_1/15;report_runner_names)
+2026-11-15T16:45:19Z	Epic 0	runner_status	0.37 pushed=c8f7a3f39 runs=43737201539,43737201541(pending) planner_notified="0.37 PUSHED c8f7a3f39" state=held_merge(A/B)
