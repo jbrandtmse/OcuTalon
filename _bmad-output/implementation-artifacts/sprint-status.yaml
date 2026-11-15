@@ -368,6 +368,7 @@ development_status:
   23-10-partner-notice-and-summary-polish-from-the-1-0-7-demo-pass: done
   23-11-say-in-a-partner-notice-only-how-the-incident-ended: done
   23-12-take-a-rejected-request-off-the-status-rail-at-once: done
+  23-13-partner-warnings-go-to-the-settings-contacts: backlog
   epic-23-retrospective: optional
 
   epic-24: backlog
