@@ -222,6 +222,7 @@ On a local or IPM install, an admin can add MCP servers, and their tools become 
 - Every call passes the gate, an approval request when needed (showing the tool, its server and each of its inputs on a line of its own, through the redactor, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry. A request too long to show in full on Telegram has no Approve button there.
 - Results are untrusted content.
 - Removing a server cancels its pending approval requests.
+- An admin can make a Read-only tool a source, which OcuTalon calls on a schedule through the same gate, audit entry and agent step. Its new results reach OcuTalon's attention decisions only as untrusted items. A source whose tool is no longer Read-only makes no call, and a source that wasn't checked never counts as passed in the digest.
 
 OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection.
 

@@ -4290,3 +4290,22 @@
 2026-11-15T10:06:18Z	Epic 21	owner_decision	via=contest_planner DW-1372=confirmed(no_AD-31_edit) DW-1371=follow-up_1.0.12
 2026-11-15T10:12:49Z	Epic 23	ci_green_verified	story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731
 2026-11-15T10:12:49Z	Epic 23	merge_enqueued	story=GUIDE-T7 (1.0.11 required)
+2026-11-15T10:14:48Z	Epic 23	merged	story=GUIDE-T7 merge=6487b4cc6 pins=pass web=pass
+2026-11-15T10:15:27Z	Epic 21	runner_status	DW-1347 pushed=30d487a32(OCT-epic21-dw1347) runs=43703149281,43703149107(pending) fresh=10/10
+2026-11-15T12:30:49Z	Epic 21	runner_reported	PART_READY story=DW-1347 head=30d487a32 runs=43703149281(att2;att1=DW-306),43703149107
+2026-11-15T12:30:49Z	Epic 21	ci_green_verified	head=30d487a32
+2026-11-15T12:30:49Z	Epic 21	amendments_verified	AD-6+AD-18B(spine);AD-31_unchanged(DW-1372_confirmed)
+2026-11-15T12:30:49Z	Epic 21	merge_enqueued	story=DW-1347 (1.0.11 required)
+2026-11-15T12:37:35Z	Epic 21	merged	story=DW-1347 merge=999138505 pins=pass
+2026-11-15T12:37:48Z	Epic 21	runner_resumed	lane=C task=DW-1371(test_only,1.0.12) branch=OCT-epic21-dw1371_from_999138505 next=23.2_suspend_DW_after_23.3_merges
+2026-11-15T13:31:12Z	Epic 22	ci_green_verified	story=22.12 head=70c05d0a9 runs=43702792429,43702792409(one_DW-626_rerun) note=lane_D_busy_on_21.11;orchestrator_verified_gate_directly
+2026-11-15T13:31:12Z	Epic 22	merge_enqueued	story=22.12 (1.0.11 required)
+2026-11-15T13:42:14Z	Epic 22	merged	story=22.12 merge=adbb0ace9 pins=pass(security-overview_not_local:stale_root_throwaway_lock_2026-11-12_project_ocutalon-class-local-1794496936-70740,exited;left_untouched)
+2026-11-15T13:43:02Z	Run	stale_lock_removed	via=contest_planner_ruling project=ocutalon-class-local-1794496936-70740-1794496936-70740(container_exited_2d,pid_70740_gone) removed=container,2_volumes,network,root_throwaway-iris.lock touched_nothing_else
+2026-11-15T13:46:05Z	Run	local_check	test-security-overview@adbb0ace9=PASS(regenerated_sections_equal) stack=torn_down lock=released
+2026-11-15T14:09:29Z	Epic 23	runner_ended	reason=clarification 23.3=pushed_5445b0e49(runs_43720395242,43720395202_queued;DW-1365/1366_fixed) 23.4_gate=PLANNER_REPORT+PUBLIC_TEXT(d45e069c2_local) new=DW-1373(23.2_suspend,MED,1.0.12),DW-1376,DW-1378,DW-1380 note=lane_B_rewrote_unpushed_local_commits(filter-branch,one_spec_file;pushed_history_untouched) relayed=contest_planner
+2026-11-15T14:10:15Z	Epic 23	owner_decision	via=contest_planner 23.4=APPROVED(1.0.12;person_never_in_trace/audit/state/event/logs_pin;dev2_changed:new_Settings_line,no_release_check;DW-1380_accepted+AC_amend) DW-1376=follow-up_text_1.0.12 DW-1378=follow-up_1.0.12(band_never_contradicts_chat) DW-1373=1.0.12 filter-branch=accepted file=prompts/story-234-rulings-20261115.md
+2026-11-15T14:42:38Z	Run	ci_priority	via=contest_planner cancelled=none(all_queued_runs_have_live_self-hosted_jobs;standing_rule) asked_planner=keep_rule_or_override lanes: A=push_25.6_only_at_PART_READY B=no_1.0.12_pushes C=no_further_pushes
+2026-11-15T14:42:46Z	Run	owner_decision	via=contest_planner DW-1371_ci=let_finish adbb0ace9_ci_43720376656=cancel_after_21.11_merge_push_if_running(EXPLICIT_OVERRIDE_of_DW-1335_rule,this_run_only;report_CANCELLED_to_Planner) rule_stands_otherwise
+2026-11-15T14:52:44Z	Epic 21	ci_green_verified	story=21.11(lane_D_exception) head=ccf1a8358 runs=43718466454,43718466745 note=merged_on_green_per_Planner(lane_D_report_pending)
+2026-11-15T14:52:44Z	Epic 21	merge_enqueued	story=21.11 (1.0.11 required, last)
