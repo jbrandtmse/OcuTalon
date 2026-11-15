@@ -4,109 +4,105 @@
 
 ## Goal
 
-Step 6, Lane A side. A PDF or Word file sent from the web chat or Telegram becomes an item OcuTalon answers about as untrusted data. A photo gets a model caption that is saved as a memory. Admins get approver roles (one for every kind of risky action, one per kind) and a viewer role, and the bridge enforces them wherever an answer arrives. Story 37.1 (formerly 26.1, done) already fixed the names and contracts and left stubs. This epic replaces those stubs with working code that Lane B's Stories 25.4 to 25.6 call.
+Step 6, Lane A side. A PDF or Word file sent from the web chat or Telegram becomes an item OcuTalon answers about, always as untrusted data. A photo gets a model caption that is kept as a memory. That part is done: Story 26.3 is merged. Admins get approver roles (one for every risky kind, one per kind) and a viewer role, and the bridge enforces them wherever an answer arrives. Story 37.1 fixed the names and left stubs. This epic replaces the stubs with working code that Lane B's Epic 25 stories call. Story 26.2 is next.
 
 ## Stories
 
 - Story 26.2: Files sent from the chat or Telegram become items
-- Story 26.3: Caption a photo and keep the caption as a memory
+- Story 26.3: Caption a photo and keep the caption as a memory (done)
 - Story 26.4: Approver roles for all risky actions or one kind, and a viewer role
 
 ## Requirements & Constraints
 
-- Text extracted from a sent file reaches the model as quoted, untrusted data, never as the user's own words. The turn is tainted and only read-only tools run in it. An instruction inside a file (for example "approve all pending requests") changes nothing.
-- A file that can't be read gets no model request. Its failure reason goes back for the reply.
-- Telegram documents and photos: check the size Telegram reports before downloading, store through the file-store call, send the same kind of Item, and never log the download URL (it holds the bot token). Runners without a bot use the CI Telegram mock (its `getFile` and file download exist).
-- Photo captions:
-  - The first test, on build 154, proves that `%AI.Agent.ChatWithContent` with `%AI.LLM.ContentPart.ImageData` works on the shipped provider path, with no sampling parameters and an output cap of at least 4,000 tokens. If it doesn't work, report it, and photos get the unreadable-file reply until it does.
-  - An unusable reply (refusal, empty, cut off, error, timeout or over budget) takes the fallback route, saves no memory and tells the user the fallback reason.
-  - The image never appears in a production message body, an agent step or a log. Visual Trace shows the caption request as an agent step with a summary.
-  - A CI mock scenario under `ci/mock/scenarios/A/` must accept image content. The end-to-end test asks "what was in the photo" and the answer says it used a memory.
-- Roles:
-  - Approver and viewer roles are created at both install and upgrade.
+- **Untrusted files.** Text extracted from a sent file reaches the model as quoted, untrusted data, never as the user's own words. The turn is tainted, so only read-only tools run. An instruction inside a file, such as "approve all pending requests", changes nothing.
+- **Unreadable files.** A file that can't be read gets no model request. The failure and its reason go back for the reply.
+- **Telegram documents and photos:**
+  - `TelegramIn` checks the size Telegram reports before downloading.
+  - It stores the file through the file-store call, channel `telegram`, and sends the same kind of untrusted Item the web route sends.
+  - It never logs the download URL, which holds the bot token.
+  - Runners without a bot use the CI Telegram mock: `getFile` and `/file/bot<token>/<path>`, where the token is logged by length only. A real bot is used only in the Contest Planner's hands-on pass.
+  - Telegram never runs on the online demo, and sending files is off there.
+- **Limits and refusal text.** The limit is 10 MB. Refusals happen before storing, using the file store's codes and text. Release checks belong to the Contest Planner and never park a story on the owner.
+- **Owed by 26.2, because `READSFILES` makes photos visible:**
+  - DW-1312: the security overview adds "A chat turn with a photo also carries that photo." to the model-request bullet, and says photos never appear in the trace while captions do, like chat replies.
+  - DW-1313: on a 409 `pin_photo`, the memory card shows "This memory came from a photo, so it can't be pinned." instead of the over-cap notice, in a lazy chunk. This may fall to 25.6 if that story owns the card change.
+  - DW-1321: a photo turn's decide (triage) request gets Render's caption ask but no image. Give the photo ask only to the turn request, and give the decide request a neutral line.
+  - Overflow, also routed here: DW-894 (batch the per-passage embedding in `Docs.Store.Write`) and DW-929 (lift `Test.Docs.Turns`' private helpers into one shared `Test.Docs` fixture).
+- **Story 26.4 roles:**
+  - The roles are created at install and at upgrade.
   - A refusal changes nothing.
   - An allowed answer's audit entry names the approver's IRIS user, role, session and channel.
   - The security overview lists the new roles and what each may do.
-  - Tests in `OcuTalon.Test.Bridge` cover each kind with four users: another kind's role, that kind's role, `OcuTalonApprover`, and a viewer.
-- Release checks are the Contest Planner's (demo host and hands-on pass). They never park a story on the owner.
+  - Tests in `OcuTalon.Test.Bridge` answer each kind as four users: another kind's role, that kind's role, `OcuTalonApprover`, and a viewer.
+  - The role-assignment method refuses `OcuTalonAdmin` and `%All`, with a test for each refusal.
 
 ## Technical Decisions
 
-**Read result (`OcuTalon.Agent.Input.ReadFile(item, Output result) As %Status`, now a stub answering 5003 and `{}`).**
-- It opens the file through `Core.Files.Open(item.FileRef, item.SessionRef)`. Story 26.2 builds it for PDF and .docx, using Story 19.6's `Docs.Extract`. Story 26.3 builds it for JPEG and PNG.
-- The result is built by code and never holds file bytes or extracted text. Fields:
-  - `fileRef`
-  - `kind`: `document` or `photo`
-  - `read`: 1 or 0
-  - when `read` is 0: `reason`, one of `Docs.Extract`'s codes (a photo that can't be sent is `failed`), and `text` = `Docs.Extract.Failure(reason)`
-  - when a document was read: `chars`, `cut` (1 when `MAXTEXT` cut the text) and `addable` 1
-  - when a photo was read: `addable` 0
-- Story 26.2 sets the parameter `READSFILES = 1` on `Agent.Input` in the same change. That flips `Core.Files.Readable()` and `/v1/state`'s `filesReadable`. Until then, a file turn gets `Core.Files.NoReaderText`.
-- Lane B's `Conversation` (Story 25.6) calls `ReadFile` before sending the turn's requests. When `read` is 0 it ends the turn with `text`. Otherwise it runs the turn as untrusted.
-- Extracted text may enter the turn's `Input` the way chat text does (26.2 stays out of the runner). Read the file once in the same job for both `ReadFile` and `Render`, or read it again. `Docs.Extract` can run for up to 45 s in Conversation's job, which matters for pool size.
-- Python work never runs inside a callback. It goes to a `%SYSTEM.WorkMgr` worker.
+**The read result: `OcuTalon.Agent.Input.ReadFile(item, Output result) As %Status`.**
+- It opens the file through `Core.Files.Open(item.FileRef, item.SessionRef)`. Story 26.3 built the photo branch, and the PDF and .docx branch is still the 5003 stub, which 26.2 replaces.
+- Code builds the result, never the model. It holds no file bytes and no extracted text. Fields:
+  - `fileRef`, `kind` (`document` or `photo`), `read` (1 or 0)
+  - read 0: `reason` (a `Docs.Extract` code) and `text` = `Docs.Extract.Failure(reason)`, "I couldn't read that file: <reason>."
+  - a document that was read: `chars`, `cut` (1 when `MAXTEXT` cut the text), `addable` 1
+  - a photo that was read: `addable` 0
+- In the same change, 26.2 sets `Parameter READSFILES = 1` on `Agent.Input`. That turns on `Core.Files.Readable()` and `/v1/state`'s `filesReadable`, which shows the paperclip. From then on, `Conversation` runs a file turn through `Decide` as untrusted instead of answering `NoReaderText`.
+- Calling `ReadFile` from `Conversation`, and ending the turn with `text` when `read` is 0, belong to Lane B's Story 25.6. The 26.2 spec must settle how its "no model request for an unreadable file" criterion holds before then.
+- Extracted text may enter the turn's `Input` the way chat text does; 26.2 does not move into the runner. Read the file once in the same job for both `ReadFile` and `Render`, or read it twice. Extraction is never stored. Add to documents re-extracts from the `fileRef` through the documents route (25.6).
+- `Docs.Extract.Read`:
+  - Runs in the one-worker `OcuTalon.Docs.Extractor` WorkMgr category. Python never runs in a caller's process or inside a callback.
+  - Takes one read at a time under a lock and never throws.
+  - Answers `{ok, text, cut, markers}`, or `{ok:0, reason}` with one of these codes: `too_large`, `contents_too_large`, `wrong_type`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `timed_out`, `failed`.
+  - Limits: `MAXBYTES` 10,485,760, `MAXTEXT` 200,000 characters, cut at a line break.
+  - The bytes' signature picks the parser.
+  - A wait of up to about 45 s in `Conversation`'s job matters for pool size.
 
-**Photo-caption request.**
-- The photo's turn is the caption request: a `turn` request of provenance `untrusted` through `Decide` to `ChatAgent`. There is no new request kind.
-- It runs in a throwaway AI session that is never linked to the conversation, with read-only tools at most. Decision, usage and cost are recorded as for any turn.
-- New extension class (AD-31):
-  - The base is `OcuTalon.Bridge.Ext.Content`. The setting `ContentClass` is on `Decide`, category Extensions, read through `Ext.Accessor.ClassFor` (add the pair to `BASES`). OcuTalon's class is `OcuTalon.Agent.Content`. The bridge alone sends no content.
-  - `Part(request, Output mediaType, Output data As %Stream.Object)`:
-    - Runs in the runner's job before the model call, never inside a callback. It defaults to no content.
-    - OcuTalon goes from the request's `ItemId` and `OwnerRef` to the `SentFile`, then through `Core.Files.Open`.
-    - When it answers content, the runner calls `ChatWithContent` with the text part and one `ImageData` part instead of `Chat`. Every runner rule still applies: gate, step audit policy, session lock, usage record, and no `%AI` or Python calls from callbacks.
-  - `Accepted(request, text, Output hostData)`:
-    - `Decide` calls it in its own job after it accepts a usable `turn` reply.
-    - OcuTalon saves the reply text (at most 2,000 characters) as a memory through `SaveMemory` to `MemoryOps`, with the photo's `ItemId`, origin `system` (so recalling it taints a turn) and `Source` `learned`.
-    - It answers `{"caption": {memoryRef, text}}`. `Decide` merges that into the Reply's `HostData`. The member is absent when nothing was saved.
+**Telegram.**
+- `TelegramIn` is `OcuTalon.Channel.Telegram.In` (Lane A). Its calls use `%Net.HttpRequest`.
+- The token comes from the environment and never appears in a setting, a `%Status` text or a log.
+- Messages carry `SessionRef`, never a chat id. Chat ids never reach the audit writer, logs or step summaries.
+- File store: `Core.Files.Store(sessionRef, channel, name, content, .file, .sc)`, then `SetItem(item, file)`. The Item holds `FileRef`, `FileName`, `FileMediaType` and `FileSize`, never the bytes. Refusal text comes from `RefusalText(code, size)`.
 
-**Approver kinds (AD-11).**
-- `ApprovalRequest` gains `ApproverKind`, appended to the class (AD-5).
+**Photos (done in 26.3; keep intact).**
+- `OcuTalon.Bridge.Ext.Content` is read through the `ContentClass` setting on `Decide`, and OcuTalon's class is `OcuTalon.Agent.Content`.
+- `Part` runs only for an untrusted `turn` request, in a throwaway session. The image goes out with `ChatWithContent` and one `ImageData` part, and never appears in a message body, a step or a log.
+- `Accepted` is called once, after the decision row. It saves the caption (at most 2,000 characters) through `SaveMemory` with origin `photo`, and answers `{"caption": {memoryRef, text}}`.
+- Origin `photo` is listed in `Commands`' `FEATUREORIGINS`, not in `Msg.Enum`. Recalling the memory taints a turn, and pinning it answers 409 `pin_photo` (FR-73 as amended).
+
+**Approver kinds and roles (26.4).**
+- `ApprovalRequest` gains `ApproverKind`, appended to the class.
 - How `Raise` sets it:
-  - From the caller when given: lower-case letters and `_`, at most 32 characters, never checked against a host list.
-  - Otherwise `tool` for a `tool_call`, and the `FixKind` for a `fix`.
-  - OcuTalon's callers pass the fix kind's `APPROVERKIND` (default its `NAME`): `repair_resend` is `resend`, `reroute` is `reroute`, `suspend_item` and `resume_item` are `suspend`, `rollback_setting` is `rollback`, `partner_warning` is `partner`, `email` is `email`.
-- `setting` rows (persona proposals) get no `ApproverKind` and keep `RequiredRole` `OcuTalonUser`. Do it without putting a role literal in the bridge. There is no `OcuTalonApprover_setting`.
-- Who may answer a row that has an `ApproverKind` and whose `RequiredRole` names an existing resource: a user for whom `$SYSTEM.Security.CheckUserPermission(user, RequiredRole, "U")` or `CheckUserPermission(user, RequiredRole_"_"_ApproverKind, "U")` is 1. Every other row keeps the recursed role-set rule.
-- `Answer` applies the rule under the row's lock and returns `not_allowed` with the kind. The audit `role` is `RequiredRole` when the user passes that check, otherwise the kind's role.
-- The take-over: in the same change, the default of `Decide`'s `ApprovalRole` becomes `OcuTalonApprover`. A value set on the item stays. Rows raised before the upgrade keep `OcuTalonUser` until they expire.
-- `Approval.MayAnswer(ref, irisUser, Output kind) As %Boolean`:
-  - Returns 1 when the user may answer. Otherwise 0, with `kind` = the row's `ApproverKind`, or empty when no row has that Ref.
-  - It reads without the lock, ignores state and expiry, and writes and fires nothing.
-
-**Roles (AD-24).**
+  - From the caller, when given: lower-case letters and `_`, at most 32 characters.
+  - Otherwise `tool` for a tool call, or the fix's `APPROVERKIND`: resend, reroute, suspend (suspend and resume), rollback, partner, email.
+  - `setting` rows get no kind and keep `OcuTalonUser`, with no role literal in the bridge.
+- The rule: a user may answer if `CheckUserPermission(user, RequiredRole, "U")` is 1, or the same check on `RequiredRole_"_"_ApproverKind`.
+  - `Answer` applies it under the row's lock and returns `not_allowed` with the kind.
+  - The audit `role` is the role that passed.
+  - `Decide`'s `ApprovalRole` default becomes `OcuTalonApprover`. A value set on the item stays.
+- `MayAnswer(ref, irisUser, Output kind)` reads without the lock, ignores state, and writes nothing.
 - The installer creates:
   - `OcuTalonApprover`
-  - one `OcuTalonApprover_<kind>` for each kind: `resend`, `reroute`, `suspend`, `rollback`, `partner`, `email`, `tool`
-  - `OcuTalonViewer`
-  - one resource with the same name for each approver role, held (Use) only by that role
-- Grants are composed from the areas' `Grants()`, inside AD-24's limits. `%Ens_ProductionConfig:W` stays Story 23.3's exception and is left out on the online demo.
-- `OcuTalonViewer` holds only the R grants declared for `OcuTalonUser`; measure what the web apps need. Lane B's post-sign-in check admits it by name.
-- Accounts:
-  - Add `OcuTalonApprover` to `Install.Step.Users` `DEMOROLES` (online demo account; the owning-session rule still applies).
-  - The README account gains `OcuTalonApprover` at upgrade.
-  - Pin both grants in tests.
-  - The read-only, service, Workflow and SQL-watch users never hold an approver or viewer role.
-- `Install.Step.Roles.Assign(userName, role, grant, Output changed)`:
-  - Runs in `%SYS` in the caller's job (needs `%Admin_Secure:USE`) and is admin-only.
-  - Works from an allowlist of exactly `OcuTalonApprover` and `OcuTalonViewer`.
-  - Refuses every other role (per-kind roles, other OcuTalon roles, any `%` role including `%All`) and every installer-managed account. Each refusal is a named error and changes nothing.
-  - Writes an IRIS audit entry for each grant and each removal.
-  - Refuses on the online demo.
-  - `changed` is 0 when nothing changed.
-- `Roles.Holders(Output users)` lists `{user, roles}`, sorted, with the same admin-only and online-demo guards.
-- An IRIS user name other than the acting user's is never in a traced message.
+  - `OcuTalonApprover_<kind>` for each of the seven kinds
+  - `OcuTalonViewer`, which holds only `OcuTalonUser`'s R grants
+  - one same-named resource for each approver role
+- Grants are composed from each area's `Grants()`, within AD-24's limits.
+- The demo account (`DEMOROLES`) and the README account gain `OcuTalonApprover`.
+- `Install.Step.Roles.Assign`:
+  - Runs in `%SYS`, admin-only.
+  - Allowlist is exactly `OcuTalonApprover` and `OcuTalonViewer`. Every other role and every installer-managed account is refused with a named error.
+  - Writes one IRIS audit entry per change.
+  - Refused on the online demo.
+- `Holders` has the same guards.
+- No IRIS user name other than the acting user's appears in a traced message.
 
 ## UX & Interaction Patterns
 
-- The reply to a photo carries the caption and the memory reference, so the page shows a "Saved to memory" chip.
-- When Telegram returns `not_allowed`, `TelegramIn` shows the catalog sentence for the kind (fixture: "Only an approver for resends can answer this request.") as an alert that stays until dismissed. Nothing is answered.
+- Over the limit: "That file is 14 MB; the limit is 10 MB." When reading fails: "I couldn't read that file: {reason}."
+- A document's reply offers **Add to documents**. A photo's reply shows a "Saved to memory" chip. Lane B renders both in 25.6, and 25.6 also adds the guide line.
+- 26.4: when Telegram returns `not_allowed`, `TelegramIn` shows the catalog sentence for the kind (fixture: "Only an approver for resends can answer this request.") as an alert that stays until dismissed.
 
 ## Cross-Story Dependencies
 
-- Epic 37 is done: names, the spine and stubs are in place.
-- Epic 19 is done: `Docs.Extract`, the save-memory command and memory.
-- Story 25.3 is on this branch: `Core.Files`, the `Item` file fields and the mock's `getFile`. Stories 25.4 to 25.6 are still backlog.
-- Story 26.4's Telegram `not_allowed` test needs Story 25.5 merged.
-- Story 26.4 also needs Epics 14 (security overview) and 23 (step 5's approval kinds) merged. Epic 23 is still in progress.
-- Stories 26.2 and 26.3 both build `ReadFile`: 26.2 for documents (and `READSFILES`), 26.3 for photos.
+- Story 26.2 waits only on Stories 25.3, 25.4 and 25.5, not all of Epic 25; this breaks the cycle with 25.6. All three are merged: the file store with `SentFile` and the mock's `getFile`, the Roles section, and `AnswersIn`'s role check through `Live.Payload.Approval.Answerable`.
+- Story 25.6 (backlog) consumes 26.2's read path, `ReadFile` together with `READSFILES`.
+- Epics 19, 37 and 14 are done.
+- Story 26.4 also needs Epic 23 merged, which is still in progress. Until 26.4 lands, the `kind` in `AnswersIn`'s `not_allowed` is empty, and 25.4's Settings calls the `Assign`/`Holders` stubs.

@@ -8,6 +8,8 @@
 /// noun of the days, as the catalog test allows a noun under that name only.
 /// The step 4 texts (Story 35.1; EXPERIENCE, MCP servers and tools (step 4)) are the five keys under mcp. and digest.notCheckedStopped, the coverage line of a
 /// source that stopped polling; the story that produces each one sends it.
+/// The files.* keys (Story 26.2; EXPERIENCE Step 6, Send a file) are the replies that TelegramIn sends a paired chat for a document or photo as pairing Notifications: files.tooLarge,
+/// files.unreadable and files.offOnDemo (the texts of Core.Files that the web chat shows) and files.noReader (Core.Files TEXTNOREADER, while no reader is on).
 /// The XData block Entries has the shape that OcuTalon.Msg.Catalog.Core describes, and OcuTalon.Msg.Catalog is the only
 /// renderer. Each key prefix lives in one catalog class.
 Class OcuTalon.Msg.Catalog.Watch
@@ -1097,6 +1099,32 @@ XData Entries [ MimeType = application/json ]
    "slot": "count",
    "text": "The {itemName} queue in the {production} production had 1 message waiting at {time}, since {oldestAt}.\nWhy now: you asked me to watch queue backlogs."
   }
+ },
+ "files.tooLarge": {
+  "text": "That file is {size}; the limit is 10 MB.",
+  "slots": {
+   "size": "text"
+  },
+  "source": "EXPERIENCE Step 6 (Send a file) and the Story 25.3 row of the same text; sent to a paired Telegram chat by Story 26.2"
+ },
+ "files.unreadable": {
+  "text": "I couldn't read that file: {reason}.",
+  "slots": {
+   "reason": "text"
+  },
+  "source": "EXPERIENCE Step 6 (Send a file) and the Story 25.3 row of the same text; sent to a paired Telegram chat by Story 26.2"
+ },
+ "files.offOnDemo": {
+  "text": "Sending files is off on the online demo. It works on your own install.",
+  "slots": {},
+  "source": "EXPERIENCE Step 6 (Send a file) and the Story 25.3 row of the same text (Core.Files TEXTOFFONDEMO); sent to a paired Telegram chat by Story 26.2"
+ },
+ "files.noReader": {
+  "text": "I got {name}, but I can't read files yet.",
+  "slots": {
+   "name": "text"
+  },
+  "source": "Story 25.3 (Core.Files TEXTNOREADER); sent to a paired Telegram chat by Story 26.2 while no reader is on (Planner ruling H2, 2026-11-14)"
  }
 }
 }

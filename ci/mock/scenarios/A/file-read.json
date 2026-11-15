@@ -1,0 +1,12 @@
+{
+  "name": "file-read",
+  "match": {
+    "marker": "file-read"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "The CI mock read the file you sent."
+    }
+  ]
+}

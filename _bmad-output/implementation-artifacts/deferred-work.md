@@ -5593,6 +5593,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T23:30:13Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7's PDF and Word files are the large ones: batch or parallel embedding there
 - 2026-11-08T06:10:59Z status=routed owner=burndown by=spec_gate note=declined_by_19.7_plan:the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop,which_Story_19.5_rewrites;one_Embedder_work_item_per_Index_batch_after_19.5(the_Epic_19_part_2_burn-down)
 - 2026-11-08T12:12:34Z owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=burndown note=overflow(part_2_remainder_3_under_cap_8,no_repeat_occurrences,no_charter):the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop(one_Embedder_work_item_per_Index_batch);26.2_brings_files_sent_from_the_chat_into_the_documents_path,where_large_PDF/Word_files_make_the_wait_visible
+- 2026-11-14T14:52:54Z owner=burndown by=spec_gate note=26.2 indexes nothing; the seam is Docs.Store.Write (Add to documents is 25.6); residual unchanged: one Embedder round trip per passage
 
 ### DW-895: Two Lane B comments are stale now that DocumentOps is built: Web.Documents' OWNER parameter says DocumentOps is disabled until Story 19.4, and Test.Web.DocumentsApi's comment at :537
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -5687,6 +5688,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Rule 2: Files.cls:107-307 repeats Turns.cls:99-215,405; the spec forces the copy (Turns.cls is Story 19.5's file, the helpers are Private) and names the Epic 19 burn-down to lift them
 - 2026-11-08T09:42:33Z status=routed owner=burndown by=cr note=spec-forced copy; unify after 19.5 merges: lift the helpers into one Test.Docs fixture both classes extend
 - 2026-11-08T12:12:34Z owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=burndown note=overflow:lift_Test.Docs.Turns'_private_turn_helpers(DropDocuments,Ready,Turn,Data,ToolResult,AssertSteps,SameJob,Holds)_into_one_Test.Docs_fixture_that_Turns_and_Files_extend;26.2_adds_the_next_documents_turn_tests
+- 2026-11-14T14:52:54Z owner=burndown by=spec_gate note=26.2 adds Test.Agent.SentFiles and does not touch Test.Docs.Files/Turns; residual: unify the copied turn helpers
 
 ### DW-930: _BoundedObject passes flush() and copy() through to the real zlib object unbounded
 - source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
@@ -6788,6 +6790,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T02:34:04Z occurrence=21-6-send-email-over-smtp
 - 2026-11-13T08:11:13Z occurrence=36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql by=runner note=OCT-epic36 20e3655a ci run 43378472985 job 131730433698 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges (run_again: an event row watch.progress appeared); GuideApi not in the 36.x diff; one rerun
 - 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-6) lane-b@rest Test.Web.GuideApi TestOnlyTheMarkerChanges+TestRunAgain; same code green on OCT-epic0d 81b65a6a (43445650699); not rerun (superseded by 4aa34ca4, green by identity)
+- 2026-11-14T10:43:29Z occurrence=26-3-caption-a-photo-and-keep-the-caption-as-a-memory note=CI run 43581056590 iris(shards-6) lane-b@rest, OCT-epic26 8ab6a725 (IRIS code identical to 39405fff, whose shards-6 passed); one rerun of the failed job
 
 ### DW-1095: flake: lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows ('loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link')
 - source: main run 42863516417 attempt 1 (v1.0.6), reported by the Contest Planner | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7706,6 +7709,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 37.1 spine AD-21 S4; Planner V8 + escalation ruling
 - 2026-11-13T13:24:14Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=orchestrator adds the epics.md DW bullet post-merge
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=ReadFile/Render document branch built and pinned; READSFILES 0 per Planner H2, 25.6 flips it
 
 ### DW-1271: 26.4 obligation from 37.1 rulings: Roles.Assign admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role (per-kind roles included) and the installer-managed accounts, an IRIS audit entry per assignment and removal, a test per refusal; pin the demo account's and the README account's OcuTalonApprover in tests; setting rows (persona proposals) keep RequiredRole OcuTalonUser and no ApproverKind (no OcuTalonApprover_setting)
 - source: spec-37-1 + Planner rulings-371-dw1255-20261113 (V8) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -7983,11 +7987,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Planner rulings 263 items 9 and 10 (V1): no release route reaches Part() before READSFILES (Core/Conversation.cls:537-541)
 - 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=Contest Planner 2026-11-14; 26.2 sets READSFILES and so makes photos visible
+- 2026-11-14T14:56:33Z owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=Planner ruling H2 (story-262-rulings): texts 1-2 land in 25.6's commit with the READSFILES flip; bullet under 25.6
 
 ### DW-1313: Memory card: a 409 pin_photo shows the over-cap notice (memory-card.ts:705 maps every pin 409 to MEMORY_TEXTS.overCap); show 'This memory came from a photo, so it can't be pinned.' in a lazy chunk once photos are visible
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner ruling 263 V3; the route answers 409 pin_photo with the sentence from 26.3; no photo memory exists until READSFILES
 - 2026-11-14T01:38:42Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=spec_gate note=web code waits for DW-1282 headroom or goes lazy; may belong to Lane B 25.6 if it owns the card change
+- 2026-11-14T14:56:34Z owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=spec_gate note=Planner ruling: the memory card's pin_photo notice moves to 25.6 (Lane B web, lazy chunk)
 
 ### DW-1319: The real-HTTP pin_photo check in web/e2e/api/memory.spec.ts (LIVE user, 409 pin_photo) was type-checked but never run and has no observed mutation
 - source: _bmad-output/implementation-artifacts/spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: med | fix-risk: low | footprint: in-story
@@ -7999,6 +8005,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: medium | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Agent/Input.cls Render; Core/Intake.cls RequestFor; Core/Conversation.cls Begin
 - evidence: Input.cls:51 adds PHOTOASK for any non-user photo Item; Intake.cls:158 renders one Input for both kinds; Conversation.cls:392 sends kind decide first with no context; Adapter.Agent.ContentFor gates on kind turn; unreachable until READSFILES (26.2) and Conversation's file path (25.6)
 - 2026-11-14T04:59:52Z status=routed owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=26.3 review (Blind 1 + Edge 1): fix when photos become visible, e.g. Render adds PHOTOASK only for the turn request (a context flag from the turn caller) and the decide request gets a neutral 'a photo was attached' line; Conversation and Intake are outside 26.3 (Never list), so not patched here
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=PHOTOASK worded for both requests (Input.cls:322); Planner condition met; SentFiles TestPhotoAsk + mutation
 
 ### DW-1322: The real-HTTP e2e 'a photo caption cannot be pinned, as the LIVE user' asserts that the LIVE session holds no pin before it starts instead of creating that state (the file's existing convention, shared with 'the pin cap as the LIVE user')
 - source: spec-26-3-caption-a-photo-and-keep-the-caption-as-a-memory.md | severity: low | fix-risk: low | footprint: web/e2e/api/memory.spec.ts
@@ -8162,6 +8169,34 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: compose.throwaway.yml resets ports, so only browser units publish one; the DW-1335 cancel left a stack, and the same cancel in a port-less unit leaves IRIS containers holding memory and disk on a shared CI host. Unverified on a host: settle with a read-only docker ps of compose projects on a CI host (owner or Planner only).
 - 2026-11-14T18:09:20Z status=escalated owner=burndown by=cr note=unverified; a fix needs a runner identity on each project (ruling 3 forbids touching port-less stacks); hosts go after Nov 15
 - 2026-11-14T19:35:31Z status=wontfix-accepted owner=burndown by=orchestrator note=Planner: severity low; hosts inspected clean 2026-11-14 ~19:35Z (ci-b, ci-c, ci-d docker ps -a: zero containers); reopen_if=port-less leftovers ever appear (bring to the Planner)
+### DW-1340: Telegram: a paired chat's file is fetched and stored before the allowance is consulted, so an over-allowance chat can force a download of up to 10 MB per message that is then discarded
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Channel/Telegram/In.cls File runs Fetch and Store before Turn reaches Core.Allowance; unreachable until 25.6 flips READSFILES
+- 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=check the allowance before getFile
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=Turn checks row and allowance before Stored fetches; refund on refusal; TelegramFile TestNotSent + mutation (uncommitted)
+
+### DW-1341: Api.Download bounds each read (8 s) and the bytes (10 MB) but not the total time, so a slow-drip body can hold the poll job for minutes
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: %Net.HttpRequest.Timeout is per read; CappedStream throws only on size; unreachable until 25.6
+- 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=a deadline check in CappedStream.Write
+- 2026-11-14T18:32:43Z status=resolved-by:26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=CappedStream Deadline, Api.Download DOWNLOADSECONDS 60; TelegramFile TestDownloadDeadline + mutation (uncommitted)
+
+### DW-1342: Story 25.6 must add the production readable-PDF and photo Telegram turns (TelegramChat with the reader on) and a web turn: today the Telegram fetch-to-Item join is verified through the probe seam
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 26.2 ships READSFILES 0 (H2); the fetch path is first exercised end to end when 25.6 flips it
+- 2026-11-14T17:44:30Z status=routed owner=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=harvest note=25.6 flips READSFILES
+
+### DW-1343: Planner condition 1 says a PDF turn is TAINTED; the runner sets Tainted only for image content or an allowed tool call, so a text-only PDF turn is untrusted by provenance with Tainted 0 and the tests pin the UNTRUSTED denial, not the flag
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: story-262-rulings condition 1; Test.Agent.SentFiles injection pins
+- 2026-11-14T17:44:30Z status=open owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=harvest note=code review decides: meet the flag within AD-10, or route to the Planner
+- 2026-11-14T18:32:43Z status=decision-pending owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=Planner: literal Tainted for a text PDF conflicts with AD-10 taint def; protection met via provenance; see CR clarification
+- 2026-11-14T18:58:37Z status=by-design by=spec_gate note=Contest Planner ruling DW-1343 option A: for outside content untrusted counts as tainted; AD-10 3b added; pins cited in the spec's Verification (Gate:TestUntrustedTurnRunsOnlySafeReadOnly, :TestTaintedTurnRunsOnlySafeReadOnly, :TestProxyDirectIsClassifiedAsTheNativeCall, :TestProxyUnknownServer, Fix.AskedTurns:TestInjectedTurn, SentFiles:TestInjectionTurn, :TestInjectedEmail; one gate path Policy/Gate.cls:222)
+
+### DW-1345: Telegram: a download cut off at 10 MB is answered 'That file is 10.1 MB' whatever its real size
+- source: spec-26-2-files-sent-from-the-chat-or-telegram-become-items.md (code review) | severity: low | fix-risk: low | footprint: in-story
+- evidence: In.Fetch sets size to DOWNLOADMAX+1 when Download is cut off; reachable only when the update's file_size is missing or wrong
+- 2026-11-14T18:32:43Z status=wontfix-accepted owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=cr note=reopen_if=a Telegram update without file_size, or with a wrong one, is seen
 ### DW-1337: The approval-request-card stylesheet is 244 bytes over its 4 kB anyComponentStyle warning budget after Story 21.10
 - source: orchestrator; 21.10 hold report | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 21.10 build at f82fb8c17: warning only

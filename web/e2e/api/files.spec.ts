@@ -8,7 +8,7 @@ import { logMark, removeDecisionsOf, sessionRefOfUser } from '../support/memory'
 /**
  * Story 25.3, the Rule 3 evidence for POST /api/v1/files over real HTTP, on the stack that test-sign-in.sh seeds, as the unprivileged LIVE fixture user (role
  * OcuTalonUser only) with a second OcuTalonUser-only session (PANEL). On this branch nothing reads a sent file, so a file turn ends with the fixed reply and no model call
- * (the Planner's ruling 4); the tests that depend on that, `/v1/state` `filesReadable` false and the reply text, are the tripwires that Story 26.2 flips.
+ * (the Planner's ruling 4); the tests that depend on that, `/v1/state` `filesReadable` false and the reply text, are the tripwires that Story 25.6 flips.
  *  - signed out the route is 401 signed_out; LIVE gets 202 with exactly clientId and file{ref,name,mediaType,size}, and its /v1/state and events carry the sentFile;
  *    PANEL's state and events never show LIVE's file, and LIVE's never show PANEL's;
  *  - every refusal code and every bad body has its exact answer; a 14 MB file is 413 body_too_large and 10,485,761 bytes within the bound is 400 too_large; the envelope's three 403s;
@@ -221,7 +221,7 @@ test('the files route: signed out, the accepted types, the refusals, the bounds 
   }
 });
 
-test('the real state says the install cannot read a file: filesReadable is false, as a boolean right after demoMode (a tripwire for Story 26.2)', async ({ request }) => {
+test('the real state says the install cannot read a file: filesReadable is false, as a boolean right after demoMode (a tripwire for Story 25.6)', async ({ request }) => {
   const live = fixtureUser('LIVE');
   await signInOverHttp(request, live.user, live.password);
   const response = await request.get(STATE);
@@ -363,7 +363,7 @@ test('isolation and the no-reader reply: a second session never sees the file, a
     expect(ownEvents.includes(file.ref), "LIVE's events hold its own file (the positive control)").toBe(true);
     expect(ownEvents.includes(panelRef), "LIVE's events hold none of PANEL's files").toBe(false);
 
-    // Ruling 4 (a tripwire for Story 26.2): the install cannot read a file, the reply is the fixed one, and no model was asked.
+    // Ruling 4 (a tripwire for Story 25.6): the install cannot read a file, the reply is the fixed one, and no model was asked.
     const state = (await (await request.get(STATE)).json()) as { filesReadable: unknown };
     expect(state.filesReadable, 'filesReadable is false on this branch').toBe(false);
     expect(done['replyText']).toBe(`I got ${name}, but I can't read files yet.`);
