@@ -4333,3 +4333,4 @@
 2026-11-15T16:08:20Z	Epic 21	merge_enqueued	story=DW-1371 (1.0.12)
 2026-11-15T16:08:57Z	Epic 21	merged	story=DW-1371 merge=475a86e44
 2026-11-15T16:09:06Z	Epic 0	runner_status	0.37 CR=0H/0M,7_lows_patched(pins_only) integrated=cc5f85fb6 fresh=running notes_to_Planner=heartbeat_and_chat_stopped_may_pull_to_act(no_eval_case)
+2026-11-15T16:09:17Z	Epic 0	owner_decision	via=contest_planner 0.37_review_notes=accepted_as_intended A/B_adds_2_observe-only_probes(heartbeat_stopped,user_chat_stopped;S6>0_in_NEW=FAIL)
