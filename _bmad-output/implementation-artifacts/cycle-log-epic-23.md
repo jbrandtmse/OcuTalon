@@ -477,3 +477,7 @@
 2026-11-15T22:47:48Z	Story 23.4	ci_resolved	story=23.4(DW-1400_follow-up) sha=69d17499 runs=43768251126,43768251118 result=success failed=none via=none resolved_at=part_ready
 2026-11-15T22:56:01Z	Story 23.13	story_created	spawn_at=2026-11-15T22:41:00Z model=opus effort=high cycle_iteration=3 build_status=ready-for-dev note=re-plan_send_path(mail_method_on_Fix.Kind;Out.cls_via_Mailed;executor_branch;approved-address_rule;Test.Fix.PartnerMail)
 2026-11-15T22:56:01Z	Story 23.13	spec_validated	cycle_iteration=3 planner_gate=pending(PUBLIC_TEXT:incident.partnerRequestMailbox,result.partnerSkipped;D9_email_subject_partner.emailSubject_proposed;D6-D8,D10) model=claude-opus-5-5
+2026-11-15T22:57:11Z	Epic 23	integrated	onto=c97aa4f2(DW-1400_merged) conflicts_resolved=sprint-status.yaml(feature_side,regenerated) code_conflicts=none
+2026-11-15T22:57:11Z	Story 23.13	ruling	question=23.13_re-plan_texts+D9 choice=approved(lines_1_2_verbatim;partner.emailSubject=Delay_notice+pin;D6-D8,D10) category=veto(Planner_ruled) policy=5086036
+2026-11-15T22:57:11Z	Story 23.13	spec_validated	cycle_iteration=4 note=rulings_applied
+2026-11-15T22:57:11Z	Story 23.13	stage_spawned	stage=implement spawn_at=2026-11-15T22:57:11Z model=sonnet effort=high agent_name=23-13-partner-contacts-implement-1 cycle_iteration=1 story_base=8418ec9d1

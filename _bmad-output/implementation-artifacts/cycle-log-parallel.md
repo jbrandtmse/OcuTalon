@@ -4398,3 +4398,12 @@
 2026-11-15T20:30:22Z	Epic 24	owner_decision	via=contest_planner 24.4a_V6=option_a(detached_60s_discard;take_first) added=missing-entry_rule(no_request,NOSTART_refusal,never_store_redacted_as_raw;pins)
 2026-11-15T21:39:50Z	Epic 23	runner_reported	PART_READY DW-1396_follow-up head=00e9a5367 runs=43760644066,43760643973 + PLANNER_REPORT 23.8_Task0_FAIL(a:login_via_%Service_Bindings,public_services;b:needs_CODE:R_or_no_role) options=A_no_role(recommended)/B_park/C_in-process DW-1400=On_call_line_clause
 2026-11-15T21:39:50Z	Epic 23	merge_enqueued	story=DW-1396_follow-up (1.0.12)
+2026-11-15T21:42:08Z	Epic 23	merged	story=DW-1396_follow-up merge=4760e5446
+2026-11-15T21:42:30Z	Run	planner_notified	23.8_Task0_FAIL(options_A/B/C) DW-1400 laneB=23.13_next
+2026-11-15T21:42:51Z	Epic 23	owner_decision	via=contest_planner 23.8=PARKED(option_B;owner_decision_with_scope_trim;C_refused) 24.5=waits_with_23.8 DW-1400=new_On_call_line_verbatim(pin;24.3_replaces)
+2026-11-15T22:32:17Z	Epic 23	runner_reported	DW-1400_pushed=69d17499b(runs_43768251126,43768251118) 23.8=parked(U-329) PLANNER_REPORT 23.13_gate(16853dcc3;TABLE=1,kept-draft,ids-in-trace;4_texts;AD-16_bullet) DW-1409=accepted_LOW relayed=contest_planner
+2026-11-15T22:32:40Z	Epic 23	owner_decision	via=contest_planner 23.13=APPROVED(veto2_changed:SEND_via_EmailOut_when_mailbox_connected,else_kept_draft;STOP_if_EmailOut_cannot;conditional_texts;vetoes_1,3,4;deviations_1-5;AD-16_with_sent-or-kept)
+2026-11-15T22:39:04Z	Epic 23	runner_reported	BLOCKED story=23.13 reason=EmailOut_FIXKIND=email_only(Out.cls:74,:414,:446,:514;Executor:286-289,:345;AD-14) options=i_cross-lane_in_23.13(recommended)/ii_laneB_story_first relayed=contest_planner
+2026-11-15T22:39:21Z	Epic 23	owner_decision	via=contest_planner 23.13_EmailOut=option_i(cross-lane_Out.cls;AD-14_amended) security=approved-address_rule(send_only_if_contact_exists_and_address_equals_approved;skip+report;pins) texts=reuse_fix.emailSent/NotSent;new_lines_to_Planner_first
+2026-11-15T22:46:54Z	Epic 23	ci_green_verified	story=DW-1400(+23.8_parked_records,23.13_charter) head=69d17499b runs=43768251126,43768251118(att1)
+2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400

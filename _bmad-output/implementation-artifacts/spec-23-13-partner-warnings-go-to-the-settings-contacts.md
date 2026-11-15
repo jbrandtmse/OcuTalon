@@ -172,6 +172,8 @@ Tests (existing, to update or extend):
 
 ## Spec Change Log
 
+- 2026-11-16 ~00:35Z (lead): Planner approved the re-plan: lines 1 and 2 verbatim; D9 partner.emailSubject "Delay notice" with a pin that a real send never uses the Simulated subject; D6-D8, D10 accepted.
+
 - 2026-11-15 (plan stage, re-plan of the send path under the 23.13 GATE and "23.13 EmailOut" rulings): the dependent Boundaries lines (Settings-contact requests, Other text, the first and third Never lines) and the matrix rows SETTINGS_HAPPY, KEPT, TAMPERED were re-planned to agree with the two binding amendments, each marked [RE-PLANNED]; rows SENT, SKIPPED_REMOVED, SKIPPED_CHANGED, ALL_SKIPPED, SEND_FAILED, ONE_SEND_PER_APPROVAL, DEMO_REFUSED, FIXTURE_NOT_MAILED and EMAIL_UNCHANGED added. Code Map, Tasks, ACs (AC5-AC10), gate and Verification rewritten for the mail method, Out.cls, the executor branch and the texts. KEEP: the source rule, ids in traces, the approver hook, count-only logs, vetoes 1/3/4 and deviations 1-5 as approved.
 
 - 2026-11-15 ~23:58Z (lead, Planner "23.13 EmailOut" ruling): option (i) approved; AD-14 amended in the spine; approved-address security condition; two new lines to draft; status reset to draft for the re-plan.
@@ -224,6 +226,12 @@ Tests (existing, to update or extend):
 - DW-1393 is addressed (Tasks: `PartnerContacts` de-duplication; matrix DEDUPE).
 - DW-1394 is addressed (AC1, AC5, AC6; the literal pin and the real e2e state).
 - DW-1254's contact-id part is AC3 (now also over the sent path: the `SendEmail` command and its result carry no identity). The ledger entry stays 24.2's.
+
+### Planner rulings, 23.13 re-plan (2026-11-16 ~00:30Z; BINDING; prompts/story-242-rulings-20261115.md "23.13 re-plan")
+- Design APPROVED as described (the fictional demo contact refused for a real send; Test.Fix.PartnerMail with six pins, each with a mutation; PartnerTurns covers the full path with a leak scan).
+- NEW text APPROVED verbatim: line 1 `incident.partnerRequestMailbox` (phone and web forms) and line 2 `result.partnerSkipped`, exactly as drafted under `### For the Planner's gate`.
+- D9 APPROVED: new key `partner.emailSubject` = "Delay notice", no slots; `partner.subject` stays for the simulated case only. PIN: a real send never uses the "Simulated" subject (with a mutation).
+- D6, D7, D8 and D10 ACCEPTED. Contention: plain union, flag any overlapping hunks at integrate.
 
 ### Planner rulings, 23.13 GATE (2026-11-15 ~23:30Z; BINDING; prompts/story-242-rulings-20261115.md "23.13 GATE")
 - APPROVED with ONE CHANGE (veto 2): the send rule in the intent block above (SENT through 21.11's EmailOut when a mailbox is connected; kept as an approved draft ONLY when none is connected; STOP if EmailOut can't carry it).
