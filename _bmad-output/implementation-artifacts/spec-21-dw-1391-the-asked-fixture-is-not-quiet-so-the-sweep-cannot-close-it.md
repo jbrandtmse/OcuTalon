@@ -112,6 +112,25 @@ Line numbers are at the baseline `f56f50d86` (23.3 merged). The ledger's numbers
    - mutation: the same in `PartnerDraft.Incident` -> `Test.Fix.PartnerDraft` red at the guard.
 3. Every existing pin of both classes passes unchanged without the hammer (warm), 23.3's `TestUndoRollbackAsked` included.
 
+### Review Findings
+
+Code review, 2026-11-15, full mode, baseline `e6edc8559` (bookkeeping files excluded). Four layers: blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor. 17 raw findings in 13 entries. High 0, med 0. One patched, one ledgered, the rest rejected. Rule 3: test-only, with no user-facing surface, so it is exempt. The runtime evidence is the warm lane-C runs under `## Verification`.
+
+- [x] [Review][Patch] AC 3 had no `mutation:` line (Rule 19 LOW, closed in-pass) [spec `## Verification`]. Applied: `IncidentManager`'s `AlreadyAsked` branch was mutated and `Test.Fix.Asked` went red with the fresh fixture. The line is recorded under Mutations. (verification-gap)
+- [x] [Review][Ledger] The closeQuiet hammer behind AC 1 lives only in scratch, so no repo or CI run repeats the race measurement [`Test/Fix/Asked.cls`, `Test/Fix/PartnerDraft.cls` `Incident`]. This is the implement stage's "deferred" LOW (verification-gap + blind-hunter). Keeping a repo copy would contradict Planner Ruling (b). Closed **DW-1399** `wontfix-accepted`, owner `23-2-suspend-resume-and-reroute-with-a-dry-run` (the story that made `Asked.cls`), `reopen_if` = a CI red in either class at an already_asked or state pin while the quiet guard is green.
+
+**Rejected:**
+- `low` (blind-hunter + edge-case-hunter ×2): the guard checks "not quiet" only at build time, so `..T(-890)`, or a test body longer than 900 s, would pass it. Not realistic: both classes run in under 1 s warm (0.54 s and 0.33 s) and contain no waits, and an edit to within seconds of `QUIETSECONDS` is contrived. The guard expression (`NowUtc()`) is fixed by Boundaries, so a margin would change specified behavior (by-design).
+- `false` (edge-case-hunter ×2): "a failed guard lets the test go on and fail at random." A failed guard turns the class red in the same run with its own label, which names the cause. It fails loudly and never skips.
+- `low` (blind-hunter): the DW-1398 note from implement ("a guard cannot hold") and the QA note ("it can, with `QuietNowIs`") differ. That question is DW-1398's own scope, and the fix would edit the spec.
+- `low` (blind-hunter): the earlier triage rejected spec-only inaccuracies. This is a critique of process, and the fix would edit the spec.
+- `low` (blind-hunter): the Intent's list of exposed tests predates the measurement. The Verification records give the measured list. The fix would edit the spec.
+- `low` (blind-hunter + verification-gap): the Code Map and Commands still cite baseline `f56f50d86`. The Planner Rulings bind, override it and name `e6edc8559`. The fix would edit the spec.
+- `low` (acceptance-auditor): `LastAt: ""` in `fields` passes the guard. No caller passes `LastAt`, and the product's re-check at `closeQuiet` uses the same predicate, so such a row is not closed either.
+- `false` (acceptance-auditor): `cycle-log-epic-21.md` and `deferred-work.md` appear in the diff from the baseline. These are the orchestrator's bookkeeping commits. Implement commit `b96fd028b` touches only the footprint.
+- `false` (acceptance-auditor): status is `done` while review runs. The implement stage sets that status by protocol, and review never changes it.
+- `low` (verification-gap other): `Test/Watch/Summary.cls` has the same race. It is out of scope and already tracked as DW-1398.
+
 ## Design Notes
 
 **Why the fixture, not the product.** The quiet sweep (AD-18) and `resolved + closeQuiet -> closed` (AD-15's table) are the rule. Only the fixture's stale `LastAt` makes a seconds-old incident look an hour quiet. The lost update needs two `IncidentManager` jobs, and the product has one (PoolSize 1). The test's shadow instance is the second.
@@ -175,6 +194,9 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - mutation: `PartnerDraft.Incident` `LastAt` back to `..T(-3600)`, guard kept -> `Test.Fix.PartnerDraft` red at the guard in 10 of its 11 tests.
 - mutation: `Asked.Incident` `LastAt` back to `..T(-3600)`, guard removed -> `Test.Fix.Asked` green warm (the race is invisible without load), AskedHammer red in 40 of 40 runs (`TestSuspendAndUndo` L117/L118 in 39, `TestRejectedAndExpired`, "and asking to undo again raises nothing").
 - mutation: `PartnerDraft.Incident` `LastAt` back to `..T(-3600)`, guard removed -> `Test.Fix.PartnerDraft` green warm, DraftHammer red in 10 of 10 runs.
+- mutation (AC 3, code review): `Watch/IncidentManager.cls` `If ..AlreadyAsked(incident, command.FixKind, text) {` -> `If 0 && ..AlreadyAsked(...) {` -> with the fresh fixture, `Test.Fix.Asked` went red at `TestSuspendAndUndo` "the same ask again is already_asked" and "with the ruled message" (the L117/L118 pins the race broke) plus 4 follow-on asserts, and at `TestUndoRollbackAsked` "asking again while the undo waits is already_asked". Reverted byte for byte (backup copy, then `cmp`; `git status --short` and `git diff --stat` unchanged), and the class passed again.
+
+**Code review records (lane C warm throwaway `e21dw1391cw`, Nov 15):** `Test.Fix.Asked` passed (0.54 s) and `Test.Fix.PartnerDraft` passed (0.33 s), both whole classes, before the AC 3 mutation. `Test.Fix.Asked` passed again after the revert.
 
 
 **QA records (qa stage, lane C warm throwaway `e21dw1391qw`, Nov 15; test-only, no product change, no test change in `Asked.cls` or `PartnerDraft.cls`):**

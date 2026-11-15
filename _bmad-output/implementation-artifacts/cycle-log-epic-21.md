@@ -463,3 +463,5 @@
 2026-11-15T19:25:27Z	DW-1391	stage_spawned	stage=qa spawn_at=2026-11-15T19:25:27Z model=sonnet effort=high agent_name=dw-1391-qa-1 cycle_iteration=1
 2026-11-15T19:36:48Z	DW-1391	qa_complete	model=sonnet commit=4dfe76b52 tests=none_needed scan=only_Summary(DW-1398)_races(hammer_5/11_red);others_safe guard=reads_stored_row(SQL_mutation_red) hermetic=Asked_x2,PartnerDraft_x2_pass findings=DW-1398_fix_path_recorded
 2026-11-15T19:36:48Z	DW-1391	stage_spawned	stage=code-review spawn_at=2026-11-15T19:36:48Z model=opus effort=high agent_name=dw-1391-code-review-1 cycle_iteration=1
+2026-11-15T19:43:36Z	DW-1391	cr_complete	model=opus findings=12(1_low_patched:AC3_mutation_line,1_low_ledger:DW-1399_wontfix-accepted(owner_23-2),10_rejected) high=0 med=0 final_status=done rule3=Asked,PartnerDraft_pass
+2026-11-15T19:43:36Z	DW-1391	ledger	DW-1391=resolved-by:dw-1391 DW-1399=wontfix-accepted
