@@ -434,3 +434,4 @@
 2026-11-15T19:43:02Z	Story 23.4	stage_spawned	stage=implement spawn_at=2026-11-15T19:43:02Z model=sonnet effort=high agent_name=23-4-paging-escalation-implement-2 cycle_iteration=2 rework=1
 2026-11-15T20:03:21Z	Story 23.4	dev_complete	spawn_at=2026-11-15T19:43:30Z model=sonnet effort=high cycle_iteration=2 rework=1 build_sha=12101e6e baseline_revision=397fb9d2 followup_review_recommended=false deferred=0 change=Paging.Notice_pages_only_OwnerRef=Ownership.INSTANCE(session-owned_and_eval_incidents_never_page)+tests(Paging,PagingLive)
 2026-11-15T20:03:21Z	Story 23.4	stage_spawned	stage=code-review spawn_at=2026-11-15T20:03:21Z model=opus effort=high agent_name=23-4-paging-escalation-cr-2 cycle_iteration=2 baseline=397fb9d2 rework_reReview=1
+2026-11-15T20:03:29Z	Story 23.4	ledger_harvest	DW-1400(decision-pending_public_text_clause_for_the_On_call_line)
