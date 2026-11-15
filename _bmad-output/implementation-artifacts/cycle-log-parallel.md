@@ -4398,3 +4398,5 @@
 2026-11-15T20:30:22Z	Epic 24	owner_decision	via=contest_planner 24.4a_V6=option_a(detached_60s_discard;take_first) added=missing-entry_rule(no_request,NOSTART_refusal,never_store_redacted_as_raw;pins)
 2026-11-15T21:39:50Z	Epic 23	runner_reported	PART_READY DW-1396_follow-up head=00e9a5367 runs=43760644066,43760643973 + PLANNER_REPORT 23.8_Task0_FAIL(a:login_via_%Service_Bindings,public_services;b:needs_CODE:R_or_no_role) options=A_no_role(recommended)/B_park/C_in-process DW-1400=On_call_line_clause
 2026-11-15T21:39:50Z	Epic 23	merge_enqueued	story=DW-1396_follow-up (1.0.12)
+2026-11-15T21:42:08Z	Epic 23	merged	story=DW-1396_follow-up merge=4760e5446
+2026-11-15T21:42:30Z	Run	planner_notified	23.8_Task0_FAIL(options_A/B/C) DW-1400 laneB=23.13_next
