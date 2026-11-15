@@ -404,3 +404,17 @@
 2026-11-14T23:08:57Z	Story 21.5	dw1351	verdict=hint_false_for_sources(CommandsIn.cls:372_RemoveSourcePoll_web_admin_only) fix=rail-view.ts_checksHint(hidden_when_all_checks_are_sources) test=rail-view.test.mjs+mutation(red) node=2103/0 bundle=889.02kB
 2026-11-15T06:40:53Z	Story 21.9	stage_spawned	stage=integrate model=sonnet effort=high agent_name=21-9-integrate-1 feature=afd4ff35a(21.5,22.14,26.2) conflicts=10_files
 2026-11-15T07:24:47Z	Story 21.9	integrated	feature=afd4ff35a(21.5,22.14,26.2) merge=local conflicts=10_resolved_as_unions(SettingsOps_docs,SettingsMcp_tests,mcp-view,mcp-section:banners+Source_column,mcp-view.test,mcp.spec_B11-B14;spine_GET_row_both_notes;epics_22.14+22.15;tracker_feature_side) checks=node_2114/0,tsc,build,bundle_ok,SettingsMcp,McpSettingsApi,CommandsStep4,sign-in-2_18/24(B1-B14)_20/20,boundaries,class-rules,readme_pass push=held_until_22.15_merges
+2026-11-14T23:11:08Z	Story 22.15	story_created	by=lead(Contest_Planner_~22:40Z) branch=OCT-epic22-s2215 base=a6821f1d4 lane_A_exception=V1(changed_member,ClearRow/ClearChanged,Classify/ClassifyTool,tests)
+2026-11-14T23:11:08Z	Story 22.15	stage_spawned	stage=implement spawn_at=2026-11-14T23:11:08Z model=sonnet effort=high agent_name=22-15-implement-1 cycle_iteration=1
+2026-11-14T23:43:42Z	Story 21.5	ci_red	sha=1ecb7150d run=43651790835 job=iris(shards-2)/shard:lane-a@rest test=Test.Mcp.SourceSet:TestUpdate(CreatedAt_and_run_fields_kept) class=flake(diff_is_rail_TS_only;19de55b83_green) action=rerun_failed_once ledger=pending(file_on_OCT-epic21)
+2026-11-15T00:53:10Z	Story 21.5	ci_resolved	sha=1ecb7150d result=success runs=43651790835(attempt2),43651790939 flake=DW-1354
+2026-11-15T00:53:10Z	Story 21.5	part_ready	parts=21.5 code_head=1ecb7150d ci=success note=DW-1351_fix_included
+2026-11-15T00:53:10Z	Story 22.15	dev_complete	build_sha=e61e0e837 branch=OCT-epic22-s2215 base=a6821f1d4 review=13(high0,med0,low11:4_patched,false2) followup=false checks=8_classes_warm,fresh_Ops/Tools,test-storage,class-rules,boundaries_pass lint_10_low next=QA,CR,push
+2026-11-15T00:53:10Z	Epic 21	parked	reason=RELEASE_QUIET_WINDOW(~00:50Z) stacks=none
+2026-11-15T01:21:14Z	Story 22.15	resumed	quiet_off DW-1354=dropped(note_superseded-by:DW-1352;grammar_has_no_superseded-by)
+2026-11-15T01:21:14Z	Story 22.15	stage_spawned	stage=qa spawn_at=2026-11-15T01:21:14Z model=sonnet effort=high agent_name=22-15-qa-1 cycle_iteration=1
+2026-11-15T01:51:04Z	Story 22.15	qa_complete	model=sonnet tests=Test.Mcp.Ops(TestChangedTool:RecordAttach_path;TestRecordAttachRows:refused_not_marked,reclear_marked) mutations_demonstrated=2 findings=none
+2026-11-15T01:51:04Z	Story 22.15	stage_spawned	stage=code-review spawn_at=2026-11-15T01:51:04Z model=opus effort=high agent_name=22-15-code-review-1 cycle_iteration=1
+2026-11-15T02:26:23Z	Story 22.15	cr_complete	model=opus findings=12 patched=4_low rejected=8 high=0 med=0 ledger=DW-1355(by-design:refused_tool_can_show_changed_true) unresolved_high_med=0 final_status=done overlap_22.11=one_doc_conflict(Ops.cls_class_doc_ClearChanged_bullet;keep_both)
+2026-11-15T02:26:34Z	Story 22.15	fresh_check	env=implement_fresh_e22s15i(Test.Mcp.Ops,Test.Mcp.Tools;forward,reverse)+CR_warm_rerun_after_patches(Ops,Tools,Classification) smoke=exempt(no_user_surface;Rule_3) feature=a6821f1d4(up_to_date)
+2026-11-15T07:47:05Z	Story 21.9	integrated	feature=97e062daf(22.11,22.15) conflicts=cycle-log(union),sprint-status(feature_side,re-set_21-9_done)
