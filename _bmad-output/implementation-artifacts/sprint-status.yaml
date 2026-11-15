@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-15-2026 19:43
+last_updated: 11-15-2026 20:03
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -359,7 +359,7 @@ development_status:
   epic-23: in-progress
   23-2-suspend-resume-and-reroute-with-a-dry-run: done
   23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: done
-  23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: in-progress
+  23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: review
   23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: done
   23-6-write-an-incident-summary-when-an-incident-closes: done
   23-7-watch-queue-backlogs-between-digests: done
