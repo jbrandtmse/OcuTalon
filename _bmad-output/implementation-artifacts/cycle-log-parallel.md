@@ -4394,3 +4394,4 @@
 2026-11-15T20:16:02Z	Epic 23	merged	story=23.4 merge=92937a03e pins=pass web=pass lint=pass
 2026-11-15T20:17:06Z	Run	ci_red_classified	head=3242f9657(DW-1388_merge) run=43754264077(lane-a) ipm-install-p(ci-52)=DW-1119(CPF_merge_exit_7,infra) action=no_rerun(superseded_by_92937a03e)
 2026-11-15T20:29:53Z	Run	ci_red_classified	head=3242f9657 run=43754264003 shards-5(ci-54)=DW-1406(new_flake_cand:heartbeat-card_HC6) B13=PASSED(no_regression) action=no_rerun(superseded_by_92937a03e)
+2026-11-15T20:30:09Z	Epic 24	runner_reported	PLANNER_REPORT 24.4a(c34e72d5) V6=SecretHandoff_has_no_expiry;options_a(detached_discard_60s,recommended)/b(Put_lifetime)/c(drop) relayed=contest_planner note=HC6_DW_id_is_DW-1406(corrected)
