@@ -2,7 +2,7 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -24,7 +24,7 @@ deferred: []
   - every other production reads the Settings contacts, de-duplicated by address;
   - the online demo never reads the table.
 - Every traced message names contacts by id only. The production job resolves the ids to names and addresses into the approval row, so the approver sees them on the card.
-- **[AMENDED 2026-11-15, Contest Planner 23.13 GATE ruling (prompts/story-242-rulings-20261115.md "23.13 GATE"), veto 2 CHANGED; BINDING]** An approved partner warning to Settings contacts is SENT through Story 21.11's EmailOut path, from the mailbox connected in Settings > Channels > Email: one approval, sent exactly once. It is kept as an approved draft ONLY when no mailbox is connected, and its texts then say so truthfully. If the EmailOut path CAN'T carry it, STOP: name the file and line and say why, before building a kept-draft-only version (HALT `blocked`, `intent gap`). Texts: the kept path uses the Planner's conditional wording verbatim (see Design Notes "Planner rulings, 23.13 GATE"); the SENT path reuses 21.11's approved email texts where they fit; ANY new line is NEW public text for the Planner (list it under the gate, verbatim). The online demo is unchanged (no Settings contacts, nothing sent; fictional contact to the Simulated mailbox).
+- **[AMENDED 2026-11-15, Contest Planner 23.13 GATE ruling (prompts/story-242-rulings-20261115.md "23.13 GATE"), veto 2 CHANGED; BINDING]** An approved partner warning to Settings contacts is SENT through Story 21.11's EmailOut path, from the mailbox connected in Settings > Channels > Email: one approval, sent exactly once. It is kept as an approved draft ONLY when no mailbox is connected, and its texts then say so truthfully. If the EmailOut path CAN'T carry it, STOP: name the file and line and say why, before building a kept-draft-only version (HALT `blocked`, `intent gap`). **[AMENDED 2026-11-15 ~23:55Z, Contest Planner "23.13 EmailOut" ruling (option (i)); BINDING]** EmailOut CAN carry it after this story's own change: 23.13 edits Lane B's `Channel/Email/Out.cls` (`Authorised`, `ApprovedRecipients`, `Approved`) under the approved AD-14 amendment (EmailOut's system send accepts any executing fix request whose `Fix.Kind` provides a new mail method; for kind `email` it returns today's values), and adds the `Fix/Executor.cls` branch (plain union with Lane D's 24.4a). SECURITY CONDITION (approved-address rule): a message goes ONLY to an address the approver saw on the approval card (stored in the approval row). At send time resolve the contact ids; send to an address only if that contact still exists AND its address equals the one stored at approval; a removed contact or a changed address is SKIPPED and reported in the result, never sent to the new address; if every recipient is skipped nothing is sent and the result says so. Pins: same address sent; removed contact skipped; changed address skipped; the online-demo refusal for `partner_warning`. One send per approval (claim, lock, Delivery row) and count-only logs carry over unchanged. Texts: the sent result reuses `fix.emailSent` / `fix.emailNotSent`; the no-mailbox request uses `incident.partnerRequestKept` as ruled; TWO NEW lines (the mailbox-connected request, and the skipped-recipient result line) are drafted in this spec under PUBLIC TEXT and go to the Planner before those two surfaces are implemented. Texts: the kept path uses the Planner's conditional wording verbatim (see Design Notes "Planner rulings, 23.13 GATE"); the SENT path reuses 21.11's approved email texts where they fit; ANY new line is NEW public text for the Planner (list it under the gate, verbatim). The online demo is unchanged (no Settings contacts, nothing sent; fictional contact to the Simulated mailbox).
 
 ## Boundaries & Constraints
 
@@ -204,6 +204,8 @@ Tests:
 - **AC7 (integration: consumers).** Given `TABLE = 1`, then `SettingsOps.PartnersShown()` (consumer: the Settings page) shows the section, and `IncidentManager` (consumer: the reader) raises a request whose targets are the listed contacts' ids.
 
 ## Spec Change Log
+
+- 2026-11-15 ~23:58Z (lead, Planner "23.13 EmailOut" ruling): option (i) approved; AD-14 amended in the spine; approved-address security condition; two new lines to draft; status reset to draft for the re-plan.
 
 - 2026-11-15 ~23:35Z (lead, Planner 23.13 GATE): veto 2 changed (send through 21.11 EmailOut when a mailbox is connected; kept only when none); intent block amended; status reset to draft for a re-plan of the changed part.
 
