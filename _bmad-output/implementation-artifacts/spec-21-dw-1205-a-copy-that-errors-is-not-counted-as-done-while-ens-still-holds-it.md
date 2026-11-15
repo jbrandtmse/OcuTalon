@@ -249,6 +249,11 @@ CONDITIONS:
 - Rule 19: every pin gets a `mutation:` line, demonstrated red, then reverted byte for byte (`cmp` against a copy taken before the mutation).
 - The IRIS MCP tools, if used at all, take the explicit profile `ocutalon-slot-c`, namespace OCUTALON. The warm throwaway of this run is tag `e21dw1205iw`, lane C, already up (the lead started it; `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21dw1205iw ci/iris.sh class <Class>`).
 
+## Release note for 1.0.12 (Contest Planner ruling ~01:00Z Nov 16, plain wording for the release notes to lift)
+
+- A resend that OcuTalon reported as "1 of 3 orders went through" when every copy had failed again is fixed: OcuTalon now waits until IRIS has finished with each copy before counting it. This covers a resent copy that errors on its first pass.
+- Known limit: a copy resent to a business process that waits for a reply can still be counted before that reply arrives (DW-1410). It is being worked on; no date is promised.
+
 ## Verification
 
 Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
