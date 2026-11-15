@@ -24,7 +24,8 @@ import { approvalState, clearChangedTool, dropMcpServer, leftovers, seedMcpServe
  *   B10 a removal answered 500 leaves the dialog open with the server's message and the server listed; a 404 closes it and the server and its tools leave the lists (QA).
  *   B14 (Story 21.9) a tool that Lane A's ClearChanged made Unclassified has one warning banner above the tools table, in the words of settings.toolChangedBanner, and
  *       its radiogroup shows Unclassified; a new tool and a changed tool that is refused have none; a pick whose save fails keeps the banner; a pick that saves
- *       shows "Saved" and the banner goes, and stays gone after a reload;
+ *       shows "Saved" and the banner goes, and stays gone after a reload; a second changed tool has its own banner after the first, in table order, and the pick
+ *       takes away only the banner of the tool it classified (QA);
  * B7 to B10 fulfil every answer of the MCP routes themselves (no fixture server, no IRIS fixture), so they cover the section's states and nothing of the server.
  * The texts are written out here as the oracle.
  */
@@ -375,7 +376,10 @@ test('B14: a changed tool has the changed-tool banner above the table, a new or 
       { name: 'zz_shadow', classification: 'read-only' },
       { name: 'zz_new' },
       { name: 'zz_steady', classification: 'risky' },
+      { name: 'zz_second', classification: 'risky' },
     ]);
+    // zz_second changes first, so the banners' order is the table's and not the order of the changes
+    await clearChangedTool(name, 'zz_second');
     await clearChangedTool(name, 'zz_changed');
     await clearChangedTool(name, 'zz_shadow', true);
     await openMcp(page);
@@ -383,7 +387,10 @@ test('B14: a changed tool has the changed-tool banner above the table, a new or 
     await expect(banner, 'the changed tool has its banner').toBeVisible();
     await expect(banner, 'in the accepted words').toHaveText(`zz_changed on ${name} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.`);
     await expect(banner.locator('app-icon'), 'with its icon').toHaveCount(1);
-    await expect(tools(page).locator(`[data-banner="tool-changed"][data-server="${name}"]`), 'and it is the only banner of this server').toHaveCount(1);
+    const banners = tools(page).locator(`[data-banner="tool-changed"][data-server="${name}"]`);
+    await expect(banners, 'and the other changed tool has its own, so the server has two').toHaveCount(2);
+    expect(await banners.evaluateAll((all) => all.map((one) => one.getAttribute('data-tool'))), 'one banner per changed tool, in the order of the tools table (QA)').toEqual(['zz_changed', 'zz_second']);
+    const second = tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_second"][data-server="${name}"]`);
     await expect(tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_new"][data-server="${name}"]`), 'a new tool has none').toHaveCount(0);
     await expect(tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_shadow"][data-server="${name}"]`), 'a changed tool that is refused has none').toHaveCount(0);
     const refused = tools(page).locator(`tr[data-tool="zz_shadow"][data-server="${name}"]`);
@@ -404,11 +411,14 @@ test('B14: a changed tool has the changed-tool banner above the table, a new or 
     await group.getByRole('radio', { name: 'Risky', exact: true }).check();
     await expect(row.locator('p.saved[data-saved="classify"]'), 'Saved shows').toHaveText('Saved');
     await expect(banner, 'the banner goes').toHaveCount(0);
+    await expect(second, 'and only that tool\'s banner goes: the other changed tool keeps its own (QA)').toBeVisible();
+    await expect(banners, 'one banner is left (QA)').toHaveCount(1);
 
     await page.reload();
     await expect(page.getByRole('heading', { level: 2, name: 'Tools and MCP servers' })).toBeVisible();
     await expect(tools(page).locator(`tr[data-tool="zz_changed"][data-server="${name}"]`), 'the tool is listed again').toBeVisible();
-    await expect(tools(page).locator(`[data-banner="tool-changed"][data-server="${name}"]`), 'and no banner shows after a reload').toHaveCount(0);
+    await expect(tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_changed"][data-server="${name}"]`), 'and the classified tool has no banner after a reload').toHaveCount(0);
+    await expect(tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_second"][data-server="${name}"]`), 'while the changed tool nobody classified still has one (QA)').toBeVisible();
   } finally {
     await dropMcpServer(name);
   }

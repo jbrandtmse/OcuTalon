@@ -7,6 +7,7 @@
 ///   - TestListChanged (Story 21.9): each tool row carries `changed`, a JSON boolean passed through from Mcp.Ops Tools for every status: a classified tool that Lane A's real
 ///     ClearChanged cleared is true (and sent each admin session one mcp.toolChanged notice), so is one cleared and then refused (the page skips it), a new and a risky tool are
 ///     false, and a classification save through the real handler makes it false again;
+///   - TestListChangedUnavailable (QA): changed passes through for a tool whose server is unavailable, and the tools of two servers come server by server;
 ///   - TestPendingByToolref: the pending count is by the server's toolref under CancelPending's own predicate: a pending tool_call row whose ToolSource is the toolref in
 ///     another case is counted (CancelPending would cancel it), and an approved row, a row of another kind and another server's row are not;
 ///   - TestNameThatToolrefRefuses: PendingToolCalls gives 0 and an error for a name that is no server name;
@@ -32,7 +33,7 @@ Property Refs As %String(MAXLEN = "");
 
 Method OnBeforeOneTest() As %Status
 {
-	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe
+	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe, ^||ZzOps
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 	Set ..Number = $Increment(^OcuTalonTest("SettingsMcp", "n"))
@@ -135,10 +136,11 @@ Method TestListChanged()
 	Set command.Tool = "zz_changed"
 	Set command.Classification = "risky"
 	Set command.Origin = "web_admin"
-	Set command.ActingUser = "zzadmin"_..Number
+	Set command.ActingUser = admin
 	Set probe = ##class(OcuTalon.Test.Mcp.OpsProbe).Shadow("CommandsIn", .sc)
 	Do $$$AssertStatusOK(sc, "the Ops probe is made")
 	Set sc = probe.MessageHandler(command, .saved)
+	Do $$$AssertStatusOK(sc, "the classify handler runs")
 	Do $$$AssertEquals(saved.Ok_"|"_saved.Outcome, "1|saved", "the classification is saved")
 	Set tools = ..Mine({}.%FromJSON(..List().Data).tools)
 	Set text = ""
@@ -147,6 +149,29 @@ Method TestListChanged()
 		If tool.name = "zz_changed" Set text = tool.classification_"|"_tool.changed
 	}
 	Do $$$AssertEquals(text, "risky|0", "after it the tool is risky and changed is false")
+}
+
+/// (QA) Two changed tools on two servers, one of which is down: ListMcp passes changed through for an unavailable tool as for every other status (its banner
+/// shows), and the tools array lists them server by server, which is the order of the page's banners.
+Method TestListChangedUnavailable()
+{
+	Set a = ..Server("a")
+	Set b = ..Server("b")
+	Do ..MakeServer(a, "attached", "")
+	Do ..MakeServer(b, "unavailable", "")
+	Do ..MakeTool(a, "zz_one", "read-only")
+	Do ..MakeTool(b, "zz_down", "risky")
+	Do ..MakeTool(b, "zz_other", "read-only")
+	Set ^||ZzOps("admins") = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(a, "zz_one", "zzfp2_"_..Number), "zz_one is cleared")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(b, "zz_down", "zzfp2_"_..Number), "zz_down is cleared on the server that is down")
+	Set tools = ..Mine({}.%FromJSON(..List().Data).tools)
+	Set text = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set text = text_$ListBuild($Extract(tool.server, *)_"|"_tool.name_"|"_tool.classification_"|"_tool.status_"|"_tool.changed)
+	}
+	Do $$$AssertEquals($ListToString(text, ";"), "a|zz_one|unclassified|available|1;b|zz_down|unclassified|unavailable|1;b|zz_other|read-only|unavailable|0", "both cleared tools are changed, in server order, the unavailable one too, and the tool nobody touched is not")
 }
 
 Method TestPendingByToolref()

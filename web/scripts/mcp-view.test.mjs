@@ -243,8 +243,13 @@ describe('changedTools (Story 21.9)', () => {
       row('four'),
       row('five', { changed: true, status: 'unavailable' }),
       row('six', { changed: 'true' }),
+      row('seven', { changed: 1 }),
     ];
     assert.deepEqual(changedTools(tools).map((tool) => tool.name), ['one', 'five']);
+  });
+
+  it('counts only a JSON true: a number, a string and a null are not a change (QA)', () => {
+    assert.deepEqual(changedTools([row('a', { changed: 1 }), row('b', { changed: 'true' }), row('c', { changed: null })]), []);
   });
 
   it('leaves out a tool that changed and is then reported refused, and keeps one that is available', () => {

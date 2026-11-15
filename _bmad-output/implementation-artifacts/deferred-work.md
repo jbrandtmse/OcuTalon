@@ -8187,3 +8187,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-15-the-tool-list-reports-which-tools-changed-the-changed-flag.md code review | severity: low | fix-risk: low | footprint: in-story
 - evidence: KeepRow's refused branch keeps Changed (spec: unchanged) and Tools gives changed = Changed 1 AND unclassified, so both members show at once; 21.9's banner may list a refused tool
 - 2026-11-15T02:04:16Z status=by-design owner=22-15-the-tool-list-reports-which-tools-changed-the-changed-flag by=cr note=spec-bound (intent: refused branch unchanged); reopen via 21.9's spec if the banner must skip status refused
+
+### DW-1356: The changed-tool banner follows the section's last load: a tool another admin classifies, or one ClearChanged clears, while the section is open shows or hides its banner only after a reload
+- source: spec-21-9-show-the-changed-tool-banner-in-settings.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: mcp-section.ts computes the banners from settings(), which loads on open and after an add or remove only (21.4); no live update reaches the MCP section. The new tool's mcp.toolChanged chat card does arrive live.
+- 2026-11-15T05:58:16Z status=wontfix-accepted owner=21-9-show-the-changed-tool-banner-in-settings by=cr note=reopen_if=the MCP section gains any live refresh of its tools list, or a user report of a banner for an already-classified tool

@@ -381,3 +381,4 @@
 2026-11-15T05:13:40Z	Story 21.9	stage_spawned	stage=qa spawn_at=2026-11-15T05:13:40Z model=sonnet effort=high agent_name=21-9-qa-1 cycle_iteration=1
 2026-11-15T05:43:01Z	Story 21.9	qa_complete	model=sonnet tests=SettingsMcp.TestListChangedUnavailable,mcp-view.test(non-boolean_changed),mcp.spec_B14(two_banners,only_own_removed) mutations_demonstrated=4 findings=none
 2026-11-15T05:43:01Z	Story 21.9	stage_spawned	stage=code-review spawn_at=2026-11-15T05:43:01Z model=opus effort=high agent_name=21-9-code-review-1 cycle_iteration=1
+2026-11-15T06:40:44Z	Story 21.9	cr_complete	model=opus findings=18(8_patched,7_rejected,3_false) high=0 med=1(^||ZzOps_switch_leak;patched) low=11 ledger=DW-1356(wontfix-accepted:banner_refreshes_on_section_reload) unresolved_high_med=0 final_status=done rule3=sign-in-2_part_19/24_pass

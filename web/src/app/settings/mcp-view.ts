@@ -12,8 +12,8 @@
  *   its own text), a 400 bad_mcp_server that names a name, an address or a secret text is a field refusal, and every other answer is a form error that carries the
  *   server's own message when it sent one.
  * - withClassification gives the settings with one tool's classification changed and its server's unclassified count worked out again.
- * - changedTools is the tools that get a changed-tool banner (Story 21.9): `changed` exactly true and a status that is not refused, in the given order. The page
- *   decides nothing of its own: both members are the server's.
+ * - changedTools is the tools that get a changed-tool banner (Story 21.9): `changed` exactly true and a status that is not refused, in the given order. Both
+ *   members are the server's; skipping a refused tool is the one rule the page applies to them (the server reports `changed` for every status).
  * - toolChangedText fills that banner's sentence, the Message Catalog key settings.toolChangedBanner, word for word.
  * - withoutChange gives the settings with one tool's `changed` set to false, which the section applies once a classification has saved.
  */

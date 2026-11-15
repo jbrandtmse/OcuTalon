@@ -127,6 +127,28 @@ Line numbers are this worktree's at `09b8dd201` (branch `OCT-epic21-s219`: 21.4 
 - Given a banner, when the admin classifies that tool and the save succeeds, then the banner goes at once and stays gone after a reload (B14, `TestListChanged`).
 - Given the web build after this story, when `npm run build` and `initial-bundle.test.mjs` run, then the initial total equals Task 0 (c)'s and stays under 921 kB, and the banner code is only in the MCP lazy chunk.
 
+### Review Findings
+
+Code review (2026-11-14, `bmad-code-review`, full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; none failed). Diff `45c6d663b` plus QA's uncommitted files, bookkeeping excluded. 18 raw findings, 8 entries kept and patched, 7 rejected. No HIGH; no AD mismatch (AD-21, AD-12, AD-13, AD-25, AD-29/AD-33, AD-32 checked).
+
+- [x] [Review][Patch] (medium, verification-gap) `SettingsMcp` killed `^||ZzOps` only after a test, so a switch an earlier class left in the process (`auditError`, `demo`) could fail `ClearChanged` in `TestListChanged`/`TestListChangedUnavailable` for a reason they did not create [src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls:36] -- `OnBeforeOneTest` kills it too. Fix-risk low, in-story.
+- [x] [Review][Patch] (low, blind-hunter+edge-case-hunter) `TestListChanged` did not check the classify handler's status, so a failing handler ended in `<UNDEFINED>` rather than an assertion; `ActingUser` repeated the admin name [src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls:323] -- `$$$AssertStatusOK(sc, ...)` added, `ActingUser = admin`.
+- [x] [Review][Patch] (low, blind-hunter) `TestListChangedUnavailable`'s doc read as if refused tools were left out [src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls:338] -- reworded.
+- [x] [Review][Patch] (low, blind-hunter) `mcp-view.ts`'s module doc said the page decides nothing of its own, while the refused skip is the page's one rule [web/src/app/settings/mcp-view.ts:15] -- reworded: both members are the server's, and skipping a refused tool is the one rule the page applies.
+- [x] [Review][Patch] (low, verification-gap) B14's order assertion could not tell the table's order from the order of the changes (both alphabetical, cleared in that order) [web/e2e/settings/mcp.spec.ts:381] -- `zz_second` is now cleared first; B14 still passes, so the banners follow the table.
+- [x] [Review][Patch] (low, edge-case-hunter) The `withoutChange` mutation that drops `one.name === tool` recorded 1 failure; with the review's not-listed test it is 2 [spec ## Verification] -- re-run and corrected (Rule 19).
+- [x] [Review][Patch] (low, verification-gap) AC5 had no `mutation:` line; its "only in the lazy chunk" clause is pinned by `lazy-routes.test.mjs` (the eager graph reaches only the unsaved guard and dialog under `app/settings/`), so the claim that nothing that runs would catch an eager import is false [spec ## Verification] -- mutation demonstrated and recorded.
+- [x] [Review][Patch] (low, verification-gap) AC1's Unclassified radio and notice, and AC4's reload half, have no 21.9 mutation line: they are Lane A's behaviour (`ClearRow`, `Notify`, `Classify`'s reset; `Tools` reports `changed` false for any classified tool) [spec ## Verification] -- recorded as Lane A-pinned (`Test.Mcp.Ops` `TestClassify` :345, `TestClearChanged` :677), which no 21.9 mutation can reach.
+
+Rejected:
+- (low, blind-hunter+acceptance-auditor) 21.5 (`afd4ff35a`) is on feature but not on this branch, and edits the same regions -- true, but it is the lead's integrate-forward that Design Notes "Contended edits" already prescribes (whoever lands second keeps both stories' lines; check that `pick`'s `withClassification` then `withoutChange` keeps `sources`). Not a defect of this diff; listed for the lead.
+- (low, acceptance-auditor) 22.15 is not yet on feature -- a merge-gate order the ruling (~22:40Z Nov 14) and Task 0 (a) already set; this branch carries 22.15's commits.
+- (false, blind-hunter) Auto Run Result predates QA -- a pass's Auto Run Result covers only that pass (Rule 14); QA's additions are in its own Verification paragraph. The whole `node --test web/scripts/` folder was re-run at review: 2101 pass.
+- (false, blind-hunter) Two amended `SettingsOps` doc lines run past the paragraph's wrap -- no line-length rule (`test-class-rules.sh` passes; five lines of the class were already longer), and a re-wrap would widen the hunks 21.5 also edits.
+- (low, edge-case-hunter) The banner follows the section's last load, so another admin's classification or a new clear shows only after a reload -- the section has no live refresh of any of its state (21.4); a live refresh is not a two-way door. Closed `wontfix-accepted` as DW-1356 with `reopen_if`.
+- (false, acceptance-auditor) The spine note is not "after the tools shape" -- it is after the shape, in the row's description; the row grammar keeps the markers at the end; the words are the Task's.
+- (low, acceptance-auditor) EXPERIENCE announces a banner that appears after page load -- by design: the spec's Never ("no live-region announcement") and Decided 6; the banner shows with the section's load, has no role, and its icon is `aria-hidden` (`icon.ts` :40), so it is read in place between the heading and the checkbox.
+
 ## Spec Change Log
 
 ### 2026-11-15 - Refresh after 22.15, and the refused-tool ruling (plan stage, spec gate)
@@ -289,10 +311,13 @@ Reused verbatim, accepted (no new text): `settings.toolChangedBanner`, "{tool} o
   - One word of `MCP_TEXTS.toolChanged` changed -> red (`catalogText`).
     mutation: "input" for "inputs" in `MCP_TEXTS.toolChanged` -> 2 failures (the catalog equality and the rendered text); reverted byte-identical.
   - `withoutChange` changes every row of the server -> red.
-    mutation: the row test drops `one.name === tool` -> 1 failure; reverted byte-identical.
+    mutation: the row test drops `one.name === tool` -> 2 failures (the named-row test and the not-listed test; re-run at code review); reverted byte-identical (`cmp`, `git status --short`).
     mutation: the row test drops `one.server === server &&` (name only) -> `withoutChange` tests red (the named-row test and the not-listed test); reverted byte-identical.
     mutation: `toolChangedText` with string replacements instead of function replacers -> "keeps a `$&` in a name literally" red; reverted byte-identical.
 - `node --test web/scripts/initial-bundle.test.mjs` (once, after the web edits; about 20 s cold) -- pass (initial total at most 921 kB).
+  - AC5's "only in the MCP lazy chunk" is pinned by `web/scripts/lazy-routes.test.mjs` (the static graph from `main.ts` reaches only the unsaved guard and its dialog under `app/settings/`).
+    mutation (code review): `import { changedTools } from './app/settings/mcp-view'` appended to `web/src/main.ts` -> `lazy-routes.test.mjs` red ("only the unsaved guard and its dialog of the Settings code are reached", with `app/settings/mcp-view.ts` added); reverted byte-identical (`cmp`, `git status --short`).
+- Lane A-pinned clauses, no 21.9 mutation possible (Lane A edits are forbidden): AC1's Unclassified radio and its `mcp.toolChanged` notice (`ClearRow`, `Notify`; `Test.Mcp.Ops` `TestClearChanged` :677), and AC4's reload half (`Classify` resets `Changed`; `TestClassify` :345; `Tools` reports `changed` false for any classified tool). 21.9's own pins are `TestListChanged` (the pass-through) and B14 (the banner goes on the 200).
 - `node --test web/scripts/` (once, the whole folder) -- pass.
 - `cd web && npx tsc -p tsconfig.e2e.json --noEmit` (once) -- clean.
 - `cd web && npm run build` (once) -- clean. "Initial total" equals Task 0 (c)'s, and only the MCP lazy chunk grew.
@@ -315,6 +340,20 @@ Reused verbatim, accepted (no new text): `settings.toolChangedBanner`, "{tool} o
 - (once) `git diff --stat <22.15's tip> -- src/ocutalon/cls/OcuTalon/Mcp src/ocutalon/cls/OcuTalon/Test/Mcp src/bridge` -- empty (no Lane A edit by 21.9).
 
 **Result (implement, lane C, warm `e21s9iw`, fresh `e21s9i`, both torn down):** warm `Test.Core.SettingsMcp`, `Test.Web.McpSettingsApi`, `Test.Msg.Catalog` and `Test.Mcp.Tools` pass; `mcp-view` and `ux-strings` node tests pass; `node --test web/scripts/` 2099 pass; `tsc -p tsconfig.e2e.json` clean; `npm run build` clean (Initial total 888.40 kB, unchanged); `initial-bundle.test.mjs` passes; fresh `live sign-in-2 --part 19/24` (the part that holds only `settings/mcp.spec.ts`, 11 tests) passes with B14; `test-class-rules.sh` and `test-boundaries.sh` pass; `lint_spine.py` gives 10 low; no Lane A diff; no static import of the MCP files from the page.
+
+**QA (stage qa, lane C, warm `e21s9qw`, fresh `e21s9q`, both torn down):** gaps closed, test files touched:
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls` (QA): `TestListChangedUnavailable` (Matrix "Changed, server unavailable" had a node test only; `ListMcp` could drop `changed` for an unavailable tool unseen; also two servers, so the tools array's server order is pinned).
+  mutation: `%Set("changed", (tool.changed && (tool.status '= "unavailable")), "boolean")` in `ListMcp` -> `TestListChangedUnavailable` red (the only failure; the implement mutations did not catch it); reverted byte-identical (`cmp`), class green again.
+- `web/scripts/mcp-view.test.mjs` (QA): a `changed: 1` row (and a null, a string) in `changedTools` ("exactly true" had no number case).
+  mutation: `tool.changed == true` in `changedTools` -> 2 failures (the order test and the new one); reverted byte-identical (`cmp`).
+- `web/e2e/settings/mcp.spec.ts` (QA): B14 seeds a second changed tool (`zz_second`): two banners in table order, a pick takes away only its own, the other survives a reload (the section's wiring had one changed tool, so "several" and "exactly that tool's" were untested there).
+  mutation: `pick`'s `next` clears `changed` on every tool instead of `withoutChange(one, tool.server, tool.name)` -> B14 red ("only that tool's banner goes"); reverted byte-identical (`cmp` and `git diff`).
+  mutation: `changed = computed(() => changedTools(this.settings().tools).slice(0, 1))` in `mcp-section.ts` -> B14 red ("the server has two"); reverted byte-identical (`cmp` and `git diff`).
+- Results: warm `Test.Core.SettingsMcp` passes (new method and the rest); `node --test web/scripts/mcp-view.test.mjs web/scripts/ux-strings.test.mjs` 46 pass; `tsc -p tsconfig.e2e.json` clean; fresh `live sign-in-2 --part 19/24` 11 pass with the extended B14.
+- Judged covered, no change: refused vs not refused, `changed: false`, a missing member, list order of `changedTools`, a failed save keeping the banner (B14), the JSON boolean (`TestListChanged`), the catalog text and its fill (`mcp-view.test.mjs`), the online demo (`TestOnlineDemo` pins not_available and no data, so `ListMcp` sends no row; B5 pins T1; the section's tools group is only in the loaded branch, so a demo banner mutation is equivalent).
+- `mutations_demonstrated=4`
+
+**Code review (stage code-review, lane C, warm `e21s9cw`, fresh `e21s9c`, both torn down):** `ci/iris.sh build`, then fresh `live sign-in-2 --part 19/24` (only `settings/mcp.spec.ts`, 11 tests) passed before the patches and again after them (B14 with `zz_second` cleared first); warm `Test.Core.SettingsMcp` passes with the patched hooks and assertion; `node --test web/scripts/mcp-view.test.mjs` 33 pass; `node --test web/scripts/` 2101 pass (`initial-bundle.test.mjs` included); `tsc -p tsconfig.e2e.json` clean. Mutations re-run: the `one.name === tool` drop (2 failures) and AC5's eager import (`lazy-routes.test.mjs` red), each reverted byte-identical.
 
 ## Auto Run Result
 
