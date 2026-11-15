@@ -6,7 +6,13 @@ Include Ensemble
 /// and recorded by the Tick of Checks; the definition is put back after each test.
 ///   - TestMeasured (Task 0, a hard gate): FixExecutor's own job carries out an approved rollback_setting through Fix.Executor.InProduction, which sets the stored setting in the saved
 ///     definition and calls Ens.Director.UpdateProduction in OCUORDERS; every other item of OCUORDERS keeps its job. The figures are logged and printed as SKIP lines (a status 2
-///     never fails a class).
+///     never fails a class): the SKIP line of TestMeasuredRemoval is such a figure (Timing), not a skipped test, and the assertions after it run.
+///   - TestUndoSystemDefaultChanged and TestUndoDefaultMovesAfterDryRun (DW-1366): the undo of a rollback of a System Default Setting change shows, in its dry run, the setting's
+///     current default as After (the default that changed while the item's own value hid it), and a default that moves after the dry run skips the run with result.settingChangedSince;
+///   - TestUndoDefaultGone: the System Default Setting that the item's own value hid is gone, so the undo's After is the class value, and refused when that is empty;
+///   - TestUpdateFailureRestoresRemoval and TestUpdateFailureRestoresInsert (DW-1365): the restore after a forced update failure puts a removed stored setting back and takes an inserted one out;
+///   - TestUpdateFailureRestores and TestUpdateFailureNotApplied (DW-1365): Fix.Executor InProduction, given a plan entry whose updateErrors makes Ens.Director.UpdateProduction fail
+///     once or twice (a test-only member of the entry that no kind sets), writes the earlier value back and reports the entry unreached as refused, or reports it as notapplied.
 Class OcuTalon.Test.Watch.Rollback Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
@@ -19,6 +25,9 @@ Parameter FAILING = {##class(OcuTalon.Test.Watch.OrdersDefinition).#ITEM};
 
 Parameter SDSSETTING = "RetryInterval";
 
+/// A Host setting of the failing item whose class default is empty (Ens.Host's BusinessPartner), for TestUndoDefaultGone's empty default.
+Parameter EMPTYSETTING = "BusinessPartner";
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
@@ -30,6 +39,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
 	Set sc = $SYSTEM.Status.AppendStatus(sc, $ClassMethod(..#DEFINITION, "Put", 0))
+	// a rollback of a System Default Setting change leaves the item's own value of the setting in the definition, which Put does not name
+	Set sc = $SYSTEM.Status.AppendStatus(sc, $ClassMethod(..#DEFINITION, "Put", 0, "", "", ..#SDSSETTING_","_..#EMPTYSETTING))
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DropDefault())
 	Do ..DropHistory()
 	Quit sc
@@ -42,16 +53,19 @@ ClassMethod DropHistory()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SettingSnapshot WHERE Namespace = ? AND Production = ?", ..#ORDERS, ..#ORDERSPRODUCTION)
 }
 
-/// Saves a System Default Setting row of the setting for the item in the Orders production, through the class.
+/// Saves a System Default Setting row of the setting for the item in the Orders production, through the class: a new row, or the value of the row that is there.
 ClassMethod SaveDefault(item As %String, setting As %String, value As %String) As %Status
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
-	Set row = ##class(Ens.Config.DefaultSettings).%New()
-	Set row.ProductionName = ..#ORDERSPRODUCTION
-	Set row.ItemName = item
-	Set row.HostClassName = "*"
-	Set row.SettingName = setting
+	Set id = ..#ORDERSPRODUCTION_"||"_item_"||*||"_setting
+	Set row = $Select(##class(Ens.Config.DefaultSettings).%ExistsId(id): ##class(Ens.Config.DefaultSettings).%OpenId(id), 1: ##class(Ens.Config.DefaultSettings).%New())
+	If row.%Id() = "" {
+		Set row.ProductionName = ..#ORDERSPRODUCTION
+		Set row.ItemName = item
+		Set row.HostClassName = "*"
+		Set row.SettingName = setting
+	}
 	Set row.SettingValue = value
 	Quit row.%Save()
 }
@@ -62,8 +76,8 @@ ClassMethod DropDefault() As %Status
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
 	Set sc = $$$OK
-	For item = ..#FAILING {
-		Set id = ..#ORDERSPRODUCTION_"||"_item_"||*||"_..#SDSSETTING
+	For setting = ..#SDSSETTING, ..#EMPTYSETTING {
+		Set id = ..#ORDERSPRODUCTION_"||"_..#FAILING_"||*||"_setting
 		If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Set sc = ##class(Ens.Config.DefaultSettings).%DeleteId(id)
 	}
 	Quit sc
@@ -641,4 +655,218 @@ Method TestUndoRefusesUnseenChange()
 	Do $$$AssertEquals(answer.Targets, "", "and the dry run names no target")
 }
 
+
+/// The rollback of a System Default Setting change made by FixExecutor's job: a System Default Setting row gives the setting of the failing item the value 7, one Tick records the change
+/// (class value to 7, source default), the rollback writes the class value on the item, and a second Tick records the rollback's own change. The incident is
+/// in incident, the class value in before and the item's stored settings from before the rollback in storedBefore. The result is the change's Ref, "" when it was not recorded.
+Method RollBackDefault(a As %String, trace As %String, Output incident As %String, Output before As %String, Output storedBefore As %String) As %String [ Private ]
+{
+	Set incident = ""
+	Set item = ..#FAILING
+	Set setting = ..#SDSSETTING
+	Set before = ..Effective(item, "Host", setting)
+	Set storedBefore = ..Stored(item)
+	Do $$$AssertStatusOK(..SaveDefault(item, setting, 7), "a System Default Setting row gives "_setting_" the value 7")
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set rows = ..ChangeRows(setting)
+	Do $$$AssertEquals(rows.%Size(), 1, "the Tick records one change for it: "_rows.%ToJSON()_" stored "_..Stored(item)_" effective "_..Effective(item, "Host", setting))
+	If rows.%Size() '= 1 Quit ""
+	Set row = rows.%Get(0)
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set fixture = ..Fixture(a, "1", ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "fixing", "OpenVariant": "", "NoticedAt": (now), "FirstAt": (##class(OcuTalon.Data.Time).AddSeconds(row.detectedAt, 120)), "LastAt": (##class(OcuTalon.Data.Time).AddSeconds(row.detectedAt, 125))})
+	Set incident = fixture.Ref
+	Do ..Run(a, trace, incident, "rollback_setting", row.ref, item, setting, "Host", "7", before)
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals(..ChangeRows(setting).%Size(), 2, "the second Tick records the rollback's own change")
+	Quit row.ref
+}
+
+/// DW-1366 (Planner pre-push ruling 2026-11-15): the rollback of a System Default Setting change put the class value on the item, and the System Default Setting then changed to 9 while
+/// the item's own value hid it (no change is recorded for it: the item's effective value did not move). The undo's dry run shows After 9, the setting's current default, not the
+/// recorded new value 7, and the undo that runs takes the item's stored setting out, so that 9 applies. mutation: the dry run's After from the recorded new value.
+Method TestUndoSystemDefaultChanged()
+{
+	If '..Ready() Quit
+	Set a = ..Prepare(.trace)
+	Set change = ..RollBackDefault(a, trace, .incident, .before, .storedBefore)
+	If change = "" Quit
+	Do $$$AssertStatusOK(..SaveDefault(..#FAILING, ..#SDSSETTING, 9), "the System Default Setting changes to 9 while the item's own value hides it")
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertEquals(..ChangeRows(..#SDSSETTING).%Size(), 2, "no change is recorded for it: the item's effective value did not move")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#SDSSETTING), before, "and the item still has its own value")
+	Do ..Run(a, trace, incident, "undo_rollback", change, ..#FAILING, ..#SDSSETTING, "Host", before, "9")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#SDSSETTING), "9", "the undo made the current default apply")
+	Do $$$AssertEquals(..Stored(..#FAILING), storedBefore, "and the item's stored settings are as they were before the rollback")
+}
+
+/// DW-1366: the System Default Setting moves again (to 11) after the undo's dry run (After 9) was approved: the run re-reads the value that the removal would leave, finds that it is
+/// not the After that was approved, writes nothing and reports result.settingChangedSince. mutation: Plan without its comparison with the approved After.
+Method TestUndoDefaultMovesAfterDryRun()
+{
+	If '..Ready() Quit
+	Set a = ..Prepare(.trace)
+	Set change = ..RollBackDefault(a, trace, .incident, .before, .storedBefore)
+	If change = "" Quit
+	Do $$$AssertStatusOK(..SaveDefault(..#FAILING, ..#SDSSETTING, 9), "the System Default Setting changes to 9")
+	Set parameters = {"change": (change)}.%ToJSON()
+	Set answer = ..AskDryRun(incident, "undo_rollback", parameters, trace, .dry, .sc)
+	Do $$$AssertTrue($IsObject(answer) && (answer.Reason = ""), "the undo's dry run is made")
+	If '$IsObject(answer) || (answer.Reason '= "") Quit
+	Do $$$AssertEquals({}.%FromJSON(answer.DryRun).after, "9", "its After is the current default")
+	Set request = ..Request(a, incident, "undo_rollback", parameters, answer.Targets, answer.DryRun)
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = $Select(row.RequestRefs = "": request, 1: row.RequestRefs_","_request)
+	Do $$$AssertStatusOK(row.%Save(), "the incident names the request")
+	Kill row
+	Do $$$AssertStatusOK(..SaveDefault(..#FAILING, ..#SDSSETTING, 11), "the System Default Setting changes to 11 after the dry run")
+	Set stored = ..Stored(..#FAILING)
+	Do $$$AssertStatusOK(..SendExecute(request, .session), "the Execute is handled")
+	Set results = ..WaitFixResults(request, 1)
+	Do $$$AssertEquals(results.%Size(), 1, "one FixResult goes to IncidentManager")
+	If results.%Size() = 1 {
+		Set result = results.%Get(0)
+		Do $$$AssertEquals(result.total_"|"_result.resent_"|"_result.completed_"|"_result.skipped_"|"_result.reason, "1|0|0|1|"_##class(OcuTalon.Fix.Kind.RollbackSetting).ChangedAgain(..#SDSSETTING, ..#FAILING), "Skipped 1, nothing changed, with the reason that names the setting")
+	}
+	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", ..#SDSSETTING), stored_"|"_before, "nothing was written: the item still has its own value")
+	Set notes = ..WaitResultNotices(incident, 2)
+	Do $$$AssertEquals(notes.%Size(), 2, "the session has the rollback's and the undo's result Notifications")
+	If notes.%Size() = 2 Do $$$AssertEquals(notes.%Get(1).catalogKey, "result.settingChangedSince", "the undo's is result.settingChangedSince")
+}
+
+/// A plan entry for the Host setting of the failing item that sets it to value when it is expect.
+ClassMethod PlanEntry(expect As %String, value As %String, updateErrors As %Integer) As %DynamicObject
+{
+	Quit {"id": 1, "setting": (..#NOTE), "target": "Host", "item": (..#FAILING), "production": (..#ORDERSPRODUCTION), "expect": (expect), "value": (value), "updateErrors": (updateErrors)}
+}
+
+/// DW-1365 (Planner pre-push ruling 2026-11-15), the restore works: Ens.Director.UpdateProduction fails once after the definition was saved with the new value (the test-only
+/// updateErrors 1), InProduction writes the earlier value back, saves and updates again: the entry is unreached as refused with the production's error, the item's stored settings and
+/// value are as they were, and so "Nothing was changed" is true. mutation: the restore block of InProduction taken out.
+Method TestUpdateFailureRestores()
+{
+	If '..Ready() Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "beta"), "the stored Host setting is beta")
+	Set stored = ..Stored(..#FAILING)
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..PlanEntry("beta", "alpha", 1))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code, "1|refused", "as refused")
+	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", ..#NOTE), stored_"|beta", "the earlier value was written back: the stored settings and the value are as they were")
+}
+
+/// DW-1365, the restore fails too: Ens.Director.UpdateProduction fails twice (updateErrors 2), so the earlier value is written back but the production cannot apply it: the entry is
+/// unreached as notapplied with the production's error as its reason, without the "ERROR #" prefix. mutation: the code of that entry set to refused.
+Method TestUpdateFailureNotApplied()
+{
+	If '..Ready() Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "beta"), "the stored Host setting is beta")
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..PlanEntry("beta", "alpha", 2))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(0).reason, "1|notapplied|the update was refused by the test", "as notapplied, with the production's error")
+	// without the test-only member the same entry is carried out
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..PlanEntry("beta", "alpha", 0))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size()_"|"_..Effective(..#FAILING, "Host", ..#NOTE), "1|0|0|alpha", "with no forced failure the entry is done and the value is alpha")
+}
+
+/// A plan entry that takes the stored Host setting of the failing item out, which is expect now (an undo of a System Default Setting change), with the forced update failures.
+ClassMethod RemoveEntry(setting As %String, expect As %String, updateErrors As %Integer) As %DynamicObject
+{
+	Quit {"id": 1, "setting": (setting), "target": "Host", "item": (..#FAILING), "production": (..#ORDERSPRODUCTION), "expect": (expect), "value": "", "remove": 1, "updateErrors": (updateErrors)}
+}
+
+/// DW-1365, the restore of a removal: the item's own stored value of RetryInterval (8) sits between two other stored settings, and a plan entry with remove 1 takes it out. With the update
+/// forced to fail once, the stored setting is back in its place and the effective value is 8 again, and the entry is unreached as refused. Without the forced failure the same entry
+/// is done: the stored setting is gone and the class value applies. mutation: the loop of InProduction that puts the removed entries back taken out.
+Method TestUpdateFailureRestoresRemoval()
+{
+	If '..Ready() Quit
+	Set setting = ..#SDSSETTING
+	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 0, "", "", setting), "the item has no stored "_setting)
+	Set classValue = ..Effective(..#FAILING, "Host", setting)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", setting, 8), "the stored Host setting "_setting_" is 8")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "beta"), "and a stored setting follows it")
+	Set stored = ..Stored(..#FAILING)
+	Do $$$AssertTrue(stored [ ("Host:"_setting_"=8|"), "the stored settings are "_stored)
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", setting), "8", "the effective value is 8")
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..RemoveEntry(setting, "8", 1))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code, "1|refused", "as refused")
+	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", setting), stored_"|8", "the stored setting is back in its place and the value is as it was")
+	// without the forced failure the same entry is carried out
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..RemoveEntry(setting, "8", 0))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "1|0|0", "with no forced failure the entry is done")
+	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", setting), $Replace(stored, "Host:"_setting_"=8|", "")_"|"_classValue, "and the stored setting is gone, so that the class value applies")
+}
+
+/// DW-1365, the restore of an insert: the item has no stored RetryInterval, and a rollback entry adds one (8). With the update forced to fail once, the added entry is gone again and the
+/// effective value is the class value, and the entry is unreached as refused. Without the forced failure the same entry is done and the item's stored settings gain the entry.
+/// mutation: the line of InProduction that takes the inserted entry out again taken out.
+Method TestUpdateFailureRestoresInsert()
+{
+	If '..Ready() Quit
+	Set setting = ..#SDSSETTING
+	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 0, "", "", setting), "the item has no stored "_setting)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.SettingHistory).ChangeStored(..#FAILING, 1, "Host", ..#NOTE, "beta"), "another setting is stored")
+	Set classValue = ..Effective(..#FAILING, "Host", setting)
+	Set stored = ..Stored(..#FAILING)
+	Do $$$AssertTrue(stored '[ ("Host:"_setting_"="), "the stored settings are "_stored)
+	Set entry = ..PlanEntry(classValue, 8, 1)
+	Do entry.%Set("setting", setting)
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(entry)], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code, "1|refused", "as refused")
+	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", setting), stored_"|"_classValue, "the inserted entry is gone and the value is as it was")
+	// without the forced failure the same entry is carried out
+	Do entry.%Set("updateErrors", 0, "number")
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(entry)], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "1|0|0", "with no forced failure the entry is done")
+	Do $$$AssertEquals(..Stored(..#FAILING)_"|"_..Effective(..#FAILING, "Host", setting), stored_"|Host:"_setting_"=8|8", "and the item has the stored setting")
+}
+
+/// DW-1366, the System Default Setting that the item's own value hid is gone: a rollback of a System Default Setting change (RetryInterval 5 to 7) put 5 on the item, and the System Default
+/// Setting row is then dropped, so that the value the item will have without its own value is the class value.
+///   - Non-empty class default: the undo's dry run shows After = the class value 5 (not the recorded new value 7), and the undo that runs takes the item's own value out again.
+///   - Empty class default (BusinessPartner, whose class default is empty, with two System Default values alpha and beta, a rollback that puts alpha on the item and the row then dropped): the
+///     dry run is refused with the CHANGEDAGAIN reason, because the value that the item will have is empty.
+/// mutation: the line of UndoRollback.Undoable that refuses an empty After taken out (the empty-default part red), and After taken from the recorded new value (the non-empty part red).
+Method TestUndoDefaultGone()
+{
+	If '..Ready() Quit
+	Set a = ..Prepare(.trace)
+	Set change = ..RollBackDefault(a, trace, .incident, .before, .storedBefore)
+	If change = "" Quit
+	Do $$$AssertStatusOK(..DropDefault(), "the System Default Setting row is dropped")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#SDSSETTING), before, "the item still has its own value, the class value "_before)
+	Do ..Run(a, trace, incident, "undo_rollback", change, ..#FAILING, ..#SDSSETTING, "Host", before, before)
+	Do $$$AssertEquals(..Stored(..#FAILING), storedBefore, "the undo took the item's own value out: the stored settings are as they were before the rollback")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#SDSSETTING), before, "and the class value applies")
+	// the empty class default
+	Set setting = ..#EMPTYSETTING
+	Set item = ..#FAILING
+	Do $$$AssertEquals(..Effective(item, "Host", setting), "", "the class default of "_setting_" is empty")
+	Do $$$AssertStatusOK(..SaveDefault(item, setting, "alpha"), "a System Default Setting gives "_setting_" the value alpha")
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertStatusOK(..SaveDefault(item, setting, "beta"), "and then beta")
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Set rows = ..ChangeRows(setting)
+	Do $$$AssertEquals(rows.%Size(), 2, "the Ticks record two changes for it: "_rows.%ToJSON())
+	If rows.%Size() '= 2 Quit
+	Set row = rows.%Get(1)
+	Do $$$AssertEquals(row.oldValue_"|"_row.newValue_"|"_row.source, "alpha|beta|default", "the newest is alpha to beta, with the source default")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set fixture = ..Fixture(a, "2", ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "fixing", "OpenVariant": "", "NoticedAt": (now), "FirstAt": (##class(OcuTalon.Data.Time).AddSeconds(row.detectedAt, 120)), "LastAt": (##class(OcuTalon.Data.Time).AddSeconds(row.detectedAt, 125))})
+	Set second = fixture.Ref
+	Do ..Run(a, trace, second, "rollback_setting", row.ref, item, setting, "Host", "beta", "alpha")
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	Do $$$AssertStatusOK(..DropDefault(), "the System Default Setting row is dropped")
+	Do $$$AssertEquals(..Effective(item, "Host", setting), "alpha", "the item still has its own value alpha")
+	Set answer = ..AskDryRun(second, "undo_rollback", {"change": (row.ref)}.%ToJSON(), trace, .dry, .sc)
+	Do $$$AssertTrue($IsObject(answer), "FixExecutor answers the undo's dry run")
+	If $IsObject(answer) Do $$$AssertEquals(answer.Reason, ##class(OcuTalon.Fix.Kind.RollbackSetting).ChangedAgain(setting, item), "it is refused with the CHANGEDAGAIN reason: the value the item will have is empty")
+}
 }

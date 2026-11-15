@@ -13,6 +13,8 @@
 ///     approved item run that bypasses the ONLINESHARED check could not start;
 ///   - TestItemThatCannotBeChanged (AC3, AC8): through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a change that Ens.Director.EnableConfigItem refuses ends the request
 ///     failed with the kind's NOSTART and the session reads result.itemNotChanged, and items that can't be read end it failed with the kind's NOREAD;
+///   - TestSettingNotApplied (Story 23.3, DW-1365): through the same handler, a setting kind's entry that was refused and written back reads result.itemNotChanged, and one that was saved
+///     and could not be applied ends failed with its reason and reads result.settingSavedNotApplied;
 ///   - TestNoApprovedRow (AC8): a pending request is not carried out.
 Class OcuTalon.Test.Fix.ItemKinds Extends OcuTalon.Test.Watch.Case
 {
@@ -383,6 +385,78 @@ Method TestItemThatCannotBeChanged()
 	Do $$$AssertTrue($IsObject(last), "a FixResult was sent for it")
 	If $IsObject(last) Do $$$AssertEquals(last.final_"|"_last.total_"|"_last.completed_"|"_last.reason, "1|1|0|"_$Parameter("OcuTalon.Fix.Kind.SuspendItem", "NOREAD"), "it holds Total 1 and the kind's NOREAD")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref).State, "failed", "the request is failed")
+}
+
+/// DW-1365 (Planner pre-push ruling 2026-11-15), the run of a setting kind through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a setting that the
+/// production refused and that was written back (the entry unreached as refused) ends as could not start, with the kind's NOSTART, and the session reads result.itemNotChanged; a setting
+/// that was saved and could not be applied (the entry unreached as notapplied, with the production's error as its reason) ends the request failed through Finish with that reason, Unreached 1
+/// and one Action entry, and the session reads result.settingSavedNotApplied, rendered as ruled. mutation: the notapplied branch of Fix.Executor Run taken out (the run reads
+/// result.itemNotChanged with the kind's NOSTART).
+Method TestSettingNotApplied()
+{
+	Set a = ..Session("settingsaved")
+	Do ..SetOnlineDemo(0)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Fix.ExecutorProbe", .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the executor probe is made")
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set host.StateIs = "running"
+	Set kind = "rollback_setting"
+	Set parameters = {"change": "zzchange0000000000001"}.%ToJSON()
+	Set dryRun = {"item": "OrdersFromPartner", "field": "ZzFixtureNote", "before": "beta", "after": "alpha"}.%ToJSON()
+	Set extra = {"setting": "ZzFixtureNote", "target": "OrdersFromPartner", "after": "alpha"}
+	Set host.CheckIs = "{""passed"":""7"",""skipped"":[]}"
+
+	// the production refused the change and the earlier value was written back: nothing was changed
+	Set row = ..Fixture(a, "1", "ZZNS", "Zz.ItemKinds", "h", {"State": "fixing", "OpenVariant": ""})
+	Set incident = row.Ref
+	Kill row
+	Set ref = ..Request(a, incident, kind, parameters, "7", dryRun)
+	Set host.CarryIs = "{""copies"":[],""skipped"":[],""unreached"":[{""id"":7,""code"":""refused""}]}"
+	Do $$$AssertStatusOK(..Handle(host, ref), "the Execute of the restored setting is handled")
+	Set last = ..Last(host)
+	Do $$$AssertTrue($IsObject(last), "a FixResult was sent")
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.final_"|"_last.total_"|"_last.completed_"|"_last.skipped_"|"_last.unreached_"|"_last.reason, "1|1|0|0|0|"_$Parameter("OcuTalon.Fix.Kind.RollbackSetting", "NOSTART"), "it holds Total 1, nothing changed and the kind's NOSTART")
+		Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set result.Final = last.final
+		Set result.Total = last.total
+		Set result.Unreached = last.unreached
+		Set result.Reason = last.reason
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey(last.storedState, result, kind), "result.itemNotChanged", "and the session reads result.itemNotChanged")
+	}
+
+	// the setting was saved and the production could not apply it, and the earlier value could not be written back
+	Set row = ..Fixture(a, "1", "ZZNS", "Zz.ItemKinds", "h", {"State": "fixing", "OpenVariant": ""})
+	Set incident = row.Ref
+	Kill row
+	Set ref = ..Request(a, incident, kind, parameters, "7", dryRun)
+	Set host.CarryIs = "{""copies"":[],""skipped"":[],""unreached"":[{""id"":7,""code"":""notapplied"",""reason"":""The update timed out""}]}"
+	Set before = $Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0)
+	Do $$$AssertStatusOK(..Handle(host, ref), "the Execute of the unapplied setting is handled")
+	Set last = ..Last(host)
+	Do $$$AssertTrue($IsObject(last), "a FixResult was sent for it")
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.final_"|"_last.total_"|"_last.completed_"|"_last.skipped_"|"_last.unreached_"|"_last.reason, "1|1|0|0|1|The update timed out", "it holds Total 1, nothing completed, Unreached 1 and the production's error")
+		Do $$$AssertEquals(last.storedState, "failed", "the request is failed")
+		Set result = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set result.Final = last.final
+		Set result.Total = last.total
+		Set result.Unreached = last.unreached
+		Set result.Reason = last.reason
+		Set key = ##class(OcuTalon.Watch.Notice).ResultKey(last.storedState, result, kind)
+		Do $$$AssertEquals(key, "result.settingSavedNotApplied", "and the session reads result.settingSavedNotApplied")
+		Set slots = ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, {}, .sc, extra)
+		Do $$$AssertStatusOK(sc, "its slots are built")
+		If $IsObject(slots) Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(key, slots.%ToJSON(), "phone", .sc), "ZzFixtureNote on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again.", "which renders as ruled")
+		Set result.Reason = ""
+		Do ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, {}, .sc, extra)
+		Do $$$AssertTrue($$$ISERR(sc), "a result with no reason gives no slots")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref).State, "failed", "the stored request is failed")
+	Set audits = $Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0)
+	Do $$$AssertEquals(audits - before, 1, "one Action entry is written for the run")
+	If audits - before = 1 Do $$$AssertEquals(host.Audits.%Get(audits - 1).action_"|"_host.Audits.%Get(audits - 1).result, kind_"|failed", "it is the kind's, with the result failed")
 }
 
 /// Hands the probe an Execute for the Ref; the status.

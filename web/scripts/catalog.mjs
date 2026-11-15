@@ -39,7 +39,7 @@
 // the four answered.*By texts, the server of answered.canceled, the failReason of result.failedAgain and result.failedAndSkipped, the reason of
 // result.couldNotStart, and the item, production and to of result.itemSuspended, itemResumed, itemSkipped and rerouted. A sentence
 // slot (a plain sentence that the text follows with a full stop) is allowed for the keys of SENTENCE_SLOT_KEYS only, the reason of
-// result.itemSkipped and result.itemNotChanged; it renders as a text slot does, except that the full stop after it is not doubled
+// result.itemSkipped and result.itemNotChanged, and the production's error in result.settingSavedNotApplied; it renders as a text slot does, except that the full stop after it is not doubled
 // when the sentence ends with one, and is left out when the sentence ends with "?", "!" or an ellipsis, as the server's renderer does.
 //
 // It fails closed (exit 1, with the file) on a listed key that is missing from both files, a listed key with a slot of a type
@@ -122,6 +122,7 @@ export const LISTED_KEYS = [
   'result.settingRestored',
   'result.settingChangedSince',
   'result.rollbackUndone',
+  'result.settingSavedNotApplied',
   'incident.settingChangeCause',
   'audit.recorded',
   'incident.eitherWayLine',
@@ -161,13 +162,14 @@ export const TEXT_SLOT_KEYS = [
   'result.settingRestored',
   'result.settingChangedSince',
   'result.rollbackUndone',
+  'result.settingSavedNotApplied',
   'incident.settingChangeCause',
   'incident.eitherWayLine',
   'memory.learnedSaved',
 ];
 const TEXT_SLOT_TYPE = 'text';
 /** The keys that may also declare a sentence slot, a plain sentence that the text follows with a full stop: the reason of the two result texts that say why an item was not changed. */
-export const SENTENCE_SLOT_KEYS = ['result.itemSkipped', 'result.itemNotChanged'];
+export const SENTENCE_SLOT_KEYS = ['result.itemSkipped', 'result.itemNotChanged', 'result.settingSavedNotApplied'];
 const SENTENCE_SLOT_TYPE = 'sentence';
 /** The one slot type a fallbackReason.* text may declare: the page renders a reason text as it is, with no slot filled. */
 const REASON_SLOT_TYPE = 'fallbackReason';

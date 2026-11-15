@@ -690,6 +690,8 @@ function settingResultView(request: IncidentRequest, result: IncidentRequestResu
     return bandOf(request.fixKind === 'undo_rollback' ? 'result.rollbackUndone' : 'result.settingRestored', { setting, target, after }, 'success', 'circle-check', render);
   } else if (reason === '') {
     return undefined;
+  } else if ((numberOf(result.unreached) ?? 0) > 0) {
+    return setting === '' || target === '' ? undefined : bandOf('result.settingSavedNotApplied', { setting, target, reason }, 'partial', 'triangle-alert', render);
   } else if ((numberOf(result.skipped) ?? 0) > 0 && reason.endsWith(SETTING_CHANGED_AGAIN)) {
     return setting === '' || target === '' ? undefined : bandOf('result.settingChangedSince', { setting, target }, 'partial', 'triangle-alert', render);
   }

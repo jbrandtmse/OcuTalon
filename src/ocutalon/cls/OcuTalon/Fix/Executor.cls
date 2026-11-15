@@ -56,6 +56,10 @@ Include (EnsConstants, EnsErrors)
 ///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
 ///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
 ///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
+///   - A kind whose target is a setting (TARGETTYPE setting, Story 23.3): when the production's update fails after the definition was saved, InProduction writes the earlier value back and
+///     updates again. If that works, the run ends as could not start with the kind's NOSTART (nothing was changed). If it fails too (code notapplied), the run ends failed through Finish
+///     with Total the number of targets, Skipped 0, Unreached the targets not done and the redacted Reason holding the production's error text, one Action entry is written, and the
+///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey).
 ///   - A kind whose targets are contacts (TARGETTYPE contact, Story 23.5: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
 ///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: demo mode is off, so the approved notice is kept as the row's DryRun
 ///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
@@ -416,6 +420,7 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	Set unreached = 0
 	Set first = ""
 	Set firstId = ""
+	Set firstReason = ""
 	Set targetType = ..KindReason(class, "TARGETTYPE", "message")
 	Try {
 		Set run = ##class(OcuTalon.Data.FixRun).%New()
@@ -447,6 +452,7 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 					Set unreached = result.unreached.%Size()
 					Set first = result.unreached.%Get(0).code
 					Set firstId = result.unreached.%Get(0).id
+					Set firstReason = result.unreached.%Get(0).%Get("reason")
 				}
 			}
 		}
@@ -473,6 +479,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	}
 	If (failed = "") && (passed '= "") && (targetType '= "message") {
 		Set changed = $Select(targetType = "contact": sent, $IsObject($Get(result)): +result.changed, 1: 0)
+		If (changed = 0) && (unreached > 0) && (first = "notapplied") {
+			Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": 0, "unreached": (unreached), "reason": (firstReason)})
+			Quit
+		}
 		If (changed = 0) && (unreached > 0) {
 			Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), 1)
 			Quit
@@ -1141,6 +1151,9 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 ///     change, "remove" 1}: the effective value of the item's setting, read with Ens.Director.GetItemSettingValue, must still be expect; then the stored Ens.Config.Setting of that
 ///     name and target of the item's definition is set to value (added when the item has none), or taken out with remove, the definition is saved and
 ///     Ens.Director.UpdateProduction updates the running production. It never edits a System Default Setting row or a class, and it calls no OcuTalon class there (AD-3).
+///     When the update fails after the save, the earlier stored state is written back, saved and the production updated again: if that works the entry is unreached with the
+///     code "refused" and nothing is changed; if it fails too, the entry is unreached with the code "notapplied" and "reason" (the first error's text), and the setting may be left
+///     changed. An entry's optional "updateErrors" N, which only a test sets (no kind's plan has it), makes the first N calls of UpdateProduction answer an error without calling it.
 ///   - an item change, {"id" (the Ens.Config.Item id), "action" (disable or enable), "item", "production"}: the item is opened by its id and must still be the named item of the
 ///     named production in the state the action leaves (enabled for disable, as IRIS runs it: its stored Enabled unless a System Default Setting Enabled overrides it), and
 ///     Ens.Director.EnableConfigItem(production||item, enable) changes it.
@@ -1183,13 +1196,17 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 						Set code = "changed"
 					} Else {
 						Set matched = 0
+						Set inserted = 0
+						Kill prior, removed
 						For j = item.Settings.Count():-1:1 {
 							Set stored = item.Settings.GetAt(j)
 							If (stored.Name '= entry.setting) || (stored.Target '= entry.target) Continue
 							Set matched = 1
 							If entry.%Get("remove") {
+								Set removed(j) = $ListBuild(stored.Target, stored.Name, stored.Value)
 								Do item.Settings.RemoveAt(j)
 							} Else {
+								Set prior(j) = stored.Value
 								Set stored.Value = entry.value
 							}
 						}
@@ -1199,17 +1216,46 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 							Set stored.Name = entry.setting
 							Set stored.Value = entry.value
 							Do item.Settings.Insert(stored)
+							Set inserted = 1
 						}
 						If 'matched && entry.%Get("remove") {
 							Set code = "changed"
 						} Else {
 							Set sc = definition.%Save()
-							If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout())
+							Set saved = $$$ISOK(sc)
+							Set updates = 0
+							If saved Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $SYSTEM.Status.Error(5001, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
 							If $$$ISOK(sc) {
 								Set code = "done"
 							} Else {
 								Set code = "refused"
 								Set detail = $SYSTEM.Status.GetErrorText(sc)
+								If saved {
+									#; the update failed after the save: the earlier stored state is written back and the production is updated again
+									Try {
+										Set key = $Order(prior(""), 1, value)
+										While key '= "" {
+											Set stored = item.Settings.GetAt(key)
+											Set stored.Value = value
+											Set key = $Order(prior(key), 1, value)
+										}
+										Set key = $Order(removed(""), 1, value)
+										While key '= "" {
+											Set stored = ##class(Ens.Config.Setting).%New()
+											Set stored.Target = $List(value, 1)
+											Set stored.Name = $List(value, 2)
+											Set stored.Value = $List(value, 3)
+											Do item.Settings.InsertAt(stored, key)
+											Set key = $Order(removed(key), 1, value)
+										}
+										If inserted Do item.Settings.RemoveAt(item.Settings.Count())
+										Set sc = definition.%Save()
+										If $$$ISOK(sc) Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $SYSTEM.Status.Error(5001, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+									} Catch restoreError {
+										Set sc = restoreError.AsStatus()
+									}
+									If $$$ISERR(sc) Set code = "notapplied"
+								}
 							}
 						}
 					}
@@ -1303,9 +1349,14 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 			}
 			Continue
 		}
-		If (code = "stopped") || (code = "refused") || (code = "error") {
+		If (code = "stopped") || (code = "refused") || (code = "error") || (code = "notapplied") {
 			If code '= "stopped" $$$LOGWARNING(..#LOGCOPY_id_": "_##class(OcuTalon.Bridge.Redact).Text(detail))
-			Do unreached.%Push({"id": (id), "code": (code)})
+			Set last = {"id": (id), "code": (code)}
+			If code = "notapplied" {
+				If $Extract(detail, 1, 7) = "ERROR #" Set detail = $ZStrip($Piece(detail, ":", 2, *), "<W")
+				Do last.%Set("reason", detail, "string")
+			}
+			Do unreached.%Push(last)
 			Set stopped = 1
 			Continue
 		}

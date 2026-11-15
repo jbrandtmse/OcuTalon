@@ -42,6 +42,8 @@ Parameter KEYCHANGEDSINCE = "result.settingChangedSince";
 
 Parameter KEYNOTCHANGED = "result.itemNotChanged";
 
+Parameter KEYSAVEDNOTAPPLIED = "result.settingSavedNotApplied";
+
 Parameter KEYSUMMARYROLLBACK = "summary.requestedRollback";
 
 Parameter KEYSUMMARYUNDO = "summary.requestedUndoRollback";
@@ -307,11 +309,13 @@ ClassMethod UndoSlots(dryRun As %DynamicObject, incident As OcuTalon.Data.Incide
 	Quit slots
 }
 
-/// The catalog key of the result of a setting kind's run (the kind is the class's NAME): the restore or the undo when the run changed the setting, result.settingChangedSince
-/// when it was skipped because the setting changed again (the reason ends as the kind's CHANGEDAGAIN does), else result.itemNotChanged. Pure.
+/// The catalog key of the result of a setting kind's run (the kind is the class's NAME): the restore or the undo when the run changed the setting, result.settingSavedNotApplied
+/// when the setting was saved and the production could not apply it and the earlier value could not be put back (Unreached above 0, with the production's error as the reason),
+/// result.settingChangedSince when it was skipped because the setting changed again (the reason ends as the kind's CHANGEDAGAIN does), else result.itemNotChanged. Pure.
 ClassMethod ResultKey(kind As %String, result As OcuTalon.Fix.Msg.FixResult) As %String
 {
 	If +result.Completed > 0 Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYUNDONE, 1: ..#KEYRESTORED)
+	If +result.Unreached > 0 Quit ..#KEYSAVEDNOTAPPLIED
 	Set tail = $Piece(##class(OcuTalon.Fix.Kind.RollbackSetting).#CHANGEDAGAIN, "}", *)
 	If (+result.Skipped > 0) && (tail '= "") && ($Extract(result.Reason, *-$Length(tail)+1, *) = tail) Quit ..#KEYCHANGEDSINCE
 	Quit ..#KEYNOTCHANGED
@@ -320,25 +324,28 @@ ClassMethod ResultKey(kind As %String, result As OcuTalon.Fix.Msg.FixResult) As 
 /// 1 when the key is one of ResultKey's.
 ClassMethod IsResultKey(key As %String) As %Boolean
 {
-	Quit ''$ListFind($ListBuild(..#KEYRESTORED, ..#KEYUNDONE, ..#KEYCHANGEDSINCE), $Get(key))
+	Quit ''$ListFind($ListBuild(..#KEYRESTORED, ..#KEYUNDONE, ..#KEYCHANGEDSINCE, ..#KEYSAVEDNOTAPPLIED), $Get(key))
 }
 
-/// The slots of a setting kind's result key: setting, target and after (the restore and the undo), setting and target (settingChangedSince). extra is what IncidentManager
-/// ResultExtra gives. "" with the reason in sc when one is missing.
-ClassMethod ResultSlots(key As %String, extra As %DynamicObject, Output sc As %Status) As %DynamicObject
+/// The slots of a setting kind's result key: setting, target and after (the restore and the undo), setting and target (settingChangedSince), setting, target and reason
+/// (settingSavedNotApplied). extra is what IncidentManager ResultExtra gives and reason the result's reason. "" with the reason in sc when one is missing.
+ClassMethod ResultSlots(key As %String, extra As %DynamicObject, Output sc As %Status, reason As %String = "") As %DynamicObject
 {
 	Set sc = $$$OK
 	Set setting = ..Text(extra.setting)
 	Set target = ..Text(extra.target)
 	Set after = ..Text(extra.after)
-	If (setting = "") || (target = "") || ((key '= ..#KEYCHANGEDSINCE) && (after = "")) {
-		Set sc = $SYSTEM.Status.Error(5001, "The result of a setting kind has no setting, target or value")
+	Set reason = ..Text(reason)
+	Set plain = (key = ..#KEYCHANGEDSINCE) || (key = ..#KEYSAVEDNOTAPPLIED)
+	If (setting = "") || (target = "") || ('plain && (after = "")) || ((key = ..#KEYSAVEDNOTAPPLIED) && (reason = "")) {
+		Set sc = $SYSTEM.Status.Error(5001, "The result of a setting kind has no setting, target, value or reason")
 		Quit ""
 	}
 	Set slots = {}
 	Do slots.%Set("setting", setting, "string")
 	Do slots.%Set("target", target, "string")
-	If key '= ..#KEYCHANGEDSINCE Do slots.%Set("after", after, "string")
+	If 'plain Do slots.%Set("after", after, "string")
+	If key = ..#KEYSAVEDNOTAPPLIED Do slots.%Set("reason", reason, "string")
 	Quit slots
 }
 
@@ -364,8 +371,10 @@ ClassMethod SummaryRequestKey(kind As %String) As %String
 	Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYSUMMARYUNDO, 1: ..#KEYSUMMARYROLLBACK)
 }
 
+/// The key of the line for the end of a setting kind's run, and "" (no line) for a run whose setting was saved but could not be applied, which the summary has no text for.
 ClassMethod SummaryRunKey(kind As %String, run As OcuTalon.Data.FixRun) As %String
 {
+	If (+run.Completed = 0) && (+run.Unreached > 0) Quit ""
 	If +run.Completed = 0 Quit ..#KEYSUMMARYNOTCHANGED
 	Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYSUMMARYUNDONE, 1: ..#KEYSUMMARYRESTORED)
 }

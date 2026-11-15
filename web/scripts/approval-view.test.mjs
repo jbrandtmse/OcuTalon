@@ -168,6 +168,20 @@ describe('the rollback of a setting and its undo (Story 23.3)', () => {
     });
   });
 
+  it('is the partial band of result.settingSavedNotApplied when the setting was saved and the production could not apply it (the run has unreached targets and the production\'s error as its reason)', () => {
+    const saved = ran({ completed: 0, unreached: 1, reason: 'The update timed out' });
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      assert.deepEqual(band(fixKind, saved, { state: 'failed' }), {
+        key: 'result.settingSavedNotApplied',
+        text: "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again.",
+        tone: 'partial',
+        icon: 'triangle-alert',
+        audit: AUDIT,
+      });
+    }
+    assert.equal(resultView({ ref: 'A', state: 'failed', fixKind: 'rollback_setting', result: saved }, undefined, renderPageText, 'Orders', undefined), undefined, 'no setting change in the incident');
+  });
+
   it('claims nothing for a run that is still going, was interrupted, has no reason, or lacks the setting it would name', () => {
     assert.equal(band('rollback_setting', ran(), { state: 'executing' }), undefined, 'still going');
     assert.equal(band('rollback_setting', ran({ completed: 0, interrupted: 1, reason: 'x' })), undefined, 'interrupted');

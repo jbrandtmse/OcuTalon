@@ -7,8 +7,11 @@
 ///     offered only while the rollback is the setting's latest change: a later change of the same setting, or a current value that is not the one that the rollback restored,
 ///     refuses with CHANGEDAGAIN. Its answer is {"item", "field", "before" (the restored value), "after" (the value the setting will have)}.
 ///   - When the rolled-back change came from a System Default Setting (its Source is not production), the rollback added an item-level value and the undo takes that stored setting
-///     out, so that the inherited value applies again; it never writes a copy of the new value at item level, and its dry run's After is the inherited value. Otherwise the undo
-///     writes the new value as the stored setting. Lane A.
+///     out, so that the inherited value applies again; it never writes a copy of the new value at item level. Its dry run's After is then the value that the item will have, read
+///     from the setting's current default (the System Default Setting that applies now, else the class's default: Watch.Reader.Settings, default), not the change's recorded new
+///     value, which a System Default Setting that changed while the item-level value hid it makes stale; an empty default refuses with CHANGEDAGAIN. At the run, Plan reads that value
+///     again and skips the undo with CHANGEDAGAIN when it is not the After of the approved request's dry run, so that the undo needs a new approval. Otherwise the undo writes the new
+///     value as the stored setting. Lane A.
 Class OcuTalon.Fix.Kind.UndoRollback Extends OcuTalon.Fix.Kind.RollbackSetting
 {
 
@@ -40,30 +43,34 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Set dryRun = ""
 	Set sc = ..CheckParameters(parameters, "")
 	If $$$ISERR(sc) Quit sc
-	Set why = ..Undoable(incident, parameters, .row)
+	Set why = ..Undoable(incident, parameters, .row, .after, .current)
 	If why '= "" Quit $$$ERROR($$$GeneralError, why)
-	Set sc = ..Current(incident, row, .current)
-	If $$$ISERR(sc) Quit sc
 	Set targets = row.%Id()
 	Set dryRun = {}
 	Do dryRun.%Set("item", row.Item, "string")
 	Do dryRun.%Set("field", row.Setting, "string")
 	Do dryRun.%Set("before", current, "string")
-	Do dryRun.%Set("after", ..Restored(row), "string")
+	Do dryRun.%Set("after", after, "string")
 	Quit $$$OK
 }
 
-/// The reason that the change can't be undone, "" when it can, and the SettingChange row in row: the refusals of Vetted (no window), the rollback still to undo (NOTHINGTOUNDO),
-/// a later change of the setting and a current value that is not the restored one (CHANGEDAGAIN); a production whose settings can't be read gives NOREAD.
-ClassMethod Undoable(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output row As OcuTalon.Data.SettingChange) As %String
+/// The reason that the change can't be undone, "" when it can, and the SettingChange row in row, the value the setting will have after the undo in after (the change's new value, or
+/// for a change of a System Default Setting the setting's current default) and its current value in current: the refusals of Vetted (no window), the rollback still to undo
+/// (NOTHINGTOUNDO), a later change of the setting and a current value that is not the restored one (CHANGEDAGAIN), and a default that is empty (CHANGEDAGAIN); a production whose
+/// settings can't be read gives NOREAD.
+ClassMethod Undoable(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output row As OcuTalon.Data.SettingChange, Output after As %String, Output current As %String) As %String
 {
+	Set after = ""
+	Set current = ""
 	Set why = ..Vetted(incident, parameters, 0, .row)
 	If why '= "" Quit why
 	If ##class(OcuTalon.Fix.Run).RolledBack(incident.Ref) '= row.Ref Quit ..#NOTHINGTOUNDO
 	If ..ChangedLater(row) Quit ..Reason(..#CHANGEDAGAIN, incident, row)
-	Set sc = ..Current(incident, row, .current)
+	Set sc = ..Current(incident, row, .current, .default)
 	If $$$ISERR(sc) Quit ..#NOREAD
 	If current '= ..Expected(row) Quit ..Reason(..#CHANGEDAGAIN, incident, row)
+	Set after = $Select(row.Source = "production": ..Restored(row), 1: default)
+	If after = "" Quit ..Reason(..#CHANGEDAGAIN, incident, row)
 	Quit ""
 }
 
@@ -90,23 +97,39 @@ ClassMethod Expected(row As OcuTalon.Data.SettingChange) As %String
 	Quit row.OldValue
 }
 
-/// The value that the undo leaves the setting with, as the dry run's After shows it: the change's new value. For a change of a System Default Setting that is the value the item
-/// inherits again once its stored setting is taken out.
+/// The value that the undo writes at item level when the change's Source is production: the change's new value. For a change of a System Default Setting the undo writes nothing
+/// at item level and the dry run's After is the setting's current default (Undoable).
 ClassMethod Restored(row As OcuTalon.Data.SettingChange) As %String
 {
 	Quit row.NewValue
 }
 
-/// The test of Recheck and Execute over the target, as RollbackSetting's, with the undo's own refusals and plan entry.
-ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output plan As %DynamicArray, Output skipped As %DynamicArray) As %Status [ Private ]
+/// The After of the dry run that the approved request of the run shows, "" when the request or its dry run can't be read.
+ClassMethod Approved(run As OcuTalon.Data.FixRun) As %String [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(run.ApprovalRef)
+	If '$IsObject(request) Quit ""
+	Set after = ""
+	Try {
+		Set after = {}.%FromJSON(request.DryRun).%Get("after")
+	} Catch {
+		Set after = ""
+	}
+	Quit after
+}
+
+/// The test of Recheck and Execute over the target, as RollbackSetting's, with the undo's own refusals and plan entry. For a change of a System Default Setting that Execute carries
+/// out, the value that the item will have (Undoable's after) must still be the After of the approved request's dry run.
+ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output plan As %DynamicArray, Output skipped As %DynamicArray, run As OcuTalon.Data.FixRun = "") As %Status [ Private ]
 {
 	Set plan = []
 	Set skipped = []
 	Set sc = ..CheckParameters(parameters, "")
 	If $$$ISERR(sc) Quit sc
 	Set id = +targets
-	Set why = ..Undoable(incident, parameters, .row)
+	Set why = ..Undoable(incident, parameters, .row, .after)
 	If (why = "") && (row.%Id() '= id) Set why = ..#NOTFOUND
+	If (why = "") && (row.Source '= "production") && $IsObject(run) && (after '= ..Approved(run)) Set why = ..Reason(..#CHANGEDAGAIN, incident, row)
 	If why '= "" {
 		Do skipped.%Push({"id": (id), "reason": (why)})
 		Quit $$$OK

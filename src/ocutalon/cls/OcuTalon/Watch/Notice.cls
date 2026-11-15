@@ -443,7 +443,7 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Set sc = $$$OK
 	Set reason = ..Text(result.Reason)
 	If '$IsObject(extra) Set extra = {}
-	If ##class(OcuTalon.Watch.SettingCause).IsResultKey(key) Quit ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc)
+	If ##class(OcuTalon.Watch.SettingCause).IsResultKey(key) Quit ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc, reason)
 	If $ListFind($ListBuild(..#KEYPARTNERSENT, ..#KEYPARTNERSENTSOME, ..#KEYPARTNERNOTSENT, ..#KEYPARTNERKEPT), key) {
 		If key = ..#KEYPARTNERKEPT Quit {}
 		If key = ..#KEYPARTNERSENT Quit {"count": (+result.Completed)}

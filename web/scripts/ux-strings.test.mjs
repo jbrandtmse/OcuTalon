@@ -1010,6 +1010,9 @@ const SOURCES = {
       'The rollback is undone: {setting} on {target} is back to {after}.',
       'The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.',
     ],
+    'Story 23.3 pre-push ruling (Contest Planner, 2026-11-15, DW-1365: the result text of a setting that was saved and that the production could not apply, approved verbatim)': [
+      "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
+    ],
     'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
       "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
       '{item} in {production} is enabled again.',

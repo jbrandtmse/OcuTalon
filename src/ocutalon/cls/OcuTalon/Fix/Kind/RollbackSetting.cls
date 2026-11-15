@@ -9,7 +9,9 @@
 ///     (the old value)}.
 ///   - Recheck and Execute (Story 7.3) read the row and the current value again from the approved row's target through Plan, so that a change that moved since the dry run is skipped
 ///     with the CHANGEDAGAIN reason. Execute makes the change through Fix.Executor.InProduction, which holds the one namespace switch of the executor: it reads the effective value
-///     again there, sets the stored setting and updates the production. No System Default Setting row, class or other item is ever edited. Its result is {"changed", "skipped",
+///     again there, sets the stored setting and updates the production. No System Default Setting row, class or other item is ever edited. When the update fails after the
+///     definition was saved, InProduction writes the earlier value back and updates again: the entry is then unreached as refused, and nothing was changed; if that fails too, the
+///     entry is unreached as notapplied with the production's error as its reason (the run reads result.settingSavedNotApplied). Its result is {"changed", "skipped",
 ///     "unreached"}.
 ///   - The kind needs %Ens_ProductionConfig:W, which an online-demo install does not grant to the service role (ONLINEGRANT 0, AD-24). Lane A.
 Class OcuTalon.Fix.Kind.RollbackSetting Extends OcuTalon.Fix.Kind
@@ -141,17 +143,20 @@ ClassMethod Reason(text As %String, incident As OcuTalon.Data.Incident, row As O
 	Quit text
 }
 
-/// The effective value of the change's setting now, read through Watch.Reader.Settings, in current ("" when the item has no such setting). An error status that is the kind's
+/// The effective value of the change's setting now, read through Watch.Reader.Settings, in current ("" when the item has no such setting), and in default the value that the item
+/// would have if its stored setting were taken out (the System Default Setting that applies, else the class's default; "" when there is none). An error status that is the kind's
 /// NOREAD when the production can't be read.
-ClassMethod Current(incident As OcuTalon.Data.Incident, row As OcuTalon.Data.SettingChange, Output current As %String) As %Status
+ClassMethod Current(incident As OcuTalon.Data.Incident, row As OcuTalon.Data.SettingChange, Output current As %String, Output default As %String) As %Status
 {
 	Set current = ""
-	Set outcome = ##class(OcuTalon.Watch.Reader).Settings(incident.Namespace, incident.Production, 1, , .marks, .settings)
+	Set default = ""
+	Set outcome = ##class(OcuTalon.Watch.Reader).Settings(incident.Namespace, incident.Production, 2, , .marks, .settings)
 	If outcome '= "read" Quit $$$ERROR($$$GeneralError, ..#NOREAD)
 	Set iterator = settings.%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		If (entry.item = row.Item) && (entry.target = row.Target) && (entry.setting = row.Setting) {
 			Set current = entry.value
+			Set default = entry.%Get("default")
 			Quit
 		}
 	}
@@ -175,7 +180,7 @@ ClassMethod Recheck(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
 	Set result = {"changed": 0, "skipped": [], "unreached": []}
-	Set sc = ..Plan(incident, parameters, targets, .plan, .skipped)
+	Set sc = ..Plan(incident, parameters, targets, .plan, .skipped, run)
 	If $$$ISERR(sc) Quit sc
 	Set result.skipped = skipped
 	If plan.%Size() = 0 Quit $$$OK
@@ -191,8 +196,8 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 
 /// The test of Recheck and Execute over the target: plan holds one entry {"id", "setting", "target", "item", "production", "expect", "value"} (and "remove" 1 for an undo that takes
 /// the stored setting out) when the target passes, skipped {"id", "reason"} when it does not. An error status when the parameters don't pass CheckParameters or the production
-/// can't be read.
-ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output plan As %DynamicArray, Output skipped As %DynamicArray) As %Status [ Private ]
+/// can't be read. run is the FixRun of Execute ("" for Recheck); a subclass that has a value to hold the run to reads the approved request through it.
+ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output plan As %DynamicArray, Output skipped As %DynamicArray, run As OcuTalon.Data.FixRun = "") As %Status [ Private ]
 {
 	Set plan = []
 	Set skipped = []

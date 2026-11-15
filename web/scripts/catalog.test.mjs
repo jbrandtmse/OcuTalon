@@ -94,6 +94,7 @@ const RESULT_KEYS = [
   'result.settingRestored',
   'result.settingChangedSince',
   'result.rollbackUndone',
+  'result.settingSavedNotApplied',
   'incident.settingChangeCause',
   'audit.recorded',
 ];
@@ -124,20 +125,20 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the eighteen result keys, the either-way line and the two Got it keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the nineteen result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 74);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 75);
   });
 
-  it('holds the 16 banner and action keys, the 19 answered keys and the eighteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 16 banner and action keys, the 19 answered keys and the nineteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 19);
-    assert.equal(RESULT_KEYS.length, 18);
+    assert.equal(RESULT_KEYS.length, 19);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
@@ -184,6 +185,7 @@ describe('the real tree', () => {
       'result.settingRestored': { setting: 'text', target: 'text', after: 'text' },
       'result.settingChangedSince': { setting: 'text', target: 'text' },
       'result.rollbackUndone': { setting: 'text', target: 'text', after: 'text' },
+      'result.settingSavedNotApplied': { setting: 'text', target: 'text', reason: 'sentence' },
       'incident.settingChangeCause': { minutes: 'minutes', setting: 'text', target: 'text', time: 'time' },
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
       'handled.marked': { time: 'time' },
@@ -261,9 +263,9 @@ describe('the result texts of a fix the user asks for in the chat (Story 23.2, D
     assert.equal(real.renderPageText('result.couldNotStart', { reason: 'it failed.' }), 'Nothing was resent: it failed.. Nothing was changed.', 'a text slot is as before');
   });
 
-  it('allows a sentence slot on the two keys of SENTENCE_SLOT_KEYS only, and a text slot on the keys that name an item, a production or a target', async () => {
+  it('allows a sentence slot on the three keys of SENTENCE_SLOT_KEYS only, and a text slot on the keys that name an item, a production or a target', async () => {
     const { LISTED_KEYS, SENTENCE_SLOT_KEYS } = await import(pathToFileURL(script).href);
-    assert.deepEqual(SENTENCE_SLOT_KEYS, ['result.itemSkipped', 'result.itemNotChanged']);
+    assert.deepEqual(SENTENCE_SLOT_KEYS, ['result.itemSkipped', 'result.itemNotChanged', 'result.settingSavedNotApplied']);
     for (const key of LISTED_KEYS.filter((one) => one !== LINE_KEY)) {
       const inWatch = Object.hasOwn(WATCH, key);
       const entry = (inWatch ? WATCH : GOOD)[key];
@@ -351,6 +353,8 @@ describe('the result texts', () => {
     assert.equal(real.renderPageText('result.settingRestored', { setting: 'TargetConfigName', target: 'OrdersFromPartner', after: 'OrdersToWarehouse' }), 'TargetConfigName on OrdersFromPartner is back to OrdersToWarehouse. To undo it, ask me to undo the rollback.');
     assert.equal(real.renderPageText('result.settingChangedSince', { setting: 'TargetConfigName', target: 'OrdersFromPartner' }), 'TargetConfigName on OrdersFromPartner was not changed: it changed again after the dry run. It needs a new approval.');
     assert.equal(real.renderPageText('result.rollbackUndone', { setting: 'TargetConfigName', target: 'OrdersFromPartner', after: 'OrdersToWarehous' }), 'The rollback is undone: TargetConfigName on OrdersFromPartner is back to OrdersToWarehous.');
+    assert.equal(real.renderPageText('result.settingSavedNotApplied', { setting: 'TargetConfigName', target: 'OrdersFromPartner', reason: 'The update timed out' }), "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again.");
+    assert.equal(real.renderPageText('result.settingSavedNotApplied', { setting: 'TargetConfigName', target: 'OrdersFromPartner', reason: 'It timed out.' }), "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: It timed out. Ask me to check the item before you try again.", 'a reason that ends with a full stop keeps one');
   });
 
   it('read the catalog\'s count-of-one form where the named count slot is 1, and the noun by the count slot', () => {
@@ -593,6 +597,7 @@ const RESULTS = {
   'result.settingRestored': { text: '{setting} on {target} is back to {after}.', slots: { setting: 'text', target: 'text', after: 'text' }, source: 'fixture' },
   'result.settingChangedSince': { text: '{setting} on {target} changed again.', slots: { setting: 'text', target: 'text' }, source: 'fixture' },
   'result.rollbackUndone': { text: 'Undone: {setting} on {target} is back to {after}.', slots: { setting: 'text', target: 'text', after: 'text' }, source: 'fixture' },
+  'result.settingSavedNotApplied': { text: '{setting} on {target} was saved, not applied: {reason}.', slots: { setting: 'text', target: 'text', reason: 'sentence' }, source: 'fixture' },
   'incident.settingChangeCause': { text: 'The feed broke {minutes} after {setting} on {target} changed, at {time}.', slots: { minutes: 'minutes', setting: 'text', target: 'text', time: 'time' }, source: 'fixture' },
   'audit.recorded': { text: 'Logged.', slots: {}, source: 'fixture' },
 };
@@ -839,6 +844,7 @@ describe('the generator on a fixture', () => {
       'result.settingRestored',
       'result.settingChangedSince',
       'result.rollbackUndone',
+      'result.settingSavedNotApplied',
       'incident.settingChangeCause',
       LINE_KEY,
       LEARNED_KEY,

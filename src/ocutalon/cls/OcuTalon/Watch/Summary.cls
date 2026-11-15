@@ -204,7 +204,8 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 		Quit
 	}
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting") {
-		If ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, run.EndedAt, ##class(OcuTalon.Watch.SettingCause).SummaryRunKey(request.FixKind, run), {"time": (run.EndedAt), "setting": (setting), "target": (target)})
+		Set key = ##class(OcuTalon.Watch.SettingCause).SummaryRunKey(request.FixKind, run)
+		If (key '= "") && ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "setting": (setting), "target": (target)})
 		Quit
 	}
 	Set slots = {"time": (run.EndedAt)}

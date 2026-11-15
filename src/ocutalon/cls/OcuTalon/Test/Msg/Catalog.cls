@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 157 keys of OcuTalon.Msg.Catalog.Core and the 132 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 157 keys of OcuTalon.Msg.Catalog.Core and the 133 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -92,9 +92,10 @@ Method TestEntries()
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
 	// Story 26.2 (Contest Planner Public Text ruling 2026-11-14, with the H2 gate of the same day): files.tooLarge, files.unreadable and files.offOnDemo (Telegram's refusals) and files.noReader (the existing no-reader reply, while no reader is on) take the Watch count to 121.
 	// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): the 11 keys of the setting rollback and its undo (incident.rollbackRequest, undoRollbackRequest, settingChangeCause; result.settingRestored, settingChangedSince, rollbackUndone; summary.requestedRollback, requestedUndoRollback, settingRestored, rollbackUndone, settingNotChanged) take the Watch count to 132.
-	Do $$$AssertEquals(keys.watch.%Size(), 132, "the expected Watch list has 132 keys")
+	// Story 23.3 (Contest Planner pre-push ruling 2026-11-15, DW-1365): result.settingSavedNotApplied takes the Watch count to 133.
+	Do $$$AssertEquals(keys.watch.%Size(), 133, "the expected Watch list has 133 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 157 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 132 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 133 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1397,7 +1398,8 @@ XData Keys [ MimeType = application/json ]
   "summary.requestedUndoRollback",
   "summary.settingRestored",
   "summary.rollbackUndone",
-  "summary.settingNotChanged"
+  "summary.settingNotChanged",
+  "result.settingSavedNotApplied"
  ]
 }
 }
@@ -1860,6 +1862,7 @@ XData Fixtures [ MimeType = application/json ]
  "summary.settingRestored": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was put back to its earlier value."},
  "summary.rollbackUndone": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: the rollback of TargetConfigName on OrdersFromPartner was undone."},
  "summary.settingNotChanged": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was not changed."},
+ "result.settingSavedNotApplied": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner", "reason": "The update timed out"}, "text": "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
  "settings.emailAddress": {"slots": {}, "text": "Your email address"},

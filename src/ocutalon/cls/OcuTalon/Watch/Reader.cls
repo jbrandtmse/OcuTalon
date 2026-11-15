@@ -55,7 +55,8 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     with full every item's effective settings (its stored settings with the class defaults and the System Default Settings that apply), inside the same switching
 ///     method and under the same two checks. Items that share a name are one: the first of them in the definition's item list that is enabled as IRIS runs it, else the first. A setting that
 ///     references an Ens.Config.Credentials entry keeps the ID it holds; any other setting whose name CredentialName matches loses its value and is given a
-///     salted hash, which only tells a later read that the value changed. It writes nothing.
+///     salted hash, which only tells a later read that the value changed. With full 2 each entry of a setting that is not a secret also carries default, the value the item would
+///     have if its stored setting were taken out (the System Default Setting that applies, else the class's default; Story 23.3's undo). It writes nothing.
 ///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
 ///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
 ///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
@@ -537,7 +538,7 @@ ClassMethod Items(namespace As %String, production As %String, Output items As %
 /// production is not the namespace's own, or a name is empty: nothing was read), as for Failures; marks are empty and settings [] with the others. A namespace that
 /// cannot be read for another reason is an error. Items that share a name are one: the settings of the first of them in the definition's item list that is enabled as IRIS
 /// runs it (the stored Enabled unless a System Default Setting Enabled overrides it), else of the first. It writes nothing and switches namespace in Current only.
-ClassMethod Settings(namespace As %String, production As %String, full As %Boolean = 0, salts As %DynamicObject = "", Output marks As %DynamicObject, Output settings As %DynamicArray) As %String
+ClassMethod Settings(namespace As %String, production As %String, full As %Integer = 0, salts As %DynamicObject = "", Output marks As %DynamicObject, Output settings As %DynamicArray) As %String
 {
 	Set marks = {"counter": "", "started": ""}
 	Set settings = []
@@ -572,7 +573,9 @@ ClassMethod SettingEntry(entry As %DynamicObject, salts As %DynamicObject = "") 
 		}
 		Set value = ""
 	}
-	Quit {"item": (entry.item), "target": (entry.target), "setting": (entry.setting), "value": (value), "source": (entry.source), "credential": (credential), "hash": (hash)}
+	Set result = {"item": (entry.item), "target": (entry.target), "setting": (entry.setting), "value": (value), "source": (entry.source), "credential": (credential), "hash": (hash)}
+	If entry.%IsDefined("default") && 'credential Do result.%Set("default", entry.default, "string")
+	Quit result
 }
 
 /// The key of a setting in salts (see Settings): the item, the target and the setting's name, joined by "|" (pure).
@@ -613,7 +616,7 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// (^Ens.Configuration("csp","Activity",production,"stopped"), IRIS UTC as stored; killed at a start), "" when there is none; with every other outcome,
 /// and when the read threw, they are [] and "". resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
 /// With readSettings 1 and the outcome read, settingMarks is {"counter", "started"} (the namespace's production-change counter and the production's start time and check sum, read first) and, with fullSettings 1, settingList is a sorted array of {"item", "target", "setting", "value", "source", "reference"} for every item (PopulateVirtualSettings and the item's stored settings, "reference" 1 for a Credentials reference). The values are raw: Settings is the one caller, and it hashes and drops the secret ones. Otherwise they are {"counter": "", "started": ""} and [].
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray, readSettings As %Boolean = 0, fullSettings As %Boolean = 0, Output settingMarks As %DynamicObject, Output settingList As %DynamicArray) As %String [ Private ]
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray, readSettings As %Boolean = 0, fullSettings As %Integer = 0, Output settingMarks As %DynamicObject, Output settingList As %DynamicArray) As %String [ Private ]
 {
 	Set items = []
 	Set settingMarks = {"counter": "", "started": ""}
@@ -932,7 +935,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 								$$$ThrowOnError(stItem.PopulateVirtualSettings())
 								For stJ = 1:1:stItem.VirtualSettings.Count() {
 									Set stData = stItem.VirtualSettings.GetAt(stJ)
-									Set stRow($List(stData, 1), $List(stData, 2)) = $ListBuild($List(stData, 3), $Case($List(stData, 4), $$$eConfigSettingValueTypeProduction: "production", $$$eConfigSettingValueTypeRegistry: "production", $$$eConfigSettingValueTypeSystem: "default", : "class"), ($Extract($List(stData, 18), 1, 19) = "credentialsSelector"))
+									Set stRow($List(stData, 1), $List(stData, 2)) = $ListBuild($List(stData, 3), $Case($List(stData, 4), $$$eConfigSettingValueTypeProduction: "production", $$$eConfigSettingValueTypeRegistry: "production", $$$eConfigSettingValueTypeSystem: "default", : "class"), ($Extract($List(stData, 18), 1, 19) = "credentialsSelector"), $List(stData, 5))
 								}
 							} Catch stSkipped {
 								Kill stRow
@@ -965,7 +968,9 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 								For {
 									Set stName = $Order(stAll(stItemName, stTarget, stName), 1, stCell)
 									Quit:stName=""
-									Do settingList.%Push({"item": (stItemName), "target": (stTarget), "setting": (stName), "value": ($List(stCell, 1)), "source": ($List(stCell, 2)), "reference": (+$List(stCell, 3))})
+									Set stEntry = {"item": (stItemName), "target": (stTarget), "setting": (stName), "value": ($List(stCell, 1)), "source": ($List(stCell, 2)), "reference": (+$List(stCell, 3))}
+									If fullSettings = 2 Do stEntry.%Set("default", $ListGet(stCell, 4), "string")
+									Do settingList.%Push(stEntry)
 								}
 							}
 						}
