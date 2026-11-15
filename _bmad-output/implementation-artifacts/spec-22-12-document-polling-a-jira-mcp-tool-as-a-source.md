@@ -2,7 +2,8 @@
 title: 'Story 22.12: Document polling a Jira MCP tool as a source'
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2d48d99fcc70975b9e603e7398782537fec2b98f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -214,6 +215,35 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `src
 
 ## Review Triage Log
 
+### 2026-11-15 - Review pass
+- verdicts: 25 findings - high 0, medium 4, low 16, false 5, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: the test holds the section three times (heredoc, mcp_source_problems, OVW_MCP_SOURCE) - the spec's Task 3 and 5 require both whole-line pins and code-derived pins; they check different things (wording versus code).
+  - `[medium]` `[patch]` Blind: the step label, the Remove button, the Background checks heading, the What I checked list and the "every minute" cadence are not tied to code - verified: only the doc's own lines pinned them. Patched with code-derived pins and controls (see Verification).
+  - `[false]` `[reject]` Blind: the name and arguments rules are described incompletely - the approved P1b claims nothing untrue; the omitted refusals are extra limits, not contradicted claims.
+  - `[low]` `[reject]` Blind: the overview bullet lacks the data consequences - approved P2, word for word; a change edits public text (Planner-ruled).
+  - `[low]` `[reject]` Blind: no step to confirm polling works - approved P1b text; adding it edits public text.
+  - `[low]` `[reject]` Blind: mcp_catalog_text keeps escapes - no catalog text has an escape today, and one that gains one turns the check red, never silently green.
+  - `[low]` `[reject]` Blind: digest lines are matched anywhere in the section - the ruled-line pins tie each line to its row; the code-derived pin ties its text to the catalog.
+  - `[low]` `[reject]` Blind: mcp_doc_problems mixes path bases - pre-existing (the expiry check reads src relative to the working directory); the third argument is the spec's, and its header says so.
+  - `[low]` `[patch]` Edge: the stop-notice "exactly once" counts lines - patched to count occurrences (grep -o), with a control that quotes the notice twice.
+  - `[medium]` `[patch]` Edge: Remove is not pinned to code - same root cause as the second Blind row; patched (removeButton joins the labels).
+  - `[low]` `[reject]` Edge: ruled lines match anywhere, order and section not pinned - 22.6's mechanism, as the spec's Task 1 requires; a moved line is harmless.
+  - `[false]` `[reject]` Edge: the allowance would demand "1 minutes" if a constant became 60 s - theoretical; the approved text and its ruled line would also need a change then, and the check turns red, not green.
+  - `[low]` `[reject]` Edge: the demo-sentence control now gives two lines - forced by the spec (P1a is a ruled line); both assertions hold, so the 22.6 coverage is kept.
+  - `[low]` `[reject]` Edge: only mcp_source_problems honours the third argument - the spec says "the root to read the code from" for the new facts; the expiry and approval reads are 22.6's and unchanged.
+  - `[medium]` `[patch]` Gap: four quoted strings and the cadence pinned only to the doc - same root cause as the second Blind row; patched.
+  - `[low]` `[patch]` Gap: no control for the count-of-one branch - patched with the quoted-twice control.
+  - `[low]` `[patch]` Gap: the section-removed facts control compares two outputs that may both be empty - patched with two fixed assertions (the stop notice line is present, more than 20 fact lines).
+  - `[low]` `[patch]` Gap: mutation lines missing for controls - written (Verification, review-pass lines).
+  - `[low]` `[reject]` Gap (other finding): the e-demo control split - same as the Edge row on it.
+  - `[low]` `[reject]` Intent: the allowance's formula (SourceSlack) is not pinned, only its constants - the spec's Task 3(c) pins the constants; the formula is not readable by sed; reopen_if a change of SourceSlack's rule is not caught by a Test.Checks test.
+  - `[medium]` `[patch]` Intent: R3, facts with a code source but no pin - same root cause as the second Blind row; patched.
+  - `[low]` `[reject]` Intent: digest lines matched by substring - same as the Blind row on it.
+  - `[low]` `[reject]` Intent: the e-demo control is adapted - same as the Edge row on it.
+  - `[false]` `[reject]` Intent: the spec file is edited - the Verification section is a tracking section the spec itself asks the implement stage to fill.
+  - `[false]` `[reject]` Intent: no automated surface for the release check's source half - by design (ruling M (4): the REL-7 hands-on pass, text pins only).
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -381,6 +411,39 @@ Each command below runs in one foreground call of about 150 s or less.
 - one word of P2 in the overview;
 - the `source poll` guard restored.
 
+**Mutation results (implement stage).** Each was made in a copy (a symlink tree of the repository under scratch, with only the mutated file and the script as real copies), never in a tracked file, so there was nothing to revert; `git status --short` and `git diff --stat` were checked after the last one. `overviewdoc` printed its "the committed worked example is good" (or "the committed overview has a good frame") line with the one problem, then `FAIL overviewdoc`:
+- mutation: ruled lines 15 to 41 of the example (every P1b line, then P1a as the last), each with " x" appended -> `mcp_doc_problems` gave exactly "the example lacks ruled line N of its classification and governance text word for word" for each N (the loop control of `t_overviewdoc`, run once more as a standalone loop over the committed example: 27 lines, 27 own-number lines, and no line for the unchanged file); line 22 holds "The poll itself asks no model; only a new item's attention decision does."
+- mutation: `QUEUESECONDS` 120 -> 60 in a code-root copy -> `overviewdoc` red, "the example's allowance is not the code's (QUEUESECONDS, MISSEDSECONDS)"
+- mutation: `MISSEDSECONDS` 180 -> 120 -> `overviewdoc` red, "the example's allowance is not the code's (QUEUESECONDS, MISSEDSECONDS)"
+- mutation: `SEENMAX` 50 -> 40 -> `overviewdoc` red, "the example's count of kept hashes is not the code's (SEENMAX)"
+- mutation: `NAMEMAX` 100 -> 99 -> `overviewdoc` red, "the example's name limit is not the code's (NAMEMAX)"
+- mutation: `ENTRYMAILBOX` "Mailbox" -> "Inbox" -> `overviewdoc` red, "the example's reserved name is not the code's (ENTRYMAILBOX)"
+- mutation: one word of `mcp.sourceStopped` ("stopped polling" -> "paused polling") -> `overviewdoc` red, "the example's stop notice is not the catalog's mcp.sourceStopped"
+- mutation: one word of `digest.notCheckedStopped` -> `overviewdoc` red, "the example's digest line is not the catalog's digest.notCheckedStopped"
+- mutation: one word of `checks.allPassed` ("Everything" -> "All") -> `overviewdoc` red, "the example's all-clear sentence is not the catalog's checks.allPassed"
+- mutation: `INTERVAL_CHOICES` 15 -> 20 -> `overviewdoc` red, "the example's interval choices are not the code's (INTERVAL_CHOICES)"
+- mutation: `DEFAULT_INTERVAL` 15 -> 30 -> `overviewdoc` red, "the example's default interval is not the code's (DEFAULT_INTERVAL)"
+- mutation: `checkScheduleSource` "Polled every" -> "Checked every" -> `overviewdoc` red, "the example's rail line is not the code's (checkScheduleSource)"
+- mutation: `sourceName` 'Source name' -> 'Name' -> `overviewdoc` red, "the example's label is not the code's sourceName"
+- mutation: one word of P2 in the overview ("on a schedule" -> "on a timetable") -> `overviewdoc` red, "the MCP tools section lacks the source bullet word for word"
+- mutation: the `source poll` guard restored in `mcp_doc_problems` -> `overviewdoc` red, "the committed worked example is good" got "a line mentions a source poll" (the example's "the source polls again" holds the phrase)
+- Also in every `overviewdoc` run: a control for each of the digest lines, the four other labels and QUEUESECONDS that is not a whole number of minutes, with its one problem line; the committed files give "".
+- Review-pass patches (same symlink-tree method, one mutated file each; `overviewdoc` red with the committed example's one problem line):
+  - mutation: rail `checks: 'Background checks'` -> 'Scheduled checks' -> "the example's rail heading is not the code's (checks)"
+  - mutation: chat `whatIChecked` 'What I checked' -> 'What was checked' -> "the example's list of what was checked is not the code's (whatIChecked)"
+  - mutation: `Gate.cls` `MCPLABEL` "Running ..." -> "Calling ..." -> "the example's step label is not the code's (MCPLABEL)"
+  - mutation: `Schedule.cls` heartbeat `DailyIncrement` 1 -> 5 -> "the code's heartbeat is not every minute (Schedule Tasks), so the example's background check is not every minute"
+  - mutation: `removeButton` 'Remove' -> 'Delete' -> "the example's label is not the code's removeButton"
+  - mutation: the stop-notice bullet duplicated in the example -> "the example's stop notice is not the catalog's mcp.sourceStopped"
+  - mutation: the stop-notice count `-eq 1` -> `-ge 1` in the script -> "control: the stop notice quoted twice in the example" red
+  - mutation: `mcp_source_problems` made to return at once -> every code-fact control red, by name: the two section-removed controls, the stop notice quoted twice, QUEUESECONDS 60, MISSEDSECONDS 120, QUEUESECONDS not whole minutes, SEENMAX 40, NAMEMAX 99, ENTRYMAILBOX Inbox, mcp.sourceStopped, checks.allPassed, all seven digest.* lines (digest.passed, notCheckedUnreachable, Timeout, Error, Stopped, Missed, Stale), INTERVAL_CHOICES, DEFAULT_INTERVAL, checkScheduleSource, sourceName, the seven labels (sourceHeading, sourceName, sourceArguments, sourceInterval, sources, removeButton, save), the rail heading, whatIChecked, MCPLABEL and the heartbeat
+
+**Commands run (implement stage):**
+- `bash docker/tests/test-release-sequence.sh overviewdoc` -> `PASS overviewdoc`
+- `bash docker/tests/test-security-overview.sh --write` and then without `--write` (lane D throwaway, tag `e22s12i`) -> all checks passed; the file was byte-identical after the write (no generated region changed); `ci/iris.sh teardown` left nothing
+- `bash docker/tests/test-readme.sh` -> all rules passed
+- `bash ci/checks.sh` -> "checks: all scripts passed" (release-sequence, the whole script, 245 s inside it)
+
 **Shared surfaces:**
 - `ovw_mcp_example_lines`, whose numbering the existing controls 5, 10, 13 and 14 read: appended only;
 - `mcp_doc_problems`' output, read by `t_overviewdoc`'s controls;
@@ -391,12 +454,24 @@ Every test added or changed passes on a fresh environment (a clean checkout), in
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan pass (2026-11-14, `OCT-epic22` at `662491847`, halted after planning as instructed). The spec is ready for development, and it implements only after Story 22.11 merges. It is a docs-and-pins story:
-- `docs/mcp-jira-example.md`: P1a and P1b;
-- `docs/security-overview.md`: P2;
-- `docker/tests/test-release-sequence.sh`: `overviewdoc`.
+Implement and review pass (2026-11-15, `OCT-epic22` from `2d48d99fc`).
 
-There are no class changes and no IRIS runs. It brings NEW public text P1a, P1b and P2 to the Planner. Warnings: `oversized`. `epic-22-context.md` predates the newer planning artifacts and was not recompiled (Design Notes, Context note).
+**Implemented change.** Section 4 and the digest section are in the worked example, with P1a as its intro, and P2 is in the overview's `## MCP tools` section. All three are word for word from `## Public text`, with the Planner's ruled sentence "The poll itself asks no model; only a new item's attention decision does.". Each sentence was re-checked against the code after 22.15 merged: its changes (Mcp/Ops.cls, Mcp/ToolClassification.cls and their tests) touch none of P1b's claims. 22.6's negative `source poll` guard and its `e-poll` control are replaced by ruled lines 15 to 41 (every P1b line, then P1a) with a loop control, and by `mcp_source_problems`, which reads every quoted fact from the code under a code root. The epics.md Step 4 pointer is corrected with its marker and old text.
+
+**Files changed.**
+- `docs/mcp-jira-example.md`: P1a (intro) and P1b (section 4 and the digest section).
+- `docs/security-overview.md`: P2 as a new bullet in `## MCP tools`; the generated regions are unchanged (`test-security-overview.sh --write` left the file byte-identical, and its compare run passed).
+- `docker/tests/test-release-sequence.sh`: the `overviewdoc` rule only: `OVW_MCP_SOURCE`, the appended ruled lines, `mcp_source_problems` and its helpers, `ovw_code_copy`, and the controls.
+- `_bmad-output/planning-artifacts/epics.md`: the Step 4 release-check bullet only.
+- This spec: the Verification mutation lines and the triage log.
+
+**Review.** 25 findings from four layers: high 0, medium 4, low 16, false 5. One root cause, four medium rows (the step label, the Remove button, the Background checks heading, the What I checked list and the heartbeat's minute were pinned only to the doc itself) was patched with code-derived pins and controls (`removeButton` joined the labels; the rail heading, `whatIChecked`, `Gate.MCPLABEL` and the heartbeat's task definition are read from code). Four low rows were patched too: the stop notice is counted by occurrence with a quoted-twice control, the section-removed control has fixed assertions, and the missing mutation lines are written. Every other finding is rejected with its reason in the triage log (approved public text, the spec's own mechanism, pre-existing code, or theoretical). Nothing is deferred.
+
+**Follow-up review recommended:** false (one medium entry patched, no high).
+
+**Verification.** `bash docker/tests/test-release-sequence.sh overviewdoc` PASS (about 40 s); `... overviewdoc overview overviewdrift static` PASS; `bash docker/tests/test-readme.sh docs admin-mcp readme-anchors` PASS; `bash ci/checks.sh` "checks: all scripts passed" (release-sequence and readme inside it); `test-security-overview.sh --write` and compare passed on lane D's throwaway (tag `e22s12i`, torn down). Every mutation of the spec's list, and the review-pass ones, was observed red in a symlink-tree copy under scratch and left the tracked tree untouched (see Verification).
+
+**Residual risks.** DW-1347 (lane C) must change P1b's cut sentence and its ruled-line pin in the same commit. The allowance's formula (`SourceSlack`) is read only through its two constants (reopen_if a rule change there goes uncaught). `ci/checks.sh` takes about 8 minutes, not the 20 to 40 seconds this spec states.

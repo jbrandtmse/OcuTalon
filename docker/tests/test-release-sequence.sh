@@ -29,7 +29,7 @@
 #             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
 #   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
 #             change outside the rows, for the fix kinds and for the privileges, and nothing for equal files
-#   overviewdoc   (Story 14.1, QA; Story 14.2; Story 22.6) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
+#   overviewdoc   (Story 14.1, QA; Story 14.2; Story 22.6; Story 22.12) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
 #             ASCII only, no machine path, no URL or address; no hand-written placeholder; the privilege-limits paragraph word for word under its
 #             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; the numbers and the audit types of the code in their sections; the five
 #             headings once each and in order, the no-scheduled-purge sentence and the demo section's closing sentence (QA); the MCP tools section
@@ -39,9 +39,10 @@
 #             make"; no line with "deadline" outside the time-limits paragraph and no line about the changed-tool replay path (the checks run
 #             whatever src holds); the worked example docs/mcp-jira-example.md (mcp_doc_problems): its title, ASCII and no machine path, every address
 #             on example.com, the three shared texts word for word, the classification table's rows and the classification and governance lines word
-#             for word (ovw_mcp_example_lines), no other "deadline" line, no replay-path and no source-poll text, the sentence that
-#             says MCP is off on the online demo, the expiry sentence of the approval request (the hours of Bridge.Approval EXPIRYSECONDS, read from the
-#             class source) and its link to the overview's MCP section; the overview's own demo-off sentence in its MCP tools section, the Data
+#             for word (ovw_mcp_example_lines), no other "deadline" line, no replay-path text, the source section's ruled lines (Story 22.12) and the facts that
+#             mcp_source_problems reads from the code (the stop notice, the digest lines, the allowance, the count of kept hashes, the name limit, the reserved name,
+#             the interval choices, the rail line and the Settings labels), the sentence that says MCP is off on the online demo, the expiry sentence of the approval request (the hours of Bridge.Approval EXPIRYSECONDS, read from the
+#             class source) and its link to the overview's MCP section; the overview's own demo-off sentence and its source bullet in its MCP tools section, the Data
 #             section's MCP bullet, the MCP audit line and the Pairing, MCP and Tool sentence of its audit section, each word for word (VG3); and
 #             the CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
 #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
@@ -2188,9 +2189,13 @@ OVW_MCP_DATA="- In calls to the MCP servers an admin has added, never on the onl
 OVW_MCP_AUDIT='- `MCP`: a server added or removed, or a tool called or refused;'
 OVW_MCP_OPENING="On a local or IPM install, an admin can add MCP servers, and their tools become OcuTalon's tools under the same gate, approval and audit as the built-in ones."
 OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them."
+# The overview's bullet about sources, a whole line of its MCP tools section (Story 22.12), without its "- ".
+OVW_MCP_SOURCE="An admin can make a Read-only tool a source, which OcuTalon calls on a schedule through the same gate, audit entry and agent step. Its new results reach OcuTalon's attention decisions only as untrusted items. A source whose tool is no longer Read-only makes no call, and a source that wasn't checked never counts as passed in the digest."
 
-# ovw_mcp_example_lines: the ruled lines of the worked example (how to classify a tool, how OcuTalon governs MCP tools, how to add a server), one per line, each pinned word for
-# word as a whole line (the classification table's rows, the Read-only rule, the refusal line, the governance bullets and the line that opens the Add server step).
+# ovw_mcp_example_lines: the ruled lines of the worked example, one per line, each pinned word for word as a whole line. Lines 1 to 14 (Story 22.6) are how to classify a tool, how
+# OcuTalon governs MCP tools and how to add a server: the classification table's rows, the Read-only rule, the refusal line, the governance bullets and the line that opens the
+# Add server step. Lines 15 to the last but one (Story 22.12) are every non-empty line of the worked example's source section (section 4, from its heading to the digest's
+# closing sentence), and the last line is the example's intro. New lines are appended, so that the numbers of the lines above stay.
 ovw_mcp_example_lines() {
   cat << 'EOF'
 | `search_issues` | searches tickets | Read-only |
@@ -2207,6 +2212,33 @@ If the server offers a tool with the same name as one of OcuTalon's own tools, o
 - A tool's results are untrusted content: they can never approve, classify, change a setting or add a server.
 - Each call of a server's tool that runs writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
 In Settings > Tools and MCP servers, fill in the fields under **Add server**, then press the **Add server** button:
+## 4. Poll new tickets assigned to you as a source
+A Read-only tool can also be a source: OcuTalon calls it on a schedule, makes an attention decision on each new result, and lists the source on your digest's coverage list. Only a Read-only tool can be a source, and sources are off on the online demo.
+In the Tools table, press **Use as a source** on the `search_issues` row, fill in the fields under **Use as a source**, then press **Save changes**:
+- **Source name**: `Jira tickets`. A source's name is 1 to 100 characters, and it can't be "Mailbox" in any letter case: that is the name your digest gives the connected mailbox.
+- **Arguments (JSON)**: the arguments of your server's search tool, as a JSON object. For the newest tickets assigned to you, for example: `{"jql": "assignee = currentUser() ORDER BY created DESC", "maxResults": 5}`. The arguments go to the server with every call, so put no secret in them; OcuTalon refuses a `secret://` reference there.
+- **Check every**: 15 minutes. The choices are 5 minutes, 15 minutes, 30 minutes, 1 hour, 6 hours and 1 day.
+The source then shows under **Your sources**, and under Background checks its row reads "Polled every 15 minutes", with its last run, its result and a link to its trace. To change the source, save it again with the same name. **Remove** removes it, and removing the server removes its sources too.
+Each poll is one call of `call_mcp_tool`, through the same gate as a call from the chat, with the same audit entry, and shows as the step "Running search_issues on Jira" in Visual Trace. The poll itself asks no model; only a new item's attention decision does. OcuTalon polls the source at its next background check, which comes every minute, and then every 15 minutes:
+- The first poll that gets an answer sets a baseline: OcuTalon keeps a hash of the answer and sends nothing.
+- A later answer that differs from each of the 50 newest different answers becomes one item, with the whole answer as its text, and OcuTalon makes an attention decision on it. The item and its decision show in Visual Trace. An answer that matches one of them, or an empty answer, sends nothing.
+- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item, which holds the whole answer. A long answer is cut, as any tool's result is, and a change only in the part that was cut off may not make a new item, so keep the answer short, for example with `maxResults`.
+- Each item is untrusted content, as every result of an MCP tool is.
+- Saving the source with another tool or other arguments starts it over, with a new baseline. Changing only how often it is checked keeps its hashes.
+- OcuTalon runs one source's poll at a time for the whole install, so when several sources are due together, the others wait for a later minute.
+- If the tool is classified Risky or Unclassified, or its description or inputs change, the source stops polling at its next due time: OcuTalon makes no call, and every admin gets this notice once: "The source Jira tickets stopped polling at 09:15, because its tool search_issues on Jira is no longer Read-only. Your digest lists it as not checked." Once you classify the tool Read-only again, the source polls again at its next due time.
+### The source on your digest
+Your digest's coverage list names the source as you typed it: "Passed: Jira tickets (at 09:15)." Only the polls since you set the source up, or last gave it another tool or other arguments, count. The source counts as checked only when its latest poll passed and it kept to its schedule: the time between two of its polls, and from its last poll to the digest, may be at most its interval plus 3 minutes, or plus 2 minutes for each source on this install that isn't stopped, when that is longer. Otherwise the source is not checked, and the digest gives the reason, for example:
+| What happened | The digest's line |
+| --- | --- |
+| OcuTalon couldn't reach the server | Not checked: Jira tickets (unreachable since 09:15). |
+| The server didn't answer in time | Not checked: Jira tickets (the check timed out at 09:15). |
+| The call failed for another reason | Not checked: Jira tickets (the check stopped with an error at 09:15). |
+| The tool is no longer Read-only | Not checked: Jira tickets (stopped polling at 09:15: its tool is no longer Read-only). |
+| A poll came too late | Not checked: Jira tickets (the check didn't run between 09:00 and 09:30). |
+| The last poll is too old | Not checked: Jira tickets (its last check was at 08:30, too long ago to count). |
+A source that isn't checked is named before every entry that passed, the page opens its "What I checked" list, and the digest never says "Everything I checked passed."
+This example adds a Jira MCP server to OcuTalon on your own install, classifies its tools, runs a search, approves a change and sets up a source that polls for new tickets. Then it explains how OcuTalon governs MCP tools. MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none.
 EOF
 }
 
@@ -2254,7 +2286,7 @@ ovw_mcp_shared_problems() {
 # ovw_doc_problems <file>: one line per problem of the overview, nothing for a good file. The frame: the title line, each marker once and in
 # order, ASCII only, no machine path, no URL or address. The hand-written sections (Story 14.2): no placeholder, the privilege-limits paragraph
 # under its heading, the kept-OCUORDERS sentence, and the numbers and audit types of the code. The MCP tools section (Story 22.6): no sentence that says the release
-# can't connect, a link to the worked example, and the shared texts; the Data section holds no "this release can't make".
+# can't connect, a link to the worked example, the shared texts and the source bullet (Story 22.12); the Data section holds no "this release can't make".
 ovw_doc_problems() {
   local f=$1 key b e n prev=0 owner='written by OcuTalon.Install.SecurityOverview, do not edit'
   local kept v hours t
@@ -2290,6 +2322,7 @@ ovw_doc_problems() {
   ovw_section "$f" 'Data' | grep -qiF -e "this release can't make" && echo "the Data section still says that MCP calls are ones this release can't make"
   ovw_mcp_shared_problems "$f" 'MCP tools' '- '
   ovw_section "$f" 'MCP tools' | grep -qF -e "$OVW_MCP_DEMOOFF" || echo "the MCP tools section lacks the sentence that says MCP is off on the online demo"
+  ovw_section "$f" 'MCP tools' | grep -qxF -e "- $OVW_MCP_SOURCE" || echo "the MCP tools section lacks the source bullet word for word"
   ovw_section "$f" 'Data' | grep -qxF -e "$OVW_MCP_DATA" || echo "the Data section lacks the MCP bullet word for word"
   ovw_section "$f" 'Approval and audit' | grep -qxF -e "$OVW_MCP_AUDIT" || echo "the Approval and audit section lacks the MCP audit line word for word"
   ovw_section "$f" 'Approval and audit' | grep -qF -e "$OVW_MCP_PAIRING" || echo "the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"
@@ -2344,10 +2377,206 @@ mcp_approval_problems() {
   [ "$last" = 'No dry run is available for this tool. Approving runs exactly this call once.' ] || echo "the catalog's last line of the tool call request is not the example's last quoted string"
 }
 
-# mcp_doc_problems <file> [<catalog class>]: one line per problem of the worked example (Story 22.6), nothing for a good file: its title, ASCII only and no machine path, an address
-# only on example.com (a secret:// reference is no address), the shared texts word for word and no other "deadline" line, the lines of ovw_mcp_example_lines word for
-# word, no text about the changed-tool replay path or source polls, the sentence that says MCP is off on the online demo, the expiry sentence and the link to the
-# overview's MCP section.
+# The code that mcp_source_problems reads, as paths under a code root.
+OVW_MCP_WATCH=src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+OVW_MCP_COVERAGE=src/ocutalon/cls/OcuTalon/Checks/Coverage.cls
+OVW_MCP_CHECKS=src/ocutalon/cls/OcuTalon/Checks/Process.cls
+OVW_MCP_OPS=src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
+OVW_MCP_VIEW=web/src/app/settings/mcp-view.ts
+OVW_MCP_RAIL=web/src/app/rail/rail-view.ts
+OVW_MCP_SETTINGS=web/src/app/settings/settings-view.ts
+OVW_MCP_CHAT=web/src/app/chat/chat-view.ts
+OVW_MCP_GATE=src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls
+OVW_MCP_SCHEDULE=src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls
+OVW_MCP_CODE_FILES="$OVW_MCP_WATCH $OVW_MCP_COVERAGE $OVW_MCP_CHECKS $OVW_MCP_OPS $OVW_MCP_VIEW $OVW_MCP_RAIL $OVW_MCP_SETTINGS $OVW_MCP_CHAT $OVW_MCP_GATE $OVW_MCP_SCHEDULE"
+# The Settings labels that the source section quotes in bold: the key in the TypeScript text table, and the file that holds it.
+OVW_MCP_LABELS="sourceHeading:$OVW_MCP_VIEW sourceName:$OVW_MCP_VIEW sourceArguments:$OVW_MCP_VIEW sourceInterval:$OVW_MCP_VIEW sources:$OVW_MCP_VIEW removeButton:$OVW_MCP_VIEW save:$OVW_MCP_SETTINGS"
+
+# mcp_catalog_text <catalog class> <key>: the text of the catalog entry (in the Entries block: a line ` "<key>": {`, then the entry's `  "text": "..."` line), as stored, or nothing.
+mcp_catalog_text() {
+  awk -v k="$2" 'BEGIN { h = " \"" k "\": {" } $0 == h { on = 1; next } on && /^ "[^"]*": \{$/ { exit } on && /^  "text": "/ { sub(/^  "text": "/, ""); sub(/",$/, ""); print; exit }' "$1" 2> /dev/null
+}
+
+# mcp_fill <text> <slot>=<value>...: the text with each {slot} replaced by its value.
+mcp_fill() {
+  local t=$1 kv slot val
+  shift
+  for kv in "$@"; do
+    [ -n "$kv" ] || continue
+    slot="{${kv%%=*}}"
+    val=${kv#*=}
+    t=${t//$slot/$val}
+  done
+  printf '%s' "$t"
+}
+
+# mcp_code_number <file> <name>: the number of a "Parameter <name> = <n>;" line of a class source, or nothing.
+mcp_code_number() { sed -n "s/^Parameter $2 = \([0-9][0-9]*\);.*\$/\1/p" "$1" 2> /dev/null | head -n 1; }
+
+# mcp_ts_text <file> <key>: the string of a "  <key>: '...'," line of a TypeScript source, or nothing.
+mcp_ts_text() { sed -n "s/^  $2: '\([^']*\)',\$/\1/p" "$1" 2> /dev/null | head -n 1; }
+
+# mcp_interval_words <minutes>: the rail's words for an interval (intervalText of rail-view.ts): 1440 is "1 day", 60 is "1 hour", another whole number of hours is "<h> hours", any
+# other number is "<n> minutes".
+mcp_interval_words() {
+  if [ "$1" -eq 1440 ]; then
+    echo "1 day"
+  elif [ "$1" -eq 60 ]; then
+    echo "1 hour"
+  elif [ "$1" -ge 60 ] && [ $(($1 % 60)) -eq 0 ]; then
+    echo "$(($1 / 60)) hours"
+  else
+    echo "$1 minutes"
+  fi
+}
+
+# mcp_source_problems <file> <code root>: one line per fact of the worked example's source section (section 4) that is not as the code states it, nothing for a good file. Each fact
+# is read from its file under the code root (sed and awk on the class and TypeScript sources, no IRIS), so a code change that makes the section false turns the check red:
+# the stop notice (mcp.sourceStopped) filled for the example, once and in double quotes; the digest lines (digest.passed and digest.notChecked...) and the all-clear sentence
+# (checks.allPassed), filled for the example; the allowance (Checks.Coverage MISSEDSECONDS and QUEUESECONDS, in minutes); the count of kept hashes (Checks.Process SEENMAX);
+# the name limit (Mcp.Ops NAMEMAX) and the reserved name (Checks.Coverage ENTRYMAILBOX); the six interval choices (INTERVAL_CHOICES, in the rail's words), the default interval
+# (DEFAULT_INTERVAL) and the rail line (checkScheduleSource); the Settings labels (in bold); and the rail heading, the chat list, the step label (Gate MCPLABEL) and the heartbeat's minute.
+mcp_source_problems() {
+  local f=$1 code=$2 sec text line key a b c q m seen name nums n joined i total def words label file value
+  sec=$(awk '/^## 4\. / { on = 1; next } on && /^## / { exit } on { print }' "$f")
+  # the stop notice
+  text=$(mcp_catalog_text "$code/$OVW_MCP_WATCH" mcp.sourceStopped)
+  if [ -z "$text" ]; then
+    echo "the code has no mcp.sourceStopped text"
+  else
+    line=$(mcp_fill "$text" "source=Jira tickets" "time=09:15" "tool=search_issues" "server=Jira")
+    [ "$(printf '%s\n' "$sec" | grep -oF -e "\"$line\"" | grep -c .)" -eq 1 ] || echo "the example's stop notice is not the catalog's mcp.sourceStopped"
+  fi
+  # the digest lines and the all-clear sentence
+  while IFS='|' read -r key a b c; do
+    text=$(mcp_catalog_text "$code/$OVW_MCP_WATCH" "$key")
+    if [ -z "$text" ]; then
+      echo "the code has no $key text"
+    else
+      line=$(mcp_fill "$text" "$a" "$b" "$c")
+      printf '%s\n' "$sec" | grep -qF -e "$line" || echo "the example's digest line is not the catalog's $key"
+    fi
+  done << 'EOF'
+digest.passed|entry=Jira tickets|time=09:15
+digest.notCheckedUnreachable|entry=Jira tickets|time=09:15
+digest.notCheckedTimeout|entry=Jira tickets|time=09:15
+digest.notCheckedError|entry=Jira tickets|time=09:15
+digest.notCheckedStopped|entry=Jira tickets|time=09:15
+digest.notCheckedMissed|entry=Jira tickets|from=09:00|to=09:30
+digest.notCheckedStale|entry=Jira tickets|time=08:30
+EOF
+  text=$(mcp_catalog_text "$code/$OVW_MCP_WATCH" checks.allPassed)
+  if [ -z "$text" ]; then
+    echo "the code has no checks.allPassed text"
+  else
+    printf '%s\n' "$sec" | grep -qF -e "\"$text\"" || echo "the example's all-clear sentence is not the catalog's checks.allPassed"
+  fi
+  # the allowance, the count of kept hashes, the name limit and the reserved name
+  q=$(mcp_code_number "$code/$OVW_MCP_COVERAGE" QUEUESECONDS)
+  m=$(mcp_code_number "$code/$OVW_MCP_COVERAGE" MISSEDSECONDS)
+  if [ -z "$q" ] || [ -z "$m" ] || [ $((q % 60)) -ne 0 ] || [ $((m % 60)) -ne 0 ]; then
+    echo "the code's allowance (QUEUESECONDS, MISSEDSECONDS) is not a whole number of minutes"
+  elif ! printf '%s\n' "$sec" | grep -qF -e "its interval plus $((m / 60)) minutes, or plus $((q / 60)) minutes for each source on this install that isn't stopped, when that is longer"; then
+    echo "the example's allowance is not the code's (QUEUESECONDS, MISSEDSECONDS)"
+  fi
+  seen=$(mcp_code_number "$code/$OVW_MCP_CHECKS" SEENMAX)
+  if [ -z "$seen" ]; then
+    echo "the code has no SEENMAX"
+  elif ! printf '%s\n' "$sec" | grep -qF -e "differs from each of the $seen newest different answers"; then
+    echo "the example's count of kept hashes is not the code's (SEENMAX)"
+  fi
+  name=$(mcp_code_number "$code/$OVW_MCP_OPS" NAMEMAX)
+  if [ -z "$name" ]; then
+    echo "the code has no NAMEMAX"
+  elif ! printf '%s\n' "$sec" | grep -qF -e "name is 1 to $name characters"; then
+    echo "the example's name limit is not the code's (NAMEMAX)"
+  fi
+  value=$(sed -n 's/^Parameter ENTRYMAILBOX = "\([^"]*\)";.*$/\1/p' "$code/$OVW_MCP_COVERAGE" 2> /dev/null | head -n 1)
+  if [ -z "$value" ]; then
+    echo "the code has no ENTRYMAILBOX"
+  elif ! printf '%s\n' "$sec" | grep -qF -e "it can't be \"$value\" in any letter case"; then
+    echo "the example's reserved name is not the code's (ENTRYMAILBOX)"
+  fi
+  # the interval choices, the default interval and the rail line
+  nums=$(sed -n 's/^export const INTERVAL_CHOICES.* = \[\([0-9][0-9, ]*\)\]\.map.*$/\1/p' "$code/$OVW_MCP_VIEW" 2> /dev/null | head -n 1 | tr -d ',')
+  if [ -z "$nums" ]; then
+    echo "the code has no INTERVAL_CHOICES"
+  else
+    total=$(printf '%s\n' $nums | grep -c .)
+    joined=""
+    i=0
+    for n in $nums; do
+      i=$((i + 1))
+      words=$(mcp_interval_words "$n")
+      if [ "$i" -eq 1 ]; then
+        joined=$words
+      elif [ "$i" -eq "$total" ]; then
+        joined="$joined and $words"
+      else
+        joined="$joined, $words"
+      fi
+    done
+    printf '%s\n' "$sec" | grep -qF -e "The choices are $joined." || echo "the example's interval choices are not the code's (INTERVAL_CHOICES)"
+  fi
+  def=$(sed -n 's/^export const DEFAULT_INTERVAL = \([0-9][0-9]*\);.*$/\1/p' "$code/$OVW_MCP_VIEW" 2> /dev/null | head -n 1)
+  if [ -z "$def" ]; then
+    echo "the code has no DEFAULT_INTERVAL"
+  else
+    words=$(mcp_interval_words "$def")
+    if ! printf '%s\n' "$sec" | grep -qF -e "**Check every**: $words. " || ! printf '%s\n' "$sec" | grep -qF -e "and then every $words:"; then
+      echo "the example's default interval is not the code's (DEFAULT_INTERVAL)"
+    fi
+  fi
+  # the rail line, for the example's 15 minutes
+  text=$(mcp_ts_text "$code/$OVW_MCP_RAIL" checkScheduleSource)
+  if [ -z "$text" ]; then
+    echo "the code has no checkScheduleSource"
+  else
+    line=$(mcp_fill "$text" "duration=$(mcp_interval_words 15)")
+    printf '%s\n' "$sec" | grep -qF -e "\"$line\"" || echo "the example's rail line is not the code's (checkScheduleSource)"
+  fi
+  # the Settings labels, each in bold
+  for label in $OVW_MCP_LABELS; do
+    key=${label%%:*}
+    file=${label#*:}
+    value=$(mcp_ts_text "$code/$file" "$key")
+    if [ -z "$value" ]; then
+      echo "the code has no $key label"
+    elif ! printf '%s\n' "$sec" | grep -qF -e "**$value**"; then
+      echo "the example's label is not the code's $key"
+    fi
+  done
+  # the other product strings of the section: the rail's heading, the chat page's list, the step label of a poll and the cadence of the background check
+  value=$(mcp_ts_text "$code/$OVW_MCP_RAIL" checks)
+  if [ -z "$value" ]; then
+    echo "the code has no rail heading for the background checks"
+  elif ! printf '%s\n' "$sec" | grep -qF -e "under $value its row reads"; then
+    echo "the example's rail heading is not the code's (checks)"
+  fi
+  value=$(mcp_ts_text "$code/$OVW_MCP_CHAT" whatIChecked)
+  value=${value% (\{n\})}
+  if [ -z "$value" ]; then
+    echo "the code has no whatIChecked label"
+  elif ! printf '%s\n' "$sec" | grep -qF -e "\"$value\" list"; then
+    echo "the example's list of what was checked is not the code's (whatIChecked)"
+  fi
+  text=$(sed -n 's/^Parameter MCPLABEL = "\([^"]*\)";.*$/\1/p' "$code/$OVW_MCP_GATE" 2> /dev/null | head -n 1)
+  if [ -z "$text" ]; then
+    echo "the code has no MCPLABEL"
+  else
+    line=$(mcp_fill "$text" "tool=search_issues" "server=Jira")
+    printf '%s\n' "$sec" | grep -qF -e "the step \"$line\" in Visual Trace" || echo "the example's step label is not the code's (MCPLABEL)"
+  fi
+  if ! grep -qF -e '"description": "Ticks the heartbeat every minute:' "$code/$OVW_MCP_SCHEDULE" 2> /dev/null || ! grep -qF -e '"DailyFrequencyTime": 0,' "$code/$OVW_MCP_SCHEDULE" || ! grep -qF -e '"DailyIncrement": 1,' "$code/$OVW_MCP_SCHEDULE"; then
+    echo "the code's heartbeat is not every minute (Schedule Tasks), so the example's background check is not every minute"
+  fi
+  return 0
+}
+
+# mcp_doc_problems <file> [<catalog class> [<code root>]]: one line per problem of the worked example (Stories 22.6 and 22.12), nothing for a good file: its title, ASCII only and no
+# machine path, an address only on example.com (a secret:// reference is no address), the shared texts word for word and no other "deadline" line, the lines of
+# ovw_mcp_example_lines word for word (the source section's lines included), the facts of the source section that mcp_source_problems reads from the code root (the repository
+# root by default), no text about the changed-tool replay path, the sentence that says MCP is off on the online demo, the expiry sentence and the link to the overview's MCP section.
 mcp_doc_problems() {
   local f=$1 url host v line n=0
   [ -f "$f" ] || { echo "the worked example is not at $OVW_MCP_EXAMPLE"; return 0; }
@@ -2368,7 +2597,7 @@ mcp_doc_problems() {
   done << EOF
 $(ovw_mcp_example_lines)
 EOF
-  grep -qiF -e 'source poll' "$f" && echo "a line mentions a source poll"
+  mcp_source_problems "$f" "${3:-$root}"
   grep -qF -e "$OVW_MCP_DEMOOFF" "$f" || echo "the example lacks the sentence that says MCP is off on the online demo"
   v=$(ovw_code_value 's/^Parameter EXPIRYSECONDS = \([0-9][0-9]*\);.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Approval.cls)
   if [ -z "$v" ]; then
@@ -2396,8 +2625,19 @@ ovw_ci_claims() {
   )
 }
 
+# ovw_code_copy <dir> <file> <sed expression>: a code root at <dir> that holds a copy of each file that mcp_source_problems reads, with the sed expression applied to <file> (no
+# change when the expression is empty).
+ovw_code_copy() {
+  local dir=$1 file=$2 expr=$3 f
+  rm -rf "$dir"
+  for f in $OVW_MCP_CODE_FILES; do
+    mkdir -p "$dir/$(dirname "$f")"
+    if [ "$f" = "$file" ] && [ -n "$expr" ]; then sed "$expr" "$root/$f" > "$dir/$f"; else cp "$root/$f" "$dir/$f"; fi
+  done
+}
+
 t_overviewdoc() {
-  local doc=$root/docs/security-overview.md ex=$root/$OVW_MCP_EXAMPLE d=$tmp/ovwdoc grp want
+  local doc=$root/docs/security-overview.md ex=$root/$OVW_MCP_EXAMPLE d=$tmp/ovwdoc grp want last n line key label
   rm -rf "$d"
   mkdir -p "$d"
   eq "the committed overview has a good frame" "$(ovw_doc_problems "$doc")" ""
@@ -2505,10 +2745,9 @@ a line other than the time-limits paragraph mentions a deadline"
   eq "control: a hard deadline line in the example" "$(mcp_doc_problems "$d/e-deadline.md")" "a line other than the time-limits paragraph mentions a deadline"
   { cat "$ex"; echo 'The replay says mcp.replayToolChanged.'; } > "$d/e-replay.md"
   eq "control: a replay-path line in the example" "$(mcp_doc_problems "$d/e-replay.md")" "a line describes the changed-tool replay path"
-  { cat "$ex"; echo 'Set a source poll to check the server.'; } > "$d/e-poll.md"
-  eq "control: a source poll in the example" "$(mcp_doc_problems "$d/e-poll.md")" "a line mentions a source poll"
   sed 's/MCP servers are off on the online demo: nobody can add one there/MCP servers are on the online demo: anybody can add one there/' "$ex" > "$d/e-demo.md"
-  eq "control: the demo sentence changed in the example" "$(mcp_doc_problems "$d/e-demo.md")" "the example lacks the sentence that says MCP is off on the online demo"
+  eq "control: the demo sentence changed in the example" "$(mcp_doc_problems "$d/e-demo.md" | grep -v 'ruled line')" "the example lacks the sentence that says MCP is off on the online demo"
+  eq "control: the demo sentence changed in the example, the ruled line of the intro" "$(mcp_doc_problems "$d/e-demo.md" | grep 'ruled line')" "the example lacks ruled line $(ovw_mcp_example_lines | grep -c .) of its classification and governance text word for word"
   sed 's/A request that nobody answers within 24 hours expires\./A request that nobody answers within 48 hours expires./' "$ex" > "$d/e-hours.md"
   eq "control: another expiry in the example" "$(mcp_doc_problems "$d/e-hours.md")" "the example lacks the sentence that a request expires after 24 hours"
   sed 's/^| `add_comment` | comments on a ticket | Risky |$/| `add_comment` | comments on a ticket | Read-only |/' "$ex" > "$d/e-row.md"
@@ -2527,6 +2766,79 @@ a line other than the time-limits paragraph mentions a deadline"
   sed 's/"text": "Run {tool} on {server}\\nWhy/"text": "Run {tool} at {server}\\nWhy/' "$OVW_MCP_CATALOG" > "$d/catalog-first.cls"
   eq "control: a catalog copy with its first line changed" "$(mcp_doc_problems "$ex" "$d/catalog-first.cls")" "the catalog's first line of the tool call request is not the example's first quoted string"
   eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
+  # controls of the source section (Story 22.12). The section removed: the ruled lines of the section, 15 to the last but one (the last is the intro), are each reported.
+  last=$(ovw_mcp_example_lines | grep -c .)
+  awk '/^## 4\. / { skip = 1; next } skip && /^## / { skip = 0 } !skip { print }' "$ex" > "$d/e-nosource.md"
+  want=""
+  n=15
+  while [ "$n" -lt "$last" ]; do
+    want="$want${want:+
+}the example lacks ruled line $n of its classification and governance text word for word"
+    n=$((n + 1))
+  done
+  eq "control: the source section removed from the example" "$(mcp_doc_problems "$d/e-nosource.md" | grep 'ruled line')" "$want"
+  eq "control: the source section removed from the example, the facts of the code" "$(mcp_doc_problems "$d/e-nosource.md" | grep -c "^the example's ")" "$(mcp_source_problems "$d/e-nosource.md" "$root" | grep -c .)"
+  eq "control: the source section removed from the example gives a problem for the stop notice" "$(mcp_source_problems "$d/e-nosource.md" "$root" | grep -c "^the example's stop notice")" "1"
+  eq "control: the source section removed from the example gives more than the stop notice" "$([ "$(mcp_source_problems "$d/e-nosource.md" "$root" | grep -c .)" -gt 20 ] && echo yes)" "yes"
+  awk '{ print } /"The source Jira tickets stopped polling/ { print }' "$ex" > "$d/e-twice.md"
+  eq "control: the stop notice quoted twice in the example" "$(mcp_source_problems "$d/e-twice.md" "$root")" "the example's stop notice is not the catalog's mcp.sourceStopped"
+  # each ruled line from 15 on: a copy with " x" after the first occurrence of that line gives that line's problem and no other
+  n=15
+  while [ "$n" -le "$last" ]; do
+    line=$(ovw_mcp_example_lines | sed -n "${n}p")
+    LINE=$line awk '!done && $0 == ENVIRON["LINE"] { print $0 " x"; done = 1; next } { print }' "$ex" > "$d/e-line.md"
+    eq "control: ruled line $n of the example changed" "$(mcp_doc_problems "$d/e-line.md")" "the example lacks ruled line $n of its classification and governance text word for word"
+    n=$((n + 1))
+  done
+  # each fact that mcp_source_problems reads from the code: a code root that holds copies of the files that it reads, with one fact changed, gives that fact's line
+  ovw_code_copy "$d/code" "" ""
+  eq "control: a code root with no change" "$(mcp_doc_problems "$ex" "" "$d/code")" ""
+  ovw_code_copy "$d/code" "$OVW_MCP_COVERAGE" 's/^\(Parameter QUEUESECONDS = \)[0-9][0-9]*;/\160;/'
+  eq "control: QUEUESECONDS 60 in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's allowance is not the code's (QUEUESECONDS, MISSEDSECONDS)"
+  ovw_code_copy "$d/code" "$OVW_MCP_COVERAGE" 's/^\(Parameter MISSEDSECONDS = \)[0-9][0-9]*;/\1120;/'
+  eq "control: MISSEDSECONDS 120 in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's allowance is not the code's (QUEUESECONDS, MISSEDSECONDS)"
+  ovw_code_copy "$d/code" "$OVW_MCP_COVERAGE" 's/^\(Parameter QUEUESECONDS = \)[0-9][0-9]*;/\150;/'
+  eq "control: QUEUESECONDS that is not whole minutes in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the code's allowance (QUEUESECONDS, MISSEDSECONDS) is not a whole number of minutes"
+  ovw_code_copy "$d/code" "$OVW_MCP_CHECKS" 's/^\(Parameter SEENMAX = \)[0-9][0-9]*;/\140;/'
+  eq "control: SEENMAX 40 in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's count of kept hashes is not the code's (SEENMAX)"
+  ovw_code_copy "$d/code" "$OVW_MCP_OPS" 's/^\(Parameter NAMEMAX = \)[0-9][0-9]*;/\199;/'
+  eq "control: NAMEMAX 99 in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's name limit is not the code's (NAMEMAX)"
+  ovw_code_copy "$d/code" "$OVW_MCP_COVERAGE" 's/^\(Parameter ENTRYMAILBOX = "\)[^"]*";/\1Inbox";/'
+  eq "control: ENTRYMAILBOX Inbox in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's reserved name is not the code's (ENTRYMAILBOX)"
+  ovw_code_copy "$d/code" "$OVW_MCP_WATCH" '/^ "mcp.sourceStopped": {/,/^  "text"/ s/ stopped polling / paused polling /'
+  eq "control: a word of mcp.sourceStopped in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's stop notice is not the catalog's mcp.sourceStopped"
+  ovw_code_copy "$d/code" "$OVW_MCP_WATCH" '/^ "checks.allPassed": {/,/^  "text"/ s/Everything I checked passed\./Everything I checked is fine./'
+  eq "control: a word of checks.allPassed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's all-clear sentence is not the catalog's checks.allPassed"
+  for key in digest.passed digest.notCheckedUnreachable digest.notCheckedTimeout digest.notCheckedError digest.notCheckedStopped digest.notCheckedMissed digest.notCheckedStale; do
+    ovw_code_copy "$d/code" "$OVW_MCP_WATCH" "/^ \"$key\": {/,/^  \"text\"/ s/{entry}/{entry}!/"
+    eq "control: a word of $key in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's digest line is not the catalog's $key"
+  done
+  ovw_code_copy "$d/code" "$OVW_MCP_VIEW" 's/= \[5, 15, 30, 60, 360, 1440\]\.map/= [5, 20, 30, 60, 360, 1440].map/'
+  eq "control: INTERVAL_CHOICES 15 to 20 in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's interval choices are not the code's (INTERVAL_CHOICES)"
+  ovw_code_copy "$d/code" "$OVW_MCP_VIEW" 's/^\(export const DEFAULT_INTERVAL = \)[0-9][0-9]*;/\130;/'
+  eq "control: DEFAULT_INTERVAL 30 in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's default interval is not the code's (DEFAULT_INTERVAL)"
+  ovw_code_copy "$d/code" "$OVW_MCP_RAIL" "s/^\(  checkScheduleSource: '\)Polled every/\1Checked every/"
+  eq "control: checkScheduleSource Checked every in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's rail line is not the code's (checkScheduleSource)"
+  ovw_code_copy "$d/code" "$OVW_MCP_VIEW" "s/^\(  sourceName: '\)Source name',/\1Name',/"
+  eq "control: sourceName Name in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's label is not the code's sourceName"
+  for label in $OVW_MCP_LABELS; do
+    key=${label%%:*}
+    ovw_code_copy "$d/code" "${label#*:}" "s/^\(  $key: '[^']*\)',\$/\1!',/"
+    eq "control: the label $key changed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's label is not the code's $key"
+  done
+  ovw_code_copy "$d/code" "$OVW_MCP_RAIL" "s/^\(  checks: '\)Background checks',/\1Scheduled checks',/"
+  eq "control: the rail heading changed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's rail heading is not the code's (checks)"
+  ovw_code_copy "$d/code" "$OVW_MCP_CHAT" "s/^\(  whatIChecked: '\)What I checked/\1What was checked/"
+  eq "control: whatIChecked changed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's list of what was checked is not the code's (whatIChecked)"
+  ovw_code_copy "$d/code" "$OVW_MCP_GATE" 's/^\(Parameter MCPLABEL = "\)Running /\1Calling /'
+  eq "control: MCPLABEL changed in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the example's step label is not the code's (MCPLABEL)"
+  ovw_code_copy "$d/code" "$OVW_MCP_SCHEDULE" 's/"DailyIncrement": 1,/"DailyIncrement": 5,/'
+  eq "control: the heartbeat every 5 minutes in the code" "$(mcp_doc_problems "$ex" "" "$d/code")" "the code's heartbeat is not every minute (Schedule Tasks), so the example's background check is not every minute"
+  rm -rf "$d/code"
+  sed 's/ calls on a schedule through the same gate/ calls on a timetable through the same gate/' "$doc" > "$d/source.md"
+  eq "control: a word of the source bullet in the overview" "$(ovw_doc_problems "$d/source.md")" "the MCP tools section lacks the source bullet word for word"
+  grep -vxF -e "- $OVW_MCP_SOURCE" "$doc" > "$d/nosource.md"
+  eq "control: the source bullet removed from the overview" "$(ovw_doc_problems "$d/nosource.md")" "the MCP tools section lacks the source bullet word for word"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5
   # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)
   want=$(ovw_ci_claims)
