@@ -8554,12 +8554,6 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
 - 2026-11-15T19:03:01Z status=routed owner=burndown by=orchestrator note=fix in DW-1391's commit if it is the same one-line LastAt change and the hammer covers it; otherwise its own fix
-- 2026-11-15T19:36:41Z note=measured by DW-1391 QA: Summary.cls -3600 at Incident L878, Group L929, Resolved lastOffset L936/L943; closeQuiet hammer (2 jobs) turned Test.Watch.Summary red 5/11 (TestClosingLines 3, TestRunEdges 2, TestFixedDismissed 1), green without it. Not a one-line change (TestClosingLines L163 builds a quiet incident on purpose), so not folded into DW-1391. FIX path: LastAt=now in the helpers + Settle.Quiet guard, and build TestClosingLines' quiet case as Test/Watch/Lifecycle.cls does (LastAt=now, probe QuietNowIs (IncidentProbe.cls L58) = now+960 s). Margin notes (not this race): Checks/Heartbeat TestQuietClose 60 s margin; Tools/RecentActivity TestDemoPath 240 s margin. by=qa
-
-### DW-1399: DW-1391: the closeQuiet hammer behind AC 1 lives only in scratch, so no repo or CI run repeats the race measurement
-- source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
-- evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
-- 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
 
 ### DW-1410: A copy resent to a business process that waits for a reply reads Completed and not held for the whole wait, so Tally counts it done even with the DW-1205 fix
 - source: _bmad-output/implementation-artifacts/spec-21-dw-1205-a-copy-that-errors-is-not-counted-as-done-while-ens-still-holds-it.md (code review) | severity: high | fix-risk: high | footprint: in-story
@@ -8576,3 +8570,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: FailurePoller.Scope (Lane D Watch/**) owner fallback; 23.4 re-review 2
 - 2026-11-15T22:14:50Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a page row exists for an incident whose first failure carried a session trace tag, or for a production with no watch at notice time
+- 2026-11-15T19:36:41Z note=measured by DW-1391 QA: Summary.cls -3600 at Incident L878, Group L929, Resolved lastOffset L936/L943; closeQuiet hammer (2 jobs) turned Test.Watch.Summary red 5/11 (TestClosingLines 3, TestRunEdges 2, TestFixedDismissed 1), green without it. Not a one-line change (TestClosingLines L163 builds a quiet incident on purpose), so not folded into DW-1391. FIX path: LastAt=now in the helpers + Settle.Quiet guard, and build TestClosingLines' quiet case as Test/Watch/Lifecycle.cls does (LastAt=now, probe QuietNowIs (IncidentProbe.cls L58) = now+960 s). Margin notes (not this race): Checks/Heartbeat TestQuietClose 60 s margin; Tools/RecentActivity TestDemoPath 240 s margin. by=qa
+
+### DW-1399: DW-1391: the closeQuiet hammer behind AC 1 lives only in scratch, so no repo or CI run repeats the race measurement
+- source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
+- evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
+- 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
