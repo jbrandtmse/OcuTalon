@@ -8345,3 +8345,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: mcp_source_problems reads NAMEMAX and ENTRYMAILBOX but not Mcp/Ops.cls L216 (Length(name) < 1), L217 (ZConvert L compare) or Normalised L550 (secret:// in any case); behaviour is true today
 - 2026-11-15T10:06:08Z status=wontfix-accepted owner=22-12-document-polling-a-jira-mcp-tool-as-a-source by=cr note=reopen_if=Mcp/Ops.cls OnSetSource or Normalised drops one of these three rules while docs/mcp-jira-example.md keeps the sentence
+
+### DW-1381: flake: Test.Watch.Reader TestFailures and TestFailureDefinition hit <SUBSCRIPT> on an empty subscript (found(""), expected("")): no failure was found for the tag, in CI shard lane-a@Watch
+- source: epic-runner; OCT-epic21-dw1371 5b52467ec ci 43719358269 attempt 1 shards-8 (runner ocutalon-ci-18) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: TestFailureDefinition+15 *found() Subscript 1 is ""; TestFailures+19 *expected(""); FAIL 'three failures are given'; DW-1371 changes only Test/Mcp/Approval.cls; feature 999138505 passed the same shard (run 43714808565); no other recent branch shows it
+- 2026-11-15T15:30:49Z status=routed owner=burndown by=flake note=(inference) a timing or shared-state race in the reader's failure query; one rerun of the failed job
+- 2026-11-15T15:56:26Z occurrence=OCT-epic21-dw1371-5b52467ec by=epic-runner note=attempt 2 of run 43719358269 passed shards-8 (flake confirmed by the rerun)

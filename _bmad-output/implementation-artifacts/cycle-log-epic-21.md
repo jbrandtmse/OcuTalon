@@ -447,3 +447,6 @@
 2026-11-15T13:21:53Z	DW-1371	ledger	DW-1371=resolved-by:dw-1371
 2026-11-15T13:30:22Z	DW-1371	integrated	feature=999138505(unchanged;no_merge_needed)
 2026-11-15T13:30:22Z	DW-1371	fresh_check	env=b1cddd242 warm_e21dw1371fw:Mcp.Approval,Mcp.SourceRun,Mcp.Proxy,Bridge.Poll,Mcp.Attach_pass boundaries,class-rules=pass torn_down
+2026-11-15T15:30:55Z	DW-1371	ci_flake	run=43719358269 job=132827772132 iris(shards-8)@ocutalon-ci-18 Watch.Reader_TestFailures/TestFailureDefinition_SUBSCRIPT=DW-1381(new_flake_entry) action=rerun_failed_once
+2026-11-15T15:56:26Z	DW-1371	ci_resolved	sha=5b52467ec result=success runs=43719358269(attempt2_after_DW-1381_flake),43719358288
+2026-11-15T15:56:26Z	DW-1371	part_ready	parts=DW-1371 code_head=5b52467ec ci=success records=local
