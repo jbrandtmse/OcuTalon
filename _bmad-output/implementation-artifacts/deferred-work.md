@@ -8256,3 +8256,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
 - 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
 - 2026-11-15T05:27:20Z status=resolved-by:22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer by=merge_gate note=TestUpdate starts from a past CreatedAt and asserts the repoint moves it; branch ci 43674059161+43674059261 green
+### DW-1354: flake: Test.Mcp.SourceSet:TestUpdate 'CreatedAt and the run fields are kept' failed in CI on a head that changed only web rail TypeScript
+- source: ci run 43651790835 (OCT-epic21 1ecb7150d, iris shards-2, shard:lane-a@rest) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls
+- evidence: the parent 19de55b83 (same ObjectScript) was green; one rerun (attempt 2) green; likely a second-boundary timing assumption
+- 2026-11-15T00:53:10Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun, occurrence 1
+- 2026-11-15T01:21:28Z status=dropped by=adjudication note=superseded-by:DW-1352 (the same SourceSet TestUpdate clock bug; coordinator); the ledger grammar has no superseded-by status
+
+### DW-1355: A tool marked Changed and later reported refused reads changed true with status refused in McpOps.Tools(server)
+- source: spec-22-15-the-tool-list-reports-which-tools-changed-the-changed-flag.md code review | severity: low | fix-risk: low | footprint: in-story
+- evidence: KeepRow's refused branch keeps Changed (spec: unchanged) and Tools gives changed = Changed 1 AND unclassified, so both members show at once; 21.9's banner may list a refused tool
+- 2026-11-15T02:04:16Z status=by-design owner=22-15-the-tool-list-reports-which-tools-changed-the-changed-flag by=cr note=spec-bound (intent: refused branch unchanged); reopen via 21.9's spec if the banner must skip status refused
