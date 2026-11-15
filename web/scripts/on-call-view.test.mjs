@@ -38,6 +38,7 @@ describe('the accepted texts', () => {
     assert.deepEqual(SETTINGS_TEXTS.onCall, {
       help: 'Choose who OcuTalon pages when an incident starts, and who it pages next if nobody presses Got it in time.',
       notYet: "OcuTalon doesn't send pages yet. It keeps these choices for when it does.",
+      telegramOnly: "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.",
       primary: 'On-call person',
       backup: 'Backup',
       person: 'Person',

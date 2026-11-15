@@ -8352,7 +8352,7 @@ So that someone answers every incident even when the people watching are away.
 
 **Given** the watched production's IRIS Managed Alerts
 **When** paging is configured and an incident pages
-**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration (FR-28)
+**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration, except an approved rollback_setting or undo_rollback that puts back the user's own earlier value (FR-28) [AMENDED 2026-11-15, Story 23.4, Contest Planner ruling DW-1380: it read "and no OcuTalon class writes alert configuration"]
 **And** with no on-call person configured, as always on the online demo, no page is sent and nothing else changes (FR-28)
 
 **Given** automated tests in `OcuTalon.Test.Watch`
@@ -8588,6 +8588,27 @@ So that the rail never shows a request as still waiting after I have answered it
 **Then** a browser test presses Reject and asserts the request is gone from the rail within 5 s, on the web and on the phone view; a request the user has not answered stays listed
 
 - DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view) (ledger; routed by owner 2026-11-11)
+
+### Story 23.13: Partner warnings go to the Settings contacts
+
+[ADDED 2026-11-15, Contest Planner (prompts/story-242-rulings-20261115.md, "23.13 replaces 23.10"): Lane A files, run by lane B (Epic 23's runner); after 23.4 and 23.8, and only once Lane B's Story 24.2 has merged]
+
+As an admin,
+I want a partner warning to go only to the contacts I set for that production in Settings,
+So that the people who hear about a delay are the ones I chose.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's Story 24.2 merged (its partner contacts table and Settings section)
+**When** this story lands
+**Then** `Fix.PartnerContacts` reads the contacts from 24.2's table, and its `TABLE` parameter is set to 1, which is the switch that shows 24.2's Settings section (the section shows only when `TABLE` = 1; both states pinned)
+**And** DW-1254's contact-id change applies to 23.5's warnings: a warning names contacts by id, and their names and addresses never appear in a traced message, log or audit beyond what DW-1254 allows
+
+**Given** a partner warning for an incident in a watched production
+**When** it is approved and sent
+**Then** it goes only to the contacts set for that production, and the leak scan still passes
+- DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
+- DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
 
 ## Epic 24: On-call, partner and check settings (step 5)
 

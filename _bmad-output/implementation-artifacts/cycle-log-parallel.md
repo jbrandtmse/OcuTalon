@@ -4381,3 +4381,29 @@
 2026-11-15T19:42:30Z	Epic 23	owner_decision	via=contest_planner 23.4_on-call.spec_extension=accepted DW-1396=option_a(page_only_shared_watched;follow-up_before_1.0.12) 23.8=APPROVED(Task0_extended:a_service_only,b_no_other_resources,c_no_new_dependency,d_password_grep;untrusted_results;D1-D3;contention_granted;text_verbatim) file=prompts/story-238-rulings-20261115.md
 2026-11-15T19:44:21Z	Epic 21	ci_green_verified	story=DW-1388 head=85d831493 runs=43750643461,43750643425(att1) note=report_not_received;verified_by_gate
 2026-11-15T19:44:21Z	Epic 21	merge_enqueued	story=DW-1388(HIGH)
+2026-11-15T19:46:11Z	Epic 21	merged	story=DW-1388 merge=3242f9657
+2026-11-15T19:46:21Z	Epic 24	runner_reported	PLANNER_REPORT story=24.4 head=bb9fe0b5(local) gaps=evidence_setting-change_rows,closed-card_undo vetoes=V1_5_strings,V2_closed_card_undo,V3_web/scripts_tests relayed=contest_planner
+2026-11-15T19:46:34Z	Epic 24	owner_decision	via=contest_planner 24.4=APPROVED(1.0.12;V1_verbatim+redactor_condition+secret-shaped_pin;V2_closed_card_undo_only+pins;V3_granted) DW-1388=further_B13_red_is_regression file=prompts/story-244-rulings-20261115.md
+2026-11-15T19:53:03Z	Run	ci_green_verified	head=8c71bef6e(23.3_merge) runs=43748578400(att2;att1=DW-1388_ci-48),43748578393
+2026-11-15T19:53:52Z	Epic 24	runner_reported	BLOCKED story=24.4 reason=V1_redactor_does_not_exist(RollbackSetting/Approval/Incident_payloads_raw;web_raw) options=1_match_raw+ledger,2_server_Redact.Text(cross-lane_grant;recommended),3_web_redactor(no) relayed=contest_planner
+2026-11-15T19:54:15Z	Epic 24	owner_decision	via=contest_planner 24.4_redactor=OPTION_2_EXTENDED(1.0.12_BLOCKER;Redact.Text_server-side_on_Approval/Incident_payloads+notice_slots+trace/log_check;DryRun_and_restore_raw;pins;grant_laneD_Lane_A_payload+Notice/SettingCause)
+2026-11-15T20:03:27Z	Epic 23	ci_green_verified	story=23.4 head=5a6af00d3 runs=43751904972,43751904967(att1)
+2026-11-15T20:03:27Z	Epic 23	merge_enqueued	story=23.4 (1.0.12)
+2026-11-15T20:13:35Z	Epic 24	runner_reported	PLANNER_REPORT 24.4_replan(4dc1225e) trace_leak=DryRunResult_raw;V5=Fix/Executor+IncidentManager(+DryRunResult_doc,Test.Watch.Rollback)_grant_needed V4=[redacted]_marker_confirm split_suggested=24.4a/24.4b relayed=contest_planner
+2026-11-15T20:13:52Z	Epic 24	owner_decision	via=contest_planner 24.4:V5=GRANTED(handoff_deleted_on_take+expiry,trace_bodies_redacted_pin,SysDefault_undo_raw_restore) V4=confirmed([redacted];bare_key=_approved) SPLIT=24.4a(blocker:redaction+V5+V1_rows)/24.4b(V2+pins)
+2026-11-15T20:16:02Z	Epic 23	merged	story=23.4 merge=92937a03e pins=pass web=pass lint=pass
+2026-11-15T20:17:06Z	Run	ci_red_classified	head=3242f9657(DW-1388_merge) run=43754264077(lane-a) ipm-install-p(ci-52)=DW-1119(CPF_merge_exit_7,infra) action=no_rerun(superseded_by_92937a03e)
+2026-11-15T20:29:53Z	Run	ci_red_classified	head=3242f9657 run=43754264003 shards-5(ci-54)=DW-1406(new_flake_cand:heartbeat-card_HC6) B13=PASSED(no_regression) action=no_rerun(superseded_by_92937a03e)
+2026-11-15T20:30:09Z	Epic 24	runner_reported	PLANNER_REPORT 24.4a(c34e72d5) V6=SecretHandoff_has_no_expiry;options_a(detached_discard_60s,recommended)/b(Put_lifetime)/c(drop) relayed=contest_planner note=HC6_DW_id_is_DW-1406(corrected)
+2026-11-15T20:30:22Z	Epic 24	owner_decision	via=contest_planner 24.4a_V6=option_a(detached_60s_discard;take_first) added=missing-entry_rule(no_request,NOSTART_refusal,never_store_redacted_as_raw;pins)
+2026-11-15T21:39:50Z	Epic 23	runner_reported	PART_READY DW-1396_follow-up head=00e9a5367 runs=43760644066,43760643973 + PLANNER_REPORT 23.8_Task0_FAIL(a:login_via_%Service_Bindings,public_services;b:needs_CODE:R_or_no_role) options=A_no_role(recommended)/B_park/C_in-process DW-1400=On_call_line_clause
+2026-11-15T21:39:50Z	Epic 23	merge_enqueued	story=DW-1396_follow-up (1.0.12)
+2026-11-15T21:42:08Z	Epic 23	merged	story=DW-1396_follow-up merge=4760e5446
+2026-11-15T21:42:30Z	Run	planner_notified	23.8_Task0_FAIL(options_A/B/C) DW-1400 laneB=23.13_next
+2026-11-15T21:42:51Z	Epic 23	owner_decision	via=contest_planner 23.8=PARKED(option_B;owner_decision_with_scope_trim;C_refused) 24.5=waits_with_23.8 DW-1400=new_On_call_line_verbatim(pin;24.3_replaces)
+2026-11-15T22:32:17Z	Epic 23	runner_reported	DW-1400_pushed=69d17499b(runs_43768251126,43768251118) 23.8=parked(U-329) PLANNER_REPORT 23.13_gate(16853dcc3;TABLE=1,kept-draft,ids-in-trace;4_texts;AD-16_bullet) DW-1409=accepted_LOW relayed=contest_planner
+2026-11-15T22:32:40Z	Epic 23	owner_decision	via=contest_planner 23.13=APPROVED(veto2_changed:SEND_via_EmailOut_when_mailbox_connected,else_kept_draft;STOP_if_EmailOut_cannot;conditional_texts;vetoes_1,3,4;deviations_1-5;AD-16_with_sent-or-kept)
+2026-11-15T22:39:04Z	Epic 23	runner_reported	BLOCKED story=23.13 reason=EmailOut_FIXKIND=email_only(Out.cls:74,:414,:446,:514;Executor:286-289,:345;AD-14) options=i_cross-lane_in_23.13(recommended)/ii_laneB_story_first relayed=contest_planner
+2026-11-15T22:39:21Z	Epic 23	owner_decision	via=contest_planner 23.13_EmailOut=option_i(cross-lane_Out.cls;AD-14_amended) security=approved-address_rule(send_only_if_contact_exists_and_address_equals_approved;skip+report;pins) texts=reuse_fix.emailSent/NotSent;new_lines_to_Planner_first
+2026-11-15T22:46:54Z	Epic 23	ci_green_verified	story=DW-1400(+23.8_parked_records,23.13_charter) head=69d17499b runs=43768251126,43768251118(att1)
+2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400

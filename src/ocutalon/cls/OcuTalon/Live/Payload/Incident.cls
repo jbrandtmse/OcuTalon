@@ -62,6 +62,10 @@ Property SettingChange As OcuTalon.Live.Payload.Part.SettingChange(%JSONFIELDNAM
 
 Property GapMinutes As %Integer(%JSONFIELDNAME = "gapMinutes");
 
+/// The page that the incident's first notice sent (Story 23.4): state, when it was sent, and the first acknowledgement's time and channel. Absent when the incident was not paged
+/// and on the online demo; it names no person.
+Property Page As OcuTalon.Live.Payload.Part.Page(%JSONFIELDNAME = "page");
+
 /// The evidence behind the diagnosis.
 Property Evidence As OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME = "evidence");
 
@@ -78,8 +82,9 @@ Property TraceTargets As OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFI
 ///     last two in the watched namespace; each is left out when its id is empty;
 ///   - requests: one {ref, state, result} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result is the stored
 ///     result of the request's run (Data.FixRun OfRequest: total, resent, completed, failedAgain, skipped, unreached (absent unless the resend stopped partway), interrupted and reason) once that run has ended
-///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended.
-/// A row without any of them gives a payload without the four fields.
+///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended;
+///   - page (Story 23.4): {state, pagedAt, acknowledgedAt, channel} from the incident's Page rows (Data.Page OfIncident), absent when it has none and on the online demo.
+/// A row without any of them gives a payload without the five fields.
 ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Incident
 {
 	Set payload = ..%New()
@@ -109,8 +114,22 @@ ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Inci
 		}
 	}
 	Do ..Change(payload, row)
+	Do ..Paged(payload, row)
 	Do ..Details(payload, row)
 	Quit payload
+}
+
+/// Fills page from the incident's Page rows, by object access only (Watch.Paging.PagePayload); it stays empty when the incident has none and on the online demo.
+ClassMethod Paged(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Data.Incident) [ Private ]
+{
+	Set page = ##class(OcuTalon.Watch.Paging).PagePayload(row.Ref)
+	If '$IsObject(page) Quit
+	Set part = ##class(OcuTalon.Live.Payload.Part.Page).%New()
+	Set part.State = page.state
+	Set part.PagedAt = page.pagedAt
+	Set part.AcknowledgedAt = page.acknowledgedAt
+	Set part.Channel = page.channel
+	Set payload.Page = part
 }
 
 /// Fills settingChange and gapMinutes from the SettingChange row that the incident names (Incident SettingChangeRef), by object access only; both stay empty when it names none
