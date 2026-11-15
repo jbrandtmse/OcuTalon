@@ -8260,3 +8260,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Fix/Kind suspend_item/resume_item save-then-update (23.2), same as DW-1365
 - 2026-11-15T10:04:07Z status=routed owner=burndown by=planner note=Planner pre-push ruling 2026-11-15: own DW for 1.0.12, not in 23.3
+
+### DW-1376: A setting run saved but not applied (result.settingSavedNotApplied) has no ended line in the incident summary: no approved summary key for changed-but-not-applied
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch.SettingCause SummaryRunKey returns empty for Completed 0 with Unreached>0 (c968df2b)
+- 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
+
+### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Fix.Executor InProduction restore block runs only on an error status; an exception reaches the outer Catch (c968df2b); unverified that UpdateProduction throws
+- 2026-11-15T11:23:43Z status=open owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=harvest note=smallest fix: Try/Catch turning a throw into a status around the update; for the re-review to patch
