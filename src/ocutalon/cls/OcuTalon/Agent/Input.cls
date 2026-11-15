@@ -44,8 +44,8 @@
 /// An item with no core-memory block, no notes block and no precedent block renders as it would without a context. The opening lines of the context blocks
 /// (COREOPENING, NOTESOPENING, PRECEDENTSOPENING) and the quote prefix (QUOTEPREFIX) are this class's constants.
 /// ReadFile(item, .result) is the read result of a file turn (AD-21, step 6): built for a photo by Story 26.3 and for a PDF or Word file by Story 26.2. READSFILES is
-/// the switch that Core.Files.Readable() reads: while it is not 1, Conversation answers every file turn with a fixed reply and makes no model request (Story 25.6 sets it to 1,
-/// with its chip and texts). The photo and document branches of Render and ReadFile work at any value; the flag only gates whether a file turn reaches a model.
+/// the switch that Core.Files.Readable() reads: it is 1 (Story 25.6), so Conversation reads the file of a web or Telegram file turn with ReadFile before the turn's first request. A build whose
+/// flag is not 1 (the probe's seam in tests) gives a file turn the fixed no-reader reply and makes no model request. The photo and document branches of Render and ReadFile work at any value.
 Class OcuTalon.Agent.Input
 {
 
@@ -310,9 +310,10 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
 }
 
-/// 1 when this class reads a sent file: Core.Files.Readable() reads this parameter, and exactly 1 turns it on. Story 25.6 sets it to 1 together with its chip and texts; until then
-/// Conversation answers a file turn with the fixed no-reader reply and makes no model request, and TelegramIn does the same for a paired chat's document or photo.
-Parameter READSFILES = 0;
+/// 1 when this class reads a sent file: Core.Files.Readable() reads this parameter, and exactly 1 turns it on. It is 1 for the web chat and Telegram alike: Conversation reads
+/// a file turn's file with ReadFile first. A build where it is not 1 answers a file turn with the fixed no-reader reply and makes no model request, and TelegramIn does the same
+/// for a paired chat's document or photo.
+Parameter READSFILES = 1;
 
 /// The code-written line after the label of an untrusted item whose file is a PDF or Word file (Render). It is model-facing and never shown.
 Parameter FILEINTRO = "The person sent a PDF or Word file with this message. The quoted part below ends with the text OcuTalon read from it.";

@@ -1,22 +1,27 @@
 import { expect, test, type JSHandle, type Locator, type Page, type Request } from '../support/fixtures';
 
-import { signIn, signInOverHttp } from '../sign-in/helpers';
+import { envelope, signIn, signInOverHttp } from '../sign-in/helpers';
 import { STATE, changeSnapshot, post } from '../support/api';
+import { pointKeys, restoreKeys } from '../support/devices';
 import { loadedAfter } from '../support/floor';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
 import { announcements, recordAnnouncements } from '../support/page';
+import { textPdf } from '../support/pdf';
 
 /**
- * Story 25.3, sending a file from the chat, in a real browser against a real stack. Every case stubs /state with `changeSnapshot`, setting `filesReadable` and
- * `onlineDemo` itself, so that no case depends on this branch's flag (the paperclip is hidden on every real state until Story 25.6 makes the install able to read a file);
- * the route and the turn are the real ones, so the reply is the real no-reader reply, "I got {name}, but I can't read files yet.". Each case signs in as the panel
- * fixture user and removes the file rows and the file turns of its session afterwards. A fixture file has the real signature of its type.
+ * Story 25.3, sending a file from the chat, in a real browser against a real stack (Story 25.6 turned the reader on). Most cases stub /state with `changeSnapshot`, setting
+ * `filesReadable` and `onlineDemo` itself; the real-state case does not, and shows the paperclip. The route and the turn are the real ones: a fixture file has the real signature of
+ * its type but is no readable document, so its reply is the real failure sentence, "I couldn't read that file: it's damaged or incomplete."; a readable PDF (a text PDF built by
+ * support/pdf.ts) gets the mock's reply and the Add to documents button, and a snapshot that holds a photo's caption shows the Saved to memory chip. Each case signs in as the
+ * panel fixture user and removes the file rows, the file turns and the documents of its session afterwards.
  */
 const FILES = '/ocutalon/api/v1/files';
 const MB = 1048576;
 const DOT = ' \u00B7 ';
 const WRONG_TYPE = "I couldn't read that file: it isn't a PDF, Word (.docx), JPEG or PNG file.";
+const DAMAGED = "I couldn't read that file: it's damaged or incomplete.";
+const DOCUMENTS = '/ocutalon/api/v1/documents';
 const OFF_ON_DEMO = 'Sending files is off on the online demo. It works on your own install.';
 
 const pdf = (marker = 'zz'): Buffer => Buffer.from(`%PDF-1.4 ${marker}`);
@@ -39,6 +44,8 @@ const chips = (page: Page): Locator => page.locator('app-file-chip');
 const refusal = (page: Page): Locator => page.locator('p.file-refusal');
 const fileInput = (page: Page): Locator => page.locator('app-composer input[type="file"]');
 const chat = (page: Page): Locator => page.locator('app-chat-panel');
+const addButton = (page: Page): Locator => page.getByRole('button', { name: 'Add to documents', exact: true });
+const savedChip = (page: Page): Locator => chat(page).getByText('Saved to memory', { exact: true });
 
 /** Dispatches a drag event of that type with the transfer on the element and says whether a handler took it: true when one cancelled the browser's own handling. */
 async function taken(target: Locator, type: 'dragover' | 'drop', transfer: JSHandle<DataTransfer>): Promise<boolean> {
@@ -109,7 +116,7 @@ const TYPES: Array<{ name: string; mimeType: string; buffer: () => Buffer; way: 
 ];
 
 for (const type of TYPES) {
-  test(`the paperclip (${type.way === 'click' ? 'by mouse' : `by keyboard, ${type.way}`}) sends ${type.name}: the chip shows its name and size, the reply is the fixed one, and both survive a reload`, async ({ page }) => {
+  test(`the paperclip (${type.way === 'click' ? 'by mouse' : `by keyboard, ${type.way}`}) sends ${type.name}: the chip shows its name and size, the turn answers, and both survive a reload`, async ({ page }) => {
     const posts = watchFilePosts(page);
     await open(page, { filesReadable: true, onlineDemo: false });
     const button = paperclip(page);
@@ -125,12 +132,15 @@ for (const type of TYPES) {
     await (await chooser).setFiles({ name: type.name, mimeType: type.mimeType, buffer: bytes });
     const line = `${type.name}${DOT}${sizeOf(bytes.length)}`;
     await expect(chips(page).filter({ hasText: line }), "the user's message shows the file's name and size").toBeVisible({ timeout: 30_000 });
-    await expect(chat(page).getByText(`I got ${type.name}, but I can't read files yet.`)).toBeVisible({ timeout: 60_000 });
+    // The fixture bytes carry the real signature but no readable document: a PDF or Word file is read as damaged. A photo is sent to the model, whose answer the stack decides.
+    const answered = type.mimeType.startsWith('image/') ? chat(page).locator('app-ocutalon-reply .text') : chat(page).getByText(DAMAGED);
+    await expect(answered.first()).toBeVisible({ timeout: 90_000 });
     expect(posts(), 'one request').toBe(1);
     await expect(refusal(page)).toHaveCount(0);
+    await expect(addButton(page), 'a file that was not read has no Add to documents').toHaveCount(0);
     await loadedAfter(page, () => page.reload());
     await expect(chips(page).filter({ hasText: line })).toBeVisible();
-    await expect(chat(page).getByText(`I got ${type.name}, but I can't read files yet.`)).toBeVisible();
+    await expect(answered.first()).toBeVisible();
   });
 }
 
@@ -150,7 +160,7 @@ test('a drop on the chat is the second way', async ({ page }) => {
   await surface.dispatchEvent('drop', { dataTransfer: transfer });
   await expect(surface).not.toHaveClass(/dragging/);
   await expect(chips(page).filter({ hasText: `zz-dropped.pdf${DOT}1 KB` })).toBeVisible({ timeout: 30_000 });
-  await expect(chat(page).getByText("I got zz-dropped.pdf, but I can't read files yet.")).toBeVisible({ timeout: 60_000 });
+  await expect(chat(page).getByText(DAMAGED)).toBeVisible({ timeout: 60_000 });
   expect(posts()).toBe(1);
 });
 
@@ -202,12 +212,12 @@ test('a refusal from the server shows its sentence: 400 with a reason and size, 
   await expect(chips(page)).toHaveCount(0);
 });
 
-test('a name with markup renders as text in the chip and in the reply', async ({ page }) => {
+test('a name with markup renders as text in the chip', async ({ page }) => {
   await open(page, { filesReadable: true, onlineDemo: false });
   const name = 'zz<b>bold</b><script>x</script>.pdf';
   await fileInput(page).setInputFiles({ name, mimeType: 'application/pdf', buffer: pdf() });
   await expect(chips(page).filter({ hasText: name })).toBeVisible({ timeout: 30_000 });
-  await expect(chat(page).getByText(`I got ${name}, but I can't read files yet.`)).toBeVisible({ timeout: 60_000 });
+  await expect(chat(page).getByText(DAMAGED)).toBeVisible({ timeout: 60_000 });
   await expect(chat(page).locator('b, script'), 'no such element in the chat').toHaveCount(0);
 });
 
@@ -229,29 +239,122 @@ test('with filesReadable false there is no paperclip, and a drop sends nothing a
   expect(posts()).toBe(0);
 });
 
-test('on the real state, with no stub, the paperclip is hidden because the install cannot read a file yet (a tripwire for Story 25.6)', async ({ page }) => {
-  // No changeSnapshot here: this is the page as every real install shows it on this branch. The stubbed cases above cannot hide a regression of the real flag.
-  const posts = watchFilePosts(page);
+test('on the real state, with no stub, the paperclip is visible because the install reads files (Story 25.6 flipped the flag)', async ({ page }) => {
+  // No changeSnapshot here: this is the page as every real install shows it. The stubbed cases above cannot hide a regression of the real flag.
   const { user, password } = fixtureUser('PANEL');
   await loadedAfter(page, () => signIn(page, user, password));
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page.getByRole('textbox', { name: 'Message OcuTalon' })).toBeVisible();
   const state = (await (await page.request.get(STATE)).json()) as Record<string, unknown>;
-  expect(state['filesReadable'], 'the real /v1/state says the install cannot read a file').toBe(false);
-  expect(state['onlineDemo'], 'and it is no online demo, so the flag alone hides the paperclip').toBe(false);
-  await expect(paperclip(page)).toHaveCount(0);
-  await expect(fileInput(page)).toHaveCount(0);
-  const transfer = await page.evaluateHandle(() => {
-    const data = new DataTransfer();
-    data.items.add(new File(['%PDF-1.4 dropped'], 'zz-real.pdf', { type: 'application/pdf' }));
-    return data;
-  });
-  const surface = page.locator('app-chat-panel');
-  expect(await taken(surface, 'dragover', transfer), 'no handler takes the drag').toBe(false);
-  expect(await taken(surface, 'drop', transfer), 'nor the drop: the browser keeps its own handling').toBe(false);
-  await expect(refusal(page)).toHaveCount(0);
-  expect(posts(), 'a drop sends nothing').toBe(0);
+  expect(state['filesReadable'], 'the real /v1/state says the install can read a file').toBe(true);
+  expect(state['onlineDemo'], 'and it is no online demo').toBe(false);
+  await expect(paperclip(page)).toBeVisible();
+  await expect(fileInput(page)).toHaveCount(1);
 });
+
+test('a readable PDF: the reply shows Add to documents, Enter adds it, the line replaces the button, and the Documents page lists the file', async ({ page }) => {
+  test.setTimeout(240_000);
+  await recordAnnouncements(page);
+  const name = `zz-readable-${Date.now()}.pdf`;
+  await pointKeys();
+  try {
+    await open(page, { filesReadable: true, onlineDemo: false });
+    const chooser = page.waitForEvent('filechooser');
+    await paperclip(page).click();
+    await (await chooser).setFiles({ name, mimeType: 'application/pdf', buffer: textPdf('[[mock:file-read]] zz25s6 readable page') });
+    await expect(chat(page).getByText('The CI mock read the file you sent.')).toBeVisible({ timeout: 120_000 });
+    const button = addButton(page);
+    await expect(button, 'a native button under the reply').toBeVisible();
+    expect(await button.evaluate((element) => element.tagName), 'it is a button').toBe('BUTTON');
+    await expect(savedChip(page), 'and no memory chip for a document').toHaveCount(0);
+    const posted = page.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname === DOCUMENTS);
+    await button.focus();
+    await page.keyboard.press('Enter');
+    expect(JSON.parse((await posted).postData() ?? '{}'), 'the page posts the fileRef, no bytes').toEqual({ fileRef: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/) });
+    await expect(chat(page).getByText('Added to your documents.')).toBeVisible({ timeout: 30_000 });
+    await expect(chat(page).getByText('Added to your documents.'), 'focus moves to the added line, because the pressed button is gone').toBeFocused();
+    await expect.poll(() => announcements(page, 'Added to your documents.'), { message: 'the line is announced once, through the one live region' }).toBe(1);
+    await expect(button, 'the line replaces the button').toHaveCount(0);
+    await page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Documents', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Documents');
+    await expect(page.locator('li.row').filter({ hasText: name }), 'the Documents page lists the file under its stored name').toBeVisible({ timeout: 90_000 });
+  } finally {
+    // Removes the document through the real route, also after a failure above, so that none is left behind.
+    const listed = await page.request.get(DOCUMENTS);
+    const refs = listed.ok() ? ((await listed.json()) as { documents: Array<{ ref: string; name: string }> }).documents.filter((one) => one.name === name).map((one) => one.ref) : [];
+    for (const ref of refs) await page.request.fetch(`${DOCUMENTS}/${encodeURIComponent(ref)}`, { method: 'DELETE', headers: envelope(), data: '{}' });
+    await restoreKeys();
+  }
+});
+
+test('a turn that failed to add shows the failure line and keeps the button, and a pending add disables it', async ({ page }) => {
+  await recordAnnouncements(page);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['filesReadable'] = true;
+    snapshot['onlineDemo'] = false;
+    snapshot['chat'] = [chatItem({ fileRead: { fileRef: 'zzAddFailRef0000000000', kind: 'document', read: 1, addable: 1 } })];
+  });
+  const { user, password } = fixtureUser('PANEL');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let documentPosts = 0;
+  await page.route(`**${DOCUMENTS}`, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    documentPosts += 1;
+    await gate;
+    return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"code":"server_error","message":"zz"}}' });
+  });
+  await loadedAfter(page, () => signIn(page, user, password));
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(addButton(page)).toBeVisible();
+  await addButton(page).click();
+  await expect(addButton(page), 'disabled while the post is out').toBeDisabled();
+  await addButton(page).click({ force: true });
+  await expect.poll(() => documentPosts, { message: 'one press and a forced second press while the post is out make exactly one post' }).toBe(1);
+  release();
+  await expect(chat(page).getByText("Couldn't add it to your documents. Nothing was changed.")).toBeVisible();
+  await expect.poll(() => announcements(page, "Couldn't add it to your documents. Nothing was changed.")).toBe(1);
+  await expect(addButton(page), 'the button stays').toBeEnabled();
+  expect(documentPosts, 'a second press while the post was out sent nothing').toBe(1);
+});
+
+test('a snapshot item with a saved caption shows the Saved to memory chip and no button; a turn with neither shows no control', async ({ page }) => {
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['filesReadable'] = true;
+    snapshot['onlineDemo'] = false;
+    snapshot['chat'] = [
+      chatItem({ ref: 'zzCapturn00000000000a', fileRead: { fileRef: 'zzCapRef00000000000000', kind: 'photo', read: 1, addable: 0 }, caption: { memoryRef: 'zzmem1', text: 'A red square on white.' }, replyText: 'A red square on white.' }),
+      chatItem({ ref: 'zzNonturn00000000000b', replyText: 'Plain answer with no file.' }),
+    ];
+  });
+  const { user, password } = fixtureUser('PANEL');
+  await loadedAfter(page, () => signIn(page, user, password));
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(savedChip(page)).toHaveCount(1);
+  await expect(addButton(page), 'a photo has no Add button').toHaveCount(0);
+  await expect(chat(page).getByText('Plain answer with no file.')).toBeVisible();
+  await expect(chat(page).locator('app-file-reply'), 'only the photo turn mounts the controls').toHaveCount(1);
+});
+
+/** A done chat.message for the stubbed snapshots, with the members that the case sets. */
+function chatItem(over: Record<string, unknown>): { type: string; payload: Record<string, unknown> } {
+  return {
+    type: 'chat.message',
+    payload: {
+      ref: 'zzStubTurn0000000000c',
+      clientId: 'zzstubclient',
+      channel: 'web',
+      fromGuide: false,
+      state: 'done',
+      text: '',
+      replyText: 'The CI mock read the file you sent.',
+      createdAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
+      ...over,
+    },
+  };
+}
 
 test('on the online demo there is no paperclip, and a drop shows the off text', async ({ page }) => {
   const posts = watchFilePosts(page);

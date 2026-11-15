@@ -16,7 +16,7 @@
 ///   - TestOnlineDemo: on the online demo the answer is 409 not_available with the off text before the body is read, and nothing is stored or posted, so nothing reaches
 ///     WebChatIn, which alone asks the allowance;
 ///   - TestEnvelope: the forwarded dispatch refuses a POST without the browser envelope 403 and a user without the role 403 no_role;
-///   - TestStateFlagOff: Web.Api's snapshot holds filesReadable as a boolean right after demoMode, equal to Core.Files.Readable() (false on this branch: the tripwire Story 26.2 flips).
+///   - TestStateFlagOn: Web.Api's snapshot holds filesReadable as a boolean right after demoMode, equal to Core.Files.Readable() (true since Story 25.6).
 Class OcuTalon.Test.Web.FilesApi Extends %UnitTest.TestCase
 {
 
@@ -281,8 +281,8 @@ Method TestEnvelope()
 	Do $$$AssertEquals({}.%FromJSON(written).error.code, "no_role", "no_role")
 }
 
-/// The tripwire that Story 26.2 flips: nothing reads a sent file yet, so the flag is false.
-Method TestStateFlagOff()
+/// Story 25.6 turned the reader on, so the flag is true and equal to Core.Files.Readable().
+Method TestStateFlagOn()
 {
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzfilesstate"_..Number)
 	Set body = ##class(OcuTalon.Web.Api).StateBody(##class(OcuTalon.Data.Session).RefIndexOpen(ref))
@@ -290,7 +290,7 @@ Method TestStateFlagOff()
 	Do $$$AssertTrue(keys [ "demoMode,filesReadable,viewer,rolesAssignable,models", "filesReadable is right after demoMode, and viewer and rolesAssignable follow it: "_keys)
 	Do $$$AssertEquals(body.%GetTypeOf("filesReadable"), "boolean", "filesReadable is a boolean")
 	Do $$$AssertEquals(body.filesReadable, ##class(OcuTalon.Core.Files).Readable(), "it equals Core.Files.Readable()")
-	Do $$$AssertEquals(body.filesReadable, 0, "and it is false on this branch")
+	Do $$$AssertEquals(body.filesReadable, 1, "and it is true")
 }
 
 /// --- helpers ---

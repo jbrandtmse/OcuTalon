@@ -4,7 +4,7 @@ Include Ensemble
 /// api.telegram.org, never a real bot). Each test calls the private File of OcuTalon.Test.Channel.TelegramInProbe (RunFile) with the message object of an update, so that no production item polls: the probe records the
 /// allowance call, the Item and the Notifications instead of sending them, and everything else is real: getFile and the download go to the mock (the fixture files are registered through Mock.Control("files")),
 /// Core.Files.Store writes the SentFile rows, and the calls the mock got are read from /_mock/telegram/calls. The mock's Bot API side is reset before and after each test. OcuTalon.Test.Channel.TelegramChat.TestFileTurn
-/// is the same through the production. The reader switch is the probe's: READSFILES is 0 until Story 25.6, so the tests that fetch turn it on in the probe (Readable), and TestNoReader leaves it to the product.
+/// is the same through the production. The reader switch is the probe's (Readable): the tests that fetch turn it on, and TestNoReader forces it off, the product's own READSFILES being 1 since Story 25.6.
 ///   - TestDocument (matrix "Telegram document"): a PDF document with a caption, reported under the limit, is fetched with getFile and the download (in that order, and nothing else), stored as a SentFile row of channel telegram
 ///     with its bytes, and sent as one untrusted Item of channel telegram with the four file fields and the caption as its text, after one allowance call; nothing is refused;
 ///   - TestPhoto (matrix "Telegram photo"): the last size of a photo array is fetched, and with no file name the file is stored as photo.jpg;
@@ -17,7 +17,7 @@ Include Ensemble
 ///     holds no token, no download address and no file path; no row and no Item;
 ///   - TestOnlineDemo (matrix "Telegram on the demo", AC6): on the demo no call is made, there is no row, and the chat is answered files.offOnDemo, whether or not a reader is on, also for a
 ///     document or photo part with no file_id (the demo guard comes first);
-///   - TestNoReader (Planner ruling H2): with the product's own reader switch (READSFILES 0), a document and a photo get files.noReader with the file's name, no getFile, no download, no row and no Item, and the size check still comes first;
+///   - TestNoReader (Planner ruling H2): with the probe's reader forced to 0 (the gated path), a document and a photo get files.noReader with the file's name, no getFile, no download, no row and no Item, and the size check still comes first;
 ///   - TestNotSent (matrix "Telegram not sent"; DW-1340): an allowance refusal and a session with no row fetch nothing and store nothing, and a failed send gives no Item, discards the stored file
 ///     and gives the entry back;
 ///   - TestRenders (AC5): the texts of the files.* keys for the channel telegram are those of Core.Files and Docs.Extract;
@@ -459,13 +459,13 @@ Method TestOnlineDemo()
 	}
 }
 
-/// H2: while READSFILES is 0 a document and a photo get Core.Files' no-reader reply and nothing is fetched or stored.
+/// H2: while the reader is off (the probe's reader forced to 0, the product's own switch being 1 from Story 25.6) a document and a photo get Core.Files' no-reader reply and nothing is fetched or stored.
 Method TestNoReader()
 {
 	If '..Go() || '..Ready() Quit
 	Try {
 		Set session = ..Session("noreader")
-		Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 0, "the product's reader switch is off")
+		Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 1, "the product's reader switch is on, and the probe's reader is forced off below")
 		Set fileId = "zzNoRead"_..Number
 		Do $$$AssertTrue(..Register(fileId, "documents/zznoread"_..Number_".pdf", "application/pdf", ..Bytes($ClassMethod(..#SAMPLES, "PdfText", "zz26s2 no reader"))), "a file is registered, which a call would fetch")
 		Set cases = $ListBuild($ListBuild("a document", "document", "report.pdf", "report.pdf"), $ListBuild("a nameless document", "document", "", "file"), $ListBuild("a photo", "photo", "", "photo.jpg"))
@@ -473,7 +473,7 @@ Method TestNoReader()
 		While $ListNext(cases, position, case) {
 			Set label = $List(case, 1)
 			Kill ^OcuTalonTest("TelegramInProbe", ..Number)
-			Set probe = ..NewProbe(0, "")
+			Set probe = ..NewProbe(0, 0)
 			Set message = $Select($List(case, 2) = "document": ..DocumentMessage(fileId, $List(case, 3), 100, "c"), 1: ..PhotoMessage("zzSmall", fileId, "c"))
 			Do probe.RunFile("zzchatref", session, message)
 			Do $$$AssertEquals(..Called(), "", label_": the mock got no getFile and no download")
@@ -485,11 +485,11 @@ Method TestNoReader()
 		}
 		// The size check comes first, as Store's does on the web route.
 		Kill ^OcuTalonTest("TelegramInProbe", ..Number)
-		Do ..NewProbe(0, "").RunFile("zzchatref", session, ..DocumentMessage(fileId, "big.pdf", ##class(OcuTalon.Core.Files).#FILEMAX + 1))
+		Do ..NewProbe(0, 0).RunFile("zzchatref", session, ..DocumentMessage(fileId, "big.pdf", ##class(OcuTalon.Core.Files).#FILEMAX + 1))
 		Do $$$AssertEquals($Piece(..OneNotification(), "|", 1), "files.tooLarge", "a file over 10 MB is refused as too large, as on the web route")
 		// The demo guard comes before the reader switch.
 		Kill ^OcuTalonTest("TelegramInProbe", ..Number)
-		Do ..NewProbe(1, "").RunFile("zzchatref", session, ..DocumentMessage(fileId, "demo.pdf", 100))
+		Do ..NewProbe(1, 0).RunFile("zzchatref", session, ..DocumentMessage(fileId, "demo.pdf", 100))
 		Do $$$AssertEquals($Piece(..OneNotification(), "|", 1), "files.offOnDemo", "on the demo the off text comes first")
 		Do $$$AssertEquals(..Called(), "", "and no call was made")
 	} Catch ex {

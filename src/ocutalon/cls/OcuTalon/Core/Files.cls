@@ -11,9 +11,8 @@
 ///     Ownership.SentFile, which only this class calls (AD-4).
 ///   - SetItem(item, file) sets the four file fields of an Msg.Item, and never the text: an Item names a file by its Ref, name, media type and size only,
 ///     and its provenance is untrusted (AD-14, AD-21). RefusalText(code, size) is the sentence for a refusal code.
-///   - Readable() is 1 only when OcuTalon.Agent.Input says that it reads a sent file: its parameter READSFILES is exactly 1 (Story 26.2 adds it in the
-///     change that makes Agent.Input read one). It is a probe of the code and no setting. Until then a file turn is answered with NoReaderText and no
-///     model request is made (Core.Conversation).
+///   - Readable() is 1 only when OcuTalon.Agent.Input says that it reads a sent file: its parameter READSFILES is exactly 1, as it is from Story 25.6. It is a probe of
+///     the code and no setting. When it is not 1 (a test's reader seam), a file turn is answered with NoReaderText and no model request is made (Core.Conversation).
 Class OcuTalon.Core.Files [ DependsOn = OcuTalon.Web.Documents ]
 {
 

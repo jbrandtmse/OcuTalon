@@ -2,13 +2,28 @@
 title: 'Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure'
 type: 'feature'
 created: '2026-11-14'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      lint_spine.py answers "ok": false on the spine because of 10 pre-existing low "unfilled template token" findings (catalog slot syntax such as {time}, {day}, {n}), so the AC wording "ok: true" cannot hold; this story adds none.
+    evidence: |-
+      The same 10 findings, at lines 523, 1181, 1272, 1285, 1358 and 1370, are reported at baseline_revision and after this story. The ledger already holds this root cause as DW-638.
+    location: >-
+      _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md
+    severity: low
+  - summary: >-
+      The Conversation hold of a document file turn under the production's PoolSize 1 is unmeasured (one ReadFile plus two Render reads per turn).
+    evidence: |-
+      Task 0 (d) measured 1.9 s (2-page PDF), 3.4 s (10-page) and 13.6 s (cap case, 199,989 characters) in a unit harness with a Decide double; 26.2's stop lines are 10 s and 45 s a read. A measurement on the running production under load would settle it.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/Conversation.cls (ReadSentFile)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -175,53 +190,53 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 -- `## Verification` → Task 0 results -- measure before any product change, on the lane's warm stack:
+- [x] Task 0 -- `## Verification` → Task 0 results -- measure before any product change, on the lane's warm stack:
   - (a) `node --test web/scripts/initial-bundle.test.mjs`: the initial total at HEAD.
   - (b) What `Docs.Extract` answers for the fake-bytes "PDFs" of `web/e2e/files/files.spec.ts` and of `web/e2e/api/files.spec.ts:293` (the reason code each would show).
   - (c) Whether a web photo turn (no text, so no marker) gets a usable reply from the mock. This decides whether the real-HTTP photo case can assert `caption`, or whether it is pinned through Telegram (with a marker) and ConversationFiles.
   - (d) The Conversation hold, in ms from `Begin` to the turn request's send, for the 2-page PDF and the cap case (`PdfBigText`). The record is labelled: one `ReadFile` plus two `Render` reads.
-- [ ] `S/Agent/Input.cls` -- set `READSFILES` to 1 and rewrite the "until Story 25.6" comments (`:46-48`, `:313-314`) -- ruling H2.
-- [ ] `S/Data/Turn.cls` -- append `FileRead` and `Caption` (`%String(MAXLEN = "")` JSON) with storage values 28 and 29 -- append-only under AD-5. Rows saved before this story hold no value.
-- [ ] `S/Core/Conversation.cls` --
+- [x] `S/Agent/Input.cls` -- set `READSFILES` to 1 and rewrite the "until Story 25.6" comments (`:46-48`, `:313-314`) -- ruling H2.
+- [x] `S/Data/Turn.cls` -- append `FileRead` and `Caption` (`%String(MAXLEN = "")` JSON) with storage values 28 and 29 -- append-only under AD-5. Rows saved before this story hold no value.
+- [x] `S/Core/Conversation.cls` --
   - In `Begin`, when `turn.SentFile` is set and `Reader()` is 1, call `##class(OcuTalon.Agent.Input).ReadFile(..ItemOf(turn), .result)`.
   - Set `turn.FileRead` (the result without `text`; an error or a non-object counts as read 0 `failed`).
   - For `read` 0, `Conclude(turn, text, "")`.
   - Otherwise save the turn, then send the decide request as today.
   - In `Sourced`, keep the HostData object `caption` as `turn.Caption` when `memoryRef` and `text` are non-empty strings. Use a small object reader beside `Kept`; name `Kept` as its sibling.
   - Update the class doc `:7-12` and `:41-43` -- DW-1269, AD-21.
-- [ ] `S/Live/Payload/Part/FileRead.cls` (new; `fileRef`, `kind`, `read`, `addable`; `FromJSON` like `Part/SentFile.cls`) and `S/Live/Payload/Part/Caption.cls` (new; `memoryRef`, `text`) -- extend the Part pattern.
-- [ ] `S/Live/Payload/ChatMessage.cls` -- add `FileRead` (`%JSONFIELDNAME=fileRead`) and `Caption` (`caption`) after `SentFile`, and fill them in `FromRow` -- `/v1/state` follows through `ChatItems`.
-- [ ] `S/Web/Documents.cls` --
+- [x] `S/Live/Payload/Part/FileRead.cls` (new; `fileRef`, `kind`, `read`, `addable`; `FromJSON` like `Part/SentFile.cls`) and `S/Live/Payload/Part/Caption.cls` (new; `memoryRef`, `text`) -- extend the Part pattern.
+- [x] `S/Live/Payload/ChatMessage.cls` -- add `FileRead` (`%JSONFIELDNAME=fileRead`) and `Caption` (`caption`) after `SentFile`, and fill them in `FromRow` -- `/v1/state` follows through `ChatItems`.
+- [x] `S/Web/Documents.cls` --
   - In `Add()`, a body whose only member is a string `fileRef` takes the file form.
   - `Core.Files.Describe(fileRef, sessionRef)` returns "" → 404 `not_found`.
   - A media type that is not PDF or .docx → `Refuse(wrong_type)`.
   - `Core.Files.Open` gives the bytes. Build AddDocument with `Name` = the stored name and `ContentType` `pdf`/`docx` from the media type, and `Dispatch` as today.
   - A body with both forms, or with a non-string `fileRef`, → 400 `bad_document`.
   - The `BODYMAX` check stays first. Update the class doc and AD-21's documents bullet.
-- [ ] `S/Core/Files.cls`, `S/Channel/Telegram/In.cls` -- doc comments only (`:14-16`; `:66-67`) -- Readable is 1 from 25.6, and the no-reader reply is the seam path.
-- [ ] `web/src/app/live/payloads.ts` (regenerated), `web/scripts/payloads.test.mjs` -- the new members and their order.
-- [ ] `web/src/app/chat/chat-view.ts` -- `TurnView.fileRead?` and `savedCaption?`, copied from the payload when present.
-- [ ] `web/src/app/chat/file-reply.ts` and `file-reply-view.ts` (new, lazy) --
+- [x] `S/Core/Files.cls`, `S/Channel/Telegram/In.cls` -- doc comments only (`:14-16`; `:66-67`) -- Readable is 1 from 25.6, and the no-reader reply is the seam path.
+- [x] `web/src/app/live/payloads.ts` (regenerated), `web/scripts/payloads.test.mjs` -- the new members and their order.
+- [x] `web/src/app/chat/chat-view.ts` -- `TurnView.fileRead?` and `savedCaption?`, copied from the payload when present.
+- [x] `web/src/app/chat/file-reply.ts` and `file-reply-view.ts` (new, lazy) --
   - For a document with `read` 1 and `addable` 1: a native `<button type="button">Add to documents</button>`.
   - While its POST is pending, the button is disabled. On success it gives way to the `added` line; on failure the `addFailed` line shows. Both lines are `role="status"`.
   - For a turn with `savedCaption`: a "Saved to memory" chip, styled like `answer-sources.ts`'s `.chip`.
   - Its texts live only in `file-reply-view.ts`.
-- [ ] `web/src/app/chat/ocutalon-reply.ts` -- after the learned line, `@if` the turn has `fileRead?.addable` or `savedCaption`. Load `./file-reply` with `import()` into a signal, and mount it with `*ngComponentOutlet` and inputs. Follow the `settings-page.ts:308` pattern.
-- [ ] `web/src/app/api/api-client.ts` -- `addDocumentFromFile(fileRef)` posts `{fileRef}` to `${BASE}/documents`, next to `addDocument`.
-- [ ] `web/src/app/rail/memory-card/memory-card.ts`, `memory-card/pin-photo-text.ts` (new, lazy) -- for a 409 whose body code is `pin_photo`, `import('./pin-photo-text')` and set the notice to its sentence. The over-cap notice stays for `over_cap` -- DW-1313.
-- [ ] `docs/security-overview.md` -- texts 1 and 2 verbatim, at the places in the Code Map -- DW-1312.
-- [ ] `GUIDE.md` -- text 3 verbatim, as the last bullet under "Your documents and memory".
-- [ ] `docker/tests/test-readme.sh` -- `NS_WANT` and the header count.
-- [ ] `docker/tests/test-heartbeat-overview.sh`, `lib-heartbeat-overview.sh` -- a once-each rule for text 1's two sentences inside the model-requests bullet, and one for text 2 as its own bullet right after the trace-content bullet.
-- [ ] `web/scripts/files-docs.test.mjs`, `web/e2e-online/files.spec.ts` -- comment and header updates.
-- [ ] `ARCHITECTURE-SPINE.md` --
+- [x] `web/src/app/chat/ocutalon-reply.ts` -- after the learned line, `@if` the turn has `fileRead?.addable` or `savedCaption`. Load `./file-reply` with `import()` into a signal, and mount it with `*ngComponentOutlet` and inputs. Follow the `settings-page.ts:308` pattern.
+- [x] `web/src/app/api/api-client.ts` -- `addDocumentFromFile(fileRef)` posts `{fileRef}` to `${BASE}/documents`, next to `addDocument`.
+- [x] `web/src/app/rail/memory-card/memory-card.ts`, `memory-card/pin-photo-text.ts` (new, lazy) -- for a 409 whose body code is `pin_photo`, `import('./pin-photo-text')` and set the notice to its sentence. The over-cap notice stays for `over_cap` -- DW-1313.
+- [x] `docs/security-overview.md` -- texts 1 and 2 verbatim, at the places in the Code Map -- DW-1312.
+- [x] `GUIDE.md` -- text 3 verbatim, as the last bullet under "Your documents and memory".
+- [x] `docker/tests/test-readme.sh` -- `NS_WANT` and the header count.
+- [x] `docker/tests/test-heartbeat-overview.sh`, `lib-heartbeat-overview.sh` -- a once-each rule for text 1's two sentences inside the model-requests bullet, and one for text 2 as its own bullet right after the trace-content bullet.
+- [x] `web/scripts/files-docs.test.mjs`, `web/e2e-online/files.spec.ts` -- comment and header updates.
+- [x] `ARCHITECTURE-SPINE.md` --
   - AD-21 `:915`, reworded (Design Notes).
   - AD-21's documents bullet gains the `{fileRef}` form.
   - The Conventions row `:1360` names the carriers: `Turn.FileRead`/`Caption`, `chat.message` `fileRead`/`caption`, and `/v1/state` chat items. No `Outbound`, and why.
   - The ownership row `:1634`: Story 25.6 sets it to 1.
   - New ownership rows (Lane B): the Turn columns, the payload parts, `file-reply.ts` (lazy) and the documents fileRef form.
   - Lint.
-- [ ] Tests -- IRIS:
+- [x] Tests -- IRIS:
   - `Test.Core.Files:TestReaderOn` (renamed from `TestNoReaderYet`): READSFILES 1, `Readable()` 1, and the four probe classes unchanged.
   - `Test.Agent.SentFiles:TestSwitchOn`: READSFILES 1.
   - `Test.Web.FilesApi:TestStateFlagOn`: true and equal to `Readable()`.
@@ -239,7 +254,7 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
     - The size, demo and stranger cases are kept, and so is the token scan.
     - The session's `/v1/state` chat item for the PDF has `fileRead.addable` 1, and `Web.Documents` `{fileRef}` adds it.
   - `TelegramChat:TestInjectedFileTurn`: a PDF with `[[mock:send-email-injected]]` and one with `[[mock:propose-fix-injected]]`, and a photo whose caption carries `[[mock:send-email-injected]]` → each denial is UNTRUSTED; no ApprovalRequest row and no EmailOut/CommandsIn command (except the photo's SaveMemory); the session's AI link is unchanged.
-- [ ] Tests -- web:
+- [x] Tests -- web:
   - `web/scripts/file-reply-view.test.mjs`: texts and the which-control rule.
   - `web/scripts/lazy-routes.test.mjs` (or a sibling): `file-reply` and `pin-photo-text` are never statically imported.
   - `memory-card-view.test.mjs` if texts move.
@@ -256,7 +271,7 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
   - `web/e2e/memory-card.spec.ts`: a mocked 409 `pin_photo` shows the sentence, and `over_cap` still shows overCap.
   - Floor and keyboard specs updated for the visible paperclip.
 
-- [ ] [Ruling] Contest Planner rulings on the Planner Gate (~04:50Z 2026-11-15, `.coordination/prompts/story-256-rulings-20261115.md`, BINDING):
+- [x] [Ruling] Contest Planner rulings on the Planner Gate (~04:50Z 2026-11-15, `.coordination/prompts/story-256-rulings-20261115.md`, BINDING):
   - P1: both texts approved verbatim, "Added to your documents." and "Couldn't add it to your documents. Nothing was changed."; pin both (Msg.Catalog or the view test).
   - P2: approved IN this story: text 3's GUIDE sentence ships as "OcuTalon reads it, offers to add a PDF or Word file to your documents, and saves a photo's caption to memory." (the rest of text 3 verbatim). Update the `docker/tests/test-readme.sh` / `NS_WANT` pin to match; the drop-text-3 mutation must still go red. FALLBACK: if the pin change spreads beyond `test-readme.sh` and `NS_WANT`, ship text 3 verbatim instead and record the new sentence under Design Notes as a follow-up for the Planner (the lead reports it as `PLANNER REPORT:`).
   - P3: the `FileRead` and `Caption` JSON columns on `Data.Turn` (storage 28-29) approved, on condition: `TestNoExtractedText` asserts neither column holds the extracted text, a copy of its characters, or any bytes (the hygiene mutation).
@@ -282,6 +297,36 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
 - 2026-11-15 ~04:55Z, lead: Planner Gate ruled (`story-256-rulings-20261115.md`): P1 approved verbatim (pin), P2 approved in this story (with the test-readme/NS_WANT fallback), P3 approved with TestNoExtractedText, P4 approved with (a)-(c), P5 accepted. Worked into Tasks & Acceptance as the `[Ruling]` item.
 
 ## Review Triage Log
+
+### 2026-11-14 -- Review pass
+- verdicts: 33 findings (Blind Hunter 10, Edge Case Hunter 9, Verification Gap 14; the Intent Alignment Auditor is descriptive and filed no finding) -- high 0, medium 11, low 22, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Add to documents shows again after a reload and a second press adds a second document (Blind 1, Edge 14) -- Decided in-stage 6 states it (no new stored state; the Documents page's own add allows duplicates); a per-ref idempotence is stored-data shape beyond the ruled columns.
+  - `[medium]` `[patch]` Focus falls to the page when the pressed Add button gives way to the added line (Blind 2) -- the added line takes tabindex -1 and focus after render; pinned by the Enter test (`toBeFocused`); mutation recorded.
+  - `[medium]` `[patch]` A rejected lazy import of pin-photo-text leaves the refused pin with no notice (Blind 3, Edge 12) -- `.catch` sets the existing pinFailed text; MC14c aborts the chunk and pins it; mutation recorded.
+  - `[medium]` `[patch]` `mockcontent >= 0` can never fail, `readTrace` ignores a missing Turn row, `fileread`/`replytext` unasserted (Blind 4, VG 24) -- asserts `turnfound` 1, the fileread members without text, the mock's reply and `mockcontent` equal to the 2 turn-carrying requests.
+  - `[low]` `[reject]` No live web-photo test asserts a usable reply (Blind 5, VG 30) -- Decided in-stage 18 and Task 0 (c): a web photo carries no mock marker; the photo is pinned through Telegram and ConversationFiles.
+  - `[low]` `[reject]` GUIDE says Telegram users are offered Add to documents (Blind 6) -- the sentence is the Planner-ruled P2 text, shipped verbatim; no Telegram line is ruled (P5).
+  - `[low]` `[reject]` No direct test of the add's states (Blind 7) -- the live specs pin pending, added, failed and Enter; the second press is added (VG 21).
+  - `[low]` `[reject]` Two predicates for the controls (`addable` vs `read` and `addable`) (Blind 8, VG 32) -- the server never exports read 0 with addable 1; no reachable harm.
+  - `[low]` `[patch]` `AddByFileRef` can leave the fixture session changed (Blind 9, VG 31) -- restored after a Try/Catch and the saves are asserted.
+  - `[low]` `[patch]` The AD-10 3b amendment marker is spliced mid-sentence; the spec's Auto Run Result is stale (Blind 10, VG 33) -- the marker sits before the added sentence; Auto Run Result is rewritten here.
+  - `[low]` `[reject]` A failed dynamic import of file-reply is unhandled (Edge 11) -- spec "Known, not changed" (DW-1330 family); the reply text still shows.
+  - `[low]` `[reject]` The button stays after a purge answers 404 (Edge 13) -- a retry shows the failure line and changes nothing; no new text is ruled for a purge.
+  - `[low]` `[reject]` Stale caption after a re-begun turn or a forgotten memory (Edge 15) -- Caption is set only from a usable reply that concludes the turn; a later Forget changes memories, as for the other chips; the fix is complex.
+  - `[low]` `[reject]` FromFile does not re-check the stored name's extension (Edge 16) -- P4 (b): the type comes from the bytes, never the name; AddDocument carries ContentType.
+  - `[low]` `[reject]` ReadFile may throw and bypass the read-failure reply (Edge 17) -- ReadFile returns statuses on every path read; a guard would be untested code.
+  - `[low]` `[reject]` Added and failed lines carry no role=status (Edge 18) -- Decided in-stage 13 (one live region, EXPERIENCE.md:466).
+  - `[low]` `[reject]` aria-disabled, not native disabled, while pending (Edge 19) -- Decided in-stage 12 (the shared busy-button convention); Playwright's toBeDisabled accepts it.
+  - `[medium]` `[patch]` Text 3's wording is pinned only by bullet name (VG 20) -- `test-readme.sh` pins the bullet once, word for word, with three synthetic variants that must be flagged; mutation recorded.
+  - `[medium]` `[patch]` A second press while the POST is pending is unpinned (VG 21) -- the pending-add spec counts POSTs and presses twice (exactly 1); mutation recorded (2 POSTs).
+  - `[low]` `[patch]` No mutation lines for the chip copy, wrong_type and the mixed-body check (VG 22) -- each applied, red observed, restored; lines recorded.
+  - `[low]` `[patch]` Two live mutation lines were never run red (VG 23) -- both run: the read-failure test and the injection test went red.
+  - `[medium]` `[patch]` TestAddFromFile's TraceLeaks scan passes whatever the route does (VG 25) -- the probe now holds each command's properties; the scan covers them and the responses, with a positive control; a mutation that puts bytes in a command goes red.
+  - `[medium]` `[patch]` TestInjectedFileTurn compares a link that may be empty and allows SaveMemory in all cases (VG 26) -- the link is asserted non-empty; SaveMemory is allowed only in the photo case.
+  - `[medium]` `[patch]` An unusable or fallback reply with a caption is unpinned (VG 27) -- a new TestCaptionCarried case; mutation (Sourced above the fallback exit) goes red.
+  - `[medium]` `[patch]` TestFileTurn lost its no-getFile assertion for the over-limit file (VG 28) -- the fetch record is taken before that file is sent and asserted unchanged.
+  - `[low]` `[patch]` The readable-PDF spec removes the document at the end of `try` (VG 29) -- removal runs in `finally`.
 
 ## Design Notes
 
@@ -379,6 +424,21 @@ The AC parts not met at HEAD are the flip, the carriers, the button, the chip, t
 8. A web photo carries no mock marker, so Task 0 (c) decides the real-HTTP photo assertion.
 9. The DW-1313 sentence is the server's, copied into the lazy text module, so the page keeps its own texts.
 
+10. P2 was taken, not the fallback: text 3's GUIDE bullet ships with "OcuTalon reads it, offers to add a PDF or Word file to your documents, and saves a photo's caption to memory." The pin change stayed in `docker/tests/test-readme.sh` (`NS_WANT` by bold name, and the header counts 17 to 18); the sentence itself is pinned nowhere else, so no follow-up goes to the Planner.
+11. `test-readme.sh`'s `docs` rule pinned the email trace bullet directly after the trace-role bullet; text 2 now sits between them, so the rule pins text 2 after the trace-role bullet and the email bullet after text 2, with a mutation for each. `test-heartbeat-overview.sh` and `lib-heartbeat-overview.sh` hold the rules `filetext` (text 1's two sentences once each, in order, inside the model-requests bullet) and `filetrace` (text 2 once, as its own bullet right after the trace-content bullet), each with synthetic variants that must be flagged.
+12. The Add to documents button uses the shared `button button-secondary` classes. While its post is out it is `aria-disabled` (the busy-button convention of `controls.css`) and a second press does nothing.
+13. DEVIATION (small, decided here): the added line and the failed line are plain paragraphs spoken once through the `Announcer`, and carry no `role="status"`. The task text says both are `role="status"`, but EXPERIENCE.md:466 rules "A single polite live region carries every announcement", and `announce-focus-sources.test.mjs` pins that no template holds a live role. The spec's intent (a screen reader hears each line once) is kept. The speakers list of that test gained `app/chat/file-reply.ts`.
+14. Pins that the new surfaces moved, updated with their reason: `files-sources.test.mjs` (Web.Documents now calls `Core.Files.Open`, only to hand the bytes to the Upload row, and writes none), `ux-strings.test.mjs` (the `FILE_REPLY_TEXTS` import, "Add to documents" and "Saved to memory" as `ux`, the two P1 texts as `ruled`), `Test.Data.Tables` (Turn columns 28-29), `Test.Live.Payloads` (the contracts 36 to 38 and `TestChatMessageFileRead`).
+15. `Conversation` gains the private seam `ReadFile` (a call of `Agent.Input.ReadFile`), which `Test.Core.ConversationProbe` overrides to inject an error status or a non-object (`readfile` in its records); the probe also records the Turn's `FileRead` at each call, so that "FileRead is saved before the decide request" is observable.
+16. `FileRead` keeps `reason` for a failed read (a code, no text), and `chars` and `cut` for a read document; `chat.message` exports only `{fileRef, kind, read, addable}` (a failed read exports `addable` 0).
+17. `Web.Documents.ParseBody` keeps its signature and behaviour; it now calls the new `ParseJSON` and `Interpret`, so that `Add` parses the body once and can take the fileRef form. Any other member beside `fileRef` is 400 `bad_document`.
+18. Task 0 (c) decided that no live web-photo test asserts `caption`: the photo and its caption are pinned through Telegram (`TelegramChat:TestFileTurn`, with a marker) and `ConversationFiles:TestCaptionCarried`. The real-HTTP web test sends a readable PDF.
+19. The live specs that need a model reply point the runners at the CI mock (`pointKeys`) and put the keys back (`restoreKeys`), because the sign-in stack has no model key (the turn would be the fallback `no_key`).
+20. `TelegramChat.AddByFileRef` sets the fixture session's `IrisUser` to the signed-in user for the one route call and puts it back, because `Ownership.SessionRef` resolves the session of `$Username`.
+21. `lint_spine.py` answers `"ok": false` at HEAD and now, with the same 10 low "unfilled template token" findings (`{time}`, `{old}`, `{new}`, `{day}`, `{reason}`, `{entry}`, `{finding}`, `{n}` in existing rows); this story adds none. The AC's "`"ok": true`" cannot hold until those rows are fixed (a deferral candidate).
+22. `test-boundaries.sh` flagged an absolute local path in this spec's own Verification (`$LANE`), which was replaced by `<the coordination folder>`.
+23. Review patches (this pass): after Add succeeds the added line (`tabindex="-1"`) takes focus through `afterNextRender`, because the pressed button leaves with the press (the focus-call pin of `announce-focus-sources.test.mjs` lists `file-reply.ts`); the lazy import of `pin-photo-text` that rejects shows the existing pin-failed text; `Test.Web.DocumentsApi:TestAddFromFile` scans what the probe records of each command (`DocumentsProbe.Held`, every property value) and the response bodies for the bytes marker and its base64, with a positive control, because the trace globals saw nothing of a probe that sends no message; `test-readme.sh` pins the whole GUIDE bullet of text 3 once; the live readable-PDF test asserts that the Turn row was found, its stored `FileRead` has no `text` member, its `ReplyText` is the mock's, and that the mock saw the content in exactly the file turn's two model requests.
+
 **Known, not changed:**
 - A document turn reads the file three times in Conversation's single job (`PoolSize` 1). 26.2 measured the cap case at 3.3 s per read, so about 10 s per turn (inference until Task 0 (d) measures it). A timed-out read ends the turn after one 45 s read.
 - A lazy chunk that fails to load in a tab left open across an upgrade leaves the reply without its button (the DW-1330 family). The reply text still shows.
@@ -413,7 +473,7 @@ Planner gate: see `## Planner Gate`.
 
 ## Verification
 
-`$LANE` stands for these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=25 stage=implement'`. The fresh tag is `e25s6i` and the warm tag is `e25s6iw`.
+`$LANE` stands for these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR=<the coordination folder>/locks/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=25 stage=implement'`. The fresh tag is `e25s6i` and the warm tag is `e25s6iw`.
 
 **Runtime targets:**
 - The lane's own throwaways (the tags above) for every test run and for Task 0.
@@ -477,9 +537,62 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC docs: drop text 2 → `test-heartbeat-overview.sh` goes red. Drop text 3 → `test-readme.sh` new-since goes red.
 - AC bundle: import `file-reply` statically in `ocutalon-reply.ts` → the lazy-import pin goes red.
 
+### Results (implement stage, 2026-11-15)
+
+**Task 0 results** (measured before any product change was kept; warm stack `e25s6iw`, scratch method removed afterwards):
+- (a) Initial bundle at HEAD: 888.40 kB (an `ng build` of `git archive HEAD web`). After this story: 889.67 kB (`npm --prefix web run build`; `file-reply` 2.78 kB and `pin-photo-text` 119 bytes are lazy chunks). `initial-bundle.test.mjs` passes with the cap unchanged at 921,000 bytes.
+- (b) `Docs.Extract` answers the fake-bytes `%PDF-1.4 zz...` of `files/files.spec.ts` and `api/files.spec.ts:293` with reason `damaged` ("I couldn't read that file: it's damaged or incomplete."), and the fake `.docx` of `files.spec.ts` (a stored zip whose `word/document.xml` entry holds "zz") with reason `damaged` too. Those tests now assert that sentence.
+- (c) A web photo has no text, so its Input holds no `[[mock:..]]` marker; by the mock's selection order (mock.mjs header: marker, guide prompt, mock key, else 500) it has no scenario, so no usable reply and no caption. Not run live (inference). So no real-HTTP web-photo test asserts `caption`: the photo and its caption are pinned through Telegram (`TelegramChat:TestFileTurn`, with a marker) and `ConversationFiles:TestCaptionCarried`; the web page is pinned by a stubbed snapshot item.
+- (d) Conversation hold, from `Begin` to the turn request's send, labelled one `ReadFile` plus two `Render` reads, in a unit harness with a Decide double: fake PDF (a failed read, one `ReadFile` only) 784 ms; 2-page PDF 1,886 ms; 10-page PDF 3,370 ms; `PdfBigText` (the cap case, 199,989 characters, cut) 13,583 ms. Both are inside 26.2's stop lines (10-page 10 s, cap 45 s a read); this is a unit harness, not the production's `PoolSize` 1 path under load (UNMEASURED there).
+
+**Mutations** (Rule 19; each applied, red observed, restored byte-identical from a saved copy):
+- mutation: `READSFILES = 0` -> `Test.Core.Files:TestReaderOn` and `Test.Web.FilesApi:TestStateFlagOn` red (and, on a fresh stack, `files/files.spec.ts` "on the real state, with no stub, the paperclip is visible" red, with 5 more of that file's cases).
+- mutation: in `Begin`'s `ReadSentFile`, skip the read-0 end (always send decide) -> `Test.Core.ConversationFiles:TestReadFailure` (a Decide send is recorded, no sentence) and `TestReadError` red. Live (fresh stack, `live sign-in --part 2/17`): the same mutation at `ReadSentFile` (`Quit 1` for a failed read) turns the `api/files.spec.ts` read-failure test red (see the patch mutations below).
+- mutation: `addDocumentFromFile` posts `{name: fileRef}` -> `files/files.spec.ts` "a readable PDF: ... Enter adds it ..." red (the only red of that part, live).
+- mutation: `Web.Documents` ignores `fileRef` (`If 0 {`) -> `Test.Web.DocumentsApi:TestAddFromFile` red.
+- mutation: `Sourced` drops `caption` -> `Test.Core.ConversationFiles:TestCaptionCarried` and `Test.Channel.TelegramChat:TestFileTurn` ("the Turn's Caption ...", "names a photo memory") red.
+- mutation: `Begin` treats telegram as not readable (`|| (turn.Channel = "telegram")`) -> `TelegramChat:TestFileTurn` red.
+- mutation: `FromFile` takes the file's own session for `Describe` (ownership skipped) -> `DocumentsApi:TestAddFromFile` "another session's ref answers exactly like an unknown one" red.
+- mutation: `ItemOf` gives a file turn provenance `user` -> `TelegramChat:TestInjectedFileTurn` red (the email and fix PDFs: "one tool step, so no tool ran"; the photo's denial sentence). `ConversationFiles:TestReaderTurnIsUntrusted` stays the unit pin; the `api/files.spec.ts` injection test is mutated live below.
+- mutation: `FileRead` keeps `text` (the rendered extracted text) -> `ConversationFiles:TestNoExtractedText` red.
+- mutation: `pin_photo` mapped to the over-cap notice (the lazy branch never taken) -> `memory-card.spec.ts` MC14b red (the only red of that part, live).
+- mutation: drop text 2 from `docs/security-overview.md` -> `test-heartbeat-overview.sh` (`filetrace`) red. Drop the text 3 bullet from `GUIDE.md` -> `test-readme.sh` new-since "missing 'B Send a file in the chat'" red.
+- mutation: import `file-reply` statically in `ocutalon-reply.ts` -> `lazy-routes.test.mjs` (no static import reaches file-reply) and `file-reply-view.test.mjs` (the dynamic-import pin) red.
+- mutation (review patches, each restored byte-identical from a saved copy, `cmp` clean and `git diff --stat` unchanged): `chat-view.ts` stops copying `caption` into `savedCaption` -> `files/files.spec.ts` "a snapshot item with a saved caption shows the Saved to memory chip ..." red (live, `sign-in --part 10/17`).
+- mutation: delete `this.state() === 'pending' ||` in `file-reply.ts` -> `files/files.spec.ts` "a turn that failed to add shows the failure line and keeps the button, and a pending add disables it" red (a forced second press made two POSTs to /documents; live, same run).
+- mutation: remove the `afterNextRender(... '.added' ... .focus())` in `file-reply.ts` -> `files/files.spec.ts` "a readable PDF: the reply shows Add to documents, Enter adds it ..." red (the added line is not focused; live, same run).
+- mutation: remove the `.catch(() => MEMORY_TEXTS.pinFailed)` of the lazy import in `memory-card.ts` -> `memory-card.spec.ts` MC14c red (live, `sign-in-3 --part 7/8`).
+- mutation: `Web.Documents.FromFile` skips the wrong_type check (a photo's ref gets through) -> `Test.Web.DocumentsApi:TestAddFromFile` "a photo's ref is 400 bad_document with wrong_type" red.
+- mutation: the mixed-body check `parsed.%Size() '= 1` removed -> `Test.Web.DocumentsApi:TestAddFromFile` bodies 1 to 4 (the mixed forms and another member) red.
+- mutation: `Web.Documents.Add` puts the file's first 3,000 bytes into the command (`IdempotencyKey`) -> `Test.Web.DocumentsApi:TestAddFromFile` "the bytes marker and its base64 are in no command and no response" red.
+- mutation: `Conversation.ReadSentFile` skips the read-0 end (`Quit 1` for a failed read, so decide is always sent) -> `api/files.spec.ts` "isolation and the read failure ..." red (live, `sign-in --part 2/17`; run together with the next).
+- mutation: `Conversation.ItemOf` gives a file turn provenance `user` -> `api/files.spec.ts` injection test red ("the mock log's tool result holds the UNTRUSTED denial"), and the readable-PDF test goes red too (the turn falls back, reason `unusable`); same run. The injection test is therefore not vacuous.
+- mutation: move `Do ..Sourced(...)` above the fallback exit in `Conversation.Replied` -> `Test.Core.ConversationFiles:TestCaptionCarried` red ("the Turn has no Caption" and "its chat.message has no caption", for both fallback replies).
+- mutation: change one word of the GUIDE bullet ("offers to add" to "offers to save") -> `test-readme.sh` new-since "the guide does not hold the ruled bullet 'Send a file in the chat' once, word for word" red.
+
+**Commands run, all green** (warm stack `e25s6iw` unless noted; fresh stack `e25s6i`):
+- IRIS classes: `Test.Core.Files`, `.Core.ConversationFiles`, `.Core.ConversationTurns`, `.Agent.SentFiles`, `.Agent.Content`, `.Web.FilesApi`, `.Web.DocumentsApi`, `.Web.Api`, `.Web.MemoryApi`, `.Live.Payloads`, `.Data.Tables`, `.Contract.Ac`, `.Channel.TelegramFile`, `.Channel.TelegramChat:TestFileTurn` and `:TestInjectedFileTurn`, and the cited pins `.Bridge.Gate`, `.Fix.AskedTurns`, `.Mcp.Attach:TestDirectCall` and `:TestReadOnlyTurn` (the class's other methods were not run after a first call timed out client-side; the two cited ones pass), `.Msg.Catalog`.
+- Fresh (Rule 19): `shard lane-b@Contract,Core,Data,Live` forward `--part 3/10` and `--part 10/10`, `--reverse --part 8/10` and `--reverse --part 1/10`; `shard lane-a@Channel` forward `--part 2/4` and `--reverse --part 3/4` (each holds `TelegramChat` and `TelegramFile`); `class OcuTalon.Test.Web.DocumentsApi`. The full shards are left to CI.
+- Live: `live sign-in --part 2/17` (`api/files.spec.ts`, 20 passed), `--part 10/17` (`files/files.spec.ts`, 21 passed, run again after the Announcer change), `live sign-in-3 --part 7/8` (`memory-card.spec.ts`, 25 passed), `live floor` (110 passed; `keyboard.spec.ts` and `devices.spec.ts` updated for the paperclip), `live demo-path` (8 of 8 steps), `live online-demo` (56 passed; `e2e-online/files.spec.ts` passes).
+- Web: `npm --prefix web test` (2,101 pass), `npm --prefix web run lint`, `npm --prefix web run build`, `node --test web/scripts/initial-bundle.test.mjs`; `npm --prefix web run payloads` changed only the two interfaces and the two members.
+- Checks (`docker/tests/test-<name>.sh`): boundaries, storage, class-rules, ci-config, ci-changes, ci-sweep, compose-file, pinned-sources, after-start, healthcheck, lib-live, bootstrap, demo-path-gate, ci-warm, probe, install-script, readme, release-notes, release-checklist, bridge-guide, triage-heartbeat, mcp-notices, redact-shapes, cpf, bridge-example, eval-personas and heartbeat-overview pass. NOT completed inside the 150 s cap: eval-set, online-host, online-load, upgrade-harness, rehearsal and release-sequence (none reads a file of this story; left to CI).
+- `lint_spine.py`: `"ok": false` at HEAD and now, 10 low placeholder findings both times, none new (Decided in-stage 21).
+
+**New IRIS test units:** none. `TestAddFromFile`, `TestReadFailure`, `TestReadDocument`, `TestReadError`, `TestCaptionCarried`, `TestNoExtractedText`, `TestChatMessageFileRead` and `TestInjectedFileTurn` are methods of classes that already run in their groups (`lane-b` Core, Live, Web; `lane-a` Channel).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (Halt after planning). The Planner Gate holds P1-P5 (two new public texts, the proposed GUIDE extension, the Turn columns, the documents `{fileRef}` form, Telegram parity). Footprint extensions for the runner to report: `S/Agent/Input.cls`, `S/Channel/Telegram/In.cls` (comments), `Test/Channel/TelegramChat.cls`, `Test/Channel/TelegramFile.cls`, `Test/Agent/SentFiles.cls`. The spec is uncommitted.
+**Summary.** `READSFILES` is 1 for the web chat and Telegram on one path. `Conversation.Begin` reads a file turn's file with `ReadFile` first (`ReadSentFile`): read 0, an error status or a non-object ends the turn through `Conclude` with the code-written failure sentence and sends nothing to a model; a readable file runs untrusted as before. `Turn.FileRead` (no text) and `Turn.Caption` (storage 28 and 29) feed `chat.message` `fileRead` and `caption` through the new payload parts and `/v1/state`. `POST /api/v1/documents` takes `{fileRef}` (own session only, bytes through `Core.Files.Open`, type from the stored byte-derived media type, another session's ref answers as a missing one). The page shows **Add to documents** and the "Saved to memory" chip from the lazy chunk `file-reply`, and the memory card shows the pin-photo sentence from the lazy chunk `pin-photo-text` (DW-1313). Texts 1-3 (text 3 with Planner-ruled P2 sentence), the AD-21 and AD-10 spine amendments, and the ownership/convention rows are in.
+
+**Files changed.** Product (IRIS): `Agent/Input.cls`, `Core/Conversation.cls`, `Core/Files.cls` (doc), `Channel/Telegram/In.cls` (doc), `Data/Turn.cls`, `Live/Payload/ChatMessage.cls`, `Live/Payload/Part/FileRead.cls` and `Part/Caption.cls` (new), `Web/Documents.cls`. Product (web): `chat/file-reply.ts` and `file-reply-view.ts` (new, lazy), `chat/ocutalon-reply.ts`, `chat/chat-view.ts`, `api/api-client.ts`, `live/payloads.ts`, `rail/memory-card/memory-card.ts` and `pin-photo-text.ts` (new, lazy). Docs: `GUIDE.md`, `docs/security-overview.md`, the architecture spine. Tests: IRIS `Test/Core/ConversationFiles`, `ConversationProbe`, `Files`, `Data/Tables`, `Live/Payloads`, `Web/DocumentsApi`, `DocumentsProbe`, `FilesApi`, `Channel/TelegramChat`, `TelegramFile`, `Agent/SentFiles`; web `file-reply-view`, `lazy-routes`, `payloads`, `ux-strings`, `announce-focus-sources`, `files-sources`, `files-docs`, and e2e `api/files`, `files/files`, `memory-card`, `floor/keyboard`, `floor/devices`, `support/pdf`, `e2e-online/files`; shell `test-readme.sh`, `test-heartbeat-overview.sh`, `lib-heartbeat-overview.sh`.
+
+**Review findings.** 33 findings in 26 grouped triage rows: 14 patched (9 of them medium), 12 rejected with the reasons recorded in the triage log, and 2 pre-existing or unmeasured items deferred from the implement stage (frontmatter `deferred:`). Nothing was `intent_gap` or `bad_spec`.
+
+**Follow-up review recommended: true.** Nine medium entries were patched in this pass. The unverified risk: the patch pass's own edits (the focus move and tabindex in `file-reply.ts`, the `.catch` in `memory-card.ts`, `DocumentsProbe.Held` and the rewritten `TestAddFromFile` scans) were run green and mutated by their author but had no independent review.
+
+**Verification performed.** Implement stage and patch pass: the IRIS classes of the Verification list pass on the warm stack; fresh-stack shards (forward and reverse parts) pass; live `sign-in` parts 2/17 (api/files, 20 passed) and 10/17 (files/files, 21 passed), `sign-in-3` 7/8 (memory-card, 26 passed), `floor` (110), `demo-path` and `online-demo` (56) pass; `npm --prefix web test` (2,101), lint and build pass; the initial bundle is 889.70 kB against the 921,000-byte cap (`file-reply` 2.95 kB and `pin-photo-text` 119 bytes lazy). The build-auto stage re-ran the doc and web script tests, `test-boundaries`, `test-readme`, `test-heartbeat-overview`, `test-class-rules` and the six scripts the implement stage could not finish (`eval-set`, `online-host`, `online-load`, `upgrade-harness`, `rehearsal`, `release-sequence`), all passing, and `ConversationFiles`, `DocumentsApi` and `TelegramChat:TestInjectedFileTurn` on a fresh warm stack. Mutation lines are under Verification (all red observed, restored byte-identical). No new IRIS test unit or CI group.
+
+**Residual risks.** `lint_spine.py` stays `"ok": false` from 10 pre-existing placeholder findings (deferred, DW-638). The PoolSize 1 hold under load is unmeasured (deferred). A tab left open across an upgrade can lose the lazy chunk (spec "Known, not changed").

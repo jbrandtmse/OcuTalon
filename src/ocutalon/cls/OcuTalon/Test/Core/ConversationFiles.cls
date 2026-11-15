@@ -13,6 +13,14 @@
 ///   - TestFileItemDrops: a file Item with provenance user, one whose FileRef is another session's, one with an unknown FileRef, one with no ItemId and one with no session
 ///     are each dropped (no Turn, no call, no event), and an Item with no text and no FileRef is still dropped;
 ///   - TestMarkerReachesNothing: the bytes of the file (a marker string) are in no Turn row, no recorded call and no event of the session.
+/// From Story 25.6 (READSFILES 1) Conversation reads the file of a turn with a reader (the probe's seam, or the product's own) before the turn's first request:
+///   - TestReadFailure: a damaged PDF ends the turn done with Docs.Extract.Failure of its reason, with no Decide send, FileRead read 0 (no text member), and the chat.message fileRead
+///     {fileRef, kind, read 0, addable 0}; one Outbound carries the sentence;
+///   - TestReadDocument: a readable PDF is sent to Decide (decide, then turn) after its FileRead {read 1, addable 1} was saved, and the done chat.message carries fileRead addable 1;
+///   - TestReadError: a ReadFile that answers an error status, and one whose result is not an object, end the turn with the "failed" sentence and no Decide send;
+///   - TestCaptionCarried: a usable reply's HostData caption {memoryRef, text} is the Turn's Caption and the chat.message caption; a malformed caption is dropped; an unusable (fallback) reply that carries a caption saves nothing, so neither the Turn nor the chat.message has one;
+///   - TestNoExtractedText: the extracted text (a content marker) and the file's bytes (a bytes marker) are in no Turn column, no chat.message and no Outbound, FileRead holds only its
+///     members and the content marker is only in the turn requests' Input.
 Class OcuTalon.Test.Core.ConversationFiles Extends %UnitTest.TestCase
 {
 
@@ -116,9 +124,9 @@ Method TestSentFileFromTheRow()
 
 Method TestNoReaderReply()
 {
-	Set ^OcuTalonTest("ConversationProbe", ..Number, "reader") = 0
 	For channel = "web", "telegram" {
 		Set session = ..Session(channel)
+		Set ^OcuTalonTest("ConversationProbe", ..Number, "reader") = 0
 		Set file = ..Store(session, channel, "zz<b>"_channel_".pdf")
 		Set item = ..FileItem(session, channel, file)
 		Set probe = ..NewProbe()
@@ -142,7 +150,7 @@ Method TestReaderTurnIsUntrusted()
 {
 	Set session = ..Session("reader")
 	Set ^OcuTalonTest("ConversationProbe", ..Number, "reader") = 1
-	Set file = ..Store(session, "web", "zz-reader.pdf")
+	Set file = ..StoreStream(session, "web", "zz-reader.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 reader text"))
 	Set item = ..FileItem(session, "web", file)
 	Set probe = ..NewProbe()
 	Do $$$AssertStatusOK(probe.OnRequest(item, .response), "the file Item is taken")
@@ -227,7 +235,180 @@ Method TestMarkerReachesNothing()
 	Do $$$AssertTrue(events.%ToJSON() '[ ..#MARKER, "and in no event")
 }
 
+Method TestReadFailure()
+{
+	Set session = ..Session("failure")
+	Set file = ..StoreStream(session, "web", "zz-damaged.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfJunk())
+	Do ..RunFile(session, file)
+	Set row = ..Turns(session).GetAt(1)
+	Set reason = {}.%FromJSON(row.FileRead).reason
+	Set reply = ##class(OcuTalon.Docs.Extract).Failure(reason)
+	Do $$$AssertTrue(reason '= "", "the read gave a reason code: "_reason)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText_"|"_row.Tainted_"|"_row.ReplyCatalogKey, "done|"_reply_"|0|", "the Turn is done with the code-written sentence of the reason, and is no fallback")
+	Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, "nothing is sent to Decide: no request and no model call")
+	Do $$$AssertEquals(row.TriageDecisionRef_row.TurnDecisionRef, "", "and the turn has no Decision")
+	Set read = {}.%FromJSON(row.FileRead)
+	Do $$$AssertEquals(read.read_"|"_read.kind_"|"_read.fileRef_"|"_read.%IsDefined("text"), "0|document|"_file.ref_"|0", "FileRead is read 0 of the document, without a text member")
+	Set done = ..ChatEvents(session, row.Ref)
+	Set last = done.%Get(done.%Size() - 1).payload
+	Do $$$AssertEquals(last.state_"|"_last.replyText, "done|"_reply, "the done chat.message carries the sentence")
+	Do $$$AssertEquals(last.fileRead.%ToJSON(), {"fileRef": (file.ref), "kind": "document", "read": 0, "addable": 0}.%ToJSON(), "and fileRead {fileRef, kind, read 0, addable 0}")
+	Set outbound = ..SentFor("Notify", session)
+	Do $$$AssertEquals($ListLength(outbound), 1, "one Outbound goes to Notify")
+	Do $$$AssertEquals(..Call($List(outbound, 1), "text"), reply, "with the sentence")
+}
+
+Method TestReadDocument()
+{
+	Set session = ..Session("document")
+	Set file = ..StoreStream(session, "web", "zz-readable.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 readable text"))
+	Do ..RunFile(session, file)
+	Set decides = ..Sent("Decide")
+	Do $$$AssertEquals($ListLength(decides), 2, "a readable document runs through Decide: two requests")
+	Set saved = {}.%FromJSON(..Call($List(decides, 1), "fileRead"))
+	Do $$$AssertEquals(saved.read_"|"_saved.addable_"|"_saved.kind, "1|1|document", "FileRead (read 1, addable 1) was saved before the decide request was sent")
+	Do $$$AssertEquals(saved.%IsDefined("text"), 0, "and holds no text")
+	Do $$$AssertEquals(..Call($List(decides, 1), "provenance")_"|"_..Call($List(decides, 2), "provenance"), "untrusted|untrusted", "both requests carry provenance untrusted")
+	Set row = ..Turns(session).GetAt(1)
+	Do $$$AssertEquals(row.State, "done", "the turn is done")
+	Set done = ..ChatEvents(session, row.Ref)
+	Set last = done.%Get(done.%Size() - 1).payload
+	Do $$$AssertEquals(last.fileRead.%ToJSON(), {"fileRef": (file.ref), "kind": "document", "read": 1, "addable": 1}.%ToJSON(), "the done chat.message carries fileRead addable 1")
+}
+
+Method TestReadError()
+{
+	For mode = "error", "nonobject" {
+		Set session = ..Session("err"_mode)
+		Set file = ..StoreStream(session, "web", "zz-err-"_mode_".pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 never read"))
+		Do ..RunFile(session, file, "", mode)
+		Set row = ..Turns(session).GetAt(1)
+		Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|"_##class(OcuTalon.Docs.Extract).Failure("failed"), mode_": the turn ends with the failed sentence")
+		Do $$$AssertEquals($ListLength(..Sent("Decide")), 0, mode_": nothing is sent to Decide")
+		Set read = {}.%FromJSON(row.FileRead)
+		Do $$$AssertEquals(read.read_"|"_read.reason_"|"_read.kind_"|"_read.fileRef, "0|failed|document|"_file.ref, mode_": FileRead is read 0, reason failed")
+	}
+}
+
+Method TestCaptionCarried()
+{
+	Set good = {"memoryRef": "zzcap1", "text": "A red bicycle by a wall."}
+	Set cases = $ListBuild(
+		$ListBuild("valid", {"caption": (good)}.%ToJSON(), good.%ToJSON()),
+		$ListBuild("extra member", {"caption": {"memoryRef": "zzcap1", "text": "A red bicycle by a wall.", "x": 1}}.%ToJSON(), good.%ToJSON()),
+		$ListBuild("no text", {"caption": {"memoryRef": "zzcap1"}}.%ToJSON(), ""),
+		$ListBuild("empty ref", {"caption": {"memoryRef": "", "text": "x"}}.%ToJSON(), ""),
+		$ListBuild("number text", {"caption": {"memoryRef": "zzcap1", "text": 5}}.%ToJSON(), ""),
+		$ListBuild("not an object", {"caption": "x"}.%ToJSON(), ""),
+		$ListBuild("an array", {"caption": [(good)]}.%ToJSON(), ""),
+		$ListBuild("bad json", "{""caption"": {", ""))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1)
+		Set session = ..Session("cap"_position)
+		Set file = ..StoreStream(session, "web", "zz-cap"_position_".pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 caption turn"))
+		Do ..RunFile(session, file, $List(case, 2))
+		Set row = ..Turns(session).GetAt(1)
+		Do $$$AssertEquals(row.State, "done", label_": the turn ends")
+		Do $$$AssertEquals(row.Caption, $List(case, 3), label_": the Turn's Caption")
+		Set done = ..ChatEvents(session, row.Ref)
+		Set last = done.%Get(done.%Size() - 1).payload
+		Do $$$AssertEquals($Select(last.%IsDefined("caption"): last.caption.%ToJSON(), 1: ""), $List(case, 3), label_": and the chat.message caption")
+		Set outbound = ..SentFor("Notify", session)
+		Do $$$AssertEquals(..Call($List(outbound, 1), "learned")_..Call($List(outbound, 1), "memories"), "", label_": the Outbound carries no caption member")
+	}
+	// An unusable reply saves nothing: a fallback reply that carries a caption in its HostData keeps no Caption, and its chat.message has no caption.
+	Set position = 0
+	Set answers = $ListBuild("fallback:budget", "fallback:zzbogus")
+	While $ListNext(answers, position, answer) {
+		Set label = "a reply of "_answer_" with a caption in its HostData"
+		Set session = ..Session("capfb"_position)
+		Set file = ..StoreStream(session, "web", "zz-capfb"_position_".pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 caption fallback"))
+		Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListBuild(answer))
+		Do ..RunFile(session, file, {"caption": (good)}.%ToJSON())
+		Set row = ..Turns(session).GetAt(1)
+		Do $$$AssertEquals(row.State, "done", label_": the turn ends")
+		Do $$$AssertEquals(row.FallbackReason, $Select(answer = "fallback:budget": "budget", 1: "unusable"), label_": it ended as a fallback, not as a model reply")
+		Do $$$AssertEquals(row.Caption, "", label_": the Turn has no Caption")
+		Set done = ..ChatEvents(session, row.Ref)
+		Set last = done.%Get(done.%Size() - 1).payload
+		Do $$$AssertEquals(last.%IsDefined("caption"), 0, label_": and its chat.message has no caption")
+	}
+}
+
+/// P3 hygiene: the extracted text and the bytes of the file are in no stored column, chat.message or Outbound.
+Method TestNoExtractedText()
+{
+	Set content = "zz25s6content"_..Number
+	Set bytesMark = "zz25s6bytes"_..Number
+	Set session = ..Session("hygiene")
+	Set file = ..StoreStream(session, "web", "zz-hygiene.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 text "_content, "%"_bytesMark))
+	Do ..RunFile(session, file, {"caption": {"memoryRef": "zzcaphyg", "text": "A caption without the file text."}}.%ToJSON())
+	Set row = ..Turns(session).GetAt(1)
+	Do $$$AssertEquals(row.State, "done", "the turn is done")
+	// A positive control: the content reached the turn's request Input, as chat text does.
+	Set seen = ##class(OcuTalon.Test.Core.DecideDouble).Seen(session)
+	Set inInput = 0
+	For i = 0:1:seen.%Size() - 1 {
+		If seen.%Get(i).input [ content Set inInput = inInput + 1
+		If seen.%Get(i).input [ bytesMark Set inInput = inInput + 100
+	}
+	Do $$$AssertEquals(inInput, 2, "the content marker is in the Input of both requests, and the bytes marker in neither")
+	// The two columns.
+	Set read = {}.%FromJSON(row.FileRead)
+	Set keys = ""
+	Set iterator = read.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+		Do $$$AssertTrue(((value _ "") '[ content) && ((value _ "") '[ bytesMark) && ((value _ "") '[ "%PDF"), "FileRead member "_key_" holds neither marker nor bytes")
+	}
+	Do $$$AssertEquals(keys, "fileRef,kind,read,chars,cut,addable", "FileRead has only its members: no text member")
+	Do $$$AssertEquals(read.%GetTypeOf("chars")_"|"_(read.chars > $Length(content)), "number|1", "chars is a count of the text's characters, never a copy of it")
+	Do $$$AssertTrue((row.FileRead '[ content) && (row.FileRead '[ bytesMark) && (row.Caption '[ content) && (row.Caption '[ bytesMark), "neither column holds a marker")
+	// The whole stored row, the events and the Outbound.
+	Do $$$AssertTrue(($Get(^OcuTalonP.TurnD(row.%Id())) '[ content) && ($Get(^OcuTalonP.TurnD(row.%Id())) '[ bytesMark), "no field of the stored Turn holds a marker")
+	Set events = ##class(OcuTalon.Live.Event).Since(session, 0, 200, "session")
+	Do $$$AssertTrue((events.%ToJSON() '[ content) && (events.%ToJSON() '[ bytesMark), "no chat.message holds a marker")
+	Set done = ..ChatEvents(session, row.Ref)
+	Set last = done.%Get(done.%Size() - 1).payload
+	Do $$$AssertEquals(last.fileRead.%ToJSON(), {"fileRef": (file.ref), "kind": "document", "read": 1, "addable": 1}.%ToJSON(), "chat.message fileRead holds exactly four members")
+	Set outbound = ..SentFor("Notify", session)
+	Do $$$AssertEquals($ListLength(outbound), 1, "one Outbound")
+	Set leak = 0
+	For n = 1:1:..Calls() {
+		If ..Call(n, "target") '= "Notify" Continue
+		Set field = ""
+		For {
+			Set field = $Order(^OcuTalonTest("ConversationProbe", ..Number, n, field), 1, value)
+			Quit:field=""
+			If (value [ content) || (value [ bytesMark) Set leak = leak + 1
+		}
+	}
+	Do $$$AssertEquals(leak, 0, "no Outbound field holds a marker")
+}
+
 /// --- helpers ---
+/// Takes the file turn of the session as a Conversation with a reader (the real ReadFile, unless readfile names a failing seam), and pumps it to its end. hostData, when given, is the
+/// HostData of the turn's reply.
+Method RunFile(session As %String, file As %DynamicObject, hostData As %String = "", readfile As %String = "") [ Private ]
+{
+	Set ^OcuTalonTest("ConversationProbe", ..Number, "reader") = 1
+	If readfile '= "" Set ^OcuTalonTest("ConversationProbe", ..Number, "readfile") = readfile
+	If hostData '= "" Do ##class(OcuTalon.Test.Core.DecideDouble).SetReply(session, hostData)
+	Set probe = ..NewProbe()
+	Do $$$AssertStatusOK(probe.OnRequest(..FileItem(session, "web", file), .response), "the file Item is taken")
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+}
+
+/// Stores the stream as a file of the session; the file object {ref, name, mediaType, size}.
+Method StoreStream(session As %String, channel As %String, name As %String, bytes As %Stream.Object) As %DynamicObject [ Private ]
+{
+	Set code = ##class(OcuTalon.Core.Files).Store(session, channel, name, bytes, .file, .sc)
+	Do $$$AssertEquals(code, "", "the file "_name_" is stored")
+	Quit file
+}
+
 /// A fixture session; its Ref is kept for the clean-up and the double's scripts are cleared.
 Method Session(name As %String) As %String [ Private ]
 {

@@ -313,6 +313,14 @@ export class ApiClient {
   }
 
   /**
+   * Adds a file that the session sent in the chat as a document (Story 25.6): a POST of {fileRef}, whose bytes the server reads from its own store for the caller's
+   * session. The answer is {result: 'done', ref}; a 404 `not_found` (also another session's file), a 400 `bad_document`, a 501 and a 500 fail as an HttpErrorResponse.
+   */
+  addDocumentFromFile(fileRef: string): Observable<DocumentAdded> {
+    return this.http.post<DocumentAdded>(`${BASE}/documents`, { fileRef });
+  }
+
+  /**
    * One document's text: a GET of /v1/documents/:ref, 200 {ref, name, text}. A 404 for a document that the session cannot see (also one that
    * was removed), and a 500, fail as an HttpErrorResponse.
    */

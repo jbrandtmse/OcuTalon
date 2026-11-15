@@ -8,8 +8,14 @@
 ///     untrusted, only when its FileRef is a file of the Item's own session (Core.Files.Describe), and it may have no text; every other drop stands.
 ///     The Turn keeps the file as SentFile, {ref, name, mediaType, size} from the stored row and never from the Item, which marks the turn untrusted:
 ///     ItemOf rebuilds the Item with provenance untrusted and the file fields, so that every decide and turn request of the Turn carries provenance
-///     untrusted, in which the gate lets only safe read-only tools run (AD-10, AD-14). When nothing reads a sent file (Reader, Core.Files.Readable),
-///     Begin concludes the turn with the fixed reply Core.Files.NoReaderText and sends neither request, so no model is called and no Decision is made;
+///     untrusted, in which the gate lets only safe read-only tools run (AD-10, AD-14). From Story 25.6 a sent file is read (Reader, Core.Files.Readable, is 1 for the web
+///     chat and Telegram alike): Begin calls Agent.Input.ReadFile before the turn's first request. A file that cannot be read (read 0, an error status or a result that is not an
+///     object, which counts as read 0 with the reason failed) ends the turn through Conclude with the code-written sentence of its reason (Docs.Extract.Failure), and sends neither
+///     request, so no model is called and no Decision is made. A readable one runs the turn untrusted as above. The turn keeps the result without its text member as FileRead, and a
+///     photo reply's HostData caption {memoryRef, text} as Caption (kept only when both are non-empty strings); both are built by code, absent when empty, and hold no bytes and no
+///     extracted text, which reaches a model only in the request's Input, as chat text does. They go on chat.message as fileRead {fileRef, kind, read, addable} and caption, and on
+///     no Outbound (a Telegram file is added from the web chat). When nothing reads a sent file (the test seam), Begin concludes the turn with the fixed reply
+///     Core.Files.NoReaderText instead and sends neither request;
 ///   - Core.Msg.RunTurns with a SessionRef starts that session's next turn; with an empty SessionRef (the sweep) it puts every
 ///     running turn back in its queue and sends itself one RunTurns for each session that has queued turns;
 ///   - starting a turn: under the session's queue lock, when no turn of the session is running, the head of the queue becomes
@@ -388,6 +394,8 @@ Method Begin(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 		Do ..Join(turn)
 		If (turn.SentFile '= "") && '..Reader() {
 			Set sc = ..Conclude(turn, ##class(OcuTalon.Core.Files).NoReaderText(##class(%DynamicAbstractObject).%FromJSON(turn.SentFile).name), "")
+		} ElseIf (turn.SentFile '= "") && '..ReadSentFile(turn, .failure) {
+			Set sc = ..Conclude(turn, failure, "")
 		} Else {
 			Set sc = ..Send(..#DECIDE, ..Request(turn, "decide"), 1, "decide")
 			If $$$ISERR(sc) {
@@ -402,6 +410,36 @@ Method Begin(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 		Set sc = $$$OK
 	}
 	Quit sc
+}
+
+/// Reads the file of a file turn before the turn's first request (AD-21, Story 25.6): 1 when it is readable, and then the turn keeps FileRead (the result of ReadFile without its
+/// text member) and is saved, so that the decide request that follows goes out after it. 0 when it is not: the turn keeps FileRead with read 0 and failure is the code-written
+/// sentence of the reason (Docs.Extract.Failure), which Begin ends the turn with: no request is sent and no model is called. An error status from ReadFile and a result that is not an
+/// object count as read 0 with the reason failed. The extracted text is never kept: only the request's own Input carries it.
+Method ReadSentFile(turn As OcuTalon.Data.Turn, Output failure As %String) As %Boolean [ Private ]
+{
+	Set failure = ""
+	Set sc = ..ReadFile(..ItemOf(turn), .result)
+	If $$$ISERR(sc) || '$IsObject(result) || (result.%IsA("%Library.DynamicObject") = 0) {
+		Set file = ##class(%DynamicAbstractObject).%FromJSON(turn.SentFile)
+		Set result = {"fileRef": (file.ref), "kind": ($Select(##class(OcuTalon.Agent.Input).IsDocumentType(file.mediaType): "document", 1: "photo")), "read": 0, "reason": "failed"}
+		Set failure = ##class(OcuTalon.Docs.Extract).Failure("failed")
+	} ElseIf 'result.read {
+		Set failure = result.%Get("text")
+		If failure = "" Set failure = ##class(OcuTalon.Docs.Extract).Failure("failed")
+	}
+	Do result.%Remove("text")
+	Set turn.FileRead = result.%ToJSON()
+	If failure '= "" Quit 0
+	Set sc = turn.%Save()
+	If $$$ISERR(sc) $$$LOGSTATUS(sc)
+	Quit 1
+}
+
+/// The one call of Agent.Input.ReadFile for a file turn's Item. A seam for the tests.
+Method ReadFile(item As OcuTalon.Msg.Item, Output result As %DynamicObject) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Agent.Input).ReadFile(item, .result)
 }
 
 /// The trace of a turn (AD-26): %SessionId is the session of the Item's header, which stays as it is when the turn has no
@@ -622,6 +660,8 @@ Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 		If citations '= "" Set turn.Citations = citations
 		If memories '= "" Set turn.Memories = memories
 		If learned '= "" Set turn.Learned = learned
+		Set caption = ..KeptObject(data, "caption", $ListBuild("memoryRef", "text"))
+		If caption '= "" Set turn.Caption = caption
 	} Catch exception {
 		$$$LOGWARNING(..#LOGSOURCES_exception.DisplayString())
 	}
@@ -653,6 +693,21 @@ Method Kept(data As %DynamicObject, member As %String, strings As %List, number 
 		If valid Do kept.%Push(entry)
 	}
 	Quit $Select(kept.%Size(): kept.%ToJSON(), 1: "")
+}
+
+/// The object member of data as a JSON object with the strings (a list of names) in that order, when each is a non-empty string; "" when the member is not an object or a string is
+/// missing or empty. The sibling of Kept for one object (the caption of a photo reply).
+Method KeptObject(data As %DynamicObject, member As %String, strings As %List) As %String [ Private ]
+{
+	If data.%GetTypeOf(member) '= "object" Quit ""
+	Set element = data.%Get(member)
+	Set entry = {}
+	For j = 1:1:$ListLength(strings) {
+		Set name = $List(strings, j)
+		If (element.%GetTypeOf(name) '= "string") || (element.%Get(name) = "") Quit
+		Do entry.%Set(name, element.%Get(name))
+	}
+	Quit $Select(entry.%Size() = $ListLength(strings): entry.%ToJSON(), 1: "")
 }
 
 /// Decide was busy: waits BUSYWAIT seconds and sends the request again, BUSYMAX times at most; then the fallback rate_limited.

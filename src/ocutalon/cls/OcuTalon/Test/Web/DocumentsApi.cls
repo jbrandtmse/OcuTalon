@@ -18,6 +18,10 @@
 ///   - TestUploadRows: an accepted file is stored as one OcuTalon.Data.Upload row of the CSP session, and the AddDocument names it (UploadRef) and
 ///     holds no bytes; the row stays while the owner answers Ok (DocumentOps takes it); a failed submit (every answer but Ok, an error status, a thrown
 ///     error, an Ok result with an error status, no result), a refusal, an owner that is not running and a remove leave no row;
+///   - TestAddFromFile (Story 25.6; Planner ruling P4): POST {"fileRef"} of the caller's own PDF and .docx is 200 {"result":"done","ref"} and one AddDocument with the stored name,
+///     the ContentType of the stored media type (pdf, docx), the session's Upload row holding the file's bytes and the CSP session's Ref; another session's ref, an unknown ref, a
+///     purged ref and an empty ref answer exactly alike (404 not_found, the same body) with no command and no Upload row; a photo's ref is 400 bad_document with wrong_type; a body that
+///     mixes the forms, has another member or a fileRef that is not a string is 400 bad_document with no reason; no command (every property the probe recorded) and no response holds the file's bytes or their base64, and a command that carries them is flagged by the same scan;
 ///   - TestRefusedAddsStoreNothing (DW-753): with the owner running, so that an accepted add would store a row, every refusal (wrong type, empty, a malformed body,
 ///     too_large for a .md, .txt, .pdf and .docx of 10,485,761 bytes, and the route's 413 at BODYMAX plus one byte) leaves the session with no Upload
 ///     row and nothing submitted, OnPreDispatch's 413 for both dispatch classes stops the dispatch before any route runs, and one accepted add then
@@ -341,6 +345,92 @@ Method TestUploadRows()
 	Set body = ..Call("Remove", a, , .response, doc)
 	Do $$$AssertEquals(response.Status_"|"_..Uploads(a), "200 OK|0", "a remove stores nothing")
 	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+}
+
+/// Story 25.6, ruling P4: the {"fileRef"} form of POST /v1/documents.
+Method TestAddFromFile()
+{
+	Set a = ..Session("a")
+	Set b = ##class(OcuTalon.Test.Data.Fixture).Session("zzaddfile"_..Number_"b")
+	Set ..Sessions = ..Sessions_","_b
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+	Set bytesMark = "zz25s6addbytes"_..Number
+	Set pdf = ..StoreFile(a, "zz-own.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 add text", "%"_bytesMark))
+	Set docx = ..StoreFile(a, "zz-own.docx", ##class(OcuTalon.Test.Docs.Samples).DocxText("zz25s6 add text "_bytesMark))
+	Set photo = ..StoreFile(a, "zz-own.jpg", ##class(OcuTalon.Test.Docs.Samples).Stream($Char(255, 216, 255, 224)_"JFIF "_bytesMark))
+	Set theirs = ..StoreFile(b, "zz-theirs.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 theirs"))
+	Set gone = ..StoreFile(a, "zz-gone.pdf", ##class(OcuTalon.Test.Docs.Samples).PdfText("zz25s6 gone"))
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.Files).Discard(gone.ref, a), "a file is purged")
+	Set message = "OcuTalon can add Markdown, plain-text, PDF and Word (.docx) files up to 10 MB."
+	Set held = ""
+	Set ^OcuTalonTest("DocumentsProbe", "keep") = 1
+	// An own PDF and .docx: one AddDocument each, with the stored name and the type of the stored media type, and the bytes in the session's Upload row.
+	For i = 1:1:2 {
+		Set file = $Select(i = 1: pdf, 1: docx), type = $Select(i = 1: "pdf", 1: "docx")
+		Set body = ..Call("Add", a, {"fileRef": (file.ref)}.%ToJSON(), .response)
+		Do $$$AssertEquals(response.Status, "200 OK", type_" is 200: "_body)
+		Do $$$AssertEquals(body, {"result": "done", "ref": "zzDocRef0123456789abcd"}.%ToJSON(), type_": {""result"":""done"",""ref""}")
+		Do $$$AssertEquals(..Submits(), i, type_": one command more")
+		Do $$$AssertEquals(..Submit(i, "class")_"|"_..Submit(i, "origin")_"|"_..Submit(i, "name")_"|"_..Submit(i, "contentType")_"|"_..Submit(i, "size")_"|"_..Submit(i, "sessionRef")_"|"_..Submit(i, "uploadSessionRef"), "OcuTalon.Msg.Command.AddDocument|web_user|"_file.name_"|"_type_"|"_file.size_"|"_a_"|"_a, type_": the stored name, the type of the stored media type, the stored size and the CSP session's Ref")
+		Do $$$AssertTrue(..Submit(i, "uploadRef") '= "", type_": the command names its Upload row")
+		Do $$$AssertTrue((body '[ bytesMark) && (body '[ $SYSTEM.Encryption.Base64Encode(bytesMark)), type_": the response holds no bytes")
+		Set held = held_..Submit(i, "props")_body
+	}
+	Do $$$AssertEquals(..Uploads(a), 2, "the two Upload rows stay for the owner (the probe keeps them)")
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+	Kill ^OcuTalonTest("DocumentsProbe", "submits"), ^OcuTalonTest("DocumentsProbe", "keep")
+	// The refusals that answer like a missing file: another session's, unknown, purged and empty refs get the same status and body.
+	Set missing = ..Call("Add", a, {"fileRef": "zzunknownfileref"}.%ToJSON(), .missingResponse)
+	Do $$$AssertEquals(missingResponse.Status, "404 Not Found", "an unknown ref is 404")
+	Do $$$AssertEquals($ZConvert($Piece($Piece(missing, """code"":""", 2), """", 1), "L"), "not_found", "with not_found")
+	Set refs = $ListBuild($ListBuild("another session's", theirs.ref), $ListBuild("a purged", gone.ref), $ListBuild("an empty", ""), $ListBuild("a ref of another case", $ZConvert(pdf.ref, "L")))
+	For i = 1:1:$ListLength(refs) {
+		Set label = $List($List(refs, i), 1)
+		Set body = ..Call("Add", a, {"fileRef": ($List($List(refs, i), 2))}.%ToJSON(), .response)
+		Do $$$AssertEquals(response.Status_"|"_body, missingResponse.Status_"|"_missing, label_" ref answers exactly like an unknown one: the same status and body")
+	}
+	Do $$$AssertEquals(..Submits(), 0, "no command was submitted")
+	Do $$$AssertEquals(..Uploads(a)+..Uploads(b), 0, "and no Upload row was stored")
+	// A photo is not a document.
+	Set body = ..Call("Add", a, {"fileRef": (photo.ref)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "400 Bad Request|"_{"error": {"code": "bad_document", "message": (message)}, "reason": "wrong_type"}.%ToJSON(), "a photo's ref is 400 bad_document with wrong_type")
+	// A body that mixes the forms, names another member or gives a fileRef that is not a string.
+	Set bad = $ListBuild(
+		{"fileRef": (pdf.ref), "name": "a.pdf", "content": "aGVsbG8="}.%ToJSON(),
+		{"fileRef": (pdf.ref), "content": "aGVsbG8="}.%ToJSON(),
+		{"fileRef": (pdf.ref), "name": "a.pdf"}.%ToJSON(),
+		{"fileRef": (pdf.ref), "sessionRef": (b)}.%ToJSON(),
+		{"fileRef": 5}.%ToJSON(),
+		{"fileRef": null}.%ToJSON(),
+		{"fileRef": [(pdf.ref)]}.%ToJSON(),
+		{"fileRef": {"ref": (pdf.ref)}}.%ToJSON(),
+		{"fileRef": true}.%ToJSON())
+	For i = 1:1:$ListLength(bad) {
+		Set body = ..Call("Add", a, $List(bad, i), .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "400 Bad Request|"_{"error": {"code": "bad_document", "message": (message)}}.%ToJSON(), "body "_i_" '"_$Extract($List(bad, i), 1, 50)_"': 400 bad_document, no reason")
+	}
+	Do $$$AssertEquals(..Submits(), 0, "still no command")
+	Do $$$AssertEquals(..Uploads(a), 0, "and no Upload row")
+	// No bytes in a command or a response: the probe records every property of each command (the commands are not sent, so the trace globals would pass whatever the route does), and the held text is those and the response bodies.
+	Set base64 = $SYSTEM.Encryption.Base64Encode(bytesMark)
+	Do $$$AssertTrue(held [ "Name=zz-own.pdf", "the scan holds the commands' properties and the responses (the stored name is found)")
+	Do $$$AssertTrue((held '[ bytesMark) && (held '[ base64), "the bytes marker and its base64 are in no command and no response")
+	Set control = ##class(OcuTalon.Msg.Command.AddDocument).%New()
+	Set control.Name = "zz-"_bytesMark
+	Set control.ContentType = "pdf"
+	Do $$$AssertTrue(##class(OcuTalon.Test.Web.DocumentsProbe).Held(control) [ bytesMark, "positive control: a command that carries the marker is flagged by the same scan")
+	Set control.Name = base64
+	Do $$$AssertTrue(##class(OcuTalon.Test.Web.DocumentsProbe).Held(control) [ base64, "and one that carries its base64")
+	Do ##class(OcuTalon.Data.SentFile).DropSession(a)
+	Do ##class(OcuTalon.Data.SentFile).DropSession(b)
+}
+
+/// Stores the stream as a file of the session through Core.Files.Store; the file object {ref, name, mediaType, size}.
+Method StoreFile(session As %String, name As %String, bytes As %Stream.Object) As %DynamicObject [ Private ]
+{
+	Set code = ##class(OcuTalon.Core.Files).Store(session, "web", name, bytes, .file, .sc)
+	Do $$$AssertEquals(code, "", "the file "_name_" is stored")
+	Quit file
 }
 
 /// With the owner running, a refused add writes no Upload row (an accepted one would) and submits nothing.

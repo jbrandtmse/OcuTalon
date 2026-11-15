@@ -407,7 +407,9 @@ XData Contracts [ MimeType = application/json ]
    "Citations": "%String(MAXLEN=)",
    "Memories": "%String(MAXLEN=)",
    "Learned": "%String(MAXLEN=)",
-   "SentFile": "%String(MAXLEN=)"
+   "SentFile": "%String(MAXLEN=)",
+   "FileRead": "%String(MAXLEN=)",
+   "Caption": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
