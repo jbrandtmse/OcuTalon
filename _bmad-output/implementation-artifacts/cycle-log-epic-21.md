@@ -423,3 +423,5 @@
 2026-11-15T12:30:12Z	DW-1347	part_ready	parts=DW-1347 code_head=30d487a32 ci=success records=local
 2026-11-15T12:38:18Z	DW-1347	merged	feature=999138505 dw1372=confirmed_by_Planner(AD-31_no_edit)
 2026-11-15T12:38:18Z	DW-1371	stage_spawned	stage=plan spawn_at=2026-11-15T12:38:18Z model=opus effort=high agent_name=dw-1371-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1371 worktree=.worktrees/epic-21-dw1347(reused) base=999138505 scope=tests_only(replay_writes_no_answerHash)
+2026-11-15T12:47:43Z	DW-1371	story_created	model=opus effort=high branch=OCT-epic21-dw1371 base=82e7ca18f build_status=ready-for-dev size=small veto=none(tests_only) pin=TestReplayNotesNoAnswerHash(replay_context_HostData,long+short,poll_control) mutations=M1(widen_Noted_guard),M2(IsPoll_kind_only),M3(M1+Replay_copies_HostData) cross_lane=no_branch_touches_Approval.cls
+2026-11-15T12:47:43Z	DW-1371	stage_spawned	stage=implement spawn_at=2026-11-15T12:47:43Z model=sonnet effort=high agent_name=dw-1371-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1371
