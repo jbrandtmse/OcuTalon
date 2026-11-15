@@ -4372,3 +4372,5 @@
 2026-11-15T19:02:39Z	Epic 21	runner_reported	PLANNER_REPORT DW-1205+DW-494(one_cause:Completed-before-Error_read;inFlight_in_Reader+Executor;AD-16_sentence;spec_6eb661ff3) DW-1391(test-only,quiet_fixture;separate_commit) DW-1388=fresh_recheck_running relayed=contest_planner
 2026-11-15T19:03:01Z	Epic 21	owner_decision	via=contest_planner DW-1205+DW-494=APPROVED(1.0.12;conds:0/300_probe_before_push,$$$EnsActiveMessage_only+fail-safe_read+test,154_and_109_runs,DW-1391_separate_commit_first) new=DW-1398(LOW,Summary.cls:878_quiet_fixture)
 2026-11-15T19:17:00Z	Run	ci_red_classified	head=8c71bef6e(23.3_merge) run=43748578400 shards-4(ci-48)=DW-1388(7th) lane-a=green action=rerun_failed_once
+2026-11-15T19:26:51Z	Epic 24	runner_reported	PART_READY story=24.2 head=136cd1dca runs=43747033320,43747033290(att2;att1=DW-987_ci-24) split=24.5_chartered escalations=DW-1392(AD-19_audit_outside_txn),DW-1395(AD-13_ambiguous) burndown=DW-1393,DW-1394(->23.13)
+2026-11-15T19:26:51Z	Epic 24	merge_enqueued	story=24.2 (1.0.12)
