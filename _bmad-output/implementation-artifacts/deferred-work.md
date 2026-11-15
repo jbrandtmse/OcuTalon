@@ -8469,11 +8469,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 24.2's matrix accepts duplicates (no approved refusal text); ForProduction returns one {id,name,address} per row, so two contacts with one address both naming a production give it twice once Story 23.13 switches 23.5's reader to the table.
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13 (Lane A reader): de-duplicate recipients by address; key 23-13 is not in this worktree's tracker
+- 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
 
 ### DW-1394: The TABLE = 1 state of Settings > Partner contacts is only simulated in 24.2: the real switch class and both halves of partnersHelp are unpinned until 23.13
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: PartnersShown's default class and Values' call are not falsifiable while Fix.PartnerContacts has no TABLE (both sides 0); partner-view.test.mjs pins partnersHelp's halves as text only (EXPERIENCE.md L1059 condition), and 'only after you approve each one' rests on 23.5 (inference).
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13: at the real TABLE = 1, pin the section shows, warnings go only to listed contacts and only after approval
+- 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
 
 ### DW-1395: AD-13 L484 is ambiguous for unowned config tables: GET /v1/settings lists every PartnerContact row in the web process through PartnerContact.List()
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8533,6 +8535,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: on-call-section.ts telegram-only line vs Watch.Paging.Notice owner check (12101e6e)
 - 2026-11-15T20:03:29Z status=decision-pending owner=burndown by=harvest note=human=Planner_public_text:whether_to_add_a_clause_to_the_approved_On_call_line
+- 2026-11-15T21:45:28Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15:ADD_the_clause(verbatim_new_On_call_line);23.4_rework_2
+- 2026-11-15T22:14:50Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=7ad1420b:telegramOnly_line_verbatim;pins_on-call-view,ux-strings,O1(mutations_observed)
 ### DW-1398: Test/Watch/Summary.cls:878 builds the same non-quiet incident fixture as DW-1391 (LastAt not in the past), so the background sweep can close it mid-test
 - source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
@@ -8542,3 +8546,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; feature ci | severity: low | fix-risk: low | footprint: in-epic
 - evidence: feature 3242f9657 (DW-1388 merge, test-only, no heartbeat change) ci 43754264003 att1 iris(shards-5) on ocutalon-ci-54; HC6 green on every earlier feature run; superseded by 92937a03e
 - 2026-11-15T20:29:53Z status=routed owner=burndown by=orchestrator note=flake rule: one rerun; a second red on any head is real
+
+### DW-1409: Two paging edge cases contradict the DW-1400 line: a Break the feed failure whose session row is gone becomes an instance incident and pages; an incident of a production unwatched between the poll and the first notice still pages
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: FailurePoller.Scope (Lane D Watch/**) owner fallback; 23.4 re-review 2
+- 2026-11-15T22:14:50Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a page row exists for an incident whose first failure carried a session trace tag, or for a production with no watch at notice time

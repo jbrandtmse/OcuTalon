@@ -8607,6 +8607,8 @@ So that the people who hear about a delay are the ones I chose.
 **Given** a partner warning for an incident in a watched production
 **When** it is approved and sent
 **Then** it goes only to the contacts set for that production, and the leak scan still passes
+- DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
+- DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
 
 ## Epic 24: On-call, partner and check settings (step 5)
 

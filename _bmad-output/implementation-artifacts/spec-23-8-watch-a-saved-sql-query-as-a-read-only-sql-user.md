@@ -2,7 +2,8 @@
 title: 'Story 23.8: Watch a saved SQL query as a read-only SQL user'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'parked'
+baseline_revision: 'def9b963558d32e1b5a04659e34599115f382167'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -185,6 +186,8 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `docs/`,
 
 ## Spec Change Log
 
+- 2026-11-15 ~23:05Z (lead): PARKED out of 1.0.12 by the Contest Planner (option B) on Task 0's evidence; status set to parked.
+
 - 2026-11-15 ~20:45Z (lead, Planner gate): APPROVED with conditions (extended Task 0 hard gate a-d; SELECT results untrusted); D1-D3 accepted; AD-18/AD-24 amended in the spine; contention granted; public text approved verbatim.
 
 ## Review Triage Log
@@ -231,6 +234,15 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `docs/`,
 - `check_status` and the rail are unchanged. The rail renders any kind's row with its title, and source rows are also left out of `check_status`.
 - `EndSession` leaves the rows, as it does source rows. An admin session is durable (AD-4).
 - Ledger: none owned (`LEDGER slice` empty, `owned_ledger=0`).
+
+### PARKED out of 1.0.12 (Contest Planner ruling, ~23:00Z 2026-11-15, prompts/story-238-rulings-20261115.md "23.8 PARKED"; option B; option C refused)
+- **Reason:** Task 0's hard gate failed (evidence: `_bmad-output/implementation-artifacts/evidence/23-8-task0-sql-reader.md`). An extra IRIS login can reach Terminal, CallIn and the Portal home page through instance-wide public services, even with no role and a password nobody knows. Closing that is a security-posture change on the owner's install, which only the owner can approve, and only once the instance's services can be restricted. The Planner puts the decision to the owner with the scope trim. Story 24.5 stays waiting with 23.8.
+- **Findings kept for the record (measured on build 154):**
+  - No role is needed: a user with no role at all can connect and SELECT once an admin grants SELECT on a table (a role with only `%DB_OCUTALON_DATA:R` is not enough: SQL login also needs `%DB_OCUTALON_CODE:R`).
+  - The JDBC loopback logs in through `%Service_Bindings`, not `%Service_SQL`; `%Service_Bindings` has no resource, so no role can withhold it.
+  - `Statement.Execute` is required: JDBC `executeQuery` refuses a non-query on the client before IRIS sees it.
+  - The JDBC jar (`intersystems-jdbc-3.11.0.jar`) and `/usr/bin/java` are present in the shipped image (no new dependency); the refusals (INSERT/UPDATE/DELETE/TRUNCATE/DDL/self-GRANT/ungranted SELECT/chained statements) all held; the password appeared in no CPF, mgr file, journal, audit or event-log row.
+- No 23.8 code exists. Option C (in-process SQL without a separate user) was refused because it breaks the story's promise.
 
 ### Planner rulings, 2026-11-15 (binding; prompts/story-238-rulings-20261115.md "23.8")
 - APPROVED, own installs only; nothing of it exists on the online demo. Vetoes 1-6 APPROVED.
@@ -331,6 +343,14 @@ Every test added or changed passes on a fresh environment, in either order.
 
 **Task 0:** (record here, and in `_bmad-output/implementation-artifacts/evidence/23-8-task0-sql-reader.md`)
 
+Measured 2026-11-15 on a lane-B throwaway (build 154, ARM64). Result: HALT at item (a). Full lines in the evidence file.
+- Refusals: PASS. Over `Statement.Execute`, INSERT, UPDATE, DELETE, TRUNCATE, CREATE TABLE, CREATE VIEW, ALTER TABLE, DROP TABLE, a self-GRANT and a SELECT of an ungranted table are refused (SQLCODE -99, GRANT -112); tables unchanged. `executeQuery` refuses a non-query on the client before IRIS sees it, so the product must use `Execute`.
+- (a) FAIL: the loopback logs in through `%Service_Bindings` (disabling `%Service_SQL` changes nothing; disabling Bindings breaks it); Bindings has no resource, so no role can withhold it. The reader can also log in over public services (Terminal, CallIn, EscalateLogin, MCPGateway, WebGateway) and over HTTP to the Management Portal home (200, "IRIS - Home"). The Native API connects but refuses every global and class-method operation (`<PROTECT>`).
+- (b): the role needs `%DB_OCUTALON_CODE:R` as well as `%DB_OCUTALON_DATA:R` for a login before any SQL grant exists; with a SELECT grant, a user with no role at all connects and selects (so D1's premise differs).
+- (c) PASS: Java and the JDBC jar are in the image; first connect 4.0 to 5.1 s with the gateway start, then 0.03 to 0.94 s; later connects 0.009 to 0.075 s.
+- (d) PASS: the password is in no CPF, mgr file, journal, audit row or event-log row; `pwd` is empty after the save. `%Prepare` refuses `SELECT 1; DELETE ...` (-25); `statementType` SELECT 1, INSERT 2, UPDATE 3, DELETE 4, CREATE TABLE 9, DROP TABLE 11, and `EXPLAIN SELECT 1` is also 1.
+- (e) the connection is stored system-wide at `^%SYS("sql","ODBCCONNECTION","DATA")`, `pwd` empty, wallet secret present; password pattern `3.255ANP` accepts the 44-character password. (f) `%Service_CallIn` public U. Query timeout: `SetQueryTimeout(2)` ends a long query after 2.1 s (SQLCODE -450).
+
 **Commands:**
 - (loop) `OCUTALON_RUN_TAG=e23b8i ci/iris.sh class OcuTalon.Test.Checks.SqlTask0`, Task 0 only, once per Task 0 iteration. Expected: the measurements are printed.
 - (loop) `OCUTALON_RUN_TAG=e23b8iw ci/warm.sh up`, re-upped (`down`, then `up`) after any change to `Checks/Process.cls`, `Watch/Ops.cls` or `Checks/SqlReader.cls`. Then `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e23b8iw ci/iris.sh class <Class>`, one call each, for:
@@ -371,5 +391,5 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: Task 0 (a) -- the reader's JDBC loopback logs in through %Service_Bindings, which has no resource and cannot be withheld by any role, and the reader can also open sessions through the public Terminal, CallIn, EscalateLogin, MCPGateway and WebGateway services (the Management Portal home returned 200 over HTTP with its credentials); also (b): the role needs %DB_OCUTALON_CODE:R as well as %DB_OCUTALON_DATA:R. Evidence: _bmad-output/implementation-artifacts/evidence/23-8-task0-sql-reader.md and Verification > Task 0. Refusals, (c) and (d) passed. No product code was written; SqlTask0.cls was removed.
