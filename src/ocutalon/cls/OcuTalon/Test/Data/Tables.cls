@@ -837,6 +837,11 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Setting"
  },
  {
+  "short": "PartnerContact",
+  "global": "^OcuTalonP.PartnerContact",
+  "class": "OcuTalon.Data.PartnerContact"
+ },
+ {
   "short": "Check",
   "global": "^OcuTalonP.Check",
   "class": "OcuTalon.Data.BackgroundCheck"

@@ -22,3 +22,5 @@
 2026-11-15T17:52:18Z	Story 24.2	fresh_check	env=fresh_lane-D_stack_e24s2fc tests=Test.Core.SettingsPartners result=pass torn_down=yes
 2026-11-15T17:54:42Z	Epic 24	integrated_forward	feature=9b9898a5 head=577055db conflicts_resolved=sprint-status(feature_side,regenerated;24.2_done;24.5_backlog),announce-focus-sources.test.mjs(feature_text+partner-contacts-section) auto_merged=api-client.ts checks=web_test_2145_pass,lint,test-class-rules,test-boundaries_rc0
 2026-11-15T17:54:42Z	Story 24.2	committed	sha=pushed_below
+2026-11-15T18:29:18Z	Story 24.2	ci_red	sha=ef4bc70a run=43743751426 job=iris(image) runner=ocutalon-ci-23 class=Test.Data.Tables TestEveryTableIsRegistered(OcuTalon.Data.PartnerContact_has_a_registry_row) classification=story-caused(not_runner/port/DW-1099) other_jobs=all_green lane-a=43743751291_green
+2026-11-15T18:29:18Z	Story 24.2	ci_fix	file=Test/Data/Tables.cls(XData_Registry_row_PartnerContact) verified=fresh_lane-D_e24s2cf_Test.Data.Tables_pass(red_in_CI_before)
