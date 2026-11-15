@@ -162,6 +162,15 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 
 **Results of the final tree (warm lane C, one run per call):** `TestReplayNotesNoAnswerHash` passed; `OcuTalon.Test.Mcp.Approval` (whole class) passed (69 s); `OcuTalon.Test.Mcp.Attach:TestProxyCut` passed; `OcuTalon.Test.Mcp.SourceRun` passed; `bash docker/tests/test-class-rules.sh` exit 0; `bash docker/tests/test-boundaries.sh` exit 0.
 
+**QA records (lane C warm throwaway e21dw1371qw, HEAD 7a4e22a9a, 2026-11-15):**
+- Verdict: no test added. Every assertion of `TestReplayNotesNoAnswerHash` and the new `TestReplayResultIsCut` assertion is closed by a mutation below; a further test would duplicate one of them. Two assertions are not pinned by a mutation and are recorded as such: the `Calls` counts (2 and 1) are redundant with the answer assertions (a call that did not reach the server would fail those first), and the `OnAfterOneTest` `Context.End()` line is defensive (no passing path leaves a context, so no mutation of it can go red without first failing a test).
+- Hermetic: each test starts its own mock on a new port, which `Remove` stops and forgets; the context is ended on every path by the test and again by `OnAfterOneTest`; the approved row and the session are deleted there; the `Leftovers` and secret-places assertions of `JobFixture` pass after the test. `OcuTalon.Test.Mcp.Approval` whole class run three times in a row on the same warm stack (69.3 s, 69.0 s, and 68.8 s after the mutation runs and their reverts): all passed.
+- mutation: M1, `Noted` hash guard widened to `((approved '= "") || IsPoll())` -> `TestReplayNotesNoAnswerHash` red ("a replay's long text answer notes no answerHash", "and the replay's HostData stays empty", "a replay's short answer notes none either", "and the replay's HostData is still empty"); `TestReplayResultIsCut` stayed green under M1 (the vacuity of a Reply-only pin, as the Intent says). Reverted byte for byte (cmp equal), the method green again.
+- mutation: M2, `Context.IsPoll` reads the Kind only -> `TestReplayNotesNoAnswerHash` red on the same four HostData assertions; no precondition went red. Reverted byte for byte (cmp equal), green again.
+- mutation: M3, M1 plus `Replay.Execute` carrying the context's HostData to the Reply -> `TestReplayResultIsCut` red ("the replay's Reply holds no HostData, so no answerHash"). Both reverted byte for byte (cmp equal), green again.
+- mutation: M4 (QA, the control pin), `Noted` hash guard `If 0 && (...)` (a poll's hash is never noted) -> `TestReplayNotesNoAnswerHash` red on exactly one assertion ("the same channel holds a poll's answerHash"); the replay assertions stayed green, so the control is what goes red, as intended. Reverted byte for byte (cmp equal), green again.
+- Product findings: none. `git status` was clean after every revert; the stack e21dw1371qw is down (0 leftover containers, volumes, networks).
+
 ## Auto Run Result
 
 Status: done
