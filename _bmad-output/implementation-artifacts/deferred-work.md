@@ -2089,6 +2089,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
 - 2026-11-14T20:30:14Z occurrence=OCT-epic26-294565a3 by=orchestrator note=run 43632972453 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty' (ci-18); not rerun: QUOTA HOLD; one rerun after HOLD OFF
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got empty (runners backlogged); not rerun: d53500886 (26.2's code plus a test-only change) ci 43681313101 green and 2e6366b00 ci 43690296919 production green
+- 2026-11-15T12:02:13Z occurrence=OCT-epic21-dw1347-30d487a32 by=epic-runner note=run 43703149281 job 132778446850 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''; DW-1347 touches neither WatchOps nor test-production; one rerun of the failed job
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8278,6 +8279,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Proxy.Noted's hash branch is guarded by IsPoll() alone; TestProxyCut pins a chat call, and no test (Test/Mcp/Approval.cls TestReplayResultIsCut) reads a replay's HostData, so widening the guard to (approved '= "") || IsPoll() stays green.
 - 2026-11-15T10:00:19Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=a change touches Proxy.Noted's IsPoll guard, or a replay Reply's HostData holds an answerHash member
+- 2026-11-15T13:21:53Z status=resolved-by:dw-1371 by=epic-runner note=TestReplayNotesNoAnswerHash pins a replay notes no answerHash (82a5da2fe; M1-M5)
 
 ### DW-1372: DW-1347 ruling (d) names an AD-31 amendment that the spec never wrote; read as the AD that Veto item 4 names
 - source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: in-story

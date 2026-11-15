@@ -18,8 +18,11 @@
 ///   - TestUnclassifiedReplays: the exact call approved for an unclassified tool runs once; TestRefusedReplayFails: a call that the server answers with an error ends the row failed, never done;
 ///     TestNoFingerprintNoReplay: an approved MCP request that holds no fingerprint is not replayed;
 ///   - TestNoFingerprintNoHold: a call of an MCP tool that the turn's map does not hold is denied FAILED and holds nothing;
-///   - TestReplayResultIsCut: a replay whose result is longer than the step's room ends done with the MCP audit outcome cut (DW-1220); TestChangedNoticeNamesToolAndServer: a run that ends
-///     changed sends the owner mcp.replayToolChanged with the tool and the server as its slots;
+///   - TestReplayResultIsCut: a replay whose result is longer than the step's room ends done with the MCP audit outcome cut (DW-1220), and its Reply holds no HostData;
+///     TestChangedNoticeNamesToolAndServer: a run that ends changed sends the owner mcp.replayToolChanged with the tool and the server as its slots;
+///   - TestReplayNotesNoAnswerHash: the proxy's call in a context built as the replay and the gate build it (Begin, Grant, TakeGrant) notes no answerHash in the HostData, for a long text
+///     answer and for a short one, while the same channel holds a poll's answerHash (the control); the replay's Reply carries no HostData (TestReplayResultIsCut), so the proxy's note in the replay's
+///     own context is seen only here;
 ///   - TestDemoRefusesTheReplay (the Contest Planner's online-demo rule): with the online-demo flag on, an approved MCP request does not run: it fails before any outbound request;
 ///   - QA of the Contest Planner's conditions: TestReplayUsesOneSessionAndNoModelTurn (2(b)), TestReplayStopsWithoutTheWalletSecret (22.3's (e) on the replay), TestReplayLeavesOnlyTheNamedFacts
 ///     (22.3's (a) and (d) on the replay), TestCancellingTwiceIsANoOp (2(c)) and TestDemoSendsTheMockNothing (the online-demo rule, strictly: the mock gets no request at all).
@@ -48,6 +51,7 @@ Property Turns As %String(MAXLEN = "");
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
 	Set refs = ..Requests
 	For i = 1:1:$Length(refs, ",") {
@@ -393,6 +397,49 @@ Method TestReplayResultIsCut()
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..#SERVER)
 	Do $$$AssertEquals(entries.%Size(), 1, "one MCP audit entry exists")
 	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.outcome, "called|zz_delete_ticket|cut", "it says called, the tool and cut")
+	Do $$$AssertEquals($Select($IsObject($Get(reply)): reply.HostData, 1: "no reply"), "", "the replay's Reply holds no HostData, so no answerHash")
+}
+
+/// The proxy's call of a replay notes no answerHash (DW-1371): in a context built as the replay (Replay Execute) and the gate (Policy.Gate) build it, a long and a short text answer
+/// leave the HostData empty, while a poll's context holds the hash of the whole answer, so that the empty reading is not vacuous.
+Method TestReplayNotesNoAnswerHash()
+{
+	If '..Prepare() Quit
+	Set ref = ..Approved("zz_delete_ticket", "{""id"":""T-15""}")
+	If ref = "" Quit
+	Do ..Ok(##class(OcuTalon.Bridge.Approval).StartExecution(ref), "the approved request starts executing")
+	Do ..Ok(..BeginTool("user", ref), "the replay's context begins")
+	Do ..Ok(##class(OcuTalon.Bridge.Context).Grant(ref), "the replay's grant is built")
+	Set room = ##class(OcuTalon.Tools.Result).Room()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).TakeGrant("zz_delete_ticket", {"id": "T-15"}, ##class(OcuTalon.Mcp.Attach).Toolref(..#SERVER)), 1, "the gate's call takes the grant")
+	Set fingerprint = ..Fresh(ref).ToolFingerprint
+	Do $$$AssertTrue(fingerprint '= "", "the approved row holds a fingerprint")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ApprovedFingerprint("zz_delete_ticket"), fingerprint, "the context holds the approved fingerprint")
+	Set context = ##class(OcuTalon.Bridge.Context).Current()
+	Do $$$AssertEquals(context.Kind _ "|" _ context.Provenance, "tool|user", "the context is a tool context of the user's provenance")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "long", 100000)
+	Set answer = ##class(OcuTalon.Mcp.Proxy).Call(..#SERVER, "zz_delete_ticket", {"id": "T-15"}, room)
+	Do $$$AssertEquals(answer.%GetTypeOf("text") _ "|" _ $Length(answer.text) _ "|" _ answer.outcome, "string|100000|cut", "a long text answer comes back whole and marked cut")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ReplayRefusal(), "", "no refusal is noted")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.HostData).Get(##class(OcuTalon.Mcp.Proxy).#ANSWERHASH), "", "a replay's long text answer notes no answerHash")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "", "and the replay's HostData stays empty")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).ApprovedFingerprint("zz_delete_ticket"), fingerprint, "the context still holds the approved fingerprint for the short answer")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "text", "T-15 deleted")
+	Set answer = ##class(OcuTalon.Mcp.Proxy).Call(..#SERVER, "zz_delete_ticket", {"id": "T-15"}, room)
+	Do $$$AssertEquals(answer.%GetTypeOf("text") _ "|" _ answer.text _ "|" _ answer.outcome, "string|T-15 deleted|ok", "a short text answer comes back as it is")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.HostData).Get(##class(OcuTalon.Mcp.Proxy).#ANSWERHASH), "", "a replay's short answer notes none either")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().HostData, "", "and the replay's HostData is still empty")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	// the control: the same call in a poll's context (the untrusted provenance, no grant) notes the hash of the whole answer
+	Do ..Ok(..BeginTool("untrusted", ##class(OcuTalon.Bridge.Ids).NewRef()), "a poll's context begins")
+	Set long = $Translate($Justify("", 100000), " ", "x")
+	Do $ClassMethod(..#MOCK, "Call", ..Port, "long", 100000)
+	Set answer = ##class(OcuTalon.Mcp.Proxy).Call(..#SERVER, "zz_lookup", {"id": "1"}, room)
+	Do $$$AssertEquals(answer.%GetTypeOf("text") _ "|" _ $Length(answer.text) _ "|" _ answer.outcome, "string|100000|cut", "a poll's long text answer comes back whole and marked cut")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.HostData).Get(##class(OcuTalon.Mcp.Proxy).#ANSWERHASH), ##class(OcuTalon.Test.Mcp.SourceRun).Hash(long), "the same channel holds a poll's answerHash")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Calls", ..Port, "zz_delete_ticket"), 2, "both replay calls reached the server")
+	Do $$$AssertEquals($ClassMethod(..#MOCK, "Calls", ..Port, "zz_lookup"), 1, "the poll's call reached the server")
 }
 
 /// The notice of a changed tool (R1): an executing MCP request that ends with the result changed sends the owner mcp.replayToolChanged with the tool and the server's name as its
@@ -747,6 +794,20 @@ Method Approved(tool As %String, arguments As %String, source As %String = "", d
 	If $$$ISERR(sc) Quit ""
 	Do ..Track(ref)
 	Quit ref
+}
+
+/// Begins a tool context in this process, shaped as Send's replay request (a replay's provenance is user, a poll's untrusted) with the item; the status of Context Begin.
+/// The test ends it (Context End) and OnAfterOneTest ends one that is left.
+Method BeginTool(provenance As %String, itemId As %String) As %Status [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "tool"
+	Set request.Provenance = provenance
+	Set request.ItemId = itemId
+	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.OwnerRef = ..SessionRef
+	Set request.Channel = "system"
+	Quit ##class(OcuTalon.Bridge.Context).Begin(request)
 }
 
 /// Sends the replay request of the Ref to the runner, as Decide does for an approved request; the Reply is in reply. The status is the one Send gives.
