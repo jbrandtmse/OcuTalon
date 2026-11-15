@@ -456,3 +456,5 @@
 2026-11-15T21:45:28Z	Story 23.4	ruling	question=DW-1400 choice=ADD_the_clause(new_On_call_line_verbatim) category=veto(Planner_ruled) policy=5086036
 2026-11-15T21:45:28Z	Story 23.4	rework_opened	cycle_iteration=3 iteration=2 trigger=planner_ruling items=DW-1400
 2026-11-15T21:45:28Z	Story 23.4	stage_spawned	stage=implement spawn_at=2026-11-15T21:45:28Z model=sonnet effort=high agent_name=23-4-paging-escalation-implement-3 cycle_iteration=3 rework=2
+2026-11-15T22:09:03Z	Story 23.4	dev_complete	spawn_at=2026-11-15T21:46:00Z model=sonnet effort=high cycle_iteration=3 rework=2 build_sha=7ad1420b baseline_revision=6ec1c602 deferred=0 change=telegramOnly_line_verbatim(DW-1400);pins_on-call-view,ux-strings,on-call.spec_O1 verified=npm_web_2153,lint,live_sign-in-2_4/4_58(e23b4r2),mutation_old_line_red bundle_initial=894.53kB
+2026-11-15T22:09:03Z	Story 23.4	stage_spawned	stage=code-review spawn_at=2026-11-15T22:09:03Z model=opus effort=high agent_name=23-4-paging-escalation-cr-3 cycle_iteration=3 baseline=6ec1c602 rework_reReview=2
