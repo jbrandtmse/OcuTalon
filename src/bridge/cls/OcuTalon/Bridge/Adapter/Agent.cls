@@ -782,10 +782,10 @@ Method OfferProxy(manager As %AI.ToolMgr) As %Boolean [ Private ]
 	Quit ok
 }
 
-/// Swaps in, as the tool manager of the agent, a new manager that holds only the host's proxy toolset (McpServersClass ProxyToolSet), governed as every manager of a request
-/// is (Govern), for the replay of an approved MCP call (Story 22.4); the agent's own manager is kept in OwnTools until RestoreTools. manager is the new manager. The status is an
-/// error, and nothing is swapped, when the host has no proxy toolset (the bridge alone, and the online demo), the agent is not built or the toolset cannot be registered.
-Method ProxyManager(Output manager As %AI.ToolMgr) As %Status
+/// Builds a new tool manager that holds only the host's proxy toolset (McpServersClass ProxyToolSet), governed as every manager of a request is (Govern): the manager of a source poll
+/// (Story 22.11; AD-6, AD-10, AD-21) and the one that ProxyManager swaps in. It needs no agent, no model key and no AI session, and it changes nothing of the adapter: the caller owns the
+/// manager and lets go of it. manager is the new manager, or "" with an error status when the host has no proxy toolset (the bridge alone, and the online demo) or the toolset cannot be registered.
+Method PollManager(Output manager As %AI.ToolMgr) As %Status
 {
 	Set manager = ""
 	Set proxy = ""
@@ -795,12 +795,29 @@ Method ProxyManager(Output manager As %AI.ToolMgr) As %Status
 	} Catch {
 		Set proxy = ""
 	}
-	If proxy = "" Quit $$$ERROR($$$GeneralError, "The MCP servers class names no proxy toolset, so an MCP call cannot be replayed")
-	If '$IsObject(..Agent) Quit $$$ERROR($$$GeneralError, "The agent is not built, so an MCP call cannot be replayed")
+	If proxy = "" Quit $$$ERROR($$$GeneralError, "The MCP servers class names no proxy toolset, so an MCP call cannot be made")
 	Set new = ##class(%AI.ToolMgr).%New()
 	Set sc = new.RegisterToolSet(proxy)
 	If $$$ISOK(sc) Set sc = ..Govern(new)
 	If $$$ISERR(sc) Quit sc
+	Set manager = new
+	Quit $$$OK
+}
+
+/// Swaps in, as the tool manager of the agent, the manager that PollManager builds (the host's proxy toolset only, governed), for the replay of an approved MCP call (Story 22.4); the
+/// agent's own manager is kept in OwnTools until RestoreTools. manager is the new manager. The status is an error, and nothing is swapped, when PollManager fails (the host has no proxy
+/// toolset: the bridge alone, and the online demo; or the toolset cannot be registered) or the agent is not built.
+Method ProxyManager(Output manager As %AI.ToolMgr) As %Status
+{
+	Set sc = ..PollManager(.new)
+	If $$$ISERR(sc) {
+		Set manager = ""
+		Quit sc
+	}
+	If '$IsObject(..Agent) {
+		Set manager = ""
+		Quit $$$ERROR($$$GeneralError, "The agent is not built, so an MCP call cannot be replayed")
+	}
 	If '$IsObject(..OwnTools) Set ..OwnTools = ..Agent.ToolManager
 	Set ..Agent.ToolManager = new
 	Set manager = new
@@ -891,7 +908,8 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 
 /// Answers a request with a reply. A request with RetryOf that RetryAllowed refuses is an error status that names RetryOf, with no Chat and no
 /// context. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
-/// no Chat, no conversation link; the context it sets carries the runner item and a grant). Any other request whose decision Decide has already
+/// no Chat, no conversation link; the context it sets carries the runner item and a grant), unless its Provenance is untrusted: that is the poll of a source (Story 22.11), answered by
+/// Poll.Run on the manager that PollManager builds (no model request, no grant, no Decision row). Any other request whose decision Decide has already
 /// recorded (Concluded) is skipped: one Info row, status OK and no reply, before the agent is built or the context is set. It refuses any kind that is not a request kind, an Input that is
 /// empty once white space is removed, and a linked turn (IsLinked) with an empty OwnerRef, which names OwnerRef; builds the agent if
 /// needed; sets the context with the super session before Chat; and answers in one of two ways.
@@ -916,7 +934,10 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	If (request.RetryOf '= "") && '..RetryAllowed(request.RetryOf) {
 		Quit $$$ERROR($$$GeneralError, "The RetryOf '"_request.RetryOf_"' of the request does not name an item whose RetryItem setting is "_..BusinessHost.%ConfigName_", so nothing is sent")
 	}
-	If kind = "tool" Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
+	If kind = "tool" {
+		If request.Provenance = "untrusted" Quit ##class(OcuTalon.Bridge.Poll).Run($this, request, superSession, .reply)
+		Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
+	}
 	If ..Concluded(request) {
 		$$$LOGINFO(..BusinessHost.%ConfigName_" skipped the "_kind_" request of the decision "_request.DecisionRef_": Decide has already recorded that decision, so no model request was made and no tool ran.")
 		Quit $$$OK

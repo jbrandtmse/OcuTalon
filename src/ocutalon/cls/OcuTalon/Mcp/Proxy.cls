@@ -22,6 +22,9 @@ Include Ensemble
 ///     fingerprint with the one the call was approved at (the request's ToolFingerprint) and not with the classification row, so that a tool changed in name, description or
 ///     schema since the hold is not called. Every refusal of a replay, the demo's included, notes its reason word in the context (Context NoteReplayRefusal) for the replay
 ///     to read.
+///   - The poll of a source (Story 22.11) is the same run on the context of a poll (Bridge.Context IsPoll): the gate admits it as the untrusted rule allows, with the classification row
+///     rules of any call that is not a replay (the row must be read-only or risky and its fingerprint must be the live one), and every refusal notes its reason word as a replay's does.
+///     Listed gives the poll's seed: the toolref and the live fingerprint of the tool through the prefix of Run (steps 3 to 5), with no row, no audit entry and no tools/call.
 ///   - It writes no row and never clears a classification: a changed tool is refused, and the next turn's map clears the row (Story 22.8). The classes that this one runs inside
 ///     the callback make no AI Hub call and run no Python (AD-6).
 Class OcuTalon.Mcp.Proxy
@@ -54,10 +57,10 @@ ClassMethod Call(server As %String, tool As %String, arguments As %DynamicObject
 }
 
 /// The answer, after noting the word of its refusal in the context when the call is the replay of an approved one (approved is the fingerprint it was approved at, not empty)
-/// and the answer is a refusal (Context NoteReplayRefusal), so that the replay can tell a refusal from a result. A call that is not a replay notes nothing.
+/// or a source poll's (Context IsPoll) and the answer is a refusal (Context NoteReplayRefusal), so that the replay or the poll can tell a refusal from a result. Any other call notes nothing.
 ClassMethod Noted(answer As %DynamicObject, approved As %String) As %DynamicObject [ Private ]
 {
-	If (approved '= "") && (answer.%GetTypeOf("refusal") = "string") Do ##class(OcuTalon.Bridge.Context).NoteReplayRefusal(answer.refusal)
+	If ((approved '= "") || ##class(OcuTalon.Bridge.Context).IsPoll()) && (answer.%GetTypeOf("refusal") = "string") Do ##class(OcuTalon.Bridge.Context).NoteReplayRefusal(answer.refusal)
 	Quit answer
 }
 
@@ -78,6 +81,26 @@ ClassMethod Registered(server As %String, tool As %String, replay As %Boolean, O
 ClassMethod Run(server As %String, tool As %String, row As OcuTalon.Mcp.ToolClassification, arguments As %DynamicObject, room As %Integer, approved As %String = "") As %DynamicObject [ Private ]
 {
 	If (approved = "") && ((row.Classification '= "read-only") && (row.Classification '= "risky")) Quit ..Refusal("changed", "changed")
+	Set refusal = ..Listing(server, tool, .url, .header, .session, .fingerprint)
+	If $IsObject(refusal) Quit refusal
+	If fingerprint '= $Select(approved '= "": approved, 1: row.Fingerprint) Quit ..Refusal("changed", "changed")
+	Set reason = ##class(OcuTalon.Mcp.Client).CallTool(url, header, tool, $Select($IsObject(arguments): arguments, 1: {}), .result, session)
+	If reason '= "" Quit ..Reason(reason)
+	Set text = ..TextOf(result)
+	Set outcome = $Select((room '= "") && ($Length(text) > room): "cut", 1: "ok")
+	Quit {"text": (text), "outcome": (outcome)}
+}
+
+/// The shared prefix of a run and of a poll's listing (steps 3 to 5 of the class description, up to the fingerprint): the server's Config Store entry, its address, the credential
+/// header and Client.ListTool for the tool. It answers "" and sets url, header, session (the server's session of the listing) and fingerprint (the live one, which is never empty
+/// then) when the tool is listed, else the refusal ({"refusal", "outcome"}); a tool that the server no longer lists, and one whose fingerprint cannot be made, are changed. It writes
+/// no audit entry, and its outputs are never logged or returned beyond the caller.
+ClassMethod Listing(server As %String, tool As %String, Output url As %String, Output header As %DynamicObject, Output session As %String, Output fingerprint As %String) As %DynamicObject [ Private ]
+{
+	Set url = ""
+	Set header = ""
+	Set session = ""
+	Set fingerprint = ""
 	Set config = "AI.MCP." _ ##class(OcuTalon.Mcp.Attach).#ENTRYPREFIX _ server
 	Set sc = ##class(OcuTalon.Bridge.ConfigStore).Details(config, .details)
 	If $$$ISERR(sc) || '$IsObject(details) || (details.%GetTypeOf("url") '= "string") || (details.%GetTypeOf("transport") '= "string") Quit ..Refusal("failed", "failed")
@@ -88,18 +111,46 @@ ClassMethod Run(server As %String, tool As %String, row As OcuTalon.Mcp.ToolClas
 	Set reason = ##class(OcuTalon.Mcp.Client).ListTool(url, header, tool, .definition, .session)
 	If reason '= "" Quit ..Reason(reason)
 	Set toolref = ##class(OcuTalon.Mcp.Attach).Toolref(server)
-	Set fingerprint = ""
 	Try {
 		Set fingerprint = ##class(OcuTalon.Bridge.Context).ToolFingerprint(toolref, tool, definition.%Get("description"), $Select(definition.%GetTypeOf("inputSchema") = "object": definition.inputSchema, 1: ""))
 	} Catch {
 		Set fingerprint = ""
 	}
-	If (fingerprint = "") || (fingerprint '= $Select(approved '= "": approved, 1: row.Fingerprint)) Quit ..Refusal("changed", "changed")
-	Set reason = ##class(OcuTalon.Mcp.Client).CallTool(url, header, tool, $Select($IsObject(arguments): arguments, 1: {}), .result, session)
-	If reason '= "" Quit ..Reason(reason)
-	Set text = ..TextOf(result)
-	Set outcome = $Select((room '= "") && ($Length(text) > room): "cut", 1: "ok")
-	Quit {"text": (text), "outcome": (outcome)}
+	If fingerprint = "" Quit ..Refusal("changed", "changed")
+	Quit ""
+}
+
+/// The live listing of a tool for a source poll (Story 22.11; AD-10, AD-21): the toolref of the registered server and the fingerprint that the server's own listing gives the
+/// tool, through the prefix that Run uses (Listing), so that a poll seeds the context's map with what the proxy will compare. It answers "" with toolref and fingerprint set, or one word:
+/// demo (the online demo, before any request), notfound (the server is not registered, or the tool's name is not usable), unreachable, timeout, changed (the server no longer lists the
+/// tool) or failed (any other refusal). It writes no row and no audit entry, never throws, and returns no url, credential or text of the server.
+ClassMethod Listed(server As %String, tool As %String, Output toolref As %String, Output fingerprint As %String) As %String
+{
+	Set toolref = ""
+	Set fingerprint = ""
+	If ..OnlineDemo() Quit "demo"
+	Set word = "failed"
+	Try {
+		If '..Registered($Get(server), $Get(tool), 1, .row) {
+			Set word = "notfound"
+			Quit
+		}
+		Set refusal = ..Listing(server, tool, .url, .header, .session, .live)
+		If $IsObject(refusal) {
+			Set word = $Case(refusal.outcome, "unreachable": "unreachable", "timeout": "timeout", "notfound": "changed", "changed": "changed", : "failed")
+			Quit
+		}
+		Set toolref = ##class(OcuTalon.Mcp.Attach).Toolref(server)
+		Set fingerprint = live
+		Set word = ""
+	} Catch {
+		Set word = "failed"
+	}
+	If word '= "" {
+		Set toolref = ""
+		Set fingerprint = ""
+	}
+	Quit word
 }
 
 /// The credential header of the entry, resolved now and held only in the variable that is returned: {"name", "value"}. ok is 0 when the

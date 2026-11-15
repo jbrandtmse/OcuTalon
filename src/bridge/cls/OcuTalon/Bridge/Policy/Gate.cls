@@ -44,7 +44,7 @@ Include Ensemble
 ///      tool that is not read-only, a risky tool even if it is read-only and an unclassified tool; an MCP tool runs only when the extension says
 ///      safe and readOnly 1) is denied with UNTRUSTED, fires
 ///      no turn.step and never reaches step 5, so no approval request can come from it. This holds for every request kind.
-///   5. The result of a replay context (the Kind of the context is tool: Replay.Run, the approved call of an approval request, StartExecution done):
+///   5. The result of a replay context (the Kind of the context is tool and its Provenance is user: Replay.Run, the approved call of an approval request, StartExecution done):
 ///      the call runs only when it matches the grant that the replay built from the executing row (Context.TakeGrant: the name, the hash of the
 ///      canonical arguments and the source). A call with no source of its own takes the source of the grant (GrantSource). The replay of an approved MCP call (Story 22.4;
 ///      AD-10) is a call of the governed proxy (MCPPROXY, server, tool, arguments) that the replay makes itself, and its grant is matched on the native triple of the row:
@@ -57,6 +57,11 @@ Include Ensemble
 ///      request. Classification, permissions and the provenance of the context still apply first (a replay is a user's turn: its Provenance must be user),
 ///      and an allowed call is reported and taints like any other. The taint is not read in a replay context, because the grant is single use: the
 ///      call that follows the allowed one is denied by the missing grant (FAILED), whatever the taint says.
+///   5. (a source poll, Story 22.11; AD-6, AD-10, AD-21) The context of a poll has the Kind tool and the Provenance untrusted (Context IsPoll). It holds no grant and takes none (TakeGrant is
+///      never called), and the call is never held: step 4 has denied every call that is not safe and read-only with UNTRUSTED, and the taint is read as in any untrusted turn. Only the governed
+///      proxy (MCPPROXY) runs in a poll: any other call, a safe and read-only one included, is denied with FAILED. The proxy call is classified exactly as the native call of its tool, by
+///      FromProxy for the toolref that the context's map holds for the server, which the poll seeded from a live listing (Context SeedMcp); a server or tool that the map does not hold is
+///      unclassified and so denied with UNTRUSTED. An allowed call is reported and taints like any other.
 ///   5. (other contexts) The result: a safe call is allowed, and every other call is held (Hold). A call of a class that declares the [ Internal ] class method Hold<NAME>
 ///      (HookFor with the prefix Hold; no class-wide form, and never for an MCP call or the proxy) is held by that method in place of the tool_call row (HoldByHook, Story 22.7):
 ///      Hold<NAME>(arguments, ownerRef, traceRef, sinkClass, .ref, .refusal) raises its own request; an error status is FAILED with one warning, a refusal is denied with the
@@ -210,7 +215,8 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	If '##class(OcuTalon.Bridge.Context).Active() $$$ThrowStatus($SYSTEM.Status.Error(5001, "There is no context for the call"))
 	If name = "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The call is not an object with a name"))
 	Set context = ##class(OcuTalon.Bridge.Context).Current()
-	Set replay = (context.Kind = ..#REPLAYKIND)
+	Set poll = ##class(OcuTalon.Bridge.Context).IsPoll()
+	Set replay = (context.Kind = ..#REPLAYKIND) && (context.Provenance = ..#USERPROVENANCE)
 	If replay && (source = "") Set source = ##class(OcuTalon.Bridge.Context).GrantSource()
 	Set classification = ..ClassificationOf(source, name, ..ArgumentsOf(call), replay)
 	If classification.%Get("unregistered") = 1 Quit ..Denial(..#UNREGISTERED)
@@ -220,6 +226,7 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	Set marked = proxy && ..McpRewrittenBefore(context, call)
 	Set tainted = $Select(replay || marked: 0, 1: context.Tainted)
 	If ((context.Provenance '= ..#USERPROVENANCE) || (tainted '= 0)) && '((classification.classification = ..#SAFE) && (classification.readOnly = 1)) Quit ..Denial(..#UNTRUSTED)
+	If poll && (name '= ..#MCPPROXY) Quit ..Denial(..#FAILED)
 	If replay {
 		If ..IsProxyCall(source, name) {
 			Set native = ..ReplayNative(call)
