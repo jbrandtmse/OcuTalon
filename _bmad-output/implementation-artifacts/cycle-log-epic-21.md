@@ -456,3 +456,5 @@
 2026-11-15T18:48:02Z	DW-1388	stage_spawned	stage=code-review spawn_at=2026-11-15T18:48:02Z model=opus effort=high agent_name=dw-1388-code-review-1 cycle_iteration=1
 2026-11-15T18:59:43Z	DW-1388	cr_complete	model=opus findings=10(1_low_patched:comment_wording,7_low_rejected_spec-prose_recorded,2_false) high=0 med=0 ledger=none final_status=done rule3=part18/24_20/20,B13_20/20_BURN16
 2026-11-15T18:59:43Z	DW-1388	ledger	DW-1388=resolved-by:dw-1388
+2026-11-15T19:07:13Z	DW-1388	integrated	feature=8c71bef6e(23.3,25.6) merge=918ca285e conflicts=none
+2026-11-15T19:07:13Z	DW-1388	fresh_check	env=918ca285e npm_ci,node_2132/0,boundaries,build=pass sign-in-2_part18/24(holds_mcp.spec)=20/20 torn_down
