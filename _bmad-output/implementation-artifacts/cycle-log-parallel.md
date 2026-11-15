@@ -4231,3 +4231,6 @@
 2026-11-15T03:56:23Z	Epic 25	runner_resumed	lane=A task=25.6(READSFILES=1,texts_1-3,DW-1313,AD-21_sentence) base=feature_6730eda7e
 2026-11-15T04:04:11Z	Run	planner_notified	lane_status: A=25.6 B=idle(no_epic_assigned;not_parked)->dispatching_23 C=21.9_local D=22.14_CI(22.11_parked_by_design_until_21.5) feature=6730eda7e
 2026-11-15T04:04:11Z	Epic 23	dispatched	lane=B slot=ocutalon-slot-b port=52802 scope=[23.3(plan_to_Planner_first),23.4,23.8] base=6730eda7e(ff) prompt=prompts/dispatch-epic-23-lane-b-20261115.md runner=a5ebc5996d74bf717
+2026-11-15T04:18:50Z	Epic 25	runner_ended	reason=clarification story=25.6 gate=PLANNER_REPORT+PUBLIC_TEXT(P1_two_texts,P2_GUIDE_ext,P3_Turn_FileRead+Caption,P4_documents_fileRef,P5_Telegram_parity) head=33d2a32a(local,OCT-epic25-s256) relayed=contest_planner
+2026-11-15T04:19:40Z	Epic 25	owner_decision	via=contest_planner 25.6_gate: P1=approved(2_texts_pinned) P2=approved_in_25.6(GUIDE_text3_extended;fallback_verbatim+follow-up) P3=approved(TestNoExtractedText) P4=approved(a:foreign=missing_same_answer,b:same_limits_type_from_bytes,c:no_bytes_in_response/log/trace) P5=accepted merge=after_22.15 file=prompts/story-256-rulings-20261115.md
+2026-11-15T04:19:40Z	Epic 25	runner_resumed	lane=A task=25.6_implement..PART_READY
