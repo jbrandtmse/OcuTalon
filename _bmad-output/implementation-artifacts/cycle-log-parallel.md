@@ -4258,3 +4258,7 @@
 2026-11-15T07:31:17Z	Epic 22	owner_decision	via=contest_planner 22.12: P1a=approved P1b=approved+fix("The poll itself asks no model; only a new item's attention decision does.",pin;coverage_pinned_to_code_constants) P2=approved(regenerate_overview) veto_remove_22.6_guard=approved GUIDE_T7=lane_B_follow-up epics_1013_pointer=in_22.12 DW-1347=same-commit_rule merge_order=22.15,then_22.12/25.6_as_ready
 2026-11-15T07:31:17Z	Epic 22	ci_green_verified	story=22.15 head=0a2d53d2b runs=43667820676,43667820662
 2026-11-15T07:31:17Z	Epic 22	merge_enqueued	story=22.15 head=0a2d53d2b into=feature@2e6366b00
+2026-11-15T07:35:01Z	Epic 22	merged	story=22.15 merge=97e062daf conflicts=Mcp/Ops.cls(both_bullets),epics.md(22.14+22.15),cycle-log-epic-21,tracker pins=pass
+2026-11-15T07:35:01Z	Epic 22	runner_resumed	lane=D task=22.12_implement(rulings_in_epic-22-rulings)
+2026-11-15T07:35:01Z	Epic 21	message_queued	lane=C 21.9_finish_over_97e062daf_then_DW-1347(same-commit_rule) delivered_at_next_tool_round
+2026-11-15T07:35:01Z	Run	queued	lane_B_follow-up=GUIDE.md_T7_MCP_tools_as_sources(after_23.3_push)
