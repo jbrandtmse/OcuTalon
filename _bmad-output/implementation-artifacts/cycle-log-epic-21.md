@@ -374,3 +374,4 @@
 2026-11-15T03:11:00Z	Story 22.15	pushed	head=0a2d53d2b runs=43667820676,43667820662
 2026-11-15T03:11:00Z	Story 22.15	ci_resolved	sha=0a2d53d2b result=success runs=43667820676,43667820662
 2026-11-15T03:11:00Z	Story 22.15	part_ready	branch=OCT-epic22-s2215 code_head=0a2d53d2b ci=success feature_base=a6821f1d4
+2026-11-15T03:49:44Z	Story 21.9	stage_spawned	stage=plan(refresh+gate) model=opus effort=high agent_name=21-9-plan-refresh-1 branch=OCT-epic21-s219 base=5a78458a1(22.15) ruling=refused_tools_skip(~03:15Z)
