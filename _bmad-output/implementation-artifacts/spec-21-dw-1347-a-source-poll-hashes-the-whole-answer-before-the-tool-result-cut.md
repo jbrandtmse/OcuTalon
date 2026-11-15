@@ -169,13 +169,13 @@ Fixtures as in 22.11: server `zz`/`zzmcp`, tool `zz_lookup`, source "Jira". Room
 **NEW, for 22.12's P1b** (`docs/mcp-jira-example.md`, the bullet under the source section's poll list). This whole line replaces the line that 22.12's spec gives as "- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item, which holds the whole answer. A long answer is cut, as any tool's result is, and a change only in the part that was cut off may not make a new item, so keep the answer short, for example with `maxResults`.":
 
 ```
-- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item. Even a long answer is compared whole, so a change anywhere in it makes a new item, but the item holds a long answer cut, as any tool's result is. Keep the answer short, for example with `maxResults`, so that the item holds all of it.
+- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item. Even a long answer is compared whole, so a change anywhere in it makes a new item, but a long answer is cut in the item, as any tool's result is. Keep the answer short, for example with `maxResults`, so that the item holds all of it.
 ```
 
 Why it is true of the fixed code:
 - "compared whole": `Checks` compares `answerHash`, the hash of the proxy's whole text, taken before `Return`.
 - "a change anywhere in it makes a new item": a different whole text gives a different hash. The bullet before it already says that an answer matching one of the 50 newest sends nothing.
-- "the item holds a long answer cut, as any tool's result is": the Item's Text is `Reply.Text`, `Result.Return`'s output, the shown characters and the note.
+- "a long answer is cut in the item, as any tool's result is": the Item's Text is `Reply.Text`, `Result.Return`'s output, the shown characters and the note.
 - "so that the item holds all of it": an answer within the room comes back whole.
 
 The line is ASCII, mentions no deadline and no replay path, and quotes no number.
@@ -187,6 +187,15 @@ The line is ASCII, mentions no deadline and no replay path, and quotes no number
 **Existing, reused:** `REASONREAD` ("Couldn't be read"), `CUTNOTE`. **Not product text:** `answerHash` (a HostData member that only Checks reads).
 
 **Findability:** no UI change.
+
+## Spec gate rulings (Contest Planner, ~09:10Z Nov 15, BINDING)
+
+- APPROVED, with one wording fix. The Public text line above ships verbatim as ruled ("but a long answer is cut in the item, as any tool's result is").
+- CONDITION: a test where two long answers differ only past the cut point must make a new item, as the AC's mutation. AC 1 (`TestLongAnswerChangedPastCut`, and its mutation of restoring `HashOf(text)`) is that test. Keep it, and record its red/green under Verification.
+- Option (a) APPROVED: lane D carries the line and its `ovw_mcp_example_lines` pin into 22.12's own commit, and rewords claim 9. If 22.12 lands first, one DW-1347 commit replaces both the line and its pin.
+- (b) APPROVED: lane C edits lane A's Mcp/Bridge/Checks files and the spine. Lane A (25.6) stays out of them until DW-1347 merges.
+- (c) APPROVED: no migration. The one extra Item on the first poll after the fix is accepted.
+- (d) APPROVED verbatim: the AD-6, AD-31 and AD-18 Part B amendments, plus the no-hash error rule.
 
 ## Verification
 
