@@ -3,15 +3,22 @@ title: 'Story 23.4: Decide when to page the on-call person and when to escalate 
 type: 'feature'
 created: '2026-11-15'
 status: 'done'
-baseline_revision: 'd0fb1e1d3d2077257ece724d92385dbc33a91184'
-baseline_commit: 'd0fb1e1d3d2077257ece724d92385dbc33a91184'
+baseline_revision: '397fb9d248e9d08c886f22adffee08adc5ba8cdc'
+baseline_commit: '397fb9d248e9d08c886f22adffee08adc5ba8cdc'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md'
 warnings: [oversized]
 deferred:
+  - summary: >-
+      The On call section text does not say that pages cover shared, watched productions only, so a user who sets an on-call person and then uses Break the feed gets no page and no explanation.
+    evidence: |-
+      DW-1396 option (a) makes a session-owned incident (that user's own Break the feed) never page; the Settings line of AC14 is the Planner's verbatim ruling and names only the Telegram-only channel, so any added scope sentence is public text for a Planner ruling.
+    location: >-
+      web/src/app/settings/on-call-section.ts
+    severity: low
   - summary: >-
       The AC14 template branch (the @if/@else of web/src/app/settings/on-call-section.ts) has no demonstrated mutation; only the text constant was mutated.
     evidence: |-
@@ -260,7 +267,29 @@ Rejected (16):
 - spec-bound: the Lane C `on-call.spec.ts` change is larger than two lines (acceptance) — AC14 (the same ruling) requires O1 to pin the new line; the lead flags the hunk at the Lane C merge.
 - low: AC11's red and green runs used different part splits (acceptance) — the red was observed, and the green run contained the same spec.
 
+
+**Rework iteration 1 (Contest Planner ruling DW-1396 option (a), 2026-11-15 ~20:30Z, prompts/story-238-rulings-20261115.md "23.4"; BINDING):**
+- [x] [Review] DW-1396 -- `Watch/Paging.cls` (and the smallest hook it needs) -- a page fires ONLY for incidents in shared, watched productions. An incident owned by one user's session (for example that user's own Break the feed, or any incident whose production/watch belongs to a single session rather than the shared watched production) never pages anyone: no Page row, no page Notification, no escalation ask, no audit entry, and nothing else changes. Decide, from the delivered code, how "shared, watched production" vs "session-owned incident" is told apart (the incident's owner/session ref, the watch's scope, demo mode's Break the feed path) and record it under Design Notes "Decided in-stage". Pin it with a test that uses a session-owned incident (Break the feed or its fixture) with on-call values set and asserts no page at all, plus the positive control (a shared watched production's incident still pages), with a demonstrated mutation (removing the check turns it red).
+
+Code review, rework re-review (iteration 1 of 3, 2026-11-15; diff `397fb9d24..HEAD`; full-opus tier, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 21 layer findings, 2 entries after grouping, 13 rejected; no HIGH). Checklist (DW-1396 option (a)): (1) the owner test is right: `Data.Incident.OwnerRef` has one writer, `IncidentManager.Record` (IM:444), which copies the batch's owner from `FailurePoller.Scope`: the Ref of the session whose TraceRef is the failure's SuperSession (Break the feed through `Demo/BreakFeedIn` and `PartnerTrigger`), else `instance`; no other path makes a FailureBatch or an incident, and an untagged failure of a watched production is never given a session owner, so no shared watched production's incident is refused. (2) The session pin and the positive control each have a demonstrated mutation (`## Verification`). (3) `Escalate`, `Acknowledge`, `PagePayload` and `Closing` act on page rows only, and no path writes a page row for a session-owned incident (`Notice` refuses it; `Escalate` needs the same incident's on-call row), so none of them pages or shows anything for one.
+- [x] [Review][Patch] The shared-break helpers took any `instance` incident of Orders, including one another test left below the floor (Rule 19 hermeticity). med / fix-risk low / in-story: `RaisedShared` waits for, and `TestManagedAlertsBesidePaging` scans, only incidents above `IncidentFloor` (new `Above`) [src/ocutalon/cls/OcuTalon/Test/Watch/PagingLive.cls:RaisedShared, Above, TestManagedAlertsBesidePaging].
+- [x] [Review][Patch] `TestSessionBreakNeverPages` was weaker than its doc: the on-call user was the breaking session's own user, no backup was set (so no ask could follow), and its owner assertion could not fail (`Raised` finds the incident by that owner). low / low / in-story: the on-call user and the backup are two other sessions' users, the owner assertion is gone and the doc claims only the row and the page Notification it asserts; its mutation was re-run [src/ocutalon/cls/OcuTalon/Test/Watch/PagingLive.cls:TestSessionBreakNeverPages].
+
+Rejected (13):
+- wontfix-theoretical: `Escalate`, `Acknowledge`, `PagePayload` and `Closing` do not re-check the owner (acceptance, medium as filed) — no path writes a page row for a session-owned incident, so the guard would cover a state the product cannot reach (a guard was drafted and withdrawn for that reason); `TestOnlineDemoRefusesByCode`'s hand-made row on a session incident tests the flag, not the owner. reopen_if=a second writer of `Data.Page`, or page rows of session-owned incidents carried onto an install.
+- not filed (outside the rework diff and below HIGH; relayed to the lead): `web/e2e/api/incident-page.spec.ts` seeds its page on the LIVE user's session-owned incident (`seedIncident(live.user)`), a state the ruling makes unreachable (acceptance, edge). Its pins (the page's shape and no person in `/state`) still hold, because `PagePayload` reads rows only. reopen_if=`PagePayload` or `/state` gains an owner check, or 24.4's cards read `page`.
+- by-design: a tagged failure whose session row is gone becomes an `instance` incident and pages (edge) — that is `FailurePoller.Scope`'s rule (AD-4). Such an incident is shared in every other respect (recipients, visibility).
+- wontfix-theoretical: an `instance` incident of a production nobody watches any more still pages (acceptance) — `FailurePoller` polls watched productions only, so this needs an unwatch between the batch and the first notice. reopen_if=a path makes instance incidents for unwatched productions.
+- decided (recorded here, no spec-contract edit): an untagged failure of a production that one session alone watches is the instance's incident and pages (blind). The production is the instance's, whichever number of sessions watch it, and a second watcher sees the same incident (`Ownership.INCIDENTVISIBLE`). The ruling's "belongs to a single session" is the session-owned incident.
+- rejected, the spec contract is the lead's: the Never bullet, the Matrix and the planned AD-15 wording still say "never eval" (blind). Relayed: the Rule 20 spine write-up should read "incidents of the instance only (DW-1396)".
+- false: the instance case of `TestOnlineDemoRefusesByCode` lacks audit and payload checks, so the flag goes untested (blind). An audit entry and a payload exist only with a row, and the row assertion went red under the AC2 mutation.
+- low, not worth it: `TestRealBreakPagesTelegram` sends the fixture Escalation under session A's trace (blind). The trace is the test's handle for AC13's trace scan, and 24.3 replaces the direct send (Consumed-by).
+- wontfix-theoretical: `TestSessionOwnedNeverPages`' page-audit count is system-wide (gap). Nothing else pages on the warm stack while the class runs, and the mutation shows the count can fail.
+- rejected, the lead's records: the cycle log's `deferred=0` for the rework (blind), the rework's clock times (blind), and frontmatter `done` beside sprint `review` (acceptance).
+
 ## Spec Change Log
+
+- 2026-11-15 ~20:40Z (lead, rework iteration 1 of 3, trigger: Planner ruling DW-1396 option (a)): re-opened for the shared-production-only paging rule. The larger on-call.spec.ts change is accepted as a footprint extension.
 
 - 2026-11-15 ~14:35Z (lead, Planner gate): APPROVED with conditions (prompts/story-234-rulings-20261115.md). Added AC13 (the person never in trace, audit, /api/v1/state, incident event or logs; each pinned), AC14 (the new Settings line replaces the not-yet line, verbatim), AC15 (no other class writes alert configuration). AC10 and the Boundaries alert line amended; epics.md 23.4 AC amended with marker (DW-1380). All proposed public text approved verbatim. Targets 1.0.12.
 
@@ -315,6 +344,33 @@ Rejected (16):
   - `[low]` `[reject]` (intent) No Escalation is produced by the real production until 24.3: by-design, Planner deviation 2
   - `[low]` `[reject]` (intent) TelegramOut and TelegramIn refuse the online demo only implicitly (no row, no Notification): by-design, AC2 pins the refusal at its source
 - patches (written into Tasks & Acceptance as R1-R6): applied by a fresh subagent; the log rows above name the patch each one triggers.
+
+### 2026-11-15 — Review pass (rework iteration 1, DW-1396)
+- verdicts: 23 findings — high 0, medium 0, low 20, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) The refusal of an eval-owned incident is not tested: carried as wontfix-theoretical (pass 1): `'= instance` refuses it by construction and eval incidents are made by the evaluation harness only; a test would add a case for a path no caller reaches
+  - `[low]` `[patch]` (blind) The escalation assertion of `TestSessionOwnedNeverPages` is refused by the page's IncidentRef mismatch, not by the owner: real, the assertion could not fail from the owner test; removed it and its claim (the pin is the ask count, the row, the page Notification, the audit entry and the payload); mutation re-run: four assertions red
+  - `[low]` `[reject]` (blind) `TestSessionBreakNeverPages` asserts absence after a fixed `Hang 5` and has no control of its own: the paging step is synchronous in the notice's job and the same Hang-after-Noticed pattern is accepted in this class; the control is `TestRealBreakPagesTelegram` with the same keys; the fix would add polling for an absence
+  - `[low]` `[reject]` (blind) `TestManagedAlertsBesidePaging` takes any paged instance incident of Orders: the same `WaitIncident("instance", ...)` idiom as `Test.Fix.Raise` and `Test.Watch.Notices`, and `DropIncidents(IncidentFloor)` cleans every test's incidents, so no stale one exists at the start
+  - `[low]` `[patch]` (blind) Design Note 6 says every live paging test is untagged, and `TestPageReachesTelegram` still used a session-tagged break: real; the note names the tests and `TestPageReachesTelegram` now uses `RaisedShared`
+  - `[low]` `[defer]` (blind) The Settings On call text does not say that pages cover shared, watched productions only: real wording gap but public text is the Planner's (AC14 is a verbatim ruling), so it is deferred for a text ruling; no code consequence
+  - `[low]` `[reject]` (blind) The new header and Notice doc lines are long or ambiguous: cosmetic
+  - `[low]` `[reject]` (edge) Escalate, Acknowledge and Closing have no owner check, so a leftover page row of a session-owned incident would be escalated: a row can only be written by `Notice` (the sole writer), which refuses; 23.4 is unreleased so no earlier row exists; the restart script seeds rows by hand for instance incidents; the guard would widen the hook beyond the ruling's "nothing else changes"
+  - `[false]` `[reject]` (edge) An owner spelled `Instance` or `INSTANCE` never pages: `FailurePoller.Scope` writes the lowercase literal and no other writer of Incident.OwnerRef exists, so no cased value exists
+  - `[low]` `[reject]` (edge) A production failure that carries a session's SuperSession is that session's incident and never pages: by-design, it is the ruling's own case (that user's own Break the feed)
+  - `[low]` `[patch]` (edge) The escalation assertion is exercised by an IncidentRef mismatch, not the owner: the same root cause as the second row, closed by the same removal
+  - `[low]` `[reject]` (edge) Eval, empty and cased owners are unpinned: as the first row
+  - `[low]` `[reject]` (edge) The claim "a session-owned incident never has a page row" is not enforced downstream: as the Escalate row above
+  - `[low]` `[reject]` (edge) A fixed Hang 5 with no control: as the third row
+  - `[low]` `[patch]` (verification-gap) `TestPageReachesTelegram` no longer proves the no-on-call guard on a session-tagged break: closed with Design Note 6's row (the test now uses `RaisedShared`)
+  - `[low]` `[reject]` (verification-gap) `..Warned(), 0` cannot detect the removed guard: it is a no-warning check, not the owner pin; harmless
+  - `[low]` `[patch]` (verification-gap) The escalation assertion cannot fail from the owner check: same root cause as the second row
+  - `[low]` `[reject]` (verification-gap) Absence checked after a fixed sleep: as the third row
+  - `[low]` `[reject]` (verification-gap) No direct eval-owner test: as the first row
+  - `[low]` `[reject]` (verification-gap) `TestManagedAlertsBesidePaging` picks any paged instance incident: as the fourth row
+  - `[false]` `[reject]` (intent) R2 (watch-scope reading) is not implemented: an untagged failure of a production that one session alone watches is an instance incident and pages; the ruling's "shared, watched production" is the instance's watched production and the owner is the one fact the code writes for it (Decided in-stage 6), so it is the implemented reading, not a divergence
+  - `[false]` `[reject]` (intent) The diff's tests exercise the owner at `Notice` while the ruling's expectation is the product's observable behaviour: the live test `TestSessionBreakNeverPages` pins the observable surface (a real tagged break, no row, no Notification)
+  - `[low]` `[reject]` (intent) The Break the feed service itself is not driven, only a generic tagged break: the tag is the same (the session's TraceRef as SuperSession) and the online demo is refused first by the flag
 
 ## Design Notes
 
@@ -430,6 +486,7 @@ No AC contradicts an AD's Rule. The lead writes in the spine (Rule 20) only what
 3. EscalationRef is `CommandResult.Ref` on Ok 1, else "". A cancel is asked only for a set EscalationRef.
 4. The Telegram button reuses `gotit:<ref>`, and TelegramIn picks the verb by the Delivery row's Kind. So the callback list and the mock stay unchanged.
 5. Every paging step is wrapped, so a paging failure is one Type 3 warning without on-call values and never fails the notice, the close or the purge.
+6. (Rework 1, DW-1396 option (a).) A shared, watched production's incident is the one whose `OwnerRef` is `instance` (`Ownership.#INSTANCE`): `FailurePoller.Scope` gives an incident the Ref of the session whose TraceRef tags its failures (that user's own Break the feed), else `instance`, and `Session.Recipients` and `Ownership.Incidents` already treat `instance` as the shared watched-production owner. `Watch.Paging.Notice` therefore pages only when `incident.OwnerRef = instance`; this replaces the earlier `eval`-only exclusion (an `eval` owner is not `instance`, so it is still refused). No other hook changes: the escalation, the acknowledgement and the close act on page rows, and a session-owned incident never has one. The live paging tests that expect a page or the absence of one for the instance (`TestPageReachesTelegram`, `TestRealBreakPagesTelegram`, `TestManagedAlertsBesidePaging`) break the feed untagged (`RaisedShared`), so their incidents are the instance's, as a production's own failures are; `TestSessionBreakNeverPages` is the one tagged break.
 
 ### Measured (Task 0, a fresh lane-B throwaway, `Test.Watch.PagingLive`; no result contradicts the design)
 - (a) Managed Alerts beside OcuTalon, on OCUORDERS:
@@ -529,7 +586,8 @@ Proposed pinning mutations (implement records `mutation:` lines, Rule 19):
 
 **Mutations run (Rule 19), each applied on a warm lane-B throwaway (or the stated stack), observed red and reverted (the tree byte-identical, `cmp`):**
 - mutation: AC1, the `Page` call of `IncidentManager.Deliver` removed: `Test.Watch.Paging` `TestPageAtNotice`, `TestEveryNotice`, `TestAloneAndNotConfigured` and `TestFailuresAreWarnings` red (no page row or Notification).
-- mutation: AC2, the `OnlineDemo()` line of `Watch.Paging.Notice` removed: `TestOnlineDemoRefusesByCode` red (the demo case pages).
+- mutation: AC2, the `OnlineDemo()` line of `Watch.Paging.Notice` removed: `TestOnlineDemoRefusesByCode` red (the demo case pages). Rework 1: the test gained an incident of the instance under the flag, so that the owner test does not hide the flag; with the line removed, "an incident of the instance is not paged on the demo" is red (run on the warm lane-B stack, the class red with that one assertion, green again after the revert).
+- mutation: DW-1396 (rework 1), the owner test of `Watch.Paging.Notice` (`OwnerRef '= instance`) made the old `OwnerRef = eval` test: `Test.Watch.Paging` `TestSessionOwnedNeverPages` red (four assertions: a session's own incident gets a row, a page, an ask, an audit entry and a page payload), and `PagingLive` `TestSessionBreakNeverPages` red (a real session-tagged break gets a page row and a page Notification); both green with the test restored. The positive controls are `TestSessionOwnedNeverPages`' incident of the instance (one row, one page, one ask) and every other test of `Paging` and `PagingLive`, whose breaks are of the instance.
 - mutation: AC3, the acknowledged test of `Watch.Paging.Escalate` dropped: `TestEscalation` red ("an escalation after the acknowledgement pages nobody").
 - mutation: AC3 and AC7, the backup row's role made unique and its re-read dropped in `Escalate`: `TestEscalation` red (the backup's page is not the one row of its role). On its own, dropping the re-read leaves `TestEscalation` green, because the unique `(IncidentRef, Role)` index still refuses a second row (defence in depth, not a gap).
 - mutation: AC4, the session check of `Watch.Paging.Acknowledge` dropped: `TestAcknowledge` red (another session's and no session's AckPage are handled).
@@ -571,6 +629,11 @@ Code review (Stage code-review, 2026-11-15; a warm lane-B throwaway `e23b4cw` st
 - mutation: implement-stage note 5, the `(backup = "") ||` arm of `Watch.Paging.Text` removed: `TestAloneAtRender` red ("cleared": the slot 'backup' is empty).
 - Also run: `Test.Watch.PagingLive` (warm, 63.6 s), `Test.Watch.Lifecycle` and `Transitions` passed; `ci/iris.sh live sign-in --part 4/35` (9 tests, with the patched `incident-page.spec.ts`, fresh stack `e23b4c`) passed; `bash docker/tests/test-class-rules.sh`, `npm --prefix web run lint` and `npm --prefix web test` (2132 tests) pass.
 
+Code review, rework re-review (Stage code-review, 2026-11-15; a warm lane-B throwaway `e23b4cr2w` from the patched tree; each mutation applied to `Watch.Paging.Notice`, observed red, restored from a copy (`cmp`, and `git diff` of the file empty) before the next run):
+- mutation: DW-1396 positive control, the owner test of `Watch.Paging.Notice` made to refuse every incident with an owner (`OwnerRef '= ""`): `Test.Watch.Paging` `TestSessionOwnedNeverPages` red on its control alone ("control: an incident of the instance is paged with the same keys"), while its session-owned assertions stayed green. Every instance-incident test of the class went red as well (`TestPageAtNotice`, `TestEveryNotice`, `TestAloneAndNotConfigured`, the AC2 flag-off control and others).
+- mutation: DW-1396 (the patched live pin, with the on-call user and the backup other users), the owner test made the old `OwnerRef = eval` test: `PagingLive` `TestSessionBreakNeverPages` red ("no page row exists for the session's incident", "no page Notification carries its Ref") and no other test red.
+- Also run: `Test.Watch.Paging` passed (14.8 s) and `Test.Watch.PagingLive` passed (109.6 s, with the floor-limited `RaisedShared` and AC8 loop), unmutated; `bash docker/tests/test-class-rules.sh` passes. The floor limit is a hermeticity fix with no separate mutation: it only changes which leftover rows a test can take.
+
 **Verified (2026-11-15):**
 - Fresh lane-B throwaway: `Test.Watch.PagingLive` (all cases, 59.5 s), `Test.Channel.TelegramDigest` and `Test.Channel.TelegramOut` passed; `ci/iris.sh live production-restart` passed with the paging phase.
 - Warm lane-B throwaway: `Test.Watch.Paging`, `Lifecycle`, `Transitions`, `Tell`, `Closing`, `Payload`, `Summary`, `Msg.Catalog`, `Live.Payloads`, `Data.Tables`, `Install.Retention`, `Install.PrivateData`, `Core.CommandsRouting`, `Msg.Contracts`, `Schedule.Reminders`, `Core.SettingsOnCall` and `Bridge.CodeRules` passed.
@@ -583,20 +646,18 @@ Code review (Stage code-review, 2026-11-15; a warm lane-B throwaway `e23b4cw` st
 Status: done
 Blocking condition: none
 
-**Summary.** IncidentManager now pages the on-call person once at an incident's first notice (`Watch.Paging`, new `Data.Page`), asks ReminderOps for the escalation timer through a `SendCommand` seam, pages the backup once on `Msg.Escalation`, records `AckPage` and cancels the timer at an acknowledgement or a close. TelegramOut sends the page with a Got it button and TelegramIn turns a paired-chat press into `AckPage`. On the online demo `Watch.Paging` refuses by code. The incident payload carries `page`, the On call section shows the Planner's Telegram-only line when `pagesBuilt` is true, and `no-alert-config` pins that no product class writes alert configuration. Task 0's figures are under Design Notes, Measured; the initial web bundle is 893.24 kB raw.
+**Summary (rework iteration 1, DW-1396 option (a); this pass only).** `Watch.Paging.Notice` pages only for an incident whose owner is `instance` (a shared, watched production's incident), replacing the earlier `eval`-only exclusion; an incident that one session owns (that user's own Break the feed, tagged with its TraceRef) gets no page row, page Notification, escalation ask, audit entry or page payload, and its notice is unchanged. Decided in-stage 6 records how the two are told apart.
 
 **Files changed.**
-- New: `Data/Page.cls`, `Watch/Paging.cls`, `Live/Payload/Part/Page.cls`, `Test/Watch/Paging.cls`, `Test/Watch/PagingLive.cls`, `web/e2e/api/incident-page.spec.ts`.
-- Hooks and appended block: `Watch/IncidentManager.cls` (OnRequest, Deliver, Apply, PurgeOne, the paging block with `SendCommand`).
-- Telegram: `Channel/Telegram/Out.cls` (page kind, `Page.Marked` fallback) and `In.cls` (page press submits `AckPage`).
-- Payload and catalog: `Live/Payload/Incident.cls`, `Msg/Catalog/Watch.cls` (8 `page.*` keys), `web/src/app/live/payloads.ts` (generated).
-- Settings web (Planner-granted): `settings-view.ts`, `on-call-section.ts`, `web/scripts/on-call-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/e2e/settings/on-call.spec.ts` (O1).
-- Tests and scripts: `Test/Watch/IncidentProbe.cls`, `Test/Data/Tables.cls`, `Test/Live/Payloads.cls`, `Test/Msg/Catalog.cls`, `Test/Watch/Lifecycle.cls`, `docker/tests/test-class-rules.sh` (rule `no-alert-config`), `docker/tests/test-production-restart.sh` (paging phase), `src/short-names.tsv`.
+- `src/ocutalon/cls/OcuTalon/Watch/Paging.cls`: the owner test in `Notice` and its comments.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Paging.cls`: new `TestSessionOwnedNeverPages` (a session's incident, with a shared control); `TestOnlineDemoRefusesByCode` gained an incident of the instance under the flag.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/PagingLive.cls`: new `RaisedShared` (untagged break, owner instance) used by `TestRealBreakPagesTelegram`, `TestPageReachesTelegram` and `TestManagedAlertsBesidePaging`; new `TestSessionBreakNeverPages`.
+- This spec: the ticked item, Decided in-stage 6, mutation lines, the triage log and this result.
 
-**Review (pass 1).** 45 findings from four layers: high 0, medium 6, low 38, false 1. Patched (R1-R6): the follow-up of an acknowledgement is guarded so a saved acknowledgement is never answered as failed; a close skips a spent timer; the restart phase sends the open incident's escalations last; new tests for a setting-change cause, non-default channels, the email variants and another incident's page Ref; positive controls and the ManagedAlert source in `PagingLive`; header wording. Deferred (frontmatter): the AC14 template mutation, `TestEscalationAsk` going red at 24.3, AC11's spec mutation. Rejected with reasons: see the Review Triage Log (by-design rows trace to the Planner's rulings and Decided in-stage 1-5).
+**Review findings (this pass).** 23 findings from four layers: high 0, medium 0, low 20, false 3. Patched 5 rows of 2 root causes (all low): the escalation assertion that the owner test did not decide was removed, and `TestPageReachesTelegram` now uses the shared break (Design Note 6 reworded to match). Deferred 1 (low, frontmatter): the On call text does not say that pages cover shared, watched productions only (a text ruling for the Planner). Rejected 17 with their reasons in the Review Triage Log (eval and empty owners, the Hang after Noticed, Escalate with no owner check, the watch-scope reading, cosmetic wording).
 
-**Follow-up review recommendation:** true. Four medium entries were patched (the follow-up guard, the restart ordering, the setting-change cause test and the PagingLive controls). Unverified risk: the restart phase's negative checks rely on the production's FIFO order of messages, and the AC11 and AC14 browser pins have no demonstrated mutation.
+**Follow-up review recommendation:** false. Patched this pass: high 0, medium 0, low 2 entries.
 
-**Verification performed.** Warm stack (lane B): `Test.Watch.Paging`, `Lifecycle`, `Transitions`, `Msg.Catalog`, `Live.Payloads`, `Data.Tables`, `Install.Retention`, `Core.CommandsRouting`, `Msg.Contracts`, `Schedule.Reminders`, `Core.SettingsOnCall` passed; after the patches `Paging`, `Lifecycle`, `Transitions` passed again. Fresh stacks: `Test.Watch.PagingLive` (twice), `Channel.TelegramDigest`, `Channel.TelegramOut` passed; `ci/iris.sh live production-restart` passed with the paging phase; `live sign-in --part 1/4` (94 tests, with `incident-page.spec.ts`) and `live sign-in-2 --part 4/4` (49 tests, with `on-call.spec.ts` O1) passed. `test-class-rules.sh`, `test-storage.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `node --test web/scripts/payloads.test.mjs`, `npm --prefix web run payloads -- --check` and `npm --prefix web run lint` passed. Implementer-stage mutations are recorded in `## Verification`. Left to CI: the full shards, `live:security-overview`.
+**Verification performed (lane-B warm throwaway, tag `e23b4r1w`, one class per call).** `Test.Watch.Paging` passed (before and after the patches); `Test.Watch.PagingLive` passed twice (80 s and 88 s). Mutations: the owner test made the old `eval` test: `TestSessionOwnedNeverPages` red (four assertions after the patch; five before) and `PagingLive` `TestSessionBreakNeverPages` red (page row and Notification); the `OnlineDemo()` line of `Notice` removed: `TestOnlineDemoRefusesByCode` red on the new instance assertion; each restored byte-identical and green again. `bash docker/tests/test-boundaries.sh`, `test-class-rules.sh`, `test-storage.sh`, `npm --prefix web run lint`, `npm --prefix web test` (2132), `payloads --check` and `catalog.mjs --check` pass.
 
-**Residual risks.** AC8's settings-as-before half and AC10's product-side mutation cannot be demonstrated here (their reasons are in `## Verification`). Pages reach only Telegram and nothing escalates in a real production until Story 24.3 (Planner deviation 2).
+**Residual risks.** The owner is the only fact that tells a shared incident from a session's: a future path that gives a shared incident a non-`instance` owner would stop paging, and Escalate, Acknowledge and Close do not re-check the owner (no row can exist for a session-owned incident). `TestSessionBreakNeverPages` checks absence after a fixed 5 s.

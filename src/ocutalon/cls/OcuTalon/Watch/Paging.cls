@@ -2,7 +2,8 @@
 /// is called from IncidentManager's job only, which sends what these methods give back (the Notification, the timer's ask) and publishes the incident.
 ///   - OnlineDemo is checked first by Notice, Escalate, Acknowledge, PagePayload and Text, the methods through which an on-call key is read: on the online demo nothing is
 ///     read, written, sent or audited, whatever the keys hold.
-///   - Notice records the on-call page of an incident's first notice, once: the person is the primary user, else the primary address, and the page has the
+///   - Notice records the on-call page of an incident of the instance's shared, watched productions (owner instance) only: an incident owned by one session never pages anyone. It records
+///     the page of an incident's first notice, once: the person is the primary user, else the primary address, and the page has the
 ///     session of that user (the paired one, else the first), else the session instance for an address. Nothing is recorded when no on-call person is
 ///     configured, a backup alone included. A person never gets a second page of an incident (IncidentRoleIndex is unique, and every method re-reads the rows).
 ///   - Escalate records the backup's page for an escalation message, only while the on-call page is unacknowledged, the incident is not closed, no backup page
@@ -145,13 +146,13 @@ ClassMethod SessionOf(person As %String) As %String
 
 /// Records the on-call page of the incident's first notice: the page row, and the Notification to send (SessionRef set) in notification, and the delay of the escalation
 /// timer to ask for in seconds in delay (0 when no timer is to be asked: no usable backup). The result is the page's Ref, or "" when nothing is paged: the online demo (checked
-/// before any key is read), an evaluation incident, no on-call person, or a page of this incident already recorded. slots is the notice's slots, of which only cause is read.
+/// before any key is read), an incident that is not the instance's (one owned by a session, such as that user's own Break the feed, or an evaluation incident), no on-call person, or a page of this incident already recorded. slots is the notice's slots, of which only cause is read.
 ClassMethod Notice(incident As OcuTalon.Data.Incident, slots As %DynamicObject, Output notification As OcuTalon.Msg.Notification, Output delay As %Integer) As %String
 {
 	Set notification = ""
 	Set delay = 0
 	If ..OnlineDemo() Quit ""
-	If incident.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL Quit ""
+	If incident.OwnerRef '= ##class(OcuTalon.Data.Ownership).#INSTANCE Quit ""
 	Set person = ..Configured("primary", .channels)
 	If person = "" Quit ""
 	If ##class(OcuTalon.Data.Page).IncidentRoleIndexExists(incident.Ref, ..#ONCALL) Quit ""

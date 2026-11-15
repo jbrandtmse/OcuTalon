@@ -8589,6 +8589,25 @@ So that the rail never shows a request as still waiting after I have answered it
 
 - DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view) (ledger; routed by owner 2026-11-11)
 
+### Story 23.13: Partner warnings go to the Settings contacts
+
+[ADDED 2026-11-15, Contest Planner (prompts/story-242-rulings-20261115.md, "23.13 replaces 23.10"): Lane A files, run by lane B (Epic 23's runner); after 23.4 and 23.8, and only once Lane B's Story 24.2 has merged]
+
+As an admin,
+I want a partner warning to go only to the contacts I set for that production in Settings,
+So that the people who hear about a delay are the ones I chose.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's Story 24.2 merged (its partner contacts table and Settings section)
+**When** this story lands
+**Then** `Fix.PartnerContacts` reads the contacts from 24.2's table, and its `TABLE` parameter is set to 1, which is the switch that shows 24.2's Settings section (the section shows only when `TABLE` = 1; both states pinned)
+**And** DW-1254's contact-id change applies to 23.5's warnings: a warning names contacts by id, and their names and addresses never appear in a traced message, log or audit beyond what DW-1254 allows
+
+**Given** a partner warning for an incident in a watched production
+**When** it is approved and sent
+**Then** it goes only to the contacts set for that production, and the leak scan still passes
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.

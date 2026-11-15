@@ -7702,6 +7702,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 36.4 S1: SaveSettings.Changes is visible in Visual Trace to OcuTalonTraceViewer (non-admin)
 - 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
 - 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
+- 2026-11-15T19:40:42Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-15_story-242-rulings:the_contact-id_change_in_23.5's_warnings_moves_to_Story_23.13
+- 2026-11-15T19:40:52Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=planner note=corrected:DW-1254_stays_with_24.2_(SecretHandoff,leak_scan);only_its_contact-id_change_in_23.5's_warnings_is_23.13's_AC(epics.md_23.13_block)
 - 2026-11-15T17:44:17Z status=resolved-by:24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=cr note=handoff, Changes={handoff}, leak scan incl. audit rows (veto 3); contact-id rest is 23.13's, key not in tracker
 
 ### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
@@ -8482,6 +8484,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch/Paging.cls Notice excludes only OwnerRef eval; FailurePoller scopes tagged failures to the session; PagingLive's real break is session-owned and pages another user as backup
 - 2026-11-15T18:48:07Z status=decision-pending owner=burndown by=cr note=Planner call: page only instance-owned incidents, or any incident (the paged person then reads another user's incident)
+- 2026-11-15T19:43:02Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15_option_(a):page_only_for_shared_watched_productions;session-owned_incident_never_pages;pinned;23.4_rework_1
+- 2026-11-15T20:22:57Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=12101e6e:Paging.Notice_pages_only_OwnerRef=instance;TestSessionOwnedNeverPages+TestSessionBreakNeverPages_with_control_and_mutations
 
 ### DW-1397: Test.Watch.PagingLive repeats Test.Web.LiveRolesApi's sign-in form post and GET inline (private helpers), as Test.Fix.EmailCard already does (Rule 2)
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8525,6 +8529,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/src/app/documents/documents-page.ts:60 appFileDrop with no [active]; :396 addFiles returns for a viewer; shared/file-drop.ts:15 active=model(true) binds dragover/drop with preventDefault; chat-panel turns the drop off for viewers
 - 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(bind_[active]=!viewer()_and_pin_it_in_viewer-sources.test.mjs)
 
+### DW-1400: The Settings On call line does not say that pages cover only incidents of shared, watched productions (DW-1396 option (a)); a user whose own Break the feed never pages may expect a page
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: on-call-section.ts telegram-only line vs Watch.Paging.Notice owner check (12101e6e)
+- 2026-11-15T20:03:29Z status=decision-pending owner=burndown by=harvest note=human=Planner_public_text:whether_to_add_a_clause_to_the_approved_On_call_line
 ### DW-1398: Test/Watch/Summary.cls:878 builds the same non-quiet incident fixture as DW-1391 (LastAt not in the past), so the background sweep can close it mid-test
 - source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
