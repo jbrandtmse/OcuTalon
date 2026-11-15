@@ -25,9 +25,10 @@
 ///     latest, and stopped (Story 22.5: the source's tool is no longer Read-only) since the first run of the unbroken streak of stopped runs that
 ///     ends at the latest; (5) otherwise the latest run's result. For rule (3) the gap of a source row (Kind source) with an IntervalMinutes is
 ///     IntervalMinutes x 60 + SourceSlack seconds, since it runs once in each interval; any other row keeps MISSEDSECONDS. SourceSlack is max(MISSEDSECONDS, QUEUESECONDS x the number of
-///     sources that are not stopped), read once for each Build (PollingSources): Checks sends one poll for the whole install at a Tick (Story 22.11), so a source that waits in that queue
-///     is allowed QUEUESECONDS for each source that is not stopped (DW-1346). That covers a queue of polls that each answer within a Tick; a poll that runs to Decide's timer can delay each
-///     source behind it by up to the timer plus a Tick, which the allowance does not cover, so such a source can still read stale or missed for waiting.
+///     sources that are not stopped), read once for each Build (PollingSources): a source may be up to IntervalMinutes x 60 + max(180 s, 120 s x the non-stopped sources of the install) seconds
+///     late before it reads stale or missed (DW-1346). Checks sends one poll for the whole install at a Tick (Story 22.11), so a source that waits in that queue is allowed QUEUESECONDS for each
+///     source that is not stopped; a poll that runs to Decide's 60 second timer and the next Tick delay each source behind it by about 120 s, which QUEUESECONDS covers. A wait beyond that
+///     allowance, a slower timer for instance, still reads stale or missed.
 ///   - The Mailbox row (Story 22.5) is there only for the session that owns the connected mailbox (Channel.Email.In Owner) and only once the mark emailPoll
 ///     exists. It is passed when the mark says ok, its time is in the span and at most MAILSTALESECONDS before the end of the span; not checked when the mark says ok
 ///     but is older (stale); not checked as unreachable, with the time of the last good poll, for a failed poll whose reason is the adapter's REASONUNREACHABLE; and not
@@ -54,9 +55,9 @@ Parameter KEYPREFIX = "checks.thresholds.";
 /// The most seconds between two runs, or between a run and an end of the span, before the check counts as having missed (AD-18).
 Parameter MISSEDSECONDS = 180;
 
-/// The seconds that a source's poll is allowed to wait in the queue of one poll, for each source that is not stopped, beyond its interval (the ruled allowance of DW-1346; a poll that runs to
-/// Decide's timer can hold the queue longer, see the class description).
-Parameter QUEUESECONDS = 60;
+/// The seconds that a source's poll is allowed to wait in the queue of one poll, for each source that is not stopped, beyond its interval (the ruled allowance of DW-1346, the one constant): a poll
+/// that runs to Decide's 60 second timer and the next Tick hold the queue about 120 seconds for each source ahead.
+Parameter QUEUESECONDS = 120;
 
 /// The most seconds before the end of the span that the last poll of the mailbox may have been made for the Mailbox row to be passed.
 Parameter MAILSTALESECONDS = 900;
@@ -511,8 +512,8 @@ ClassMethod Current(ranAt As %String, fromUtc As %String, toUtc As %String, inte
 	Quit ..Apart(ranAt, end) <= allowed
 }
 
-/// The seconds that a source may be late beyond its interval before it reads stale or missed (DW-1346): max(MISSEDSECONDS, QUEUESECONDS x sources), where sources is the number of sources
-/// that are not stopped (PollingSources). Checks sends one poll for the whole install at a Tick, and the poll of a source that waits behind the others' is allowed QUEUESECONDS for each one (see the class description for what that does not cover).
+/// The seconds that a source may be late beyond its interval before it reads stale or missed (DW-1346): max(MISSEDSECONDS, QUEUESECONDS x sources), that is max(180 s, 120 s x sources), where sources is
+/// the number of sources that are not stopped (PollingSources). Checks sends one poll for the whole install at a Tick, and the poll of a source that waits behind the others' is allowed QUEUESECONDS for each one.
 ClassMethod SourceSlack(sources As %Integer) As %Integer [ Private ]
 {
 	Set slack = (+sources) * ..#QUEUESECONDS

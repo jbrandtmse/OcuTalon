@@ -73,7 +73,7 @@ Check 1 (the STOP criteria): the largest median added over the baseline is 5706 
 Check 2 (no source marked stale only because of queuing): a silent poll holds the in-flight mark for at most about 26 s (2 s initialize and list of the seed, 2 s for the proxy's own, 20 s
 for the call), so with 3 silent sources due at once the Ticks (60 s apart) poll them one at a time: the first at the Tick, the second at the next Tick, the third at the one after,
 which is at most 120 s after they were due, inside the interval + 180 s that coverage allows (interval 5 minutes or more). The one-at-a-time sends and the 150 s
-mark are pinned by `TestOneInFlightNoQueueStale` (`Test/Mcp/SourceRun.cls`) and coverage's allowance by `TestSlowQueueNeverStale`; their mutations are in the spec's Verification
+mark are pinned by `TestOneInFlightNoQueueStale` (`Test/Mcp/SourceRun.cls`) and coverage's allowance by `TestSlowQueueOfThreeNotStale`; their mutations are in the spec's Verification
 section. The 120 s is this measurement, not a test.
 
 Code review note (2026-11-14): the "about 26 s" above is the measured one-page mock, not a bound in code. `Mcp.Client` gives each request its own 2 s limit (initialize, the
@@ -82,6 +82,8 @@ trickles bytes holds it longer (S11: 31 s and 36 s measured against 2 s and 20 s
 mark past the next Tick, so 3 such sources due at once could take up to 4 Ticks (about 240 s), past the 180 s allowance (inference). Check 2 holds for the four measured modes.
 
 Rework note (2026-11-14, DW-1346; the numbers above are unchanged): coverage's allowance for a source is now interval + max(180 s, 60 s x the number of sources that are not stopped), so check 2's "inside interval + 180 s" reads as inside that allowance; for 3 sources it is still 180 s, and the 240 s case above is not covered by it (inference).
+
+Rework note 2 (2026-11-14, DW-1346 ruled, Contest Planner ~23:00Z; no measured number changes): coverage's allowance for a source is now interval + max(180 s, 120 s x the number of sources that are not stopped), so the 240 s case of the code review note above (a poll that runs to Decide's default 60 s timer) is inside it for 3 sources (360 s); a timer raised above 60 s or a lost answer that holds the in-flight mark is not covered.
 
 So option (a) passes both checks: the story is not halted.
 

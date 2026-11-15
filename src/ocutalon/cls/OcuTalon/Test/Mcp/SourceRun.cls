@@ -29,8 +29,8 @@
 ///   - TestOldestDueFirst: when more sources are due than one Tick may send, the source with the oldest NextDueAt is sent first, whatever the order of the rows;
 ///   - TestOneInFlightNoQueueStale: with three due sources and polls that wait, one poll is sent at a time, the others keep their NextDueAt and are sent at
 ///     the next Tick after an answer; a mark 140 seconds old still holds (INFLIGHTSECONDS is 150) and one 160 seconds old holds nothing, and the third source's send sets its NextDueAt at the Tick that sends it;
-///   - TestSlowQueueNeverStale (DW-1346): five sources due together whose polls queue one behind another, the source in position i running 60 x i seconds later than its interval, are none of them
-///     stale or missed in Coverage.Build, whether the run is in the span (the gap) or before it (Current); with two of them stopped only three count, and with four stopped one counts (the 180 seconds floor); the source that waits longer than the sources that count allow reads not checked, with the allowance's own numbers (max(180, 60 x sources)) as the oracle;
+///   - TestSlowQueueOfThreeNotStale (DW-1346): three sources due together whose polls each run to Decide's timer plus a Tick and so queue one behind another, the source in position i running 120 x i seconds later than its interval (the third about 240 seconds), are none of them
+///     stale or missed in Coverage.Build, whether the run is in the span (the gap) or before it (Current); the allowance is max(180, 120 x the sources that are not stopped) seconds beyond the interval, and the oracles are its numbers as literals: a run 1200 seconds before the end of the span stands and one 1300 seconds before no longer does (900 + 360); with two of the three stopped one counts and the allowance is the 180 seconds floor, so the third source's 240 seconds read not checked in the span and a run 1050 seconds before the end of the span stands; the test fails, and does not skip, when another source of the install is polling (its count would add to the allowance);
 ///   - TestStopNoticeFailureIsOneWarning: an unreadable list of admins at a stop is the one warning of Mcp.Ops Notify and none of Checks.
 Class OcuTalon.Test.Mcp.SourceRun Extends %UnitTest.TestCase
 {
@@ -568,43 +568,48 @@ Method TestOneInFlightNoQueueStale()
 	Do $ClassMethod(..#PROBE, "FailPolls", 0)
 }
 
-/// DW-1346 (see the class description): the allowance of a source beyond its interval is max(180 s, 60 s x the sources that are not stopped).
-Method TestSlowQueueNeverStale()
+/// DW-1346 (see the class description): three sources due together whose polls each run to Decide's 60 second timer plus a Tick queue one behind another, the source in position i running
+/// 120 x i seconds later than its interval (so the third about 240 seconds), and none of them reads stale or missed. The allowance beyond the interval is max(180 s, 120 s x the sources that are
+/// not stopped), and the oracles are its own numbers as literals (360 s for three sources, 180 s, the floor, for one), not Coverage's constants.
+Method TestSlowQueueOfThreeNotStale()
 {
 	Set session = ..Owner("slowqueue")
 	Set first = "2030-06-01T10:00:00Z"
-	Set count = 5
 	Set last = first
-	For i = 0:1:count - 1 {
+	For i = 0:1:2 {
 		// the real Kind, so that Coverage counts the row, and never due, so that the production's own Checks never polls it
 		Set ref = ..Source(session, "S" _ i, {"NextDueAt": "2099-01-01T00:00:00Z"})
 		Do ..Flip(ref, 0)
 		Set late(i) = ref
-		Set second = ##class(OcuTalon.Data.Time).AddSeconds(first, 900 + (60 * i))
+		Set second = ##class(OcuTalon.Data.Time).AddSeconds(first, 900 + (120 * i))
 		Do ##class(OcuTalon.Checks.Coverage).RecordRun(ref, session, first, "passed", "")
 		Do ##class(OcuTalon.Checks.Coverage).RecordRun(ref, session, second, "passed", "")
 		If second ] last Set last = second
 	}
-	Set others = ..OtherSources()
-	// the gap between the two runs of each source (both in the span)
+	// the oracles are for exactly three counting sources: a source of the install that is not this test's and not stopped would add to the allowance and leave the assertions that it is small (and
+	// so the mutations of QUEUESECONDS, the floor and the count of stopped sources) unable to fail, so a stack that holds one fails here, loudly, and not quietly green
+	Do $$$AssertEquals(..OtherSources(), 0, "no other source of the install is polling (the allowance of three sources is what the assertions below check)")
+	// the gap between the two runs of each source (both in the span): 900, 1020 and 1140 seconds, against 900 + 360
 	Set from = ##class(OcuTalon.Data.Time).AddSeconds(first, -60)
 	Set to = ##class(OcuTalon.Data.Time).AddSeconds(last, 30)
-	Do ..AssertQueued(session, from, to, count, others, "in the span")
-	// the latest run before the span stands as the source's latest run (Current): the span is the minute that ends 1150 seconds after the last source's second run
-	Set end = ##class(OcuTalon.Data.Time).AddSeconds(last, 1150)
+	Do ..AssertResults(session, from, to, "passed,passed,passed", "in the span, three sources")
+	// the latest run before the span stands as the source's latest run (Current): the span is the minute that ends 1200 seconds after the last source's second run, inside 900 + 360 and past 900 + 180
+	Set end = ##class(OcuTalon.Data.Time).AddSeconds(last, 1200)
 	Do ..ResultsOf(session, ##class(OcuTalon.Data.Time).AddSeconds(end, -60), end, .carried)
-	Set limit = 900 + ..Slack(count + others)
-	Do $$$AssertEquals($Get(carried("S" _ (count - 1))), $Select(1150 <= limit: "passed", 1: "not_checked"), "the run of the last source, 1150 seconds before the end of the span, stands (the allowance is " _ limit _ " seconds)")
-	// two of the five stopped: three count, and the allowance is what three give
+	Do $$$AssertEquals($Get(carried("S2")), "passed", "the run of the third source, 1200 seconds before the end of the span, stands (the allowance is 900 + 360 seconds)")
+	// past 900 + 360 the run no longer stands
+	Set end = ##class(OcuTalon.Data.Time).AddSeconds(last, 1300)
+	Do ..ResultsOf(session, ##class(OcuTalon.Data.Time).AddSeconds(end, -60), end, .carried)
+	Do $$$AssertEquals($Get(carried("S2")), "not_checked", "the run of the third source, 1300 seconds before the end of the span, no longer stands (the allowance is 900 + 360 seconds)")
+	// two of the three stopped: one counts, the allowance is the 180 seconds that one source gives (the floor), and the source that waited 240 seconds reads not checked
 	For i = 0:1:1 {
 		Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 1, "stopped": (##class(OcuTalon.Checks.Process).#STOPPEDVALUE)}.%ToJSON(), late(i))
 	}
-	Do ..AssertQueued(session, from, to, count - 2, others, "with two of the five stopped")
-	// four of the five stopped: one counts, and the allowance is the 180 seconds that one source gives (the floor)
-	For i = 2:1:3 {
-		Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.BackgroundCheck SET Reported = ? WHERE Ref = ?", {"seen": [], "baseline": 1, "stopped": (##class(OcuTalon.Checks.Process).#STOPPEDVALUE)}.%ToJSON(), late(i))
-	}
-	Do ..AssertQueued(session, from, to, count - 4, others, "with four of the five stopped")
+	Do ..AssertResults(session, from, to, "passed,passed,not_checked", "in the span, one source counts")
+	// the third source's run, 1050 seconds before the end of the span, stands inside 900 + 180 (without the 180 seconds floor the allowance would be 120 seconds)
+	Set end = ##class(OcuTalon.Data.Time).AddSeconds(last, 1050)
+	Do ..ResultsOf(session, ##class(OcuTalon.Data.Time).AddSeconds(end, -60), end, .carried)
+	Do $$$AssertEquals($Get(carried("S2")), "passed", "with two of the three stopped, the run of the third source, 1050 seconds before the end of the span, stands (the floor: 900 + 180 seconds)")
 }
 
 /// A failed read of the admins at a stop is one warning (see the class description).
@@ -797,14 +802,12 @@ Method Ran(ref As %String) As %Integer
 	Quit +result.%GetData(1)
 }
 
-/// Asserts that the coverage of the session from from to to reads each of the sources S0 to S4 passed exactly when its wait (60 seconds x i) is within the allowance that count sources that are
-/// not stopped give with the others of the install (Slack), and not_checked otherwise.
-Method AssertQueued(session As %String, from As %String, to As %String, count As %Integer, others As %Integer, text As %String)
+/// Asserts that the coverage of the session from from to to reads the sources S0, S1 and S2 as the comma-separated results of expected.
+Method AssertResults(session As %String, from As %String, to As %String, expected As %String, text As %String)
 {
 	Do ..ResultsOf(session, from, to, .results)
-	Set slack = ..Slack(count + others)
-	For i = 0:1:4 {
-		Do $$$AssertEquals($Get(results("S" _ i)), $Select((60 * i) <= slack: "passed", 1: "not_checked"), "(" _ text _ ") the source that waited " _ (60 * i) _ " seconds beyond its interval reads " _ $Select((60 * i) <= slack: "passed", 1: "not_checked") _ " with " _ slack _ " seconds allowed")
+	For i = 0:1:2 {
+		Do $$$AssertEquals($Get(results("S" _ i)), $Piece(expected, ",", i + 1), "(" _ text _ ") the source that waited " _ (120 * i) _ " seconds beyond its interval reads " _ $Piece(expected, ",", i + 1))
 	}
 }
 
@@ -817,13 +820,6 @@ Method ResultsOf(session As %String, from As %String, to As %String, Output resu
 	While iterator.%GetNext(, .row) {
 		Set results(row.entry) = row.result
 	}
-}
-
-/// The seconds beyond the interval that the sources not stopped may wait: max(180, 60 x sources), the Planner's allowance of DW-1346 with its own numbers, so that a change of Coverage's constants shows.
-ClassMethod Slack(sources As %Integer) As %Integer
-{
-	Set slack = sources * 60
-	Quit $Select(slack > 180: slack, 1: 180)
 }
 
 /// The sources of the install of the real Kind that are not this test's and not stopped: the ones that Coverage counts besides the fixtures (none on a fresh stack).

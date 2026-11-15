@@ -8156,6 +8156,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T19:28:17Z status=decision-pending owner=burndown by=cr note=Planner: option (b) poll runner or (c) TriageAgent PoolSize 2, or send the next due source from OnResponse
 - 2026-11-14T23:40:11Z occurrence=22-11-run-source-polls-through-the-governed-proxy
 - 2026-11-14T23:40:11Z status=decision-pending owner=burndown by=cr note=ruled ~20:40Z: cap stays, max(180,60xN) coded; residual: timer-length polls cost poll+Tick each (3rd ~240s); rec 120s/source
+- 2026-11-15T00:19:03Z status=resolved-by:22-11-run-source-polls-through-the-governed-proxy by=lead note=Planner_~23:00Z_option_1:QUEUESECONDS=120;3_slow_sources_test;mutation_60_red
 
 ### DW-1347: Source polls: a poll answer is cut at the tool-result room, so the hash and the Item hold cut text plus the cut note, and a change past the cut that keeps the length is missed
 - source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
