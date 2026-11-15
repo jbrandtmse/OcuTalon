@@ -8279,3 +8279,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: medium | fix-risk: med | footprint: in-story
 - evidence: web/src/app/approvals/approval-view.ts settingResultView takes after = change?.newValue for undo_rollback; IncidentRequest (web/src/app/live/payloads.ts) carries no dry-run after, while IncidentManager.ResultExtra uses the dry run's after for the chat notice
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
+
+### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Test/Watch/Case.cls OcuTalonRoles+PutRolesBack vs Test/Mcp/Ops.cls OcuTalonRoles+Restore (Private, %UnitTest.TestCase); unifying moves both into a shared test tool and edits another epic's test class
+- 2026-11-15T13:11:39Z status=wontfix-accepted owner=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol by=cr note=reopen_if=a third role snapshot+restore helper is added, or a Roles-step change makes Ops' resources-only restore leave a role changed
