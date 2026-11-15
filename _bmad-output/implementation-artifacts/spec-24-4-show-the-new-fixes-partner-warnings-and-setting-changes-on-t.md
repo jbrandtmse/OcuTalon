@@ -2,7 +2,8 @@
 title: 'Story 24.4: Show the new fixes, partner warnings and setting changes on the cards'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'blocked'
+baseline_revision: '243e45ba76ad628c995c3cb903aa5df8fe363e30'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -381,7 +382,9 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: the Planner's V1 CONDITION (Old value and New value go through the SAME redactor as the rollback dry run's Before and After; pin: a non-credential setting with a secret-shaped value shows REDACTED) names a redactor that does not exist. The rollback and undo dry run is `settingDryRunView` in `web/src/app/approvals/approval-view.ts`, which interpolates `dry.before` and `dry.after` unredacted through `APPROVAL_TEXTS.settingRow`. Server side, `Live/Payload/Approval.cls` `FromRow` and `Incident.cls` `Change` copy the values raw. No code under `web/src` redacts, and the only value redactor in the repo, `OcuTalon.Bridge.Redact.Text`, is not on either path. The only protection today is `Watch.Reader.CredentialName`, which blanks a secret by setting name (the `credential` flag). The pin cannot go green, and writing a page-side redactor would be a second redactor with an invented pattern list (against the ruling and AD-12). Owner or Planner decision needed (security posture, a veto item), one of: (1) the new rows follow the rollback card exactly (left out for a credential or an empty value, otherwise shown as is) and the REDACTED pin and mutation are dropped; (2) Lane A redacts on the server (`Incident.Change` and `Approval.FromRow` run the values through `OcuTalon.Bridge.Redact.Text`), a Lane A edit and a cross-lane footprint extension, which gives rollback, undo and the panel one redactor; (3) a new page-side redactor, with its pattern list ruled. No file was edited by the implement stage; the only change is this spec.
 
-Planned on `OCT-epic24` at 14f8c6c04 (the full sha is in `git rev-parse HEAD`). `epic-24-context.md` was recompiled first, as the pre-warm directs; it is the one other file this stage wrote. There are no tests and no stack. The gate needs: V1 (text), V2 (the compact undo card) and V3 (footprint).
+Design note for the re-dispatch: a compact card's `requests` computed must not read `view().compact` when `drawn` feeds the view's `results` (circular). Compute compactness from the payload (`stateOf(incident().state)?.chip === 'closed'`) before building the context.
+
+B13 (DW-1388): not run; no test was run.
