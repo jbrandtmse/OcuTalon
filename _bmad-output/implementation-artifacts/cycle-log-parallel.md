@@ -4376,3 +4376,4 @@
 2026-11-15T19:26:51Z	Epic 24	merge_enqueued	story=24.2 (1.0.12)
 2026-11-15T19:30:03Z	Epic 24	merged	story=24.2 merge=4dc771402 epics_md_hash=re-recorded 24.5_wait=23.8
 2026-11-15T19:30:14Z	Run	planner_notified	24.2_merged DW-1392(AD-19_ruling_needed),DW-1395,DW-1393/1394->23.13 laneD_next=24.4_proposed
+2026-11-15T19:30:43Z	Run	owner_decision	via=contest_planner DW-1392=burndown_story_MED(row_then_audit_in_txn;AD-19_amend;laneA_after_25.8) DW-1395=accepted(AD-13_clarification_via_DW-1392_story) DW-1393/1394->23.13 laneD=24.4_next,then_24.3_after_23.4 file=prompts/dw-1392-rulings-20261115.md

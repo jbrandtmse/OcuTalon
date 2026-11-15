@@ -8429,6 +8429,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Bridge.Audit.Record writes through $SYSTEM.Security.Audit, and %SYS.Audit suspends transactions for the record ($zu(139,2), irissys/%SYS/Audit.cls:1585), so TROLLBACK in SettingsOps.WritePartner (24.2) and SaveProduct (33.2, 36.4) keeps the entry. AD-19 L759 says the entry and the row are one transaction with a rollback; TestRowWriteFailureRollsBack proves it for the probe's global only.
 - 2026-11-15T17:44:12Z status=escalated owner=burndown by=cr note=AD-19 call: write row first and audit last in the transaction (audit failure rolls row back), or a compensating entry
+- 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ruling ~20:00Z: burndown story MED, row first then audit inside one transaction, TROLLBACK on audit failure; covers 24.2 contact save, SaveProduct and every audited Settings save; AD-19 amendment verbatim in prompts/dw-1392-rulings-20261115.md; owner lane A after 25.8 or first free lane; 1.0.12 if ready
 
 ### DW-1393: Partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -8444,6 +8445,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: AD-13 L484 sends 'a read beyond the caller's own rows' through a read verb to the owning Ops class; 24.2 (Decided in-stage 8, gated) reads all contacts via the owning class's List() in the web process, as SettingsOps.Values already reads Data.Setting rows (Stored, KeyIndexOpen).
 - 2026-11-15T17:44:12Z status=decision-pending owner=burndown by=cr note=AD-13 call: amend for config tables listed via their owning class, or a ListPartnerContacts verb through SecretHandoff
+- 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ACCEPTED with an AD-13 clarification (verbatim in prompts/dw-1392-rulings-20261115.md), written into the spine by the DW-1392 story
 ### DW-1388: flake: web/e2e/settings/mcp.spec.ts:479 B13 (21.5 source form) times out after 60 s at line 600 waiting for the button 'Remove the source Existing' in the 'Your sources' region: a list reload before the row renders, or a selector race
 - source: orchestrator; Contest Planner ruling ~18:10Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: main ci 43737922579 shards-4 on ocutalon-ci-55 (1.0.11 main push run); feature ci 43733825684 on ocutalon-ci-16; passed on a1b4f2e2c and PR #16
