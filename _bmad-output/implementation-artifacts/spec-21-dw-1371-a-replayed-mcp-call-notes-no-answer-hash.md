@@ -2,8 +2,8 @@
 title: 'DW-1371: A replayed MCP call notes no answer hash'
 type: 'chore'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: '82e7ca18ffc447c1e76dd298c3ef70266b8b48ca'
+status: 'done'
+baseline_revision: '1777dbad570db9eefe5ea1e300f9797a743fcef7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -96,6 +96,23 @@ The fixture server is `zzmcp` and the tool is `zz_delete_ticket` (risky, approve
 
 ## Review Triage Log
 
+### 2026-11-15 - Review pass
+- verdicts: 11 findings - high 0, medium 0, low 7, false 4, maybe-false 0
+- findings:
+  - `[low]` `patch` blind-hunter: the header bullet says the replay's HostData "leaves no trace outside its context, so this is the only place that can see it", which reads against the new Reply assertion - patched: the bullet now says the Reply carries no HostData (TestReplayResultIsCut) and the proxy's note in the replay's own context is seen only here; re-ran Test.Mcp.Approval green.
+  - `[false]` `reject` blind-hunter: the test hand-builds the replay context instead of running Replay.Execute - the spec's approach (Execute ends the context before the Reply, so nothing outside can observe it); Design Notes record why.
+  - `[false]` `reject` blind-hunter: the second Proxy.Call runs after the grant was taken - TakeGrant sets the APPROVED node, which stays for the context; M1 turned the short-answer assertions red, which shows it was still held.
+  - `[low]` `reject` blind-hunter / edge-case-hunter: Context.Begin gets no superSession or runner argument - Proxy and Noted read neither (grep of Mcp/Proxy.cls), theoretical.
+  - `[low]` `reject` blind-hunter: no mutation of the poll control (M4) - the spec asks one mutation per AC and the control is observed live in Task 0 item 2 (hash equals the oracle); more would add scope (Rule 14).
+  - `[low]` `reject` blind-hunter: Task 0 item 1 record is confusing (probe used zz_lookup) - the fix edits the spec's records only; the replay-shaped zz_delete_ticket call is evidenced by the real test passing.
+  - `[low]` `reject` blind-hunter: other calls (model turn, non-text answer) have no test - the intent's gap is the replay; the chat call is pinned by TestProxyCut.
+  - `[low]` `reject` blind-hunter: OnAfterOneTest ends the context for every test - spec-mandated (Boundaries), same as Attach.cls L155.
+  - `[false]` `reject` edge-case-hunter: the APPROVED node is not re-checked before the short call - same evidence as the grant row (M1 red on the short assertions).
+  - `[low]` `reject` edge-case-hunter: the poll control skips the poll map - Proxy.Call needs none (the control passed live and matches the oracle); theoretical.
+  - `[false]` `reject` edge-case-hunter (claim): the Reply assertion alone does not pin the guard - correct and stated in the spec (it guards M3's carry only).
+  - verification-gap: no gaps; its other notes (AC3 has no mutation, as it adds no behavior; stale Auto Run Result) need no action (the latter is rewritten at finalize).
+  - intent-alignment: descriptive only; it reports reading A implemented (in-process context, spec's approach), no finding.
+
 ## Design Notes
 
 **Why an in-process context and not the runner's replay.** The proxy decides "replay" only from `Context.ApprovedFingerprint(tool)`, and "poll" only from `Context.IsPoll()`. `Begin` + `Grant` + `TakeGrant` set exactly the nodes that `Replay.Execute` and the gate set in the runner job. Calling `Proxy.Call` directly skips the gate, `McpCall` and the proxy manager, none of which reads or writes `answerHash`. This is the only place where the replay's HostData can be observed without a product seam, because `Replay.Execute` ends the context before it builds the Reply. A seam (a probe that records the context at `End`, or a Reply that carries HostData) would be a product change. It is not needed, so there is none.
@@ -133,12 +150,26 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 
 **Mutations:** M1, M2 and M3 as under Acceptance Criteria. Record each as `mutation: <change> -> <test that went red> ("<assertion message>")`. Revert it byte for byte, check that `git status --short` and `git diff --stat` are as before, and see the method green again on the same stack.
 
-**Task 0 records:** (to be written by the implement stage)
+**Task 0 records (lane C warm throwaway e21dw1371iw, HEAD 1777dbad5):**
+1. In-process call works from this class. After `Prepare()`, a scratch probe method (removed before the real test) called `Mcp.Proxy.Call(zzmcp, ...)` directly: it answered `{"text":"T-15 deleted","outcome":"ok"}`, and the mock logged initialize, notifications/initialized, tools/list and one tools/call, each with auth `matched` and client `iris`. (The probe's direct call used `zz_lookup`, a plain non-replay call; the replay-shaped call of `zz_delete_ticket` with the grant taken is exercised by the real test, whose type/length/outcome assertions pass and whose mock counts 2 for it.) Decision: the probe used `zz_lookup` because a non-replay call needs the classification row, which the fixture holds for both tools; no product or fixture change was needed.
+2. The poll control passes the row check. `Mcp.Attach Toolref(zzmcp)` = `mcp:remote:@{config:AI.MCP.OcuTalon_zzmcp}`, equal to the spec string `JobFixture.Setup` fingerprints its rows with. The probe's poll-context call (Kind tool, Provenance untrusted, no grant, mock `long` 100000, `zz_lookup`) answered type string, outcome `cut`, no refusal, length 100000, and HostData `answerHash` = d69e6898...e5d4, equal to `SourceRun Hash` of 100,000 "x".
+3. The gap, observed. With M1 applied on the unmodified test class, `OcuTalon.Test.Mcp.Approval:TestReplayResultIsCut` passed and `OcuTalon.Test.Mcp.Attach:TestProxyCut` passed. M1 was then reverted byte for byte (cmp against the backup).
+
+**Mutations (each reverted byte for byte, cmp equal, then the method green again on the same stack):**
+- mutation: M1, `Noted` hash guard widened to `((approved '= "") || IsPoll())` -> `TestReplayNotesNoAnswerHash` red ("a replay's long text answer notes no answerHash", "and the replay's HostData stays empty", "a replay's short answer notes none either", "and the replay's HostData is still empty"). `TestReplayResultIsCut` and `TestProxyCut` stayed green under M1 (Task 0 item 3).
+- mutation: M2, `Context.IsPoll` reads the Kind only -> `TestReplayNotesNoAnswerHash` red (the same four HostData assertions; "a replay's long text answer notes no answerHash", "a replay's short answer notes none either"). No precondition went red.
+- mutation: M3, M1 plus `Replay.Execute` carrying the context's HostData to the Reply -> `TestReplayResultIsCut` red ("the replay's Reply holds no HostData, so no answerHash").
+
+**Results of the final tree (warm lane C, one run per call):** `TestReplayNotesNoAnswerHash` passed; `OcuTalon.Test.Mcp.Approval` (whole class) passed (69 s); `OcuTalon.Test.Mcp.Attach:TestProxyCut` passed; `OcuTalon.Test.Mcp.SourceRun` passed; `bash docker/tests/test-class-rules.sh` exit 0; `bash docker/tests/test-boundaries.sh` exit 0.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none. No Veto item.
 
-- Summary: the plan only; nothing is implemented.
-- Size: small. One test file: one new method of about 45 lines, one assertion in `TestReplayResultIsCut`, one line in `OnAfterOneTest` and two header bullets. No product change and no oversized warning.
+- Summary: `TestReplayNotesNoAnswerHash` builds the replay's context in the test process (Begin, Grant, TakeGrant), calls `Mcp.Proxy.Call` with a long and a short text answer, and asserts that no `answerHash` is noted and the HostData stays empty, with a poll-context control that holds the hash. `TestReplayResultIsCut` also asserts that the Reply holds no HostData. `OnAfterOneTest` ends a left-over context. Tests only; no product change.
+- Files changed: `src/ocutalon/cls/OcuTalon/Test/Mcp/Approval.cls` (the new test, a private `BeginTool` helper that both contexts use, the Reply assertion, the `OnAfterOneTest` line, two header bullets) and this spec.
+- Review: 11 findings, 1 low patched (header wording), 10 rejected with reasons in the triage log, 0 deferred. Patched by verdict: high 0, medium 0, low 1.
+- Follow-up review recommendation: `false` (no high patched).
+- Verification: Task 0 items 1-3 and the mutation lines M1, M2, M3 are under `## Verification`. After the last patch: `OcuTalon.Test.Mcp.Approval` passed (66 s), earlier on the same tree `TestReplayNotesNoAnswerHash`, `Attach:TestProxyCut` and `Test.Mcp.SourceRun` passed; `test-class-rules.sh` and `test-boundaries.sh` exit 0. The warm stack `e21dw1371iw` is down.
+- Residual risks: the test rebuilds the replay's context by hand, so a change to how `Replay.Execute` builds it is not seen (the spec's stated trade-off). Task 0 item 1 probed `zz_lookup`, not `zz_delete_ticket`; the replay-shaped call is covered by the real test.
