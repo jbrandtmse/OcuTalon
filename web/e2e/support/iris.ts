@@ -921,6 +921,8 @@ export interface CheckFields {
   nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
   lastRunHeaderId?: number;
+  /** A source check's minutes between two polls (Story 21.5); the rail reads it as "Polled every {duration}". */
+  intervalMinutes?: number;
 }
 
 /** Writes a background check of the user's own session through Test.Data.Fixture.Check. Returns its Ref; cleanFixtureRows removes it. */
@@ -933,6 +935,7 @@ export async function seedCheck(user: string, fields: CheckFields = {}): Promise
     Finding: fields.finding,
     NextDueAt: fields.nextDueAt,
     LastRunHeaderId: fields.lastRunHeaderId === undefined ? undefined : numeric(fields.lastRunHeaderId, 'lastRunHeaderId'),
+    IntervalMinutes: fields.intervalMinutes === undefined ? undefined : numeric(fields.intervalMinutes, 'intervalMinutes'),
   });
   const lines = await irisScript(
     [
@@ -964,6 +967,7 @@ export async function publishCheck(user: string, fields: CheckFields & { ref: st
       ...set('LastRunAt', fields.lastRunAt),
       ...set('Result', fields.result),
       ...set('Finding', fields.finding),
+      ...(fields.intervalMinutes === undefined ? [] : [`Set p.IntervalMinutes=${numeric(fields.intervalMinutes, 'intervalMinutes')}`]),
       ...(fields.lastRunHeaderId === undefined ? [] : [`Set p.TraceHeaderId=${numeric(fields.lastRunHeaderId, 'lastRunHeaderId')}`, `Set p.TraceNamespace=${quoted(fields.namespace ?? 'ZZNS')}`]),
       'Set sc=##class(OcuTalon.Live.Publish).Publish(s.Ref,"check",p,.q)',
       'Write !,"CHK|seq|",q',

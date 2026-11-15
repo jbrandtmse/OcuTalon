@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, heartbeatReadKey, pendingApprovals, personaReadKey, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
+const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, heartbeatReadKey, intervalText, pendingApprovals, personaReadKey, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
@@ -122,6 +122,11 @@ describe('the fixed strings', () => {
         checkTitle: '{name} production',
         checkSchedule: 'Live, plus a check every minute',
         checkScheduleQueues: 'A check every minute',
+        checkScheduleSource: 'Polled every {duration}',
+        durationMinutes: '{n} minutes',
+        durationHour: '1 hour',
+        durationHours: '{h} hours',
+        durationDay: '1 day',
         lastRun: 'Last run {when}',
         lastRunLate: 'Last run {when} (late)',
         titleWithCountdown: '{text}{separator}{countdown}',
@@ -413,6 +418,36 @@ describe('background checks', () => {
     assert.deepEqual(row.meta, ['Last run 14:13', '1 queue over its threshold']);
     assert.equal(row.traceUrl, '/trace/q1');
     assert.equal(row.kind, 'check');
+  });
+
+  it('hides the stop hint when every check is an MCP source, which only an admin stops in Settings, and keeps it beside a check the chat can stop (DW-1351)', () => {
+    const hint = (checks) => section(viewOf({ checks }), 'checks').hint;
+    assert.equal(hint([check('s1', { kind: 'source', displayName: 'Jira', intervalMinutes: 15 })]), '', 'sources only: no hint');
+    assert.equal(hint([check('s1', { kind: 'source', displayName: 'Jira', intervalMinutes: 15 }), check('p1')]), 'To stop, ask: "Stop watching Orders."', 'a production check too: the hint');
+    assert.equal(hint([check('p1')]), 'To stop, ask: "Stop watching Orders."', 'a production check alone: the hint');
+  });
+
+  it('reads a source check "Polled every {duration}" from its interval, in the words of the interval choices, and has no detail line without one (Story 21.5)', () => {
+    const detail = (over) => section(viewOf({ checks: [check('s1', { kind: 'source', displayName: 'Jira', ...over })] }), 'checks').rows[0];
+    assert.equal(detail({ intervalMinutes: 15 }).detail, 'Polled every 15 minutes');
+    assert.equal(detail({ intervalMinutes: 360 }).detail, 'Polled every 6 hours');
+    assert.equal(detail({ intervalMinutes: 1440 }).detail, 'Polled every 1 day');
+    assert.equal(detail({ intervalMinutes: 60 }).detail, 'Polled every 1 hour');
+    assert.equal(detail({ intervalMinutes: undefined }).detail, undefined);
+    assert.equal(detail({ intervalMinutes: '15' }).detail, undefined, 'only a number counts');
+    assert.equal(detail({ intervalMinutes: 15 }).title, 'Jira', 'the source is named by its display name alone');
+    assert.equal(section(viewOf({ checks: [check('o1', { kind: 'other', intervalMinutes: 15 })] }), 'checks').rows[0].detail, undefined, 'and no other kind shows it');
+  });
+
+  it('gives intervalText the words of the six choices, "{h} hours" for another whole number of hours, and "{n} minutes" otherwise (Story 21.5)', () => {
+    assert.deepEqual([5, 15, 30, 60, 360, 1440].map(intervalText), ['5 minutes', '15 minutes', '30 minutes', '1 hour', '6 hours', '1 day']);
+    assert.equal(intervalText(120), '2 hours');
+    assert.equal(intervalText(45), '45 minutes');
+    assert.equal(intervalText(90), '90 minutes');
+    assert.equal(intervalText(2880), '48 hours', 'two days is still {h} hours: only 1440 is "1 day"');
+    assert.equal(intervalText(61), '61 minutes');
+    assert.equal(intervalText(0), '0 minutes', 'zero is not a whole number of hours');
+    assert.equal(intervalText(-60), '-60 minutes', 'nor is a negative one');
   });
 
   it('shows the last run and the finding: "Last run 14:13 \u00B7 50 new failures"', () => {

@@ -3,20 +3,24 @@ import { expect, test, type APIRequestContext } from '../support/fixtures';
 import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
 import { pointKeys, restoreKeys } from '../support/devices';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
-import { dropReadmeTurns, leftovers, sessionMark } from '../support/mcp';
+import { dropMcpServer, dropReadmeTurns, leftovers, seedForeignSource, seedMcpServer, sessionMark, sourceRowExists } from '../support/mcp';
 import { runnersRecorded } from '../support/runners';
 
 /**
  * Story 21.4, the MCP settings routes over real HTTP, on the stack that test-sign-in.sh seeds. The README account holds OcuTalonAdmin; the LIVE fixture user
  * holds OcuTalonUser only. Every case makes its own `zz` servers and removes them (rows, entry, wallet key and collection) in `finally`. The mock MCP server is the
  * IRIS-side OcuTalon.Test.Mcp.Mock on a loopback port; no real server and no real credential is used.
- *   M1  the LIVE user gets 403 not_admin on all four routes and the README admin gets 200 on the list;
+ *   M1  the LIVE user gets 403 not_admin on all six routes and the README admin gets 200 on the list;
  *   M2  the admin adds a server at the mock with a random secret (200, MESSAGEADDED, no secret in the answer); one chat message lets a runner build; the list then
  *       holds the mock's two tools, unclassified, and the mock's log says that every request of AI Hub's client matched the credential;
  *   M3  classify answers 200 "Saved", the list shows it, and a word that is not a classification is 400 bad_classification;
  *   M4  remove answers 200; the list holds the server no more, and its row, tools, entry, key and collection are gone; an unknown name is 404;
  *   M5  each refused add is 400 bad_mcp_server with its field text, and nothing is made: no row, entry, key or collection;
  *   M6  after M2 to M4, no event log row, message body or audit entry holds the secret (35.3's W9 scan), and neither does any answer.
+ *   M7  (Story 21.5) the admin saves a source of a Read-only tool through the real McpOps (200 saved with a Ref), the list shows it with no arguments, a fixture source of
+ *       another session is not listed and its DELETE is 404 with the row kept, and the admin's own DELETE is 200 and takes it off the list;
+ *   M8  a risky tool is 400 bad_source {tool} with McpOps' text, arguments that are not a JSON object are 400 {arguments}, an @{ is 400 with the expansion text, and each
+ *       time the list holds no new source.
  * M2 posts one chat message as the README admin, so its `finally` also removes that turn, its decisions and its AI session (dropReadmeTurns), as chat.spec C1 and
  * frame.spec F1 expect the account to hold none.
  * The texts are written out here as the oracle.
@@ -37,6 +41,7 @@ const NOT_SAVED = "Couldn't save. Nothing was changed.";
 interface Listed {
   servers: Array<{ name: string; address: string; status: string; tools: number; unclassified: number; pending: number }>;
   tools: Array<{ server: string; name: string; classification: string; status: string }>;
+  sources: Array<{ ref: string; name: string; server: string; tool: string; intervalMinutes: number }>;
 }
 
 /** A unique tag for the case's names and secrets (letters and digits only: a server name has no hyphen). */
@@ -90,13 +95,13 @@ async function mockRequests(port: number): Promise<{ total: number; matched: num
   return { total: Number(chk(out, 'total') ?? '-1'), matched: Number(chk(out, 'matched') ?? '-1') };
 }
 
-test('M1: the LIVE user is 403 on all four routes, and the README admin lists', async ({ request, playwright, baseURL }) => {
+test('M1: the LIVE user is 403 on all six routes, and the README admin lists', async ({ request, playwright, baseURL }) => {
   test.setTimeout(120_000);
   const live = await playwright.request.newContext({ baseURL });
   try {
     await admin(request);
     const body = await list(request);
-    expect(Object.keys(body).sort(), 'the list has servers and tools').toEqual(['servers', 'tools']);
+    expect(Object.keys(body).sort(), 'the list has servers, sources and tools').toEqual(['servers', 'sources', 'tools']);
 
     const user = fixtureUser('LIVE');
     await signInOverHttp(live, user.user, user.password);
@@ -106,6 +111,8 @@ test('M1: the LIVE user is 403 on all four routes, and the README admin lists', 
       await live.post(`${MCP}/servers`, { headers: envelope(), data: { name: 'zzlive', address: 'https://127.0.0.1:1/mcp' } }),
       await live.delete(`${MCP}/servers/zzlive`, { headers: envelope(), data: {} }),
       await live.post(`${MCP}/classify`, { headers: envelope(), data: { server: 'zzlive', tool: 'x', classification: 'risky' } }),
+      await live.post(`${MCP}/sources`, { headers: envelope(), data: { server: 'zzlive', tool: 'x', name: 'Jira', arguments: '', intervalMinutes: 15 } }),
+      await live.delete(`${MCP}/sources/zzref`, { headers: envelope(), data: {} }),
     ];
     for (const response of calls) {
       expect(response.status(), `${response.url()} is 403 for the LIVE user`).toBe(403);
@@ -181,7 +188,7 @@ test('M2 to M4 and M6: an added server reaches a runner with its secret, is clas
     const after = await list(request);
     expect(after.servers.map((one) => one.name), 'the list holds the server no more').not.toContain(name);
     expect(after.tools.filter((tool) => tool.server === name), 'nor its tools').toEqual([]);
-    expect(await leftovers(name), 'its row, tools, entry, key and collection are gone').toEqual({ row: 0, tools: 0, entry: 0, key: 0, collection: 0 });
+    expect(await leftovers(name), 'its row, tools, entry, key and collection are gone').toMatchObject({ row: 0, tools: 0, entry: 0, key: 0, collection: 0 });
     const again = await request.delete(`${MCP}/servers/${name}`, { headers: envelope(), data: {} });
     expect(again.status(), 'an unknown name').toBe(404);
 
@@ -259,7 +266,7 @@ test('M5: each refused add is 400 bad_mcp_server with its field text, and nothin
       }
     }
     for (const name of names.slice(0, 9)) {
-      expect(await leftovers(name), `nothing was made for ${name}`).toEqual({ row: 0, tools: 0, entry: 0, key: 0, collection: 0 });
+      expect(await leftovers(name), `nothing was made for ${name}`).toMatchObject({ row: 0, tools: 0, entry: 0, key: 0, collection: 0 });
     }
     expect(await list(request), 'and the list is as it was').toEqual(before);
 
@@ -281,5 +288,75 @@ test('M5: each refused add is 400 bad_mcp_server with its field text, and nothin
   } finally {
     await cleanup(request, names[9]);
     await cleanup(request, names[9].toUpperCase());
+  }
+});
+
+const SAVED = 'Saved';
+const SOURCE_REMOVED = 'The source was removed.';
+const NOT_READ_ONLY = 'Only a Read-only tool can be a source. Nothing was changed.';
+const BAD_ARGUMENTS = 'Enter the arguments as a JSON object. Nothing was changed.';
+
+/** A source body. */
+const sourceBody = (server: string, tool: string, over: Record<string, unknown> = {}): Record<string, unknown> => ({ server, tool, name: 'Jira', arguments: '{"q":"mine"}', intervalMinutes: 15, ...over });
+
+test('M7: a source is saved through the real McpOps, listed without its arguments, and removed; another session\'s source is neither listed nor removable', async ({ request }) => {
+  test.setTimeout(180_000);
+  const server = `zz${tag()}`;
+  try {
+    await admin(request);
+    await seedMcpServer(server, [{ name: 'zz_lookup', classification: 'read-only' }, { name: 'zz_delete', classification: 'risky' }]);
+    const foreign = await seedForeignSource(server, 'zz_lookup', 'Foreign');
+
+    const saved = await request.post(`${MCP}/sources`, { headers: envelope(), data: sourceBody(server, 'zz_lookup') });
+    expect(saved.status(), await saved.text()).toBe(200);
+    const answer = (await saved.json()) as { result: string; message: string; ref: string };
+    expect([answer.result, answer.message]).toEqual(['saved', SAVED]);
+    expect(answer.ref, 'the answer names the Ref').not.toBe('');
+
+    const listed = await list(request);
+    const mine = listed.sources.filter((source) => source.server === server);
+    expect(mine, 'GET lists the source, with no arguments and not the other session\'s').toEqual([{ ref: answer.ref, name: 'Jira', server, tool: 'zz_lookup', intervalMinutes: 15 }]);
+
+    const again = await request.post(`${MCP}/sources`, { headers: envelope(), data: sourceBody(server, 'zz_lookup', { arguments: '', intervalMinutes: 60 }) });
+    expect(again.status()).toBe(200);
+    expect(((await again.json()) as { ref: string }).ref, 'the same name updates the same source').toBe(answer.ref);
+    expect((await list(request)).sources.find((source) => source.ref === answer.ref)?.intervalMinutes).toBe(60);
+
+    const notMine = await request.delete(`${MCP}/sources/${foreign}`, { headers: envelope(), data: {} });
+    expect(notMine.status(), "another session's source is 404").toBe(404);
+    expect(await notMine.json()).toEqual({ error: { code: 'not_found', message: 'OcuTalon has nothing at this address.' } });
+    expect(await sourceRowExists(foreign), 'and its row stays').toBe(true);
+
+    const removed = await request.delete(`${MCP}/sources/${answer.ref}`, { headers: envelope(), data: {} });
+    expect(removed.status(), await removed.text()).toBe(200);
+    expect(await removed.json()).toEqual({ result: 'removed', message: SOURCE_REMOVED });
+    expect((await list(request)).sources.filter((source) => source.server === server), 'the list has no source of the server').toEqual([]);
+    expect(await sourceRowExists(foreign), "the other session's row is still there").toBe(true);
+    expect((await leftovers(server)).sources, "the Remove left only the other session's source row").toBe(1);
+  } finally {
+    await dropMcpServer(server);
+  }
+});
+
+test('M8: a risky tool, arguments that are not a JSON object and an @{ are refused with their field texts, and no source is made', async ({ request }) => {
+  test.setTimeout(180_000);
+  const server = `zz${tag()}`;
+  try {
+    await admin(request);
+    await seedMcpServer(server, [{ name: 'zz_lookup', classification: 'read-only' }, { name: 'zz_delete', classification: 'risky' }]);
+    const refused = async (data: Record<string, unknown>, fields: Record<string, string>): Promise<void> => {
+      const response = await request.post(`${MCP}/sources`, { headers: envelope(), data });
+      expect(response.status(), JSON.stringify(data)).toBe(400);
+      expect(await response.json()).toEqual({ error: { code: 'bad_source', message: NOT_SAVED }, fields });
+      expect((await list(request)).sources.filter((source) => source.server === server), 'no source was made').toEqual([]);
+    };
+    await refused(sourceBody(server, 'zz_delete'), { tool: NOT_READ_ONLY });
+    await refused(sourceBody(server, 'zz_lookup', { arguments: 'x' }), { arguments: BAD_ARGUMENTS });
+    await refused(sourceBody(server, 'zz_lookup', { arguments: '[1]' }), { arguments: BAD_ARGUMENTS });
+    await refused(sourceBody(server, 'zz_lookup', { name: 'a@{b' }), { name: EXPANSION });
+    await refused(sourceBody(server, 'zz_lookup', { arguments: '{"q":"@{x}"}' }), { arguments: EXPANSION });
+    expect((await leftovers(server)).sources, 'no source row was made').toBe(0);
+  } finally {
+    await dropMcpServer(server);
   }
 });

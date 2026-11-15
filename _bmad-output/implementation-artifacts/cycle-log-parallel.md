@@ -4227,3 +4227,72 @@
 2026-11-15T03:50:27Z	Epic 26	ci_green_verified	head=294565a3 runs=43632972453(att2;att1=DW-306),43632972411 base=eabc5a8d(stale:feature_CI_on_merged_tree_required)
 2026-11-15T03:50:27Z	Epic 26	amendments_verified	26.2_waits=25.3,25.4,25.5(all_merged) epic-19=done
 2026-11-15T03:50:27Z	Epic 26	merge_enqueued	story=26.2 head=294565a3 into=feature@3ec00a58+records
+2026-11-15T03:56:04Z	Epic 26	merged	story=26.2 merge=6730eda7e conflicts=Test/Msg/Catalog.cls(Watch121+Core155),tracker pins=pass(readme,boundaries,class-rules,release-notes,bridge-guide,storage,ci-config,web,lint,mock) feature_ci=pending
+2026-11-15T03:56:23Z	Epic 25	runner_resumed	lane=A task=25.6(READSFILES=1,texts_1-3,DW-1313,AD-21_sentence) base=feature_6730eda7e
+2026-11-15T04:04:11Z	Run	planner_notified	lane_status: A=25.6 B=idle(no_epic_assigned;not_parked)->dispatching_23 C=21.9_local D=22.14_CI(22.11_parked_by_design_until_21.5) feature=6730eda7e
+2026-11-15T04:04:11Z	Epic 23	dispatched	lane=B slot=ocutalon-slot-b port=52802 scope=[23.3(plan_to_Planner_first),23.4,23.8] base=6730eda7e(ff) prompt=prompts/dispatch-epic-23-lane-b-20261115.md runner=a5ebc5996d74bf717
+2026-11-15T04:18:50Z	Epic 25	runner_ended	reason=clarification story=25.6 gate=PLANNER_REPORT+PUBLIC_TEXT(P1_two_texts,P2_GUIDE_ext,P3_Turn_FileRead+Caption,P4_documents_fileRef,P5_Telegram_parity) head=33d2a32a(local,OCT-epic25-s256) relayed=contest_planner
+2026-11-15T04:19:40Z	Epic 25	owner_decision	via=contest_planner 25.6_gate: P1=approved(2_texts_pinned) P2=approved_in_25.6(GUIDE_text3_extended;fallback_verbatim+follow-up) P3=approved(TestNoExtractedText) P4=approved(a:foreign=missing_same_answer,b:same_limits_type_from_bytes,c:no_bytes_in_response/log/trace) P5=accepted merge=after_22.15 file=prompts/story-256-rulings-20261115.md
+2026-11-15T04:19:40Z	Epic 25	runner_resumed	lane=A task=25.6_implement..PART_READY
+2026-11-15T04:35:27Z	Epic 23	runner_ended	reason=clarification story=23.3 gate=PLANNER_REPORT+PUBLIC_TEXT(vetoes_1-6,AD-15/16/24/32/22_amendments,deviations_1-6,lane_D_Watch_hooks,AD-33_exception) head=28e3a39b3(local) relayed=contest_planner
+2026-11-15T04:36:31Z	Epic 23	owner_decision	via=contest_planner 23.3=APPROVED(vetoes_1-7,AD-15/16/24/32/22,deviations,all_public_text) conditions=Task0_hard_gate,untrusted_turn_deny,no_other_role_ProductionConfig_pin,injection_eval_case,undo_latest_only+one_undo,SysDefault_undo_removes_item_entry(byte-identical_pin),union_with_laneD_Watch+25.6_Catalog,1MB_STOP,shards-8_time release=1.0.11 file=prompts/story-233-rulings-20261115.md
+2026-11-15T04:36:31Z	Epic 23	runner_resumed	lane=B task=23.3_Task0..PART_READY
+2026-11-15T05:26:56Z	Epic 22	runner_reported	PART_READY story=22.14 head=6ba4068d runs=43674059161,43674059261
+2026-11-15T05:26:56Z	Epic 22	ci_green_verified	head=6ba4068d gate=success missing=none
+2026-11-15T05:26:56Z	Epic 22	amendments_verified	test-only(Test.Mcp.SourceSet:TestUpdate) DW-1352=resolved-by_22-14_at_merge
+2026-11-15T05:26:56Z	Epic 22	merge_enqueued	story=22.14 head=6ba4068d into=feature@6730eda7e+records
+2026-11-15T05:29:56Z	Epic 22	merged	story=22.14 merge=d53500886 DW-1352=resolved-by_22-14 pins=pass feature_ci=pending(6730eda7e_still_running)
+2026-11-15T05:30:04Z	Epic 21	ci_green_verified	head=1ecb7150d runs=43651790835(att2),43651790939 gate=success base=a6821f1d
+2026-11-15T05:30:04Z	Epic 21	amendments_verified	DW-1351=hint_hidden_for_sources(in_21.5) bundle=888.96kB(<1MB)
+2026-11-15T05:30:04Z	Epic 21	merge_enqueued	story=21.5 head=1ecb7150d into=feature@d53500886+records
+2026-11-15T05:33:02Z	Epic 21	merged	story=21.5 merge=afd4ff35a pins=pass web=pass lint=pass feature_ci=pending
+2026-11-15T05:33:13Z	Epic 22	runner_resumed	lane=D task=integrate_22.11_over_afd4ff35a+push+PART_READY;then_22.12_spec_gate
+2026-11-15T07:25:07Z	Epic 21	runner_reported	LOCAL_READY story=21.9 head=05a829efb(OCT-epic21-s219,unpushed) base=22.15_0a2d53d2b+feature_afd4ff35a refused_ruling=tested(node,B14,TestListChanged,mutations_red) DW-1356=wontfix-accepted bundle=888.40kB push=after_22.15_merged
+2026-11-15T07:25:07Z	Epic 21	runner_ended	reason=waiting waiting_on=22.15_merge
+2026-11-15T07:25:27Z	Epic 21	runner_resumed	lane=C task=21.11_spec_gate+local_cycle(OCT-epic21-s2111_from_afd4ff35a);21.9_push_on_22.15_merge
+2026-11-15T07:28:43Z	Epic 22	runner_reported	PART_READY story=22.11 head=4764fc56 runs=43682133231,43682133247 task0=silent_median+12.7s->option_a(one_in_flight)->5.7s,0_missed allowance=interval+max(180s,120s*n) PLANNER_REPORT=22.12_texts(P1a,P1b,P2,veto_remove_22.6_guard)
+2026-11-15T07:28:43Z	Epic 22	ci_green_verified	head=4764fc56 base=afd4ff35a
+2026-11-15T07:28:43Z	Epic 22	amendments_verified	DW-1346_option1_applied Task0_option_a(pre-ruled)
+2026-11-15T07:28:43Z	Epic 22	merge_enqueued	story=22.11 head=4764fc56
+2026-11-15T07:31:17Z	Epic 22	merged	story=22.11 merge=2e6366b00 conflicts=none pins=pass
+2026-11-15T07:31:17Z	Epic 22	owner_decision	via=contest_planner 22.12: P1a=approved P1b=approved+fix("The poll itself asks no model; only a new item's attention decision does.",pin;coverage_pinned_to_code_constants) P2=approved(regenerate_overview) veto_remove_22.6_guard=approved GUIDE_T7=lane_B_follow-up epics_1013_pointer=in_22.12 DW-1347=same-commit_rule merge_order=22.15,then_22.12/25.6_as_ready
+2026-11-15T07:31:17Z	Epic 22	ci_green_verified	story=22.15 head=0a2d53d2b runs=43667820676,43667820662
+2026-11-15T07:31:17Z	Epic 22	merge_enqueued	story=22.15 head=0a2d53d2b into=feature@2e6366b00
+2026-11-15T07:35:01Z	Epic 22	merged	story=22.15 merge=97e062daf conflicts=Mcp/Ops.cls(both_bullets),epics.md(22.14+22.15),cycle-log-epic-21,tracker pins=pass
+2026-11-15T07:35:01Z	Epic 22	runner_resumed	lane=D task=22.12_implement(rulings_in_epic-22-rulings)
+2026-11-15T07:35:01Z	Epic 21	message_queued	lane=C 21.9_finish_over_97e062daf_then_DW-1347(same-commit_rule) delivered_at_next_tool_round
+2026-11-15T07:35:01Z	Run	queued	lane_B_follow-up=GUIDE.md_T7_MCP_tools_as_sources(after_23.3_push)
+2026-11-15T07:36:07Z	Run	feature_merge_hold	via=contest_planner reds=6730eda7e(ci_43674521971:production_row21,shards-8_Telegram_park),afd4ff35a(ci_43681557936:shards-11_TestCopiesFailAgain) action=triage_before_any_merge
+2026-11-15T07:37:34Z	Run	ci_red_classified	6730eda7e:production_row21=DW-306,shards-8_telegram_park=DW-1083 afd4ff35a:shards-11_TestCopiesFailAgain=DW-494(no_Fix_file_in_21.5) evidence=d53500886_ci_green,2e6366b00_iris_all_green action=no_rerun(superseded),local_repro_pending planner_notified=interim
+2026-11-15T07:56:42Z	Run	local_repro	Test.Fix.Partial@afd4ff35a=pass(48.6s;method_2/2) @97e062daf=pass(48.6s;method_2/2) stacks=torn_down
+2026-11-15T08:08:04Z	Run	ci_green_verified	head=2e6366b00(26.2+22.14+21.5+22.11) runs=43690296919,43690296910 note=all_merged_code_but_22.15_fully_green
+2026-11-15T08:19:41Z	Run	ci_red_classified	head=97e062daf run=43690544372 job=shards-6 Test.Web.GuideApi:TestOnlyTheMarkerChanges class=flake(DW-349,watch.progress_events_between_fingerprints) action=rerun_failed_after_run_completes
+2026-11-15T08:31:55Z	Run	ci_rerun	run=43690544372 attempt=2 failed_only(shards-6,DW-349) lane-a_43690544341=success
+2026-11-15T08:53:58Z	Epic 21	runner_reported	PART_READY story=21.9 head=6d44d4750 runs=43692114733,43692114775 base=97e062daf merge=held(feature_merge_hold) gates=DW-1347(706466a80,a-d),21.11(b67be9277,V1-V8) relayed=contest_planner
+2026-11-15T08:53:58Z	Epic 21	runner_ended	reason=clarification waiting_on=DW-1347+21.11_rulings
+2026-11-15T08:54:38Z	Epic 21	owner_decision	via=contest_planner DW-1347=approved(design,long-answer-past-cut_test_mutation,text_fixed,option_a_line_in_22.12,laneA_stays_out_of_Mcp/Bridge/Checks,no_migration,AD-6/31/18B) 21.11=approved(N1_reworded_connected_mailbox,V2-V4,V5_grant,V6_trace_refs-only_pin,V7,V8_keep) order=DW-1347,21.11 21.9=merges_first_after_hold
+2026-11-15T08:54:54Z	Run	rulings_relayed	lane_C=resume(DW-1347_implement) lane_D=queued(22.12_carries_DW-1347_line;note:mid-stage_send_backgrounded_one_tool_call) lane_A=queued(stay_out_of_DW-1347_files)
+2026-11-15T08:57:34Z	Run	ci_green_verified	head=97e062daf runs=43690544372(att2;att1=DW-349),43690544341 gate=success
+2026-11-15T08:57:34Z	Run	feature_merge_hold_off	reason=97e062daf_green(Planner_rule) reds=DW-306,DW-1083,DW-494,DW-349(no_new_DW) planner_notified
+2026-11-15T08:57:34Z	Epic 21	ci_green_verified	story=21.9 head=6d44d4750 runs=43692114733,43692114775
+2026-11-15T08:57:34Z	Epic 21	merge_enqueued	story=21.9 into=feature@97e062daf+records
+2026-11-15T09:00:33Z	Epic 21	merged	story=21.9 merge=6d50bac12 conflicts=none pins=pass web=pass lint=pass
+2026-11-15T09:39:12Z	Run	owner_decision	via=contest_planner 1.0.11_required=26.2,22.14,21.5,22.11,22.15,21.9(in)+DW-1347,21.11,22.12,GUIDE_T7 optional=25.6(if_PART_READY),23.3(only_if_merged_in_time) priority=laneC_DW-1347,laneD_22.12
+2026-11-15T09:39:12Z	Run	lane_exception	21.11->lane_D(worktree_epic-21-s2111,after_22.12_push) reason=no_shared_code_files_with_DW-1347(AD-31_spine_additive_under_lock) GUIDE_T7->lane_B(OCT-epic23-guide-t7,at_23.3_pause) planner_notified=ETAs(feature_green_all_required~16:45Z)
+2026-11-15T09:40:07Z	Run	ci_green_verified	head=6d50bac12(21.9_merged) runs=43697126331,43697126346 tip=20b60564f(records_only;iris_jobs_skipped_by_What_changed)
+2026-11-15T09:41:53Z	Run	owner_decision	via=contest_planner 1.0.11_protocol: signal="1.0.11 REQUIRED GREEN <sha>"(+25.6/23.3_status,run_ids) then_records-only_until_RELEASE_CUT_DONE QUIET_ON/OFF_during_upgrade_harness laneD_21.11_exception=approved
+2026-11-15T09:42:05Z	Run	owner_decision	via=contest_planner CORRECTION:no_feature_merge_hold_during_1.0.11(cut_from_reported_sha);only_QUIET_ON/OFF_pause
+2026-11-15T09:44:36Z	Run	owner_decision	via=contest_planner 1.0.11:no_QUIET_window(oMLX_off);QUIET_ON_only_if_harness_row_fails_on_load
+2026-11-15T09:59:44Z	Epic 23	runner_reported	PART_READY story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731(queued) conditions_a_b=kept 23.3=Task0_pass,dev+QA+CR_done,local_aeab8bb61 escalations=DW-1365(MED),DW-1366,DW-1370,DW-1358,footprint_Demo/Orders/Review.cls relayed=contest_planner
+2026-11-15T09:59:44Z	Epic 23	runner_resumed	lane=B task=23.3_smoke..PART_READY
+2026-11-15T10:00:10Z	Epic 23	owner_decision	via=contest_planner 23.3_pre-push: DW-1365=fix_in_23.3(restore+retry;new_text_result.settingSavedNotApplied;2_path_pin;23.2_suspend_new_DW_MED_1.0.12) DW-1366=fix_in_23.3(After_from_current_SysDefault,run-time_recheck->settingChangedSince;>45min->report) DW-1370=noted DW-1358=no_README_edit;pins_read_count_from_eval_set Review.cls=approved
+2026-11-15T10:06:04Z	Epic 21	runner_status	DW-1347 CR=20(0H;2MED_patched) integrated=30ceb87a5 fresh_check=running ETA_PART_READY~12:00Z DW-1372=AD-31_no_new_text(confirm_asked) DW-1371=LOW_accepted
+2026-11-15T10:06:18Z	Epic 21	owner_decision	via=contest_planner DW-1372=confirmed(no_AD-31_edit) DW-1371=follow-up_1.0.12
+2026-11-15T10:12:49Z	Epic 23	ci_green_verified	story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731
+2026-11-15T10:12:49Z	Epic 23	merge_enqueued	story=GUIDE-T7 (1.0.11 required)
+2026-11-15T10:14:48Z	Epic 23	merged	story=GUIDE-T7 merge=6487b4cc6 pins=pass web=pass
+2026-11-15T10:15:27Z	Epic 21	runner_status	DW-1347 pushed=30d487a32(OCT-epic21-dw1347) runs=43703149281,43703149107(pending) fresh=10/10
+2026-11-15T12:30:49Z	Epic 21	runner_reported	PART_READY story=DW-1347 head=30d487a32 runs=43703149281(att2;att1=DW-306),43703149107
+2026-11-15T12:30:49Z	Epic 21	ci_green_verified	head=30d487a32
+2026-11-15T12:30:49Z	Epic 21	amendments_verified	AD-6+AD-18B(spine);AD-31_unchanged(DW-1372_confirmed)
+2026-11-15T12:30:49Z	Epic 21	merge_enqueued	story=DW-1347 (1.0.11 required)

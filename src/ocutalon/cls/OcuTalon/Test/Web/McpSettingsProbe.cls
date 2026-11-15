@@ -3,7 +3,8 @@
 /// admin check read, and the process's own $Roles otherwise (as Test.Web.ApiProbe does). HandOff counts its calls in ^OcuTalonTest("McpSettingsProbe", "handoffs") and Submit
 /// counts its calls in ^OcuTalonTest("McpSettingsProbe", "submits") and records the handoff uri of an AddMcpServer in ^OcuTalonTest("McpSettingsProbe", "uri"), each before it goes on (neither
 /// records a secret). When ^OcuTalonTest("McpSettingsProbe", "mode") is "fail" or "throw", Submit answers an error status or throws, and submits nothing; when it is
-/// "outcome:<word>", Submit answers an OK status and a CommandResult of Ok 0 with that outcome and the message "zz", and submits nothing.
+/// "outcome:<word>", Submit answers an OK status and a CommandResult with that outcome and the message "zz" (Ok 1 with Ref "zzref" for saved and removed, Ok 0 for any other word), and submits nothing.
+/// Submit also records the command's class and, for a SetSourcePoll or a RemoveSourcePoll, every field, as JSON in ^OcuTalonTest("McpSettingsProbe", "command").
 Class OcuTalon.Test.Web.McpSettingsProbe Extends OcuTalon.Web.McpSettings
 {
 
@@ -37,16 +38,35 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 	Set ^OcuTalonTest("McpSettingsProbe", "submits") = $Get(^OcuTalonTest("McpSettingsProbe", "submits")) + 1
 	Set mode = $Get(^OcuTalonTest("McpSettingsProbe", "mode"))
 	Set ^OcuTalonTest("McpSettingsProbe", "uri") = $Select(command.%Extends("OcuTalon.Msg.Command.AddMcpServer"): command.Handoff, 1: "")
+	Set ^OcuTalonTest("McpSettingsProbe", "command") = ..Recorded(command)
 	If mode = "" Quit ##super(command, .result)
 	If $Piece(mode, ":") = "outcome" {
 		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
-		Set result.Ok = 0
-		Set result.Outcome = $Piece(mode, ":", 2)
+		Set outcome = $Piece(mode, ":", 2)
+		Set result.Ok = ((outcome = "saved") || (outcome = "removed"))
+		Set result.Outcome = outcome
 		Set result.Message = "zz"
+		If result.Ok Set result.Ref = "zzref"
 		Quit $SYSTEM.Status.OK()
 	}
 	If mode = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz submit threw"))
 	Quit $SYSTEM.Status.Error(5001, "zz submit failed")
+}
+
+/// The submitted command as JSON: its class and, for a SetSourcePoll or a RemoveSourcePoll, every field (no secret is ever in these).
+ClassMethod Recorded(command As OcuTalon.Msg.Command) As %String [ Private ]
+{
+	Set recorded = {"class": ($ClassName(command)), "sessionRef": (command.SessionRef), "actingUser": (command.ActingUser)}
+	If command.%IsA("OcuTalon.Msg.Command.SetSourcePoll") {
+		Do recorded.%Set("server", command.Server)
+		Do recorded.%Set("tool", command.Tool)
+		Do recorded.%Set("name", command.Name)
+		Do recorded.%Set("arguments", command.Arguments)
+		Do recorded.%Set("intervalMinutes", command.IntervalMinutes, "number")
+	} ElseIf command.%IsA("OcuTalon.Msg.Command.RemoveSourcePoll") {
+		Do recorded.%Set("sourceRef", command.SourceRef)
+	}
+	Quit recorded.%ToJSON()
 }
 
 }
