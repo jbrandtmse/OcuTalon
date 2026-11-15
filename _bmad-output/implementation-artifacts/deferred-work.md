@@ -3155,6 +3155,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T17:42:07Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980617018 iris(shards-11) shard:lane-a@Fix Test.Fix.Partial TestSomeFailAgainAndSomeHadChanged (5/3/0/3/2, order date reason); OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
 - 2026-11-14T12:06:31Z occurrence=feature-ae6c6009 by=orchestrator note=run 43585177876 iris(shards-11) lane-a@Fix Test.Fix.Partial TestCopiesFailAgain (same 5 asserts); not rerun: superseded by ef40062b, whose CI covers the same code
 - 2026-11-15T07:37:20Z occurrence=feature-afd4ff35a by=orchestrator note=run 43681557936 att1 iris(shards-11) lane-a@Fix Test.Fix.Partial TestCopiesFailAgain (3/3/0/3/0 and reason); 21.5 touches no Fix file; 2e6366b00 (21.5+22.11) ci 43690296919 shards-11 green; local fresh-stack runs at afd4ff35a and 97e062daf pending
+- 2026-11-15T07:56:42Z occurrence=feature-afd4ff35a by=orchestrator note=local fresh throwaways: Test.Fix.Partial passed at afd4ff35a (48.6 s) and 97e062daf (48.6 s), TestCopiesFailAgain passed 2/2 more at each; not reproduced, load-shaped
 
 ### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic

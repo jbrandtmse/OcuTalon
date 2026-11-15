@@ -4264,3 +4264,4 @@
 2026-11-15T07:35:01Z	Run	queued	lane_B_follow-up=GUIDE.md_T7_MCP_tools_as_sources(after_23.3_push)
 2026-11-15T07:36:07Z	Run	feature_merge_hold	via=contest_planner reds=6730eda7e(ci_43674521971:production_row21,shards-8_Telegram_park),afd4ff35a(ci_43681557936:shards-11_TestCopiesFailAgain) action=triage_before_any_merge
 2026-11-15T07:37:34Z	Run	ci_red_classified	6730eda7e:production_row21=DW-306,shards-8_telegram_park=DW-1083 afd4ff35a:shards-11_TestCopiesFailAgain=DW-494(no_Fix_file_in_21.5) evidence=d53500886_ci_green,2e6366b00_iris_all_green action=no_rerun(superseded),local_repro_pending planner_notified=interim
+2026-11-15T07:56:42Z	Run	local_repro	Test.Fix.Partial@afd4ff35a=pass(48.6s;method_2/2) @97e062daf=pass(48.6s;method_2/2) stacks=torn_down
