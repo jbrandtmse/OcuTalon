@@ -358,6 +358,14 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: the demo guard on the member in `Values` dropped → `TestOnlineDemo` red.
 - mutation: the Name label's `for` removed → Playwright P1 red.
 
+**QA stage (2026-11-15, lane D; tests only, no product code, no new test file; every mutation reverted and `cmp`-identical).** Added to this story's own test files: `SettingsPartners.TestRowWriteFailureRollsBack` (closes the deferred item: a row write that fails after the audit write, here productions over the 4000-character MAXLEN, is failed, leaves no open transaction, no audit record and the row as it was, for an add and an edit; it needs no product seam, because the probe's audit record is a global inside the transaction and its private counter shows the audit write was reached); `PartnerSettingsApi.TestProductionsListedThroughTheProduction` (AC7 on the real runtime: a real `ListProductions` through `Commands.Submit`, `CommandsIn` and the production's `SettingsOps`, the exact roster, every other origin and a bridge context `not_allowed` with nothing sent to `SettingsOps`, `not_available` with no data on the demo, and `PartnerValues` reading the same roster); Playwright `P8` (an empty name and a bad address on the real server mark both fields with their accepted texts and focus the name, the first field of the form) and `P9` (a 400 naming no field shows the failed text under the button and marks no field). Playwright `P4` was run on its own (the other six cases `test.skip`ped for the run, then restored): `sign-in-2 --part 17/20`, 1 passed and 6 skipped. The full file (P1 to P9) passes on a fresh stack (9 passed); `SettingsPartners` and `PartnerSettingsApi` pass on warm and on fresh stacks.
+- mutation: the `TROLLBACK 1` of `WritePartner`'s row-write failure block removed -> `SettingsPartners.TestRowWriteFailureRollsBack` red ("the transaction is closed", add and edit)
+- mutation: that `TROLLBACK 1` replaced by `TCOMMIT` -> `TestRowWriteFailureRollsBack` red ("the audit entry was rolled back with it", add and edit)
+- mutation: the `ListProductions` route row's origins widened to `web_admin,system` -> `PartnerSettingsApi.TestProductionsListedThroughTheProduction` red ("from 'system' it is not_allowed", "no refused one reached SettingsOps")
+- mutation: `PartnerAuditForm` names every field on each side of an edit (the `ListFind` test replaced by `1`) -> Playwright P4 red ("one audit entry naming only the changed field")
+- mutation: the focus selector of a refused name pointed at the address field -> Playwright P8 red (`toBeFocused`)
+- mutation: the section's `form` refusal branch made unreachable -> Playwright P9 red (the failed text is not under the button; P5 is red too, because a 500 takes the same branch, so P9 was shown red with P5 skipped for that run)
+
 ## Auto Run Result
 
 Status: done

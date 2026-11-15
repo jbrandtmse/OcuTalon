@@ -16,6 +16,9 @@
 ///     entry is partnerContact.<Ref> with the field names, and no audit row since the mark holds the name or the address; they are in no event log row, message header, SaveSettings,
 ///     CommandResult or Notification row, trace global (Ens.MessageBodyD/S, Ens.MessageHeaderD, Ens.Util.LogD) or ^OcuTalon* global but OcuTalonP.PartnerContactD (the positive
 ///     control). After the remove they are nowhere.
+///   - TestProductionsListedThroughTheProduction (QA): a real ListProductions from web_admin goes through Commands.Submit, CommandsIn and the production's SettingsOps, and is
+///     listed with exactly the productions that Watch.Reader gives, each as {namespace, production, displayName}; every other origin, and web_admin inside a bridge context, is
+///     not_allowed and sends nothing to SettingsOps; on the online demo it is not_available with no data; and PartnerValues reads the same roster through the same path.
 Class OcuTalon.Test.Web.PartnerSettingsApi Extends %UnitTest.TestCase
 {
 
@@ -238,6 +241,60 @@ Method TestValuesOnlyInTheRow()
 	Set data = entries.%Get(1).data
 	Do $$$AssertEquals(data.setting_"|"_data.from_"|"_data.to, "partnerContact."_ref_"|name,email,productions|", "from the three field names to nothing")
 	Do ..Scan(name, email, mark, log, header, 0, "after the remove")
+}
+
+/// QA: the real path of the verb that the section's list of productions reads (AC7), which the other tests reach only through a probe. THIS CLASS RUNS ON A THROWAWAY STACK ONLY.
+Method TestProductionsListedThroughTheProduction()
+{
+	If '..Guard() Quit
+	Set header = ##class(OcuTalon.Test.Web.WebhookTools).LastHeader()
+	Set command = ##class(OcuTalon.Msg.Command.ListProductions).%New()
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Do $$$AssertStatusOK(sc, "the submit is answered")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|listed", "a ListProductions from web_admin is listed")
+	Set list = {}.%FromJSON(result.Data).productions
+	Set real = ##class(OcuTalon.Watch.Reader).Productions()
+	Do $$$AssertTrue(real.%Size() > 0, "the instance has a production to list")
+	Do $$$AssertEquals(list.%Size(), real.%Size(), "it lists as many productions as Watch.Reader gives")
+	Set missing = 0
+	Set iterator = real.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set found = 0
+		Set inner = list.%GetIterator()
+		While inner.%GetNext(, .one) {
+			If (one.%Size() = 3) && (one.namespace = entry.namespace) && (one.production = entry.production) && (one.displayName = entry.displayName) Set found = 1
+		}
+		If 'found Set missing = missing + 1
+	}
+	Do $$$AssertEquals(missing, 0, "each as {namespace, production, displayName}, and nothing else")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Msg.Command.ListProductions' AND SourceConfigName = 'CommandsIn' AND TargetConfigName = 'SettingsOps'", header)
+	Do rows.%Next()
+	Do $$$AssertEquals(rows.%GetData(1), 1, "one ListProductions went from CommandsIn to SettingsOps")
+	Set sent = rows.%GetData(1)
+	For origin = "web_user", "telegram", "tool", "timer", "system" {
+		Set other = ##class(OcuTalon.Msg.Command.ListProductions).%New()
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(other, origin, .refused)
+		Do $$$AssertEquals(refused.Ok_"|"_refused.Outcome_"|"_refused.Data, "0|not_allowed|", "from '"_origin_"' it is not_allowed with no data")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(##class(OcuTalon.Bridge.Msg.Request).%New(), "zzss"_$Job), "a bridge context begins")
+	Try {
+		Set inside = ##class(OcuTalon.Msg.Command.ListProductions).%New()
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(inside, "web_admin", .refused)
+		Do $$$AssertEquals(refused.Ok_"|"_refused.Outcome_"|"_refused.Data, "0|not_allowed|", "web_admin inside a bridge context is not_allowed with no data")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a submit inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Msg.Command.ListProductions' AND SourceConfigName = 'CommandsIn' AND TargetConfigName = 'SettingsOps'", header)
+	Do rows.%Next()
+	Do $$$AssertEquals(rows.%GetData(1), sent, "and no refused one reached SettingsOps")
+	Set roster = ##class(OcuTalon.Core.SettingsOps).PartnerValues().productions
+	Do $$$AssertEquals(roster.%ToJSON(), {}.%FromJSON(result.Data).productions.%ToJSON(), "PartnerValues has the same roster through the same path")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(##class(OcuTalon.Msg.Command.ListProductions).%New(), "web_admin", .demo)
+	Do $$$AssertEquals(demo.Ok_"|"_demo.Outcome_"|"_demo.Data, "0|not_available|", "on the online demo it is not_available with no data")
+	Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).PartnerValues().productions.%ToJSON(), "[]", "and PartnerValues has no productions")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 }
 
 /// The leak scan for the name and the address: no audit row since the mark, no event log row since log, no message header since header, no row of the command, result or notice tables, and

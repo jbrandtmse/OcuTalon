@@ -19,6 +19,8 @@
 ///     of Watch.Reader as the same three fields, not_available on the online demo, and failed when the reader throws;
 ///   - TestProductionsRosterFailureIsEmpty: a submit that fails, throws or is busy, and an answer that is not a list of productions, each give productions [];
 ///   - TestTextOffOnDemo: the off-on-demo text is the accepted one, verbatim.
+///   - TestRowWriteFailureRollsBack (QA): a row write that fails after the audit write succeeded (productions over the 4000-character MAXLEN of the row) is failed, leaves no
+///     open transaction, no audit record (the probe's record sits inside the transaction) and the row as it was, for an add and for an edit.
 Class OcuTalon.Test.Core.SettingsPartners Extends %UnitTest.TestCase
 {
 
@@ -415,6 +417,59 @@ Method TestProductionsRosterFailureIsEmpty()
 Method TestTextOffOnDemo()
 {
 	Do $$$AssertEquals($Parameter("OcuTalon.Core.SettingsOps", "MESSAGEPARTNERSOFF"), "Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install.", "the off-on-demo text is the accepted one")
+}
+
+/// QA (the deferred item of Story 24.2's review): the audit write comes first and the row write after it, in one transaction. A row write that fails once the audit write
+/// has succeeded must roll the audit write back, leave no transaction open and leave the row as it was. The failure is real: productions whose JSON is over the 4000-character
+/// MAXLEN of the row make %Save fail. The probe's audit record (^OcuTalonTest("SettingsOpsProbe", "calls")) is a global in the same database as the row, so it is inside the
+/// transaction, and its private counter (Audits) shows that the audit write was reached.
+Method TestRowWriteFailureRollsBack()
+{
+	Set a = ..Entry(1)
+	Set big = []
+	For n = 1:1:60 {
+		Do big.%Push({"namespace": "zzns1", "production": ("zzbig"_$Justify(n, 3)_$Translate($Justify("", 80), " ", "x"))})
+	}
+	Set rows = ..Rows()
+	Set iterator = big.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Do rows.%Push({"namespace": (one.namespace), "production": (one.production), "displayName": "zz big"})
+	}
+	Set ^OcuTalonTest("SettingsOpsProbe", "rows") = rows.%ToJSON()
+	Do $$$AssertTrue($Length(big.%ToJSON()) > 4000, "the scripted productions are over the 4000 characters of the row's Productions")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is open before")
+	Set name = ..Name("T"), email = ..Email("t")
+	Set result = ..Save("", name, email, [(a)])
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "control: an add that fits is done")
+	Do $$$AssertEquals(..Audits(), 1, "control: and its audit write was recorded")
+	Do $$$AssertEquals(..AuditData(1).setting, "partnerContact."_..Find(name).ref, "control: the record of a committed write stays")
+	Set ref = ..Find(name).ref
+	Do ..Reset()
+	Set result = ..Save("", ..Name("U"), ..Email("u"), big)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an add whose row write fails is failed")
+	Do $$$AssertEquals(result.Message, ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "with the generic failed text")
+	Do $$$AssertEquals(..Audits(), 1, "the audit write was reached: the failure came after it")
+	Do $$$AssertEquals($TLevel, 0, "the transaction is closed")
+	If $TLevel > 0 TROLLBACK
+	Do $$$AssertEquals($Order(^OcuTalonTest("SettingsOpsProbe", "calls", "")), "", "the audit entry was rolled back with it")
+	Do $$$AssertEquals(..Count(), 1, "no row was added: the one contact is the control's")
+	Do $$$AssertEquals(..Find(..Name("U")), "", "the failed contact is not in the list")
+	Do ..Reset()
+	Set before = ##class(OcuTalon.Data.PartnerContact).RefOpen(ref)
+	Set row = before.Name_"|"_before.Email_"|"_before.Productions_"|"_before.UpdatedAt
+	Kill before
+	Set result = ..Save(ref, name, email, big)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an edit whose row write fails is failed")
+	Do $$$AssertEquals(..Audits(), 1, "the audit write was reached")
+	Do $$$AssertEquals($TLevel, 0, "the transaction is closed")
+	If $TLevel > 0 TROLLBACK
+	Do $$$AssertEquals($Order(^OcuTalonTest("SettingsOpsProbe", "calls", "")), "", "the audit entry of the edit was rolled back")
+	Set after = ##class(OcuTalon.Data.PartnerContact).RefOpen(ref)
+	Do $$$AssertEquals(after.Productions, [(a)].%ToJSON(), "and the row is as it was, read afresh: the productions are the stored ones")
+	Do $$$AssertEquals(after.Name_"|"_after.Email_"|"_after.Productions_"|"_after.UpdatedAt, row, "and the row is as it was")
+	Do ..Reset()
+	Set result = ..Save(ref, name, ..Email("t2"), [(a)])
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Audits(), "1|done|1", "after the failures a save that fits is done and audited once")
 }
 
 /// --- helpers ---

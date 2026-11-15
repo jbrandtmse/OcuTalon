@@ -18,12 +18,15 @@ import { PARTNER_API, aProduction, auditMark, auditSince, forProduction, partner
  *   P4  an edit of the address (one entry naming `email`), and a Remove that asks first: Cancel keeps the contact, the confirmation removes it and its audit entry;
  *   P5  a failed add (a routed 500) shows the failed text under the button, and changes and audits nothing;
  *   P6  a 409 shows the off-demo text in place of the forms;
- *   P7  a 403 shows the denied view in place of the section, and nothing is saved.
+ *   P7  a 403 shows the denied view in place of the section, and nothing is saved;
+ *   P8  (QA) an empty name and a bad address, on the real server, mark both fields with their accepted texts and focus the name, the first of them in the form;
+ *   P9  (QA) a 400 that names no field (a body of the wrong shape) shows the failed text under the button and marks no field.
  * The texts are written out here as the oracle.
  */
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const HELP = 'Partner warnings go only to the people listed here, and only after you approve each one.';
 const BAD_EMAIL = 'Enter an email address such as name@example.com. Nothing was changed.';
+const BAD_NAME = 'Enter a name of 1 to 128 characters. Nothing was changed.';
 const NO_PRODUCTION = 'Choose at least one production. Nothing was changed.';
 const FAILED = "Couldn't save. Nothing was changed.";
 const OFF_ON_DEMO = 'Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install.';
@@ -284,5 +287,39 @@ test('P7: a 403 shows the denied view in place of the section, and nothing is sa
   await expect(page.locator('p.denied'), 'the page shows its denied text').toHaveText(DENIED);
   await expect(group, 'in place of the form').toHaveCount(0);
   await expect(page.locator('p.saved'), 'with no saved text').toHaveCount(0);
+  expect((await partnerMember()).contacts, 'nothing was changed').toEqual(before.contacts);
+});
+
+test('P8: an empty name and a bad address mark both fields with their texts, focus the name, and change nothing', async ({ page }) => {
+  test.setTimeout(240_000);
+  const production = await aProduction();
+  const before = await partnerMember();
+  const mark = await auditMark();
+  await openPartners(page);
+  const group = addGroup(page);
+  await addressOf(group).fill('nope');
+  await boxOf(group, production).check();
+  await group.getByRole('button', { name: 'Add contact', exact: true }).click();
+  await expect(page.locator('#partner-new-name-error'), 'the empty name shows its text').toHaveText(BAD_NAME);
+  await expect(page.locator('#partner-new-email-error'), 'the bad address shows its text').toHaveText(BAD_EMAIL);
+  await expect(nameOf(group), 'the name is marked invalid').toHaveAttribute('aria-invalid', 'true');
+  await expect(nameOf(group), 'and linked to its error').toHaveAttribute('aria-describedby', 'partner-new-name-error');
+  await expect(nameOf(group), 'the first field in the form takes focus, not the address').toBeFocused();
+  await expect(page.locator('#partner-new-productions-error'), 'the ticked production has no error').toHaveCount(0);
+  await expect(savedIn(group), 'no saved text').toHaveCount(0);
+  expect((await partnerMember()).contacts, 'nothing was changed').toEqual(before.contacts);
+  expect(await auditSince(mark, 0, 2), 'and nothing was audited').toEqual([]);
+});
+
+test('P9: a 400 that names no field shows the failed text under the button and marks no field', async ({ page }) => {
+  test.setTimeout(240_000);
+  const before = await partnerMember();
+  await answerPost(page, 400, { error: { code: 'bad_settings', message: FAILED }, fields: [] });
+  await openPartners(page);
+  const group = await addValid(page, 'p9');
+  await expect(page.locator('#partner-new-error'), 'the failed text is under the button').toHaveText(FAILED);
+  await expect(group.getByRole('button', { name: 'Add contact', exact: true }), 'the button is described by it').toHaveAttribute('aria-describedby', 'partner-new-error');
+  await expect(page.locator('#partner-new-name-error, #partner-new-email-error, #partner-new-productions-error'), 'no field is marked').toHaveCount(0);
+  await expect(savedIn(group), 'no saved text').toHaveCount(0);
   expect((await partnerMember()).contacts, 'nothing was changed').toEqual(before.contacts);
 });
