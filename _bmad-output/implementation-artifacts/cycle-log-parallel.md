@@ -4219,3 +4219,4 @@
 2026-11-15T03:11:35Z	Epic 22	runner_reported	PART_READY story=22.15 code_head=0a2d53d2b head=5a78458a1(local_records) runs=43667820676,43667820662(gate=success,missing=none) branch=OCT-epic22-s2215(base_a6821f1d) overlap=22.11_Mcp/Ops.cls_class-doc_bullet_only(keep_both) DW-1355=closed_by_design(21.9_banner_may_skip_refused) DW-1354=dropped(superseded-by:DW-1352) merge=queued_5th_after_CI_HOLD_OFF
 2026-11-15T03:11:35Z	Epic 21	runner_ended	reason=waiting waiting_on=22.15_merge(21.9),22.11_merge(DW-1347) stack=none locks=released
 2026-11-15T03:11:54Z	Run	planner_notified	22.15_PART_READY,DW-1355_by_design(21.9_banner_note) awaiting=CI_HOLD_OFF
+2026-11-15T03:12:19Z	Epic 21	owner_decision	via=contest_planner 21.9_banner=skip_tools_whose_latest_status_is_refused(despite_changed:true);test=changed+refused_no_line,changed_not_refused_line ci_hold=stays_until_CI_HOLD_OFF(main_CI_green;PR_15_awaits_owner)
