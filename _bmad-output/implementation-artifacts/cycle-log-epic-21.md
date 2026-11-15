@@ -369,3 +369,4 @@
 2026-11-15T01:21:14Z	Story 22.15	stage_spawned	stage=qa spawn_at=2026-11-15T01:21:14Z model=sonnet effort=high agent_name=22-15-qa-1 cycle_iteration=1
 2026-11-15T01:51:04Z	Story 22.15	qa_complete	model=sonnet tests=Test.Mcp.Ops(TestChangedTool:RecordAttach_path;TestRecordAttachRows:refused_not_marked,reclear_marked) mutations_demonstrated=2 findings=none
 2026-11-15T01:51:04Z	Story 22.15	stage_spawned	stage=code-review spawn_at=2026-11-15T01:51:04Z model=opus effort=high agent_name=22-15-code-review-1 cycle_iteration=1
+2026-11-15T02:26:23Z	Story 22.15	cr_complete	model=opus findings=12 patched=4_low rejected=8 high=0 med=0 ledger=DW-1355(by-design:refused_tool_can_show_changed_true) unresolved_high_med=0 final_status=done overlap_22.11=one_doc_conflict(Ops.cls_class_doc_ClearChanged_bullet;keep_both)

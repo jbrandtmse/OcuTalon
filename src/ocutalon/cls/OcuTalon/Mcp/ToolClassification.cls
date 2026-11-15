@@ -6,7 +6,7 @@
 ///     admin set it; a different reported fingerprint makes the row unclassified again.
 ///   - ChangedAt is when the row's classification last changed, UTC to the second.
 ///   - Changed is 1 from the moment OcuTalon.Mcp.Ops.ClearChanged makes a classified tool unclassified after a fingerprint change until an admin classifies the tool
-///     again; it is 0 for a new row, and empty in a row stored before the property existed, which reads as 0.
+///     again; it is 0 for a new row, and empty in a row stored before the property existed, which OcuTalon.Mcp.Ops.Tools reports as false.
 /// The row holds no URL, no credential and no user name. It lives as long as its server, and a tool that the server stops offering loses its row at
 /// the next attach.
 Class OcuTalon.Mcp.ToolClassification Extends %Persistent

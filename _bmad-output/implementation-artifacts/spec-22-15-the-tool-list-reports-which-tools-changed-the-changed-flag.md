@@ -86,6 +86,25 @@ deferred: []
 
 **Acceptance Criteria:** the four of epics.md Story 22.15.
 
+### Review Findings
+
+Code review 2026-11-14 (Lane C, four layers: blind hunter, edge-case hunter, verification gap, acceptance auditor; baseline `0bf4e2d32`). High 0, medium 0. Four low patches, applied. No AD-21 contradiction (Rule 6): both S1 passages match the ruled text word for word, each with its marker. Rule 3: exempt, because `changed` reaches no user-facing surface in this story (`SettingsOps.ListMcp` copies members by name; Story 21.9 adds it).
+
+- [x] [Review][Patch] The `Changed` class-doc bullet said an empty value in a pre-upgrade row "reads as 0". It reads as "", and only `Tools` turns it into false; the line now says so [src/ocutalon/cls/OcuTalon/Mcp/ToolClassification.cls:9]
+- [x] [Review][Patch] The ClearChanged doc's last line was still 220 characters after the earlier "reflowed" patch; it is now wrapped [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:654]
+- [x] [Review][Patch] The KeepRow doc edit ("and not Changed") was outside the V1 charter, which names only the `changed` member, ClearRow/ClearChanged, Classify/ClassifyTool and their tests. It is reverted byte for byte to the baseline; ToolClassification's class doc already says a new row is 0 [src/ocutalon/cls/OcuTalon/Mcp/Ops.cls:741]
+- [x] [Review][Patch] AD-21's settings-page bullet still listed three members of `Tools(server)` beside the S1 bullet's four. `changed` is added there, with a marker that keeps the old wording; the S1 texts are untouched; `lint_spine.py` still gives 10 low, all pre-existing placeholders [_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md:884]
+
+Rejected:
+- `low` (edge) The Classify undo's `%Save` is unchecked, so a failing undo would lose the restored `Changed`. The unchecked save was already there before this story, an undo save failing right after a successful save is not reachable in normal use, and the fix adds a branch.
+- `low` (edge) A marked tool that drops out of one report and is listed again comes back as a new row with `Changed` 0. By design: the row and its classification are deleted, and the intent says a new row (KeepRow) starts at 0.
+- `low` (edge) A marked unclassified tool that is later reported refused reads `changed: true` with status `refused`. By design: the intent leaves the refused branch unchanged and defines `changed` as Changed 1 AND unclassified. Ledgered as DW-1355 (by-design) so that Story 21.9's banner can decide whether to skip refused tools.
+- `low` (edge, blind) The S1 wording ("until an admin classifies it again", "the Epic 22 flag story", no "it read") is not the sentence a reviewer would write. By design: the Contest Planner approved S1 and its marker word for word (~05:30Z item 2).
+- `low` (blind, auditor) The spec's own record is stale: the Execution checkboxes, the Auto Run Result's file list (no spine, no TestChangedTool), and a triage line that rejects the RecordAttach gap QA later closed. Rejected, because the fix would edit the spec under review; QA's Verification text records the gap closure.
+- `low` (blind) `Test.Mcp.Classification` (the gate's caller of ClearChanged) has no `Changed` assertion. `Mcp.Classification.Clear` calls `Mcp.Ops.ClearChanged` unchanged, and ClearChanged is pinned directly (TestClearChanged) and through attach (TestChangedTool).
+- `false` (verification gap) "No record of the ListMcp hand-off". Story 21.9's spec (commit `1b56d9da1`) has the ListMcp task for `changed`, and the ~22:40Z ruling says 21.9 implements on top of 22.15.
+- `low` (verification gap) TestClassify's `ChangedFlag` check cannot catch a missing reset for `read-only` and `risky`, because `Tools` masks classified rows. Its direct `row.Changed = 0` assertion pins the reset for all three words (mutation recorded), so the check is weaker than it looks but not vacuous.
+
 ## Spec Change Log
 
 - 2026-11-14 (lead): chartered by the Contest Planner (~22:40Z), with the contract from Story 21.9's spec (V1-V3) and the ~05:30Z condition that a row with Changed = "" reads as false.
@@ -112,6 +131,17 @@ Pinning tests and mutations (each applied, observed red, reverted; `git status -
 - `Test.Mcp.Ops:TestAuditFails` (the audit-failure undo restores classification and `Changed` 1): mutation: drop the `Changed` restore in the undo -> red.
 - `Test.Mcp.Ops:TestRecordAttachRows` (a new row, refused one included, is 0): mutation: `KeepRow` sets `Changed = 1` on a new row -> red; mutation: remove `InitialExpression = 0` from the property -> red (with `TestClearChanged`).
 - `Test.Mcp.Tools:TestToolsChanged` (a JSON boolean; true only for a marked unclassified row; false for a classified row with `Changed` 1 and for a row whose storage node was cut before the `Changed` slot, written directly): mutation: push the raw `Changed` value -> red; mutation: drop the `classification = "unclassified"` test -> red.
+
+QA stage (Lane C, warm tag `e22s15qw`, torn down): two gaps closed in `Test/Mcp/Ops.cls`; every matrix row and the JSON-boolean check were already pinned (TestClearChanged, TestClassify, TestAuditFails, TestRecordAttachRows, `Test.Mcp.Tools:TestToolsChanged`, whose `%ToJSON()` text assertions cannot pass on `""`, `0`, `1` or `null`). Gap 1: the real attach path (`RecordAttach` -> `SyncTools` -> `KeepRow` -> `ClearRow`) had no `Changed` assertion. Gap 2: the refused branch of `KeepRow` ("unchanged") had none. Warm `Test.Mcp.Ops` and `Test.Mcp.Tools` pass after the added lines.
+- `Test.Mcp.Ops:TestChangedTool` (a real fingerprint change at attach: `Changed` 1 for the cleared tool and 0 for the unclassified one, `Tools` says `boolean:1` and `boolean:0`, the same report again keeps both) and `TestRecordAttachRows` (a listed-again and a no-fingerprints-member clear mark the row): mutation: `KeepRow` clears a changed row inline instead of calling `ClearRow` (no `Changed` mark) -> red (5 asserts), reverted.
+- `Test.Mcp.Ops:TestRecordAttachRows` (a classified tool reported refused is not marked `Changed`): mutation: `KeepRow`'s refused branch sets `Changed = 1` -> red, reverted.
+- Each revert checked: `shasum` of both files and `git diff` byte-identical to before the mutation.
+
+Test files touched: `src/ocutalon/cls/OcuTalon/Test/Mcp/Ops.cls` (QA); `src/ocutalon/cls/OcuTalon/Test/Mcp/Tools.cls` read, no change (QA).
+
+Code review (Lane C, warm tag `e22s15cw`, torn down):
+- `Test.Mcp.Tools:TestToolsChanged` re-checked: mutation: `Tools` pushes the raw `Changed` value -> red ("changed is a JSON boolean for every tool..."). Reverted; `shasum`, `git status --short` and `git diff --stat` identical to before.
+- After the review patches, warm `Test.Mcp.Tools`, `Test.Mcp.Ops` and `Test.Mcp.Classification` pass, one per call. `test-class-rules.sh`, `test-boundaries.sh` and `test-storage.sh` pass. `lint_spine.py` gives 10 low (the baseline).
 
 Shared surfaces: `Mcp/Ops.cls` (Lane D's 22.11 also edits it; integrate forward) and `Mcp/ToolClassification.cls` storage (one new `<Value name="7">`, no migration).
 

@@ -8182,3 +8182,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the parent 19de55b83 (same ObjectScript) was green; one rerun (attempt 2) green; likely a second-boundary timing assumption
 - 2026-11-15T00:53:10Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun, occurrence 1
 - 2026-11-15T01:21:28Z status=dropped by=adjudication note=superseded-by:DW-1352 (the same SourceSet TestUpdate clock bug; coordinator); the ledger grammar has no superseded-by status
+
+### DW-1355: A tool marked Changed and later reported refused reads changed true with status refused in McpOps.Tools(server)
+- source: spec-22-15-the-tool-list-reports-which-tools-changed-the-changed-flag.md code review | severity: low | fix-risk: low | footprint: in-story
+- evidence: KeepRow's refused branch keeps Changed (spec: unchanged) and Tools gives changed = Changed 1 AND unclassified, so both members show at once; 21.9's banner may list a refused tool
+- 2026-11-15T02:04:16Z status=by-design owner=22-15-the-tool-list-reports-which-tools-changed-the-changed-flag by=cr note=spec-bound (intent: refused branch unchanged); reopen via 21.9's spec if the banner must skip status refused

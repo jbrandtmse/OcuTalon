@@ -651,7 +651,8 @@ ClassMethod RecordAttach(server As %String, report As %DynamicObject) As %Status
 /// Clears the classification of a tool whose fingerprint changed: when the tool has a row whose fingerprint is not the fingerprint given, the row becomes
 /// unclassified with the new fingerprint, the change is audited (a Tool entry, unclassified, irisUser the running user, channel system) and each admin
 /// session gets one mcp.toolChanged notice. The cleared row is marked Changed until Classify resets it. An unclassified row only takes the new fingerprint and
-/// keeps its Changed, and a tool with no row, or whose row already has the fingerprint, changes nothing. The status is an error when the row could not be saved or the change could not be audited (the row stays cleared).
+/// keeps its Changed, and a tool with no row, or whose row already has the fingerprint, changes nothing. The status is an error when the row could not be
+/// saved or the change could not be audited (the row stays cleared).
 ClassMethod ClearChanged(server As %String, tool As %String, fingerprint As %String) As %Status
 {
 	Set sc = $$$OK
@@ -738,8 +739,8 @@ ClassMethod Skipped(name As %String) As %Boolean [ Private ]
 	Quit (name = "") || ($Length(name) > 128)
 }
 
-/// Makes the row of one tool as the report has it. A new row is unclassified and not Changed. An existing row whose fingerprint is not the reported one is
-/// cleared, or, when the tool is refused (it has no fingerprint), only has its fingerprint emptied.
+/// Makes the row of one tool as the report has it. A new row is unclassified. An existing row whose fingerprint is not the reported one is cleared, or, when
+/// the tool is refused (it has no fingerprint), only has its fingerprint emptied.
 ClassMethod KeepRow(server As %String, tool As %String, fingerprint As %String, now As %String, ByRef events, refused As %Boolean = 0) As %Status [ Private ]
 {
 	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, tool)

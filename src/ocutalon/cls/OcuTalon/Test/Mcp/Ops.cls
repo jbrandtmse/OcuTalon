@@ -488,16 +488,20 @@ Method TestRecordAttachRows()
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Do ##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, {"status": "attached", "reason": "", "tools": [], "refused": ["zz_k"], "fingerprints": {}})
 	Do $$$AssertEquals(..ToolRows(server), "zz_k|risky|", "a classified tool that is reported refused keeps its classification and has an empty fingerprint")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_k"), 0, "and is not marked Changed")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Tool", "Tool", server).%Size(), 0, "with no audit entry")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), 0, "and no mcp.toolChanged notice")
 	Do ##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, {"status": "attached", "reason": "", "tools": ["zz_k"], "refused": [], "fingerprints": {"zz_k": "fpk"}})
 	Do $$$AssertEquals(..ToolRows(server), "zz_k|unclassified|fpk", "reported listed again, the tool is cleared")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_k"), 1, "and marked Changed")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), 1, "and the admin is told once")
 	Set row = ##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_k")
 	Set row.Classification = "read-only"
+	Set row.Changed = 0
 	Do row.%Save()
 	Do ##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, {"status": "attached", "reason": "", "tools": ["zz_k"], "refused": []})
 	Do $$$AssertEquals(..ToolRows(server), "zz_k|unclassified|", "a classified tool in an attached report with no fingerprints member is cleared")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_k"), 1, "and marked Changed")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), 2, "and the admin is told")
 }
 
@@ -651,6 +655,8 @@ Method TestChangedTool()
 	Set changed = {"status": "attached", "reason": "", "tools": ["zz_a", "zz_b"], "refused": [], "fingerprints": {"zz_a": "fpa2", "zz_b": "fpb2"}}
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, changed), "the report of the changed tools is recorded")
 	Do $$$AssertEquals(..ToolRows(server), "zz_a|unclassified|fpa2;zz_b|unclassified|fpb2", "the classified tool is unclassified again, with the new fingerprint, and the unclassified one has the new fingerprint")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_a") _ "|" _ ..ChangedOf(server, "zz_b"), "1|0", "the attach marks the cleared tool Changed, and not the unclassified one that only took a new fingerprint")
+	Do $$$AssertEquals(..ChangedFlag(server, "zz_a") _ "|" _ ..ChangedFlag(server, "zz_b"), "boolean:1|boolean:0", "and Tools reports changed true for the cleared tool only")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Tool", "Tool", server)
 	Do $$$AssertEquals(entries.%Size(), 1, "one Tool entry is audited, for the classified tool only")
 	If entries.%Size() {
@@ -664,6 +670,7 @@ Method TestChangedTool()
 	If notices.%Size() Do $$$AssertEquals(notices.%Get(0).kind _ "|" _ notices.%Get(0).slots, "status|" _ expected, "which is of kind status, with the tool and the server")
 	Do ##class(OcuTalon.Test.Mcp.OpsProbe).RecordAttach(server, changed)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).Notices().%Size(), 1, "the same report again sends no notice")
+	Do $$$AssertEquals(..ChangedOf(server, "zz_a") _ "|" _ ..ChangedOf(server, "zz_b"), "1|0", "and keeps the marks")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Tool", "Tool", server).%Size(), 1, "and audits nothing")
 }
 
