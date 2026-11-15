@@ -4414,3 +4414,4 @@
 2026-11-15T23:09:35Z	Epic 21	merge_enqueued	story=DW-1391(test-only)
 2026-11-15T23:12:06Z	Epic 21	merged	story=DW-1391 merge=2129230b3
 2026-11-15T23:12:21Z	Epic 21	runner_reported	PLANNER_REPORT DW-1410(HIGH,pre-existing,reply-wait_BP_copy_miscounted;25/100,10/10) recommend=ship_DW-1205+494_with_follow-up DW-1205_status=probe_0/300,cond3_running relayed=contest_planner
+2026-11-15T23:12:37Z	Epic 21	owner_decision	via=contest_planner DW-1205+494=SHIP(cond3_first;release_note_plain) DW-1410=HIGH_follow-up(triage_demo_path_first;session-level_hint)
