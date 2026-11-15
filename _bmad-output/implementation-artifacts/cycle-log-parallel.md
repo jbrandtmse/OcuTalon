@@ -4337,3 +4337,13 @@
 2026-11-15T16:22:09Z	Run	release_pr_open	via=contest_planner PR=#16 release/1.0.11-rc2@799f9a8b->main runs=43735018565,43735018578(all_IRIS_jobs_started) push_hold=none rule=never_merge_to_main
 2026-11-15T16:26:56Z	Epic 25	runner_reported	PART_READY story=25.6 head=ff3078ed7 runs=43728223291(att2;att1=DW-1382_new_flake_cand_ci-31,DW-1205_2nd_red_ci-16),43728223310 bundle=890.41kB
 2026-11-15T16:26:56Z	Epic 25	merge_enqueued	story=25.6 (1.0.12)
+2026-11-15T16:29:46Z	Epic 25	merged	story=25.6 merge=7622f6df8 pins=pass web=pass lint=pass
+2026-11-15T16:29:55Z	Run	planner_notified	25.6_merged DW-1205=2nd_red_real(owner_proposal:laneC_after_0.37_push_and_23.3_merge) DW-1382=new_flake_cand(ci-31,not_port)
+2026-11-15T16:30:49Z	Run	owner_decision	via=contest_planner DW-1205=REAL,owner=lane_C(after_0.37_push_and_23.3_merge;investigate_with_DW-494) DW-1382=noted(new_runners_1/66_vs_old_1/15;report_runner_names)
+2026-11-15T16:45:19Z	Epic 0	runner_status	0.37 pushed=c8f7a3f39 runs=43737201539,43737201541(pending) planner_notified="0.37 PUSHED c8f7a3f39" state=held_merge(A/B)
+2026-11-15T17:18:47Z	Epic 0	runner_reported	PART_READY story=0.37 head=c8f7a3f39 runs=43737201539,43737201541(att1_green) state=held_merge(Planner_A/B)
+2026-11-15T17:18:47Z	Epic 21	runner_ended	reason=waiting waiting_on=23.3_merge(DW-1205+DW-494)
+2026-11-15T17:19:04Z	Epic 21	runner_resumed	lane=C task=DW-1205+DW-494_investigation_only(no_Fix_edits_until_23.3_merges) via=contest_planner
+2026-11-15T17:24:27Z	Run	dw_opened	DW-1388(MED,21.5_mcp.spec_B13_flake;ci-55,ci-16) owner=next_free_of_laneD/laneC 1.0.11=released(main_b2c3f6f6,tag_v1.0.11,merge-back_b337f61d)
+2026-11-15T17:32:38Z	Epic 0	owner_decision	via=contest_planner 0.37_A/B=PASS(evidence_release-evidence/ab-037/RESULT.md;a:24/22,b:34/36,c:11/11,d:0,e:30/30,f:6/6,g:6/6,h:none_worse,probes:0_actions;$0.25) flag=memory-webhook-remember_digest->ignore(accepted;new_LOW_DW_for_laneC)
+2026-11-15T17:32:38Z	Epic 0	merge_enqueued	story=0.37 head=c8f7a3f39 (1.0.12)

@@ -8351,3 +8351,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: TestFailureDefinition+15 *found() Subscript 1 is ""; TestFailures+19 *expected(""); FAIL 'three failures are given'; DW-1371 changes only Test/Mcp/Approval.cls; feature 999138505 passed the same shard (run 43714808565); no other recent branch shows it
 - 2026-11-15T15:30:49Z status=routed owner=burndown by=flake note=(inference) a timing or shared-state race in the reader's failure query; one rerun of the failed job
 - 2026-11-15T15:56:26Z occurrence=OCT-epic21-dw1371-5b52467ec by=epic-runner note=attempt 2 of run 43719358269 passed shards-8 (flake confirmed by the rerun)
+### DW-1388: flake: web/e2e/settings/mcp.spec.ts:479 B13 (21.5 source form) times out after 60 s at line 600 waiting for the button 'Remove the source Existing' in the 'Your sources' region: a list reload before the row renders, or a selector race
+- source: orchestrator; Contest Planner ruling ~18:10Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: main ci 43737922579 shards-4 on ocutalon-ci-55 (1.0.11 main push run); feature ci 43733825684 on ocutalon-ci-16; passed on a1b4f2e2c and PR #16
+- 2026-11-15T17:24:27Z status=routed owner=burndown by=orchestrator note=ledgered flake (one rerun) until fixed; owner: lane D or lane C, whichever frees first; fix the test, or the UI if it is at fault
