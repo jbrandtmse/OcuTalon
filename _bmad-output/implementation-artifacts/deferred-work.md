@@ -7701,6 +7701,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T04:50:39Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=orchestrator note=AC bullet added to 24.2's epics.md block (Planner ruling)
 - 2026-11-13T07:23:37Z note=EXTENDED_by_Planner_2026-11-13:ProposeFix/DryRun/DryRunResult/PartnerNotice_carry_contact_ids_not_addresses_once_24.2_makes_contacts_real
 - 2026-11-15T19:40:42Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-15_story-242-rulings:the_contact-id_change_in_23.5's_warnings_moves_to_Story_23.13
+- 2026-11-15T19:40:52Z status=routed owner=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=planner note=corrected:DW-1254_stays_with_24.2_(SecretHandoff,leak_scan);only_its_contact-id_change_in_23.5's_warnings_is_23.13's_AC(epics.md_23.13_block)
 
 ### DW-1255: audit: every other settings section for personal data in traced SaveSettings.Changes; anything personal moves to the SecretHandoff (mail-server host names and webhook names are not personal and can stay)
 - source: Contest Planner 36.4 gate ruling, 2026-11-13 | severity: med | fix-risk: low | footprint: out-of-footprint
