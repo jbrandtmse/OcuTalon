@@ -375,7 +375,7 @@ ClassMethod EmailReasons() As %List [ Private ]
 }
 
 /// The reason of a standalone email request's not-sent notice: the Reason of the request's FixRun (object access, read only) when it is one of EmailReasons,
-/// else Channel.Email.Out's MESSAGEFAILED (a raw error, an empty reason, an interrupted run and a run that can't be read).
+/// else Channel.Email.Out's MESSAGEFAILED (a raw error, an empty reason, which an interrupted run has, and a run that can't be read).
 ClassMethod EmailReason(row As OcuTalon.Bridge.Data.ApprovalRequest) As %String [ Private ]
 {
 	Set reason = ""

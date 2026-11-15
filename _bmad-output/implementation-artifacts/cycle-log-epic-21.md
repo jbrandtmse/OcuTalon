@@ -428,3 +428,6 @@
 2026-11-15T12:35:36Z	Story 21.11	stage_spawned	stage=qa spawn_at=2026-11-15T12:35:36Z model=sonnet agent_name=21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o-qa-1 by=lane_D effort=high branch=OCT-epic21-s2111
 2026-11-15T12:54:21Z	Story 21.11	qa_complete	by=lane_D model=sonnet tests_added=4(EmailRequestNotices:real_raise_expire,real_approve_not_sent,results_reach_phone_web;TelegramOut:stored_dry_run_edit) mutations_demonstrated=7 first_run_failures=0 note=TelegramOut_second_test(V5_said_one;lane_D_is_Lane_A_owner_of_the_file)
 2026-11-15T12:54:21Z	Story 21.11	stage_spawned	stage=code-review spawn_at=2026-11-15T12:54:21Z model=opus agent_name=21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o-code-review-1 by=lane_D effort=high scope=7f2ae7d5..worktree branch=OCT-epic21-s2111
+2026-11-15T13:19:19Z	Story 21.11	cr_complete	by=lane_D model=opus resolved=8(med1:EmailRequestNotices_Mailbox_hermeticity;low7) deferred=0 dismissed=18 high=0 med=1 low=22 unresolved_high_med=0 final=done V6_pin_mutation_red=yes
+2026-11-15T13:19:19Z	Story 21.11	smoke_complete	method=other(implement:live_answers_26_cases_X1-X15_C1-C10_fresh,live_demo-path) result=pass
+2026-11-15T13:19:19Z	Story 21.11	fresh_check	env=fresh_lane-D_stack_e21s11dcr tests=Test.Core.EmailRequestNotices result=pass torn_down=yes

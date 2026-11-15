@@ -339,7 +339,7 @@ Method Mailbox() As %Boolean [ Private ]
 		Set key = ##class(OcuTalon.Channel.Email.Out).#ADDRESSKEY
 		Set ..Found = $ListBuild(##class(OcuTalon.Data.Setting).KeyIndexExists(key), ##class(OcuTalon.Data.Setting).Get(key), ##class(OcuTalon.Data.Setting).Fresh(##class(OcuTalon.Channel.Email.Out).#OWNERKEY))
 		Do $$$AssertEquals($List(..Found, 3), "", "no mailbox has an owner on this stack")
-		Do $$$AssertEquals($Extract($List(..Found, 2), 1, 4), "", "and no earlier run of this class left its address (zzqa...) saved")
+		Do $$$AssertNotEquals($Extract($List(..Found, 2), 1, 4), "zzqa", "and no earlier run of this class left its address (zzqa...) saved")
 		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(key, "zzqa"_..Number_"own@example.test"), "the mailbox's address is saved")
 	}
 	Quit 1
@@ -402,6 +402,16 @@ Method AssertNoTrace(markers As %List) [ Private ]
 	While $ListNext(markers, position, marker) {
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(marker), "", "no trace global holds "_marker)
 	}
+}
+
+/// Starts EmailOut again after the test that stopped it, so that the next test runs with the production as it found it.
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If ..MailOutStopped {
+		Do ##class(Ens.Director).TempStopConfigItem("OcuTalon.Production||EmailOut", 0)
+		Set ..MailOutStopped = 0
+	}
+	Quit ##super(testname)
 }
 
 Method OnAfterAllTests() As %Status

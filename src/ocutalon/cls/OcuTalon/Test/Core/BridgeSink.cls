@@ -38,7 +38,7 @@
 ///     (the key from the row's AnsweredAction and Result, the server form of the request when the ToolSource names an MCP server,
 ///     the inputs as an array of {name, value}, one member per top-level member, never cut and with the whole arguments redacted first; a
 ///     cancelled request of an MCP server that has no row any more sends answered.canceled and its approval event carries the server and
-///     cancelledAt, any other cancellation sends nothing), a fix, a setting, an old held row and any other owner send none, an old
+///     cancelledAt, any other cancellation sends nothing), a fix with no FixKind, a setting, an old held row and any other owner send none, an old
 ///     held row's fallback Decision sends the one result notice with the bridge's reason (and the approval event carries it) or, for
 ///     any other line, toolCall.failed with no reason, and a failed or throwing send is one warning; they run on the probe.
 ///   - TestStandaloneEmailNotices, TestRequestTextFillsTheDryRun (Story 21.11, AD-31, AD-32): a standalone email request (kind fix, FixKind email, no
@@ -1085,7 +1085,6 @@ Method TestStandaloneEmailNotices()
 	For name = "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEUNREACHABLE", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE", "MESSAGEFAILED", "MESSAGEMAYHAVESENT" {
 		Set reasons = reasons_$ListBuild($Parameter("OcuTalon.Channel.Email.Out", name))
 	}
-	Do $$$AssertEquals($ListLength(reasons), 10, "the accepted sentences are the ten of the spec")
 	Set position = 0
 	While $ListNext(reasons, position, reason) {
 		Do ..Run(ref, reason)
@@ -1164,16 +1163,16 @@ Method TestRequestTextFillsTheDryRun()
 	Set lf = $Char(10)
 	Set expected = "Send an email"_lf_"Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval."_lf_"Dry run:"_lf
 	Set expected = expected_"to: [""bob@example.test"",""ann@example.test""]"_lf_"subject: ""Late  order"""_lf_"text: ""Hi Bob,\u000D\u000A\u0009Sorry."""_lf_"Approving sends exactly this email once."
+	Set notification = ..EmailNotice(session, ref)
 	For channel = "phone", "web", "telegram" {
-		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(..EmailNotice(session, ref), channel, .sc)
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(notification, channel, .sc)
 		Do $$$AssertStatusOK(sc, channel_": the request renders")
 		Do $$$AssertEquals(text, expected, channel_": the exact text, with the escapes, both spaces and every recipient")
 		For code = 13, 9 {
 			Do $$$AssertTrue(text '[ $Char(code), channel_": no character "_code_" is in the text")
 		}
 	}
-	Set notification = ..EmailNotice(session, ref)
-	Do $$$AssertEquals(notification.Slots, "{}", "the notification still holds no slot after RequestText")
+	Do $$$AssertEquals(notification.Slots, "{}", "the notification passed to RequestText for the three channels still holds no slot")
 
 	Set secret = "sk-"_$Translate($Justify("", 30), " ", "a")
 	Set tail = ..EmailRow(session, "pending", {"DryRun": ({"to": ["bob@example.test"], "subject": "s", "text": ("key "_secret_" end")}.%ToJSON())})

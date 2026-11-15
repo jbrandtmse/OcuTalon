@@ -193,6 +193,39 @@ All of it was checked on `OCT-epic21-s2111` at `21497b51d35a7257d17670c8b5a18e44
 - Given a fix with an incident, any other fix with no incident, or a cancellation, when its events arrive, then `BridgeSink` sends nothing new and `IncidentManager` is unchanged. (`TestStandaloneEmailNotices`, `TestToolCallNoticesOnlyForReplayableSessionRows`)
 - Given the online demo, when the demo path runs, then nothing changes. (`live demo-path`, X1-X14 unchanged)
 
+### Review Findings
+
+Code review 2026-11-15 (lane D, Tier 1, full; Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor). 26 entries after grouping: high 0, medium 1, low 22, false 3; 0 decision-needed, 8 patch (all applied), 0 defer, 18 rejected. DW-1347's files and Lane A's other paths are untouched. Fresh check: `class OcuTalon.Test.Core.EmailRequestNotices` on a fresh stack passed (13.78 s).
+
+- [x] [Review][Patch] `EmailRequestNotices.Mailbox()` asserted that no mailbox address was saved at all, while its message speaks only of this class's own leftover, so it went red whenever another class left an address (Rule 19 hermeticity; medium, fix-risk low, in-story) -- now asserts the address does not start with `zzqa` [src/ocutalon/cls/OcuTalon/Test/Core/EmailRequestNotices.cls:342]
+- [x] [Review][Patch] `TestRealApproveWithNoMailServerIsReportedNotSent` left EmailOut stopped for the class's later methods until `OnAfterAllTests` (Rule 19; low) -- `OnAfterOneTest` starts it again after the method that stopped it [src/ocutalon/cls/OcuTalon/Test/Core/EmailRequestNotices.cls:408]
+- [x] [Review][Patch] `TestRequestTextFillsTheDryRun` asserted the Slots of a new notification that was never passed to `RequestText` (unfalsifiable; low) -- one notification now goes through the three channels and its Slots are asserted; mutation observed below [src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls:1163]
+- [x] [Review][Patch] `TestStandaloneEmailNotices` asserted a `$ListLength` of 10 on a list the test builds itself (cannot fail; low) -- deleted; the loop over the sentences is the pin [src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls:1088]
+- [x] [Review][Patch] `TestToolCallCards` checked that the newest card (a `fix.emailNotSent` built from the test's own reason) holds no recipient and counted the dry-run card again after the loop had asserted each card's text (cannot fail; low) -- both deleted [src/ocutalon/cls/OcuTalon/Test/Core/WebChatOut.cls:255]
+- [x] [Review][Patch] The class doc of `Test.Core.BridgeSink` still said "a fix ... send none" for `TestToolCallNoticesOnlyForReplayableSessionRows` (low) -- now "a fix with no FixKind" [src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls:41]
+- [x] [Review][Patch] `EmailReason`'s doc said an interrupted run gives `MESSAGEFAILED`, while the code passes an accepted Reason whatever the Result (as AD-31 S2 says); an interrupted run's Reason is empty (`Fix.Run.MarkOne`) (low) -- the doc now says so; no code change [src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:379]
+- [x] [Review][Patch] AC 7 (online demo) had no `mutation:` line (Rule 19; low) -- the gate that keeps the demo's incident fix silent was mutated and observed red; the line is under `## Verification`
+
+**Rejected:**
+- `false` Acceptance Auditor and Verification Gap: the second test in `Test/Channel/TelegramOut.cls` (`TestEmailRequestEditKeepsItsStoredDryRun`, QA) breaches V5's "one test" -- the lead's ruling for this review: lane D builds as Lane A, the file's owner, so it is judged on merit (Rule 19). On merit it holds: it creates and removes its own `zz` rows, pins AC 3's in-place edit of the stored dry run on Telegram with the secret redacted, and its mutation (`Set kept = ""`) was observed red.
+- `low` Acceptance Auditor: the Telegram doc runs over two `///` lines and the parameter has its own doc line -- moot under the same ruling; the text is accurate.
+- `low` Acceptance Auditor: the spec says "nine BridgeSink and SettingsOps keys in all" while `ToolCallCard` lists twelve -- the code is right (nine BridgeSink keys plus three SettingsOps keys); the fix would edit the spec's intent.
+- `low` Verification Gap: the Auto Run's residual-risk line and "Read at implement" (`row.OwnerRef` check) are stale -- the fix would edit the spec's history.
+- `low` Blind Hunter: `STOREDKEYS` copies the key -- by-design: V5 grants exactly this parameter, and `TestEmailRequestRendersTheStoredDryRun` fails on a rename.
+- `low` Blind Hunter: the card shows the redacted dry run while saying "Approving sends exactly this email once." -- by-design: 21.10 Decided 9 and the matrix's "Secret in text" row; the approved text is fixed.
+- `low` Blind Hunter: the catalog `source` lines cite "EXPERIENCE Incidents and Approvals / ..." while the rows sit in the step 4 catalog block -- the spec prescribes these sources, and 21.10's `toolCall.*` entries use the same form.
+- `low` Blind Hunter: `EmailReasons` lists its sentences by hand -- by-design: the Boundaries name the allow-list, read by `$Parameter`.
+- `low` Blind Hunter and Edge Case Hunter: `RequestText` does not check the dry run's members -- `wontfix-theoretical`: only `Fix.Kind.Email.DryRun` writes an email row and it always writes `to`, `subject` and `text`; real if another writer of FixKind `email` rows appears.
+- `false` Blind Hunter: `Mailbox()` asserts `onlineDemo` = 0 and fails when it is unset -- the setting reads 0 on a fresh install (the fresh check passed).
+- `low` Blind Hunter: X15 posts a `done` result for a rejected request -- the card's render does not depend on the answer, the real approve paths are pinned by `TestRealApproveWithNoMailServerIsReportedNotSent` and `TestResultsReachThePhoneAndTheWebChat`, and a second seeded flow adds more than it pins.
+- `low` Blind Hunter: the trace pin does not cover Telegram -- `wontfix-theoretical`: Telegram sends over HTTP and logs only `Api.Safe` status texts; real only if a `Delivery.Record` failure echoed the text into its status.
+- `low` Blind Hunter: EXPERIENCE does not say that Telegram splits a long email -- the text is still the same on every channel (split whole), and Decided 3 (V8 KEEP) records the behaviour.
+- `low` Blind Hunter and Edge Case Hunter: a request that cannot be rendered reaches no channel -- by-design: fail closed (Boundaries, the matrix's "Unreadable" row).
+- `false` Edge Case Hunter: `approvalTitle` does not check `incidentRef` -- an email fix never has an incident (Decided 1; `IncidentManager.RaiseFix` sets no FixKind `email`).
+- `low` Edge Case Hunter: `StopMailOut` sets its flag before the stop -- on a throwaway, starting a running item again is harmless.
+- `low` Edge Case Hunter: a removed row or message gives an INVALID OREF error, not a failed assertion -- the test still fails, with a less clear message.
+- `low` Edge Case Hunter: the commit subject says "standalone fix requests" but only email is handled -- by-design: Decided 1.
+
 ## Spec Change Log
 
 - 2026-11-15 (lane D lead). **Lane exception (orchestrator, Planner 1.0.11 priority):** lane D builds 21.11 because lane C is on DW-1347; lane C does not touch this branch. Runtime moves to lane D: slot `ocutalon-slot-d`, port 52804, the `lane-d` lock folder, tags `e21s11dw` (warm) and `e21s11d` (fresh). Integrated over feature 20b60564 (includes 21.9). DW-1347's files stay out of scope (`Mcp.Proxy`, `Bridge.Poll`, `Bridge.Process.Decide`, Bridge `HostData`/`Reply`, `Checks.Process`, `Test.Mcp.Source*`, `Test.Bridge.Poll`). The spine's AD-31 S2 is additive, written under `spine.lock`.
@@ -389,6 +422,11 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - mutation (V6, the trace pin, real path): the raise composes `{"inputs": InputsOf(DryRun)}` into `Slots` -> `TestRealRaiseThenExpireEditsInPlace` red (no trace global may hold the recipients, the subject or the text).
 - mutation: Telegram's stored text of a request with buttons made empty (`Set kept = ""` in `Channel/Telegram/Out.cls`) -> `Test.Channel.TelegramOut:TestEmailRequestEditKeepsItsStoredDryRun` red (the row stores no dry run, so the edit is not made).
 
+**Mutations observed (code review; warm stack `e21s11dcrw`, each applied, red, reverted byte-identical with `cmp`, `git status --short` and `git diff --stat` unchanged):**
+- mutation (code review): `RequestText` writes the merged slots back (`Set notification.Slots = slots.%ToJSON()`) -> `Test.Core.BridgeSink:TestRequestTextFillsTheDryRun` red ("the notification passed to RequestText for the three channels still holds no slot").
+- mutation (code review, AC 7, online demo): the demo raises no email request (22.7, `Test.Fix.Email` `TestOnlineDemoSendsNothing`), and its fix is an incident's, which the `Standalone` gate keeps silent. `Standalone` without the `IncidentRef = ""` clause -> `Test.Core.BridgeSink:TestStandaloneEmailNotices` red ("an email request with an incident ... send no notice").
+- mutation (code review, V6 re-observed): the raise composes `{"inputs": InputsOf(DryRun)}` into `Slots` -> `Test.Core.EmailRequestNotices:TestRequestReachesTheChannelsAndLeavesNoTrace` red: "every one holds the key and empty Slots" and four `TraceLeaks` failures (both recipients, the subject and the text).
+
 **Commands:**
 - (once) `<vars> OCUTALON_RUN_TAG=e21s11dw ci/warm.sh up` -- ready.
 - (loop) `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s11dw ci/iris.sh class OcuTalon.Test.Core.BridgeSink` -- passed.
@@ -403,6 +441,7 @@ Criterion: every test added or changed passes on a fresh environment, in either 
 - (once each) `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` -- pass.
 - (once, after S1 and S2) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- no finding beyond the baseline.
 - (once each, also after a failure) `<vars> OCUTALON_RUN_TAG=e21s11dw ci/warm.sh down` and `<vars> OCUTALON_RUN_TAG=e21s11d ci/iris.sh teardown`.
+- (code review, fresh check) `<vars> OCUTALON_RUN_TAG=e21s11dcr ci/iris.sh class OcuTalon.Test.Core.EmailRequestNotices` (fresh) -- passed (13.78 s), then `... ci/iris.sh teardown`. After the review patches, warm `e21s11dcrw`: `class OcuTalon.Test.Core.BridgeSink`, `... OcuTalon.Test.Core.WebChatOut` and `... OcuTalon.Test.Core.EmailRequestNotices` (twice, the second on the used stack) -- passed; then `ci/warm.sh down`.
 
 ## Auto Run Result
 

@@ -253,13 +253,6 @@ Method TestToolCallCards()
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), n, key_": and the card is in RecentNotices")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 9, "nine cards")
-	Do $$$AssertEquals(..Newest(session).Text [ "bob@example.test", 0, "the newest card (a result) holds no recipient")
-	Set rows = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 10)
-	Set found = 0
-	For i = 1:1:rows.Count() {
-		If rows.GetAt(i).Text = emailText Set found = found + 1
-	}
-	Do $$$AssertEquals(found, 1, "and exactly one card holds the email's dry run, the request's")
 
 	Set stranger = ..Session("emailother")
 	Set theirs = ..Notification(stranger, "approval", "fix.emailRequest", {})
