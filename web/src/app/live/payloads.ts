@@ -123,6 +123,13 @@ export interface Memory {
   savedAt?: string;
 }
 
+export interface Page {
+  state?: string;
+  pagedAt?: string;
+  acknowledgedAt?: string;
+  channel?: string;
+}
+
 export interface SentFile {
   ref?: string;
   name?: string;
@@ -349,6 +356,7 @@ export interface IncidentPayload {
   requests?: IncidentRequest[];
   settingChange?: SettingChange;
   gapMinutes?: number;
+  page?: Page;
   evidence?: IncidentEvidence;
   traceTargets?: IncidentTraceTargets;
 }

@@ -1,8 +1,8 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 157 keys of OcuTalon.Msg.Catalog.Core and the 133 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 157 keys of OcuTalon.Msg.Catalog.Core and the 141 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
-///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
+///   - OneForms: for each of the 24 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
@@ -93,9 +93,10 @@ Method TestEntries()
 	// Story 26.2 (Contest Planner Public Text ruling 2026-11-14, with the H2 gate of the same day): files.tooLarge, files.unreadable and files.offOnDemo (Telegram's refusals) and files.noReader (the existing no-reader reply, while no reader is on) take the Watch count to 121.
 	// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): the 11 keys of the setting rollback and its undo (incident.rollbackRequest, undoRollbackRequest, settingChangeCause; result.settingRestored, settingChangedSince, rollbackUndone; summary.requestedRollback, requestedUndoRollback, settingRestored, rollbackUndone, settingNotChanged) take the Watch count to 132.
 	// Story 23.3 (Contest Planner pre-push ruling 2026-11-15, DW-1365): result.settingSavedNotApplied takes the Watch count to 133.
-	Do $$$AssertEquals(keys.watch.%Size(), 133, "the expected Watch list has 133 keys")
+	// Story 23.4 (Contest Planner ruling 2026-11-15, Public Text): the eight page.* keys (onCall, onCallEmail, backup, backupEmail, subject, onCallAlone, onCallEmailAlone, causeUnknown) take the Watch count to 141.
+	Do $$$AssertEquals(keys.watch.%Size(), 141, "the expected Watch list has 141 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 157 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 133 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 141 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -133,7 +134,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 246 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 254 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "webhook,slack,system,heartbeat", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -605,10 +606,10 @@ Method TestNounForms()
 			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
 		}
 	}
-	Do $$$AssertEquals(keys, 28, "the keys with a noun are swept (Story 23.3 adds incident.rollbackRequest)")
+	Do $$$AssertEquals(keys, 34, "the keys with a noun are swept (Story 23.3 adds incident.rollbackRequest, Story 23.4 six page keys)")
 }
 
-/// Rows 1 to 9: the count-of-one forms. Exactly the 9 entries of the OneForms block carry a one form. With the form's slot at 1 each
+/// Rows 1 to 9: the count-of-one forms. Exactly the entries of the OneForms block carry a one form. With the form's slot at 1 each
 /// renders the owner's exact text on the four channels (the page wording for the two incident notices). With the slot at 0 or 2
 /// it renders the entry's own text, which holds the plural fragment. The resend count of the dry runs is refused when it is
 /// missing, null, negative, fractional or text, and the slot of every form is refused as the text 1 and as true, the values
@@ -626,7 +627,7 @@ Method TestCountOfOneForms()
 		}
 	}
 	Do $$$AssertEquals(..Names(.carriers), ..SortedKeys(forms), "exactly the entries of the OneForms block carry a one form")
-	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 20, "20 entries carry a one form")
+	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 24, "24 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
 		For channel = "phone", "mailbox", "telegram", "email", "web" {
@@ -1399,7 +1400,15 @@ XData Keys [ MimeType = application/json ]
   "summary.settingRestored",
   "summary.rollbackUndone",
   "summary.settingNotChanged",
-  "result.settingSavedNotApplied"
+  "result.settingSavedNotApplied",
+  "page.onCall",
+  "page.onCallEmail",
+  "page.backup",
+  "page.backupEmail",
+  "page.subject",
+  "page.onCallAlone",
+  "page.onCallEmailAlone",
+  "page.causeUnknown"
  ]
 }
 }
@@ -1565,6 +1574,34 @@ XData OneForms [ MimeType = application/json ]
   "text": "The QueueSink queue in the Orders production had 1 message waiting at 14:12 ET, since 14:02 ET.\nWhy now: you asked me to watch queue backlogs.",
   "plural": "{n} messages waiting",
   "singular": "1 message waiting"
+ },
+ "page.onCall": {
+  "slot": "minutes",
+  "slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 1, "backup": "alice"},
+  "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within one minute, I'll page alice.",
+  "plural": "within {n} minutes",
+  "singular": "within one minute"
+ },
+ "page.onCallEmail": {
+  "slot": "minutes",
+  "slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 1, "backup": "alice"},
+  "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within one minute, I'll page alice. Replying to this email doesn't count.",
+  "plural": "within {n} minutes",
+  "singular": "within one minute"
+ },
+ "page.backup": {
+  "slot": "minutes",
+  "slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 1, "person": "bob"},
+  "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're the backup, and nobody pressed Got it on bob's page within one minute. Press Got it to show you're on it.",
+  "plural": "within {n} minutes",
+  "singular": "within one minute"
+ },
+ "page.backupEmail": {
+  "slot": "minutes",
+  "slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 1, "person": "bob"},
+  "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're the backup, and nobody pressed Got it on bob's page within one minute. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count.",
+  "plural": "within {n} minutes",
+  "singular": "within one minute"
  }
 }
 }
@@ -1896,6 +1933,14 @@ XData Fixtures [ MimeType = application/json ]
  "settings.sourceInterval": {"slots": {}, "text": "Check every"},
  "settings.sourceNotReadOnly": {"slots": {}, "text": "Only a Read-only tool can be a source."},
  "settings.sourceBadArguments": {"slots": {}, "text": "Enter the arguments as a JSON object. Nothing was changed."},
+ "page.onCall": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 15, "backup": "alice"}, "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within 15 minutes, I'll page alice."},
+ "page.onCallEmail": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 15, "backup": "alice"}, "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within 15 minutes, I'll page alice. Replying to this email doesn't count."},
+ "page.backup": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 15, "person": "bob"}, "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're the backup, and nobody pressed Got it on bob's page within 15 minutes. Press Got it to show you're on it."},
+ "page.backupEmail": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "minutes": 15, "person": "bob"}, "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're the backup, and nobody pressed Got it on bob's page within 15 minutes. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count."},
+ "page.subject": {"slots": {"production": "Orders"}, "text": "OcuTalon page: Orders incident"},
+ "page.onCallAlone": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format."}, "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it."},
+ "page.onCallEmailAlone": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders", "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format."}, "text": "3 orders failed in the Orders production since 14:12 ET. The partner changed its date format.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count."},
+ "page.causeUnknown": {"slots": {}, "text": "I couldn't work out the cause"},
  "answered.canceled": {"slots": {"time": "2026-10-16T18:15:00Z", "server": "Tickets"}, "text": "Cancelled at 14:15 ET: the MCP server Tickets was removed. Nothing was changed."}
 }
 }

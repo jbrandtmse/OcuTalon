@@ -2,14 +2,36 @@
 title: 'Story 23.4: Decide when to page the on-call person and when to escalate to the backup'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd0fb1e1d3d2077257ece724d92385dbc33a91184'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The AC14 template branch (the @if/@else of web/src/app/settings/on-call-section.ts) has no demonstrated mutation; only the text constant was mutated.
+    evidence: |-
+      web/e2e/settings/on-call.spec.ts O1 pins that the telegramOnly line shows when pagesBuilt is true, but it needs a live sign-in part and was not run with a template mutation in this story.
+    location: >-
+      web/src/app/settings/on-call-section.ts
+    severity: low
+  - summary: >-
+      Test.Watch.PagingLive TestEscalationAsk asserts the not_built answer of the escalation SetReminder and goes red when Story 24.3 builds the escalation timer.
+    evidence: |-
+      ReminderOps answers Kind escalation with Ok 0 not_built until 24.3 (Test.Schedule.Reminders TestEscalationNotBuilt pins the same); 24.3 replaces the probe fixture and this assertion (Consumed-by).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Watch/PagingLive.cls
+    severity: low
+  - summary: >-
+      web/e2e/api/incident-page.spec.ts (AC11's real-HTTP pin) has no demonstrated mutation.
+    evidence: |-
+      The spec was type-checked and, when the local part run fits the call size, run once; a mutation (the person in the state, or the incident listed for a second session) was not demonstrated.
+    location: >-
+      web/e2e/api/incident-page.spec.ts
+    severity: low
 ---
 
 <intent-contract>
@@ -124,7 +146,7 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure first; record under `## Design Notes` › Measured; label anything unmeasured "(inference)"). Run on a fresh lane-B throwaway, inside the first `Test.Watch.PagingLive` cases:
+- [x] Task 0 (measure first; record under `## Design Notes` › Measured; label anything unmeasured "(inference)"). Run on a fresh lane-B throwaway, inside the first `Test.Watch.PagingLive` cases:
   - (a) Add an `Ens.Alert` item of class `Ens.Alerting.AlertManager` and `AlertOnError` 1 on `OrdersFromPartner` to OCUORDERS's saved definition, then `UpdateProduction`. Break three orders. Record:
     - whether `Ens_Alerting.ManagedAlert` rows appear, how many and how fast;
     - whether the AlertManager needs any other setting;
@@ -132,8 +154,8 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
   - (b) A page sent through the real IncidentManager reaches TelegramOut and the mock in a `ci/iris.sh class` stack of the Watch area (TelegramIn/Out jobs alive, fixture pairing). If it does not, the Telegram cases move to `OcuTalon.Test.Channel.TelegramPage` (decided in-stage and recorded).
   - (c) `Commands.Submit(SetReminder escalation, "system")` from IncidentManager's job answers `not_built` with no deadlock, and how long it takes.
   - (d) After an `AckPage`, record what WebChatOut and SimPhoneOut log for a page copy that has only a bare Delivery row: any warning, and its text. Any Type 3 line goes to `## Design Notes` as a 24.3 item.
-- [ ] `Data/Page.cls` (NEW) -- Persistent, `^OcuTalonP.Page`. Columns exactly as AD-15 lists them. `RefIndex` unique, `IncidentRoleIndex On (IncidentRef, Role)` unique. Add `OfIncident(ref)` (object access, AD-13), `Marked(ref)` (AcknowledgedAt, as `Handled.Marked`) and a committed storage block -- AD-5, AD-15, AD-33.
-- [ ] `Watch/Paging.cls` (NEW) -- the decisions and row writes, called only from IncidentManager's job:
+- [x] `Data/Page.cls` (NEW) -- Persistent, `^OcuTalonP.Page`. Columns exactly as AD-15 lists them. `RefIndex` unique, `IncidentRoleIndex On (IncidentRef, Role)` unique. Add `OfIncident(ref)` (object access, AD-13), `Marked(ref)` (AcknowledgedAt, as `Handled.Marked`) and a committed storage block -- AD-5, AD-15, AD-33.
+- [x] `Watch/Paging.cls` (NEW) -- the decisions and row writes, called only from IncidentManager's job:
   - `Notice(incident, slots)` decides and records the on-call page, or returns nothing. `OnlineDemo()` is checked first.
   - The person is the user when set, else the address. The session is the user's paired session, else their first session row, else `instance`. Configured, the same-person rule and the key choice are as in the Matrix.
   - `Escalate(message)` decides and records the backup page.
@@ -145,19 +167,19 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
     - for an unknown cause it renders `page.causeUnknown` into `{cause}`;
     - for channel `email` it picks the `*Email*` variant, so that 24.3's EmailOut can call it as TelegramOut does.
   - Audit goes through `Bridge.Audit` only, with action `page` or `page_acknowledged`, target the page Ref, a result, and no person.
-- [ ] `Watch/IncidentManager.cls` -- hooks only, each 1-2 lines:
+- [x] `Watch/IncidentManager.cls` -- hooks only, each 1-2 lines:
   - `OnRequest`: `AckPage` goes to a paging method that answers through `Verdict`; `Msg.Escalation` goes to one with no answer.
   - `Deliver`: after `Move` returns OK, call the page method.
   - `Apply`: after a move into closed, call the cancel method.
   - `PurgeOne`: delete the page rows.
   - Then ONE appended block at the end of the file: the paging methods (send the Notification through `SendNotice`, ask or cancel through a new seam `SendCommand(command, .result)` wrapping `Commands.Submit(..., "system")`, publish with `Tell` with no notification), each wrapped so that a paging failure is one Type 3 warning and never fails the notice, the close or the purge -- AD-15, AD-1, AD-5.
-- [ ] `Live/Payload/Part/Page.cls` (NEW) and `Live/Payload/Incident.cls` -- `page` {state, pagedAt, acknowledgedAt, channel}, absent with no page and on the online demo. Set in `FromRow` by object access. Regenerate `web/src/app/live/payloads.ts` (`npm --prefix web run payloads`) -- AD-12, AD-13.
-- [ ] `Msg/Catalog/Watch.cls` -- append the five APPROVED `page.*` entries verbatim, and the NEW entries once accepted (`## Design Notes` (b)). Slot types: count, itemNoun noun, production text, time time, cause cause, minutes count, backup/person text. -- AD-32.
-- [ ] `Channel/Telegram/Out.cls` -- `page` joins `KINDS` and `GOTITKINDS`. Add a `page` branch beside `summary` that calls `Watch.Paging.Text`. `EditHandled` falls back to `Page.Marked` when `Handled.Marked` is empty. -- AD-14.
-- [ ] `Channel/Telegram/In.cls` -- in the existing `gotit` branch, when the pressed chat's Delivery row has Kind `page`, submit `AckPage` (Ref, Channel `telegram`) with the same pairing and chat checks. Otherwise keep `GotIt`. The callback action list does not change -- AD-14, AD-1.
-- [ ] `Test/Watch/IncidentProbe.cls` -- add a `SendCommand` override that records each command and answers from a fixture (`not_built` by default, or Ok 1 with Ref `ZzProbeEscalation0001`): the escalation-timer fixture until 24.3.
-- [ ] `Test/Watch/Paging.cls` (NEW, warm) -- every Matrix row through the probe and Fixture rows. Each case sets and restores the on-call keys and `onlineDemo`. Includes the audit read-back (polled, S8), purge, payload and `Text` (no on-call value in Slots, the trace or the audit).
-- [ ] `Test/Watch/PagingLive.cls` (NEW, throwaway or CI; the running production, the CI mock):
+- [x] `Live/Payload/Part/Page.cls` (NEW) and `Live/Payload/Incident.cls` -- `page` {state, pagedAt, acknowledgedAt, channel}, absent with no page and on the online demo. Set in `FromRow` by object access. Regenerate `web/src/app/live/payloads.ts` (`npm --prefix web run payloads`) -- AD-12, AD-13.
+- [x] `Msg/Catalog/Watch.cls` -- append the five APPROVED `page.*` entries verbatim, and the NEW entries once accepted (`## Design Notes` (b)). Slot types: count, itemNoun noun, production text, time time, cause cause, minutes count, backup/person text. -- AD-32.
+- [x] `Channel/Telegram/Out.cls` -- `page` joins `KINDS` and `GOTITKINDS`. Add a `page` branch beside `summary` that calls `Watch.Paging.Text`. `EditHandled` falls back to `Page.Marked` when `Handled.Marked` is empty. -- AD-14.
+- [x] `Channel/Telegram/In.cls` -- in the existing `gotit` branch, when the pressed chat's Delivery row has Kind `page`, submit `AckPage` (Ref, Channel `telegram`) with the same pairing and chat checks. Otherwise keep `GotIt`. The callback action list does not change -- AD-14, AD-1.
+- [x] `Test/Watch/IncidentProbe.cls` -- add a `SendCommand` override that records each command and answers from a fixture (`not_built` by default, or Ok 1 with Ref `ZzProbeEscalation0001`): the escalation-timer fixture until 24.3.
+- [x] `Test/Watch/Paging.cls` (NEW, warm) -- every Matrix row through the probe and Fixture rows. Each case sets and restores the on-call keys and `onlineDemo`. Includes the audit read-back (polled, S8), purge, payload and `Text` (no on-call value in Slots, the trace or the audit).
+- [x] `Test/Watch/PagingLive.cls` (NEW, throwaway or CI; the running production, the CI mock):
   - Task 0;
   - a real break of OCUORDERS that pages through Telegram;
   - Got it pressed from the paired chat (edit in place, button gone), from another chat (nothing), and twice (nothing);
@@ -167,11 +189,19 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
   - Managed Alerts as AC8;
   - real-HTTP `GET /api/v1/settings` as the README admin gives `pagesBuilt` true (DW-1277);
   - no chat id, display name or on-call value in the audit, the log or the messages.
-- [ ] `docker/tests/test-production-restart.sh` -- append one self-contained phase. Before row 20's kill, seed with Fixture three incidents with on-call pages: unacknowledged and open, acknowledged, and closed, with on-call keys set. After the restart, send each page's `Msg.Escalation` twice through a fixture. Expect exactly one backup row, for the first, and none for the others. Rows are removed afterwards -- AD-5, NFR-16.
-- [ ] `docker/tests/test-class-rules.sh` -- a new rule `no-alert-config`: no product code line (`src/` outside the Test package) names `AlertOnError`, `AlertGracePeriod`, `AlertRetryGracePeriod`, `QueueCountAlert`, `QueueWaitAlert`, `InactivityTimeout`, `AlertGroups`, `Ens.Alerting.` or the item name `Ens.Alert` -- FR-28.
-- [ ] `web/e2e/settings/on-call.spec.ts` -- O1 asserts that the not-yet line is absent and that `pagesBuilt` is true outright, no longer taken from the server's value (DW-1277).
-- [ ] `web/e2e/api/incident-page.spec.ts` (NEW) -- real HTTP. As the LIVE `OcuTalonUser` watching a seeded instance incident with a seeded page, `GET /api/v1/state` lists `page` with state and times and no person. A second session lists no such incident -- Rule 3.
-- [ ] `src/short-names.tsv`, `Test/Data/Tables.cls` (registry row), `Test/Msg/Catalog.cls` (count, Keys, Fixtures), `Test/Live/Payloads.cls` (class count and contract), `Test/Watch/Lifecycle.cls` `TestPurge` -- the shared-surface pins.
+- [x] `docker/tests/test-production-restart.sh` -- append one self-contained phase. Before row 20's kill, seed with Fixture three incidents with on-call pages: unacknowledged and open, acknowledged, and closed, with on-call keys set. After the restart, send each page's `Msg.Escalation` twice through a fixture. Expect exactly one backup row, for the first, and none for the others. Rows are removed afterwards -- AD-5, NFR-16.
+- [x] `docker/tests/test-class-rules.sh` -- a new rule `no-alert-config`: no product code line (`src/` outside the Test package) names `AlertOnError`, `AlertGracePeriod`, `AlertRetryGracePeriod`, `QueueCountAlert`, `QueueWaitAlert`, `InactivityTimeout`, `AlertGroups`, `Ens.Alerting.` or the item name `Ens.Alert` -- FR-28.
+- [x] `web/e2e/settings/on-call.spec.ts` -- O1 asserts that the not-yet line is absent and that `pagesBuilt` is true outright, no longer taken from the server's value (DW-1277).
+- [x] `web/e2e/api/incident-page.spec.ts` (NEW) -- real HTTP. As the LIVE `OcuTalonUser` watching a seeded instance incident with a seeded page, `GET /api/v1/state` lists `page` with state and times and no person. A second session lists no such incident -- Rule 3.
+- [x] `src/short-names.tsv`, `Test/Data/Tables.cls` (registry row), `Test/Msg/Catalog.cls` (count, Keys, Fixtures), `Test/Live/Payloads.cls` (class count and contract), `Test/Watch/Lifecycle.cls` `TestPurge` -- the shared-surface pins.
+
+**Review patches (pass 1; R1-R6, from the Review Triage Log; each test change gets its `mutation:` line in `## Verification`, Rule 19):**
+- [x] R1 `Watch/IncidentManager.cls` `Followed` -- its own Try/Catch so a failure after the acknowledgement is saved is one Type 3 warning and `Acknowledged` still answers `handled`. A probe fixture makes a follow-up step throw; `Test.Watch.Paging` pins that the answer stays `handled` with the row acknowledged.
+- [x] R2 `Watch/Paging.cls` `Closing` -- skip an on-call page whose incident already has a backup page (its timer has fired). `Test.Watch.Paging` pins it (no cancel after an escalation; the AC5 case is unchanged).
+- [x] R3 `docker/tests/test-production-restart.sh` -- send the escalations of the unacknowledged page's incident last (the acknowledged and the closed incident's first), keeping the 90 s wait and the pause.
+- [x] R4 `Test/Watch/Paging.cls` -- add cases: a first notice whose cause is a setting change (page slots carry the object, the rendered page text carries the setting-change sentence); non-default `oncall.primary.channels` and `oncall.backup.channels` copied to their rows; `Text(..., "email")` for `page.onCall` and for the alone key (the exact `page.onCallEmail` and `page.onCallEmailAlone` renderings); `Escalate` with another incident's page Ref adds nothing; the `response = ""` assertion of the Escalate helper removed or made meaningful.
+- [x] R5 `Test/Watch/PagingLive.cls` -- positive controls so the trace, event and log assertions cannot pass on empty text (the trace holds the page Ref, the backup's Ref and the AckPage marker; the event text holds the incident Ref and `paged`); `TestManagedAlertsBesidePaging` asserts the ManagedAlert's source is `OrdersFromPartner` and reads it after the page was found; `TestPageReachesTelegram` clears or sets its own on-call keys. Demonstrate one mutation for the trace pin on a fresh stack.
+- [x] R6 Doc wording in `Data/Page.cls` and `Watch/Paging.cls` headers: the person is in no Ens message body or header, log line, audit entry or payload; the rendered channel text and its Delivery row name the backup or the person (approved deviation 1).
 
 **Acceptance Criteria:**
 - AC1: Given on-call U and backup B configured and three sessions watching, when an incident's first notice is sent (with fix, fallback or no fix), then exactly one page row and one `page` Notification (key `page.onCall`, DecisionRef the page Ref, SessionRef U's session) exist, one escalation `SetReminder` of origin `system` with DelaySeconds = `oncall.escalationMinutes` x 60 was asked, and one `Action` audit `page` names the page Ref with no person (`Test.Watch.Paging`).
@@ -196,6 +226,56 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 - 2026-11-15 ~14:35Z (lead, Planner gate): APPROVED with conditions (prompts/story-234-rulings-20261115.md). Added AC13 (the person never in trace, audit, /api/v1/state, incident event or logs; each pinned), AC14 (the new Settings line replaces the not-yet line, verbatim), AC15 (no other class writes alert configuration). AC10 and the Boundaries alert line amended; epics.md 23.4 AC amended with marker (DW-1380). All proposed public text approved verbatim. Targets 1.0.12.
 
 ## Review Triage Log
+
+### 2026-11-15 — Review pass
+- verdicts: 45 findings — high 0, medium 6, low 38, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) The new Settings line contradicts the on-call help and the backup fields: by-design, AC14's line is the Planner's verbatim ruling (deviation 2 CHANGED) and 24.3 replaces it
+  - `[low]` `[reject]` (blind) The on-call text promises a backup page although no timer is armed until 24.3: by-design, Planner deviation 2 ACCEPTED (tests use the fixtures)
+  - `[medium]` `[patch]` (blind) An acknowledgement that was saved can be answered as failed because Followed runs inside Acknowledged's Try: real (Followed has no Try of its own); patch R1
+  - `[low]` `[reject]` (blind) Only one session of the paged person can acknowledge: by-design, Decided in-stage 2 (AckPage accepted from the session the page was sent to)
+  - `[low]` `[reject]` (blind) Page.Channels is recorded and never used: by-design, the spec records it for 24.3's routing (Consumed-by)
+  - `[low]` `[reject]` (blind) page.subject and KEYSUBJECT are unused: by-design, 24.3's EmailOut consumes them (Consumed-by, approved text)
+  - `[low]` `[patch]` (blind) The 'no person in any record' header wording is broader than the code (the rendered text and its Delivery row name the backup or the person, approved deviation 1): doc wording only; patch R6
+  - `[medium]` `[patch]` (blind) The restart phase's negative assertions can pass before the later messages are consumed (i1's escalations are sent first, then a fixed 8 s): real; patch R3 (i1 last)
+  - `[low]` `[patch]` (blind) A close can cancel a spent timer and log a spurious warning when the backup's page already exists: real and trivial; patch R2
+  - `[low]` `[reject]` (blind) no-alert-config also flags any Ens.Alert* name: by-design, its header already says it matches Ens.Alert and the item name
+  - `[medium]` `[patch]` (edge) Followed throws after AcknowledgedAt is saved, so the caller gets failed: same root as the blind finding on Acknowledged; patch R1
+  - `[low]` `[reject]` (edge) SessionOf can return another session at acknowledgement time than at send time: by-design (Decided in-stage 2); a person's later session is theirs
+  - `[low]` `[reject]` (edge) An exception after Record leaves an orphan page row: wontfix-theoretical, nothing after Record can throw (SessionOf and Slots are guarded) and IncidentManager.Page is wrapped; reopen_if=a throw is observed there
+  - `[low]` `[reject]` (edge) Escalate refuses only a closed incident: by-design, the Matrix says escalation after close changes nothing and a resolved incident is not closed
+  - `[low]` `[reject]` (edge) oncall.escalationMinutes changed between the pages changes the backup text's N: wontfix-theoretical
+  - `[low]` `[reject]` (edge) User name and address of the same person are not recognized as the same: by-design, the same-person rule compares the configured values; no user-to-address map exists at this layer
+  - `[low]` `[reject]` (edge) Text reads the on-call keys for a notification stored before the online demo was switched on: wontfix-theoretical, onlineDemo is an install-time property and no page row can exist there
+  - `[low]` `[reject]` (edge) A failing page DELETE rolls back the incident's purge: wontfix-theoretical, it mirrors the FixRun DELETE line beside it
+  - `[medium]` `[patch]` (edge) Claim: each follow-up failure is one warning and the acknowledgement stands: same root as the Followed finding; patch R1
+  - `[low]` `[patch]` (edge) Claim: no on-call value in a production message while the Delivery row keeps the rendered text: same root as the header wording finding; patch R6
+  - `[low]` `[reject]` (edge) Claim: escalation of an 'open' incident also pages for resolved or fixing states: same root as the Escalate state finding, by-design
+  - `[low]` `[reject]` (edge) Claim: AckPage accepted only from the sent-to session while the row stores none: same root as the one-session finding, by-design
+  - `[medium]` `[patch]` (gap) A page for a setting-change cause (object slot, rendered text) has no test: real, no pinning test; patch R4
+  - `[low]` `[patch]` (gap) Page.Channels is tested only at its default: real; patch R4
+  - `[low]` `[patch]` (gap) Text's email key mapping is tested for the backup page only: real; patch R4
+  - `[low]` `[patch]` (gap) Escalate with another incident's page Ref is not tested: real; patch R4
+  - `[medium]` `[patch]` (gap) PagingLive's trace, event and log 'holds no name' assertions have no positive control, so an empty trace passes: real (AC13's real-production pin); patch R5
+  - `[low]` `[patch]` (gap) AC8 asserts any ManagedAlert row and reads it before the page: real; patch R5 (source OrdersFromPartner, read after paged)
+  - `[low]` `[defer]` (gap) The AC14 template branch (@if/@else in on-call-section.ts) was not mutated; only the text constant was: O1 pins it and needs a live sign-in part; deferred, recorded
+  - `[low]` `[reject]` (gap) Absence assertions in PagingLive use fixed sleeps: wontfix-accepted, each follows a press or message the same case already awaited; reopen_if=the case flakes. The restart phase is the finding patched under R3
+  - `[low]` `[patch]` (gap) PagingLive.TestPageReachesTelegram relies on no on-call keys being set: real; patch R5
+  - `[low]` `[patch]` (gap) Test.Watch.Paging's `response = ""` assertion cannot fail: real; patch R4
+  - `[low]` `[defer]` (gap) PagingLive.TestEscalationAsk asserts not_built and goes red when 24.3 builds the escalation timer: 24.3 replaces it (Consumed-by); deferred to 24.3
+  - `[false]` `[reject]` (gap) Shard membership of Test.Watch.Paging and PagingLive is claimed, not shown: false, docker/tests/test-ci-config.sh passes (the shard units run every class once)
+  - `[low]` `[reject]` (gap) AC8's settings-as-before half has no mutation: wontfix-accepted, product code may not write alert settings; its rule is mutated instead (AC15); reopen_if=the rule is relaxed
+  - `[low]` `[reject]` (gap) AC10's mutation flips the test's expectation: wontfix-accepted, pagesBuilt is Lane C's read of the compiled class; reopen_if=pagesBuilt stops reading Data.Page
+  - `[low]` `[defer]` (gap) AC11's real-HTTP spec incident-page.spec.ts has no demonstrated mutation (type-checked here); deferred to the CI run of live:sign-in and to this pass's local part run when it fits
+  - `[low]` `[patch]` (gap) AC12's chat-id and display-name pins in PagingLive have no mutation line: same root as the positive-control finding; patch R5
+  - `[low]` `[patch]` (gap) AC13's real-production pins have no mutation: same root as the positive-control finding; patch R5
+  - `[low]` `[reject]` (gap) AC15's rule is a name scan and cannot catch a write that names none of the eight words: by-design, AC15 asks for a source scan of the alert-setting names
+  - `[low]` `[reject]` (gap) The restart phase leaves the on-call keys set when it fails before its cleanup: wontfix-theoretical, throwaway stack
+  - `[low]` `[reject]` (intent) A crash between the row save and the send loses the page (reading B3): by-design, rows are the state and 'at most once per person' is the invariant
+  - `[low]` `[reject]` (intent) Names in the Telegram text and its Delivery row (reading C2): by-design, approved deviation 1; same root as the header wording finding
+  - `[low]` `[reject]` (intent) No Escalation is produced by the real production until 24.3: by-design, Planner deviation 2
+  - `[low]` `[reject]` (intent) TelegramOut and TelegramIn refuse the online demo only implicitly (no row, no Notification): by-design, AC2 pins the refusal at its source
+- patches (written into Tasks & Acceptance as R1-R6): applied by a fresh subagent; the log rows above name the patch each one triggers.
 
 ## Design Notes
 
@@ -312,6 +392,29 @@ No AC contradicts an AD's Rule. The lead writes in the spine (Rule 20) only what
 4. The Telegram button reuses `gotit:<ref>`, and TelegramIn picks the verb by the Delivery row's Kind. So the callback list and the mock stay unchanged.
 5. Every paging step is wrapped, so a paging failure is one Type 3 warning without on-call values and never fails the notice, the close or the purge.
 
+### Measured (Task 0, a fresh lane-B throwaway, `Test.Watch.PagingLive`; no result contradicts the design)
+- (a) Managed Alerts beside OcuTalon, on OCUORDERS:
+  - An `Ens.Alert` item (`Ens.Alerting.AlertManager`) with `AlertOnError` 1 on OrdersFromPartner is not enough. Three broken orders gave 3 failed `Ens.Alert` headers ("Notification Manager is not defined for production") and no `Ens_Alerting.ManagedAlert` row. The AlertManager needs the production setting `AlertNotificationManager`, naming an item of class `Ens.Alerting.NotificationManager`. It needs no setting of its own (its stored settings are empty).
+  - With both items and the setting: `UpdateProduction` took 0.04 s and started the two new jobs and restarted OrdersFromPartner's. Three broken orders gave 3 `ManagedAlert` rows (source OrdersFromPartner, open) within 0.18 s of sending them.
+  - The NotificationManager then fails each request (`ErrNoDefaultNotificationOperation`: no default operation or recipients). The `ManagedAlert` row is saved before that, so the alert is there. The failed requests show as extra failed headers (`Ens.Alert` to the NotificationManager) in OCUORDERS.
+  - Removing both items, the production setting and `AlertOnError` leaves the saved definition equal to what it was (every item with its class, pool, enabled and stored settings, and the production's settings). The job list is as before, except that OrdersFromPartner's job restarted (its setting changed); both alert jobs are gone.
+  - Decided in-stage: the AC8 fixture is those two items and the production setting. Its extra failures make extra incidents, so AC8's test (`TestManagedAlertsBesidePaging`) asserts a page on any incident of the break, and the Telegram test runs without the fixture.
+- (b) A real incident's notice reaches TelegramOut and the mock in a `ci/iris.sh class` stack of the Watch area: 11.2 s after the break (the diagnosis through the mock included), for a fixture session paired through the real /start path. TelegramIn and TelegramOut are enabled with `TelegramPageFixture.Start`. The Telegram cases stay in `PagingLive` (no `TelegramPage` class).
+- (c) `Commands.Submit(SetReminder escalation, "system")` answers Ok 0, outcome `not_built`, no Ref, in 0.012 s from a test process. From IncidentManager's job the same ask returned without a deadlock: the incident event that the page method publishes after the ask arrived (asserted in `TestRealBreakPagesTelegram`). The ask's own duration in the job is not measured, and 0.012 s is the (inference) figure: the path is Submit, CommandsIn, ReminderOps, whose pool is not IncidentManager's.
+- (d) After an `AckPage` of the page, WebChatOut and SimPhoneOut log nothing for a page copy that has only a bare Delivery row (no warning, no error; Notify neither). There is no 24.3 item from this.
+- Initial web bundle: `npm --prefix web run build` gives an initial total of 893.24 kB raw (218.75 kB transfer), under the 1 MB cap. The new web code is one template line and one text in the existing settings chunk; no new chunk.
+- Times: `Test.Watch.PagingLive` 59.5 s in its class (185 s with the start on a fresh stack), `Test.Watch.Paging` 7 s warm, `Test.Channel.TelegramDigest` 34.7 s and `TelegramOut` 25.3 s on fresh stacks. The restart phase adds one check and a wait of at most 90 s (the run passed with it).
+
+### Implement-stage notes (decided in-stage)
+1. The on-call keys are read with `Setting.Fresh`, not `Get` (once for each page decision, so the 60 s cache has no use, and it would hold a value that a save has changed).
+2. `Data.Page.Role` has the SQL field name `PageRole`: ROLE is an SQL reserved word (`Test.Data.Tables` `TestSqlNames`).
+3. The session of a page is found from its Person (the first `Data.Session` row of that IRIS user, a paired one first), both when the page is sent and when an `AckPage` is checked against it; an acknowledgement needs no Delivery row.
+4. A page warning holds the incident's Ref, the step and the error codes, never a text that an on-call value could be in.
+5. An on-call page whose backup is no longer another person when it renders is rendered as `page.onCallAlone`.
+6. The escalation ask sets no SessionRef and no IdempotencyKey: Story 24.3 decides both.
+7. `Test.Data.Tables` also gains the `SettingChangeRef` property of `Data.Incident` in its contract: Story 23.3's pin there was missing and `TestContracts` was red on the branch.
+8. Rule 2: `PagingLive` repeats the sign-in and GET steps of `Test.Web.LiveRolesApi` (its helpers are private instance methods of another story's class) and `Test.Watch.Paging` takes its set-up from `Test.Watch.Tell`.
+
 ### Integration ACs (Rule 1) and linkage (Rule 2)
 - Integration: AC6 (TelegramOut consumes the page and the mock shows it), AC10 (SettingsOps' GET and the browser consume `Data.Page`'s existence), AC11 (`/state` consumers).
 - **Consumes:**
@@ -385,7 +488,62 @@ Proposed pinning mutations (implement records `mutation:` lines, Rule 19):
 - AC10: rename `Data.Page`'s compiled check, so `pagesBuilt` is false.
 - AC12: put the backup's name into Slots, so the trace scan goes red.
 
+**Mutations run (Rule 19), each applied on a warm lane-B throwaway (or the stated stack), observed red and reverted (the tree byte-identical, `cmp`):**
+- mutation: AC1, the `Page` call of `IncidentManager.Deliver` removed: `Test.Watch.Paging` `TestPageAtNotice`, `TestEveryNotice`, `TestAloneAndNotConfigured` and `TestFailuresAreWarnings` red (no page row or Notification).
+- mutation: AC2, the `OnlineDemo()` line of `Watch.Paging.Notice` removed: `TestOnlineDemoRefusesByCode` red (the demo case pages).
+- mutation: AC3, the acknowledged test of `Watch.Paging.Escalate` dropped: `TestEscalation` red ("an escalation after the acknowledgement pages nobody").
+- mutation: AC3 and AC7, the backup row's role made unique and its re-read dropped in `Escalate`: `TestEscalation` red (the backup's page is not the one row of its role). On its own, dropping the re-read leaves `TestEscalation` green, because the unique `(IncidentRef, Role)` index still refuses a second row (defence in depth, not a gap).
+- mutation: AC4, the session check of `Watch.Paging.Acknowledge` dropped: `TestAcknowledge` red (another session's and no session's AckPage are handled).
+- mutation: AC5, the `Unpage` line of `IncidentManager.Apply` removed: `TestCloseCancels` red (no cancel is asked at the close).
+- mutation: AC6, `Channel.Telegram.In.GotIt` made to submit `GotIt` for a page (the Kind page branch off): `PagingLive` `TestRealBreakPagesTelegram` red (the message is not edited, nothing is acknowledged, `/state` stays escalated).
+- mutation: AC7, the acknowledged test of `Escalate` dropped, on a fresh stack through `ci/iris.sh live production-restart`: the paging phase red (the acknowledged page's incident gets a backup row too: not 2|1|1).
+- mutation: AC8, `AlertOnError` planted in `Fix/Kind/Reroute.cls`: `test-class-rules.sh` `no-alert-config` red. The settings-as-before half (`TestManagedAlertsBesidePaging`, the definition read before and after) was not mutated: it needs product code in IncidentManager's job that writes an alert setting, which the rule above refuses to exist.
+- mutation: AC9, the page `DELETE` of `IncidentManager.PurgeOne` removed: `Test.Watch.Lifecycle` `TestPurge` red.
+- mutation: AC10, `TestSettingsSaysPagesBuilt`'s expected `pagesBuilt` made 0: red (the assertion reads the server's value, which is 1). The server value is `SettingsOps`' read of `%Dictionary.CompiledClass`, a Lane C file, so it was not mutated; the browser half (`on-call.spec.ts` O1) passed in `ci/iris.sh live sign-in-2 --part 4/4` (49 tests, fresh stack, this story's review pass); its mutation is deferred (frontmatter).
+- mutation: AC11, the `Paged` call of `Live.Payload.Incident.FromRow` removed: `Test.Watch.Paging` `TestPageAtNotice`, `TestEscalation` and `TestAcknowledge` red (the events carry no page). The real-HTTP spec `web/e2e/api/incident-page.spec.ts` (the browser half) was type-checked (`npm --prefix web run lint`) and passed in `ci/iris.sh live sign-in --part 1/4` (94 tests, fresh stack, this story's review pass); its mutation is deferred (frontmatter).
+- mutation: AC12 and AC13 (trace), the backup's name put into the page Notification's slots (`Watch.Paging.Slots`): `TestPersonIsInNoRecord` red ("the Notifications and the commands hold no name or address").
+- mutation: AC13 (audit), the person appended to the audit entry's result (`Watch.Paging.Audit`): `TestPersonIsInNoRecord` red ("and no name or address", the audit), and `TestPageAtNotice` red (the result).
+- mutation: AC13 (state), the person put into the payload's state (`Watch.Paging.PagePayload`): `TestPersonIsInNoRecord` red (the state's JSON), with the event assertions and `TestPageAtNotice`, `TestEscalation` and `TestAcknowledge`.
+- mutation: AC13 (event), the person put into the published incident event only (`IncidentManager.Page`): `TestPersonIsInNoRecord` red ("the incident events hold no name or address") while the state assertion stays green.
+- mutation: AC13 (log), the person appended to the page-not-sent warning (`IncidentManager.Paged`): `TestPersonIsInNoRecord` red ("and the event log holds none").
+- mutation: AC14, `telegramOnly` made the old not-yet sentence in `web/src/app/settings/settings-view.ts`: `web/scripts/on-call-view.test.mjs` and `web/scripts/ux-strings.test.mjs` red (2 tests).
+- mutation: AC15, `AlertOnError` planted in a product class (`Fix/Kind/Reroute.cls`): `test-class-rules.sh` `no-alert-config` red; its synthetic classes (a write in a product class, in another package, in a string; one in a Test class, in comments and a class that names none) are checked by the rule itself.
+
+Review patches (pass 1), mutations run on the warm lane-B stack (`Test.Watch.Paging`) and on a fresh one (`PagingLive`), each observed red, reverted (`cmp` against a copy made before the mutation, `git status --short` and `git diff --stat` unchanged) and green again:
+- mutation: R1 (AC4), `Throw exception` added to the Catch of `IncidentManager.Followed`: `Test.Watch.Paging` `TestAcknowledgeSurvivesFollowUp` red (the AckPage is answered failed, not handled, and the failure is two warnings).
+- mutation: R2 (AC5), the `IncidentRoleIndexExists(..., backup)` line of `Watch.Paging.Closing` removed: `TestCloseCancels` red ("no cancel is asked for the timer that has fired").
+- mutation: R4 (cause), `Watch.Paging.Slots` made to carry the notice's object cause as its JSON text: `TestSettingChangeCause` red (the slots' cause is not an object, and the text lacks the setting-change sentence).
+- mutation: R4 (channels), the channels of `Escalate`'s and `Notice`'s `Record` calls made `DEFAULTCHANNELS`: `TestChannelsAreCopied` red (both the on-call and the backup row).
+- mutation: R4 (email), the email key of `page.onCallAlone` made `page.onCallEmail` in `Watch.Paging.Text`: `TestEmailVariants` red (the alone text does not render: the slot 'backup' is missing).
+- mutation: R4 (other incident's page), the `first.IncidentRef '= incident.Ref` test of `Escalate` removed: `TestEscalation` red ("an escalation that names another incident's page pages nobody").
+- mutation: R5 (AC12, AC13 trace), the backup's name put into every page Notification's slots (`Watch.Paging.Slots`), on a fresh stack: `PagingLive` `TestRealBreakPagesTelegram` red ("the messages of paging hold no user, chat id or display name"), green without it. The positive controls (the trace holds both pages' Refs and the AckPage, the events the incident's Ref and `paged`, the state's incident its Ref and `acknowledged`, and a planted log line is found by the same log search) pass in the unmutated run. The `TestManagedAlertsBesidePaging` source and order change and the `TestPageReachesTelegram` key clearing have no separate mutation: the first is the AC8 half that was already not mutable (product code may not write alert settings), the second only removes a dependence on leftover keys.
+- R3 (the restart phase's send order) is a script edit only: `bash -n docker/tests/test-production-restart.sh` passes, and its AC7 mutation above stands unchanged; the run itself is `ci/iris.sh live production-restart`, which is not run in this pass.
+
+**Verified (2026-11-15):**
+- Fresh lane-B throwaway: `Test.Watch.PagingLive` (all cases, 59.5 s), `Test.Channel.TelegramDigest` and `Test.Channel.TelegramOut` passed; `ci/iris.sh live production-restart` passed with the paging phase.
+- Warm lane-B throwaway: `Test.Watch.Paging`, `Lifecycle`, `Transitions`, `Tell`, `Closing`, `Payload`, `Summary`, `Msg.Catalog`, `Live.Payloads`, `Data.Tables`, `Install.Retention`, `Install.PrivateData`, `Core.CommandsRouting`, `Msg.Contracts`, `Schedule.Reminders`, `Core.SettingsOnCall` and `Bridge.CodeRules` passed.
+- `bash docker/tests/test-class-rules.sh`, `test-storage.sh` and `test-boundaries.sh` pass; `npm --prefix web test` (2122 tests), `npm --prefix web run lint`, `npm --prefix web run payloads -- --check` and `node web/scripts/catalog.mjs --check` pass.
+- Left to CI: the browser parts that hold `settings/on-call.spec.ts` (`live:sign-in-2`, `shards-4`) and `api/incident-page.spec.ts` (`live:sign-in`, `shards-10`), and the full shards.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** IncidentManager now pages the on-call person once at an incident's first notice (`Watch.Paging`, new `Data.Page`), asks ReminderOps for the escalation timer through a `SendCommand` seam, pages the backup once on `Msg.Escalation`, records `AckPage` and cancels the timer at an acknowledgement or a close. TelegramOut sends the page with a Got it button and TelegramIn turns a paired-chat press into `AckPage`. On the online demo `Watch.Paging` refuses by code. The incident payload carries `page`, the On call section shows the Planner's Telegram-only line when `pagesBuilt` is true, and `no-alert-config` pins that no product class writes alert configuration. Task 0's figures are under Design Notes, Measured; the initial web bundle is 893.24 kB raw.
+
+**Files changed.**
+- New: `Data/Page.cls`, `Watch/Paging.cls`, `Live/Payload/Part/Page.cls`, `Test/Watch/Paging.cls`, `Test/Watch/PagingLive.cls`, `web/e2e/api/incident-page.spec.ts`.
+- Hooks and appended block: `Watch/IncidentManager.cls` (OnRequest, Deliver, Apply, PurgeOne, the paging block with `SendCommand`).
+- Telegram: `Channel/Telegram/Out.cls` (page kind, `Page.Marked` fallback) and `In.cls` (page press submits `AckPage`).
+- Payload and catalog: `Live/Payload/Incident.cls`, `Msg/Catalog/Watch.cls` (8 `page.*` keys), `web/src/app/live/payloads.ts` (generated).
+- Settings web (Planner-granted): `settings-view.ts`, `on-call-section.ts`, `web/scripts/on-call-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/e2e/settings/on-call.spec.ts` (O1).
+- Tests and scripts: `Test/Watch/IncidentProbe.cls`, `Test/Data/Tables.cls`, `Test/Live/Payloads.cls`, `Test/Msg/Catalog.cls`, `Test/Watch/Lifecycle.cls`, `docker/tests/test-class-rules.sh` (rule `no-alert-config`), `docker/tests/test-production-restart.sh` (paging phase), `src/short-names.tsv`.
+
+**Review (pass 1).** 45 findings from four layers: high 0, medium 6, low 38, false 1. Patched (R1-R6): the follow-up of an acknowledgement is guarded so a saved acknowledgement is never answered as failed; a close skips a spent timer; the restart phase sends the open incident's escalations last; new tests for a setting-change cause, non-default channels, the email variants and another incident's page Ref; positive controls and the ManagedAlert source in `PagingLive`; header wording. Deferred (frontmatter): the AC14 template mutation, `TestEscalationAsk` going red at 24.3, AC11's spec mutation. Rejected with reasons: see the Review Triage Log (by-design rows trace to the Planner's rulings and Decided in-stage 1-5).
+
+**Follow-up review recommendation:** true. Four medium entries were patched (the follow-up guard, the restart ordering, the setting-change cause test and the PagingLive controls). Unverified risk: the restart phase's negative checks rely on the production's FIFO order of messages, and the AC11 and AC14 browser pins have no demonstrated mutation.
+
+**Verification performed.** Warm stack (lane B): `Test.Watch.Paging`, `Lifecycle`, `Transitions`, `Msg.Catalog`, `Live.Payloads`, `Data.Tables`, `Install.Retention`, `Core.CommandsRouting`, `Msg.Contracts`, `Schedule.Reminders`, `Core.SettingsOnCall` passed; after the patches `Paging`, `Lifecycle`, `Transitions` passed again. Fresh stacks: `Test.Watch.PagingLive` (twice), `Channel.TelegramDigest`, `Channel.TelegramOut` passed; `ci/iris.sh live production-restart` passed with the paging phase; `live sign-in --part 1/4` (94 tests, with `incident-page.spec.ts`) and `live sign-in-2 --part 4/4` (49 tests, with `on-call.spec.ts` O1) passed. `test-class-rules.sh`, `test-storage.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `node --test web/scripts/payloads.test.mjs`, `npm --prefix web run payloads -- --check` and `npm --prefix web run lint` passed. Implementer-stage mutations are recorded in `## Verification`. Left to CI: the full shards, `live:security-overview`.
+
+**Residual risks.** AC8's settings-as-before half and AC10's product-side mutation cannot be demonstrated here (their reasons are in `## Verification`). Pages reach only Telegram and nothing escalates in a real production until Story 24.3 (Planner deviation 2).

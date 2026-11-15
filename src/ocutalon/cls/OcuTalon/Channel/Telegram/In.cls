@@ -49,6 +49,7 @@ Include Ensemble
 ///     session), the Ref is a reference, the paired session has a telegram Delivery row for that Ref (Ownership.DeliveryByRef), and the chat of that row's
 ///     message id is the pressing chat. Any other press submits nothing. Every Got it press is answered with answerCallbackQuery and no text, so the
 ///     press adds no text of its own; a failed Submit is one warning.
+///     When that Delivery row is of the kind page (Story 23.4), the press submits Msg.Command.AckPage {Ref, Channel telegram, SessionRef} instead, under the same checks.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
 ///     A refusal queues nothing and calls no model: with a retryAt, and on the first refusal of the window only, Notify gets the
@@ -436,6 +437,14 @@ Method GotIt(chatRef As %String, decisionRef As %String) [ Private ]
 	If '$IsObject(chat) || (chat.SessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(decisionRef) || '##class(OcuTalon.Bridge.Approval).IsRef(chat.SessionRef) Quit
 	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(decisionRef, ..#CHANNEL, chat.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) || ($Piece(row.ChannelMessageId, ":", 1) '= chatRef) Quit
+	If row.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
+		Set page = ##class(OcuTalon.Msg.Command.AckPage).%New()
+		Set page.Ref = decisionRef
+		Set page.Channel = ..#CHANNEL
+		Set page.SessionRef = chat.SessionRef
+		Do ..Outcome(page, ..#LOGGOTIT)
+		Quit
+	}
 	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
 	Set command.Ref = decisionRef
 	Set command.Channel = ..#CHANNEL
