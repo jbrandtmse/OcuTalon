@@ -2,7 +2,7 @@
 title: 'Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure'
 type: 'feature'
 created: '2026-11-14'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
 baseline_commit: '47e92fb818b0fb20dbcbc33786691ad6a447c47b'
 review_loop_iteration: 0
@@ -279,6 +279,7 @@ Paths relative to the worktree; `S` = `src/ocutalon/cls/OcuTalon`.
   - P4: `POST /api/v1/documents {fileRef}` approved, with conditions: (a) a fileRef of another user or another session gets EXACTLY the same answer (status and body) as a fileRef that does not exist — pin it as a row in `TestAddFromFile`; (b) the size and type limits are those of a direct upload, the type from the bytes, never the name; (c) no bytes and no extracted text in the response, the log or the trace.
   - P5: accepted; no Telegram chip, Add button or line.
   - More to try: none.
+- [ ] [CI] iris (shards-10) live:sign-in, run 43703534065 on 6db6ca47: `web/e2e/chat/chat.spec.ts:678` C6 "Shift+Tab from the composer reaches it" (New messages) went red — expected focused, received inactive. Cause (lead's reading): with `READSFILES` = 1 the composer now shows the paperclip (25.3's control, `filesReadable` true on an own install), so Shift+Tab from the message field lands on the paperclip first. Fix the TEST's focus walk so it holds with the paperclip shown (keep its intent: New messages is reachable by keyboard from the composer, before it in the tab order), do not move or hide the paperclip, and search every e2e and web-script test for other keyboard walks from the composer that the now-visible paperclip breaks (Tab/Shift+Tab around `app-composer`), fixing each the same way. Run the chromium sign-in parts that hold `chat/*` specs and every part you change, on lane-A fresh stacks. `mutation:` hide the paperclip again (filesReadable false) → the fixed walk must still pass or be shown to depend on it as intended; record what you observe.
 **Acceptance Criteria:**
 - Given a local install at this story's HEAD, when `GET /api/v1/state` is read and the chat is opened, then `filesReadable` is true, `$Parameter("OcuTalon.Agent.Input","READSFILES")` is 1, and the paperclip and drop show. On the online demo the route still answers 409 `not_available` before the body, the paperclip is hidden, a drop shows the off text, and a Telegram file gets `files.offOnDemo` with no getFile.
 - Given a signed-in user on a local install, when they send a damaged PDF through `POST /api/v1/files`, then the done `chat.message` reply is "I couldn't read that file: {reason}." (its code's plain reason), `fileRead.read` is 0, and no Decide request, Decision or model request exists for its Item.
@@ -333,6 +334,8 @@ Rejected:
 - (low) `TestMarkerReachesNothing` now sees a damaged read -- the property is pinned for a readable PDF by `TestNoExtractedText`.
 
 ## Spec Change Log
+
+- 2026-11-15 ~12:05Z, lead: rework iteration 1 (trigger: CI red, story class): chat.spec C6 keyboard walk vs the now-visible paperclip; `[CI]` item added.
 
 - 2026-11-15 ~04:55Z, lead: Planner Gate ruled (`story-256-rulings-20261115.md`): P1 approved verbatim (pin), P2 approved in this story (with the test-readme/NS_WANT fallback), P3 approved with TestNoExtractedText, P4 approved with (a)-(c), P5 accepted. Worked into Tasks & Acceptance as the `[Ruling]` item.
 
