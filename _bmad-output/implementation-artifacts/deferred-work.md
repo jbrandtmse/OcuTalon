@@ -8181,3 +8181,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 43651790835 (OCT-epic21 1ecb7150d, iris shards-2, shard:lane-a@rest) | severity: low | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Mcp/SourceSet.cls
 - evidence: the parent 19de55b83 (same ObjectScript) was green; one rerun (attempt 2) green; likely a second-boundary timing assumption
 - 2026-11-15T00:53:10Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun, occurrence 1
+- 2026-11-15T01:21:28Z status=dropped by=adjudication note=superseded-by:DW-1352 (the same SourceSet TestUpdate clock bug; coordinator); the ledger grammar has no superseded-by status
