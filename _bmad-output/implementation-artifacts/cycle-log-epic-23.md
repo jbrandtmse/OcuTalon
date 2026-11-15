@@ -462,3 +462,5 @@
 2026-11-15T22:14:50Z	Story 23.4	ledger_adjudicated	owned=1 resolved=1(DW-1400) reowned=0 terminal=0 cycle_iteration=3
 2026-11-15T22:14:50Z	Story 23.4	smoke_complete	method=browser(live_sign-in-2_4/4_58_on_new_line_e23b4r2;old-line_mutation_red_e23b4r2m) result=pass iterations=1 defects_caught=0 cycle_iteration=3
 2026-11-15T22:14:50Z	Story 23.4	fresh_check	env=recipe(fresh_lane-B_e23b4r2) tests=on-call.spec_O1(live),on-call-view,ux-strings(node_2153) result=pass order=forward,reverse(node_files_independent) cycle_iteration=3
+2026-11-15T22:15:59Z	Story 23.4	committed	sha=69d17499 code_head=69d17499 story_commits=7ad1420b,69d17499 ci=pending runs=43768251126,43768251118 note=DW-1400_follow-up_on_4760e544(also_carries_23.8_parked_records_and_23.13_charter)
+2026-11-15T22:15:59Z	Story 23.13	stage_spawned	stage=plan spawn_at=2026-11-15T22:15:59Z model=opus effort=high agent_name=23-13-partner-contacts-plan-1 cycle_iteration=1 note=during_DW-1400_CI_wait
