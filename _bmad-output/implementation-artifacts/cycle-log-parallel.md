@@ -4227,3 +4227,5 @@
 2026-11-15T03:50:27Z	Epic 26	ci_green_verified	head=294565a3 runs=43632972453(att2;att1=DW-306),43632972411 base=eabc5a8d(stale:feature_CI_on_merged_tree_required)
 2026-11-15T03:50:27Z	Epic 26	amendments_verified	26.2_waits=25.3,25.4,25.5(all_merged) epic-19=done
 2026-11-15T03:50:27Z	Epic 26	merge_enqueued	story=26.2 head=294565a3 into=feature@3ec00a58+records
+2026-11-15T03:56:04Z	Epic 26	merged	story=26.2 merge=6730eda7e conflicts=Test/Msg/Catalog.cls(Watch121+Core155),tracker pins=pass(readme,boundaries,class-rules,release-notes,bridge-guide,storage,ci-config,web,lint,mock) feature_ci=pending
+2026-11-15T03:56:23Z	Epic 25	runner_resumed	lane=A task=25.6(READSFILES=1,texts_1-3,DW-1313,AD-21_sentence) base=feature_6730eda7e
