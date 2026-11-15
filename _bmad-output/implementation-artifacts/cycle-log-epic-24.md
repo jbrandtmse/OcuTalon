@@ -20,3 +20,5 @@
 2026-11-15T17:52:18Z	Story 24.2	lead_patch	spine=ListProductions_row_wording(every_readable_production;Watch.Reader_cross-lane),PartnerContact_readers(List,RefOpen),cross-area_row_ForProduction(23.13_caller) EXPERIENCE=settings.sql*_rows->24.5 lint=5
 2026-11-15T17:52:18Z	Story 24.2	smoke_complete	method=other(QA:Playwright_P1-P9_fresh;PartnerSettingsApi_real_production_leak_scan_fresh) result=pass
 2026-11-15T17:52:18Z	Story 24.2	fresh_check	env=fresh_lane-D_stack_e24s2fc tests=Test.Core.SettingsPartners result=pass torn_down=yes
+2026-11-15T17:54:42Z	Epic 24	integrated_forward	feature=9b9898a5 head=577055db conflicts_resolved=sprint-status(feature_side,regenerated;24.2_done;24.5_backlog),announce-focus-sources.test.mjs(feature_text+partner-contacts-section) auto_merged=api-client.ts checks=web_test_2145_pass,lint,test-class-rules,test-boundaries_rc0
+2026-11-15T17:54:42Z	Story 24.2	committed	sha=pushed_below
