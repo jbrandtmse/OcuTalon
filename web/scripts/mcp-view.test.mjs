@@ -11,7 +11,23 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
 const { SETTINGS_TEXTS, shownSections } = await import(app('settings', 'settings-view.ts'));
-const { addBody, CLASSIFICATION_OPTIONS, classificationName, MCP_TEXTS, mcpOutcome, removeName, removeQuestion, statusText, toolKey, toolStatusText, visibleTools, withClassification } = await import(
+const {
+  addBody,
+  changedTools,
+  CLASSIFICATION_OPTIONS,
+  classificationName,
+  MCP_TEXTS,
+  mcpOutcome,
+  removeName,
+  removeQuestion,
+  statusText,
+  toolChangedText,
+  toolKey,
+  toolStatusText,
+  visibleTools,
+  withClassification,
+  withoutChange,
+} = await import(
   app('settings', 'mcp-view.ts')
 );
 const core = readFileSync(join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTalon', 'Msg', 'Catalog', 'Core.cls'), 'utf8');
@@ -34,6 +50,10 @@ describe('the section in the page\'s navigation', () => {
 describe('the section\'s fixed strings', () => {
   it('say what the online demo shows in the words of the catalog key, and none of the secret handling is a string of the page', () => {
     assert.equal(MCP_TEXTS.offOnDemo, catalogText('settings.mcpOffOnDemo'));
+  });
+
+  it('hold the changed-tool banner in the words of the catalog key settings.toolChangedBanner', () => {
+    assert.equal(MCP_TEXTS.toolChanged, catalogText('settings.toolChangedBanner'));
   });
 
   it('are the accepted texts T2 to T5 and T8', () => {
@@ -209,5 +229,72 @@ describe('withClassification', () => {
   it('puts the old value back', () => {
     const there = withClassification(settings, 'a', 'one', 'risky');
     assert.deepEqual(withClassification(there, 'a', 'one', 'unclassified'), settings);
+  });
+});
+
+describe('changedTools (Story 21.9)', () => {
+  const row = (name, extra) => ({ server: 'a', name, classification: 'unclassified', status: 'available', ...extra });
+
+  it('keeps the rows that changed and are not refused, in the given order', () => {
+    const tools = [
+      row('one', { changed: true }),
+      row('two', { changed: true, status: 'refused' }),
+      row('three', { changed: false }),
+      row('four'),
+      row('five', { changed: true, status: 'unavailable' }),
+      row('six', { changed: 'true' }),
+    ];
+    assert.deepEqual(changedTools(tools).map((tool) => tool.name), ['one', 'five']);
+  });
+
+  it('leaves out a tool that changed and is then reported refused, and keeps one that is available', () => {
+    assert.deepEqual(changedTools([row('shadow', { changed: true, status: 'refused' })]), []);
+    assert.equal(changedTools([row('steady', { changed: true, status: 'available' })]).length, 1);
+  });
+
+  it('leaves out an unclassified row with no changed member, and a missing or false one', () => {
+    assert.deepEqual(changedTools([row('new'), row('old', { changed: false })]), []);
+  });
+});
+
+describe('toolChangedText (Story 21.9)', () => {
+  it('is the catalog test\'s rendered text for lookup on Tickets', () => {
+    assert.equal(
+      toolChangedText('lookup', 'Tickets'),
+      'lookup on Tickets changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.',
+    );
+  });
+
+  it('keeps a $& in a name literally', () => {
+    assert.ok(toolChangedText('a$&b', 'x$`y').startsWith('a$&b on x$`y changed'));
+  });
+});
+
+describe('withoutChange (Story 21.9)', () => {
+  const settings = {
+    servers: [{ name: 'a', address: 'x', status: 'attached', tools: 2, unclassified: 2, pending: 0 }],
+    tools: [
+      { server: 'a', name: 'one', classification: 'unclassified', status: 'available', changed: true },
+      { server: 'a', name: 'two', classification: 'unclassified', status: 'available', changed: true },
+      { server: 'b', name: 'one', classification: 'unclassified', status: 'available', changed: true },
+    ],
+    extra: 'kept',
+  };
+
+  it('changes only the named row of the named server and keeps every other member', () => {
+    const next = withoutChange(settings, 'a', 'one');
+    assert.deepEqual(next.tools.map((tool) => tool.changed), [false, true, true]);
+    assert.equal(next.extra, 'kept');
+    assert.equal(next.servers, settings.servers);
+  });
+
+  it('changes nothing for a tool or a server that is not listed', () => {
+    assert.deepEqual(withoutChange(settings, 'a', 'none'), settings);
+    assert.deepEqual(withoutChange(settings, 'zz', 'one'), settings);
+  });
+
+  it('does not change what it was given', () => {
+    withoutChange(settings, 'a', 'one');
+    assert.equal(settings.tools[0].changed, true);
   });
 });

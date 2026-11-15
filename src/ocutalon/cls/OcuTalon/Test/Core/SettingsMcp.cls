@@ -4,6 +4,9 @@
 ///   - TestList: the matrix row "List": the servers in the order of their names with their address, status, tool count, unclassified count and pending count, and the tools
 ///     array; a server that never attached has an empty status and no tools, a server whose entry is missing has an empty address, and no secret, no secret:// reference and
 ///     no fingerprint is in the answer;
+///   - TestListChanged (Story 21.9): each tool row carries `changed`, a JSON boolean passed through from Mcp.Ops Tools for every status: a classified tool that Lane A's real
+///     ClearChanged cleared is true (and sent each admin session one mcp.toolChanged notice), so is one cleared and then refused (the page skips it), a new and a risky tool are
+///     false, and a classification save through the real handler makes it false again;
 ///   - TestPendingByToolref: the pending count is by the server's toolref under CancelPending's own predicate: a pending tool_call row whose ToolSource is the toolref in
 ///     another case is counted (CancelPending would cancel it), and an approved row, a row of another kind and another server's row are not;
 ///   - TestNameThatToolrefRefuses: PendingToolCalls gives 0 and an error for a name that is no server name;
@@ -43,7 +46,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ..Clean()
 	Do $$$AssertEquals(..Leftovers(), "", "the test leaves no row, tool row, entry or approval row behind")
-	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe
+	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe, ^||ZzOps
 	Quit $$$OK
 }
 
@@ -76,11 +79,74 @@ Method TestList()
 		Set text = text_$ListBuild(tool.server_"|"_tool.name_"|"_tool.classification_"|"_tool.status)
 	}
 	Do $$$AssertEquals($ListToString(text, ";"), a_"|zz_lookup|read-only|available;"_a_"|zz_new|unclassified|available;"_a_"|zz_risky|risky|refused", "each with its classification and status")
-	Do $$$AssertEquals(tools.%Get(0).%Size(), 4, "and only server, name, classification and status")
+	Do $$$AssertEquals(tools.%Get(0).%Size(), 5, "and only server, name, classification, status and changed")
+	Set changed = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set changed = changed_$ListBuild(tool.changed)
+	}
+	Do $$$AssertEquals($ListToString(changed, ","), "0,0,0", "and no fixture tool has changed")
 	Set json = result.Data
 	Do $$$AssertEquals(+(json [ "secret://"), 0, "the answer holds no secret:// reference")
 	Do $$$AssertEquals(+(json [ "ingerprint"), 0, "and no fingerprint")
 	Do $$$AssertEquals(+(json [ "zzfp"), 0, "(the fixture fingerprint is not in it)")
+}
+
+Method TestListChanged()
+{
+	Set a = ..Server("a")
+	Do ..MakeServer(a, "attached", "")
+	Do ..MakeTool(a, "zz_changed", "read-only")
+	Do ..MakeTool(a, "zz_shadow", "read-only")
+	Do ..MakeTool(a, "zz_new", "unclassified")
+	Do ..MakeTool(a, "zz_risky", "risky")
+	// a clear that notifies nobody, then the later attach that refuses the tool (the fixture form: the server row's RefusedTools)
+	Set ^||ZzOps("admins") = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(a, "zz_shadow", "zzfp2_"_..Number), "zz_shadow is cleared")
+	Set server = ##class(OcuTalon.Mcp.Server).NameIndexOpen(a)
+	Set server.RefusedTools = $ListBuild("zz_shadow")
+	Do $$$AssertStatusOK(server.%Save(), "and then reported refused")
+	// the change that sends the notice
+	Set admin = "zzadmin"_..Number
+	Set ^||ZzOps("admins") = $ListBuild(admin)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Mcp.OpsProbe).ClearChanged(a, "zz_changed", "zzfp2_"_..Number), "zz_changed is cleared")
+	Set result = ..List()
+	Set tools = ..Mine({}.%FromJSON(result.Data).tools)
+	Set text = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set text = text_$ListBuild(tool.name_"|"_tool.classification_"|"_tool.status_"|"_tool.changed)
+	}
+	Do $$$AssertEquals($ListToString(text, ";"), "zz_changed|unclassified|available|1;zz_new|unclassified|available|0;zz_risky|risky|available|0;zz_shadow|unclassified|refused|1", "the cleared tool is changed, the refused one is passed through as changed, the new and the risky tool are not")
+	Do $$$AssertEquals(+(result.Data [ """changed"":true"), 1, "changed is a JSON boolean")
+	Do $$$AssertEquals(+(result.Data [ """changed"":1"), 0, "and not a number")
+	Set notices = ##class(OcuTalon.Test.Mcp.OpsProbe).Notices()
+	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.OpsProbe).NoticeCount(admin, "mcp.toolChanged"), 1, "the same clear sent the admin session one mcp.toolChanged notice")
+	Set slots = ""
+	Set iterator = notices.%GetIterator()
+	While iterator.%GetNext(, .notice) {
+		If notice.session = admin Set slots = notice.slots
+	}
+	Do $$$AssertEquals(+(slots [ "zz_changed"), 1, "whose slots name the tool")
+	Do $$$AssertEquals(+(slots [ a), 1, "and the server")
+	// a classification save through the real handler resets the flag
+	Set command = ##class(OcuTalon.Msg.Command.ClassifyTool).%New()
+	Set command.Server = a
+	Set command.Tool = "zz_changed"
+	Set command.Classification = "risky"
+	Set command.Origin = "web_admin"
+	Set command.ActingUser = "zzadmin"_..Number
+	Set probe = ##class(OcuTalon.Test.Mcp.OpsProbe).Shadow("CommandsIn", .sc)
+	Do $$$AssertStatusOK(sc, "the Ops probe is made")
+	Set sc = probe.MessageHandler(command, .saved)
+	Do $$$AssertEquals(saved.Ok_"|"_saved.Outcome, "1|saved", "the classification is saved")
+	Set tools = ..Mine({}.%FromJSON(..List().Data).tools)
+	Set text = ""
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		If tool.name = "zz_changed" Set text = tool.classification_"|"_tool.changed
+	}
+	Do $$$AssertEquals(text, "risky|0", "after it the tool is risky and changed is false")
 }
 
 Method TestPendingByToolref()

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { envelope } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';
-import { approvalState, dropMcpServer, leftovers, seedMcpServer } from '../support/mcp';
+import { approvalState, clearChangedTool, dropMcpServer, leftovers, seedMcpServer } from '../support/mcp';
 
 /**
  * Story 21.4, Settings > Tools and MCP servers in a real browser, signed in as the README admin (B1 to B6; the sign-in-2 unit). The servers of B1, B3 and B4 are
@@ -22,6 +22,9 @@ import { approvalState, dropMcpServer, leftovers, seedMcpServer } from '../suppo
  *   B8  a 500 on the list shows the load error with Retry, and Retry loads the list again and shows the content (QA);
  *   B9  an add answered 500 shows the server's message under the button, keeps what was typed and loads the list again (QA);
  *   B10 a removal answered 500 leaves the dialog open with the server's message and the server listed; a 404 closes it and the server and its tools leave the lists (QA).
+ *   B14 (Story 21.9) a tool that Lane A's ClearChanged made Unclassified has one warning banner above the tools table, in the words of settings.toolChangedBanner, and
+ *       its radiogroup shows Unclassified; a new tool and a changed tool that is refused have none; a pick whose save fails keeps the banner; a pick that saves
+ *       shows "Saved" and the banner goes, and stays gone after a reload;
  * B7 to B10 fulfil every answer of the MCP routes themselves (no fixture server, no IRIS fixture), so they cover the section's states and nothing of the server.
  * The texts are written out here as the oracle.
  */
@@ -361,4 +364,52 @@ test('B10: a removal answered 500 leaves the dialog open with the message, and a
   await expect(row, 'the server leaves the list').toHaveCount(0);
   await expect(toolRows, 'and its tools leave the table').toHaveCount(0);
   expect(deletes, 'the removal was asked for twice').toBe(2);
+});
+
+test('B14: a changed tool has the changed-tool banner above the table, a new or refused tool has none, and a classification takes it away', async ({ page }) => {
+  test.setTimeout(240_000);
+  const name = `zzb14${tag()}`;
+  try {
+    await seedMcpServer(name, [
+      { name: 'zz_changed', classification: 'read-only' },
+      { name: 'zz_shadow', classification: 'read-only' },
+      { name: 'zz_new' },
+      { name: 'zz_steady', classification: 'risky' },
+    ]);
+    await clearChangedTool(name, 'zz_changed');
+    await clearChangedTool(name, 'zz_shadow', true);
+    await openMcp(page);
+    const banner = tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_changed"][data-server="${name}"]`);
+    await expect(banner, 'the changed tool has its banner').toBeVisible();
+    await expect(banner, 'in the accepted words').toHaveText(`zz_changed on ${name} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.`);
+    await expect(banner.locator('app-icon'), 'with its icon').toHaveCount(1);
+    await expect(tools(page).locator(`[data-banner="tool-changed"][data-server="${name}"]`), 'and it is the only banner of this server').toHaveCount(1);
+    await expect(tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_new"][data-server="${name}"]`), 'a new tool has none').toHaveCount(0);
+    await expect(tools(page).locator(`[data-banner="tool-changed"][data-tool="zz_shadow"][data-server="${name}"]`), 'a changed tool that is refused has none').toHaveCount(0);
+    const refused = tools(page).locator(`tr[data-tool="zz_shadow"][data-server="${name}"]`);
+    await expect(refused.getByRole('cell').nth(1), 'it shows the refusal').toHaveText('Refused: a built-in tool has this name');
+    const row = tools(page).locator(`tr[data-tool="zz_changed"][data-server="${name}"]`);
+    const group = row.getByRole('radiogroup', { name: `Classification of zz_changed on ${name}`, exact: true });
+    await expect(group.getByRole('radio', { name: 'Unclassified (counts as risky)', exact: true }), 'the changed tool is Unclassified').toBeChecked();
+
+    await page.route(`**${MCP}/classify`, async (route) => {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'Something went wrong inside OcuTalon. Try again.' } }) });
+    });
+    await group.getByRole('radio', { name: 'Risky', exact: true }).click();
+    await expect(row.getByText('Something went wrong inside OcuTalon. Try again.', { exact: true }), 'a save that fails shows the message').toBeVisible();
+    await expect(group.getByRole('radio', { name: 'Unclassified (counts as risky)', exact: true }), 'puts the old value back').toBeChecked();
+    await expect(banner, 'and the banner stays').toBeVisible();
+    await page.unroute(`**${MCP}/classify`);
+
+    await group.getByRole('radio', { name: 'Risky', exact: true }).check();
+    await expect(row.locator('p.saved[data-saved="classify"]'), 'Saved shows').toHaveText('Saved');
+    await expect(banner, 'the banner goes').toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 2, name: 'Tools and MCP servers' })).toBeVisible();
+    await expect(tools(page).locator(`tr[data-tool="zz_changed"][data-server="${name}"]`), 'the tool is listed again').toBeVisible();
+    await expect(tools(page).locator(`[data-banner="tool-changed"][data-server="${name}"]`), 'and no banner shows after a reload').toHaveCount(0);
+  } finally {
+    await dropMcpServer(name);
+  }
 });

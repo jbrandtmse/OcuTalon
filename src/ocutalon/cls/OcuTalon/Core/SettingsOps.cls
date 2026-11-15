@@ -98,7 +98,7 @@
 /// tested with Data {answered, seconds, reason} (an expired wait gives reason timeout), or refused with Data {"fields": ["agent"]} for an agent that
 /// TestRequest refuses. It writes no setting and no audit entry; the Decision and Usage rows of the test request are Decide's, as Bridge.Settings.TestRequest describes.
 /// ListMcpServers (Story 21.4, origin web_admin) is the read behind Settings > Tools and MCP servers: ListMcp answers it here, in this job, because the REST process cannot
-/// read the servers' tools, their entries or the pending requests of other owners. It writes nothing. McpOps, not this class, writes an MCP server's row, entry and wallet secret.
+/// read the servers' tools, their entries or the pending requests of other owners. It writes nothing. Each tool row carries Tools' changed member (Story 21.9). McpOps, not this class, writes an MCP server's row, entry and wallet secret.
 /// CreateWebhook and SetWebhookSecret (Story 35.3, origin web_admin) take the secret from the command's Handoff uri through SecretHandoff.Take, never from a
 /// property, a message or a log. On the online demo both answer not_available and write nothing. CreateWebhook validates the name and the secret (Data.Webhook
 /// NameProblem, SecretProblem, NameTaken), writes the Settings audit entry first (setting webhook.<Ref>, from empty, to the name), then saves the Webhook row
@@ -2371,10 +2371,10 @@ ClassMethod WebhookResult(outcome As %String, fields As %DynamicObject) As OcuTa
 }
 
 /// Carries out a ListMcpServers and returns the CommandResult to answer (Story 21.4; see the class description): Ok 1, outcome listed and Data the body of GET
-/// /v1/settings/mcp, {"servers":[{name, address, status, tools, unclassified, pending}], "tools":[{server, name, classification, status}]}, the servers in the order of Mcp.Attach
+/// /v1/settings/mcp, {"servers":[{name, address, status, tools, unclassified, pending}], "tools":[{server, name, classification, status, changed}]}, the servers in the order of Mcp.Attach
 /// Servers, which gives none on the online demo. The status is the row's AttachStatus (attached, unavailable or empty); the address is the url of the server's entry read without
 /// resolving any placeholder or secret (empty when the entry is missing); tools, unclassified and the tools array come from Mcp.Ops Tools(server), and pending from Ownership
-/// PendingToolCalls. No secret, secret:// reference or fingerprint is read into the answer. The online demo is not_available with the text settings.mcpOffOnDemo, and a read that
+/// PendingToolCalls. A tool's changed member is Tools' JSON boolean passed through for every status, a refused tool included (Story 21.9). No secret, secret:// reference or fingerprint is read into the answer. The online demo is not_available with the text settings.mcpOffOnDemo, and a read that
 /// fails is failed.
 Method ListMcp(command As OcuTalon.Msg.Command.ListMcpServers) As OcuTalon.Msg.CommandResult [ Private ]
 {
@@ -2398,7 +2398,9 @@ Method ListMcp(command As OcuTalon.Msg.Command.ListMcpServers) As OcuTalon.Msg.C
 			Set toolIterator = list.%GetIterator()
 			While toolIterator.%GetNext(, .tool) {
 				If tool.classification = "unclassified" Set unclassified = unclassified + 1
-				Do tools.%Push({"server": (name), "name": (tool.name), "classification": (tool.classification), "status": (tool.status)})
+				Set one = {"server": (name), "name": (tool.name), "classification": (tool.classification), "status": (tool.status)}
+				Do one.%Set("changed", tool.changed, "boolean")
+				Do tools.%Push(one)
 			}
 			Do servers.%Push({"name": (name), "address": (address), "status": (row.AttachStatus), "tools": (list.%Size()), "unclassified": (unclassified), "pending": (pending)})
 		}

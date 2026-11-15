@@ -13,6 +13,7 @@ import { Dialogs } from '../shared/dialogs';
 import { ServerButton } from '../shared/server-button';
 import {
   addBody,
+  changedTools,
   CLASSIFICATION_OPTIONS,
   classificationName,
   MCP_TEXTS,
@@ -20,10 +21,12 @@ import {
   removeName,
   removeQuestion,
   statusText,
+  toolChangedText,
   toolKey,
   toolStatusText,
   visibleTools,
   withClassification,
+  withoutChange,
 } from './mcp-view';
 import { SETTINGS_TEXTS } from './settings-view';
 
@@ -50,6 +53,8 @@ const NONE: McpSettings = { servers: [], tools: [] };
  *     takes its first focus). A 200 or a 404 closes it and the server and its tools leave the lists; any other answer leaves it open with the server's message;
  *   - a radiogroup pick saves at once: the radio shows the new value and the check icon, "Saved" shows for that row and is announced; a failure puts the old value
  *     back and shows the server's message. A row that was just classified stays in the "Unclassified only" list until the section is opened again.
+ *   - a tool whose `changed` is true and whose status is not refused has a warning banner above the tools table, in the words of settings.toolChangedBanner (Story
+ *     21.9); a successful classification save takes it away, and a failed one keeps it. A new Unclassified tool and a refused one have none.
  * Typing in a field clears its error and the line of the last add. The section takes no part in the page's unsaved guard: nothing in it is kept on leaving.
  */
 @Component({
@@ -175,6 +180,12 @@ const NONE: McpSettings = { servers: [], tools: [] };
         </section>
         <section class="group" aria-labelledby="mcp-tools-heading" data-group="tools">
           <h3 id="mcp-tools-heading" class="heading">{{ texts.tools }}</h3>
+          @for (tool of changed(); track key(tool)) {
+            <div class="banner" data-banner="tool-changed" [attr.data-tool]="tool.name" [attr.data-server]="tool.server">
+              <app-icon class="mark" name="triangle-alert" [size]="20" />
+              <span class="text">{{ changedText(tool) }}</span>
+            </div>
+          }
           <label class="check">
             <input type="checkbox" [checked]="onlyUnclassified()" (change)="toggleOnly($event)" />
             {{ texts.unclassifiedOnly }}
@@ -355,6 +366,29 @@ const NONE: McpSettings = { servers: [], tools: [] };
     .selected {
       color: var(--ink);
     }
+    .banner {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      box-sizing: border-box;
+      width: 100%;
+      min-height: var(--status-banner-warning-min-height);
+      padding: var(--space-2) var(--space-4);
+      border-left: 4px solid var(--status-banner-warning-accent);
+      background: var(--status-banner-warning-background);
+      color: var(--status-banner-warning-foreground);
+      font-size: var(--type-body-font-size);
+      font-weight: var(--type-body-font-weight);
+      line-height: var(--type-body-line-height);
+    }
+    .banner .mark {
+      flex: none;
+      color: var(--status-banner-warning-accent);
+    }
+    .banner .text {
+      flex: 1;
+      min-width: 0;
+    }
     .load-error {
       display: flex;
       flex-direction: column;
@@ -398,6 +432,7 @@ export class McpSection {
   private readonly picked = signal<ReadonlySet<string>>(new Set());
   private readonly rows = signal<Readonly<Record<string, RowState>>>({});
   protected readonly visible = computed(() => visibleTools(this.settings().tools, this.onlyUnclassified(), this.picked()));
+  protected readonly changed = computed(() => changedTools(this.settings().tools));
 
   /** The message of the last refused removal, which the dialog shows. */
   private removeFailed: string = SETTINGS_TEXTS.failed;
@@ -469,6 +504,10 @@ export class McpSection {
 
   protected groupName(tool: McpToolRow): string {
     return classificationName(tool.name, tool.server);
+  }
+
+  protected changedText(tool: McpToolRow): string {
+    return toolChangedText(tool.name, tool.server);
   }
 
   protected key(tool: McpToolRow): string {
@@ -582,6 +621,7 @@ export class McpSection {
       .pipe(takeUntilDestroyed(this.destroyed))
       .subscribe({
         next: () => {
+          this.settings.update((one) => withoutChange(one, tool.server, tool.name));
           this.setRow(key, { saved: true, error: '' });
           this.announcer.announce(MCP_TEXTS.saved);
         },

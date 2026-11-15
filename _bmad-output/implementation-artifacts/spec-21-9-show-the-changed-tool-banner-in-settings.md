@@ -2,7 +2,8 @@
 title: 'Story 21.9: Show the changed-tool banner in Settings'
 type: 'feature'
 created: '2026-11-13'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '45c6d663bd033900dd2e362ef55d491d30de4c89'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -78,24 +79,24 @@ Line numbers are this worktree's at `09b8dd201` (branch `OCT-epic21-s219`: 21.4 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (before any edit; record under Design Notes "Measured"):
+- [x] Task 0 (before any edit; record under Design Notes "Measured"):
   - (a) **Contract check of 22.15** (read the code; no Lane A edit). Confirm, each at its file:line, that the flag is as Design Notes "The flag contract" says: the member name `changed` and the property `Mcp.ToolClassification.Changed` (:37, storage value 7); a JSON boolean (`Ops.cls` :602, `%Set(..., "boolean")`); true only while unclassified (`&& (classification = "unclassified")` :602); an empty `Changed` reads false (`+` on the value :602; class doc :9). Also confirm the spine already holds S1 (AD-21 :887 and :890, each with `[AMENDED 2026-11-14, Story 21.9 and the Epic 22 flag story, Contest Planner rulings V1-V3]`); 21.9 writes no AD-21 text. **STOP** `blocked` with `22.15 flag contract differs (21.9 Task 0 (a))` only if a name, the type, the unclassified-only rule or the empty-value rule differs, or the S1 text is missing. Edit nothing then. Also confirm 22.15 is merged to feature before 21.9 merges (ruling ~22:40Z: "21.9 implements on top of it, after 22.15 merges"); this branch carries 22.15's commits, so 21.9 never merges ahead of it.
   - (b) Whether 21.5 has landed in the shared files (Design Notes "Contended edits"). If it has, re-read the listed regions before editing, and keep both stories' lines.
   - (c) `cd web && npm run build` before any web edit: record the "Initial total" (about 879 kB expected; under 921 kB) and the size of the MCP lazy chunk.
-- [ ] `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- `ListMcp`: each tools row gains `changed`, set with `%Set("changed", tool.changed, "boolean")` on the pushed object, so the JSON says `true`/`false`. Copy it as `Tools` gives it, for every status (no refused filter here). Update its doc :2373-2378 and the class doc's ListMcpServers paragraph (:100-101) with the member.
-- [ ] `web/src/app/api/api-types.ts` -- `McpToolRow` gains `changed?: boolean` (doc: true while McpOps' fingerprint check has made the tool Unclassified and no admin has classified it since; it can be true for a refused tool; optional so an older answer reads as false).
-- [ ] `web/src/app/settings/mcp-view.ts` -- `MCP_TEXTS.toolChanged` = the catalog text verbatim (with `{tool}` and `{server}`). Add three functions, and add their lines to the module doc:
+- [x] `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- `ListMcp`: each tools row gains `changed`, set with `%Set("changed", tool.changed, "boolean")` on the pushed object, so the JSON says `true`/`false`. Copy it as `Tools` gives it, for every status (no refused filter here). Update its doc :2373-2378 and the class doc's ListMcpServers paragraph (:100-101) with the member.
+- [x] `web/src/app/api/api-types.ts` -- `McpToolRow` gains `changed?: boolean` (doc: true while McpOps' fingerprint check has made the tool Unclassified and no admin has classified it since; it can be true for a refused tool; optional so an older answer reads as false).
+- [x] `web/src/app/settings/mcp-view.ts` -- `MCP_TEXTS.toolChanged` = the catalog text verbatim (with `{tool}` and `{server}`). Add three functions, and add their lines to the module doc:
   - `changedTools(tools)`: the rows whose `changed === true` AND whose `status !== 'refused'` (ruling ~03:15Z Nov 15), in the given order.
   - `toolChangedText(tool, server)`: the filled sentence, with function replacers, like `classificationName`.
   - `withoutChange(settings, server, tool)`: `{ ...settings, tools }` with that row's `changed` set to false (the spread keeps 21.5's `sources` if it has landed).
-- [ ] `web/src/app/settings/mcp-section.ts` -- in the Tools group, after the heading and before the checkbox, one banner per `changedTools(settings().tools)` row:
+- [x] `web/src/app/settings/mcp-section.ts` -- in the Tools group, after the heading and before the checkbox, one banner per `changedTools(settings().tools)` row:
   - `<div class="banner" data-banner="tool-changed" [attr.data-tool] [attr.data-server]>` with `<app-icon name="triangle-alert" [size]="20" />` and the text. No role, no close button, no link.
   - Styles: DESIGN's warning status banner, using the `--status-banner-warning-*` tokens and a 4px left accent (copy reason: Design Notes).
   - The banners are not filtered by "Unclassified only".
   - In `pick`'s `next`, apply `withoutChange` for the tool. The error path is unchanged, so a failed save keeps the banner.
   - Update the component doc :41-54.
-- [ ] Spine REST row `GET /api/v1/settings/mcp` (:1805): after the tools shape, add "each tool row also carries `changed` (AD-21's `Tools(server)` member, passed through) [AMENDED 2026-11-15, Story 21.9: record of V3, approved ~02:00Z Nov 14]". No other spine edit. Run `lint_spine.py` (baseline 10 low).
-- [ ] Tests (ObjectScript): `src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls`:
+- [x] Spine REST row `GET /api/v1/settings/mcp` (:1805): after the tools shape, add "each tool row also carries `changed` (AD-21's `Tools(server)` member, passed through) [AMENDED 2026-11-15, Story 21.9: record of V3, approved ~02:00Z Nov 14]". No other spine edit. Run `lint_spine.py` (baseline 10 low).
+- [x] Tests (ObjectScript): `src/ocutalon/cls/OcuTalon/Test/Core/SettingsMcp.cls`:
   - `TestList` :79: 5 members (server, name, classification, status, changed), and every fixture row's `changed` is `0`.
   - New `TestListChanged` (Matrix "Changed tool", "Changed, then refused" and "Classified after the change"):
     - Fixture rows on server `a` (`MakeServer(a, "attached", "")`): `zz_changed` classified read-only, `zz_shadow` read-only, `zz_new` unclassified, `zz_risky` risky.
@@ -105,7 +106,7 @@ Line numbers are this worktree's at `09b8dd201` (branch `OCT-epic21-s219`: 21.4 
     - `NoticeCount("zzadmin"_n, "mcp.toolChanged")` is 1, and its slots name `zz_changed` and `a`.
     - Then `ClassifyTool` (`risky`, origin `web_admin`) for `zz_changed` through `OpsProbe.Shadow("CommandsIn")`. After it, `List` gives `zz_changed` `changed` 0.
     - Kill `^||ZzOps` in `OnAfterOneTest`. Update the header :1-10.
-- [ ] Tests (web):
+- [x] Tests (web):
   - `web/scripts/mcp-view.test.mjs`:
     - `MCP_TEXTS.toolChanged` equals `catalogText('settings.toolChangedBanner')`.
     - `changedTools` keeps only `changed === true` rows that are not refused, in order. Both ruled cases: a row with `changed: true, status: 'refused'` (changed, then reported refused) is left out; a row with `changed: true, status: 'available'` is kept. Also kept: `changed: true, status: 'unavailable'`. Left out: `changed: false`, a missing `changed`, and an unclassified row with no `changed`.
@@ -140,6 +141,37 @@ Line numbers are this worktree's at `09b8dd201` (branch `OCT-epic21-s219`: 21.4 
 - Veto items V1-V3: closed as approved (~02:00Z Nov 14 item 3; S1 ~05:30Z item 2; 22.15 charter ~22:40Z). No new veto item.
 
 ## Review Triage Log
+
+### 2026-11-14 -- Review pass
+- verdicts: 27 findings -- high 0, medium 3, low 21, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: spine REST row keeps the old tools shape and the clause comes after it; the amendment date is a day ahead -- the spec's Task dictates this text and date; the clause names `changed` plainly; no reader is misled.
+  - `[false]` `[reject]` Blind: Auto Run Result still says ready-for-dev -- Finalize rewrites the section; it is not code.
+  - `[medium]` `[patch]` Blind: no test that a failed save keeps the banner -- real: moving `withoutChange` out of `next` kept every test green. Patched: B14 now fails a classify (500), asserts the message, the old radio and the banner, then saves for real; mutation recorded.
+  - `[low]` `[patch]` Blind: no test for `withoutChange` on a tool or server that is not listed -- patched: node test added with a mutation.
+  - `[low]` `[reject]` Blind: `toolChangedText` re-expands a `{server}` inside a tool name -- the same chained replace as `classificationName` (spec: follow it); the harm is the banner showing the server's name where an odd tool name holds the literal `{server}`; not reached in everyday use.
+  - `[low]` `[reject]` Blind: the banner is silent to assistive technology on load -- by design, spec Never ("no live-region announcement") and Decided 6.
+  - `[low]` `[reject]` Blind: many banners could swamp the group -- Decided 3 (one per tool; a changed tool is rare).
+  - `[low]` `[patch]` Blind: `toolChangedText` out of alphabetical order in the import list -- patched (moved before `toolKey`).
+  - `[low]` `[reject]` Blind: B14 hard-codes the refused-row text -- the e2e file writes texts out as its oracle (B7-B10 header).
+  - `[low]` `[reject]` Blind: `clearChangedTool` appends to `RefusedTools` and leaves `^||ZzOps` set -- each call uses its own seeded server, and the script's process ends with the node; the doc comment holds (the admin list is empty).
+  - `[low]` `[reject]` Edge: the banner shows while the in-flight save already shows the new radio -- spec Decided 4 (the banner goes on the 200, so a failed save keeps it); a window of one request.
+  - `[low]` `[patch]` Edge: `withoutChange` not-listed branch untested -- same patch as above.
+  - `[low]` `[reject]` Edge: a reload landing between the pick and its 200 -- the section reloads only after an add or a remove, never during a classify; not reachable in the section.
+  - `[low]` `[reject]` Edge: `clearChangedTool` on a missing server row gives a vague failure -- a helper for a row the same test seeded one line earlier.
+  - `[low]` `[reject]` Edge: a no-op `ClearChanged` would fail later in B14 -- it would fail loudly at the banner assertion, with the seed visible; a guard adds code for a case that cannot occur with a freshly seeded server.
+  - `[false]` `[reject]` Edge: Auto Run Result stale -- Finalize rewrites it.
+  - `[medium]` `[patch]` Verification gap: failed save keeping the banner unpinned -- same patch and mutation as the Blind finding.
+  - `[low]` `[reject]` Verification gap: B14's reload and `TestListChanged`'s `risky|0` cannot see whether `Classify` reset the flag -- the reset is Lane A's, pinned by `Test.Mcp.Ops` `TestClassify` (`row.Changed` 0 and `ChangedFlag` boolean:0 for each word); 21.9's own pin is that the page drops the banner (mutation-backed); Lane A edits are forbidden.
+  - `[low]` `[reject]` Verification gap: banner placement above the table is asserted nowhere -- it is the template's order, covered by Decided 2; a layout assertion has no regression likelihood worth the code.
+  - `[low]` `[reject]` Verification gap: AC1's notice tail and AC4's reload have no mutation line -- the notice is Lane A's (22.15's `TestClearChanged` pins it); the reload line is answered by the previous row.
+  - `[low]` `[reject]` Verification gap: AC5 (initial bundle equals Task 0 (c)) has no mutation -- the cap test and the build comparison are the spec's own checks; initial total measured 888.40 kB before and after.
+  - `[low]` `[patch]` Verification gap: the `$&` replacer pin has no mutation -- ran it (string replacements -> red), recorded.
+  - `[low]` `[reject]` Verification gap: audit entries of the real `ClearRow` and `ClassifyTool` are not cleaned -- the audit log is append-only and keyed by the test's own `zz` server; Lane A's tests do the same.
+  - `[false]` `[reject]` Verification gap: Auto Run Result stale -- Finalize rewrites it.
+  - `[low]` `[reject]` Verification gap: the optimistic window shows the banner beside the new radio -- Decided 4.
+  - `[low]` `[reject]` Intent: the unavailable, several and older-answer rows are checked by node tests only -- the spec's test plan assigns them there; the section's `@for` over `changedTools` is one code path.
+  - `[medium]` `[patch]` Intent: failed save not tested -- same patch.
 
 ## Design Notes
 
@@ -201,7 +233,10 @@ No AC contradicts an AD Rule.
 
 **Ledger inbox:** `LEDGER slice 21-9-show-the-changed-tool-banner-in-settings` was empty at planning (`owned_ledger=0`). DW-1355 (22.15, `by-design`, "reopen via 21.9's spec if the banner must skip status refused") is answered here by the ruling: the banner skips refused tools; the Lane A behaviour stays as built.
 
-**Measured:** (Task 0 records here.)
+**Measured:**
+- (a) 22.15's contract confirmed by reading, no difference: `Mcp.ToolClassification.Changed` `%Boolean` `InitialExpression = 0` (`ToolClassification.cls` :37, storage `<Value name="7">` :62-64; class doc :9-10 says an empty value reads false through `Ops.Tools`); `Ops.Tools` :602 `%Set("changed", (+result.%Get("Changed") = 1) && (classification = "unclassified"), "boolean")`, doc :580-583; `ClearRow` :672-689 sets `Changed = 1` in the classified branch only (:679-683). The spine holds S1 at AD-21 :887 and :890, each with `[AMENDED 2026-11-14, Story 21.9 and the Epic 22 flag story, Contest Planner rulings V1-V3]`. 22.15's commits are on this branch.
+- (b) 21.5 has not landed on this branch (no `sources` in `api-types.ts`, `mcp-view.ts` or `ListMcp`); `withoutChange` spreads the settings, so it keeps `sources` when 21.5 lands.
+- (c) `npm run build` before the web edit: Initial total 888.40 kB (not the 878.98 kB of the spec: other stories moved it), under 921 kB; `mcp-section` lazy chunk 19.89 kB. After the edit: Initial total 888.40 kB (unchanged), `mcp-section` chunk 21.48 kB; `initial-bundle.test.mjs` passes.
 
 ## Veto items
 
@@ -238,15 +273,25 @@ Reused verbatim, accepted (no new text): `settings.toolChangedBanner`, "{tool} o
 - `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e21s9iw ci/iris.sh class OcuTalon.Test.Mcp.Tools` (once; confirms Task 0 (a)'s read) -- pass.
 - `... class OcuTalon.Test.Core.SettingsMcp` (loop) -- pass. Mutations (Rule 19):
   - `ListMcp` leaves out `changed` -> `TestListChanged` red.
+    mutation: delete the `Do one.%Set("changed", tool.changed, "boolean")` line in `ListMcp` -> `TestList` and `TestListChanged` red; reverted byte-identical (`cmp`).
   - `ListMcp` copies it as a number (no `"boolean"`) -> red (`"changed":true`).
+    mutation: `%Set("changed", tool.changed)` without the type -> `TestListChanged` red; reverted byte-identical.
   - `ListMcp` sets `changed` from `classification = "unclassified"` -> red (`zz_new`).
+    mutation: `%Set("changed", (tool.classification = "unclassified"), "boolean")` -> `TestList` and `TestListChanged` red; reverted byte-identical.
   - `ListMcp` drops `changed` (or the row) for a refused tool -> red (`zz_shadow` must pass through).
+    mutation: `%Set("changed", (tool.changed && (tool.status '= "refused")), "boolean")` -> `TestListChanged` red; reverted byte-identical.
 - `... class OcuTalon.Test.Web.McpSettingsApi`, then `... class OcuTalon.Test.Msg.Catalog` (once each, one per call) -- pass.
 - `node --test web/scripts/mcp-view.test.mjs web/scripts/ux-strings.test.mjs` (loop) -- pass. Mutations:
   - `changedTools` without the refused check -> red (the changed-then-refused row is kept).
+    mutation: remove `&& tool.status !== 'refused'` in `changedTools` -> `mcp-view.test.mjs` 2 failures; reverted byte-identical.
   - `changedTools` keeps every unclassified row -> red.
+    mutation: the filter becomes `tool.classification === 'unclassified'` -> 3 failures; reverted byte-identical.
   - One word of `MCP_TEXTS.toolChanged` changed -> red (`catalogText`).
+    mutation: "input" for "inputs" in `MCP_TEXTS.toolChanged` -> 2 failures (the catalog equality and the rendered text); reverted byte-identical.
   - `withoutChange` changes every row of the server -> red.
+    mutation: the row test drops `one.name === tool` -> 1 failure; reverted byte-identical.
+    mutation: the row test drops `one.server === server &&` (name only) -> `withoutChange` tests red (the named-row test and the not-listed test); reverted byte-identical.
+    mutation: `toolChangedText` with string replacements instead of function replacers -> "keeps a `$&` in a name literally" red; reverted byte-identical.
 - `node --test web/scripts/initial-bundle.test.mjs` (once, after the web edits; about 20 s cold) -- pass (initial total at most 921 kB).
 - `node --test web/scripts/` (once, the whole folder) -- pass.
 - `cd web && npx tsc -p tsconfig.e2e.json --noEmit` (once) -- clean.
@@ -254,8 +299,13 @@ Reused verbatim, accepted (no new text): `settings.toolChangedBanner`, "{tool} o
 - `<vars> OCUTALON_RUN_TAG=e21s9i ci/iris.sh build` (once).
 - `<vars> OCUTALON_RUN_TAG=e21s9i ci/iris.sh live sign-in-2 --part k/n` (once; the part whose PART line lists `settings/mcp.spec.ts`, n sized to about 150 s) -- pass. Mutations:
   - The banner's `@for` over every unclassified tool -> B14 red (`zz_new` banner).
+    mutation: `changed` computed as the unclassified tools -> B14 red ("and it is the only banner of this server"); reverted byte-identical.
   - The banner's `@for` over `changed === true` rows without `changedTools` -> B14 red (`zz_shadow` banner).
+    mutation: `changed` computed as `tools.filter((tool) => tool.changed === true)` -> B14 red (same assertion); reverted byte-identical.
   - `withoutChange` not applied on the 200 -> B14 red (the banner stays after "Saved").
+    mutation: the `withoutChange` line removed from `pick`'s `next` -> B14 red ("the banner goes"); reverted byte-identical.
+  - `withoutChange` applied before the save instead of on the 200 (review patch: a failed save keeps the banner) -> B14 red.
+    mutation: `withoutChange` moved to run with the optimistic `withClassification` in `pick` -> B14 red ("and the banner stays"); reverted byte-identical (`cmp` and `git diff`).
 - `<vars> OCUTALON_RUN_TAG=e21s9iw ci/warm.sh down` and `<vars> OCUTALON_RUN_TAG=e21s9i ci/iris.sh teardown` (once each, also after a failure).
 - `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh` (once each) -- pass.
 - `python3 .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` (once, after the REST row note) -- 10 low (the baseline).
@@ -264,10 +314,22 @@ Reused verbatim, accepted (no new text): `settings.toolChangedBanner`, "{tool} o
 - (once) `grep -rn "mcp-view\|mcp-section" web/src/app --include='*.ts'` -- only `settings-page.ts`'s dynamic `import('./mcp-section')` and doc comments, so no static import pulls the banner into the initial bundle.
 - (once) `git diff --stat <22.15's tip> -- src/ocutalon/cls/OcuTalon/Mcp src/ocutalon/cls/OcuTalon/Test/Mcp src/bridge` -- empty (no Lane A edit by 21.9).
 
+**Result (implement, lane C, warm `e21s9iw`, fresh `e21s9i`, both torn down):** warm `Test.Core.SettingsMcp`, `Test.Web.McpSettingsApi`, `Test.Msg.Catalog` and `Test.Mcp.Tools` pass; `mcp-view` and `ux-strings` node tests pass; `node --test web/scripts/` 2099 pass; `tsc -p tsconfig.e2e.json` clean; `npm run build` clean (Initial total 888.40 kB, unchanged); `initial-bundle.test.mjs` passes; fresh `live sign-in-2 --part 19/24` (the part that holds only `settings/mcp.spec.ts`, 11 tests) passes with B14; `test-class-rules.sh` and `test-boundaries.sh` pass; `lint_spine.py` gives 10 low; no Lane A diff; no static import of the MCP files from the page.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Planned only. Spec gate passed 2026-11-15 after the refresh: the flag is on the branch (22.15), V1-V3 closed as approved, no open veto item, and the refused-tool ruling folded in. Implement starts with Task 0 (a)'s read check of 22.15's contract, and 21.9 merges only after 22.15 has merged.
-- Ledger inbox: empty; DW-1355 answered by the ruling.
+- Summary: Settings > Tools and MCP servers shows one warning banner per tool whose GET row has `changed` true and a status other than `refused`, in the accepted `settings.toolChangedBanner` words, above the tools table. `SettingsOps.ListMcp` passes the `changed` member through as a JSON boolean for every status. A successful classification clears the banner; a failed one keeps it.
+- Files changed:
+  - `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: `ListMcp` copies `changed` (and its docs).
+  - `web/src/app/api/api-types.ts`: `McpToolRow.changed?`.
+  - `web/src/app/settings/mcp-view.ts`: `MCP_TEXTS.toolChanged`, `changedTools`, `toolChangedText`, `withoutChange`.
+  - `web/src/app/settings/mcp-section.ts`: the banners, their styles, `withoutChange` on the save's 200.
+  - `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the as-built note on the GET row.
+  - Tests: `Test/Core/SettingsMcp.cls` (`TestList`, `TestListChanged`), `web/scripts/mcp-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/e2e/support/mcp.ts` (`clearChangedTool`), `web/e2e/settings/mcp.spec.ts` (B14).
+- Review: 27 findings from four layers; high 0, medium 3 (one root cause), low 21, false 3. Patches applied: the failed-save case in B14 (medium, with its mutation), the not-listed `withoutChange` test, the import order, and the `$&` mutation line. Deferred: none. Rejected: every other finding, each with its reason in the Review Triage Log.
+- Follow-up review recommended: false (no high patched; one medium patched, a test addition).
+- Verification: warm `Test.Core.SettingsMcp`, `Test.Web.McpSettingsApi`, `Test.Msg.Catalog` and `Test.Mcp.Tools` pass (implement stage; the review patches changed only tests under `web/`); `node --test web/scripts/` 2100 pass (including `initial-bundle.test.mjs`); `tsc -p tsconfig.e2e.json` clean; `npm run build` clean (Initial total 888.40 kB, unchanged); fresh `live sign-in-2 --part 19/24` passes with B14 (11 tests) after the patch, and red under the failed-save mutation; `test-class-rules.sh`, `test-boundaries.sh` pass; `lint_spine.py` 10 low; no Lane A diff; no static import of the MCP files from the page. Warm and fresh stacks torn down.
+- Residual risks: 21.5 edits the same regions (`ListMcp`, `McpToolRow`, `mcp-view.ts`, `mcp-section.ts`, the spine row); whoever lands second merges by hand. The spec's 878.98 kB initial-bundle figure is stale (888.40 kB measured); the cap of 921 kB holds.

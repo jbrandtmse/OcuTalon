@@ -295,6 +295,8 @@ const SOURCES = {
     'Classification of {tool} on {server}',
     'Read-only',
     'Saved',
+    // Story 21.9 (EXPERIENCE.md line 1009, Changed tool banner: the accepted text of the Message Catalog key settings.toolChangedBanner).
+    '{tool} on {server} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.',
     'Check thresholds',
     'On call',
     'Choose who OcuTalon pages when an incident starts, and who it pages next if nobody presses Got it in time.',

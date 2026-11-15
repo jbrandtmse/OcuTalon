@@ -12,8 +12,12 @@
  *   its own text), a 400 bad_mcp_server that names a name, an address or a secret text is a field refusal, and every other answer is a form error that carries the
  *   server's own message when it sent one.
  * - withClassification gives the settings with one tool's classification changed and its server's unclassified count worked out again.
+ * - changedTools is the tools that get a changed-tool banner (Story 21.9): `changed` exactly true and a status that is not refused, in the given order. The page
+ *   decides nothing of its own: both members are the server's.
+ * - toolChangedText fills that banner's sentence, the Message Catalog key settings.toolChangedBanner, word for word.
+ * - withoutChange gives the settings with one tool's `changed` set to false, which the section applies once a classification has saved.
  */
-import type { McpSettings } from '../api/api-types';
+import type { McpSettings, McpToolRow } from '../api/api-types';
 
 /** The three forms of a Remove sentence for a count of pending requests: none, one or more. */
 interface RemoveForms {
@@ -66,6 +70,7 @@ export const MCP_TEXTS = {
   classificationName: 'Classification of {tool} on {server}',
   classifications: { unclassified: 'Unclassified (counts as risky)', 'read-only': 'Read-only', risky: 'Risky' },
   saved: 'Saved',
+  toolChanged: '{tool} on {server} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.',
 } as const;
 
 /** The three classifications in the order that the radiogroup lists them, each with the label of its radio. */
@@ -98,6 +103,11 @@ export function removeName(server: string): string {
 /** The accessible name of a tool's classification radiogroup. */
 export function classificationName(tool: string, server: string): string {
   return MCP_TEXTS.classificationName.replace('{tool}', () => tool).replace('{server}', () => server);
+}
+
+/** The sentence of a tool's changed-tool banner. */
+export function toolChangedText(tool: string, server: string): string {
+  return MCP_TEXTS.toolChanged.replace('{tool}', () => tool).replace('{server}', () => server);
 }
 
 /** The words for a server's status: attached is Connected, unavailable is Unavailable, and anything else (never checked) is Not checked yet. */
@@ -164,4 +174,14 @@ export function withClassification(settings: McpSettings, server: string, tool: 
   const tools = settings.tools.map((one) => (one.server === server && one.name === tool ? { ...one, classification } : one));
   const unclassified = tools.filter((one) => one.server === server && one.classification === 'unclassified').length;
   return { servers: settings.servers.map((one) => (one.name === server ? { ...one, unclassified } : one)), tools };
+}
+
+/** The tools that get a changed-tool banner: `changed` exactly true and a status that is not refused, in the given order. */
+export function changedTools(tools: readonly McpToolRow[]): McpToolRow[] {
+  return tools.filter((tool) => tool.changed === true && tool.status !== 'refused');
+}
+
+/** The settings with one tool's `changed` set to false; every other member and row is kept, and a tool that is not listed changes nothing. */
+export function withoutChange(settings: McpSettings, server: string, tool: string): McpSettings {
+  return { ...settings, tools: settings.tools.map((one) => (one.server === server && one.name === tool ? { ...one, changed: false } : one)) };
 }
