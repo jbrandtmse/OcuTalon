@@ -4387,3 +4387,5 @@
 2026-11-15T19:53:03Z	Run	ci_green_verified	head=8c71bef6e(23.3_merge) runs=43748578400(att2;att1=DW-1388_ci-48),43748578393
 2026-11-15T19:53:52Z	Epic 24	runner_reported	BLOCKED story=24.4 reason=V1_redactor_does_not_exist(RollbackSetting/Approval/Incident_payloads_raw;web_raw) options=1_match_raw+ledger,2_server_Redact.Text(cross-lane_grant;recommended),3_web_redactor(no) relayed=contest_planner
 2026-11-15T19:54:15Z	Epic 24	owner_decision	via=contest_planner 24.4_redactor=OPTION_2_EXTENDED(1.0.12_BLOCKER;Redact.Text_server-side_on_Approval/Incident_payloads+notice_slots+trace/log_check;DryRun_and_restore_raw;pins;grant_laneD_Lane_A_payload+Notice/SettingCause)
+2026-11-15T20:03:27Z	Epic 23	ci_green_verified	story=23.4 head=5a6af00d3 runs=43751904972,43751904967(att1)
+2026-11-15T20:03:27Z	Epic 23	merge_enqueued	story=23.4 (1.0.12)
