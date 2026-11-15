@@ -338,3 +338,9 @@
 2026-11-13T01:08:31Z	Epic 23	epic_retro_skipped	reason=policy(gates.retrospective:skip)
 2026-11-13T04:12:59Z	Story 23.12	ci_resolved	story=23.12 sha=415ea02d runs=43342524742,43342524753 result=success failed=none via=none resolved_at=part_ready first_ci=success(on_bc3eea8f_merge)
 2026-11-13T04:12:59Z	Story 23.12	part_ready	code_head=415ea02d feature_base=bc3eea8f feature_now=1fb800c2(dry_merge:sprint-status.yaml_only) amendments=epics.md(Story_23.12_block;DW-1159) footprint_extensions=web/**(14_files) new_units=none ci_groups=unchanged resolved=DW-1159 public_text=none
+2026-11-15T04:06:08Z	Epic 23	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_23.3_23.4_23.8_after_epic36_lane_B lane=B slot=ocutalon-slot-b port=52802 head=6730eda7e model=claude-opus-5-5
+2026-11-15T04:06:08Z	Epic 23	epic_branch_checked_out	repos=. head=6730eda7e note=fast-forwarded_by_orchestrator_to_feature bootstrap_check=ok
+2026-11-15T04:06:08Z	Epic 23	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-15T04:06:08Z	Epic 23	ledger_load	total=1341 open=4 routed=158 escalated=2 decision_pending=7 terminal=1170 owner_unknown=0 burndown=147 reowned_none=0 epic23_owned=DW-1225(23-3),DW-1277(23-4)
+2026-11-15T04:06:38Z	Epic 23	sprint_planning_complete	gate=PASS mode=headless(readiness_recheck_U8) note=36.1_setting_history,36.2_keys_and_verbs_present_in_spine_and_code;in_sync=true model=claude-opus-5-5
+2026-11-15T04:06:38Z	Epic 23	retro_review_skipped	reason=skipped(policy):epic_recorded_retro_review_at_its_first_start;resumed_part_epic;no_new_previous_retro
