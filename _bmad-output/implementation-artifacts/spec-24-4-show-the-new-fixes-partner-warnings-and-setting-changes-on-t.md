@@ -2,13 +2,13 @@
 title: 'Story 24.4: Show the new fixes, partner warnings and setting changes on the cards'
 type: 'feature'
 created: '2026-11-15'
-status: 'draft'
-baseline_revision: '243e45ba76ad628c995c3cb903aa5df8fe363e30'
+status: 'ready-for-dev'
+baseline_revision: '1fc32ac5a2cb80e7be0c66800f34f8e58cf63cfd'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-24-context.md'
-warnings: [oversized]
+warnings: [oversized, multiple-goals]
 deferred: []
 ---
 
@@ -16,30 +16,34 @@ deferred: []
 
 ## Intent
 
-**Problem:** Lane A's Stories 23.2, 23.3 and 23.5 are merged, and with them most of this story's display: every step-5 request already has its own dry run on the approval request card, the rail, the simulated phone and Telegram (Design Notes, "Already built"). Two parts are still missing:
+**Problem:** Lane A's Stories 23.2, 23.3 and 23.5 are merged, and with them most of this story's display: every step-5 request already has its own dry run on the approval request card, the rail, the simulated phone and Telegram (Design Notes, "Already built"). Three parts are still missing:
 - The evidence panel never lists the setting change that an incident names (AC3).
 - The undo of a rollback, the one kind that can be asked for on a closed incident, gets no request card, because a closed (compact) incident card draws none (AC4).
+- [AMENDED 2026-11-15, redactor ruling] A setting's values reach people raw. The rollback and undo dry run (card, phone, Telegram, web chat), their result notices and the incident's setting change carry the value exactly as IRIS holds it, so a setting whose value holds a secret (a URL with a token) shows it everywhere. Two Ens message bodies carry the raw values into the trace: `Fix.Msg.DryRunResult.DryRun` and the notices' `Msg.Notification.Slots` (Design Notes, "Trace and logs").
 
 Nothing pins the step-5 cards end to end in a browser either: A12 to A14 check HTTP and two bands, not the rendered dry runs, the phone or the cause line.
 
 **Approach:**
 - Add the setting-change rows to the evidence panel.
 - Let a compact card draw the request card of an `undo_rollback` request.
-- Pin every AC on its outermost surface: one Playwright spec for the cards, the rail and the phone; one Telegram method on the CI mock; unit pins for the two changes.
-- No payload field, route, catalog key, table or Lane A file changes.
+- [AMENDED 2026-11-15, redactor ruling] Redact on the SERVER with the one redactor, `OcuTalon.Bridge.Redact.Text`, wherever a setting's before, after, old or new value is shown: the approval payload's dry run, the incident payload's `settingChange`, and the slot fill of the four notice keys. The dry-run answer carries the redacted values and a hand-off reference to the raw ones, never the raw values. The stored dry run and the value the rollback writes stay raw. `Redact.Text` gains the one missing common secret shape (`key=`). No web redactor.
+- Pin every AC on its outermost surface: one Playwright spec for the cards, the rail, the panel and the phone; two Telegram methods on the CI mock; a production test for the raw restore and the trace; unit pins for the rest.
+- No payload field, route, catalog key, table, column or message property changes.
 
 ## Boundaries & Constraints
 
 **Always:**
 - The page decides nothing (AD-12). The card reads only the payload's fields (`settingChange`, `gapMinutes`, `requests`, the `approval` payloads) and renders text by interpolation only.
-- Item names, setting names and values appear as IRIS shows them, in `mono`, in the evidence panel only (UX-DR78).
+- Item names, setting names and values appear as the server sends them, in `mono`, in the evidence panel only (UX-DR78).
 - The phone and Telegram text is the server's catalog text (AD-32). This story changes no catalog entry.
 - Every new fixed string is in `INCIDENT_TEXTS` and in `ux-strings.test.mjs` with its ruling. Code uses ASCII escapes for any non-ASCII character (Rule 14).
-- Tests seed fixture rows (`seedApproval`, `seedIncident`, `seedSettingChange`, `publishIncident`, `sendNotification`) and remove them, and the phone messages they made, in `finally`. They run on lane-D throwaways only.
+- [AMENDED 2026-11-15, redactor ruling] Every setting value a person can see, and every Ens message body or log line that holds one, has gone through `OcuTalon.Bridge.Redact.Text` on the server. The stored `ApprovalRequest.DryRun`, the `SettingChange` row and the value the rollback or undo writes stay raw, byte for byte.
+- Test fixtures build every secret-shaped value from fragments (no key-like string in a file). Tests seed fixture rows (`seedApproval`, `seedIncident`, `seedSettingChange`, `publishIncident`, `sendNotification`) and remove them, and the phone messages they made, in `finally`. They run on lane-D throwaways only.
 
 **Never:**
-- No edit of a Lane A file: `Watch/*`, `Fix/*`, `Channel/Telegram/*`, `Msg/Catalog/Watch.cls`, `Live/Payload/Incident.cls` and its parts. The one exception is the Rule 19 mutation in Verification, which is applied and reverted byte-identical and never lands.
-- No new `/api/v1` route, live-event type, payload field, catalog key, table or column, and no new dependency.
+- [AMENDED 2026-11-15, redactor ruling] No edit of a Lane A or bridge file beyond those the redactor ruling grants (`Live/Payload/Incident.cls` `Change`, the slot fill in `Watch/SettingCause.cls`, `Bridge/Redact.cls` for the pattern, and their test classes) and the NEW items under Veto items once ruled. `Channel/Telegram/*`, `Msg/Catalog/Watch.cls`, `Watch/Notice.cls` and the kind classes stay unedited. The Rule 19 mutations are applied and reverted byte-identical and never land.
+- [AMENDED 2026-11-15, redactor ruling] No second redactor, in the web or anywhere else, and no redaction of the stored dry run, the `SettingChange` row or the value written.
+- No new `/api/v1` route, live-event type, payload field, catalog key, table, column, message property or dependency.
 - No values of a secret (`credential` true). No name of who made a change.
 - No change to the incident's state or lifecycle. No change to a compact card's other request cards: a repair, suspend, resume, reroute, rollback or partner request on a closed incident stays undrawn, as A9 pins.
 - No edit of `irislib/`, `irissys/`, `_bmad/`, `.claude/`, `CLAUDE.md` or a done story's spec.
@@ -52,6 +56,9 @@ Nothing pins the step-5 cards end to end in a browser either: A12 to A14 check H
 | Secret change | `credential` true, blank values | "Setting change" and "Detected" rows only, with no value rows | Values never shown |
 | Empty value | `oldValue` "" (the setting was added) | the "Old value" row is left out; "New value" shows | Row omitted |
 | No change named | no `settingChange`, or no setting or item in it | no new rows; the panel is as today | Nothing added |
+| [AMENDED] Token-bearing value | a non-secret change whose `OldValue` is `https://feed.example.test/orders?token=<t>` | the payload's `oldValue`, the "Old value" row, the rollback card's After, the notices' `{after}` (web chat, phone, Telegram) all read `https://feed.example.test/orders?token=[redacted]`; `<t>` appears nowhere a person, the trace or a log sees | Redact fails closed (its UNCHECKED text) |
+| [AMENDED] Plain value | `OrdersRouter` | shown byte for byte on every surface | No error expected |
+| [AMENDED] Rollback of a token-bearing value | approved `rollback_setting` of that change | the item's setting is the raw token URL again, byte for byte; the stored dry run holds the raw values; every view is redacted | A failed hand-off take is a dry run that could not be worked out: nothing is raised, nothing stored redacted |
 | Closed card, undo pending | incident `closed`, store holds a pending `undo_rollback` approval of it | the compact card draws that request card (dry run, Approve, Reject, expiry); its band is in its card only, never also in the compact bands | No error expected |
 | Closed card, other kinds | incident `closed` with a repair or rollback request | no request card (A9 unchanged); the compact bands as today | Unchanged |
 | Closed card, undo answered | the undo was rejected or is done | its card stays, with its status (and its band when it has a result) | No error expected |
@@ -60,88 +67,69 @@ Nothing pins the step-5 cards end to end in a browser either: A12 to A14 check H
 
 ## Code Map
 
-All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/`.
+All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/`.
 
-**To change**
-- `src/app/incidents/incident-view.ts`:
-  - `INCIDENT_TEXTS` 34-79 (`labelCause` 61, `labelItems` 64): add the new labels here.
-  - `IncidentContext` 88-108: `itemTime` 98.
-  - `settingCauseOf` 262-272 (built). `itemLinesOf` 343-360.
-  - `panelOf` 362-391: the Cause row is at 364-367, and the setting rows go after it.
-  - `bandsOf` 451-461; `incidentView` 472-505, with the compact `results` at 503.
-- `src/app/incidents/incident-card.ts`:
-  - The cause line is at 91-92 and the compact bands at 111-113.
-  - The request cards are at 114-127; the own Show details row and panel when there is no request card are at 129-155.
-  - `requests` is at 312 (`compact ? [] : requestsOf(...)`).
-- `src/app/incidents/evidence-panel.ts` 17-42: draws rows generically. It needs no change unless lint asks for one.
+**To change: the page (unchanged from the approved plan)**
+- `src/app/incidents/incident-view.ts`: `INCIDENT_TEXTS` 34-79 (`labelCause` 61, `labelItems` 64); `IncidentContext` 88-108 (`itemTime` 98); `settingCauseOf` 262-272 (built); `itemLinesOf` 343-360; `panelOf` 362-391 (Cause row 364-367, the setting rows go after it); `bandsOf` 451-461; `incidentView` 472-505 (compact `results` 503).
+- `src/app/incidents/incident-card.ts`: cause line 91-92, compact bands 111-113, request cards 114-127, own Show details 129-155, `requests` 312 (`compact ? [] : requestsOf(...)`).
+- `src/app/incidents/evidence-panel.ts` 17-42: generic rows; no change unless lint asks.
 
-**Already built (read only, evidence for Design Notes)**
-- `src/app/approvals/approval-view.ts`:
-  - `APPROVAL_TEXTS` 51-90.
-  - `itemDryRunView` 260-275, `settingDryRunView` 278-293, `rerouteDryRunView` 296-310, `dryRunView` 313-344, `partnerView` 359-376.
-  - `statusOf` 400-420, `approvalView` 423-455, `requestsOf` 213-226.
-  - `resultView` 575-650, `settingResultView` 683-700, `bandOf` 740-742.
-- `src/app/approvals/approval-request-card.ts`: the partner block is at 132-141, the dry-run rows at 146-175 (`.mono.before` 154, `.mono.after` 160) and the answer row at 177+ (`aria-label` approveName 183).
-- `src/app/rail/rail-view.ts`: `RAIL_TEXTS` titles at 47-52 and `showInChat` at 57; `approvalTitle` 211-243; the approval row's jump at 269-275.
-- `src/app/phone/phone-request.ts` `messageContext` 40-52 and `phone-view.ts` `blocksOf` 128 / `requestView` 158: the server's text, with the approval view's button names.
-- `src/app/live/payloads.ts`: `SettingChange` 145-153, and `IncidentPayload` with `settingChange` and `gapMinutes` at 364-365. They are generated by `scripts/payloads.mjs`, and `npm run build` runs `--check`.
-- IRIS:
-  - `Live/Payload/Approval.cls` `FromRow` 117-168 (the partner part 127-138; the item, field, before, after, from, to and example 144-153) and `Live/Payload/Part/DryRun.cls` 28-43.
-  - `Live/Payload/Incident.cls` `Change` 116-134 and `Live/Payload/Part/SettingChange.cls`.
-  - `Fix/Kind.cls` `AskedClosed` 156-162; `Fix/Kind/UndoRollback.cls` `MOVES` 26 and `ASKEDSTATES` 28; `Watch/IncidentManager.cls:1076` (a closed incident takes only AskedClosed kinds).
-  - `Msg/Catalog/Watch.cls`: `incident.suspendRequest` 818, `resumeRequest` 827, `rerouteRequest` 836, `partnerRequest` 960, `rollbackRequest` 1129, `undoRollbackRequest` 1144 and `settingChangeCause` 1155.
-  - `Msg/Catalog/Core.cls`: `answered.approved` 87, `answered.rejected` 106, `answered.expired` 123 and `audit.recorded` 619.
-  - `Watch/Notice.cls` 244-258 (the partner slots hold the whole notice and every "Name <address>").
-  - `Channel/Telegram/Out.cls` 41-47 and 105-110 (`BUTTONKINDS` incident,approval; plain text; split whole with the buttons on the last part) and 262 (`inline_keyboard`).
+**To change: the server redaction (redactor ruling)**
+- `src/bridge/cls/OcuTalon/Bridge/Redact.cls` (bridge, GRANTED): class doc 12-18 (names the patterns); `PatternList` 192-217, the `If kv` key rules 208-215; `KeyPattern` 225-238 (the SENSITIVEKEYS names; `key` is NOT one, and must not become one: `SensitiveKey` suffix-matches, so `monkey`, `cacheKey`, `dedupKey` would turn sensitive, and `TestSensitiveKeys` :50 pins 25 names).
+- `Live/Payload/Approval.cls` (Lane B, in footprint; named by the grant): `FromRow` fix branch 144-153, `part.Before` 148 and `part.After` 149 (raw today). The `Kind = "setting"` branch 120-125 (`SettingText` 226-233) is a persona proposal (`Core/SettingsOps.cls:548-553`), not a production setting: not touched.
+- `Live/Payload/Incident.cls` (Lane A, GRANTED): `Change` 116-134, `OldValue` 127 and `NewValue` 128 (raw today); doc 114-115.
+- `Watch/SettingCause.cls` (Lane A, GRANTED; the slot fill): `RollbackSlots` 271-286 (before/after 277-278, set 283-284), `UndoSlots` 289-310 (298-299, set 307-308), `ResultSlots` 332-350 (after 337, set 347); private `Text` 383-386; class doc 13-14. `{reason}` of `result.settingSavedNotApplied` (338/348) is already redacted upstream (`Fix/Executor.cls:201,637`; `Fix/Run.cls:389`).
+- `Watch/Notice.cls` (granted, NOT edited): it only delegates the fill: `AskedSlots` 243 → `UndoSlots`, `WithFixSlots` 344 → `RollbackSlots`, `ResultSlots` 446 → `SettingCause.ResultSlots`.
+- `Fix/Executor.cls` (Lane A, NEW): `DryRun` 185-205 fills `DryRunResult.DryRun` from `dryRun.%ToJSON()` at 192 (raw before/after of the setting kinds).
+- `Watch/IncidentManager.cls` (Lane A, NEW): the two receive sites of a `DryRunResult`: `Proposed` 970 (parse 991-995; raise `StoredDryRun` 1054) and the chat ask path (`AskDryRun` 1338-1343, parse 1191). `StoredDryRun` 1345-1360 keeps only `DRYRUNKEYS`. `ResultExtra` 1720-1738 reads `after` from the stored (raw) dry run at 1731; the redaction in `ResultSlots` covers it.
+- `Fix/Msg/DryRunResult.cls` (Lane A, NEW, doc only): its doc 1-4 already allows "the kind's own transient keys ... which are never stored"; it names the new `values` key.
+
+**Already built (read only, evidence)**
+- Approval view: `src/app/approvals/approval-view.ts` `APPROVAL_TEXTS` 51-90, `itemDryRunView` 260-275, `settingDryRunView` 278-293, `rerouteDryRunView` 296-310, `dryRunView` 313-344, `partnerView` 359-376, `statusOf` 400-420, `approvalView` 423-455, `requestsOf` 213-226, `resultView` 575-650, `settingResultView` 683-700, `bandOf` 740-742. `approval-request-card.ts`: partner block 132-141, dry-run rows 146-175 (`.mono.before` 154, `.mono.after` 160), answer row 177+ (`aria-label` 183).
+- Rail `src/app/rail/rail-view.ts`: titles 47-52, `showInChat` 57, `approvalTitle` 211-243, jump 269-275. Phone `src/app/phone/phone-request.ts` 40-52, `phone-view.ts` `blocksOf` 128 / `requestView` 158. Payload interfaces `src/app/live/payloads.ts` `SettingChange` 145-153, `settingChange`/`gapMinutes` 364-365 (generated; `npm run build` runs `--check`).
+- IRIS: `Live/Payload/Part/DryRun.cls` 28-43 (Before/After MAXLEN 1000), `Part/SettingChange.cls` (Old/NewValue MAXLEN 2000); `Fix/Kind.cls` `AskedClosed` 156-162; `Fix/Kind/UndoRollback.cls` `MOVES` 26, `ASKEDSTATES` 28, `DryRun` 40-55, `Approved` 110-121 (reads the STORED dry run's raw `after` for a System Default Setting undo); `Fix/Kind/RollbackSetting.cls` `DryRun` 79-91, `Restored` 100-104, `Entry` 219-228 (the write reads the `SettingChange` row, never the dry run); `Watch/IncidentManager.cls:1076` (a closed incident takes only AskedClosed kinds).
+- Catalog `Msg/Catalog/Watch.cls`: `incident.suspendRequest` 818, `resumeRequest` 827, `rerouteRequest` 836, `partnerRequest` 960, `rollbackRequest` 1129, `undoRollbackRequest` 1144, `settingChangeCause` 1155, `result.settingRestored` 1165, `result.rollbackUndone` 1182; `Msg/Catalog/Core.cls` `answered.*` 87, 106, 123, `audit.recorded` 619.
+- Renderers that take the slots as given: `Channel/SimPhone/Out.cls:83-88` (stores `Data.SimMessage.Text`), `Channel/Telegram/Out.cls:174,212` (sends to Telegram); `Watch/Notice.cls` 244-258 (partner slots).
+- `Core/SecretHandoff.cls` (Lane B Core, AD-19): `Put` 26, `Take` 52 (deletes the resource; a second take fails plainly), `Discard` 77.
+- Payload consumers that read only Item, Field, To, Affected, ItemNoun (unaffected): `Core/AnswersIn.cls:111`, `Channel/Telegram/In.cls:477-481`.
+- Leak helpers: `Test/Core/SecretHandoff.cls` `TraceLeaks` 240 (Ens.MessageBodyD/S, MessageHeaderD, Util.LogD), `Test/Agent/RunnerFixture.cls` `LogRowsHolding` 297; model `Test/Core/CommandsStep4.cls` `AssertNoLeak` 473.
 
 **Tests to extend or add**
-- `scripts/incident-view.test.mjs`:
-  - setting cause 178-190, and the panel 380-437;
-  - compact 249-266 and 636-730.
-- `scripts/incident-sources.test.mjs:199` (the compact bands), and `scripts/approval-sources.test.mjs:316` (the `requests` regex pin).
-- `scripts/ux-strings.test.mjs`: the `ruled` table at 813. 23.3's entries are at 1035-1050, and the place for the new entry is after them.
-- `e2e/rail/rail-answer.spec.ts`: the model for a RAIL-user cross-surface spec. It uses `holdPolls`, `dropPhone`, `cleanFixtureRows` and cleanup in `finally`.
-- `e2e/support/approvals.ts`:
-  - `incidentOf` 40-61, `raise` 70-85, `phoneOf` and `messageOf` 87-88;
-  - `noticeOnPhone` 109-119 and `phoneShows` 121-131.
-- `e2e/support/iris.ts`:
-  - `publishIncident` 182, `cleanFixtureRows` 704 and `seedApproval` 776 (`ApprovalFields` 748-767: fixKind, state and the answered fields);
-  - `seedIncident` 1060 (with `settingChangeRef`) and `seedSettingChange` 1101 (Host, not a secret).
-- `e2e/support/scan.ts` `scanContrast` 149 and `scanNames` 49. `e2e/floor/scan.spec.ts:31` switches the theme with `emulateMedia({ colorScheme })`.
-- `e2e/cards/approval-card.spec.ts`: A9 is at 707 (it must stay green), and A12, A13 and A14 at 389, 518 and 468. No new case goes into cards: `playwright-projects.test.mjs:331-336` pins 32 cases there.
-- `Test/Channel/TelegramOut.cls`: `TestButtons` 820 is the model, with `Request` 808 and `FixtureSlots`. `Test/Channel/TelegramChat.cls` `TestNotices` 453 already pins each step-5 key's Telegram text as the phone's.
+- Page: `scripts/incident-view.test.mjs` (setting cause 178-190, panel 380-437, compact 249-266 and 636-730); `scripts/incident-sources.test.mjs:199`; `scripts/approval-sources.test.mjs:316`; `scripts/ux-strings.test.mjs` `ruled` 813, entries of 23.3 at 1035-1050.
+- e2e: model `e2e/rail/rail-answer.spec.ts` (`holdPolls`, `dropPhone`, `cleanFixtureRows`, `finally`); `e2e/support/approvals.ts` (`incidentOf` 40-61, `raise` 70-85, `phoneOf`/`messageOf` 87-88, `noticeOnPhone` 109-119, `phoneShows` 121-131); `e2e/support/iris.ts` (`irisScript` 108, `publishIncident` 182, `sendNotification` 684, `cleanFixtureRows` 704, `seedApproval` 776 with `dryRun.before/after`, `seedIncident` 1060, `seedSettingChange` 1101, `dropSettingChange` 1126); `e2e/support/scan.ts` `scanContrast` 149, `scanNames` 49; `e2e/cards/approval-card.spec.ts` A9 707, A12 389, A13 518, A14 468 (no new case in cards: `playwright-projects.test.mjs:331-336` pins 32).
+- `Test/Bridge/Redact.cls`: `TestPatterns` 71, `TestPlainText` 221-229, `TestIdempotent` 231-246 (a hand-written list), `TestUrlCredentials` 333-343, `Check` 372 (asserts the result and that a second pass changes nothing).
+- `Test/Watch/SettingCause.cls` (runs on a slot or a throwaway): fixtures `Change` 68, `Incident` 88, `Snapshot` 55; `TestPayload` 369-388.
+- `Test/Watch/Rollback.cls` (throwaway and CI only, fresh): `ChangeRows` 202, `Request` 220, `Change` 230-252, `Prepare` 254, `Run` 412-450 (stores `answer.DryRun` as the fixture request's dry run at 423), `TestIncidentNamesTheChange` 578-634 (the real raise through `[[mock:diagnosis-rollback]]`), `TestUndoAfterClose` 636-673; `Test/Watch/Case.cls` `AskDryRun` 2257.
+- `Test/Channel/TelegramOut.cls`: `TestButtons` 820 is the model (`Request` 808, `FixtureSlots`, `SentTo`).
 
 ## Tasks & Acceptance
 
-**Execution:**
-- `web/src/app/incidents/incident-view.ts`:
-  - Add the five strings of Public text to `INCIDENT_TEXTS`.
-  - In `panelOf`, right after the Cause row, add the setting-change rows from `payload.settingChange`, as the matrix says:
-    - "Setting change": `{setting} on {item}`, in mono.
-    - "Old value" and "New value": the values in mono. Each is left out when `credential` is true or its value is empty.
-    - "Detected": `ctx.itemTime(detectedAt)`, not in mono, left out when it is unreadable.
-  - Rows show only when both `setting` and `item` are set.
-  - Export `AFTER_CLOSE_KINDS` (a `ReadonlySet` holding `undo_rollback`). Its doc names `Fix.Kind.AskedClosed` as the server rule it mirrors.
-  - `IncidentContext` gains an optional `drawn?: ReadonlySet<string>`: the request Refs that the card draws as request cards. A compact card's `results` leave those Refs out. Update the module's doc bullets for both changes.
-- `web/src/app/incidents/incident-card.ts`:
-  - `requests` becomes `compact ? requestsOf(...).filter(by AFTER_CLOSE_KINDS on fixKind) : requestsOf(...)`.
-  - Pass the drawn Refs into the incident context, so that no band shows twice.
-  - Update the component doc to match.
-- `web/scripts/incident-view.test.mjs`: pin each matrix row of the panel and of the compact card. That covers rows, order, mono, the secret, an empty value, no change, an undo kept out of `results` only when drawn, and the other kinds unchanged.
-- `web/scripts/approval-sources.test.mjs`: change the `requests` regex at 316 to the new expression. `web/scripts/incident-sources.test.mjs`: pin that the drawn Refs reach the context.
-- `web/scripts/ux-strings.test.mjs`: add one `ruled` entry with the five strings, citing the Planner's ruling of V1 at the spec gate. Never give them an invented source.
-- `web/e2e/rail/step5-requests.spec.ts` (new, sign-in-2 project, RAIL user, `workers: 1`). Cases F1 to F6 run as described under Acceptance Criteria. Each case cleans its rows and its phone messages in `finally`.
-- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls`: add `TestStepFiveRequests`, modelled on `TestButtons`, on its own chat id. For each of `incident.suspendRequest`, `resumeRequest`, `rerouteRequest`, `partnerRequest`, `rollbackRequest` and `undoRollbackRequest`, as kind `approval` with `FixtureSlots(key)`, the message:
-  - is the catalog's telegram text, with no `parse_mode`;
-  - its last part carries exactly Approve `approve:<ref>` and Reject `reject:<ref>`;
-  - for the partner key, its text holds the whole fixture notice and every recipient.
+**Execution (in dependency order):**
+- `src/bridge/cls/OcuTalon/Bridge/Redact.cls` -- In the `If kv` block, add the bare `key=` shape: a key named exactly `key` (any case), not preceded by a letter, digit, `_`, `.` or `-`, then optional spaces, `=`, optional spaces and a value, as the existing key rule takes a value (a run up to a space, quote, comma, semicolon or ampersand, or a quoted value with its quotes kept); the value becomes `[redacted]`. `:` is not a separator for it. Do not add `key` to SENSITIVEKEYS. Update the class doc's pattern list. -- The ruling's shapes: `user:password@` (207), `token=` and `access_token=` (key rule), `Bearer` (202) are present; plain `key=` (a Google-style `?key=`) is the one missing.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls` -- Add `TestSettingValueShapes`: through `Check`, `https://feed.example.test/orders?token=<t>&format=x` gives `...?token=[redacted]&format=x`; `?access_token=<t>` and `https://svc:<p>@feed.example.test/x` are redacted; the new `?key=<t>&x=1`, `key = <t>`, `KEY=<t>` and `key="a b"` are redacted; `monkey=1`, `keyboard=on`, `cacheKey=1`, `key: value` and a plain `OrdersRouter` are kept. Add a `key=` text to `TestIdempotent`'s list. Update the class doc's bullets. Fixtures from fragments.
+- `src/ocutalon/cls/OcuTalon/Watch/SettingCause.cls` -- One private helper (name it, e.g. `Shown(value)`) returns `##class(OcuTalon.Bridge.Redact).Text(..Text(value))`. `RollbackSlots`, `UndoSlots` and `ResultSlots` set `before`/`after` from it, after their empty checks (which keep reading the raw value). Setting and target names stay as they are. Update the class doc.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls` -- In `Change`, `part.OldValue` and `part.NewValue` are `Redact.Text` of the row's values; an empty value stays empty. Update its doc.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls` -- In the fix branch, `part.Before` and `part.After` are `Redact.Text` of `dry.before` and `dry.after` (for every fix kind: suspend's "enabled"/"disabled" and repair dates are unchanged by it). The persona `Kind = "setting"` branch is not touched. Update the class or method doc.
+- `src/ocutalon/cls/OcuTalon/Fix/Executor.cls` (NEW, V5) -- In `DryRun`, for a kind whose `TARGETTYPE` is `setting`: offer `{"before", "after"}` (raw, as JSON) through `OcuTalon.Core.SecretHandoff.Put`, set the answer's `before`/`after` to their `Redact.Text` form and add the transient key `values` with the reference. A failed `Put` is a dry run that could not be worked out (the existing internal-error reason). Add one public class method (e.g. `TakeValues(dryRun As %DynamicObject) As %Status`) that takes the reference, puts the raw `before`/`after` back into the object and removes `values`; a dry run without `values` is left as it is (test doubles, other kinds). Every caller takes it at once, so no resource waits.
+- `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls` (NEW, V5) -- Right after each `DryRunResult.DryRun` is parsed (in `Proposed` and on the chat ask path), call `TakeValues`. On failure, treat it like a dry run that could not be worked out on that path (the no-fix route, or the ask's refusal), with one redacted Type 3 warning; never raise with a redacted dry run. `StoredDryRun` then stores the raw values, as today.
+- `src/ocutalon/cls/OcuTalon/Fix/Msg/DryRunResult.cls` (NEW, V5; doc only) -- The doc names the transient `values` reference of the setting kinds and that their `before`/`after` are redacted in the message. No property or storage change.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/SettingCause.cls` -- Add `TestShownRedacted`: with a fixture change whose old value is a token URL (from fragments) and one with plain values, (a) `Incident.FromRow(...).SettingChange` Old/NewValue are redacted and plain values unchanged, and the stored `SettingChange` row is raw; (b) `Approval.FromRow` of an in-memory `ApprovalRequest` (Kind fix, FixKind `rollback_setting`, then `undo_rollback`) has redacted `DryRun.Before/After`, and `row.DryRun` is unchanged; (c) `RollbackSlots`, `UndoSlots` and `ResultSlots` (`result.settingRestored`, `result.rollbackUndone`) give redacted `before`/`after`, and the catalog's phone text rendered from them holds `[redacted]` and not the token. Update the class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls` -- (1) `Run` takes the values of its `AskDryRun` answer (`TakeValues`) before it stores the fixture request, so fixture requests hold what IncidentManager would store. (2) Add `TestTokenValueRestoredRaw`: `Change(a, "Host", <token URL>, <plain URL>, ...)` through the real raise (`[[mock:diagnosis-rollback]]`, as `TestIncidentNamesTheChange`), then approve and execute the real request. Assert: the stored `ApprovalRequest.DryRun` `after` is the raw token URL; `Approval.FromRow` After, the incident payload's OldValue and the `incident.rollbackRequest` and `result.settingRestored` notices' slots and phone text are redacted; `Effective(...)` equals the raw token URL byte for byte; and `TraceLeaks(<t>)` is "", `LogRowsHolding(mark, <t>)` is 0, and no `Live.Event` Payload and no `Data.SimMessage` Text holds `<t>`. Update the class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls` -- Add `TestStepFiveRequests` (as approved: for each of `incident.suspendRequest`, `resumeRequest`, `rerouteRequest`, `partnerRequest`, `rollbackRequest`, `undoRollbackRequest`, kind `approval` with `FixtureSlots(key)`, the catalog's telegram text with no `parse_mode`, the last part with exactly Approve `approve:<ref>` and Reject `reject:<ref>`, and the partner text holding the whole notice and every recipient). Add `TestRedactedValue`: an `incident.undoRollbackRequest` whose slots come from `Watch.Notice.AskedSlots("undo_rollback", <dry run with a token URL>, <incident>)` is sent with `[redacted]` and without the token; each method on its own chat id.
+- `web/src/app/incidents/incident-view.ts` -- Add the five strings of Public text to `INCIDENT_TEXTS`. In `panelOf`, right after the Cause row, add the rows from `payload.settingChange`: "Setting change" `{setting} on {item}` in mono; "Old value" and "New value" in mono, each left out when `credential` is true or its value is empty; "Detected" `ctx.itemTime(detectedAt)`, not mono, left out when unreadable. Rows show only when both `setting` and `item` are set. The values are shown as the server sends them (already redacted); the page redacts nothing. Export `AFTER_CLOSE_KINDS` (a `ReadonlySet` holding `undo_rollback`; its doc names `Fix.Kind.AskedClosed`). `IncidentContext` gains `drawn?: ReadonlySet<string>` (the request Refs the card draws as request cards); a compact card's `results` leave those out. Update the module doc.
+- `web/src/app/incidents/incident-card.ts` -- `requests` becomes `compact ? requestsOf(...).filter(by AFTER_CLOSE_KINDS on fixKind) : requestsOf(...)`, with compactness computed from the payload (`stateOf(incident().state)?.chip === 'closed'`), not from `view().compact` (circular, since `drawn` feeds the view). Pass the drawn Refs into the context. Update the component doc.
+- `web/scripts/incident-view.test.mjs` -- Pin each matrix row of the panel and of the compact card: rows, order, mono, the secret, an empty value, no change, a server-redacted value shown as given, an undo kept out of `results` only when drawn, the other kinds unchanged.
+- `web/scripts/approval-sources.test.mjs` -- Change the `requests` regex at 316 to the new expression. `web/scripts/incident-sources.test.mjs` -- Pin that the drawn Refs reach the context.
+- `web/scripts/ux-strings.test.mjs` -- Add one `ruled` entry with the five strings, citing the Planner's V1 ruling. Never an invented source.
+- `web/e2e/support/iris.ts` -- Add `askedSlots(kind, dryRun, incidentRef)`: an `irisScript` that returns `Watch.Notice.AskedSlots(kind, dryRun, <the incident row>, .sc).%ToJSON()` (the real server fill), for `sendNotification`. Extend, don't copy: it reuses `irisScript`, `quoted` and `chk`.
+- `web/e2e/rail/step5-requests.spec.ts` (new; sign-in-2 project, RAIL user, `workers: 1`) -- Cases F1 to F7 as the ACs describe; each cleans its rows, setting changes and phone messages in `finally`. Split into two files if one `--part` cannot hold it in about 150 s.
 
 **Acceptance Criteria:**
 - AC1 (FR-26, FR-8; UX-DR75, 77, 83, 113): Given a pending request of each kind (`suspend_item`, `resume_item`, `reroute`, `rollback_setting`, `undo_rollback`) in one incident, when the page shows it, then:
   - the request card shows that kind's own dry run;
   - a suspend or resume shows "Before" "{item}: enabled" and "After" "{item}: disabled" (swapped for a resume);
   - a reroute shows its count line and "Message {example}: {to}";
-  - a rollback or undo shows "{setting}: {value}" rows;
+  - a rollback or undo shows "{setting}: {value}" rows, with plain values byte for byte;
   - the Before and After rows are text-labelled and in the mono font;
   - "Nothing has changed yet." shows;
   - Approve and Reject are named "Approve: {title}" and "Reject: {title}" with the rail's lower-cased title;
@@ -149,27 +137,19 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
   - the phone message of its catalog notice has the dry-run sentence and two buttons with the same names;
   - and Telegram, on the CI mock, gets the same catalog text with inline Approve and Reject on its last part.
   - Pins: F1 to F3 and `TestStepFiveRequests`.
-- AC2 (FR-29; UX-DR136, 146): Given a pending `partner_warning` request with two recipients, when it shows on the card, the phone and Telegram, then:
-  - the card's partner block shows "To: " with both "Name <address>" entries, and the whole notice, before the answer row (DOM order);
-  - the phone message and the Telegram text hold the whole notice and both recipients as plain text, before the buttons.
-  - Pins: F4 and `TestStepFiveRequests`.
-- AC3 (FR-27; UX-DR78, 146; Integration): Given a real `SettingChange` row and an incident that names it (`seedIncident` with `settingChangeRef`, first failure 4 minutes after `detectedAt`), when the page loads `/api/v1/state`, then:
-  - the card shows "The feed broke four minutes after this setting changed: {setting} on {item}, at {time}.";
-  - Show details lists the Setting change, Old value, New value and Detected rows, the first three in mono.
-  - Pin: F5.
-- AC4 (FR-8, FR-26, NFR-9; UX-DR74, 76, 79): Given requests of the new kinds that are answered, expire, run or are offered for undo, when each happens, then:
-  - each card shows "Approved from {channel} at {time}.", "Rejected from {channel} at {time}. Nothing was changed." or "Expired at {time}. Nothing was changed.";
-  - a done request's band is followed by "Recorded in the IRIS audit log.";
-  - a Reject pressed on the phone shows on the card within 5 s of the reply;
-  - an `undo_rollback` request appears as its own request card in the same incident, including on a closed incident.
-  - Pins: F6 and the unit pins.
-- AC5 (AD-12; UX-DR8, 33, 117; NFR-25): Given the web build, when it runs, then:
-  - `payloads.mjs --check` passes (the TypeScript interfaces match `OcuTalon.Live.Payload`; this story changes none);
-  - `ux-strings.test.mjs` covers every new string;
-  - in F5 and F6 the cards have no unnamed control and no contrast failure (`scanNames`, `scanContrast`) in both the light and the dark scheme;
-  - Tab reaches Show details and the undo card's Approve, in that order, with a visible focus ring.
+- AC2 (FR-29; UX-DR136, 146): Given a pending `partner_warning` request with two recipients, when it shows on the card, the phone and Telegram, then the card's partner block shows "To: " with both "Name <address>" entries and the whole notice before the answer row (DOM order), and the phone message and the Telegram text hold the whole notice and both recipients as plain text, before the buttons. Pins: F4 and `TestStepFiveRequests`.
+- AC3 (FR-27; UX-DR78, 146; Integration): Given a real `SettingChange` row and an incident that names it (`seedIncident` with `settingChangeRef`, first failure 4 minutes after `detectedAt`), when the page loads `/api/v1/state`, then the card shows "The feed broke four minutes after this setting changed: {setting} on {item}, at {time}.", and Show details lists the Setting change, Old value, New value and Detected rows, the first three in mono. Pin: F5.
+- AC4 (FR-8, FR-26, NFR-9; UX-DR74, 76, 79): Given requests of the new kinds that are answered, expire, run or are offered for undo, when each happens, then each card shows "Approved from {channel} at {time}.", "Rejected from {channel} at {time}. Nothing was changed." or "Expired at {time}. Nothing was changed."; a done request's band is followed by "Recorded in the IRIS audit log."; a Reject pressed on the phone shows on the card within 5 s of the reply; an `undo_rollback` request appears as its own request card in the same incident, including on a closed incident; a closed card draws no other request kind (a pending repair or partner warning on it draws nothing); and the rail's "Show in the chat" of the undo jumps to its request card on the closed incident. Pins: F6 and the unit pins.
+- AC5 (AD-12; UX-DR8, 33, 117; NFR-25): Given the web build, when it runs, then `payloads.mjs --check` passes (this story changes no interface); `ux-strings.test.mjs` covers every new string; in F5 and F6 the cards have no unnamed control and no contrast failure (`scanNames`, `scanContrast`) in both the light and the dark scheme; and Tab reaches Show details and the undo card's Approve, in that order, with a visible focus ring.
+- AC6 (redactor ruling: the views; AD-31 Redaction; NFR-11): Given a non-secret setting change whose old value is a token-bearing URL, when it is shown, then the web approval card's rollback After (F3b), the evidence panel's "Old value" (F5b), the phone page's undo request message (F7) and the Telegram text (`TestRedactedValue`) read `...?token=[redacted]` and hold no token, while a plain value is shown byte for byte (F3, F5). Unit pins: `TestShownRedacted`.
+- AC7 (redactor ruling: NOT redacted; AD-16): Given an approved rollback of a token-bearing value, when it runs, then the item's setting is the raw value again, byte for byte, the stored `ApprovalRequest.DryRun` holds the raw values, and every view of it is redacted. Pin: `TestTokenValueRestoredRaw`.
+- AC8 (redactor ruling: trace and logs; AD-1, AD-19): Given that run, when it has ended, then no Ens message body, header or event-log row (`TraceLeaks`, `LogRowsHolding`), no stored live event payload and no phone message holds the token: `DryRunResult` carries the redacted values and a hand-off reference, and the notices' `Slots` the redacted values. Pin: `TestTokenValueRestoredRaw`.
+- AC9 (redactor ruling: patterns): Given `Redact.Text`, when a text holds a URL `user:password@`, `token=`, `access_token=`, `key=` or `Bearer`, then the secret is `[redacted]`, the rest is kept and a second pass changes nothing; `monkey=`, `keyboard=`, `cacheKey=`, `key:` and plain text are kept. Pin: `TestSettingValueShapes`.
+- Playwright cases (`step5-requests.spec.ts`): F1 suspend and resume; F2 reroute; F3 rollback and undo with plain values, and F3b a rollback whose seeded dry run holds a token URL (card After redacted, no token in the card's text); F4 partner warning; F5 the setting-change cause line and panel rows (AC3, AC5), and F5b a `seedSettingChange` with a token-URL old value (panel redacted); F6 answers, bands, the phone Reject within 5 s, the closed card's undo request card, no other kind on a closed card, and the rail jump (AC4, AC5); F7 an undo notice whose slots come from `askedSlots` on the phone page (redacted, no token).
 
 ## Spec Change Log
+
+- 2026-11-15 (plan, re-plan iteration 2). Folded in the REDACTOR RULING. Intent amended (marked `[AMENDED 2026-11-15, redactor ruling]` at each change): the Problem names the raw values and the two message bodies; the Approach adds server redaction with `Bridge.Redact.Text`, the hand-off reference in the dry-run answer and the `key=` shape; Always adds the redaction and the raw store and write; Never replaces "no Lane A file" with the granted list (plus NEW V5 once ruled) and adds "no second redactor; nothing stored redacted"; the matrix gains the token, plain and restore rows. AC4 gains V2's two pins; AC6 to AC9 added for the ruling; F3b, F5b and F7 added. V1's five strings, V2 and V3 kept; the implement stage's note (compact from the payload) is in the card task. Found during the trace check: `Fix.Msg.DryRunResult.DryRun` carries the raw values and is needed raw by the store (`UndoRollback.Approved`), so the reference form needs `Fix/Executor.cls` and `Watch/IncidentManager.cls`, beyond the grant: flagged NEW V5.
 
 - 2026-11-15 (lead). **REDACTOR RULING, Contest Planner ~21:30Z Nov 15 (BINDING; supersedes V1's condition; a 1.0.12 BLOCKER)**, quoted in full:
 
@@ -245,38 +225,42 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
 
 ## Design Notes
 
-### Ground truth on the feature branch (HEAD 14f8c6c0; 23.2, 23.3, 23.5, 21.10, 21.11, 23.12, 36.1 and 36.2 merged)
+### Ground truth on the feature branch (HEAD 1fc32ac5; 23.2, 23.3, 23.5, 21.10, 21.11, 23.12, 36.1 and 36.2 merged)
 
 | Kind | Raise (Lane A) | The row's dry run, as the `approval` payload carries it | Catalog key (Watch.cls) |
 |---|---|---|---|
 | suspend / resume | `ProposeFix` `suspend_item`/`resume_item` (Tools/WatchTools.cls:205) | `item`, `before`/`after` "enabled"/"disabled" (Approval.cls:150,148-149; DryRun.cls:28) | `incident.suspendRequest` 818, `resumeRequest` 827 |
 | reroute | `reroute` (same) | `affected`, `resend`, `itemNoun`, `from`, `to`, `example` (Approval.cls:144-158; DryRun.cls:31-35) | `incident.rerouteRequest` 836 |
-| roll back | diagnosis `rollback_setting` (Agent/Diagnosis.cls:34; Watch/SettingCause.cls) | `item`, `field`, `before` (now), `after` (old) (Approval.cls:147-150) | `incident.rollbackRequest` 1129 (its `{cause}` is the setting-cause sentence) |
+| roll back | diagnosis `rollback_setting` (Agent/Diagnosis.cls:34; Watch/SettingCause.cls) | `item`, `field`, `before` (now), `after` (old) (Approval.cls:147-150) | `incident.rollbackRequest` 1129 |
 | undo | `ProposeFix` `undo_rollback`, also on a closed incident (UndoRollback.cls:26-28; Kind.cls:156-162) | the same keys, before old, after new | `incident.undoRollbackRequest` 1144 |
 | partner warning | `partner_warning`, drafted (23.5) | `notice`, `recipients` ["Name <address>"], `simulated` (Approval.cls:127-138; DryRun.cls:37-43) | `incident.partnerRequest` 960 |
 
-The incident payload carries `settingChange` {item, target, setting, oldValue, newValue, credential, detectedAt} and `gapMinutes` (Incident.cls:61-63, 116-134). No fixture *request* is still needed for any kind: all of them raise on the feature branch. The new tests still seed fixture rows, because they need no model or production and are deterministic. Lane A's own tests (`Test.Watch.Rollback`, `Test.Fix.ItemKinds`, `Test.Fix.PartnerWarning`) cover the real raise.
+The incident payload carries `settingChange` and `gapMinutes` (Incident.cls:61-63, 116-134). All kinds raise on the feature branch; the new tests still seed fixture rows because they need no model or production and are deterministic. Lane A's own tests (`Test.Watch.Rollback`, `Test.Fix.ItemKinds`, `Test.Fix.PartnerWarning`) cover the real raise.
 
-### Already built (no work; this story only pins it in F1 to F6)
+### Where a setting value reaches a person (redactor ruling, item 1; file:line)
 
-- **Cards:**
-  - each kind's dry run: approval-view.ts 260-344; the partner block 359-376 and card 132-141; mono Before/After rows card 146-175;
-  - "Nothing has changed yet." (approval-view.ts:70);
-  - button names approval-view.ts 449-450 with the rail titles rail-view.ts 47-52;
-  - statuses approval-view.ts 400-420 from Core.cls 87, 106 and 123;
-  - bands and the audit line approval-view.ts 575-742 (`audit.recorded` Core.cls:619);
-  - the rollback and undo bands (23.3).
-- **Incident card:**
-  - the setting-cause line incident-view.ts 262-272 and card 91-92 (`incident.settingChangeCause` Watch.cls:1155);
-  - each kind's fix and fixing sentence incident-view.ts 274-301 (`CHAT_KINDS` 274);
-  - an undo on an open or resolved incident is its own card, because `requestsOf` lists every approval of the incident (approval-view.ts:213-226).
-- **Rail:** `approvalTitle` (rail-view.ts:211-243) and the jump (269-275).
-- **Phone:** the server's text with the approval view's names (phone-request.ts:40-52; phone-view.ts:158).
-- **Telegram:**
-  - plain text, with buttons on every `incident` and `approval` notice that has an ApprovalRef, split whole (Out.cls:41-47, 105-110);
-  - the step-5 texts equal the phone's (`TestNotices`, TelegramChat.cls:476);
-  - the partner slots hold the whole notice and every recipient (Notice.cls:244-258).
-- **Payload interfaces:** generated and checked (`payloads.mjs --check` in `npm run build`).
+| Surface | Fill site | Today | After |
+|---|---|---|---|
+| Web approval card, rail, `/api/v1/state`, answer response, approval live event | `Live/Payload/Approval.cls:148-149` (callers `Core/BridgeSink.cls:198,525`, `Web/Api.cls:830,1535`) | raw | `Redact.Text` |
+| Web incident card and evidence panel, incident live event | `Live/Payload/Incident.cls:127-128` (callers `Web/Api.cls:1490`, `Watch/IncidentManager.cls:390,1445`) | raw (blank for a secret) | `Redact.Text` |
+| `incident.rollbackRequest` {before} {after} (web chat, phone, Telegram) | `Watch/SettingCause.cls:277-278,283-284` via `Watch/Notice.cls:344` | raw | `Redact.Text` |
+| `incident.undoRollbackRequest` {before} {after} | `Watch/SettingCause.cls:298-299,307-308` via `Watch/Notice.cls:243` | raw | `Redact.Text` |
+| `result.settingRestored`, `result.rollbackUndone` {after} | `Watch/SettingCause.cls:337,347` via `Watch/Notice.cls:446`, from `Watch/IncidentManager.cls:1731` (the stored dry run's after) | raw | `Redact.Text` |
+| `result.settingSavedNotApplied` {reason} | `Watch/SettingCause.cls:338,348` | redacted upstream (`Fix/Executor.cls:201,637`) | unchanged |
+| Summary lines (`summary.requestedRollback`, `requestedUndoRollback`, `settingRestored`, `rollbackUndone`, `settingNotChanged`) | `Watch/Summary.cls:159-160,207-208` | no value (time, setting, target) | unchanged |
+| Phone message store, Telegram send | `Channel/SimPhone/Out.cls:83-88` (`Data.SimMessage.Text`), `Channel/Telegram/Out.cls:174,212` | rendered from raw slots | rendered from redacted slots; no edit |
+| Evidence pack to the model | `Watch/SettingCause.cls:169` | already redacted | unchanged |
+| Digest, email, web chat bubbles | `Digest/NeedsYou.cls`, `Channel/Email/Out.cls:304`, `Channel/WebChat/Out.cls:51,82-83` | no value | unchanged |
+| Telegram press reply, Telegram answer slots | `Channel/Telegram/In.cls:477-481`, `Core/AnswersIn.cls:111` | Field, Item, To, count only | unchanged |
+| Persona proposal card (`Kind = "setting"`) | `Live/Payload/Approval.cls:120-125` | persona parts, not a production setting | unchanged (Decided 8) |
+
+### Trace and logs (redactor ruling, item 4; file:line)
+
+- **`Fix.Msg.DryRunResult.DryRun`** (Ens.Response) carries the raw `before`/`after` of the setting kinds: filled at `Fix/Executor.cls:192` from `RollbackSetting.cls:89-90` and `UndoRollback.cls:52-53`; received by `Watch/IncidentManager.cls` at 930 (async, `Proposed` 970) and 1340 (sync, chat ask), stored raw by `RaiseFix` at 1054. It is needed raw downstream (the store; `UndoRollback.Approved` 110-121 compares the stored `after`), so it gets a reference, not a lossy value: the redacted values plus a `SecretHandoff` reference that IncidentManager takes at once (V5).
+- **`OcuTalon.Msg.Notification.Slots`** carries the raw values for the four keys: approval notices built at `Watch/IncidentManager.cls:1422` (rollback) and on the ask path (undo), result notices at 1684; sent through `Tell` 1896 → `SendNotice` 1862 → Notify → TelegramOut, SimPhoneOut, WebChatOut. Display only: fixed by the slot fill (granted).
+- **`OcuTalon.Live.Event.Payload`** (persistent, not a message; `Live/Publish.cls:103-111`) stores the payload JSON: fixed by the payload redaction.
+- No raw value in: `Fix.Msg.DryRun.Parameters` (`{"change": ref}`), `Fix.Msg.Execute` (ApprovalRef), `Fix.Msg.FixResult.Reason` (redacted at `Fix/Executor.cls:637`), `Bridge.Msg.ApprovalStart`/`ApprovalOutcome`/Workflow (Ref only), `Bridge.Msg.Request.Input` (the pack, redacted at `SettingCause.cls:169`), `Msg.Command.ProposeFix`/`CommandResult` (no values). The plan entry `{expect, value}` is passed in-process (`RollbackSetting.cls:187`), never in a message.
+- **Logs and audit:** every log call on these paths already wraps its text in `Redact.Text` (`Watch/IncidentManager.cls` 1007, 1013, 1179-1214, 1566, 1712, 1886-1906; `Fix/Executor.cls` 201, 319-1354; `Fix/Run.cls` 234-389; `Watch/SettingHistory.cls` 44, 48), and their texts hold no value (refusal texts name setting, item and target only). The rollback's Action audit entry (`Fix/Executor.cls:785-831`) and the Approval entries (`src/bridge/cls/OcuTalon/Bridge/Approval.cls:569-619`) hold no value, and `Audit.Write` redacts anyway. No `$$$TRACE` or `$$$LOG` in the kinds, `SettingCause`, `Notice`, `Summary` or `Live`. No log line needs a change; `TestTokenValueRestoredRaw` pins it (`LogRowsHolding`).
 
 ### Decided in-stage
 
@@ -286,43 +270,47 @@ The incident payload carries `settingChange` {item, target, setting, oldValue, n
 4. A secret's value rows and an empty value's row are left out, with no new "hidden" text. The target (Host or Adapter) is not shown, because the AC names item, setting, values and time.
 5. `AFTER_CLOSE_KINDS` copies the server's `AskedClosed` answer (`undo_rollback` only today), because the page cannot read the kind classes' parameters. A later kind with `closed` in `ASKEDSTATES` must be added there; the unit pin names the rule.
 6. The new e2e spec lives in `e2e/rail/` (sign-in-2, which takes `--part`). `live cards` cannot be cut into calls of about 150 s. The rail user's session is cleaned in `finally`, as in rail-answer.spec.ts (23.12).
+7. The redaction sits in `SettingCause` only (one private helper), because `Notice` only delegates the fill; `Watch/Notice.cls` stays unedited although granted. The empty checks keep reading the raw value, and `Redact.Text` never empties a non-empty value.
+8. The approval payload redacts `Before`/`After` for every fix kind, not only the two setting kinds: one rule with no kind list, and it leaves "enabled"/"disabled" and dates as they are (Test.Live.Payloads :352, :850, :1154, :1172 stay green). The persona branch is not a production setting and stays as it is.
+9. The `key=` shape is a pattern of its own, not a SENSITIVEKEYS name: a name there is suffix-matched in JSON keys, and `monkey`, `cacheKey` or `dedupKey` would turn sensitive across every log; `TestSensitiveKeys` pins 25 names. `=` only, so the prose "key: value" and JSON pairs keep their meaning. It sits in the `If kv` block with the other key rules (string values of JSON reach it through `Nested`). A prose "primary key = Ref" is redacted too (acceptable for a backstop).
+10. A redacted value can be longer than the raw one (`token=ab` gives `token=[redacted]`); the payload parts' MAXLEN (1000 and 2000) is not enforced on JSON export, and the kinds refuse values over 1,000 characters (`VALUEMAX`), so no cut is added. The implement stage confirms export with a 1,000-character token URL in `TestShownRedacted`.
+11. A failed hand-off take never stores a redacted dry run (that would change what `UndoRollback.Approved` compares and lose the raw value); it is treated as a dry run that could not be worked out.
 
 ### Governing ADs (Rule 6)
 
 - AD-12: payloads with matching interfaces; the page decides nothing.
 - AD-15: the incident's states. A closed incident takes only AskedClosed kinds, and its state is untouched here.
-- AD-16: the dry run is the row's.
-- AD-29 and AD-33: Lane B files only.
+- AD-16: the dry run is the row's: the stored dry run stays raw.
+- AD-19 and AD-1: a value kept out of messages travels by `SecretHandoff` reference (the step-4 pattern), taken once.
+- AD-31 and the Consistency Conventions' Redaction row: one redactor, `OcuTalon.Bridge.Redact`, as the backstop.
+- AD-29 and AD-33: lane files; the redactor ruling's grant and V5 are one-time exceptions.
 - AD-32: the server renders the phone and Telegram text; producers never render.
 - AD-25: the online demo.
+- For the lead (Rule 20): the grant and V5, once ruled, are one-time AD-33 exceptions ("Story 24.4 changes Lane A's `Live/Payload/Incident.cls` `Change`, `Watch/SettingCause.cls`, `Bridge/Redact.cls` [and V5's files] and their tests, under the redactor ruling; the ownership tables don't change"), and the Redaction convention gains "a production setting's value shown to a person, or carried in a message, goes through the redactor on the server; the stored dry run and the value written stay raw".
 
 ### Integration ACs, Consumes, Extend (Rules 1, 2)
 
-- **Integration AC:** AC3. A real `SettingChange` row passes through `Live.Payload.Incident.FromRow` and `/api/v1/state` to the panel rows.
-- **Consumes:**
-  - 23.3: `settingChange`, `gapMinutes`, `incident.settingChangeCause` and the rollback and undo kinds;
-  - 23.2: the item and reroute dry runs;
-  - 23.5: the partner part;
-  - 21.10 and 23.12: the answer paths;
-  - Telegram Out's button rule.
-- **Consumed-by:** none (no service introduced).
-- **Extend, don't copy:**
-  - the rows extend `panelOf`;
-  - the compact rule extends `requests`;
-  - the Telegram method reuses `TestButtons`' helpers (`Request`, `FixtureSlots`, `SentTo`);
-  - the spec reuses `support/approvals.ts` and `support/iris.ts` helpers. No helper is copied.
+- **Integration ACs:** AC3 (a real `SettingChange` row through `Incident.FromRow` and `/api/v1/state` to the panel); AC6's F5b (the same path, redacted), F7 (the real `AskedSlots` fill through Notify to the phone page) and `TestRedactedValue` (the same fill through TelegramOut to the CI mock); AC7 and AC8 (`TestTokenValueRestoredRaw`, the running production end to end).
+- **Consumes:** 23.3 (`settingChange`, `gapMinutes`, `incident.settingChangeCause`, the rollback and undo kinds and their slots); 23.2 (item and reroute dry runs); 23.5 (the partner part); 21.10 and 23.12 (the answer paths); Telegram Out's button rule; `Bridge.Redact.Text`; `Core.SecretHandoff`.
+- **Consumed-by:** none (no service introduced; `TakeValues` is a helper of the dry-run answer, used by IncidentManager and the Rollback test helper).
+- **Extend, don't copy:** the rows extend `panelOf`; the compact rule extends `requests`; the redaction reuses `Bridge.Redact.Text` (no second redactor) and `Core.SecretHandoff` (no second hand-off); the Telegram methods reuse `TestButtons`' helpers (`Request`, `FixtureSlots`, `SentTo`); the leak checks reuse `TraceLeaks` and `LogRowsHolding`; `askedSlots` reuses `irisScript`; the spec reuses `support/approvals.ts` and `support/iris.ts`. No helper is copied.
+
+### Contention (redactor ruling; plain-union rule: whoever pushes second integrates and flags)
+
+- Lane B (`OCT-epic23`, today Story 23.4's DW-1396 rework; 23.8 is still backlog): `Live/Payload/Incident.cls` adds `Do ..Paged(payload, row)` right after `Do ..Change(payload, row)` and a new `Paged` method directly above `Change`'s doc comment. This story edits `Change`'s doc (114-115) and body (127-128): adjacent hunks, a likely textual conflict on the doc lines; union keeps both. `Watch/IncidentManager.cls`: lane B's hunks are at 311, 1413, 1467, 1854 and 2010+; V5's edits are at 970-995, 1186-1194 and 1338-1360: no overlap expected. Lane B also edits `Channel/Telegram/Out.cls`, `Msg/Catalog/Watch.cls`, `Test/Live/Payloads.cls` and `Test/Msg/Catalog.cls`, which this story does not touch (its payload pins are in `Test.Watch.SettingCause` for that reason).
+- Lane C (`OCT-epic21-dw1205`): `Test/Fix/Asked.cls` and `Test/Fix/PartnerDraft.cls`, not touched here. `Test.Fix.Asked`'s `DryRunResult` doubles (240-248) carry no `values` key, so `TakeValues` leaves them as they are; run it as a regression.
+
+### Size and split (Rule 5)
+
+The story now holds two independently shippable goals: the server redaction (a 1.0.12 blocker) and the card display. It stays one story, as the Planner made it. Recommended split line, NOT applied: **24.4a** = the redactor ruling (Redact pattern, payload and slot redaction, V5, the panel rows of V1, which depend on it; AC3, AC6 to AC9; F5, F5b, F7, `TestRedactedValue`, `TestShownRedacted`, `TestTokenValueRestoredRaw`, `TestSettingValueShapes`) and **24.4b** = the closed-card undo of V2 and the cross-surface pins (AC1, AC2, AC4, AC5; F1 to F4, F6, `TestStepFiveRequests`).
 
 ### Ledger (Rule 17)
 
-`LEDGER slice 24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t` is empty: no entry to address. Related but not owned here: DW-1378 (escalated, owner burndown). A done undo's band reads `settingChange.newValue`, not the dry run's after. The fix needs a new request-part field (Lane A's payload), so this story declines it.
-
-### Split (Rule 5)
-
-There is no split. It is one goal, two small view changes and their pins. It is under the multiple-goals line. The spec is `oversized` only by length.
+`LEDGER slice 24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t` is empty: no entry to address. Related, not owned: DW-1378 (escalated, owner burndown): a done undo's band reads `settingChange.newValue`, not the dry run's after; the fix needs a new request-part field (Lane A's payload), so this story declines it.
 
 ### Release and online demo
 
-Target 1.0.12 or later. On the online demo the setting history is off (36.1 V4), so no incident names a change and the new rows never show. Rollback and undo refuse with ONLINESHARED, so the compact undo card never shows there either. The suspend, resume and partner cards are as today.
+Target 1.0.12. On the online demo the setting history is off (36.1 V4), so no incident names a change, no rollback or undo is raised (ONLINESHARED), and none of the new rows, cards or redacted values ever shows there. The suspend, resume and partner cards are as today.
 
 ## Public text
 
@@ -333,35 +321,34 @@ Target 1.0.12 or later. On the online demo the setting history is off (36.1 V4),
 - "New value"
 - "Detected"
 
+**Existing server text, newly visible by the redactor ruling:** `[redacted]` (`Bridge.Redact` `REDACTED`) inside a shown value on the card, the panel, the phone and Telegram; and, when a value cannot be checked, `[redacted: the text could not be checked]` (`UNCHECKED`). Covered by the ruling (V4).
+
 **Existing, reused verbatim (no change):**
 - "Nothing has changed yet.": `APPROVAL_TEXTS.nothingYet`; EXPERIENCE.md:325.
 - "Before" and "After": `APPROVAL_TEXTS`; UX-DR77.
-- "Approved from {channel} at {time}.": `answered.approved`, Core.cls:87; EXPERIENCE.md:717.
-- "Rejected from {channel} at {time}. Nothing was changed.": Core.cls:106; EXPERIENCE.md:718.
-- "Expired at {time}. Nothing was changed.": Core.cls:123; EXPERIENCE.md:719.
-- "Recorded in the IRIS audit log.": `audit.recorded`, Core.cls:619; EXPERIENCE.md:738.
-- "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.": Watch.cls:1155. Approved at 23.3's gate, and EXPERIENCE.md:1163 holds its fixture.
-- "Approve: {action}" and "Reject: {action}" (approval-view.ts:55-56), with the rail titles "Suspend {item}", "Resume {item}", "Reroute {n} {noun} to {to}", "Put {setting} on {target} back", "Undo the rollback of {setting} on {target}" and "Send a delay notice" (rail-view.ts:47-52; ruled at 23.2, 23.3 and 23.5).
-- The six request keys' texts (Watch.cls 818, 827, 836, 960, 1129, 1144): unchanged.
+- "Approved from {channel} at {time}.": Core.cls:87; EXPERIENCE.md:717. "Rejected from {channel} at {time}. Nothing was changed.": Core.cls:106; EXPERIENCE.md:718. "Expired at {time}. Nothing was changed.": Core.cls:123; EXPERIENCE.md:719. "Recorded in the IRIS audit log.": Core.cls:619; EXPERIENCE.md:738.
+- "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.": Watch.cls:1155 (23.3's gate; EXPERIENCE.md:1163).
+- "Approve: {action}" and "Reject: {action}" (approval-view.ts:55-56), with the rail titles of rail-view.ts:47-52 (ruled at 23.2, 23.3 and 23.5).
+- The six request keys' texts and the two result keys' texts (Watch.cls 818, 827, 836, 960, 1129, 1144, 1165, 1182): unchanged.
 
 ## Veto items
 
-- **V1 NEW: public text.** The five evidence-panel strings above.
-  - Online demo: never shown, because there is no setting history there.
-  - If refused, AC3's panel half needs the Planner's wording.
-- **V2 NEW: card behaviour.** A closed (compact) incident card draws the request card of an `undo_rollback` request, and only that kind. Today a closed card draws no request card (Story 6.4; UX-DR74's "compacted" card).
-  - The AC's "an undo arrives as its own approval request card in the same incident" requires it. 23.3 lets an undo be asked after the close (UndoRollback.cls:28), so on the web it is otherwise answerable only from the phone and Telegram, and the rail's "Show in the chat" jump lands nowhere.
-  - Online demo: never, since the undo refuses there.
-  - No text changes. For the lead (apply-and-report), add to EXPERIENCE.md's Incident card bullet (:316): "A closed card still shows the request card of an undo of a rollback asked after the close."
-  - If V2 is refused, AC4's closed-incident clause needs a Rule 5 ask-first narrowing.
-- **V3 NEW: footprint extension (Rule 11 (b)).** `web/scripts/{incident-view,incident-sources,approval-sources,ux-strings}.test.mjs` are outside `paths_hint`.
-  - `ux-strings.test.mjs` gets one new `ruled` entry, appended. The others are Lane B's own view pins.
-  - Online demo: none.
-- **Cross-lane: none landing.**
-  - No Lane A file is edited.
-  - Telegram Out (Lane A) is read only. Its pin goes into `Test/Channel/TelegramOut.cls`, which is inside `paths_hint`.
-  - The one Rule 19 mutation of `Channel/Telegram/Out.cls` `BUTTONKINDS` is applied and reverted, `cmp`-identical, and never committed.
-- There is no new payload field, route, catalog key, table, column, role, grant, dependency or outward action.
+- **V1 (APPROVED 21:00Z): public text.** The five evidence-panel strings above; the condition is superseded by the redactor ruling.
+- **V2 (APPROVED 21:00Z): card behaviour.** A closed card draws the request card of an `undo_rollback` request, and only that kind; EXPERIENCE.md line applied by the lead.
+- **V3 (GRANTED 21:00Z): footprint.** `web/scripts/{incident-view,incident-sources,approval-sources,ux-strings}.test.mjs`.
+- **GRANTED by the redactor ruling** (Lane A and bridge files; listed, not NEW):
+  - `src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls` (`Change`; Lane A).
+  - `src/ocutalon/cls/OcuTalon/Watch/SettingCause.cls` (`RollbackSlots`, `UndoSlots`, `ResultSlots` and a private helper; Lane A). `Watch/Notice.cls` is granted and not edited.
+  - `src/bridge/cls/OcuTalon/Bridge/Redact.cls` (the `key=` pattern and its doc; bridge, Lane A).
+  - Their tests in Lane A test classes: `src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls` (`TestSettingValueShapes`, `TestIdempotent`'s list, the doc), `src/ocutalon/cls/OcuTalon/Test/Watch/SettingCause.cls` (`TestShownRedacted`), `src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls` (`TestTokenValueRestoredRaw`, the ruling's restore pin).
+  - `src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls` is named by the grant and is already in Epic 24's `paths_hint` (Lane B).
+- **V4 (covered by the ruling, for the record): visible marker.** `[redacted]` and `UNCHECKED` reach the card, the panel, the phone and Telegram as part of a value.
+- **V5 NEW: beyond the grant (Lane A files) and security posture.** The ruling's item 4 requires it: `Fix.Msg.DryRunResult.DryRun` carries the raw before/after into the trace, and is needed raw by the store.
+  - Change: `src/ocutalon/cls/OcuTalon/Fix/Executor.cls` (`DryRun` answers redacted values plus a `SecretHandoff` reference in the transient key `values`; a new `TakeValues`), `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls` (takes the values at its two receive sites; a failed take raises nothing), `src/ocutalon/cls/OcuTalon/Fix/Msg/DryRunResult.cls` (doc only), and `Test/Watch/Rollback.cls` `Run` (takes the values before storing its fixture request).
+  - No message property, table, column or storage changes. `SecretHandoff` is Lane B's (read only here).
+  - Online demo: none (no setting kind runs there).
+  - If refused: AC8's `DryRunResult` half needs the Planner's alternative: (a) accept it as a known residual of the trace (purged with the trace), or (b) the message carries the redacted values and IncidentManager rebuilds the raw ones from the `SettingChange` row (exact for a rollback and a production-level undo; a System Default Setting undo's `after` is in no row, so that undo would need the production read again in IncidentManager).
+- No new payload field, route, catalog key, table, column, role, grant, dependency or outward action.
 
 ## Verification
 
@@ -371,54 +358,54 @@ Every IRIS call runs from the worktree root with:
 OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=24 stage=implement'
 ```
 
-- The warm tag is `e24s4iw`; the fresh tag is `e24s4i`.
-- Each line below is one foreground call (`timeout: 600000`) that ends inside about 150 s.
-- One test class per call. Never two test calls in one message.
-- The web suite and each Playwright part are calls of their own.
-- After any `web/` change, `ci/iris.sh build` comes before a browser unit.
+- The warm tag is `e24s4iw`; the fresh tag is `e24s4i`. Run IRIS MCP lookups only on `ocutalon-slot-d`/`OCUTALON`.
+- Each line below is one foreground call (`timeout: 600000`) that ends inside about 150 s. One test class (or one `Class:Method`) per call. Never two test calls in one message.
+- The web suite and each Playwright part are calls of their own. After any `web/` change, `ci/iris.sh build` comes before a browser unit.
 
 **Shared surfaces:**
-- `INCIDENT_TEXTS` and the `ux-strings` inventory and `ruled` table.
-- The panel rows of `incident-view.test.mjs` 380-437.
-- The compact card's request list and `results`: `incident-view.test.mjs` 636-730, `incident-sources.test.mjs:199`, `approval-sources.test.mjs:316`, and `approval-card.spec.ts` A9 (CI's `live:cards`).
-- The RAIL user's session and phone feed: `rail.spec.ts` R1 to R19 expect them empty.
-- TelegramOut's mock call log: use a chat id of the method's own.
+- `Redact.Text`'s output (used by logs everywhere). Every test that asserts it: `Test.Bridge.Redact` (all methods; `TestSensitiveKeys` :50 pins 25 names, unchanged); `Test.Bridge.Steps` (392, 437, 501), `Test.Bridge.Gate` (1789), `Test.Bridge.Runner` (303, 716, 777), `Test.Bridge.Audit` (233, 267, 361), `Test.Bridge.StepsText`, `Test.Agent.Steps` (253, 302), `Test.Agent.RenderMemory` (290, 383), `Test.Channel.TelegramOut` (`TestButtons` 889-891, `TestToolCallTooLong` 940-948), `Test.Core.BridgeSink` (918, 1159), `Test.Checks.Runs` (1708), `Test.Fix.DryRun` (526), `Test.Watch.Poller` (458), `Test.Watch.Evidence` (189, 213), `Test.Watch.NoticeText` (755, 768), `Test.Eval.Cases` (`FileProblems` 921-926, the fixed point over `eval/**`), `Test.Eval.Record` (560, 869, 1157), `Test.Tools.Reminders` (760), `Test.Demo.PartnerTrigger` (64). No fixture of them holds a bare `key=` (searched: Test classes, docker/tests, ci, web/scripts, web/e2e, eval); the e2e `redactLine` (`web/e2e/support/diagnose.ts:236`) is a separate test helper and unaffected.
+- The values of the setting kinds' views (plain values, unchanged by redaction): `Test.Fix.Asked` 177, `Test.Fix.ItemKinds` 406-452, `Test.Watch.Rollback` 421, 609, 617-662, `Test.Watch.SettingCause` `TestPayload` 377-383, `Test.Channel.TelegramApproval` 414-420, `Test.Live.Payloads` 352, 850, 1154, 1172, `Test.Watch.Summary` 790, `Test.Msg.Catalog` 1861-1866, `approval-card.spec.ts` A14 472-494.
+- The shape of `DryRunResult.DryRun` for the setting kinds (V5): `Test.Watch.Rollback` `Run` 420-423, `Test.Watch.Case` `AskDryRun` 2257, `Test.Fix.Asked` doubles 240-248.
+- `INCIDENT_TEXTS` and the `ux-strings` inventory and `ruled` table; the panel rows of `incident-view.test.mjs` 380-437; the compact card's request list and `results` (`incident-view.test.mjs` 636-730, `incident-sources.test.mjs:199`, `approval-sources.test.mjs:316`, `approval-card.spec.ts` A9 in CI's `live:cards`).
+- The RAIL user's session and phone feed (`rail.spec.ts` R1 to R19 expect them empty); TelegramOut's mock call log (each method its own chat id); `$SYSTEM.Event` hand-off resources (none may remain after a test).
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Commands:**
-- (loop) `npm --prefix web test`: passes.
-- (once) `npm --prefix web run lint`: passes.
-- (once) `npm --prefix web run build`: passes, with `payloads.mjs --check`, `catalog.mjs --check` and no budget error.
-- (once) `... OCUTALON_RUN_TAG=e24s4iw ci/warm.sh up`: ready.
-- (loop) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s4iw ci/iris.sh class OcuTalon.Test.Channel.TelegramOut`: `CLASS ... passed`.
+- (loop) `npm --prefix web test` -- passes.
+- (once) `npm --prefix web run lint` -- passes.
+- (once) `npm --prefix web run build` -- passes, with `payloads.mjs --check`, `catalog.mjs --check` and no budget error.
+- (once) `... OCUTALON_RUN_TAG=e24s4iw ci/warm.sh up` -- ready.
+- (loop) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s4iw ci/iris.sh class OcuTalon.Test.Bridge.Redact` -- `CLASS ... passed`.
+- (loop) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s4iw ci/iris.sh class OcuTalon.Test.Watch.SettingCause` -- passed.
+- (loop) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s4iw ci/iris.sh class OcuTalon.Test.Channel.TelegramOut` -- passed.
+- (once) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s4iw ci/iris.sh class OcuTalon.Test.Fix.Asked`, then (once) the same for `OcuTalon.Test.Fix.ItemKinds` and `OcuTalon.Test.Live.Payloads` -- passed (the V5 and payload regressions).
 - (once) `... OCUTALON_RUN_TAG=e24s4iw ci/warm.sh down`.
-- (once) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh class OcuTalon.Test.Channel.TelegramOut`: passes on a fresh stack.
-- (once) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh build`: the image and the web bundle.
-- (loop) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh live sign-in-2 --part k/N`, for the part that holds `rail/step5-requests.spec.ts`:
-  - Find k/N with `npm --silent --prefix web run e2e:sign-in-2 -- --list --reporter=json` into the scratch folder, then `node web/scripts/e2e-part.mjs`.
-  - Choose N so the part ends inside about 150 s (about 93 s of it is setup). Split the spec into two files if one part cannot hold it.
-  - Then (once) the part that holds `rail/rail-answer.spec.ts` and `rail.spec.ts`, as the shared-session regression. All pass.
-- (once) `bash docker/tests/test-class-rules.sh`: passes.
+- (once each, fresh) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh class OcuTalon.Test.Watch.Rollback:TestTokenValueRestoredRaw`, then `...:TestIncidentNamesTheChange`, `...:TestUndoAfterClose` and `...:TestUndoSystemDefaultChanged` (the stored `after` that `Approved` compares) -- each passed. A method that cannot end inside about 150 s is left to CI's `shards` group and recorded so.
+- (once) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh class OcuTalon.Test.Channel.TelegramOut` -- passes on a fresh stack.
+- (once) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh build` -- the image and the web bundle.
+- (loop) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh live sign-in-2 --part k/N`, for the part that holds `rail/step5-requests.spec.ts`: find k/N with `npm --silent --prefix web run e2e:sign-in-2 -- --list --reporter=json` into the scratch folder, then `node web/scripts/e2e-part.mjs`; choose N so the part ends inside about 150 s (about 93 s of it is setup). Then (once) the part that holds `rail/rail-answer.spec.ts` and `rail.spec.ts`, as the shared-session regression. All pass.
+- (once) `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-redact-shapes.sh` -- pass.
 - (once) `... OCUTALON_RUN_TAG=e24s4i ci/iris.sh teardown`.
-- (once, CI) `live:cards`: A9 and A12 to A14 stay green. Locally it cannot fit one call of about 150 s, and CI's `shards` group runs it.
-- (once, the lead) Fresh-environment check: the `--part` holding the spec, forward and `--reverse` (Rule 19), and `ci/iris.sh shard lane-b --part k/n` holding `Test.Channel.TelegramOut`, forward and reversed.
+- (once, CI) `live:cards` (A9 and A12 to A14 stay green) and the `shards` group (every class of the shared surfaces above).
+- (once, the lead) Fresh-environment check: the `--part` holding the spec, forward and `--reverse` (Rule 19), and `ci/iris.sh shard lane-a --part k/n` and `lane-b --part k/n` holding `Test.Bridge.Redact`, `Test.Watch.SettingCause` and `Test.Channel.TelegramOut`, forward and reversed.
 
 **Mutations (Rule 19; record each as `mutation: … → …`; revert and check that `git status --short` and `git diff --stat` are unchanged):**
-- AC1: swap `dry?.before` and `dry?.after` in `settingDryRunView`, and F3 goes red. Also remove `mono` from the `before` span, and F1 goes red (the font check).
-- AC1 (Telegram half): remove `approval` from `Out.cls` `BUTTONKINDS`, and `TestStepFiveRequests` goes red. This is Lane A's file: revert it `cmp`-identical, and it never lands.
-- AC2: make `partnerView` join only the first recipient, and F4 goes red.
-- AC3: make `panelOf` skip the setting rows, and F5 goes red, as do the `incident-view.test.mjs` panel cases.
-- AC4: put back `compact ? []` in `requests`, and F6 (the closed undo) and the unit compact case go red. Leave `drawn` out of `results`, and the unit "no band twice" case goes red.
-- AC5: drop the new `ruled` entry, and `ux-strings.test.mjs` goes red. Set `.label` in `evidence-panel.ts` to `color: var(--surface)`, and the F5 dark-scheme `scanContrast` goes red.
+- AC1: swap `dry?.before` and `dry?.after` in `settingDryRunView` → F3 red. Remove `mono` from the `before` span → F1 red. Remove `approval` from `Out.cls` `BUTTONKINDS` → `TestStepFiveRequests` red (Lane A's file: revert `cmp`-identical; never lands).
+- AC2: make `partnerView` join only the first recipient → F4 red.
+- AC3: make `panelOf` skip the setting rows → F5 and the `incident-view.test.mjs` panel cases red.
+- AC4: put back `compact ? []` in `requests` → F6 (closed undo) and the unit compact case red. Leave `drawn` out of `results` → the unit "no band twice" case red. Drop the `AFTER_CLOSE_KINDS` filter (draw every kind on a closed card) → F6's "no other kind" and its unit case red. Point the undo's request card id elsewhere → F6's rail jump red.
+- AC5: drop the new `ruled` entry → `ux-strings.test.mjs` red. Set `.label` in `evidence-panel.ts` to `color: var(--surface)` → F5's dark-scheme `scanContrast` red.
+- AC6: copy `dry.after` raw in `Approval.cls` → F3b and `TestShownRedacted` (b) red. Copy `change.OldValue` raw in `Incident.cls` → F5b and (a) red. Return `..Text(value)` from the `SettingCause` helper → F7, `TestRedactedValue` and (c) red.
+- AC7: have `StoredDryRun` store the dry run without `TakeValues` (redacted values) → `TestTokenValueRestoredRaw`'s stored-raw assertion red. Have `RollbackSetting.Restored` return `Redact.Text(row.OldValue)` → its byte-for-byte assertion red.
+- AC8: have `Fix/Executor.cls` `DryRun` keep the raw before/after in the message → `TestTokenValueRestoredRaw`'s `TraceLeaks` red.
+- AC9: remove the new `key=` pattern → `TestSettingValueShapes` red; drop the "not preceded by" guard → its `monkey=1` case red.
 
 **Manual checks:** none beyond the commands.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: the Planner's V1 CONDITION (Old value and New value go through the SAME redactor as the rollback dry run's Before and After; pin: a non-credential setting with a secret-shaped value shows REDACTED) names a redactor that does not exist. The rollback and undo dry run is `settingDryRunView` in `web/src/app/approvals/approval-view.ts`, which interpolates `dry.before` and `dry.after` unredacted through `APPROVAL_TEXTS.settingRow`. Server side, `Live/Payload/Approval.cls` `FromRow` and `Incident.cls` `Change` copy the values raw. No code under `web/src` redacts, and the only value redactor in the repo, `OcuTalon.Bridge.Redact.Text`, is not on either path. The only protection today is `Watch.Reader.CredentialName`, which blanks a secret by setting name (the `credential` flag). The pin cannot go green, and writing a page-side redactor would be a second redactor with an invented pattern list (against the ruling and AD-12). Owner or Planner decision needed (security posture, a veto item), one of: (1) the new rows follow the rollback card exactly (left out for a credential or an empty value, otherwise shown as is) and the REDACTED pin and mutation are dropped; (2) Lane A redacts on the server (`Incident.Change` and `Approval.FromRow` run the values through `OcuTalon.Bridge.Redact.Text`), a Lane A edit and a cross-lane footprint extension, which gives rollback, undo and the panel one redactor; (3) a new page-side redactor, with its pattern list ruled. No file was edited by the implement stage; the only change is this spec.
+Status: ready-for-dev
+Blocking condition: none
 
-Design note for the re-dispatch: a compact card's `requests` computed must not read `view().compact` when `drawn` feeds the view's `results` (circular). Compute compactness from the payload (`stateOf(incident().state)?.chip === 'closed'`) before building the context.
-
-B13 (DW-1388): not run; no test was run.
+Re-plan (iteration 2) after the REDACTOR RULING. The previous run's block (V1's condition named a redactor that did not exist) is resolved by the ruling: server redaction with `OcuTalon.Bridge.Redact.Text`. One NEW item for the spec gate: V5 (the dry-run answer's raw values into the trace need `Fix/Executor.cls` and `Watch/IncidentManager.cls`, beyond the grant). Warnings: `oversized`, `multiple-goals` (split line recommended under Design Notes, not applied). B13 (DW-1388): not run; no test was run.
