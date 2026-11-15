@@ -2,7 +2,8 @@
 title: "Story 25.8: Epic 25 burn-down: the web gap-fill (Usage withdraws its stale error, and a viewer gets no file-reply add or Documents drop)"
 type: 'bugfix'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '810f5adcbaa75a582e2be7ba1960ff0c2f1027db'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -96,6 +97,39 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-15 — Review pass
+- verdicts: 29 findings — high 0, medium 0, low 7, false 22, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: a viewer's drop leaves the browser's default handling — the intent says so ("left to the browser's own handling", as the chat does for a viewer).
+  - `[low]` `[reject]` Blind: support/files.ts header says files.spec.ts uses the helpers — it does use `taken` and `chatItem`; the header is accurate enough and a comment edit is not worth a pass.
+  - `[low]` `[reject]` Blind: V5 ends on `waitForTimeout(500)` — a dwell for a negative check on a real HTTP request; removing it would weaken the check.
+  - `[low]` `[reject]` Blind: `retract` after `dispose()` can still clear — the Announcer is root-provided and disposed on destroy, so nothing retracts after it.
+  - `[false]` `[reject]` Blind: a message pushed with spaces cannot be retracted — `push` trims before queueing, so `lastText` is the trimmed text.
+  - `[false]` `[reject]` Blind: the Announcer guard is only regex-pinned — the spec (Code Map) replaces the old regex with delegation pins; the guard's behaviour is the queue test's, and U16 checks the real region.
+  - `[low]` `[reject]` Blind and Verification gap: the `data-failures` reset has no test that observes it — a test anchor; every consumer waits only on `'2'` after the first failure; a test would need a second failure after an answer.
+  - `[false]` `[reject]` Blind: `FileReply.add()` has no viewer guard — the control is hidden and the server refuses with 403 `read_only` (V4 posts the ref to show it).
+  - `[false]` `[reject]` Edge: U16 flaky when the host is slow — the page clock is frozen and moves only on `stepUntil` steps (20 ms each), so the gap cannot pass on a slow host; the same design as H15.
+  - `[false]` `[reject]` Edge: an undefined snapshot makes a viewer see the add button or the drop — a file reply exists only in a loaded snapshot; the spec fixes the viewer test as `isViewer(this.live.snapshot())`, and a missing snapshot keeping the controls is the viewer-view rule.
+  - `[false]` `[reject]` Edge: Documents drop target active before the snapshot — same rule; V5 waits for the snapshot.
+  - `[false]` `[reject]` Edge: V5 has no positive control for a user — D6 (documents.spec.ts) is that control and ran green in part 9/17.
+  - `[false]` `[reject]` Edge: a re-spoken identical text and a retract — the region holds the later identical text, so clearing it is right.
+  - `[low]` `[reject]` Edge: inline PDF transfer builders remain in files.spec.ts — the spec says those tests do not change.
+  - `[false]` `[reject]` Edge: Announcer doc comment is stale — it states the alone-and-not-joined rule, which the queue keeps.
+  - `[false]` `[reject]` Edge: a retract of an exact joined or counted text no longer empties the region — this is the intent ("alone, not joined").
+  - `[low]` `[patch]` Verification gap: the `messages === 1` clause is not pinned — added two cases (joined text and count text are not recalled by a retract of that exact text); mutation `lastText = text` goes red (2 cases).
+  - `[low]` `[patch]` Verification gap: the `text !== ''` guard is not pinned by the empty-message case — added a case on a fresh queue and after a joined text; mutation dropping the guard goes red (1 case).
+  - `[false]` `[reject]` Verification gap: AC6 has no `mutation:` line — AC6 adds no test; the spec names the existing gates as its check.
+  - `[false]` `[reject]` Verification gap: announce-focus-sources and viewer-sources pins are source text — the spec asks for them; V4, V5 and the queue cases are the behavioural pins.
+  - `[false]` `[reject]` Verification gap: V5 relies on a fixed wait — see the Blind row.
+  - `[false]` `[reject]` Verification gap: `stepUntil` does not bound `check()` — a failure is a timeout, never a wrong pass; moved code, unchanged.
+  - `[false]` `[reject]` Verification gap: U16 and H15 are self-contained — an observation, not a defect.
+  - `[false]` `[reject]` Intent audit: the guard is exercised at the queue's model region and the wiring by a regex — described, not a defect; U16 checks the real CDK region.
+  - `[false]` `[reject]` Intent audit: V4's 403 is a direct POST — a control by design (spec Design Notes).
+  - `[false]` `[reject]` Intent audit: V5 uses synthetic drag events and no test for a user's drop in this story — D6 covers the user.
+  - `[false]` `[reject]` Intent audit: before the snapshot loads the controls show — see the Edge rows.
+  - `[false]` `[reject]` Intent audit: the old guard also recalled joined or counted text — a deliberate narrowing to "spoken alone".
+  - `[false]` `[reject]` Intent audit: the Announcer doc comment still describes the guard — it does so correctly.
+
 ## Design Notes
 
 - **Governing ADs (Rule 6):**
@@ -167,9 +201,31 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC5: remove `[active]="!viewer()"` → V5 red (the dragover is cancelled) and the viewer-sources documents case red.
 - AC6: no new test. The existing gates (`initial-bundle`, `ux-strings`, `lazy-routes`) are the check.
 
+**Mutation results** (implement stage; each applied, red observed, reverted, and `git status --short` and `git diff --stat` unchanged afterwards):
+- mutation: AC1 deleted the retract and the `failed` reset in UsagePage's answer path -> U16 red (ERROR announced twice, the region holds ERROR).
+- mutation: AC2 `AnnounceQueue.retract` clears for any non-empty text -> four "retract guard" cases red (27 pass, 4 fail; green again after the revert, 31 pass). Re-run by the lead.
+- mutation: AC2 (review patch) `say()` records `lastText = text` for joined and counted texts -> the joined-text and count-text recall cases red (32 pass, 2 fail); `retract` drops `text !== ''` -> the empty-message case on a fresh queue red (33 pass, 1 fail). Reverted; 34 pass.
+- mutation: AC3 `HistoryPage.refused` ignores a failure while `failed()` is true -> H15 red at `data-failures="2"`. The old H15 (without the two new lines) stayed green under the same mutation, which is the hole DW-1122 names.
+- mutation: AC4 `file-reply.ts` passes `false` for `viewer` -> V4 red; `controlsOf` ignores `viewer` -> the `file-reply-view.test.mjs` viewer case red.
+- mutation: AC5 `[active]="!viewer()"` removed -> V5 red (the dragover is cancelled) and the viewer-sources documents case red.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-The plan stage halted after planning, as the dispatch asked. The spine's AD-33 gained the Story 25.8 exception bullet (uncommitted, for the lead's bookkeeping commit). Nothing was implemented, committed or pushed.
+**Summary:** Usage withdraws its failed-read announcement on the next answer, and the `lastSpoken` guard moved into `AnnounceQueue` (`clear` option), pinned by behavioural node cases. History and Usage count their handled failures in `data-failures`, which H15 and the new U16 wait on. A viewer gets no Add to documents on a file reply, and the Documents drop target is inactive for a viewer. No new user-visible string; initial bundle 890.69 kB (limit 921,000 bytes).
+
+**Files changed:**
+- `web/src/app/shared/announce-queue.ts`, `announcer.ts` -- the guard lives in the queue; the Announcer delegates and passes `clear`.
+- `web/src/app/usage/usage-page.ts`, `history/history-page.ts` -- `failures` signal and `data-failures`; Usage retracts on an answer.
+- `web/src/app/chat/file-reply-view.ts`, `file-reply.ts` -- `controlsOf(..., viewer)`, and `FileReply` reads `isViewer(this.live.snapshot())`.
+- `web/src/app/documents/documents-page.ts` -- `[active]="!viewer()"`.
+- `web/scripts/announce-queue.test.mjs`, `announce-focus-sources.test.mjs`, `file-reply-view.test.mjs`, `viewer-sources.test.mjs` -- guard cases, delegation pins, viewer cases, `GUARDED` and the drop pin.
+- `web/e2e/support/clock.ts`, `support/files.ts` (new), `files/files.spec.ts`, `history/history.spec.ts`, `usage/usage.spec.ts`, `sign-in/viewer.spec.ts` -- moved helpers, H15 precondition, U16, V4, V5.
+
+**Review:** 29 findings from four layers: 0 high, 0 medium; 2 patches applied (low: two verification-gap test cases for the `messages === 1` clause and the `text !== ''` guard), 0 deferred, 27 rejected with the reasons in the triage log. Follow-up review recommended: false (no high patched, fewer than two mediums).
+
+**Verification:** `npm --prefix web test` 2136 pass; `npm --prefix web run lint` exit 0; `npm --prefix web run build` exit 0, initial 890.69 kB; Lane A throwaway (tag e25s8v): `live sign-in` parts 17/17 (16 passed), 12/17 (15), 15/17 (24), 10/17 (21) and 9/17 (23) all green, torn down with 0 leftovers. Mutations for AC1 to AC5 observed red and reverted (recorded in `## Verification`; AC2 re-run by the lead, plus two review-patch mutations). The `(once)` Retro A1 runs and the fresh check are the lead's.
+
+**Residual risks:** the other Announcer-pinning specs (Retro A1) were not run in this stage. The viewer drop falls to the browser's own handling by design.

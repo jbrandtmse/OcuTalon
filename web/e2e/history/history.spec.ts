@@ -6,7 +6,7 @@ import { NAV_LINKS_USER } from '../support/header-nav';
 import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
-import { freeze } from '../support/clock';
+import { freeze, stepUntil } from '../support/clock';
 import { announcements, recordAnnouncements } from '../support/page';
 import { helpSeen, stubTraces } from '../support/trace';
 
@@ -524,18 +524,6 @@ test.describe('in Europe/Berlin', () => {
 });
 
 /**
- * Runs the page's stopped clock (freeze) on in 20 ms steps until the check holds, and returns how far it ran. The page renders and its timers fire only on
- * these steps, so what a check waits for takes the same time of the page's clock on any host.
- */
-async function stepUntil(page: Page, check: () => Promise<boolean>, most: number, what: string): Promise<number> {
-  for (let ran = 0; ran <= most; ran += 20) {
-    if (await check()) return ran;
-    await page.clock.runFor(20);
-  }
-  throw new Error(`${what}: not within ${most} ms of the page's clock`);
-}
-
-/**
  * H15 needs the page's clock (page.clock.install() before sign-in), stopped before the first read: the second failure then waits for the live region's
  * one-second gap for as long as the test holds the clock, however slow the host, and the answer is handled before the clock runs again.
  */
@@ -565,6 +553,8 @@ test('H15: a failure that waits for the live region\'s one-second gap is not ann
   const retry = page.getByRole('button', { name: 'Retry', exact: true });
   await retry.press('Enter');
   await expect.poll(() => failed, 'the second read failed').toBe(2);
+  await stepUntil(page, async () => (await failedOf(page).getAttribute('data-failures')) === '2', 500, 'the page handled the second failure');
+  expect(await announcements(page, ERROR), 'the second failure waits for the gap: the error was announced once').toBe(1);
   await retry.press('Enter');
   await expect.poll(() => answered, 'the third read is answered').toBe(true);
   await stepUntil(page, async () => (await rowsOf(page).count()) === 5, 2000, 'the answer shows its five rows');

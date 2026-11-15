@@ -1,6 +1,7 @@
 import { expect, test } from '../support/fixtures';
 
-import { STATE, changeSnapshot } from '../support/api';
+import { STATE, changeSnapshot, post } from '../support/api';
+import { chatItem, fileTransfer, taken } from '../support/files';
 import { signIn, envelope } from './helpers';
 import { applied, loadedAfter, mainOf, composerOf, railOf } from '../support/floor';
 import { cleanFixtureRows, fixtureUser, publishIncident } from '../support/iris';
@@ -13,10 +14,13 @@ import { incidentOf, raise, refOf } from '../support/approvals';
  *   V2  with a pending approval card on the viewer's own session (the cards are made as IncidentManager makes them), Approve, Reject, Dismiss and Break the feed are all
  *       absent, though the card, the Dismiss component and the Break the feed box show (so that their absence is not an empty page's), and, with Telegram stubbed as
  *       included, no Telegram, persona, heartbeat or memory card is in the rail, though the rail shows its other sections;
- *   V3  a POST /v1/messages from the page's own context is 403 read_only, and nothing is added to the chat.
+ *   V3  a POST /v1/messages from the page's own context is 403 read_only, and nothing is added to the chat;
+ *   V4  an older file reply that is addable shows no Add to documents (and the Saved to memory chip stays), and the add it would send is 403 read_only;
+ *   V5  the Documents page takes no drag and no drop of a file: nothing is cancelled, no outline shows and nothing is posted.
  */
 const VIEWER_LINE = 'You have the viewer role, so you can look but not change anything.';
 const MESSAGES = '/ocutalon/api/v1/messages';
+const DOCUMENTS = '/ocutalon/api/v1/documents';
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -84,4 +88,47 @@ test('V3: a POST of a message from the page\'s own context is 403 read_only and 
   expect(body.error).toEqual({ code: 'read_only', message: VIEWER_LINE });
   const after = (await (await page.request.get(STATE)).json()) as { chat: unknown[] };
   expect(after.chat, 'the chat is as it was').toEqual(before.chat);
+});
+
+test('V4: an addable file reply shows a viewer no Add to documents, keeps Saved to memory, and the add is 403 read_only', async ({ page }) => {
+  const { user, password } = fixtureUser('VIEWER');
+  const fileRef = 'zzViewerAddRef0000000000';
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['filesReadable'] = true;
+    snapshot['onlineDemo'] = false;
+    snapshot['chat'] = [
+      chatItem({ ref: 'zzViewDocTurn000000000a', fileRead: { fileRef, kind: 'document', read: 1, addable: 1 } }),
+      chatItem({ ref: 'zzViewPhoTurn000000000b', fileRead: { fileRef: 'zzViewerPhotoRef000000000', kind: 'photo', read: 1, addable: 0 }, caption: { memoryRef: 'zzmemv1', text: 'A red square on white.' }, replyText: 'A red square on white.' }),
+    ];
+  });
+  await loadedAfter(page, () => signIn(page, user, password));
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  const chat = page.locator('app-chat-panel');
+  await expect(chat.locator('app-file-reply'), 'control: both turns mount the controls').toHaveCount(2);
+  await expect(page.getByText(VIEWER_LINE, { exact: true }), 'and the page is the viewer\'s').toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add to documents', exact: true }), 'no Add to documents').toHaveCount(0);
+  await expect(chat.getByText('Saved to memory', { exact: true }), 'the chip stays, once').toHaveCount(1);
+  const response = await post(page.request, DOCUMENTS, { fileRef });
+  expect(response.status(), await response.text()).toBe(403);
+  expect(((await response.json()) as { error: { code: string } }).error.code).toBe('read_only');
+});
+
+test('V5: a viewer\'s Documents page takes no drag and no drop of a file, and posts nothing', async ({ page }) => {
+  const { user, password } = fixtureUser('VIEWER');
+  let posts = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === DOCUMENTS) posts += 1;
+  });
+  await loadedAfter(page, () => signIn(page, user, password));
+  await page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Documents', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Documents' })).toBeVisible();
+  const main = page.locator('main.documents');
+  await expect(page.getByRole('button', { name: 'Add documents', exact: true }), 'control: a viewer has no add button').toHaveCount(0);
+  const transfer = await fileTransfer(page, 'zz-viewer-drop.pdf');
+  expect(await taken(main, 'dragover', transfer), 'no handler takes the drag').toBe(false);
+  await expect(main, 'no outline shows').not.toHaveClass(/dragging/);
+  expect(await taken(main, 'drop', transfer), 'nor the drop: the browser keeps its own handling').toBe(false);
+  await expect(main).not.toHaveClass(/dragging/);
+  await page.waitForTimeout(500);
+  expect(posts, 'nothing was posted').toBe(0);
 });

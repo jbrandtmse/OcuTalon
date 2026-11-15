@@ -3,6 +3,7 @@ import { expect, test, type JSHandle, type Locator, type Page, type Request } fr
 import { envelope, signIn, signInOverHttp } from '../sign-in/helpers';
 import { STATE, changeSnapshot, post } from '../support/api';
 import { pointKeys, restoreKeys } from '../support/devices';
+import { chatItem, taken } from '../support/files';
 import { loadedAfter } from '../support/floor';
 import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
 import { sessionRefOfUser } from '../support/memory';
@@ -46,18 +47,6 @@ const fileInput = (page: Page): Locator => page.locator('app-composer input[type
 const chat = (page: Page): Locator => page.locator('app-chat-panel');
 const addButton = (page: Page): Locator => page.getByRole('button', { name: 'Add to documents', exact: true });
 const savedChip = (page: Page): Locator => chat(page).getByText('Saved to memory', { exact: true });
-
-/** Dispatches a drag event of that type with the transfer on the element and says whether a handler took it: true when one cancelled the browser's own handling. */
-async function taken(target: Locator, type: 'dragover' | 'drop', transfer: JSHandle<DataTransfer>): Promise<boolean> {
-  return target.evaluate(
-    (element, [kind, data]) => {
-      const event = new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: data });
-      element.dispatchEvent(event);
-      return event.defaultPrevented;
-    },
-    [type, transfer] as const,
-  );
-}
 
 /** A transfer that carries text and no file, as a drag of selected words does. */
 async function textTransfer(page: Page): Promise<JSHandle<DataTransfer>> {
@@ -339,24 +328,6 @@ test('a snapshot item with a saved caption shows the Saved to memory chip and no
   await expect(chat(page).getByText('Plain answer with no file.')).toBeVisible();
   await expect(chat(page).locator('app-file-reply'), 'only the photo turn mounts the controls').toHaveCount(1);
 });
-
-/** A done chat.message for the stubbed snapshots, with the members that the case sets. */
-function chatItem(over: Record<string, unknown>): { type: string; payload: Record<string, unknown> } {
-  return {
-    type: 'chat.message',
-    payload: {
-      ref: 'zzStubTurn0000000000c',
-      clientId: 'zzstubclient',
-      channel: 'web',
-      fromGuide: false,
-      state: 'done',
-      text: '',
-      replyText: 'The CI mock read the file you sent.',
-      createdAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
-      ...over,
-    },
-  };
-}
 
 test('on the online demo there is no paperclip, and a drop shows the off text', async ({ page }) => {
   const posts = watchFilePosts(page);

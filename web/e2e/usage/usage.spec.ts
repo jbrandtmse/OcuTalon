@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Response } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
+import { freeze, stepUntil } from '../support/clock';
 import { loadedAfter } from '../support/floor';
 import { NAV_LINKS_USER } from '../support/header-nav';
 import { fixtureUser } from '../support/iris';
@@ -10,7 +11,7 @@ import { scanContrast, scanNames } from '../support/scan';
 import { cleanUsage, clearUsage, seedUsage, type SeededUsage, type UsageSeed } from '../support/usage';
 
 /**
- * Story 37.2, the Usage page (U1 to U15), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo
+ * Story 37.2, the Usage page (U1 to U16), in a real browser against a real stack, signed in as the LIVE fixture user (OcuTalonUser only, the online demo
  * visitors' role). Each case clears the LIVE session's Usage rows (this folder relies on workers 1 and fullyParallel off, playwright.config.ts) and seeds the
  * rows below through the product's test fixture, one to five days ago in the instance zone, plus a row of the second session (PANEL) and an eval-owned row that must
  * never show. The expected tables are written out from those rows, not computed from the page:
@@ -497,4 +498,49 @@ test('U15: a late answer to an earlier range does not replace the current range'
   const cells = await page.locator('section[data-part="usage-largest"] tbody td').allTextContents();
   expect(cells.length, 'the days with use').toBeGreaterThan(0);
   for (const cell of cells) expect(cell, 'the late 7-day answer (limit 50,000) was dropped').toMatch(/ of 100,000 tokens$/);
+});
+
+/**
+ * U16 needs the page's clock (page.clock.install() before sign-in), stopped before the first read: the second failure then waits in the live region's queue for its
+ * one-second gap for as long as the test holds the clock, however slow the host, and the answer is handled before the clock runs again.
+ */
+test('U16: a failure that waits for the live region\'s one-second gap is not announced once a Retry has been answered', async ({ page }) => {
+  const failed = "Couldn't load your usage.";
+  const region = page.locator('.cdk-live-announcer-element');
+  const block = page.locator('[data-part="usage-failed"]');
+  let reads = 0;
+  let answered = false;
+  await recordAnnouncements(page);
+  await page.clock.install();
+  await page.route(
+    (url) => url.pathname === USAGE,
+    async (route) => {
+      reads += 1;
+      if (reads > 2) {
+        await route.fulfill({ response: await route.fetch() });
+        answered = true;
+        return;
+      }
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'server_error' }) });
+    },
+  );
+  await loadedAfter(page, () => signIn(page, live().user, live().password));
+  await freeze(page);
+  await page.evaluate(() => {
+    window.location.hash = '#/usage';
+  });
+  await stepUntil(page, async () => (await block.count()) === 1 && (await announcements(page, failed)) === 1, 3000, 'the first failure shows and is announced');
+  await expect(region, 'the first failure was spoken alone').toHaveText(failed);
+  const retry = page.getByRole('button', { name: 'Retry', exact: true });
+  await retry.press('Enter');
+  await expect.poll(() => reads, 'the second read failed').toBe(2);
+  await stepUntil(page, async () => (await block.getAttribute('data-failures')) === '2', 500, 'the page handled the second failure');
+  expect(await announcements(page, failed), 'the second failure waits for the gap: the error was announced once').toBe(1);
+  await retry.press('Enter');
+  await expect.poll(() => answered, 'the third read is answered').toBe(true);
+  await stepUntil(page, async () => (await tableOf(page).count()) === 1, 2000, 'the answer shows its table');
+  await expect(block).toHaveCount(0);
+  await page.clock.runFor(1500);
+  expect(await announcements(page, failed), 'the second failure waited for the gap, and the answer withdrew it: the error was announced once').toBe(1);
+  await expect(region, 'and the live region holds nothing').toHaveText('');
 });
