@@ -429,3 +429,5 @@
 2026-11-15T13:02:44Z	DW-1371	stage_spawned	stage=qa spawn_at=2026-11-15T13:02:44Z model=sonnet effort=high agent_name=dw-1371-qa-1 cycle_iteration=1
 2026-11-15T13:11:11Z	DW-1371	qa_complete	model=sonnet commit=1ce0b69c2 tests=none_needed(spec_note) mutations_demonstrated=4(M1-M3,M4_poll_control) hermetic=Approval_x3_pass findings=none
 2026-11-15T13:11:11Z	DW-1371	stage_spawned	stage=code-review spawn_at=2026-11-15T13:11:11Z model=opus effort=high agent_name=dw-1371-code-review-1 cycle_iteration=1
+2026-11-15T13:21:53Z	DW-1371	cr_complete	model=opus findings=15(1_low_patched:short-answer_still_a_replay_precondition+M5,14_rejected) high=0 med=0 ledger=none unresolved_high_med=0 final_status=done rule3=Approval_whole_class_x2_pass
+2026-11-15T13:21:53Z	DW-1371	ledger	DW-1371=resolved-by:dw-1371

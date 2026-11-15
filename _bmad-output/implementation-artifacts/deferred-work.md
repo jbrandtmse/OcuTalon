@@ -8279,6 +8279,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Proxy.Noted's hash branch is guarded by IsPoll() alone; TestProxyCut pins a chat call, and no test (Test/Mcp/Approval.cls TestReplayResultIsCut) reads a replay's HostData, so widening the guard to (approved '= "") || IsPoll() stays green.
 - 2026-11-15T10:00:19Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=a change touches Proxy.Noted's IsPoll guard, or a replay Reply's HostData holds an answerHash member
+- 2026-11-15T13:21:53Z status=resolved-by:dw-1371 by=epic-runner note=TestReplayNotesNoAnswerHash pins a replay notes no answerHash (82a5da2fe; M1-M5)
 
 ### DW-1372: DW-1347 ruling (d) names an AD-31 amendment that the spec never wrote; read as the AD that Veto item 4 names
 - source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: in-story

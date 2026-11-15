@@ -92,6 +92,35 @@ The fixture server is `zzmcp` and the tool is `zz_delete_ticket` (risky, approve
    - mutation M3 (combined, the ledger's second `reopen_if`): M1, plus `Replay.Execute` carrying the context's HostData. That is `Set hostData = ##class(OcuTalon.Bridge.Context).Current().HostData` before L145 and `Set reply.HostData = hostData` after L154. `TestReplayResultIsCut` goes red on the new assertion, and is green after both are reverted. The carry alone is an equivalent mutant (the replay's HostData is empty), so it is not recorded alone.
 3. The regression set passes unchanged: `OcuTalon.Test.Mcp.Approval` (whole class), `OcuTalon.Test.Mcp.Attach:TestProxyCut` and `OcuTalon.Test.Mcp.SourceRun`.
 
+### Review Findings
+
+Code review 2026-11-15 (full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; diff `1777dbad5`..working tree, bookkeeping excluded). 0 decision-needed, 1 patch, 0 defer, 14 rejected. No HIGH or MEDIUM; no ledger entry.
+
+- [x] [Review][Patch] The short-answer case did not show it still ran as a replay [src/ocutalon/cls/OcuTalon/Test/Mcp/Approval.cls:426] - (low, blind-hunter+acceptance-auditor) both `Proxy.Call`s share one context after one `TakeGrant`, and nothing asserted that the APPROVED node was still there for the second. The earlier triage rows that cited "M1 turned the short-answer assertions red" as proof were unsound: under M1 the long call's `answerHash` is still in the HostData, so those assertions go red either way. Had the approved fingerprint become one-shot, the short call would quietly have become a plain classified call (the `zz_delete_ticket` row is risky) and still passed. Patched: one precondition `ApprovedFingerprint("zz_delete_ticket") = fingerprint` ("the context still holds the approved fingerprint for the short answer") before the second call. It went red under M5 (see `## Verification`) and green after the revert.
+
+Notes on the earlier records, recorded here rather than by rewriting them:
+- The two `[false]` rows in the Review Triage Log that cite M1's red on the short assertions rest on the wrong evidence (above); M5 is now the evidence.
+- The triage row that rejects an M4 mutation was overtaken by QA, which ran M4.
+- `TestPollOnlyProxy` (`Test/Bridge/Poll.cls` L174) asserts `IsPoll()` = 0 for a tool/user context, so it also goes red under M2. AC1's "only the replay pin can tell it apart" overstates this.
+- The Design Notes' "exactly the nodes" is close but not exact. The test leaves SuperSession, Runner, TraceRef and ThreadSessionId empty, sets a DecisionRef, and never runs the gate's Tainted write. None of these is read by `Proxy.Call`/`Noted`, `IsPoll` or `ApprovedFingerprint`. Channel and OwnerRef reach only the audit.
+- The footprint check `git diff --name-only 82e7ca18f` was run at review: it lists `Test/Mcp/Approval.cls`, this spec and the bookkeeping `cycle-log-epic-21.md` (and the same against `1777dbad5`).
+
+Rejected:
+- (low) blind-hunter: the Auto Run Result predates QA and M4. The fix is a spec edit; the records above and `## Verification` carry it.
+- (low) blind-hunter: the Task 0 item 1 record is unclear about which tool and mock mode the probe used. The fix is a spec edit; the replay-shaped `zz_delete_ticket` call is evidenced by the real test.
+- (low) blind-hunter: `BeginTool` duplicates `Send`'s request fields. The drift that matters is from the product's `Approval.Replay` (Bridge/Approval.cls L894), and sharing a builder with `Send` would not remove it. A Provenance change there breaks the gate's replay test (Gate.cls L219) in every end-to-end replay test. This is a refactor with no named failure.
+- (low) blind-hunter / verification-gap: the Verification footprint command names `82e7ca18f` and records no result. The fix is a spec edit; the result is recorded above.
+- (low) blind-hunter: the M2 records name two of the four messages. The fix is a spec edit; M1's line names all four, and M2 turns the same four red.
+- (false) edge-case-hunter: if a setup step fails the test goes on and may pass vacuously. Each step is an assertion (`Ok`, `AssertEquals`), so its failure turns the test red, and a missing context makes `Current().Kind` throw, which `%UnitTest` records as an error. Neither passes.
+- (false) edge-case-hunter: a non-Reply `reply` would throw on `.HostData`. A throw is a loud failure (red), not a false green, and `Send` returns the fixture's Reply.
+- (false) edge-case-hunter (claim): the gate's Tainted write and the empty SuperSession or Runner differ from the product. `Noted`, `IsPoll` and `ApprovedFingerprint` read none of them (Proxy.cls L48, L69-73); this would become real only if `Noted` started keying on them.
+- (false) verification-gap: AC3 has no `mutation:` line. AC3 adds no pin, only a regression run; under M1, `TestReplayResultIsCut` and `TestProxyCut` were recorded green.
+- (low) verification-gap: the QA verdict says every assertion is closed by a mutation, but the preconditions are not. The fix is a spec edit; they are preconditions, and the new one is closed by M5.
+- (low) verification-gap: the M2 rationale overlooks `TestPollOnlyProxy`. The fix is a spec edit; it is noted above.
+- (low) acceptance-auditor: the Design Notes' "exactly the nodes" wording. The fix is a spec edit; it is noted above.
+- (false) acceptance-auditor: the test checks the context it built, not the product's provenance. A change of the replay's Provenance in `Approval.Replay` is caught by the gate's `replay` test (Gate.cls L219) in the end-to-end replay tests; this is the stated trade-off.
+- (false) review brief: `test-class-rules.sh` checks the header bullets. It has no such rule. Checked by hand instead: all 20 `Method Test*` of the class appear in its header, and the script exits 0.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -170,6 +199,11 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - mutation: M3, M1 plus `Replay.Execute` carrying the context's HostData to the Reply -> `TestReplayResultIsCut` red ("the replay's Reply holds no HostData, so no answerHash"). Both reverted byte for byte (cmp equal), green again.
 - mutation: M4 (QA, the control pin), `Noted` hash guard `If 0 && (...)` (a poll's hash is never noted) -> `TestReplayNotesNoAnswerHash` red on exactly one assertion ("the same channel holds a poll's answerHash"); the replay assertions stayed green, so the control is what goes red, as intended. Reverted byte for byte (cmp equal), green again.
 - Product findings: none. `git status` was clean after every revert; the stack e21dw1371qw is down (0 leftover containers, volumes, networks).
+
+**Code-review records (lane C warm throwaway e21dw1371cw, HEAD 25c2a5313, 2026-11-15):**
+- Before the patch, `OcuTalon.Test.Mcp.Approval` (whole class) passed (67.5 s).
+- mutation: M5 (code review, the short case's replay precondition), `Proxy.Call` makes the approved fingerprint one-shot (`Kill ^||OcuTalonBP.Context("approved")` after it reads it) -> `TestReplayNotesNoAnswerHash` red on exactly one assertion ("the context still holds the approved fingerprint for the short answer"). Every HostData assertion stayed green, which shows that without this precondition the short case would pass as a non-replay call. Reverted byte for byte (cmp equal, `git status --short` as before), and the method was green again on the same stack.
+- After the patch, `TestReplayNotesNoAnswerHash` passed (3.2 s) and `OcuTalon.Test.Mcp.Approval` (whole class) passed (69.2 s), with the `Leftovers` and secret-places assertions of `JobFixture`. `bash docker/tests/test-class-rules.sh` exit 0, and the class is ASCII.
 
 ## Auto Run Result
 
