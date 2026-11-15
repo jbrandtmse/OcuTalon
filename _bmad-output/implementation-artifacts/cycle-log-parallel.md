@@ -4335,3 +4335,5 @@
 2026-11-15T16:09:06Z	Epic 0	runner_status	0.37 CR=0H/0M,7_lows_patched(pins_only) integrated=cc5f85fb6 fresh=running notes_to_Planner=heartbeat_and_chat_stopped_may_pull_to_act(no_eval_case)
 2026-11-15T16:09:17Z	Epic 0	owner_decision	via=contest_planner 0.37_review_notes=accepted_as_intended A/B_adds_2_observe-only_probes(heartbeat_stopped,user_chat_stopped;S6>0_in_NEW=FAIL)
 2026-11-15T16:22:09Z	Run	release_pr_open	via=contest_planner PR=#16 release/1.0.11-rc2@799f9a8b->main runs=43735018565,43735018578(all_IRIS_jobs_started) push_hold=none rule=never_merge_to_main
+2026-11-15T16:26:56Z	Epic 25	runner_reported	PART_READY story=25.6 head=ff3078ed7 runs=43728223291(att2;att1=DW-1382_new_flake_cand_ci-31,DW-1205_2nd_red_ci-16),43728223310 bundle=890.41kB
+2026-11-15T16:26:56Z	Epic 25	merge_enqueued	story=25.6 (1.0.12)
