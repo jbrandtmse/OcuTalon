@@ -3,8 +3,8 @@ title: 'Story 23.3: Name the setting change behind an incident and offer its rol
 type: 'feature'
 created: '2026-11-15'
 status: 'done'
-baseline_revision: '37ce20397c52dc8078f123ce840c21afaf8e450f'
-baseline_commit: '37ce20397c52dc8078f123ce840c21afaf8e450f'
+baseline_revision: 'c19ad67e3f461cb09d6af0f9b3f3c6894329ad8d'
+baseline_commit: 'c19ad67e3f461cb09d6af0f9b3f3c6894329ad8d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
