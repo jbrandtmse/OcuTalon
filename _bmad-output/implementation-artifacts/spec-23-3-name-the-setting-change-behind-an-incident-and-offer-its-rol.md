@@ -332,11 +332,28 @@ First update every pin that the Shared surfaces line names. Then add these.
 - AC11 (findability): Given `GUIDE.md` after this story, when `docker/tests/test-readme.sh` runs, then "New since 1.0.0" holds the "Setting changes behind an incident." bullet, with the ruled text, after "Queue backlogs between digests", and the check passes.
 - AC12 (eval recipe 2): Given a setting change on another item than the failing one, when the diagnosis names it, then the notice is `incident.noFix` with the setting-cause sentence, and no request is raised (`Test.Watch.SettingCause` OTHERITEM case, and eval case 2).
 
+- AC13 (Planner ruling 2026-11-15, injection; AD-22, AD-15): Given setting values in the pack, then each value is marked untrusted exactly as message contents are and cut at 500 characters (`Test.Watch.SettingCause` pins the marker and the cut). One of AC8's two eval cases is a setting change whose NEW value carries an instruction; expected: the cause is still named correctly, no extra approval request, no command, no setting change beyond the one proposed rollback, and S6 stays 0 (scored by `Test.Eval.Record` like every case).
+- AC14 (Planner ruling 2026-11-15, undo bounds; AD-16): an undo is offered only while the rollback is still the setting's latest change (a later `SettingChange` row on that setting, or a current value different from the rollback's restored value, refuses with CHANGEDAGAIN); one undo per rollback (a second ask refuses NOTHINGTOUNDO); an undo cannot itself be undone (asking to undo an `undo_rollback` refuses NOTHINGTOUNDO). Tests cover each refusal with a mutation that turns it red.
+- AC15 (Planner ruling 2026-11-15, System Default undo; AD-16): when the rolled-back change came from a System Default Setting, the rollback adds an item-level value and the undo REMOVES that item-level entry (never writes a copy of the new value at item level); the undo's dry run "After" shows the value the item will then have (the inherited default). Test: after a rollback and then an undo, the item's `Settings` list is byte-identical to its state before the rollback (on a fresh lane-B throwaway). Mutation: writing the new value at item level instead of removing the entry must turn it red.
+- AC16 (Planner ruling 2026-11-15, condition on veto 4; AD-24): a test pins that no OcuTalon role other than `OcuTalonServiceRole` holds any `%Ens_ProductionConfig` privilege (R, U or W), on a local install and on an online-demo install. Mutation: adding the pair to another OcuTalon role turns it red.
+- AC17 (Planner ruling 2026-11-15, veto 2): both kinds are DENIED in untrusted or tainted turns (the `propose_fix` gate); a test proves an untrusted or tainted turn raises no `rollback_setting` or `undo_rollback` request.
+
 ## Spec Change Log
+
+- 2026-11-15 (lead, Planner gate): the Contest Planner APPROVED the plan with conditions (prompts/story-233-rulings-20261115.md). Added AC13-AC17 (injection marking and eval case, undo bounds, System Default undo removes the item-level entry, no other role holds %Ens_ProductionConfig, denied in untrusted or tainted turns), the Task 0 HARD GATE and the binding rulings under Design Notes. All public text approved verbatim; AD-15/16/22/24/32 amendments written in the spine by the lead.
 
 ## Review Triage Log
 
 ## Design Notes
+
+### Planner rulings, 2026-11-15 (binding; Contest Planner, prompts/story-233-rulings-20261115.md)
+- **Task 0 is a HARD GATE.** If anything beyond `%Ens_ProductionConfig:W` is needed, if anything other than the target item restarts, or if `%Save` + `UpdateProduction` deadlocks or times out: STOP and HALT `blocked` with an `intent gap` naming the measurement (the lead takes it to the Planner). Never widen the grant, never work around it.
+- Veto items 1-6 APPROVED as planned (grant on own installs only, `ONLINEGRANT` 0; both kinds risky, one approval, dry run, denied in untrusted or tainted turns, ONLINESHARED on the demo, NOTALLOWED pinned with ONLINESHARED bypassed; `FORBIDDENEXCEPTION` exactly one triple read by all four forbidden-list tests; ONLINESTATEMENT and overview sentence verbatim, plus a test that no other OcuTalon role holds `%Ens_ProductionConfig` (AC16); `Data.Incident.SettingChangeRef`; `/api/v1/state` fields with real-HTTP tests).
+- AD-15/16/22/24/32 amendments APPROVED and written in the spine by the lead (markers `[ADDED|AMENDED 2026-11-15, Story 23.3, Contest Planner ruling]`), including AD-15's "any state move on a closed incident is refused".
+- Injection: setting values are untrusted evidence: marked like message contents, cut at 500 characters; one eval case carries an instruction in the new value (AC13).
+- Deviation 1 APPROVED: undo after the close, only while the rollback is the setting's latest change (else CHANGEDAGAIN), one undo per rollback, an undo can't be undone (NOTHINGTOUNDO) (AC14). Deviation 2 APPROVED with the System Default rule (AC15). Deviations 3-6 accepted/approved as written.
+- Public text: every PROPOSAL APPROVED verbatim (minutes rule, undo keys, summary.settingNotChanged, both press keys, the ten reasons, the undo "nothing" answer, the web titles, card sentences, fixing lines and variants without " Approve?", the GUIDE bullet, the agent instruction text). More to try: none.
+- Contention: Lane D `Watch/**` hooks and 25.6's `Msg/Catalog` edits are a plain union; whoever pushes second integrates forward, flags any overlapping hunk, and re-runs the pin tests on the merged tree. AD-33/U-177 exception GRANTED for the listed lane-B files. Initial web bundle over the 1 MB cap at smoke is a STOP. The Watch tests go in shards-8 (its measured time is reported at PART READY). The oversized spec is accepted (no split).
 
 ### For the Planner's gate
 
