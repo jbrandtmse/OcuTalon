@@ -478,3 +478,4 @@
 2026-11-15T19:07:13Z	DW-1388	fresh_check	env=918ca285e npm_ci,node_2132/0,boundaries,build=pass sign-in-2_part18/24(holds_mcp.spec)=20/20 torn_down
 2026-11-15T19:50:20Z	DW-1391	integrated	feature=4dc771402(24.2) merge=a216c187c; then feature=3242f9657(DW-1388,web+bookkeeping_only,no_src) merge=49cf53f51 conflicts=cycle-log(union)
 2026-11-15T19:50:20Z	DW-1391	fresh_check	env=a216c187c(src_identical_at_49cf53f51) boundaries,class-rules=pass warm_e21dw1391fw:Fix.Asked,Fix.PartnerDraft,Fix.AskedTurns,Fix.PartnerTurns,Watch.Summary_pass torn_down push_ref=OCT-epic21-dw1391
+2026-11-15T19:51:22Z	DW-1205	spec_validated	by=Planner(~19:40Z) gate=approved_with_conditions(1:probe_0/300_before_push,2:$$$EnsActiveMessage_only+read-failure_test,3:Test.Fix.*+Test.Watch.Evidence_on_154_and_109,4:DW-1391_first(done),5:DW-1398_separate)

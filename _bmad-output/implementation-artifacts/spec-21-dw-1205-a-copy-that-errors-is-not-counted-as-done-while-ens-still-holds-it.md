@@ -199,6 +199,18 @@ None. No new or changed sentence. The existing result texts (`result.failedAgain
 
 **Findability:** no UI change.
 
+## Spec gate rulings (Contest Planner, ~19:40Z Nov 15, BINDING)
+
+APPROVED with conditions. This is a real defect in released versions and a 1.0.12 fix; the release notes will say so plainly.
+- (a) No new public text: APPROVED. (b) Cross-lane edits (Fix.Executor, Watch.Reader, their tests, the spine): GRANTED. (c) No stored-data change: APPROVED (inFlight is transient; the committed eval files stay unchanged). (d) The AD-16 sentence: APPROVED verbatim. (e) Behaviour: APPROVED (a copy held by a hung job gets the existing 60 s result.stillResending plus LOGWAIT).
+
+CONDITIONS:
+1. Task 0's load probe must show 0 wrong counts in 300 BEFORE the push. Record the numbers (old code and fixed code, unloaded and loaded) here and in DW-1205 and DW-494 through `ledger.sh append`.
+2. `^Ens.ActiveMessage` is read ONLY through `$$$EnsActiveMessage`, never by the global name. When the entry read fails (`<UNDEFINED>` or `<PROTECT>`), the status, entry, status double read decides on its own; NEVER treat the copy as "done". A test forces the entry read to fail and shows the copy is still counted correctly (with its `mutation:` line).
+3. Run `Test.Fix.*` and `Test.Watch.Evidence` once locally on BOTH IRIS build 154 and build 109 (the README promises 109), and record both results here.
+4. DW-1391 is a SEPARATE commit, landed before DW-1205 (done: pushed as OCT-epic21-dw1391).
+5. DW-1398 (Test/Watch/Summary.cls quiet fixture) stays its own DW (not folded into DW-1391).
+
 ## Verification
 
 Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
