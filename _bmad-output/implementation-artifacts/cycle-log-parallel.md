@@ -4353,3 +4353,4 @@
 2026-11-15T17:41:09Z	Run	ci_red_classified	head=475a86e44(DW-1371_merge) run=43733825684 shards-4(ci-16) class=DW-1388(mcp.spec_B13) superseded=yes
 2026-11-15T17:41:09Z	Run	process_fix	orchestrator_now_verifies_each_merge_feature_run(missed_7622f6df8_and_475a86e44_reds)
 2026-11-15T17:53:36Z	Run	ci_red_classified	head=b337f61d9(1.0.11_merge-back) run=43738026674 shards-5(ci-48)=DW-555(chrome-error_goto) shards-4(ci-29)=DW-1388 action=no_rerun(superseded_by_df475cc64,9b9898a53)
+2026-11-15T17:53:54Z	Run	owner_decision	via=contest_planner DW-1388=HIGH(next_free_lane;test-only_unless_UI) assigned=lane_C(21.5_author;Fix_impl_blocked_on_23.3) ci-48_watch=report_2nd_DW-555_or_network_fail
