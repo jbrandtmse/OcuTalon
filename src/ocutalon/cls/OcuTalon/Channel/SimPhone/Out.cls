@@ -15,6 +15,10 @@
 ///     returned with no row and no event, and a failed publish is logged and leaves the rows;
 ///   - a notification of kind summary (Story 23.6; AD-32) is a message like a digest, with the text of OcuTalon.Watch.Summary.Text(IncidentRef, "phone", .sc): the
 ///     incident's stored summary, one catalog line per part, plain text. Its message keeps no ApprovalRef, so it has no buttons, and no DecisionRef;
+///   - a notification of kind approval with the catalog key of a standalone email request (Story 21.11; Core.BridgeSink KEYEMAILREQUEST) is a message with the text of
+///     Core.BridgeSink.RequestText(request, "phone", .sc): the stored dry run of the email, read by the ApprovalRef and rendered through the catalog, because the notification
+///     holds no recipient, subject or text (they would be in the trace). It keeps the ApprovalRef, so it has Approve and Reject. A request text that cannot be made (a row that
+///     can't be read, another session's, or a dry run that is not a JSON object) is an error with no row and no event, and the message names only the Ref;
 ///   - a notification of kind answered edits the delivered message in place (AD-14): Delivery.FindByApproval(ApprovalRef,
 ///     "phone", SessionRef) gives the message's Ref, and the message must be this session's phone message and carry the notification's
 ///     ApprovalRef, so that a result message (it keeps none) is never edited. Its Answer
@@ -73,6 +77,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
+	} ElseIf (request.Kind = "approval") && (request.CatalogKey = $Parameter("OcuTalon.Core.BridgeSink", "KEYEMAILREQUEST")) {
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}
