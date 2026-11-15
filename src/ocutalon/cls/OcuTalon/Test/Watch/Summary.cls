@@ -36,6 +36,8 @@
 ///   - TestText: the stored summary is read back through Watch.Summary.Text, and an incident without one gives an error status.
 ///   - TestKindLines (Story 23.2, AC14): the requested and ended lines of the suspend, resume and reroute requests, with no message counts for the item runs;
 ///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, with no "the fix started" line, the message counts unchanged and "No fix ran" kept.
+///   - TestSettingLines (Story 23.3): the requested line of a rollback_setting and of an undo_rollback, the restored, undone and not changed lines of their runs, and message counts that the setting runs leave alone.
+///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365): a rollback_setting run that saved the setting and could not apply it has no ended line.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -774,6 +776,76 @@ Method TestPartnerLines()
 	Do $$$AssertTrue(text [ ": the delay notice went to the Simulated mailbox.", "the sent line")
 	Do $$$AssertTrue(text [ ": the delay notice was approved and kept as a draft.", "the kept line")
 	Do $$$AssertTrue(text [ ": the delay notice was not sent.", "and the not sent line")
+}
+
+/// Story 23.3 (AC13 of the summary): an incident that ran a done rollback_setting, a done undo_rollback and a rollback_setting that changed nothing has the requested line of
+/// each request (summary.requestedRollback, summary.requestedUndoRollback), the ended line of each run (summary.settingRestored, summary.rollbackUndone,
+/// summary.settingNotChanged), the setting and the item in the slots, and no message counts from the setting runs: Resent and Completed are not summed, and a fix ran.
+Method TestSettingLines()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("setting")
+	Set incident = ..Incident(owner, "resolved")
+	Set dryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"
+	Set undoDryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""alpha"",""after"":""beta""}"
+	Set rollback = ..Request(owner, incident, "done", ..T(-6000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Set undo = ..Request(owner, incident, "done", ..T(-5000), {"FixKind": "undo_rollback", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (undoDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Set skipped = ..Request(owner, incident, "done", ..T(-4000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000002""}"), "FixTargets": "6", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-3900))})
+	Do ..Link(incident, rollback_","_undo_","_skipped)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 1, "FailedAgain": 0, "Skipped": 0})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, undo, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 1, "FailedAgain": 0, "Skipped": 0})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, skipped, {"StartedAt": (..T(-3800)), "EndedAt": (..T(-3700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 1})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertEquals($Length(keys, "summary.requestedRollback") - 1, 2, "each rollback request has summary.requestedRollback: "_keys)
+	Do $$$AssertEquals($Length(keys, "summary.requestedUndoRollback") - 1, 1, "the undo request has summary.requestedUndoRollback")
+	Do $$$AssertEquals($Length(keys, "summary.settingRestored") - 1, 1, "the rollback that changed the setting ends with summary.settingRestored")
+	Do $$$AssertEquals($Length(keys, "summary.rollbackUndone") - 1, 1, "the undo ends with summary.rollbackUndone")
+	Do $$$AssertEquals($Length(keys, "summary.settingNotChanged") - 1, 1, "the rollback that changed nothing ends with summary.settingNotChanged")
+	Do $$$AssertEquals($Length(keys, "summary.requested,") - 1, 0, "none of them has the repair's requested line")
+	Do $$$AssertEquals($Length(keys, "summary.fixEnded") - 1, 0, "nor the counts line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 3, "each run has its fix started line, as an item run does")
+	Do $$$AssertEquals($Length(keys, "summary.noFixRan") - 1, 0, "a setting run is a fix that ran, so the summary does not say that none did")
+	Do $$$AssertEquals($Length(keys, "summary.fix,") - 1, 0, "and the diagnosis's fix line is not there: the setting runs make no repair")
+	For key = "summary.requestedRollback", "summary.requestedUndoRollback", "summary.settingRestored", "summary.rollbackUndone", "summary.settingNotChanged" {
+		Set slots = ..Slots(row, key)
+		Do $$$AssertEquals($Select($IsObject(slots): slots.setting_"|"_slots.target, 1: ""), "ZzFixtureNote|OrdersFromPartner", key_" names the setting and the item")
+	}
+	Set messages = ..Slots(row, "summary.messages")
+	Do $$$AssertEquals(messages.failed_"|"_messages.resent_"|"_messages.completed_"|"_messages.failedAgain_"|"_messages.skipped, "50|0|0|0|0", "the setting runs add nothing to the message counts: Resent and Completed are not summed")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to put ZzFixtureNote on OrdersFromPartner back.", "the rollback's requested line reads as ruled")
+	Do $$$AssertTrue(text [ ": OcuTalon asked for approval to undo the rollback of ZzFixtureNote on OrdersFromPartner.", "the undo's requested line")
+	Do $$$AssertTrue(text [ ": ZzFixtureNote on OrdersFromPartner was put back to its earlier value.", "the restored line")
+	Do $$$AssertTrue(text [ ": the rollback of ZzFixtureNote on OrdersFromPartner was undone.", "the undone line")
+	Do $$$AssertTrue(text [ ": ZzFixtureNote on OrdersFromPartner was not changed.", "and the not changed line")
+}
+
+/// Story 23.3 (DW-1365, Planner pre-push ruling): a rollback_setting run that saved the setting and could not apply it (Completed 0, Unreached 1, Skipped 0) has its requested line and
+/// its started line, and no ended line: summary.settingNotChanged would say "was not changed" of a setting that was changed, and the summary has no text for this end.
+/// mutation: Watch.SettingCause SummaryRunKey without its Unreached test.
+Method TestSettingSavedNotAppliedLine()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("settingsaved")
+	Set incident = ..Incident(owner, "resolved")
+	Set dryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"
+	Set rollback = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Do ..Link(incident, rollback)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertEquals($Length(keys, "summary.requestedRollback") - 1, 1, "the request has summary.requestedRollback: "_keys)
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
+	Do $$$AssertEquals($Length(keys, "summary.settingNotChanged") - 1, 0, "and no summary.settingNotChanged")
+	Do $$$AssertEquals($Length(keys, "summary.settingRestored") - 1, 0, "and no summary.settingRestored")
 }
 
 /// A shadow instance of the probe.

@@ -204,7 +204,7 @@ Method TestRecordedCases()
 	}
 	Do $$$AssertTrue(digests >= 3, "eval/ holds at least three digest cases, all sent: "_digests)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "digest")), digests, "and the double was given exactly those DigestCases")
-	Do $$$AssertTrue(incidents >= 11, "eval/ holds at least eleven incident cases, all sent: "_incidents)
+	Do $$$AssertTrue(incidents >= 13, "eval/ holds at least thirteen incident cases, all sent: "_incidents)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "incident")), incidents, "and the double was given exactly those IncidentCases")
 	Do $$$AssertTrue(sendable >= 1, "eval/ holds at least one case that EvalIn sends: "_sendable)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "seen")), sendable, "and the double was given exactly those Items")

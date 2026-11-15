@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-15-2026 17:52
+last_updated: 11-15-2026 19:27
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -358,7 +358,7 @@ development_status:
 
   epic-23: in-progress
   23-2-suspend-resume-and-reroute-with-a-dry-run: done
-  23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: backlog
+  23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: done
   23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: backlog
   23-5-draft-partner-delay-notices-that-are-sent-only-after-approva: done
   23-6-write-an-incident-summary-when-an-incident-closes: done
@@ -370,21 +370,21 @@ development_status:
   23-12-take-a-rejected-request-off-the-status-rail-at-once: done
   epic-23-retrospective: optional
 
-  epic-24: backlog
+  epic-24: in-progress
   24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings: done
   24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on: backlog
   24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t: backlog
   24-5-set-saved-sql-query-watches-in-settings: backlog
   epic-24-retrospective: optional
 
-  epic-25: in-progress
+  epic-25: done
   25-2-filter-past-decisions-and-incidents-on-the-history-page: done
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
   25-4-assign-approver-and-viewer-roles-in-settings: done
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: done
   25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: done
   25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block: done
-  epic-25-retrospective: optional
+  epic-25-retrospective: done
 
   epic-26: in-progress
   26-2-files-sent-from-the-chat-or-telegram-become-items: done
@@ -629,3 +629,28 @@ action_items:
     owner: "user"
     status: open
     ref: ""
+  - id: "epic-25-retro-item-13-before-pushing-a-story-that-changes-a-sh"
+    epic: 25
+    action: "Before pushing a story that changes a shared control (header navigation,
+      the chat composer and its tab order, the Announcer), grep web/e2e for the specs
+      that pin it and run the parts holding them; three of Epic 25 four reworks were
+      such reds (retro R5)"
+    owner: "orchestrator"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-25-retro-2026-11-15.md"
+  - id: "epic-25-retro-item-14-decide-at-the-next-x-0-whether-one-lane"
+    epic: 25
+    action: "Decide at the next X.0 whether one Lane B web gap-fill story takes DW-1120,
+      DW-1121, DW-1122, DW-1386 and DW-1387 together (Usage retract, retract-guard
+      pin, H15 precondition, viewer gating of the file reply and the Documents drop)"
+    owner: "Contest Planner"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-25-retro-2026-11-15.md"
+  - id: "epic-25-retro-item-15-after-a-hand-resolved-objectscript-class"
+    epic: 25
+    action: "After a hand-resolved ObjectScript class conflict, compile the class
+      and run its probe or test classes before the merge commit; a check should require
+      new Settings probes to override LiveRoles (retro R2, R6)"
+    owner: "epic runners"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-25-retro-2026-11-15.md"

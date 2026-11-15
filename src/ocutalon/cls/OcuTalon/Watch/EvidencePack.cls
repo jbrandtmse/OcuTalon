@@ -2,7 +2,9 @@
 /// object of one shape from both of its sources, a live incident (through OcuTalon.Watch.Reader.Evidence) or a recorded reader snapshot
 /// (ocutalon.readerSnapshot/1, Story 0.10):
 ///   {format "ocutalon.evidencePack/1", namespace, production, item, count, firstAt, lastAt, errorPattern,
-///    sample {headerId | logRef, bodyClass, body{}, error, at}, settings{}, trace[]}
+///    sample {headerId | logRef, bodyClass, body{}, error, at}, settings{}, trace[] [, settingChanges[], settingChangesNote]}
+///   - settingChanges (Story 23.3) lists the production's setting changes from the 24 hours before the first failure, newest first, and settingChangesNote says when it is cut
+///     (Watch.SettingCause AddTo; a pack with no such change has neither key).
 ///   - Live: count is the incident's NoticeCount (Count before it settles); the times, the item and the pattern are the rows'. The sample is the
 ///     oldest key held in the incident's group (Seen): a header key if there is one, else a log key. The settings are the item's own, the trace the
 ///     sample's session headers, at most Reader TRACEMAX.
@@ -93,6 +95,7 @@ ClassMethod Build(source, Output pack As %DynamicObject) As %Status
 		} Else {
 			$$$ThrowStatus($SYSTEM.Status.Error(5001, "The evidence pack is built from an incident or a reader snapshot"))
 		}
+		Do ##class(OcuTalon.Watch.SettingCause).AddTo(pack, source)
 	} Catch exception {
 		Set pack = ""
 		Set sc = exception.AsStatus()

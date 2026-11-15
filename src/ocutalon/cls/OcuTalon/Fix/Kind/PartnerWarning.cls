@@ -31,6 +31,9 @@ Parameter DRAFTED = 1;
 
 Parameter MOVES = 0;
 
+/// The states in which the chat may ask for the notice: every state but closed (it never moves the incident's state).
+Parameter ASKEDSTATES = "open,awaiting_approval,fixing,resolved";
+
 /// The most characters of the notice.
 Parameter NOTICEMAX = 1000;
 

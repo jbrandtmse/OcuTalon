@@ -1032,6 +1032,22 @@ const SOURCES = {
       'A check every minute',
       'Watch the queue backlogs.',
     ],
+    'Story 23.3 ruling (Contest Planner, Public Text approved at the spec gate 2026-11-15: the rollback and undo-rollback texts of the rail, the approval card, the incident card and the page\'s result and cause lines, rendered from the catalog or drafted by Lane B in the spec\'s Public Text)': [
+      'Put {setting} on {target} back',
+      'Undo the rollback of {setting} on {target}',
+      'I can put {setting} on {target} back to its earlier value.',
+      'I can undo the rollback of {setting} on {target}.',
+      'Putting {setting} on {target} back\u2026',
+      'Undoing the rollback of {setting} on {target}\u2026',
+      '{setting}: {value}',
+      '{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback.',
+      '{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval.',
+      'The rollback is undone: {setting} on {target} is back to {after}.',
+      'The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.',
+    ],
+    'Story 23.3 pre-push ruling (Contest Planner, 2026-11-15, DW-1365: the result text of a setting that was saved and that the production could not apply, approved verbatim)': [
+      "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
+    ],
     'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
       "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
       '{item} in {production} is enabled again.',
@@ -1300,7 +1316,7 @@ describe('the ellipsis and the characters', () => {
   it('holds U+2026 once, from the UX, when a string holds it', () => {
     const marked = strings.filter((text) => text.includes('\u2026'));
     assert.ok(marked.length >= 4, `${marked.length} strings hold the ellipsis`);
-    const ruledEllipsis = entries(SOURCES).filter(([, kind, why]) => kind === 'ruled' && why.startsWith('Story 23.2 ruling')).map(([text]) => text);
+    const ruledEllipsis = entries(SOURCES).filter(([, kind, why]) => kind === 'ruled' && (why.startsWith('Story 23.2 ruling') || why.startsWith('Story 23.3 ruling'))).map(([text]) => text);
     for (const text of marked) {
       assert.equal(text.split('\u2026').length - 1, 1, `${JSON.stringify(text)} holds U+2026 once`);
       if (ruledEllipsis.includes(text)) {

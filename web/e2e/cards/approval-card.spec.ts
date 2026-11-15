@@ -11,13 +11,16 @@ import {
   answerQuietly,
   chk,
   cleanFixtureRows,
+  dropSettingChange,
   fixtureUser,
   irisScript,
   publishIncident,
   quoted,
   readApproval,
   seedApproval,
+  seedIncident,
   seedOtherSession,
+  seedSettingChange,
   sinkEvent,
 } from '../support/iris';
 import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../support/page';
@@ -453,6 +456,56 @@ test('A12: a reroute request carries its fixKind and dry run over real HTTP, a s
     );
   } finally {
     await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * A14 (Story 23.3, AC10): a setting rollback over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http). A seeded incident that names a setting change
+ * carries `settingChange` and `gapMinutes` in GET /api/v1/state, and a seeded rollback_setting request carries its fixKind and the dry run's field, before and after; a second session's request is in
+ * neither this user's state nor its answer route (404, still pending); a reject over the answer route answers 200 and leaves the request rejected, with nothing written to any production (the rows
+ * here name a namespace and a production that exist nowhere).
+ */
+test('A14: a setting rollback carries its change, gap and dry run over real HTTP, a second session sees none of it, and a reject changes nothing', async ({ request: http }) => {
+  const { user, password } = fixtureUser(KIND);
+  const rows: string[] = [];
+  let change = '';
+  const dryRun = { item: 'OrdersFromPartner', field: 'TargetConfigName', before: 'OrdersToWarehous', after: 'OrdersToWarehouse' } as const;
+  try {
+    await signInOverHttp(http, user, password);
+    expect((await http.get(STATE)).status(), 'signed in').toBe(200);
+    change = await seedSettingChange({ item: 'OrdersFromPartner', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', detectedAt: today('14:08:00') });
+    const incident = await seedIncident(user, { state: 'awaiting_approval', firstAt: today('14:12:00'), settingChangeRef: change });
+    rows.push(incident);
+    const mine = await seedApproval(user, { fixKind: 'rollback_setting', incidentRef: incident, requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun });
+    rows.push(mine);
+    const other = await seedOtherSession(`zzother${Date.now().toString(36)}`);
+    rows.push(other);
+    const theirs = await seedApproval(user, { fixKind: 'rollback_setting', requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun }, { sessionRef: other });
+    rows.push(theirs);
+    const state = (await (await http.get(STATE)).json()) as {
+      rail: { approvals: Array<{ ref: string; fixKind?: string; dryRun?: { field?: string; before?: string; after?: string; item?: string } }> };
+      chat: Array<{ type: string; payload: { ref?: string; gapMinutes?: number; settingChange?: { item?: string; setting?: string; oldValue?: string; newValue?: string; credential?: boolean; detectedAt?: string } } }>;
+    };
+    const found = state.rail.approvals.find((one) => one.ref === mine);
+    expect(found?.fixKind, 'the state names the fix kind').toBe('rollback_setting');
+    expect([found?.dryRun?.item, found?.dryRun?.field, found?.dryRun?.before, found?.dryRun?.after], 'and the dry run\'s item, setting and its two values').toEqual(['OrdersFromPartner', 'TargetConfigName', 'OrdersToWarehous', 'OrdersToWarehouse']);
+    const named = state.chat.find((item) => item.type === 'incident' && item.payload.ref === incident);
+    expect(named?.payload.gapMinutes, 'the incident carries the gap in whole minutes').toBe(4);
+    expect(named?.payload.settingChange, 'and the setting change that it names').toMatchObject({ item: 'OrdersFromPartner', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', detectedAt: today('14:08:00') });
+    expect(JSON.stringify(state), 'the second session\'s request is not in this user\'s state').not.toContain(theirs);
+    const stranger = await post(http, `/ocutalon/api/v1/approvals/${theirs}/answer`, { action: 'reject', channel: 'web' });
+    expect(stranger.status(), 'and its answer route is 404').toBe(404);
+    expect(await readApproval(theirs).then((one) => one.state), 'the second session\'s request stays pending').toBe('pending');
+    const answer = await post(http, `/ocutalon/api/v1/approvals/${mine}/answer`, { action: 'reject', channel: 'web' });
+    expect(answer.status(), 'a reject over the answer route is 200').toBe(200);
+    const body = JSON.parse(await answer.text()) as { approval?: { state?: string; fixKind?: string; dryRun?: { field?: string } } };
+    expect(body.approval?.state).toBe('rejected');
+    expect(body.approval?.fixKind).toBe('rollback_setting');
+    expect(body.approval?.dryRun?.field).toBe('TargetConfigName');
+    expect(await readApproval(mine).then((one) => one.state), 'the rejected request is rejected, and nothing ran').toBe('rejected');
+  } finally {
+    await cleanFixtureRows(rows);
+    if (change !== '') await dropSettingChange(change);
   }
 });
 

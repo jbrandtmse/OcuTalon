@@ -625,7 +625,7 @@ Method AskLater(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 	For i = 1:1:$Length(incident.RequestRefs, ",") {
 		Set ref = $Piece(incident.RequestRefs, ",", i)
 		Set found = $Select(ref = "": "", 1: ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref))
-		If '$IsObject(found) || (found.IncidentRef '= incident.Ref) || (found.FixKind = "") || '##class(OcuTalon.Fix.Kind).Diagnosed(found.FixKind) Continue
+		If '$IsObject(found) || (found.IncidentRef '= incident.Ref) || (found.FixKind = "") || '##class(OcuTalon.Fix.Kind).Diagnosed(found.FixKind) || ($Parameter(##class(OcuTalon.Fix.Kind).ForName(found.FixKind), "TARGETTYPE") '= "message") Continue
 		Set request = found
 		Quit
 	}
@@ -792,6 +792,7 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 	Set incident.CauseCategory = ""
 	Set incident.Element = ""
 	Set incident.FixSummary = ""
+	Set incident.SettingChangeRef = ""
 	Set fix = ""
 	If 'answer.Fallback {
 		Set sc = $$$OK
@@ -802,6 +803,10 @@ Method Answered(ref As %String, answer As OcuTalon.Bridge.Msg.DecisionResponse) 
 			Set incident.Element = diagnosis.elementAtFault
 			Set incident.FixSummary = diagnosis.fixSummary
 			Set fix = {"fixKind": (diagnosis.fixKind), "fixParameters": (diagnosis.fixParameters)}
+			If (diagnosis.causeCategory = ##class(OcuTalon.Watch.Notice).#SETTINGCATEGORY) && ##class(OcuTalon.Watch.SettingCause).Named(incident, diagnosis.elementAtFault, .named) {
+				Set incident.SettingChangeRef = named.ref
+				If ##class(OcuTalon.Watch.SettingCause).Offers(diagnosis.fixKind) Set fix = {"fixKind": (diagnosis.fixKind), "fixParameters": {"change": (named.ref)}}
+			}
 			If $IsObject(diagnosis.itemNoun) && (diagnosis.itemNoun.one '= "") && (diagnosis.itemNoun.other '= "") {
 				Set incident.ItemNoun = {"one": (diagnosis.itemNoun.one), "other": (diagnosis.itemNoun.other)}.%ToJSON()
 			}
@@ -851,7 +856,7 @@ Method Notice(ref As %String, fix As %DynamicObject = "") [ Private ]
 	Try {
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If '..Open(incident) Quit
-		Set key = ##class(OcuTalon.Watch.Notice).Key(incident)
+		Set key = ##class(OcuTalon.Watch.Notice).Key(incident, $Select($IsObject(fix): fix.fixKind, 1: ""))
 		If key = "" {
 			Do ..Propose(incident, fix)
 			Quit
@@ -1068,7 +1073,7 @@ Method Asked(command As OcuTalon.Msg.Command.ProposeFix, Output response As OcuT
 {
 	Set response = ""
 	Set incident = $Select(command.IncidentRef = "": "", 1: ##class(OcuTalon.Data.Incident).RefIndexOpen(command.IncidentRef))
-	If '$IsObject(incident) || (incident.State = ..#CLOSED) Quit ..Verdict(.response, 0, "not_found", ..#MESSAGENOTFOUND)
+	If '$IsObject(incident) || ((incident.State = ..#CLOSED) && '##class(OcuTalon.Fix.Kind).AskedClosed(##class(OcuTalon.Fix.Kind).ForName(command.FixKind))) Quit ..Verdict(.response, 0, "not_found", ..#MESSAGENOTFOUND)
 	Try {
 		Set recipients = ##class(OcuTalon.Data.Session).Recipients(incident.OwnerRef, incident.Ref, .sc)
 		If $$$ISERR(sc) {
@@ -1096,6 +1101,14 @@ Method Asked(command As OcuTalon.Msg.Command.ProposeFix, Output response As OcuT
 		}
 		If $Parameter(class, "DRAFTED") {
 			Set sc = ..AskedDraft(incident, command, class, parameters, .response)
+			Quit
+		}
+		Set sc = $ClassMethod(class, "AskedParameters", incident, .parameters)
+		If $$$ISERR(sc) {
+			Set reason = $ZStrip($SYSTEM.Status.GetOneErrorText(sc), "<>W")
+			If $Extract(reason, 1, 7) = "ERROR #" Set reason = $ZStrip($Piece(reason, ":", 2, *), "<W")
+			If $Extract(reason, *) = "." Set reason = $Extract(reason, 1, *-1)
+			Set sc = ..Verdict(.response, 0, "refused", reason_..#MESSAGEREFUSED, "", incident)
 			Quit
 		}
 		Set text = parameters.%ToJSON()
@@ -1709,7 +1722,15 @@ Method ResultExtra(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Da
 	Set extra = {}
 	Try {
 		Set parameters = {}.%FromJSON(row.FixParameters)
-		If (parameters.%Get("item") '= "") || (parameters.%Get("target") '= "") {
+		If ##class(OcuTalon.Watch.SettingCause).IsSetting(parameters) {
+			Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(parameters.%Get("change"))
+			If $IsObject(change) {
+				Set extra = {}
+				Do extra.%Set("setting", change.Setting, "string")
+				Do extra.%Set("target", change.Item, "string")
+				Do extra.%Set("after", {}.%FromJSON(row.DryRun).%Get("after"), "string")
+			}
+		} ElseIf (parameters.%Get("item") '= "") || (parameters.%Get("target") '= "") {
 			Set extra = {"item": (parameters.%Get("item")), "production": (##class(OcuTalon.Fix.Kind).ProductionName(incident)), "to": (parameters.%Get("target"))}
 		}
 	} Catch {
@@ -1742,7 +1763,7 @@ Method Event(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 /// at once (Execute), after the notification. A move that cannot be saved is the error status.
 Method Aside(incident As OcuTalon.Data.Incident, event As %String, own As %String, notification As OcuTalon.Msg.Notification = "") As %Status [ Private ]
 {
-	If incident.State = ..#CLOSED Quit ..Closed(incident, event, own, notification)
+	If (incident.State = ..#CLOSED) && ('..Owns(incident, own, .row) || '##class(OcuTalon.Fix.Kind).AskedClosed(##class(OcuTalon.Fix.Kind).ForName(row.FixKind))) Quit ..Closed(incident, event, own, notification)
 	Set sc = ..Move(incident, incident.State, incident.OpenVariant, notification)
 	If $$$ISERR(sc) Quit sc
 	If event = ..#APPROVED Do ..Execute(incident, own)

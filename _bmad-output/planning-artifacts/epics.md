@@ -9013,6 +9013,7 @@ So that only the right people can approve each kind of change.
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 6's stories in both lanes have merged **When** step 6's release is prepared **Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)"]
 - DW-1271: 37.1's obligation for 26.4: Roles.Assign is admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role and the installer-managed accounts, with an IRIS audit entry per assignment and removal and a test per refusal (ledger; Story 37.1 V2/V3, Contest Planner 2026-11-13)
+- DW-1284: Telegram and email entries take a message in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person holding OcuTalonUser at use time, so a user whose OcuTalonUser role is removed can still start turns through a paired chat or the connected mailbox: the entries re-check the user's role when a message arrives (ledger; re-owned by Epic 25's burn-down gate 2026-11-15)
 
 ## Epic 27: Slack (step 7, Could)
 
@@ -10582,6 +10583,7 @@ So that what the automated tests can't see is found and fixed before the first r
 - DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 - DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
 - DW-1125: Real-model check of Story 23.7's queue watch: for "Watch the queue backlogs." the model calls start_watch with kind queues, and for its stop calls stop_watch with kind queues (only the CI mock scripts it today) (ledger; routed by cr 2026-11-11)
+- DW-1357: The Conversation hold of a document file turn under the production's PoolSize 1 is unmeasured on the running production (one ReadFile plus two Render reads per turn; the unit harness measured 1.9 s for a 2-page PDF, 3.4 s for 10 pages and 13.6 s at the 200k cap): the hands-on pass measures it on the real production (ledger; re-owned by Epic 25's burn-down gate 2026-11-15)
 
 ### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
 

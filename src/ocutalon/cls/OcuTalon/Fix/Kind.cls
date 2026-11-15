@@ -16,7 +16,7 @@
 ///       Execute carries the fix out for the targets given (those that passed), one by one, and registers each copy on the run (the FixRun row the executor
 ///       made for the request). result holds {"resent": the copies made, "skipped": [{"id", "reason"}]} for the targets it left out.
 ///   - TARGETTYPE is what the targets name: "message" (the default; header ids of the incident's failed messages), "item" (Ens.Config.Item ids of the incident's
-///     production, one per item) or "contact" (Fix.PartnerContacts ids of the incident's production, one per recipient) or "recipient" (the positions 1..n of the recipients of an email, which has no incident, Story 22.7); DIAGNOSED is 1 when the diagnosis may name the kind (Watch.Msg.DiagnosisPayload accepts only those) and ASKED is 1 when the user may
+///     production, one per item) or "contact" (Fix.PartnerContacts ids of the incident's production, one per recipient) or "setting" (SettingChange row ids of the incident's production, one per setting change, Story 23.3) or "recipient" (the positions 1..n of the recipients of an email, which has no incident, Story 22.7); DIAGNOSED is 1 when the diagnosis may name the kind (Watch.Msg.DiagnosisPayload accepts only those) and ASKED is 1 when the user may
 ///     ask for it in the chat (propose_fix, Story 23.2); NOSTART and NOREAD are the kind's own plain reasons for a run that could not start and for one that could not
 ///     read the production, where the executor's say resend (empty means the executor's);
 ///   - DRAFTED is 1 when the kind's text is drafted by the model through IncidentManager before its dry run (the dry run then holds the drafted text); MOVES is 0 when the
@@ -24,6 +24,9 @@
 ///     and then says why (Story 23.5);
 ///   - Standing and Failed are the shared reading of an incident's failed messages: Standing is the part of the target test that every message kind shares, and Failed
 ///     reads the failures of an incident's failure groups, in a request's window (the kinds the diagnosis proposes) or in the groups' whole Seen (a kind the chat asks for).
+///   - CATEGORY is the cause category whose diagnosis may name the kind (DiagnosedFor; "" for a kind the diagnosis never names). ASKEDSTATES is the incident states in which the
+///     chat may ask for the kind, comma-separated; AskedParameters(incident, .parameters) lets a kind fill its own parameters from the incident when it is asked for (OK and
+///     unchanged by default, an error status that says why when it can't).
 ///   - The result of Execute for a kind whose targets are items is {"changed": the items changed, "skipped": [{"id", "reason"}], "unreached": [{"id", "code"}]}; for a kind
 ///     whose targets are contacts it is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]}, and the executor does the delivering.
 /// Targets are header ids, comma-separated and ascending (Item ids for TARGETTYPE item, contact ids for TARGETTYPE contact). Lane A.
@@ -44,6 +47,12 @@ Parameter NOTALLOWED;
 
 /// What the kind's targets name: "message" (header ids), "item" (Ens.Config.Item ids of the incident's production) or "contact" (Fix.PartnerContacts ids).
 Parameter TARGETTYPE = "message";
+
+/// The cause category whose diagnosis may name the kind (a kind with DIAGNOSED 1 has one); empty for a kind the diagnosis never names.
+Parameter CATEGORY;
+
+/// The states of an incident in which the chat may ask for the kind, comma-separated.
+Parameter ASKEDSTATES = "open,resolved";
 
 /// 1 when the diagnosis may name the kind (its fixKind), 0 when only the chat can ask for it.
 Parameter DIAGNOSED = 1;
@@ -72,7 +81,7 @@ Parameter NOTSETUP;
 Parameter ERRORSTATUS = "Error";
 
 /// The kinds that exist, as class names, comma-separated.
-Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute,OcuTalon.Fix.Kind.PartnerWarning,OcuTalon.Fix.Kind.Email";
+Parameter KINDS = "OcuTalon.Fix.Kind.RepairResend,OcuTalon.Fix.Kind.SuspendItem,OcuTalon.Fix.Kind.ResumeItem,OcuTalon.Fix.Kind.Reroute,OcuTalon.Fix.Kind.PartnerWarning,OcuTalon.Fix.Kind.Email,OcuTalon.Fix.Kind.RollbackSetting,OcuTalon.Fix.Kind.UndoRollback";
 
 /// The classes of KINDS that are compiled and extend this class, as a list.
 ClassMethod Classes() As %List
@@ -124,11 +133,38 @@ ClassMethod DiagnosedNames() As %List
 	Quit names
 }
 
+/// The NAME of each class of Classes that the diagnosis may name (DIAGNOSED 1) for the cause category (CATEGORY), as a list.
+ClassMethod DiagnosedFor(category As %String) As %List
+{
+	Set names = ""
+	If $Get(category) = "" Quit names
+	Set position = 0
+	Set classes = ..Classes()
+	While $ListNext(classes, position, class) {
+		If $Parameter(class, "DIAGNOSED") && ($Parameter(class, "CATEGORY") = category) Set names = names _ $ListBuild($Parameter(class, "NAME"))
+	}
+	Quit names
+}
+
 /// 1 when the name is the NAME of a kind with DIAGNOSED 1, matched exactly.
 ClassMethod Diagnosed(name As %String) As %Boolean
 {
 	Set class = ..ForName($Get(name))
 	Quit (class '= "") && ''$Parameter(class, "DIAGNOSED")
+}
+
+/// 1 when the kind may be asked for on a closed incident: its requests never move the incident's state (MOVES 0) and its ASKEDSTATES lists closed (Story 23.3). 0 for an unknown
+/// kind (class "").
+ClassMethod AskedClosed(class As %String) As %Boolean
+{
+	If $Get(class) = "" Quit 0
+	Quit '$Parameter(class, "MOVES") && ''$ListFind($ListFromString($Parameter(class, "ASKEDSTATES")), "closed")
+}
+
+/// Lets the kind fill the parameters of a request that the chat asks for, from the incident (see the class description). The base leaves them as they are.
+ClassMethod AskedParameters(incident As OcuTalon.Data.Incident, ByRef parameters As %DynamicObject) As %Status
+{
+	Quit $$$OK
 }
 
 /// Checks the parameters of the kind with the name. fields is the array of the field names of the sample message (the keys of its body). An error
