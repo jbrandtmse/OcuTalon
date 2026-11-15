@@ -49,6 +49,8 @@
 ///     catalog key of TOOLKEYS) whose text is over Api LIMIT units is sent as one message with no buttons: its start, a line break
 ///     and the line of TOOLONGKEY, at most BUTTONLIMIT units, with the head cut after a line break where it can; its Delivery row
 ///     keeps that text and the ApprovalRef as a message with buttons does, so that the edit of an answer or a cancel still works;
+///   - a standalone email request (Story 21.11; kind approval, a catalog key of STOREDKEYS) is rendered as Core.BridgeSink.RequestText(request, "telegram", .sc) gives it, the email's stored
+///     dry run read by the ApprovalRef, and goes as any request with buttons does, split whole at BUTTONLIMIT with Approve and Reject on its last part, never cut as a tool call's is;
 ///   - the edit in place: a Notification of the kind answered finds the session's newest telegram Delivery row of its ApprovalRef
 ///     (Ownership.DeliveryFor). With no row, or a row with no stored text or no message id, nothing is sent and there is one warning.
 ///     When that row is of the kind answered, nothing is sent: the first answer stays. Otherwise editMessageText replaces the message
@@ -112,6 +114,9 @@ Parameter BUTTONKINDS = "incident,approval";
 Parameter TOOLKEYS = "toolCall.request,toolCall.requestOnServer";
 
 Parameter TOOLONGKEY = "toolCall.inputsTooLong";
+
+/// The catalog key of a standalone email request, whose text is the stored dry run (Core.BridgeSink.RequestText), not the notification's slots (Story 21.11).
+Parameter STOREDKEYS = "fix.emailRequest";
 
 /// The notification kinds whose message carries the Got it button when it has a decision Ref, and the catalog key of the button.
 Parameter GOTITKINDS = "tellnow";
@@ -201,6 +206,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
+	} ElseIf (request.Kind = "approval") && $ListFind($ListFromString(..#STOREDKEYS), request.CatalogKey) {
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}

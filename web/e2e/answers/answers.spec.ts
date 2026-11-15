@@ -1145,3 +1145,107 @@ test('X14: a request that its removed MCP server cancels shows the cancelled sta
     await cleanFixtureRows(rows);
   }
 });
+
+/**
+ * Sets an email request's DryRun to the stored {to, subject, text} of Story 22.7 for two recipients, a subject with two spaces and a text with a CR LF and a
+ * tab. The line break and the tab are built in the ObjectScript text with $Char, never written in this file.
+ */
+async function setEmailDryRun(ref: string): Promise<void> {
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      'If \'$IsObject(r) { Write !,"CHK|dry|0" Halt }',
+      'Set d={}',
+      'Set d.to=["bob@example.test","ann@example.test"]',
+      'Do d.%Set("subject","Late  order")',
+      'Do d.%Set("text","Hi Bob,"_$Char(13,10)_$Char(9)_"Sorry.")',
+      'Set r.DryRun=d.%ToJSON()',
+      'Write !,"CHK|dry|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'dry') !== '1') throw new Error(`the email's dry run could not be set (${lines.join(' ')})`);
+}
+
+/**
+ * X15 (Story 21.11): an email to another address, a fix request with no incident, on every channel. Its raised event gives the web chat a card and the
+ * phone a message with the same text: "Send an email", the reason, "Dry run:" and the lines to, subject and text, whole, with the line break and the tab
+ * as \uXXXX and the two spaces kept, and "Approving sends exactly this email once.". The card has Approve, Reject and the expiry; the rail row reads
+ * "Send an email" with no button and no jump. Reject on the phone edits its message in place and the card shows the status. The result of a run that
+ * ended is a result card, "The email was sent.".
+ */
+test('X15: an email request to another address is a card and a phone message with its dry run, a reject edits it in place, and its result is a card', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  // The expected lines are ASCII: the escapes of the line break and the tab are written out, never the characters.
+  const expected = [
+    'Send an email',
+    "Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.",
+    'Dry run:',
+    'to: ["bob@example.test","ann@example.test"]',
+    'subject: "Late  order"',
+    'text: "Hi Bob,\\u000D\\u000A\\u0009Sorry."',
+    'Approving sends exactly this email once.',
+  ];
+  try {
+    const request = await seedApproval(user, { kind: 'fix', fixKind: 'email', dryRun: null, requiredRole: 'OcuTalonUser' });
+    rows.push(request);
+    await setEmailDryRun(request);
+    await open(page);
+    await sinkEvent(user, 'approval.raised', { ref: request });
+
+    const card = requestCard(page, request);
+    await expect(card, 'the web chat shows the request as a card').toHaveCount(1, { timeout: CARD_MS });
+    let phoneText = '';
+    await expect
+      .poll(async () => (phoneText = (await phoneMessage(user, request))?.text ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
+      .not.toBe('');
+    const action = (await card.locator('.action').textContent()) ?? '';
+    expect(action.split('\n'), "the card's lines are the request, its reason and its dry run, whole").toEqual(expected);
+    expect(phoneText.split('\n'), "the phone's text is the same").toEqual(expected);
+    await expect(card.locator('p.expiry'), 'the card shows the expiry').toContainText('Expires', { timeout: CARD_MS });
+    const approve = card.getByRole('button', { name: 'Approve: send an email', exact: true });
+    await expect(approve, 'the card has Approve').toHaveCount(1);
+    await expect(card.getByRole('button', { name: 'Reject: send an email', exact: true }), 'and Reject').toHaveCount(1);
+    const railRow = rowOfRequest(page, request);
+    await expect(railRow.locator('.title'), 'the rail row reads "Send an email"').toHaveText('Send an email', { timeout: CARD_MS });
+    await expect(railRow.getByRole('button'), 'and has no button, so no jump and no answer').toHaveCount(0);
+
+    const ref = (await phoneMessage(user, request))?.ref ?? '';
+    const message = messageOf(page, ref);
+    await expect(message, 'the phone shows it').toHaveCount(1, { timeout: CARD_MS });
+    await expect(message, 'with the dry run').toContainText('text: "Hi Bob,\\u000D\\u000A\\u0009Sorry."');
+    await expect(message.getByRole('button', { name: 'Approve: send an email', exact: true }), 'and Approve').toHaveCount(1);
+    const reject = message.getByRole('button', { name: 'Reject: send an email', exact: true });
+    await expect(reject, 'and Reject').toHaveCount(1);
+
+    const reply = nextReply(page);
+    await reject.click();
+    const response = await reply;
+    expect(response.status(), 'the answer is 200').toBe(200);
+    const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    const line = `Rejected from the simulated phone at ${hhmm(answeredAt)}. Nothing was changed.`;
+    await expect(lineOf(message), 'the phone replaces the buttons with the answer').toHaveText(line);
+    await expect(message.locator('.buttons'), 'and the buttons are gone').toHaveCount(0);
+    await expect
+      .poll(() => phoneMessage(user, request).then((one) => one?.answer), { message: "the server edited the request's message in place", timeout: PHONE_MS })
+      .toBe(line);
+    expect((await phoneMessage(user, request))?.text, 'the message keeps its text').toBe(phoneText);
+    await expect(card.locator('p.status'), "the card's status is the rejection").toContainText(`Rejected from the simulated phone at ${pageHhmm(answeredAt)}`, { timeout: PAGE_MS });
+    await expect(card.locator('.buttons'), 'and its buttons are gone').toHaveCount(0);
+    await expect(rowOfRequest(page, request), 'the rail row leaves').toHaveCount(0, { timeout: ONE_UPDATE_MS });
+
+    const finishedAt = new Date().toISOString().slice(0, 19) + 'Z';
+    await setApprovalFields(request, { State: 'done', Result: 'done', FinishedAt: finishedAt });
+    await sinkEvent(user, 'approval.result', { ref: request });
+    const sent = 'The email was sent.';
+    const result = page.locator('app-chat-panel [data-part="notice"]').filter({ hasText: sent });
+    await expect(result, 'the result is a card in the chat').toHaveCount(1, { timeout: CARD_MS });
+    await expect(result.getByRole('button'), 'with no button').toHaveCount(0);
+    await expect.poll(() => newestPhoneMessage(user).then((one) => one?.text), { message: 'the phone gets the result as a message', timeout: PHONE_MS }).toBe(sent);
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});

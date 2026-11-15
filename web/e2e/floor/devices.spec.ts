@@ -98,7 +98,7 @@ test('D1: the device tabs and the phone feed are tab stops in order, the arrows 
     expect(box.y + box.height, `the panel ends inside the ${height}px window`).toBeLessThanOrEqual(height + 0.5);
     expect(box.x + box.width, 'and at its right edge').toBeLessThanOrEqual(1280.5);
 
-    const send = page.locator('app-composer button');
+    const send = page.locator('app-composer button').last();
     await send.focus();
     await expect(send).toBeFocused();
     await page.keyboard.press(keys.next);
@@ -199,7 +199,7 @@ async function layoutCase(page: Page): Promise<void> {
   expect(placed.screen, 'its screen is at least the minimum high').toBeGreaterThanOrEqual(359.5);
   expect(placed.feedScrolls, 'and its feed scrolls').toBeGreaterThan(40);
   const keys = await stepKeys(page);
-  await page.locator('app-composer button').focus();
+  await page.locator('app-composer button').last().focus();
   const places: string[] = [];
   for (let i = 0; i < 8; i += 1) {
     await page.keyboard.press(keys.next);

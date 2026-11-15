@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-15-2026 17:18
+last_updated: 11-15-2026 17:21
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -329,7 +329,7 @@ development_status:
   21-9-show-the-changed-tool-banner-in-settings: done
   21-5-set-up-source-polls-and-answer-tool-call-approval-requests: done
   21-10-answer-tool-call-and-standalone-approval-requests-on-every-c: done
-  21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o: backlog
+  21-11-show-standalone-fix-requests-with-their-reason-and-dry-run-o: done
   21-12-a-check-fails-on-a-link-to-a-readme-anchor-that-readme-md-do: done
   21-13-a-re-sent-turn-sends-its-email-once-emailout-honours-the-com: done
   21-14-the-mailbox-address-and-user-name-stay-out-of-the-trace: done
@@ -350,7 +350,7 @@ development_status:
   22-10-list-and-offer-mcp-tools-through-ocutalon-s-own-bounded-clie: 
     ready-for-dev
   22-11-run-source-polls-through-the-governed-proxy: done
-  22-12-document-polling-a-jira-mcp-tool-as-a-source: backlog
+  22-12-document-polling-a-jira-mcp-tool-as-a-source: done
   22-13-keep-source-names-staleness-and-repoints-honest-on-the-cover: done
   22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer: done
   22-15-the-tool-list-reports-which-tools-changed-the-changed-flag: done
@@ -381,7 +381,7 @@ development_status:
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
   25-4-assign-approver-and-viewer-roles-in-settings: done
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: done
-  25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
+  25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: done
   25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block: done
   epic-25-retrospective: optional
 

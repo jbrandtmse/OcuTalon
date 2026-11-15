@@ -682,6 +682,21 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / A tool call that could not run"
  },
+ "fix.emailRequest": {
+  "text": "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once.",
+  "slots": {"inputs": "inputs"},
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / An email's request, Story 21.11"
+ },
+ "fix.emailSent": {
+  "text": "The email was sent.",
+  "slots": {},
+  "source": "EXPERIENCE Incidents and Approvals / Results / An email's result, Story 21.11"
+ },
+ "fix.emailNotSent": {
+  "text": "{reason}",
+  "slots": {"reason": "text"},
+  "source": "EXPERIENCE Incidents and Approvals / Results / An email's result, Story 21.11"
+ },
  "settings.emailHeading": {
   "text": "Email",
   "slots": {},

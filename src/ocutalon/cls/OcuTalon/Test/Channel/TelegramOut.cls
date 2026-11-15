@@ -34,6 +34,12 @@
 ///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
 ///     goes in parts of at most 3,840 units with the buttons on the last part only; the Delivery row records the Ref and the last part's
 ///     text, the redacted text with no chat id, name or Telegram user name (a stored text that the redactor cannot check is "");
+///   - TestEmailRequestRendersTheStoredDryRun (Story 21.11): a standalone email request (kind approval, fix.emailRequest, empty Slots) is sent as the text of
+///     Core.BridgeSink.RequestText, the stored dry run of its row: one sendMessage with the lines to, subject and text (the line break and the tab as \uXXXX, the spaces
+///     kept) and Approve and Reject on its last part; a 9,000-character text is split whole at 3,840 units with the buttons on the last part only and no cut line; a row
+///     whose dry run can't be read sends nothing;
+///   - TestEmailRequestEditKeepsItsStoredDryRun (Story 21.11, QA): the Delivery row of an email request stores its redacted dry run, and an answered.rejected (from Telegram) and an answered.expired notification
+///     edit the message in place to that text, a blank line and the status, with no buttons and the secret redacted everywhere;
 ///   - TestNoButtons: an incident with no ApprovalRef, and the kinds tellnow, result (also with a Ref), reminder and an Outbound, go with
 ///     no reply_markup and a Delivery row with no text;
 ///   - TestEditApproved, TestEditOnlineDemo (AC3): an answered notification edits the request's message in place: editMessageText with
@@ -1085,6 +1091,141 @@ Method TestToolCallFits()
 	} Catch ex {
 		Do $$$AssertTrue(0, "the fits test failed: "_..Safe(ex))
 	}
+	Do ..Cleanup()
+}
+
+/// Story 21.11 (V5): a standalone email request is rendered from its stored dry run, whole: one message with Approve and Reject when it fits, and split at 3,840 units, with
+/// the buttons on the last part only, when it does not (it is never cut as a tool call's request is). A row that can't be read sends nothing.
+Method TestEmailRequestRendersTheStoredDryRun()
+{
+	If '..ReadyLive() Quit
+	Set refs = ""
+	Try {
+		Set chatId = 8633
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set lf = $Char(10)
+		Set dry = {"to": ["bob@example.test", "ann@example.test"], "subject": "Late  order", "text": ("Hi Bob,"_$Char(13, 10)_$Char(9)_"Sorry.")}.%ToJSON()
+		Set approval = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"Kind": "fix", "FixKind": "email", "DryRun": (dry)})
+		Set refs = approval
+		Set expected = "Send an email"_lf_"Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval."_lf_"Dry run:"_lf_"to: [""bob@example.test"",""ann@example.test""]"_lf_"subject: ""Late  order"""_lf_"text: ""Hi Bob,\u000D\u000A\u0009Sorry."""_lf_"Approving sends exactly this email once."
+		Set keyboard = {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_approval)}, {"text": "Reject", "callback_data": ("reject:"_approval)}]]}.%ToJSON()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "fix.emailRequest", {}, approval), .response), "the request is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "as one sendMessage")
+		If calls.%Size() = 1 {
+			Do $$$AssertEquals(calls.%Get(0).params.text, expected, "whose text is the stored dry run, whole")
+			Do $$$AssertEquals(calls.%Get(0).params."reply_markup".%ToJSON(), keyboard, "with Approve and Reject")
+		}
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 1, "one Delivery row")
+		If rows.Count() = 1 Do $$$AssertEquals(rows.GetAt(1).ApprovalRef, approval, "with the request's Ref")
+
+		// A text of 9,000 characters is split whole, with the buttons on the last part.
+		Set words = ""
+		While $Length(words) < 9000 {
+			Set words = words_"word"_$Length(words)_" "
+		}
+		Set words = $Extract(words, 1, 8999)_"x"
+		Set long = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"Kind": "fix", "FixKind": "email", "DryRun": ({"to": ["bob@example.test"], "subject": "Long", "text": (words)}.%ToJSON())})
+		Set refs = refs_","_long
+		Set notice = ..Notification(session, "approval", "fix.emailRequest", {}, long)
+		Set whole = ##class(OcuTalon.Core.BridgeSink).RequestText(notice, "telegram", .sc)
+		Do $$$AssertStatusOK(sc, "the long request renders")
+		Do $$$AssertTrue($Length(whole) > 9000, "it is over 9,000 units")
+		Set before = ..SentTo(chatId).%Size()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "the long request is sent")
+		Set all = ..SentTo(chatId)
+		Set count = all.%Size() - before
+		Do $$$AssertTrue(count '< 3, "in three parts or more: "_count)
+		Set joined = "", marked = 0, lastMarked = 0, longest = 0
+		For i = before:1:all.%Size() - 1 {
+			Set params = all.%Get(i).params
+			Set joined = joined_params.text
+			If $Length(params.text) > longest Set longest = $Length(params.text)
+			If params.%IsDefined("reply_markup") {
+				Set marked = marked + 1
+				If i = (all.%Size() - 1) Set lastMarked = 1
+			}
+		}
+		Do $$$AssertTrue(longest '> 3840, "each part is 3,840 units or fewer")
+		Do $$$AssertEquals($Translate(joined, lf), $Translate(whole, lf), "the parts together are the whole request, with no cut")
+		Do $$$AssertTrue($Find(joined, words) > 0, "all 9,000 characters of the text are there")
+		Do $$$AssertTrue($Find(joined, "The inputs are too long") = 0, "and there is no too-long line")
+		Do $$$AssertEquals(marked_"|"_lastMarked, "1|1", "only the last part has the buttons")
+		If all.%Size() > before Do $$$AssertEquals(all.%Get(all.%Size() - 1).params."reply_markup".%ToJSON(), {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_long)}, {"text": "Reject", "callback_data": ("reject:"_long)}]]}.%ToJSON(), "Approve and Reject")
+
+		// A row that can't be read sends nothing.
+		Set bad = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"Kind": "fix", "FixKind": "email", "DryRun": "not json"})
+		Set refs = refs_","_bad
+		Set before = ..SentTo(chatId).%Size()
+		Do $$$AssertStatusNotOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "fix.emailRequest", {}, bad), .response), "a request whose dry run can't be read is an error")
+		Do $$$AssertStatusNotOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "fix.emailRequest", {}, ..NewRef()), .response), "so is one with no row")
+		Do $$$AssertEquals(..SentTo(chatId).%Size(), before, "and nothing is sent")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the email request test failed: "_..Safe(ex))
+	}
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
+	Do ..Cleanup()
+}
+
+/// Story 21.11 (QA): a standalone email request's Delivery row keeps the redacted dry run as the request's stored text, and the answer edits the request's message in place with that text, a blank
+/// line and the status, with no buttons: rejected from Telegram and expired. A secret in the text is redacted in the message, in the stored text and in the edit, and the status holds no recipient,
+/// subject or text of its own.
+///     mutation: Recorded keeps no text for a request that carries buttons (Set kept = "") -> the edit finds no text, is not made, and this test is red.
+Method TestEmailRequestEditKeepsItsStoredDryRun()
+{
+	If '..ReadyLive() Quit
+	Set refs = ""
+	Try {
+		Set chatId = 8634
+		Set session = ..NewSessionRef()
+		Set chat = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set secret = "sk-"_$Translate($Justify("", 30), " ", "a")
+		Set dry = {"to": ["bob@example.test", "ann@example.test"], "subject": "Late  order", "text": ("Hi Bob,"_$Char(13, 10)_$Char(9)_"key "_secret_" end.")}.%ToJSON()
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set cases = $ListBuild($ListBuild("answered.rejected", {"channel": "telegram", "time": (time)}.%ToJSON()), $ListBuild("answered.expired", {"time": (time)}.%ToJSON()))
+		For n = 1:1:$ListLength(cases) {
+			Set case = $List(cases, n)
+			Set approval = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"Kind": "fix", "FixKind": "email", "DryRun": (dry)})
+			Set refs = refs_$Select(refs = "": "", 1: ",")_approval
+			Set before = ..SentTo(chatId).%Size()
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "fix.emailRequest", {}, approval), .response), "(case "_n_") the request is sent")
+			Set all = ..SentTo(chatId)
+			Do $$$AssertEquals(all.%Size(), before + 1, "(case "_n_") as one message")
+			If all.%Size() '= (before + 1) Quit
+			Set sent = all.%Get(before).params.text
+			Do $$$AssertTrue($Find(sent, "[redacted]") > 0, "(case "_n_") the secret is redacted in the message")
+			Do $$$AssertEquals($Find(sent, secret), 0, "(case "_n_") and the message holds none of it")
+			Set stored = ""
+			Set rows = ..TelegramRows(session)
+			For i = 1:1:rows.Count() {
+				If (rows.GetAt(i).ApprovalRef = approval) && (rows.GetAt(i).Kind = "approval") Set stored = rows.GetAt(i).Text
+			}
+			Do $$$AssertEquals(stored, sent, "(case "_n_") the Delivery row stores the request's text, the dry run, as it was sent")
+			Set status = ##class(OcuTalon.Msg.Catalog).Render($List(case, 1), $List(case, 2), "telegram", .sc)
+			Do $$$AssertStatusOK(sc, "(case "_n_") "_$List(case, 1)_" renders")
+			Set edits = ..EditsTo(chatId).%Size()
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, $List(case, 1), {}.%FromJSON($List(case, 2))), .response), "(case "_n_") the answer is sent")
+			Set edited = ..EditsTo(chatId)
+			Do $$$AssertEquals(edited.%Size(), edits + 1, "(case "_n_") it edits the request's message once")
+			If edited.%Size() = (edits + 1) {
+				Set params = edited.%Get(edits)
+				Do $$$AssertEquals(params.text, sent_$Char(10, 10)_status, "(case "_n_") the text is the request, a blank line and the status")
+				Do $$$AssertEquals(params.%IsDefined("reply_markup"), 0, "(case "_n_") with no buttons")
+				Do $$$AssertEquals($Find(params.text, secret), 0, "(case "_n_") and none of the secret")
+				Do $$$AssertTrue($Find(params.text, "Dry run:") > 0, "(case "_n_") and it still shows the dry run")
+			}
+			Do $$$AssertEquals(..SentTo(chatId).%Size(), before + 1, "(case "_n_") and nothing new is sent")
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the email edit test failed: "_..Safe(ex))
+	}
+	If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 	Do ..Cleanup()
 }
 

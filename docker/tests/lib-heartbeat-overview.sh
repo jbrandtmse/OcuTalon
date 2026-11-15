@@ -25,3 +25,22 @@ overview_bullet_rule() {
     echo "$rule: $file does not hold $what$how in the line '- In model requests to the configured provider' under 'Data leaves the instance only:'"
   fi
 }
+
+# overview_after_rule <rule> <file> <sentence> <previous> <what>: prints one line for each way the bullet "- <sentence>" is wrong in the file. The sentence must be in the whole
+# file exactly once, and that once must be a whole bullet (a line that is "- " and the sentence) whose line before it starts with <previous> (the text of the bullet it must
+# follow). <what> names the sentence in a line; the lines start with <rule>.
+overview_after_rule() {
+  local rule=$1 file=$2 sentence=$3 previous=$4 what=$5 total ok
+  total=$(grep -oF -e "$sentence" "$file" | wc -l | tr -d ' ')
+  if [ "$total" != "1" ]; then
+    echo "$rule: $file holds $what $total times, not once"
+  fi
+  ok=$(S="- $sentence" P="$previous" awk '
+    BEGIN { s = ENVIRON["S"]; p = ENVIRON["P"]; ok = 0; prev = "" }
+    $0 == s && index(prev, p) == 1 { ok = 1 }
+    { prev = $0 }
+    END { print ok }' "$file")
+  if [ "$ok" != "1" ]; then
+    echo "$rule: $file does not hold $what as its own bullet directly after the bullet that starts '$previous'"
+  fi
+}

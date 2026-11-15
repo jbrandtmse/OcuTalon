@@ -80,12 +80,14 @@ describe('the real tree', () => {
     assert.match(text, /^export interface IncidentPayload \{[\s\S]*?\n  fallback\?: boolean;/m);
   });
 
-  it('nests the decision payload, the cost and the check rows, the citations, the memories, the learned saves and the sent file in ChatMessagePayload', () => {
+  it('nests the decision payload, the cost and the check rows, the citations, the memories, the learned saves, the sent file, its read result and the saved caption of a photo in ChatMessagePayload', () => {
     const text = readFileSync(realOut, 'utf8');
-    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  citations\?: Citation\[\];\n  memories\?: Memory\[\];\n  learned\?: Learned\[\];\n  sentFile\?: SentFile;\n  traceUrl\?: string;\n\}/m);
+    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  citations\?: Citation\[\];\n  memories\?: Memory\[\];\n  learned\?: Learned\[\];\n  sentFile\?: SentFile;\n  fileRead\?: FileRead;\n  caption\?: Caption;\n  traceUrl\?: string;\n\}/m);
     assert.match(text, /^export interface Citation \{\n  documentRef\?: string;\n  document\?: string;\n  section\?: string;\n  passage\?: string;\n  chunkIndex\?: number;\n\}/m);
     assert.match(text, /^export interface Memory \{\n  memoryRef\?: string;\n  text\?: string;\n  savedAt\?: string;\n\}/m);
     assert.match(text, /^export interface SentFile \{\n  ref\?: string;\n  name\?: string;\n  mediaType\?: string;\n  size\?: number;\n\}/m);
+    assert.match(text, /^export interface FileRead \{\n  fileRef\?: string;\n  kind\?: string;\n  read\?: number;\n  addable\?: number;\n\}/m);
+    assert.match(text, /^export interface Caption \{\n  memoryRef\?: string;\n  text\?: string;\n\}/m);
     assert.match(text, /^export interface Learned \{\n  memoryRef\?: string;\n  fact\?: string;\n\}/m);
     assert.match(text, /^export interface Cost \{\n  inputTokens\?: number;[\s\S]*?\n  costUSD\?: number;\n\}/m);
     assert.match(text, /^export interface CheckRow \{\n  result\?: string;\n  entry\?: string;\n  finding\?: string;\n  checkedAt\?: string;\n\}/m);
