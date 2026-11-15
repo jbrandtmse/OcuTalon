@@ -2322,6 +2322,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T05:27:29Z occurrence=39-7-publish-the-heartbeat-event note=GuideRefresh.TestHeldLock_red_once_on_a_fresh_lane-D_lane-b@Live_run;next_forward_and_reverse_runs_green_unchanged
 - 2026-11-08T21:18:08Z occurrence=OCT-epic30-17406fd7 by=orchestrator note=run 42515884139 attempt 1: iris(image) lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (trace_opened/run_again change none of the session's data rows); rerun of failed jobs 21:2xZ
 - 2026-11-15T08:19:41Z occurrence=feature-97e062daf by=orchestrator note=run 43690544372 att1 iris(shards-6) Test.Web.GuideApi TestOnlyTheMarkerChanges (trace_opened and run_again): the after fingerprint gained the session's event rows 4-9 watch.progress (a real tick between the two fingerprints); one rerun of failed jobs when the run completes
+- 2026-11-15T08:57:34Z occurrence=feature-97e062daf by=orchestrator note=rerun of failed jobs, attempt 2 of 43690544372: shards-6 green
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint

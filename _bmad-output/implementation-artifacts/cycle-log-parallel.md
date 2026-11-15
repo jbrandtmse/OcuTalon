@@ -4272,3 +4272,7 @@
 2026-11-15T08:53:58Z	Epic 21	runner_ended	reason=clarification waiting_on=DW-1347+21.11_rulings
 2026-11-15T08:54:38Z	Epic 21	owner_decision	via=contest_planner DW-1347=approved(design,long-answer-past-cut_test_mutation,text_fixed,option_a_line_in_22.12,laneA_stays_out_of_Mcp/Bridge/Checks,no_migration,AD-6/31/18B) 21.11=approved(N1_reworded_connected_mailbox,V2-V4,V5_grant,V6_trace_refs-only_pin,V7,V8_keep) order=DW-1347,21.11 21.9=merges_first_after_hold
 2026-11-15T08:54:54Z	Run	rulings_relayed	lane_C=resume(DW-1347_implement) lane_D=queued(22.12_carries_DW-1347_line;note:mid-stage_send_backgrounded_one_tool_call) lane_A=queued(stay_out_of_DW-1347_files)
+2026-11-15T08:57:34Z	Run	ci_green_verified	head=97e062daf runs=43690544372(att2;att1=DW-349),43690544341 gate=success
+2026-11-15T08:57:34Z	Run	feature_merge_hold_off	reason=97e062daf_green(Planner_rule) reds=DW-306,DW-1083,DW-494,DW-349(no_new_DW) planner_notified
+2026-11-15T08:57:34Z	Epic 21	ci_green_verified	story=21.9 head=6d44d4750 runs=43692114733,43692114775
+2026-11-15T08:57:34Z	Epic 21	merge_enqueued	story=21.9 into=feature@97e062daf+records
