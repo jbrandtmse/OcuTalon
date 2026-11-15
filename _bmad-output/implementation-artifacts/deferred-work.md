@@ -4023,6 +4023,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Pre-existing in baseline 3f5f7b3e at spine lines 454, 1010, 1023, 1086, 1091; Story 39.1 adds none; stages read the check as no new finding. Fix needs the kit lint (.claude/, owner-only) or spine prose edits outside any story's ACs.
 - 2026-11-03T14:41:53Z status=wontfix-accepted owner=39-1-fix-the-heartbeat-s-names-and-contracts by=cr note=reopen_if=lint_spine reports a finding other than these 8 baseline placeholders, or a Rule 20 spine update halts on them
+- 2026-11-15T07:56:47Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th
 ### DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red once in CI image shard lane-b (1 of 88) on the integrate-forward head e75b90bc; green on the unchanged rerun
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
@@ -8217,3 +8218,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; feature 42e7b3ec ci 43633699261 attempt 1 shards-2; lane D diagnosis | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
 - 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
+
+### DW-1357: The Conversation hold of a document file turn under the production's PoolSize 1 is unmeasured on the running production (one ReadFile plus two Render reads per turn); the unit harness measured 1.9 s (2-page PDF), 3.4 s (10-page) and 13.6 s (200k cap)
+- source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/Conversation.cls ReadSentFile; Task 0 (d) unit-harness timings vs 26.2's stop lines 10 s/45 s per read
+- 2026-11-15T07:56:47Z status=routed owner=burndown by=harvest note=measure on a running production under load (the CI-budget audit or a throwaway soak)
