@@ -401,3 +401,6 @@
 2026-11-14T13:41:04Z	Story 22.13	ledger_adjudicated	owned=3 resolved=3(DW-1325,DW-1327,DW-1328) reowned=0 terminal=1(DW-1336)
 2026-11-14T13:44:45Z	Story 22.13	smoke_complete	method=other(lane-D_new_warm_e22s13fc:Test.Mcp.SourceSetProduction(real_CommandsIn->McpOps),Test.Digest.AllClear) result=pass iterations=1 defects_caught=0 torn_down=e22s13fc
 2026-11-14T13:44:45Z	Story 22.13	fresh_check	env=recipe(new_lane-D_warm_stack_e22s13fc) tests=Test.Mcp.SourceSet,Test.Digest.Coverage,Test.Digest.Compose result=pass order=forward,reverse
+2026-11-14T22:02:58Z	Story 22.14	story_created	model=lead(chartered_by_orchestrator;Planner_accepted_diagnosis_~21:55Z) path=_bmad-output/implementation-artifacts/spec-22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer.md build_status=done owned_ledger=DW-1352(entry_on_feature) branch=OCT-epic22-s2214(from_42e7b3ec)
+2026-11-14T22:02:58Z	Story 22.14	dev_complete	model=lead files=1(Test/Mcp/SourceSet.cls) proofs=class_green;with_Hang_1.1_green;REPOINTRESETS_0->TestUpdate_red(reverted,checksum_identical) also=Test.Watch.Ops_green;test-class-rules_rc0 env=new_lane-D_warm_e22s14w(torn_down)
+2026-11-14T22:02:58Z	Story 22.14	committed	sha=LOCAL(OCT-epic22-s2214;no_push_until_orchestrator_after_release_CI_HOLD) ci=none_yet

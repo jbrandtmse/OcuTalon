@@ -8217,3 +8217,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; feature 42e7b3ec ci 43633699261 attempt 1 shards-2; lane D diagnosis | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
 - 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
+- 2026-11-15T05:27:20Z status=resolved-by:22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer by=merge_gate note=TestUpdate starts from a past CreatedAt and asserts the repoint moves it; branch ci 43674059161+43674059261 green

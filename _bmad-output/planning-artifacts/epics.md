@@ -8211,6 +8211,22 @@ So that the mailbox is never confused with a source, a slow source is not called
 **When** it is composed
 **Then** it reads "I checked the Orders production, Jira and the mailbox." and "Not everything: the mailbox."; where "Mailbox" is a label (coverage lines, check rows, Settings) it stays as it is (Planner ~12:45Z and ~13:20Z item 4; both sentences pinned, each with a mutation)
 
+### Story 22.14: SourceSet TestUpdate asserts the repoint RESET and no longer depends on the clock
+
+[ADDED 2026-11-14, burndown story for DW-1352, Contest Planner acceptance of lane D's diagnosis (~21:55Z Nov 14); lands after the 1.0.10 release's main CI green; test only]
+
+**Lane:** A.
+
+As a maintainer,
+I want `Test.Mcp.SourceSet`'s `TestUpdate` to assert what Story 22.13 ruled for a repoint, with no dependence on the clock,
+So that CI never fails or passes by which second two saves land in.
+
+**Acceptance Criteria:**
+
+**Given** `TestUpdate`'s update gives the source a new tool and new arguments (a repoint under DW-1328 RESET, `Watch.Ops.SetSource`)
+**When** the test checks the saved row
+**Then** it starts from a `CreatedAt` in the past and asserts that the run fields are kept and that the repoint moves `CreatedAt` to now; it passes with a one-second delay before the update and without it, and goes red with `REPOINTRESETS` 0 (DW-1352; test only, no product change)
+
 ## Epic 23: Deeper IRIS watch (step 5)
 
 Incidents gain rerouting, suspend and resume and setting rollback as approved fixes, link failures to recent setting changes, page the on-call person with escalation, draft partner warnings sent only after approval, and close with a written summary; queue backlog and SQL query watches report between digests (Could).
