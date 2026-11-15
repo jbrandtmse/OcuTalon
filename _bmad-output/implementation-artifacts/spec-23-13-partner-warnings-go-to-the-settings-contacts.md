@@ -2,7 +2,7 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -24,7 +24,7 @@ deferred: []
   - every other production reads the Settings contacts, de-duplicated by address;
   - the online demo never reads the table.
 - Every traced message names contacts by id only. The production job resolves the ids to names and addresses into the approval row, so the approver sees them on the card.
-- A warning to Settings contacts is kept as an approved draft. No delivery channel for real people exists until the parked EmailOut follow-up.
+- **[AMENDED 2026-11-15, Contest Planner 23.13 GATE ruling (prompts/story-242-rulings-20261115.md "23.13 GATE"), veto 2 CHANGED; BINDING]** An approved partner warning to Settings contacts is SENT through Story 21.11's EmailOut path, from the mailbox connected in Settings > Channels > Email: one approval, sent exactly once. It is kept as an approved draft ONLY when no mailbox is connected, and its texts then say so truthfully. If the EmailOut path CAN'T carry it, STOP: name the file and line and say why, before building a kept-draft-only version (HALT `blocked`, `intent gap`). Texts: the kept path uses the Planner's conditional wording verbatim (see Design Notes "Planner rulings, 23.13 GATE"); the SENT path reuses 21.11's approved email texts where they fit; ANY new line is NEW public text for the Planner (list it under the gate, verbatim). The online demo is unchanged (no Settings contacts, nothing sent; fictional contact to the Simulated mailbox).
 
 ## Boundaries & Constraints
 
@@ -205,6 +205,8 @@ Tests:
 
 ## Spec Change Log
 
+- 2026-11-15 ~23:35Z (lead, Planner 23.13 GATE): veto 2 changed (send through 21.11 EmailOut when a mailbox is connected; kept only when none); intent block amended; status reset to draft for a re-plan of the changed part.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -247,6 +249,16 @@ Tests:
 - DW-1393 is addressed (Tasks: `PartnerContacts` de-duplication; matrix DEDUPE).
 - DW-1394 is addressed (AC1, AC5; the literal pin and the real e2e state).
 - DW-1254's contact-id part is AC3. The ledger entry stays 24.2's.
+
+### Planner rulings, 23.13 GATE (2026-11-15 ~23:30Z; BINDING; prompts/story-242-rulings-20261115.md "23.13 GATE")
+- APPROVED with ONE CHANGE (veto 2): the send rule in the intent block above (SENT through 21.11's EmailOut when a mailbox is connected; kept as an approved draft ONLY when none is connected; STOP if EmailOut can't carry it).
+- Public text APPROVED with conditional wording, verbatim:
+  - Phone and web forms of `incident.partnerRequestKept`, the Dry run line: "Dry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent." The rest of the two forms verbatim as proposed.
+  - `press.approvedPartnerKept`: "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email."
+  - `APPROVAL_TEXTS.partnerKeptNote`: "Nothing is sent unless you approve. No mailbox is connected in Settings > Channels > Email, so an approved notice is kept as a draft."
+  - SENT path: reuse 21.11's approved email texts where they fit; any new line goes to the Planner.
+- Vetoes 1, 3, 4 APPROVED (online demo unchanged; trace, logs and audit carry contact ids only; the approval row holds names and addresses until the standard purge). Deviations 1-5 ACCEPTED. The AD-16 bullet (written by the lead with the Planner's marker) includes the sent-or-kept rule.
+- Contention: plain union with lane D's 24.4a (`Live/Payload/Incident.cls`, `Watch/IncidentManager.cls`, `Fix/Executor.cls`).
 
 ### For the Planner's gate
 
