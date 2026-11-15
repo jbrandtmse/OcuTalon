@@ -8433,6 +8433,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T18:15:51Z occurrence=feature-9b9898a53 by=orchestrator note=run 43742359975 att1 iris(shards-4) on ocutalon-ci-7 (old runner): same B13 'Remove the source Existing' 60 s timeout (4th hit, 4th host); one rerun of failed jobs
 - 2026-11-15T18:24:07Z occurrence=OCT-epic25-8fee7092f by=orchestrator note=run 43738072955 att1 shards-4 on ocutalon-ci-10: same B13 timeout (5th hit); lane A had claimed DW-1390 for it, not filed as a duplicate
 - 2026-11-15T18:58:29Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-4) on ocutalon-ci-35: B13 timeout (6th hit); superseded, not rerun
+- 2026-11-15T19:17:00Z occurrence=feature-8c71bef6e by=orchestrator note=run 43748578400 att1 iris(shards-4) on ocutalon-ci-48: B13 timeout (7th hit); one rerun of failed jobs
 
 ### DW-1389: eval pair memory-webhook-remember and memory-email-remember (injection cases: a partner note asking to be remembered, expected digest) now land as ignore: decide a one-line Triage clarification that such notes go to the digest, or propose changing the two expectations; side question: a user's chat message saying a production stopped leans to act on OLD and NEW
 - source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
