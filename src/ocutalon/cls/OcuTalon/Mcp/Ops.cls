@@ -28,12 +28,14 @@
 ///     OcuTalon_MCP_<server>.Key and the address only to the Config Store entry AI.MCP.OcuTalon_<server>, in its own job (Story 21.4; the credential reaches it only
 ///     through the command's Handoff, a SecretHandoff uri, taken once), and it never logs, audits or puts in a notice the address, a credential or the error text of the
 ///     wallet, the Config Store or AI Hub. The address also travels in the command and in the settings list, and IRIS's own audit entry of the entry's creation holds it.
-///   - Tools: the tools of a server for Settings.
+///   - Tools: the tools of a server for Settings, each with name, classification, status and changed (true while ClearChanged has made the tool unclassified and
+///     no admin has classified it since).
 ///   - RecordAttach: writes what a runner reported about one attach (OcuTalon.Mcp.Attach.OnAttach) to the server's row (AttachStatus, AttachReason,
 ///     AttachedAt, RefusedTools) and, for an attached server, keeps one ToolClassification row for each tool it listed or refused (a new one is
 ///     unclassified, with the fingerprint the report gives), deletes the rows of tools it no longer lists, and clears the classification of a tool whose
 ///     fingerprint changed (ClearChanged). A server with no row is an error and nothing is written.
-///   - ClearChanged: the one way a classified tool becomes unclassified because its fingerprint changed; it audits the change and tells the admins.
+///   - ClearChanged: the one way a classified tool becomes unclassified because its fingerprint changed; it marks the row Changed, audits the change and tells the admins.
+///     Classify (ClassifyTool) resets the mark.
 ///   - SourceStopped (Story 22.11): the one public way a source's stop reaches the admins: mcp.sourceStopped {source, tool, server, time} to every admin session, through Notify and Send. Checks
 ///     calls it once for each transition to stopped; it writes no row and no audit entry.
 ///   - Admin notices (kind status, sent to Ownership.AdminSessions) go out once for each transition: a server that turns unavailable
@@ -424,7 +426,9 @@ Method Classify(request As OcuTalon.Msg.Command.ClassifyTool, Output response As
 	If '$IsObject(row) Quit ..Answer(.response, 0, "not_found", ..#MESSAGENOTOOL)
 	Set before = row.Classification
 	Set beforeAt = row.ChangedAt
+	Set beforeChanged = row.Changed
 	Set row.Classification = word
+	Set row.Changed = 0
 	Set row.ChangedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set sc = row.%Save()
 	If $$$ISERR(sc) Quit ..Failed(.response, "the classification could not be saved", sc)
@@ -432,6 +436,7 @@ Method Classify(request As OcuTalon.Msg.Command.ClassifyTool, Output response As
 	If $$$ISERR(sc) {
 		Set row.Classification = before
 		Set row.ChangedAt = beforeAt
+		Set row.Changed = beforeChanged
 		Do row.%Save()
 		Quit ..Failed(.response, "the classification could not be audited, so it was undone", sc, "not_audited")
 	}
@@ -574,9 +579,10 @@ Method SendChanged(message As OcuTalon.Checks.Msg.CheckChanged) As %Status [ Pri
 	Quit ..SendRequestAsync(..#CHECKS, message)
 }
 
-/// The tools of the server for Settings, as a %DynamicArray of {"name", "classification", "status"} sorted by name. The status is refused for a tool in the
-/// row's RefusedTools, else unavailable while the server's last attach was unavailable, else available. A server that is not registered, and an empty name,
-/// are an error.
+/// The tools of the server for Settings, as a %DynamicArray of {"name", "classification", "status", "changed"} sorted by name. The status is refused for a tool in the
+/// row's RefusedTools, else unavailable while the server's last attach was unavailable, else available. The changed member is always a JSON boolean: true only when
+/// the row's Changed is 1 and the tool is unclassified (an empty Changed, as in a row stored before the property existed, is false). A server that is not registered,
+/// and an empty name, are an error.
 ClassMethod Tools(server As %String, Output tools As %DynamicArray) As %Status
 {
 	Set tools = []
@@ -586,14 +592,17 @@ ClassMethod Tools(server As %String, Output tools As %DynamicArray) As %Status
 	Set refused = row.RefusedTools
 	Set down = (row.AttachStatus = "unavailable")
 	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT Tool, Classification FROM OcuTalon_Mcp.ToolClassification WHERE Server = ? ORDER BY %EXACT(Tool)")
+	Set sc = statement.%Prepare("SELECT Tool, Classification, Changed FROM OcuTalon_Mcp.ToolClassification WHERE Server = ? ORDER BY %EXACT(Tool)")
 	If $$$ISERR(sc) Quit sc
 	Set result = statement.%Execute(server)
 	If result.%SQLCODE < 0 Quit $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
 	While result.%Next(.sc) {
 		Set name = result.%Get("Tool")
 		Set status = $Select($ListFind(refused, name): "refused", down: "unavailable", 1: "available")
-		Do tools.%Push({"name": (name), "classification": (result.%Get("Classification")), "status": (status)})
+		Set classification = result.%Get("Classification")
+		Set one = {"name": (name), "classification": (classification), "status": (status)}
+		Do one.%Set("changed", (+result.%Get("Changed") = 1) && (classification = "unclassified"), "boolean")
+		Do tools.%Push(one)
 	}
 	Quit sc
 }
@@ -643,8 +652,9 @@ ClassMethod RecordAttach(server As %String, report As %DynamicObject) As %Status
 
 /// Clears the classification of a tool whose fingerprint changed: when the tool has a row whose fingerprint is not the fingerprint given, the row becomes
 /// unclassified with the new fingerprint, the change is audited (a Tool entry, unclassified, irisUser the running user, channel system) and each admin
-/// session gets one mcp.toolChanged notice. An unclassified row only takes the new fingerprint, and a tool with no row, or whose row already has the
-/// fingerprint, changes nothing. The status is an error when the row could not be saved or the change could not be audited (the row stays cleared).
+/// session gets one mcp.toolChanged notice. The cleared row is marked Changed until Classify resets it. An unclassified row only takes the new fingerprint and
+/// keeps its Changed, and a tool with no row, or whose row already has the fingerprint, changes nothing. The status is an error when the row could not be
+/// saved or the change could not be audited (the row stays cleared).
 ClassMethod ClearChanged(server As %String, tool As %String, fingerprint As %String) As %Status
 {
 	Set sc = $$$OK
@@ -670,6 +680,7 @@ ClassMethod ClearRow(server As %String, tool As %String, fingerprint As %String,
 	Set row.Fingerprint = fingerprint
 	If classified {
 		Set row.Classification = "unclassified"
+		Set row.Changed = 1
 		Set row.ChangedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	}
 	Set sc = row.%Save()
