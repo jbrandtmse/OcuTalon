@@ -4356,3 +4356,5 @@
 2026-11-15T17:53:54Z	Run	owner_decision	via=contest_planner DW-1388=HIGH(next_free_lane;test-only_unless_UI) assigned=lane_C(21.5_author;Fix_impl_blocked_on_23.3) ci-48_watch=report_2nd_DW-555_or_network_fail
 2026-11-15T18:05:27Z	Run	ci_green_verified	head=df475cc64(records_on_merge-back_b337f61d9) runs=43740934650,43740934673 note=merge-back_code_green
 2026-11-15T18:15:51Z	Run	ci_red_classified	head=9b9898a53(0.37_merge) run=43742359975 shards-4(ci-7)=DW-1388(4th_hit) lane-a=green action=rerun_failed_once
+2026-11-15T18:21:46Z	Epic 25	runner_reported	EPIC_RUNNER_COMPLETE head=8fee7092f runs=43738072955(att2;att1=B13_ci-10),43738072942 retro=accepted-with-open-items burndown=DW-1283,DW-1382_wontfix;DW-1284->26-4,DW-1357->38-1 decisions=DW-1120/1121/1122/1386/1387(web_gap-fill_story)
+2026-11-15T18:21:46Z	Epic 25	merge_enqueued	epic_completion head=8fee7092f (records/retro only)
