@@ -8529,3 +8529,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
 - 2026-11-15T19:03:01Z status=routed owner=burndown by=orchestrator note=fix in DW-1391's commit if it is the same one-line LastAt change and the hammer covers it; otherwise its own fix
+
+### DW-1406: flake candidate: web/e2e/heartbeat-card.spec.ts:305 HC6 (dailyCap and noModelKey hold Run) failed at :333 toHaveAccessibleDescription: element not found, waiting for the Status region's app-heartbeat-card button 'Run the heartbeat now'
+- source: orchestrator; feature ci | severity: low | fix-risk: low | footprint: in-epic
+- evidence: feature 3242f9657 (DW-1388 merge, test-only, no heartbeat change) ci 43754264003 att1 iris(shards-5) on ocutalon-ci-54; HC6 green on every earlier feature run; superseded by 92937a03e
+- 2026-11-15T20:29:53Z status=routed owner=burndown by=orchestrator note=flake rule: one rerun; a second red on any head is real
