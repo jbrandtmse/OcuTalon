@@ -379,3 +379,5 @@
 2026-11-15T04:07:34Z	Story 21.9	stage_spawned	stage=implement spawn_at=2026-11-15T04:07:34Z model=sonnet effort=high agent_name=21-9-implement-1 cycle_iteration=1 branch=OCT-epic21-s219 note=local_only_until_22.15_merges
 2026-11-15T05:13:40Z	Story 21.9	dev_complete	build_sha=f145feb38 branch=OCT-epic21-s219 review=27(high0,med3_one_root_patched,low21,false3) followup=false bundle=888.40kB_unchanged task0=22.15_contract_matches live=sign-in-2_part_with_mcp.spec(B14)_pass
 2026-11-15T05:13:40Z	Story 21.9	stage_spawned	stage=qa spawn_at=2026-11-15T05:13:40Z model=sonnet effort=high agent_name=21-9-qa-1 cycle_iteration=1
+2026-11-15T05:43:01Z	Story 21.9	qa_complete	model=sonnet tests=SettingsMcp.TestListChangedUnavailable,mcp-view.test(non-boolean_changed),mcp.spec_B14(two_banners,only_own_removed) mutations_demonstrated=4 findings=none
+2026-11-15T05:43:01Z	Story 21.9	stage_spawned	stage=code-review spawn_at=2026-11-15T05:43:01Z model=opus effort=high agent_name=21-9-code-review-1 cycle_iteration=1
