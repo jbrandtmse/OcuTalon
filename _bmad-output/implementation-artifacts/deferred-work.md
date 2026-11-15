@@ -8426,3 +8426,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Lane A throwaway e25s8r, live sign-in part 10/17: 1 failed (page.waitForEvent filechooser at files.spec.ts:117 after keyboard Enter on the focused paperclip), 20 passed; rerun 21 passed. The test is not changed by Story 25.8.
 - 2026-11-15T21:04:16Z status=routed owner=burndown by=cr note=one sighting at code review of 25.8; the paperclip test is Story 25.3's, unchanged here
+
+### DW-1408: test: state-diagnosis.spec 'the stack serving this unit has CSP processes' fails when its file runs first on a fresh stack (local live sign-in --part 4/17), because no CSP process has served a request yet
+- source: Story 25.8 lead smoke, lane-A throwaway e25s8c4b (2026-11-15) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e/api/state-diagnosis.spec.ts:37 expects a 'DIAG /state csp process: pid=' line; part 4/17 starts with this file; first run also had B15/B16 /state timeouts at host load 24 (rerun: only this check red); unchanged by 25.8 (no server change)
+- 2026-11-15T21:28:09Z status=routed owner=burndown by=epic-runner-25 note=make the check order-independent (warm the gateway with one page load first) or assert only when CSPUsers>0
