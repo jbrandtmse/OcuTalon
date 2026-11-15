@@ -430,3 +430,5 @@
 2026-11-15T13:19:19Z	Story 21.11	fresh_check	env=fresh_lane-D_stack_e21s11dcr tests=Test.Core.EmailRequestNotices result=pass torn_down=yes
 2026-11-15T10:14:44Z	DW-1347	integrated	feature=20b60564f(21.9) merge=30ceb87a5 conflicts=cycle-log(union) node=2114/0 boundaries,class-rules,readme=pass lint=10_low
 2026-11-15T10:14:44Z	DW-1347	fresh_check	env=merged_tree(30ceb87a5) warm_e21dwfw:Mcp.SourceRun,Bridge.Poll,Mcp.Proxy,Bridge.Decide,Bridge.CodeRules,Tools.Result,Checks.Runs,Core.SettingsMcp,Mcp.SourceRunProduction,Mcp.Attach_pass torn_down
+2026-11-15T13:20:12Z	Story 21.11	integrated_forward	by=lane_D feature=99913850(DW-1347+GUIDE_T7) head=9601490c conflicts_resolved=cycle-log-epic-21(union) checks=test-class-rules,test-boundaries_rc0;spine_lint_ok
+2026-11-15T13:20:12Z	Story 21.11	committed	by=lane_D sha=pushed_below
