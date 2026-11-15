@@ -4405,3 +4405,5 @@
 2026-11-15T22:32:40Z	Epic 23	owner_decision	via=contest_planner 23.13=APPROVED(veto2_changed:SEND_via_EmailOut_when_mailbox_connected,else_kept_draft;STOP_if_EmailOut_cannot;conditional_texts;vetoes_1,3,4;deviations_1-5;AD-16_with_sent-or-kept)
 2026-11-15T22:39:04Z	Epic 23	runner_reported	BLOCKED story=23.13 reason=EmailOut_FIXKIND=email_only(Out.cls:74,:414,:446,:514;Executor:286-289,:345;AD-14) options=i_cross-lane_in_23.13(recommended)/ii_laneB_story_first relayed=contest_planner
 2026-11-15T22:39:21Z	Epic 23	owner_decision	via=contest_planner 23.13_EmailOut=option_i(cross-lane_Out.cls;AD-14_amended) security=approved-address_rule(send_only_if_contact_exists_and_address_equals_approved;skip+report;pins) texts=reuse_fix.emailSent/NotSent;new_lines_to_Planner_first
+2026-11-15T22:46:54Z	Epic 23	ci_green_verified	story=DW-1400(+23.8_parked_records,23.13_charter) head=69d17499b runs=43768251126,43768251118(att1)
+2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400
