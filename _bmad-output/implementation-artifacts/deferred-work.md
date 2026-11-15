@@ -7952,6 +7952,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
 - 2026-11-14T00:55:11Z occurrence=25-4-assign-approver-and-viewer-roles-in-settings
 - 2026-11-14T00:55:11Z note=25.4 cr: the 997.59 kB ceiling is checked by hand only (angular.json initial maximumError is 1MB); 25.4 build 997.59 kB, at the ceiling
+- 2026-11-15T18:24:16Z status=resolved-by:25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=orchestrator note=Contest Planner closed it (~19:00Z Nov 15): bundle target met, initial bundle 890.41 kB under the 921,000-byte cap after Epic 25; new web code stays in lazy chunks per the standing rule
 
 ### DW-1303: Self-lockout: Settings > Roles lets an admin grant OcuTalonViewer to themselves, which (viewer wins, Planner 25.4 final ruling 1) locks them out of Settings; the save must refuse it with reason self_viewer and the text: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin."
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
