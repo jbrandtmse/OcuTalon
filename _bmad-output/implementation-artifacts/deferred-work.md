@@ -8507,3 +8507,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
+
+### DW-1410: A copy resent to a business process that waits for a reply reads Completed and not held for the whole wait, so Tally counts it done even with the DW-1205 fix
+- source: _bmad-output/implementation-artifacts/spec-21-dw-1205-a-copy-that-errors-is-not-counted-as-done-while-ens-still-holds-it.md (code review) | severity: high | fix-risk: high | footprint: in-story
+- evidence: Ens.Actor sets the BP's own request header Completed on every pass (Actor.cls:452, before the IsCompleted test), also while it waits for a reply, and the job's active-message entry then holds the reply header, not the copy, so neither the entry check nor the second read sees it. Scratch probe on the lane-C throwaway (BP calls a BO with a reply, OnResponse errors), fixed code: 25/100 trials wrong with a ~1 ms reply, 10/10 wrong with a 1 s reply (each copy read Completed unheld for 1-3 s, then Error). Pre-existing: the old code counts it the same way.
+- 2026-11-15T22:44:51Z status=escalated owner=burndown by=cr note=pre-existing; fix needs a held signal beyond the gate (the BP instance) and an AD-16 change: Planner decision

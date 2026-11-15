@@ -803,14 +803,17 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 								Do failure.%Set("isError", +result.%GetData(7), "boolean")
 								// inFlight: IRIS still holds the header. IRIS sets an erroring message Completed, then Error, and lets go of the active-message entry after both.
 								// So the status was read first, the entry is checked next, and an entry that is gone is followed by a second status read: a changed status is in flight.
-								// A failed entry read is never "done": the loop ends as not held and the second status read decides.
-								// ^||OcuTalonFlightSeam, set only by a test in this process, holds code that runs at the entry read (the test makes the read fail and changes the status there).
+								// A failed entry read never skips the second status read: the loop ends as not held, and the second read decides.
+								// ^||OcuTalonFlightSeam, set only by a test in this process, holds a status number: the entry read then fails as if it had thrown, once, and the second
+								// status read is compared with that number in place of the first read's status.
 								Set flightHeld = 0
+								Set flightFirst = result.%GetData(12)
 								Try {
 									Set flightSeam = $Get(^||OcuTalonFlightSeam)
 									If flightSeam '= "" {
 										Kill ^||OcuTalonFlightSeam
-										Xecute flightSeam
+										Set flightFirst = flightSeam
+										$$$ThrowStatus($SYSTEM.Status.Error(5001, "flight seam"))
 									}
 									Set flightJob = ""
 									For {
@@ -827,7 +830,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 								If 'flightHeld {
 									Set flightRead = flightStatus.%Execute(id)
 									If flightRead.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, flightRead.%Message))
-									If flightRead.%Next() && (flightRead.%GetData(1) '= result.%GetData(12)) Set flightHeld = 1
+									If flightRead.%Next() && (flightRead.%GetData(1) '= flightFirst) Set flightHeld = 1
 								}
 								Do failure.%Set("inFlight", flightHeld, "boolean")
 								Set failure.error = text

@@ -1030,7 +1030,7 @@ Method Look(id As %String, Output tally As %DynamicObject) As %Integer [ Private
 	Quit ""
 }
 
-/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE), failedAgain (one of COPYFAILED),
+/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE and they are not in flight), failedAgain (one of COPYFAILED, not in flight),
 /// running (a copy the read gives as in flight, whatever its status; any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of
 /// the failed copy with the lowest id, "" when none). An entry without inFlight is not in flight.
 ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %DynamicObject) As %DynamicObject

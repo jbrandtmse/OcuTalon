@@ -30,8 +30,9 @@
 ///   - TestInFlightHeader (DW-1205, DW-494; AC 4, AC 5): a Completed header that a (fake) job of OCUORDERS holds as its active message (Ensemble.inc's EnsActiveMessage) is given by
 ///     Reader.Evidence with inFlight 1, a JSON boolean, and one that is not held with inFlight 0; Fix.Executor Read carries inFlight and Tally counts the held copy as running (completed 0,
 ///     failed again 1, running 1); once the entry is killed the copy is completed (completed 1, failed again 1, running 0);
-///   - TestInFlightEntryReadFails (DW-1205, DW-494; condition 2): when the read of the active-message entries throws (the reader's test seam ^||OcuTalonFlightSeam) and the header's status
-///     changes at that point, the header is in flight (the second read of its status decides), and a Completed header that nothing holds and nothing changes is not.
+///   - TestInFlightEntryReadFails (DW-1205, DW-494; condition 2): when the read of the active-message entries fails (the reader's test seam ^||OcuTalonFlightSeam, a status number that
+///     stands for the first read's status), the second read of the status decides: a seeded Error (8) against a Completed row is in flight, and Executor Read and Tally count the copy
+///     as running, not completed; a seeded status equal to the row's is not in flight; a Completed header that nothing holds is not in flight.
 Class OcuTalon.Test.Watch.Evidence Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
@@ -87,10 +88,15 @@ ClassMethod KillEntry(key As %String) [ Private ]
 /// The failure of the header in a reader snapshot, "" when there is none.
 ClassMethod FailureOf(snapshot As %DynamicObject, id As %Integer) As %DynamicObject [ Private ]
 {
+	Set found = ""
+	If '$IsObject($Get(snapshot)) || '$IsObject(snapshot.failures) Quit found
 	For i = 0:1:snapshot.failures.%Size() - 1 {
-		If snapshot.failures.%Get(i).headerId = id Quit
+		If snapshot.failures.%Get(i).headerId = id {
+			Set found = snapshot.failures.%Get(i)
+			Quit
+		}
 	}
-	Quit $Select(i < snapshot.failures.%Size(): snapshot.failures.%Get(i), 1: "")
+	Quit found
 }
 
 /// The snapshot in a dynamic object, or "" with the failure reported.
@@ -408,6 +414,8 @@ Method TestInFlightHeader()
 	Do run.Copies.Insert(failed)
 	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
 	Do $$$AssertEquals(read, "read", "Executor Read reads the copies")
+	Do $$$AssertTrue($IsObject(statuses.%Get(held)) && $IsObject(statuses.%Get(failed)), "Read gives both copies")
+	If '$IsObject(statuses.%Get(held)) || '$IsObject(statuses.%Get(failed)) Quit
 	Do $$$AssertEquals(statuses.%Get(held).inFlight_"|"_statuses.%Get(failed).inFlight, "1|0", "Read carries inFlight")
 	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, statuses)
 	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "0|1|1", "Tally gives completed 0, failed again 1, running 1")
@@ -417,7 +425,7 @@ Method TestInFlightHeader()
 	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", keys, .snapshot)
 	Do $$$AssertEquals(outcome, "read", "Evidence reads them again")
 	Set heldFailure = ..FailureOf(snapshot, held)
-	If $IsObject(heldFailure) Do $$$AssertEquals(heldFailure.status_"|"_heldFailure.inFlight, "Completed|0", "inFlight 0 once the job lets go of it")
+	Do $$$AssertEquals($Select($IsObject(heldFailure): heldFailure.status_"|"_heldFailure.inFlight, 1: "none"), "Completed|0", "inFlight 0 once the job lets go of it")
 	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
 	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, statuses)
 	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "1|1|0", "Tally gives completed 1, failed again 1, running 0")
@@ -426,6 +434,7 @@ Method TestInFlightHeader()
 Method TestInFlightEntryReadFails()
 {
 	If '..Ready() Quit
+	Set owner = ..Session("entryfails")
 	Set quiet = ..FixtureHeader({"Status": 9})
 	Set changing = ..FixtureHeader({"Status": 9})
 	Do $$$AssertTrue((quiet '= "") && (changing '= ""), "two Completed headers are made")
@@ -434,19 +443,36 @@ Method TestInFlightEntryReadFails()
 	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_quiet, .snapshot)
 	Set failure = ..FailureOf(snapshot, quiet)
 	Do $$$AssertTrue(outcome = "read" && $IsObject(failure), "a Completed header that nothing holds is read")
-	If $IsObject(failure) Do $$$AssertEquals(failure.status_"|"_failure.inFlight, "Completed|0", "it is not in flight")
+	Do $$$AssertEquals($Select($IsObject(failure): failure.status_"|"_failure.inFlight, 1: "none"), "Completed|0", "it is not in flight")
 
-	// the read of the active-message entries throws, and the status of the header changes at that point: only the second read of the status can tell
-	Set ^||OcuTalonFlightSeam = "Do ##class(%SQL.Statement).%ExecDirect(,""UPDATE Ens.MessageHeader SET Status = 8 WHERE ID = "_changing_""") Throw ##class(%Exception.General).%New(""seam"")"
+	// the read of the active-message entries fails, and the seam stands for a first read that gave Error (8) while the row reads Completed: only the second read can tell
+	Set ^||OcuTalonFlightSeam = 8
 	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_changing, .snapshot)
-	Do $$$AssertEquals(outcome, "read", "Evidence still reads when the read of the entries throws")
+	Do $$$AssertEquals(outcome, "read", "Evidence still reads when the read of the entries fails")
 	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam), 0, "the seam ran once")
 	Set failure = ..FailureOf(snapshot, changing)
-	Do $$$AssertTrue($IsObject(failure), "the header has its failure")
-	If $IsObject(failure) Do $$$AssertEquals(failure.status_"|"_failure.inFlight, "Completed|1", "a failed read of the entries does not make it done: the second read of the status gives another status, so it is in flight")
-	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_changing, .snapshot)
-	Set failure = ..FailureOf(snapshot, changing)
-	If $IsObject(failure) Do $$$AssertEquals(failure.status_"|"_failure.inFlight, "Error|0", "at the next read it is Error and not in flight")
+	Do $$$AssertEquals($Select($IsObject(failure): failure.status_"|"_failure.inFlight, 1: "none"), "Completed|1", "a failed read of the entries does not make it done: the second read of the status gives another status, so it is in flight")
+
+	// control: a failed read of the entries whose second read gives the same status is not in flight
+	Set ^||OcuTalonFlightSeam = 9
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_quiet, .snapshot)
+	Do $$$AssertEquals(outcome, "read", "Evidence reads the quiet header with the seam set")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam), 0, "the seam ran once again")
+	Set failure = ..FailureOf(snapshot, quiet)
+	Do $$$AssertEquals($Select($IsObject(failure): failure.status_"|"_failure.inFlight, 1: "none"), "Completed|0", "a failed read of the entries with the same status at the second read is not in flight")
+
+	// the count: with the entry read failing and the status changed, Executor Read and Tally count the copy as running, not completed
+	Set incident = ..Fixture(owner, changing)
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Do run.Copies.Insert(changing)
+	Set ^||OcuTalonFlightSeam = 8
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Do $$$AssertEquals(read, "read", "Executor Read reads the copy with the seam set")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam), 0, "the seam ran in Read")
+	Set entry = $Select(read = "read": statuses.%Get(changing), 1: "")
+	Do $$$AssertEquals($Select($IsObject(entry): entry.status_"|"_entry.inFlight, 1: "none"), "Completed|1", "Read carries the copy as Completed and in flight")
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, $Get(statuses))
+	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "0|0|1", "Tally counts the copy as running, not completed")
 }
 
 Method TestToolsReadTheIncident()
