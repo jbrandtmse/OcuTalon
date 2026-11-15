@@ -45,7 +45,7 @@
  *   with the count-of-one forms, the tone (success only for all-through, a completed suspend or resume and a completed reroute, else partial), the icon and the
  *   audit line.
  */
-import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, IncidentRequestResult, ItemNoun } from '../live/payloads';
+import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, IncidentRequestResult, ItemNoun, SettingChange } from '../live/payloads';
 
 /** Every fixed string of the approval request card and its notices. */
 export const APPROVAL_TEXTS = {
@@ -69,6 +69,7 @@ export const APPROVAL_TEXTS = {
   resendCopyOne: '1 repaired copy; the original stays unchanged.',
   nothingYet: 'Nothing has changed yet.',
   itemState: '{item}: {state}',
+  settingRow: '{setting}: {value}',
   rerouteBefore: 'Message {example}: {from}',
   rerouteAfter: 'Message {example}: {to}',
   rerouteCopies: '{count} copies to {to}; the originals stay unchanged.',
@@ -273,6 +274,24 @@ function itemDryRunView(approval: ApprovalPayload, pending: boolean): DryRunView
   };
 }
 
+/** The dry run block of a rollback or an undo of a setting (Story 23.3): the setting's value now and the value it will have, "{setting}: {value}" each, or undefined when the dry run names no setting. */
+function settingDryRunView(approval: ApprovalPayload, pending: boolean): DryRunView | undefined {
+  const dry = approval.dryRun;
+  const setting = dry === null || typeof dry !== 'object' ? '' : textOf(dry.field);
+  if (setting === '') {
+    return undefined;
+  }
+  return {
+    countLine: '',
+    field: '',
+    before: fill(APPROVAL_TEXTS.settingRow, { setting, value: textOf(dry?.before) }),
+    after: fill(APPROVAL_TEXTS.settingRow, { setting, value: textOf(dry?.after) }),
+    eitherWay: '',
+    resendLine: '',
+    nothingYet: pending ? APPROVAL_TEXTS.nothingYet : '',
+  };
+}
+
 /** The dry run block of a reroute (Story 23.2): the example message where it is now and where it would go, and the copies that will be resent. */
 function rerouteDryRunView(dry: DryRun & { affected: number }, pending: boolean): DryRunView {
   const resend = numberOf(dry.resend);
@@ -297,6 +316,9 @@ function dryRunView(approval: ApprovalPayload, pending: boolean, ctx: ApprovalCo
   }
   if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
     return itemDryRunView(approval, pending);
+  }
+  if (approval.fixKind === 'rollback_setting' || approval.fixKind === 'undo_rollback') {
+    return settingDryRunView(approval, pending);
   }
   const dry = dryRunOf(approval);
   if (dry === undefined) {
@@ -542,17 +564,24 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
+ * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting, item and value of the incident's settingChange): `completed` above 0 is
+ *   result.settingRestored or result.rollbackUndone (after), success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (reason), partial,
+ *   `triangle-alert`; a skip whose reason ends as the kind's CHANGEDAGAIN is result.settingChangedSince, partial; any other reason is result.itemNotChanged, partial. A run still
+ *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
  */
-export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = ''): ResultView | undefined {
+export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = '', change?: SettingChange): ResultView | undefined {
   const result = request.result;
   if (result === null || typeof result !== 'object' || Array.isArray(result)) {
     return undefined;
   }
   if (request.fixKind === 'suspend_item' || request.fixKind === 'resume_item') {
     return itemResultView(request, result, render, production);
+  }
+  if (request.fixKind === 'rollback_setting' || request.fixKind === 'undo_rollback') {
+    return settingResultView(request, result, render, change);
   }
   if (request.fixKind === 'partner_warning') {
     return partnerResultView(request, result, render);
@@ -645,6 +674,32 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
     slots = { reason };
   }
   return bandOf(key, slots, tone, icon, render);
+}
+
+/** The end of the reason of a setting request that was skipped because the setting changed again (Fix.Kind.RollbackSetting CHANGEDAGAIN). */
+const SETTING_CHANGED_AGAIN = ' changed again since then';
+
+/** The band of a rollback or an undo of a setting (Story 23.3): see resultView. The setting, its item and the value it has again are the incident's settingChange (the old value after a rollback, the new one after an undo). */
+function settingResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, change: SettingChange | undefined): ResultView | undefined {
+  const reason = textOf(result.reason);
+  const setting = textOf(change?.setting);
+  const target = textOf(change?.item);
+  if (request.state === 'executing' || (numberOf(result.interrupted) ?? 0) > 0) {
+    return undefined;
+  } else if ((numberOf(result.completed) ?? 0) > 0) {
+    const after = textOf(request.fixKind === 'undo_rollback' ? change?.newValue : change?.oldValue);
+    if (setting === '' || target === '' || after === '') {
+      return undefined;
+    }
+    return bandOf(request.fixKind === 'undo_rollback' ? 'result.rollbackUndone' : 'result.settingRestored', { setting, target, after }, 'success', 'circle-check', render);
+  } else if (reason === '') {
+    return undefined;
+  } else if ((numberOf(result.unreached) ?? 0) > 0) {
+    return setting === '' || target === '' ? undefined : bandOf('result.settingSavedNotApplied', { setting, target, reason }, 'partial', 'triangle-alert', render);
+  } else if ((numberOf(result.skipped) ?? 0) > 0 && reason.endsWith(SETTING_CHANGED_AGAIN)) {
+    return setting === '' || target === '' ? undefined : bandOf('result.settingChangedSince', { setting, target }, 'partial', 'triangle-alert', render);
+  }
+  return bandOf('result.itemNotChanged', { reason }, 'partial', 'triangle-alert', render);
 }
 
 /** The reason of a partner request that is kept as a draft: the kind's NOTSETUP (Fix.Kind.PartnerWarning). */

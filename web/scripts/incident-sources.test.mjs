@@ -109,7 +109,7 @@ describe('the footer', () => {
 
 describe('the texts', () => {
   it('prints every text of the view by interpolation, in the order of the design', () => {
-    const order = ['stateText', 'view().time', 'view().headline', 'view().more', 'view().causeSentence', 'view().evidenceLine', 'view().fixSentence', 'view().notice', 'texts.failures', 'line', 'view().fixingLine'];
+    const order = ['stateText', 'view().time', 'view().headline', 'view().more', 'view().causeSentence', 'view().evidenceLine', 'view().settingCauseLine', 'view().fixSentence', 'view().notice', 'texts.failures', 'line', 'view().fixingLine'];
     let last = -1;
     for (const name of order) {
       const at = cardTemplate.indexOf(name === 'stateText' ? '[text]="stateText"' : `{{ ${name} }}`);

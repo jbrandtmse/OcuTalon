@@ -9,6 +9,7 @@
 ///     nor the chat's name; no Turn is made and no chat message is sent;
 ///   - TestApproveKinds (Story 23.2): the Approve of a suspend, a resume and a reroute is answered "Approved. Suspending {item}.", "Approved. Resuming {item}." and
 ///     "Approved. Rerouting {count} {itemNoun} to {to}."; Story 23.5: that of a partner delay notice is answered "Approved. Sending the delay notice to the Simulated mailbox.";
+///     Story 23.3: that of a rollback_setting and of an undo_rollback is answered "Approved. Putting {setting} on {item} back." and "Approved. Undoing the rollback of {setting} on {item}.", and with no text when the dry run names no setting;
 ///   - TestReject: reject:<Ref> is answered "Rejected. Nothing was changed." and the request is rejected;
 ///   - TestLate: a press after another channel answered is an alert "Already answered: approved from the web chat at <time>." (the winner's
 ///     action and channel, also rejected from the simulated phone), and both requests stay as they were;
@@ -401,7 +402,8 @@ Method TestApproveNoDryRun()
 }
 
 /// Story 23.2: the paired chat's Approve of a suspend, a resume and a reroute is answered with the kind's own text (press.approvedSuspend, press.approvedResume and press.approvedReroute),
-/// not "Repairing and resending".
+/// not "Repairing and resending". Story 23.3: that of a rollback_setting and an undo_rollback is answered with press.approvedRollback and press.approvedUndoRollback, naming the setting and the item;
+/// one whose dry run has no field, or none, is approved and answered with no text.
 Method TestApproveKinds()
 {
 	If '..Go() Quit
@@ -412,7 +414,11 @@ Method TestApproveKinds()
 			$ListBuild("suspend_item", "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}", "Approved. Suspending OrdersToWarehouse."),
 			$ListBuild("resume_item", "{""item"":""OrdersToWarehouse"",""before"":""disabled"",""after"":""enabled""}", "Approved. Resuming OrdersToWarehouse."),
 			$ListBuild("reroute", "{""affected"":50,""resend"":50,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1234""}", "Approved. Rerouting 50 orders to OrdersForReview."),
-			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}", "Approved. Sending the delay notice to the Simulated mailbox."))
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}", "Approved. Sending the delay notice to the Simulated mailbox."),
+			$ListBuild("rollback_setting", "{""item"":""OrdersFromPartner"",""field"":""TargetConfigName"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", "Approved. Putting TargetConfigName on OrdersFromPartner back."),
+			$ListBuild("undo_rollback", "{""item"":""OrdersFromPartner"",""field"":""TargetConfigName"",""before"":""OrdersToWarehouse"",""after"":""OrdersToWarehous""}", "Approved. Undoing the rollback of TargetConfigName on OrdersFromPartner."),
+			$ListBuild("rollback_setting", "{""item"":""OrdersFromPartner"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", ""),
+			$ListBuild("undo_rollback", "", ""))
 		Set position = 0
 		While $ListNext(cases, position, case) {
 			Set request = ..Request(session, {"FixKind": ($List(case, 1)), "DryRun": ($List(case, 2))})

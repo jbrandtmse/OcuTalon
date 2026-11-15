@@ -93,6 +93,9 @@ Property AskingSince As %String(MAXLEN = 20);
 /// summaries existed, or a summary that could not be built). It is deleted with the row (AD-27). Written by IncidentManager only.
 Property Summary As %String(MAXLEN = "");
 
+/// The Ref of the SettingChange that the diagnosis named as the cause (Story 23.3; AD-15); empty when it named none. Written by IncidentManager only.
+Property SettingChangeRef As %String(MAXLEN = 64);
+
 Index RefIndex On Ref [ Unique ];
 
 Index OwnerRefIndex On OwnerRef;
@@ -186,6 +189,9 @@ Storage Default
 </Value>
 <Value name="29">
 <Value>Summary</Value>
+</Value>
+<Value name="30">
+<Value>SettingChangeRef</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.IncidentD</DataLocation>
