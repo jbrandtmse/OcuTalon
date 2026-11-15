@@ -4290,3 +4290,9 @@
 2026-11-15T10:06:18Z	Epic 21	owner_decision	via=contest_planner DW-1372=confirmed(no_AD-31_edit) DW-1371=follow-up_1.0.12
 2026-11-15T10:12:49Z	Epic 23	ci_green_verified	story=GUIDE-T7 head=b2a582547 runs=43700621712,43700621731
 2026-11-15T10:12:49Z	Epic 23	merge_enqueued	story=GUIDE-T7 (1.0.11 required)
+2026-11-15T10:14:48Z	Epic 23	merged	story=GUIDE-T7 merge=6487b4cc6 pins=pass web=pass
+2026-11-15T10:15:27Z	Epic 21	runner_status	DW-1347 pushed=30d487a32(OCT-epic21-dw1347) runs=43703149281,43703149107(pending) fresh=10/10
+2026-11-15T12:30:49Z	Epic 21	runner_reported	PART_READY story=DW-1347 head=30d487a32 runs=43703149281(att2;att1=DW-306),43703149107
+2026-11-15T12:30:49Z	Epic 21	ci_green_verified	head=30d487a32
+2026-11-15T12:30:49Z	Epic 21	amendments_verified	AD-6+AD-18B(spine);AD-31_unchanged(DW-1372_confirmed)
+2026-11-15T12:30:49Z	Epic 21	merge_enqueued	story=DW-1347 (1.0.11 required)
