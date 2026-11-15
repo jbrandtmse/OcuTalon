@@ -8458,3 +8458,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: epic-25 retrospective 2026-11-15 (cross-story review: 25.3 shared FileDrop x 25.4 viewer gating) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/documents/documents-page.ts:60 appFileDrop with no [active]; :396 addFiles returns for a viewer; shared/file-drop.ts:15 active=model(true) binds dragover/drop with preventDefault; chat-panel turns the drop off for viewers
 - 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(bind_[active]=!viewer()_and_pin_it_in_viewer-sources.test.mjs)
+
+### DW-1398: Test/Watch/Summary.cls:878 builds the same non-quiet incident fixture as DW-1391 (LastAt not in the past), so the background sweep can close it mid-test
+- source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
+- 2026-11-15T19:03:01Z status=routed owner=burndown by=orchestrator note=fix in DW-1391's commit if it is the same one-line LastAt change and the hammer covers it; otherwise its own fix
