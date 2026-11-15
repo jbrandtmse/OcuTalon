@@ -441,3 +441,7 @@
 2026-11-15T20:35:44Z	Story 23.4	smoke_complete	method=other+browser(PagingLive_real_breaks:session-owned_never_pages,shared_pages_Telegram;live_sign-in_4/35_incident-page(e23b4s4)) result=pass iterations=2 defects_caught=0 cycle_iteration=2
 2026-11-15T20:35:44Z	Story 23.4	fresh_check	env=recipe(new_lane-B_warm_e23b4rr) tests=Watch.Paging,Watch.PagingLive,Watch.Lifecycle,Install.SecurityOverview result=pass order=reverse(lead),forward(implement+review_stacks) cycle_iteration=2
 2026-11-15T20:36:10Z	Epic 23	integrated	onto=92937a03(23.4_merge+24.2+DW-1388;feature_CI_pending) conflicts_resolved=sprint-status.yaml(feature_side,regenerated;23-4=done,23-8=ready-for-dev) code_conflicts=none
+2026-11-15T20:53:48Z	Epic 23	merged_tree_check	head=d0084524 npm_web_2153 Data.Tables,Msg.Catalog,Live.Payloads,Core.SettingsOnCall,Watch.Paging,Watch.PagingLive_green_on_fresh_warm_e23b4mg2
+2026-11-15T20:53:48Z	Story 23.4	committed	sha=d0084524 code_head=d0084524 story_commits=12101e6e,4d36f375 ci=pending note=DW-1396_follow-up_on_92937a03(23.4_merged)
+2026-11-15T20:53:48Z	Story 23.8	ruling	question=planner_gate_23.8 choice=approved(own_installs_only;extended_Task0_hard_gate_a-d;SELECT_results_untrusted;D1-D3_accepted;AD-18/AD-24_amended;contention_union;public_text_verbatim) category=veto(Planner_ruled) source=prompts/story-238-rulings-20261115.md policy=5086036
+2026-11-15T20:53:48Z	Story 23.8	spine_updated	ad=AD-18,AD-24 reason=planner_ruling by=runner story=23-8 lint=placeholder_low_only(12)
