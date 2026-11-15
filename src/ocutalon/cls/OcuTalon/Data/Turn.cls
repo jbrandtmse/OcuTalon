@@ -91,6 +91,14 @@ Property Learned As %String(MAXLEN = "");
 /// after the stored row has been purged. Rows saved before Story 25.3 hold no value.
 Property SentFile As %String(MAXLEN = "");
 
+/// The read result of the turn's file (Story 25.6), as a JSON object {fileRef, kind, read, reason, chars, cut, addable} that Agent.Input.ReadFile gave, without its text member; never the
+/// extracted text, a copy of its characters or any bytes. Empty for a turn with no file, and for a turn that no reader read. Rows saved before Story 25.6 hold no value.
+Property FileRead As %String(MAXLEN = "");
+
+/// The caption that a photo turn's usable reply saved as a memory (Story 25.6), as a JSON object {memoryRef, text}, from the reply's HostData (Agent.Content.Accepted); empty for a turn
+/// with none. Rows saved before Story 25.6 hold no value.
+Property Caption As %String(MAXLEN = "");
+
 /// The Ref of the decision whose figures the turn shows (AD-20): for a fallback reply the reply decision, else the triage
 /// decision; the other one when the first is empty.
 Method ShownDecisionRef() As %String
@@ -190,6 +198,12 @@ Storage Default
 </Value>
 <Value name="27">
 <Value>SentFile</Value>
+</Value>
+<Value name="28">
+<Value>FileRead</Value>
+</Value>
+<Value name="29">
+<Value>Caption</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

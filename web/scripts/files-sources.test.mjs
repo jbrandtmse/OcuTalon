@@ -54,8 +54,15 @@ describe('the SentFile table (AD-3, AD-4)', () => {
 });
 
 describe('no route serves a file\'s bytes (ruling 3 (ii))', () => {
-  it('no class under Web/ calls Core.Files.Open', () => {
-    assert.deepEqual(product.filter((one) => one.name.startsWith('Web/') && /Core\.Files\)\.Open\(/.test(one.code)).map((one) => one.name), []);
+  it('no class under Web/ but Web.Documents calls Core.Files.Open, and Web.Documents only hands the opened bytes to DocumentOps (Story 25.6, ruling P4)', () => {
+    assert.deepEqual(product.filter((one) => one.name.startsWith('Web/') && /Core\.Files\)\.Open\(/.test(one.code)).map((one) => one.name), ['Web/Documents.cls']);
+    // The fileRef form of POST /v1/documents (FromFile) opens the caller's own file for the Upload row of the AddDocument; the bytes are never written to the response.
+    const documents = file('Web/Documents.cls').code;
+    const form = /ClassMethod FromFile\([\s\S]*?\n\}/.exec(documents);
+    assert.ok(form, 'Web.Documents has FromFile');
+    assert.match(form[0], /Core\.Files\)\.Open\(fileRef, sessionRef/, 'it opens through Core.Files for the caller\'s own session');
+    assert.doesNotMatch(form[0], /\bWrite\b|OutputToDevice|\.Read\(|%response/, 'and reads no byte and writes none');
+    assert.doesNotMatch(documents, /\b(?:Write|OutputToDevice)\b[^\n]*\bbytes\b/, 'and nothing else of the route writes the bytes variable');
   });
 
   it('no class under Web/ names Agent.Content, whose Part answers the opened photo', () => {
@@ -63,7 +70,7 @@ describe('no route serves a file\'s bytes (ruling 3 (ii))', () => {
   });
 
   it('Agent.Content and Agent.Input are the only product callers of Core.Files.Open', () => {
-    assert.deepEqual(named(/Core\.Files\)\.Open\(/), ['Agent/Content.cls', 'Agent/Input.cls'], 'Part sends the photo turn\'s file in the runner\'s job (AD-31), Readable checks that it opens for ReadFile (AD-21 step 6), and Input\'s ReadText reads a document\'s text for Render and ReadFile (Story 26.2)');
+    assert.deepEqual(named(/Core\.Files\)\.Open\(/), ['Agent/Content.cls', 'Agent/Input.cls', 'Web/Documents.cls'], 'Web.Documents\' fileRef form opens the caller\'s own file for the Upload row of an AddDocument (Story 25.6; AD-4), Part sends the photo turn\'s file in the runner\'s job (AD-31), Readable checks that it opens for ReadFile (AD-21 step 6), and Input\'s ReadText reads a document\'s text for Render and ReadFile (Story 26.2)');
   });
 
   it('Web.Files has one route: POST of the empty remainder', () => {

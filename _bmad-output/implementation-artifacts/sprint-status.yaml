@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-15-2026 17:45
+last_updated: 11-15-2026 17:52
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -72,7 +72,7 @@ development_status:
   0-34-the-install-path-oauth2-check-skips-the-built-web-bundle-so: done
   0-35-routine-attention-decisions-meet-their-target: done
   0-36-the-judges-table-names-the-platform-parts-ocutalon-is-built: done
-  0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi: backlog
+  0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -382,7 +382,7 @@ development_status:
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: done
   25-4-assign-approver-and-viewer-roles-in-settings: done
   25-5-answer-only-with-the-right-approver-role-and-say-why-otherwi: done
-  25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: backlog
+  25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: done
   25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block: done
   epic-25-retrospective: optional
 

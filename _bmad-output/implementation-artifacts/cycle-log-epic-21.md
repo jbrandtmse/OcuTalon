@@ -432,3 +432,18 @@
 2026-11-15T10:14:44Z	DW-1347	fresh_check	env=merged_tree(30ceb87a5) warm_e21dwfw:Mcp.SourceRun,Bridge.Poll,Mcp.Proxy,Bridge.Decide,Bridge.CodeRules,Tools.Result,Checks.Runs,Core.SettingsMcp,Mcp.SourceRunProduction,Mcp.Attach_pass torn_down
 2026-11-15T13:20:12Z	Story 21.11	integrated_forward	by=lane_D feature=99913850(DW-1347+GUIDE_T7) head=9601490c conflicts_resolved=cycle-log-epic-21(union) checks=test-class-rules,test-boundaries_rc0;spine_lint_ok
 2026-11-15T13:20:12Z	Story 21.11	committed	by=lane_D sha=pushed_below
+2026-11-15T12:02:15Z	DW-1347	ci_flake	run=43703149281 job=132778446850 iris(production) row21=DW-306(known_flake,occurrence_logged) action=rerun_failed_once
+2026-11-15T12:30:12Z	DW-1347	ci_resolved	sha=30d487a32 result=success runs=43703149281(attempt2_after_DW-306_flake),43703149107
+2026-11-15T12:30:12Z	DW-1347	part_ready	parts=DW-1347 code_head=30d487a32 ci=success records=local
+2026-11-15T12:38:18Z	DW-1347	merged	feature=999138505 dw1372=confirmed_by_Planner(AD-31_no_edit)
+2026-11-15T12:38:18Z	DW-1371	stage_spawned	stage=plan spawn_at=2026-11-15T12:38:18Z model=opus effort=high agent_name=dw-1371-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1371 worktree=.worktrees/epic-21-dw1347(reused) base=999138505 scope=tests_only(replay_writes_no_answerHash)
+2026-11-15T12:47:43Z	DW-1371	story_created	model=opus effort=high branch=OCT-epic21-dw1371 base=82e7ca18f build_status=ready-for-dev size=small veto=none(tests_only) pin=TestReplayNotesNoAnswerHash(replay_context_HostData,long+short,poll_control) mutations=M1(widen_Noted_guard),M2(IsPoll_kind_only),M3(M1+Replay_copies_HostData) cross_lane=no_branch_touches_Approval.cls
+2026-11-15T12:47:43Z	DW-1371	stage_spawned	stage=implement spawn_at=2026-11-15T12:47:43Z model=sonnet effort=high agent_name=dw-1371-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1371
+2026-11-15T13:02:44Z	DW-1371	dev_complete	build_sha=82a5da2fe branch=OCT-epic21-dw1371 review=11(high0,med0,low7(1_patched),false4) followup=false task0=(1)direct_Proxy.Call_reaches_mock,(2)Toolref_matches,(3)M1_leaves_existing_green(gap_proven) tests=TestReplayNotesNoAnswerHash,TestReplayResultIsCut(+HostData_empty) mutations=M1,M2,M3_red product_files=unchanged
+2026-11-15T13:02:44Z	DW-1371	stage_spawned	stage=qa spawn_at=2026-11-15T13:02:44Z model=sonnet effort=high agent_name=dw-1371-qa-1 cycle_iteration=1
+2026-11-15T13:11:11Z	DW-1371	qa_complete	model=sonnet commit=1ce0b69c2 tests=none_needed(spec_note) mutations_demonstrated=4(M1-M3,M4_poll_control) hermetic=Approval_x3_pass findings=none
+2026-11-15T13:11:11Z	DW-1371	stage_spawned	stage=code-review spawn_at=2026-11-15T13:11:11Z model=opus effort=high agent_name=dw-1371-code-review-1 cycle_iteration=1
+2026-11-15T13:21:53Z	DW-1371	cr_complete	model=opus findings=15(1_low_patched:short-answer_still_a_replay_precondition+M5,14_rejected) high=0 med=0 ledger=none unresolved_high_med=0 final_status=done rule3=Approval_whole_class_x2_pass
+2026-11-15T13:21:53Z	DW-1371	ledger	DW-1371=resolved-by:dw-1371
+2026-11-15T13:30:22Z	DW-1371	integrated	feature=999138505(unchanged;no_merge_needed)
+2026-11-15T13:30:22Z	DW-1371	fresh_check	env=b1cddd242 warm_e21dw1371fw:Mcp.Approval,Mcp.SourceRun,Mcp.Proxy,Bridge.Poll,Mcp.Attach_pass boundaries,class-rules=pass torn_down

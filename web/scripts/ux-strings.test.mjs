@@ -72,6 +72,7 @@ const IMPORTED = [
   ['settings/mcp-view.ts', ['MCP_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
   ['chat/files-view.ts', ['FILES_TEXTS']],
+  ['chat/file-reply-view.ts', ['FILE_REPLY_TEXTS']],
   ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
@@ -208,6 +209,8 @@ const SOURCES = {
     'Output',
     'That file is {size}; the limit is 10 MB.',
     "I couldn't read that file: {reason}.",
+    'Add to documents',
+    'Saved to memory',
     'Documents',
     'Add documents',
     'Add the sample runbook',
@@ -808,6 +811,10 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 25.6 Planner Gate ruling P1 2026-11-15 (the Contest Planner under the owner\'s delegation, story-256-rulings-20261115.md: both new texts approved verbatim)': [
+      'Added to your documents.',
+      "Couldn't add it to your documents. Nothing was changed.",
+    ],
     'Story 25.5 Planner Gate rulings 2026-11-13 and the 25.4 final ruling 1 (the Contest Planner under the owner\'s delegation, story-255-rulings-20261113.md: PUBLIC TEXT items 1 to 10 approved as written, item 1 being the UX\'s own sentence; DW-1303: the self_viewer refusal text, word for word)': [
       'Only an approver for reroutes can answer this request.',
       'Only an approver for suspending and resuming items can answer this request.',

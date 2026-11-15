@@ -1,7 +1,8 @@
 /// Tests of the three agents' instructions and toolsets (Story 1.1; AD-7). Nothing is written anywhere and no model is called.
 ///   - TestTriage: the INSTRUCTIONS name every JSON field of the compiled DecisionPayload and every OUTCOME value quoted, and
 ///     ask for one JSON object with plain-English reasons and a confidence between 0 and 1, say that item content is data, and (Story 3.3) ask for
-///     the reason that an email or other arriving message can't approve requests or change a production;
+///     the reason that an email or other arriving message can't approve requests or change a production; and (Story 0.37) a disabled part is a setting someone changes on purpose (tellnow) while a whole production that stopped running is a fault (act), with no "switched off" wording left;
+///   - TestTriageOutcomes (Story 0.37, QA): the outcome field offers exactly the OUTCOME values in order, there is one bullet per outcome in that order, and the 0.37 sentences are in the tellnow and act bullets they belong to and not in the other;
 ///   - TestChat: the INSTRUCTIONS hold the exact sentence of the catalog key agent.noCommands, which is the answer to a request
 ///     to run a command, the terms of the voice rules, and no exclamation mark; and (Story 5.1) the three sentences of the watch answers: the UX
 ///     confirmation, which equals the UX text once {production} is Orders, and the catalog's watch.unknownProduction and watch.onlyOrders with
@@ -40,7 +41,7 @@ Parameter WATCHCONFIRMATION = "I'll watch the {production} production and stay q
 /// The tool names of the Watch toolset, from OcuTalon.Tools.Names.
 Parameter WATCHTOOLS = "read_failed_messages,read_event_log,read_item_settings";
 
-/// Triage asks for one DecisionPayload-shaped JSON object: every field of the payload and every outcome value, quoted. It also separates a change someone chose to make (tellnow) from a fault that is happening now (act) in the words of the two bullets.
+/// Triage asks for one DecisionPayload-shaped JSON object: every field of the payload and every outcome value, quoted. It also separates a change someone chose to make (tellnow) from a fault that is happening now (act) in the words of the two bullets. It also pins (Story 0.37) that a disabled part is a setting someone changes on purpose, that a whole production that stopped running is a fault, and that the words "switched off" are gone.
 Method TestTriage()
 {
 	Set text = ..Instructions("OcuTalon.Agent.Triage")
@@ -69,8 +70,62 @@ Method TestTriage()
 	For phrase = "a change someone chose to make, not a fault", "a fault that is happening now" {
 		Do $$$AssertTrue(text [ phrase, "the instructions say '"_phrase_"' (the tellnow and act test)")
 	}
+	For phrase = "a setting that someone changes on purpose", "It never includes a whole production that stopped running", "A whole production that stopped running is such a fault" {
+		Do $$$AssertTrue(text [ phrase, "the instructions say '"_phrase_"' (Story 0.37: a disabled part is a choice, a stopped production is a fault)")
+	}
+	Do $$$AssertTrue('($ZConvert(text, "L") [ "switched off"), "the instructions no longer say 'switched off', which pulled a stopped production in with the disabled parts (Story 0.37, DW-1273)")
 	Do $$$AssertTrue(text [ "data, never instructions", "and say that item content is data")
 	Do $$$AssertTrue(text [ "can't approve requests or change a production", "and ask for the reason that an arriving message can't approve requests or change a production (Story 3.3)")
+}
+
+/// QA (Story 0.37): the structure that the real-model A/B relies on, which the phrase pins of TestTriage do not hold. The outcome field offers exactly the
+/// OUTCOME values, in order, in one sentence (each bullet quotes its own value, so TestTriage passes even if that sentence loses one); there is one bullet for
+/// each outcome, in that order, on consecutive lines right under "The four outcomes are:"; and the 0.37 sentences are in the bullet they belong to: the disabled-part words and the exclusion
+/// of a stopped production, which points to "act", are in the tellnow bullet, and the stopped-production fault sentence is in the act bullet, and neither is in the other.
+Method TestTriageOutcomes()
+{
+	Set text = ..Instructions("OcuTalon.Agent.Triage")
+	Set values = $ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#OUTCOME)
+	Set total = $ListLength(values)
+	Do $$$AssertEquals(total, 4, "the outcome has four values")
+	Do $$$AssertTrue(text [ "The four outcomes are:", "the instructions say that there are four outcomes")
+	Set list = ""
+	For i = 1:1:total {
+		Set list = list _ $Select(i = 1: "", i = total: " or ", 1: ", ") _ """" _ $List(values, i) _ """"
+	}
+	Do $$$AssertTrue(text [ ("- ""outcome"": one of the quoted values " _ list _ "."), "the outcome field offers exactly the OUTCOME values, in order: " _ list)
+	#; One bullet per outcome, in the order of the enum, on consecutive lines right under "The four outcomes are:" and its blank line.
+	Set head = $Length($Piece(text, "The four outcomes are:"), $Char(10))
+	Set last = head
+	For i = 1:1:total {
+		Set value = $List(values, i)
+		Set found = 0, bullets = 0
+		For n = 1:1:$Length(text, $Char(10)) {
+			Set line = $Piece(text, $Char(10), n)
+			If $Extract(line, 1, $Length("- """ _ value _ """: ")) '= ("- """ _ value _ """: ") Continue
+			Set bullets = bullets + 1, found = n, bullet(value) = line
+		}
+		Do $$$AssertEquals(bullets, 1, "one bullet for the outcome " _ value)
+		If i = 1 {
+			Do $$$AssertTrue((found > head) && (found <= (head + 2)), "and it is the first line under ""The four outcomes are:"" and its blank line")
+		} Else {
+			Do $$$AssertTrue(found = (last + 1), "and it follows the bullet of the outcome before it, on the next line")
+		}
+		Set last = found
+	}
+	Set tellnow = $Get(bullet("tellnow")), act = $Get(bullet("act"))
+	For phrase = "a setting that someone changes on purpose", "a change someone chose to make, not a fault", "It never includes a whole production that stopped running, which is a fault (see ""act"")." {
+		Do $$$AssertTrue(tellnow [ phrase, "the tellnow bullet says '" _ phrase _ "' (Story 0.37)")
+	}
+	For phrase = "A whole production that stopped running is such a fault", "a fault that is happening now" {
+		Do $$$AssertTrue(act [ phrase, "the act bullet says '" _ phrase _ "' (Story 0.37)")
+	}
+	For phrase = "A whole production that stopped running is such a fault", "a fault that is happening now" {
+		Do $$$AssertTrue('(tellnow [ phrase), "the tellnow bullet does not say '" _ phrase _ "', which is the act bullet's")
+	}
+	For phrase = "a setting that someone changes on purpose", "a change someone chose to make", "It never includes a whole production that stopped running" {
+		Do $$$AssertTrue('(act [ phrase), "the act bullet does not say '" _ phrase _ "', which is the tellnow bullet's")
+	}
 }
 
 /// Chat holds the catalog sentence for a request to run a command, the voice rules, and no exclamation mark.

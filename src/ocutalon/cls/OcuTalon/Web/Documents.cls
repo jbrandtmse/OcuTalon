@@ -2,7 +2,12 @@
 /// (<Map Prefix="/v1/documents">), so the role check, the admin check and the browser envelope run again in the forwarded dispatch:
 ///   - GET /v1/documents lists the session's documents through Ownership.Documents (its own on the online demo, the instance's on a local
 ///     install), newest first: 200 {"documents":[Live.Payload.Document.FromRow ...]}; a failed read is 500 server_error.
-///   - POST /v1/documents takes {"name","content"}: the file's name and its bytes in base64. The body is parsed from the request stream,
+///   - POST /v1/documents takes {"name","content"}: the file's name and its bytes in base64, or (Story 25.6) {"fileRef"}, a file the caller's own session sent in the chat
+///     (OcuTalon.Core.Files; AD-4, AD-21). The fileRef form is a body whose only member is a string fileRef: any other member, a fileRef that is not a string, or both forms is 400
+///     bad_document with no reason. A fileRef that the session has no file for (another session's, unknown or purged: they answer alike, Core.Files.Describe) is 404 not_found; a file
+///     that is not a PDF or a .docx by its stored, byte-derived media type (a photo's) is 400 bad_document with reason wrong_type; the limits of a direct upload apply (empty, too_large).
+///     The bytes come only from Core.Files.Open, go to DocumentOps as a Data.Upload row, and the command carries the stored name and the ContentType of that media type; no bytes
+///     and no extracted text are in the response, the log or the trace. The BODYMAX check comes first, as for the other form. The body is parsed from the request stream,
 ///     never through a string (a 10 MB file is a 14 MB body). A body over BODYMAX, this route's own bound, is 413 body_too_large before it
 ///     is parsed. Then, before any command: a body that is not an object with a string name of 1 to 255 characters
 ///     and a string content of valid base64 is 400 bad_document with no reason; a name whose extension is not in EXTENSIONS is 400
@@ -101,11 +106,19 @@ ClassMethod Add() As %Status
 	If $IsObject(content) && (content.Size > ..#BODYMAX) Quit ..BodyTooLarge()
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	If '..ParseBody(content, .name, .bytes) Quit ..Fail(400, "bad_document", ..#MESSAGEBADDOCUMENT)
-	Set contentType = ..ContentTypeOf(name)
-	If contentType = "" Quit ..Refuse(..#REASONWRONGTYPE)
-	If bytes.Size = 0 Quit ..Refuse(..#REASONEMPTY)
-	If bytes.Size > ..#FILEMAX Quit ..Refuse(..#REASONTOOLARGE)
+	Set parsed = ..ParseJSON(content)
+	If $IsObject(parsed) && (parsed.%GetTypeOf("fileRef") '= "unassigned") {
+		If (parsed.%Size() '= 1) || (parsed.%GetTypeOf("fileRef") '= "string") Quit ..Fail(400, "bad_document", ..#MESSAGEBADDOCUMENT)
+		Set sc = ..FromFile(sessionRef, parsed.%Get("fileRef"), .name, .contentType, .bytes, .refusal)
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		If refusal '= "" Quit $Select(refusal = "not_found": ..Fail(404, "not_found", ..#MESSAGENOTFOUND), 1: ..Refuse(refusal))
+	} Else {
+		If '$IsObject(parsed) || '..Interpret(parsed, .name, .bytes) Quit ..Fail(400, "bad_document", ..#MESSAGEBADDOCUMENT)
+		Set contentType = ..ContentTypeOf(name)
+		If contentType = "" Quit ..Refuse(..#REASONWRONGTYPE)
+		If bytes.Size = 0 Quit ..Refuse(..#REASONEMPTY)
+		If bytes.Size > ..#FILEMAX Quit ..Refuse(..#REASONTOOLARGE)
+	}
 	Set command = ##class(OcuTalon.Msg.Command.AddDocument).%New()
 	Set command.Name = name
 	Set command.ContentType = contentType
@@ -120,6 +133,26 @@ ClassMethod Add() As %Status
 	}
 	If result.Outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The addition was answered "_result.Outcome))
+}
+
+/// The file of the fileRef form (Story 25.6), found only through Core.Files for the caller's own session: name is its stored name, contentType the ContentType of its stored media
+/// type (pdf or docx) and bytes its bytes (Core.Files.Open). refusal is "" for a file that can go on, not_found when the session has no file with this ref (another session's, unknown
+/// or purged: one answer), and otherwise a reason of Refuse (wrong_type for a media type that is not a PDF or a .docx, empty, too_large). The status is an error when a read failed.
+ClassMethod FromFile(sessionRef As %String, fileRef As %String, Output name As %String, Output contentType As %String, Output bytes As %Stream.Object, Output refusal As %String) As %Status [ Private ]
+{
+	Set name = "", contentType = "", bytes = "", refusal = ""
+	Set file = ##class(OcuTalon.Core.Files).Describe(fileRef, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If '$IsObject(file) Set refusal = "not_found" Quit $SYSTEM.Status.OK()
+	Set contentType = $Case(file.mediaType, ##class(OcuTalon.Core.Files).#PDF: "pdf", ##class(OcuTalon.Core.Files).#DOCX: "docx", : "")
+	If contentType = "" Set refusal = ..#REASONWRONGTYPE Quit $SYSTEM.Status.OK()
+	Set bytes = ##class(OcuTalon.Core.Files).Open(fileRef, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If '$IsObject(bytes) Set refusal = "not_found" Quit $SYSTEM.Status.OK()
+	If bytes.Size = 0 Set refusal = ..#REASONEMPTY Quit $SYSTEM.Status.OK()
+	If bytes.Size > ..#FILEMAX Set refusal = ..#REASONTOOLARGE Quit $SYSTEM.Status.OK()
+	Set name = file.name
+	Quit $SYSTEM.Status.OK()
 }
 
 /// GET /v1/documents/:ref: see the class description.
@@ -246,10 +279,30 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 ClassMethod ParseBody(content As %Stream.Object, Output name As %String, Output bytes As %Stream.Object, Output body As %DynamicObject) As %Boolean
 {
 	Set name = "", bytes = "", body = ""
-	If '$IsObject(content) Quit 0
+	Set parsed = ..ParseJSON(content)
+	If '$IsObject(parsed) Quit 0
+	Quit ..Interpret(parsed, .name, .bytes, .body)
+}
+
+/// The request body parsed from its stream, never through a string: the JSON object, or "" when there is no stream, the JSON is bad or it is not an object.
+ClassMethod ParseJSON(content As %Stream.Object) As %DynamicObject [ Private ]
+{
+	Set object = ""
+	If '$IsObject(content) Quit ""
 	Try {
 		Set parsed = ##class(%DynamicAbstractObject).%FromJSON(..Characters(content))
-		If '$IsObject(parsed) || 'parsed.%IsA("%Library.DynamicObject") Quit
+		If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") Set object = parsed
+	} Catch {
+		Set object = ""
+	}
+	Quit object
+}
+
+/// ParseBody's second step: 1 with the name and the decoded bytes of the parsed body when it has a string name of 1 to 255 characters and a string content of valid base64.
+ClassMethod Interpret(parsed As %DynamicObject, Output name As %String, Output bytes As %Stream.Object, Output body As %DynamicObject) As %Boolean [ Private ]
+{
+	Set name = "", bytes = "", body = ""
+	Try {
 		Set body = parsed
 		If (body.%GetTypeOf("name") '= "string") || (body.%GetTypeOf("content") '= "string") Quit
 		Set fileName = body.name
