@@ -2,7 +2,7 @@
 title: 'Story 23.4: Decide when to page the on-call person and when to escalate to the backup'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '397fb9d248e9d08c886f22adffee08adc5ba8cdc'
 baseline_commit: '397fb9d248e9d08c886f22adffee08adc5ba8cdc'
 review_loop_iteration: 0
@@ -287,7 +287,13 @@ Rejected (13):
 - wontfix-theoretical: `TestSessionOwnedNeverPages`' page-audit count is system-wide (gap). Nothing else pages on the warm stack while the class runs, and the mutation shows the count can fail.
 - rejected, the lead's records: the cycle log's `deferred=0` for the rework (blind), the rework's clock times (blind), and frontmatter `done` beside sprint `review` (acceptance).
 
+
+**Rework iteration 2 (Contest Planner ruling DW-1400, ~23:00Z 2026-11-15, prompts/story-238-rulings-20261115.md "DW-1400: ADD the clause"; BINDING):**
+- [ ] [Review] DW-1400 -- the Settings On call line (AC14's `telegramOnly` text, `web/src/app/settings/on-call-section.ts` and wherever the string is defined/mirrored, e.g. the web catalog or ux-strings) becomes, verbatim: "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup." Update every pin of the old line (web node tests such as ux-strings, `web/e2e/settings/on-call.spec.ts` O1, any test-readme or docs pin) to the new text, with a demonstrated mutation (the old line turns the pin red). No other change. 24.3 replaces this line later.
+
 ## Spec Change Log
+
+- 2026-11-15 ~23:05Z (lead, rework iteration 2 of 3, trigger: Planner ruling DW-1400): re-opened for the new On call line.
 
 - 2026-11-15 ~20:40Z (lead, rework iteration 1 of 3, trigger: Planner ruling DW-1396 option (a)): re-opened for the shared-production-only paging rule. The larger on-call.spec.ts change is accepted as a footprint extension.
 

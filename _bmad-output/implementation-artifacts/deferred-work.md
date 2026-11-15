@@ -8535,6 +8535,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: on-call-section.ts telegram-only line vs Watch.Paging.Notice owner check (12101e6e)
 - 2026-11-15T20:03:29Z status=decision-pending owner=burndown by=harvest note=human=Planner_public_text:whether_to_add_a_clause_to_the_approved_On_call_line
+- 2026-11-15T21:45:28Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15:ADD_the_clause(verbatim_new_On_call_line);23.4_rework_2
 ### DW-1398: Test/Watch/Summary.cls:878 builds the same non-quiet incident fixture as DW-1391 (LastAt not in the past), so the background sweep can close it mid-test
 - source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint

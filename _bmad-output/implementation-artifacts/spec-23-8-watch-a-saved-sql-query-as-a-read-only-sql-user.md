@@ -2,7 +2,7 @@
 title: 'Story 23.8: Watch a saved SQL query as a read-only SQL user'
 type: 'feature'
 created: '2026-11-15'
-status: 'blocked'
+status: 'parked'
 baseline_revision: 'def9b963558d32e1b5a04659e34599115f382167'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -186,6 +186,8 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `docs/`,
 
 ## Spec Change Log
 
+- 2026-11-15 ~23:05Z (lead): PARKED out of 1.0.12 by the Contest Planner (option B) on Task 0's evidence; status set to parked.
+
 - 2026-11-15 ~20:45Z (lead, Planner gate): APPROVED with conditions (extended Task 0 hard gate a-d; SELECT results untrusted); D1-D3 accepted; AD-18/AD-24 amended in the spine; contention granted; public text approved verbatim.
 
 ## Review Triage Log
@@ -232,6 +234,15 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `docs/`,
 - `check_status` and the rail are unchanged. The rail renders any kind's row with its title, and source rows are also left out of `check_status`.
 - `EndSession` leaves the rows, as it does source rows. An admin session is durable (AD-4).
 - Ledger: none owned (`LEDGER slice` empty, `owned_ledger=0`).
+
+### PARKED out of 1.0.12 (Contest Planner ruling, ~23:00Z 2026-11-15, prompts/story-238-rulings-20261115.md "23.8 PARKED"; option B; option C refused)
+- **Reason:** Task 0's hard gate failed (evidence: `_bmad-output/implementation-artifacts/evidence/23-8-task0-sql-reader.md`). An extra IRIS login can reach Terminal, CallIn and the Portal home page through instance-wide public services, even with no role and a password nobody knows. Closing that is a security-posture change on the owner's install, which only the owner can approve, and only once the instance's services can be restricted. The Planner puts the decision to the owner with the scope trim. Story 24.5 stays waiting with 23.8.
+- **Findings kept for the record (measured on build 154):**
+  - No role is needed: a user with no role at all can connect and SELECT once an admin grants SELECT on a table (a role with only `%DB_OCUTALON_DATA:R` is not enough: SQL login also needs `%DB_OCUTALON_CODE:R`).
+  - The JDBC loopback logs in through `%Service_Bindings`, not `%Service_SQL`; `%Service_Bindings` has no resource, so no role can withhold it.
+  - `Statement.Execute` is required: JDBC `executeQuery` refuses a non-query on the client before IRIS sees it.
+  - The JDBC jar (`intersystems-jdbc-3.11.0.jar`) and `/usr/bin/java` are present in the shipped image (no new dependency); the refusals (INSERT/UPDATE/DELETE/TRUNCATE/DDL/self-GRANT/ungranted SELECT/chained statements) all held; the password appeared in no CPF, mgr file, journal, audit or event-log row.
+- No 23.8 code exists. Option C (in-process SQL without a separate user) was refused because it breaks the story's promise.
 
 ### Planner rulings, 2026-11-15 (binding; prompts/story-238-rulings-20261115.md "23.8")
 - APPROVED, own installs only; nothing of it exists on the online demo. Vetoes 1-6 APPROVED.
