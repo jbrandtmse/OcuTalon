@@ -12,11 +12,15 @@
  *   its own text), a 400 bad_mcp_server that names a name, an address or a secret text is a field refusal, and every other answer is a form error that carries the
  *   server's own message when it sent one.
  * - withClassification gives the settings with one tool's classification changed and its server's unclassified count worked out again; the sources stay as they were.
+ * - changedTools is the tools that get a changed-tool banner (Story 21.9): `changed` exactly true and a status that is not refused, in the given order. Both
+ *   members are the server's; skipping a refused tool is the one rule the page applies to them (the server reports `changed` for every status).
+ * - toolChangedText fills that banner's sentence, the Message Catalog key settings.toolChangedBanner, word for word.
+ * - withoutChange gives the settings with one tool's `changed` set to false, which the section applies once a classification has saved; the sources stay as they were.
  * - Source polls (Story 21.5): canBeSource says whether a tool gets the "Use as a source" control (Read-only and not refused), INTERVAL_CHOICES are the six "Check every"
  *   choices (labelled by the rail's intervalText, the module's one value import: the rail is in the initial bundle already), sourceBody is the body of a save, toolText,
  *   sourceName and removeSourceName fill the cell and the accessible names, and sourceOutcome is mcpOutcome plus the fields that a refused source names.
  */
-import type { McpSettings, McpSourceBody, McpSourceRow } from '../api/api-types';
+import type { McpSettings, McpSourceBody, McpSourceRow, McpToolRow } from '../api/api-types';
 import { intervalText } from '../rail/rail-view.ts';
 
 /** The three forms of a Remove sentence for a count of pending requests: none, one or more. */
@@ -82,6 +86,7 @@ export const MCP_TEXTS = {
   toolOn: '{tool} on {server}',
   sourceButtonName: 'Use {tool} on {server} as a source',
   removeSourceName: 'Remove the source {source}',
+  toolChanged: '{tool} on {server} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below.',
 } as const;
 
 /** The six "Check every" choices in minutes, each with its words, and the one that the form starts on. */
@@ -121,6 +126,11 @@ export function removeName(server: string): string {
 /** The accessible name of a tool's classification radiogroup. */
 export function classificationName(tool: string, server: string): string {
   return MCP_TEXTS.classificationName.replace('{tool}', () => tool).replace('{server}', () => server);
+}
+
+/** The sentence of a tool's changed-tool banner. */
+export function toolChangedText(tool: string, server: string): string {
+  return MCP_TEXTS.toolChanged.replace('{tool}', () => tool).replace('{server}', () => server);
 }
 
 /** The words for a server's status: attached is Connected, unavailable is Unavailable, and anything else (never checked) is Not checked yet. */
@@ -228,4 +238,14 @@ export function withClassification(settings: McpSettings, server: string, tool: 
   const tools = settings.tools.map((one) => (one.server === server && one.name === tool ? { ...one, classification } : one));
   const unclassified = tools.filter((one) => one.server === server && one.classification === 'unclassified').length;
   return { ...settings, servers: settings.servers.map((one) => (one.name === server ? { ...one, unclassified } : one)), tools };
+}
+
+/** The tools that get a changed-tool banner: `changed` exactly true and a status that is not refused, in the given order. */
+export function changedTools(tools: readonly McpToolRow[]): McpToolRow[] {
+  return tools.filter((tool) => tool.changed === true && tool.status !== 'refused');
+}
+
+/** The settings with one tool's `changed` set to false; every other member and row is kept, and a tool that is not listed changes nothing. */
+export function withoutChange(settings: McpSettings, server: string, tool: string): McpSettings {
+  return { ...settings, tools: settings.tools.map((one) => (one.server === server && one.name === tool ? { ...one, changed: false } : one)) };
 }
