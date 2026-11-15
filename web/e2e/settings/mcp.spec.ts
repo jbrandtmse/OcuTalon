@@ -497,6 +497,10 @@ test('B13: the source form shows a failed save, each refused field with focus on
   });
   await page.route(`**${MCP}/sources/zzsrc13`, async (route) => {
     if (route.request().method() === 'DELETE') {
+      // A 404 says the source is already gone: every list asked for after this answer lacks it, and every list asked for before it holds it.
+      if (removal.status === 404) {
+        gone = true;
+      }
       await route.fulfill(removal);
     } else {
       await route.fallback();
@@ -596,7 +600,6 @@ test('B13: the source form shows a failed save, each refused field with focus on
   // (d) a 404 on a Remove (the source is already gone) shows the server's message, and the list loaded again no longer holds it.
   await reopen();
   removal = refused(404, 'not_found', NOT_FOUND);
-  gone = true;
   await removeButton().click();
   await expect(page.locator('[data-error="sources"]'), "a 404 on a Remove shows the server's message").toHaveText(NOT_FOUND);
   await expect(sources(page).locator('tr[data-source="Existing"]'), 'and the source leaves the list').toHaveCount(0);

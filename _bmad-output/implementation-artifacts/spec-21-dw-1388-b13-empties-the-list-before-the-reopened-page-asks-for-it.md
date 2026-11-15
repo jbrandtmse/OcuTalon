@@ -2,8 +2,8 @@
 title: 'DW-1388: B13 empties the list before the reopened page asks for it'
 type: 'chore'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: 'c284c6d143ac499a613ebe5a29cb9b3f864b7341'
+status: 'done'
+baseline_revision: '76829fcc93f29b40a9604c15d2aefaceee59e522'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -239,9 +239,44 @@ done
 - The traces stayed on the runners (Story 11.27) and were not needed.
 - The sign-in-2 suite ran 897-967 s in a 1182-1186 s budget, and the rest of the unit was green (245 passed).
 
+**Task 0 records (implement stage, lane C, run tags e21dw1388i*):**
+- Item 1: `cd web && npm ci` done (no browser install needed). `ci/iris.sh build` ok.
+- Item 2: the part holding `settings/mcp.spec.ts` is `18/24` (PART 18/24: 2 of 24 spec files, 20 of 246 tests: settings/email.spec.ts settings/mcp.spec.ts); 17 and 19 do not hold it.
+- Item 3: shim run with `B13_REPEAT=1` on the unchanged tree: one `live sign-in-2` call took 154 s wall clock in all (the set-up about 150 s; the unit's `MEASURED live:sign-in-2 suite budget` of about 1335 s is the unit's own allowance for the whole suite, not a measurement; `MEASURED wait test-sign-in.sh:242 102 s` is the first start's wait), B13 itself 2.8 s (suite 3 s). One batch of 30 therefore costs about 150 s + 30 x 3 s, well inside the cap, so the batches are sized by CPU load rather than time.
+- Item 4: old test plus M1 (2 s hold on every `GET /settings/mcp`), `B13_REPEAT=2`, no load: 2 of 2 red, `TimeoutError: locator.click: Timeout 60000ms exceeded` waiting for `getByRole('region', { name: 'Your sources' }).getByRole('button', { name: 'Remove the source Existing' })`. The `error-context.md` snapshot shows `zzb13`, `zz_a` and `zz_b` with "Use as a source", and "Your sources" with "No sources yet.", the CI signature. M1 reverted byte for byte (`cmp` against the backup).
+
+**Implement-stage results (lane C, no dev slot; each stack torn down by its unit):**
+- Edit: `web/e2e/settings/mcp.spec.ts` only (B13's DELETE route sets `gone = true` at a 404; the old `gone = true` before the click removed). `npm --prefix web run lint`: exit 0.
+- mutation: M1 (2 s hold on every `GET /settings/mcp`), old test -> B13 red 2 of 2 at the "Remove the source Existing" click (`locator.click: Timeout 60000ms exceeded`, snapshot "No sources yet.", no `[data-error="sources"]`).
+- mutation: M1, fixed test, `B13_REPEAT=3` -> B13 green 3 of 3 (about 16 s each, far inside its 240 s).
+- mutation: M2 (drop the new `gone = true` from the DELETE route) -> B13 red at "and the source leaves the list" (Expected: 0, Received: 1); reverted byte for byte (`cmp`), then green again (30 of 30 below).
+- mutation: M3 skipped (optional, UI side; B13 already pinned the reload before the fix).
+- Repeats, fixed test, no injection, `B13_BURN=16` (all 16 host cores busy): 30 of 30 green in one batch (the unit's `SPEC ... 30 tests 142s` is its suite timer, and Playwright's `30 passed (3.0m)` is its own run total including worker start). No Docker VM burners. One more no-load run, 1 of 1 green. The old test under load was not run (optional).
+- Regression, no shim: `ci/iris.sh live sign-in-2 --part 18/24`: "test-sign-in-2 part 18/24: all checks passed" (20 passed, email.spec.ts 6 and mcp.spec.ts 14).
+- `cd web && npm test`: 518 suites, 2124 pass, 0 fail. `bash docker/tests/test-boundaries.sh`: all rules passed.
+- Shared surfaces: none (one test's own mock state).
+
+## Review Triage Log
+
+### 2026-11-15 - Review pass
+- verdicts: 7 findings - high 0, medium 0, low 6, false 1, maybe-false 0 (the edge-case layer reported none)
+- findings:
+  - `[low]` `[patch]` Auto Run Result still read "ready-for-dev (plan stage)" while the frontmatter said `in-review` (blind-hunter) - rewritten at finalize.
+  - `[low]` `[patch]` Verification figures (154 s versus a 1335 s budget, 142 s versus 3.0m) were unexplained (blind-hunter) - each figure now says what it measures.
+  - `[low]` `[reject]` The 404 flip is keyed on `removal.status` and B13's header comment does not mention it, B10 not aligned (blind-hunter) - the status key is the spec's design, the route comment states the contract, and a header or B10 edit is outside the one-file, four-line footprint; no named harm.
+  - `[false]` `[reject]` AC3 has no `mutation:` line (verification-gap) - AC3 is a repeat-count criterion; the pinning tests are AC1 (M1) and AC2 (M2), both recorded with a red.
+  - `[low]` `[reject]` M3 not run (verification-gap) - optional in the spec; B13 already pinned the reload (the reload row 3 assertion), and the fix does not change that pin.
+  - `[low]` `[patch]` Stale Auto Run Result (verification-gap) - same root cause as the first row.
+  - `[low]` `[reject]` Evidence is local with an injected delay, not from CI; old test under load not run (intent-alignment) - descriptive; CI cannot be run from this stage, M1 reproduces the CI signature and the optional load run of the old test was not required.
+
 ## Auto Run Result
 
-Status: ready-for-dev (plan stage). Implement, QA and review fill this section.
+Status: done
+Blocking condition: none
 
-- Summary (plan): this is a race in the test. The mock's `gone` flips before the reopened section's list GET reaches the route. The fix is a test-only edit of one file: flip `gone` in the DELETE route at the 404, as B10 does.
-- Size: XS (about 4 lines in one file), plus the stack runs of Task 0 and the repeat batches.
+- Summary: B13 (Story 21.5's source form) raced its own mock: `gone` flipped before the reopened section's list GET reached the route, so the list was empty and the Remove click timed out. The `DELETE /sources/zzsrc13` route now sets `gone = true` when it answers the 404, as B10 does, and the old `gone = true` before the click is removed. Test only; no UI change.
+- Files changed: `web/e2e/settings/mcp.spec.ts` (+4 -1) and this spec.
+- Review: 7 findings (high 0, medium 0, low 6, false 1); patches applied: 3 spec-prose rows (stale result section twice, unexplained figures); deferred: none; rejected: 4 (one false, three low), each with its reason in the triage log.
+- Follow-up review recommended: false (no patched high, no patched medium).
+- Verification: see Verification above. Old test plus M1 red 2 of 2; fixed test plus M1 green 3 of 3; M2 red at "and the source leaves the list"; 30 of 30 green under 16 busy cores; `ci/iris.sh live sign-in-2 --part 18/24` all checks passed (20 tests); lint exit 0; `npm test` 2124 pass, 0 fail; `test-boundaries.sh` all rules passed.
+- Residual risks: the evidence is local (an injected 2 s hold stands in for CI runner load); M3 and the old test under load were not run.
