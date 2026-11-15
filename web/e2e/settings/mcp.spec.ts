@@ -497,7 +497,7 @@ test('B13: the source form shows a failed save, each refused field with focus on
   });
   await page.route(`**${MCP}/sources/zzsrc13`, async (route) => {
     if (route.request().method() === 'DELETE') {
-      // A 404 says the source is already gone: every list asked for after this answer lacks it, and every list asked for before it holds it.
+      // A 404 says the source is already gone: every list answered from this Remove on lacks it. The Remove is clicked on the listed row, so the list it came from held it.
       if (removal.status === 404) {
         gone = true;
       }

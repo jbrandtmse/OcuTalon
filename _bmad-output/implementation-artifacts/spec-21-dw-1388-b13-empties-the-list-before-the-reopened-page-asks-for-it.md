@@ -141,6 +141,35 @@ The `gone` column shows the value the B13 GET route reads when the request reach
 3. Given the fixed test with no injection, under CPU load on lane C's stack, B13 passes at least 30 of 30 (the sum of the batches of the repeat harness).
 4. The rest of the file is unchanged in behavior: the `ci/iris.sh live sign-in-2 --part k/24` part that holds `settings/mcp.spec.ts` (B1-B14 and the other files of the part) passes once, with no shim. `npm --prefix web run lint` passes. `git diff --name-only 9b9898a53` lists only `web/e2e/settings/mcp.spec.ts` and this spec, apart from the run's bookkeeping files.
 
+### Review Findings
+
+Code review, 2026-11-15, lane C, at `725eab9e1` (diff `76829fcc9`..HEAD, bookkeeping excluded). Four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), none failed. 10 findings: high 0, medium 0, low 8, false 2. One patch, 9 rejected, nothing deferred, no ledger entry.
+
+- [x] [Review][Patch] The DELETE route's comment tied the ordering to the wrong moment [web/e2e/settings/mcp.spec.ts:500] - `gone` flips when the DELETE reaches the route, before `route.fulfill`, so "every list asked for before it holds it" overclaimed; the guarantee rests on the Remove needing the listed row. Comment reworded, no behaviour change (blind-hunter + edge-case-hunter + verification-gap + acceptance-auditor; low).
+
+Focus checks (acceptance-auditor, confirmed against the code):
+- The race is gone for every reachable order: the click needs the "Existing" row, the row needs `load()`'s GET answered with `gone` false, the DELETE follows the click, and the reload after the 404 (`mcp-section.ts` L843) starts only after the answer, so it reads `gone` true. No sleep, wait, retry or timeout change.
+- The asserts after the Remove still depend on the flip: `reload()` never clears `sourcesError`, and "and the source leaves the list" / "which is empty" depend only on the reload's answer (M2 pins it). Steps (a)-(c) and (e) are unchanged; 500, 403 and 409 leave `gone` false.
+- B10 and B13 now both flip `gone` inside their DELETE route before the 404 answer (B10 keyed on the call count, B13 on the status); `gone` is local to each test.
+- Test-only: under `web/` the diff is `web/e2e/settings/mcp.spec.ts` alone. `git diff --name-only 9b9898a53` (AC4) lists that file, this spec, `cycle-log-epic-21.md` and `deferred-work.md` (bookkeeping).
+- CI evidence: the four hits' runners (ci-16, ci-55 attempt 1, ci-29, ci-10 attempt 1), branches, SHAs and `mcp.spec.ts:600:24` click timeouts match the logs, both reruns are green, and the test and `web/src/app/settings/` files are identical at every hit. The cited line numbers hold at HEAD.
+
+Runs (lane C, tags `e21dw1388c*`, scratch shim deleted after):
+- `ci/iris.sh build` ok; `ci/iris.sh live sign-in-2 --part 18/24` (no shim, before the comment patch): all checks passed, 20 passed (email 6, mcp 14; B13 1.7 s).
+- After the patch: `npm --prefix web run lint` exit 0; shim run, B13 alone, `B13_REPEAT=20`, `B13_BURN=16`: 20 of 20 green (2.8-4.2 s each).
+- No new pin and no changed assertion, so no new `mutation:` line. Both tags torn down; no burner process, shim or container left.
+
+Rejected:
+- `low` Execution checkboxes still `- [ ]` (blind-hunter, acceptance-auditor) - the fix edits the spec under review; all three tasks are done, as the diff shows.
+- `low` No record of AC4's `git diff --name-only 9b9898a53` (blind-hunter) - spec edit; this review ran it (above), and AC4 holds.
+- `false` The implement stage left burners or the shim behind (blind-hunter) - checked at this review: no `while :; do :; done` process, no `bin/npm` shim, no `e21dw1388*` container.
+- `low` QA's M1 note ("after the Remove button is clicked or not at all needed") is garbled (blind-hunter) - spec prose edit; read it as: the GET comes late but is still answered with `gone` false before the click.
+- `low` QA's "both orderings" overclaims (blind-hunter) - spec prose edit; only one order is reachable (the DELETE needs the row), and M1 and M4 cover a late GET and a late DELETE answer.
+- `false` AC4 has no `mutation:` line (verification-gap) - AC4 is a no-regression criterion over untouched tests; there is no pin of its own to mutate.
+- `low` The CI evidence's budget range "1182-1186 s" is wrong (acceptance-auditor) - spec edit; the hits' `MEASURED live:sign-in-2 suite budget` values are 1186, 1153, 1182 and 1140 s, so 1140-1186 s. The suite times and "245 passed" are right.
+- `low` `status: done` and the Auto Run Result were written before QA and this review, and omit QA's M4 (acceptance-auditor) - the status is the lead's; spec edit.
+- `low` The Code Map puts step (c) at L568; at the baseline its comment is at L564 (acceptance-auditor) - spec edit; every other citation checked is correct.
+
 ## Spec Change Log
 
 ## Design Notes

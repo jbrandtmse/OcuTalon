@@ -454,3 +454,5 @@
 2026-11-15T18:38:59Z	DW-1388	stage_spawned	stage=qa spawn_at=2026-11-15T18:38:59Z model=sonnet effort=high agent_name=dw-1388-qa-1 cycle_iteration=1
 2026-11-15T18:48:02Z	DW-1388	qa_complete	model=sonnet commit=282c9b3eb tests=none_needed candidates=B1-B14,support/mcp.ts,settings/*.spec.ts(all_safe_but_B13d_fixed) determinism=M1(late_GET)_5/5,M4(late_DELETE)_5/5 findings=none
 2026-11-15T18:48:02Z	DW-1388	stage_spawned	stage=code-review spawn_at=2026-11-15T18:48:02Z model=opus effort=high agent_name=dw-1388-code-review-1 cycle_iteration=1
+2026-11-15T18:59:43Z	DW-1388	cr_complete	model=opus findings=10(1_low_patched:comment_wording,7_low_rejected_spec-prose_recorded,2_false) high=0 med=0 ledger=none final_status=done rule3=part18/24_20/20,B13_20/20_BURN16
+2026-11-15T18:59:43Z	DW-1388	ledger	DW-1388=resolved-by:dw-1388
