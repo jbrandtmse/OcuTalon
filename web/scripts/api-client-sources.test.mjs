@@ -47,6 +47,17 @@ describe('sendFile (Story 25.3)', () => {
   });
 });
 
+describe('the source poll methods (Story 21.5)', () => {
+  it('setMcpSource() is a POST of the body to /settings/mcp/sources that answers the McpChanged', () => {
+    assert.equal(method(client, 'setMcpSource'), 'return this.http.post<McpChanged>(`${BASE}/settings/mcp/sources`, body);');
+    assert.match(types.code, /export interface McpSourceBody \{\n  server: string;\n  tool: string;\n  name: string;\n  arguments: string;\n  intervalMinutes: number;\n\}/, 'the body has exactly the five members');
+  });
+
+  it('removeMcpSource() is a DELETE of /settings/mcp/sources/<ref> with the body {} that answers the McpChanged', () => {
+    assert.equal(method(client, 'removeMcpSource'), 'return this.http.delete<McpChanged>(`${BASE}/settings/mcp/sources/${encodeURIComponent(ref)}`, { body: {} });');
+  });
+});
+
 describe('the three methods', () => {
   it('pairingCode() is a POST of {} to /pairing/code that answers the PairingCode', () => {
     assert.equal(method(client, 'pairingCode'), 'return this.http.post<PairingCode>(`${BASE}/pairing/code`, {});');

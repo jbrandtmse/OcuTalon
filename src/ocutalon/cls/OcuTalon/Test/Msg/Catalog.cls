@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 154 keys of OcuTalon.Msg.Catalog.Core and the 117 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 154 keys of OcuTalon.Msg.Catalog.Core and the 121 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 20 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -82,16 +82,18 @@ Method TestEntries()
 	// Story 21.7 (Contest Planner ruling 2026-11-12, PUBLIC TEXT E1): email.digestSubject takes the Core count to 144.
 	// Story 21.4 (Contest Planner ruling 2026-11-12, PUBLIC TEXT T1): settings.mcpOffOnDemo takes the Core count to 145.
 	// Story 21.10 (Contest Planner ruling 2026-11-13, PUBLIC TEXT V9): toolCall.inputsTooLong, and Story 25.5 (Contest Planner ruling 2026-11-13, PUBLIC TEXT 1 to 9): the nine answered.notApprover* and answered.notAdmin keys, take the Core count to 155.
-	Do $$$AssertEquals(keys.core.%Size(), 155, "the expected Core list has 155 keys")
+	// Story 21.11 (Contest Planner ruling 2026-11-15, PUBLIC TEXT N1 to N3): fix.emailRequest, fix.emailSent and fix.emailNotSent take the Core count to 158.
+	Do $$$AssertEquals(keys.core.%Size(), 158, "the expected Core list has 158 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
 	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
 	// Story 23.5 (Contest Planner ruling 2026-11-09): the 11 keys of the partner delay notice (incident.partnerRequest; result.partnerSent, partnerSentSome, partnerNotSent, partnerKept, partnerNotDrafted; summary.requestedPartner, partnerSent, partnerKept, partnerNotSent; partner.subject) take the Watch count to 116, and press.approvedPartner takes the Core count to 139 (140 with Story 41.15's memory.learnedSaved).
 	// Story 23.7 (Contest Planner Public Text ruling 2026-11-11): the key watch.queueBacklog takes the Watch count to 117.
-	Do $$$AssertEquals(keys.watch.%Size(), 117, "the expected Watch list has 117 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 155 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 117 keys")
+	// Story 26.2 (Contest Planner Public Text ruling 2026-11-14, with the H2 gate of the same day): files.tooLarge, files.unreadable and files.offOnDemo (Telegram's refusals) and files.noReader (the existing no-reader reply, while no reader is on) take the Watch count to 121.
+	Do $$$AssertEquals(keys.watch.%Size(), 121, "the expected Watch list has 121 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 158 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 121 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1209,6 +1211,9 @@ XData Keys [ MimeType = application/json ]
   "toolCall.done",
   "toolCall.failed",
   "toolCall.failedWithReason",
+  "fix.emailRequest",
+  "fix.emailSent",
+  "fix.emailNotSent",
   "settings.emailHeading",
   "settings.emailHelp",
   "settings.emailAddress",
@@ -1361,7 +1366,11 @@ XData Keys [ MimeType = application/json ]
   "mcp.toolChanged",
   "mcp.replayToolChanged",
   "mcp.sourceStopped",
-  "watch.queueBacklog"
+  "watch.queueBacklog",
+  "files.tooLarge",
+  "files.unreadable",
+  "files.offOnDemo",
+  "files.noReader"
  ]
 }
 }
@@ -1690,6 +1699,9 @@ XData Fixtures [ MimeType = application/json ]
  "toolCall.done": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send ran once at 14:12 ET."},
  "toolCall.failed": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send failed at 14:12 ET. I won't run it again without a new approval."},
  "toolCall.failedWithReason": {"slots": {"tool": "zz_send", "reason": "This request was held before an update and cannot be run again safely, so please ask again."}, "text": "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again."},
+ "fix.emailRequest": {"slots": {"inputs": [{"name": "to", "value": "[\"bob@example.test\",\"ann@example.test\"]"}, {"name": "subject", "value": "\"Late  order\""}, {"name": "text", "value": "\"Hi Bob,\\u000D\\u000A\\u0009Sorry.\""}]}, "text": "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\nto: [\"bob@example.test\",\"ann@example.test\"]\nsubject: \"Late  order\"\ntext: \"Hi Bob,\\u000D\\u000A\\u0009Sorry.\"\nApproving sends exactly this email once."},
+ "fix.emailSent": {"slots": {}, "text": "The email was sent."},
+ "fix.emailNotSent": {"slots": {"reason": "No outgoing mail server is connected, so the email wasn't sent."}, "text": "No outgoing mail server is connected, so the email wasn't sent."},
  "watch.productionStopped": {"slots": {"production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The Orders production stopped at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.itemDisabled": {"slots": {"itemName": "order importer", "production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The order importer in the Orders production was disabled at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.unknownProduction": {"slots": {"name": "Order", "list": "Orders, Billing"}, "text": "I can't find a production called 'Order'. I can see: Orders, Billing. Which one did you mean?"},
@@ -1807,6 +1819,10 @@ XData Fixtures [ MimeType = application/json ]
  "mcp.replayToolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed."},
  "mcp.sourceStopped": {"slots": {"source": "Open tickets", "tool": "lookup", "server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "The source Open tickets stopped polling at 14:15 ET, because its tool lookup on Tickets is no longer Read-only. Your digest lists it as not checked."},
  "watch.queueBacklog": {"slots": {"itemName": "QueueSink", "production": "Orders", "count": 105, "time": "2026-10-16T18:12:00Z", "oldestAt": "2026-10-16T18:02:00Z"}, "text": "The QueueSink queue in the Orders production had 105 messages waiting at 14:12 ET, the oldest since 14:02 ET.\nWhy now: you asked me to watch queue backlogs."},
+ "files.tooLarge": {"slots": {"size": "10.1 MB"}, "text": "That file is 10.1 MB; the limit is 10 MB."},
+ "files.unreadable": {"slots": {"reason": "it isn't a PDF, Word (.docx), JPEG or PNG file"}, "text": "I couldn't read that file: it isn't a PDF, Word (.docx), JPEG or PNG file."},
+ "files.offOnDemo": {"slots": {}, "text": "Sending files is off on the online demo. It works on your own install."},
+ "files.noReader": {"slots": {"name": "report.pdf"}, "text": "I got report.pdf, but I can't read files yet."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
  "settings.emailAddress": {"slots": {}, "text": "Your email address"},

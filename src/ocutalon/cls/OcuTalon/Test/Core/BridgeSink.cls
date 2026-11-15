@@ -38,9 +38,14 @@
 ///     (the key from the row's AnsweredAction and Result, the server form of the request when the ToolSource names an MCP server,
 ///     the inputs as an array of {name, value}, one member per top-level member, never cut and with the whole arguments redacted first; a
 ///     cancelled request of an MCP server that has no row any more sends answered.canceled and its approval event carries the server and
-///     cancelledAt, any other cancellation sends nothing), a fix, a setting, an old held row and any other owner send none, an old
+///     cancelledAt, any other cancellation sends nothing), a fix with no FixKind, a setting, an old held row and any other owner send none, an old
 ///     held row's fallback Decision sends the one result notice with the bridge's reason (and the approval event carries it) or, for
 ///     any other line, toolCall.failed with no reason, and a failed or throwing send is one warning; they run on the probe.
+///   - TestStandaloneEmailNotices, TestRequestTextFillsTheDryRun (Story 21.11, AD-31, AD-32): a standalone email request (kind fix, FixKind email, no
+///     incident, a session as its owner) sends fix.emailRequest with empty Slots, the answered.* notices of a tool call, and fix.emailSent or
+///     fix.emailNotSent {reason} for its result (an accepted sentence of the run, else MESSAGEFAILED), never any recipient, subject or text in a
+///     notice, and nothing for a cancellation, for an incident's fix, another fix, the owners instance and eval or another session's row;
+///     RequestText gives the exact text of each channel from the stored dry run, redacts it, and fails closed with an error that names only the Ref.
 /// DW-300: the check rows that the approval tests seed are due a day ahead (the Check helper asserts it), and Events counts only the type
 /// that a caller names, so that a heartbeat tick cannot run a row or add a check event in the middle of a test.
 /// Every row comes from Test.Data.Fixture, and each test removes its own rows by Ref. The events are read from the fixture
@@ -58,6 +63,9 @@ Property Refs As %String(MAXLEN = "");
 /// The number of the newest row of the event log when the test began.
 Property LogMark As %Integer;
 
+/// The id of the FixRun that Run made, "" for none.
+Property Runs As %String;
+
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
@@ -74,6 +82,7 @@ Method OnBeforeOneTest() As %Status
 {
 	Kill ^OcuTalonTest("BridgeSinkNotice")
 	Set ..Refs = ""
+	Set ..Runs = ""
 	Set ..LogMark = ..LastLog()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
@@ -84,7 +93,9 @@ Method OnAfterOneTest() As %Status
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Bridge.Context).End()
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	If ..Runs '= "" Do ##class(OcuTalon.Data.FixRun).%DeleteId(..Runs)
 	Set ..Refs = ""
+	Set ..Runs = ""
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass IN (?, ?, ?, ?)", ..LogMark, "OcuTalon.Core.BridgeSink", "OcuTalon.Test.Core.BridgeSinkProbe", "OcuTalon.Test.Core.BridgeSinkRefusedProbe", "OcuTalon.Test.Core.BridgeSinkNoticeProbe")
 	Quit $SYSTEM.Status.OK()
 }
@@ -1033,6 +1044,172 @@ Method TestToolCallNoticesOnlyForReplayableSessionRows()
 	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
 }
 
+/// A standalone email request (Story 21.11): a fix with no incident and FixKind email of a session sends fix.emailRequest with empty Slots, the answered.*
+/// notices of a tool call, and fix.emailSent or fix.emailNotSent {reason} for its result, and no notice holds a recipient, the subject or the text. The reason
+/// is the run's own when it is one of the accepted sentences (Channel.Email.Out's and Fix.Kind.Email's EMAILNOSTART), else Channel.Email.Out's MESSAGEFAILED:
+/// a raw reason, an empty one, an interrupted run and a request with no run give MESSAGEFAILED. A cancellation sends nothing.
+Method TestStandaloneEmailNotices()
+{
+	Set session = ..Session("emailkinds")
+	Set ref = ..EmailRow(session, "pending")
+	Do ..Fire(session, "approval.raised", ref)
+	Do $$$AssertEquals(..Calls(), 1, "approval.raised sends one notice")
+	Do ..ExpectNotice(1, session, ref, "approval", "fix.emailRequest", "", "raised")
+	Do $$$AssertEquals(..NoticeCall(1, "slots"), "{}", "its Slots are empty")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 1, "and the approval event is published as before")
+
+	Do ..Change(ref, {"State": "done", "AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": "2030-01-01T10:05:00Z"})
+	Do ..Fire(session, "approval.answered", ref)
+	Do ..ExpectNotice(2, session, ref, "answered", "answered.approved", "channel,time", "approved")
+	Do $$$AssertEquals(..Slot(2, "channel")_"|"_..Slot(2, "time"), "phone|2030-01-01T10:05:00Z", "the channel and time of the answer")
+	Do ..Change(ref, {"State": "rejected", "AnsweredAction": "reject", "AnsweredChannel": "telegram"})
+	Do ..Fire(session, "approval.answered", ref)
+	Do ..ExpectNotice(3, session, ref, "answered", "answered.rejected", "channel,time", "rejected")
+	Do ..Change(ref, {"State": "expired"})
+	Do ..Fire(session, "approval.expired", ref)
+	Do ..ExpectNotice(4, session, ref, "answered", "answered.expired", "time", "expired")
+	Do $$$AssertEquals(..Slot(4, "time"), "2030-01-02T09:00:00Z", "with the request's ExpiresAt")
+	Do ..Fire(session, "approval.cancelled", ref)
+	Do $$$AssertEquals(..Calls(), 4, "approval.cancelled sends nothing")
+
+	Set finishedAt = "2030-01-01T10:06:00Z"
+	Do ..Change(ref, {"State": "done", "Result": "done", "FinishedAt": (finishedAt)})
+	Do ..Fire(session, "approval.result", ref)
+	Do ..ExpectNotice(5, session, ref, "result", "fix.emailSent", "", "result done")
+	Do $$$AssertEquals(..NoticeCall(5, "slots"), "{}", "result done: with empty Slots")
+	Do ..Change(ref, {"Result": "failed"})
+	Set n = 5
+	Set failed = ##class(OcuTalon.Core.BridgeSink).#KEYEMAILNOTSENT
+	Set mayHave = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	Set reasons = $ListBuild($Parameter("OcuTalon.Fix.Kind.Email", "EMAILNOSTART"))
+	For name = "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEUNREACHABLE", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE", "MESSAGEFAILED", "MESSAGEMAYHAVESENT" {
+		Set reasons = reasons_$ListBuild($Parameter("OcuTalon.Channel.Email.Out", name))
+	}
+	Set position = 0
+	While $ListNext(reasons, position, reason) {
+		Do ..Run(ref, reason)
+		Do ..Fire(session, "approval.result", ref)
+		Set n = n + 1
+		Do ..ExpectNotice(n, session, ref, "result", failed, "reason", "reason "_$Extract(reason, 1, 24))
+		Do $$$AssertEquals(..Slot(n, "reason"), reason, "an accepted sentence is the reason: "_$Extract(reason, 1, 30))
+	}
+	For raw = "java.lang.Exception: boom for bob@example.test", "", "interrupted", "OcuTalon couldn't start sending the email, so it wasn't sent. Extra", $ZConvert($Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREFUSED"), "U") {
+		Do ..Run(ref, raw)
+		Do ..Fire(session, "approval.result", ref)
+		Set n = n + 1
+		Do ..ExpectNotice(n, session, ref, "result", failed, "reason", "raw reason '"_$Extract(raw, 1, 20)_"'")
+		Do $$$AssertEquals(..Slot(n, "reason"), mayHave, "any other reason, an empty one and a near miss give MESSAGEFAILED: '"_$Extract(raw, 1, 20)_"'")
+	}
+	Do ..Change(ref, {"Result": "interrupted"})
+	Do ..Run(ref, "")
+	Do ..Fire(session, "approval.result", ref)
+	Set n = n + 1
+	Do ..ExpectNotice(n, session, ref, "result", failed, "reason", "interrupted")
+	Do $$$AssertEquals(..Slot(n, "reason"), mayHave, "an interrupted run gives MESSAGEFAILED")
+	Do ..Change(ref, {"Result": "failed"})
+	Do ##class(OcuTalon.Data.FixRun).%DeleteId(..Runs)
+	Set ..Runs = ""
+	Do ..Fire(session, "approval.result", ref)
+	Set n = n + 1
+	Do ..ExpectNotice(n, session, ref, "result", failed, "reason", "no run")
+	Do $$$AssertEquals(..Slot(n, "reason"), mayHave, "a request with no run gives MESSAGEFAILED")
+	Do ..Change(ref, {"Result": ""})
+	Do ..Fire(session, "approval.result", ref)
+	Do ..Change(ref, {"Result": "done", "FinishedAt": ""})
+	Do ..Fire(session, "approval.result", ref)
+	Do ..Change(ref, {"Result": "changed", "FinishedAt": (finishedAt)})
+	Do ..Fire(session, "approval.result", ref)
+	Do $$$AssertEquals(..Calls(), n, "a result event with no Result, no FinishedAt or the result changed sends nothing")
+
+	Set markers = ..Markers()
+	For call = 1:1:n {
+		Set position = 0
+		While $ListNext(markers, position, marker) {
+			Do $$$AssertEquals(..Leaks(call, marker), 0, "notice "_call_" holds no "_$Piece(marker, " ", 1)_" marker")
+		}
+	}
+
+	Set incident = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set other = ..Session("emailother")
+	Set rows = $ListBuild(..EmailRow(session, "pending", {"IncidentRef": (incident)}), ..EmailRow(session, "pending", {"FixKind": "reroute"}), ..EmailRow(session, "pending", {"FixKind": ""}), ..EmailRow(session, "pending", {"Kind": "setting"}), ..EmailRow(other, "pending"))
+	Set before = ..Calls()
+	Set types = $ListBuild("approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result")
+	Set position = 0
+	While $ListNext(rows, position, row) {
+		Do ..Change(row, {"AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": "2030-01-01T10:05:00Z", "Result": "done", "FinishedAt": (finishedAt)})
+		Set position2 = 0
+		While $ListNext(types, position2, type) {
+			Do ..Fire(session, type, row)
+		}
+	}
+	For owner = "instance", "eval" {
+		Set row = ..EmailRow(owner, "pending", {"AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": "2030-01-01T10:05:00Z", "Result": "done", "FinishedAt": (finishedAt)})
+		Set position2 = 0
+		While $ListNext(types, position2, type) {
+			Do ..Fire(owner, type, row)
+		}
+	}
+	Do $$$AssertEquals(..Calls(), before, "an email request with an incident, a fix of another kind or none, a setting, another session's row and the owners instance and eval send no notice")
+	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
+}
+
+/// RequestText (Story 21.11): the text of a standalone email request for a channel, from its stored dry run through InputsOf and the catalog, so that the line breaks and
+/// the tab of the text show as \uXXXX, the spaces stay and every recipient is there; a secret in the text is redacted; and a row that can't be read gives an error that
+/// names only the Ref, with no text.
+Method TestRequestTextFillsTheDryRun()
+{
+	Set session = ..Session("emailtext")
+	Set ref = ..EmailRow(session, "pending")
+	Set lf = $Char(10)
+	Set expected = "Send an email"_lf_"Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval."_lf_"Dry run:"_lf
+	Set expected = expected_"to: [""bob@example.test"",""ann@example.test""]"_lf_"subject: ""Late  order"""_lf_"text: ""Hi Bob,\u000D\u000A\u0009Sorry."""_lf_"Approving sends exactly this email once."
+	Set notification = ..EmailNotice(session, ref)
+	For channel = "phone", "web", "telegram" {
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(notification, channel, .sc)
+		Do $$$AssertStatusOK(sc, channel_": the request renders")
+		Do $$$AssertEquals(text, expected, channel_": the exact text, with the escapes, both spaces and every recipient")
+		For code = 13, 9 {
+			Do $$$AssertTrue(text '[ $Char(code), channel_": no character "_code_" is in the text")
+		}
+	}
+	Do $$$AssertEquals(notification.Slots, "{}", "the notification passed to RequestText for the three channels still holds no slot")
+
+	Set secret = "sk-"_$Translate($Justify("", 30), " ", "a")
+	Set tail = ..EmailRow(session, "pending", {"DryRun": ({"to": ["bob@example.test"], "subject": "s", "text": ("key "_secret_" end")}.%ToJSON())})
+	For channel = "phone", "web", "telegram" {
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(..EmailNotice(session, tail), channel, .sc)
+		Do $$$AssertStatusOK(sc, channel_": a request with a secret renders")
+		Do $$$AssertTrue(text '[ secret, channel_": without the secret")
+		Do $$$AssertTrue(text [ "[redacted]", channel_": with [redacted] in its place")
+	}
+
+	Set deep = ""
+	For i = 1:1:150 Set deep = deep_"{""a"":"
+	Set deep = deep_"1"
+	For i = 1:1:150 Set deep = deep_"}"
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Redact).Text(deep), ##class(OcuTalon.Bridge.Redact).#UNCHECKED, "the fixture text is one that the redactor can't check")
+	Set other = ..Session("emailtextother")
+	Set bad = $ListBuild(..EmailRow(session, "pending", {"DryRun": "not json"}), ..EmailRow(session, "pending", {"DryRun": "[1]"}), ..EmailRow(session, "pending", {"DryRun": ""}), ..EmailRow(session, "pending", {"DryRun": (deep)}), ..EmailRow(other, "pending"), ##class(OcuTalon.Bridge.Ids).NewRef(), ..EmailRow(session, "pending", {"FixKind": "reroute"}), ..ToolRow(session, "pending"))
+	Set position = 0
+	While $ListNext(bad, position, row) {
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(..EmailNotice(session, row), "phone", .sc)
+		Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "request "_row_": an error")
+		Do $$$AssertEquals(text, "", "and no text")
+		Set message = $SYSTEM.Status.GetOneStatusText(sc)
+		Do $$$AssertEquals(message, ##class(OcuTalon.Core.BridgeSink).#ERRORREQUESTTEXT_row, "the error names only the Ref: "_message)
+	}
+	Do $$$AssertTrue($SYSTEM.Status.IsError(..RequestStatus(..EmailNotice("", ref))), "a notification with no session gives an error")
+
+	Set slots = {"tool": "zz_send", "inputs": [{"name": "to", "value": ("""ops""")}]}.%ToJSON()
+	Set tool = ..EmailNotice(session, ref)
+	Set tool.CatalogKey = "toolCall.request"
+	Set tool.Slots = slots
+	Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(tool, "phone", .sc)
+	Do $$$AssertStatusOK(sc, "a key that is not the email's renders from its own slots")
+	Do $$$AssertEquals(text, ##class(OcuTalon.Msg.Catalog).Render("toolCall.request", slots, "phone"), "exactly as the catalog renders them: the stored dry run adds no line")
+	Do $$$AssertEquals(tool.Slots, slots, "and its slots are unchanged")
+}
+
 /// DW-454: an approved call held before ToolSource and Runner existed is closed failed by Decide, and approval.result sends nothing for
 /// it. Its fallback Decision then sends the one result notice with the bridge's reason (DecisionRef set, no buttons), and the approval
 /// event carries that reason. An empty reason, or a row that is not failed, sends nothing.
@@ -1165,6 +1342,74 @@ Method ToolRow(owner As %String, state As %String, fields As %DynamicObject = ""
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, , state, , row)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// A standalone email request of the owner (kind fix, FixKind email, no incident) with the dry run {to: [bob@example.test, ann@example.test], subject "Late  order", text
+/// "Hi Bob," CR LF tab "Sorry."}, built in code, recorded for the clean-up; fields, an object of property names and values, is set after the defaults.
+Method EmailRow(owner As %String, state As %String, fields As %DynamicObject = "") As %String [ Private ]
+{
+	Set dry = {"to": ["bob@example.test", "ann@example.test"], "subject": "Late  order", "text": ("Hi Bob,"_$Char(13, 10)_$Char(9)_"Sorry.")}
+	Set row = {"Kind": "fix", "FixKind": "email", "DryRun": (dry.%ToJSON())}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.key, .value) {
+			Do row.%Set(key, value)
+		}
+	}
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, , state, , row)
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// The run of the request with the reason (its FixRun, replacing the test's earlier one), kept for OnAfterOneTest.
+Method Run(ref As %String, reason As %String) [ Private ]
+{
+	If ..Runs '= "" Do ##class(OcuTalon.Data.FixRun).%DeleteId(..Runs)
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Set run.ApprovalRef = ref
+	Set run.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set run.EndedAt = run.StartedAt
+	Set run.Reason = reason
+	Do $$$AssertStatusOK(run.%Save(), "the run is saved")
+	Set ..Runs = run.%Id()
+}
+
+/// The markers that no notice may hold: the first recipient, the subject and the text of the fixture email.
+Method Markers() As %List [ Private ]
+{
+	Quit $ListBuild("bob@example.test", "Late  order", "Hi Bob", "ann@example.test", "Sorry.")
+}
+
+/// The number of fields of the recorded notice n that hold the marker.
+Method Leaks(n As %Integer, marker As %String) As %Integer [ Private ]
+{
+	Set count = 0
+	Set field = ""
+	For {
+		Set field = $Order(^OcuTalonTest("BridgeSinkNotice", "calls", n, field))
+		Quit:field=""
+		If ^OcuTalonTest("BridgeSinkNotice", "calls", n, field) [ marker Set count = count + 1
+	}
+	Quit count
+}
+
+/// A notification for the session and the request, as the sink composes the email request's: kind approval, fix.emailRequest, empty Slots.
+Method EmailNotice(session As %String, ref As %String) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = session
+	Set notification.Kind = "approval"
+	Set notification.CatalogKey = "fix.emailRequest"
+	Set notification.Slots = "{}"
+	Set notification.ApprovalRef = ref
+	Quit notification
+}
+
+/// The status of RequestText for the notification.
+Method RequestStatus(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Do ##class(OcuTalon.Core.BridgeSink).RequestText(notification, "phone", .sc)
+	Quit sc
 }
 
 /// Sets the properties of the request's row (an object of names and values) and saves it.

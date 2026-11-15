@@ -18,13 +18,17 @@
 ///     incident's stored summary rendered one catalog line per part, in place of the rendering of the CatalogKey (its Slots are empty, so no untrusted text and no
 ///     user name travels in the message). The row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. A summary that cannot be read or rendered
 ///     is an error with no row and no event;
+///   - A standalone email request's card (Story 21.11; kind approval, the key Core.BridgeSink KEYEMAILREQUEST): the same card path, with the text of Core.BridgeSink.RequestText(request,
+///     "web", .sc) in place of the rendering of the CatalogKey: the email's stored dry run, read by the ApprovalRef, because its Slots are empty and no recipient, subject or text
+///     travels in the message (they would be in the trace). Its result keys (fix.emailSent, fix.emailNotSent) are ordinary result cards. A request text that cannot be made is an
+///     error with no row and no event;
 ///   - Notification of the kind handled (Story 18.4; Core.SessionOps sends it once, when the user marks a tell-now notice as handled):
 ///     Ownership.DeliveryByRef(DecisionRef, "web", SessionRef) gives the notice's newest web row. When that row is a tell-now card with a
 ///     ChannelMessageId, it publishes one more notification event with Live.Payload.Notification.FromRow of THAT row, so the card keeps
 ///     its Ref and now carries handledAt, and then records the Delivery row of kind handled (no text, no ChannelMessageId). A row of kind
 ///     handled (a second press), or no card, records the Delivery row only, with no event;
 ///   - Notification of a tool-call card (Story 31.6; ToolCallCard: kind approval or result, an ApprovalRef, and a CatalogKey that is
-///     one of Core.BridgeSink's six tool-call keys): it takes the same card path, so the chat shows the request with Approve and
+///     one of Core.BridgeSink's nine tool-call and email keys): it takes the same card path, so the chat shows the request with Approve and
 ///     Reject, the result and DW-454's held-call reason from the one Notification that the bridge sink built (DW-601). The persona
 ///     notices of Core.SettingsOps (Story 40.6) take the same path: its KEYPROPOSED (kind approval), KEYAPPLIED and KEYSTALE (kind
 ///     result), read by $Parameter, with an ApprovalRef; the kind answered stays a Delivery row only. The one result without an ApprovalRef that takes this path is
@@ -82,6 +86,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
+	} ElseIf (request.Kind = "approval") && (request.CatalogKey = $Parameter("OcuTalon.Core.BridgeSink", "KEYEMAILREQUEST")) {
+		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}
@@ -104,14 +110,14 @@ Method OnHandled(request As OcuTalon.Msg.Notification) As %Status [ Private ]
 }
 
 /// 1 when the notification is a tool-call card or a persona card: kind approval or result, an ApprovalRef, and one of the bridge sink's
-/// six tool-call catalog keys or SettingsOps' three persona keys (read from their parameters, never copied); also a result with the catalog key
+/// tool-call and standalone-email catalog keys (six and three) or SettingsOps' three persona keys (read from their parameters, never copied); also a result with the catalog key
 /// Watch.Notice KEYPARTNERNOTDRAFTED, which has no ApprovalRef.
 Method ToolCallCard(request As OcuTalon.Msg.Notification) As %Boolean [ Private ]
 {
 	If (request.Kind '= "approval") && (request.Kind '= "result") Quit 0
 	If (request.Kind = "result") && (request.CatalogKey = $Parameter("OcuTalon.Watch.Notice", "KEYPARTNERNOTDRAFTED")) Quit 1
 	If request.ApprovalRef = "" Quit 0
-	Set keys = $ListBuild($Parameter("OcuTalon.Core.BridgeSink", "KEYREQUEST"), $Parameter("OcuTalon.Core.BridgeSink", "KEYREQUESTON"), $Parameter("OcuTalon.Core.BridgeSink", "KEYDONE"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILED"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILEDWHY"), $Parameter("OcuTalon.Core.BridgeSink", "KEYCHANGED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYPROPOSED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYAPPLIED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYSTALE"))
+	Set keys = $ListBuild($Parameter("OcuTalon.Core.BridgeSink", "KEYREQUEST"), $Parameter("OcuTalon.Core.BridgeSink", "KEYREQUESTON"), $Parameter("OcuTalon.Core.BridgeSink", "KEYDONE"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILED"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILEDWHY"), $Parameter("OcuTalon.Core.BridgeSink", "KEYCHANGED"), $Parameter("OcuTalon.Core.BridgeSink", "KEYEMAILREQUEST"), $Parameter("OcuTalon.Core.BridgeSink", "KEYEMAILSENT"), $Parameter("OcuTalon.Core.BridgeSink", "KEYEMAILNOTSENT"), $Parameter("OcuTalon.Core.SettingsOps", "KEYPROPOSED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYAPPLIED"), $Parameter("OcuTalon.Core.SettingsOps", "KEYSTALE"))
 	Quit $ListFind(keys, request.CatalogKey) > 0
 }
 

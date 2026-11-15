@@ -325,6 +325,8 @@ Method AssignOneSetting(pProperty As %String, pValue As %String, pName As %Strin
 /// (Precheck), are given here (response): the second is recorded (RecordFallback) and nothing is sent, no runner request and no timer.
 /// Otherwise the answer comes from OnResponse. The settings are checked first, so that a misconfigured Decide stays an error status and
 /// is never hidden behind a fallback. The DecisionRef is allocated here and kept in DecisionRef, before the send.
+/// The poll of a source (IsPoll: Kind tool, Provenance untrusted; Story 22.11) is a tool request that is never a replay and has no Decision row: it skips the replay lookup's answer (its ItemId is new), the
+/// conversation hold and the precheck, and is sent to the runner like any other; with no runner it is answered at once by PollAnswer (FailureText failed), and a poll never records a fallback.
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
 	Set response = ""
@@ -347,9 +349,14 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 		Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
 		Quit $$$OK
 	}
+	Set poll = ..IsPoll(request)
+	If poll && (runner = "") {
+		Set response = ..PollAnswer("", 0)
+		Quit $$$OK
+	}
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..DecisionRef = decisionRef
-	If tool && ((runner = "") || ..HeldBeforeUpdate(request)) {
+	If tool && 'poll && ((runner = "") || ..HeldBeforeUpdate(request)) {
 		Set closed = ..FailUnroutable(request)
 		Quit ..RecordFallback(request, decisionRef, "error", "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), 0, 0, $Select(closed: ..#HELDBEFOREUPDATE, 1: ""))
 	}
@@ -404,11 +411,17 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 ///     (RunnerError, cut by StepBuffer.Part to Reply.#MAXFAILURE) or the FailureText of its failure Reply. When the runner answered
 ///     with a Reply and no error status, ResendDelay weighs a re-send first (above); a delay above 0 adds the attempt's steps to
 ///     StepCount, sets the timer resend and answers nothing yet.
+/// For the poll of a source (IsPoll; Story 22.11) the keys end differently: timer answers PollAnswer with Fallback 1 and the FailureText timeout, and reply sends the steps (EmitSteps) and
+/// answers PollAnswer from the runner's Reply (or the word failed for an error status or no Reply), with no re-send, no retry, no Decision row and no event; resend never arises.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	Set kind = request.Kind
 	Set runner = ..RunnerFor(kind, request)
 	If pCompletionKey = "timer" {
+		If ..IsPoll(request) {
+			Set response = ..PollAnswer("", 0, 1)
+			Quit $$$OK
+		}
 		Set facts = {}
 		Do facts.%Set("timedOut", 1, "boolean")
 		Do facts.%Set("resends", $Select(..RetryRunner '= "": 0, 1: ..Resends), "number")
@@ -429,6 +442,10 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	} ElseIf $IsObject(callresponse) && callresponse.%IsA("OcuTalon.Bridge.Msg.Reply") {
 		Set failure = callresponse.FailureText
 		Set answered = 1
+	}
+	If ..IsPoll(request) {
+		Set response = ..PollAnswer(callresponse, answered)
+		Quit $$$OK
 	}
 	If answered && (failure '= "") && (kind '= "tool") && (..RetryRunner = "") {
 		Set facts = {}
@@ -773,6 +790,40 @@ ClassMethod ResendDelay(reason As %String, toolsRun As %Boolean, resends As %Int
 	Quit $Select(delay > fits: fits, 1: delay)
 }
 
+/// 1 when the request is the poll of a source (Story 22.11; AD-6): Kind tool and Provenance untrusted. Admit has refused every other untrusted tool request.
+ClassMethod IsPoll(request As OcuTalon.Bridge.Msg.Request) As %Boolean
+{
+	Quit $IsObject(request) && request.%IsA("OcuTalon.Bridge.Msg.Request") && (request.Kind = "tool") && (request.Provenance = "untrusted")
+}
+
+/// The answer to the poll of a source (Story 22.11; AD-6, AD-30): a bare Reply, as the answer for an approved call that never started is, with no Decision row, no decision.recorded event
+/// and no fallback row. runnerReply is the runner's Reply when answered is 1: its Text, Tainted, Steps, ToolsRun, AgentStepCount, DurationMs, FailureText and HostData are carried over. Any other answer (the
+/// runner's error status, no Reply, no runner) has the FailureText failed, and the timer (timedOut 1) has Fallback 1, FallbackReason and FailureText timeout. The FailureText is a word
+/// for Checks alone (Poll), never the runner's error text.
+ClassMethod PollAnswer(runnerReply As %RegisteredObject, answered As %Boolean, timedOut As %Boolean = 0) As OcuTalon.Bridge.Msg.Reply
+{
+	Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+	If timedOut {
+		Set response.Fallback = 1
+		Set response.FallbackReason = "timeout"
+		Set response.FailureText = "timeout"
+		Quit response
+	}
+	If 'answered || '$IsObject(runnerReply) {
+		Set response.FailureText = "failed"
+		Quit response
+	}
+	Set response.Text = runnerReply.Text
+	Set response.Tainted = runnerReply.Tainted
+	Set response.Steps = runnerReply.Steps
+	Set response.ToolsRun = runnerReply.ToolsRun
+	Set response.AgentStepCount = runnerReply.AgentStepCount
+	Set response.DurationMs = runnerReply.DurationMs
+	Set response.FailureText = runnerReply.FailureText
+	Set response.HostData = runnerReply.HostData
+	Quit response
+}
+
 /// Sends each step record of the runner's reply to the AgentSteps operation, in order, without waiting for an answer: the sends
 /// inherit this process's session and super session, so that the steps sit in the caller's trace session (AD-26). The Positions start
 /// after the steps of the earlier attempts of the decision (StepsSent), which then becomes the Position of the last step built, so that
@@ -839,7 +890,8 @@ ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Re
 }
 
 /// OK when the message is a Request that Decide serves. A message of another class gives "not implemented"; any other problem is an
-/// error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not one of PROVENANCE, and for kind tool not user),
+/// error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not one of PROVENANCE, and for kind tool not user, unless the request is the poll of a source,
+/// Story 22.11: Provenance untrusted and an Input that is exactly {"source": <a Ref>}, Poll SourceOf; any other untrusted tool request is refused naming Provenance),
 /// ItemId (empty, and for kind tool not the Ref of an approval request), OwnerRef, Input (empty once white space and control characters are
 /// removed; a request of kind tool needs none), or SessionMode (not empty, which means continue, and not one of Request SESSIONMODES; the
 /// match is exact, so Fresh is refused).
@@ -853,8 +905,12 @@ ClassMethod Admit(request As %Library.Persistent) As %Status
 	If request.ItemId = "" Quit $$$ERROR($$$GeneralError, "The ItemId of the request is empty")
 	If request.OwnerRef = "" Quit $$$ERROR($$$GeneralError, "The OwnerRef of the request is empty")
 	If request.Kind = "tool" {
-		If request.Provenance '= "user" Quit $$$ERROR($$$GeneralError, "The Provenance '"_request.Provenance_"' of the tool request is not user: only a call that a user approved is replayed")
-		If '##class(OcuTalon.Bridge.Approval).IsRef(request.ItemId) Quit $$$ERROR($$$GeneralError, "The ItemId of the tool request is not the Ref of an approval request")
+		If (request.Provenance = "untrusted") && (##class(OcuTalon.Bridge.Poll).SourceOf(request.Input) '= "") {
+			// the poll of a source: its Input names the source, and its ItemId is a new Ref of its own
+		} Else {
+			If request.Provenance '= "user" Quit $$$ERROR($$$GeneralError, "The Provenance '"_request.Provenance_"' of the tool request is not user: only a call that a user approved is replayed")
+			If '##class(OcuTalon.Bridge.Approval).IsRef(request.ItemId) Quit $$$ERROR($$$GeneralError, "The ItemId of the tool request is not the Ref of an approval request")
+		}
 	} ElseIf $ZStrip(request.Input, "*WC") = "" {
 		Quit $$$ERROR($$$GeneralError, "The Input of the request is empty, so nothing is sent")
 	}
@@ -865,11 +921,12 @@ ClassMethod Admit(request As %Library.Persistent) As %Status
 
 /// The runner item of the request kind (RUNNERS), or "". For kind tool it is the Runner of the tool_call approval request that the ItemId of the
 /// request names (the runner whose job held the call, DW-194), or "" when there is no such row or it names none; a developer's runner item
-/// is not in RUNNERS.
+/// is not in RUNNERS. The one exception is the poll of a source (a tool request with Provenance untrusted, Story 22.11), which gets the runner of kind decide.
 ClassMethod RunnerFor(kind As %String, request As OcuTalon.Bridge.Msg.Request = "") As %String
 {
 	If kind = "tool" {
 		If '$IsObject(request) Quit ""
+		If request.Provenance = "untrusted" Quit ..RunnerFor("decide")
 		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
 		If '$IsObject(row) || (row.Kind '= "tool_call") Quit ""
 		Quit row.Runner
@@ -1502,7 +1559,7 @@ ClassMethod PointLink(request As OcuTalon.Bridge.Msg.Request, runner As %String,
 	Quit sc
 }
 
-/// Conclude for kind tool: the reply of a replay holds no model text, so nothing is classified, filtered or checked. A failure (the text of the
+/// Conclude for kind tool (an approved call's replay; the poll of a source never comes here, PollAnswer answers it, with no row): the reply of a replay holds no model text, so nothing is classified, filtered or checked. A failure (the text of the
 /// runner's failure, or of a Reply whose FailureText is set) is a fallback with the reason error (RecordFallback), whatever the text says, so
 /// that a tool's own error text never marks the day as capped. The one exception is a failure that holds both pieces of NOKEYTEXT in a Reply whose
 /// ToolsRun is 0 (the agent could not be built and the call did not run): its reason is no_key (AD-8) and its Reasons is REPLAYNOKEY. A failure that

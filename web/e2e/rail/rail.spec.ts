@@ -240,6 +240,15 @@ test('R5: a check shows its name, schedule and last run, and a later check event
     await expect(row, 'in the same row').toHaveAttribute('data-mark', 'same');
     await expect(rowOf(page, name), 'still one row').toHaveCount(1);
     await expect(headings(page).nth(1), 'and the same count').toHaveAccessibleName('Background checks, 1');
+
+    // Story 21.5: a source check's schedule reads "Polled every {duration}" from the payload's intervalMinutes.
+    const source = unique('R5s').replace(/^zz /, 'Jira ');
+    const sourceRef = `zzr5s${Date.now().toString(36)}`;
+    await applied(page, await publishCheck(user, { ref: sourceRef, kind: 'source', displayName: source, lastRunAt: today('12:10:00'), result: 'passed', finding: 'No new results', intervalMinutes: 15 }));
+    await expect(rowOf(page, source).locator('.title'), 'a source is named by its display name').toHaveText(source, { timeout: ONE_UPDATE_MS });
+    await expect(rowOf(page, source).locator('.detail'), 'with its poll interval').toHaveText('Polled every 15 minutes');
+    await applied(page, await publishCheck(user, { ref: sourceRef, kind: 'source', displayName: source, lastRunAt: today('12:11:00'), result: 'passed', finding: 'No new results', intervalMinutes: 360 }));
+    await expect(rowOf(page, source).locator('.detail'), 'a later event changes it').toHaveText('Polled every 6 hours', { timeout: ONE_UPDATE_MS });
   } finally {
     await cleanFixtureRows(refs);
   }

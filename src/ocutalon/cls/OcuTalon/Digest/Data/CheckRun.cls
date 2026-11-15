@@ -19,7 +19,7 @@ Property RanAt As %String(MAXLEN = 20);
 /// The result of the run: passed, failed or not_checked.
 Property Result As %String(MAXLEN = 32);
 
-/// For a not_checked run, why: error, timeout or unreachable. Empty otherwise.
+/// For a not_checked run, why: error, timeout, unreachable or stopped (a source whose tool is no longer Read-only, Story 22.11). Empty otherwise.
 Property Reason As %String(MAXLEN = 32);
 
 /// The finding of a failed run, or the short phrase of a not-checked one, written in code.

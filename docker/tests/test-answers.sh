@@ -5,7 +5,7 @@
 # 6.4's close-loop.spec.ts (C1 to C10; the results, rejections, expiry, fallbacks, Dismiss, and the cross-session 404 of the dismiss route,
 # against the real IncidentManager item). The incident and request cards' cases (6.1's I2 to I11 and
 # 6.2's A2 to A10) are in the cards unit (docker/tests/test-cards.sh), and I1 and A1, which also run in Firefox and WebKit, in the floor unit.
-# The cases X1 to X14 of answers.spec.ts:
+# The cases X1 to X15 of answers.spec.ts:
 #   - X1: an incident notice reaches the phone as a message with the catalog's text, the dry run's example in mono, and Approve and Reject
 #     side by side; a later request is a message of its own, and a notice with no request has no buttons;
 #   - X2: Approve on the phone: both buttons busy, then the answered line with focus on it; the chat's card shows the answer within 2 s of the
@@ -29,6 +29,9 @@
 #     ("Run {tool} on {server}", no button);
 #   - X14 (Story 21.10): a request that its removed MCP server cancels shows the cancelled status on the card and the phone, leaves the rail
 #     within one live update, and a press answers nothing (404).
+#   - X15 (Story 21.11): an email to another address (a fix with no incident) reaches the web chat and the phone with the same text, "Send an email", the
+#     reason and its dry run (to, subject and text, whole, line breaks and tabs escaped), the rail row reads "Send an email" with no button; a reject on the
+#     phone edits its message in place and the card shows the status; a result shows "The email was sent.".
 # The stack holds what the first start creates and one fixture user, ZzAnswers (OCUTALON_ANSWERS_USER, with the user role), whose session
 # the specs seed requests into and publish on; the stack starts with no model key. The specs reach the IRIS container with docker exec,
 # which OCUTALON_E2E_IRIS_CONTAINER names. No test stops IRIS or its web server.

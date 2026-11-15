@@ -17,6 +17,12 @@
 ///     submitted or written;
 ///   - TestFailedAnswers: a command answered failed, not_audited or not_allowed is 500 server_error and one answered not_available is 409, on each of the four routes;
 ///   - TestHandoffDiscardedOnFailure: when the submit fails or throws, the add answers 500 and the secret's handoff is discarded all the same.
+///   - Story 21.5 (source polls, POST /sources and DELETE /sources/:ref): TestSetAndRemoveSource (through the real McpOps: a Read-only tool is saved as a source with the exact values, the
+///     caller's session and the acting user, GET lists it with no arguments, saving the name again updates it with the same Ref, and the remove answers 200 removed and drops the row),
+///     TestSourceRouteRefusals (a shape error, @{ and arguments that are not a JSON object are 400 bad_source with the field texts and nothing submitted), TestSourceMcpOpsRefusals (a risky or
+///     unclassified tool, a bad name, the mailbox name, a bad interval and bad arguments are McpOps' words in 400 bad_source, an unknown server or tool is 404, and no row is created),
+///     TestSourceAnswerWords (each McpOps word for a set and a remove maps to its answer, and the recorded command holds every field), TestSourceNotYours (another session's source, a
+///     production row and an unknown Ref are 404 with nothing submitted and the row kept); TestOnlineDemo, TestNotAdmin, TestNotAdminComesFirst and TestFailedAnswers loop both routes too.
 ///   - QA additions: TestAddAcceptsTheLimits (a name of 40, an address of 2,000 and a secret of 4,096 printable characters are added and stored as sent), TestAddWithoutSecret (an absent
 ///     secret and "" add the no-credential entry), TestNotAdminComesFirst (403 before the demo's 409 and before the body, on every route), TestRefusedAddsLeakNoSecret (the secret of a refused or failed
 ///     add is in no answer, log row, audit entry, trace or global) and TestClassifyEveryWord (each word, the list's counts and the Tool audit entries, the tool-name limits).
@@ -366,7 +372,7 @@ Method TestNotAdmin()
 {
 	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
 	Set before = ..Rows()
-	For route = "GET|/v1/settings/mcp", "POST|/v1/settings/mcp/servers", "DELETE|/v1/settings/mcp/servers/zz", "POST|/v1/settings/mcp/classify" {
+	For route = "GET|/v1/settings/mcp", "POST|/v1/settings/mcp/servers", "DELETE|/v1/settings/mcp/servers/zz", "POST|/v1/settings/mcp/classify", "POST|/v1/settings/mcp/sources", "DELETE|/v1/settings/mcp/sources/zz" {
 		Set written = ..PreDispatch($Piece(route, "|", 2), $Piece(route, "|", 1), .continue)
 		Do $$$AssertEquals(continue, 0, route_": the dispatch stops")
 		Do $$$AssertTrue(written [ """not_admin""", route_": 403 not_admin")
@@ -383,6 +389,10 @@ Method TestNotAdmin()
 		Do $$$AssertEquals(response.Status, "403 Forbidden", "remove")
 		Set body = ..Call("Classify", {"server": "zzx", "tool": "t", "classification": "risky"}.%ToJSON(), , , .response)
 		Do $$$AssertEquals(response.Status, "403 Forbidden", "and classify")
+		Set body = ..Call("SetSource", ..SourceBody("zzx", "zz_lookup", "Jira", "{}", 15), , , .response)
+		Do $$$AssertEquals(response.Status, "403 Forbidden", "and a source")
+		Set body = ..Call("RemoveSource", , , "zz", .response)
+		Do $$$AssertEquals(response.Status, "403 Forbidden", "and the source remove")
 	}
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, "nothing was offered or submitted")
 	Do $$$AssertEquals(..Rows(), before, "nothing is stored")
@@ -398,7 +408,7 @@ Method TestOnlineDemo()
 	Set commands = ..Messages()
 	Set wallet = ..Wallet()
 	Set good = {"name": "zzmcpdemo", "address": (..#URL), "secret": "zz-demo-secret-0123456789"}.%ToJSON()
-	For route = "List", "Add", "Remove", "Classify" {
+	For route = "List", "Add", "Remove", "Classify", "SetSource", "RemoveSource" {
 		// a body that no route could read as a request: the answer comes before the body is read
 		For text = good, "not json", "" {
 			Set body = ..Call(route, text, , server, .response)
@@ -434,23 +444,25 @@ Method TestHandoffDiscardedOnFailure()
 	Do $$$AssertEquals(..Rows(), before, "nothing is stored")
 }
 
-/// Every route answers 500 server_error for a command that McpOps or SettingsOps answered failed, not_audited or not_allowed, and 409 not_available with their message for not_available.
+/// Every route (the two source routes too) answers 500 server_error for a command that McpOps or SettingsOps answered failed, not_audited or not_allowed, and 409 not_available with their message for not_available.
 Method TestFailedAnswers()
 {
 	If '..Guard() Quit
 	Set before = ..Rows()
 	Set server = ..Server("o")
+	Set own = ..OwnSource("Jira")
 	For outcome = "failed", "not_audited", "not_allowed", "not_available" {
 		Kill ^OcuTalonTest("McpSettingsProbe")
 		Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:" _ outcome
 		Set status = $Select(outcome = "not_available": "409 Conflict", 1: "500 Internal Server Error")
 		Set code = $Select(outcome = "not_available": "not_available", 1: "server_error")
-		For route = "List", "Add", "Remove", "Classify" {
+		For route = "List", "Add", "Remove", "Classify", "SetSource", "RemoveSource" {
 			Set body = $Case(route,
 				"Add": {"name": (server), "address": (..#URL)}.%ToJSON(),
 				"Classify": {"server": (server), "tool": "t", "classification": "risky"}.%ToJSON(),
+				"SetSource": ..SourceBody(server, "zz_lookup", "Jira", "{}", 15),
 				: "")
-			Set body = ..Call(route, body, , $Select(route = "Remove": server, 1: ""), .response)
+			Set body = ..Call(route, body, , $Case(route, "Remove": server, "RemoveSource": own, : ""), .response)
 			Do $$$AssertEquals(response.Status, status, route_" answers "_status_" for "_outcome)
 			Do $$$AssertEquals({}.%FromJSON(body).error.code, code, route_": "_code_" for "_outcome)
 		}
@@ -537,7 +549,7 @@ Method TestNotAdminComesFirst()
 	Set good = {"name": "zzmcpnoadm", "address": (..#URL), "secret": "zz-noadmin-secret-0123456789"}.%ToJSON()
 	For demo = 0, 1 {
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", demo)
-		For route = "List", "Add", "Remove", "Classify" {
+		For route = "List", "Add", "Remove", "Classify", "SetSource", "RemoveSource" {
 			For text = good, "not json", "[]", "" {
 				Set body = ..Call(route, text, , "zz", .response)
 				Do $$$AssertEquals(response.Status, "403 Forbidden", route_" with '"_$Extract(text, 1, 10)_"', demo "_demo_": 403")
@@ -630,6 +642,218 @@ Method TestClassifyEveryWord()
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(a, "zz_other").Classification, "unclassified", "and zz_other is as it was")
 }
 
+Method TestSetAndRemoveSource()
+{
+	If '..Guard() Quit
+	Set server = ..Server("s")
+	Do ..MakeRow(server)
+	Do ..MakeTool(server, "zz_lookup", "read-only")
+	Do ..MakeTool(server, "zz_delete", "risky")
+	Set text = ..SourceBody(server, "zz_lookup", "Jira", "{""q"":""mine""}", 15)
+	Set body = ..Call("SetSource", text, , , .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "an admin's source of a Read-only tool answers 200")
+	Set answer = {}.%FromJSON(body)
+	Set ref = answer.ref
+	Do $$$AssertEquals(answer.result_"|"_answer.message_"|"_answer.%Size(), "saved|Saved|3", "saved, with McpOps' message and the Ref")
+	Do $$$AssertTrue(ref '= "", "the answer names the Ref")
+	Set recorded = ..Recorded()
+	Do $$$AssertEquals(recorded.class_"|"_recorded.server_"|"_recorded.tool_"|"_recorded.name_"|"_recorded.arguments_"|"_recorded.intervalMinutes_"|"_recorded.actingUser_"|"_(recorded.sessionRef = ..A), "OcuTalon.Msg.Command.SetSourcePoll|"_server_"|zz_lookup|Jira|{""q"":""mine""}|15|"_$Username_"|1", "one SetSourcePoll with exactly the entered values, the acting user and the caller's session")
+	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "the source row is written")
+	If $IsObject(row) Do $$$AssertEquals(row.Kind_"|"_row.SessionRef_"|"_row.DisplayName_"|"_row.Server_"|"_row.Tool_"|"_row.IntervalMinutes, "source|"_..A_"|Jira|"_server_"|zz_lookup|15", "of the caller's session")
+	Set row = ""
+	Set listed = ..Call("List", , , , .response)
+	Set source = ..SourceOf(listed, ref)
+	Do $$$AssertTrue($IsObject(source), "GET lists the source")
+	If $IsObject(source) Do $$$AssertEquals(source.name_"|"_source.server_"|"_source.tool_"|"_source.intervalMinutes_"|"_source.%Size(), "Jira|"_server_"|zz_lookup|15|5", "with ref, name, server, tool and interval, and no arguments")
+	Do $$$AssertEquals(+(listed [ "mine"), 0, "the arguments are in no GET")
+	// the same name again updates
+	Set body = ..Call("SetSource", ..SourceBody(server, "zz_lookup", "Jira", "", 60), , , .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).ref, "200 OK|"_ref, "saving the name again is 200 with the same Ref")
+	Set source = ..SourceOf(..Call("List", , , , .response), ref)
+	Do $$$AssertTrue($IsObject(source), "GET still lists the updated source")
+	If $IsObject(source) Do $$$AssertEquals(source.intervalMinutes, 60, "and the list shows the new interval")
+	Do $$$AssertEquals(..SourceRows(), 1, "there is still one source row")
+	// the remove
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set body = ..Call("RemoveSource", , , ref, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "the remove answers 200")
+	Do $$$AssertEquals(body, {"result": "removed", "message": (##class(OcuTalon.Mcp.Ops).#MESSAGESOURCEREMOVED)}.%ToJSON(), "removed, with McpOps' message")
+	Set recorded = ..Recorded()
+	Do $$$AssertEquals(recorded.class_"|"_recorded.sourceRef_"|"_recorded.actingUser_"|"_(recorded.sessionRef = ..A), "OcuTalon.Msg.Command.RemoveSourcePoll|"_ref_"|"_$Username_"|1", "one RemoveSourcePoll with the Ref, the acting user and the caller's session")
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)), 0, "the row is gone")
+	Do $$$AssertEquals($IsObject(..SourceOf(..Call("List", , , , .response), ref)), 0, "and GET lists it no more")
+	// a name of exactly NAMEMAX characters, padded with edge spaces beyond NAMEMAX, is accepted and submitted trimmed
+	Set limit = $Translate($Justify("", ##class(OcuTalon.Mcp.Ops).#NAMEMAX), " ", "n")
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set body = ..Call("SetSource", ..SourceBody(server, "zz_lookup", "   "_limit_"   ", "{}", 15), , , .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a name of NAMEMAX characters with edge spaces beyond NAMEMAX is 200")
+	Set recorded = ..Recorded()
+	Do $$$AssertEquals(recorded.class_"|"_(recorded.name = limit), "OcuTalon.Msg.Command.SetSourcePoll|1", "and the submitted name is the trimmed one")
+	Do ..Call("RemoveSource", , , {}.%FromJSON(body).ref, .response)
+	Do $$$AssertEquals(..SourceRows(), 0, "the padded source is removed again")
+}
+
+/// mutation: the @{ check moved after the submit -> the "nothing submitted" assertion is red.
+Method TestSourceRouteRefusals()
+{
+	If '..Guard() Quit
+	Set expansion = ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.refusedExpansion", "@{")
+	Set badArguments = ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.sourceBadArguments")
+	Set good = ..SourceBody("zzx", "zz_lookup", "Jira", "{}", 15)
+	Set cases = $ListBuild("|{}", "[]|{}", "{}|{}", """text""|{}", "not json|{}")
+	For member = "server", "tool", "name", "arguments", "intervalMinutes" {
+		Set one = {}.%FromJSON(good)
+		Do one.%Remove(member)
+		Set cases = cases_$ListBuild(one.%ToJSON()_"|{}")
+	}
+	Set one = {}.%FromJSON(good)
+	Do one.%Set("extra", 1, "number")
+	Set cases = cases_$ListBuild(one.%ToJSON()_"|{}")
+	For case = {"name": 5}, {"server": 5}, {"tool": null}, {"arguments": null}, {"arguments": 5}, {"intervalMinutes": "15"}, {"intervalMinutes": null}, {"intervalMinutes": true} {
+		Set one = {}.%FromJSON(good)
+		Set iterator = case.%GetIterator()
+		While iterator.%GetNext(.member, .memberValue, .memberType) {
+			Do one.%Set(member, memberValue, memberType)
+		}
+		Set cases = cases_$ListBuild(one.%ToJSON()_"|{}")
+	}
+	Set one = {}.%FromJSON(good)
+	Do one.%Set("intervalMinutes", 15.5, "number")
+	Set cases = cases_$ListBuild(one.%ToJSON()_"|{}")
+	Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", "a@{b", "{}", 15)_"|"_{"name": (expansion)}.%ToJSON())
+	Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", "Jira", "{""q"":""@{x}""}", 15)_"|"_{"arguments": (expansion)}.%ToJSON())
+	Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", "a@{b", "{""q"":""@{x}""}", 15)_"|"_{"name": (expansion), "arguments": (expansion)}.%ToJSON())
+	Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", "a@{b", "not json @{", 15)_"|"_{"name": (expansion), "arguments": (expansion)}.%ToJSON())
+	Set tooLong = $Translate($Justify("", ##class(OcuTalon.Mcp.Ops).#NAMEMAX + 1), " ", "n")
+	Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", tooLong, "{}", 15)_"|"_{"name": (##class(OcuTalon.Mcp.Ops).#MESSAGESOURCENAME)}.%ToJSON())
+	Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", "  "_tooLong_"  ", "{}", 15)_"|"_{"name": (##class(OcuTalon.Mcp.Ops).#MESSAGESOURCENAME)}.%ToJSON())
+	For arguments = "[1]", """x""", "not json", "5", "null", "true", "{""a"":", "[]" {
+		Set cases = cases_$ListBuild(..SourceBody("zzx", "zz_lookup", "Jira", arguments, 15)_"|"_{"arguments": (badArguments)}.%ToJSON())
+	}
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set text = $Piece(case, "|", 1, $Length(case, "|") - 1)
+		Set expected = $Piece(case, "|", $Length(case, "|"))
+		Set body = ..Call("SetSource", text, , , .response)
+		Set label = $Extract(text, 1, 60)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", "'"_label_"' is 400")
+		Set answer = {}.%FromJSON(body)
+		Do $$$AssertEquals(answer.error.code_"|"_answer.error.message, "bad_source|"_..#TEXT, "bad_source with the plain not-saved text")
+		Do $$$AssertEquals(answer.fields.%ToJSON(), expected, "'"_label_"': the fields")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, "'"_label_"': nothing was submitted")
+	}
+	Do $$$AssertEquals(..SourceRows(), 0, "no source row was written")
+}
+
+Method TestSourceMcpOpsRefusals()
+{
+	If '..Guard() Quit
+	Set server = ..Server("r")
+	Do ..MakeRow(server)
+	Do ..MakeTool(server, "zz_lookup", "read-only")
+	Do ..MakeTool(server, "zz_risky", "risky")
+	Do ..MakeTool(server, "zz_new", "unclassified")
+	Set long = {"q": ($Translate($Justify("", 4000), " ", "a"))}.%ToJSON()
+	Set cases = $ListBuild(
+		$ListBuild("zz_risky", "Jira", "{}", 15, "tool", ##class(OcuTalon.Mcp.Ops).#MESSAGENOTREADONLY),
+		$ListBuild("zz_new", "Jira", "{}", 15, "tool", ##class(OcuTalon.Mcp.Ops).#MESSAGENOTREADONLY),
+		$ListBuild("zz_lookup", "   ", "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCENAME),
+		$ListBuild("zz_lookup", "Mailbox", "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCERESERVED),
+		$ListBuild("zz_lookup", "MAILBOX", "{}", 15, "name", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCERESERVED),
+		$ListBuild("zz_lookup", "Jira", "{}", 4, "intervalMinutes", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCEINTERVAL),
+		$ListBuild("zz_lookup", "Jira", "{}", 1441, "intervalMinutes", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCEINTERVAL),
+		$ListBuild("zz_lookup", "Jira", long, 15, "arguments", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCEARGUMENTS),
+		$ListBuild("zz_lookup", "Jira", "{""k"":""secret://zz#x""}", 15, "arguments", ##class(OcuTalon.Mcp.Ops).#MESSAGESOURCEARGUMENTS))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set body = ..Call("SetSource", ..SourceBody(server, $List(case, 1), $List(case, 2), $List(case, 3), $List(case, 4)), , , .response)
+		Set label = "'"_$Extract($List(case, 2), 1, 12)_"' on "_$List(case, 1)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", label_" is 400")
+		Set answer = {}.%FromJSON(body)
+		Do $$$AssertEquals(answer.error.code_"|"_answer.error.message_"|"_answer.fields.%ToJSON(), "bad_source|"_..#TEXT_"|"_..Pair($List(case, 5), $List(case, 6)), label_": bad_source with "_$List(case, 5)_" and McpOps' message")
+		Do $$$AssertEquals(..SourceRows(), 0, label_": no row was created")
+	}
+	For case = $ListBuild("zzmcpnone", "zz_lookup"), $ListBuild(server, "zz_missing") {
+		Set body = ..Call("SetSource", ..SourceBody($List(case, 1), $List(case, 2), "Jira", "{}", 15), , , .response)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", $List(case, 1)_"/"_$List(case, 2)_" is 404")
+	}
+	// a server name that Mcp.Server NAMEPATTERN refuses (a bad first letter, more than 40 characters) and an empty tool are the route's own 404, before any submit
+	For case = $ListBuild("1bad", "zz_lookup"), $ListBuild("z"_$Translate($Justify("", 40), " ", "s"), "zz_lookup"), $ListBuild(server, "") {
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set body = ..Call("SetSource", ..SourceBody($List(case, 1), $List(case, 2), "Jira", "{}", 15), , , .response)
+		Set label = $Extract($List(case, 1), 1, 12)_"/"_$List(case, 2)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", label_" is 404")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, label_": nothing was submitted")
+	}
+	Set longTool = $Translate($Justify("", ##class(OcuTalon.Web.McpSettings).#TOOLMAX + 1), " ", "t")
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set body = ..Call("SetSource", ..SourceBody(server, longTool, "Jira", "{}", 15), , , .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", "a tool of more than TOOLMAX characters is 404")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, "and nothing was submitted")
+	Do $$$AssertEquals(..SourceRows(), 0, "no row was created")
+}
+
+/// The words that McpOps answers for a set and a remove, and what each gives: a set's field words are 400 bad_source with McpOps' message under their field, not_found is 404,
+/// saved is 200 with the Ref, and the recorded command holds every field. A remove's removed is 200 and its not_found is 404.
+/// mutation: the set branch placed after bad_name -> BadServer in Answer -> the bad_name case is bad_mcp_server (red).
+Method TestSourceAnswerWords()
+{
+	If '..Guard() Quit
+	Set own = ..OwnSource("Jira")
+	Set text = ..SourceBody("zzx", "zz_lookup", "Jira", "{""q"":""mine""}", 15)
+	For word = "not_read_only|tool", "bad_name|name", "reserved_name|name", "bad_interval|intervalMinutes", "bad_arguments|arguments" {
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:"_$Piece(word, "|", 1)
+		Set body = ..Call("SetSource", text, , , .response)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", $Piece(word, "|", 1)_" is 400")
+		Set answer = {}.%FromJSON(body)
+		Do $$$AssertEquals(answer.error.code_"|"_answer.error.message_"|"_answer.fields.%ToJSON(), "bad_source|"_..#TEXT_"|"_..Pair($Piece(word, "|", 2), "zz"), $Piece(word, "|", 1)_": bad_source with McpOps' message under "_$Piece(word, "|", 2))
+	}
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:not_found"
+	Set body = ..Call("SetSource", text, , , .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", "not_found is 404")
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:saved"
+	Set body = ..Call("SetSource", text, , , .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|"_{"result": "saved", "message": "zz", "ref": "zzref"}.%ToJSON(), "saved is 200 with McpOps' message and the Ref")
+	Set recorded = ..Recorded()
+	Do $$$AssertEquals(recorded.class_"|"_recorded.server_"|"_recorded.tool_"|"_recorded.name_"|"_recorded.arguments_"|"_recorded.intervalMinutes_"|"_recorded.actingUser_"|"_(recorded.sessionRef = ..A), "OcuTalon.Msg.Command.SetSourcePoll|zzx|zz_lookup|Jira|{""q"":""mine""}|15|"_$Username_"|1", "the recorded command holds every field")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 1, "one command was submitted")
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:removed"
+	Set body = ..Call("RemoveSource", , , own, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|"_{"result": "removed", "message": "zz"}.%ToJSON(), "removed is 200 with McpOps' message")
+	Set recorded = ..Recorded()
+	Do $$$AssertEquals(recorded.class_"|"_recorded.sourceRef_"|"_recorded.actingUser_"|"_(recorded.sessionRef = ..A), "OcuTalon.Msg.Command.RemoveSourcePoll|"_own_"|"_$Username_"|1", "the recorded command holds every field")
+	Kill ^OcuTalonTest("McpSettingsProbe")
+	Set ^OcuTalonTest("McpSettingsProbe", "mode") = "outcome:not_found"
+	Set body = ..Call("RemoveSource", , , own, .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", "a remove McpOps answers not_found is 404")
+}
+
+/// mutation: the DELETE's owner check removed -> the other session's case submits (red).
+Method TestSourceNotYours()
+{
+	If '..Guard() Quit
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Session("zzmcpother"_..Number)
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Check(other, , , {"Kind": "source", "Server": "zzmcpx", "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 15, "DisplayName": "Foreign"})
+	Set production = ##class(OcuTalon.Test.Data.Fixture).Check(..A)
+	Set own = ..OwnSource("Mine")
+	For ref = foreign, production, "zzunknown", "a%20b" {
+		Kill ^OcuTalonTest("McpSettingsProbe")
+		Set body = ..Call("RemoveSource", , , ref, .response)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).error.code, "404 Not Found|not_found", ref_" is 404")
+		Do $$$AssertEquals(+$Get(^OcuTalonTest("McpSettingsProbe", "handoffs"))+$Get(^OcuTalonTest("McpSettingsProbe", "submits")), 0, ref_": nothing was submitted")
+	}
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(foreign))_$IsObject(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(production)), "11", "both rows stay")
+	Set listed = {}.%FromJSON(..Call("List", , , , .response)).sources
+	Do $$$AssertEquals(listed.%Size(), 1, "GET lists only the caller's own source")
+	Do $$$AssertEquals(listed.%Get(0).ref, own, "which is its own")
+}
+
 /// --- helpers ---
 /// A refused add: the label, the request body as JSON text and the fields expected in the answer as JSON text.
 Method Case(label As %String, body As %DynamicObject, fields As %DynamicObject) As %List [ Private ]
@@ -661,6 +885,53 @@ Method NewSecret() As %String [ Private ]
 	Quit "zzApi"_$Translate($SYSTEM.Encryption.Base64Encode($SYSTEM.Encryption.GenCryptRand(18)), "+/=", "AAA")
 }
 
+/// {key: value} as JSON text.
+ClassMethod Pair(key As %String, value As %String) As %String [ Private ]
+{
+	Set object = {}
+	Do object.%Set(key, value)
+	Quit object.%ToJSON()
+}
+
+/// The body of a source POST as JSON text; the interval is a number.
+ClassMethod SourceBody(server As %String, tool As %String, name As %String, arguments As %String, interval As %String) As %String [ Private ]
+{
+	Set body = {"server": (server), "tool": (tool), "name": (name), "arguments": (arguments)}
+	Do body.%Set("intervalMinutes", interval, "number")
+	Quit body.%ToJSON()
+}
+
+/// The member of the list answer's sources with the Ref, or "".
+Method SourceOf(body As %String, ref As %String) As %DynamicObject [ Private ]
+{
+	Set found = ""
+	Set iterator = {}.%FromJSON(body).sources.%GetIterator()
+	While iterator.%GetNext(, .source) {
+		If source.ref = ref Set found = source
+	}
+	Quit found
+}
+
+/// The command that the probe's Submit recorded last, as an object.
+Method Recorded() As %DynamicObject [ Private ]
+{
+	Quit {}.%FromJSON($Get(^OcuTalonTest("McpSettingsProbe", "command"), "{}"))
+}
+
+/// A fixture source row of the caller's session with the name, as Ownership.Checks reads it; returns its Ref.
+Method OwnSource(name As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Data.Fixture).Check(..A, , , {"Kind": "source", "Server": "zzmcpx", "Tool": "zz_lookup", "Arguments": "{}", "IntervalMinutes": 15, "DisplayName": (name)})
+}
+
+/// The number of source rows of the caller's session.
+Method SourceRows() As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ? AND Kind = 'source'", ..A)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// A server row with no resource, for a test that needs a name that exists.
 Method MakeRow(server As %String) [ Private ]
 {
@@ -671,12 +942,12 @@ Method MakeRow(server As %String) [ Private ]
 }
 
 /// A tool row of the server, unclassified.
-Method MakeTool(server As %String, tool As %String) [ Private ]
+Method MakeTool(server As %String, tool As %String, classification As %String = "unclassified") [ Private ]
 {
 	Set row = ##class(OcuTalon.Mcp.ToolClassification).%New()
 	Set row.Server = server
 	Set row.Tool = tool
-	Set row.Classification = "unclassified"
+	Set row.Classification = classification
 	Set row.Fingerprint = "zzfp"
 	Set row.ChangedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Do $$$AssertStatusOK(row.%Save(), "the fixture tool row "_$Extract(tool, 1, 12)_" of "_server_" is saved")
@@ -694,7 +965,7 @@ Method ServerOf(body As %String, name As %String) As %DynamicObject [ Private ]
 	Quit found
 }
 
-/// Calls the route method of the probe as the CSP session of the fixture session (body is the request's content, name the :server argument); response is the %response.
+/// Calls the route method of the probe as the CSP session of the fixture session (body is the request's content, name the :server or :ref argument); response is the %response.
 Method Call(method As %String, body As %String, session As %String = "", name As %String = "", Output response) As %String [ Private ]
 {
 	New %request, %response, %session
@@ -705,7 +976,7 @@ Method Call(method As %String, body As %String, session As %String = "", name As
 	Set %response.Status = "200 OK"
 	Set %session = ##class(%CSP.Session).%New("ZzMcpSettings", 0)
 	Set %session.Data("OcuTalon.SessionRef") = $Select(session '= "": session, 1: ..A)
-	If method = "Remove" {
+	If (method = "Remove") || (method = "RemoveSource") {
 		Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, method, name)
 	} Else {
 		Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, method)
@@ -741,7 +1012,7 @@ Method Rows() As %Integer [ Private ]
 Method Messages() As %String [ Private ]
 {
 	Set text = ""
-	For table = "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "ListMcpServers" {
+	For table = "AddMcpServer", "RemoveMcpServer", "ClassifyTool", "ListMcpServers", "SetSourcePoll", "RemoveSourcePoll" {
 		Set text = text_##class(OcuTalon.Test.Web.WebhookTools).Columns("OcuTalon_Msg_Command."_table)
 	}
 	Quit text
@@ -766,6 +1037,7 @@ Method Clean() [ Private ]
 	For i = 1:1:$Length(..Names, ",") {
 		Set name = $Piece(..Names, ",", i)
 		If name = "" Continue
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'source' AND Server = ?", name)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", name)
 		If ##class(OcuTalon.Mcp.Server).NameIndexExists(name, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(name)
@@ -783,6 +1055,8 @@ Method Leftovers() As %String [ Private ]
 		Set name = $Piece(..Names, ",", i)
 		If name = "" Continue
 		If ##class(OcuTalon.Mcp.Server).NameIndexExists(name) Set places = places_$ListBuild(name_" row")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'source' AND Server = ?", name)
+		If result.%Next(), result.%GetData(1) Set places = places_$ListBuild(name_" source rows")
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", name)
 		If result.%Next(), result.%GetData(1) Set places = places_$ListBuild(name_" tool rows")
 		If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_"_name) Set places = places_$ListBuild(name_" entry")
