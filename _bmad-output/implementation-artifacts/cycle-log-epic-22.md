@@ -468,3 +468,4 @@
 2026-11-15T10:10:32Z	Story 22.12	smoke_complete	method=other(static:test-release-sequence_overviewdoc+full,test-readme,test-security-overview_compare_by_implement) result=pass
 2026-11-15T10:10:32Z	Story 22.12	fresh_check	env=n/a(docs+bash_pins;no_IRIS_class) result=pass
 2026-11-15T10:10:32Z	Story 22.12	committed	sha=HEAD_pushed_below
+2026-11-15T10:11:51Z	Story 22.12	ci_pending	sha=70c05d0a runs=43702792429(ci),43702792409(lane-a)
