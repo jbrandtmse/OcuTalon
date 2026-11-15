@@ -10,7 +10,7 @@ Include Ensemble
 ///   - TestRealBreakPagesTelegram (AC6, AC12, AC13): a real break of OCUORDERS pages the on-call user's paired Telegram chat through the real IncidentManager,
 ///     Notify and TelegramOut; a fixture Escalation pages the backup once; Got it pressed from another chat, then from the paired chat (the page is acknowledged on telegram and the message is
 ///     edited in place), then again, and an AckPage over the web channel for the backup's page edits the backup's Telegram copy; the paged people, the chat ids and the display names are in no message of the page, no audit entry, no log line, no live event and no /state payload;
-///   - TestSessionBreakNeverPages (DW-1396): with the on-call user set, a break tagged with a session's trace Ref is that session's incident and pages nobody;
+///   - TestSessionBreakNeverPages (DW-1396): with another on-call user and backup set, a break tagged with a session's trace Ref is that session's incident and pages nobody;
 ///   - TestManagedAlertsBesidePaging (AC8): with an AlertManager fixture in OCUORDERS, a break pages the on-call user, Managed Alerts hold the failures, and no setting of any item changed;
 ///   - TestSettingsSaysPagesBuilt (AC10): over real HTTP, as an admin, GET /api/v1/settings has pagesBuilt true.
 /// Measured figures are printed as SKIP lines (a status 2 never fails a class).
@@ -661,7 +661,7 @@ Method TestRealBreakPagesTelegram()
 }
 
 /// The set-up of a break of the shared, watched production: the production is ready, the mock is pointed to, the approval role is ready, a session S watches Orders, and untagged failing
-/// orders (3) become an incident of the instance that is noticed to S. a is S and ref the incident. 1 when the set-up is done.
+/// orders (3) become an incident of the instance that is noticed to S. a is S and ref the incident, the one made since the test began. 1 when the set-up is done.
 Method RaisedShared(name As %String, Output a As %String, Output ref As %String) As %Boolean [ Private ]
 {
 	Set (a, ref) = ""
@@ -673,23 +673,38 @@ Method RaisedShared(name As %String, Output a As %String, Output ref As %String)
 	Do ..Watch(a)
 	If '..Fail(3, "") Quit 0
 	Set failed = ..WaitFailed(3)
-	Set rows = ..WaitIncident("instance", ..#ORDERSPRODUCTION)
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set rows = ..Above(..Incidents("instance", ..#ORDERSPRODUCTION), ..IncidentFloor)
+		If (rows.%Size() > 0) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
 	Do $$$AssertEquals(rows.%Size(), 1, "one incident of the instance for the untagged break")
 	If rows.%Size() < 1 Quit 0
 	Set ref = rows.%Get(0).ref
 	Quit ..Noticed(ref, 1)
 }
 
-/// DW-1396: with the on-call user set, a break tagged with a session's trace Ref (that user's own Break the feed) is an incident of that session, and it pages nobody: the notice reaches
-/// the session, and no page row, page Notification or escalation ask follows.
+/// The rows of incidents (Case.Incidents) whose ID is above floor: the incidents made since the floor was read, so that an incident another test left is never taken.
+ClassMethod Above(incidents As %DynamicArray, floor As %Integer) As %DynamicArray [ Private ]
+{
+	Set above = []
+	For i = 0:1:incidents.%Size() - 1 {
+		If incidents.%Get(i).id > floor Do above.%Push(incidents.%Get(i))
+	}
+	Quit above
+}
+
+/// DW-1396: with an on-call user and a backup set, both other users than S, a break tagged with S's trace Ref (that user's own Break the feed) is an incident of S (Raised finds it by
+/// S's Ref), and it pages nobody: the notice reaches S, and no page row and no page Notification follow.
 Method TestSessionBreakNeverPages()
 {
 	If '..Ready() Quit
-	Do ..SetKeys(..#SESSIONPREFIX_..Number_"so", "", 15)
+	Do ..Session("sx"), ..Session("sy")
+	Do ..SetKeys(..#SESSIONPREFIX_..Number_"sx", ..#SESSIONPREFIX_..Number_"sy", 15)
 	If '..Raised("so", .a, .ref, .request) Quit
 	Hang 5
-	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(ref).OwnerRef, a, "the incident is the session's own")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Pages(ref), 0, "and no page row exists for it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Pages(ref), 0, "no page row exists for the session's incident")
 	Do $$$AssertEquals(..NoticeBodies(ref, "page").%Size(), 0, "no page Notification carries its Ref")
 }
 
@@ -718,7 +733,7 @@ Method TestManagedAlertsBesidePaging()
 	Set paged = ""
 	Set end = $ZHorolog + ..#WAITPAGE + 60
 	For {
-		Set incidents = ..Incidents("instance", ..#ORDERSPRODUCTION)
+		Set incidents = ..Above(..Incidents("instance", ..#ORDERSPRODUCTION), ..IncidentFloor)
 		For i = 0:1:incidents.%Size() - 1 {
 			If ##class(OcuTalon.Test.Watch.Paging).Pages(incidents.%Get(i).ref) Set paged = incidents.%Get(i).ref
 		}

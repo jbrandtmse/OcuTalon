@@ -8461,6 +8461,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Watch/Paging.cls Notice excludes only OwnerRef eval; FailurePoller scopes tagged failures to the session; PagingLive's real break is session-owned and pages another user as backup
 - 2026-11-15T18:48:07Z status=decision-pending owner=burndown by=cr note=Planner call: page only instance-owned incidents, or any incident (the paged person then reads another user's incident)
 - 2026-11-15T19:43:02Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15_option_(a):page_only_for_shared_watched_productions;session-owned_incident_never_pages;pinned;23.4_rework_1
+- 2026-11-15T20:22:57Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=12101e6e:Paging.Notice_pages_only_OwnerRef=instance;TestSessionOwnedNeverPages+TestSessionBreakNeverPages_with_control_and_mutations
 
 ### DW-1397: Test.Watch.PagingLive repeats Test.Web.LiveRolesApi's sign-in form post and GET inline (private helpers), as Test.Fix.EmailCard already does (Rule 2)
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: out-of-footprint
