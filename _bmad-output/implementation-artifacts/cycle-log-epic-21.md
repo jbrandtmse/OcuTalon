@@ -447,3 +447,14 @@
 2026-11-15T13:21:53Z	DW-1371	ledger	DW-1371=resolved-by:dw-1371
 2026-11-15T13:30:22Z	DW-1371	integrated	feature=999138505(unchanged;no_merge_needed)
 2026-11-15T13:30:22Z	DW-1371	fresh_check	env=b1cddd242 warm_e21dw1371fw:Mcp.Approval,Mcp.SourceRun,Mcp.Proxy,Bridge.Poll,Mcp.Attach_pass boundaries,class-rules=pass torn_down
+2026-11-15T17:54:19Z	DW-1388	stage_spawned	stage=plan spawn_at=2026-11-15T17:54:19Z model=opus effort=high agent_name=dw-1388-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1388 worktree=.worktrees/epic-21-dw1388 base=9b9898a53 severity=HIGH(Planner) scope=B13_Remove_the_source_Existing_timeout(test,_or_UI_if_at_fault)
+2026-11-15T18:04:49Z	DW-1388	story_created	model=opus effort=high branch=OCT-epic21-dw1388 base=c284c6d14 build_status=ready-for-dev size=XS veto=none(test-only) cause=test_race(lazy_MCP_GET_after_gone=true) hits=4(ci-16,ci-55,ci-29,ci-10_new) fix=gone=true_in_DELETE_404_route(as_B10) mutations=M1(2s_GET_delay_repro),M2,M3
+2026-11-15T18:04:49Z	DW-1388	stage_spawned	stage=implement spawn_at=2026-11-15T18:04:49Z model=sonnet effort=high agent_name=dw-1388-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1388
+2026-11-15T18:38:59Z	DW-1388	dev_complete	build_sha=08275113f branch=OCT-epic21-dw1388 diff=mcp.spec.ts(+4-1) task0=part_18/24,154s_call,B13_2.8s M1_old=red_2/2(CI_signature) M1_fixed=green_3/3 M2=red repeat=30/30_B13_BURN=16 part18/24=20/20 review=7(high0,med0,low6(3_patched),false1) node=2124/0 lint,boundaries=pass
+2026-11-15T18:38:59Z	DW-1388	stage_spawned	stage=qa spawn_at=2026-11-15T18:38:59Z model=sonnet effort=high agent_name=dw-1388-qa-1 cycle_iteration=1
+2026-11-15T18:48:02Z	DW-1388	qa_complete	model=sonnet commit=282c9b3eb tests=none_needed candidates=B1-B14,support/mcp.ts,settings/*.spec.ts(all_safe_but_B13d_fixed) determinism=M1(late_GET)_5/5,M4(late_DELETE)_5/5 findings=none
+2026-11-15T18:48:02Z	DW-1388	stage_spawned	stage=code-review spawn_at=2026-11-15T18:48:02Z model=opus effort=high agent_name=dw-1388-code-review-1 cycle_iteration=1
+2026-11-15T18:59:43Z	DW-1388	cr_complete	model=opus findings=10(1_low_patched:comment_wording,7_low_rejected_spec-prose_recorded,2_false) high=0 med=0 ledger=none final_status=done rule3=part18/24_20/20,B13_20/20_BURN16
+2026-11-15T18:59:43Z	DW-1388	ledger	DW-1388=resolved-by:dw-1388
+2026-11-15T19:07:13Z	DW-1388	integrated	feature=8c71bef6e(23.3,25.6) merge=918ca285e conflicts=none
+2026-11-15T19:07:13Z	DW-1388	fresh_check	env=918ca285e npm_ci,node_2132/0,boundaries,build=pass sign-in-2_part18/24(holds_mcp.spec)=20/20 torn_down
