@@ -8359,3 +8359,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
 - 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
 - 2026-11-15T05:27:20Z status=resolved-by:22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer by=merge_gate note=TestUpdate starts from a past CreatedAt and asserts the repoint moves it; branch ci 43674059161+43674059261 green
+
+### DW-1380: Story 23.3's rollback_setting can put back an older value of an alert setting (e.g. AlertOnError, AlertGracePeriod) of a watched item, while 23.4's AC says no OcuTalon class writes alert configuration
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 23.4 plan reading (d)4; 23.3 RollbackSetting accepts any recorded SettingChange row on the failing item
+- 2026-11-15T14:08:34Z status=decision-pending owner=burndown by=spec_gate note=Planner call: exclude alert settings from rollback (a 23.3 follow-up) or accept (a user-approved restore of their own earlier value is not OcuTalon configuring alerts)
