@@ -4276,3 +4276,6 @@
 2026-11-15T08:57:34Z	Run	feature_merge_hold_off	reason=97e062daf_green(Planner_rule) reds=DW-306,DW-1083,DW-494,DW-349(no_new_DW) planner_notified
 2026-11-15T08:57:34Z	Epic 21	ci_green_verified	story=21.9 head=6d44d4750 runs=43692114733,43692114775
 2026-11-15T08:57:34Z	Epic 21	merge_enqueued	story=21.9 into=feature@97e062daf+records
+2026-11-15T09:00:33Z	Epic 21	merged	story=21.9 merge=6d50bac12 conflicts=none pins=pass web=pass lint=pass
+2026-11-15T09:39:12Z	Run	owner_decision	via=contest_planner 1.0.11_required=26.2,22.14,21.5,22.11,22.15,21.9(in)+DW-1347,21.11,22.12,GUIDE_T7 optional=25.6(if_PART_READY),23.3(only_if_merged_in_time) priority=laneC_DW-1347,laneD_22.12
+2026-11-15T09:39:12Z	Run	lane_exception	21.11->lane_D(worktree_epic-21-s2111,after_22.12_push) reason=no_shared_code_files_with_DW-1347(AD-31_spine_additive_under_lock) GUIDE_T7->lane_B(OCT-epic23-guide-t7,at_23.3_pause) planner_notified=ETAs(feature_green_all_required~16:45Z)
