@@ -418,13 +418,23 @@ Method TestReadFile()
 	Do $$$AssertEquals(result.text, ##class(OcuTalon.Docs.Extract).Failure("failed"), "with Docs.Extract's text")
 	Set pdfRef = ##class(OcuTalon.Test.Data.Fixture).SentFile(session)
 	Set ..TurnRefs = ..TurnRefs _ $Select(..TurnRefs '= "": ",", 1: "") _ pdfRef
-	For case = $ListBuild("a PDF", pdfRef, "application/pdf"), $ListBuild("a Word file that is gone", "zznosuchfile0000000002", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"), $ListBuild("an item with no file", "", "") {
-		Set item = ##class(OcuTalon.Msg.Item).%New()
-		Set item.SessionRef = session, item.FileRef = $List(case, 2), item.FileMediaType = $List(case, 3)
-		Set sc = ##class(OcuTalon.Agent.Input).ReadFile(item, .result)
-		Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, $List(case, 1)_": the stub's answer, 5003")
-		Do $$$AssertEquals(result.%ToJSON(), "{}", $List(case, 1)_": and an empty result")
-	}
+	Set codes = $ListFromString(##class(OcuTalon.Docs.Extract).#CODES, ",")
+	Set pdfFile = ##class(OcuTalon.Core.Files).Describe(pdfRef, session)
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.SessionRef = session, item.FileRef = pdfRef, item.FileMediaType = "application/pdf"
+	Do $$$AssertStatusOK(##class(OcuTalon.Agent.Input).ReadFile(item, .result), "a PDF Item the session owns: ReadFile answers OK")
+	Do $$$AssertEquals(result.fileRef_"|"_result.kind_"|"_result.read, pdfRef_"|document|0", "its bytes are not a PDF that Docs.Extract reads: read 0, kind document")
+	Do $$$AssertTrue($ListFind(codes, result.reason) > 0, "with a reason of Docs.Extract's codes: "_result.reason)
+	Do $$$AssertEquals(result.text, ##class(OcuTalon.Docs.Extract).Failure(result.reason, pdfFile.size), "and its Failure text")
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.SessionRef = session, item.FileRef = "zznosuchfile0000000002", item.FileMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	Do $$$AssertStatusOK(##class(OcuTalon.Agent.Input).ReadFile(item, .result), "a Word file that is gone: ReadFile answers OK")
+	Do $$$AssertEquals(result.%ToJSON(), {"fileRef": "zznosuchfile0000000002", "kind": "document", "read": 0, "reason": "failed", "text": (##class(OcuTalon.Docs.Extract).Failure("failed"))}.%ToJSON(), "read 0 failed with the kind document and Docs.Extract's text")
+	Set item = ##class(OcuTalon.Msg.Item).%New()
+	Set item.SessionRef = session
+	Set sc = ##class(OcuTalon.Agent.Input).ReadFile(item, .result)
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "an item with no file: 5003")
+	Do $$$AssertEquals(result.%ToJSON(), "{}", "and an empty result")
 }
 
 /// Part answers a new stream of the stored photo each time: a resend or a retry runs the request again, so each call's stream is at its start and holds the file's bytes.

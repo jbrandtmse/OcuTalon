@@ -36,10 +36,11 @@ export async function seedMcpServer(name: string, tools: FixtureTool[], pending 
   return out.filter((line) => line.startsWith('CHK|ref|')).map((line) => line.slice('CHK|ref|'.length));
 }
 
-/** Removes a fixture server's rows, and the approval rows (whatever their state), the entry, the key and the collection that the server may have. */
+/** Removes a fixture server's rows, its `source` rows, and the approval rows (whatever their state), the entry, the key and the collection that the server may have. */
 export async function dropMcpServer(name: string, refs: string[] = []): Promise<void> {
   const lines = [
     ...refs.map((ref) => `Set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Ref = ?",${quoted(ref)})`),
+    `Set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.BackgroundCheck WHERE Kind = 'source' AND Server = ?",${quoted(name)})`,
     `Set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?",${quoted(name)})`,
     `Set rs=##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Mcp.Server WHERE Name = ?",${quoted(name)})`,
     `Set c="OcuTalon_MCP_"_${quoted(name)},f="AI.MCP.OcuTalon_"_${quoted(name)}`,
@@ -56,6 +57,7 @@ export async function dropMcpServer(name: string, refs: string[] = []): Promise<
 export interface Leftovers {
   row: number;
   tools: number;
+  sources: number;
   entry: number;
   key: number;
   collection: number;
@@ -68,13 +70,14 @@ export async function leftovers(name: string): Promise<Leftovers> {
       `Set n=${quoted(name)},c="OcuTalon_MCP_"_n,f="AI.MCP.OcuTalon_"_n`,
       'Write !,"CHK|row|",##class(OcuTalon.Mcp.Server).NameIndexExists(n)',
       'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?",n) Do rs.%Next() Write !,"CHK|tools|",rs.%GetData(1)',
+      'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE Kind = \'source\' AND Server = ?",n) Do rs.%Next() Write !,"CHK|sources|",rs.%GetData(1)',
       'Write !,"CHK|entry|",+##class(%ConfigStore.Configuration).Exists(f)',
       'Write !,"CHK|key|",+##class(%Wallet.Secret).Exists(c_".Key")',
       'Write !,"CHK|collection|",+##class(%Wallet.Collection).Exists(c)',
     ].join('\n'),
   );
   const count = (key: string): number => Number(chk(out, key) ?? '-1');
-  return { row: count('row'), tools: count('tools'), entry: count('entry'), key: count('key'), collection: count('collection') };
+  return { row: count('row'), tools: count('tools'), sources: count('sources'), entry: count('entry'), key: count('key'), collection: count('collection') };
 }
 
 /** The state of an approval row by Ref ("<no row>" when it is gone). */
@@ -116,4 +119,27 @@ export async function dropReadmeTurns(mark: string, waitMs = 90_000): Promise<nu
   );
   if (chk(lines, 'dropped') !== '1') throw new Error(`the AI sessions of the turn could not be dropped (${lines.join(' ')})`);
   return Number(chk(lines, 'left') ?? '-1');
+}
+
+/**
+ * Makes a `source` row of a session that is not the README account's (Story 21.5's isolation case) for the server and tool, named `name`; returns its Ref. The row is
+ * removed with the server by `dropMcpServer`, and `sourceRowExists` tells whether it is still there.
+ */
+export async function seedForeignSource(server: string, tool: string, name: string): Promise<string> {
+  const fields = JSON.stringify({ Kind: 'source', DisplayName: name, Server: server, Tool: tool, Arguments: '{}', IntervalMinutes: 15 });
+  const out = await irisScript(
+    [
+      `Set ref=##class(OcuTalon.Test.Data.Fixture).Check("zzother"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(),1,12),"ZZNS","Zz.Production",##class(%DynamicObject).%FromJSON(${quoted(fields)}))`,
+      'Write !,"CHK|ref|",ref',
+    ].join('\n'),
+  );
+  const ref = chk(out, 'ref');
+  if (ref === undefined || ref === '') throw new Error(`the foreign source of ${server} could not be made (${out.join(' ')})`);
+  return ref;
+}
+
+/** Whether a `BackgroundCheck` row of the Ref exists. */
+export async function sourceRowExists(ref: string): Promise<boolean> {
+  const out = await irisScript(`Write !,"CHK|there|",$IsObject(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(${quoted(ref)}))`);
+  return chk(out, 'there') === '1';
 }

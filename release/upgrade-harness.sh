@@ -797,15 +797,45 @@ add_previous_context() {
   live_add_file "$tmp/context.yml"
 }
 
-# build_up <label>: dc up -d --build of the stack as it is, then the container id; die on a failure.
+# new_cid <label> <old id> <old StartedAt>: after a dc up, sets cid to the one iris container of THIS start: exactly one id, and not
+# the container that ran before the up (or that one with a new StartedAt); waits up to BUILD_UP_WAIT seconds (60), then dies. Every
+# readiness wait is keyed to $cid's start stamp, so a stale or doubled id let the previous start's log pass as this start's (1.0.10 rc1:
+# "MEASURED wait 0 s" and "ready 1.0.9" in the settings project's candidate wait).
+new_cid() {
+  local ids n now waited=0
+  while :; do
+    ids=$(dc ps -q iris 2> /dev/null | grep .)
+    n=$(printf '%s\n' "$ids" | grep -c .)
+    cid=$ids
+    if [ "$n" -eq 1 ]; then
+      now=$(started_at)
+      if [ -n "$now" ] && { [ -z "$2" ] || [ "$cid" != "$2" ] || [ "$now" != "$3" ]; }; then
+        return 0
+      fi
+    fi
+    [ "$waited" -lt "${BUILD_UP_WAIT:-60}" ] || die "$1: no new iris container in project $P after the start (ids: $(printf '%s' "$ids" | tr '\n' ' '))"
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
+# old_cid: the iris container of the project before an up ("" for none), and old_start its StartedAt.
+old_cid() {
+  old=$(dc ps -q iris 2> /dev/null | grep . | tail -n 1)
+  old_start=""
+  [ -z "$old" ] || old_start=$(docker inspect --format '{{.State.StartedAt}}' "$old" 2> /dev/null)
+}
+
+# build_up <label>: dc up -d --build of the stack as it is, then the container id of this start (new_cid); die on a failure.
 build_up() {
+  local old old_start
+  old_cid
   if ! dc up -d --build > "$tmp/up.log" 2>&1; then
     tail -n 30 "$tmp/up.log"
     die "$1: the build or the start failed"
   fi
   live_track_image
-  cid=$(dc ps -q iris)
-  [ -n "$cid" ] || die "$1: no iris container in project $P"
+  new_cid "$1" "$old" "$old_start"
 }
 
 # count_merge_retries <start label>: appends MERGE-RETRIES <n> <start label> to the results, n being the number of STEP merge RETRY lines
@@ -1807,7 +1837,7 @@ load_seed() {
 phase_upgrade() {
   LIVE_TELEGRAM=started
   row upgrade
-  local cand=$(opt version) began last r1_set ready
+  local cand=$(opt version) began last r1_set ready old old_start
   attach_stack
   preflight
   load_seed
@@ -1823,12 +1853,12 @@ phase_upgrade() {
   live_track_image
   printf '%s\n' ${LIVE_IMAGES[@]+"${LIVE_IMAGES[@]}"} >> "$state/p1/images"
   recreate_epoch=$(date +%s)
+  old_cid
   if ! dc up -d --no-build > "$tmp/up.log" 2>&1; then
     tail -n 30 "$tmp/up.log"
     die "upgrade: the candidate container did not start"
   fi
-  cid=$(dc ps -q iris)
-  [ -n "$cid" ] || die "upgrade: no iris container in project $P"
+  new_cid "upgrade" "$old" "$old_start"
   ready=0
   wait_started_ready 400 || ready=1
   count_merge_retries "records project, candidate"

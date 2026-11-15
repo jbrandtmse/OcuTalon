@@ -448,3 +448,6 @@
 2026-11-15T01:29:41Z	Epic 22	runner_ended	reason=waiting waiting_on=CI-HOLD-OFF branch=OCT-epic22 head=e28224c2(=origin_hold/OCT-epic22-20261114) local_ready=22.14(OCT-epic22-s2214_6ba4068d),22.11(e28224c2) pushed=origin/OCT-epic22_16772e40 open_runs=none
 2026-11-15T03:50:30Z	Story 22.14	committed	sha=6ba4068d branch=OCT-epic22-s2214(pushed;base_42e7b3ec) ci=pending runs=43674059161(ci),43674059261(lane-a)
 2026-11-15T05:26:37Z	Story 22.14	ci_resolved	sha=6ba4068d branch=OCT-epic22-s2214 result=success runs=43674059161(ci),43674059261(lane-a) flake_reruns=0
+2026-11-14T22:02:58Z	Story 22.14	story_created	model=lead(chartered_by_orchestrator;Planner_accepted_diagnosis_~21:55Z) path=_bmad-output/implementation-artifacts/spec-22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer.md build_status=done owned_ledger=DW-1352(entry_on_feature) branch=OCT-epic22-s2214(from_42e7b3ec)
+2026-11-14T22:02:58Z	Story 22.14	dev_complete	model=lead files=1(Test/Mcp/SourceSet.cls) proofs=class_green;with_Hang_1.1_green;REPOINTRESETS_0->TestUpdate_red(reverted,checksum_identical) also=Test.Watch.Ops_green;test-class-rules_rc0 env=new_lane-D_warm_e22s14w(torn_down)
+2026-11-14T22:02:58Z	Story 22.14	committed	sha=LOCAL(OCT-epic22-s2214;no_push_until_orchestrator_after_release_CI_HOLD) ci=none_yet

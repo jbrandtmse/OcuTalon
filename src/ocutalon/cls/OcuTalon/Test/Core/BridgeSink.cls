@@ -31,11 +31,14 @@
 ///     AD-20, AD-31): budget.capped and a session's daily_cap fallback in decision.recorded send the daily-cap Notification to the open
 ///     sessions with activity, once a day each, never with the flag off; they run on Test.Core.BridgeSinkNoticeProbe, which records the
 ///     notices instead of sending them.
-///   - TestToolCallNoticeKinds, TestToolCallServerForm, TestToolCallInputsLine, TestToolCallNoticesOnlyForReplayableSessionRows,
+///   - TestToolCallNoticeKinds, TestToolCallServerForm, TestToolCallInputsLine, TestToolCallInputsVisible, TestToolCallUnreadableInputs,
+///     TestToolCallCancelledOnlyForARemovedServer, TestToolCallNoticesOnlyForReplayableSessionRows,
 ///     TestHeldBeforeUpdateSaysWhy, TestHeldReasonIsCatalogOnly, TestToolCallNoticeFailureIsLogged (Story 31.5, AD-31, AD-32, U-212,
 ///     DW-454): a replayable tool_call request of a session sends its approval, answered and result notices beside the approval event
 ///     (the key from the row's AnsweredAction and Result, the server form of the request when the ToolSource names an MCP server,
-///     the inputs on one line and at most 200 characters), a fix, a setting, an old held row and any other owner send none, an old
+///     the inputs as an array of {name, value}, one member per top-level member, never cut and with the whole arguments redacted first; a
+///     cancelled request of an MCP server that has no row any more sends answered.canceled and its approval event carries the server and
+///     cancelledAt, any other cancellation sends nothing), a fix, a setting, an old held row and any other owner send none, an old
 ///     held row's fallback Decision sends the one result notice with the bridge's reason (and the approval event carries it) or, for
 ///     any other line, toolCall.failed with no reason, and a failed or throwing send is one warning; they run on the probe.
 /// DW-300: the check rows that the approval tests seed are due a day ahead (the Check helper asserts it), and Events counts only the type
@@ -821,7 +824,7 @@ Method TestToolCallNoticeKinds()
 	Do ..Fire(session, "approval.raised", ref)
 	Do $$$AssertEquals(..Calls(), 1, "approval.raised sends one notice")
 	Do ..ExpectNotice(1, session, ref, "approval", "toolCall.request", "inputs,tool", "raised")
-	Do $$$AssertEquals(..Slot(1, "tool")_"|"_..Slot(1, "inputs"), "zz_send|{""to"":""ops""}", "with the tool and its inputs")
+	Do $$$AssertEquals(..Slot(1, "tool")_"|"_..Inputs(1), "zz_send|[{""name"":""to"",""value"":""\""ops\""""}]", "with the tool and its inputs")
 	Do $$$AssertEquals(..Events(session, "approval").%Size(), 1, "and publishes its approval event")
 
 	Do ..Change(ref, {"State": "done", "AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": (answeredAt)})
@@ -878,58 +881,116 @@ Method TestToolCallServerForm()
 	Do $$$AssertEquals(..Calls(), 5, "one notice for each")
 }
 
-/// U-212 (2): the inputs are the bridge's redacted text on one line, at most 200 characters, ending with U+2026 when cut; a text of
-/// exactly 200 characters is unchanged, one of 201 is cut, the cap applies to the redacted text (a long secret that shrinks is not cut),
-/// and no inputs are {}.
+/// The inputs of a notice are an array of {name, value}: one member per top-level member of the arguments, in the stored order, the value its JSON text
+/// (JSON's short escapes written as \uXXXX), never cut; the whole arguments are redacted first, so a key rule masks a value; no arguments give an
+/// empty array.
 Method TestToolCallInputsLine()
 {
 	Set session = ..Session("toolinputs")
-	Set words = ""
-	For i = 1:1:100 Set words = words_"ab "
-	Set long = ..ToolRow(session, "pending", {"ToolArguments": ("{""to"":""ops"",""password"":""zz-secret"",""note"":"""_words_"""}")})
-	Do ..Fire(session, "approval.raised", long)
-	Set inputs = ..Slot(1, "inputs")
-	Do $$$AssertEquals($Length(inputs), 200, "a long text is cut to 200 characters")
-	Do $$$AssertEquals($Ascii(inputs, 200), 8230, "ending with U+2026")
-	Do $$$AssertTrue(inputs '[ "zz-secret", "and holds not the secret")
-	Do $$$AssertTrue(inputs [ "[redacted]", "which the bridge's redactor replaced")
+	Set long = ""
+	For i = 1:1:500 Set long = long_"0123456789"
+	Do ..ExpectInputs(session, "{""note"":"""_long_""",""n"":2}", [{"name": "note", "value": (""""_long_"""")}, {"name": "n", "value": "2"}], "a 5,000-character value is whole")
+	Do $$$AssertEquals($Length(..Inputs(1)), $Length([{"name": "note", "value": (""""_long_"""")}, {"name": "n", "value": "2"}].%ToJSON()), "and the notice holds all of it")
+	Do ..ExpectInputs(session, "{""id"":""T-1"",""n"":2,""ok"":true,""none"":null,""obj"":{""a"":[1,2]},""z"":""last""}", [{"name": "id", "value": ("""T-1""")}, {"name": "n", "value": "2"}, {"name": "ok", "value": "true"}, {"name": "none", "value": "null"}, {"name": "obj", "value": ("{""a"":[1,2]}")}, {"name": "z", "value": ("""last""")}], "each top-level member is a line, in the stored order, with its JSON text")
+	Do ..ExpectInputs(session, "{""api_key"":""abc123"",""q"":""x""}", [{"name": "api_key", "value": ("""[redacted]""")}, {"name": "q", "value": ("""x""")}], "a key rule masks a value: the whole object is redacted first")
+	Do $$$AssertTrue(..Inputs(..Calls()) '[ "abc123", "and the secret is nowhere in the slot")
+	Do ..ExpectInputs(session, "{""password"":""zz-secret"",""cfg"":{""token"":""zz-secret-2""}}", [{"name": "password", "value": ("""[redacted]""")}, {"name": "cfg", "value": ("{""token"":""[redacted]""}")}], "a nested key is masked too")
+	Do ..ExpectInputs(session, "{""note"":""a\nApprove: b"",""t"":""x\ty"",""q"":""say \""hi\"" a\\b""}", [{"name": "note", "value": ("""a\u000AApprove: b""")}, {"name": "t", "value": ("""x\u0009y""")}, {"name": "q", "value": ("""say \""hi\"" a\\b""")}], "a line break and a tab show as \uXXXX on one line, while \"" and \\ stay")
+	Do ..ExpectInputs(session, "", [], "no arguments give an empty array")
+	Do ..ExpectInputs(session, "{}", [], "an empty object gives an empty array")
+	Do ..ExpectInputs(session, $Char(10)_"  ", [], "arguments of white space only give an empty array")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
 
-	Set lines = ..ToolRow(session, "pending", {"ToolArguments": ("{""a"":""x"","_$Char(10)_"  ""b"":""y""}")})
-	Set note = ""
-	For i = 1:1:64 Set note = note_"ab "
-	Set exact = "{""a"":"""_note_"""}"
-	Do $$$AssertEquals($Length(exact), 200, "the fixture text has 200 characters")
-	Set edge = ..ToolRow(session, "pending", {"ToolArguments": (exact)})
-	Set plain = ..ToolRow(session, "pending", {"ToolArguments": ("one"_$Char(10)_"two"_$Char(13,10)_$Char(9)_"three")})
-	Set none = ..ToolRow(session, "pending", {"ToolArguments": ""})
-	Set over = "{""a"":"""_note_"x""}"
-	Do $$$AssertEquals($Length(over), 201, "the fixture text one over the limit has 201 characters")
-	Set overRow = ..ToolRow(session, "pending", {"ToolArguments": (over)})
-	Set secret = ""
-	For i = 1:1:300 Set secret = secret_"z"
-	Set shrunk = ..ToolRow(session, "pending", {"ToolArguments": ("{""password"":"""_secret_"""}")})
-	Do ..Fire(session, "approval.raised", lines)
-	Do $$$AssertEquals(..Slot(2, "inputs"), "{""a"":""x"",""b"":""y""}", "a JSON text with line breaks is on one line")
-	Do ..Fire(session, "approval.raised", edge)
-	Do $$$AssertEquals(..Slot(3, "inputs"), exact, "a text of exactly 200 characters is unchanged")
-	Do ..Fire(session, "approval.raised", plain)
-	Do $$$AssertEquals(..Slot(4, "inputs"), "one two three", "line breaks and tabs in a plain text fold to single spaces")
-	Do ..Fire(session, "approval.raised", none)
-	Do $$$AssertEquals(..Slot(5, "inputs"), "{}", "no arguments give {}")
-	Do ..Fire(session, "approval.raised", overRow)
-	Do $$$AssertEquals(..Slot(6, "inputs"), $Extract(over, 1, 199)_$Char(8230), "a text one character over the limit is cut to 199 characters and U+2026")
-	Do ..Fire(session, "approval.raised", shrunk)
-	Set redacted = ##class(OcuTalon.Bridge.Redact).Text("{""password"":"""_secret_"""}")
-	Do $$$AssertEquals(..Slot(7, "inputs"), redacted, "the cap applies to the redacted text: a long secret that shrinks to [redacted] is not cut")
-	Do $$$AssertTrue(..Slot(7, "inputs") '[ $Char(8230), "and carries no cut mark")
-	Do $$$AssertTrue(..Slot(7, "inputs") [ "[redacted]", "but the redactor's mark")
+/// Arguments that can't be read send no notice and log one warning that names the request's Ref (fail closed): text that is not JSON, a JSON array or string, and a
+/// text the redactor can't check (nested deeper than it reads).
+Method TestToolCallUnreadableInputs()
+{
+	Set session = ..Session("toolunread")
+	Set deep = ""
+	For i = 1:1:150 Set deep = deep_"{""a"":"
+	Set deep = deep_"1"
+	For i = 1:1:150 Set deep = deep_"}"
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Redact).Text(deep), ##class(OcuTalon.Bridge.Redact).#UNCHECKED, "the fixture text is one that the redactor can't check")
+	Set n = 0
+	For arguments = "not json", "[1]", """x""", "42", deep {
+		Set ref = ..ToolRow(session, "pending", {"ToolArguments": (arguments)})
+		Set mark = ..LastLog()
+		Do ..Fire(session, "approval.raised", ref)
+		Do $$$AssertEquals(..Calls(), 0, "arguments '"_$Extract(arguments, 1, 20)_"' send no notice")
+		Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "ToolNoticeOf", ##class(OcuTalon.Core.BridgeSink).#ERRORTOOLNOTICE)
+		Do $$$AssertEquals(count, 1, "and log one warning")
+		Do $$$AssertTrue($Find(text, ref) > 0, "that names the request's Ref: "_text)
+	}
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 5, "while each approval event is published as before")
+}
 
-	Set mixed = ..ToolRow(session, "pending", {"ToolArguments": ("to ops"_$Char(10)_"password=zz-secret"_$Char(13,10)_words)})
-	Do ..Fire(session, "approval.raised", mixed)
-	Set inputs = ..Slot(8, "inputs")
-	Do $$$AssertTrue((inputs '[ $Char(10)) && (inputs '[ $Char(13)), "a plain text with line breaks, a secret and over 200 characters is on one line")
-	Do $$$AssertTrue((inputs '[ "zz-secret") && (inputs [ "[redacted]"), "with the secret redacted")
-	Do $$$AssertEquals($Length(inputs)_"|"_$Ascii(inputs, 200), "200|8230", "and cut to 200 characters ending with U+2026")
+/// The one test of V10 (Story 21.10): an input that holds a zero-width space, U+202E, U+E0041, U+2028, CR LF and a tab shows, on the web and on Telegram, as the one line
+/// with each of them written as \uXXXX, and neither text holds any of those characters.
+Method TestToolCallInputsVisible()
+{
+	Set session = ..Session("toolvisible")
+	Set note = "a"_$Char(8203)_"b"_$Char(8238)_"c"_$Char(56128,56385)_"d"_$Char(8232)_"e"_$Char(13,10)_"f"_$Char(9)_"g h"
+	Set arguments = {"note": (note)}.%ToJSON()
+	Set ref = ..ToolRow(session, "pending", {"ToolSource": "mcp:remote:@{config:AI.MCP.OcuTalon_zzvis}", "ToolArguments": (arguments)})
+	Do ..Fire(session, "approval.raised", ref)
+	Do $$$AssertEquals(..Calls(), 1, "the request sends one notice")
+	Set key = ..NoticeCall(1, "catalogKey")
+	Set slots = ..NoticeCall(1, "slots")
+	Set line = "note: ""a\u200Bb\u202Ec\uDB40\uDC41d\u2028e\u000D\u000Af\u0009g h"""
+	For channel = "web", "telegram" {
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(key, slots, channel, .sc)
+		Do $$$AssertStatusOK(sc, channel_": the notice renders")
+		Do $$$AssertEquals($Length(text, line) - 1, 1, channel_": the one line is there once")
+		Do $$$AssertEquals($Length(text, $Char(10)), 5, channel_": and the text has the five lines of the request, so no input started a line of its own")
+		For code = 8203, 8238, 8232, 13, 9 {
+			Do $$$AssertTrue(text '[ $Char(code), channel_": no character U+"_$ZHex(code)_" is in the text")
+		}
+		Do $$$AssertTrue(text '[ $Char(56128, 56385), channel_": nor the tag character")
+		Do $$$AssertTrue(text '[ $Char(56128), channel_": nor a half of it")
+	}
+}
+
+/// approval.cancelled (Story 21.10): a replayable MCP call whose server has no Mcp.Server row any more sends answered.canceled {time, server} and its approval event carries
+/// server and cancelledAt, the one time of the sink's clock; with the server still registered, a call of a developer's tool or an unnamed server it sends nothing and the event has no
+/// cancelledAt.
+Method TestToolCallCancelledOnlyForARemovedServer()
+{
+	Set session = ..Session("toolcancel")
+	Set ref = ..ToolRow(session, "cancelled", {"ToolSource": "mcp:remote:@{config:AI.MCP.OcuTalon_zzgone}"})
+	Set ^OcuTalonTest("BridgeSinkNotice", "registered", "zzgone") = 0
+	Do ..Fire(session, "approval.cancelled", ref)
+	Do $$$AssertEquals(..Calls(), 1, "a cancel whose server is gone sends one notice")
+	Do ..ExpectNotice(1, session, ref, "answered", "answered.canceled", "server,time", "cancelled")
+	Do $$$AssertEquals(..Slot(1, "server"), "zzgone", "that names the server")
+	Set time = ..Slot(1, "time")
+	Do $$$AssertTrue(time ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "and the time of the sink's clock: "_time)
+	Set events = ..Events(session, "approval")
+	Set payload = events.%Get(events.%Size() - 1).payload
+	Do $$$AssertEquals(payload.state_"|"_payload.server_"|"_payload.cancelledAt, "cancelled|zzgone|"_time, "the approval event carries the server and the same time")
+	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
+
+	Set ^OcuTalonTest("BridgeSinkNotice", "registered", "zzgone") = 1
+	Do ..Fire(session, "approval.cancelled", ref)
+	Do $$$AssertEquals(..Calls(), 1, "with the server still registered it sends nothing more")
+	Set events = ..Events(session, "approval")
+	Set payload = events.%Get(events.%Size() - 1).payload
+	Do $$$AssertEquals(payload.state_"|"_payload.server_"|"_payload.%Get("cancelledAt"), "cancelled|zzgone|", "and the event has the server but no cancelledAt")
+
+	Set plain = ..ToolRow(session, "cancelled")
+	Do ..Fire(session, "approval.cancelled", plain)
+	Do $$$AssertEquals(..Calls(), 1, "a call of a developer's tool sends nothing")
+	Set events = ..Events(session, "approval")
+	Set payload = events.%Get(events.%Size() - 1).payload
+	Do $$$AssertEquals(payload.%Get("server")_"|"_payload.%Get("cancelledAt"), "|", "and its event has neither member")
+	Set bare = ..ToolRow(session, "cancelled", {"ToolSource": "mcp:"})
+	Do ..Fire(session, "approval.cancelled", bare)
+	Do $$$AssertEquals(..Calls(), 1, "an MCP source with no server sends nothing")
+	Set unreplayable = ..ToolRow(session, "cancelled", {"ToolSource": "mcp:remote:@{config:AI.MCP.OcuTalon_zzgone}", "Runner": ""})
+	Set ^OcuTalonTest("BridgeSinkNotice", "registered", "zzgone") = 0
+	Do ..Fire(session, "approval.cancelled", unreplayable)
+	Do $$$AssertEquals(..Calls(), 1, "a held call that can't be replayed sends nothing")
+	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
 }
 
 /// A request that is not a replayable tool_call of a session that exists sends no notice, though its approval event is published as
@@ -1127,6 +1188,22 @@ Method Fire(owner As %String, type As %String, ref As %String) [ Private ]
 Method Calls() As %Integer [ Private ]
 {
 	Quit +$Get(^OcuTalonTest("BridgeSinkNotice", "calls"))
+}
+
+/// The inputs slot of a recorded notice, as JSON text.
+Method Inputs(n As %Integer) As %String [ Private ]
+{
+	Quit ..Slot(n, "inputs").%ToJSON()
+}
+
+/// Raises a request of the session with the arguments and checks that its notice (the newest) holds exactly the inputs.
+Method ExpectInputs(session As %String, arguments As %String, expected As %DynamicArray, label As %String) [ Private ]
+{
+	Set before = ..Calls()
+	Set ref = ..ToolRow(session, "pending", {"ToolArguments": (arguments)})
+	Do ..Fire(session, "approval.raised", ref)
+	Do $$$AssertEquals(..Calls(), before + 1, label_": one notice is sent")
+	Do $$$AssertEquals(..Inputs(before + 1), expected.%ToJSON(), label)
 }
 
 /// A slot of a recorded notice.

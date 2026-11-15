@@ -110,7 +110,7 @@ Method TestUpdate()
 	Set session = ..MakeSession()
 	Set first = ..Run(..#SENDER, ..SetCommand(server, "zz_lookup", "Jira", "{""q"": ""mine""}", 15, session))
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(first.Ref)
-	Set created = row.CreatedAt
+	Set row.CreatedAt = "2000-01-01T00:00:00Z"
 	Set row.NextDueAt = "2000-01-01T00:00:00Z"
 	Set row.Result = "passed"
 	Do $$$AssertStatusOK(row.%Save(), "the row is moved to the past, with a result")
@@ -119,7 +119,8 @@ Method TestUpdate()
 	Do $$$AssertEquals(..Rows(session), 1, "there is still one row")
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(first.Ref)
 	Do $$$AssertEquals(row.DisplayName _ "|" _ row.Tool _ "|" _ row.Arguments _ "|" _ row.IntervalMinutes, "jira|zz_other|{""q"":""changed""}|30", "the values and the name as last given are stored")
-	Do $$$AssertEquals(row.CreatedAt _ "|" _ row.Result, created _ "|passed", "CreatedAt and the run fields are kept")
+	Do $$$AssertEquals(row.Result, "passed", "the run fields are kept")
+	Do $$$AssertTrue(row.CreatedAt ] "2020-01-01T00:00:00Z", "a new tool and arguments repoint the source: CreatedAt moves to now (DW-1328): " _ row.CreatedAt)
 	Do $$$AssertTrue(row.NextDueAt ] "2020-01-01T00:00:00Z", "and the source is due now: " _ row.NextDueAt)
 	Set changes = ##class(OcuTalon.Test.Mcp.OpsProbe).Changes()
 	Do $$$AssertEquals(changes.%Size(), 2, "one CheckChanged for each set")

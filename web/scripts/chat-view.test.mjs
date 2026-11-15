@@ -110,12 +110,12 @@ describe('the order of the entries', () => {
   });
 
   it('shows a tool call\'s request and result (kinds approval and result with an approvalRef) as notices, and no such kind without one', () => {
-    const request = notice('K1', { kind: 'approval', approvalRef: 'A1', text: 'Run zz_send on ops-mcp\nInputs: {}' });
+    const request = notice('K1', { kind: 'approval', approvalRef: 'A1', text: 'Run zz_send on ops-mcp\nWhy: zz_send counts as risky, so it runs only after an approval.\nInputs:\n{}' });
     const result = notice('K2', { kind: 'result', approvalRef: 'A1', text: 'zz_send ran once at 14:12.' });
     const views = chatView([request, result], [], NO_RUNNING, NOW);
     assert.deepEqual(keys(views), ['notification:K1', 'notification:K2']);
     assert.deepEqual(views.map((view) => [view.entry, view.kind, view.approvalRef, view.strip]), [['notice', 'approval', 'A1', false], ['notice', 'result', 'A1', false]]);
-    assert.equal(views[0].text, 'Run zz_send on ops-mcp\nInputs: {}');
+    assert.equal(views[0].text, 'Run zz_send on ops-mcp\nWhy: zz_send counts as risky, so it runs only after an approval.\nInputs:\n{}');
     assert.equal(noticeOf(notice('K3', { kind: 'approval', approvalRef: '' })), undefined);
     assert.equal(noticeOf(notice('', { kind: 'result' })), undefined, 'a result with neither an approvalRef nor a card ref is the incident card\'s');
   });

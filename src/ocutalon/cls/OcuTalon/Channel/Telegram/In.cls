@@ -20,7 +20,7 @@ Include Ensemble
 ///     (DW-486, AD-4): a later update of a paired chat keeps the stored name when it has none of its own, and a chat that is not paired
 ///     is recorded with no name, so its next update clears a name that an unpair left on its row (SessionOps.Unlink keeps it, DW-520).
 ///   - The command of a private message is its text up to the first white space (a button press has none).
-///     Each reply is one pairing Notification by the chat row's Ref, with a catalog key and no slots, sent to Notify; this class never
+///     Each reply is one pairing Notification by the chat row's Ref, with a catalog key and the slots of that key (none for the pairing keys), sent to Notify; this class never
 ///     calls sendMessage (AD-1). The chat is recorded first, with the name rule above, and the command then runs with the row's Ref:
 ///       - pair: the text is "/start " and a code (Story 12.4). The code is hashed with Pairing.HashCode and Msg.Command.Pair
 ///         {CodeHash, ChatRef} is submitted through Commands.Submit with origin telegram. The outcome paired is answered pairing.paired,
@@ -32,7 +32,8 @@ Include Ensemble
 ///         message; after a failed or refused Submit there is one warning and no reply.
 ///       - any other message (a sticker too, and every other command): a chat that is not paired takes Pairing.TakeReplySlot and, when it
 ///         gets the slot (once a minute), is answered pairing.notPaired. A paired chat's text, when it is not empty once trimmed, is the
-///         user's turn (Story 12.6, below); a paired chat's message with no text gets no turn and no reply.
+///         user's turn (Story 12.6, below); a paired chat's document or photo is a file turn (the file bullet below); a paired chat's other
+///         message with no text (a sticker, a blank message) gets no turn and no reply.
 ///     A reply to a chat that is not paired has no SessionRef: such a chat reaches no session and no model.
 ///   - A button press of a private chat (Story 12.7; AD-11, AD-32) is recorded like a message, and its data is split at the first ":" into
 ///     the action and the request's Ref. AnswersIn.FromTelegram(Ref, action, the chat row's Ref) is called synchronously with the chat's
@@ -59,6 +60,17 @@ Include Ensemble
 ///     or none when the send failed. A send that fails gives the allowance entry back (Allowance.Refund) and is one warning. Afterwards
 ///     %SessionId and %SuperSession are "" again and the job's session id is cleared, so that the next update of the same poll answer,
 ///     its messages and its event-log rows, is traced on its own. The reply is Conversation's: it goes to Notify, and this class sends none.
+///   - A paired chat's file (Story 26.2; FR-54, AD-14, AD-21): a message with a document object or a photo array is handled by File, in this order, and each step that refuses
+///     answers one pairing Notification (files.* keys) and goes no further. (1) On the online demo (public setting onlineDemo 1) nothing is fetched and the chat is answered
+///     files.offOnDemo. (2) The size that the update reports (the document's, or the largest photo size's) over Core.Files FILEMAX is refused with files.tooLarge before any call.
+///     (3) While Core.Files.Readable() is 0 (Agent.Input READSFILES), nothing is fetched or stored and the chat is answered files.noReader, which is Core.Files' reply to a file turn
+///     with no reader, so that the web chat and Telegram do not differ. A part with no file_id is files.unreadable with the reason of Docs.Extract.Reason("failed"). (4) Turn checks the
+///     session row and the allowance as for a text turn (the caption is the text), so that a message the allowance refuses costs no download (DW-1340). (5) getFile for the file_id (the
+///     last, largest photo size), then Api.Download of the file_path it answers, which stops at FILEMAX bytes and at DOWNLOADSECONDS; a failure of either is one warning (no URL, path or
+///     token) and files.unreadable with the reason of Docs.Extract.Reason("failed"); a download over the limit is files.tooLarge. (6) Core.Files.Store with channel telegram, the
+///     document's file_name (a photo has none), which refuses too_large, empty or wrong_type as files.tooLarge or files.unreadable with Core.Files' reasons. A refusal in steps 5 and 6
+///     gives the allowance entry back. (7) Turn sends the same untrusted Item as the web route: the caption is its Text, and Core.Files.SetItem sets the four file fields. A stored file
+///     whose Item is not sent (a failed send) is discarded. The download address holds the token, so it is built only by Api.Download and is never logged.
 ///   - A 409 pauses the item PAUSESECONDS: the time is written to StatusMark.Record("telegramPaused", until), which is the one truth of
 ///     the pause and is read before every poll, so a restart honours it. Its warning carries Telegram's description, which says whether
 ///     another process polls the bot or a webhook is set. A getUpdates answered 200 deletes the mark. A 429 waits
@@ -127,6 +139,10 @@ Parameter LOGJOIN = "TelegramIn could not join the session's trace thread, so th
 Parameter LOGSTARTED = "TelegramIn could not record the session's trace thread, so the next turn starts another: ";
 
 Parameter LOGSEND = "TelegramIn could not send a paired chat's message to Conversation, and gave its allowance entry back: ";
+
+Parameter LOGFETCH = "TelegramIn could not fetch a paired chat's file: ";
+
+Parameter LOGSTORE = "TelegramIn could not store a paired chat's file: ";
 
 Parameter LOGPRESS = "TelegramIn could not hand a button press to the answer rule, so it answered the press with no text: ";
 
@@ -378,7 +394,7 @@ Method HandleUpdate(update As %DynamicObject) [ Private ]
 	} ElseIf command = "stop" {
 		Do ..Stop(ref, chat.id, sessionRef)
 	} ElseIf command = "other" {
-		Do ..Other(ref, sessionRef, text)
+		Do ..Other(ref, sessionRef, text, message)
 	}
 }
 
@@ -615,22 +631,154 @@ Method Outcome(command As OcuTalon.Msg.Command, log As %String) As %String [ Pri
 }
 
 /// Any other message: a chat that was not paired when its row was read takes its reply slot and, when it gets it (once a minute), is
-/// answered pairing.notPaired. A paired chat's text, when it is not empty once trimmed, is the user's turn; with no text it gets nothing.
-Method Other(ref As %String, sessionRef As %String, text As %String) [ Private ]
+/// answered pairing.notPaired. A paired chat's document or photo is a file turn (File); its text, when it is not empty once trimmed, is the user's turn; with neither it gets nothing.
+Method Other(ref As %String, sessionRef As %String, text As %String, message As %DynamicObject = "") [ Private ]
 {
 	If sessionRef '= "" {
-		If $ZStrip(text, "<>WC") '= "" Do ..Turn(sessionRef, text)
+		If ..HasFile(message) {
+			Do ..File(ref, sessionRef, message)
+		} ElseIf $ZStrip(text, "<>WC") '= "" {
+			Do ..Turn(sessionRef, text)
+		}
 		Quit
 	}
 	If ##class(OcuTalon.Data.Pairing).TakeReplySlot(ref) Do ..Reply(ref, "pairing.notPaired", "")
 }
 
+/// 1 when the message carries a document object or a photo array with a size in it.
+Method HasFile(message As %DynamicObject) As %Boolean [ Private ]
+{
+	If '$IsObject(message) Quit 0
+	If message.%GetTypeOf("document") = "object" Quit 1
+	Quit (message.%GetTypeOf("photo") = "array") && (message.photo.%Size() > 0)
+}
+
+/// A paired chat's document or photo (see the class comment): the steps in order, and the refusals as pairing Notifications.
+Method File(ref As %String, sessionRef As %String, message As %DynamicObject) [ Private ]
+{
+	If ..OnlineDemo() {
+		Do ..Reply(ref, "files.offOnDemo", sessionRef)
+		Quit
+	}
+	Set document = (message.%GetTypeOf("document") = "object")
+	Set part = $Select(document: message.document, 1: message.photo.%Get(message.photo.%Size() - 1))
+	If '$IsObject(part) Set part = {}
+	If (part.%GetTypeOf("file_size") = "number") && (part."file_size" > ##class(OcuTalon.Core.Files).#FILEMAX) {
+		Do ..Refuse(ref, sessionRef, ##class(OcuTalon.Core.Files).#TOOLARGE, part."file_size")
+		Quit
+	}
+	Set name = $Select(document && (part.%GetTypeOf("file_name") = "string"): part."file_name", 1: "")
+	If '..Readable() {
+		Do ..Reply(ref, "files.noReader", sessionRef, {"name": (..NoReaderName(name, document))})
+		Quit
+	}
+	If part.%GetTypeOf("file_id") '= "string" {
+		Do ..Refuse(ref, sessionRef, "failed")
+		Quit
+	}
+	Set caption = $Select(message.%GetTypeOf("caption") = "string": message.caption, 1: "")
+	Do ..Turn(sessionRef, caption, {"ref": (ref), "fileId": (part."file_id"), "name": (name)})
+}
+
+/// The file of a paired chat's upload ({ref, fileId, name}, see Turn) fetched (Fetch) and stored (Core.Files.Store, channel telegram, the upload's name), as the {ref, name, mediaType,
+/// size} that Store answers; or "" with the code of the refusal and its size: too_large with the size (a download cut off at the limit), wrong_type or empty with the stream's size, and
+/// failed after one warning (a fetch or a store that failed).
+Method Stored(sessionRef As %String, upload As %DynamicObject, Output code As %String, Output size As %Integer) As %DynamicObject [ Private ]
+{
+	Set code = "failed"
+	Set stored = ""
+	Set stream = ..Fetch(upload.fileId, .size)
+	If '$IsObject(stream) {
+		If size > 0 Set code = ##class(OcuTalon.Core.Files).#TOOLARGE
+		Quit ""
+	}
+	Set size = 0
+	Set refusal = ##class(OcuTalon.Core.Files).Store(sessionRef, ..#CHANNEL, upload.name, stream, .stored, .sc)
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGSTORE_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		Quit ""
+	}
+	If refusal '= "" {
+		Set code = refusal
+		Set size = stream.Size
+		Quit ""
+	}
+	If '$IsObject(stored) Quit ""
+	Set code = ""
+	Quit stored
+}
+
+/// The name that the no-reader reply gives the file: the document's own safe name, else photo.jpg for a photo (the name Store gives it) and file for a document with none (Store would name
+/// it by the type its bytes show, which is not known before the download; the web route always has a name).
+ClassMethod NoReaderName(name As %String, document As %Boolean) As %String [ Private ]
+{
+	Set safe = ##class(OcuTalon.Core.Files).SafeName(name)
+	Quit $Select(safe '= "": safe, document: "file", 1: "photo.jpg")
+}
+
+/// The bytes of the file with the file_id, through getFile and Api.Download, as a stream, or "" after one warning (size is then the limit plus 1 when the download was cut off at the
+/// limit, else 0). No warning holds the download address, the file path or the token.
+Method Fetch(fileId As %String, Output size As %Integer) As %Stream.Object [ Private ]
+{
+	Set size = 0
+	Set stream = ""
+	If fileId = "" {
+		$$$LOGWARNING(..#LOGFETCH_"the update names no file.")
+		Quit ""
+	}
+	Set answer = ..Call("getFile", {"file_id": (fileId)}, .httpStatus, .sc)
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGFETCH_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		Quit ""
+	}
+	If '((httpStatus = 200) && +answer.ok && $IsObject(answer.result) && (answer.result.%GetTypeOf("file_path") = "string")) {
+		$$$LOGWARNING(..#LOGFETCH_##class(OcuTalon.Channel.Telegram.Api).Failure("getFile", httpStatus, answer))
+		Quit ""
+	}
+	Set stream = ##class(OcuTalon.Channel.Telegram.Api).Download(..ApiBase, ..SSLConfig, answer.result."file_path", ..#POLLSECONDS + ..#READMARGIN, .httpStatus, .sc, .tooLarge)
+	If tooLarge Set size = ##class(OcuTalon.Channel.Telegram.Api).#DOWNLOADMAX + 1
+	If $SYSTEM.Status.IsError(sc) || '$IsObject(stream) {
+		If 'tooLarge $$$LOGWARNING(..#LOGFETCH_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		Quit ""
+	}
+	Quit stream
+}
+
+/// The refusal of a file as the pairing Notification of its key: too_large is files.tooLarge with the size as Core.Files writes it; wrong_type and empty are files.unreadable with Core.Files'
+/// reasons; any other code (failed) is files.unreadable with the reason of Docs.Extract for failed.
+Method Refuse(ref As %String, sessionRef As %String, code As %String, size As %Integer = 0) [ Private ]
+{
+	If code = ##class(OcuTalon.Core.Files).#TOOLARGE {
+		Do ..Reply(ref, "files.tooLarge", sessionRef, {"size": (##class(OcuTalon.Core.Files).SizeText(size))})
+		Quit
+	}
+	Set reason = $Case(code, ##class(OcuTalon.Core.Files).#WRONGTYPE: ##class(OcuTalon.Core.Files).#REASONWRONGTYPE, ##class(OcuTalon.Core.Files).#EMPTY: ##class(OcuTalon.Core.Files).#REASONEMPTY, : ##class(OcuTalon.Docs.Extract).Reason("failed"))
+	Do ..Reply(ref, "files.unreadable", sessionRef, {"reason": (reason)})
+}
+
+/// 1 when the online-demo flag is set: a file is then never fetched. Private; a test subclass overrides it.
+Method OnlineDemo() As %Boolean [ Private ]
+{
+	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
+}
+
+/// 1 when Core.Files says that a sent file can be read (Agent.Input READSFILES). Private; a test subclass overrides it.
+Method Readable() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Files).Readable()
+}
+
 /// A paired chat's text as the session's turn, in the steps of WebChatIn.Accept (see the class comment). The service's %SessionId and
 /// %SuperSession are "" again, and the job's session id, which the event log reads, is cleared, when the method ends,
-/// also after an exception, which it then raises to the caller.
-Method Turn(sessionRef As %String, text As %String) [ Private ]
+/// also after an exception, which it then raises to the caller. With upload (a paired chat's file: {ref, the chat row's Ref; fileId; name}, from File) the text is the caption, and only
+/// after the allowance took the message is the file fetched and stored (Stored), so that a message the allowance refuses, or one with no session row, costs no download (DW-1340). A
+/// file that Stored refuses is answered to the chat (Refuse), gives the allowance entry back (Refund) and sends no Item; a stored one makes the Item untrusted with the four file fields
+/// (Core.Files.SetItem), and the stored file is discarded on every path that sends no Item.
+Method Turn(sessionRef As %String, text As %String, upload As %DynamicObject = "") [ Private ]
 {
 	Set thrown = ""
+	Set sent = 0
+	Set file = ""
 	Try {
 		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
 		If '$IsObject(session) {
@@ -642,6 +790,14 @@ Method Turn(sessionRef As %String, text As %String) [ Private ]
 				Do ..Notice(session, retryAt)
 			}
 		} Else {
+			If $IsObject(upload) {
+				Set file = ..Stored(sessionRef, upload, .code, .size)
+				If '$IsObject(file) {
+					Do ..Refuse(upload.ref, sessionRef, code, size)
+					Do ..Refund(sessionRef)
+					Quit
+				}
+			}
 			Set now = ##class(OcuTalon.Data.Time).NowUtc()
 			Set thread = ##class(OcuTalon.Core.Trace).Join(sessionRef, .joinSc, now)
 			If $SYSTEM.Status.IsError(joinSc) $$$LOGWARNING(..#LOGJOIN_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(joinSc)))
@@ -653,13 +809,15 @@ Method Turn(sessionRef As %String, text As %String) [ Private ]
 				Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 				Set item.SessionRef = sessionRef
 				Set item.Channel = ..#CHANNEL
-				Set item.Provenance = "user"
+				Set item.Provenance = $Select($IsObject(file): "untrusted", 1: "user")
 				Set item.Text = text
 				Set item.FromGuide = 0
+				If $IsObject(file) Do ##class(OcuTalon.Core.Files).SetItem(item, file)
 				Set sc = ..SendTurn(item)
 			} Catch exception {
 				Set sc = exception.AsStatus()
 			}
+			Set sent = $SYSTEM.Status.IsOK(sc)
 			If $SYSTEM.Status.IsOK(joinSc) && (thread = "") {
 				Set startedSc = ##class(OcuTalon.Core.Trace).Started(sessionRef, $Select($SYSTEM.Status.IsOK(sc): ..%SessionId, 1: ""), now)
 				If $SYSTEM.Status.IsError(startedSc) $$$LOGWARNING(..#LOGSTARTED_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(startedSc)))
@@ -675,6 +833,7 @@ Method Turn(sessionRef As %String, text As %String) [ Private ]
 	Set ..%SessionId = ""
 	Set ..%SuperSession = ""
 	Kill $$$JobSessionId
+	If $IsObject(file) && 'sent Do ##class(OcuTalon.Core.Files).Discard(file.ref, sessionRef)
 	If $IsObject(thrown) Throw thrown
 }
 
@@ -728,17 +887,17 @@ Method Forget(ref As %String, chatId As %String) [ Private ]
 	}
 }
 
-/// The one reply: a pairing Notification with the catalog key and no slots, for the chat row's Ref and the session (or ""), sent to
+/// The one reply: a pairing Notification with the catalog key and its slots (a dynamic object; none for a pairing key), for the chat row's Ref and the session (or ""), sent to
 /// Notify, which routes it to TelegramOut by ChatRef.
-Method Reply(ref As %String, key As %String, sessionRef As %String) [ Private ]
+Method Reply(ref As %String, key As %String, sessionRef As %String, slots As %DynamicObject = "") [ Private ]
 {
 	Set notification = ##class(OcuTalon.Msg.Notification).%New()
 	Set notification.SessionRef = sessionRef
 	Set notification.ChatRef = ref
 	Set notification.Kind = "pairing"
 	Set notification.CatalogKey = key
-	Set notification.Slots = "{}"
-	Set sc = ..SendRequestAsync("Notify", notification)
+	Set notification.Slots = $Select($IsObject(slots): slots.%ToJSON(), 1: "{}")
+	Set sc = ..Notify(notification)
 	If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGREPLY_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
 }
 
