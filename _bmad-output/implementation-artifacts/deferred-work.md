@@ -8217,3 +8217,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator; feature 42e7b3ec ci 43633699261 attempt 1 shards-2; lane D diagnosis | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
 - 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
+
+### DW-1358: README Measured tables count 11 main-set incidents; 23.3 adds two eval incidents (13, one with an injected instruction in the new value): the next release evaluation must refresh README rows 72/90 and the fixed-rules fallback column will score the two new cases
+- source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: README.md:72,90 '11 of 11'; eval set 11->13 incidents in 8f6d2e2a
+- 2026-11-15T08:43:08Z status=decision-pending owner=burndown by=harvest note=human=Planner_at_next_release_evaluation(public_text_figures)
