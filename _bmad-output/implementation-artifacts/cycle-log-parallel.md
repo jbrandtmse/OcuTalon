@@ -4409,3 +4409,4 @@
 2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400
 2026-11-15T22:50:42Z	Epic 23	merged	story=DW-1400 merge=c97aa4f22 tracker=23.8_backlog(parked) epics_md_hash=re-recorded
 2026-11-15T22:56:38Z	Epic 23	runner_reported	PUBLIC_TEXT 23.13(8418ec9d1) new=partnerRequestMailbox,partnerSkipped D9=partner.emailSubject("Delay notice") D6-D8,D10 relayed=contest_planner
+2026-11-15T22:56:50Z	Epic 23	owner_decision	via=contest_planner 23.13_replan=APPROVED(lines_1,2_verbatim;D9_partner.emailSubject="Delay notice"+pin;D6-D8,D10_accepted)
