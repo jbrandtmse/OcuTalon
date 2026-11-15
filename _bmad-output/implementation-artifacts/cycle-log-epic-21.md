@@ -399,3 +399,5 @@
 2026-11-15T09:37:07Z	DW-1347	stage_spawned	stage=qa spawn_at=2026-11-15T09:37:07Z model=sonnet effort=high agent_name=dw-1347-qa-1 cycle_iteration=1
 2026-11-15T09:41:53Z	DW-1347	qa_complete	model=sonnet commit=09c1469c9 tests=TestNoAnswerHash(+4_unusable_hash_forms:65ch,non-hex_g,JSON_number,array) mutations_demonstrated=3 findings=none
 2026-11-15T09:41:53Z	DW-1347	stage_spawned	stage=code-review spawn_at=2026-11-15T09:41:53Z model=opus effort=high agent_name=dw-1347-code-review-1 cycle_iteration=1
+2026-11-15T10:02:41Z	DW-1347	cr_complete	model=opus findings=20(5_patched,12_rejected,2_wontfix-accepted) high=0 med=2(SourceRunProduction_wait_for_Decisions+assert_Item_in_trace;patched) low=3_patched ledger=DW-1371(replay_no_answerHash_untested),DW-1372(ruling_d_AD-31_read_as_HostData_channel_AD;no_AD-31_text) unresolved_high_med=0 final_status=done rule3=SourceRun,Bridge.Poll,Mcp.Attach,SourceRunProduction_pass
+2026-11-15T10:02:41Z	DW-1347	ledger	DW-1347=resolved-by:dw-1347

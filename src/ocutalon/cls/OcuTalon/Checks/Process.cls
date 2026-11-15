@@ -1319,7 +1319,7 @@ ClassMethod Newest(seen As %DynamicArray) As %DynamicArray [ Private ]
 	Quit kept
 }
 
-/// The Item of a result that was not seen before (see the class description): a new ItemId, the row's session, Channel system, Provenance untrusted, Subject the source's name, Text the answer.
+/// The Item of a result that was not seen before (see the class description): a new ItemId, the row's session, Channel system, Provenance untrusted, Subject the source's name, Text the answer as cut at the tool-result room.
 Method SourceItem(row As %DynamicObject, text As %String) As OcuTalon.Msg.Item [ Private ]
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()

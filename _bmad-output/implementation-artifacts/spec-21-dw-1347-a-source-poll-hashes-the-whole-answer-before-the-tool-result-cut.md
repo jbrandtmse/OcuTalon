@@ -137,6 +137,31 @@ Fixtures as in 22.11: server `zz`/`zzmcp`, tool `zz_lookup`, source "Jira". Room
    - mutation: drop `Decide.PollAnswer`'s HostData copy -> `TestLongAnswerChangedPastCutInProduction` red (the run records error, no Item).
 7. Every 22.11 test still passes unchanged: `SourceRun`, `SourceRunProduction`, `Bridge.Poll`, `Mcp.Proxy`, `Mcp.Attach`, `Bridge.CodeRules`. `test-boundaries.sh` passes (the bridge names no host class).
 
+### Review Findings
+
+Code review 2026-11-15 (full mode, acceptance auditor armed; diff `8966d4c18` to the tree at `d2ca12bc0` without bookkeeping). 20 layer findings (blind hunter 9, edge hunter 1, verification-gap 5, acceptance auditor 5): high 0; medium 3 rows in 2 entries, both patched; low 17: 3 patched, 2 ledgered `wontfix-accepted`, 12 rejected. No AD mismatch: the spine hunks match the Design Notes word for word, and the bridge code names no host class or `answerHash`.
+
+- [x] [Review][Patch] (medium; blind hunter) `TestLongAnswerChangedPastCutInProduction` waited only for the Item (`Items()`), so its triage by Intake, Decide and the model mock could still run when `OnAfterOneTest` removed the trace (Rule 19 hermeticity). It now waits for `Decisions()`, as `TestNewResultReachesIntake` does. [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceRunProduction.cls:188]
+- [x] [Review][Patch] (medium; blind hunter + verification-gap) The same test's Item Text assertions sat behind `If item.%Size() = 1` and nothing asserted that size, so AC 6's "with the cut text" could pass unchecked. It now asserts that the Item is in the session's trace. [src/ocutalon/cls/OcuTalon/Test/Mcp/SourceRunProduction.cls:195]
+- [x] [Review][Patch] (low; blind hunter) The `SourceItem` doc said "Text the answer". It now says "Text the answer as cut at the tool-result room", matching the class doc and AD-18 Part B. [src/ocutalon/cls/OcuTalon/Checks/Process.cls:1322]
+- [x] [Review][Patch] (low; verification-gap) AC 2's refusal clause and AC 7 had no `mutation:` line. Both are now recorded under Verification: the refusal clause holds by construction, with no separating single mutation, and AC 7 is the regression list.
+- [x] [Review][Defer] (low; verification-gap) A replay's proxy call has no pin that it notes no `answerHash`. Only a chat call is pinned (`TestProxyCut`), and the replay test is `Test/Mcp/Approval.cls`, which is outside this footprint. Filed as DW-1371, `wontfix-accepted` with `reopen_if`.
+- [x] [Review][Defer] (low; acceptance auditor) Ruling (d) approves "the AD-6, AD-31 and AD-18 Part B amendments" verbatim, but this spec writes no AD-31 text. Decided in this unattended run: "AD-31" is the AD that Veto item 4 names for the HostData channel ("AD-6 and AD-31"). The approved verbatim text is the two Design Notes amendments, which are applied word for word, and AD-31's Rule is unchanged and holds. Filed as DW-1372, `wontfix-accepted`, `reopen_if` the Planner meant more text. The lead may confirm it with the Planner.
+
+Rejected:
+- Edge hunter: a poll in flight across the upgrade gets one REASONREAD run. `false`: no release has source polls (22.11 is in no tag), and 22.11 ships with this fix in 1.0.11.
+- Blind hunter: no log line when `Checks` sees no usable hash. `low`, rejected: it is unreachable in normal running, the coverage list shows "Couldn't be read", and the fix adds a branch.
+- Blind hunter: the spine's Conventions table does not list `answerHash`. `false`: HostData members are recorded in their own AD records (`learned` too, at AD-21). `answerHash` is in the amended AD-6 and AD-18 lines, and it is not a cross-lane carrier.
+- Blind hunter: the `Bridge/HostData.cls` and `Tools/HostData.cls` docs do not list the member. Rejected as spec-bound: this spec forbids changing `Bridge/HostData.cls` and naming the member in the bridge, and `Tools/HostData.cls` is outside the footprint.
+- Blind hunter: `Proxy` calls `Bridge.HostData.Put` and not the `Tools.HostData` facade. `by-design`: the Execution task prescribes it, and `Bridge.HostData` is in `CALLBACKHELPERS`.
+- Blind hunter: the Auto Run Result says nine mutation lines (now twelve, plus this review's). Rejected: the fix edits an earlier pass's section of the spec. These records supersede it.
+- Blind hunter: the triage log says `$` matches before a final line break. Rejected: the fix edits the spec's earlier log. For the record, `$Match` matches the whole string, so a 64-hex hash with a final line break is refused, as QA probed.
+- Acceptance auditor: the "AD-6" amendment sits in AD-10's section. `false`: it is the bullet tagged "(AD-6, AD-10; Story 22.11)", and the replaced sentence occurred only there.
+- Acceptance auditor: `Proxy.Call`'s doc is not updated. `false`: it defers to the class description, which is updated, and nothing in it is untrue.
+- Acceptance auditor: `Poll.cls` names `answerHash` in a comment. `by-design`: the spec dictates that step 7 sentence. No code line in `src/bridge/` names it, and `test-boundaries.sh` skips comments.
+- Acceptance auditor: `cycle-log-epic-21.md` is in the diff. `false`: it is bookkeeping, excluded from the footprint check.
+- Verification-gap (other): `Prepare` makes the row due before the mock is set to A. `low`, rejected: the window is milliseconds, the outcome would be a loud red ("seen holds..."), never a false green, and the sibling test has the same order.
+
 ## Design Notes
 
 **Governing ADs:** AD-6 (source polls; no model in a poll), AD-10 (the cut stays where it is, for every model step), AD-18 (Part B: what `seen` holds), AD-21, AD-31 (HostData is the reply's channel from a tool to the host), AD-2 (the bridge copies HostData without naming its members), AD-33 (`Checks` alone writes `Reported`). Nothing in them is contradicted. Two of their records are amended below.
@@ -250,6 +275,13 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - mutation: the match allows letters beyond f (`[0-9a-f]` -> `[0-9a-z]`) -> `TestNoAnswerHash` red (the form with a "g": "not_checked with REASONREAD", "no Item is sent", "seen and baseline are as they were");
 - mutation: drop the string check on the member (`data.%GetTypeOf(...) = "string") && `) -> `TestNoAnswerHash` red (the 64-digit JSON number form: "not_checked with REASONREAD", "no Item is sent", "seen and baseline are as they were").
 - Gaps weighed and not added (already pinned, or no new behavior): the same long answer again (`TestLongAnswerChangedPastCut` step 3), a short answer's hash as before (the abc and euro vectors in `TestPollWholeAnswerHash`, the 22.11 oracle in `SourceRun`), the 50-hash window (`TestSeenBefore`, which feeds whole-answer hashes through `Answer`), a chat call's HostData and cut (`TestProxyCut`), an empty answer with a hash (`TestNoAnswerHash`). A hash of 64 hex characters plus a final line break is also rejected (probed, passes; no mutation separates it, so not added). No product bug found.
+
+**Code review records** (lane C warm throwaway `e21dwcw`; each mutation applied alone, red observed, reverted byte for byte, `git status --short` and `git diff --stat` as before, the class green again on the same stack):
+- Warm, passing: `OcuTalon.Test.Mcp.SourceRun` (1.4 s), `OcuTalon.Test.Bridge.Poll` (28.4 s), `OcuTalon.Test.Mcp.Attach` (183.3 s), and after the review patches `OcuTalon.Test.Mcp.SourceRunProduction` (46.9 s) and `OcuTalon.Test.Mcp.SourceRun` (0.8 s).
+- mutation (the new pin "the Item is in the session's trace" in `TestLongAnswerChangedPastCutInProduction`): drop `Decide.PollAnswer`'s HostData copy -> `TestLongAnswerChangedPastCutInProduction` red ("one Item went from Checks to Intake, though the answer changed only past the cut", "the Item is in the session's trace", "the poll's Reply carries the answerHash of the whole answer"); `OcuTalon.Test.Mcp.SourceRunProduction` green after the revert (47.0 s).
+- mutation (the Planner's CONDITION, observed again): `RecordSource` hashes the Reply's cut text (`Set hash = $Select(text = "": "", 1: ##class(OcuTalon.Mcp.Proxy).AnswerHash(text))` in place of `If text = "" Set hash = ""`) -> `TestLongAnswerChangedPastCut` red ("a change past the cut is one Item", "the same whole answer again sends no Item", "seen holds both hashes, newest last"); `OcuTalon.Test.Mcp.SourceRun` green after the revert.
+- AC 2, second clause (a refusal's Reply has no HostData): no single mutation separates it. Two independent guards hold it: the proxy's refusal (`{"refusal", "outcome"}`) has no `text`, so `Noted` writes nothing, and `Poll.Run` copies HostData only on the text path. The `HostData = ""` assertions in `TestPollRunWords`, `Refuses` and `TestPollNoDecisionRow` record that by construction. Removing either guard alone is an equivalent mutant.
+- AC 7 (every 22.11 test passes unchanged) is the regression list, not a behavior of its own, so it has no mutation. Its evidence is the green classes above and in the implement records.
 
 ## Review Triage Log
 

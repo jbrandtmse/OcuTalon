@@ -185,13 +185,14 @@ Method TestLongAnswerChangedPastCutInProduction()
 	Do ..Poll(ref, before)
 	Do $$$AssertEquals(..Stored(ref).Result, "passed", "the second poll is passed")
 	Set end = $ZHorolog + ..#WAIT
-	While (..Items() < 1) && ($ZHorolog < end) {
+	While (..Decisions() < 1) && ($ZHorolog < end) {
 		Hang 0.5
 	}
 	Do $$$AssertEquals(..Items(), 1, "one Item went from Checks to Intake, though the answer changed only past the cut")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(..Session).TraceRef
 	Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(trace)
 	Set item = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Checks", "Intake")
+	Do $$$AssertEquals(item.%Size(), 1, "the Item is in the session's trace")
 	If item.%Size() = 1 {
 		Set body = ##class(OcuTalon.Msg.Item).%OpenId(item.%Get(0).bodyId)
 		Set ..ItemIds = ..ItemIds _ $ListBuild(body.ItemId)

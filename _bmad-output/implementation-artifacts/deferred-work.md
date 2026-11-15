@@ -8176,6 +8176,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Tools/McpCall CallMcpTool passes the room to Proxy.Call; Poll.Run hashes what was shown. Not measured against an answer beyond the room.
 - 2026-11-14T19:28:17Z status=escalated owner=burndown by=cr note=fix in Tools/McpCall (room empty for a poll) is outside 22.11's footprint
+- 2026-11-15T10:02:34Z status=resolved-by:dw-1347 by=epic-runner note=whole-answer hash before the cut (b4bcc74b5); Planner gate ~09:10Z Nov 15
 
 ### DW-1348: Source polls: a run recorded in the same second as a repoint keeps the old seen history (start-afresh rule is LastRunAt before CreatedAt, second resolution)
 - source: spec-22-11-run-source-polls-through-the-governed-proxy.md (code review) | severity: low | fix-risk: low | footprint: in-story
@@ -8266,3 +8267,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-22-15-the-tool-list-reports-which-tools-changed-the-changed-flag.md code review | severity: low | fix-risk: low | footprint: in-story
 - evidence: KeepRow's refused branch keeps Changed (spec: unchanged) and Tools gives changed = Changed 1 AND unclassified, so both members show at once; 21.9's banner may list a refused tool
 - 2026-11-15T02:04:16Z status=by-design owner=22-15-the-tool-list-reports-which-tools-changed-the-changed-flag by=cr note=spec-bound (intent: refused branch unchanged); reopen via 21.9's spec if the banner must skip status refused
+
+### DW-1371: A replay's proxy call has no pin that it notes no answerHash in HostData (only a chat call is pinned)
+- source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Proxy.Noted's hash branch is guarded by IsPoll() alone; TestProxyCut pins a chat call, and no test (Test/Mcp/Approval.cls TestReplayResultIsCut) reads a replay's HostData, so widening the guard to (approved '= "") || IsPoll() stays green.
+- 2026-11-15T10:00:19Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=a change touches Proxy.Noted's IsPoll guard, or a replay Reply's HostData holds an answerHash member
+
+### DW-1372: DW-1347 ruling (d) names an AD-31 amendment that the spec never wrote; read as the AD that Veto item 4 names
+- source: spec-21-dw-1347-a-source-poll-hashes-the-whole-answer-before-the-tool-result-cut.md code review | severity: low | fix-risk: low | footprint: in-story
+- evidence: The spine diff amends only AD-6 Source polls and AD-18 Part B, word for word as the spec's Design Notes; Veto item 4 names AD-6 and AD-31 for the HostData channel; AD-31's Rule is unchanged and holds (the bridge names no host class).
+- 2026-11-15T10:00:19Z status=wontfix-accepted owner=22-11-run-source-polls-through-the-governed-proxy by=cr note=reopen_if=the Planner says ruling (d) meant AD-31 text beyond the spec's two Design Notes amendments
