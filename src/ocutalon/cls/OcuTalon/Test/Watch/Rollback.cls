@@ -9,6 +9,7 @@ Include Ensemble
 ///     never fails a class): the SKIP line of TestMeasuredRemoval is such a figure (Timing), not a skipped test, and the assertions after it run.
 ///   - TestUndoSystemDefaultChanged and TestUndoDefaultMovesAfterDryRun (DW-1366): the undo of a rollback of a System Default Setting change shows, in its dry run, the setting's
 ///     current default as After (the default that changed while the item's own value hid it), and a default that moves after the dry run skips the run with result.settingChangedSince;
+///   - TestMeasuredOnline and TestRolesPutBackAfterAFailure: the Roles step rewrites every OcuTalon role, so the roles are saved (SaveRoles) and put back, by the test and by PutBack after a failed one;
 ///   - TestUndoDefaultGone: the System Default Setting that the item's own value hid is gone, so the undo's After is the class value, and refused when that is empty;
 ///   - TestUpdateFailureRestoresRemoval and TestUpdateFailureRestoresInsert (DW-1365): the restore after a forced update failure puts a removed stored setting back and takes an inserted one out;
 ///   - TestUpdateFailureRestores and TestUpdateFailureNotApplied (DW-1365): Fix.Executor InProduction, given a plan entry whose updateErrors makes Ens.Director.UpdateProduction fail
@@ -293,19 +294,46 @@ Method TestMeasuredRemoval()
 }
 
 /// Task 0 (c): on an online-demo install the service role holds no %Ens_ProductionConfig:W once the Roles step has run again, and it holds it again after the flag is off.
+/// The Roles step rewrites every OcuTalon role from the areas' Grants only, so the roles are saved first and put back as they were (the trace role's OCUORDERS databases, which the Demo step
+/// granted, are not among the Grants): after the put-back every OcuTalon role holds what it held before, which Test.Install.SecurityOverview reads in either order.
 Method TestMeasuredOnline()
 {
 	If '..Ready() Quit
 	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser")
-	// the Roles step rewrites the role from the Grants of the areas only, so the role is put back as it was (the Demo step's read of OCUORDERS is not among them)
-	Set ..RoleBefore = ..RoleResources()
-	Set ..RoleSaved = 1
+	Set trace = ##class(OcuTalon.Install.Step.Web).#TRACEROLE
+	Do ..SaveRoles()
+	Set rolesBefore = ..RolesBefore
+	Set saved = {}.%FromJSON(rolesBefore)
+	Do $$$AssertTrue($IsObject(saved.%Get(trace)) && $IsObject(saved.%Get(..#ROLE)), "the saved roles hold the trace role and the service role")
+	If '$IsObject(saved.%Get(trace)) Quit
+	Set traceBefore = saved.%Get(trace).resources
+	Do $$$AssertTrue(traceBefore [ ..#ORDERSDATA, "the trace role holds the OCUORDERS data database before the Roles step runs (demo mode on)")
 	Do ..SetOnlineDemo(1)
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs again with onlineDemo 1")
 	Do $$$AssertEquals(''$SYSTEM.Security.CheckUserPermission(user, "%Ens_ProductionConfig", "W"), 0, "the service user holds no %Ens_ProductionConfig:W")
 	Do ..SetOnlineDemo(0)
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Roles).Run(), "the Roles step runs again with onlineDemo 0")
 	Do $$$AssertEquals(''$SYSTEM.Security.CheckUserPermission(user, "%Ens_ProductionConfig", "W"), 1, "and the service user holds it again")
+	Do ..Timing("Task 0 (c): the trace role's resources after the Roles step: "_..OcuTalonRoles().%Get(trace).resources)
+	Do $$$AssertStatusOK(..PutRolesBack(), "every OcuTalon role is put back as it was")
+	Do $$$AssertEquals(..RolesDifference(rolesBefore), "", "every OcuTalon role holds what it held before the Roles step ran again")
+	Do $$$AssertEquals(..OcuTalonRoles().%Get(trace).resources, traceBefore, "and the trace role holds the OCUORDERS databases again")
+}
+
+/// The put-back that OnAfterOneTest and OnAfterAllTests run (PutBack) restores every saved OcuTalon role when the test body did not: a role is damaged after SaveRoles (the trace role without
+/// its OCUORDERS data database, as the Roles step leaves it), PutBack runs as it does after a failed test, and every role is as saved.
+Method TestRolesPutBackAfterAFailure()
+{
+	If '..Ready() Quit
+	Set trace = ##class(OcuTalon.Install.Step.Web).#TRACEROLE
+	Do ..SaveRoles()
+	Set rolesBefore = ..RolesBefore
+	Set traceBefore = ..OcuTalonRoles().%Get(trace).resources
+	Do $$$AssertStatusOK(..WriteRoleOf(trace, ..Without(traceBefore, ..#ORDERSDATA), ""), "the trace role is damaged: no OCUORDERS data database, no granted roles")
+	Do $$$AssertNotEquals(..RolesDifference(rolesBefore), "", "the damage shows")
+	Do $$$AssertStatusOK(..PutBack(), "PutBack runs as it does after a failed test")
+	Do $$$AssertEquals(..RolesDifference(rolesBefore), "", "every OcuTalon role is as it was saved")
+	Do $$$AssertEquals(..OcuTalonRoles().%Get(trace).resources, traceBefore, "and the trace role holds its resources again")
 }
 
 /// The change old to new of the stored setting of the target, recorded, then a rollback of it carried out by FixExecutor's job: the figures are logged.
