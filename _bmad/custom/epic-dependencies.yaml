@@ -382,6 +382,8 @@ epics:
             # [AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (i)] epic-level edge on epic-36 lifted to story level: 23.3 waits on 36.1, 23.4 and 23.8 on 36.2; 23.6, 23.2 and 23.5 have no Epic 36 dependency.
             # [AMENDED 2026-11-09, owner re-plan, Contest Planner ruling (iii)] 23.5 sends through the existing SimMailbox channel; real email (EmailOut) moves to a parked 23.5 follow-up under Epic 21, so 23.5 no longer waits on epics 21 and 22 (partner-contact source: see the 23.5 note, pending)
             paths_hint: ["src/ocutalon/cls/OcuTalon/{Watch,Fix,Checks}/**", "src/ocutalon/cls/OcuTalon/Data/{BackgroundCheck,Incident,Page}*.cls", "src/ocutalon/cls/OcuTalon/Install/Step/{Roles,Users}.cls", "src/ocutalon/cls/OcuTalon/Channel/Telegram/**", "src/ocutalon/cls/OcuTalon/Tools/**", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls", "src/ocutalon/cls/OcuTalon/Test/{Watch,Fix,Checks,Install}/**", "eval/**", "ci/mock/scenarios/A/**", "docs/**"],
+            # [AMENDED 2026-11-15, Contest Planner] 23.13 (partner warnings go to the Settings contacts) waits on 24.2's table and reader, and runs after 23.4 and 23.8
+            story_waits_stories: {"23.13": ["24.2"]},
             story_waits: {"23.2": epic-14,                  # real: the overview's generated list shows the new kinds
                           "23.3": epic-36,                  # real: 36.1's setting-history names (re-plan (i))
                           "23.4": epic-36,                  # real: 36.2's keys and verbs (re-plan (i))
