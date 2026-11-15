@@ -4326,3 +4326,4 @@
 2026-11-15T15:20:04Z	Epic 23	owner_decision	via=contest_planner new_story=23.13(Partner_warnings_go_to_the_Settings_contacts;laneB;after_23.4,23.8_and_24.2_merge;TABLE=1)
 2026-11-15T15:31:56Z	Run	ci_green_verified	head=a1b4f2e2c(1.0.11_base) runs=43726997245,43726997243(att1)
 2026-11-15T15:31:56Z	Run	planner_notified	"1.0.11 REQUIRED GREEN a1b4f2e2c" 25.6=not_in 23.3=not_in
+2026-11-15T15:32:28Z	Run	release_started	via=contest_planner 1.0.11_from=a1b4f2e2c merges=continue(DW-1371,23.3,25.6) hold_new_pushes_on="RELEASE PR OPEN #n"_until_its_jobs_started
