@@ -4384,3 +4384,5 @@
 2026-11-15T19:46:11Z	Epic 21	merged	story=DW-1388 merge=3242f9657
 2026-11-15T19:46:21Z	Epic 24	runner_reported	PLANNER_REPORT story=24.4 head=bb9fe0b5(local) gaps=evidence_setting-change_rows,closed-card_undo vetoes=V1_5_strings,V2_closed_card_undo,V3_web/scripts_tests relayed=contest_planner
 2026-11-15T19:46:34Z	Epic 24	owner_decision	via=contest_planner 24.4=APPROVED(1.0.12;V1_verbatim+redactor_condition+secret-shaped_pin;V2_closed_card_undo_only+pins;V3_granted) DW-1388=further_B13_red_is_regression file=prompts/story-244-rulings-20261115.md
+2026-11-15T19:53:03Z	Run	ci_green_verified	head=8c71bef6e(23.3_merge) runs=43748578400(att2;att1=DW-1388_ci-48),43748578393
+2026-11-15T19:53:52Z	Epic 24	runner_reported	BLOCKED story=24.4 reason=V1_redactor_does_not_exist(RollbackSetting/Approval/Incident_payloads_raw;web_raw) options=1_match_raw+ledger,2_server_Redact.Text(cross-lane_grant;recommended),3_web_redactor(no) relayed=contest_planner
