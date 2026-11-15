@@ -797,7 +797,7 @@ ClassMethod IsPoll(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 }
 
 /// The answer to the poll of a source (Story 22.11; AD-6, AD-30): a bare Reply, as the answer for an approved call that never started is, with no Decision row, no decision.recorded event
-/// and no fallback row. runnerReply is the runner's Reply when answered is 1: its Text, Tainted, Steps, ToolsRun, AgentStepCount, DurationMs and FailureText are carried over. Any other answer (the
+/// and no fallback row. runnerReply is the runner's Reply when answered is 1: its Text, Tainted, Steps, ToolsRun, AgentStepCount, DurationMs, FailureText and HostData are carried over. Any other answer (the
 /// runner's error status, no Reply, no runner) has the FailureText failed, and the timer (timedOut 1) has Fallback 1, FallbackReason and FailureText timeout. The FailureText is a word
 /// for Checks alone (Poll), never the runner's error text.
 ClassMethod PollAnswer(runnerReply As %RegisteredObject, answered As %Boolean, timedOut As %Boolean = 0) As OcuTalon.Bridge.Msg.Reply
@@ -820,6 +820,7 @@ ClassMethod PollAnswer(runnerReply As %RegisteredObject, answered As %Boolean, t
 	Set response.AgentStepCount = runnerReply.AgentStepCount
 	Set response.DurationMs = runnerReply.DurationMs
 	Set response.FailureText = runnerReply.FailureText
+	Set response.HostData = runnerReply.HostData
 	Quit response
 }
 

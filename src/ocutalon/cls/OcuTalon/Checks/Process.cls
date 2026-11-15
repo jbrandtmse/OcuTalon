@@ -91,9 +91,10 @@
 ///     (the seam StopNotice, Mcp.Ops SourceStopped). Any other source is sent one asynchronous request of kind tool and provenance untrusted to POLLTARGET (the seam SendPoll), whose Input
 ///     is {"source": <the Ref>} and nothing else, in the Tick's session, with the completion key <Ref>|<the send time>. The answer reaches OnResponse (a failed call reaches OnError, which
 ///     reads it as a failed poll). The row is read again; a missing row records nothing, and so does a send time before the row's CreatedAt (the answer of a poll made before a repoint).
-///     Reported is {"seen": [at most 50 SHA-256 hex hashes of whole answers, newest last], "baseline": 1 once a run succeeded, "stopped": "" or "not_read_only"}, and starts as {} when
+///     Reported is {"seen": [at most 50 SHA-256 hex hashes of whole answers (the proxy's `answerHash`, taken before the tool-result cut), newest last], "baseline": 1 once a run succeeded, "stopped": "" or "not_read_only"}, and starts as {} when
 ///     LastRunAt is empty or before CreatedAt. The Reply maps to the run: no FailureText is passed (the first one since CreatedAt is the baseline and sends no Item; later an answer whose
-///     hash is not in seen sends one Item, Channel system, Provenance untrusted, Subject the source's name, Text the answer; an empty answer is passed and never an Item); notreadonly and
+///     hash is not in seen sends one Item, Channel system, Provenance untrusted, Subject the source's name, Text the answer as cut at the tool-result room; an empty answer is passed and never an
+///     Item, and a passed answer with text but no usable `answerHash` is REASONREAD); notreadonly and
 ///     changed are stopped; denied is stopped when the tool is no longer Read-only, else REASONREAD; unreachable is REASONSOURCEUNREACHABLE; timeout is REASONTIMEOUT; any other word is
 ///     REASONREAD. A run that is not a stop clears stopped. Record is called with keep 1, so the send's NextDueAt stands. The latest run counts (DW-1326), and no argument value, URL or
 ///     secret reaches a request, log line, finding or notice.
@@ -1234,8 +1235,18 @@ Method SourceAnswer(key As %String, reply As %RegisteredObject) [ Private ]
 	}
 	Set word = $Select($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"): reply.FailureText, 1: "failed")
 	Set text = $Select($IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply"): reply.Text, 1: "")
+	Set hash = ""
+	If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Try {
+			Set data = {}.%FromJSON(reply.HostData)
+			If $IsObject(data) && (data.%GetTypeOf(##class(OcuTalon.Mcp.Proxy).#ANSWERHASH) = "string") && $Match(data.%Get(##class(OcuTalon.Mcp.Proxy).#ANSWERHASH), "^[0-9a-f]{64}$") Set hash = data.%Get(##class(OcuTalon.Mcp.Proxy).#ANSWERHASH)
+		} Catch {
+			Set hash = ""
+		}
+	}
 	Set outcome = $Case(word, "": "passed", "notreadonly": "stopped", "changed": "stopped", "denied": $Select(..SourceClass(row.server, row.tool) '= "read-only": "stopped", 1: "error"), "unreachable": "unreachable", "timeout": "timeout", : "error")
-	Do ..RecordSource(row, ##class(OcuTalon.Data.Time).NowUtc(), outcome, text)
+	If (outcome = "passed") && (text '= "") && (hash = "") Set outcome = "error"
+	Do ..RecordSource(row, ##class(OcuTalon.Data.Time).NowUtc(), outcome, text, hash)
 }
 
 /// The row of a source by Ref as RowOf gives it, or "" when there is none or it is not a source row.
@@ -1247,10 +1258,10 @@ Method SourceRow(ref As %String) As %DynamicObject [ Private ]
 	Quit ""
 }
 
-/// Records a run of a source with the outcome (passed, stopped, unreachable, timeout or error) and, for passed, the answer's text: the result, the finding and the new Reported are made
-/// from it, the new result's Item (if any) is sent after the update by Record, and a transition to stopped sends the stop notice once. Record gets keep 1, so NextDueAt stays as the send set it.
+/// Records a run of a source with the outcome (passed, stopped, unreachable, timeout or error) and, for passed, the answer's text and the hash of the whole answer (SourceAnswer): the result,
+/// the finding and the new Reported are made from them (an empty text has no hash and no Item), the new result's Item (if any) is sent after the update by Record, and a transition to stopped sends the stop notice once. Record gets keep 1, so NextDueAt stays as the send set it.
 /// The new Reported has no in-flight mark.
-Method RecordSource(row As %DynamicObject, runAt As %String, outcome As %String, text As %String) [ Private ]
+Method RecordSource(row As %DynamicObject, runAt As %String, outcome As %String, text As %String, hash As %String = "") [ Private ]
 {
 	Set state = ..StateOf(row)
 	Set wasStopped = (state.stopped '= "")
@@ -1259,7 +1270,7 @@ Method RecordSource(row As %DynamicObject, runAt As %String, outcome As %String,
 	If outcome = "passed" {
 		Set result = "passed"
 		Set state.stopped = ""
-		Set hash = $Select(text = "": "", 1: ..HashOf(text))
+		If text = "" Set hash = ""
 		If state.baseline '= 1 {
 			Set state.baseline = 1
 			If hash '= "" Do state.seen.%Push(hash, "string")
@@ -1308,18 +1319,7 @@ ClassMethod Newest(seen As %DynamicArray) As %DynamicArray [ Private ]
 	Quit kept
 }
 
-/// The SHA-256 of the UTF-8 text, as 64 lower-case hexadecimal characters.
-ClassMethod HashOf(text As %String) As %String [ Private ]
-{
-	Set digest = $SYSTEM.Encryption.SHAHash(256, $ZConvert(text, "O", "UTF8"))
-	Set hex = ""
-	For i = 1:1:$Length(digest) {
-		Set hex = hex_$ZConvert($Extract($ZHex(256 + $Ascii(digest, i)), 2, 3), "L")
-	}
-	Quit hex
-}
-
-/// The Item of a result that was not seen before (see the class description): a new ItemId, the row's session, Channel system, Provenance untrusted, Subject the source's name, Text the answer.
+/// The Item of a result that was not seen before (see the class description): a new ItemId, the row's session, Channel system, Provenance untrusted, Subject the source's name, Text the answer as cut at the tool-result room.
 Method SourceItem(row As %DynamicObject, text As %String) As OcuTalon.Msg.Item [ Private ]
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()
