@@ -4369,3 +4369,4 @@
 2026-11-15T18:45:51Z	Epic 23	merged	story=23.3 merge=8c71bef6e pins=pass web=pass lint=pass
 2026-11-15T18:46:31Z	Run	ci_green_verified	head=9b9898a53(0.37_merge) runs=43742359975(att2;att1=DW-1388_ci-7),43742360023
 2026-11-15T18:58:29Z	Run	ci_red_classified	head=16cdbf568(Epic25_completion) run=43746506248 shards-6(ci-29)=DW-349(+DW-453_TestRunAgain) shards-4(ci-35)=DW-1388(6th) lane-a=green action=no_rerun(superseded_by_8c71bef6e)
+2026-11-15T19:02:39Z	Epic 21	runner_reported	PLANNER_REPORT DW-1205+DW-494(one_cause:Completed-before-Error_read;inFlight_in_Reader+Executor;AD-16_sentence;spec_6eb661ff3) DW-1391(test-only,quiet_fixture;separate_commit) DW-1388=fresh_recheck_running relayed=contest_planner
