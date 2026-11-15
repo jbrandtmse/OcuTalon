@@ -5,6 +5,9 @@
 ///   - Put sets one member. A HostData that is a JSON object keeps its other members; any other HostData (empty, not JSON, or JSON that is not an
 ///     object) becomes an object that holds the member alone. It returns the status of the context's Put, so it is an error when there is no context.
 ///   - Get returns the member as a dynamic value, or "" when HostData has no such member or is not a JSON object.
+///   - Merge returns a HostData JSON text with the members of a dynamic object set (pure: it needs no context, so Decide can use it). A member
+///     replaces one of the same name and the other members stay. A json that is empty or not a JSON object counts as an empty object, and an empty
+///     or non-object members returns json unchanged.
 ///   - Remove takes one member out and keeps the others; a HostData without the member is left as it is, and the answer is then OK, also with no context.
 /// It runs inside AI Hub's callbacks, so it makes no AI Hub call and no Python call (AD-6).
 Class OcuTalon.Bridge.HostData
@@ -31,6 +34,30 @@ ClassMethod Remove(member As %String) As %Status
 	If 'data.%IsDefined(member) Quit $$$OK
 	Do data.%Remove(member)
 	Quit ##class(OcuTalon.Bridge.Context).Put("HostData", data.%ToJSON())
+}
+
+/// The JSON text of json (a HostData value) with each member of members set. See the class description.
+ClassMethod Merge(json As %String, members As %DynamicObject) As %String
+{
+	If '$IsObject(members) || 'members.%IsA("%Library.DynamicObject") || (members.%Size() = 0) Quit json
+	Set data = {}
+	If json '= "" {
+		Try {
+			Set parsed = {}.%FromJSON(json)
+			If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") Set data = parsed
+		} Catch exception {
+			Set data = {}
+		}
+	}
+	Set iterator = members.%GetIterator()
+	While iterator.%GetNext(.name, .value, .type) {
+		If (type = "object") || (type = "array") {
+			Do data.%Set(name, value)
+		} Else {
+			Do data.%Set(name, value, type)
+		}
+	}
+	Quit data.%ToJSON()
 }
 
 /// The context's HostData as a dynamic object: the JSON object it holds, else an empty object.

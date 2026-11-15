@@ -19,7 +19,12 @@
 ///   - TestRequestRefIsTheRowsOwn: a ref that names the request in another letter case reaches the double as the row's own Ref;
 ///   - TestAnswerOpsRefusesOtherSenders: a request whose header names another item, or none, is an error status and answers nothing;
 ///   - TestAnswerOpsUnknownSession: a SessionRef with no Session row is not_found and never reaches the double;
-///   - TestRoleRefusalReachesCaller: the double's not_allowed for a session whose IRIS user lacks the role reaches the caller;
+///   - TestRoleRefusalReachesCaller: the double's not_allowed for a session whose IRIS user lacks the role reaches the caller, with the refusal {"kind": ""};
+///   - TestRoleCheckBeforeHandOver (Story 25.5): rule 6 asks MayAnswer for the session's IRIS user after the ownership and answer-shape checks and before the hand-over: a 0 is not_allowed with
+///     {"kind"}, sends nothing and leaves the row pending, a 1 hands over, and a request that is not the session's, a bad answer, a bridge context and a session with no row never ask;
+///   - TestRefusalKey: the catalog key and the sentence of each approver kind, of no kind, of an unknown kind and of the admin refusal;
+///   - TestPayloadAnswerable: the approval payload's answerable and approverKind for a pending request that the session may and may not answer, and 1 for every other payload;
+///   - TestEmailAdminRefusal: an approve of an email request to another address by a user who passes the role check but is no admin is not_allowed with {"kind": "email", "admin": true}, and a reject is handed over;
 ///   - TestAnswersInIsTheOnlySender (QA, AC14): no class of the product but AnswersIn names "AnswerOps" as a send target (method
 ///     code, parameter defaults, the production's XData settings), and AnswersIn makes exactly one send;
 ///   - TestNoAllowanceOrConversation: the code of AnswersIn and AnswerOps names neither Allowance nor Conversation (an answer is not
@@ -287,6 +292,137 @@ Method TestRoleRefusalReachesCaller()
 	Do ..Answer(probe, request, "approve", "web", mine, .output)
 	Do $$$AssertEquals(output.Result, "not_allowed", "the not_allowed of a session without the role reaches the caller")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.ApprovalDouble).Arg(1, "irisUser"), ##class(OcuTalon.Data.Session).RefIndexOpen(mine).IrisUser, "after the double saw the session's IRIS user")
+	Do $$$AssertEquals(probe.Refusal.%ToJSON(), "{""kind"":""""}", "and a not_allowed that is not the email rule's carries the refusal with no kind")
+}
+
+/// Story 25.5, rule 6: MayAnswer is asked for the session's IRIS user and the request's Ref after rules 1 to 5 and before the hand-over.
+Method TestRoleCheckBeforeHandOver()
+{
+	Set mine = ..Session("a"), theirs = ..Session("b"), request = ..Approval(mine)
+	Set probe = ..NewProbe()
+	Set double = "OcuTalon.Test.Core.ApprovalDouble"
+	Do $CLASSMETHOD(double, "Begin")
+	Do $CLASSMETHOD(double, "May", request, 0, "resend")
+	Do ..Answer(probe, request, "approve", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "not_allowed", "a scripted refusal is not_allowed")
+	Do $$$AssertEquals(probe.Refusal.%ToJSON(), "{""kind"":""resend""}", "with the kind that the role check named")
+	Do $$$AssertEquals(probe.Sends, 0, "nothing was sent")
+	Do $$$AssertEquals($CLASSMETHOD(double, "Calls"), 0, "so Approval.Answer was not called")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "pending", "and the row is as it was")
+	Do $$$AssertEquals($CLASSMETHOD(double, "MayCalls"), 1, "MayAnswer was asked once")
+	Do $$$AssertEquals($CLASSMETHOD(double, "MayArg", 1, "ref")_"|"_$CLASSMETHOD(double, "MayArg", 1, "irisUser"), request_"|"_##class(OcuTalon.Data.Session).RefIndexOpen(mine).IrisUser, "for the request's Ref and the IRIS user of the session's row")
+	Do $CLASSMETHOD(double, "May", request, 1, "")
+	Do ..Answer(probe, request, "approve", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "done", "a scripted 1 hands the answer over")
+	Do $$$AssertEquals(probe.Sends_"|"_$CLASSMETHOD(double, "Calls"), "1|1", "which reaches Approval.Answer once")
+	Do $$$AssertEquals(probe.Refusal.%ToJSON(), "{}", "with no refusal")
+	Do $CLASSMETHOD(double, "Begin")
+	Set other = ..Approval(theirs), noSession = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set orphan = ##class(OcuTalon.Test.Data.Fixture).Approval(noSession)
+	Set ..Refs = ..Refs_","_orphan
+	For ref = request, other, orphan {
+		Do $CLASSMETHOD(double, "May", ref, 0, "resend")
+	}
+	Do ..Answer(probe, other, "approve", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "not_found", "another session's request is not_found")
+	Do ..Answer(probe, request, "delete", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "bad_answer", "a bad action is bad_answer")
+	Do ..Answer(probe, request, "approve", "mailbox", mine, .output)
+	Do $$$AssertEquals(output.Result, "bad_answer", "and a bad channel")
+	Do ..Answer(probe, request, "approve", "web", "short", .output)
+	Do $$$AssertEquals(output.Result, "not_found", "a SessionRef that is no Ref is not_found")
+	Do ..Answer(probe, orphan, "approve", "web", noSession, .output)
+	Do $$$AssertEquals(output.Result, "not_found", "a Ref-shaped SessionRef with no Session row is not_found")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(##class(OcuTalon.Bridge.Msg.Request).%New(), "zzss"), "a bridge context begins")
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ..Answer(probe, request, "approve", "web", mine, .output)
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..RemoveLogRows(mark, "OcuTalon.Test.Core.AnswersInProbe")
+	Do $$$AssertEquals(output.Result_"|"_probe.Refusal.%ToJSON(), "not_allowed|{""kind"":""""}", "and a bridge context is not_allowed with no kind")
+	Do $$$AssertEquals($CLASSMETHOD(double, "MayCalls"), 0, "none of them asked the role check")
+	Do $$$AssertEquals(probe.Sends_"|"_$CLASSMETHOD(double, "Calls"), "1|0", "and none of them sent or answered anything (the one send is the allowed answer above)")
+}
+
+/// Story 25.5: the catalog key and the sentence of a refusal. The seven kinds each have their sentence, an empty or unknown kind and a kind that is not 1 to 32 lower-case letters or _ have the fallback, and admin has its own.
+Method TestRefusalKey()
+{
+	Set wanted = "resend|Only an approver for resends can answer this request.;reroute|Only an approver for reroutes can answer this request.;suspend|Only an approver for suspending and resuming items can answer this request.;"
+	Set wanted = wanted_"rollback|Only an approver for rollbacks can answer this request.;partner|Only an approver for partner notices can answer this request.;email|Only an approver for emails can answer this request.;tool|Only an approver for tool calls can answer this request."
+	For i = 1:1:$Length(wanted, ";") {
+		Set kind = $Piece($Piece(wanted, ";", i), "|", 1), text = $Piece($Piece(wanted, ";", i), "|", 2)
+		Set key = ##class(OcuTalon.Live.Payload.Approval).RefusalKey(kind)
+		Do $$$AssertEquals(key, "answered.notApprover"_$ZConvert($Extract(kind), "U")_$Extract(kind, 2, *), kind_": the key is the kind with its first letter in upper case")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(key, {}, "web", .sc), text, kind_": the sentence is the approved text")
+		Do $$$AssertStatusOK(sc, kind_": it renders")
+	}
+	Set fallback = "Only an approver can answer this request."
+	For kind = "", "zz_new", "Bad", "resend ", "RESEND", "resend1", "re-send", $Translate($Justify("", 33), " ", "a"), $Translate($Justify("", 40), " ", "a"), "setting", "fix", "_" {
+		Set key = ##class(OcuTalon.Live.Payload.Approval).RefusalKey(kind)
+		Do $$$AssertEquals(key, "answered.notApprover", "'"_kind_"' has the fallback key")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(key, {}, "web"), fallback, "'"_kind_"' has the fallback sentence")
+	}
+	For kind = "", "resend", "zz_new" {
+		Set key = ##class(OcuTalon.Live.Payload.Approval).RefusalKey(kind, 1)
+		Do $$$AssertEquals(key, "answered.notAdmin", "admin gives answered.notAdmin for '"_kind_"'")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render("answered.notAdmin", {}, "web"), "Only an OcuTalon admin can approve this email.", "whose sentence is the approved text")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).RefusalKey(), "answered.notApprover", "no argument is the fallback")
+}
+
+/// Story 25.5: FromRow sets answerable and approverKind only for a pending request and a session; every other payload is answerable with no kind.
+Method TestPayloadAnswerable()
+{
+	Set mine = ..Session("a")
+	Set pending = ..Approval(mine), allowed = ..Approval(mine), answered = ##class(OcuTalon.Test.Data.Fixture).Approval(mine, "", "approved")
+	Set ..Refs = ..Refs_","_answered
+	Set double = "OcuTalon.Test.Core.ApprovalDouble"
+	Do $CLASSMETHOD(double, "Begin")
+	Do $CLASSMETHOD(double, "May", pending, 0, "reroute")
+	Do $CLASSMETHOD(double, "May", allowed, 1, "")
+	Do $CLASSMETHOD(double, "May", answered, 0, "reroute")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(pending), mine, double)
+	Do $$$AssertEquals(payload.Answerable_"|"_payload.ApproverKind, "0|reroute", "a pending request that the session may not answer: not answerable, with the kind")
+	Do payload.%JSONExportToString(.json)
+	Set object = {}.%FromJSON(json)
+	Do $$$AssertEquals(object.%GetTypeOf("answerable")_"|"_object.answerable_"|"_object.approverKind, "boolean|0|reroute", "as the payload's JSON members answerable (a boolean) and approverKind")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(allowed), mine, double)
+	Do $$$AssertEquals(payload.Answerable_"|"_payload.ApproverKind, "1|", "a pending request that it may answer: answerable, with no kind")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(answered), mine, double)
+	Do $$$AssertEquals(payload.Answerable_"|"_payload.ApproverKind, "1|", "an answered request is answerable whatever the check says")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(pending), "", double)
+	Do $$$AssertEquals(payload.Answerable_"|"_payload.ApproverKind, "1|", "a payload for no session is answerable")
+	Do $$$AssertEquals($CLASSMETHOD(double, "MayCalls"), 2, "and only the two pending payloads for a session asked the role check")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(pending), ##class(OcuTalon.Bridge.Ids).NewRef(), double)
+	Do $$$AssertEquals(payload.Answerable_"|"_payload.ApproverKind, "0|", "a Ref-shaped session with no row may not answer, with no kind")
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(pending), mine, "OcuTalon.Test.Core.NoSuchApprovalApi")
+	Do $$$AssertEquals(payload.Answerable_"|"_payload.ApproverKind, "0|", "an error of the role check is not answerable")
+}
+
+/// Story 25.5, AC 7 (Story 22.7's rule composed with rule 6): a user who passes the role check but is no admin gets {"kind": "email", "admin": true} for an approve of an email request to another address,
+/// by AnswerOps' real rule, and a reject is handed over.
+Method TestEmailAdminRefusal()
+{
+	Set mine = ..Session("a")
+	Set recipients = ["partner@example.test"]
+	Set parameters = {"recipients": (recipients), "subject": "zz subject", "text": "zz text"}
+	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(mine, "", "pending", , {"FixKind": "email", "FixParameters": (parameters.%ToJSON()), "DryRun": ({"to": (recipients), "subject": "zz subject", "text": "zz text"}.%ToJSON())})
+	Set ..Refs = ..Refs_","_request
+	Set probe = ..NewProbe()
+	Set double = "OcuTalon.Test.Core.ApprovalDouble"
+	Do $CLASSMETHOD(double, "Begin")
+	Do ..Answer(probe, request, "approve", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "not_allowed", "an approve by a user who is no admin is not_allowed")
+	Do $$$AssertEquals(probe.Refusal.%ToJSON(), "{""kind"":""email"",""admin"":true}", "with the email kind and the admin mark")
+	Do $$$AssertEquals($CLASSMETHOD(double, "MayCalls"), 1, "after the role check passed")
+	Do $$$AssertEquals($CLASSMETHOD(double, "Calls"), 0, "and Approval.Answer was not called")
+	Do ..Answer(probe, request, "reject", "web", mine, .output)
+	Do $$$AssertEquals(output.Result, "done", "a reject of the same request is handed over")
+	Do $$$AssertEquals($CLASSMETHOD(double, "Calls")_"|"_$CLASSMETHOD(double, "Arg", 1, "action"), "1|reject", "and reaches Approval.Answer")
+	Do $$$AssertEquals(probe.Refusal.%ToJSON(), "{}", "with no refusal")
+	Do $CLASSMETHOD(double, "Begin")
+	Do $CLASSMETHOD(double, "May", request, 0, "email")
+	Do ..Answer(probe, request, "approve", "web", mine, .output)
+	Do $$$AssertEquals(output.Result_"|"_probe.Refusal.%ToJSON(), "not_allowed|{""kind"":""email""}", "a refusal by the role check keeps the kind and has no admin mark")
 }
 
 Method TestNoAllowanceOrConversation()

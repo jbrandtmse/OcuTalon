@@ -4,10 +4,12 @@ import { catchError, type Observable, of, tap } from 'rxjs';
 import { ApiClient } from '../api/api-client';
 import type { NoiseChannel } from '../api/memory-types';
 import { messageOf } from '../incidents/incident-dismiss';
+import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
 import { Popovers } from '../shared/popover';
+import { isViewer } from '../shared/viewer-view';
 import { BUSY_NOTICE, ServerButton } from '../shared/server-button';
 import { markedLine, NOISE_TEXTS } from './noise-view';
 import { pageTimeBeside } from './page-time';
@@ -45,7 +47,7 @@ export const NOISE_RULE: FocusRule = {
       <div class="noise" [attr.data-noise]="decisionRef()" tabindex="-1">
         @if (markedAt()) {
           <p class="marked">{{ line() }}</p>
-        } @else {
+        } @else if (!viewer()) {
           <app-server-button variant="ghost" [action]="press" [describedBy]="notice() === '' ? [] : [noticeId]">{{ texts.label }}</app-server-button>
         }
         @if (notice(); as text) {
@@ -95,6 +97,9 @@ export class NoiseControl {
   protected readonly line = computed(() => markedLine(this.markedAt(), this.instanceZone(), pageTimeBeside));
 
   private readonly api = inject(ApiClient);
+  private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): the button is not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly announcer = inject(Announcer);
   private readonly popovers = inject(Popovers);
   private readonly injector = inject(Injector);

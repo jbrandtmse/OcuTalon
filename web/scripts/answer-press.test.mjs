@@ -104,6 +104,28 @@ describe('what a reply hands to the host (answered)', () => {
     }
   });
 
+  it('takes the request into its can\'t-answer state at once after a refused press (403 not_allowed, Story 25.5), with the server\'s sentence, until clearRefused', () => {
+    const sentence = 'Only an approver for reroutes can answer this request.';
+    const { subject, handed, announced } = press({ status: 403, body: { error: { code: 'not_allowed', message: sentence } } });
+    assert.equal(subject.refused(), '', 'before any press');
+    subject.press('app-1', 'approve');
+    assert.equal(subject.refused(), sentence, 'a refused press sets refused to the server\'s sentence');
+    assert.equal(subject.notice(), sentence, 'and the notice is that sentence too, announced once');
+    assert.deepEqual(announced, [sentence]);
+    assert.equal(handed.length, 0, 'it hands nothing to the store');
+    subject.clearRefused();
+    assert.equal(subject.refused(), '', 'clearRefused ends the state');
+    assert.equal(subject.notice(), '', 'and drops the notice that repeated the sentence, so restored buttons carry no stale refusal');
+    for (const reply of [{ status: 404, body: { error: { code: 'not_found', message: 'x' } } }, { status: 500, body: { error: { code: 'server_error', message: 'y' } } }, { status: 0, body: undefined }, { status: 200, body: null }]) {
+      const other = press(reply);
+      other.subject.press('app-1', 'approve');
+      assert.equal(other.subject.refused(), '', `${reply.status} is not a refusal`);
+    }
+    const fallback = press({ status: 403, body: undefined });
+    fallback.subject.press('app-1', 'reject');
+    assert.equal(fallback.subject.refused(), 'Only an approver can answer this request.', 'a refusal with no message has the fallback sentence');
+  });
+
   it('takes the request off the rail through the store: the handed-over reply removes it, the failed press leaves it', () => {
     const snapshot = {
       epoch: 'epoch-1',

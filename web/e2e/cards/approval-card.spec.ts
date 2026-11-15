@@ -552,9 +552,9 @@ async function seedNoticeMail(user: string, approvalRef: string, text: string, s
 
 /**
  * A8: the replies that are not an answer. Each reply of the answer route is fulfilled by the test: a 500 shows its own message, a
- * 403 its approver sentence, a 404 "That request is no longer available." and a network failure the busy notice at once (not after
- * 10 s). Each time both buttons are restored and the notice is announced once. A fifth press, whose reply the test holds, clears
- * the notice before while its call is out.
+ * 404 "That request is no longer available." and a network failure the busy notice at once (not after 10 s). Each time both buttons
+ * are restored and the notice is announced once. A fourth press, whose reply the test holds, clears the notice before while its call
+ * is out. A refusal (403) is not one of them: it takes the request into its can't-answer state (A8b).
  */
 test('A8: a reply that is not an answer shows its notice, restores both buttons and is announced', async ({ page }) => {
   const { user } = fixtureUser(KIND);
@@ -565,11 +565,6 @@ test('A8: a reply that is not an answer shows its notice, restores both buttons 
       label: '500',
       reply: (route) => route.fulfill({ status: 500, contentType: 'application/json', body: errorBody('server_error', 'Something went wrong inside OcuTalon. Try again.') }),
       text: 'Something went wrong inside OcuTalon. Try again.',
-    },
-    {
-      label: '403',
-      reply: (route) => route.fulfill({ status: 403, contentType: 'application/json', body: errorBody('not_allowed', 'Only an approver for resends can answer this request.') }),
-      text: 'Only an approver for resends can answer this request.',
     },
     {
       label: '404',
@@ -590,7 +585,7 @@ test('A8: a reply that is not an answer shows its notice, restores both buttons 
       const one = replies[next++];
       if (one === undefined) {
         await gate;
-        await replies[2]!.reply(route).catch(() => undefined);
+        await replies[1]!.reply(route).catch(() => undefined);
         return;
       }
       await one.reply(route);
@@ -614,13 +609,39 @@ test('A8: a reply that is not an answer shows its notice, restores both buttons 
       previous = notice;
     }
     await approve.click();
-    await expect(approve, 'a fifth press is out').toHaveAttribute('aria-busy', 'true');
+    await expect(approve, 'a fourth press is out').toHaveAttribute('aria-busy', 'true');
     await expect(previous!, 'and it cleared the notice before while its call is out').toHaveCount(0);
     release();
     await expect(card.getByText('That request is no longer available.', { exact: true }), 'then its reply shows its own notice').toBeVisible({ timeout: 5_000 });
     expect(await readApproval(request).then((row) => row.state), 'nothing reached the request').toBe('pending');
   } finally {
     release();
+    await page.unroute(ANSWER);
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * A8b (Story 25.5): a press that the server refuses (403 not_allowed) takes the request into its can't-answer state at once: Approve and Reject are gone, the status line
+ * reads the server's sentence (announced once, not shown twice) and nothing reached the request.
+ */
+test('A8b: a refused press takes the request into its can\'t-answer state, with the server\'s sentence and no buttons', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const sentence = 'Only an approver for resends can answer this request.';
+  try {
+    await page.route(ANSWER, (route: Route) => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_allowed', message: sentence } }) }));
+    await open(page);
+    const incident = refOf('A8b');
+    const request = await raise(page, user, rows, incident, []);
+    const card = requestCard(page, request);
+    await expect(card).toHaveCount(1, { timeout: CARD_MS });
+    await approveOf(card).click();
+    await expect(card.getByText(sentence, { exact: true }), 'the status line is the server\'s sentence, once').toHaveCount(1, { timeout: 5_000 });
+    await expect(card.locator('.buttons'), 'Approve and Reject are gone').toHaveCount(0);
+    await expect.poll(() => announcedTexts(page).then((texts) => texts.filter((text) => text === sentence).length), { message: 'announced once' }).toBe(1);
+    expect(await readApproval(request).then((row) => row.state), 'nothing reached the request').toBe('pending');
+  } finally {
     await page.unroute(ANSWER);
     await cleanFixtureRows(rows);
   }

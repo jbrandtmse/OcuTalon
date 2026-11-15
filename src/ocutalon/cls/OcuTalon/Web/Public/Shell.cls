@@ -3,7 +3,7 @@
 /// 404 before sign-in, and a dispatched application never shows its LoginPage.
 ///   - A request without a session reaches Login(): one of the five sign-in images is streamed, and anything else
 ///     is answered with the sign-in page (OcuTalon.Web.Public.Login). No other file is served.
-///   - A signed-in request is first checked for the role OcuTalonUser: without it the CSP session ends and the
+///   - A signed-in request is first checked for the role OcuTalonUser or OcuTalonViewer (HasRole): without either the CSP session ends and the
 ///     sign-in page shows the no-role message. With it, GET serves the files of the application's Path, and
 ///     only those, through %CSP.StreamServer, index.html with its own Content-Security-Policy and no caching.
 ///   - On the online demo the sign-in hook (OcuTalon.Web.SessionEvents) may record a refusal in the CSP session, under REFUSALKEY, as
@@ -25,6 +25,9 @@ Parameter CONTENTTYPE = "text/html";
 
 /// The role that opens the application after sign-in.
 Parameter ROLE = "OcuTalonUser";
+
+/// The read-only role (Story 25.4): it opens the application too, and a user who holds it and not ROLE is a viewer (ViewerOnly).
+Parameter VIEWERROLE = "OcuTalonViewer";
 
 /// The key of the CSP session's data that holds a sign-in refusal, $ListBuild(state, until): the sign-in hook writes it and
 /// OnPreDispatch reads it, so the key lives in this public class, which the hook may name (AD-3).
@@ -141,10 +144,16 @@ ClassMethod Serve(path As %String) As %Status
 	Quit ##class(%CSP.StreamServer).OnPage()
 }
 
-/// 1 when the signed-in user holds the OcuTalon user role.
-ClassMethod HasRole() As %Boolean
+/// 1 when the roles (the signed-in user's by default, a comma list) hold the OcuTalon user role or the viewer role, each by its whole name.
+ClassMethod HasRole(roles As %String = {$Roles}) As %Boolean
 {
-	Quit (","_$Roles_",") [ (","_..#ROLE_",")
+	Quit ((","_roles_",") [ (","_..#ROLE_",")) || ((","_roles_",") [ (","_..#VIEWERROLE_","))
+}
+
+/// 1 when the roles (the signed-in user's by default, a comma list) hold the viewer role and not the OcuTalon user role, each by its whole name.
+ClassMethod ViewerOnly(roles As %String = {$Roles}) As %Boolean
+{
+	Quit ((","_roles_",") [ (","_..#VIEWERROLE_",")) && '((","_roles_",") [ (","_..#ROLE_","))
 }
 
 /// The path of the request below the application, "" for the application itself.

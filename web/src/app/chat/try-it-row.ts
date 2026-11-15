@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import { DemoView } from '../shared/demo-view';
+import { isViewer } from '../shared/viewer-view';
 import { ChatOutbox } from './chat-outbox';
 import { COMPOSER_REASON_ID } from './composer';
 import { TRY_IT_TEXTS, turnInFlight } from './try-it-view';
@@ -25,7 +26,7 @@ let rows = 0;
   selector: 'app-try-it-row',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (demoView.on()) {
+    @if (demoView.on() && !viewer()) {
       <div class="row" role="group" [attr.aria-labelledby]="labelId" [class.centered]="centered()">
         <p class="try-label" [id]="labelId">{{ texts.label }}</p>
         <div class="try-chips">
@@ -88,6 +89,8 @@ let rows = 0;
 export class TryItRow {
   protected readonly demoView = inject(DemoView);
   private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): the row is not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly outbox = inject(ChatOutbox);
   private readonly allowance = inject(AllowanceState);
 

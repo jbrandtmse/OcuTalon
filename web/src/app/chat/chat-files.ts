@@ -6,6 +6,7 @@ import { ApiClient } from '../api/api-client';
 import type { FileRefusal } from '../api/api-types';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
+import { isViewer } from '../shared/viewer-view';
 import { encode } from '../shared/file-encode';
 import { newClientId } from './chat-view';
 import { checkFile, fileControls, FILES_TEXTS, refusalText } from './files-view';
@@ -17,7 +18,7 @@ import { checkFile, fileControls, FILES_TEXTS, refusalText } from './files-view'
  * reason (a renamed file that passed the check shows the wrong-type sentence), a 413 the size sentence, a 409 the off-on-the-demo sentence, and any
  * other failure "File not sent". The refusal shows above the composer (`refusal`) and is spoken once through the Announcer. A sent file appears in the
  * chat as the user's message through the live store, like any message; the page keeps no copy of it.
- * `controls` says whether the paperclip shows and what a drop does (files-view.fileControls) from the snapshot's `filesReadable` and `onlineDemo`.
+ * `controls` says whether the paperclip shows and what a drop does (files-view.fileControls) from the snapshot's `filesReadable` and `onlineDemo`; a viewer has neither.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatFiles {
@@ -31,7 +32,7 @@ export class ChatFiles {
   /** The paperclip and the drop, from the snapshot: both are off until the snapshot says files can be read, and on the online demo. */
   readonly controls = computed(() => {
     const snapshot = this.live.snapshot();
-    return fileControls(snapshot?.filesReadable === true, snapshot?.onlineDemo === true);
+    return isViewer(snapshot) ? { paperclip: false, drop: 'none' as const } : fileControls(snapshot?.filesReadable === true, snapshot?.onlineDemo === true);
   });
 
   /** Sends the files one after the other. */

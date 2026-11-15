@@ -17,6 +17,7 @@ import { DemoView } from '../shared/demo-view';
 import { ServerButton } from '../shared/server-button';
 import { readText, writeFlag } from '../shared/stored-flag';
 import { TraceLink } from '../shared/trace-link';
+import { isViewer } from '../shared/viewer-view';
 import {
   arrivedText,
   chipName,
@@ -116,6 +117,7 @@ function messageOf(error: unknown): string {
     @if (limited()) {
       <p class="limit" id="mailbox-email-limit">{{ limitText() }}</p>
     }
+    @if (!viewer()) {
     <div class="chips">
       @for (sample of samples; track sample.name) {
         <app-server-button
@@ -135,6 +137,7 @@ function messageOf(error: unknown): string {
       <p class="field-error" id="mailbox-chip-error"><app-icon name="circle-alert" [size]="16" />{{ chipError() }}</p>
     }
     <button type="button" class="button button-secondary simulate" (click)="openForm()">{{ texts.simulate }}</button>
+    }
 
     @switch (view()) {
       @case ('form') {
@@ -450,6 +453,8 @@ export class SimulatedMailbox {
   protected readonly separator = CHAT_TEXTS.separator;
 
   private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): no sample chips, no Simulate and no send. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly demoView = inject(DemoView);
   private readonly api = inject(ApiClient);
   private readonly announcer = inject(Announcer);

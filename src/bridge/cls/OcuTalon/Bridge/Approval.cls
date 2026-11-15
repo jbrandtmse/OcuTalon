@@ -16,6 +16,7 @@ Include Ensemble
 ///     event (AD-31; StartExecution has no event). A refusal writes neither. The entry names the person on whose authority the change
 ///     happened (AD-17): the answerer for Answer, the approver for StartExecution and FinishExecution, the caller Cancel is given, and
 ///     otherwise the job's user with the channel system. A write that fails is logged as a warning and never undoes the change;
+///   - MayAnswer is the role check Lane B makes before Answer: it answers 1 when the user holds the row's RequiredRole, reads the row without its lock and writes and fires nothing;
 ///   - Hold and HoldResponse are the logic of the business process ApprovalHold, which stores only the request's Ref (AD-5): Hold sends the
 ///     Workflow task to the role WORKFLOWROLE and sets the 24-hour timer, and replies to the start; HoldResponse acts only on what the row
 ///     shows: on the timer it expires the row, it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix or a setting), rejection
@@ -414,6 +415,19 @@ ClassMethod HoldsRole(irisUser As %String, role As %String) As %Boolean [ Privat
 		Set holds = 0
 	}
 	Quit holds
+}
+
+/// 1 when the IRIS user may answer the request, 0 when not (AD-11, step 6): the role check that Lane B makes before Answer. The row is read without
+/// its lock, and its state and expiry are left to Answer. Nothing is written, no event fires and no audit entry is made. An unknown Ref, a malformed Ref
+/// and an empty user answer 0 and never throw. kind is the row's approver kind when the user may not answer it; until Story 26.4 it is empty, and the
+/// rule is today's: the row's RequiredRole is in the user's recursed role set (HoldsRole), the same rule Answer applies under the lock.
+ClassMethod MayAnswer(ref As %String, irisUser As %String, Output kind As %String) As %Boolean
+{
+	Set kind = ""
+	If '..IsRef($Get(ref)) Quit 0
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If '$IsObject(row) Quit 0
+	Quit ..HoldsRole($Get(irisUser), row.RequiredRole)
 }
 
 /// Expires a pending request, whatever the clock says (DW-186): its caller, the hold's timer (set from ExpiresAt in whole seconds, rounded down),

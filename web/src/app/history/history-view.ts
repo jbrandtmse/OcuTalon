@@ -1,7 +1,7 @@
 /**
  * The History page's view model (Story 25.2; FR-53, FR-30; EXPERIENCE: Step 6): the fixed strings of the page, the filters' values, and the pure rules that
  * read and write the address, label the empty and pager texts, and shape an incident row's times and summary. A framework-free module: it imports only
- * types and uses only erasable TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12): the lists, their pages and their page
+ * page-shell-view.ts (the title) and uses only erasable TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12): the lists, their pages and their page
  * count are the server's (`GET /v1/history/decisions` and `/incidents`).
  *
  * - HISTORY_TEXTS is the page's own fixed strings. The labels it shares are not copied here: the page reads the outcome labels from CHAT_TEXTS and the
@@ -11,6 +11,7 @@
  *   already what queryOf would write for it.
  * - emptyText, pageText, incidentTimes, summaryLines and noSummaryText are the texts of the lists.
  */
+import { SHELL_TEXTS } from '../shared/page-shell-view.ts';
 
 /** The page's tabs, in order. */
 export type HistoryTab = 'decisions' | 'incidents';
@@ -40,7 +41,7 @@ export const PARAMS = ['tab', 'outcome', 'channel', 'day', 'fallback', 'page'] a
 
 /** The page's own fixed strings. The separator in the title is U+00B7. */
 export const HISTORY_TEXTS = {
-  title: 'History \u00B7 OcuTalon',
+  title: SHELL_TEXTS.historyTitle,
   heading: 'History',
   tabDecisions: 'Decisions',
   tabIncidents: 'Incidents',

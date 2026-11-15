@@ -1,0 +1,462 @@
+---
+title: 'Story 36.7: Epic 36 burn-down: an upgrade removes the previous builds'' bundle files from the served web folder'
+type: 'bugfix'
+created: '2026-11-14'
+status: 'done'
+baseline_revision: 'ce86e1ab3501fdaac54e95142f179817e4edc4e7'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-36-context.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-36-5-epic-36-burn-down-load-the-settings-history-and-usage-pages.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** IPM's `FileCopy` copies each new build over `csp/ocutalon-web/` and never deletes anything, and the Web step's `RemoveOldBundle` only cleans the old `csp/ocutalon/` folder. So every upgrade whose `main` hash changes leaves the previous build's `main-<hash>.js` in the served folder. The v1.0.9 rehearsal measured 28 served files against 27 built, with `./main-JCJUH3RN.js` extra (DW-1320). Leftovers from every earlier upgrade pile up too, and the online demo carries one from each release. DW-1320 blocks the 1.0.10 RC.
+
+**Approach:** At every start, after its existing work, the Web step removes from `csp/ocutalon-web/` each top-level file whose name matches `STALEFILES` and that the installed build does not contain. It does this only when the served `index.html` is byte-equal to the installed build's. The installed build is the folder IPM's `FileCopy` read, located from the `ocutalon` module's `Root`. `release/upgrade-harness.sh` gains a permanent `stale-files` row. The row plants an old `main-ZZSTALE0.js` before the upgrade, and after the upgrade and after the restart it requires the served folder's file list to equal the candidate's build output.
+
+## Boundaries & Constraints
+
+**Always:**
+- Only these files are deleted: top-level files of `csp/ocutalon-web/` whose names match `STALEFILES` (unchanged: `^(main|chunk|polyfills|styles)-[A-Za-z0-9]+\.(js|css)(\.map)?$`) and that the build folder lacks by name. The delete is never "anything not in the build".
+- Nothing is deleted when there is no build folder, when the build folder has no `index.html`, or when the served `index.html` differs from it.
+- The delete never fails the start. A file that can't be deleted gives a `WARN Web` line that names it.
+- The Docker path and the IPM path behave the same (AD-23).
+- Every test added or changed passes on a fresh environment, in either order.
+- Lane B variables go on every `ci/iris.sh` and harness call, and run tags start with `e36s7`.
+
+**Never:**
+- No change to `STALEFILES`, the manifests (`src/module.xml`, `module.xml`), `FileCopy`, `RemoveOldBundle`'s behaviour, `web/`, `ci/units.sh` or `.github/workflows`.
+- No public text: no README, GUIDE, `docs/`, release-note or web text, and no public claim.
+- Nothing is deleted by hand on the online demo.
+- Never `--rc`, nothing written under `release/records/`, no tag, no branch, no push, never slot B.
+- No `git commit`, `git push` or anything else that triggers CI.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Upgrade | Served folder: new build + `main-OLD…js`, `.map`, `chunk-`/`polyfills-`/`styles-` names the build lacks | Those files are gone; every build file stays byte for byte | none |
+| Survivors | `zz-keep.txt`, `main-AB12CD34.js.bak`, `Main-…js`, `main-zz_stale.js`, `assets/main-…js`, `zz/main-…js` | All kept (no match, or not top level) | none |
+| A directory named like a bundle file | `main-OLD88888.js/` folder at the top level | Kept (files only) | none |
+| Another build is served | Served `index.html` ≠ build's (same-version image rebuilt; wrong root) | Nothing deleted | none |
+| No build folder | No IPM module (slot, bridge-only load), `root` "" or no `index.html` under either candidate | Nothing deleted, no warning | none |
+| Stuck file | A stale file in a folder the IRIS user can't write | Other stale files deleted; step OK | one `WARN Web` line naming the file |
+
+</intent-contract>
+
+## Code Map
+
+- `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls`:
+  - class doc L20-21; `BUNDLEFOLDER` L41; `STALEFILES` L55 (read only);
+  - `Run` L72-74 calls `Prepare($SYSTEM.Util.DataDirectory())`; `Prepare` L98-104;
+  - `RemoveOldBundle` L313-344 is the sibling to extend, with the same marker read, `Entries` L378-389 (files only with `includeDirs` 0) and the `$Match` on `GetFilename`;
+  - `DeleteFile` L392 returns an error (not used: the new delete warns).
+- `src/ocutalon/cls/OcuTalon/Install/Step.cls:52` `Warn(text)` and `:66` `TakeWarnings()`. The registry prints them as `WARN Web <text>`.
+- `src/ocutalon/cls/OcuTalon/Install/Registry.cls:74-96`: `Ipm` is the IPM entry point (Configure, After, so after the bundle copy). On the image it returns at once, and `docker/after-start.cos` runs `zpm "load /opt/ocutalon/src"` when the version changes, then `Registry.Run("after-start")` at every start.
+- `src/module.xml:18` `<FileCopy Name="ocutalon/csp/" …>` and `module.xml:18` `<FileCopy Name="src/ocutalon/csp/" …>`. The drift rule of `docker/tests/test-pinned-sources.sh` pins the pair.
+- IPM 0.10.10 (decoded from `docker/ipm/zpm-0.10.10.xml`, read only):
+  - `%IPM.ResourceProcessor.FileCopy` copies at the start of Activate from `GetSource()` = `Module.Root _ Name`, with `CopyDir(src, dst, 'Overlay)`;
+  - on UNIX, `%Library.File.CopyDir` overlays and only deletes a target file before overwriting it, so nothing is ever pruned;
+  - on Windows, IPM deletes the whole target tree first;
+  - `%IPM.Lifecycle.Base` Reload (L603-683) sets `Module.Root` to the load folder and saves it before Activate.
+- Precedent for reading the module without a compile-time IPM dependency: `src/ocutalon/cls/OcuTalon/Web/Api.cls:1548` `$ClassMethod("%IPM.Storage.Module", "NameOpen", "ocutalon")`.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls`:
+  - header L1-5;
+  - bundle tests L465-579 (`TestPrepareReadsTheNewFolder` calls `Prepare(data)` and stays valid: the real build folder's `index.html` differs from its seed);
+  - helpers `Seed`/`SeedBundle`/`Tree` L594-640, to reuse.
+  - Class `OcuTalon.Test.Web.Install`, shard `lane-b@rest`, group `shards-6`.
+- `docker/tests/test-install-upgrade.sh` (unit `live:install-upgrade`, group `install-upgrade`): header row 6 L5-8; `index_first` L151; row 6 recreate L170-189; row 15 part 2 index check L197-202; `make_image_context` L34-42 (v1's bundle = v0's plus an `index.html` comment). `docker/tests/lib-live.sh:700` `container_tree_hashes`.
+- `release/upgrade-harness.sh`:
+  - header L1-53; `HARNESS_ON`/`HARNESS_ROWS` L70-73;
+  - `storage_compare` L371-383 (sibling pure function); `record_rows`'s `title()` L393;
+  - `row`/`note_row`/`pass`/`fail` L590-619; `api_get`/`signin` L633-652;
+  - `phase_seed` L1405-1460 (families seeded after `signin`); `phase_upgrade` L1720-1797 and `phase_restart` L1799-1887 (family checks after `signin`, before `logout_all`).
+- `docker/tests/test-upgrade-harness.sh` (hosted `checks`, `CHECK_SCRIPTS` "upgrade-harness"):
+  - header L1-46; `rule()` L91-109;
+  - `write_results` L445-460; `t_record` L478-497 (13 rows and 15 table lines, the row order string, "every row is not run" 13);
+  - families pin L1075-1082; rule list at the end.
+- `release/ipm-install.sh` (lane-a `ipm-install-p` job, part `b`): check 25 doc L87-89; `scratch_copy` L1170-1175; `reinstall_next` L1669-1735; `check_session` index precedent L466-470.
+- `docker/tests/test-compose-file.sh:402-403`: the static check of the `FileCopy` line.
+- `_bmad-output/implementation-artifacts/evidence/36-5-upgrade-from-v1.0.9.md`: the measured 28-vs-27 list and the phase-by-phase command form.
+
+## Tasks & Acceptance
+
+**Execution:**
+- `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls`:
+  - add `Parameter BUILDFOLDERS = "ocutalon/csp/,src/ocutalon/csp/";` (the bundle `FileCopy` source below the module root, in `src/module.xml` and in `module.xml`);
+  - `ModuleRoot()`: the normalized `Root` of the IPM module `ocutalon`, "" when IPM or the module is absent (Try/Catch, `$ClassMethod`);
+  - `BuildFolder(root = {..ModuleRoot()})`: the first `root_<rel>` of `BUILDFOLDERS` that holds `index.html`, else "";
+  - `RemoveStaleBundle(servedDir, buildDir) As %Status`: the rule of the Boundaries and the Matrix, always OK, top level only, reusing `Entries` and `STALEFILES`;
+  - `Prepare(dataDirectory, buildDirectory = {..BuildFolder()})`: after `RemoveOldBundle` succeeds, return `RemoveStaleBundle(data_BUNDLEFOLDER, buildDirectory)`;
+  - update the class, `Run` and `Prepare` doc comments (contract only, Rule 14).
+- `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls`: extend the existing class, reusing its helpers (Rule 2), and update its header.
+  - `TestRemoveStaleBundle`: every Matrix row but "Stuck file", with an exact `Tree` of what remains, the build folder unchanged, and a second run that changes nothing.
+  - `TestRemoveStaleBundleWarns`: the stuck file. Make the folder read-only with `%File.SetReadOnly`, restore it after, check `TakeWarnings()`, and skip with `AssertSkipped` when the folder can't be made read-only.
+  - `TestBuildFolder`: `ocutalon/csp/` alone, `src/ocutalon/csp/` alone, both (`ocutalon/csp/` wins), neither, and `root` "". On the image (`Demo.#VERSIONFILE` exists), `ModuleRoot()` is `/opt/ocutalon/src/`; elsewhere it is skipped.
+  - `TestPrepareRemovesStale`: `Prepare(data, build)` removes a planted stale file from `data/csp/ocutalon-web/` and keeps the rest.
+- `docker/tests/test-install-upgrade.sh`: before row 6's recreate, plant in `/durable/iris/csp/ocutalon-web/`:
+  - stale: `main-ZZSTALE0.js`, `main-ZZSTALE0.js.map`, `chunk-ZZSTALE1.js`, `polyfills-ZZSTALE2.js`, `styles-ZZSTALE3.css`;
+  - survivors: `zz-admin-note.txt`, `main-ZZSTALE4.js.bak`, `Main-ZZSTALE5.js`, `main-zz_stale.js`, `assets/main-ZZSTALE6.js`, `zz-admin/main-ZZSTALE7.js`.
+
+  After row 15 part 2, add one check: no stale file is left, each survivor is there with its content, and `container_tree_hashes` of the served folder, without the survivors, equals that of `/opt/ocutalon/src/ocutalon/csp`. Extend the header's row 6 text.
+- `release/upgrade-harness.sh`: the `stale-files` family, as Gate item 2 says. Also extend the header (a paragraph like the pairing, memory and document ones).
+- `docker/tests/test-upgrade-harness.sh`: rule `stale-files` (`t_stale_files`, `b_stale_files`), the `t_record`/`write_results` updates and the header line (Gate item 2).
+- `release/ipm-install.sh` `reinstall_next`, an IPM upgrade from a new folder:
+  - the scratch copy also appends `<!-- <raised> -->` to `$copy/ocutalon/csp/index.html`, so that only a build folder read from the new root matches the served one;
+  - before the `run`, plant `main-ZZSTALE0.js` and `zz-admin-note.txt` in `$SYSTEM.Util.DataDirectory()_"csp/ocutalon-web/"`, through an `iris_script`;
+  - after `check_run_ok`, one `check_session`: the stale file is gone, the note stays, and the served `index.html` equals the copy's;
+  - extend check 25's header text.
+- `docker/tests/test-compose-file.sh`: one check that `Web.cls`'s `BUILDFOLDERS` holds both manifests' bundle `FileCopy` names, read from `src/module.xml` and `module.xml`.
+- `_bmad-output/implementation-artifacts/evidence/36-7-upgrade-from-v1.0.9.md`, new and records only: the rehearsal's record section, the served and build lists, and the mutation run's `stale files` row.
+
+**Execution (added by the Planner's gate ruling, 2026-11-14 ~06:00Z):**
+- `Web.cls`: guard (v) in `RemoveStaleBundle`/`Prepare` (no readable, non-empty build list with `index.html` -> delete nothing, `WARN Web`, OK); each removal logged as `removed old web file <name>` at the Web step's progress level.
+- `Test/Web/Install.cls`: one test per guard (i), (ii), (iv), (v), each with a `mutation:` line.
+- `release/ipm-install.sh` check 25: measure that the module `Root` resolves and `BuildFolder()` finds the new build on a real IPM install (STOP if not).
+- Web reload handler (V4): root-level (e.g. `app.config.ts` router `withNavigationErrorHandler` or an equivalent root provider), one full page load of the target URL per URL, guarded by a `sessionStorage` flag in try/catch, no new text; node tests for its pure logic and a Playwright test (a 404 lazy chunk on /usage: exactly one reload; restored -> renders; still missing -> no second reload) with a `mutation:` line; report the initial bundle delta.
+- Architecture spine: one sentence in AD-23 (the cleanup) and one at the lazy-routes description (the handler), each marked `[AMENDED 2026-11-14, Story 36.7, Contest Planner gate ruling]`.
+
+**Acceptance Criteria:**
+- AC1, removal. Given an installed vN whose served folder holds hashed bundle files that vN+1 lacks, when the container is recreated from vN+1, then each of them is gone and the served folder holds every file of the image's bundle byte for byte (`live:install-upgrade`, the new check).
+- AC2, narrow. Given the same upgrade with the survivors planted, when it completes, then each survivor is kept with its content and nothing else beyond the bundle remains. The full rule is pinned by `TestRemoveStaleBundle` (survivors, guards, nested, `.map`, missing folders).
+- AC3, IPM path (AD-23). Given an IPM install, when the install command runs with the next version from a new folder, then the planted stale file is gone, the planted note stays, and `index.html` is the new folder's (`release/ipm-install.sh b`, check 25).
+- AC4, rehearsal (ruling point 3). Given `release/upgrade-harness.sh` run phase by phase with `--rehearsal --previous v1.0.9 --record <temp file>` on this checkout, when `report` runs, then `Result: pass`, the `stale files` row passes with the plant note, and the served list equals `src/ocutalon/csp/`'s 27 files after the upgrade and after the restart. With the `RemoveStaleBundle` call removed from `Prepare`, the row fails and names `./main-JCJUH3RN.js` and `./main-ZZSTALE0.js`.
+- AC5, permanent row (ruling point 4). Given any harness run, when its record is written, then the table holds a `stale files` row after `private globals`, the row counts toward `Result:`, and `docker/tests/test-upgrade-harness.sh` passes with rule `stale-files`.
+
+### Review Findings
+
+Code review 2026-11-14 (Tier 1, full, baseline `ce86e1ab`, HEAD `fcfb23b3`; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 29 findings, 26 entries after grouping: 7 patched, 3 closed `wontfix-accepted` in the ledger, 16 rejected. No HIGH; no unresolved MED.
+
+- [x] [Review][Patch] `[med]` The no-module branch of `ModuleRoot` (the ruling's own guard (v) example, "Root doesn't resolve") was never executed by a test [`src/ocutalon/cls/OcuTalon/Install/Step/Web.cls` ModuleRoot; `Test/Web/Install.cls` TestBuildFolder] — `ModuleRoot(name = "ocutalon")`; TestBuildFolder asserts a module that is not installed has root "" and that `Prepare(data, BuildFolder(ModuleRoot(<none>)))` is OK, removes nothing and gives one guard (v) line. (verification-gap)
+- [x] [Review][Patch] `[med]` The install form users run (`zpm "install ocutalon"` from a repository, part p) never measured that the Web step finds the build from the module's Root; check 25 covers `load` only [`release/ipm-install.sh` part_p after `check_run_ok p-second`; header check 28] — part p now fails on a `WARN Web no old web file was removed` line in the repository install's output. Not run in this review (part p exceeds one 10-minute call and is outside the listed re-runs); the lane-a CI job runs part p at push, where a red is the Planner's "STOP and report" finding. (verification-gap + acceptance-auditor)
+- [x] [Review][Patch] `[low]` The test helper `Warnings()` merged duplicate lines, so the "one warning line" asserts could not catch a doubled warning [`Test/Web/Install.cls` Warnings] — duplicates are kept. (edge-case-hunter)
+- [x] [Review][Patch] `[low]` Check 25's header said the run "stops" on an unresolved Root; it fails and the run ends red [`release/ipm-install.sh` header check 25]. (acceptance-auditor)
+- [x] [Review][Patch] `[low]` The evidence file's opening paragraph still said the rehearsal was pending, with "to fill" sections [`evidence/36-7-upgrade-from-v1.0.9.md` L3]. (blind-hunter)
+- [x] [Review][Patch] `[low]` The pasted harness record's `#`/`##` headings broke the evidence file's structure [`evidence/36-7-upgrade-from-v1.0.9.md`] — fenced as text. (blind-hunter)
+- [x] [Review][Patch] `[low]` The QA mutation for R4 was inferred from a failure count [`web/e2e/usage/chunk-reload.spec.ts` R4] — re-run and observed by name (Verification, review mutation lines). (blind-hunter)
+- [x] [Review][Wontfix-accepted] `[low]` DW-1330: the reload covers lazy routes only; Settings' in-page `import('./mcp-section')` is not rescued after an upgrade (ruling V4 scope is route navigation). reopen_if in the ledger. (edge-case-hunter, claim)
+- [x] [Review][Wontfix-accepted] `[low]` DW-1331: `replaceState(target)` overwrites the source page's history entry on a failed header-link navigation, so Back skips it once. (blind-hunter + edge-case-hunter)
+- [x] [Review][Wontfix-accepted] `[low]` DW-1332: on a dirty Settings page, a cancelled native leave prompt during the reload uses up the address's flag and leaves the target address shown. (edge-case-hunter)
+
+**Judgments asked of this review:**
+- **V1 (`WARN Web removed old web file <name>`): meets the ruling; not a deviation.** A step has exactly two output lines: the registry's own `STEP <name> OK|FAILED` and `WARN <name> <text>` from `Install.Step.Warn` (`Registry.cls` Run L54-66; `Step.cls` has only `Warn`/`TakeWarnings`; no step class writes a line itself). The Web step has no progress line of its own, and steps already report corrective actions through `Warn` (`Schedule.cls` "the task ... was suspended, so it was resumed", `Users.cls` "the online-demo password guard ... was removed"). A STEP-level line would break AD-23's "one `STEP <name> OK|FAILED` line per step" and change Lane A's `Registry.cls` (AD-29), so `WARN` is the only reading consistent with the ADs. The text after the prefix is the ruling's own example. For the lead's report: the Planner may read `WARN` as alarming; a separate info line type would be an AD-23 amendment (veto item), not this story.
+- **Residual risk (1), "unsaved edits are lost when the handler reloads": not real as stated.** Angular 22.2.3's router runs `checkGuards` before `loadComponents` (`_router-chunk.mjs` L3939, L3975), so leaving a dirty Settings page asks through `unsavedGuard` before the chunk is fetched; after Leave, the still-dirty page's `beforeunload` handler (`settings-page.ts` L276-286) makes `reload()` prompt natively too. No other page holds unsaved state across a navigation (the composer lives in the routed main page). The residue is DW-1332 (a cancelled native prompt), accepted.
+- Delete rule (i)-(v), the AC2 file list, check 25's measured Root (`/tmp/ocutalon-scratch-next/`, `BuildFolder()` its `ocutalon/csp/`), the V4 handler (root-level `withNavigationErrorHandler`, no text, chunk failures only, one replaceState+reload per address, `sessionStorage` in try/catch with read-back, no reload without storage, no loop: the flag is never cleared), V7 (plant always, note in the row), V11 (two marked spine sentences), no public text or release-note line, AC4 evidence (pass with the `stale files` row; mutation names both files), bundle 882.45 -> 883.39 kB with `web/angular.json` unchanged, and footprint (V5 `release/**` extension, V6 additive Lane B edits): confirmed.
+- Rule 3: real-runtime tests exist (`live:install-upgrade`, `ipm-install.sh b` check 25, the harness row, Playwright R1-R5). Rule 6: no AD violation found (AD-23, AD-5, AD-29, AD-22).
+
+**Rejected:**
+- Blind: the earlier triage log's counts are wrong — fix edits the spec under review.
+- Blind: `## Auto Run Result` is stale after smoke and QA — spec edit (the lead's bookkeeping).
+- Blind: `TestPrepareFailsSafeWithoutABuildFolder`'s second half drops its warnings — false: the behaviours its comment claims (OK, nothing removed) are asserted; guard (iv)'s silence is pinned by `TestStaleNeedsTheSameIndex`.
+- Blind: the AD-23 sentence says "every start" though the step also runs at an IPM install — low: AD-23 states in the same block that the steps run at every start and from `module.xml`.
+- Acceptance: V1 is a deviation — false, see the V1 judgment above.
+- Acceptance: AC4's "27 files" and Gate item 1's "8 chunks" are out of date (31 and 12 today) — spec edit; the harness counts dynamically and the evidence records 31.
+- Acceptance + verification-gap: guard (v)'s "nothing removed" is also held by guard (iv) — by design (defence in depth); guard (v)'s pin is its warning line, which is falsifiable (recorded mutations, M2 below).
+- Acceptance: the intent contract still says no `web/` change and a silent no-build case — superseded by the binding 06:00Z ruling.
+- Acceptance: guard tests carry no `mutation:` comments in source — false: Rule 19 records them in this spec's Verification.
+- Edge: a popstate (Back) failure's handler could race Angular's history restore — maybe-false, low: either outcome is today's behaviour or a reload, and no loop is possible.
+- Edge: an unlistable served folder is reported as every build file missing — low: still a fail; diagnosis only.
+- Edge (claim): the spec says the chunk loads before `unsavedGuard` — correct finding; recorded in the residual-risk judgment above (spec text left to the lead).
+- Verification-gap: `TestPrepareReadsTheNewFolder` leaves a guard (v) line off the image — low: every test that asserts warnings clears them first.
+- Verification-gap: `TestBuildFolder`'s image branch depends on the baked module Root — low: warm stacks import classes and keep the Root (passed warm and fresh in this review).
+- Verification-gap: R3 has no e2e mutation of its own — note: its behaviour is pinned at node level by the recorded storage mutations.
+- Verification-gap: `TestRemoveStaleBundleWarns` could silently skip as a superuser — low: by design; it reached the asserting branch on the CI image (its mutation went red).
+
+## Spec Change Log
+
+- 2026-11-14, Contest Planner gate ruling (~06:00Z) applied by the runner: guard (v), V1 log lines, V4 reload handler, V7 plant always, V11 spine sentences (Design Notes > Contest Planner rulings at the gate; Execution additions). Branch integrated forward onto feature 9a851935.
+
+## Review Triage Log
+
+### 2026-11-14 — Review pass
+- verdicts: 29 findings — high 0, medium 0, low 5, false 0, maybe-false 1 (the rest are rejected as spec-bound, ruled, theoretical or the lead's pending work)
+- findings:
+  - `[low]` `[reject]` Blind: the reload flag is never cleared, so a tab that survives two upgrades is rescued once — the Planner's ruling asks for a per-URL flag that stops a second reload; clearing it adds a router event and state; today's behaviour remains for the second upgrade. Reopen if a tab is seen across two upgrades.
+  - `[low]` `[reject]` Blind: a network blip also triggers the reload — a lazy route that cannot be fetched fails either way, one reload at most, ruling-bound (V4).
+  - `[medium]` `[reject]` Blind: the reload discards unsaved edits (lazy chunk loads before `unsavedGuard`) — ruling-bound (V4: one full load, no text); recorded as a residual risk below for the lead.
+  - `[n/a]` `[reject]` Blind: the rehearsal and its mutation were not run, evidence file has placeholders — directed: the lead runs AC4 at smoke.
+  - `[low]` `[reject]` Blind: a removal prints as `WARN Web` — the registry has no other line type for a step; recorded decision (a). Same finding from Edge (`claim`) and Verification-gap's `Other findings`.
+  - `[low]` `[reject]` Blind: `TestBuildFolder` asserts `/opt/ocutalon/src/` on the image — the spec's own expectation; the test skips elsewhere.
+  - `[low]` `[reject]` Blind: the wiring test regex-matches `app.config.ts` — R1 and R2 pin the behaviour; the regex is an extra, and a reformat is a visible red.
+  - `[low]` `[reject]` Blind: the harness failure line caps names at 10 — the spec's own record line says "at most 10 names".
+  - `[low]` `[reject]` Blind: a stuck file warns on every start with no summary — spec-bound (one line naming the file).
+  - `[low]` `[patch]` Blind: the spine amendment is joined to the Angular row's earlier bracket without a stop — a full stop was added.
+  - `[low]` `[reject]` Edge: the flag is never cleared (same as Blind row 1).
+  - `[low]` `[reject]` Edge: a throw from `replaceState`/`reload` leaves the flag claimed — the browser calls do not throw in practice and the result is today's behaviour.
+  - `[low]` `[reject]` Edge: no Try/Catch around the file calls in `RemoveStaleBundle` — `%File` calls return values, and the registry catches a throwing step (Registry.cls Catch blocks); no reachable failure shown.
+  - `[low]` `[reject]` Edge: tighten the removal pattern to the base32 alphabet — `STALEFILES` is unchanged by the spec; admin-file deletion is veto item 2, accepted.
+  - `[low]` `[reject]` Edge: warn when the served `index.html` differs — the Matrix row says silent.
+  - `[low]` `[reject]` Edge: a nested or renamed asset in the previous release would show as EXTRA in the harness row — the spec's V8 to V10 keep the served-equals-build check; recorded for the lead as a future-release note.
+  - `[low]` `[reject]` Edge: `build_tree` reads the working tree, not the image — the spec's gate item 2 sets `BUILD_WEB=src/ocutalon/csp` as the candidate's build output.
+  - `[low]` `[reject]` Edge: a removal is reported as WARN (claim) — see decision (a).
+  - `[low]` `[reject]` Edge: guard (v) warns on every start when no IPM module root resolves — ruling (the Planner's 06:00Z guard (v)).
+  - `[medium]` `[reject]` Verification-gap: AC4's real-stack code and mutation not run — directed; the lead's smoke closes it.
+  - `[low]` `[reject]` Verification-gap: guard (v)'s "nothing removed" assertions are also protected by guard (iv) — the mutation is red on the warning line; the record says so. Reopen if guard (iv) is weakened.
+  - `[medium]` `[patch]` Verification-gap: no recorded mutation for the no-storage branch and the `isChunkLoadError` narrowing — three mutations run and recorded; each turns a node test red.
+  - `[low]` `[reject]` Verification-gap: the survivors check has no mutation of its own — the unit mutation for AC2 is recorded; a live mutation needs another 7 minute run for a pin that duplicates `TestRemoveStaleBundle`.
+  - `[low]` `[reject]` Verification-gap: the wiring test is a source-text check — R1 and R2 pin the real wiring.
+  - `[maybe-false]` `[reject]` Verification-gap: R1's victim chunk is the first lazy chunk requested after a snapshot — R1 passed; it would need a late lazy request before the click to fail; reopen if R1 flakes.
+  - `[low]` `[reject]` Verification-gap: R2 and R3 wait for `networkidle` for an absence — the check pins "no second reload within the idle window"; reopen if a late reload is seen.
+  - `[low]` `[reject]` Verification-gap: `TestRemoveStaleBundleWarns` skips as root — it ran in the implement environment; it skips by design when the folder stays writable.
+  - `[low]` `[reject]` Verification-gap: nested assets removed by a later release would stay behind (same as Edge row 16).
+  - `[low]` `[reject]` Verification-gap: guard (v) warns when no IPM module is installed (same as Edge, ruling-bound).
+  - `[n/a]` `[reject]` Intent audit: the diff changes `web/` and warns in the no-build-folder case, which the intent contract's Never and Matrix say not to — both are the Planner's binding 06:00Z rulings (V4, guard (v)), later than the contract; recorded as decisions.
+  - `[n/a]` `[reject]` Intent audit: the stuck-file test warns for every file (mixed case unreachable on Unix) — recorded decision (c).
+
+## Design Notes
+
+**Governing ADs:**
+- AD-23: one recipe, two install paths; static files in `csp/ocutalon-web/`; warnings through `Install.Step.Warn`.
+- AD-5: only code is replaced at install.
+- AD-29: `Install/Step/Web.cls` and `Test/Web/**` are Lane B's. So the unit test extends `Test/Web/Install.cls`, not the suggested `Test/Install/`, which is Lane A's.
+- AD-22: CI units.
+
+Nothing here contradicts an AD. Recommended to the lead (Rule 20, the lead's call): one AD-23 sentence saying that every start removes, from `csp/ocutalon-web/`, the top-level `STALEFILES` files that the installed build lacks.
+
+**Why the step, and why the root:**
+- The Web step already runs on both paths after the copy: at Configure on the IPM path, and after the load at every start on the image. A new manifest Invoke would need both manifests and the drift rule changed.
+- The `index.html` guard makes a wrong or stale root harmless. The case it protects against: a same-version image whose bundle changed. That image is not reloaded, and without the guard its old served `main` would be deleted under the served page.
+- The delete warns instead of failing. A leftover is harmless, while an install that is not ready is not. `RemoveOldBundle` fails because the old folder is served without sign-in (DW-5). That is not the case here.
+
+**Extend, don't copy:**
+- `RemoveStaleBundle` reuses `Entries` and `STALEFILES`.
+- The tests reuse `Seed`/`SeedBundle`/`Tree`.
+- `stale_compare` is a new pure function beside `storage_compare`, because it reports both directions (`EXTRA` and `MISSING`), while `storage_compare` reports only `MISSING`.
+
+**Integration (Rules 1 and 2):** no new service. The consumers of `RemoveStaleBundle`:
+- the after-start start (pinned by `live:install-upgrade`);
+- the IPM install (`ipm-install.sh b`);
+- the harness `stale-files` row.
+
+**Consumes:**
+- IPM's `FileCopy`, which copies first;
+- `%IPM.Storage.Module.Root`.
+
+**Ledger inbox:**
+- DW-1320 is addressed in full (AC1 to AC5).
+- DW-1300 (the optimizer's `_`/`-` chunk names) stays `wontfix-accepted`. With `STALEFILES` unchanged, such names would not be deleted either. `lazy-routes.test.mjs` pins `NG_BUILD_OPTIMIZE_CHUNKS=0`.
+
+### Contest Planner rulings at the gate (2026-11-14 ~06:00Z, binding; `.coordination/prompts/epic-36-rulings-20261113-2130.md`, "36.7 gate")
+
+- **AC 2 file list:** accepted as written. **Delete rule (i)-(iv):** accepted.
+- **ADD guard (v), fail safe.** If the new build's list cannot be read, is empty, or has no `index.html` (for example the installed module's `Root` does not resolve), delete NOTHING, log a `WARN Web` line, and the start succeeds. `release/ipm-install.sh` check 25 must MEASURE that `Root` resolves on a real IPM install; if it does not, STOP and report (no workaround).
+- **One test per guard in `Test/Web/Install.cls`, each with a mutation that turns it red:** a pattern-matching file in a subfolder survives (i); an admin file that does not match survives (ii); a served `index.html` that differs from the build's means nothing is deleted (iv); an unreadable or empty source list means nothing is deleted (v).
+- **V1 not silent:** each removed file is named in the install log at the level the Web step uses for its normal progress lines, for example `removed old web file main-JCJUH3RN.js`.
+- **V2:** accepted. **V3:** a note only. **V5, V6:** proceed. **V7:** plant always, and the record says so. **V8, V9, V10:** confirmed; the 1.0.10 Phase 2 check that the served folder equals the build stands.
+- **V4: ADD a reload handler in this story.** Web-only, in the app root, no new text. It acts only when a lazy route's chunk fails to load during navigation, and then does ONE full page load of the target URL. A per-URL flag in `sessionStorage`, inside try/catch, stops a second reload; if storage is unavailable it does not reload and today's behaviour stays. No reload loop is possible. E2E: make a lazy chunk answer 404 and navigate to /usage: exactly one reload; with the chunk restored the page renders; with it still missing there is no second reload. Mutation: the handler removed turns the test red. Report the initial bundle delta (the baseline is 882.45 kB, feature a5fc95e9 with 21.4's MCP section (Story 36.5 measured 878.98 kB); the cap stays 921 kB and `maximumError` 1MB).
+- **V11: YES.** One sentence in AD-23 for the cleanup, and one where the architecture describes the lazy routes (Story 36.5) for the reload handler. Internal docs only. No public claim and no release-note line.
+
+### Gate item 1: the file list for AC2, and the delete rule
+
+What is written into `csp/ocutalon-web/`, found by reading `src/module.xml`, `module.xml`, `Web.cls`, the `Dockerfile`, `docker/after-start.{sh,cos}`, `web/angular.json`, `web/scripts/brand.mjs`, and every tag v1.0.0 to v1.0.9, and by grepping the tree for `ocutalon-web` and `BUNDLEFOLDER`:
+
+| File or pattern | Written by | Matches `STALEFILES` | Fate |
+| --- | --- | --- | --- |
+| `index.html` | FileCopy (Angular build) | no | kept, overwritten by each copy |
+| `3rdpartylicenses.txt` | FileCopy (`extractLicenses`) | no | kept |
+| `main-<hash>.js` of the new build | FileCopy | yes | kept, because the build holds it |
+| `chunk-<hash>.js`: 8 today (3 initial, 3 lazy pages, 2 shared, Story 36.5) | FileCopy (base32 names, `NG_BUILD_OPTIMIZE_CHUNKS=0`) | yes | kept, because the build holds them |
+| `styles-<hash>.css` | FileCopy | yes | kept, because the build holds it |
+| `assets/brand/*.png` (6, the favicon `favicon-32.png` among them) | FileCopy (`brand.mjs` copies `logo/web` into `web/public/assets/brand`) | no (nested) | kept |
+| `assets/fonts/*.woff2` (5) and `assets/licenses/*.txt` (4) | FileCopy (`web/public`) | no (nested) | kept |
+| an earlier release's `main-<hash>.js` | an earlier FileCopy | yes | deleted |
+| `polyfills-<hash>.js` and `*.map` | no build since v1.0.0 makes them (no polyfills entry, no production source maps); an older or dev build could | yes | deleted when absent from the new build |
+| any other name: an admin's file, or a nested or non-matching name | not OcuTalon | no | kept |
+
+- Every release, v1.0.0 to v1.0.9, shipped exactly the same 19 names, and only `main`'s hash differs. So the online demo's leftovers are earlier `main`s, all of which are deleted.
+- Today's build has 27 files (Story 36.5's measurement).
+- At runtime nothing writes into the folder:
+  - `Shell` only serves the folder through `%CSP.StreamServer`;
+  - `SignInAssets` and `SplashAssets` are class parameters that are inlined;
+  - after-start writes `/durable/ocutalon-after-start.log` and `/durable/ocutalon.ready`;
+  - the `Dockerfile` writes `/opt/ocutalon` and `/durable` only;
+  - the Web step reads `index.html` and deletes in `csp/ocutalon/`;
+  - the Demo step removes only OCUORDERS's `csp/<namespace>`.
+- The tests' plants (the harness, `test-install-upgrade.sh` and `ipm-install.sh`) are the only other writers.
+
+**The rule.** Delete a file when all of these hold:
+1. it is a top-level file of the served folder;
+2. its name matches `STALEFILES`;
+3. the new build folder has no file of that name;
+4. the served `index.html` is byte-equal to the build's.
+
+**Top level only:**
+- Angular writes hashed files only at the output root, and nested files come unhashed from `web/public`.
+- `STALEFILES` is defined as "the top-level files of a bundle".
+- Going into subfolders would reach folders an admin may own, with no gain.
+
+**Where the new build's list comes from at upgrade time:** the folder that `FileCopy` read.
+- Through `src/module.xml`, that is `<module Root>ocutalon/csp/`: `/opt/ocutalon/src/ocutalon/csp/` on the image, `<extract>/ocutalon/csp/` for the IPM artifact.
+- Through the repository's `module.xml`, it is `<Root>src/ocutalon/csp/`.
+- The `Root` is read from IPM 0.10.10's Reload, which saves it before Activate. That is an inference, until `ipm-install.sh b` (AC3) measures it.
+
+### Gate item 2: the harness row
+
+- **Constants:** `SERVED_WEB=/durable/iris/csp/ocutalon-web`, `BUILD_WEB=src/ocutalon/csp` (the candidate checkout's own build output) and `STALE_PLANT=main-ZZSTALE0.js`. The `0` is outside esbuild's base32 hash alphabet, so no real build can have that name.
+- **Family and row:**
+  - `stale-files` is appended to `HARNESS_ON`.
+  - In `HARNESS_ROWS` it goes right after `private-globals`, which keeps the `" pairing memory document"` tail pinned at L1080. The install-integrity rows sit together.
+  - `title()` turns every `-` into a space, which gives `stale files`.
+- **Pure functions:**
+  - `stale_compare <build list> <served list>` prints `EXTRA <path>` and `MISSING <path>` lines and returns 1 when there is any. It returns 2 for an empty build list (no vacuous pass) and 0 when the lists are equal.
+  - Stubbable readers: `served_tree` (`dc exec … find . -type f | LC_ALL=C sort`), `build_tree` and `web_status <path>` (a signed-in GET of `$base/ocutalon/<path>`).
+- **Seed:** `seed_stale_files` runs in `phase_seed` after the document family, on the previous build. It writes the plant and checks that it exists, which gives a `seed` line, then adds `note_row "main-ZZSTALE0.js was planted in the served folder before the upgrade, standing in for an earlier upgrade's leftover"`.
+- **Plant mode:** every mode plants, release runs included. It is a seed like the conversation and reminders. The record's row says so in its note, so it can't mislead, and it means the row exercises the delete even when two builds share a `main` hash. (Gate item 3 lists the alternative.)
+- **Checks:**
+  - `check_stale_files upgrade`, in `phase_upgrade` after the families: the list comparison, then `web_status` answers 404 for the plant and 200 for the build's `main-*.js`.
+  - `check_stale_files restart`, in `phase_restart`: the list comparison.
+  - A pass row reads 3 checks.
+- **Record lines:**
+  - `RECORD stale-files pass after the upgrade the served web folder holds exactly the candidate's 27 build files`
+  - `RECORD stale-files pass after the upgrade /ocutalon/main-ZZSTALE0.js answers 404 and /ocutalon/main-<hash>.js 200`
+  - `RECORD stale-files fail after the upgrade the served web folder differs from the candidate's build output (27 files): extra ./main-JCJUH3RN.js ./main-ZZSTALE0.js` (at most 10 names)
+  - The table row: `| stale files | pass | 3 checks passed; main-ZZSTALE0.js was planted … leftover |`.
+- **Hermetic self-test** (`t_stale_files`):
+  - `stale_compare`: equal, extra, missing, both, and an empty build list;
+  - `STALE_PLANT` matches `STALEFILES` as read from `Web.cls` (`grep -E`), and its hash part holds a character outside `[A-Z2-7]`;
+  - the `HARNESS_ON`/`HARNESS_ROWS` placement;
+  - the `declare -f` wiring of `phase_seed`, `phase_upgrade` and `phase_restart`;
+  - `check_stale_files` over stubs: equal gives pass lines; an extra and a missing file give fail lines that name them; the plant answering 200 gives a fail;
+  - `seed_stale_files` over a stub: success gives a seed line and the note; failure gives a fail line.
+  - `b_stale_files`: `stale_compare() { return 0; }`.
+  - `t_record`: 14 rows and 16 table lines, `stale files` after `private globals`, "every row is not run" 14, and `write_results` gains the id.
+- **Mutation:** remove the `RemoveStaleBundle` call from `Prepare`, rebuild, and run the rehearsal's `build`, `seed`, `upgrade`, `report` and `down`. The row fails and names both files (AC4).
+
+### Gate item 3: veto items (escalate; veto window)
+
+1. **Deleting files on an admin's instance** (install behaviour). The delete is narrow: the four-part rule, top level only, and only for the build that is served. It is silent on success and a `WARN Web` line on failure. Recommendation: accept.
+2. **An admin's own top-level file named like a bundle file** (for example `main-CUSTOM01.js`) is deleted at the next start, with no public text to warn of it (ruling point 5). The alternatives were rejected:
+   - quarantine (a new folder on the volume);
+   - deleting only names an earlier release shipped (earlier upgrades' names are not known).
+
+   Recommendation: accept, because the pattern is OcuTalon's bundle namespace in its own served folder.
+3. **Any other admin file survives** (AC2). Note: on a Windows IPM install, IPM 0.10.10's own `FileCopy` already deletes the whole folder before copying. That is pre-existing and unchanged. Recommendation: note only.
+4. **Open tab across an upgrade.** An old tab opening a lazy page for the first time after the upgrade now gets a 404 for its old chunk until it reloads. This reverses Story 36.5's design note.
+   - It matters on an IPM install, where sessions may survive.
+   - On the image, IRIS restarts, and a sessionless chunk request already gets the sign-in page (an inference).
+
+   Recommendation: accept with no handling. A chunk-load reload would be new web behaviour.
+5. **Release tool footprint.** `release/upgrade-harness.sh` and `release/ipm-install.sh` are `release/**`: in `lane_a`'s footprint and not in Epic 36's `paths_hint`, so they are `footprint_extensions`. No in-progress epic names them, except Epic 11's wildcard "either lane's files" (its PART 2 stories are in backlog). Recommendation: proceed, because the ruling assigns point 4 here.
+6. **Contended Lane B files.** `Install/Step/Web.cls` and `Test/Web/Install.cls` are named by in-progress Epics 21, 25 and 35. The edits are additive, so a plain union at integrate-forward. `docker/tests/test-{install-upgrade,upgrade-harness,compose-file}.sh` are an extension of Epic 36's footprint and are not contended. Recommendation: proceed.
+7. **Planting in release runs.** The plant is recorded in the row's note. The alternative is a rehearsal-only option. Recommendation: plant always.
+8. **Public text.** None is needed. The harness row is release evidence in the record, not a claim or a release-note line. Recommendation: confirm.
+9. **Online demo.** Nothing is deleted by hand. The 1.0.10 update cleans it through this step, because every earlier `main` matches the pattern. 1.0.10's phase 2 then checks that the served folder matches the build. Recommendation: no action.
+10. **Data retention.** These are build artifacts, not stored data, so there is no schema, format or retention change. No privilege or grant change either. Recommendation: none needed.
+
+## Verification
+
+`<lane-b vars>` = `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=36 stage=implement'`.
+
+Tags: `e36s7i` (fresh), `e36s7iw` (warm), `e36s7b` (ipm), `e36s7h` (harness) and `e36s7m` (the harness mutation).
+
+Rules for every run:
+- one command per call, in the foreground, with `timeout: 600000`;
+- never two test calls in one message;
+- never slot B;
+- at the end, also after a failure, run `ci/warm.sh down` and `ci/iris.sh teardown` for each tag, and the harness's `down`.
+
+**Commands:**
+- (loop) `<lane-b vars> OCUTALON_RUN_TAG=e36s7iw bash ci/warm.sh up` once, then `<lane-b vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e36s7iw bash ci/iris.sh class OcuTalon.Test.Web.Install`. Expected: pass.
+- (loop) `bash docker/tests/test-upgrade-harness.sh`. Expected: all rules passed, `stale-files` included.
+- (once) `bash ci/checks.sh`. Expected: every block PASS (`compose-file` and `upgrade-harness` among them).
+- (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s7i bash ci/iris.sh class OcuTalon.Test.Web.Install` on a fresh stack. Expected: pass.
+- (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s7i bash ci/iris.sh build`, then `… live install-upgrade`. Expected: all checks passed.
+- (once) `<lane-b vars> OCUTALON_RUN_TAG=e36s7b OCUTALON_LIVE_DEADLINE=1980 bash release/ipm-install.sh b` (about 530 s). Expected: all checks passed.
+- (once) The harness rehearsal, phase by phase, tag `e36s7h`: `build --rehearsal --previous v1.0.9 --record <scratch>/36-7.md`, then `settings`, `seed`, `upgrade`, `restart`, `storage`, `report` and `down`. Expected: `RESULT pass`, and the `stale files` row passes with its note. One rerun of a row-6 readiness timeout is allowed (DW-1082).
+
+**Mutations** (Rule 19; record each as `mutation: <change> -> <red test>`; restore the tree byte-identical):
+- AC1: delete the `RemoveStaleBundle` call in `Prepare`. Then `live:install-upgrade`'s new check goes red.
+- AC2: make `RemoveStaleBundle` skip the `STALEFILES` test. Then `TestRemoveStaleBundle` goes red (warm).
+- AC3: make `ModuleRoot()` return the old root, `/opt/ocutalon-ipm/src/`. Then `ipm-install.sh b`'s check 25 stale line goes red.
+- AC4: the same mutation as AC1, run with tag `e36s7m` as `build`, `seed`, `upgrade`, `report`, `down`. Then the `stale files` row fails and names `./main-JCJUH3RN.js` and `./main-ZZSTALE0.js`.
+- AC5: drop `stale-files` from `HARNESS_ROWS`. Then `test-upgrade-harness.sh` rules `record` and `stale-files` go red.
+
+**Shared surfaces:**
+- the served folder's file set (`test-install-start` row 14, `test-bundle-folder`, and `test-online-demo`'s `main-*` pick);
+- `Web.Prepare`'s signature (`Run`, `TestPrepareReadsTheNewFolder`);
+- `HARNESS_ROWS` and `HARNESS_ON` and the record table (`t_record`, `t_record_contract`, the release records);
+- `reinstall_next`'s scratch copy.
+
+Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+### Implementation record (implement stage, 2026-11-14)
+- `OcuTalon.Test.Web.Install` warm (tag e36s7iw): passed, with 8 new tests (TestRemoveStaleBundle, TestStaleKeepsNestedFiles (i), TestStaleKeepsOtherNames (ii), TestStaleNeedsTheSameIndex (iv), TestStaleNeedsABuildList (v), TestRemoveStaleBundleWarns, TestBuildFolder, TestPrepareRemovesStale). Spec correction found by running: `%File:FileSet` with includeDirs 0 does not exclude folders, so `RemoveStaleBundle` skips entries of type D itself.
+- mutation: `RemoveStaleBundle` without the `STALEFILES` test (AC2, guard ii) -> TestRemoveStaleBundle, TestStaleKeepsOtherNames, TestPrepareRemovesStale red (warm).
+- mutation: the served-vs-build `index.html` compare line removed (guard iv) -> TestStaleNeedsTheSameIndex red.
+- mutation: the build-list guard block removed (guard v) -> TestStaleNeedsABuildList red (the observable that the test pins is the one warning line; the delete itself stays blocked by guard iv).
+- mutation: the scan also lists `assets/` (guard i) -> TestStaleKeepsNestedFiles, TestRemoveStaleBundle red.
+- mutation: folders no longer skipped -> TestRemoveStaleBundle, TestStaleKeepsNestedFiles red.
+- mutation: the `RemoveStaleBundle` call removed from `Prepare` (AC1 at class level) -> TestPrepareRemovesStale red.
+- mutation: `BUILDFOLDERS` order swapped -> TestBuildFolder red. mutation: the stuck-file warning removed -> TestRemoveStaleBundleWarns red.
+- Every mutation was reverted (`cmp` against a copy taken before: identical).
+- `live:install-upgrade` (tag e36s7i, `bash ci/iris.sh live install-upgrade`, about 7.5 min): all checks passed, including the five new `36.7:` lines (planted five stale files and six survivors; none stale left; survivors kept with content; served folder without the survivors equals `/opt/ocutalon/src/ocutalon/csp` byte for byte, 31 files; the start's log names `WARN Web removed old web file main-ZZSTALE0.js`).
+- `bash docker/tests/test-upgrade-harness.sh`: all rules passed, `stale-files` included (new rule `t_stale_files`, with its own synthetic break `b_stale_files`; `t_record`, `t_record_contract` and `write_results` now count 14 rows).
+- mutation: `stale-files` dropped from `HARNESS_ROWS` (AC5) -> rules `record`, `record-contract` and `stale-files` red; reverted (cmp against a copy: identical).
+- AC4's two runs (the rehearsal against v1.0.9 and its mutation with tag `e36s7m`) were NOT run by the implement stage, as directed: the lead runs them at smoke. The harness code that they exercise is covered only by the hermetic rule over stubs here.
+- `bash release/ipm-install.sh b` (tag e36s7b, `OCUTALON_LIVE_DEADLINE=1980`, about 7.5 min): all checks passed (63 PASS lines), the new ones among them. Check 25 MEASURED on a real IPM install: the module's Root is the loaded folder (`/tmp/ocutalon-scratch-next/`) and `Web.BuildFolder()` is its `ocutalon/csp/` (guard v's premise holds: no blocker). The planted `main-ZZSTALE0.js` is gone, `zz-admin-note.txt` stays, the served `index.html` equals the copy's (which carries the appended comment), and the install output holds `WARN Web removed old web file main-ZZSTALE0.js`.
+- Web reload handler (V4): `web/src/app/shared/chunk-reload.ts` (pure logic, no imports) and a `withNavigationErrorHandler` provider in `web/src/app/app.config.ts`; no text. `node --test web/scripts/chunk-reload.test.mjs`: 11 tests pass, and `npm --prefix web test` passes in full (2039 tests); `npm --prefix web run lint` is clean.
+- mutation: `claimReload` never sees a taken flag (`if (false)`) -> two node tests red (once per address; no second reload).
+- Playwright `web/e2e/usage/chunk-reload.spec.ts` (R1: chunk 404 once -> exactly one reload, Usage renders; R2: chunk missing for good -> exactly one reload and no second; R3: sessionStorage throws -> no reload), chromium project, run with `bash ci/iris.sh live sign-in --part 16/16` (tag e36s7i; the part also holds usage.spec.ts): 18 passed.
+- mutation: the navigation error handler removed from `app.config.ts` (the build then reports the baseline initial total, 882.45 kB) -> R1 and R2 red (R3 stays green as designed); the rest of the part passes.
+- Initial bundle: 882.45 kB before (baseline, and the mutation build measured it again), 883.39 kB after: +0.94 kB, under the 921 kB cap; `web/angular.json` untouched.
+- mutation: `ModuleRoot()` returns the old root `/opt/ocutalon-ipm/src/` (AC3) -> `ipm-install.sh b` red on check 25: the measured-Root line, the stale-file line (the stale file is not removed because the build folder read is not the loaded copy) and the install output's `WARN Web removed old web file` line (3 checks failed); reverted.
+- mutation: the `RemoveStaleBundle` call removed from `Prepare` (AC1) -> `live:install-upgrade` (tag e36s7i) red on three of the new `36.7:` checks: stale files left in the served folder, the served folder differs from the image's bundle, and no `WARN Web removed old web file` line in the start's log (3 checks failed; the survivors check stays green by design); reverted.
+- Fresh stack, `bash ci/iris.sh class OcuTalon.Test.Web.Install` (tag e36s7i): passed. `docker/tests/test-compose-file.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `test-upgrade-harness.sh`: all passed. mutation: `BUILDFOLDERS` changed in `Web.cls` -> `test-compose-file.sh`'s new BUILDFOLDERS check red; reverted.
+- Spine (V11): two sentences marked `[AMENDED 2026-11-14, Story 36.7, Contest Planner gate ruling]` in `ARCHITECTURE-SPINE.md`: the cleanup in the AD-23 static-files bullet, and the lazy routes and the reload handler in the Angular row (the spine had no earlier description of the lazy routes, so that row carries both). No public text, no release-note line.
+- Decisions the spec leaves open: (a) the Web step has no log line of its own besides the registry's `STEP Web OK`, so a removal is reported through `Install.Step.Warn` and prints as `WARN Web removed old web file <name>` (the only channel the registry writes for a step); (b) guard (v) warns whenever no readable build list with `index.html` exists, including the "no IPM module" case that the Matrix row listed as silent (the Planner's ruling is later and binding); a served `index.html` that differs stays silent; (c) the stuck-file test makes the whole served folder read-only, so every stale file is warned about and kept (a mix of deleted and stuck files is not reachable on Unix), and it skips when the folder stays writable.
+- Not run by the implement stage, by direction: `release/upgrade-harness.sh` against v1.0.9 (AC4's rehearsal and its mutation run, tags e36s7h and e36s7m); the lead runs both at smoke and fills `evidence/36-7-upgrade-from-v1.0.9.md`. The harness's real-stack code (`served_tree`, `web_status`, `stale_plant`, the phase calls) is therefore verified only by the hermetic rule over stubs and by reading.
+- All throwaways of tags e36s7i, e36s7iw and e36s7b were torn down (no `e36s7` container, volume or image is left).
+- mutation (review pass): `claimReload` returns true when the storage is missing -> node tests `claimReload is false without a storage...` and `does not reload with no usable storage` red; the read-back check of the flag dropped -> the same two red; the `isChunkLoadError` test dropped from `reloadOnChunkError` -> `does nothing for an error that is not a chunk failure` red. `chunk-reload.ts` restored (`cmp` against a copy: identical).
+- Review pass: the spine's Angular row got a full stop before the new sentence (`ARCHITECTURE-SPINE.md`).
+
+- Lead's smoke (2026-11-14): AC4 rehearsal against v1.0.9, tag e36s7h, phase by phase from cd8a9381: `Result: pass`, 14 rows incl. `stale files` (3 checks; plant noted) and approval; served folder = build (31 files) after upgrade and after restart; deep link and reload of /settings, /history, /usage on the upgraded stack: no error. Evidence `evidence/36-7-upgrade-from-v1.0.9.md`.
+- mutation: AC4, `Web.Prepare`'s `RemoveStaleBundle` call replaced by `Quit sc` (tag e36s7m) -> the harness `stale files` row fails naming `./main-JCJUH3RN.js` and `./main-ZZSTALE0.js` (`RESULT fail`); restored byte-identical (`git status` clean).
+
+- mutation (QA): `RemoveStaleBundle` without the `$Data(names(name))` test (guard iii, a stale-named file the build holds) -> `TestStaleKeepsTheBuildsFiles` red, with the existing `TestRemoveStaleBundle`, `TestStaleKeepsNestedFiles`, `TestStaleKeepsOtherNames`, `TestPrepareRemovesStale`, `TestRemoveStaleBundleWarns` and `TestStaleNeedsTheSameIndex` (warm, tag e36s7q1); `Web.cls` restored (`cmp` against a copy: identical, `git diff` empty).
+- mutation (QA): the served-vs-build `index.html` compare made to apply only when the served file exists -> `TestStaleNeedsAServedIndex` red alone (3 asserts); restored identical.
+- mutation (QA): the guard (v) block returns an error status instead of OK -> `TestPrepareFailsSafeWithoutABuildFolder` red (with `TestStaleNeedsABuildList`); restored identical.
+- mutation (QA): `claimReload` taken before the `isChunkLoadError` test in `reloadOnChunkError` -> the node test `does not use up an address on an error that is no chunk failure...` red (the only one); `chunk-reload.ts` restored identical (`git diff` empty).
+- mutation (QA, re-run by code review): `withNavigationErrorHandler` and its imports removed from `app.config.ts` -> the live part 14/14 of the chromium project (tag e36s7c3) goes 4 failed, 17 passed, by name: R1, R2, `R4: a missing History chunk ...` and `R4: a missing Settings chunk ...` (R3 and R5 green by design); restored identical (`cmp`, `git diff` of `web/` empty).
+- mutation (QA): `isChunkLoadError` answers true for every error that has a string message -> R5 red alone, 20 passed (tag e36s7q5); restored identical.
+- QA run: `npm --prefix web test` 2040 pass, `npm --prefix web run lint` clean, `OcuTalon.Test.Web.Install` passed warm (e36s7q1) and on a fresh stack (e36s7q6), live part 14/14 of the chromium project (the part that holds `usage/chunk-reload.spec.ts` now that the list has 312 tests; 16/16 held it before the QA tests) 21 passed (e36s7q2). All throwaways torn down.
+
+- mutation (code review): `ModuleRoot` starts from `"/opt/ocutalon/src/"` instead of "" (a missing module would get the image's root) -> `TestBuildFolder` red ("a module that is not installed has no root", and its guard (v) line) (warm, tag e36s7cw); restored identical (`cmp`).
+- mutation (code review): guard (v)'s warning recorded twice -> `TestBuildFolder`, `TestPrepareFailsSafeWithoutABuildFolder` and `TestStaleNeedsABuildList` red (all four cases) now that `Warnings()` keeps duplicates (warm, e36s7cw); restored identical.
+- Code review run: `OcuTalon.Test.Web.Install` passed on a fresh stack before the patches (e36s7c1), warm after them (e36s7cw) and on a fresh stack after them (e36s7c2); `node --test web/scripts/chunk-reload.test.mjs` 12 pass; `test-cpf.sh`, `test-release-sequence.sh` and `test-compose-file.sh` pass. The new part p line (no guard (v) warning in a repository install) was not run here: part p is the lane-a CI job's. All review throwaways torn down.
+
+## Tests Added (QA stage, 2026-11-14)
+
+- `Test/Web/Install.cls`:
+  - `TestStaleKeepsTheBuildsFiles`: guard (iii), one build file of each shape (script, map, chunk, polyfills, stylesheet) stays with other content, a name one character off a build file's goes (the rule is by name, not prefix);
+  - `TestStaleNeedsAServedIndex`: a served folder with no `index.html`, or no folder, loses nothing and is silent (guard iv's other half);
+  - `TestPrepareFailsSafeWithoutABuildFolder`: guard (v) through `Prepare`, the call of the step's `Run`: no build folder gives OK, nothing removed and one "no old web file was removed" line; the default build folder never fails the step and never removes from a folder that is not that build's.
+- `web/scripts/chunk-reload.test.mjs`: a non-chunk error does not use up its address's flag (a chunk failure at the same address still reloads once), and each address keeps its one reload in an interleaved sequence.
+- `web/e2e/usage/chunk-reload.spec.ts`: R4 (History as the LIVE user and Settings as the README admin each reload once at their own address and render) and R5 (a chunk that fetches but cannot run is no chunk failure: no reload, no flag).
+- Already pinned, no test added: the V1 line format (`removed old web file <name>` by exact text in `TestRemoveStaleBundle`, `TestStaleKeeps*`, `TestPrepareRemovesStale`, and the registry's `WARN Web` form by `live:install-upgrade`'s anchored grep and `ipm-install.sh` check 25); "no new user-facing text" (`ux-strings.test.mjs` is in `npm --prefix web test`, which passes).
+- Not pinned, by choice: the start-level `WARN Web` line on a real stack with no build folder. The Registry's printing is Lane A's, and a live row would need a stack whose module root does not resolve (a 7 minute run) for a path that `TestStaleNeedsABuildList` and the new Prepare test already pin down to the warning text.
+
+## Auto Run Result
+
+Status: done
+Blocking condition: none.
+
+**Summary:** the Web step now removes, at every start, the top-level `STALEFILES` files that the installed build lacks (`RemoveStaleBundle`, from `Prepare`), only with a readable build list that holds `index.html` and only while the served `index.html` equals the build's; each removal logs `removed old web file <name>`, a stuck file warns, and the step never fails. The harness has the `stale-files` row (plant always), the install-upgrade, IPM (check 25, Root measured) and compose checks are extended, and the web app has the one-reload handler for a failed lazy chunk. Spine sentences are in AD-23 and the Angular row.
+
+**Files changed:** `src/ocutalon/cls/OcuTalon/Install/Step/Web.cls` (BUILDFOLDERS, ModuleRoot, BuildFolder, RemoveStaleBundle, Prepare); `src/ocutalon/cls/OcuTalon/Test/Web/Install.cls` (8 tests); `docker/tests/test-install-upgrade.sh`, `docker/tests/test-upgrade-harness.sh`, `docker/tests/test-compose-file.sh`, `release/ipm-install.sh`, `release/upgrade-harness.sh`; `web/src/app/shared/chunk-reload.ts`, `web/src/app/app.config.ts`, `web/scripts/chunk-reload.test.mjs`, `web/e2e/usage/chunk-reload.spec.ts`; `ARCHITECTURE-SPINE.md`; `evidence/36-7-upgrade-from-v1.0.9.md` (placeholders for the lead).
+
+**Review:** 29 findings from four layers. Patched: 2 (spine full stop; V4 storage and narrowing mutations recorded). Rejected: 27, each with its reason in the Review Triage Log. Deferred: none. Patched counts by verdict: 1 medium, 1 low. Follow-up review recommended: false.
+
+**Verification:** see `## Verification` (Implementation record and the review-pass mutation lines). Re-run by the review stage: node chunk-reload tests (11 pass), `test-compose-file.sh`, `test-upgrade-harness.sh`, `test-class-rules.sh` pass.
+
+**Open for the lead (not run here, by direction):** AC4, the rehearsal against v1.0.9 and its mutation run (tags e36s7h and e36s7m), and filling `evidence/36-7-upgrade-from-v1.0.9.md`. Not committed (the lead commits; quota hold from 16:00Z).
+
+**Residual risks:** (1) the reload handler discards unsaved edits on the page being left when a lazy chunk is missing (ruling-bound, no text); (2) the flag is per session, so a tab that crosses two upgrades is rescued once; (3) the install log reports removals as `WARN Web ...` and warns on every start where no module Root resolves (dev slots); (4) the harness row compares the whole served list, so a future release that drops a nested asset will show it as EXTRA; (5) the intent contract's "No change to web/" and "no warning" lines are superseded by the 06:00Z rulings (contract left unedited); (6) an intent-to-add index entry exists for four new files (`git add -N`, run by the review stage by mistake); the lead's commit includes them anyway.
+
+**Lead, after smoke, QA and review (2026-11-14):** AC4 rehearsal against v1.0.9 passed with the stale-files row and its mutation went red (evidence/36-7-upgrade-from-v1.0.9.md); QA added six tests; the review closed with 0 HIGH and 0 unresolved MED; DW-1320 resolved. Residual risk (1) is narrowed: the unsaved-changes guard runs before a lazy chunk loads, and the reload raises the browser's own leave prompt (DW-1332). Initial bundle 882.45 -> 883.39 kB on a5fc95e9 (+0.94 kB); 885.52 kB after integrating feature 423f8148 (25.4).

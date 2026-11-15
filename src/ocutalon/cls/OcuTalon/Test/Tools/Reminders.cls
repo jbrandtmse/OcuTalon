@@ -168,7 +168,7 @@ Method TestDeclarations()
 	Set names = "OcuTalon.Tools.Names"
 	Do $$$AssertTrue(..StartsWithSqlVerb("  delete the reminders"), "control: a text that starts with an SQL verb is flagged")
 	Do $$$AssertNotTrue(..StartsWithSqlVerb("Sets a reminder, then deletes nothing"), "and one that does not start with one is not")
-	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), ..#TOOLSET_",OcuTalon.Tools.Watching,OcuTalon.Tools.Persona,OcuTalon.Tools.Memory", "Chat's TOOLSETS is "_..#TOOLSET_" and, since Story 5.1, OcuTalon.Tools.Watching and, since Story 40.5, OcuTalon.Tools.Persona and, since Story 19.3, OcuTalon.Tools.Memory")
+	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), ..#TOOLSET_",OcuTalon.Tools.Watching,OcuTalon.Tools.Persona,OcuTalon.Tools.Memory,OcuTalon.Tools.Email", "Chat's TOOLSETS is "_..#TOOLSET_" and, since Story 5.1, OcuTalon.Tools.Watching and, since Story 40.5, OcuTalon.Tools.Persona and, since Story 19.3, OcuTalon.Tools.Memory and, since Story 22.7, OcuTalon.Tools.Email")
 	Set expected = $ListBuild($Parameter(names, "SETREMINDER"), $Parameter(names, "LISTREMINDERS"), $Parameter(names, "CANCELREMINDER"))
 	Set want("set_reminder") = $ListBuild("safe", 0, 1, "Setting a reminder", "delaySeconds,localDueAt,text", "text")
 	Set want("list_reminders") = $ListBuild("safe", 1, 1, "Listing your reminders", "", "")
@@ -272,7 +272,7 @@ Method TestSetRelative()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,incident_summary,list_memories,list_productions,list_reminders,propose_fix,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Stories 5.1, 5.9, 5.7 and 5.13, the six watching tools, since Story 40.5, propose_persona and, since Story 17.6, send_digest and, since Story 19.3, the four memory tools and, since Story 23.6, incident_summary and, since Story 23.2, propose_fix")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,incident_summary,list_memories,list_productions,list_reminders,propose_fix,propose_persona,recent_activity,save_memory,search_memories,send_digest,send_email,set_reminder,start_watch,stop_watch", "the second request offers the three reminder tools and, since Stories 5.1, 5.9, 5.7 and 5.13, the six watching tools, since Story 40.5, propose_persona and, since Story 17.6, send_digest and, since Story 19.3, the four memory tools and, since Story 23.6, incident_summary and, since Story 23.2, propose_fix")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..SetAnswer(), "the model reads the answer of the owner")

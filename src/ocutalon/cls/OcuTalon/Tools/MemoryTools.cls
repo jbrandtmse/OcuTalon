@@ -22,7 +22,7 @@
 /// output, because their answers are built in code from the owner's CommandResult or from the session's own memory rows. save_memory and
 /// forget_memory are not read-only, so the gate denies them in an untrusted or tainted turn: only a turn that began with the person's own message and
 /// that no tool result has tainted can save or forget a memory (FR-7). The two reads are read-only, so they run in any turn. A memory's text came
-/// from such a turn when its Origin is tool, which is the only origin that CommandsIn takes a SaveMemory from; so a recall whose rows all have the
+/// from such a turn when its Origin is tool (CommandsIn takes a SaveMemory from origin tool, and from origin photo only for the caption of a photo, Story 26.3); so a recall whose rows all have the
 /// Origin tool is trusted output, and when any row has another Origin (a memory of a source that is not a person's own turn) the tool puts the context's
 /// Tainted at 1, so that a later save in the same turn is denied.
 /// It extends OcuTalon.Tools.Result and returns only through Return. A tool method runs inside AI Hub's callback, so it makes no AI Hub call and no Python

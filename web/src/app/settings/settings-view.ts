@@ -1,15 +1,17 @@
 /**
  * The settings page's view model (Story 33.2; EXPERIENCE: Step 2, settings and the daily digest): the fixed strings of the page, the order of its
- * sections, the Check thresholds' fields and the small rules of the page and its forms. A framework-free module: it imports only types and uses only erasable
- * TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12): the values and the refusals are the server's (SettingsOps); the
+ * sections, the Check thresholds' fields and the small rules of the page and its forms. A framework-free module: it imports only types and page-shell-view.ts and uses only
+ * erasable TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12): the values and the refusals are the server's (SettingsOps); the
  * form sends what was typed and the server validates every value.
  *
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
- * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
- * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
- * - pageOf says which page an address is: the settings page, the Documents page, the Usage page or the chat.
+ * - SETTINGS_SECTIONS is the ten sections in the UX's order, each with its address slug. The page leaves On call out while the server sends no `on-call` values (the online demo).
+ *   The ninth, Tools and MCP servers (Story 21.4), is mcp-view.ts. Roles (Story 25.4) is last and shows only while the snapshot's `rolesAssignable` is true, so
+ *   shownSections(rolesShown) leaves it out otherwise.
+ * - sectionSlug turns an address part into a section's slug: an unknown, missing or hidden one opens Models.
+ * - pageOf and settingsMatch are page-shell-view.ts's (the eager shell needs them, so they live there); this module re-exports them. SETTINGS_TEXTS's title, unsaved, stay and leave are SHELL_TEXTS's.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
  * - stepFailedText is the Demo step's text for the value that was written.
  * - The Time zone section (Story 18.2): zoneOptions lists the zones to choose from, and zoneBody is the body of a save.
@@ -21,13 +23,15 @@
  * - The Models section (Story 18.3): modelsView lists the supported providers with their reason when a key is not set, modelOptions and secondOptions give
  *   the choices of the Model and Second model selects, modelsFormOf builds the form from the server's values, modelsBody is the body of a save,
  *   isModelsDirty the rule of its form, and testResultText the line under a Test button. The Budgets section: budgetsBody and isBudgetsDirty.
+ * - The On call section (Story 36.4): its fixed strings are SETTINGS_TEXTS.onCall, and its rules are on-call-view.ts.
  * - refusalKind (DW-948) is the one classifier of a refused or failed save, which every section that saves or sends uses through refusal.ts.
  */
+import { pageOf, SHELL_TEXTS, settingsMatch } from '../shared/page-shell-view.ts';
 import type { AgentModels, ModelPrices, ModelsBody, ModelTestAnswer, Prices, ProviderRow } from '../api/api-types';
 
 /** Every fixed string of the settings page. The separator in the title is U+00B7. */
 export const SETTINGS_TEXTS = {
-  title: 'Settings \u00B7 OcuTalon',
+  title: SHELL_TEXTS.settingsTitle,
   heading: 'Settings',
   sectionsName: 'Settings sections',
   sections: {
@@ -37,7 +41,10 @@ export const SETTINGS_TEXTS = {
     dailyDigest: 'Daily digest',
     timeZone: 'Time zone',
     checkThresholds: 'Check thresholds',
+    onCall: 'On call',
     demoMode: 'Demo mode',
+    mcp: 'Tools and MCP servers',
+    roles: 'Roles',
   },
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
@@ -45,9 +52,9 @@ export const SETTINGS_TEXTS = {
   failed: "Couldn't save. Nothing was changed.",
   denied: 'Only OcuTalon admins can open settings.',
   back: 'Back to the chat',
-  unsaved: 'You have unsaved changes in this section. Leave without saving?',
-  stay: 'Stay',
-  leave: 'Leave without saving',
+  unsaved: SHELL_TEXTS.unsaved,
+  stay: SHELL_TEXTS.stay,
+  leave: SHELL_TEXTS.leave,
   thresholds: {
     diskFreePercent: 'Disk free space below (%)',
     journalFreePercent: 'Journal free space below (%)',
@@ -84,6 +91,29 @@ export const SETTINGS_TEXTS = {
     address: 'Send events with POST to {address}.',
     secretSet: 'Saved, and never shown again. Type a new value to replace it.',
     offOnDemo: 'Webhooks are off on the online demo, so it has no public webhook address. They work on your own install.',
+  },
+  onCall: {
+    help: 'Choose who OcuTalon pages when an incident starts, and who it pages next if nobody presses Got it in time.',
+    notYet: "OcuTalon doesn't send pages yet. It keeps these choices for when it does.",
+    primary: 'On-call person',
+    backup: 'Backup',
+    person: 'Person',
+    nobody: 'Nobody',
+    byEmail: 'Someone else, by email',
+    byEmailHelp: "Someone paged by email can't press Got it, so OcuTalon also pages the backup after the minutes below.",
+    email: 'Email address for pages',
+    channels: 'Page by',
+    telegram: 'Telegram',
+    channelEmail: 'Email',
+    telegramUnpaired: "{user} hasn't paired Telegram, so OcuTalon can't message them there yet. They can pair it on their own OcuTalon page.",
+    telegramEmailOnly: 'Telegram needs an OcuTalon user with a paired chat.',
+    minutes: 'Minutes before paging the backup',
+    minutesHelp: '15 unless you change it.',
+    badEmail: 'Enter an email address such as name@example.com. Nothing was changed.',
+    badMinutes: 'Enter a whole number of minutes from 1 to 1440. Nothing was changed.',
+    noChannel: 'Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed.',
+    unknownUser: "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed.",
+    offOnDemo: "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.",
   },
   models: {
     agents: { TriageAgent: 'Triage agent', DiagnosisAgent: 'Diagnosis agent', ChatAgent: 'Chat agent' },
@@ -125,7 +155,7 @@ export interface SettingsSection {
   label: string;
 }
 
-/** The seven sections in the UX's order. */
+/** The ten sections in the UX's order (On call after Check thresholds, so that Demo mode stays before Tools and MCP servers); Roles is last and is shown only through shownSections(true). */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'models', label: SETTINGS_TEXTS.sections.models },
   { slug: 'budgets', label: SETTINGS_TEXTS.sections.budgets },
@@ -133,12 +163,23 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { slug: 'daily-digest', label: SETTINGS_TEXTS.sections.dailyDigest },
   { slug: 'time-zone', label: SETTINGS_TEXTS.sections.timeZone },
   { slug: 'check-thresholds', label: SETTINGS_TEXTS.sections.checkThresholds },
+  { slug: 'on-call', label: SETTINGS_TEXTS.sections.onCall },
   { slug: 'demo-mode', label: SETTINGS_TEXTS.sections.demoMode },
+  { slug: 'mcp', label: SETTINGS_TEXTS.sections.mcp },
+  { slug: 'roles', label: SETTINGS_TEXTS.sections.roles },
 ];
 
+/** The slug of the section that exists only while roles can be assigned. */
+export const ROLES_SLUG = 'roles';
+
+/** The sections the navigation lists: all but Roles unless rolesShown. */
+export function shownSections(rolesShown: boolean): readonly SettingsSection[] {
+  return SETTINGS_SECTIONS.filter((section) => rolesShown || section.slug !== ROLES_SLUG);
+}
+
 /** The slug of the section that an address part names, or models (the first) for an unknown or missing one. */
-export function sectionSlug(part: string | null | undefined): string {
-  return SETTINGS_SECTIONS.find((section) => section.slug === part)?.slug ?? SETTINGS_SECTIONS[0].slug;
+export function sectionSlug(part: string | null | undefined, rolesShown = true): string {
+  return shownSections(rolesShown).find((section) => section.slug === part)?.slug ?? SETTINGS_SECTIONS[0].slug;
 }
 
 /** The name of the section with the slug (models for an unknown slug). */
@@ -146,36 +187,13 @@ export function sectionLabel(slug: string): string {
   return SETTINGS_SECTIONS.find((section) => section.slug === slug)?.label ?? SETTINGS_SECTIONS[0].label;
 }
 
-/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2), history (Story 25.2), usage (Story 37.2) or the chat. */
-export function pageOf(address: string): 'settings' | 'documents' | 'history' | 'usage' | 'chat' {
-  const path = address.replace(/^#/, '').split(/[?#;]/)[0];
-  if (path === '/documents') {
-    return 'documents';
-  }
-  if (path === '/history') {
-    return 'history';
-  }
-  if (path === '/usage') {
-    return 'usage';
-  }
-  return path === '/settings' || path.startsWith('/settings/') ? 'settings' : 'chat';
-}
-
 /** The address of the section, as the router takes it. */
 export function sectionPath(slug: string): string[] {
   return ['/settings', slug];
 }
 
-/**
- * The route matcher of the settings page: #/settings and #/settings/<section> are one route, so that moving between sections keeps the
- * page (its values and the focus of the link pressed) instead of building it again. The section is the parameter `section`.
- */
-export function settingsMatch<T extends { path: string }>(segments: T[]): { consumed: T[]; posParams: Record<string, T> } | null {
-  if (segments.length < 1 || segments.length > 2 || segments[0].path !== 'settings') {
-    return null;
-  }
-  return { consumed: segments, posParams: segments.length === 2 ? { section: segments[1] } : {} };
-}
+/** pageOf and settingsMatch live in page-shell-view.ts, which the eager shell imports; they are re-exported here for settings-view.test.mjs. */
+export { pageOf, settingsMatch };
 
 /** A field of Check thresholds: its name in the API, its label and its range. */
 export interface ThresholdField {

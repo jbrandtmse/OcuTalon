@@ -1,0 +1,569 @@
+diff --git a/GUIDE.md b/GUIDE.md
+index 3d7c3c87..adca8b2c 100644
+--- a/GUIDE.md
++++ b/GUIDE.md
+@@ -247,6 +247,8 @@ Signing in with Google or Microsoft 365 is optional, and these steps are for you
+ 
+ If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
+ 
++All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
++
+ ## Stop, start and update
+ 
+ - Stop: `docker compose down`. Your data stays on a Docker volume. Do not add `-v`: that deletes the volume.
+diff --git a/_bmad-output/implementation-artifacts/spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md b/_bmad-output/implementation-artifacts/spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md
+index 84b0f478..3c8b23ff 100644
+--- a/_bmad-output/implementation-artifacts/spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md
++++ b/_bmad-output/implementation-artifacts/spec-22-7-send-email-from-the-chat-safe-to-you-and-approved-for-anyone.md
+@@ -2,8 +2,8 @@
+ title: 'Story 22.7: Send email from the chat, safe to you and approved for anyone else'
+ type: 'feature'
+ created: '2026-11-12'
+-status: 'in-progress'
+-baseline_revision: 'cf9b6d2aa0d2e4e856d42fcdaa8ddb64a455b26f'
++status: 'in-review'
++baseline_revision: 'b87a7b7a52b1be0767249fffb0655b55a9a45814'
+ baseline_commit: 'cf9b6d2aa0d2e4e856d42fcdaa8ddb64a455b26f'
+ review_loop_iteration: 0
+ followup_review_recommended: false
+@@ -550,6 +550,14 @@ Scope: only the four unchecked `[Review]` items under Tasks & Acceptance. Do not
+ 
+ **Verification for this pass.** The `## Verification` commands, plus: `Test.Fix.EmailCard`, every `OcuTalon.Test.Channel.Email*` class and `OcuTalon.Test.Core.CommandsStep4` once each (one per call), `Test.Core.AnswersIn`, `Test.Core.AnswersInProduction`, `Test.Core.AnswersInWebRoles`, `Test.Web.Api` and `Test.Live.Payloads` (unchanged, read only). Record each new `mutation:` line under Verification (applied, observed red, reverted byte-identical).
+ 
++### Rework 3 (P4 (a), P4 (b), P1; decided in-stage, binding for this pass)
++
++- **Rule for Subject and Text on the system path (`Channel.Email.Out` `Approved`).** For a system send that names its approval, when the executing email row holds `subject` or `text` as a string in `FixParameters`, an empty carried value is the row's, a carried value equal to the row's is sent as it is, and any other carried value is refused (refused, naming that field). When the row does not hold the member, the command's own value stays: Epic 21's tests (`Test.Channel.EmailOut`, `EmailLive`) seed rows with `recipients` only and send their own subject and text, and they are unchanged and green. No row that 22.7 raises lacks the members (`CheckParameters` requires them). The recipients keep `Authorised`'s set comparison, as before.
++- **Safe-path pin (P4 (b)).** `TestSafeSendKeepsTheAddressOutOfTheTrace` runs the tool method in a bridge context of the owner's clean turn, not a chat turn: the `send-email-own` scenario's address is fixed (`owner@example.test`) and other tests leave it in the trace, so it could not be a hermetic pin; the test saves a unique address instead. It still goes through the real `CommandCall`, `CommandsIn` and `EmailOut`.
++- **`Test.Fix.Email` `Connect` offers the address and the user name to the hand-off** (`Test.Core.SecretHandoff.Swap`, as the route does since Story 21.14), because the integration of 21.14 (aa0763f9) made `SaveSettings` refuse a plain address and every live test of the class failed at its set-up; with the address in a reference, the SaveSettings message in the trace holds no address either.
++- `TestEmptyRecipientsOfASystemSend` and its `SubmitSystem` now say what a system command carries (default subject and text, or none), and the executing rows carry the same subject and text, so the refusals still name only the recipients.
++- **P1.** The paragraph is in `GUIDE.md` word for word, and `GM_T4` of `docker/tests/test-readme.sh` holds it (the section's approved text; pins only). The claims rest on code that this pass left alone: `AnswersIn` rule 3 (a request is answered only by the session that `Ownership.Approval` returns it for), `Fix.Kind.Email` `MayApprove` and `Raise`'s `OwnerRef`, and `SettingsOps` `SaveEmail`, which writes `email.owner` as the saving session.
++
+ ## Veto items
+ 
+ 1. **Outward action: email from the chat.** An email to the session user's own address is sent at once, with no approval. Email to anyone else is sent once, and only after an approved request. One try, TLS through `EmailOut` as 21.6 built it.
+@@ -686,6 +694,13 @@ There are no `(once)` lines. CI runs the full suite (the shards, `live:security-
+ - Each rework mutation was applied on lane D's warm stack `e22s7r1w` (the item that runs the class restarted after the reload), observed red, reverted (`cmp` against the saved copy, byte-identical), and the class was green again on the same stack.
+ - Each code-review mutation was applied on lane D's warm stack `e22s7cw` (the production restarted after each reload), observed red, reverted byte-identical (`cmp` against the saved copy), and the class was green again on the same stack.
+ - (CI rework 2) mutation: `Test.Bridge.Decide` `TestEstimateTokens` sums Chat's tool JSON without the Email toolset's term (`chatTools = reminders + watching + persona + memory`) -> the same test went red ("Chat: the system prompt of the live agent, 9577, and the JSON of the Reminders, Watching, Persona, Memory and Email toolsets' tools, 20513"); applied on lane D's warm throwaway `e22s7r2w`, reverted (`cmp` against the saved copy, byte-identical), and the class was green again. `Test.Bridge.Compaction`, `Test.Bridge.Conversation`, `Test.Agent.RequestSize`, `Test.Agent.Constants` and `Test.Agent.Runners` held unchanged, and `test-class-rules.sh` and `test-boundaries.sh` passed.
++- (rework 3, P4 (a), ruled) mutation: `Fix.Kind.Email` `Execute` puts `Subject` back on the SendEmail (`Set command.Subject = parameters.subject`; FixExecutor restarted after the reload) -> `Test.Fix.Email` `TestApprovedEmailIsInNoTraceGlobal` went red ("no trace global holds the subject" and the stored SendEmail "holds no Recipients, Subject or Text").
++- (rework 3, P4 (a)) mutation: `Channel.Email.Out` `Approved` quits at once (EmailOut ignores the approval row's subject and text on a system send; EmailOut restarted) -> `Test.Fix.Email` `TestSystemSendTakesItsSubjectAndTextFromTheRow` (every empty-field case, no mail) and `TestApprovedEmailIsInNoTraceGlobal`, `TestRiskyTurnApprovedSendsOnce`, `TestSeededApprovedRowSendsOnce`, `TestSendFailuresEndFailedOnce` went red (the command had no subject or text, so it was refused).
++- (rework 3, P4 (a)) mutation: `Channel.Email.Out` `Approved` does not refuse a carried subject that differs from the row's (`ElseIf 0`; EmailOut restarted) -> `Test.Fix.Email` `TestSystemSendTakesItsSubjectAndTextFromTheRow` went red ("another subject", "another subject and text" and "the row's subject in another case": not refused, a mail went out).
++- (rework 3, P4 (a)) mutation: `Channel.Email.Out` `Approved` does not refuse a carried text that differs from the row's (`ElseIf 0`; EmailOut restarted) -> `Test.Fix.Email` `TestSystemSendTakesItsSubjectAndTextFromTheRow` went red ("another text", "another subject and text" and "the row's subject with another text").
++- (rework 3, P4 (b)) mutation: `Tools.EmailTools` `SendEmail` sets `command.Recipients` to the call's own address instead of the marker -> `Test.Fix.Email` `TestSafeSendKeepsTheAddressOutOfTheTrace` went red ("the marker for Recipients" and "no trace global holds the own address"), and `TestSafeTurn` went red with it.
++- (rework 3, P1 and P4 (b), doc pins) mutation: the pins of `docker/tests/test-readme.sh` are mutation-tested by the script itself (`st` rows, each applied to a copy of the file and required to be flagged): `gmail-section` 'the mailbox and approval paragraph removed' and '... reworded' (GUIDE.md), `docs` 'the email trace line removed', '... changed' and '... moved down one bullet' (docs/security-overview.md); `bash docker/tests/test-readme.sh` passed with all of them, so each mutation was observed flagged.
++- Each rework 3 mutation of a class was applied on lane D's warm throwaway `e22s7r3w` (the item that runs the class restarted after the reload), observed red, reverted (`cmp` against the saved copy, byte-identical), and `Test.Fix.Email` was green again on the same stack.
+ - Note: a reload of a class into the warm stack does not reach the production's running jobs; restart the item (`Ens.Director` `TempStopConfigItem` or `RestartProduction`, through `docker exec` on the warm container) before a mutation of a class that a job runs.
+ 
+ **Shared surfaces:**
+diff --git a/docker/tests/test-readme.sh b/docker/tests/test-readme.sh
+index 65181269..ed7c1b54 100755
+--- a/docker/tests/test-readme.sh
++++ b/docker/tests/test-readme.sh
+@@ -1463,6 +1463,8 @@ Signing in with Google or Microsoft 365 is optional, and these steps are for you
+ 4. Press "Sign in with Google" (or Microsoft 365). The provider's consent page opens in a new tab; after you agree, the tab returns to Settings, which shows "Signed in with Google."
+ 
+ If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
++
++All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. When OcuTalon asks you to approve an email, only an OcuTalon admin can approve it: without the admin role your approval is refused and the email isn't sent, and no other user can answer your request. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
+ GMEOF
+ LEAST_RE='least[- ]privilege|minimum privilege'
+ chk_gmail_section() {
+@@ -1677,6 +1679,7 @@ IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of bu
+ L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
+ L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+ L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
++L2115="- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace."
+ MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
+ chk_docs() {
+   if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
+@@ -1691,6 +1694,10 @@ chk_docs() {
+   if ! awk -v l="$L2114" 'prev ~ /^- `OcuTalonTraceViewer` is the trace role/ && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
+     echo "docs: the trace role's sentence is not the bullet right after the OcuTalonTraceViewer bullet"
+   fi
++  if [ "$(grep -c -x -F -- "$L2115" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about the trace and an email's content once"; fi
++  if ! awk -v p="$L2114" -v l="$L2115" 'prev == p && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
++    echo "docs: the trace and an email's content line is not the bullet right after the trace role's sentence"
++  fi
+   if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
+   if ! awk -v f="$MCP_FRAME" -v l="$L187" '$0 == f { a = NR } $0 == l { b = NR } /^#/ && a && !b { h = 1 } END { exit !(a && b && a < b && !h) }' "$3"; then
+     echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no heading between"
+@@ -2876,6 +2883,8 @@ rule_gmail_section() {
+   st 'the Microsoft permissions changed' 1 "$GUIDE" '{ sub(/`POP.AccessAsUser.All`, `SMTP.Send` and `offline_access`/, "`Mail.Read`") } { print }' chk_gmail_section
+   st 'step 4 removed' 1 "$GUIDE" '/^## / { s = ($0 == "## Gmail and Microsoft 365") } !(s && /^4\. /)' chk_gmail_section
+   st 'the closing paragraph removed' 1 "$GUIDE" '/^If the sign-in is withdrawn at the provider/ { next } { print }' chk_gmail_section
++  st 'the mailbox and approval paragraph removed' 1 "$GUIDE" '/^All email OcuTalon sends goes out from the one mailbox/ { next } { print }' chk_gmail_section
++  st 'the mailbox and approval paragraph reworded' 1 "$GUIDE" '{ sub(/only an OcuTalon admin can approve it/, "any user can approve it") } { print }' chk_gmail_section
+   st 'the section after Stop, start and update' 1 "$GUIDE" '{ l[NR] = $0 } /^## Gmail and Microsoft 365$/ { t = NR } END { e = t; while (e < NR && l[e + 1] !~ /^## /) e++; for (i = 1; i <= NR; i++) { if (t && i >= t && i <= e) continue; print l[i] } for (j = t; j <= e; j++) print l[j] }' chk_gmail_section
+   st_append 'a least-privilege claim in GUIDE.md' 'The measured list is the least privilege that works.' chk_gmail_section
+   st 'a minimum-privilege claim in README.md, docs/ or release/' 2 "$priv" '{ print } END { print "This is the minimum privilege."}' chk_gmail_section
+@@ -3216,10 +3225,13 @@ rule_docs() {
+   st 'the MCP framing sentence removed' 3 "$secov_p" '!/^This release can.t connect to MCP servers\./' chk_docs
+   st 'a heading between the framing sentence and the rules line' 3 "$secov_p" '/^- An MCP tool that runs commands must be classified risky\./ { print "## Other"; print "" } { print }' chk_docs
+   st 'the trace role sentence removed' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") != 1' chk_docs
++  st 'the email trace line removed' 3 "$secov_p" 'index($0, "- An email OcuTalon sends to the connected mailbox") != 1' chk_docs
++  st 'the email trace line changed' 3 "$secov_p" '{ sub(/No email.s recipients are in the trace\./, "Recipients are in the trace.") } { print }' chk_docs
++  st 'the email trace line moved down one bullet' 3 "$secov_p" 'index($0, "- An email OcuTalon sends to the connected mailbox") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
+   st 'the trace role sentence changed' 3 "$secov_p" '{ sub(/an email.s sender, subject and text/, "an email subject") } { print }' chk_docs
+   st 'the trace role sentence moved down one bullet' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
+   st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
+-  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the three ruled lines of the security overview are there, word for word' chk_docs
++  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the four ruled lines of the security overview are there, word for word' chk_docs
+ }
+ 
+ rule_word_cap() {
+diff --git a/docs/security-overview.md b/docs/security-overview.md
+index 8a136b7f..a2e7b170 100644
+--- a/docs/security-overview.md
++++ b/docs/security-overview.md
+@@ -164,6 +164,7 @@ Roles and accounts:
+ - `OcuTalonAdmin` switches demo mode with the documented terminal command.
+ - `OcuTalonTraceViewer` is the trace role: Use on the four `%Ens_*` resources, Read on the data and code databases, `SELECT` on `Ens.MessageHeader`, and nothing on the private database.
+ - Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text.
++- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace.
+ - The local (README) account holds all three roles. The online demo account holds `OcuTalonUser` and `OcuTalonTraceViewer`. The read-only account holds `OcuTalonTraceViewer` alone.
+ - The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly seven: the six trace and message-viewer pages and `%CSP.Broker`. It can't use the OcuTalon page or its API.
+ - As the Privileges tables show, no OcuTalon role holds `%All`.
+diff --git a/src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls b/src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
+index 0ffe343d..93126b1a 100644
+--- a/src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
++++ b/src/ocutalon/cls/OcuTalon/Channel/Email/Out.cls
+@@ -13,6 +13,11 @@
+ ///     mailbox's own address, email.address. A system send whose Recipients is empty and that names its approval means the recipients of that approval's row,
+ ///     FixParameters member recipients in order, taken only from a row of Kind fix, in State executing, with FixKind FIXKIND (any other row gives an empty
+ ///     list, which Check refuses). No other command is changed by this;
++///   - a system send that names its approval also takes its subject and text from that row (Approved, DW-1255 rule 4, P4 (a)): FixExecutor's command carries only the ApprovalRef, so that
++///     the recipient, the subject and the text of an approved email are only in the approval's record and never in the trace. For each of the two, when the row (Kind fix, State executing,
++///     FixKind FIXKIND) holds it as a string in FixParameters: a command that leaves it empty is sent with the row's value, a command that carries one equal to the row's is sent as it is,
++///     and a command that carries another value is refused (refused, naming subject or text) and sends nothing. A row that does not hold the member (a row that no email fix of OcuTalon
++///     makes) leaves the command's own value as it is. The recipients of a command that carries them are compared with the row's by Authorised, as before;
+ ///   - the values are checked (Check): 1 to MAXRECIPIENTS recipients, each one address (SettingsOps.IsAddress); a subject of 1 to SUBJECTMAX
+ ///     characters; a text of 1 to TEXTMAX characters; no control character in a recipient or the subject, none in the text but a tab, a line feed
+ ///     or a carriage return. A refusal answers refused (Ok 0, MESSAGEREFUSED) with Data {"fields": [...]} naming recipients, subject or text;
+@@ -164,19 +169,28 @@ Method Handle(request As OcuTalon.Msg.Command.SendEmail) As OcuTalon.Msg.Command
+ 	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ..Result(0, "not_available", ..#MESSAGEUNAVAILABLE)
+ 	Set from = ##class(OcuTalon.Data.Setting).Fresh(..#ADDRESSKEY)
+ 	If '##class(OcuTalon.Core.SettingsOps).IsAddress(from) Quit ..Result(0, "not_connected", ..#MESSAGENOTCONNECTED)
+-	Set bad = ..Check(request, ..Listed(request, from), .recipients)
++	Set mismatch = ..Approved(request, .subject, .text)
++	Set bad = ..Check(subject, text, ..Listed(request, from), .recipients)
++	For i = 0:1:mismatch.%Size() - 1 {
++		Set field = mismatch.%Get(i)
++		Set found = 0
++		For j = 0:1:bad.%Size() - 1 {
++			If bad.%Get(j) = field Set found = 1
++		}
++		If 'found Do bad.%Push(field)
++	}
+ 	If bad.%Size() Quit ..Refused(bad)
+ 	If '..Authorised(request, from, .recipients) Quit ..Refused(["recipients"])
+ 	Set owner = $Select(request.SessionRef '= "": request.SessionRef, 1: ..#INSTANCE)
+-	If (request.Origin = "system") && (request.ApprovalRef '= "") Quit ..SendClaimed(request, from, .recipients, owner, request.ApprovalRef, "")
+-	If (request.Origin = "tool") && (request.IdempotencyKey '= "") Quit ..SendClaimed(request, from, .recipients, owner, "", ..ToolKeyOf(request))
+-	Quit ..Send(request, from, .recipients, owner, "")
++	If (request.Origin = "system") && (request.ApprovalRef '= "") Quit ..SendClaimed(request, from, .recipients, owner, request.ApprovalRef, "", subject, text)
++	If (request.Origin = "tool") && (request.IdempotencyKey '= "") Quit ..SendClaimed(request, from, .recipients, owner, "", ..ToolKeyOf(request), subject, text)
++	Quit ..Send(request, from, .recipients, owner, "", subject, text)
+ }
+ 
+ /// The claimed send of the class description, for a system send (approval is its ApprovalRef, key "") and for a keyed tool send (approval "", key is
+ /// ToolKeyOf). Under a lock on the approval or on the owner and key, a Data.Delivery row of channel email for it is looked up (Claimed); then the answer
+ /// is that of the class description, or the claim row is written pending and the send follows. A claim row never carries an ApprovalRef for a tool send.
+-Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, approval As %String, key As %String) As OcuTalon.Msg.CommandResult [ Private ]
++Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, approval As %String, key As %String, subject As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
+ {
+ 	Set lockName = $Select(approval '= "": $Name(^OcuTalon.EmailOut.Approval(approval)), 1: $Name(^OcuTalon.EmailOut.Key(owner, key)))
+ 	Lock +@lockName:..#CLAIMWAIT
+@@ -193,7 +207,7 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
+ 			Set result = $Select(approval '= "": ..Result(1, "already_sent", ..#MESSAGESENT), 1: ..Result(1, "sent", ..#MESSAGESENT))
+ 		} Else {
+ 			Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", ..#CLAIMPENDING, .claim, "", key)
+-			Set result = $Select($$$ISERR(sc): ..Result(0, "failed", ..#MESSAGEFAILED), 1: ..Send(request, from, .recipients, owner, claim))
++			Set result = $Select($$$ISERR(sc): ..Result(0, "failed", ..#MESSAGEFAILED), 1: ..Send(request, from, .recipients, owner, claim, subject, text))
+ 		}
+ 	} Catch exception {
+ 		$$$LOGERROR("EmailOut failed: "_exception.Name)
+@@ -207,14 +221,14 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
+ 	Quit result
+ }
+ 
+-/// Builds the message, delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
++/// Builds the message from the subject and the text (Approved), delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
+ /// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed. It deletes
+ /// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again, unless the email may still have reached the server
+ /// (Sender.MayHaveSent); that claim is kept, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message.
+-Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery) As OcuTalon.Msg.CommandResult [ Private ]
++Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery, subject As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
+ {
+ 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
+-	Set sc = ..Transmit(from, .recipients, request.Subject, request.Text, ref)
++	Set sc = ..Transmit(from, .recipients, subject, text, ref)
+ 	If $$$ISOK(sc) {
+ 		If '$IsObject(claim) {
+ 			Set recorded = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ref, "")
+@@ -384,6 +398,43 @@ Method Listed(request As OcuTalon.Msg.Command.SendEmail, from As %String) As %St
+ 	Quit raw
+ }
+ 
++/// The subject and the text to check and to send (see the class description): those of the command, except that a system send that names its approval takes them from the approval's row
++/// (FixParameters members subject and text of a row of Kind fix, State executing and FixKind FIXKIND, when the member is a string). subject and text come back as the command's own
++/// when the row does not hold the member or is not such a row, and as the row's when the command leaves the value empty. The answer names, in a dynamic array, each of the two that the command
++/// carries and that is not exactly the row's (subject, text), for Handle to refuse. Anything unreadable is a row that holds nothing.
++Method Approved(request As OcuTalon.Msg.Command.SendEmail, Output subject As %String, Output text As %String) As %DynamicArray [ Private ]
++{
++	Set subject = request.Subject
++	Set text = request.Text
++	Set mismatch = []
++	If (request.Origin '= "system") || (request.ApprovalRef = "") Quit mismatch
++	Try {
++		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ApprovalRef)
++		If '$IsObject(row) || $$$ISERR(row.%Reload()) Quit
++		If (row.Kind '= "fix") || (row.State '= "executing") || (row.FixKind '= ..#FIXKIND) Quit
++		Set parameters = {}.%FromJSON(row.FixParameters)
++		If parameters.%GetTypeOf("subject") = "string" {
++			If subject = "" {
++				Set subject = parameters.%Get("subject")
++			} ElseIf subject '= parameters.%Get("subject") {
++				Do mismatch.%Push("subject")
++			}
++		}
++		If parameters.%GetTypeOf("text") = "string" {
++			If text = "" {
++				Set text = parameters.%Get("text")
++			} ElseIf text '= parameters.%Get("text") {
++				Do mismatch.%Push("text")
++			}
++		}
++	} Catch {
++		Set subject = request.Subject
++		Set text = request.Text
++		Set mismatch = []
++	}
++	Quit mismatch
++}
++
+ /// The recipients of the approval's row joined by commas, in order: FixParameters member recipients of a row of Kind fix, State executing and FixKind FIXKIND, when
+ /// every entry is a string. "" for any other row, a row that is not there and anything unreadable.
+ ClassMethod ApprovedRecipients(approval As %String) As %String [ Private ]
+@@ -408,9 +459,9 @@ ClassMethod ApprovedRecipients(approval As %String) As %String [ Private ]
+ 	Quit joined
+ }
+ 
+-/// Checks the values of the command. raw is the comma-separated list of the recipients to check (Listed). recipients is the number of recipients, and
++/// Checks the values to send. subject and text are those of Approved, and raw is the comma-separated list of the recipients to check (Listed). recipients is the number of recipients, and
+ /// recipients(n) each one trimmed; the answer names the refused fields (recipients, subject, text) in a dynamic array.
+-Method Check(request As OcuTalon.Msg.Command.SendEmail, raw As %String, Output recipients) As %DynamicArray [ Private ]
++Method Check(subject As %String, text As %String, raw As %String, Output recipients) As %DynamicArray [ Private ]
+ {
+ 	Kill recipients
+ 	Set recipients = 0
+@@ -433,7 +484,7 @@ Method Check(request As OcuTalon.Msg.Command.SendEmail, raw As %String, Output r
+ 		Set recipients = 0
+ 		Do bad.%Push("recipients")
+ 	}
+-	Do ..CheckValues(request.Subject, request.Text, bad)
++	Do ..CheckValues(subject, text, bad)
+ 	Quit bad
+ }
+ 
+diff --git a/src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls b/src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+index ce9b35f0..aaaaf54f 100644
+--- a/src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
++++ b/src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls
+@@ -6,8 +6,8 @@
+ ///     for an exception. It reads only the call's recipients, subject and text, the stored product keys email.address and email.owner (Data.Setting.Fresh) and the context's OwnerRef.
+ ///   - Raise refuses before it raises anything, with Channel.Email.Out's sentence: on the online demo (MESSAGEUNAVAILABLE), with no mailbox address (MESSAGENOTCONNECTED) and for
+ ///     parameters that CheckParameters or the dry run refuses (MESSAGEREFUSED; the dry run also refuses recipients too long for a SendEmail command). Otherwise it raises one fix request with no incident and ResultTarget FixExecutor through Approval.Raise.
+-///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef, the owner's session, the subject and the text and no recipients (EmailOut
+-///     reads them from the request's row), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
++///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef and the owner's session and nothing else: no recipients, no subject and no text
++///     (EmailOut reads all three from the request's row, so that none of them is in the command or in the trace), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
+ ///   - MayApprove is the interim approver rule of an email request (DW-1262): an approval of an email to anyone but the owner's own address is answered only by a holder of the role
+ ///     OcuTalonAdmin. AnswerOps asks it before every approve.
+ ///   - Audit writes the one Action entry of a send (tool or approved): the action email, the target EmailOut, the outcome, the number of recipients sent to and, for an approved send, the IRIS user who approved it (AD-17). It holds no address, subject or text.
+@@ -182,8 +182,9 @@ ClassMethod AsApproved(dryRun As %DynamicObject, parameters As %DynamicObject) A
+ 	Quit same
+ }
+ 
+-/// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner, the parameters' subject and text and
+-/// no recipients: EmailOut takes the recipients from the approval's row, so that no address is in the command or in its trace (DW-1255). result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
++/// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner and nothing else: no recipients, no subject and
++/// no text. EmailOut takes all three from the approval's row, so that no address, subject or text is in the command or in its trace (DW-1255 rule 4, P4 (a)); parameters is only the
++/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
+ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
+ {
+ 	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
+@@ -192,8 +193,6 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
+ 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
+ 	Set command.SessionRef = row.OwnerRef
+ 	Set command.ApprovalRef = row.Ref
+-	Set command.Subject = parameters.subject
+-	Set command.Text = parameters.text
+ 	Set answered = ""
+ 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .answered)
+ 	If $$$ISERR(sc) || '$IsObject(answered) Quit $$$OK
+diff --git a/src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls b/src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls
+index e34343c7..e0074c11 100644
+--- a/src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls
++++ b/src/ocutalon/cls/OcuTalon/Msg/Command/SendEmail.cls
+@@ -1,4 +1,4 @@
+-/// Sends one email from the session user's own mailbox (AD-1, AD-14, Story 35.2). Owner EmailOut. Origin system (FixExecutor's approved email fix) names its approval (ApprovalRef); origin tool only the session user's own address, which CommandsIn checks against email.address and its owner email.owner. No other origin sends it. EmailOut validates the values and enforces the recipients itself (Story 21.6): a tool send only to the own address, a system send only with the ApprovalRef of an executing email fix and only to that fix's recipients. OcuTalon's own producers put no address in the command (Story 22.7, DW-1255): a system send leaves Recipients empty and EmailOut takes the recipients from the approval's row, and a tool send puts the marker OWNADDRESS in Recipients, which means the mailbox's own address (email.address). A command that carries Recipients is checked as it always was. A tool send goes out at most once per IdempotencyKey of its session: after a sent email the same key again sends nothing and answers sent; a send that failed before the server took it can be sent again, and one that may have reached the server or never finished answers failed.
++/// Sends one email from the session user's own mailbox (AD-1, AD-14, Story 35.2). Owner EmailOut. Origin system (FixExecutor's approved email fix) names its approval (ApprovalRef); origin tool only the session user's own address, which CommandsIn checks against email.address and its owner email.owner. No other origin sends it. EmailOut validates the values and enforces the recipients itself (Story 21.6): a tool send only to the own address, a system send only with the ApprovalRef of an executing email fix and only to that fix's recipients. OcuTalon's own producers put no address in the command (Story 22.7, DW-1255): a system send leaves Recipients empty and EmailOut takes the recipients from the approval's row, and a tool send puts the marker OWNADDRESS in Recipients, which means the mailbox's own address (email.address). An approved email (a system send) carries only its ApprovalRef: Subject and Text are empty too, and EmailOut takes them from the approval's row, so that the recipients, the subject and the text of an email to anyone else are only in its approval record and never in the trace. A tool send (an email to the own address) carries its Subject and Text, which stay in the trace like a chat message. A command that carries Recipients is checked as it always was. A tool send goes out at most once per IdempotencyKey of its session: after a sent email the same key again sends nothing and answers sent; a send that failed before the server took it can be sent again, and one that may have reached the server or never finished answers failed.
+ Class OcuTalon.Msg.Command.SendEmail Extends OcuTalon.Msg.Command
+ {
+ 
+@@ -10,10 +10,10 @@ Property Recipients As %String(MAXLEN = 2000);
+ /// accepted as a recipient list is the marker.
+ Parameter OWNADDRESS = "own";
+ 
+-/// The subject line.
++/// The subject line. Empty on an approved email (a system send): EmailOut takes it from the approval's row.
+ Property Subject As %String(MAXLEN = 200);
+ 
+-/// The message text.
++/// The message text. Empty on an approved email (a system send): EmailOut takes it from the approval's row.
+ Property Text As %String(MAXLEN = "");
+ 
+ /// The Ref of the approval request that allows the send. Required for origin system (FixExecutor's approved email fix): EmailOut reads that request
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls b/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls
+index 65f3e874..6cda5d85 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls
+@@ -33,6 +33,12 @@
+ ///     (not_allowed, nothing sent) for another session, with no mailbox owner or address, joined with another recipient, and as an empty or blank list;
+ ///   - TestOnlyAnAdminApprovesAnEmailToAnotherAddress (DW-1262): through AnswersIn and AnswerOps with two fixture IRIS users of the approval role, a non-admin's approve of an email to another address is
+ ///     not_allowed (nothing sent, the request pending), a non-admin's reject is answered, an admin's approve sends once, and MayApprove is asked row by row;
++///   - TestApprovedEmailIsInNoTraceGlobal (P4 (a), DW-1255 rule 4): an email raised through Fix.Kind.Email.Raise to another address (no chat turn), approved and sent, leaves the stored SendEmail
++///     with only its ApprovalRef, and OcuTalon.Test.Core.SecretHandoff TraceLeaks finds the recipient, the subject and the text marker in none of the trace globals (message bodies, headers, log rows);
++///   - TestSystemSendTakesItsSubjectAndTextFromTheRow (P4 (a)): a system SendEmail that leaves its Subject and Text empty is sent with those of its executing approval row, one that carries the row's
++///     own values is sent as it is, one that carries another subject or text is refused (naming it) and sends nothing, and a row that holds neither member leaves the command's own values;
++///   - TestSafeSendKeepsTheAddressOutOfTheTrace (P4 (b)): a safe send_email call to the owner's own address (a unique address that the mailbox was saved with through the hand-off) leaves the marker, the
++///     subject and the text in the trace like a chat message, and TraceLeaks finds the address in none of the trace globals;
+ ///   - TestInterruptedRunHasNoResult (Task 0, item 5): an email run that a restart cut short is marked and closed by Fix.Run.Interrupt, and Sweep ends it interrupted with an Action entry and no FixResult;
+ ///     an email run that has no ResentAt is left alone. The test holds the lock of both runs (HoldRun), so the production's own Sweep never takes them.
+ Class OcuTalon.Test.Fix.Email Extends OcuTalon.Test.Watch.Case
+@@ -60,6 +66,11 @@ Parameter OWNADDRESS = "owner@example.test";
+ 
+ Parameter OTHERADDRESS = "partner@example.test";
+ 
++/// The subject and text that SubmitSystem carries by default.
++Parameter CARRIEDSUBJECT = "A subject of the command";
++
++Parameter CARRIEDTEXT = "A text of the command.";
++
+ /// The seconds a test waits for a request to end.
+ Parameter PATIENCE = 40;
+ 
+@@ -200,12 +211,21 @@ Method Connect(address As %String) As %Boolean [ Private ]
+ 	Do $$$AssertStatusOK(sc, "the password is offered to the hand-off")
+ 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+ 	Set command.Slug = "channels"
+-	Set command.Changes = {"address": (address), "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzemail", "password": (uri), "outgoing": (..#STUBHOST_":"_..#SMTPPORT)}.%ToJSON()
++	// The address and the user name travel as hand-off references, as the route sends them (Story 21.14), so that the address of the mailbox is not in the SaveSettings message of the trace.
++	Set body = {"address": (address), "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzemail", "password": (uri), "outgoing": (..#STUBHOST_":"_..#SMTPPORT)}
++	Set uris = ""
++	Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.SecretHandoff).Swap(body, .uris), "the address and the user name are offered to the hand-off")
++	Set command.Changes = body.%ToJSON()
+ 	Set command.ActingUser = "zzemailcycle"
+ 	Set command.SessionRef = ..Owner
+ 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+ 	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
+ 	Kill left
++	Set position = 0
++	While $ListNext(uris, position, one) {
++		Do ##class(OcuTalon.Core.SecretHandoff).Take(one, .left, 0)
++		Kill left
++	}
+ 	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
+ 	If '$IsObject($Get(result)) Quit 0
+ 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the real save with an outgoing server is done")
+@@ -896,11 +916,11 @@ Method TestEmptyRecipientsOfASystemSend()
+ 	Set refused = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREFUSED")
+ 	Set listed = {"recipients": [(..#OTHERADDRESS)], "subject": "A row subject", "text": "A row text."}
+ 	Set cases = $ListBuild(
+-		$ListBuild("a row with an empty list", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": [], "subject": "s", "text": "t"}.%ToJSON())})),
+-		$ListBuild("a row with no recipients member", ..Seed(..Owner, "executing", {"FixParameters": ({"subject": "s", "text": "t"}.%ToJSON())})),
+-		$ListBuild("a row whose recipients are not an array", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": (..#OTHERADDRESS), "subject": "s", "text": "t"}.%ToJSON())})),
+-		$ListBuild("a row with an entry that is not a string", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": [(..#OTHERADDRESS), 7], "subject": "s", "text": "t"}.%ToJSON())})),
+-		$ListBuild("a row with an entry that is not an address", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": ["not an address"], "subject": "s", "text": "t"}.%ToJSON())})),
++		$ListBuild("a row with an empty list", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": [], "subject": (..#CARRIEDSUBJECT), "text": (..#CARRIEDTEXT)}.%ToJSON())})),
++		$ListBuild("a row with no recipients member", ..Seed(..Owner, "executing", {"FixParameters": ({"subject": (..#CARRIEDSUBJECT), "text": (..#CARRIEDTEXT)}.%ToJSON())})),
++		$ListBuild("a row whose recipients are not an array", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": (..#OTHERADDRESS), "subject": (..#CARRIEDSUBJECT), "text": (..#CARRIEDTEXT)}.%ToJSON())})),
++		$ListBuild("a row with an entry that is not a string", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": [(..#OTHERADDRESS), 7], "subject": (..#CARRIEDSUBJECT), "text": (..#CARRIEDTEXT)}.%ToJSON())})),
++		$ListBuild("a row with an entry that is not an address", ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": ["not an address"], "subject": (..#CARRIEDSUBJECT), "text": (..#CARRIEDTEXT)}.%ToJSON())})),
+ 		$ListBuild("a row that is approved, not executing", ..Seed(..Owner, "approved", {"FixParameters": (listed.%ToJSON())})),
+ 		$ListBuild("a row of another fix kind", ..Seed(..Owner, "executing", {"FixKind": "repair_resend", "FixParameters": (listed.%ToJSON())})),
+ 		$ListBuild("a row that is not a fix", ..Seed(..Owner, "executing", {"Kind": "tool_call", "FixParameters": (listed.%ToJSON())})),
+@@ -917,11 +937,11 @@ Method TestEmptyRecipientsOfASystemSend()
+ 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|refused", "the marker of a tool send is not a recipient of a system send")
+ 	Do $$$AssertEquals(..Mails().%Size(), 0, "the stub holds nothing after every refusal")
+ 	Set commandMark = ..LastCommand()
+-	Set result = ..SubmitSystem(row, "")
+-	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|sent", "an executing email row with the command's Recipients empty is sent")
++	Set result = ..SubmitSystem(row, "", "", "")
++	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|sent", "an executing email row with the command's Recipients, Subject and Text empty is sent")
+ 	Set mails = ..Mails()
+ 	Do $$$AssertEquals(mails.%Size(), 1, "the stub holds one mail")
+-	If mails.%Size() = 1 Do $$$AssertEquals(mails.%Get(0).to.%Size()_"|"_mails.%Get(0).to.%Get(0)_"|"_mails.%Get(0).subject, "1|"_..#OTHERADDRESS_"|A subject of the command", "to exactly the row's recipient")
++	If mails.%Size() = 1 Do $$$AssertEquals(mails.%Get(0).to.%Size()_"|"_mails.%Get(0).to.%Get(0)_"|"_mails.%Get(0).subject, "1|"_..#OTHERADDRESS_"|A row subject", "to exactly the row's recipient, with the row's subject")
+ 	Do ..AssertNoAddressInTrace(commandMark, "system", "", "the send")
+ }
+ 
+@@ -982,15 +1002,15 @@ Method SubmitTool(sessionRef As %String, recipients As %String) As OcuTalon.Msg.
+ 	Quit result
+ }
+ 
+-/// Submits a SendEmail with origin system for the approval and the Recipients through the real CommandsIn and EmailOut, as the owner's session: its CommandResult.
+-Method SubmitSystem(approvalRef As %String, recipients As %String) As OcuTalon.Msg.CommandResult [ Private ]
++/// Submits a SendEmail with origin system for the approval, the Recipients, the subject and the text (by default CARRIEDSUBJECT and CARRIEDTEXT) through the real CommandsIn and EmailOut, as the owner's session: its CommandResult.
++Method SubmitSystem(approvalRef As %String, recipients As %String, subject As %String = {..#CARRIEDSUBJECT}, text As %String = {..#CARRIEDTEXT}) As OcuTalon.Msg.CommandResult [ Private ]
+ {
+ 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
+ 	Set command.SessionRef = ..Owner
+ 	Set command.ApprovalRef = approvalRef
+ 	Set command.Recipients = recipients
+-	Set command.Subject = "A subject of the command"
+-	Set command.Text = "A text of the command."
++	Set command.Subject = subject
++	Set command.Text = text
+ 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+ 	Do $$$AssertStatusOK(sc, "the command is submitted")
+ 	If '$IsObject($Get(result)) {
+@@ -1062,6 +1082,138 @@ Method TestOnlyAnAdminApprovesAnEmailToAnotherAddress()
+ 	Do $$$AssertEquals(..StateOf(mixed), "pending", "and stays pending")
+ }
+ 
++/// P4 (a): an approved email's recipients, subject and text are only in its approval record. The request is raised through Fix.Kind.Email.Raise (no chat turn, so no model request carries them), approved
++/// through Approval.Answer, and sent by the real FixExecutor, CommandsIn and EmailOut; when the stub holds the mail, the stored SendEmail holds only the Ref of the request (no Recipients, Subject or
++/// Text), and TraceLeaks, which scans ^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD, finds none of the three unique values. The stub's mail is the control that they were sent.
++Method TestApprovedEmailIsInNoTraceGlobal()
++{
++	If '..Setup() Quit
++	Set unique = $Translate($ZHorolog, ".")_$Random(1000000)
++	Set recipient = "zzp4r"_unique_"@example.test"
++	Set subject = "zzp4s"_unique_" subject of the approved email"
++	Set text = "zzp4t"_unique_" text of the approved email."
++	Set sc = ##class(OcuTalon.Fix.Kind.Email).Raise({"recipients": [(recipient)], "subject": (subject), "text": (text)}, ..Owner, ##class(OcuTalon.Bridge.Ids).NewRef(), "", .ref, .refusal)
++	Do $$$AssertEquals($$$ISOK(sc)_"|"_(ref '= "")_"|"_refusal, "1|1|", "a request to another address is raised")
++	If ref = "" Quit
++	Set commandMark = ..LastCommand()
++	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", ..#ANSWERER, ..Owner, .winner), "done", "the request is approved")
++	Do $$$AssertEquals(..WaitState(ref, "done"), "done", "the real FixExecutor carries it out: the request is done")
++	Set mails = ..WaitMails(1)
++	Do $$$AssertEquals(mails.%Size(), 1, "the stub holds the mail")
++	If mails.%Size() = 1 {
++		Set mail = mails.%Get(0)
++		Do $$$AssertEquals(mail.to.%Get(0)_"|"_mail.subject_"|"_$ZStrip(mail.text, ">WC"), recipient_"|"_subject_"|"_text, "to the recipient of the row, with its subject and its text: they were sent")
++	}
++	Set stored = ..Commands(commandMark)
++	Do $$$AssertEquals(stored.%Size(), 1, "one SendEmail message is in the trace")
++	If stored.%Size() = 1 Do $$$AssertEquals(stored.%Get(0).origin_"|"_stored.%Get(0).recipients_"|"_stored.%Get(0).approvalRef_"|"_$Length(stored.%Get(0).text), "system||"_ref_"|1", "it holds the origin and the Ref of the request, and no Recipients, Subject or Text")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(recipient), "", "no trace global holds the recipient")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(subject), "", "no trace global holds the subject")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks("zzp4t"_unique), "", "no trace global holds the text marker")
++}
++
++/// P4 (a), EmailOut's system path: Subject and Text of a command that names its approval come from the executing row's FixParameters. Empty, they are the row's; equal to the row's, they are sent as
++/// they are; another subject or text is refused (naming that field, nothing sent, no claim); a row that holds neither member (no email fix of OcuTalon makes one) leaves the command's own values.
++Method TestSystemSendTakesItsSubjectAndTextFromTheRow()
++{
++	If '..Setup() Quit
++	Set refused = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREFUSED")
++	Set row = {"recipients": [(..#OTHERADDRESS)], "subject": "A row subject", "text": "A row text."}
++	Set cases = $ListBuild(
++		$ListBuild("both empty", "", "", "A row subject|A row text."),
++		$ListBuild("both the row's own", "A row subject", "A row text.", "A row subject|A row text."),
++		$ListBuild("the subject empty and the text the row's", "", "A row text.", "A row subject|A row text."),
++		$ListBuild("the text empty and the subject the row's", "A row subject", "", "A row subject|A row text."))
++	Set position = 0
++	While $ListNext(cases, position, case) {
++		Do ..SmtpControl("reset", {})
++		Set ref = ..Seed(..Owner, "executing", {"FixParameters": (row.%ToJSON())})
++		Set result = ..SubmitSystem(ref, "", $List(case, 2), $List(case, 3))
++		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|sent", $List(case, 1)_": the command is sent")
++		Set mails = ..Mails()
++		Do $$$AssertEquals(mails.%Size(), 1, $List(case, 1)_": the stub holds one mail")
++		If mails.%Size() = 1 Do $$$AssertEquals(mails.%Get(0).subject_"|"_$ZStrip(mails.%Get(0).text, ">WC"), $List(case, 4), $List(case, 1)_": with the row's subject and text")
++	}
++	Set cases = $ListBuild(
++		$ListBuild("another subject", "Another subject", "", "[""subject""]"),
++		$ListBuild("another text", "", "Another text.", "[""text""]"),
++		$ListBuild("another subject and text", "Another subject", "Another text.", "[""subject"",""text""]"),
++		$ListBuild("the row's subject with another text", "A row subject", "Another text.", "[""text""]"),
++		$ListBuild("the row's subject in another case", "a row subject", "", "[""subject""]"))
++	Set position = 0
++	While $ListNext(cases, position, case) {
++		Do ..SmtpControl("reset", {})
++		Set ref = ..Seed(..Owner, "executing", {"FixParameters": (row.%ToJSON())})
++		Set result = ..SubmitSystem(ref, "", $List(case, 2), $List(case, 3))
++		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message_"|"_result.Data, "0|refused|"_refused_"|{""fields"":"_$List(case, 4)_"}", $List(case, 1)_": refused, naming it")
++		Do $$$AssertEquals(..Mails().%Size()_"|"_..EmailDeliveries("", ref), "0|0", $List(case, 1)_": the stub holds no mail and no claim of the approval was made")
++	}
++	Do ..SmtpControl("reset", {})
++	Set bare = ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": [(..#OTHERADDRESS)]}.%ToJSON())})
++	Set result = ..SubmitSystem(bare, "")
++	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|sent", "a row that holds no subject or text leaves the command's own values: sent")
++	Set mails = ..Mails()
++	If mails.%Size() = 1 Do $$$AssertEquals(mails.%Get(0).subject_"|"_$ZStrip(mails.%Get(0).text, ">WC"), ..#CARRIEDSUBJECT_"|"_..#CARRIEDTEXT, "with them")
++	Do $$$AssertEquals(mails.%Size(), 1, "and the stub holds one mail")
++	Do ..SmtpControl("reset", {})
++	Set empty = ..Seed(..Owner, "executing", {"FixParameters": ({"recipients": [(..#OTHERADDRESS)]}.%ToJSON())})
++	Set result = ..SubmitSystem(empty, "", "", "")
++	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Data, "0|refused|{""fields"":[""subject"",""text""]}", "and a command with no subject or text of its own is refused: there is nothing to send")
++	Do $$$AssertEquals(..Mails().%Size(), 0, "the stub holds no mail")
++}
++
++/// P4 (b): a safe call (to the own address) keeps its subject and text in the trace like a chat message, and its address out of it. The mailbox is saved with a unique address through the hand-off (Connect),
++/// the tool method runs inside a bridge context of the owner's clean turn as the runner does, and the real CommandsIn and EmailOut send it. The stored SendEmail has the marker in Recipients and
++/// TraceLeaks finds the address in none of the trace globals, while the subject and the text are in the message bodies (the control that the globals are the ones that hold a trace).
++Method TestSafeSendKeepsTheAddressOutOfTheTrace()
++{
++	Set unique = $Translate($ZHorolog, ".")_$Random(1000000)
++	Set address = "zzp4o"_unique_"@example.test"
++	Set subject = "zzp4s"_unique_" subject of the own email"
++	Set text = "zzp4t"_unique_" text of the own email."
++	If '..Setup(address) Quit
++	Set commandMark = ..LastCommand()
++	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
++	Set request.Kind = "turn"
++	Set request.Provenance = "user"
++	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
++	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
++	Set request.OwnerRef = ..Owner
++	Set request.Channel = "system"
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, ""), "a context begins for the owner's turn")
++	Try {
++		Set answer = ##class(OcuTalon.Tools.EmailTools).SendEmail([(address)], subject, text)
++	} Catch exception {
++		Set answer = {"ok": false, "outcome": "threw", "message": (exception.Name)}
++	}
++	Do ##class(OcuTalon.Bridge.Context).End()
++	Do $$$AssertEquals(answer.ok_"|"_answer.outcome, "1|sent", "the send is answered sent")
++	Set mails = ..Mails()
++	Do $$$AssertEquals(mails.%Size(), 1, "the stub holds one mail")
++	If mails.%Size() = 1 {
++		Set mail = mails.%Get(0)
++		Do $$$AssertEquals(mail.from_"|"_mail.to.%Get(0)_"|"_mail.subject_"|"_$ZStrip(mail.text, ">WC"), address_"|"_address_"|"_subject_"|"_text, "from and to the saved address, with the subject and the text: they were sent")
++	}
++	Set stored = ..Commands(commandMark)
++	Do $$$AssertEquals(stored.%Size(), 1, "one SendEmail message is in the trace")
++	If stored.%Size() = 1 Do $$$AssertEquals(stored.%Get(0).origin_"|"_stored.%Get(0).recipients_"|"_stored.%Get(0).text, "tool|"_##class(OcuTalon.Msg.Command.SendEmail).#OWNADDRESS_"|"_subject_$Char(10)_text, "with origin tool, the marker for Recipients, the subject and the text")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(address), "", "no trace global holds the own address")
++	Do $$$AssertTrue(","_##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks("zzp4s"_unique)_"," [ ",Ens.MessageBodyD,", "the subject is in the message bodies of the trace, like a chat message's text")
++	Do $$$AssertTrue(","_##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks("zzp4t"_unique)_"," [ ",Ens.MessageBodyD,", "and so is the text")
++}
++
++/// Waits until the stub holds count mails (at most PATIENCE seconds); the mails it holds.
++Method WaitMails(count As %Integer) As %DynamicArray [ Private ]
++{
++	Set end = $ZHorolog + ..#PATIENCE
++	For {
++		Set mails = ..Mails()
++		If (mails.%Size() '< count) || ($ZHorolog > end) Quit
++		Hang 0.25
++	}
++	Quit mails
++}
++
+ /// The state of the request as it is stored now.
+ Method StateOf(ref As %String) As %String [ Private ]
+ {

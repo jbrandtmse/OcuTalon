@@ -10,6 +10,7 @@
 ///   - TestCapRendered: the cap is measured on the rendered block (line breaks add a quote prefix each), not on the sum of the texts;
 ///   - TestAlreadyPinned: a pinned memory answers pinned, keeps its PinnedAt and is not checked against the cap again;
 ///   - TestOldRow (DW-1014): a row whose stored Pinned is empty is not pinned, is not in the block, and can be pinned;
+///   - TestPinPhoto (Story 26.3, ruling V3): a memory of origin photo answers pin_photo (Ok 0) before the pinned and cap checks and stays unpinned; origin tool still pins; another session's ref is not_found;
 ///   - TestUnpin: an own memory, pinned or not, gets Pinned 0 and PinnedAt empty and answers unpinned;
 ///   - TestOtherSession (DW-740): another session's Ref and an unknown Ref answer the same not_found for a pin and an unpin, and change nothing;
 ///   - TestNoSession: a command whose session has no row answers no_session;
@@ -207,6 +208,40 @@ Method TestOtherSession()
 	Do $$$AssertEquals(other.Ok_"|"_other.Outcome, "0|not_found", "another session's Ref is not_found for an unpin")
 	Do $$$AssertEquals(other.Ok_"|"_other.Outcome_"|"_other.Message_"|"_other.Ref, unknown.Ok_"|"_unknown.Outcome_"|"_unknown.Message_"|"_unknown.Ref, "the same answer as an unknown Ref")
 	Do $$$AssertEquals(..State(own)_"|"_..State(owned), "0||1|2030-01-01T10:00:00Z", "and the other session's memories are unchanged")
+}
+
+/// The caption of a photo cannot be pinned (Story 26.3, Planner ruling V3): an own memory of origin photo answers Ok 0, pin_photo, an empty Message, and stays unpinned, before the pinned
+/// and cap checks (a session whose block is full still answers pin_photo, and a photo row that is already pinned does too); a memory of origin tool still pins; another session's photo
+/// memory is not_found; an unpin of a photo memory still works.
+Method TestPinPhoto()
+{
+	Set session = ..Session(), theirs = ..Session()
+	Set photo = ..Memory(session, ..Text(10, "p"), 0, "", "photo")
+	Set tool = ..Memory(session, ..Text(10, "t"))
+	Do $$$AssertStatusOK(..Host.OnPin(..Pin(session, photo), .response), "pin the caption of a photo")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Message_"|"_response.Ref, "0|pin_photo||", "Ok 0, pin_photo, no message, no Ref")
+	Do $$$AssertEquals(..State(photo), "0|", "and it stays unpinned with no PinnedAt")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Pinned(session, .rows), "the pinned read")
+	Do $$$AssertEquals(rows.%Size(), 0, "and the session has no pin")
+	Do $$$AssertStatusOK(..Host.OnPin(..Pin(session, tool), .response), "pin a memory of origin tool")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|pinned", "it is pinned as before")
+	Set full = ..Session()
+	Set a = ..Memory(full, ..Text(2000, "a"))
+	Set b = ..Memory(full, ..Text(1956, "b"))
+	Do ..Host.OnPin(..Pin(full, a), .response)
+	Do ..Host.OnPin(..Pin(full, b), .response)
+	Do $$$AssertEquals(response.Outcome, "pinned", "a session's block is exactly full")
+	Set caption = ..Memory(full, "c", 0, "", "photo")
+	Do $$$AssertStatusOK(..Host.OnPin(..Pin(full, caption), .response), "pin a caption in a full block")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|pin_photo", "the photo rule comes before the cap")
+	Set held = ..Memory(session, ..Text(10, "h"), 1, "2030-01-01T10:00:00Z", "photo")
+	Do $$$AssertStatusOK(..Host.OnPin(..Pin(session, held), .response), "pin a caption that is already pinned")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|pin_photo", "pin_photo also comes before the pinned answer")
+	Set other = ..Memory(theirs, ..Text(10, "o"), 0, "", "photo")
+	Do $$$AssertStatusOK(..Host.OnPin(..Pin(session, other), .response), "pin another session's caption")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|not_found", "another session's ref is still not_found")
+	Do $$$AssertStatusOK(..Host.OnUnpin(..Unpin(session, held), .response), "unpin a caption")
+	Do $$$AssertEquals(response.Outcome, "unpinned", "an unpin of a caption still works")
 }
 
 /// A command whose session has no row answers no_session, for a pin and an unpin, and changes nothing.
@@ -429,7 +464,7 @@ ClassMethod Text(length As %Integer, char As %String) As %String [ Private ]
 }
 
 /// Saves a memory of the session directly, with a vector that has no meaning (no embedder); pinned memories get the PinnedAt. Returns its Ref.
-Method Memory(session As %String, text As %String, pinned As %Boolean = 0, pinnedAt As %String = "") As %String [ Private ]
+Method Memory(session As %String, text As %String, pinned As %Boolean = 0, pinnedAt As %String = "", origin As %String = "tool") As %String [ Private ]
 {
 	Set ones = ""
 	For i = 1:1:384 {
@@ -441,7 +476,7 @@ Method Memory(session As %String, text As %String, pinned As %Boolean = 0, pinne
 	Set row.Text = text
 	Set row.SavedAt = "2030-01-01T09:00:00Z"
 	Set row.ItemId = "zzmemorypins"
-	Set row.Origin = "tool"
+	Set row.Origin = origin
 	Set row.Source = "told"
 	Set row.Pinned = pinned
 	If pinned Set row.PinnedAt = pinnedAt

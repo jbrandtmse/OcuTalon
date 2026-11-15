@@ -70,10 +70,12 @@ Method TestMcpCallShape()
 	Set audit = "OcuTalon.Bridge.Audit"
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "called"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "the shape of a called entry")
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "refused"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "and of a refused one")
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "source_set"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "the shape of a source_set entry (Story 22.5)")
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "source_removed"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "and of a source_removed one")
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "added"), ","), "change,server,irisUser,sessionRef,channel", "an added entry keeps the old shape")
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP"), ","), "change,server,irisUser,sessionRef,channel", "so does Shape with no change")
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "Tool", "called"), ","), "source,tool,classification,readOnly,irisUser,sessionRef,channel", "and the change selects a shape for the type MCP only")
-	For change = "called", "refused" {
+	For change = "called", "refused", "source_set", "source_removed" {
 		For outcome = "ok", "cut", "changed", "timeout", "unreachable" {
 			Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
 			Set data = ..ValidCall(change, outcome, marker)

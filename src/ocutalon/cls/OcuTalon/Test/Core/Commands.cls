@@ -66,6 +66,10 @@ Method TestOrigin()
 		Do ##class(OcuTalon.Core.Commands).Submit(command, origin, .result)
 		Do $$$AssertEquals(command.Origin, origin, "the origin "_origin_" is accepted and replaces the payload's")
 	}
+	Set command = ..NewCommand()
+	Set command.Origin = "web_user"
+	Do ##class(OcuTalon.Core.Commands).Submit(command, "photo", .result)
+	Do $$$AssertEquals(command.Origin, "photo", "the origin photo (FEATUREORIGINS, Story 26.3) is accepted and replaces the payload's")
 }
 
 /// An origin that is left out is refused like an empty one: with an error status that names the problem, and the command

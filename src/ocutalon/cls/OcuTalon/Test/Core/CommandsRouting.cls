@@ -10,6 +10,9 @@
 ///   - TestToolGovernanceRefused: SetDemoMode, SetPersona, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
 ///   - TestStepFiveRefusals (Story 36.2): AckPage from tool, timer, system, "zz" and "", and SaveSqlWatch from every origin but
 ///     web_admin, "zz" and "" included, are not_allowed with the existing text and send nothing;
+///   - TestListOnCallUsersRouting (Story 36.4, DW-1278): the read verb ListOnCallUsers from web_admin reaches SettingsOps, and only SettingsOps, with the same object; from
+///     every other origin, "zz" and "" included, it is not_allowed with the existing text and sends nothing; it is no tool verb, and it waits SEARCHTIMEOUT seconds
+///     and answers Ok 0 busy when nothing answers, as the other read verbs do;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
 ///   - TestPersonaVerbsInsideAContext: inside a context SetPersona that says web_user is refused and ProposePersona that says
 ///     web_user is routed; outside it the origin rules apply;
@@ -179,6 +182,44 @@ Method TestStepFiveRefusals()
 		Do $$$AssertEquals(output.Message, message, label _ " says why")
 		Do $$$AssertEquals(..Calls(), 0, label _ " sends nothing")
 	}
+}
+
+/// The ListOnCallUsers read (Story 36.4, DW-1278; AD-1, AD-13): an admin's web request alone sends it, and SettingsOps alone carries it out. The oracle of the refusals is
+/// written out here: a tool gets the text of the chat, every other origin the admin-only text of a settings verb.
+Method TestListOnCallUsersRouting()
+{
+	Set session = ..Session("oncalllist")
+	Set probe = ..NewProbe("ok")
+	Set command = ..NewCommand("ListOnCallUsers", "web_admin", session, "zzkey"_..Number)
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(..Calls(), 1, "a ListOnCallUsers from web_admin is sent once")
+	Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", "to SettingsOps")
+	Do $$$AssertEquals(..Call(1, "class"), "OcuTalon.Msg.Command.ListOnCallUsers", "as its own class")
+	Do $$$AssertEquals(..Call(1, "origin")_"|"_..Call(1, "sessionRef"), "web_admin|"_session, "with its origin and session unchanged")
+	Set same = (probe.LastRequest = command)
+	Do $$$AssertEquals(same, 1, "the owner gets the command object itself")
+	Set tool = "That can't be done from the chat. Nothing was changed."
+	Set admin = "Only an OcuTalon admin can change settings. Nothing was changed."
+	Set origins = $ListBuild("web_user", "telegram", "tool", "timer", "system", "zz", "")
+	For i = 1:1:$ListLength(origins) {
+		Set origin = $List(origins, i)
+		Set label = "ListOnCallUsers from '"_origin_"'"
+		Set probe = ..NewProbe("ok")
+		Set command = ..NewCommand("ListOnCallUsers", origin, session, "zzkey"_..Number_i)
+		Set sc = probe.OnProcessInput(command, .output)
+		Do $$$AssertStatusOK(sc, label_" is answered with a status that is OK")
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed")
+		Do $$$AssertEquals(output.Message, $Select(origin = "tool": tool, 1: admin), label_" says why")
+		Do $$$AssertEquals(..Calls(), 0, label_" sends nothing")
+	}
+	Do $$$AssertEquals($ListFind($ListFromString($Parameter("OcuTalon.Core.CommandsIn", "TOOLVERBS")), "ListOnCallUsers"), 0, "it is no tool verb")
+	Set waiting = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsTimeoutProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the timeout probe is made")
+	Set command = ..NewCommand("ListOnCallUsers", "web_admin", session, "zzkey"_..Number)
+	Set sc = waiting.OnProcessInput(command, .output)
+	Do $$$AssertStatusOK(sc, "the gate answers with a status that is OK")
+	Do $$$AssertEquals(waiting.Sends_"|"_waiting.SeenTarget_"|"_waiting.SeenTimeout, "1|SettingsOps|20", "one send, to SettingsOps, that waits 20 seconds")
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|busy", "no answer in time is Ok 0, busy")
 }
 
 /// While a bridge context is active the origin is tool, whatever the command says: SetDemoMode that says web_admin is refused

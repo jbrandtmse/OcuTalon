@@ -1,4 +1,4 @@
-/// The one reader and writer of the bridge's host settings (AD-19, AD-31). The Decide item names five extension classes in its
+/// The one reader and writer of the bridge's host settings (AD-19, AD-31). The Decide item names six extension classes in its
 /// host settings, and any job can read them through ClassFor, the AnswersIn job that calls Approval.Answer included.
 /// A named class that is missing, or that does not extend its base, is an error and never silently the do-nothing
 /// base, so a misconfigured reply filter cannot disable the all-clear guard without a trace. ValueFor is the general read
@@ -8,7 +8,7 @@ Class OcuTalon.Bridge.Ext.Accessor
 {
 
 /// The settings of the Decide item, each with the base class that its class must extend.
-Parameter BASES = "HostSinkClass=OcuTalon.Bridge.Ext.HostSink,ReplyFilterClass=OcuTalon.Bridge.Ext.ReplyFilter,ClassificationClass=OcuTalon.Bridge.Ext.Classification,TurnToolsClass=OcuTalon.Bridge.Ext.TurnTools,McpServersClass=OcuTalon.Bridge.Ext.McpServers";
+Parameter BASES = "HostSinkClass=OcuTalon.Bridge.Ext.HostSink,ReplyFilterClass=OcuTalon.Bridge.Ext.ReplyFilter,ClassificationClass=OcuTalon.Bridge.Ext.Classification,TurnToolsClass=OcuTalon.Bridge.Ext.TurnTools,McpServersClass=OcuTalon.Bridge.Ext.McpServers,ContentClass=OcuTalon.Bridge.Ext.Content";
 
 /// The value of the setting on the item of the production, or "" with an error in sc (also when the director raises, as it does for an adapter
 /// setting of an item that has no adapter). target is the target of the setting: Host (the default) for a setting of the business host, and

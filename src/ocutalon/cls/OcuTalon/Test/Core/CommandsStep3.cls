@@ -3,8 +3,8 @@
 /// records each call, or of OcuTalon.Test.Core.CommandsStep3Probe, which sends to the real stub owners. The origin rules and every text are
 /// written out here, never read from CommandsIn.
 ///   - TestContracts: the eight verb classes have exactly the properties of XData Contracts and share the Ens.MessageBody extent;
-///   - TestOrigins: each verb by every origin of Msg.Enum ORIGIN, "zz" and "" included, reaches its owner (MemoryOps for the memory verbs,
-///     DocumentOps for the document verbs) from its listed origins only, or is refused with its text, and a refusal sends nothing: SaveMemory from tool,
+///   - TestOrigins: each verb by every origin of Msg.Enum ORIGIN, "photo" (the origin of a photo caption, Story 26.3), "zz" and "" included, reaches its owner (MemoryOps for the memory verbs,
+///     DocumentOps for the document verbs) from its listed origins only, or is refused with its text, and a refusal sends nothing: SaveMemory from tool and photo,
 ///     ForgetMemory from tool and web_user, PinMemory, UnpinMemory, SearchMemory, ListPinnedMemories, AddDocument and RemoveDocument from web_user;
 ///   - TestContextOwnSessionOnly: inside a bridge context a SaveMemory or ForgetMemory for a SessionRef that is not the context's OwnerRef is
 ///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb, PinMemory, UnpinMemory, SearchMemory or ListPinnedMemories that says
@@ -55,8 +55,8 @@ Method TestContracts()
 Method TestOrigins()
 {
 	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "SearchMemory", "ListPinnedMemories", "AddDocument", "RemoveDocument")
-	Set origins = $ListFromString($Parameter("OcuTalon.Msg.Enum", "ORIGIN")) _ $ListBuild("zz", "")
-	Do $$$AssertEquals($ListLength(origins), 8, "the six origins of Msg.Enum, 'zz' and ''")
+	Set origins = $ListFromString($Parameter("OcuTalon.Msg.Enum", "ORIGIN")) _ $ListBuild("photo", "zz", "")
+	Do $$$AssertEquals($ListLength(origins), 9, "the six origins of Msg.Enum, 'photo', 'zz' and ''")
 	Set tried = 0
 	For v = 1:1:$ListLength(verbs) {
 		For o = 1:1:$ListLength(origins) {
@@ -81,7 +81,7 @@ Method TestOrigins()
 			}
 		}
 	}
-	Do $$$AssertEquals(tried, 64, "all 64 pairs were tried")
+	Do $$$AssertEquals(tried, 72, "all 72 pairs were tried")
 }
 
 /// Inside a bridge context a tool may save or forget a memory only for the context's own session (AD-1): a SessionRef that is not the
@@ -355,7 +355,7 @@ ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 /// The oracle of the origin rules: "" when the verb from the origin is routed, otherwise the text of its refusal.
 ClassMethod Expected(verb As %String, origin As %String) As %String [ Private ]
 {
-	Set listed = $Case(verb, "SaveMemory": "tool", "ForgetMemory": "tool,web_user", : "web_user")
+	Set listed = $Case(verb, "SaveMemory": "tool,photo", "ForgetMemory": "tool,web_user", : "web_user")
 	If $ListFind($ListFromString(listed), origin) Quit ""
 	If origin = "tool" Quit "That can't be done from the chat. Nothing was changed."
 	Quit "OcuTalon can't take that command from here. Nothing was changed."

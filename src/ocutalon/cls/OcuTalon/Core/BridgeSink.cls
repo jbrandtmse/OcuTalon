@@ -22,15 +22,20 @@ Include Ensemble
 /// the inverse of Decide.HeldBeforeUpdate). A fix is IncidentManager's and a setting its owner's, so neither gets one here. Each
 /// notification is built from the row as read, with SessionRef the owner, ApprovalRef the row's Ref and IncidentRef the row's:
 ///   - approval.raised: kind approval, toolCall.requestOnServer {tool, server, inputs} when ServerOf(ToolSource) names the MCP
-///     server, else toolCall.request {tool, inputs}. inputs is InputsOf(ToolArguments): the bridge's redactor, one line, at most
-///     INPUTSMAX characters, ending with U+2026 when cut, or {} when there are none;
+///     server, else toolCall.request {tool, inputs}. inputs is InputsOf(ToolArguments): the bridge's redactor over the whole
+///     arguments, then one {name, value} per top-level member in the stored order, the value its JSON text, never cut; an empty
+///     array when there are none. Arguments that can't be read (the redactor's UNCHECKED, or a result that is not a JSON object)
+///     send no notice and log one warning that names the request's Ref;
 ///   - approval.answered: kind answered, answered.approved or answered.rejected {channel, time} from the row's AnsweredAction, not
 ///     its State; an empty or other action sends nothing;
 ///   - approval.expired: kind answered, answered.expired {time = ExpiresAt};
 ///   - approval.result: kind result, toolCall.done for Result done and toolCall.failed for failed or interrupted, {tool, time =
 ///     FinishedAt}, and mcp.replayToolChanged {tool, server = ServerOf(ToolSource)} for Result changed (an approved MCP call whose tool
 ///     changed after the request was made, refused unrun, Story 22.4); an empty Result or FinishedAt sends nothing;
-///   - approval.cancelled: nothing.
+///   - approval.cancelled: kind answered, answered.canceled {time = the time at which the sink received the event, server} when
+///     CanceledServer names the server (a replayable MCP call whose server has no Mcp.Server row any more), else nothing: a session
+///     end, a call of a developer's tool and a fix cancel quietly. The approval event for the same cancellation carries that time
+///     as cancelledAt.
 /// A request held before ToolSource and Runner existed (either is empty) is closed failed by Decide and gets no notice from
 /// approval.result. Its fallback Decision (kind tool, Fallback 1, a first Reasons line) is the one that speaks, on
 /// decision.recorded, when the row is failed and not replayable: one kind result notice with DecisionRef set, and for a first line
@@ -103,16 +108,17 @@ Parameter KEYREJECTED = "answered.rejected";
 
 Parameter KEYEXPIRED = "answered.expired";
 
-/// The most characters of a call's inputs in a notice, the cut mark included.
-Parameter INPUTSMAX = 200;
+/// The key of the notice for a request that was cancelled because its MCP server was removed.
+Parameter KEYCANCELED = "answered.canceled";
 
 /// Receives one event of the bridge. Always returns OK.
 ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObject) As %Status
 {
 	Try {
 		If ..IsApproval($Get(type)) {
-			Do ..Approved($Get(type), $Get(ownerRef), $Get(payload))
-			Do ..ToolNotice($Get(type), $Get(ownerRef), ..Member($Get(payload), "ref"))
+			Set cancelledAt = $Select($Get(type) = ..#APPROVALCANCELLED: ##class(OcuTalon.Bridge.Time).NowUtc(), 1: "")
+			Do ..Approved($Get(type), $Get(ownerRef), $Get(payload), cancelledAt)
+			Do ..ToolNotice($Get(type), $Get(ownerRef), ..Member($Get(payload), "ref"), cancelledAt)
 			Quit
 		}
 		If $Get(type) = ..#BUDGETCAPPED {
@@ -144,8 +150,10 @@ ClassMethod IsApproval(type As %String) As %Boolean [ Private ]
 	Quit $ListFind($ListBuild(..#APPROVALRAISED, ..#APPROVALANSWERED, ..#APPROVALEXPIRED, ..#APPROVALCANCELLED, ..#APPROVALRESULT), type) > 0
 }
 
-/// approval.*: the request with the payload's ref, published as an approval event to each recipient that can see it.
-ClassMethod Approved(type As %String, ownerRef As %String, payload As %DynamicObject) [ Private ]
+/// approval.*: the request with the payload's ref, published as an approval event to each recipient that can see it. For
+/// approval.cancelled, cancelledAt is the time at which the sink received the event: the payload carries it as cancelledAt
+/// when CanceledServer names a server for the row.
+ClassMethod Approved(type As %String, ownerRef As %String, payload As %DynamicObject, cancelledAt As %String = "") [ Private ]
 {
 	Set ref = ..Member(payload, "ref")
 	If ref = "" Quit
@@ -162,7 +170,9 @@ ClassMethod Approved(type As %String, ownerRef As %String, payload As %DynamicOb
 			Continue
 		}
 		If '$IsObject(row) Continue
-		Do ..Publish(recipient, "approval", ##class(OcuTalon.Live.Payload.Approval).FromRow(row, recipient))
+		Set event = ##class(OcuTalon.Live.Payload.Approval).FromRow(row, recipient)
+		If (cancelledAt '= "") && (..CanceledServer(row) '= "") Set event.CancelledAt = cancelledAt
+		Do ..Publish(recipient, "approval", event)
 	}
 }
 
@@ -206,8 +216,8 @@ ClassMethod Recorded(ownerRef As %String, payload As %DynamicObject) [ Private ]
 
 /// The notice of a tool call for the approval.* event of type: sends the Notification that ToolNoticeOf builds from the request's
 /// row, when the owner is a session that exists, reads the row through Ownership.Approval, and the row is a replayable tool_call.
-/// A failed read or send is one warning that names the type and the Ref. It never throws.
-ClassMethod ToolNotice(type As %String, ownerRef As %String, ref As %String) [ Private ]
+/// A failed read or send is one warning that names the type and the Ref. cancelledAt is the time of an approval.cancelled event. It never throws.
+ClassMethod ToolNotice(type As %String, ownerRef As %String, ref As %String, cancelledAt As %String = "") [ Private ]
 {
 	Try {
 		If (ref = "") || '..IsSession(ownerRef) || '##class(OcuTalon.Data.Session).RefIndexExists(ownerRef) Quit
@@ -217,7 +227,7 @@ ClassMethod ToolNotice(type As %String, ownerRef As %String, ref As %String) [ P
 			Quit
 		}
 		If '..Replayable(row) Quit
-		Set notice = ..ToolNoticeOf(type, row)
+		Set notice = ..ToolNoticeOf(type, row, cancelledAt)
 		If '$IsObject(notice) Quit
 		Set notice.SessionRef = ownerRef
 		Set sc = ..Notice(notice)
@@ -233,14 +243,21 @@ ClassMethod Replayable(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Boolean 
 	Quit $IsObject(row) && (row.Kind = ..#TOOLCALL) && (row.ToolSource '= "") && (row.Runner '= "")
 }
 
-/// The Notification (no SessionRef) for the approval.* event of type from the row, or "" when that event sends nothing.
-ClassMethod ToolNoticeOf(type As %String, row As OcuTalon.Bridge.Data.ApprovalRequest) As OcuTalon.Msg.Notification [ Private ]
+/// The Notification (no SessionRef) for the approval.* event of type from the row, or "" when that event sends nothing. A raised
+/// request whose arguments can't be read sends nothing and logs one warning that names its Ref. cancelledAt is the time of an
+/// approval.cancelled event.
+ClassMethod ToolNoticeOf(type As %String, row As OcuTalon.Bridge.Data.ApprovalRequest, cancelledAt As %String = "") As OcuTalon.Msg.Notification [ Private ]
 {
 	If type = ..#APPROVALRAISED {
 		Set slots = {"tool": (row.ToolName)}
 		Set server = ..ServerOf(row.ToolSource)
 		If server '= "" Set slots.server = server
-		Set slots.inputs = ..InputsOf(row.ToolArguments)
+		Set inputs = ..InputsOf(row.ToolArguments)
+		If '$IsObject(inputs) {
+			$$$LOGWARNING(..#ERRORTOOLNOTICE_type_", request "_row.Ref_": the arguments can't be read, so no notice is sent")
+			Quit ""
+		}
+		Set slots.inputs = inputs
 		Quit ..Compose(..#APPROVALKIND, $Select(server '= "": ..#KEYREQUESTON, 1: ..#KEYREQUEST), slots, row)
 	}
 	If type = ..#APPROVALANSWERED {
@@ -249,6 +266,11 @@ ClassMethod ToolNoticeOf(type As %String, row As OcuTalon.Bridge.Data.ApprovalRe
 		Quit ..Compose(..#ANSWEREDKIND, key, {"channel": (row.AnsweredChannel), "time": (row.AnsweredAt)}, row)
 	}
 	If type = ..#APPROVALEXPIRED Quit ..Compose(..#ANSWEREDKIND, ..#KEYEXPIRED, {"time": (row.ExpiresAt)}, row)
+	If type = ..#APPROVALCANCELLED {
+		Set server = ..CanceledServer(row)
+		If (server = "") || (cancelledAt = "") Quit ""
+		Quit ..Compose(..#ANSWEREDKIND, ..#KEYCANCELED, {"time": (cancelledAt), "server": (server)}, row)
+	}
 	If type = ..#APPROVALRESULT {
 		Set key = $Case(row.Result, "done": ..#KEYDONE, "failed": ..#KEYFAILED, "interrupted": ..#KEYFAILED, "changed": ..#KEYCHANGED, : "")
 		If (key = "") || (row.FinishedAt = "") Quit ""
@@ -274,7 +296,7 @@ ClassMethod Compose(kind As %String, key As %String, slots As %DynamicObject, ro
 
 /// The MCP server that a held call's ToolSource names: "" unless the source starts, in any case, with the bridge's MCP prefix
 /// (Gate MCPPREFIX); else the text after it, trimmed, and for the attach form remote:@{config:AI.MCP.OcuTalon_<name>} the name.
-ClassMethod ServerOf(source As %String) As %String [ Private ]
+ClassMethod ServerOf(source As %String) As %String
 {
 	Set prefix = $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPREFIX")
 	If (prefix = "") || ($ZConvert($Extract(source, 1, $Length(prefix)), "L") '= prefix) Quit ""
@@ -286,24 +308,77 @@ ClassMethod ServerOf(source As %String) As %String [ Private ]
 	Quit rest
 }
 
-/// The call's arguments for a notice: Bridge.Redact.Text, with every control character and whitespace run folded to one space,
-/// trimmed, and cut to INPUTSMAX characters with U+2026 as the last when it is longer; {} when there are none.
-ClassMethod InputsOf(arguments As %String) As %String [ Private ]
+/// The MCP server of a replayable tool_call row that has no Mcp.Server row any more: ServerOf(ToolSource), or "" for any other
+/// row (a fix, a developer's tool, an unreadable source) and for a server that is still registered.
+ClassMethod CanceledServer(row As OcuTalon.Bridge.Data.ApprovalRequest) As %String [ Private ]
 {
-	If $ZStrip(arguments, "*WC") = "" Quit "{}"
+	If '..Replayable(row) Quit ""
+	Set server = ..ServerOf(row.ToolSource)
+	If (server = "") || ..Registered(server) Quit ""
+	Quit server
+}
+
+/// 1 when the MCP server has an Mcp.Server row. Private; a test subclass overrides it.
+ClassMethod Registered(server As %String) As %Boolean [ Private ]
+{
+	Quit ''##class(OcuTalon.Mcp.Server).NameIndexExists(server)
+}
+
+/// The call's arguments for a notice, as an array of {name, value} in the stored order. Bridge.Redact.Text runs on the whole
+/// arguments first, so its key rules still mask a value; then each top-level member is split out with its value as JSON text, never
+/// cut, and with JSON's short escapes written as \uXXXX (Escapes). No arguments give an empty array. Arguments that can't be read
+/// (the redactor's UNCHECKED, or a result that is not a JSON object) give "".
+ClassMethod InputsOf(arguments As %String) As %DynamicArray
+{
+	Set inputs = []
+	If $ZStrip(arguments, "*WC") = "" Quit inputs
 	Set text = ##class(OcuTalon.Bridge.Redact).Text(arguments)
-	Set from = "", to = ""
-	For code = 0:1:32, 127:1:160, 8232, 8233 {
-		Set from = from_$Char(code), to = to_" "
+	If text = ##class(OcuTalon.Bridge.Redact).#UNCHECKED Quit ""
+	Try {
+		Set object = ##class(%DynamicAbstractObject).%FromJSON(text)
+	} Catch {
+		Return ""
 	}
-	Set text = $Translate(text, from, to)
-	While text [ "  " {
-		Set text = $Replace(text, "  ", " ")
+	If '$IsObject(object) || ($ClassName(object) '= "%Library.DynamicObject") Quit ""
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.name, .value, .type) {
+		If $IsObject(value) {
+			Set json = value.%ToJSON()
+		} Else {
+			Set wrapper = []
+			Do wrapper.%Push(value, type)
+			Set json = $Extract(wrapper.%ToJSON(), 2, *-1)
+		}
+		Do inputs.%Push({"name": (name), "value": (..Escapes(json))})
 	}
-	Set text = $ZStrip(text, "<>W")
-	If text = "" Quit "{}"
-	If $Length(text) > ..#INPUTSMAX Set text = $Extract(text, 1, ..#INPUTSMAX - 1)_$Char(8230)
-	Quit text
+	Quit inputs
+}
+
+/// The JSON text with each short escape (\b, \f, \n, \r, \t) written as \u0008, \u000C, \u000A, \u000D, \u0009 and each \uXXXX with
+/// upper-case hex digits. \", \\ and \/ stay.
+ClassMethod Escapes(json As %String) As %String [ Private ]
+{
+	Set out = ""
+	Set length = $Length(json)
+	Set i = 1
+	While i <= length {
+		Set char = $Extract(json, i)
+		If (char '= "\") || (i = length) {
+			Set out = out_char
+			Set i = i + 1
+			Continue
+		}
+		Set next = $Extract(json, i + 1)
+		If next = "u" {
+			Set out = out_"\u"_$ZConvert($Extract(json, i + 2, i + 5), "U")
+			Set i = i + 6
+			Continue
+		}
+		Set short = $Case(next, "b": "\u0008", "f": "\u000C", "n": "\u000A", "r": "\u000D", "t": "\u0009", : "")
+		Set out = out_$Select(short '= "": short, 1: char_next)
+		Set i = i + 2
+	}
+	Quit out
 }
 
 /// The reasons that a held call's notice may carry: the catalog sentences of the bridge, read from its parameters.

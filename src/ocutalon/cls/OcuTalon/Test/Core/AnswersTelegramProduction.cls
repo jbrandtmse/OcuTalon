@@ -9,7 +9,7 @@
 ///     stream gets one approval event; no Turn is made;
 ///   - TestAlreadyAnsweredAndExpired: a second press is already_answered with the winner {action, channel telegram, time}, and a request
 ///     past its expiry is expired with {time};
-///   - TestNotAllowedWithoutTheRole: a session whose user lacks the role gets not_allowed {kind} and the row stays pending;
+///   - TestNotAllowedWithoutTheRole: a session whose user lacks the role gets not_allowed {kind} (the kind that the role check names, "" until Story 26.4) and the row stays pending;
 ///   - TestAnswerFollowsThePairingSessionOpsWrites: the row that SessionOps writes is the row that FromTelegram reads: a chat paired by a
 ///     Pair through the production has its press approved; a second chat that takes the session leaves the first chat not_paired with the
 ///     request pending; after /stop the second chat is not_paired too;
@@ -79,7 +79,7 @@ Method TestAlreadyAnsweredAndExpired()
 	Do ..RemoveTaskWarnings(request)
 }
 
-/// A session whose user lacks the request's role gets not_allowed with the request's kind, and the row stays pending.
+/// A session whose user lacks the request's role gets not_allowed with the approver kind that the role check names (none until Story 26.4, never the request's own kind), and the row stays pending.
 Method TestNotAllowedWithoutTheRole()
 {
 	If '..Guard() Quit
@@ -87,7 +87,7 @@ Method TestNotAllowedWithoutTheRole()
 	Set chat = ..PairedChat(session)
 	Set request = ..Request(session, "pending", {"RequiredRole": "ZzNoSuchRole"})
 	Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(request, "approve", chat, .code, .slots)
-	Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_allowed|{""kind"":""fix""}", "not_allowed, with the kind")
+	Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_allowed|{""kind"":""""}", "not_allowed, with the kind that the role check names (none yet)")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "pending", "and the row is still pending")
 }
 

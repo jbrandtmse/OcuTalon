@@ -114,33 +114,17 @@ ClassMethod ShapeFields(name As %String, secret As %String) As %DynamicObject [ 
 	Quit fields
 }
 
-/// Puts the secret into its handoff, sets the uri on the command, submits it (origin web_admin) and answers from its result. The handoff is discarded on
-/// every path, an error thrown included, so no event resource outlives the request.
+/// Hands the secret over and submits the command (Api HandOff), and answers from its result: an error status, or an exception, is 500 server_error.
 ClassMethod Hand(command As OcuTalon.Msg.Command, secret As %String, kind As %String) As %Status [ Private ]
 {
-	Set uri = "", answer = ""
+	Set sc = ..HandOff(command, secret, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Try {
-		Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(secret, .uri)
-		If $SYSTEM.Status.IsOK(sc) {
-			Set command.Handoff = uri
-			Set sc = ..Submit(command, .result)
-		}
-		If $SYSTEM.Status.IsError(sc) {
-			Set answer = ..ServerError(sc)
-		} Else {
-			Set answer = ..Answer(result, kind)
-		}
+		Set answer = ..Answer(result, kind)
 	} Catch exception {
 		Set answer = ..ServerError(exception.AsStatus())
 	}
-	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
 	Quit answer
-}
-
-/// Submits the command with origin web_admin and returns its CommandResult in result. A test subclass overrides it.
-ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
-{
-	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
 }
 
 /// The answer from the CommandResult: done is 200 (a create with the webhook's {ref, name, path, createdAt}), refused and name_taken are 400 bad_webhook with

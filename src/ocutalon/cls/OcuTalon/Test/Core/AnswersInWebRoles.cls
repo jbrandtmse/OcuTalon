@@ -11,6 +11,17 @@
 ///   - TestInstanceAnswerReachesBothWatchers (DW-68): with a CSP session bound to a session of that user, which watches the
 ///     production together with a second session, AnswersIn.FromPage answers an instance request through AnswerOps and the answered
 ///     approval event reaches both sessions' streams;
+///   - TestDemoApproverOwnSessionOnly (Story 25.4): with the online demo forced on, a user who holds the demo account's roles, OcuTalonApprover and the application roles answers
+///     its own session's request, whose RequiredRole is OcuTalonApprover, through AnswersIn.FromPage (approved) and gets not_found for another session's request (not_visible on Telegram), which stays pending;
+///   - TestMayAnswerInAWebJob (Story 25.5, Task 0): in the job (exactly OcuTalonUser and the application roles) Approval.MayAnswer for the job's own user answers 1 for a request whose
+///     RequiredRole the user holds and 0 for a fixture role that it lacks and for a role that does not exist, with no error and no <PROTECT>, and the approval payload's answerable and approverKind
+///     are computed for that session in the same job;
+///   - TestApproverMatrix (Story 25.5, AC 6): the fixture roles OcuTalonApprover and OcuTalonApprover_<kind> for the seven kinds, through AnswersIn and the Telegram entry with the approval double
+///     scripted to the step 6 rule over real roles (ApprovalDouble Kind): the holder of only another kind's role is refused with the kind, the holder of the kind's role, of OcuTalonApprover and the
+///     README account with the fixture OcuTalonApprover are handed over, and a refused request stays pending;
+///   - TestFixtureRoleOnTheRealPath (Story 25.5, AC 2 and AC 6): through the real production in the job, a request that needs the fixture OcuTalonApprover is refused to a user without it
+///     ({"kind": ""}, still pending) and answered for a holder; with the online demo forced, the demo account's holder answers its own request and gets not_found, never a role refusal, for another
+///     session's request, which stays pending;
 ///   - TestGuardRefusesOutsideAThrowaway: Reason is empty only for the CI override's pair of values, and the setup of a run whose
 ///     environment lacks them fails and provisions no user;
 ///   - TestFixtureUserIsRemoved: the hooks that end a test remove the fixture user, and a user left by an earlier run is removed
@@ -34,6 +45,9 @@ Parameter JOBSECONDS = 90;
 /// The longest the parent waits for an event, in seconds.
 Parameter EVENTSECONDS = 20;
 
+/// The approver kinds of AD-11 (step 6).
+Parameter KINDS = "resend,reroute,suspend,rollback,partner,email,tool";
+
 /// The run's number.
 Property Number As %Integer;
 
@@ -53,6 +67,12 @@ Property Supers As %DynamicArray;
 /// outside a throwaway.
 Property Environment As %String [ MultiDimensional ];
 
+/// The fixture roles that this run made (EnsureRole), comma-separated: OnAfterOneTest deletes them after the users.
+Property MadeRoles As %String(MAXLEN = "");
+
+/// 1 when a test granted the fixture OcuTalonApprover to the README account: OnAfterOneTest takes it back.
+Property GrantedReadme As %Boolean [ InitialExpression = 0 ];
+
 Method OnBeforeAllTests() As %Status
 {
 	Set running = ##class(Ens.Director).IsProductionRunning(.name)
@@ -69,6 +89,7 @@ Method OnAfterAllTests() As %Status
 {
 	If ..Missing '= "" Quit $$$OK
 	Do ..Clean()
+	Do ..RestoreRoles()
 	If $IsObject(..Supers) Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Quit $$$OK
@@ -83,7 +104,9 @@ Method Environ(name As %String) As %String [ Private ]
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Missing '= "" Quit $$$OK
+	Do ##class(OcuTalon.Test.Core.ApprovalDouble).End()
 	Do ..Clean()
+	Do ..RestoreRoles()
 	Quit $$$OK
 }
 
@@ -154,6 +177,169 @@ Method TestInstanceAnswerReachesBothWatchers()
 		Do $$$AssertEquals(payload.ref_"|"_payload.state_"|"_payload.answeredChannel, request_"|approved|web", "and it is the answered request")
 	}
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Type = 3 AND Text %STARTSWITH ?", "OcuTalon.Bridge.Approval: no open task of "_request)
+}
+
+Method TestDemoApproverOwnSessionOnly()
+{
+	If '..Guard() Quit
+	Set created = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles()
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Try {
+		Set demoRoles = ##class(OcuTalon.Install.Step.Users).#DEMOROLES_",OcuTalonApprover,"_$Piece(..Roles(), ",", 2, *)
+		Set user = ..#USER_..Number_"d"
+		Do $$$AssertStatusOK(..CreateUser(user, demoRoles), "the demo account's fixture user holds the demo roles, OcuTalonApprover and the application roles")
+		Set s1 = ..Session(user)
+		Set s2 = ..Session(..#USER_"other"_..Number)
+		Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": "OcuTalonApprover"})
+		Set other = ##class(OcuTalon.Test.Data.Fixture).Approval(s2, , "pending", , {"RequiredRole": "OcuTalonApprover"})
+		Set ..Refs = ..Refs_","_own_","_other
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set run = ..RunProbe("page", user, s1, "", own, "")
+		If run '= "" {
+			Do $$$AssertEquals($Get(@run@("login")), 1, "control: the job logs in as the demo account's user")
+			Do $$$AssertEquals($Get(@run@("page")), "1|done|"_s1, "it answers its own session's request")
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(own)
+			Do $$$AssertEquals(row.State_"|"_row.AnsweredBy, "approved|"_user, "which is approved by that user")
+		}
+		Set run = ..RunProbe("page", user, s1, "", other, "")
+		If run '= "" {
+			Do $$$AssertEquals($Get(@run@("page")), "1|not_found|"_s1, "it gets not_found (not_visible to Telegram) for another session's request")
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(other)
+			Do $$$AssertEquals(row.State, "pending", "which stays pending")
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(created)
+}
+
+/// Story 25.5, Task 0: in a job logged in as a user with exactly the roles of a web request, MayAnswer for the job's own user and the approval payload's answerable are computed with no error.
+Method TestMayAnswerInAWebJob()
+{
+	If '..Guard() Quit
+	Do ..EnsureRole("OcuTalonApprover")
+	Set user = ..NewUser("m")
+	If user = "" Quit
+	Set s1 = ..Session(user)
+	Set held = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": "OcuTalonUser"})
+	Set lacks = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": "OcuTalonApprover"})
+	Set nobody = ##class(OcuTalon.Test.Data.Fixture).Approval(s1, , "pending", , {"RequiredRole": ("ZzNobody"_..Number)})
+	Set ..Refs = ..Refs_","_held_","_lacks_","_nobody
+	Set run = ..RunProbe("may", user, s1, "", held_","_lacks_","_nobody, "")
+	If run = "" Quit
+	Do ..AssertContext(run, user)
+	Do $$$AssertEquals($Get(@run@("may", 1)), "1|", "MayAnswer answers 1, with no kind, for a request whose RequiredRole the user holds")
+	Do $$$AssertEquals($Get(@run@("may", 2)), "0|", "0 for a fixture role that the user lacks")
+	Do $$$AssertEquals($Get(@run@("may", 3)), "0|", "and 0 for a role that nobody holds")
+	Do $$$AssertEquals($Get(@run@("answerable", 1))_"/"_$Get(@run@("answerable", 2))_"/"_$Get(@run@("answerable", 3)), "1|/0|/0|", "and the payload's answerable is computed for the session in the same job")
+}
+
+/// Story 25.5, AC 6: each approver kind answered through AnswersIn and through the Telegram entry by the holder of only another kind's role, of the kind's role, of OcuTalonApprover and by the README
+/// account with the fixture OcuTalonApprover. The approval double applies the step 6 rule over the users' real roles; nothing else of Approval is faked.
+Method TestApproverMatrix()
+{
+	If '..Guard() Quit
+	Set double = "OcuTalon.Test.Core.ApprovalDouble"
+	Do ..EnsureRole("OcuTalonApprover")
+	For i = 1:1:$Length(..#KINDS, ",") {
+		Do ..EnsureRole("OcuTalonApprover_"_$Piece(..#KINDS, ",", i))
+	}
+	Set count = $Length(..#KINDS, ",")
+	For i = 1:1:count {
+		Set kindUser(i) = ..#USER_..Number_"k"_i
+		Do $$$AssertStatusOK(..CreateUser(kindUser(i), "OcuTalonApprover_"_$Piece(..#KINDS, ",", i)), "the user of only OcuTalonApprover_"_$Piece(..#KINDS, ",", i)_" is made")
+		Set kindSession(i) = ..Session(kindUser(i))
+	}
+	Set allUser = ..#USER_..Number_"all"
+	Do $$$AssertStatusOK(..CreateUser(allUser, "OcuTalonApprover"), "the user of OcuTalonApprover is made")
+	Set allSession = ..Session(allUser)
+	Set readme = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
+	Set readmeSession = ..Session(readme)
+	Do ..GrantReadme()
+	Do $$$AssertEquals(..Holds(readme, "OcuTalonApprover"), 1, "control: the README account holds the fixture OcuTalonApprover")
+	Set web = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.AnswersInProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	For i = 1:1:count {
+		Set kind = $Piece(..#KINDS, ",", i)
+		Set otherSession = kindSession($Select(i = count: 1, 1: i + 1))
+		Set cases = $ListBuild($ListBuild("the holder of only another kind's role", otherSession, 0), $ListBuild("the holder of the kind's role", kindSession(i), 1), $ListBuild("the holder of OcuTalonApprover", allSession, 1), $ListBuild("the README account with OcuTalonApprover", readmeSession, 1))
+		Set position = 0
+		While $ListNext(cases, position, case) {
+			Set label = kind_", "_$List(case, 1)
+			Set session = $List(case, 2), may = $List(case, 3)
+			Set request = ..Request(session)
+			Do $CLASSMETHOD(double, "Begin")
+			Do $CLASSMETHOD(double, "Kind", request, kind)
+			Set sc = ..AnswerWeb(web, request, session, .result)
+			Do $$$AssertEquals(result_"|"_web.Refusal.%ToJSON(), $Select(may: "done|{}", 1: "not_allowed|{""kind"":"""_kind_"""}"), label_": the web answer")
+			Do $$$AssertEquals($CLASSMETHOD(double, "Calls"), may, label_": Approval.Answer "_$Select(may: "was", 1: "was not")_" called")
+			Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "pending", label_": the fixture row is never changed by the double")
+			Set request = ..Request(session)
+			Do $CLASSMETHOD(double, "Begin")
+			Do $CLASSMETHOD(double, "Kind", request, kind)
+			Set chat = ..Chat(session)
+			Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.AnswersTelegramProbe).FromTelegram(request, "approve", chat, .code, .slots), label_": the Telegram press is handled")
+			Do $$$AssertEquals(code_"|"_$Select(may: "", 1: slots.%ToJSON()), $Select(may: "approved|", 1: "not_allowed|{""kind"":"""_kind_"""}"), label_": the Telegram answer")
+			Do $$$AssertEquals($CLASSMETHOD(double, "Calls"), may, label_": and on Telegram Approval.Answer "_$Select(may: "was", 1: "was not")_" called")
+		}
+	}
+	Do $CLASSMETHOD(double, "End")
+	Kill ^OcuTalonTest("AnswersTelegramProbe")
+}
+
+/// Story 25.5, AC 2 and AC 6: the real production in the web-context job, on requests that need the fixture OcuTalonApprover.
+Method TestFixtureRoleOnTheRealPath()
+{
+	If '..Guard() Quit
+	Set created = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles()
+	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Try {
+		Set plain = ..NewUser("p")
+		Set holder = ..#USER_..Number_"h"
+		Do $$$AssertStatusOK(..CreateUser(holder, ..Roles()_",OcuTalonApprover"), "the holder of the fixture OcuTalonApprover with the application roles is made")
+		If plain = "" Quit
+		Set sPlain = ..Session(plain)
+		Set sHolder = ..Session(holder)
+		Set needs = {"RequiredRole": "OcuTalonApprover"}
+		Set refused = ##class(OcuTalon.Test.Data.Fixture).Approval(sPlain, , "pending", , needs)
+		Set allowed = ##class(OcuTalon.Test.Data.Fixture).Approval(sHolder, , "pending", , needs)
+		Set ..Refs = ..Refs_","_refused_","_allowed
+		Set run = ..RunProbe("page", plain, sPlain, "", refused, "")
+		If run '= "" {
+			Do $$$AssertEquals($Get(@run@("page")), "1|not_allowed|"_sPlain, "a user without the role is not_allowed through FromPage")
+			Do $$$AssertEquals($Get(@run@("refusal")), "{""kind"":""""}", "with no kind, as the role check names none yet")
+			Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(refused).State, "pending", "and the request stays pending")
+		}
+		Set run = ..RunProbe("page", holder, sHolder, "", allowed, "")
+		If run '= "" {
+			Do $$$AssertEquals($Get(@run@("page")), "1|done|"_sHolder, "the holder of the role answers its own request")
+			Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(allowed).State, "approved", "which is approved")
+		}
+		Set demoRoles = ##class(OcuTalon.Install.Step.Users).#DEMOROLES_",OcuTalonApprover,"_$Piece(..Roles(), ",", 2, *)
+		Set demo = ..#USER_..Number_"d"
+		Do $$$AssertStatusOK(..CreateUser(demo, demoRoles), "the demo account's fixture user holds the demo roles, OcuTalonApprover and the application roles")
+		Set sDemo = ..Session(demo)
+		Set sOther = ..Session(..#USER_"other"_..Number)
+		Set own = ##class(OcuTalon.Test.Data.Fixture).Approval(sDemo, , "pending", , needs)
+		Set otherAllowed = ##class(OcuTalon.Test.Data.Fixture).Approval(sOther, , "pending", , needs)
+		Set otherLacking = ##class(OcuTalon.Test.Data.Fixture).Approval(sOther, , "pending", , {"RequiredRole": ("ZzNobody"_..Number)})
+		Set ..Refs = ..Refs_","_own_","_otherAllowed_","_otherLacking
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set run = ..RunProbe("page", demo, sDemo, "", own, "")
+		If run '= "" Do $$$AssertEquals($Get(@run@("page")), "1|done|"_sDemo, "on the online demo the holder answers its own request")
+		For other = otherAllowed, otherLacking {
+			Set run = ..RunProbe("page", demo, sDemo, "", other, "")
+			If run '= "" {
+				Do $$$AssertEquals($Get(@run@("page")), "1|not_found|"_sDemo, "another session's request is not_found, whether or not the holder may answer it: the owning-session rule comes first")
+				Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(other).State, "pending", "and it stays pending")
+			}
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", saved)
+	Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(created)
 }
 
 Method TestGuardRefusesOutsideAThrowaway()
@@ -288,8 +474,9 @@ Method RunProbe(mode As %String, user As %String, session As %String, incident A
 
 /// The job: logs in as the user, the context of a web request, and reports under ^OcuTalonTest("AnswersInWebRoles", number): job, login
 /// (the result of Login), user and roles, then for mode reads the cross-owner reads as "<length or Ref>|<1 when the status is an error>"
-/// (watchers, approvalIncident, recipients), and for mode page the answer of AnswersIn.FromPage with a CSP session bound to the session
-/// as "<1 when the status is OK>|<result>|<the session Ref it resolved>" (page); or error when it throws; then done.
+/// (watchers, approvalIncident, recipients), for mode may (request is a comma list of Refs) per Ref i Approval.MayAnswer for the job's own user as "<1 or 0>|<kind>" (may, i) and the
+/// approval payload's "<answerable>|<approverKind>" for the session (answerable, i), and for mode page the answer of AnswersIn.FromPage with a CSP session bound to the session
+/// as "<1 when the status is OK>|<result>|<the session Ref it resolved>" (page) and the refusal's JSON (refusal); or error when it throws; then done.
 ClassMethod Probe(number As %String, mode As %String, user As %String, session As %String, incident As %String, request As %String, production As %String)
 {
 	Set run = $Name(^OcuTalonTest("AnswersInWebRoles", number))
@@ -305,11 +492,20 @@ ClassMethod Probe(number As %String, mode As %String, user As %String, session A
 			Set @run@("approvalIncident") = found_"|"_$SYSTEM.Status.IsError(sc)
 			Set recipients = ##class(OcuTalon.Data.Session).Recipients("instance", incident, .sc)
 			Set @run@("recipients") = $ListLength(recipients)_"|"_$SYSTEM.Status.IsError(sc)
+		} ElseIf mode = "may" {
+			For i = 1:1:$Length(request, ",") {
+				Set ref = $Piece(request, ",", i)
+				Set may = ##class(OcuTalon.Bridge.Approval).MayAnswer(ref, $Username, .kind)
+				Set @run@("may", i) = may_"|"_kind
+				Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref), session)
+				Set @run@("answerable", i) = payload.Answerable_"|"_payload.ApproverKind
+			}
 		} Else {
 			Set %session = ##class(%CSP.Session).%New("ZzWR"_number, 0)
 			Set %session.Data("OcuTalon.SessionRef") = session
-			Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(request, "approve", "web", .answer, .ref)
+			Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(request, "approve", "web", .answer, .ref, .refusal)
 			Set @run@("page") = $SYSTEM.Status.IsOK(sc)_"|"_$Select($IsObject($Get(answer)): answer.Result, 1: "")_"|"_$Get(ref)
+			Set @run@("refusal") = $Select($IsObject($Get(refusal)): refusal.%ToJSON(), 1: "")
 		}
 	} Catch exception {
 		Set @run@("error") = exception.DisplayString()
@@ -404,6 +600,77 @@ ClassMethod Roles() As %String [ Private ]
 		If role '= "" Set roles = roles _ "," _ role
 	}
 	Quit roles
+}
+
+/// Makes the fixture role (with no resources, Test.Install.RolesAssign EnsureRoles) when the instance does not have it, and keeps it for RestoreRoles. 1 when it made it.
+Method EnsureRole(name As %String) As %Boolean [ Private ]
+{
+	Set made = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles(name)
+	If made = "" Quit 0
+	Set ..MadeRoles = ..MadeRoles_$Select(..MadeRoles = "": "", 1: ",")_made
+	Quit 1
+}
+
+/// Takes back the grant to the README account, and deletes the roles that EnsureRole made (Test.Install.RolesAssign DropRoles).
+Method RestoreRoles() [ Private ]
+{
+	If ..GrantedReadme {
+		Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER, "OcuTalonApprover")
+		Set ..GrantedReadme = 0
+	}
+	Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(..MadeRoles)
+	Set ..MadeRoles = ""
+}
+
+/// Grants the fixture OcuTalonApprover to the README account when it does not hold it; RestoreRoles takes it back.
+Method GrantReadme() [ Private ]
+{
+	Set readme = ##class(OcuTalon.Test.Bridge.ApprovalRows).#ANSWERER
+	If ..Holds(readme, "OcuTalonApprover") Quit
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If $$$ISOK(##class(Security.Users).AddRoles(readme, "OcuTalonApprover")) Set ..GrantedReadme = 1
+}
+
+/// 1 when the IRIS user's recursed role set holds the role.
+ClassMethod Holds(user As %String, role As %String) As %Boolean [ Private ]
+{
+	If $$$ISERR($SYSTEM.Security.GetUserRecursedRoleSet(user, .roles)) Quit 0
+	Quit ''$ListFind($ListFromString(roles), role)
+}
+
+/// A fixture approval request of the session's, kept for the clean-up, that needs the role OcuTalonApprover.
+Method Request(session As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending", , {"RequiredRole": "OcuTalonApprover"})
+	Set ..Refs = ..Refs_","_ref
+	Quit ref
+}
+
+/// A chat row that is on the session, kept for the clean-up; its ChatRef.
+Method Chat(session As %String) As %String [ Private ]
+{
+	Set ..Setups = ..Setups + 1
+	Set chatId = "73"_..Number_"0"_..Setups
+	Set chat = ##class(OcuTalon.Data.Pairing).RecordChat(chatId, "Dana", .sc)
+	Set row = ##class(OcuTalon.Data.Pairing).Chat(chat)
+	Set row.SessionRef = session
+	Do row.%Save()
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Quit chat
+}
+
+/// The answer approve from the web to the request, given to the probe's OnProcessInput as the session; result is the AnswerResult's Result.
+Method AnswerWeb(probe As OcuTalon.Test.Core.AnswersInProbe, request As %String, session As %String, Output result As %String) As %Status [ Private ]
+{
+	Set answer = ##class(OcuTalon.Core.Msg.Answer).%New()
+	Set answer.Ref = request
+	Set answer.Action = "approve"
+	Set answer.Channel = "web"
+	Set answer.SessionRef = session
+	Set sc = probe.OnProcessInput(answer, .output)
+	Set result = $Select($IsObject($Get(output)): output.Result, 1: "")
+	Quit sc
 }
 
 /// Deletes the fixture users of every run and the reports of every run but the counter.

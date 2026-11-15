@@ -1,0 +1,752 @@
+diff --git a/docker/tests/test-bridge-guide.sh b/docker/tests/test-bridge-guide.sh
+index 86d83a05..ad135c08 100755
+--- a/docker/tests/test-bridge-guide.sh
++++ b/docker/tests/test-bridge-guide.sh
+@@ -23,8 +23,9 @@
+ #                bullet for a model test and the paragraph about the decision's record (the rest of the retry section is not pinned)
+ #   - livetext   the two lines that DW-773 rules are, each as a whole line compared as a fixed string, in the guide: the Settings
+ #                section's intro (which settings are read each time they are used) and the retry section's RetryItem bullet
+-#   - turntools  the four lines that Story 19.5 and Story 35.1 rule are, each as a whole line compared as a fixed string, in the guide: the Settings table's
+-#                TurnToolsClass row, the lead-in of "The extension classes" (five classes), its TurnTools bullet and its McpServers bullet
++#   - turntools  the four lines that Story 19.5, Story 35.1 and Story 22.6 rule are, each as a whole line compared as a fixed string, in the guide: the Settings table's
++#                TurnToolsClass row, the lead-in of "The extension classes" (five classes), its TurnTools bullet (which ends with the sentence of DW-950: a held call
++#                runs later on the agent's own tool manager, which does not hold the tools) and its McpServers bullet (the report's refused names, the probe, the proxy)
+ #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
+ #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
+ #                "Approval and audit" section of docs/security-overview.md
+@@ -646,8 +647,8 @@ turn_lines() {
+   cat << 'EOF'
+ | `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
+ The bridge reaches your code only through five classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+-- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
+-- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default.
++- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default. Classify each tool it returns safe (a `ToolClassification` row): a call held for approval runs later on the agent's own tool manager, which does not hold these tools.
++- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached, the `refused` ones (a name that one of the agent's own tools, or the proxy `call_mcp_tool`, already has) and, for an attached server, their `fingerprints`. `Probe(server, config)` says whether a server answers before its tools are offered, and must return within a few seconds; `ProxyToolSet()` names the toolset of the one governed tool, `call_mcp_tool`, through which every MCP call runs; `ServerOf(toolref)` names the server of a toolref; and `ToolsReadOnly(server)` says whether every tool of a server is classified read-only. The agent's own tool manager holds no MCP server: each request gets a manager of its own with the proxy and the servers whose probe answered, an agent that declares skills gets no MCP tools, and an unavailable server never fails the build. It attaches nothing by default.
+ EOF
+ }
+ 
+diff --git a/docker/tests/test-release-sequence.sh b/docker/tests/test-release-sequence.sh
+index 4722b777..40623d9c 100755
+--- a/docker/tests/test-release-sequence.sh
++++ b/docker/tests/test-release-sequence.sh
+@@ -29,13 +29,17 @@
+ #             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
+ #   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
+ #             change outside the rows, for the fix kinds and for the privileges, and nothing for equal files
+-#   overviewdoc   (Story 14.1, QA; Story 14.2) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
++#   overviewdoc   (Story 14.1, QA; Story 14.2; Story 22.6) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
+ #             ASCII only, no machine path, no URL or address; no hand-written placeholder; the privilege-limits paragraph word for word under its
+-#             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
+-#             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
+-#             no-scheduled-purge sentence, while src has no call_mcp_tool the MCP rules sentence, and the demo section's closing sentence (QA); with
+-#             call_mcp_tool in src, the two MCP checks give no complaint, and with that switch forced off they still find their faults; and the
+-#             CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
++#             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; the numbers and the audit types of the code in their sections; the five
++#             headings once each and in order, the no-scheduled-purge sentence and the demo section's closing sentence (QA); the MCP tools section
++#             (Story 22.6): no can't-connect or "When a release adds MCP support" sentence, a link to the worked example, the classification sentence
++#             and the Read-only sentence word for word, and the time-limits paragraph as one whole line; the Data section without "this release can't
++#             make"; no line with "deadline" outside the time-limits paragraph and no line about the changed-tool replay path (the checks run
++#             whatever src holds); the worked example docs/mcp-jira-example.md (mcp_doc_problems): its title, ASCII and no machine path, every address
++#             on example.com, the three shared texts word for word, no other "deadline" line, no replay-path and no source-poll text, the sentence that
++#             says MCP is off on the online demo and its link to the overview's MCP section; and the CI claims of the file and of the live unit in
++#             ci/units.sh (every group runs on the file, shards-5 holds the unit)
+ #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
+ #             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
+ #             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
+@@ -2169,6 +2173,13 @@ DRIFT tool add_note"
+ OVW_LIMITS="OcuTalon's production runs as IRIS's Interoperability system user, which holds \`%All\`. The service user is a privilege profile: the gate checks it before every tool call and the fix executor before every fix, but IRIS doesn't enforce it on the running code. The protections are the fixed tool inventory (no shell, no code, no data-changing SQL, tested), classification and approval, each fix kind's own validation, and the IRIS roles on the web and portal applications. Running tool code under the service user's own identity is deferred."
+ OVW_EXPERIENCE=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md
+ 
++# The MCP texts that the overview and the worked example (docs/mcp-jira-example.md) share, word for word (Story 22.6): the classification sentence, the Read-only
++# sentence and the time-limits paragraph.
++OVW_MCP_RISKY="An MCP tool that runs operating-system commands or arbitrary code must be classified Risky."
++OVW_MCP_READONLY="A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads."
++OVW_MCP_LIMITS="OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection."
++OVW_MCP_EXAMPLE=docs/mcp-jira-example.md
++
+ # ovw_section <file> <title>: the lines under the "## <title>" heading, up to the next "## " heading.
+ ovw_section() { awk -v h="## $2" '$0 == h { on = 1; next } on && /^## / { exit } on { print }' "$1"; }
+ 
+@@ -2187,12 +2198,36 @@ ovw_phrases() {
+   done
+ }
+ 
++# ovw_text_problems <file>: one line per problem of a public text file: a character outside ASCII, a machine path.
++ovw_text_problems() {
++  local n
++  n=$(LC_ALL=C grep -c '[^[:print:][:space:]]' "$1")
++  [ "$n" -eq 0 ] || echo "$n line(s) with a character outside ASCII"
++  n=$(grep -cE '(/Us''ers/|/ho''me/|/pri''vate/|/t''mp/|[A-Za-z]:\\)' "$1")
++  [ "$n" -eq 0 ] || echo "$n line(s) with a machine path"
++}
++
++# ovw_mcp_shared_problems <file> <scope> <line prefix>: one line for each shared MCP text that the file lacks, word for word, as a whole line (with the prefix before
++# the sentence: "- " in the overview's rules, none in the worked example), and one for a line with "deadline" other than the time-limits paragraph or
++# a line about the changed-tool replay path (which no text describes). scope is the section to read ("" for the whole file).
++ovw_mcp_shared_problems() {
++  local f=$1 title=$2 prefix=$3 sec
++  if [ -n "$title" ]; then sec=$(ovw_section "$f" "$title"); else sec=$(cat "$f"); fi
++  printf '%s\n' "$sec" | grep -qxF -e "$prefix$OVW_MCP_RISKY" || echo "the MCP text lacks the classification sentence word for word"
++  printf '%s\n' "$sec" | grep -qxF -e "$prefix$OVW_MCP_READONLY" || echo "the MCP text lacks the Read-only sentence word for word"
++  printf '%s\n' "$sec" | grep -qxF -e "$OVW_MCP_LIMITS" || echo "the MCP text lacks the time-limits paragraph as one whole line"
++  grep -iF -e deadline "$f" | grep -vxF -e "$OVW_MCP_LIMITS" | grep -q . && echo "a line other than the time-limits paragraph mentions a deadline"
++  grep -qE 'replayToolChanged|after this request was made|needs a new approval' "$f" && echo "a line describes the changed-tool replay path"
++  return 0
++}
++
+ # ovw_doc_problems <file>: one line per problem of the overview, nothing for a good file. The frame: the title line, each marker once and in
+ # order, ASCII only, no machine path, no URL or address. The hand-written sections (Story 14.2): no placeholder, the privilege-limits paragraph
+-# under its heading, the kept-OCUORDERS sentence, the MCP opening sentence while src has no MCP client, and the numbers and audit types of the code.
++# under its heading, the kept-OCUORDERS sentence, and the numbers and audit types of the code. The MCP tools section (Story 22.6): no sentence that says the release
++# can't connect, a link to the worked example, and the shared texts; the Data section holds no "this release can't make".
+ ovw_doc_problems() {
+   local f=$1 key b e n prev=0 owner='written by OcuTalon.Install.SecurityOverview, do not edit'
+-  local kept v hours t first
++  local kept v hours t
+   [ "$(sed -n 1p "$f")" = '# OcuTalon security overview' ] || echo "the first line is not the title"
+   for key in tools fix-kinds privileges; do
+     b=$(grep -nxF "<!-- BEGIN GENERATED $key: $owner -->" "$f" | cut -d: -f1)
+@@ -2204,10 +2239,7 @@ ovw_doc_problems() {
+     if [ "$b" -le "$prev" ] || [ "$e" -le "$b" ]; then echo "the $key markers are out of order"; fi
+     prev=$e
+   done
+-  n=$(LC_ALL=C grep -c '[^[:print:][:space:]]' "$f")
+-  [ "$n" -eq 0 ] || echo "$n line(s) with a character outside ASCII"
+-  n=$(grep -cE '(/Us''ers/|/ho''me/|/pri''vate/|/t''mp/|[A-Za-z]:\\)' "$f")
+-  [ "$n" -eq 0 ] || echo "$n line(s) with a machine path"
++  ovw_text_problems "$f"
+   n=$(grep -cE '(:/''/|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)' "$f")
+   [ "$n" -eq 0 ] || echo "$n line(s) with a URL or address"
+   n=$(grep -c 'HAND-WRITTEN' "$f")
+@@ -2219,13 +2251,10 @@ ovw_doc_problems() {
+   elif ! grep -qF -e "$kept" "$f"; then
+     echo "the kept-OCUORDERS sentence is not there word for word"
+   fi
+-  if ! git -C "$root" grep -q call_mcp_tool -- src; then
+-    first=$(ovw_section "$f" 'MCP tools' | grep -m 1 .)
+-    case $first in
+-      "This release can't connect to MCP servers."*) ;;
+-      *) echo "the MCP tools section does not open with the can't-connect sentence" ;;
+-    esac
+-  fi
++  ovw_section "$f" 'MCP tools' | grep -qE -e "can't connect to MCP servers|When a release adds MCP support" && echo "the MCP tools section still says that the release can't connect to MCP servers"
++  ovw_section "$f" 'MCP tools' | grep -qF -e '](mcp-jira-example.md)' || echo "the MCP tools section does not link the worked example"
++  ovw_section "$f" 'Data' | grep -qiF -e "this release can't make" && echo "the Data section still says that MCP calls are ones this release can't make"
++  ovw_mcp_shared_problems "$f" 'MCP tools' '- '
+   v=$(ovw_code_value 's/^Parameter EXPIRYSECONDS = \([0-9][0-9]*\);.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Approval.cls)
+   if [ -z "$v" ]; then
+     echo "the code has no EXPIRYSECONDS"
+@@ -2249,14 +2278,34 @@ ovw_doc_problems() {
+   v=$(ovw_code_value 's/^Parameter ADDRESSLIMITSEED = \([0-9][0-9]*\);.*$/\1/p' src/ocutalon/cls/OcuTalon/Data/Setting.cls)
+   if [ -z "$v" ]; then echo "the code has no ADDRESSLIMITSEED"; else ovw_phrases "$f" 'Online demo' "$v new sessions"; fi
+   # QA (Story 14.2): the five hand-written headings once each and in order; the V1 sentence (U-223) and the closing sentence of the demo section
+-  # (U-224); while src has no MCP client, the sentence that opens the rules.
++  # (U-224).
+   n=$(grep -nxE '## (Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo)' "$f" | sed 's/^[0-9]*:## //' | tr '\n' '|')
+   [ "$n" = 'Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo|' ] || echo "the five hand-written headings are not there once each, in order"
+   ovw_section "$f" 'Data' | grep -qF -e 'no scheduled purge removes them' || echo "the Data section lacks the no-scheduled-purge sentence"
+   ovw_section "$f" 'Online demo' | grep -qxF -e 'Each protection listed here is checked against the running demo before every release.' || echo "the Online demo section lacks the checked-before-every-release sentence"
+-  if ! git -C "$root" grep -q call_mcp_tool -- src; then
+-    ovw_section "$f" 'MCP tools' | grep -qF -e 'When a release adds MCP support, these rules apply:' || echo "the MCP tools section lacks the rules sentence"
+-  fi
++  return 0
++}
++
++# mcp_doc_problems <file>: one line per problem of the worked example (Story 22.6), nothing for a good file: its title, ASCII only and no machine path, an address
++# only on example.com (a secret:// reference is no address), the shared texts word for word and no other "deadline" line, no text about the changed-tool replay path or
++# source polls, the sentence that says MCP is off on the online demo and the link to the overview's MCP section.
++mcp_doc_problems() {
++  local f=$1 url host
++  [ -f "$f" ] || { echo "the worked example is not at $OVW_MCP_EXAMPLE"; return 0; }
++  [ "$(sed -n 1p "$f")" = '# A Jira MCP server, step by step' ] || echo "the first line is not the title"
++  ovw_text_problems "$f"
++  for url in $(grep -oE 'https?:/''/[^/ )`]*' "$f"); do
++    host=${url#*:/''/}
++    host=${host%%:*}
++    case $host in
++      example.com|*.example.com) ;;
++      *) echo "an address is not on example.com" ;;
++    esac
++  done
++  ovw_mcp_shared_problems "$f" '' ''
++  grep -qiF -e 'source poll' "$f" && echo "a line mentions a source poll"
++  grep -qF -e 'MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none.' "$f" || echo "the example lacks the sentence that says MCP is off on the online demo"
++  grep -qF -e '](security-overview.md#mcp-tools)' "$f" || echo "the example does not link the overview's MCP tools section"
+   return 0
+ }
+ 
+@@ -2275,20 +2324,12 @@ ovw_ci_claims() {
+   )
+ }
+ 
+-# ovw_doc_problems_no_mcp <file>: ovw_doc_problems with the MCP-client switch forced off (its git grep for call_mcp_tool in src answers no;
+-# every other git call runs as usual), in a subshell, so the checks the switch turns off still run on a fixture.
+-ovw_doc_problems_no_mcp() {
+-  (
+-    git() { [ "$*" = "-C $root grep -q call_mcp_tool -- src" ] && return 1; command git "$@"; }
+-    ovw_doc_problems "$1"
+-  )
+-}
+-
+ t_overviewdoc() {
+-  local doc=$root/docs/security-overview.md d=$tmp/ovwdoc grp want
++  local doc=$root/docs/security-overview.md ex=$root/$OVW_MCP_EXAMPLE d=$tmp/ovwdoc grp want
+   rm -rf "$d"
+   mkdir -p "$d"
+   eq "the committed overview has a good frame" "$(ovw_doc_problems "$doc")" ""
++  eq "the committed worked example is good" "$(mcp_doc_problems "$ex")" ""
+   # controls: the checker finds each kind of fault in a copy of the committed file
+   sed 's/^# OcuTalon security overview$/# Overview/' "$doc" > "$d/title.md"
+   eq "control: a changed title" "$(ovw_doc_problems "$d/title.md")" "the first line is not the title"
+@@ -2313,17 +2354,26 @@ t_overviewdoc() {
+   eq "control: the privilege-limits paragraph outside its section" "$(ovw_doc_problems "$d/outside.md")" "the privilege-limits paragraph is not there word for word"
+   sed 's/OcuTalon left the OCUORDERS namespace in place because/OcuTalon left the OCUORDERS namespace in place as/' "$doc" > "$d/kept.md"
+   eq "control: a word of the kept sentence" "$(ovw_doc_problems "$d/kept.md")" "the kept-OCUORDERS sentence is not there word for word"
+-  # the can't-connect and rules-sentence checks run only while src has no MCP client: with one, the same faults give no complaint (the switch is pinned)
+-  awk '{ print } $0 == "## MCP tools" { print ""; print "Note." }' "$doc" > "$d/mcp.md"
+-  if git -C "$root" grep -q call_mcp_tool -- src; then
+-    eq "control: the can't-connect fault changed the file" "$(cmp -s "$doc" "$d/mcp.md" && echo same || echo changed)" "changed"
+-    eq "control: the can't-connect sentence below the first line, with an MCP client in src, is not checked" "$(ovw_doc_problems "$d/mcp.md")" ""
+-  else
+-    eq "control: the can't-connect sentence below the first line" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
+-  fi
+-  # the other way: with the switch forced off, the committed file still passes and each of the two faults gives its own complaint
+-  eq "the committed overview, with the MCP-client switch forced off, has a good frame" "$(ovw_doc_problems_no_mcp "$doc")" ""
+-  eq "control: the can't-connect sentence below the first line, with the switch forced off" "$(ovw_doc_problems_no_mcp "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
++  # controls of the MCP tools section and the Data section (Story 22.6): each is a copy of the committed overview with one fault and yields its own problem line
++  awk '{ print } $0 == "## MCP tools" { print ""; print "This release can'"'"'t connect to MCP servers." }' "$doc" > "$d/mcp.md"
++  eq "control: the can't-connect sentence put back" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section still says that the release can't connect to MCP servers"
++  sed 's/ When a release adds MCP support, these rules apply:$//; s/^\(On a local or IPM install.*\)$/\1 When a release adds MCP support, these rules apply:/' "$doc" > "$d/frame.md"
++  eq "control: the old rules sentence put back" "$(ovw_doc_problems "$d/frame.md")" "the MCP tools section still says that the release can't connect to MCP servers"
++  sed 's/](mcp-jira-example\.md)/](mcp-jira.md)/' "$doc" > "$d/link.md"
++  eq "control: the link to the worked example removed" "$(ovw_doc_problems "$d/link.md")" "the MCP tools section does not link the worked example"
++  sed 's/^- An MCP tool that runs operating-system commands or arbitrary code must be classified Risky\./- An MCP tool that runs operating-system commands or arbitrary code should be classified Risky./' "$doc" > "$d/risky.md"
++  eq "control: a word of the classification sentence" "$(ovw_doc_problems "$d/risky.md")" "the MCP text lacks the classification sentence word for word"
++  sed 's/classify a tool Read-only only when you trust/classify a tool Read-only only if you trust/' "$doc" > "$d/readonly.md"
++  eq "control: a word of the Read-only sentence" "$(ovw_doc_problems "$d/readonly.md")" "the MCP text lacks the Read-only sentence word for word"
++  sed 's/^OcuTalon'"'"'s time limits for MCP servers are not hard deadlines\. A server has 2 seconds/OcuTalon'"'"'s time limits for MCP servers are not hard deadlines. A server has 3 seconds/' "$doc" > "$d/limits.md"
++  eq "control: the time-limits paragraph changed" "$(ovw_doc_problems "$d/limits.md")" "the MCP text lacks the time-limits paragraph as one whole line
++a line other than the time-limits paragraph mentions a deadline"
++  { cat "$doc"; echo 'The server has a hard deadline of 30 seconds.'; } > "$d/deadline.md"
++  eq "control: a hard deadline line added" "$(ovw_doc_problems "$d/deadline.md")" "a line other than the time-limits paragraph mentions a deadline"
++  { cat "$doc"; echo 'An approved request whose tool changed before it ran needs a new approval.'; } > "$d/replay.md"
++  eq "control: a replay-path line added" "$(ovw_doc_problems "$d/replay.md")" "a line describes the changed-tool replay path"
++  sed 's/^- In calls to the MCP servers an admin has added, never on the online demo: .*$/- In calls to configured MCP servers, which this release can'"'"'t make./' "$doc" > "$d/data.md"
++  eq "control: the old Data bullet put back" "$(ovw_doc_problems "$d/data.md")" "the Data section still says that MCP calls are ones this release can't make"
+   sed 's/^- It expires after 24 hours\./- It expires after 48 hours./' "$doc" > "$d/hours.md"
+   eq "control: another expiry" "$(ovw_doc_problems "$d/hours.md")" "the Approval and audit section lacks '24 hours'"
+   sed 's/^- `Tool`: /- Tool: /' "$doc" > "$d/type.md"
+@@ -2340,14 +2390,6 @@ t_overviewdoc() {
+   eq "control: another long retention" "$(ovw_doc_problems "$d/days90.md")" "the Data section lacks '90 days'"
+   sed 's/ and no scheduled purge removes them\./ and a scheduled purge removes them./' "$doc" > "$d/purge.md"
+   eq "control: the no-scheduled-purge sentence changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the no-scheduled-purge sentence"
+-  sed 's/ When a release adds MCP support, these rules apply:$//' "$doc" > "$d/rules.md"
+-  if git -C "$root" grep -q call_mcp_tool -- src; then
+-    eq "control: the MCP rules sentence fault changed the file" "$(cmp -s "$doc" "$d/rules.md" && echo same || echo changed)" "changed"
+-    eq "control: the MCP rules sentence dropped, with an MCP client in src, is not checked" "$(ovw_doc_problems "$d/rules.md")" ""
+-  else
+-    eq "control: the MCP rules sentence dropped" "$(ovw_doc_problems "$d/rules.md")" "the MCP tools section lacks the rules sentence"
+-  fi
+-  eq "control: the MCP rules sentence dropped, with the switch forced off" "$(ovw_doc_problems_no_mcp "$d/rules.md")" "the MCP tools section lacks the rules sentence"
+   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
+   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
+   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
+@@ -2358,6 +2400,33 @@ t_overviewdoc() {
+   eq "control: a link" "$(ovw_doc_problems "$d/url.md")" "1 line(s) with a URL or address"
+   { cat "$doc"; printf 'Host %s\n' '10.20.30.''40'; } > "$d/ip.md"
+   eq "control: an address" "$(ovw_doc_problems "$d/ip.md")" "1 line(s) with a URL or address"
++  # controls of the worked example (Story 22.6): a copy of the committed file with one fault yields its own problem line
++  eq "control: the worked example is missing" "$(mcp_doc_problems "$d/none.md")" "the worked example is not at $OVW_MCP_EXAMPLE"
++  sed 's/^# A Jira MCP server, step by step$/# A Jira server/' "$ex" > "$d/e-title.md"
++  eq "control: the example's title changed" "$(mcp_doc_problems "$d/e-title.md")" "the first line is not the title"
++  { cat "$ex"; printf 'caf\303\251\n'; } > "$d/e-ascii.md"
++  eq "control: a non-ASCII byte in the example" "$(mcp_doc_problems "$d/e-ascii.md")" "1 line(s) with a character outside ASCII"
++  { cat "$ex"; echo 'See /Us''ers/someone/git/x'; } > "$d/e-path.md"
++  eq "control: a machine path in the example" "$(mcp_doc_problems "$d/e-path.md")" "1 line(s) with a machine path"
++  sed 's/jira-mcp\.example\.com/jira-mcp.example.org/' "$ex" > "$d/e-host.md"
++  eq "control: an address that is not on example.com" "$(mcp_doc_problems "$d/e-host.md")" "an address is not on example.com"
++  sed 's/^An MCP tool that runs operating-system commands or arbitrary code must be classified Risky\./An MCP tool that runs operating-system commands or arbitrary code should be classified Risky./' "$ex" > "$d/e-risky.md"
++  eq "control: a word of the classification sentence in the example" "$(mcp_doc_problems "$d/e-risky.md")" "the MCP text lacks the classification sentence word for word"
++  sed 's/classify a tool Read-only only when you trust/classify a tool Read-only only if you trust/' "$ex" > "$d/e-readonly.md"
++  eq "control: a word of the Read-only sentence in the example" "$(mcp_doc_problems "$d/e-readonly.md")" "the MCP text lacks the Read-only sentence word for word"
++  sed 's/^OcuTalon'"'"'s time limits for MCP servers are not hard deadlines\. A server has 2 seconds/OcuTalon'"'"'s time limits for MCP servers are not hard deadlines. A server has 3 seconds/' "$ex" > "$d/e-limits.md"
++  eq "control: the time-limits paragraph changed in the example" "$(mcp_doc_problems "$d/e-limits.md")" "the MCP text lacks the time-limits paragraph as one whole line
++a line other than the time-limits paragraph mentions a deadline"
++  { cat "$ex"; echo 'The server has a hard deadline of 30 seconds.'; } > "$d/e-deadline.md"
++  eq "control: a hard deadline line in the example" "$(mcp_doc_problems "$d/e-deadline.md")" "a line other than the time-limits paragraph mentions a deadline"
++  { cat "$ex"; echo 'The replay says mcp.replayToolChanged.'; } > "$d/e-replay.md"
++  eq "control: a replay-path line in the example" "$(mcp_doc_problems "$d/e-replay.md")" "a line describes the changed-tool replay path"
++  { cat "$ex"; echo 'Set a source poll to check the server.'; } > "$d/e-poll.md"
++  eq "control: a source poll in the example" "$(mcp_doc_problems "$d/e-poll.md")" "a line mentions a source poll"
++  sed 's/MCP servers are off on the online demo: nobody can add one there/MCP servers are on the online demo: anybody can add one there/' "$ex" > "$d/e-demo.md"
++  eq "control: the demo sentence changed in the example" "$(mcp_doc_problems "$d/e-demo.md")" "the example lacks the sentence that says MCP is off on the online demo"
++  sed 's/](security-overview\.md#mcp-tools)/](security-overview.md)/' "$ex" > "$d/e-link.md"
++  eq "control: the link to the overview removed from the example" "$(mcp_doc_problems "$d/e-link.md")" "the example does not link the overview's MCP tools section"
+   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5
+   # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)
+   want=$(ovw_ci_claims)
+diff --git a/docs/bridge-guide.md b/docs/bridge-guide.md
+index 2d86c548..ddca84bc 100644
+--- a/docs/bridge-guide.md
++++ b/docs/bridge-guide.md
+@@ -313,8 +313,8 @@ The bridge reaches your code only through five classes, each with a do-nothing d
+ - `OcuTalon.Bridge.Ext.HostSink` (`HostSinkClass`): `OnEvent(type, ownerRef, payload)` receives the bridge's events: `turn.step`, `decision.recorded`, `approval.raised`, `approval.answered`, `approval.expired`, `approval.cancelled`, `approval.result` and `budget.capped`. It does nothing by default.
+ - `OcuTalon.Bridge.Ext.ReplyFilter` (`ReplyFilterClass`): `Filter(text, hostData)` returns the text to use in place of model-written text. For a chat turn, `hostData` is the reply's `HostData` JSON; otherwise it is empty. It returns the text unchanged by default.
+ - `OcuTalon.Bridge.Ext.Classification` (`ClassificationClass`): `Classify(source, name, arguments)` returns `safe` or `risky`, or empty for none; the gate calls it with the source and the name. It returns empty by default.
+-- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
+-- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default.
++- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default. Classify each tool it returns safe (a `ToolClassification` row): a call held for approval runs later on the agent's own tool manager, which does not hold these tools.
++- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached, the `refused` ones (a name that one of the agent's own tools, or the proxy `call_mcp_tool`, already has) and, for an attached server, their `fingerprints`. `Probe(server, config)` says whether a server answers before its tools are offered, and must return within a few seconds; `ProxyToolSet()` names the toolset of the one governed tool, `call_mcp_tool`, through which every MCP call runs; `ServerOf(toolref)` names the server of a toolref; and `ToolsReadOnly(server)` says whether every tool of a server is classified read-only. The agent's own tool manager holds no MCP server: each request gets a manager of its own with the proxy and the servers whose probe answered, an agent that declares skills gets no MCP tools, and an unavailable server never fails the build. It attaches nothing by default.
+ 
+ ### Rules for your own tools
+ 
+diff --git a/docs/mcp-jira-example.md b/docs/mcp-jira-example.md
+new file mode 100644
+index 00000000..9338fafc
+--- /dev/null
++++ b/docs/mcp-jira-example.md
+@@ -0,0 +1,63 @@
++# A Jira MCP server, step by step
++
++This example adds a Jira MCP server to OcuTalon on your own install, classifies its tools, runs a search and approves a change. Then it explains how OcuTalon governs MCP tools. MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none.
++
++## What you need
++
++- OcuTalon on your own install, and an account that holds the OcuTalonAdmin role, such as the README account.
++- A Jira MCP server that OcuTalon can reach over HTTPS, and the token it expects, if it expects one. Plain HTTP works only to this computer, for development.
++
++The tool names below are examples. Your server's names may differ: classify each tool by what it does.
++
++## 1. Add the server
++
++In Settings > Tools and MCP servers, press **Add server** and fill in:
++
++- **Name**: `Jira`. An MCP server's name is a letter followed by up to 39 letters, digits or underscores.
++- **Address**: the server's address, for example `https://jira-mcp.example.com/mcp`.
++- **Secret (optional)**: the server's token. Sent to the server with every request. It is kept in the IRIS Wallet and never shown again.
++
++OcuTalon keeps the secret in the IRIS Wallet and writes the server's Config Store entry, `AI.MCP.OcuTalon_Jira`, with the address and a `secret://` reference to the secret, never the secret itself. No message, log, audit entry or answer holds the secret. Adding the server also creates its own IRIS resource, `OcuTalon_MCP_Jira`, which OcuTalon's service user must hold for every call of the server's tools. Removing the server removes the resource, the entry and the secret.
++
++## 2. Classify its tools
++
++The server's tools show in the Tools table once OcuTalon next uses its agents, and they count as risky until you classify them. Each tool's control offers Unclassified (counts as risky), Read-only and Risky. For a Jira server:
++
++| Tool (example) | What it does | Classify it |
++| --- | --- | --- |
++| `search_issues` | searches tickets | Read-only |
++| `get_issue` | reads one ticket | Read-only |
++| `create_issue` | creates a ticket | Risky |
++| `update_issue` | changes a ticket | Risky |
++| `add_comment` | comments on a ticket | Risky |
++
++Classify a tool Read-only only when it reads and changes nothing.
++
++An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.
++
++A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads.
++
++If the server offers a tool with the same name as one of OcuTalon's own tools, or one named `call_mcp_tool`, OcuTalon refuses it: the Tools table shows "Refused: a built-in tool has this name", admins get a notice, and the tool is never offered or run.
++
++## 3. Search, then approve a change
++
++In the chat, ask "Find the Jira tickets assigned to me." The search tool is Read-only, so it runs at once. In Visual Trace the call shows as the step "Running search_issues on Jira".
++
++Then ask "Add a comment to OPS-12 saying the feed is fixed." The comment tool is Risky, so nothing runs yet. The chat shows an approval request that reads "Run add_comment on Jira", with its inputs and "No dry run is available for this tool. Approving runs exactly this call once." **Approve** runs exactly that call once, and **Reject** runs nothing. A request that nobody answers within 24 hours expires.
++
++If an admin removes the server while a request for one of its tools is waiting, the request is canceled and nothing runs.
++
++## How OcuTalon governs MCP tools
++
++- Only admins add or remove a server or classify its tools, only from the settings page.
++- A new tool, and a tool whose description or inputs changed, is Unclassified, which counts as risky. OcuTalon identifies a tool by its server and its name, and ignores MCP annotations such as `readOnlyHint`.
++- Every call goes through one governed tool, `call_mcp_tool`, and passes the same gate as OcuTalon's built-in tools. Before every call, OcuTalon checks that the tool still has the name, description and inputs it was classified with, and runs nothing if it changed.
++- In your own turns, a Read-only tool runs at once, and a Risky or Unclassified tool waits for your approval. In a turn that holds content that didn't come from you, such as an email or an MCP tool's result, only Read-only tools run: any other call is denied, and no approval request is raised.
++- A tool's results are untrusted content: they can never approve, classify, change a setting or add a server.
++- Each call of a server's tool writes an audit entry with the server, the tool and the outcome, never its arguments or its result, and shows as a step in Visual Trace.
++
++The security overview's [MCP tools](security-overview.md#mcp-tools) section lists the same rules.
++
++## Time limits
++
++OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection.
+diff --git a/docs/security-overview.md b/docs/security-overview.md
+index c3fe7bd9..4fd024e4 100644
+--- a/docs/security-overview.md
++++ b/docs/security-overview.md
+@@ -74,6 +74,8 @@ On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so O
+ | `OcuTalonWebhook` | `%DB_OCUTALON_DATA` | RW | `Web` |
+ | `OcuTalonWebhook` | `%DB_OCUTALON_PRIVATE` | RW | `Web` |
+ 
++Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`, with no public permission, and `OcuTalonServiceRole` holds U on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none.
++
+ ### With demo mode on
+ 
+ | Role | Resource | Permission |
+@@ -153,10 +155,10 @@ The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types a
+ - `Approval`: answered, expired, cancelled, started or finished;
+ - `Pairing`: a chat paired, unpaired or refused;
+ - `Settings`: setting, from, to;
+-- `MCP`: a server added or removed;
++- `MCP`: a server added or removed, or a tool called or refused;
+ - `Tool`: a tool's classification.
+ 
+-Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or classify an MCP tool, so a release without those features writes none of them.
++Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them.
+ 
+ Roles and accounts:
+ 
+@@ -180,7 +182,7 @@ Data leaves the instance only:
+ 
+ - In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. Daily notes and precedents also go to the configured provider inside requests: a person's turn that starts a session carries their daily notes for today and yesterday, which code builds from OcuTalon's own records, and the decision on an arriving item carries up to three of the person's earlier answers on items from the same sender or source. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor. A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval. Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap.
+ - In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its chat replies, notices, reminders and approval requests, and the answers to them).
+-- In calls to configured MCP servers, which this release can't make.
++- In calls to the MCP servers an admin has added, never on the online demo: a check that the server answers, the list of its tools, and each tool call with its arguments, which can hold content that OcuTalon read. The results come back as untrusted content.
+ 
+ Model keys and bot tokens come only from environment variables. They are never stored in IRIS or shown. OcuTalon reports only whether a key is present.
+ 
+@@ -202,16 +204,22 @@ The 7-day and 90-day counts are task settings, which an admin can change in the
+ 
+ ## MCP tools
+ 
+-This release can't connect to MCP servers. When a release adds MCP support, these rules apply:
++On a local or IPM install, an admin can add MCP servers, and their tools become OcuTalon's tools under the same gate, approval and audit as the built-in ones. The worked example [A Jira MCP server, step by step](mcp-jira-example.md) shows each step. MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none. These rules apply:
+ 
+-- Only admins add or remove a server, only from the settings page, and nobody can on the online demo.
+-- Servers are reached only over HTTPS, and each server has its own IRIS resource that the service user must hold.
++- Only admins add or remove a server or classify its tools, only from the settings page.
++- Servers are reached only over HTTPS (plain HTTP only to this computer, for development). A server's secret is kept in the IRIS Wallet, and its Config Store entry `AI.MCP.OcuTalon_<server>` holds only a Wallet reference to it, never the secret itself.
++- Each server has its own IRIS resource, `OcuTalon_MCP_<server>`, which the service user must hold (the Privileges section).
+ - A new server's tools arrive unclassified, which counts as risky.
+-- Tools are identified by server and name and never take a built-in tool's classification.
++- Tools are identified by server and name and never take a built-in tool's classification. A server's tool with the name of one of the agent's own tools, or the name `call_mcp_tool`, is refused and never offered or run.
+ - A changed description or input schema makes a tool unclassified again. MCP annotations such as `readOnlyHint` are ignored.
+-- An MCP tool that runs commands must be classified risky.
++- An MCP tool that runs operating-system commands or arbitrary code must be classified Risky.
++- A Read-only MCP tool still sends its arguments to its server, even in turns that read untrusted content, so classify a tool Read-only only when you trust its server with what OcuTalon reads.
++- Every call goes through the governed tool `call_mcp_tool` (the Built-in tools table), which checks before the call that the tool still has the name, description and input schema it was classified with, and runs nothing if it changed.
+ - Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step.
+ - Results are untrusted content.
++- Removing a server cancels its pending approval requests.
++
++OcuTalon's time limits for MCP servers are not hard deadlines. A server has 2 seconds to answer OcuTalon's check before a request offers its tools, and each listing of its tools, and 20 seconds to answer a tool call. Each limit applies to each wait for data and starts again whenever the server sends some, so a slow server can hold a request longer: in a test against a server that sent one byte a second, the 2-second check took 31 seconds and a 20-second call 36 seconds. A server that stops answering in the middle of a request, after its check passed, holds that request until it closes the connection.
+ 
+ ## Online demo
+ 
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls b/src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls
+index c2622dff..12ed6586 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls
+@@ -45,10 +45,12 @@ Include Ensemble
+ /// unavailable once (the build's report, or a later one for a server that was attached). The first request after the rest that finds the server again reports it
+ /// attached, with the build's report builder. A server that stops answering after its probe passed, within the same request, still holds the job until it closes the
+ /// connection (accepted for this release, AD-21).
+-/// The governed proxy (Story 22.3; AD-10, AD-21, AD-31): right after the first MCP server was added to a request's manager, the adapter registers the host's proxy toolset
+-/// on it (the McpServersClass ProxyToolSet, OfferProxy), so that a request that offers no MCP tool offers no proxy, and no agent has it in its own tools. The gate then
+-/// runs every allowed native MCP call through the proxy and not AI Hub's client. A proxy toolset that cannot be registered is one warning, and the request goes on with a
+-/// manager composed again that holds no MCP server (ComposeManager), because a manager cannot give a tool up. The map of the request also names each recorded server
++/// The governed proxy (Story 22.3; AD-10, AD-21, AD-31): before the tools of the first MCP server whose probe answered are added to a request's manager, the adapter registers
++/// the host's proxy toolset on it (the McpServersClass ProxyToolSet, OfferProxy), so that the proxy keeps its name when a server lists a tool of that name (AI Hub keeps the
++/// first tool registered under a name), and no agent has it in its own tools. The proxy's name (Policy.Gate MCPPROXY) counts as a built-in name when the host names a
++/// proxy: a server's tool of that name is reported refused, as one of the agent's own tools is. A request in which no server's tools were added offers no proxy: it goes on
++/// with a manager composed again that holds no MCP server (ComposeManager), because a manager cannot give a tool up, and so does a request whose proxy toolset cannot be registered
++/// (one warning). The gate runs every allowed native MCP call through the proxy and not AI Hub's client. The map of the request also names each recorded server
+ /// (Context SetMcpTools), so that the gate can name the server in a proxy call and classify a direct call of the proxy as the native call of the same tool.
+ /// The replay of an approved MCP call (Story 22.4; AD-10, AD-21): the agent's own manager holds no MCP server, so the replay runs the call as the proxy's call on a manager
+ /// that holds only the host's proxy toolset (ProxyManager, which asks the McpServersClass setting itself, as the agent may have been built before any server existed: governed like every manager of a request, swapped in as the agent's tool manager and put back by RestoreTools,
+@@ -317,7 +319,8 @@ Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
+ /// the build with that error. Each server then goes through AttachOne as mcp:remote:@{config:<config>}, in the order Servers gave, and gets one report
+ /// (ReportAttach, OnAttach); a server that cannot be attached, and an error from Servers or OnAttach, are logged or reported and never fail the build.
+ /// A config name that is not AI.MCP. followed by letters, digits and underscores is reported invalid and never attached. A tool of a server that has
+-/// the name of a tool already on the manager (the agent's own tools) is shadowed by AI Hub, so it never runs: it is listed as refused and not as attached.
++/// the name of a tool already on the manager (the agent's own tools), or the name of the host's proxy (Policy.Gate MCPPROXY, when ProxyToolSet names one), never runs: it is
++/// listed as refused and not as attached.
+ /// AI Hub's status text for an unreachable server names the URL and, for an entry with a credential, can hold the credential's value, so the text is
+ /// read only to choose the reason word and is never logged, stored or put in a report.
+ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
+@@ -335,7 +338,7 @@ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
+ 	}
+ 	If servers.%Size() = 0 Quit $$$OK
+ 	Set ..McpClass = class
+-	Set builtin = ..ToolNames(agent.ToolManager)
++	Set builtin = ..WithProxyName(..ToolNames(agent.ToolManager), class)
+ 	Set reporter = ##class(%AI.ToolMgr).%New()
+ 	Set iterator = servers.%GetIterator()
+ 	While iterator.%GetNext(, .entry) {
+@@ -352,7 +355,7 @@ Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
+ }
+ 
+ /// The report of attaching one server: {"status", "reason", "tools", "refused"} and, for an attached server, "fingerprints" (OcuTalon.Bridge.Ext.McpServers).
+-/// builtin is the list of the names of the tools on the agent's manager. A config that does not match is invalid. Otherwise the server is probed (Answers): a
++/// builtin is the list of the names of the tools on the agent's manager and the proxy's name (WithProxyName). A config that does not match is invalid. Otherwise the server is probed (Answers): a
+ /// server that does not answer is unavailable with the reason of the probe, one warning that names the server, and no AddTool. The server that answers is added
+ /// to reporter, the manager that serves the reports only (a failure gives ReasonOf), recorded (Record) and reported by ReportOf.
+ Method AttachOne(server As %String, config As %String, builtin As %List, reporter As %AI.ToolMgr) As %DynamicObject [ Private ]
+@@ -456,6 +459,18 @@ ClassMethod ToolNames(manager As %AI.ToolMgr) As %List [ Private ]
+ 	Quit names
+ }
+ 
++/// The list of names with the name of the governed proxy (Policy.Gate MCPPROXY) added when the McpServersClass names a proxy toolset (a non-empty ProxyToolSet; the bridge
++/// alone names none), so that a server's tool of that name counts as a built-in name. A class that cannot be asked leaves the list as it is.
++ClassMethod WithProxyName(names As %List, class As %String) As %List [ Private ]
++{
++	Try {
++		If $ClassMethod(class, "ProxyToolSet") '= "" Set names = names _ $ListBuild(##class(OcuTalon.Bridge.Policy.Gate).#MCPPROXY)
++	} Catch {
++		Set names = names
++	}
++	Quit names
++}
++
+ /// Gives the report of one server to OnAttach of the class. An error status or an exception from the class is one warning, never a failed build.
+ Method ReportAttach(class As %String, server As %String, report As %DynamicObject) [ Private ]
+ {
+@@ -690,14 +705,16 @@ Method ComposeManager(tools As %ListOfObjects = "", count As %Integer, offer As
+ /// Adds the recorded MCP servers to the manager of the request, in the order they were recorded (Story 22.9). A server that is resting is skipped. For the others the
+ /// McpServersClass Probe is asked (Answers) and then AddTool; a server that fails either is left off with one warning that holds its name and the reason word (never the
+ /// url or AI Hub's text), rests for RESTSECONDS, and is reported unavailable unless this job's last report for it already says so. A server that is offered again and
+-/// whose last report here said unavailable is reported attached (ReportOf). Right after the first server was added to the manager, the host's governed proxy toolset (the
+-/// McpServersClass ProxyToolSet, Story 22.3; none for the bridge alone) is registered on it, once, so that the manager offers the proxy only when it holds a server.
+-/// It gives 0 when that registration fails (one warning that holds a reason word and no AI Hub text), which BuildTurnManager answers with a manager that holds no MCP
+-/// server, because the manager cannot give a tool up; otherwise 1. It never throws and never fails the request.
++/// whose last report here said unavailable is reported attached (ReportOf). Before the tools of the first server whose probe answered are added, the host's governed proxy toolset
++/// (the McpServersClass ProxyToolSet, Story 22.3; none for the bridge alone) is registered on the manager, once, so that a server's tool named like the proxy cannot take
++/// the name (the names of builtin hold the proxy's name too, WithProxyName, so that tool is reported refused). It gives 0, which BuildTurnManager answers with a manager that
++/// holds no MCP server because the manager cannot give a tool up, when that registration fails (one warning that holds a reason word and no AI Hub text) and when it succeeded
++/// but no server's tools were added after it, so that a request that offers no MCP tool offers no proxy; otherwise 1. It never throws and never fails the request.
+ Method OfferServers(manager As %AI.ToolMgr) As %Boolean [ Private ]
+ {
+-	Set builtin = ..ToolNames(manager)
++	Set builtin = ..WithProxyName(..ToolNames(manager), ..McpClass)
+ 	Set proxied = 1
++	Set registered = 0
+ 	Set added = 0
+ 	Set position = 0
+ 	While $ListNext(..Attached, position, spec) {
+@@ -709,12 +726,19 @@ Method OfferServers(manager As %AI.ToolMgr) As %Boolean [ Private ]
+ 		Try {
+ 			Set reason = ..Answers(server, config)
+ 			If reason = "" {
+-				Set sc = manager.AddTool(spec)
+-				If $$$ISERR(sc) Set reason = ..ReasonOf(sc, config)
++				If 'registered {
++					Set registered = 1
++					Set proxied = ..OfferProxy(manager)
++				}
++				If proxied {
++					Set sc = manager.AddTool(spec)
++					If $$$ISERR(sc) Set reason = ..ReasonOf(sc, config)
++				}
+ 			}
+ 		} Catch {
+ 			Set reason = "failed"
+ 		}
++		If 'proxied Quit
+ 		If reason '= "" {
+ 			$$$LOGWARNING("The MCP server "_$Extract(server, 1, 64)_" is not available ("_reason_"), so its tools are not offered to this request")
+ 			Set ..McpRest(spec) = $ZHorolog + ..#RESTSECONDS
+@@ -725,16 +749,13 @@ Method OfferServers(manager As %AI.ToolMgr) As %Boolean [ Private ]
+ 			Continue
+ 		}
+ 		Set added = added + 1
+-		If added = 1 {
+-			Set proxied = ..OfferProxy(manager)
+-			If 'proxied Quit
+-		}
+ 		If $Get(..McpReported(spec)) = "unavailable" {
+ 			Set report = ..ReportOf(manager, spec, builtin)
+ 			Set ..McpReported(spec) = report.status
+ 			Do ..ReportAttach(..McpClass, server, report)
+ 		}
+ 	}
++	If registered && 'added Quit 0
+ 	Quit proxied
+ }
+ 
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls b/src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls
+index 13168dcc..5475d4d0 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Ext/McpServers.cls
+@@ -8,7 +8,7 @@
+ ///   - OnAttach receives one report per server, after that server was tried and before the next one: {"status", "reason", "tools", "refused"} and,
+ ///     for an attached server, "fingerprints". status is attached or unavailable. reason is empty for an attached server and unreachable, failed or
+ ///     invalid for an unavailable one. tools lists the names of the server's tools that were attached, and refused lists the names that were refused
+-///     because a tool with that name was already on the agent's manager. fingerprints is an object from each attached tool's name to its fingerprint
++///     because a tool with that name was already on the agent's manager or is the name of the host's proxy (Policy.Gate MCPPROXY, when ProxyToolSet names a proxy). fingerprints is an object from each attached tool's name to its fingerprint
+ ///     (OcuTalon.Bridge.Context ToolFingerprint of the tool's toolref, name, description and input schema), so that a host can tell that a tool changed. The report
+ ///     holds code words, tool names and fingerprints only, never AI Hub's error text, which can name a URL or hold a credential.
+ ///   - Probe asks whether a server answers, before the runner adds the server's tools to a tool manager, at the build and again for each request that composes a
+@@ -21,12 +21,13 @@
+ ///     agent has such servers (AD-8). The default says no.
+ ///   - ProxyToolSet names the class of the governed proxy tool, the one tool through which a call reaches an MCP server (Story 22.3; AD-10, AD-21): an AI Hub toolset
+ ///     that holds the tool call_mcp_tool (the bridge's constant Policy.Gate MCPPROXY) with the arguments server, tool and arguments. The runner registers it on the tool
+-///     manager of a request, once, after the first MCP server was added to that manager, so a request that offers no MCP tool offers no proxy; it is in no agent's own
++///     manager of a request, once, before the tools of the first MCP server whose probe answered are added, so that the proxy keeps its name when a server lists a tool of
++///     that name (a server's tool named like the proxy is refused); a request in which no server's tools were added offers no proxy, and it is in no agent's own
+ ///     tools. The gate then runs every allowed native MCP call through it (it rewrites the call), and classifies a direct call of it exactly as the native call of the same
+ ///     server and tool. The default is "", which is no proxy: the bridge alone, which names no server, rewrites nothing. A host that lists servers overrides it.
+ ///   - ServerOf says which of the host's servers a toolref belongs to (Story 22.4; AD-10, AD-31): the host's name for the server whose tools the toolref attaches, or ""
+ ///     for a toolref that the host does not know. The gate holds and replays a call of an MCP tool as the host's proxy call (the replay of an approved call takes the toolref
+-///     of its grant only when ServerOf names the call's server), so a toolref that gets "" counts as unclassified: it is held and never run on its own. The default is "", which
++///     of its grant only when ServerOf names the call's server), and a toolref that gets "" is denied, and is never held or run. The default is "", which
+ ///     is no server: the bridge alone has no MCP server, so it holds and replays no MCP call. A host that lists servers overrides it.
+ ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
+ Class OcuTalon.Bridge.Ext.McpServers
+diff --git a/src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls b/src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls
+index 5bb16d1a..30062bf8 100644
+--- a/src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls
++++ b/src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls
+@@ -8,13 +8,15 @@
+ ///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
+ ///     privileges of the trace role, the service user and the application roles of the web applications;
+ ///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
+-///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), and the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2);
++///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2),
++///     and the privileges section has the sentence MCPSTATEMENT after the Roles table, about the resource that each MCP server has (Story 22.6), built from the installer's own names
++///     (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE), so that it cannot drift from the grant;
+ ///   - Splice replaces the text between the markers of each key in a document and nothing else; Regenerate does that for a file.
+ /// A tool value is read only through the readers that the gate and the installer use (StepBuffer.ToolParameter and LabelFor,
+ /// Gate.HookFor and Resources). A tool that classifies by its arguments (it has a Classify or Classify<NAME> method) shows the text of its
+ /// CLASSIFYRULE<NAME> or CLASSIFYRULE parameter, and generation fails naming the tool when that text is missing. Every method that reads
+ /// the product throws a status when it cannot, and Regenerate and Splice return it. Run in the namespace OCUTALON.
+-Class OcuTalon.Install.SecurityOverview
++Class OcuTalon.Install.SecurityOverview [ DependsOn = (OcuTalon.Install.Step.Mcp, OcuTalon.Install.Step.Users) ]
+ {
+ 
+ /// The keys of the generated sections, in the order of the document.
+@@ -34,6 +36,10 @@ Parameter RAGSTATEMENT = "One tool has no class of its own: `documents`, the sea
+ /// the item kinds can run on a local install only. The privileges tables below list the role's grants for a local install.
+ Parameter ONLINESTATEMENT = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.";
+ 
++/// The sentence after the Roles table (Story 22.6), word for word: the resource that each registered MCP server has and the service role's permission on it, as Install.Step.Mcp
++/// grants them, and the demo, where no server can be added. Its names come from the installer, so the sentence follows the grant.
++Parameter MCPSTATEMENT = {"Each MCP server that an admin adds has its own resource, `"_##class(OcuTalon.Install.Step.Mcp).#RESOURCEPREFIX_"<server>`, with no public permission, and `"_##class(OcuTalon.Install.Step.Users).#SERVICEROLE_"` holds "_##class(OcuTalon.Install.Step.Mcp).#PERMISSION_" on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none."};
++
+ /// The class of the product's classification entries that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
+ Parameter RAGCLASS = "%AI.RAG.KnowledgeBase";
+ 
+@@ -410,7 +416,7 @@ ClassMethod PrivilegesText(model As %DynamicObject) As %String
+ 			Set text = text_"| "_..Code(role.role)_" | "_..Code(grant.resource)_" | "_grant.permission_" | "_..CodeList(grant.declaredBy)_" |"_lf
+ 		}
+ 	}
+-	Set text = text_lf_"### With demo mode on"_lf_lf_"| Role | Resource | Permission |"_lf_"| --- | --- | --- |"_lf
++	Set text = text_lf_..#MCPSTATEMENT_lf_lf_"### With demo mode on"_lf_lf_"| Role | Resource | Permission |"_lf_"| --- | --- | --- |"_lf
+ 	Set iterator = model.demoOnly.%GetIterator()
+ 	While iterator.%GetNext(, .grant) {
+ 		Set text = text_"| "_..Code(grant.role)_" | "_..Code(grant.resource)_" | "_grant.permission_" |"_lf
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls b/src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls
+index 2401c5e1..2f04357b 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls
+@@ -334,6 +334,27 @@ Method TestFixKindRows()
+ 	Do $$$AssertTrue(..HasLine(sections("fix-kinds"), sentence), "and the fix kinds section holds it as a line of its own")
+ }
+ 
++/// Story 22.6: the privileges section holds the sentence about the resource of each MCP server (MCPSTATEMENT) once, word for word, as a line of its own after the Roles table and before
++/// "### With demo mode on", and the names in it are the installer's (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE).
++Method TestMcpResourceStatement()
++{
++	Set lf = $Char(10)
++	Set sentence = "Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`, with no public permission, and `OcuTalonServiceRole` holds U on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none."
++	Do $$$AssertEquals($Parameter(..#GENERATOR, "MCPSTATEMENT"), sentence, "the MCP resource sentence is the ruled one, word for word")
++	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Mcp", "RESOURCEPREFIX") _ "<server>", "OcuTalon_MCP_<server>", "the resource it names is the one that the Mcp area makes")
++	Do $$$AssertEquals($Parameter("OcuTalon.Install.Step.Mcp", "PERMISSION") _ "|" _ $Parameter("OcuTalon.Install.Step.Users", "SERVICEROLE"), "U|OcuTalonServiceRole", "with the permission and the role that the Mcp area grants")
++	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
++	Set text = sections("privileges")
++	Do $$$AssertTrue(..HasLine(text, sentence), "the privileges section holds it as a line of its own")
++	Do $$$AssertEquals($Length(text, sentence) - 1, 1, "once")
++	Set start = $Find(text, sentence) - $Length(sentence)
++	Set before = $Extract(text, 1, start - 1)
++	Set after = $Extract(text, start + $Length(sentence), *)
++	Do $$$AssertTrue($Find(before, lf _ "### Roles" _ lf) > 0, "after the Roles heading")
++	Do $$$AssertEquals($Extract(before, $Length(before) - 2, *), "|" _ lf _ lf, "right after the last row of the Roles table")
++	Do $$$AssertEquals($Extract(after, 1, $Length(lf _ lf _ "### With demo mode on" _ lf)), lf _ lf _ "### With demo mode on" _ lf, "and right before the demo mode section")
++}
++
+ /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
+ /// on its code and data databases. The trace role's SQL SELECT on Ens.MessageHeader is listed in OCUTALON, and in OCUORDERS with demo mode on. The
+ /// service user holds exactly the service role with login disabled, and /ocutalon and /ocutalon/api, alone of the Web step's applications but for the
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls b/src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls
+index 0e892913..b6ae6310 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls
+@@ -1100,6 +1100,80 @@ Method TestTurnShadow()
+ 	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
+ }
+ 
++/// Story 22.6 (DW-1228; AD-21, the matrix row "Proxy-named tool reported"): a tool of the server with the name of the governed proxy, call_mcp_tool, is refused as a tool with the name
++/// of one of the agent's own tools is (TestShadow): the attach reports it in refused, so the row holds it, Tools gives it the status refused, each admin session gets one
++/// mcp.toolShadowsBuiltIn notice that names the server and the tool, and the tool's row has no fingerprint. The server's other tool is attached, and the agent's own manager lists neither.
++Method TestProxyNameRefused()
++{
++	If ..Guard() Quit
++	Do ..Use("McpServersClass", ..#PROBEATTACH)
++	Set admin = ..MakeAdmin()
++	Do ..Register($ListBuild("call_mcp_tool"), 1)
++	Set adapter = ..Runner().Adapter
++	Do ..Ok(adapter.BuildAgent(), "the agent builds")
++	If '$IsObject(adapter.Agent) Quit
++	Do $$$AssertEquals(..Names(adapter.Agent.ToolManager), ..#OWN _ ",zz_turn_set", "the agent's own manager lists the agent's own tools, none of the server's and no call_mcp_tool")
++	Set row = ..Row()
++	Do $$$AssertEquals(row.AttachStatus _ "|" _ row.AttachReason _ "|" _ $ListToString(row.RefusedTools), "attached||call_mcp_tool", "the row says attached and holds the refused name")
++	Do $$$AssertStatusOK(##class(OcuTalon.Mcp.Ops).Tools(..Server, .tools), "Tools lists the server")
++	Set listed = ""
++	Set iterator = tools.%GetIterator()
++	While iterator.%GetNext(, .tool) {
++		Set listed = listed _ $Select(listed = "": "", 1: ",") _ tool.name _ "|" _ tool.status
++	}
++	Do $$$AssertEquals(listed, "call_mcp_tool|refused,zz_delete_ticket|available,zz_lookup|available", "the proxy's name has the status refused, and the server's other tools are available")
++	Do $$$AssertEquals($ClassMethod(..#PROBE, "NoticeCount", admin, "mcp.toolShadowsBuiltIn"), 1, "the admin session gets one mcp.toolShadowsBuiltIn notice")
++	Do $$$AssertEquals(..NoticesFor(admin), 1, "and no other notice")
++	Set slots = ""
++	Set iterator = $ClassMethod(..#PROBE, "Notices").%GetIterator()
++	While iterator.%GetNext(, .notice) {
++		If notice.key = "mcp.toolShadowsBuiltIn" Set slots = notice.slots
++	}
++	Do $$$AssertEquals(slots, {"server": (..Server), "tool": "call_mcp_tool"}.%ToJSON(), "which names the server and the tool")
++	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "call_mcp_tool").Fingerprint _ "|" _ ($Length(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(..Server, "zz_lookup").Fingerprint) = 64), "|1", "the refused tool has a row with no fingerprint, and a listed one has one")
++	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
++}
++
++/// Story 22.6 (DW-1228; the matrix row "Proxy-named server tool"): the mock lists a tool named call_mcp_tool next to zz_lookup, and a request's manager is composed. The proxy is
++/// registered before the server's tools, so the request's call_mcp_tool is the governed proxy: the call call_mcp_tool {server, tool: zz_lookup} runs Mcp.Proxy (one MCP called entry,
++/// OcuTalon's client's tools/call names zz_lookup) and the mock logs no tools/call named call_mcp_tool. zz_lookup is still offered. The manager lists call_mcp_tool once.
++Method TestProxyNameNotShadowing()
++{
++	If ..Guard() Quit
++	Do ..UseTurn(1)
++	Do ..Register($ListBuild("call_mcp_tool"), 1)
++	Set adapter = ..Runner().Adapter
++	Do ..Ok(adapter.BuildAgent(), "the agent builds with the server attached")
++	If '$IsObject(adapter.Agent) Quit
++	Do ..Classify("zz_lookup", "read-only")
++	Do ..BeginTurn("user")
++	Do ..Ok(adapter.OpenTurn("zz-mcp-owner"), "a user's turn composes its manager")
++	Do $$$AssertEquals(..Listed(adapter.Agent.ToolManager, "call_mcp_tool"), 1, "the request's manager lists call_mcp_tool once")
++	Do $$$AssertEquals(..Listed(adapter.Agent.ToolManager, "zz_lookup"), 1, "and zz_lookup is still offered")
++	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
++	Set before = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%Size()
++	Set value = adapter.CallValue("call_mcp_tool", {"server": (..Server), "tool": "zz_lookup", "arguments": {"id": (..#ARGUMENT)}})
++	Do $$$AssertEquals(value, "The mock ran zz_lookup", "the call of call_mcp_tool for zz_lookup runs the governed proxy and gives the tool's text")
++	Set viaIris = ""
++	Set named = ""
++	Set iterator = ##class(OcuTalon.Test.Mcp.Mock).Requests(..Port).%GetIterator()
++	While iterator.%GetNext(.index, .request) {
++		If index < before Continue
++		If request.client = "iris" Set viaIris = viaIris _ $ListBuild(request.method)
++		If request.method = "tools/call" Set named = named _ $ListBuild(request.tool)
++	}
++	Do $$$AssertEquals($ListToString(viaIris), "initialize,notifications/initialized,tools/list,tools/call", "the mock logged one initialize, the notification, one tools/list and one tools/call from OcuTalon's client")
++	Do $$$AssertEquals($ListToString(named), "zz_lookup", "the only tools/call names zz_lookup")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Mcp.Mock).Calls(..Port, "call_mcp_tool"), 0, "and the mock logged no tools/call named call_mcp_tool")
++	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", ..Server)
++	Do $$$AssertEquals(entries.%Size(), 1, "one MCP audit entry exists")
++	If entries.%Size() Do $$$AssertEquals(entries.%Get(0).data.change _ "|" _ entries.%Get(0).data.tool _ "|" _ entries.%Get(0).data.outcome, "called|zz_lookup|ok", "it says called, the tool and ok")
++	Do adapter.CloseTurn()
++	Do ##class(OcuTalon.Bridge.Context).End()
++	Do $$$AssertEquals(..ArgumentShows(), "", "the argument value shows in no log row, no audit entry of OcuTalon and no store of the key scan")
++	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
++}
++
+ /// Story 22.3 (the I/O matrix row "Rewrite" and the first AC): the model's native call of a read-only tool runs only through call_mcp_tool.
+ Method TestProxyRewrite()
+ {

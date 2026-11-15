@@ -5,7 +5,8 @@
 ///   - Read answers per production from ^||CoverageProbe("read", production), a JSON object {"outcome", "state", "rows", "disabled", "stoppedAt",
 ///     "errored", "queues", "throw"}: a production with no entry answers read, running, with nothing found; "errored" and "queues" given as a
 ///     string leave the output a string (an unread queue); each call is kept in Calls;
-///   - Gaps gives the array that Gaps set ([] by default).
+///   - Gaps gives the array that Gaps set ([] by default);
+///   - Mark gives the text that FeedMark set, and MailOwner the Ref that FeedOwner set ("" for none; Story 22.5); Mark throws when ^||CoverageProbe("markError") is 1.
 Class OcuTalon.Test.Digest.CoverageProbe Extends OcuTalon.Checks.Coverage
 {
 
@@ -43,6 +44,29 @@ ClassMethod Read(namespace As %String, production As %String, from As %String, l
 ClassMethod Gaps(fromUtc As %String, toUtc As %String) As %DynamicArray [ Private ]
 {
 	Quit ##class(%DynamicObject).%FromJSON($Get(^||CoverageProbe("gaps"), "[]"))
+}
+
+ClassMethod Mark() As %String [ Private ]
+{
+	If $Get(^||CoverageProbe("markError")) = 1 Throw ##class(%Exception.General).%New("CoverageProbe", 5001, , "The mark is refused")
+	Quit $Get(^||CoverageProbe("mark"))
+}
+
+ClassMethod MailOwner() As %String [ Private ]
+{
+	Quit $Get(^||CoverageProbe("owner"))
+}
+
+/// Sets the value of the mark emailPoll that Mark gives (the text of the JSON {at, ok, reason, lastOkAt}, or any other text).
+ClassMethod FeedMark(text As %String)
+{
+	Set ^||CoverageProbe("mark") = text
+}
+
+/// Sets the session that owns the mailbox, as MailOwner gives it.
+ClassMethod FeedOwner(sessionRef As %String)
+{
+	Set ^||CoverageProbe("owner") = sessionRef
 }
 
 /// Healthy readings of the five signs: 3 days up, one database with 40% of its volume free and no maximum, a journal volume 50% free, a license 20%

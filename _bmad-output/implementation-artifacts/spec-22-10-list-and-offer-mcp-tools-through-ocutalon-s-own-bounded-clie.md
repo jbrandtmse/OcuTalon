@@ -12,7 +12,7 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/22-9-task0-mcp-hang.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/22-3-task0-proxy.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/35-1-task0-mcp-attach.md'
-warnings: ['oversized']
+warnings: ['oversized', 'deferred: owner decision after the contest']
 deferred: []
 ---
 
@@ -233,6 +233,8 @@ Line anchors are as of `6050472b4e223e50231a0668f6925bc9f2715cda`. Stories 22.5,
 - **Lead step, before the merge (U7).** Given the spine, when this story merges, then AD-21, AD-10 and AD-31 read as `## Spine amendment` below says.
 
 ## Spec Change Log
+
+- 2026-11-13 (runner, Planner ruling H for 22.10): **deferred: owner's decision after the contest.** The AD-21 re-architecture is DECLINED for the contest window (AD-21 stays as it is). This spec is kept unchanged as the proposal for the owner. DW-1228 goes to a test under the current design (Story 22.6); DW-1221 is recorded as a measured known limit in AD-21's S11 residual and in the guide's MCP section (Story 22.6). Do not implement this spec.
 
 ## Review Triage Log
 

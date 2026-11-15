@@ -8,7 +8,7 @@
 ///   - OnAttach receives one report per server, after that server was tried and before the next one: {"status", "reason", "tools", "refused"} and,
 ///     for an attached server, "fingerprints". status is attached or unavailable. reason is empty for an attached server and unreachable, failed or
 ///     invalid for an unavailable one. tools lists the names of the server's tools that were attached, and refused lists the names that were refused
-///     because a tool with that name was already on the agent's manager. fingerprints is an object from each attached tool's name to its fingerprint
+///     because a tool with that name was already on the agent's manager or is the name of the host's proxy (Policy.Gate MCPPROXY, when ProxyToolSet names a proxy). fingerprints is an object from each attached tool's name to its fingerprint
 ///     (OcuTalon.Bridge.Context ToolFingerprint of the tool's toolref, name, description and input schema), so that a host can tell that a tool changed. The report
 ///     holds code words, tool names and fingerprints only, never AI Hub's error text, which can name a URL or hold a credential.
 ///   - Probe asks whether a server answers, before the runner adds the server's tools to a tool manager, at the build and again for each request that composes a
@@ -21,12 +21,13 @@
 ///     agent has such servers (AD-8). The default says no.
 ///   - ProxyToolSet names the class of the governed proxy tool, the one tool through which a call reaches an MCP server (Story 22.3; AD-10, AD-21): an AI Hub toolset
 ///     that holds the tool call_mcp_tool (the bridge's constant Policy.Gate MCPPROXY) with the arguments server, tool and arguments. The runner registers it on the tool
-///     manager of a request, once, after the first MCP server was added to that manager, so a request that offers no MCP tool offers no proxy; it is in no agent's own
+///     manager of a request, once, before the tools of the first MCP server whose probe answered are added, so that the proxy keeps its name when a server lists a tool of
+///     that name (a server's tool named like the proxy is refused); a request in which no server's tools were added offers no proxy, and it is in no agent's own
 ///     tools. The gate then runs every allowed native MCP call through it (it rewrites the call), and classifies a direct call of it exactly as the native call of the same
 ///     server and tool. The default is "", which is no proxy: the bridge alone, which names no server, rewrites nothing. A host that lists servers overrides it.
 ///   - ServerOf says which of the host's servers a toolref belongs to (Story 22.4; AD-10, AD-31): the host's name for the server whose tools the toolref attaches, or ""
 ///     for a toolref that the host does not know. The gate holds and replays a call of an MCP tool as the host's proxy call (the replay of an approved call takes the toolref
-///     of its grant only when ServerOf names the call's server), so a toolref that gets "" counts as unclassified: it is held and never run on its own. The default is "", which
+///     of its grant only when ServerOf names the call's server), and a toolref that gets "" is denied, and is never held or run. The default is "", which
 ///     is no server: the bridge alone has no MCP server, so it holds and replays no MCP call. A host that lists servers overrides it.
 ///   - A failed or unavailable server never fails the build, and neither does an error from OnAttach: the runner logs it and goes on with the next server.
 Class OcuTalon.Bridge.Ext.McpServers

@@ -67,7 +67,7 @@ Parameter READER = "OcuTalon.Watch.Reader";
 Method TestDeclarations()
 {
 	Set names = "OcuTalon.Tools.Names"
-	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), "OcuTalon.Tools.Reminders,"_..#TOOLSET_",OcuTalon.Tools.Persona,OcuTalon.Tools.Memory", "Chat's TOOLSETS names the reminder, watching, persona and memory toolsets")
+	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), "OcuTalon.Tools.Reminders,"_..#TOOLSET_",OcuTalon.Tools.Persona,OcuTalon.Tools.Memory,OcuTalon.Tools.Email", "Chat's TOOLSETS names the reminder, watching, persona, memory and email toolsets")
 	Set want("start_watch") = $ListBuild("safe", 0, 1, "Starting a watch", "kind,name,namespace", "name")
 	Set want("stop_watch") = $ListBuild("safe", 0, 1, "Stopping a watch", "kind,name,namespace", "name")
 	Set want("list_productions") = $ListBuild("safe", 1, 1, "Listing the productions", "", "")

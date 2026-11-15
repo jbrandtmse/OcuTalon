@@ -229,11 +229,11 @@ Method WaitNow()
 	Do ..Wait()
 }
 
-/// "" for any row when RefusalIs is none, else the product's check.
-Method Refusal(row As OcuTalon.Bridge.Data.ApprovalRequest) As %String [ Private ]
+/// "" for any row when RefusalIs is none, else the product's check (for an Execute, or for an approved outcome when outcome is 1).
+Method Refusal(row As OcuTalon.Bridge.Data.ApprovalRequest, outcome As %Boolean = 0) As %String [ Private ]
 {
 	If ..RefusalIs = "none" Quit ""
-	Quit ##super(row)
+	Quit ##super(row, outcome)
 }
 
 /// The product's run; with SaveFails, the row (in memory) first gets an IncidentRef that no FixRun can hold. It is set after StartExecution, which reloads the row.
@@ -307,7 +307,7 @@ Method Check(class As %String, incident As OcuTalon.Data.Incident, parameters As
 Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun) As %Status [ Private ]
 {
 	If '$IsObject(..Carried) Set ..Carried = []
-	Do ..Carried.%Push({"class": (class), "incident": (incident.Ref), "parameters": (parameters.%ToJSON()), "targets": (targets)})
+	Do ..Carried.%Push({"class": (class), "incident": ($Select($IsObject(incident): incident.Ref, 1: "")), "parameters": (parameters.%ToJSON()), "targets": (targets)})
 	If ..CarryIs = "" Quit ##super(class, incident, parameters, targets, .result, run)
 	Set result = {"resent": 0, "skipped": [], "unreached": []}
 	If ..CarryIs = "error" Quit $SYSTEM.Status.Error(5001, "The copies could not be made")

@@ -13,6 +13,7 @@
 ///   channel        web, phone or telegram, as "the web chat", "the simulated phone" or "Telegram";
 ///   fallbackReason a Msg.Enum FALLBACKREASON value, as the text of its fallbackReason.* key;
 ///   groups         a non-empty array of {itemName, count, errorSummary, firstAt}, one line per group;
+///   inputs         an array of {name, value} strings, one line "{name}: {value}" per member, or the line {} for an empty array;
 ///   cost           US dollars of 0 or more, as the UX's Formats rule says;
 ///   dailyCost      US dollars of 0 or more, always with two decimals (the digest's cost of a day), such as "$0.00" or "$12.35".
 /// A string slot is trimmed, loses its control characters (the bidirectional controls, the zero-width space and the other
@@ -21,7 +22,9 @@
 /// period of the value goes, and a value left empty by that is an error; a value that ends with "?", "!" or U+2026 there keeps
 /// its mark and the text's period goes. The text is filled in one pass, so a slot's value
 /// is never read as a placeholder or a line, and nothing is escaped: the output is plain text for Telegram and for Angular's
-/// text binding. A slot that the entry does not declare is ignored.
+/// text binding. A slot that the entry does not declare is ignored. The inputs type is the exception: its names and values are
+/// not cleaned, so their spaces stay, and each goes through Visible alone, which writes every control, format and line-separator
+/// character as a \uXXXX escape (a person sees what an input holds and no input can hide text or start a line of its own).
 /// The channels are web, phone, mailbox, telegram and email (plain text under the phone rules); the others of Msg.Enum CHANNEL are refused until their step adds them.
 /// The web channel uses the entry's web text where it has one. When a dated time follows "at " in a text, that "at" becomes "on".
 /// An entry with a one form uses it, in place of its text (its web text, from the form's web), when the form's count slot is 1.
@@ -46,6 +49,12 @@ Parameter REASONKEYS = "no_key=noKey,daily_cap=dailyCap,budget=budget,too_large=
 
 /// One line of a groups slot.
 Parameter GROUPLINE = "{itemName}: {count}, '{errorSummary}', first at {firstAt}";
+
+/// One line of an inputs slot.
+Parameter INPUTLINE = "{name}: {value}";
+
+/// The line of an inputs slot with no members.
+Parameter NOINPUTS = "{}";
 
 /// The text of a catalog key for a channel, filled from slots (JSON text or a %DynamicObject, "" for none), with the current
 /// time and the online-demo flag. Returns "" with an error in sc when the text cannot be made.
@@ -192,6 +201,8 @@ ClassMethod SlotText(context As %String, name As %String, types As %DynamicObjec
 	If type = "cost" Quit ..Cost(context, name, values)
 	If type = "dailyCost" Quit ..DailyCost(context, name, values)
 	If type = "groups" Quit ..Groups(context, name, values, now, onlineDemo)
+	If type = "inputs" Quit ..Inputs(context, name, values)
+	If type = "visible" Quit ..Visible(..Value(context, name, values, "string"))
 	Do ..Fail(context_": the slot '"_name_"' has the unknown type '"_type_"'")
 }
 
@@ -223,6 +234,89 @@ ClassMethod Groups(context As %String, name As %String, values As %DynamicObject
 		Set lines = lines_$Select(index = 0: "", 1: $Char(10))_..Fill(where, ..#GROUPLINE, types, group, now, onlineDemo)
 	}
 	Quit lines
+}
+
+/// One line per member of the array, from INPUTLINE, in the order of the array: each member is an object of the strings name and
+/// value, shown through Visible and nothing else. An empty array is the line NOINPUTS.
+ClassMethod Inputs(context As %String, name As %String, values As %DynamicObject) As %String [ Private ]
+{
+	Set inputs = ..Value(context, name, values, "array")
+	If inputs.%Size() = 0 Quit ..#NOINPUTS
+	Set types = {"name": "visible", "value": "visible"}
+	Set lines = ""
+	Set iterator = inputs.%GetIterator()
+	While iterator.%GetNext(.index, .input) {
+		Set where = context_", input "_(index + 1)_" of '"_name_"'"
+		If (inputs.%GetTypeOf(index) '= "object") || (input.%GetTypeOf("name") '= "string") || (input.%GetTypeOf("value") '= "string") {
+			Do ..Fail(where_" is not an object of the strings name and value")
+		}
+		Set lines = lines_$Select(index = 0: "", 1: $Char(10))_..Fill(where, ..#INPUTLINE, types, input, "", 0)
+	}
+	Quit lines
+}
+
+/// The text with each character of the set below written as \, u and four upper-case hex digits, and every other character as it is:
+///   - the controls U+0000 to U+001F (tab, line feed and carriage return included) and U+007F to U+009F;
+///   - the line and paragraph separators U+2028 and U+2029;
+///   - the format characters (Unicode 15.1) U+00AD, U+0600 to U+0605, U+061C, U+06DD, U+070F, U+0890 and U+0891, U+08E2, U+180E,
+///     U+200B to U+200F, U+202A to U+202E, U+2060 to U+2064, U+2066 to U+206F, U+FEFF, U+FFF9 to U+FFFB, U+110BD, U+110CD,
+///     U+13430 to U+1343F, U+1BCA0 to U+1BCA3, U+1D173 to U+1D17A and the tag block U+E0000 to U+E007F;
+///   - a surrogate half with no partner.
+/// A character above U+FFFF is held as a surrogate pair, and one of the set shows as its two halves. Ordinary spaces, no-break
+/// spaces and every other character stay.
+ClassMethod Visible(text As %String) As %String
+{
+	Set out = ""
+	Set length = $Length(text)
+	Set i = 1
+	While i <= length {
+		Set code = $Ascii(text, i)
+		If (code >= 55296) && (code <= 56319) && (i < length) && ($Ascii(text, i + 1) >= 56320) && ($Ascii(text, i + 1) <= 57343) {
+			Set low = $Ascii(text, i + 1)
+			Set point = 65536 + ((code - 55296) * 1024) + (low - 56320)
+			If ..AstralHidden(point) {
+				Set out = out_..Escape(code)_..Escape(low)
+			} Else {
+				Set out = out_$Extract(text, i, i + 1)
+			}
+			Set i = i + 2
+			Continue
+		}
+		If (code >= 55296) && (code <= 57343) || ..BasicHidden(code) {
+			Set out = out_..Escape(code)
+		} Else {
+			Set out = out_$Char(code)
+		}
+		Set i = i + 1
+	}
+	Quit out
+}
+
+/// 1 when the character of the code (below U+10000, not a surrogate) is in Visible's set.
+ClassMethod BasicHidden(code As %Integer) As %Boolean [ Private ]
+{
+	If code < 160 Quit (code < 32) || (code > 126)
+	If code < 1536 Quit code = 173
+	If code < 8192 {
+		Quit ((code >= 1536) && (code <= 1541)) || (code = 1564) || (code = 1757) || (code = 1807) || ((code >= 2192) && (code <= 2193)) || (code = 2274) || (code = 6158)
+	}
+	If code < 65279 {
+		Quit ((code >= 8203) && (code <= 8207)) || ((code >= 8232) && (code <= 8238)) || ((code >= 8288) && (code <= 8292)) || ((code >= 8294) && (code <= 8303))
+	}
+	Quit (code = 65279) || ((code >= 65529) && (code <= 65531))
+}
+
+/// 1 when the character of the code point (U+10000 and above) is in Visible's set.
+ClassMethod AstralHidden(point As %Integer) As %Boolean [ Private ]
+{
+	Quit (point = 69821) || (point = 69837) || ((point >= 78896) && (point <= 78911)) || ((point >= 113824) && (point <= 113827)) || ((point >= 119155) && (point <= 119162)) || ((point >= 917504) && (point <= 917631))
+}
+
+/// The escape of one UTF-16 unit: a backslash, u and four upper-case hex digits.
+ClassMethod Escape(code As %Integer) As %String [ Private ]
+{
+	Set hex = $ZHex(code)
+	Quit "\u"_$Extract("0000", 1, 4 - $Length(hex))_hex
 }
 
 /// US dollars by the UX's Formats rule: "<$0.0001" under $0.0001, four decimals under $0.01, three under $1, else two. The

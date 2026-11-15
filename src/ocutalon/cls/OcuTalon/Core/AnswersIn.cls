@@ -6,8 +6,14 @@
 ///   3. a request that Ownership.Approval does not return for the SessionRef, or a cancelled one, is not_found, whatever the Action
 ///      and Channel: the session's own request, or on a local install (onlineDemo not 1) an instance request of a visible incident of
 ///      a production the session watches; with onlineDemo 1 only the session's own request. A failed read is an error status;
-///   4. an Action other than approve or reject, or a Channel other than web, phone or telegram, is bad_answer.
-/// The role rule stays with Approval.Answer: the row's RequiredRole is checked against the session's IRIS user. The answer handed
+///   4. an Action other than approve or reject, or a Channel other than web, phone or telegram, is bad_answer;
+///   5. a SessionRef with no Session row is not_found;
+///   6. the role check (Story 25.5): Live.Payload.Approval Answerable asks the approval API's MayAnswer for the IRIS user of the session's
+///      row (never a caller's) and the request's Ref. A refusal is not_allowed and Refusal is {"kind": <the kind that MayAnswer names, "" when it names none>}.
+/// A refusal at 5 or 6 sends nothing to AnswerOps and leaves the row as it was. After the send, a not_allowed answer to an approve of an email request
+/// (a fix request of the kind email) that passed rule 6 is Story 22.7's admin rule, refused in AnswerOps: Refusal is then {"kind": "email", "admin": true}.
+/// Refusal holds what the last OnProcessInput refused with, for Deliver to hand to the entry; the entries render the sentence with Live.Payload.Approval RefusalKey.
+/// The role rule also stays with Approval.Answer, under the row's lock: the row's RequiredRole is checked against the session's IRIS user. The answer handed
 /// over names the request's own Ref, as Ownership.Approval read it.
 /// An accepted answer is sent synchronously to AnswerOps, in a trace session of its own whose SuperSession is the TraceRef of
 /// the session's Session row (an answer is not a turn, AD-26), and AnswerOps' AnswerResult is the output. AnswerOps calls
@@ -22,15 +28,24 @@ Class OcuTalon.Core.AnswersIn Extends Ens.BusinessService
 /// The channels an answer may name.
 Parameter CHANNELS = "web,phone,telegram";
 
+/// The class of the approval API whose MayAnswer rule 6 asks. A test subclass names a double (sibling: AnswerOps APPROVALAPI).
+Parameter APPROVALAPI = "OcuTalon.Bridge.Approval";
+
+/// What the last OnProcessInput refused a request with, as {"kind": ...} (and "admin": true for Story 22.7's email rule); {} when it did not refuse with not_allowed.
+/// Transient: it is never stored and never in a message.
+Property Refusal As %DynamicObject [ Transient ];
+
 /// How long the service waits for AnswerOps, in seconds: Approval.Answer can wait for its lock and for the hold's task.
 Parameter TIMEOUT = 30;
 
 /// The web entry: resolves the session from the CSP session (Ownership.SessionRef), then creates the service in this process and
 /// hands it the answer. sessionRef is the session's Ref (empty when the CSP session can't be resolved) and result the AnswerResult.
-/// The status is an error when the session can't be resolved or the answer did not reach AnswerOps.
-ClassMethod FromPage(ref As %String, action As %String, channel As %String, Output result As OcuTalon.Core.Msg.AnswerResult, Output sessionRef As %String) As %Status
+/// The status is an error when the session can't be resolved or the answer did not reach AnswerOps. refusal is the service's Refusal ({} when there is none): for a
+/// not_allowed result it names the approver kind ({"kind"}, and "admin" for the email rule), which the route renders with Live.Payload.Approval RefusalKey.
+ClassMethod FromPage(ref As %String, action As %String, channel As %String, Output result As OcuTalon.Core.Msg.AnswerResult, Output sessionRef As %String, Output refusal As %DynamicObject) As %Status
 {
 	Set result = ""
+	Set refusal = {}
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Set answer = ##class(OcuTalon.Core.Msg.Answer).%New()
@@ -38,7 +53,7 @@ ClassMethod FromPage(ref As %String, action As %String, channel As %String, Outp
 	Set answer.Action = $Get(action)
 	Set answer.Channel = $Get(channel)
 	Set answer.SessionRef = sessionRef
-	Quit ..Deliver(answer, .result)
+	Quit ..Deliver(answer, .result, .refusal)
 }
 
 /// The Telegram entry (AD-11, DW-200): the press of a chat on Approve or Reject under an approval message. It resolves the session only
@@ -49,7 +64,8 @@ ClassMethod FromPage(ref As %String, action As %String, channel As %String, Outp
 ///     and {} otherwise;
 ///   - already_answered {"action", "channel", "time"} of the answer that won, and expired {"time"} of the request's ExpiresAt;
 ///   - not_paired {}: the chat has no live pairing;
-///   - not_allowed {"kind"}: the session may not answer, or {} when the chat's row holds a session value that is no Ref, in which case
+///   - not_allowed {"kind"}: the session may not answer, with the approver kind that the role check names ("" when it names none), and {"kind": "email", "admin": true}
+///     for an approve that Story 22.7's email rule refused; or {} when the chat's row holds a session value that is no Ref, in which case
 ///     nothing is sent (a chat row without a session value is not_paired);
 ///   - not_visible {}: the request exists but is not the session's to see; unknown {}: it does not, or the Ref or the action is not one.
 /// The status is an error only when the answer could not be handed over or no result came back; code is then unknown.
@@ -74,16 +90,17 @@ ClassMethod FromTelegram(ref As %String, action As %String, chatRef As %String, 
 	Set answer.Action = action
 	Set answer.Channel = "telegram"
 	Set answer.SessionRef = sessionRef
-	Set sc = ..Deliver(answer, .result)
+	Set sc = ..Deliver(answer, .result, .refusal)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If '$IsObject($Get(result)) Quit $SYSTEM.Status.Error(5001, "AnswersIn answered no AnswerResult")
-	Set code = ..TelegramCode(result, ref, action, sessionRef, .slots)
+	Set code = ..TelegramCode(result, ref, action, sessionRef, .slots, $Get(refusal))
 	Quit $SYSTEM.Status.OK()
 }
 
 /// The code and slots of FromTelegram for an AnswerResult. The request is read through Ownership.Approval for the session, which is
-/// how the dry run, the expiry and the kind are found; a request that read does not return gives empty slots.
-ClassMethod TelegramCode(result As OcuTalon.Core.Msg.AnswerResult, ref As %String, action As %String, sessionRef As %String, Output slots As %DynamicObject) As %String [ Private ]
+/// how the dry run and the expiry are found; a request that read does not return gives empty slots. The slots of not_allowed are the service's refusal
+/// (see the class description), {"kind": ""} when there is none.
+ClassMethod TelegramCode(result As OcuTalon.Core.Msg.AnswerResult, ref As %String, action As %String, sessionRef As %String, Output slots As %DynamicObject, refusal As %DynamicObject = "") As %String [ Private ]
 {
 	Set slots = {}
 	Set verdict = result.Result
@@ -111,8 +128,7 @@ ClassMethod TelegramCode(result As OcuTalon.Core.Msg.AnswerResult, ref As %Strin
 		Quit "expired"
 	}
 	If verdict = "not_allowed" {
-		Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, sessionRef, .sc)
-		Do slots.%Set("kind", $Select($IsObject(row): row.Kind, 1: ""), "string")
+		Set slots = $Select($IsObject(refusal) && refusal.%IsA("%Library.DynamicObject") && refusal.%IsDefined("kind"): refusal, 1: {"kind": ""})
 		Quit "not_allowed"
 	}
 	If verdict = "not_found" Quit $Select(##class(OcuTalon.Data.Ownership).ApprovalKnown(ref): "not_visible", 1: "unknown")
@@ -120,21 +136,26 @@ ClassMethod TelegramCode(result As OcuTalon.Core.Msg.AnswerResult, ref As %Strin
 }
 
 /// The one hand-over of an entry: creates the service in this process and gives it the answer (a seam for the tests). The status is an
-/// error when the service can't be created or does not take the answer.
-ClassMethod Deliver(answer As OcuTalon.Core.Msg.Answer, Output result As OcuTalon.Core.Msg.AnswerResult) As %Status [ Private ]
+/// error when the service can't be created or does not take the answer. refusal is the service's Refusal after the answer ({} when it has none).
+ClassMethod Deliver(answer As OcuTalon.Core.Msg.Answer, Output result As OcuTalon.Core.Msg.AnswerResult, Output refusal As %DynamicObject) As %Status [ Private ]
 {
 	Set result = ""
+	Set refusal = {}
 	Set sc = ##class(Ens.Director).CreateBusinessService("AnswersIn", .service)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Quit service.ProcessInput(answer, .result)
+	Set sc = service.ProcessInput(answer, .result)
+	Set refusal = $Select($IsObject(service.Refusal): service.Refusal, 1: {})
+	Quit sc
 }
 
 Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %RegisteredObject) As %Status
 {
 	Set pOutput = ""
+	Set ..Refusal = {}
 	If '$IsObject($Get(pInput)) || 'pInput.%IsA("OcuTalon.Core.Msg.Answer") Quit $SYSTEM.Status.Error(5001, "AnswersIn takes an OcuTalon.Core.Msg.Answer")
 	If ##class(OcuTalon.Bridge.Context).Active() {
 		$$$LOGWARNING("AnswersIn refused an answer to "_pInput.Ref_" inside a bridge context")
+		Set ..Refusal = {"kind": ""}
 		Quit ..Refuse("not_allowed", .pOutput)
 	}
 	If '##class(OcuTalon.Bridge.Approval).IsRef(pInput.SessionRef) Quit ..Refuse("not_found", .pOutput)
@@ -142,13 +163,19 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If '$IsObject(row) || (row.State = "cancelled") Quit ..Refuse("not_found", .pOutput)
 	If '$ListFind($ListFromString("approve,reject"), pInput.Action) || '$ListFind($ListFromString(..#CHANNELS), pInput.Channel) Quit ..Refuse("bad_answer", .pOutput)
-	Set pInput.Ref = row.Ref
-	Set ..%SessionId = "", ..%SuperSession = ""
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(pInput.SessionRef)
-	If $IsObject(session) Set ..%SuperSession = session.TraceRef
+	If '$IsObject(session) Quit ..Refuse("not_found", .pOutput)
+	If '##class(OcuTalon.Live.Payload.Approval).Answerable(row.Ref, pInput.SessionRef, .kind, ..#APPROVALAPI) {
+		Set ..Refusal = {"kind": (kind)}
+		Quit ..Refuse("not_allowed", .pOutput)
+	}
+	Set pInput.Ref = row.Ref
+	Set ..%SessionId = "", ..%SuperSession = session.TraceRef
+	Set emailApprove = (pInput.Action = "approve") && (row.Kind = "fix") && (row.FixKind = ##class(OcuTalon.Fix.Kind.Email).#NAME)
 	Set sc = ..Send(pInput, .response)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If '$IsObject($Get(response)) || 'response.%IsA("OcuTalon.Core.Msg.AnswerResult") Quit $SYSTEM.Status.Error(5001, "AnswerOps answered no AnswerResult")
+	If response.Result = "not_allowed" Set ..Refusal = $Select(emailApprove: {"kind": "email", "admin": true}, 1: {"kind": ""})
 	Set pOutput = response
 	Quit $$$OK
 }

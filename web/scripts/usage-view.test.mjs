@@ -1,7 +1,7 @@
 // Tests the Usage page's view rules (src/app/usage/usage-view.ts; Story 37.2): the fixed strings against the ruled PUBLIC TEXT, the groupings (sums, order, zero
 // days, the retry merge, the compaction and includes-estimates markers, unknown values, only the values that have rows), the largest request of each day, the
 // short date, and the chart's geometry. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable syntax and imports
-// only types; the shared agent names come from settings-view.ts, as the page passes them.
+// only types and page-shell-view.ts; the shared agent names come from settings-view.ts, as the page passes them.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';

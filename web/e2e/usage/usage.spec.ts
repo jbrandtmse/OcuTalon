@@ -197,7 +197,7 @@ test('U1: a user who is not an admin opens Usage from the header navigation', as
   await loadedAfter(page, () => signIn(page, live().user, live().password));
   await expect(nav(page).getByRole('link'), 'the header navigation holds the links of a user who is not an admin, and no Settings').toHaveText(NAV_LINKS_USER);
   await usageLink(page).click();
-  expect(new URL(page.url()).hash, 'at the address #/usage').toBe('#/usage');
+  await expect(page, 'at the address #/usage').toHaveURL(/#\/usage$/);
   await expect(page, 'titled Usage \u00B7 OcuTalon').toHaveTitle(TITLE);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Usage');
   await expect(usageLink(page), 'the current page is marked').toHaveAttribute('aria-current', 'page');

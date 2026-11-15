@@ -1954,7 +1954,7 @@ Method TestPrecheckOrder()
 /// The estimate counts what the first model request of the runner carries (Story 1.9; AD-6, AD-20), at 4 characters a token and rounded up: the system
 /// prompt and the tool schemas of the runner's agent (RequestSize.AgentChars), the stored history of a linked turn that continues
 /// (RequestSize.HistoryChars) and the input that Chat gets (Adapter.Agent ChatInput).
-///   - The agent part: AgentChars of Triage is the length of the system prompt of the live agent, of Chat that and the JSON of the Reminders, Watching and Persona
+///   - The agent part: AgentChars of Triage is the length of the system prompt of the live agent, of Chat that and the JSON of the Reminders, Watching, Persona, Memory and Email
 ///     toolsets' tools, of Diagnosis that and the JSON of the Watch toolset's tools (a little less than the live tool catalog, which adds a status to each tool),
 ///     and of a class that does not exist it is 0 with an error status;
 ///   - the estimate of a decide, a diagnose, an untrusted turn, a user turn with no link and a user fresh turn with a seed and a note is the agent
@@ -1987,8 +1987,10 @@ Method TestEstimateTokens()
 	Do $$$AssertTrue(persona > 200, "the JSON of the Persona tool is measured: "_persona)
 	Set memory = $Length(##class(OcuTalon.Tools.Memory).%New().%Discover().%Get("tools").%ToJSON())
 	Do $$$AssertTrue(memory > 500, "the JSON of the four Memory tools is measured: "_memory)
-	Set chatTools = reminders + watching + persona + memory
-	Do $$$AssertEquals(chat, prompt + chatTools, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders, Watching, Persona and Memory toolsets' tools, "_chatTools)
+	Set email = $Length(##class(OcuTalon.Tools.Email).%New().%Discover().%Get("tools").%ToJSON())
+	Do $$$AssertTrue(email > 200, "the JSON of the Email tool is measured: "_email)
+	Set chatTools = reminders + watching + persona + memory + email
+	Do $$$AssertEquals(chat, prompt + chatTools, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders, Watching, Persona, Memory and Email toolsets' tools, "_chatTools)
 	Do $$$AssertTrue((catalog '< chatTools) && ((catalog - chatTools) < (catalog \ 10)), "which is within a tenth of the live tool catalog, "_catalog)
 	Set diagnosis = $ClassMethod(size, "AgentChars", diagnosisClass, .sc)
 	Do $$$AssertStatusOK(sc, "AgentChars of Diagnosis is worked out")

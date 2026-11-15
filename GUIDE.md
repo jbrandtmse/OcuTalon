@@ -13,6 +13,7 @@ Each item says where to try it. Visual Trace on the online demo is shared, so sa
 - **Queue backlogs between digests.** Ask OcuTalon in the chat to watch the queue backlogs, and every minute it reads the queues of each production it can read (on the online demo, the Orders production's). When a queue holds more than 100 messages, or its oldest message has waited over 10 minutes (an admin can change both), OcuTalon decides once whether to tell you now, and again only after the queue has dropped below and backed up again. The check only reads, and a run that can't read a namespace shows Not checked, never Passed. Try it: More to try, *Watch queue backlogs*.
 - **Webhooks.** On your own install, an admin creates a webhook in Settings, under Channels, with a name and a secret, and any other system can send it a JSON event with POST, with the secret in a header. OcuTalon answers at once, then decides on the event as untrusted content: it can lead to a notice or to your digest, and nothing in the event can approve, change or run anything. The decision shows on the History page, and the event and its decision in Visual Trace. The secret is kept only as a salted hash. Webhooks are off on the online demo, which has no public webhook address. Try it on your own install: More to try, *Send an event through a webhook*.
 - **Your own mailbox.** On your own install, an admin connects a POP3 mailbox in Settings > Channels > Email, with a password or by signing in with Google or Microsoft 365 (see [Gmail and Microsoft 365](#gmail-and-microsoft-365)). OcuTalon makes an attention decision on each email that arrives after that, sends the email to the model for it, and leaves your mail on the server. Email is read as untrusted content: nothing in an email can approve, change or run anything. With an outgoing mail server saved, Settings > Daily digest can also send your digest to that address. The online demo keeps its simulated mailbox.
+- **MCP servers in Settings.** On your own install, an admin adds an MCP server in Settings > Tools and MCP servers, with an optional secret kept in the IRIS Wallet, and classifies each of its tools as Read-only or Risky; until then a tool counts as risky. MCP servers are off on the online demo.
 - **A History page.** Open History in the header to look back at the decisions OcuTalon made on your messages, filtered by outcome, channel, date and fallback, each with its reasons and a link to its trace, and at your incidents with their state and, once closed, their summary. On the online demo you see only your own session's decisions and incidents. Try it: More to try, *Look back at past decisions*.
 - **A Usage page.** Open Usage in the header to see your tokens and cost by day, agent, channel or model, counted per turn and per decision, with each day's largest model request (an estimate) against the 100,000-token limit. On the online demo you see only your own session's use. Try it: More to try, *See tokens and cost*.
 
@@ -247,6 +248,8 @@ Signing in with Google or Microsoft 365 is optional, and these steps are for you
 
 If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
 
+All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
+
 ## Stop, start and update
 
 - Stop: `docker compose down`. Your data stays on a Docker volume. Do not add `-v`: that deletes the volume.
@@ -278,6 +281,8 @@ These are the usual causes and fixes. Most entries are messages that `./install.
 **The sign-in is refused**: use user name `ocutalon` and password `ocutalon`, or the new password if you changed it. To set a new one, see [Change the README account's password](#change-the-readme-accounts-password).
 
 ## For admins and developers
+
+An MCP tool that runs operating-system commands or arbitrary code must be classified Risky. The worked example [A Jira MCP server, step by step](docs/mcp-jira-example.md) shows how to add a server and classify its tools.
 
 ### Demo mode
 

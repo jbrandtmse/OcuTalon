@@ -1,0 +1,21 @@
+{
+  "name": "photo-recall",
+  "match": {
+    "marker": "photo-recall"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "search_memories",
+        "input": {
+          "query": "red square"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "From memory: your photo showed a small red square on a white background."
+    }
+  ]
+}

@@ -33,6 +33,8 @@
 ///     of a production (noticed since a time, or open), the visible approval requests of an incident, the newest Break the
 ///     feed run and the newest live event of a type on the session's stream. ResolvedIncidents, which Break the feed's press
 ///     reads, is the session's own noticed resolved incidents of a production, oldest first, and never an instance incident.
+///   - PendingToolCalls (Story 21.4) counts the pending tool_call approval requests of an MCP server's toolref across owners, with Approval CancelPending's own predicate, for
+///     the removal dialog: it reads across owners, so it prepares with the privilege check and runs only in production jobs and tests.
 ///   - Watchers, ActiveVisitors, AllowanceHeld, AdminSessions and ApprovalIncident read across owners, so they prepare with the privilege
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
@@ -846,6 +848,37 @@ ClassMethod AdminSessions(Output sc As %Status) As %List
 	}
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit ..RefList(.found)
+}
+
+/// The number of pending tool_call approval requests that removing the MCP server cancels (Story 21.4): the rows of OcuTalon_Bridge_Data.ApprovalRequest, of every owner, with
+/// Kind tool_call, State pending and ToolSource equal to the server's toolref (Mcp.Attach Toolref), under the column's own collation, exactly as Bridge.Approval CancelPending selects
+/// them. A name that Toolref refuses gives 0 and an error in sc, and so does a failed read. It reads across owners, so it prepares with the privilege check and runs only in
+/// production jobs and tests.
+ClassMethod PendingToolCalls(server As %String, Output sc As %Status) As %Integer
+{
+	Set sc = $SYSTEM.Status.OK()
+	Set count = 0
+	Set toolref = ##class(OcuTalon.Mcp.Attach).Toolref($Get(server))
+	If toolref = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "The name is not an MCP server name")
+		Quit 0
+	}
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Kind = 'tool_call' AND State = 'pending' AND ToolSource = ?")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute(toolref)
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the pending tool calls failed: "_result.%Message)
+			} ElseIf result.%Next() {
+				Set count = +result.%GetData(1)
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	Quit count
 }
 
 /// The subscripts of the array as a list, in order.

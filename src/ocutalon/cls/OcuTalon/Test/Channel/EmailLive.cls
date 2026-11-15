@@ -22,7 +22,11 @@
 ///   - TestPasswordOnlyInTheCredential: after the save and three polls that ran (the last one read the mailbox), Ens.Config.Credentials holds the dummy
 ///     password and no SaveSettings body, log row, audit entry, emailPoll value, stub answer or ^OcuTalon* global does;
 ///   - TestUserChangeKeepsThePassword (matrix row 2): a second real save with another user name and no password changes the credential's user name and
-///     keeps its password.
+///     keeps its password;
+///   - TestAddressAndUserOutOfTheTrace (Story 21.14, DW-1255): every channels save goes through SubmitChannels, which offers the address and user name to the hand-off as the
+///     route does; after a real save with a unique address and user name the stored SaveSettings message holds two references, neither value is in any trace global (message
+///     bodies, headers, log rows), Settings audit entry or ^OcuTalon* global but the address in its one row email.address of OcuTalonP.SettingD, the credential holds the
+///     user name, and the page's values show both.
 /// Story 21.6 adds the SMTP side against the mock's SMTP stub (host mock, SMTP on 1025, control on 8080 under /_mock/smtp/). The save writes SSLConfig
 /// OcuTalonClient* for outgoing mock:1025 and the test leaves it as saved: the job reads the CI-only variable OCUTALON_TEST_PLAIN_SMTP (ruling c), which
 /// together with the host mock lets the sender talk plain SMTP to the stub and to nothing else. Every send is preceded by an assertion that EmailOut's
@@ -276,7 +280,7 @@ Method Connect(address As %String = "zzlive@example.com", user As %String = "zzl
 	Set command.Changes = body.%ToJSON()
 	Set command.ActingUser = "zzlivecycle"
 	Set command.SessionRef = ..Owner
-	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Set sc = ..SubmitChannels(command, .result)
 	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
 	Kill left
@@ -293,9 +297,26 @@ Method Resave(body As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
 	Set command.Changes = body.%ToJSON()
 	Set command.ActingUser = "zzlivecycle"
 	Set command.SessionRef = ..Owner
-	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Set sc = ..SubmitChannels(command, .result)
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
 	Quit $Get(result)
+}
+
+/// Submits a SaveSettings of the channels section as the route does (Story 21.14): the address and user of the body are offered to the hand-off and replaced by their
+/// references, the command goes through Commands.Submit with origin web_admin, and every reference that is left is taken back. Answers the status of the submit.
+Method SubmitChannels(command As OcuTalon.Msg.Command.SaveSettings, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Set body = {}.%FromJSON(command.Changes)
+	Set uris = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Core.SecretHandoff).Swap(body, .uris), "the address and user are offered to the hand-off")
+	Set command.Changes = body.%ToJSON()
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Set position = 0
+	While $ListNext(uris, position, one) {
+		Do ##class(OcuTalon.Core.SecretHandoff).Take(one, .left, 0)
+		Kill left
+	}
+	Quit sc
 }
 
 /// The body of a save of the fixture mailbox with the outgoing server (none when empty) and no password.
@@ -827,6 +848,38 @@ Method TestCappedDayGivesDailyCapForAnEmailItem()
 	Do ..Disconnect()
 }
 
+/// Story 21.14 (DW-1255): a real save with a unique address and user name leaves the SaveSettings message with two references only; neither value is in any trace global,
+/// Settings audit entry or ^OcuTalon* global, except the address in its one row email.address of OcuTalonP.SettingD. The credential holds the user name, and the page shows both.
+Method TestAddressAndUserOutOfTheTrace()
+{
+	If '..Guard() Quit
+	Try {
+		Set handoff = "OcuTalon.Test.Core.SecretHandoff"
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set tag = ..Number_"x"_$Random(1000000)
+		Set address = "zzlivetrace"_tag_"@example.com", user = "zzliveuser"_tag
+		Set result = ..Connect(address, user)
+		Do $$$AssertTrue($IsObject(result) && result.Ok, "the mailbox is connected")
+		Set message = $ClassMethod(handoff, "NewestChanges")
+		Do $$$AssertTrue($Match(message.address, "^secret://handoff/[0-9A-F]{32}$") && $Match(message.user, "^secret://handoff/[0-9A-F]{32}$"), "the save's message holds two references for the address and the user name")
+		Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", address), "", "no trace global holds the address")
+		Do $$$AssertEquals($ClassMethod(handoff, "TraceLeaks", user), "", "or the user name")
+		Do $$$AssertEquals($ClassMethod(handoff, "TableHolds", "OcuTalon_Msg_Command.SaveSettings", "Changes", address)_$ClassMethod(handoff, "TableHolds", "OcuTalon_Msg_Command.SaveSettings", "Changes", user), "00", "no SaveSettings body holds either")
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since).%ToJSON()
+		Do $$$AssertEquals((entries [ address) + (entries [ user), 0, "no audit entry holds either")
+		Do $$$AssertEquals($ClassMethod(handoff, "Leaks", user), "", "no ^OcuTalon* global holds the user name")
+		Do $$$AssertEquals($ClassMethod(handoff, "Leaks", address), "OcuTalonP.SettingD", "the address is only in OcuTalonP.SettingD")
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("email.address")
+		Do $$$AssertEquals($Select($IsObject(row): row.Value, 1: ""), address, "the row email.address holds the address")
+		Do $$$AssertEquals(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Username"), user, "the credential holds the user name")
+		Set values = ##class(OcuTalon.Core.SettingsOps).Values().sections.channels
+		Do $$$AssertEquals(values.address_"|"_values.user, address_"|"_user, "and the page's values show both")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Disconnect()
+}
+
 /// Matrix row 2: a save with another user name and no password keeps the stored password in the real credential.
 Method TestUserChangeKeepsThePassword()
 {
@@ -839,7 +892,7 @@ Method TestUserChangeKeepsThePassword()
 		Set command.Changes = {"address": "zzlive@example.com", "incoming": (..#STUBHOST_":"_..#POP3PORT), "user": "zzlive2"}.%ToJSON()
 		Set command.ActingUser = "zzlivecycle"
 		Set command.SessionRef = ..Owner
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .again)
+		Set sc = ..SubmitChannels(command, .again)
 		Do $$$AssertEquals($$$ISOK(sc)_"|"_$Select($IsObject($Get(again)): again.Ok, 1: ""), "1|1", "a save with another user name and no password is done")
 		Do $$$AssertEquals(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Username"), "zzlive2", "the credential has the new user name")
 		Do $$$AssertTrue(##class(Ens.Config.Credentials).GetValue(..#CREDENTIAL, "Password") = ..Dummy, "and keeps the stored password")
@@ -868,6 +921,7 @@ Method TestPasswordOnlyInTheCredential()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since).%ToJSON() [ ..Dummy, 0, "no audit data holds it")
 		Do $$$AssertEquals(##class(OcuTalon.Data.StatusMark).Get("emailPoll") [ ..Dummy, 0, "the emailPoll value does not")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(..Dummy), "", "and no ^OcuTalon* global does")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(..Dummy), "", "and no trace global does")
 		Do $$$AssertEquals(..StubState().%ToJSON() [ ..Dummy, 0, "nor the stub's state")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", ..Dummy), 0, "nor a message header")
 	} Catch exception {
@@ -1568,6 +1622,7 @@ Method TestPasswordNotOnTheSendPath()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since).%ToJSON() [ ..Dummy, 0, "no audit data holds it")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "ChannelMessageId", ..Dummy)_##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "Text", ..Dummy), "00", "no Delivery row holds it")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(..Dummy), "", "no ^OcuTalon* global holds it")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(..Dummy), "", "no trace global holds it")
 		Do $$$AssertEquals(..SmtpState().%ToJSON() [ ..Dummy, 0, "the SMTP stub's state does not")
 		Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().%ToJSON() [ ..Dummy, 0, "nor the page's values")
 		Do $$$AssertEquals(sent.Message_sent.Data_refused.Message_refused.Data [ ..Dummy, 0, "nor a CommandResult")
@@ -1660,7 +1715,7 @@ Method ConnectOAuth(provider As %String = "google", outgoing As %String = "") As
 	Set command.Changes = ..ProviderBody(provider, uri, outgoing).%ToJSON()
 	Set command.ActingUser = "zzlivecycle"
 	Set command.SessionRef = ..Owner
-	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	Set sc = ..SubmitChannels(command, .result)
 	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
 	Kill left
 	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the save is submitted and answered")
@@ -1844,6 +1899,7 @@ Method TestOAuthSaveSignInAndRemove()
 			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("Ens.MessageHeader", "Description", text), 0, "no message header holds "_label)
 			Do $$$AssertEquals(entries.%ToJSON() [ text, 0, "no Settings audit entry holds "_label)
 			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(text), "", "no ^OcuTalon* global holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(text), "", "no trace global holds "_label)
 			Do $$$AssertEquals(..IsclogHolds(text), 0, "^ISCLOG holds nothing of "_label)
 			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
 			Do $$$AssertEquals(mock.%ToJSON() [ text, 0, "the fake server's state holds no "_label)
@@ -1981,7 +2037,7 @@ Method TestOAuthOnlineDemo()
 		Set command.Changes = ..ProviderBody("google", uri).%ToJSON()
 		Set command.ActingUser = "zzlivecycle"
 		Set command.SessionRef = ..Owner
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+		Set sc = ..SubmitChannels(command, .result)
 		Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, .left, 0)
 		Kill left
 		Do $$$AssertEquals(result.Outcome, "not_available", "the save with a provider is not available")
@@ -2320,6 +2376,7 @@ Method TestOAuthTokenOnlyInTheTokenStore()
 			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "ChannelMessageId", text), 0, "no Delivery row holds "_label)
 			Do $$$AssertEquals(entries.%ToJSON() [ text, 0, "no Settings audit entry holds "_label)
 			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(text), "", "no ^OcuTalon* global holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(text), "", "no trace global holds "_label)
 			Do $$$AssertEquals(..IsclogHolds(text), 0, "^ISCLOG holds nothing of "_label)
 			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
 			Do $$$AssertEquals(mock_values_marks_answers [ text, 0, "neither the stubs' and fake server's state, nor the page's values, the status marks or the answers hold "_label)
@@ -2375,6 +2432,7 @@ Method TestOAuthTokenNotLeakedByTheFailurePaths()
 			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.Delivery", "ChannelMessageId", text), 0, "no Delivery row holds "_label)
 			Do $$$AssertEquals(entries.%ToJSON() [ text, 0, "no Settings audit entry holds "_label)
 			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).Leaks(text), "", "no ^OcuTalon* global holds "_label)
+			Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(text), "", "no trace global holds "_label)
 			Do $$$AssertEquals(..IsclogHolds(text), 0, "^ISCLOG holds nothing of "_label)
 			Do $$$AssertEquals(..SysAuditHolds(text), 0, "no IRIS audit entry holds "_label)
 			Do $$$AssertEquals(state_answers [ text, 0, "neither the stubs' and fake server's state, nor the page's values, the status marks or the answers of the failed poll and sends hold "_label)

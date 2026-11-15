@@ -23,8 +23,11 @@
 #                bullet for a model test and the paragraph about the decision's record (the rest of the retry section is not pinned)
 #   - livetext   the two lines that DW-773 rules are, each as a whole line compared as a fixed string, in the guide: the Settings
 #                section's intro (which settings are read each time they are used) and the retry section's RetryItem bullet
-#   - turntools  the four lines that Story 19.5 and Story 35.1 rule are, each as a whole line compared as a fixed string, in the guide: the Settings table's
-#                TurnToolsClass row, the lead-in of "The extension classes" (five classes), its TurnTools bullet and its McpServers bullet
+#   - turntools  the four lines that Story 19.5, Story 35.1 and Story 22.6 rule are, each as a whole line compared as a fixed string, in the guide: the Settings table's
+#                TurnToolsClass row, the lead-in of "The extension classes" (six classes), its TurnTools bullet (which ends with the sentence of DW-950: a held call
+#                runs later on the agent's own tool manager, which does not hold the tools) and its McpServers bullet (the report's refused names, the probe, the proxy)
+#   - contenttext the two lines that Story 26.3 rules are, each as a whole line compared as a fixed string, in the guide: the Settings table's
+#                ContentClass row and the ContentClass bullet of "The extension classes"
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
 #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
@@ -589,7 +592,7 @@ fi
 # live_lines: the ruled lines of the guide (DW-773), one per line.
 live_lines() {
   cat << 'EOF'
-The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification`, `ClassificationClass` and `TurnToolsClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification`, `ClassificationClass`, `TurnToolsClass` and `ContentClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
 - `RetryItem` is a setting of a runner item, and `Decide` reads it. It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model, and it is empty by default. A value that names the runner itself, a missing, disabled or non-runner item, or (for a decision or a diagnosis) an item whose `ReplyClass` is refused is not used: `Decide` logs one warning that names the setting and takes the fallback route. A retry runner's own `RetryItem` is never followed, so a retry is never retried. Write `RetryItem` as any setting in "Settings" is written. `Decide` reads it live, so it needs no update; a retry runner item that you add to the production starts when you update the production. The retry runner is set up like any runner: `AgentClass`, `AgentAllowList`, `ProviderConfig`, and `ReplyClass` for a decision or a diagnosis.
 EOF
 }
@@ -641,13 +644,13 @@ fi
 # --- turntools ---
 
 # turn_lines: the lines of the guide that Story 19.5 ruled for the TurnToolsClass extension (the settings table row, the lead-in of "The extension classes" with its
-# five classes, and the fourth and fifth bullets), one per line.
+# six classes, and the fourth and fifth bullets), one per line.
 turn_lines() {
   cat << 'EOF'
 | `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
-The bridge reaches your code only through five classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
-- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
-- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default.
+The bridge reaches your code only through six classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default. Classify each tool it returns safe (a `ToolClassification` row): a call held for approval runs later on the agent's own tool manager, which does not hold these tools.
+- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached, the `refused` ones (a name that one of the agent's own tools, or the proxy `call_mcp_tool`, already has) and, for an attached server, their `fingerprints`. `Probe(server, config)` says whether a server answers before its tools are offered, and must return within a few seconds; `ProxyToolSet()` names the toolset of the one governed tool, `call_mcp_tool`, through which every MCP call runs; `ServerOf(toolref)` names the server of a toolref; and `ToolsReadOnly(server)` says whether every tool of a server is classified read-only. The agent's own tool manager holds no MCP server: each request gets a manager of its own with the proxy and the servers whose probe answered, an agent that declares skills gets no MCP tools, and an unavailable server never fails the build. It attaches nothing by default.
 EOF
 }
 
@@ -692,6 +695,61 @@ if [ "$turn_ok" -eq 1 ]; then
     fails=$((fails + 1))
   else
     echo "PASS turntools: the guide's TurnToolsClass wording is the ruled text"
+  fi
+fi
+
+# --- contenttext ---
+
+# content_lines: the lines of the guide that Story 26.3 ruled for the ContentClass extension (the settings table row and the bullet of "The extension classes"), one
+# per line.
+content_lines() {
+  cat << 'EOF'
+| `ContentClass` | `OcuTalon.Bridge.Ext.Content` | The class that gives an untrusted chat turn one image to send with its text, and receives each accepted chat reply. See "The extension classes". |
+- `OcuTalon.Bridge.Ext.Content` (`ContentClass`): `Part(request, mediaType, data)` returns one image, a JPEG or PNG stream and its media type, to send with an untrusted chat turn; the runner sends the turn's text and the image together in that turn's throwaway session, and the image never enters a message body, an agent step or the event log. `Accepted(request, text, hostData)` is called once after `Decide` accepts a usable chat reply, with the filtered reply text, and the members it returns in `hostData` are added to the reply's `HostData`. Both do nothing by default.
+EOF
+}
+
+# content_problems <guide>: one line per ruled line that the guide lacks as a whole line.
+content_problems() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    grep -qxF -- "$line" "$1" || echo "the guide lacks ruled line $n of the ContentClass wording (starting '$(printf '%s' "$line" | cut -c1-40)')"
+  done < <(content_lines)
+}
+mkdir -p "$tmp/c"
+content_ok=1
+content_lines > "$tmp/c/keep.md"
+if [ "$(wc -l < "$tmp/c/keep.md" | tr -d ' ')" -ne 2 ]; then
+  echo "FAIL contenttext: the ruled text is not two lines"
+  fails=$((fails + 1)); content_ok=0
+fi
+if [ "$content_ok" -eq 1 ] && [ -n "$(content_problems "$tmp/c/keep.md")" ]; then
+  echo "FAIL contenttext: the rule flags a guide that holds the ruled text"
+  content_problems "$tmp/c/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); content_ok=0
+fi
+# One character of each ruled line changed, one line at a time: the rule must flag that line.
+if [ "$content_ok" -eq 1 ]; then
+  for i in 1 2; do
+    awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/c/keep.md" > "$tmp/c/g.md"
+    if cmp -s "$tmp/c/keep.md" "$tmp/c/g.md"; then
+      echo "FAIL contenttext: the break sample for ruled line $i changed nothing"
+      fails=$((fails + 1)); content_ok=0
+    elif ! content_problems "$tmp/c/g.md" | grep -qF -- "ruled line $i "; then
+      echo "FAIL contenttext: the rule does not flag a changed character in ruled line $i"
+      fails=$((fails + 1)); content_ok=0
+    fi
+  done
+fi
+if [ "$content_ok" -eq 1 ]; then
+  hits=$(content_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL contenttext: the guide's ContentClass wording is the ruled text"
+    fails=$((fails + 1))
+  else
+    echo "PASS contenttext: the guide's ContentClass wording is the ruled text"
   fi
 fi
 

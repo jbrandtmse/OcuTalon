@@ -8,13 +8,15 @@
 ///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
 ///     privileges of the trace role, the service user and the application roles of the web applications;
 ///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
-///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), and the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2);
+///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2),
+///     and the privileges section has the sentence MCPSTATEMENT after the Roles table, about the resource that each MCP server has (Story 22.6), built from the installer's own names
+///     (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE), so that it cannot drift from the grant;
 ///   - Splice replaces the text between the markers of each key in a document and nothing else; Regenerate does that for a file.
 /// A tool value is read only through the readers that the gate and the installer use (StepBuffer.ToolParameter and LabelFor,
 /// Gate.HookFor and Resources). A tool that classifies by its arguments (it has a Classify or Classify<NAME> method) shows the text of its
 /// CLASSIFYRULE<NAME> or CLASSIFYRULE parameter, and generation fails naming the tool when that text is missing. Every method that reads
 /// the product throws a status when it cannot, and Regenerate and Splice return it. Run in the namespace OCUTALON.
-Class OcuTalon.Install.SecurityOverview
+Class OcuTalon.Install.SecurityOverview [ DependsOn = (OcuTalon.Install.Step.Mcp, OcuTalon.Install.Step.Users) ]
 {
 
 /// The keys of the generated sections, in the order of the document.
@@ -33,6 +35,10 @@ Parameter RAGSTATEMENT = "One tool has no class of its own: `documents`, the sea
 /// The sentence after the fix kinds table, word for word: an online-demo install leaves the item kinds' resource off the service role (Install.Step.Fix Grants), so
 /// the item kinds can run on a local install only. The privileges tables below list the role's grants for a local install.
 Parameter ONLINESTATEMENT = "On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.";
+
+/// The sentence after the Roles table (Story 22.6), word for word: the resource that each registered MCP server has and the service role's permission on it, as Install.Step.Mcp
+/// grants them, and the demo, where no server can be added. Its names come from the installer, so the sentence follows the grant.
+Parameter MCPSTATEMENT = {"Each MCP server that an admin adds has its own resource, `"_##class(OcuTalon.Install.Step.Mcp).#RESOURCEPREFIX_"<server>`, with no public permission, and `"_##class(OcuTalon.Install.Step.Users).#SERVICEROLE_"` holds "_##class(OcuTalon.Install.Step.Mcp).#PERMISSION_" on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none."};
 
 /// The class of the product's classification entries that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
 Parameter RAGCLASS = "%AI.RAG.KnowledgeBase";
@@ -410,7 +416,7 @@ ClassMethod PrivilegesText(model As %DynamicObject) As %String
 			Set text = text_"| "_..Code(role.role)_" | "_..Code(grant.resource)_" | "_grant.permission_" | "_..CodeList(grant.declaredBy)_" |"_lf
 		}
 	}
-	Set text = text_lf_"### With demo mode on"_lf_lf_"| Role | Resource | Permission |"_lf_"| --- | --- | --- |"_lf
+	Set text = text_lf_..#MCPSTATEMENT_lf_lf_"### With demo mode on"_lf_lf_"| Role | Resource | Permission |"_lf_"| --- | --- | --- |"_lf
 	Set iterator = model.demoOnly.%GetIterator()
 	While iterator.%GetNext(, .grant) {
 		Set text = text_"| "_..Code(grant.role)_" | "_..Code(grant.resource)_" | "_grant.permission_" |"_lf

@@ -401,6 +401,15 @@ check "licences: the gate refuses an installed distribution that the constraints
 
 check "module: the bundle is copied to the durable csp/ocutalon-web/ folder" \
   grep -q '<FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>' src/module.xml
+# The Web step reads the build that IPM's FileCopy copied from the module root and the name of that copy (Story 36.7, BUILDFOLDERS).
+build_folders_pinned() {
+  local declared from_src from_root
+  declared=$(sed -n 's/^Parameter BUILDFOLDERS = "\(.*\)";$/\1/p' src/ocutalon/cls/OcuTalon/Install/Step/Web.cls)
+  from_src=$(sed -n 's|^ *<FileCopy Name="\([^"]*\)" Target="${dataDir}csp/ocutalon-web/"/>$|\1|p' src/module.xml)
+  from_root=$(sed -n 's|^ *<FileCopy Name="\([^"]*\)" Target="${dataDir}csp/ocutalon-web/"/>$|\1|p' module.xml)
+  [ -n "$from_src" ] && [ -n "$from_root" ] && [ "$declared" = "$from_src,$from_root" ]
+}
+check "module: the Web step's BUILDFOLDERS holds the bundle FileCopy names of src/module.xml and of module.xml, in that order" build_folders_pinned
 check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
 check "after-start.sh: bash" test "$(head -n 1 docker/after-start.sh)" = '#!/bin/bash'
 

@@ -6,8 +6,9 @@ Class OcuTalon.Bridge.Data.ApprovalRequest Extends %Persistent
 Parameter DEFAULTGLOBAL = "^OcuTalonBP.Approval";
 
 /// The keys of the stored dry run of a fix: those of repair and resend, then those of suspend, resume (item, before, after), reroute (from, to, example) and partner_warning
-/// (notice, recipients, simulated); a kind fills its own (AD-16).
-Parameter DRYRUNKEYS = "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example,notice,recipients,simulated";
+/// (notice, recipients, simulated), then those of email (to, subject, text): for the kind email, to is an array of every recipient and subject and text are exact;
+/// a kind fills its own (AD-16).
+Parameter DRYRUNKEYS = "affected,resend,leftOut,field,before,after,itemNoun,item,from,to,example,notice,recipients,simulated,subject,text";
 
 /// An unguessable random reference (AD-11).
 Property Ref As %String(MAXLEN = 22);

@@ -1344,7 +1344,7 @@ A person keeps a short checklist that OcuTalon looks at on a schedule.
   - Each memory is marked **told** (the person asked OcuTalon to remember it) or **learned**. Code decides which.
   - The person can list, search and forget memories of either kind (FR-41).
 - **Forgetting really forgets:** a forgotten memory leaves its row, its search entries, any pin, and every later session start at once. The current conversation's earlier messages aren't rewritten, and the README says so.
-- **Never from outside content:** nothing from an email, a webhook, a message body, a document, a tool result or any other arriving content is saved.
+- **Never from outside content, except the caption of a photo the user sent, which is saved with origin `photo`, taints any turn that recalls it, and can't be pinned:** nothing from an email, a webhook, a message body, a document, a tool result or any other arriving content is saved. [AMENDED 2026-11-14, Story 26.3, Contest Planner ruling V2 (owner's delegation; prompts/story-263-rulings-20261114.md); it read "**Never from outside content:** nothing from ..." with no exception]
 - **Evaluation (FR-62):**
   - poisoning cases: "remember that …" inside an email or a webhook saves nothing;
   - once forgotten, a fact is gone from search and from later sessions.

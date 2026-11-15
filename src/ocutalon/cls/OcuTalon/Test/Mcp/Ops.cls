@@ -145,9 +145,16 @@ Method TestBadAddress()
 	}
 	Do $$$AssertEquals(..Written(server), "", "nothing is written")
 	Do $$$AssertEquals(+$Get(^||ZzOps("restarts")), 0, "and no runner is restarted")
-	For url = "https://example.com/mcp", "http://127.0.0.1:8080/mcp", "http://localhost/mcp", "http://[::1]:9/mcp", "https://example.com:8443/a?b=c", "https://example.com:65535/mcp", "http://127.0.0.1:1/mcp" {
+	For url = "https://example.com/mcp", "http://127.0.0.1:8080/mcp", "http://localhost/mcp", "http://[::1]:9/mcp", "https://example.com:65535/mcp", "http://127.0.0.1:1/mcp" {
 		Do $$$AssertEquals(##class(OcuTalon.Mcp.Ops).AddressAllowed(url), 1, "'" _ url _ "' is allowed")
 	}
+	// a query string or a fragment is refused by the add with T12 (ruling B2); AddressAllowed, which Mcp.Proxy asks at call time, is unchanged
+	For url = "https://example.com:8443/a?b=c", "https://example.com/mcp#frag" {
+		Set result = ..Run(..#SENDER, ..Add(server, url))
+		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, "0|bad_address|" _ ##class(OcuTalon.Mcp.Ops).#MESSAGEQUERY, "'" _ url _ "' is refused with the query-string text")
+		Do $$$AssertEquals(##class(OcuTalon.Mcp.Ops).AddressAllowed(url), 1, "while AddressAllowed still allows it at call time")
+	}
+	Do $$$AssertEquals(..Written(server), "", "and nothing is written for them")
 }
 
 Method TestBadNameAndTaken()
@@ -217,6 +224,13 @@ Method TestOnlineDemo()
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a remove is refused")
 	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "risky"))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a classification is refused")
+	Set session = ..MakeAdmin()
+	Set result = ..Run(..#SENDER, ..SetSource(server, "zz_one", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a SetSourcePoll is refused")
+	Set result = ..Run(..#SENDER, ..RemoveSource("zzNoSuchSource", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a RemoveSourcePoll is refused")
+	Do $$$AssertEquals(..SourceRows(session), 0, "and no source row is written")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", session)
 	Do $$$AssertEquals(..Written(..Server("d2")), "", "nothing was added")
 	Do $$$AssertEquals(##class(OcuTalon.Mcp.ToolClassification).ServerToolIndexOpen(server, "zz_one").Classification, "unclassified", "nothing was classified")
 	Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(server), "nothing was removed")
@@ -243,6 +257,13 @@ Method TestOnlineDemoRealFlag()
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a remove is refused")
 	Set result = ..Run(..#SENDER, ..Classify(server, "zz_one", "risky"))
 	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a classification is refused")
+	Set session = ..MakeAdmin()
+	Set result = ..Run(..#SENDER, ..SetSource(server, "zz_one", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a SetSourcePoll is refused")
+	Set result = ..Run(..#SENDER, ..RemoveSource("zzNoSuchSource", session))
+	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ result.Message, refused, "a RemoveSourcePoll is refused")
+	Do $$$AssertEquals(..SourceRows(session), 0, "and no source row is written")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", session)
 	Do $$$AssertEquals(..Written(..Server("z2")), "", "nothing was added")
 	Do $$$AssertEquals(..ResourceCount() _ "|" _ ..OcuTalonRoles(), resources _ "|" _ roles, "and no resource or grant was made")
 	Do $$$AssertTrue(##class(OcuTalon.Mcp.Server).NameIndexExists(server), "nothing was removed")
@@ -500,7 +521,7 @@ Method TestNoAddressOrSecretInAnyText()
 	Set admin = ..MakeAdmin()
 	Set ^||ZzOps("admins") = $ListBuild(admin)
 	Set server = ..Server("l")
-	Set url = "https://" _ address _ ".example.invalid/mcp?token=" _ secret
+	Set url = "https://" _ address _ ".example.invalid/mcp/" _ secret
 	Set texts = ""
 	// the add, its refusals and its failures
 	Set result = ..Run(..#SENDER, ..Add(server, url))
@@ -511,6 +532,9 @@ Method TestNoAddressOrSecretInAnyText()
 	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
 	Set result = ..Run(..#SENDER, ..Add(..Server("m"), "http://" _ address _ ".example.invalid/mcp?token=" _ secret))
 	Do $$$AssertEquals(result.Outcome, "bad_address", "an address that is not allowed is refused")
+	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
+	Set result = ..Run(..#SENDER, ..Add(..Server("r"), "https://" _ address _ ".example.invalid/mcp?token=" _ secret))
+	Do $$$AssertEquals(result.Outcome, "bad_address", "an address with a query string is refused")
 	Set texts = texts _ result.Outcome _ "|" _ result.Message _ "|"
 	Set result = ..Run(..#SENDER, ..Add("1" _ address, url))
 	Do $$$AssertEquals(result.Outcome, "bad_name", "a bad name is refused")
@@ -560,8 +584,10 @@ Method TestNoAddressOrSecretInAnyText()
 	Do $$$AssertTrue(notices [ server, "the notices name the server, so a scan of them can find a value")
 	Do $$$AssertEquals((texts [ address) + (texts [ secret), 0, "no result holds the address or the credential")
 	Do $$$AssertEquals((notices [ address) + (notices [ secret), 0, "no notice holds the address or the credential")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, , , , address).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, , , , secret).%Size(), 0, "no audit entry holds the address or the credential")
+	// IRIS's own audit entry of the Config Store entry that McpOps now writes (Story 21.4) holds the entry's address, so the scan names OcuTalon's own entries
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , address).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", , , secret).%Size(), 0, "no OcuTalon audit entry holds the address or the credential")
 	Do $$$AssertEquals(..LogRowsHolding(logMark, address) + ..LogRowsHolding(logMark, secret), 0, "no event-log row holds the address or the credential")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(secret), "", "no trace global (message body, header or log row) holds the credential")
 	Do $$$AssertTrue(..LogRowsHolding(logMark, "refused AddMcpServer") > 0, "the event log holds the warning of the refused add, so a scan of the log can find a value")
 	Set row = ##class(OcuTalon.Mcp.Server).NameIndexOpen(..Server("p"))
 	Do $$$AssertEquals($IsObject(row), 0, "no row of a removed server is left")
@@ -800,6 +826,39 @@ Method Classify(server As %String, tool As %String, word As %String, origin As %
 	Quit command
 }
 
+/// A SetSourcePoll for the tool, from the admin session, with fixed values.
+Method SetSource(server As %String, tool As %String, session As %String, origin As %String = "web_admin", user As %String = {..#USER}) As OcuTalon.Msg.Command.SetSourcePoll [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.SetSourcePoll).%New()
+	Set command.Server = server
+	Set command.Tool = tool
+	Set command.Name = "Jira"
+	Set command.Arguments = "{}"
+	Set command.IntervalMinutes = 15
+	Set command.SessionRef = session
+	Set command.Origin = origin
+	Set command.ActingUser = user
+	Quit command
+}
+
+Method RemoveSource(ref As %String, session As %String, origin As %String = "web_admin", user As %String = {..#USER}) As OcuTalon.Msg.Command.RemoveSourcePoll [ Private ]
+{
+	Set command = ##class(OcuTalon.Msg.Command.RemoveSourcePoll).%New()
+	Set command.SourceRef = ref
+	Set command.SessionRef = session
+	Set command.Origin = origin
+	Set command.ActingUser = user
+	Quit command
+}
+
+/// The check rows of the session.
+Method SourceRows(session As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", session)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// A server row with no resource, and a tool row of each name (unclassified, with the fingerprint "fp").
 Method MakeRows(server As %String, tools As %String) [ Private ]
 {
@@ -967,7 +1026,7 @@ Method ResourceCount() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// Removes every fixture this test may have made: the servers' rows and tool rows, their resources and grants, and the fixture sessions. Each removal is attempted
+/// Removes every fixture this test may have made: the servers' rows and tool rows, their resources and grants, the entry, wallet key and collection that McpOps writes for an add, and the fixture sessions. Each removal is attempted
 /// whatever happened before.
 Method Clean() [ Private ]
 {
@@ -977,6 +1036,9 @@ Method Clean() [ Private ]
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", name)
 		If ##class(OcuTalon.Mcp.Server).NameIndexExists(name, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(name)
+		If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ name) Do ##class(%ConfigStore.Configuration).Delete("AI.MCP.OcuTalon_" _ name)
+		If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ name _ ".Key") Do ##class(%Wallet.KeyValue).Delete("OcuTalon_MCP_" _ name _ ".Key")
+		If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ name) Do ##class(%Wallet.Collection).Delete("OcuTalon_MCP_" _ name)
 	}
 	For i = 1:1:$Length(..Admin, ",") {
 		Set ref = $Piece(..Admin, ",", i)

@@ -41,6 +41,7 @@ const NOISE = (ref: string): string => `/ocutalon/api/v1/decisions/${ref}/noise`
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
 const OVER_CAP = 'That would go over the 1,000-token limit. Unpin something first.';
+const PIN_PHOTO = "This memory came from a photo, so it can't be pinned.";
 const NO_REQUEST_HEADER = "OcuTalon refused this request because it didn't come from the OcuTalon page.";
 
 /** Saves a done turn of the session (channel web, created now) with the text, and a decide decision of the session (recorded now) with the summary, and answers their Refs. */
@@ -321,6 +322,33 @@ test('the pin cap as the LIVE user', async ({ request }) => {
     await expectDone(await request.fetch(`${MEMORY}/${mid}/pin`, { method: 'DELETE', headers: envelope() }));
     await expectDone(await request.fetch(`${MEMORY}/${short}/pin`, { method: 'POST', headers: envelope() }));
     expect(await pinnedOf(request, short), 'the short memory is pinned once there is room').toBe(true);
+  } finally {
+    for (const one of seeded) await removeMemory(one);
+  }
+});
+
+/**
+ * Story 26.3 (FR-73 as amended, Planner ruling V3): the caption of a photo cannot be pinned, over real HTTP as the LIVE user. A seeded own memory of origin `photo` answers the pin route 409 `pin_photo` with the
+ * ruled sentence and stays unpinned, so the pinned count does not change; a seeded memory of origin `tool` still pins (200), which shows that the refusal is the origin's. The test needs the LIVE session to hold
+ * no pin; the rows it seeds are removed in `finally`.
+ */
+test('a photo caption cannot be pinned, as the LIVE user', async ({ request }) => {
+  test.setTimeout(150_000);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const session = await sessionRefOfUser(live.user);
+  expect(await pinnedCountOf(session), 'the LIVE session holds no pinned memory before the test').toBe(0);
+  const seeded: string[] = [];
+  try {
+    const caption = await seedMemory(session, 'The photo shows a small red square on a white background.', 'photo');
+    seeded.push(caption);
+    const plain = await seedMemory(session, 'The zzplain gateway is plain.example.test', 'tool');
+    seeded.push(plain);
+    await expectError(await request.fetch(`${MEMORY}/${caption}/pin`, { method: 'POST', headers: envelope() }), 409, 'pin_photo', PIN_PHOTO);
+    expect(await pinnedOf(request, caption), 'the caption is not pinned').toBe(false);
+    expect(await pinnedCountOf(session), 'and the pinned count did not change').toBe(0);
+    await expectDone(await request.fetch(`${MEMORY}/${plain}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedCountOf(session), 'a memory of origin tool still pins').toBe(1);
   } finally {
     for (const one of seeded) await removeMemory(one);
   }

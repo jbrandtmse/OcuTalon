@@ -11,6 +11,8 @@
 ///   - The rows are ordered failed, then not_checked, then passed, each group in input order.
 ///   - The key is KEYALLPASSED when every row passed, else KEYRESTPASSED when at least one row passed, else KEYNOTEVERYTHING. The catalog sentence
 ///     of the key says whether everything passed, so only this method can make an all-clear (the model's words are filtered by ReplyGuard).
+///   - RestKey (Story 22.5) is the key of the sentence that follows the digest's not-checked lines, KEYELSEPASSED: it reads Render's own output rows, gives the key only when
+///     no row failed, at least one is not_checked and at least one passed, and gives "" for anything else, whatever its input.
 Class OcuTalon.Checks.Render
 {
 
@@ -92,6 +94,33 @@ ClassMethod Row(element) As %DynamicObject [ Private ]
 	Set finding = $Select(element.%GetTypeOf("finding") = "string": element.finding, 1: "")
 	If (result = "not_checked") && (finding = "") && (checkedAt = "") Set finding = ..#REASONNOTRUN
 	Quit {"result": (result), "entry": ($Extract(entry, 1, ..#LIMIT)), "finding": ($Extract(finding, 1, ..#LIMIT)), "checkedAt": (checkedAt)}
+}
+
+/// The catalog key of the sentence that follows the not-checked lines of a digest (Story 22.5): everything else passed.
+Parameter KEYELSEPASSED = "checks.everythingElsePassed";
+
+/// KEYELSEPASSED when the rows (the output rows of Render) have no failed row, at least one not_checked row and at least one passed row, else "" (see the class
+/// description). It is pure and never throws: anything that is not an array of rows gives "".
+ClassMethod RestKey(rows) As %String
+{
+	Set key = ""
+	Try {
+		If $IsObject(rows) && rows.%IsA("%Library.DynamicArray") {
+			Set failed = 0, notChecked = 0, passed = 0
+			Set iterator = rows.%GetIterator()
+			While iterator.%GetNext(, .row) {
+				If '$IsObject(row) || 'row.%IsA("%Library.DynamicObject") Continue
+				Set result = row.result
+				If result = "failed" Set failed = 1
+				If result = "not_checked" Set notChecked = 1
+				If result = "passed" Set passed = 1
+			}
+			If 'failed && notChecked && passed Set key = ..#KEYELSEPASSED
+		}
+	} Catch {
+		Set key = ""
+	}
+	Quit key
 }
 
 }

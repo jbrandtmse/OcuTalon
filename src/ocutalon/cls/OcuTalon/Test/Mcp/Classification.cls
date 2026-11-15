@@ -300,7 +300,7 @@ Method ToolRows(server As %String) As %String
 }
 
 
-/// Removes every fixture this test may have made, each attempted whatever happened before.
+/// Removes every fixture this test may have made (the servers' rows and tool rows, their resources, and the entry, wallet key and collection that McpOps writes for an add), each attempted whatever happened before.
 Method Clean()
 {
 	For i = 1:1:$Length(..Names, ",") {
@@ -309,6 +309,9 @@ Method Clean()
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.ToolClassification WHERE Server = ?", name)
 		If ##class(OcuTalon.Mcp.Server).NameIndexExists(name, .id) Do ##class(OcuTalon.Mcp.Server).%DeleteId(id)
 		Do ##class(OcuTalon.Install.Step.Mcp).Revoke(name)
+		If ##class(%ConfigStore.Configuration).Exists("AI.MCP.OcuTalon_" _ name) Do ##class(%ConfigStore.Configuration).Delete("AI.MCP.OcuTalon_" _ name)
+		If ##class(%Wallet.Secret).Exists("OcuTalon_MCP_" _ name _ ".Key") Do ##class(%Wallet.KeyValue).Delete("OcuTalon_MCP_" _ name _ ".Key")
+		If ##class(%Wallet.Collection).Exists("OcuTalon_MCP_" _ name) Do ##class(%Wallet.Collection).Delete("OcuTalon_MCP_" _ name)
 	}
 	For i = 1:1:$Length(..Admin, ",") {
 		Set ref = $Piece(..Admin, ",", i)

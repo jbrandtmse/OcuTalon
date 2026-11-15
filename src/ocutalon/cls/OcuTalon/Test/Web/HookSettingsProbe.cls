@@ -17,6 +17,17 @@ ClassMethod HasUserRole() As %Boolean [ Private ]
 	Quit ##super()
 }
 
+/// The live role set of OnPreDispatch's re-read: ^OcuTalonTest("ApiProbe", "liveRoles") when it is set, an error status when ^OcuTalonTest("ApiProbe", "liveError") is
+/// set, and the test's own roles (Roles) otherwise.
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ""
+	If $Data(^OcuTalonTest("ApiProbe", "liveError")) Quit $SYSTEM.Status.Error(5001, "zz live roles unreadable")
+	Set n = $Increment(^OcuTalonTest("ApiProbe", "liveReads"))
+	Set roles = $Select($Data(^OcuTalonTest("ApiProbe", "liveRoles")): ^OcuTalonTest("ApiProbe", "liveRoles"), 1: ..Roles())
+	Quit $$$OK
+}
+
 ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Set mode = $Get(^OcuTalonTest("HookSettingsProbe", "mode"))

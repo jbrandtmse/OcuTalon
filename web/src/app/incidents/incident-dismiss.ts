@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { catchError, finalize, type Observable, of, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
+import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
 import { InlineNotice } from '../shared/inline-notice';
+import { isViewer } from '../shared/viewer-view';
 import { BUSY_NOTICE, ServerButton } from '../shared/server-button';
 import { Dismissals } from './dismissals';
 import { INCIDENT_TEXTS } from './incident-view';
@@ -48,15 +50,17 @@ export function messageOf(error: unknown): string {
   imports: [InlineNotice, ServerButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-server-button
-      variant="ghost"
-      data-part="dismiss"
-      [attr.data-key]="target().key"
-      [action]="press"
-      [describedBy]="notice() === '' ? [] : [noticeId]"
-    >
-      {{ texts.dismiss }}
-    </app-server-button>
+    @if (!viewer()) {
+      <app-server-button
+        variant="ghost"
+        data-part="dismiss"
+        [attr.data-key]="target().key"
+        [action]="press"
+        [describedBy]="notice() === '' ? [] : [noticeId]"
+      >
+        {{ texts.dismiss }}
+      </app-server-button>
+    }
     @if (notice(); as text) {
       <app-inline-notice class="notice" variant="warning" [id]="noticeId">{{ text }}</app-inline-notice>
     }
@@ -84,6 +88,9 @@ export class IncidentDismiss {
   protected readonly notice = signal('');
 
   private readonly api = inject(ApiClient);
+  private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): the Dismiss button is not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly dismissals = inject(Dismissals);
   private readonly announcer = inject(Announcer);
 

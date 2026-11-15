@@ -69,11 +69,11 @@ export async function sessionRefOfUser(user: string): Promise<string> {
  * Saves a memory of the session, saved now, through the memory area's own test fixture (Test.Memory.Fixture.Store: the row with the vector that the product's endpoint gives for
  * the text, so that both the list and the search find it) and answers its Ref. Product code writes a memory only through MemoryOps; a fixture may save and delete rows itself.
  */
-export async function seedMemory(session: string, text: string): Promise<string> {
+export async function seedMemory(session: string, text: string, origin = 'tool'): Promise<string> {
   const lines = await irisScript(
     [
       'Set ref=##class(OcuTalon.Bridge.Ids).NewRef()',
-      `Set sc=##class(OcuTalon.Test.Memory.Fixture).Store(${quoted(session)},ref,${quoted(text)},##class(OcuTalon.Data.Time).NowUtc())`,
+      `Set sc=##class(OcuTalon.Test.Memory.Fixture).Store(${quoted(session)},ref,${quoted(text)},##class(OcuTalon.Data.Time).NowUtc(),${quoted(origin)})`,
       'Write !,"CHK|ref|",$Select($SYSTEM.Status.IsOK(sc):ref,1:"")',
       'Write !,"CHK|error|",$Select($SYSTEM.Status.IsOK(sc):"",1:$SYSTEM.Status.GetErrorText(sc))',
     ].join('\n'),

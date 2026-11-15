@@ -13,6 +13,7 @@ import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
 import { Popovers } from '../shared/popover';
+import { isViewer } from '../shared/viewer-view';
 import { requestView } from './phone-view';
 
 /** The last id handed to a request message, for the id of its notice. */
@@ -65,6 +66,9 @@ export function messageContext(nowMs: number, instanceZone: string, onlineDemo: 
  * line, in message form ("Approved from the simulated phone at 14:15."), replaces the buttons in the same place; when a button had
  * focus, the shared focus rule (shared/focus-rule.ts) puts it on the line (tabindex -1).
  *
+ * A request that the user may not answer (the store's payload says `answerable` false, or the server refused a press, Story 25.5) has no buttons: its sentence is the answer line
+ * (phone-view.ts `cannot`, in the same markup as an answered line) and the notice that repeats it is not shown twice.
+ *
  * The phone is no live region. It announces only the notices of its own press (busy, late press, a refusal or a failure), once each,
  * through the page's Announcer; an answer from elsewhere is announced by the chat's request card. While a press is out the buttons'
  * part carries the request's Ref too (data-approval, as the answer line does), so that the card reads a focus on them as the
@@ -92,7 +96,7 @@ export function messageContext(nowMs: number, instanceZone: string, onlineDemo: 
         }
       }
     </div>
-    @if (view().buttons) {
+    @if (view().buttons && !viewer()) {
       <span class="buttons" data-part="answer" [attr.data-key]="message().ref" [attr.data-approval]="busy() ? message().approvalRef : null">
         <button
           type="button"
@@ -123,6 +127,11 @@ export function messageContext(nowMs: number, instanceZone: string, onlineDemo: 
           {{ texts.reject }}
         </button>
       </span>
+    } @else if (view().cannot && !viewer()) {
+      <p class="answered tone-expired" data-part="answer" [attr.data-key]="message().ref" [attr.data-approval]="message().approvalRef" tabindex="-1">
+        <app-icon name="circle-slash" [size]="16" />
+        <span>{{ view().cannot }}</span>
+      </p>
     } @else if (view().answer; as line) {
       <p [class]="'answered tone-' + line.tone" data-part="answer" [attr.data-key]="message().ref" [attr.data-approval]="message().approvalRef" tabindex="-1">
         @if (line.icon; as icon) {
@@ -131,7 +140,7 @@ export function messageContext(nowMs: number, instanceZone: string, onlineDemo: 
         <span>{{ line.text }}</span>
       </p>
     }
-    @if (notice()) {
+    @if (notice() && notice() !== view().cannot) {
       <app-inline-notice variant="warning" [id]="noticeId">{{ notice() }}</app-inline-notice>
     }
     <span class="time">{{ caption() }}</span>
@@ -240,10 +249,13 @@ export class PhoneRequest {
   });
 
   protected readonly view = computed(() =>
-    requestView(this.message(), this.approval(), this.answer.local(), { viewOf: (approval) => approvalView(approval, this.context()) }),
+    requestView(this.message(), this.approval(), this.answer.local(), { viewOf: (approval) => approvalView(approval, this.context()) }, this.answer.refused()),
   );
   /** True while a press is out: both buttons are busy. */
   protected readonly busy = this.answer.busy;
+
+  /** True for a viewer (Story 25.4): Approve and Reject are not shown. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   /** The notice under the buttons: the last reply's, else the busy notice while it is raised. */
   protected readonly notice = this.answer.notice;
 
@@ -252,11 +264,16 @@ export class PhoneRequest {
       this.view();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, PHONE_ANSWER_RULE));
     });
+    effect(() => {
+      // A new payload for the request: the server's own `answerable` decides again, so a refused press no longer holds the message in its can't-answer state.
+      this.approval();
+      untracked(() => this.answer.clearRefused());
+    });
   }
 
   /** A press of Approve or Reject: one call for both buttons; a press while a call is out is ignored. */
   protected press(action: 'approve' | 'reject'): void {
-    this.answer.press(this.approvalRef(), action, this.approval()?.fixKind ?? '');
+    this.answer.press(this.approvalRef(), action);
   }
 
   private approvalRef(): string {

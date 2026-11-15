@@ -1,6 +1,6 @@
 /**
  * The Usage page's view model (Story 37.2; FR-52; EXPERIENCE: Step 6): the fixed strings of the page, the ranges and groupings, the rows of a grouping,
- * each day's largest request, the short date, and the chart's geometry. A framework-free module: it imports only types and uses only erasable
+ * each day's largest request, the short date, and the chart's geometry. A framework-free module: it imports only types and page-shell-view.ts (the title) and uses only erasable
  * TypeScript syntax, so Node runs it as it is. The page decides nothing (AD-12, AD-20): the buckets and the request-size limit are the server's
  * (`GET /v1/usage`), and every group is a sum of buckets, so the totals of a grouping equal the sum of the usage rows.
  *
@@ -16,11 +16,12 @@
  * - largestByDay is the days with use and the largest estimated request of each; dayLabel is the short date; chartGeometry places one bar and one point
  *   for each row on separate token and cost scales.
  */
+import { SHELL_TEXTS } from '../shared/page-shell-view.ts';
 import type { UsageBucket, UsageDays, UsageResponse } from '../api/usage-types';
 
 /** The page's own fixed strings. The separator in the title is U+00B7. */
 export const USAGE_TEXTS = {
-  title: 'Usage \u00B7 OcuTalon',
+  title: SHELL_TEXTS.usageTitle,
   heading: 'Usage',
   range: 'Range',
   rangeOptions: { 1: 'Today', 7: 'Last 7 days', 30: 'Last 30 days' },

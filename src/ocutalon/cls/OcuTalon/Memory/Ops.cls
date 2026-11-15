@@ -4,7 +4,7 @@
 ///   - SaveMemory: the command's session must have a Data.Session row (otherwise no_session), and its text, trimmed, must not be empty (otherwise
 ///     empty_text, Ok 0). Under the session's lock a memory of the same session, ItemId and text (the natural key; ItemId is the part of the
 ///     idempotency key before its last colon, the turn's item) is not saved a second time: the answer is saved with the first row's Ref, so a
-///     re-sent turn adds nothing and keeps the first row's Source. Otherwise Source is decided from the person's own text of the saving turn (the Source
+///     re-sent turn adds nothing and keeps the first row's Source. Otherwise Source is learned for the origin photo (the caption of a photo, whatever the turn's text says), else it is decided from the person's own text of the saving turn (the Source
 ///     method: told when it holds a phrase of OcuTalon.Tools.MemorySource PHRASES, else learned; learned when the session has no such turn; the saving turn is the turn with the ItemId, or the running turn whose retry
 ///     after a rejected history has it), and a turn
 ///     that cannot be read answers failed and stores nothing. The text is then embedded through OcuTalon.Memory.Embedding, and a failure answers failed and
@@ -21,13 +21,14 @@
 ///     session's lock, the core-memory block that the session would have with this memory pinned (OcuTalon.Memory.CoreBlock with the memory's text as the newest pin; the block
 ///     is formatted by OcuTalon.Agent.Input.CoreBlock and read from Memory.Pinned, where a row saved before Story 41.8 is not pinned) must be at most OcuTalon.Memory COREMAX
 ///     characters, heading, quotes and closing blank line included: if it is longer the answer is over_cap (Ok 0, the existing text of the web layer) and nothing changes, and nothing
-///     is ever unpinned to make room. Otherwise Pinned is 1, PinnedAt is now (UTC to the second), and the answer is pinned (Ok 1, an empty Message) with the Ref.
+///     is ever unpinned to make room. A memory of origin photo (the caption of a photo, Story 26.3) is never pinned: before the pinned and cap checks the answer is
+///     pin_photo (Ok 0, an empty Message) and nothing changes. Otherwise Pinned is 1, PinnedAt is now (UTC to the second), and the answer is pinned (Ok 1, an empty Message) with the Ref.
 ///   - UnpinMemory (Story 41.12; origin web_user only): an own memory, pinned or not, gets Pinned 0 and PinnedAt empty, and the answer is unpinned (Ok 1, an empty Message); another
 ///     session's memory and an unknown Ref answer not_found (Ok 0, an empty Message).
 ///   - ListPinnedMemories (Story 41.13; a read, from origin web_user): the command's own SessionRef's pinned memories (OcuTalon.Memory.Pinned), newest pin first, as the same items as a search, and
 ///     used, the tokens of the core-memory block: ceil($Length of OcuTalon.Memory.CoreBlock / OcuTalon.Memory CHARSPERTOKEN), the cap's own computation, 0 with no pin. Data is {items, used}. It changes
 ///     no row and takes no lock; a failure answers failed.
-///   - Who may ask (DW-1029): SaveMemory comes from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory, SearchMemory and ListPinnedMemories from web_user only (CommandsIn).
+///   - Who may ask (DW-1029): SaveMemory comes from origin tool, or photo (Story 26.3: Agent.Content saves the caption of a photo); ForgetMemory from tool or web_user; PinMemory, UnpinMemory, SearchMemory and ListPinnedMemories from web_user only (CommandsIn).
 ///   - A lock on the session that cannot be taken within 5 seconds, a save or delete that fails and any exception answer failed.
 ///   - After a new row is saved, Tuned is called with its id, which has the SQL statistics of the table gathered at every STATSEVERY-th id
 ///     (OcuTalon.Memory.Tune), so that the recall query keeps using the HNSW index as the table grows.
@@ -37,6 +38,9 @@ Class OcuTalon.Memory.Ops Extends Ens.BusinessOperation
 
 /// The most characters a memory holds (the length of Data.Memory.Text).
 Parameter MAXTEXT = 2000;
+
+/// The origin of a photo's caption (AD-21): a caption is learned whatever the turn's text says, so Source is not asked.
+Parameter PHOTOORIGIN = "photo";
 
 Parameter MESSAGESAVED = "The memory was saved.";
 
@@ -94,7 +98,11 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 		If ref '= "" {
 			Set sc = ..Answer(.response, 1, "saved", ..#MESSAGESAVED, ref)
 		} Else {
-			Set sc = ..Source(request.SessionRef, itemId, .source)
+			If request.Origin = ..#PHOTOORIGIN {
+				Set source = ##class(OcuTalon.Tools.MemorySource).#LEARNED
+			} Else {
+				Set sc = ..Source(request.SessionRef, itemId, .source)
+			}
 			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
 			If $$$ISOK(sc) {
 				Set row = ##class(OcuTalon.Data.Memory).%New()
@@ -134,10 +142,16 @@ Method Source(sessionRef As %String, itemId As %String, Output source As %String
 	Quit $$$OK
 }
 
-/// The session's turn that a save with this ItemId belongs to, or "": the turn with the ItemId (Data.Ownership.TurnOfItem), else the session's queued or
-/// running turn whose retry has it (a turn that Conversation sends again after the provider rejected the session's history carries
-/// OcuTalon.Core.Conversation RetryItemId of its ItemId). sc is an error status when the turns cannot be read. A seam for the tests.
+/// The session's turn that a save with this ItemId belongs to, or "": TurnOfItem. A seam for the tests.
 Method TurnOf(sessionRef As %String, itemId As %String, Output sc As %Status) As OcuTalon.Data.Turn
+{
+	Quit ..TurnOfItem(sessionRef, itemId, .sc)
+}
+
+/// The session's turn that was made from the Item with this ItemId, or "": the turn with the ItemId (Data.Ownership.TurnOfItem), else the session's queued or
+/// running turn whose retry has it (a turn that Conversation sends again after the provider rejected the session's history carries
+/// OcuTalon.Core.Conversation RetryItemId of its ItemId). sc is an error status when the turns cannot be read. Agent.Content reads the photo turn through it.
+ClassMethod TurnOfItem(sessionRef As %String, itemId As %String, Output sc As %Status) As OcuTalon.Data.Turn
 {
 	Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
 	If $$$ISERR(sc) || $IsObject(turn) || (itemId = "") Quit turn
@@ -193,6 +207,8 @@ Method OnPin(request As OcuTalon.Msg.Command.PinMemory, Output response As OcuTa
 		Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(request.MemoryRef)
 		If '$IsObject(row) || (row.SessionRef '= request.SessionRef) {
 			Set sc = ..Answer(.response, 0, "not_found", "")
+		} ElseIf row.Origin = ..#PHOTOORIGIN {
+			Set sc = ..Answer(.response, 0, "pin_photo", "")
 		} ElseIf +row.Pinned = 1 {
 			Set sc = ..Answer(.response, 1, "pinned", "", row.Ref)
 		} Else {

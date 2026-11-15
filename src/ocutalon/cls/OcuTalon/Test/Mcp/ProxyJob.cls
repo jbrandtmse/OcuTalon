@@ -154,6 +154,7 @@ Method TestRunnerJob()
 	Do $$$AssertTrue(scanned > 0, "the message bodies of the Visual Trace were read: " _ scanned)
 	Do $$$AssertEquals($ListGet(holds, 1) _ $ListGet(holds, 2), "11", "control: the trace holds the first turn's input and the tool's text")
 	Do $$$AssertEquals($ListGet(holds, 3), 0, "no message body of the Visual Trace holds the secret")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(..Secret), "", "and no trace global (message body, header or log row) holds it")
 	Do $$$AssertEquals($ListGet(holds, 4), 0, "nor the mock's address")
 }
 

@@ -2,7 +2,7 @@
 /// user-defined audit events; OcuTalon.Bridge.Installer registers them, and nothing here changes instance-wide auditing.
 ///   - Record(type, data) is the writer of product code. Every entry's data has the common members irisUser, sessionRef and channel (COMMON)
 ///     plus the one fixed set of members of its type (Shape; an MCP entry that records a call of the governed proxy, change called or refused, has the members of
-///     SHAPEMCPCALL instead), and no other member; Record refuses any other shape before it writes
+///     SHAPEMCPCALL instead: a proxy call, or a source set or removed by McpOps), and no other member; Record refuses any other shape before it writes
 ///     anything. It builds the description from the shape, never from free text, blanks the from and to of a Settings entry whose setting
 ///     is sensitive, and writes through Write.
 ///   - Write is the raw writer under Record: it takes any dynamic object, passes the data's JSON and the description through
@@ -33,7 +33,8 @@ Parameter SHAPESETTINGS = "setting,from,to";
 Parameter SHAPEMCP = "change,server";
 
 /// The members of an MCP entry whose change is called or refused (CALLCHANGES), written by the governed proxy of Story 22.3 once for each run that reached the server's
-/// entry: the server, the tool and a fixed word for the outcome, and never an argument or a result. The shape of every other MCP entry is SHAPEMCP.
+/// entry, or whose change is source_set or source_removed, written by McpOps for a source it set or removed (Story 22.5): the server, the tool and a fixed word for the outcome,
+/// and never an argument or a result. The shape of every other MCP entry is SHAPEMCP.
 Parameter SHAPEMCPCALL = "change,server,tool,outcome";
 
 Parameter SHAPETOOL = "source,tool,classification,readOnly";
@@ -43,10 +44,10 @@ Parameter APPROVALCHANGES = "answered,expired,cancelled,started,finished";
 
 Parameter PAIRINGCHANGES = "linked,unlinked,rejected";
 
-Parameter MCPCHANGES = "added,removed,called,refused";
+Parameter MCPCHANGES = "added,removed,called,refused,source_set,source_removed";
 
 /// The changes of an MCP entry that have the shape SHAPEMCPCALL.
-Parameter CALLCHANGES = "called,refused";
+Parameter CALLCHANGES = "called,refused,source_set,source_removed";
 
 Parameter CLASSIFICATIONS = "safe,risky,unclassified";
 
@@ -66,7 +67,7 @@ ClassMethod Events() As %List
 }
 
 /// The members of the type's data: the type's own members followed by the common ones, as a list. "" for a type that is not in TYPES. For the type MCP, a change
-/// of called or refused gives the members of SHAPEMCPCALL (the change is the member that tells the two shapes apart), and any other change, or none, the members of SHAPEMCP.
+/// of a CALLCHANGES word gives the members of SHAPEMCPCALL (the change is the member that tells the two shapes apart), and any other change, or none, the members of SHAPEMCP.
 ClassMethod Shape(type As %String, change As %String = "") As %List
 {
 	If '$ListFind($ListFromString(..#TYPES), type) Quit ""
@@ -82,7 +83,7 @@ ClassMethod Shape(type As %String, change As %String = "") As %List
 ///   - sessionRef and approvalRef are empty or a 22-character Ref, an Approval's ref is a Ref, and its ownerRef is empty, a Ref, instance or eval;
 ///   - an Approval's kind is one of Msg.Enum APPROVALKIND, its from and to are of APPROVALSTATE, and its change is one of APPROVALCHANGES;
 ///   - a Pairing's change is one of PAIRINGCHANGES, an MCP's change one of MCPCHANGES, a Tool's classification one of CLASSIFICATIONS;
-///   - an MCP call entry's (change called or refused) tool is not empty, and its outcome is one lower-case word of at most 24 letters (ok, cut, or a refusal or reason word), so that no argument or result text can be written in it.
+///   - an MCP call entry's (change called, refused, source_set or source_removed) tool is not empty, and its outcome is one lower-case word of at most 24 letters (ok, cut, or a refusal or reason word), so that no argument or result text can be written in it.
 /// The description is built from the data: "<action>: <result>" (Action), "Approval <ref> <change>: <to>", "Pairing <change>",
 /// "Setting <setting> changed", "MCP server <server> <change>" ("MCP tool <tool> of <server> <change>: <outcome>" for a call) and "Tool <tool> of <source>: <classification>". A Settings entry whose
 /// setting Redact.SensitiveKey flags is written with from and to replaced by Redact REDACTED; the caller's object is not changed.

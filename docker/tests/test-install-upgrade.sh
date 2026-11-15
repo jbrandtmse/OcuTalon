@@ -6,7 +6,10 @@
 #     runs again, and the probes written under the old version are intact; the README account keeps the password
 #     that was set by hand, with its flags, the durable csp/ocutalon-web/index.html is the new image's, and the
 #     roles, the account and the four web applications are still as the first start made them (Story 0.3, row 15;
-#     Story 0.5, row 24);
+#     Story 0.5, row 24); and the hashed bundle files that the new image lacks are gone from csp/ocutalon-web/ (Story 36.7): five
+#     are planted under the first version (a main script and its map, a chunk, a polyfills file and a stylesheet), beside six that
+#     must survive (an admin's note, a backup copy, a different case, a name outside the hash alphabet, and two nested names), and
+#     after the upgrade the folder equals the image's bundle plus exactly those six, each with its content;
 #   - row 7, a step that fails: an image whose SSL step returns an error. The log names SSL as failed and no
 #     later step ran, there is no marker and readiness is empty, the container keeps running without a
 #     restart and Docker never reports healthy. The next good image reaches ready.
@@ -163,6 +166,20 @@ else
   fail "row 15: the application and the trace role could not be changed by hand ('$drifted')"
 fi
 
+# Story 36.7: the earlier builds' hashed files, planted in the served folder, and the files that must survive their removal.
+SERVED_WEB=/durable/iris/csp/ocutalon-web
+STALE_PLANTS="main-ZZSTALE0.js main-ZZSTALE0.js.map chunk-ZZSTALE1.js polyfills-ZZSTALE2.js styles-ZZSTALE3.css"
+SURVIVORS="zz-admin-note.txt main-ZZSTALE4.js.bak Main-ZZSTALE5.js main-zz_stale.js assets/main-ZZSTALE6.js zz-admin/main-ZZSTALE7.js"
+planted=1
+for f in $STALE_PLANTS $SURVIVORS; do
+  dc exec -T iris sh -c "mkdir -p \"\$(dirname '$SERVED_WEB/$f')\" && printf 'planted %s' '$f' > '$SERVED_WEB/$f'" > /dev/null 2>&1 || planted=0
+done
+if [ "$planted" = 1 ] && [ -n "$(container_sha256 "$SERVED_WEB/main-ZZSTALE0.js")" ]; then
+  pass "36.7: the stale files and the survivors were planted in the served folder under $v0"
+else
+  fail "36.7: the stale files and the survivors could not be planted in $SERVED_WEB"
+fi
+
 # --- row 6: an upgrade in place ---
 
 v1=$(bump_patch "$v0" 1)
@@ -201,6 +218,41 @@ else
   fail "row 15: the durable index.html does not equal the new image's, or did not change"
 fi
 check_security "row 15 after the upgrade"
+
+# --- Story 36.7: the removal of the earlier builds' hashed files ---
+
+left=""
+for f in $STALE_PLANTS; do
+  if [ -n "$(container_sha256 "$SERVED_WEB/$f")" ]; then left="$left $f"; fi
+done
+if [ -z "$left" ]; then
+  pass "36.7: no planted stale file is left in the served folder"
+else
+  fail "36.7: stale files are left in the served folder:$left"
+fi
+lost=""
+for f in $SURVIVORS; do
+  if [ "$(dc exec -T iris cat "$SERVED_WEB/$f" 2>/dev/null | tr -d '\r')" != "planted $f" ]; then lost="$lost $f"; fi
+done
+if [ -z "$lost" ]; then
+  pass "36.7: each survivor is kept with its content"
+else
+  fail "36.7: survivors are missing or changed:$lost"
+fi
+survivor_pattern=$(for f in $SURVIVORS; do printf '|./%s' "$f"; done)
+survivor_pattern=${survivor_pattern#|}
+container_tree_hashes "$SERVED_WEB" | awk -v list="$survivor_pattern" 'BEGIN { n = split(list, a, "|"); for (i = 1; i <= n; i++) skip[a[i]] = 1 } !($2 in skip)' > "$tmp/served.tree"
+container_tree_hashes /opt/ocutalon/src/ocutalon/csp > "$tmp/image.tree"
+if [ -s "$tmp/image.tree" ] && cmp -s "$tmp/served.tree" "$tmp/image.tree"; then
+  pass "36.7: the served folder, without the survivors, equals the image's bundle ($(wc -l < "$tmp/image.tree" | tr -d ' ') files) byte for byte"
+else
+  fail "36.7: the served folder differs from the image's bundle: $(diff "$tmp/served.tree" "$tmp/image.tree" | head -n 6 | tr '\n' ' ')"
+fi
+if start_log | grep -q '^WARN Web removed old web file main-ZZSTALE0.js$'; then
+  pass "36.7: the start's log names a removed file (WARN Web removed old web file main-ZZSTALE0.js)"
+else
+  fail "36.7: the start's log has no line for main-ZZSTALE0.js"
+fi
 
 # --- row 7: a step fails ---
 

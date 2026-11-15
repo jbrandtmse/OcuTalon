@@ -14,6 +14,7 @@ import { HEARTBEAT_HEADING_ID } from '../rail/heartbeat-card/heartbeat-card-view
 import { MEMORY_HEADING_ID } from '../rail/memory-card/memory-card-view';
 import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
+import { isViewer } from '../shared/viewer-view';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { keepRoom } from './more-to-try-room';
 import { BREAK_FEED_BUTTON, DISMISS_BUTTON, groupsOf, INCIDENT_CARD, MORE_TO_TRY_TEXTS, type MoreToTryItem, RESOLVED_CHIP } from './more-to-try-view';
@@ -83,7 +84,7 @@ let panels = 0;
                 <a class="button button-secondary" routerLink="/settings/channels" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
               } @else if (item.action === 'usage' || item.action === 'history') {
                 <a class="button button-secondary" [routerLink]="'/' + item.action" data-guide-focus="moreItem" (click)="pressed.emit()">{{ item.button }}</a>
-              } @else {
+              } @else if (!viewer()) {
                 <button
                   type="button"
                   class="button button-secondary"
@@ -195,6 +196,8 @@ export class MoreToTry {
   private readonly tabs = inject(DeviceTabs);
   private readonly outbox = inject(ChatOutbox);
   private readonly live = inject(LiveState);
+  /** True for a viewer (Story 25.4): the buttons that send or change something are not shown; the links stay. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
   private readonly allowance = inject(AllowanceState);
   private readonly sample = inject(SampleRunbook);
   private readonly router = inject(Router);

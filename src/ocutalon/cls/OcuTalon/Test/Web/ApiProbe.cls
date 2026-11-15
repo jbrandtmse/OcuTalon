@@ -10,7 +10,7 @@
 /// other text is the service's output as it is, and an absent value is a sent press. The roles of the signed-in user (Story 33.2) are
 /// the text in ^OcuTalonTest("ApiProbe", "roles") when it is set (comma-separated, as $Roles is), which both the OcuTalon user role check and
 /// the admin check of OnPreDispatch read, and the process's own $Roles otherwise. AnswerFor makes Answer, the private mapping of a save's
-/// CommandResult to the HTTP answer, callable.
+/// CommandResult to the HTTP answer, callable. RefusalFor does the same for AnswerResponse's not_allowed answer (Story 25.5).
 Class OcuTalon.Test.Web.ApiProbe Extends OcuTalon.Web.Api
 {
 
@@ -63,17 +63,42 @@ ClassMethod Roles() As %String [ Private ]
 	Quit ##super()
 }
 
-/// 1 when the test's roles hold the OcuTalon user role, else the process's own check.
+/// 1 when the test's roles hold the OcuTalon user role or the viewer role (Shell.HasRole), else the process's own check.
 ClassMethod HasUserRole() As %Boolean [ Private ]
 {
-	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit (","_^OcuTalonTest("ApiProbe", "roles")_",") [ (","_##class(OcuTalon.Web.Public.Shell).#ROLE_",")
+	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit ##class(OcuTalon.Web.Public.Shell).HasRole(^OcuTalonTest("ApiProbe", "roles"))
 	Quit ##super()
+}
+
+/// The live role set of OnPreDispatch's re-read: ^OcuTalonTest("ApiProbe", "liveRoles") when it is set, an error status when ^OcuTalonTest("ApiProbe", "liveError") is
+/// set, and the test's own roles (Roles) otherwise, so that a test that sets the roles of the signed-in user holds them live too.
+ClassMethod LiveRoles(Output roles As %String) As %Status [ Private ]
+{
+	Set roles = ""
+	If $Data(^OcuTalonTest("ApiProbe", "liveError")) Quit $SYSTEM.Status.Error(5001, "zz live roles unreadable")
+	Set n = $Increment(^OcuTalonTest("ApiProbe", "liveReads"))
+	Set roles = $Select($Data(^OcuTalonTest("ApiProbe", "liveRoles")): ^OcuTalonTest("ApiProbe", "liveRoles"), 1: ..Roles())
+	Quit $$$OK
+}
+
+/// 1 when ^OcuTalonTest("ApiProbe", "rolesReady") is 1, so that a test can see the Roles section's flag on: the install has no STEP6ROLES yet.
+ClassMethod RolesInstalled() As %Boolean [ Private ]
+{
+	Quit ($Get(^OcuTalonTest("ApiProbe", "rolesReady")) = 1)
 }
 
 /// Answer, for the tests: the HTTP answer to a save's CommandResult.
 ClassMethod AnswerFor(result As OcuTalon.Msg.CommandResult, word As %String = "") As %Status
 {
 	Quit ..Answer(result, word)
+}
+
+/// AnswerResponse, for the tests: the HTTP answer to a not_allowed AnswerResult whose refusal is the object (the kind that the role check named, and admin for the email rule).
+ClassMethod RefusalFor(refusal As %DynamicObject) As %Status
+{
+	Set result = ##class(OcuTalon.Core.Msg.AnswerResult).%New()
+	Set result.Result = "not_allowed"
+	Quit ..AnswerResponse("", refusal, "", result)
 }
 
 /// The press that BreakFeedIn would carry out, answered from ^OcuTalonTest("ApiProbe", "press").

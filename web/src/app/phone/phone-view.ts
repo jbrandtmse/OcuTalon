@@ -14,7 +14,11 @@
  *   whether Approve and Reject show, the answer line that replaces them, and the buttons' names. A message has buttons only when
  *   it names a request (`approvalRef`, which the server stores for the kinds incident and approval only) and has no answer, from
  *   the server or from the phone's own press: the buttons never come from the approvals store, and the phone never follows the
- *   store's `approval` event, only the server's edit of its message and its own press.
+ *   store's `approval` event, only the server's edit of its message and its own press. The one exception (Story 25.5): a store
+ *   payload of the request with `answerable` false (the server computed that the signed-in user may not answer it), or a press that
+ *   the server refused with 403 (`refused`, its sentence), takes the buttons away and gives `cannot`, the sentence of the request's
+ *   approver kind (approval-view.ts refusalText) or the server's own, in the answer line's place. A press on a stale phone still
+ *   gets the same sentence from the server.
  * - gotItShown(message) is true when a tell-now message shows Got it (Story 18.4): it names a notice (`decisionRef`, which the server stores
  *   for the kind tellnow only), asks for no request, and has no answer line. Once the server marks the notice it edits the message's `answer`
  *   to the handled line, and the control is gone.
@@ -104,8 +108,10 @@ export interface RequestContext {
 /** Everything one request message draws, apart from its caption time. */
 export interface RequestView {
   blocks: RequestBlock[];
-  /** True when Approve and Reject show: the message names a request and has no answer, the server's or the phone's own. */
+  /** True when Approve and Reject show: the message names a request and has no answer, the server's or the phone's own, and the user may answer it (the store's payload is not `answerable` false, and no press was refused). */
   buttons: boolean;
+  /** The sentence that replaces the buttons when the user may not answer the request: a refused press's, else the sentence of the store payload's approver kind; "" otherwise. */
+  cannot: string;
   /** The answer line, or undefined while the message has buttons. */
   answer: RequestAnswer | undefined;
   approveName: string;
@@ -146,10 +152,16 @@ function blocksOf(text: string, approval: ApprovalPayload | undefined): RequestB
 /**
  * What a request message draws. `approval` is the store's payload for the message's request (undefined when the store has none:
  * the snapshot holds pending requests only), `local` the request as the phone's own press showed it, `ctx` the page's reading of
- * a payload in message form. The answer line is the server's `answer` first, else the local view's status; its tone and icon
- * come from the local view, else from the store's state, else it is neutral with no icon.
+ * a payload in message form, `refused` the server's sentence of a press that it refused ("" for none). The answer line is the server's `answer` first, else the local view's
+ * status; its tone and icon come from the local view, else from the store's state, else it is neutral with no icon.
  */
-export function requestView(message: PhonePayload, approval: ApprovalPayload | undefined, local: ApprovalPayload | undefined, ctx: RequestContext): RequestView {
+export function requestView(
+  message: PhonePayload,
+  approval: ApprovalPayload | undefined,
+  local: ApprovalPayload | undefined,
+  ctx: RequestContext,
+  refused = '',
+): RequestView {
   const named = approval === undefined ? undefined : ctx.viewOf(approval);
   const asked = (message.approvalRef ?? '') !== '';
   const server = textOf(message.answer);
@@ -161,9 +173,12 @@ export function requestView(message: PhonePayload, approval: ApprovalPayload | u
   } else if (localStatus !== undefined) {
     answer = { text: localStatus.text, tone: localStatus.tone, icon: localStatus.icon };
   }
+  const open = asked && answer === undefined && local === undefined;
+  const cannot = open ? (refused !== '' ? refused : (named?.cannotAnswer ?? '')) : '';
   return {
     blocks: blocksOf(message.text ?? '', approval),
-    buttons: asked && answer === undefined && local === undefined,
+    buttons: open && cannot === '' && approval?.answerable !== false,
+    cannot,
     answer,
     approveName: named?.approveName ?? REQUEST_NAMES.approve,
     rejectName: named?.rejectName ?? REQUEST_NAMES.reject,

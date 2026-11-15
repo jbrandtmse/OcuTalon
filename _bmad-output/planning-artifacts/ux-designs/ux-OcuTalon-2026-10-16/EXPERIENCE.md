@@ -719,7 +719,7 @@ The single source for the incident lifecycle, approval request states, answered 
 | Expired | "Expired at {time}. Nothing was changed." It can no longer be answered (FR-8). |
 | Already answered | The press that lost the race. Web and phone: "Already answered: approved from Telegram at 14:15." Telegram: see the Message Catalog. |
 | Can't answer (step 6) | The buttons are absent: "Only an approver for resends can answer this request." On the phone and in Telegram, a press gets the same sentence (FR-11). |
-| Canceled (step 4) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
+| Canceled (step 4) | "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
 
 On the page an answered status is a status line without a final period unless it holds two sentences. In message text (the phone and Telegram), it ends with a period.
 
@@ -1014,7 +1014,24 @@ Banners stack in this table's order.
 | Source interval label (key in `Msg.Catalog.Core`, Settings > Tools and MCP servers, interval label) | "Check every" |
 | Tool that can't be a source (`settings.sourceNotReadOnly`, Settings > Tools and MCP servers, reason beside a tool that can't be chosen) | "Only a Read-only tool can be a source." |
 | Source arguments not JSON (`settings.sourceBadArguments`, Settings > Tools and MCP servers, field error) | "Enter the arguments as a JSON object. Nothing was changed." |
-| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." |
+| MCP servers off on the online demo (`settings.mcpOffOnDemo`, Settings > Tools and MCP servers, in place of the section's content on the online demo, and the message of every refused MCP settings route and of `ListMcpServers`) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "MCP servers are off on the online demo: nobody can add one, and OcuTalon reaches none. They work on your own install." |
+| MCP settings group headings (Settings > Tools and MCP servers, group headings) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Servers", "Tools" |
+| MCP server table headers (Settings > Tools and MCP servers, column headers: name, address, status, tool count, unclassified count) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Server", "Address", "Status", "Tools", "Unclassified" |
+| MCP server table, empty (Settings > Tools and MCP servers, in place of the table) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "No MCP servers yet." |
+| MCP server status words (Settings > Tools and MCP servers, status column: attached, unavailable, never checked) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Connected", "Unavailable", "Not checked yet" |
+| MCP servers help (Settings > Tools and MCP servers, help line under the server table) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "A new server's tools show here once OcuTalon next uses its agents. They count as risky until you classify them." |
+| MCP add form labels (Settings > Tools and MCP servers, field labels) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Name", "Address", "Secret (optional)" |
+| MCP add form secret help (Settings > Tools and MCP servers, help under the secret field) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Sent to the server with every request. It is kept in the IRIS Wallet and never shown again." |
+| MCP secret refused (`Web.McpSettings` `MESSAGESECRET`, Settings > Tools and MCP servers, field error) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Use a secret of up to 4,096 letters, digits and punctuation, with no spaces. Nothing was changed." |
+| MCP remove dialog, a server with more than one tool (Settings > Tools and MCP servers, the dialog's sentence; {n} is the tool count and {m} the count of pending approval requests) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] [AMENDED 2026-11-13, Story 21.4 code review, Contest Planner ruling ~21:30Z: "cancelled" (it read "canceled")] | "Remove {server}? Its {n} tools go at once." (no pending request); "Remove {server}? Its {n} tools go at once, and 1 pending approval request for them is cancelled." (one); "Remove {server}? Its {n} tools go at once, and {m} pending approval requests for them are cancelled." (more) |
+| MCP remove dialog, a server with one tool (same place) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] [AMENDED 2026-11-13, Story 21.4 code review, Contest Planner ruling ~21:30Z: "cancelled" (it read "canceled")] | "Remove {server}? Its 1 tool goes at once." (no pending request); "Remove {server}? Its 1 tool goes at once, and 1 pending approval request for it is cancelled." (one); "Remove {server}? Its 1 tool goes at once, and {m} pending approval requests for it are cancelled." (more) |
+| MCP remove dialog, a server with no tool (same place) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] [AMENDED 2026-11-13, Story 21.4 code review, Contest Planner ruling ~21:30Z: "cancelled" (it read "canceled")] | "Remove {server}? It has no tools." (no pending request); "Remove {server}? 1 pending approval request for its tools is cancelled." (one); "Remove {server}? {m} pending approval requests for its tools are cancelled." (more) |
+| MCP tools table headers (Settings > Tools and MCP servers, column headers) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Tool", "Server", "Status", "Classification" |
+| MCP tool status words (Settings > Tools and MCP servers, status column) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Available", "Unavailable", "Refused: a built-in tool has this name" |
+| MCP tools table, empty (Settings > Tools and MCP servers, in place of the table; the second with "Unclassified only" on) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "No tools yet." and "No unclassified tools." |
+| MCP tool classification control name (Settings > Tools and MCP servers, the accessible name of each tool's radiogroup) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Classification of {tool} on {server}" |
+| MCP server Remove button name (Settings > Tools and MCP servers, the accessible name of each server's Remove button) [ADDED 2026-11-12, Story 21.4, Contest Planner ruling B] | "Remove {server}" |
+| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Cancelled at {time}: the MCP server {server} was removed. Nothing was changed." |
 | Mail poll, server not reached (`emailPoll.reason`, written by `Channel.Email.Adapter`, shown wherever Story 22.5 lists the mailbox as not checked) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't reach the mail server." |
 | Mail poll, log-in refused (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "The mail server refused the user name or password." |
 | Mail poll, mailbox not read (`emailPoll.reason`, same place) [ADDED 2026-11-11, Story 21.2, Contest Planner ruling] | "OcuTalon couldn't read the mailbox." |
@@ -1024,6 +1041,8 @@ Banners stack in this table's order.
 | Email, no outgoing server (the `CommandResult.Message` of `EmailOut` and of `CommandsIn` when `EmailOut` is not running or the mailbox has no address) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "No outgoing mail server is connected, so the email wasn't sent." |
 | Email rejected by the server (the `CommandResult.Message` of `EmailOut` when the mail server answers the sender, a recipient or the message with an error) [ADDED 2026-11-11, Story 21.6, Contest Planner ruling] | "The mail server didn't accept the email, so it wasn't sent." |
 | Email may have gone out (the `CommandResult.Message` of `EmailOut` for a tool send with an `IdempotencyKey` when the mail server stopped answering while the email was being sent, and for the same key again) [ADDED 2026-11-13, Story 21.13, Contest Planner ruling K] | "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again." |
+| Tool-call approval request (`toolCall.request` and `toolCall.requestOnServer`, every channel) [ADDED 2026-11-14, Story 21.10] | "Run {tool} on {server}", then "Why: {tool} counts as risky, so it runs only after an approval.", then "Inputs:", then one line "{name}: {value}" per input ("{}" for none), then "No dry run is available for this tool. Approving runs exactly this call once." (`toolCall.request` has no " on {server}") |
+| Tool-call inputs too long (`toolCall.inputsTooLong`, Telegram only) [ADDED 2026-11-14, Story 21.10] | "The inputs are too long to show here. See them on your OcuTalon page before you approve." |
 
 ### Settings (step 5)
 
@@ -1050,6 +1069,7 @@ Banners stack in this table's order.
 | `settings.onCallNoChannel`, Settings > On call, field error on Page by | "Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed." |
 | `settings.onCallUnknownUser`, Settings > On call, field error on Person | "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed." |
 | `settings.onCallOffOnDemo`, the 409 `not_available` body of `POST /api/v1/settings/on-call` (Planner ruling 2026-11-12: replaces "because it has no admin") | "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here." |
+| `settings.onCallByEmailHelp`, Settings > On call, under the on-call person's Person select while "Someone else, by email" is chosen (Story 36.4, DW-1250) [ADDED 2026-11-13, Story 36.4, Contest Planner ruling P1] | "Someone paged by email can't press Got it, so OcuTalon also pages the backup after the minutes below." |
 | `settings.partnersSection`, Settings nav label and heading, Story 24.2 | "Partner contacts" |
 | `settings.partnersHelp`, Settings > Partner contacts, help (condition: Story 24.2 pins both halves in tests, that warnings go only to the listed people and only after each is approved) | "Partner warnings go only to the people listed here, and only after you approve each one." |
 | `settings.partnerName`, Settings > Partner contacts, field label | "Name" |
@@ -1120,12 +1140,12 @@ Lighter specs. Components with behavior of their own are under Component Pattern
 - **Settings › Tools and MCP servers** (FR-47 to FR-50):
   - **The server list:** each server's name, address, status, tool count, and count of unclassified tools.
   - **Add server:** its tools arrive as Unclassified.
-  - **Remove** asks first: "Remove Jira? Its 12 tools go at once, and 1 pending approval request for them is canceled."
+  - **Remove** asks first: "Remove Jira? Its 12 tools go at once, and 1 pending approval request for them is cancelled." [AMENDED 2026-11-13, Story 21.4 code review, Contest Planner ruling ~21:30Z (it read "canceled")]
   - **The tools table:** each tool has a classification control, and the list can be filtered with "Unclassified only".
   - **A changed tool** returns to Unclassified (FR-48). Admins are told by a banner in Settings and by a notice card in the chat.
 - **Sources:** a read-only tool can be set as a source poll (FR-50), and it then joins the digest's coverage list.
 - [ADDED 2026-11-09, Story 35.2] **Settings › Channels** (email, webhooks), the changed-tool banner and the source-poll form take their texts from the Message Catalog block "Settings and requests (step 4)".
-- **The approval request for a tool call** shows "Run {tool} on {server}" and the exact inputs as labeled lines. Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17).
+- **The approval request for a tool call** shows "Run {tool} on {server}", "Why: {tool} counts as risky, so it runs only after an approval." and the exact inputs as labeled lines, "{name}: {value}", each value as JSON and never cut ("{}" for a call with no inputs). Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17). In Telegram, a request too long for one message shows its start with no Approve button and ends with "The inputs are too long to show here. See them on your OcuTalon page before you approve." [AMENDED 2026-11-14, Story 21.10]
 
 ### Step 5: more fixes (brief)
 
@@ -1140,7 +1160,7 @@ Reroute, suspend and resume, and roll back each use the approval request card wi
   - When extraction fails: "I couldn't read that file: {reason}."
   - A file's reply offers **Add to documents**.
   - A photo's reply shows a "Saved to memory" chip.
-- **Roles** (FR-11): Settings gains a Roles section for approver roles (all risky actions, or one kind) and the viewer role. Viewers see everything read-only, with no composer.
+- **Roles** (FR-11): Settings gains a Roles section for approver roles (all risky actions, or one kind) and the viewer role. Viewers can open OcuTalon but can't chat, answer or change anything. [AMENDED 2026-11-13, Story 25.4, Contest Planner ruling (row 2, Q8); it read "Viewers see everything read-only, with no composer."]
 
 ### Personality: the heartbeat, the persona and memory (after 1.0.0)
 

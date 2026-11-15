@@ -24,7 +24,8 @@ Include Ensemble
 ///         the result done, and the FixResult is returned. A run inside its wait (the waiter's), with a copy still running, with no ResentAt
 ///         (the next start's Interrupt ends it), whose row is not executing or whose read is not read is left alone.
 ///     A run whose End refuses it (another job ended it) or whose save failed (one Type 3 warning, LOGSAVE) returns no result and is left for the next Tick; a result never goes out twice for
-///     a run. Sweep logs one Type 4 line for each run it ends (LOGSWEPT); an exception for one run logs one Type 3 warning (LOGSWEEP) and the next run is still swept.
+///     a run. A run with no incident (an email, Story 22.7) returns no FixResult: a marked one ends interrupted with the email kind's Action entry, and one with no ResentAt is left alone.
+///     Sweep logs one Type 4 line for each run it ends (LOGSWEPT); an exception for one run logs one Type 3 warning (LOGSWEEP) and the next run is still swept.
 /// Suspended (Story 23.2; AD-15) answers, for Checks, which items of a production OcuTalon itself suspended: a list of item names, each the item of the newest run of a request that is done, of a fix
 /// kind whose targets are items, that changed an item (Completed above 0) in that namespace and production (the incident's), when that run is a suspend_item. A resume_item that changed the
 /// item ends the suspension; a run that changed nothing neither starts nor ends one. Checks does not raise a disabled-item finding for such an item while it stays disabled from the suspend (Checks.Process Findings, which keeps the names it has sighted in Reported "ours"), and a disable by anyone else
@@ -262,6 +263,10 @@ ClassMethod EndMarked(run As OcuTalon.Data.FixRun, row As OcuTalon.Bridge.Data.A
 	Set counts = {"total": (total), "resent": (run.Copies.Count()), "completed": (tally.completed), "failedAgain": (tally.failedAgain), "skipped": 0, "unreached": (+run.Unreached), "interrupted": ($Select(cutOff > 0: cutOff, 1: 0)), "reason": (..Plain(reason))}
 	If '..Ended(run, row, counts, 1) Quit ""
 	If '$IsObject(row) Quit ""
+	If run.IncidentRef = "" {
+		Do ..EmailEntry(row)
+		Quit ""
+	}
 	Do ..Entry(row, ..#INTERRUPTED, counts)
 	Quit ##class(OcuTalon.Fix.Executor).ResultOf(row, counts)
 }
@@ -325,6 +330,20 @@ ClassMethod Entry(row As OcuTalon.Bridge.Data.ApprovalRequest, result As %String
 	Set sc = $$$OK
 	Try {
 		Set sc = ..WriteAudit(##class(OcuTalon.Fix.Executor).ActionEntry(row, result, counts))
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGAUDIT_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
+}
+
+/// Writes the Action entry of an email run that Sweep ended as interrupted (Fix.Kind.Email AuditRow), which has no incident and so no FixResult. A write that fails or throws logs one Type 3 warning (LOGAUDIT).
+ClassMethod EmailEntry(row As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set sc = ##class(OcuTalon.Fix.Kind.Email).AuditRow(row, ..#INTERRUPTED)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}

@@ -13,7 +13,7 @@ Property Ref As %String(MAXLEN = 22);
 /// The owning session's Ref.
 Property SessionRef As %String(MAXLEN = 22);
 
-/// The kind of check: production.
+/// The kind of check: production, queues or source.
 Property Kind As %String(MAXLEN = 32);
 
 /// The namespace of the watched production.
@@ -28,7 +28,8 @@ Property DisplayName As %String(MAXLEN = 128);
 /// The IRIS user who asked for the check.
 Property AskedBy As %String(MAXLEN = 128);
 
-/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these.
+/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these. For a source, it is when its target
+/// (server, tool, arguments) was last set (Story 22.13, DW-1328): coverage counts only the runs since.
 Property CreatedAt As %String(MAXLEN = 20);
 
 /// When the check is next due.
@@ -48,6 +49,18 @@ Property LastRunHeaderId As %Integer;
 
 /// What the findings of the check have reported, as JSON, written by Checks with each run that read the production: {"stopped": 1 while the production's stop has been reported, "disabled": [the names of its items reported disabled]}; empty until the first such run, which reports nothing (veto U-179).
 Property Reported As %String(MAXLEN = "");
+
+/// The MCP server of a source's tool: a source row's; empty for every other kind.
+Property Server As %String(MAXLEN = 40);
+
+/// The MCP tool a source polls: a source row's; empty for every other kind.
+Property Tool As %String(MAXLEN = 128);
+
+/// The arguments of each poll of a source, as the admin's JSON object text: a source row's; empty for every other kind.
+Property Arguments As %String(MAXLEN = "");
+
+/// The minutes between two polls of a source: a source row's; empty for every other kind.
+Property IntervalMinutes As %Integer;
 
 Index RefIndex On Ref [ Unique ];
 
@@ -109,6 +122,18 @@ Storage Default
 </Value>
 <Value name="15">
 <Value>Reported</Value>
+</Value>
+<Value name="16">
+<Value>Server</Value>
+</Value>
+<Value name="17">
+<Value>Tool</Value>
+</Value>
+<Value name="18">
+<Value>Arguments</Value>
+</Value>
+<Value name="19">
+<Value>IntervalMinutes</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.CheckD</DataLocation>

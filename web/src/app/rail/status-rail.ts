@@ -10,17 +10,21 @@ import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Layout } from '../shared/layout';
 import { Popovers } from '../shared/popover';
+import { isViewer } from '../shared/viewer-view';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionRow } from './decision-row';
 import { HeartbeatCard } from './heartbeat-card/heartbeat-card';
 import { MemoryCard } from './memory-card/memory-card';
 import { PersonaCard } from './persona-card/persona-card';
-import { type RailFormat, railView, type RailView } from './rail-view';
+import { type RailFormat, railView, type RailView, type SectionId } from './rail-view';
 import { TelegramCard } from './telegram-card/telegram-card';
 
 /** The clock ticks every second while a reminder shows a countdown, and every minute otherwise, for the day words. */
 const FAST_TICK_MS = 1000;
 const SLOW_TICK_MS = 60_000;
+
+/** The cards of a person's own features, which a viewer does not get (Story 25.4). */
+const PERSONAL_SECTIONS: readonly SectionId[] = ['telegram', 'persona', 'heartbeat', 'memory'];
 
 const NO_VIEW: RailView = { sections: [], telegramShown: false };
 
@@ -87,7 +91,7 @@ export function formatAt(now: number): RailFormat {
   imports: [DecisionRow, HeartbeatCard, MemoryCard, PersonaCard, TelegramCard, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @for (section of view().sections; track section.id) {
+    @for (section of sections(); track section.id) {
       <div class="section" [attr.data-section]="section.id">
         <h3 class="heading" tabindex="-1" [id]="headingId(section.id)">
           @if (section.count === undefined) {
@@ -266,6 +270,9 @@ export class StatusRail {
   );
 
   protected readonly telegram = computed(() => this.live.store()?.telegram ?? TELEGRAM_OFF);
+
+  /** The sections that show: a viewer (Story 25.4) has no Telegram, persona, heartbeat or memory card, which are a person's own features. */
+  protected readonly sections = computed(() => (isViewer(this.live.snapshot()) ? this.view().sections.filter((section) => !PERSONAL_SECTIONS.includes(section.id)) : this.view().sections));
 
   protected readonly view = computed(() => {
     const store = this.live.store();

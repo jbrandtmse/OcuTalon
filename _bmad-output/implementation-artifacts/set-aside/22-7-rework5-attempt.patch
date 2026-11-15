@@ -1,0 +1,235 @@
+diff --git a/docs/security-overview.md b/docs/security-overview.md
+index ecd91501..cd7f8a06 100644
+--- a/docs/security-overview.md
++++ b/docs/security-overview.md
+@@ -122,7 +122,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's
+ 
+ ## Approval and audit
+ 
+-Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
++Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry. Anything unclassified counts as risky. Every built-in tool is safe except `send_email`, which code classifies per call: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do.
+ 
+ Content that didn't come from the user (for example a simulated email, or a failed message's body):
+ 
+@@ -142,6 +142,7 @@ Each risky action is one approval request, held as one IRIS Workflow task:
+ Who may answer:
+ 
+ - a holder of the role named in the bridge's approval-role setting, which OcuTalon seeds with `OcuTalonUser`;
++- for an email to anyone but the connected mailbox's own address, only the session that asked for it, and only if its user holds `OcuTalonAdmin`;
+ - on the online demo, only the session that owns the request;
+ - never a tool's own job.
+ 
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls b/src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls
+index 626fb5bd..dbff1a7b 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Adapter/StepBuffer.cls
+@@ -34,9 +34,13 @@ Parameter MAXLABEL = 200;
+ Parameter MAXSUMMARY = 1000;
+ 
+ /// The name of the tool that sends email. A step of a tool of this name shows its inputs as the name and the number of recipients alone (InputsOf), because no email's recipients are in
+-/// the trace, and an email's subject and text are in it only in the message that sends it to the mailbox's own address.
++/// the trace, and an email's subject and text are in it only in the message that sends it to the mailbox's own address. When such a step failed, its record says EMAILERROR in place of the
++/// error's own text (Records), because that text is a host's and may quote the call.
+ Parameter EMAILTOOL = "send_email";
+ 
++/// What the record of a failed step of the email tool says in place of the error's text: the record reads "Error: the email tool call failed."
++Parameter EMAILERROR = "the email tool call failed";
++
+ /// Empties the buffer and starts a call: the base of every estimate and the clock mark.
+ ClassMethod Start(baseChars As %Integer = 0)
+ {
+@@ -103,7 +107,7 @@ ClassMethod Estimates() As %List
+ ///   - A model step: kind model, label "Model request <n>", summary "About <t> tokens sent (an estimate). Reply: <c> characters of
+ ///     text, <k> tool calls.", where k counts the tool steps that follow it before the next model step, status ok.
+ ///   - A tool step: kind tool, the label of its class (LabelFor), summary "<name>. Inputs: <arguments>. Result: <result>." (the inputs of a call of the governed proxy are its server and tool alone, and those of
+-///     the email tool its name and the number of its recipients alone, InputsOf; or "Error: <detail>." or "Denied: <detail>."), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
++///     the email tool its name and the number of its recipients alone, InputsOf; or "Error: <detail>." or "Denied: <detail>.", where the detail of a failed step of the email tool is always EMAILERROR), then "About <t> tokens added to the next request (an estimate)."; estimatedTokens is the
+ ///     arguments and the result or detail in tokens.
+ ClassMethod Records() As %DynamicArray
+ {
+@@ -129,9 +133,9 @@ ClassMethod Records() As %DynamicArray
+ 		} Else {
+ 			Set name = $List(step, 4)
+ 			Set status = $List(step, 8)
+-			Set detail = ..Part($List(step, 9), ..#MAXRESULT)
+-			Set outcome = $Select(status = "error": "Error: " _ detail, status = "denied": "Denied: " _ detail, 1: "Result: " _ ..Part($List(step, 7), ..#MAXRESULT))
+ 			Set server = ..ReroutedServerOf($List(step, 5), name, .used)
++			Set detail = $Select(status = "error" && ..IsEmailCall($List(step, 5), name, server): ..#EMAILERROR, 1: ..Part($List(step, 9), ..#MAXRESULT))
++			Set outcome = $Select(status = "error": "Error: " _ detail, status = "denied": "Denied: " _ detail, 1: "Result: " _ ..Part($List(step, 7), ..#MAXRESULT))
+ 			Set label = ..Part(..LabelFor($List(step, 5), name, $List(step, 6), server), ..#MAXLABEL)
+ 			Set summary = ..Cut(..Part(name, ..#MAXNAME) _ ". Inputs: " _ ..Part(..InputsOf($List(step, 5), name, $List(step, 6), server), ..#MAXINPUTS) _ ". " _ outcome _ ". About " _ tokens _ " tokens added to the next request (an estimate).", ..#MAXSUMMARY)
+ 			Set kind = "tool"
+@@ -152,7 +156,7 @@ ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String
+ 		Set server = $Select(rerouted '= "": rerouted, 1: ##class(OcuTalon.Bridge.Context).McpServerOf(toolClass))
+ 		Quit $Select(server '= "": {"server": (server), "tool": (name)}.%ToJSON(), 1: {"tool": (name)}.%ToJSON())
+ 	}
+-	If name = ..#EMAILTOOL Quit ..EmailInputs(arguments)
++	If ..IsEmailCall(toolClass, name, rerouted) Quit ..EmailInputs(arguments)
+ 	If name '= $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPROXY") Quit arguments
+ 	Set inputs = ""
+ 	Try {
+@@ -164,6 +168,13 @@ ClassMethod InputsOf(toolClass As %String, name As %String, arguments As %String
+ 	Quit inputs
+ }
+ 
++/// 1 when the step is a call of the email tool (EMAILTOOL) and not an MCP call: its toolClass is not an MCP toolref and no server was rerouted for it (an MCP tool that happens to be named
++/// send_email keeps the MCP rule).
++ClassMethod IsEmailCall(toolClass As %String, name As %String, rerouted As %String = "") As %Boolean [ Private ]
++{
++	Quit (name = ..#EMAILTOOL) && (rerouted = "") && ($ZConvert($Extract(toolClass, 1, 4), "L") '= "mcp:")
++}
++
+ /// The inputs of a step of the email tool: its name and the number of the entries of the arguments' recipients array, as JSON text, and nothing else of the arguments. Arguments that are
+ /// not a JSON object, or hold no recipients array, give the name alone.
+ ClassMethod EmailInputs(arguments As %String) As %String [ Private ]
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Bridge/Steps.cls b/src/ocutalon/cls/OcuTalon/Test/Bridge/Steps.cls
+index d818f406..410da6c7 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Bridge/Steps.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Bridge/Steps.cls
+@@ -16,6 +16,8 @@
+ ///   - TestEmailStepShowsOnlyItsRecipientCount (Story 22.7): a step of the email tool (send_email) shows its inputs as {"tool":"send_email","recipients":<n>} and nothing of its arguments, in an ok, an
+ ///     error and a denied step, for arguments that are not an object or hold no recipients array, and its result and denial are the fixed words that the tool and the gate give; an MCP call named
+ ///     send_email keeps the MCP rule (its server and tool alone), and any other tool's inputs are as they were; the buffer's EMAILTOOL is the Chat tool's name (OcuTalon.Tools.Names SENDEMAIL);
++///   - TestEmailStepErrorIsAFixedSentence (Story 22.7, R5-5): the error of a step of the email tool is the fixed sentence "Error: the email tool call failed." whatever the error's own text holds (here an address, a
++///     subject and a text), in a call with a class and in one with none; the error of an MCP call named send_email and of any other tool is shown as before, and so are the denial and the result of the email tool;
+ ///   - TestLabels: the label of a tool is the parameter STEPLABEL<NAME> of its class, else STEPLABEL, else "Running a tool", for the name
+ ///     with _ and - removed and in upper case; a class that does not exist and an empty class give the generic label;
+ ///   - TestAudit: %LogExecution records the arguments as a string and as an object, the class from the metadata, the result_json, the
+@@ -238,6 +240,44 @@ Method TestEmailStepShowsOnlyItsRecipientCount()
+ 	Do $$$AssertTrue(records.%Get(10).summary [ address, "another tool's inputs are its arguments as they are")
+ }
+ 
++/// Story 22.7 (R5-5): the Error part of a step record of the email tool is the fixed sentence EMAILERROR, never the error's own text, because the text of an error is a host's and may quote the call (an
++/// address, the subject or the text). The step's denial and result are unchanged (fixed words), an MCP call that happens to be named send_email keeps the MCP rule and its error as it was, and the error of
++/// every other tool is shown as it was.
++Method TestEmailStepErrorIsAFixedSentence()
++{
++	Set buffer = ..#BUFFER
++	Set marker = "zzr5error.marker@example.test"
++	Set detail = "Could not send to " _ marker _ " with the subject zzr5subject and the text zzr5text: the mail server said no"
++	Set arguments = {"recipients": [("zzr5.partner@example.test")], "subject": "zzr5subject", "text": "zzr5text"}.%ToJSON()
++	Set answer = {"message": "The email was sent.", "ok": true, "outcome": "sent"}.%ToJSON()
++	Set tool = "OcuTalon.Tools.EmailTools"
++	Do $ClassMethod(buffer, "Start", 0)
++	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, "", 2, "error", detail)
++	Do $ClassMethod(buffer, "Tool", "send_email", "", arguments, "", 2, "error", detail)
++	Do $ClassMethod(buffer, "Tool", "send_email", "mcp:zzsteps", arguments, "", 2, "error", detail)
++	Do $ClassMethod(buffer, "Tool", "zz_other", "", arguments, "", 2, "error", detail)
++	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, "", 0, "denied", "Tool access denied: held for your approval; nothing was run")
++	Do $ClassMethod(buffer, "Tool", "send_email", tool, arguments, answer, 5, "ok", "")
++	Set records = $ClassMethod(buffer, "Records")
++	Do $ClassMethod(buffer, "End")
++	Do $$$AssertEquals($Parameter(buffer, "EMAILERROR"), "the email tool call failed", "the fixed sentence of the buffer")
++	Do $$$AssertEquals(records.%Size(), 6, "six steps")
++	If records.%Size() '= 6 Quit
++	Set fixed = ". Error: the email tool call failed. About "
++	Set names = $ListBuild("the email tool", "the email tool with no class")
++	For i = 1:1:2 {
++		Set summary = records.%Get(i - 1).summary
++		Do $$$AssertEquals($Extract(summary, 1, $Length("send_email. Inputs: {""tool"":""send_email"",""recipients"":1}" _ fixed)), "send_email. Inputs: {""tool"":""send_email"",""recipients"":1}" _ fixed, $List(names, i) _ ": the error is the fixed sentence")
++		Do $$$AssertEquals(records.%Get(i - 1).status, "error", $List(names, i) _ ": the step is still an error step")
++		Do $$$AssertEquals((summary [ marker) _ "|" _ (summary [ "zzr5") _ "|" _ (summary [ "mail server"), "0|0|0", $List(names, i) _ ": the summary holds nothing of the error's text")
++	}
++	Do $$$AssertTrue(records.%Get(2).summary [ (". Error: " _ detail _ ". "), "an MCP call named send_email: its error is as it was")
++	Do $$$AssertTrue(records.%Get(2).summary [ "{""tool"":""send_email""}", "and its inputs are the MCP rule's")
++	Do $$$AssertTrue(records.%Get(3).summary [ (". Error: " _ detail _ ". "), "another tool: its error is as it was")
++	Do $$$AssertTrue(records.%Get(4).summary [ ". Denied: Tool access denied: held for your approval; nothing was run. ", "the denial of the email tool is as it was")
++	Do $$$AssertTrue(records.%Get(5).summary [ (". Result: " _ answer _ ". "), "and so is its result")
++}
++
+ /// The label of a tool.
+ Method TestLabels()
+ {
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls b/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls
+index da7182b0..2b977d22 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Fix/Email.cls
+@@ -42,6 +42,8 @@
+ ///   - TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace (R4-3, Story 22.7): the real chat route, with unique markers in the scenarios send-email-trace-other and send-email-trace-own and none in the chat text. A held
+ ///     email to another address, and the same email once approved and sent, leave no recipient, no subject marker and no text marker in any trace global (OcuTalon.Test.Core.SecretHandoff TraceLeaks); an email to the
+ ///     mailbox's own address leaves no address in them, and its subject and text are in the message bodies like a chat message's. The step records of both turns show the count of recipients and nothing of the call;
++///   - TestEmailToolErrorLeavesNoAddressInTheTrace (R5-5, Story 22.7): the step of a failed send_email call, whose error text quotes a unique recipient, subject and text, is recorded by the real step audit policy
++///     and buffer, carried by a Reply and its AgentStep messages (Decide StepMessages) and stored: the record says "Error: the email tool call failed." and no trace global holds the quoted address, subject or text;
+ ///   - TestInterruptedRunHasNoResult (Task 0, item 5): an email run that a restart cut short is marked and closed by Fix.Run.Interrupt, and Sweep ends it interrupted with an Action entry and no FixResult;
+ ///     an email run that has no ResentAt is left alone. The test holds the lock of both runs (HoldRun), so the production's own Sweep never takes them.
+ Class OcuTalon.Test.Fix.Email Extends OcuTalon.Test.Watch.Case
+@@ -115,6 +117,9 @@ Property Users As %String(MAXLEN = "") [ Private ];
+ /// 1 when a test has put the fixed markers of the trace scenarios in the trace: OnAfterOneTest takes them out again.
+ Property Marked As %Boolean [ InitialExpression = 0, Private ];
+ 
++/// The messages that a test stored in the trace by itself, as a list of $ListBuild(class, id): OnAfterOneTest deletes them.
++Property Stored As %List [ Private ];
++
+ Method OnBeforeAllTests() As %Status
+ {
+ 	Set sc = ##super()
+@@ -129,6 +134,7 @@ Method OnBeforeAllTests() As %Status
+ Method OnAfterOneTest(testname As %String) As %Status
+ {
+ 	If ..Marked Do ..ForgetMarkers()
++	Do ..DropStored()
+ 	If ..Missing = "" Do ..Disconnect()
+ 	Quit ##super(testname)
+ }
+@@ -1287,6 +1293,61 @@ Method TestChatTurnsLeaveNoAddressSubjectOrTextInTheTrace()
+ 	Do ..AssertNoContent(..#TRACEOTHER, ..#TRACEOTHERSUBJECT, ..#TRACEOTHERTEXT, "after the own-address turn of the same conversation")
+ }
+ 
++/// R5-5 (Story 22.7): the Error part of the step record of a failed send_email call is a fixed sentence, so that an error's own text, which may quote the call, never reaches the trace. The test makes the
++/// step as AI Hub does: the real step audit policy gets the call (its arguments hold a unique recipient, subject and text) and an error status whose text quotes another unique address, the subject and the
++/// text. The records of the real buffer travel as Decide sends them: on a Reply (Steps) and as the AgentStep messages that StepMessages builds from it; both are stored, as the production stores them, and
++/// OcuTalon.Test.Core.SecretHandoff TraceLeaks scans ^Ens.MessageBodyD, ^Ens.MessageBodyS, ^Ens.MessageHeaderD and ^Ens.Util.LogD for the unique part, which every quoted value holds.
++Method TestEmailToolErrorLeavesNoAddressInTheTrace()
++{
++	If '..Ready() Quit
++	Set unique = "zzr5"_$Job_"x"_$Random(1000000)
++	Set quoted = unique_".error@example.test"
++	Set partner = unique_".partner@example.test"
++	Set subject = unique_"subject marker"
++	Set text = unique_"text marker"
++	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
++	Set call = {"id": "toolu_zz_r5", "name": "send_email"}
++	Do call.%Set("arguments", {"recipients": [(partner)], "subject": (subject), "text": (text)}.%ToJSON())
++	Set meta = {"ReadOnly": "0", "origin_class": "OcuTalon.Tools.EmailTools", "requires_auth": false}
++	Set error = $SYSTEM.Status.Error(5001, "The email to "_quoted_" with the subject "_subject_" and the text "_text_" could not be sent")
++	Do $ClassMethod(buffer, "Start", 0)
++	Set audit = ##class(OcuTalon.Bridge.Policy.StepAudit).%New()
++	Do $$$AssertEquals(audit.%LogExecution(call, meta, "", 3, error), 1, "the step audit policy records the failed call")
++	Set records = $ClassMethod(buffer, "Records")
++	Do $ClassMethod(buffer, "End")
++	Do $$$AssertEquals(records.%Size(), 1, "one step record")
++	If records.%Size() '= 1 Quit
++	Do $$$AssertEquals(records.%Get(0).status, "error", "an error step")
++	Set expected = "send_email. Inputs: {""tool"":""send_email"",""recipients"":1}. Error: the email tool call failed. About "
++	Do $$$AssertEquals($Extract(records.%Get(0).summary, 1, $Length(expected)), expected, "its record shows the fixed sentence: the count of recipients and Error: the email tool call failed.")
++
++	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
++	Set reply.Text = "The email could not be sent."
++	Set reply.Steps = ##class(OcuTalon.Bridge.Adapter.Agent).StepsJson(records)
++	Set messages = ##class(OcuTalon.Bridge.Process.Decide).StepMessages("zzr5decisionref", reply)
++	Do $$$AssertEquals(messages.Count(), 1, "Decide builds one AgentStep message from the Reply")
++	If messages.Count() '= 1 Quit
++	Do $$$AssertStatusOK(reply.%Save(), "the Reply is stored")
++	Set ..Stored = ..Stored _ $ListBuild($ListBuild("OcuTalon.Bridge.Msg.Reply", reply.%Id()))
++	Set message = messages.GetAt(1)
++	Do $$$AssertStatusOK(message.%Save(), "the AgentStep message is stored")
++	Set ..Stored = ..Stored _ $ListBuild($ListBuild("OcuTalon.Bridge.Msg.AgentStep", message.%Id()))
++	Set opened = ##class(OcuTalon.Bridge.Msg.AgentStep).%OpenId(message.%Id())
++	Do $$$AssertTrue($IsObject(opened) && (opened.Summary [ ". Error: the email tool call failed. "), "the stored step says the fixed sentence")
++	Set leaks = ##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(unique)
++	Do $$$AssertEquals(leaks, "", "no trace global holds the address, the subject or the text that the error quoted, nor the call's own recipient (found in: "_leaks_")")
++}
++
++/// Deletes the messages that a test stored in the trace by itself (Stored).
++Method DropStored() [ Private ]
++{
++	Set position = 0
++	While $ListNext(..Stored, position, entry) {
++		Do $ClassMethod($List(entry, 1), "%DeleteId", $List(entry, 2))
++	}
++	Set ..Stored = ""
++}
++
+ /// Asserts that no trace global holds the recipient, the subject marker or the text marker.
+ Method AssertNoContent(recipient As %String, subject As %String, text As %String, label As %String) [ Private ]
+ {

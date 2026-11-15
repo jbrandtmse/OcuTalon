@@ -302,7 +302,7 @@ describe('scrollers keep the gutter', () => {
         if (!/scroll-padding\s*:\s*var\(--space-scroll-gutter\)/.test(rule.body)) unpadded.push(one.name);
       }
     }
-    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/answer-sources.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/guide/more-to-try.ts', 'app/history/history-page.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts', 'app/usage/usage-page.ts']);
+    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/answer-sources.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/guide/more-to-try.ts', 'app/history/history-page.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/mcp-section.ts', 'app/settings/settings-page.ts', 'app/usage/usage-page.ts']);
     assert.deepEqual(unpadded.sort(), Object.keys(NO_GUTTER));
     for (const [name, why] of Object.entries(NO_GUTTER)) assert.ok(why.length > 20, `${name} says why`);
   });
@@ -388,6 +388,7 @@ describe('the banned patterns (UX-DR129)', () => {
         'app/documents/documents-page.ts': 'the Documents page\'s Remove, through the shared confirm dialog (Story 34.2, 41.13): opened when the user presses a row\'s Remove button',
         'app/header/header.ts': 'the user\'s About and, on the online demo, Sign out: the only dialogs, opened by the user from the account menu',
         'app/rail/memory-card/memory-card.ts': 'the Memory card\'s Forget of an answer and of a memory, through the shared confirm dialog (Stories 41.6 and 41.13): opened when the user presses a row\'s Forget button',
+        'app/settings/mcp-section.ts': 'the Tools and MCP servers section\'s Remove, through the shared confirm dialog (Story 21.4): opened when the admin presses a server\'s Remove button',
         'app/settings/unsaved-guard.ts': 'the settings page\'s unsaved-changes prompt (Story 33.2): opened by the guard when the user leaves a section with unsaved changes',
         'app/shared/dialogs.ts': 'the one place that opens a dialog, over the CDK dialog',
       },
@@ -402,9 +403,9 @@ describe('the banned patterns (UX-DR129)', () => {
     });
   }
 
-  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, from the settings guard, for the unsaved-changes prompt, from the Documents page, for Remove, and from the Memory card, for Forget', () => {
-    assert.deepEqual(filesWith(/\bdialogs\.open\(/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/rail/memory-card/memory-card.ts']);
-    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/rail/memory-card/memory-card.ts', 'app/settings/unsaved-guard.ts']);
+  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, from the settings guard, for the unsaved-changes prompt, from the Documents page, for Remove, from the Tools and MCP servers section, for Remove, and from the Memory card, for Forget', () => {
+    assert.deepEqual(filesWith(/\bdialogs\.open\(/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/rail/memory-card/memory-card.ts', 'app/settings/mcp-section.ts']);
+    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/rail/memory-card/memory-card.ts', 'app/settings/mcp-section.ts', 'app/settings/unsaved-guard.ts']);
   });
 
   it('lets no :hover rule set display, visibility or opacity, so that no control exists only on hover', () => {
