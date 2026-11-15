@@ -1035,3 +1035,5 @@
 2026-11-15T15:09:03Z	Story 0.37	stage_spawned	stage=implement spawn_at=2026-11-15T15:09:03Z model=sonnet effort=high agent_name=0-37-implement-1 cycle_iteration=1 branch=OCT-epic0-s037
 2026-11-15T15:42:37Z	Story 0.37	dev_complete	build_sha=cb162c754 branch=OCT-epic0-s037 triage_diff=L26-27_only(2_2,byte-identical_to_spec) inflight_check=none_edits_L26-27 review=15(high0,med0,low14(1_patched),false1) followup=false mutations=AC1,AC2x2,AC3x3,AC4,AC5 classes=Instructions,TriageUserTurn,PersonaBlock,RenderMemory_pass eval-set,boundaries,class-rules,heartbeat=pass shard_lane-a@Agent=fwd+reverse_pass
 2026-11-15T15:42:37Z	Story 0.37	stage_spawned	stage=qa spawn_at=2026-11-15T15:42:37Z model=sonnet effort=high agent_name=0-37-qa-1 cycle_iteration=1
+2026-11-15T15:48:42Z	Story 0.37	qa_complete	model=sonnet commit=929cfd407 tests=TestTriageOutcomes(outcome_set+order,tellnow/act_bullet_placement,separation) mutations_demonstrated=4 findings=none
+2026-11-15T15:48:42Z	Story 0.37	stage_spawned	stage=code-review spawn_at=2026-11-15T15:48:42Z model=opus effort=high agent_name=0-37-code-review-1 cycle_iteration=1
