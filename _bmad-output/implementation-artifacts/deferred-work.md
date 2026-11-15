@@ -8358,3 +8358,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: assertion history.spec.ts:181 on context.newPage().goto(address); reload on the first page passed 4 lines earlier; 334 other specs passed; port 52804 swept clean (not port/DW-1099-shaped); 25.6 changes no history code
 - 2026-11-15T15:40:49Z status=routed owner=burndown by=epic-runner-25 note=one rerun of failed jobs; a second red on any head = real
 - 2026-11-15T16:32:36Z status=wontfix-accepted by=burndown note=reopen_if=history.spec_H2_red_again_on_any_head(CI_flake_rule:a_second_red=real);passed_on_rerun_43728223291_attempt_2_on_ocutalon-ci-34;not_port/DW-1099-shaped
+
+### DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line and keeps the button
+- source: epic-25 retrospective 2026-11-15 (cross-story review: 25.4 viewer gating x 25.6 file reply) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/src/app/chat/file-reply.ts:23-31 never reads isViewer; viewer-sources.test.mjs GUARDED (lines 25-40) has no chat/file-reply.ts; server side sound: Web/Api.cls:354-357 ViewerMay, Test.Web.ViewerApi TestEveryWriteRouteRefusesAViewer
+- 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(hide_FileReply_add_for_isViewer,keep_the_chip;add_chat/file-reply.ts_to_GUARDED)
+
+### DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (FileDrop active defaults to true; only addFiles returns early)
+- source: epic-25 retrospective 2026-11-15 (cross-story review: 25.3 shared FileDrop x 25.4 viewer gating) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/src/app/documents/documents-page.ts:60 appFileDrop with no [active]; :396 addFiles returns for a viewer; shared/file-drop.ts:15 active=model(true) binds dragover/drop with preventDefault; chat-panel turns the drop off for viewers
+- 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(bind_[active]=!viewer()_and_pin_it_in_viewer-sources.test.mjs)
