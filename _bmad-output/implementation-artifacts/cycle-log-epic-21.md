@@ -490,3 +490,5 @@
 2026-11-15T23:12:58Z	DW-1205	ruling	Planner_~01:00Z_Nov16:SHIP_as_planned(condition3_before_push);release_note_in_spec;DW-1410_HIGH_follow-up_to_lane_C(triage_first)
 2026-11-15T23:12:58Z	DW-1410	stage_spawned	stage=triage(read-only,no_stack) spawn_at=2026-11-15T23:12:58Z model=opus effort=high agent_name=dw-1410-triage-1
 2026-11-15T23:16:48Z	DW-1410	triaged	answer=NO(demo_Break_the_feed:Translator_BP_no_reply;guide_reroute:Review_BO) next=DW-1389_keeps_its_place session_signal=cheap_but_false-running_risk;BP-instance_check_tighter
+2026-11-15T23:50:37Z	DW-1205	integrated	feature=c97aa4f22 merge=c0afaf069; then feature=2129230b3(DW-1391,DW-1400;no_src_delta_vs_branch) merge=2cc221675 conflicts=none
+2026-11-15T23:50:37Z	DW-1205	fresh_check	env=c0afaf069(src_identical_at_push_head) condition3: build109(IRIS_IMAGE=irishealth-community:2027.1.0AI.109.0)_lane-a@Fix_29/29,Watch.Evidence,Watch.Reader_pass; build154_lane-a@Fix_29/29,Watch.Evidence_pass; probe_0/300_loaded(CR) bd,class-rules=pass lint=12_low(unchanged) torn_down
