@@ -2,7 +2,7 @@
 title: 'Story 24.2: Set partner contacts and saved SQL query watches in Settings'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -270,6 +270,57 @@ The SQL body is `{action, ref, name, query, intervalMinutes}`.
 - AC11. Given `Fix.PartnerContacts` has no `TABLE` parameter (today), when Partner contacts shows, then the section shows no `partnersHelp` and Remove has no confirm. Given a probe value of 1, when it shows, then `partnersHelp` shows and Remove asks `partnerRemoveConfirm`.
 
 ## Spec Change Log
+
+- 2026-11-15 (lead). **Gate ruled, Contest Planner ~16:30Z Nov 15 (BINDING; corrected by the orchestrator: the Lane A story is 23.13, not 23.10)**, quoted in full from `<coordination>/prompts/story-242-rulings-20261115.md`:
+
+  > # Story 24.2 rulings (Contest Planner, ~16:30Z Nov 15). BINDING.
+  > 
+  > ## G1: (B), SPLIT
+  > This also answers the size and multiple-goals warnings.
+  > - 24.2 is partner contacts ONLY.
+  > - New story 24.5 is saved SQL query watches in Settings. It depends on 23.8, and its plan starts after 23.8 merges. Charter it in epics.md, marked [ADDED 2026-11-15, Contest Planner split of 24.2]. Record its wait in epic-dependencies.yaml only through the orchestrator.
+  > - No hidden section that switches itself on at runtime, and no route that answers "isn't built yet".
+  > 
+  > ## G2: (a), with one change: NO "not yet" text
+  > - 24.2 builds the table, the save path, the ForProduction reader and the leak-scan test.
+  > - The Settings section stays HIDDEN until Fix.PartnerContacts has `TABLE = 1`, so the TABLE parameter is the switch. Pin both states:
+  >   - at 0, the section is hidden;
+  >   - at 1, the section is shown with the approved settings.partnersHelp.
+  > - settings.partnersNotYet is REFUSED.
+  > - APPROVED as a veto item: the reader switch and DW-1254's contact-id change move to Lane A's Story 23.13. Lane A sets `TABLE = 1` in 23.13.
+  > 
+  > ## Veto items
+  > 1. **ListProductions: APPROVED.**
+  >    - Read-only and web_admin only.
+  >    - Runs in SettingsOps with a 20 s limit.
+  >    - On the demo it answers not_available.
+  >    - Not usable by tools. PIN this.
+  > 2. **The TABLE parameter as the cross-lane contract: APPROVED**, as above.
+  > 3. **Audit: CHANGED.**
+  >    - The audit records partnerContact.<Ref> and WHICH fields changed (name, email, productions), never their values. A contact's name and email must leave with the contact, and the IRIS audit log can't be purged per contact.
+  >    - Keep SecretHandoff and the leak scan, and EXTEND the leak scan to the audit rows.
+  > 4. **The route bodies and ForProduction's shape as spine bullets: APPROVED.**
+  > 
+  > ## Scope
+  > - GRANTED for the contacts half only: the extensions beyond Epic 24's declared paths (Msg/Command/, Web/ classes other than Api.cls, Test/Msg/, short-names.tsv, web/scripts/).
+  > - Target: 1.0.12 or later.
+  > - On the demo: the routes answer 403 and 409, and both sections are hidden.
+  > 
+  > ## 23.13 replaces "23.10" (Contest Planner, ~16:45Z). BINDING.
+  > 23.10 is already done, so a new story, **23.13 "Partner warnings go to the Settings contacts"**, replaces it everywhere above.
+  > - **Files and runner:** Lane A files, run by lane B (Epic 23's runner).
+  > - **Scope:**
+  >   - the Fix.PartnerContacts reader switch;
+  >   - DW-1254's contact-id change in 23.5's warnings;
+  >   - TABLE = 1.
+  > - **Charter:** lane B charters it in epics.md with an [ADDED 2026-11-15, Contest Planner] marker.
+  > - **When:** after 23.4 and 23.8, and only once 24.2 has merged.
+  > - **Acceptance criteria:**
+  >   - the 24.2 Settings section shows only when TABLE = 1;
+  >   - a warning goes only to the contacts set for that production;
+  >   - the leak scan still passes.
+
+  Applied by the lead: `epics.md` narrows 24.2 to partner contacts with an `[AMENDED 2026-11-15 ...]` marker and charters Story 24.5 (saved SQL query watches; waits for 23.8) with an `[ADDED 2026-11-15, Contest Planner split of 24.2]` marker. Status reset to `draft` for a re-plan of the narrowed scope.
 
 ## Review Triage Log
 
