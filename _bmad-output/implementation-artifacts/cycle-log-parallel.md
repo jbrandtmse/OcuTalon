@@ -4247,3 +4247,6 @@
 2026-11-15T05:30:04Z	Epic 21	merge_enqueued	story=21.5 head=1ecb7150d into=feature@d53500886+records
 2026-11-15T05:33:02Z	Epic 21	merged	story=21.5 merge=afd4ff35a pins=pass web=pass lint=pass feature_ci=pending
 2026-11-15T05:33:13Z	Epic 22	runner_resumed	lane=D task=integrate_22.11_over_afd4ff35a+push+PART_READY;then_22.12_spec_gate
+2026-11-15T07:25:07Z	Epic 21	runner_reported	LOCAL_READY story=21.9 head=05a829efb(OCT-epic21-s219,unpushed) base=22.15_0a2d53d2b+feature_afd4ff35a refused_ruling=tested(node,B14,TestListChanged,mutations_red) DW-1356=wontfix-accepted bundle=888.40kB push=after_22.15_merged
+2026-11-15T07:25:07Z	Epic 21	runner_ended	reason=waiting waiting_on=22.15_merge
+2026-11-15T07:25:27Z	Epic 21	runner_resumed	lane=C task=21.11_spec_gate+local_cycle(OCT-epic21-s2111_from_afd4ff35a);21.9_push_on_22.15_merge
