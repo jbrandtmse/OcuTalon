@@ -4309,3 +4309,5 @@
 2026-11-15T14:42:46Z	Run	owner_decision	via=contest_planner DW-1371_ci=let_finish adbb0ace9_ci_43720376656=cancel_after_21.11_merge_push_if_running(EXPLICIT_OVERRIDE_of_DW-1335_rule,this_run_only;report_CANCELLED_to_Planner) rule_stands_otherwise
 2026-11-15T14:52:44Z	Epic 21	ci_green_verified	story=21.11(lane_D_exception) head=ccf1a8358 runs=43718466454,43718466745 note=merged_on_green_per_Planner(lane_D_report_pending)
 2026-11-15T14:52:44Z	Epic 21	merge_enqueued	story=21.11 (1.0.11 required, last)
+2026-11-15T14:55:41Z	Epic 21	merged	story=21.11 merge=a1b4f2e2c pins=pass web=pass lint=pass
+2026-11-15T14:55:41Z	Run	ci_cancelled	run=43720376656(feature_adbb0ace9,superseded_by_a1b4f2e2c) via=Planner_EXPLICIT_OVERRIDE_of_DW-1335_rule(this_run_only)
