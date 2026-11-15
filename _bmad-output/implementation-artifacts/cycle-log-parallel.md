@@ -4343,3 +4343,4 @@
 2026-11-15T16:45:19Z	Epic 0	runner_status	0.37 pushed=c8f7a3f39 runs=43737201539,43737201541(pending) planner_notified="0.37 PUSHED c8f7a3f39" state=held_merge(A/B)
 2026-11-15T17:18:47Z	Epic 0	runner_reported	PART_READY story=0.37 head=c8f7a3f39 runs=43737201539,43737201541(att1_green) state=held_merge(Planner_A/B)
 2026-11-15T17:18:47Z	Epic 21	runner_ended	reason=waiting waiting_on=23.3_merge(DW-1205+DW-494)
+2026-11-15T17:19:04Z	Epic 21	runner_resumed	lane=C task=DW-1205+DW-494_investigation_only(no_Fix_edits_until_23.3_merges) via=contest_planner
