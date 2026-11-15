@@ -4241,3 +4241,7 @@
 2026-11-15T05:26:56Z	Epic 22	ci_green_verified	head=6ba4068d gate=success missing=none
 2026-11-15T05:26:56Z	Epic 22	amendments_verified	test-only(Test.Mcp.SourceSet:TestUpdate) DW-1352=resolved-by_22-14_at_merge
 2026-11-15T05:26:56Z	Epic 22	merge_enqueued	story=22.14 head=6ba4068d into=feature@6730eda7e+records
+2026-11-15T05:29:56Z	Epic 22	merged	story=22.14 merge=d53500886 DW-1352=resolved-by_22-14 pins=pass feature_ci=pending(6730eda7e_still_running)
+2026-11-15T05:30:04Z	Epic 21	ci_green_verified	head=1ecb7150d runs=43651790835(att2),43651790939 gate=success base=a6821f1d
+2026-11-15T05:30:04Z	Epic 21	amendments_verified	DW-1351=hint_hidden_for_sources(in_21.5) bundle=888.96kB(<1MB)
+2026-11-15T05:30:04Z	Epic 21	merge_enqueued	story=21.5 head=1ecb7150d into=feature@d53500886+records
