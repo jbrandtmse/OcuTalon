@@ -4408,3 +4408,4 @@
 2026-11-15T22:46:54Z	Epic 23	ci_green_verified	story=DW-1400(+23.8_parked_records,23.13_charter) head=69d17499b runs=43768251126,43768251118(att1)
 2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400
 2026-11-15T22:50:42Z	Epic 23	merged	story=DW-1400 merge=c97aa4f22 tracker=23.8_backlog(parked) epics_md_hash=re-recorded
+2026-11-15T22:56:38Z	Epic 23	runner_reported	PUBLIC_TEXT 23.13(8418ec9d1) new=partnerRequestMailbox,partnerSkipped D9=partner.emailSubject("Delay notice") D6-D8,D10 relayed=contest_planner
