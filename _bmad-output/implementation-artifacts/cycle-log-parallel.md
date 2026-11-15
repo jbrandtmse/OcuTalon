@@ -4407,3 +4407,4 @@
 2026-11-15T22:39:21Z	Epic 23	owner_decision	via=contest_planner 23.13_EmailOut=option_i(cross-lane_Out.cls;AD-14_amended) security=approved-address_rule(send_only_if_contact_exists_and_address_equals_approved;skip+report;pins) texts=reuse_fix.emailSent/NotSent;new_lines_to_Planner_first
 2026-11-15T22:46:54Z	Epic 23	ci_green_verified	story=DW-1400(+23.8_parked_records,23.13_charter) head=69d17499b runs=43768251126,43768251118(att1)
 2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400
+2026-11-15T22:50:42Z	Epic 23	merged	story=DW-1400 merge=c97aa4f22 tracker=23.8_backlog(parked) epics_md_hash=re-recorded
