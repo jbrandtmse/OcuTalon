@@ -200,3 +200,6 @@
 2026-11-14T19:29:52Z	Story 25.7	ci_resolved	story=25.7 sha=647d4c9a runs=43627052496,43627052520 result=success failed=none via=none resolved_at=part_ready
 2026-11-14T19:29:52Z	Story 25.7	story_cycle	plan_to_commit_min=~110 implement_passes=1 reviews=1 rework=0 first_ci=success models=plan:opus,implement:sonnet,qa:folded_into_cr,cr:opus
 2026-11-14T19:29:52Z	Epic 25	part_ready	story=25.7 head=647d4c9a branch=OCT-epic25-s257 ci=success(43627052496,43627052520) open=25.6(waits_26.2) burndown_gate=not_run(25.7_is_the_chartered_burndown_story_for_DW-1335)
+2026-11-15T03:57:28Z	Epic 25	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_25.6_after_26.2_merged lane=A slot=ocutalon-slot-a(lock) model=claude-opus-5-5
+2026-11-15T03:57:28Z	Epic 25	branch_started	branch=OCT-epic25-s256 from=feature_6730eda7(26.2_merged,v1.0.10)+records_db861e91
+2026-11-15T03:57:28Z	Story 25.6	ledger_routed_planned	story=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th entries=4(DW-1269,DW-1312,DW-1313,DW-1342) by=lead note=26.2_rulings_texts_1-3_and_READSFILES_flip_bullet_added
