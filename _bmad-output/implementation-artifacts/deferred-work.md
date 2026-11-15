@@ -188,6 +188,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-20T06:55:28Z status=resolved-by:0-9-the-message-catalog-and-its-one-renderer owner=0-9-the-message-catalog-and-its-one-renderer by=adjudication note=race patched in review (0/15 settled vs 5/15); the next push's iris (production) confirms, else reopen
 - 2026-11-13T17:32:55Z status=routed owner=burndown by=orchestrator note=RECURRENCE after resolved-by 0-9: run 43459664457 (OCT-epic37 f2fc3d3a) iris(production) 'another production': fixture StartProduction(ZzOther.Production) returned 0 (other-started 0), so start-refused/other-state empty; the Troubled/Suspended variant passed right after; 37.1 diff (Approval, Agent.Input, Install.Step.Roles, tests) does not touch production start; rerun --failed once
 - 2026-11-15T18:22:10Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
+- 2026-11-15T18:37:48Z occurrence=OCT-epic23-s233-8d57cadc1 by=orchestrator note=run 43741249586 att1 iris(production) on ocutalon-ci-18: 'another production' other-started 0, start-refused and other-state empty (3 of 8 values); attempt 2 green
 
 ### DW-29: Banner keys with a {time} slot render as message times in the instance zone, while the UX says banner times are page times in the browser's zone
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: in-epic
@@ -3426,6 +3427,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
 - 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
 - 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
+- 2026-11-15T17:53:35Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-5) on ocutalon-ci-48 (new runner): heartbeat-card.spec.ts:677 HC4 page.goto to 127.0.0.1:52803 interrupted by chrome-error; superseded by df475cc64/9b9898a53 runs
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -6484,6 +6486,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
 - 2026-11-13T20:28:39Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959499 iris(browser) live:demo-path 06-trace.spec.ts:23 run-total not found after navigation to ?signedOut=1; demo path untouched by 36.4; one rerun
 - 2026-11-15T18:22:10Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
+- 2026-11-15T18:37:48Z occurrence=OCT-epic23-s233-8d57cadc1 by=orchestrator note=run 43741249586 att1 iris(browser) on ocutalon-ci-24: demo-path 06-trace.spec.ts:23 .finish .run-total not found while waiting for navigation; attempt 2 green
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6950,16 +6953,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: usage-page.ts:474 announces USAGE_TEXTS.error on every failure through the shared Announcer; nothing withdraws it on the next answer. Same root as 25.2's H12 CI red, fixed for History only by Announcer.retract (25.2 rework 2).
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=apply HistoryPage.arrived's retract pattern to UsagePage with a frozen-clock browser pin like H15
+- 2026-11-15T16:32:37Z status=decision-pending owner=burndown by=burndown note=to_x0:no_open_story_owns_the_web_Announcer_or_the_Usage/History_pages(25.2,36.5_done);decide_whether_a_Lane_B_web_gap-fill_story_takes_DW-1120..1122_together(retract_on_Usage_like_History+a_behavioural_retract-guard_pin+an_H15_precondition)_or_accept
 
 ### DW-1121: Announcer.retract's lastSpoken guard, which keeps it from emptying another page's announcement, has only a source-regex pin
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: announce-focus-sources.test.mjs pins the guard by regex; announcer.ts cannot be imported by node (inject). Removing the lastSpoken check would keep H9, H12 and H15 green.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=behavioural pin: retract after a different text was spoken leaves the region alone (browser case, or bookkeeping in AnnounceQueue)
+- 2026-11-15T16:32:37Z status=decision-pending owner=burndown by=burndown note=to_x0:no_open_story_owns_the_web_Announcer_or_the_Usage/History_pages(25.2,36.5_done);decide_whether_a_Lane_B_web_gap-fill_story_takes_DW-1120..1122_together(retract_on_Usage_like_History+a_behavioural_retract-guard_pin+an_H15_precondition)_or_accept
 
 ### DW-1122: H15 presses Retry a second time with no page-side signal that the second failure was handled; a reversed order would pass without exercising the queued case
 - source: _bmad-output/implementation-artifacts/spec-25-2-filter-past-decisions-and-incidents-on-the-history-page.md (code review, rework 2 re-review) | severity: med | fix-risk: low | footprint: in-story
 - evidence: The page shows nothing new for a second failure; the press waits only for the route fulfil. Observed in order in the no-retract mutation run (H15 red, 2 announcements), not guaranteed.
 - 2026-11-11T09:23:08Z status=routed owner=burndown by=cr note=give H15 an observed precondition (a page-side marker of the refused read) and a mutation line
+- 2026-11-15T16:32:37Z status=decision-pending owner=burndown by=burndown note=to_x0:no_open_story_owns_the_web_Announcer_or_the_Usage/History_pages(25.2,36.5_done);decide_whether_a_Lane_B_web_gap-fill_story_takes_DW-1120..1122_together(retract_on_Usage_like_History+a_behavioural_retract-guard_pin+an_H15_precondition)_or_accept
 
 ### DW-1127: 35.3: rotation's Settings audit entry shows [redacted] for from/to where C3 said empty strings
 - source: spec-35-3-send-events-to-ocutalon-through-a-webhook.md | severity: low | fix-risk: low | footprint: in-story
@@ -7587,6 +7593,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
 - 2026-11-12T16:31:02Z status=routed owner=burndown by=orchestrator note=Planner rule: a logic red is not a load flake by default; investigate ordering/state the copies counter depends on; a second red on any head = real
+- 2026-11-15T15:40:49Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=epic-runner-25 note=ci_43728223291_OCT-epic25-s256_ff3078ed7_iris(shards-11)_job_132854720236_runner_ocutalon-ci-16_same_assert('it holds 3/3/0/3/0: the copies failed again');second_red_on_a_head=real_per_Planner_rule;25.6_touches_no_Fix_code;reported_to_orchestrator;rerun_of_failed_jobs
 
 ### DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
@@ -7870,11 +7877,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/SecretHandoff.cls has Put/Take/Discard only (no TTL) on eaad3718; Planner ruling C4 2026-11-13: do not widen SecretHandoff in 25.4, ledger a low DW
 - 2026-11-13T19:04:31Z status=routed owner=burndown by=spec_gate note=Planner ruling C4 (story-254-rulings-20261113.md)
+- 2026-11-15T16:32:36Z status=wontfix-accepted by=burndown note=reopen_if=a_SecretHandoff_uri_is_found_left_in_shared_memory_after_a_REST_timeout_on_any_install,or_SecretHandoff_gains_a_caller_that_hands_off_a_secret_to_a_non-admin_or_remote_process;admin-only,local_installs_only;Planner_C4_kept_25.4_from_widening_SecretHandoff;no_Epic_25_story_left_to_charter_it(25.7_is_the_burn-down_story,done)
 
 ### DW-1284: Telegram and email entries take a message in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person holding OcuTalonUser at USE time: a user whose OcuTalonUser role is removed can still start turns through a paired chat or the connected mailbox (approval answers do re-check at use time)
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
 - 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
+- 2026-11-15T16:32:37Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=burndown note=overflow:26.4_enforces_roles_wherever_an_answer_arrives;the_same_use-time_check_belongs_at_the_Telegram_and_email_turn_entries(Telegram/In.cls,Email/In.cls);Planner_C3_report-only_in_25.4;DW-n_bullet_for_the_orchestrator_post-merge
 
 ### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
@@ -7950,6 +7959,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T18:50:45Z status=routed owner=burndown by=orchestrator note=Planner: no cap raise; standing rule until this closes: new web code goes into lazy chunks, and any story that would push the initial bundle over the cap goes to the Planner
 - 2026-11-14T00:55:11Z occurrence=25-4-assign-approver-and-viewer-roles-in-settings
 - 2026-11-14T00:55:11Z note=25.4 cr: the 997.59 kB ceiling is checked by hand only (angular.json initial maximumError is 1MB); 25.4 build 997.59 kB, at the ceiling
+- 2026-11-15T18:24:16Z status=resolved-by:25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=orchestrator note=Contest Planner closed it (~19:00Z Nov 15): bundle target met, initial bundle 890.41 kB under the 921,000-byte cap after Epic 25; new web code stays in lazy chunks per the standing rule
 
 ### DW-1303: Self-lockout: Settings > Roles lets an admin grant OcuTalonViewer to themselves, which (viewer wins, Planner 25.4 final ruling 1) locks them out of Settings; the save must refuse it with reason self_viewer and the text: "You can't give yourself the viewer role here, because it would lock you out of Settings. Ask another admin."
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
@@ -8347,6 +8357,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T07:56:47Z status=routed owner=burndown by=harvest note=measure on a running production under load (the CI-budget audit or a throwaway soak)
 - 2026-11-15T09:07:11Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th
 - 2026-11-15T09:07:11Z status=routed owner=burndown by=cr note=25.6 cr: Add to documents makes DocumentOps take the instance Docs.Extract lock, which a next file turn's ReadFile waits on (unmeasured)
+- 2026-11-15T16:32:37Z status=routed owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=burndown note=overflow:measure_the_document_file_turn's_Conversation_hold_(ReadFile+2_Render;Docs.Extract_lock_vs_Add_to_documents)_on_a_running_production_in_the_hands-on_pass;stop_lines_10s/45s_per_read(26.2);DW-n_bullet_for_the_orchestrator_post-merge
 
 ### DW-1359: A readable document whose ReadFile succeeds can still fail a later Render re-read (timeout or lock wait), so Decide gets an empty Input and the turn falls back while FileRead says read 1, addable 1
 - source: spec-25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th.md (code review) | severity: low | fix-risk: med | footprint: in-story
@@ -8452,3 +8463,36 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: PagingLive TestSettingsSaysPagesBuilt vs LiveRolesApi SignIn/Get and EmailCard SignIn; reason given in the spec (implement note 8) is that the helpers are private
 - 2026-11-15T18:48:07Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a fourth test class repeats the IRISUsername/IRISPassword form post; then extract one shared Test helper
+### DW-1388: flake: web/e2e/settings/mcp.spec.ts:479 B13 (21.5 source form) times out after 60 s at line 600 waiting for the button 'Remove the source Existing' in the 'Your sources' region: a list reload before the row renders, or a selector race
+- source: orchestrator; Contest Planner ruling ~18:10Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: main ci 43737922579 shards-4 on ocutalon-ci-55 (1.0.11 main push run); feature ci 43733825684 on ocutalon-ci-16; passed on a1b4f2e2c and PR #16
+- 2026-11-15T17:24:27Z status=routed owner=burndown by=orchestrator note=ledgered flake (one rerun) until fixed; owner: lane D or lane C, whichever frees first; fix the test, or the UI if it is at fault
+- 2026-11-15T17:53:36Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-4) on ocutalon-ci-29 (new runner): mcp.spec.ts:479 B13 click 'Remove the source Existing' timeout 60 s
+- 2026-11-15T17:53:54Z status=routed owner=burndown by=orchestrator note=Contest Planner raised to HIGH (3 hits, 3 hosts, incl. main 1.0.11 push run); next free lane ahead of other burndown; assigned lane C (21.5's author) at its next boundary, before the Fix-family implementation
+- 2026-11-15T18:15:51Z occurrence=feature-9b9898a53 by=orchestrator note=run 43742359975 att1 iris(shards-4) on ocutalon-ci-7 (old runner): same B13 'Remove the source Existing' 60 s timeout (4th hit, 4th host); one rerun of failed jobs
+- 2026-11-15T18:24:07Z occurrence=OCT-epic25-8fee7092f by=orchestrator note=run 43738072955 att1 shards-4 on ocutalon-ci-10: same B13 timeout (5th hit); lane A had claimed DW-1390 for it, not filed as a duplicate
+
+### DW-1389: eval pair memory-webhook-remember and memory-email-remember (injection cases: a partner note asking to be remembered, expected digest) now land as ignore: decide a one-line Triage clarification that such notes go to the digest, or propose changing the two expectations; side question: a user's chat message saying a production stopped leans to act on OLD and NEW
+- source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
+- evidence: webhook: digest 3/3 OLD -> ignore 3/3 NEW at c8f7a3f39, safety held (refused, no tool step, no memory saved); email sibling went digest->ignore on 1.0.11's own RC run; chat probe leans act on both OLD and NEW
+- 2026-11-15T17:39:53Z status=routed owner=burndown by=orchestrator note=owner lane C after DW-1205/DW-494; bring evidence to the Planner; no eval-set change without a Planner ruling
+
+### DW-1391: flake candidate: Test.Fix.Asked TestSuspendAndUndo 'the same ask again is already_asked' and 'with the ruled message' failed (1.40 s class) in CI; same Fix area as DW-1205/DW-494
+- source: orchestrator; Contest Planner query ~18:45Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: feature ci 43735777142 attempt 1 (7622f6df8, 25.6 merge; 25.6 touches no Fix file) shards-11 on ocutalon-ci-38; Test.Fix.AskedTurns passed in the same shard
+- 2026-11-15T17:40:40Z status=routed owner=burndown by=orchestrator note=investigate with lane C's DW-1205/DW-494 family (Fix area; no Fix edits until 23.3 merges); one rerun meanwhile
+### DW-1382: flake candidate: live:sign-in history.spec H2 copied-link page found no Outcome control (element not found, 10 s) after the same context's reload passed
+- source: ci 43728223291 OCT-epic25-s256 ff3078ed7 iris (shards-10) job 132854720227 runner ocutalon-ci-31 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: assertion history.spec.ts:181 on context.newPage().goto(address); reload on the first page passed 4 lines earlier; 334 other specs passed; port 52804 swept clean (not port/DW-1099-shaped); 25.6 changes no history code
+- 2026-11-15T15:40:49Z status=routed owner=burndown by=epic-runner-25 note=one rerun of failed jobs; a second red on any head = real
+- 2026-11-15T16:32:36Z status=wontfix-accepted by=burndown note=reopen_if=history.spec_H2_red_again_on_any_head(CI_flake_rule:a_second_red=real);passed_on_rerun_43728223291_attempt_2_on_ocutalon-ci-34;not_port/DW-1099-shaped
+
+### DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line and keeps the button
+- source: epic-25 retrospective 2026-11-15 (cross-story review: 25.4 viewer gating x 25.6 file reply) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/src/app/chat/file-reply.ts:23-31 never reads isViewer; viewer-sources.test.mjs GUARDED (lines 25-40) has no chat/file-reply.ts; server side sound: Web/Api.cls:354-357 ViewerMay, Test.Web.ViewerApi TestEveryWriteRouteRefusesAViewer
+- 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(hide_FileReply_add_for_isViewer,keep_the_chip;add_chat/file-reply.ts_to_GUARDED)
+
+### DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (FileDrop active defaults to true; only addFiles returns early)
+- source: epic-25 retrospective 2026-11-15 (cross-story review: 25.3 shared FileDrop x 25.4 viewer gating) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/src/app/documents/documents-page.ts:60 appFileDrop with no [active]; :396 addFiles returns for a viewer; shared/file-drop.ts:15 active=model(true) binds dragover/drop with preventDefault; chat-panel turns the drop off for viewers
+- 2026-11-15T16:50:15Z status=decision-pending owner=burndown by=retro note=to_x0:join_the_DW-1120..1122_Lane_B_web_gap-fill(bind_[active]=!viewer()_and_pin_it_in_viewer-sources.test.mjs)
