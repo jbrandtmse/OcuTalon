@@ -187,6 +187,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-20T06:51:54Z status=routed owner=0-9-the-message-catalog-and-its-one-renderer by=cr note=cause: stop right after start races Ens.ScheduleHandler on ^Ens.Runtime (5/15 vs 0/15 settled); patched in review
 - 2026-10-20T06:55:28Z status=resolved-by:0-9-the-message-catalog-and-its-one-renderer owner=0-9-the-message-catalog-and-its-one-renderer by=adjudication note=race patched in review (0/15 settled vs 5/15); the next push's iris (production) confirms, else reopen
 - 2026-11-13T17:32:55Z status=routed owner=burndown by=orchestrator note=RECURRENCE after resolved-by 0-9: run 43459664457 (OCT-epic37 f2fc3d3a) iris(production) 'another production': fixture StartProduction(ZzOther.Production) returned 0 (other-started 0), so start-refused/other-state empty; the Troubled/Suspended variant passed right after; 37.1 diff (Approval, Agent.Input, Install.Step.Roles, tests) does not touch production start; rerun --failed once
+- 2026-11-15T18:22:10Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 - 2026-11-15T18:37:48Z occurrence=OCT-epic23-s233-8d57cadc1 by=orchestrator note=run 43741249586 att1 iris(production) on ocutalon-ci-18: 'another production' other-started 0, start-refused and other-state empty (3 of 8 values); attempt 2 green
 
 ### DW-29: Banner keys with a {time} slot render as message times in the instance zone, while the UX says banner times are page times in the browser's zone
@@ -2090,6 +2091,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-14T12:41:46Z occurrence=feature-ef40062b by=orchestrator note=run 43589903973 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty'; not rerun: superseded by d2c2fb0d/f138fcf8 runs
 - 2026-11-14T20:30:14Z occurrence=OCT-epic26-294565a3 by=orchestrator note=run 43632972453 iris(production) live:production row 21 'wanted CHK|start-fails|1|1, got empty' (ci-18); not rerun: QUOTA HOLD; one rerun after HOLD OFF
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got empty (runners backlogged); not rerun: d53500886 (26.2's code plus a test-only change) ci 43681313101 green and 2e6366b00 ci 43690296919 production green
+- 2026-11-15T16:47:08Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 - 2026-11-15T12:02:13Z occurrence=OCT-epic21-dw1347-30d487a32 by=epic-runner note=run 43703149281 job 132778446850 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''; DW-1347 touches neither WatchOps nor test-production; one rerun of the failed job
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
@@ -6484,6 +6486,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T17:42:06Z occurrence=0-22 by=orchestrator note=run 42859255361 job 129980616591 iris(browser) live:demo-path 06-trace .finish-done not found after navigation to ?signedOut=1; OCT-epic0 cec5dbb1 (0.22; code diff vs green feature = web/guide files only); rerun of failed jobs
 - 2026-11-11T07:02:27Z occurrence=feature-c241f87c by=orchestrator note=run 42969082500 job 130353082261 iris(browser) live:demo-path 06-trace 'the run total' not found after navigation to ?signedOut=1 (ci-4); rerun of failed jobs
 - 2026-11-13T20:28:39Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=OCT-epic36 f0239dc8 ci run 43497681249 job 132134959499 iris(browser) live:demo-path 06-trace.spec.ts:23 run-total not found after navigation to ?signedOut=1; demo path untouched by 36.4; one rerun
+- 2026-11-15T18:22:10Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 - 2026-11-15T18:37:48Z occurrence=OCT-epic23-s233-8d57cadc1 by=orchestrator note=run 43741249586 att1 iris(browser) on ocutalon-ci-24: demo-path 06-trace.spec.ts:23 .finish .run-total not found while waiting for navigation; attempt 2 green
 
 ### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
@@ -7825,6 +7828,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spec deferred: list; the pagesBuilt=true branch has no test that can run before 23.4
 - 2026-11-13T16:35:03Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=23.4 adds a test that the not-yet line disappears once Data.Page exists
+- 2026-11-15T18:52:16Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=AC10+AC14:pagesBuilt_true_over_real_HTTP;O1_asserts_the_new_telegram-only_line(QA_mutation_DW-1383)
 
 ### DW-1278: SettingsOps.OnCallUsers walks the Data.Session and Data.Pairing storage globals from the web process (GET /v1/settings) to list every user, outside the owning classes and outside Ownership (AD-13's 'no other unchecked path')
 - source: spec-36-4-set-the-on-call-person-and-backup-in-settings.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8331,6 +8335,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.SettingCause SummaryRunKey returns empty for Completed 0 with Unreached>0 (c968df2b)
 - 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
+- 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:approved_for_1.0.12_new_text_summary.settingSavedNotApplied='{time}: {setting} on {target} was changed, but the production couldn't apply it.'_pin_on_restore-failed_path;not_a_23.3_re-push
 
 ### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
@@ -8342,6 +8347,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: medium | fix-risk: med | footprint: in-story
 - evidence: web/src/app/approvals/approval-view.ts settingResultView takes after = change?.newValue for undo_rollback; IncidentRequest (web/src/app/live/payloads.ts) carries no dry-run after, while IncidentManager.ResultExtra uses the dry run's after for the chat notice
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
+- 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:follow-up_for_1.0.12_with_new_/api/v1/state_field;CONDITION_band_must_not_contradict_chat_result_line;else_show_catalog_result_text
 
 ### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -8415,6 +8421,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SourceSet.cls:117 (repoint), :122 (assert); proven with Hang 1.1 on lane-D throwaway e22dxw; test-only fix patch in scratchpad
 - 2026-11-14T21:53:51Z status=routed owner=burndown by=orchestrator note=test bug, not product; fix before the 1.0.10 RC: set CreatedAt in the past and assert the repoint moves it (patch from lane D)
 - 2026-11-15T05:27:20Z status=resolved-by:22-14-sourceset-testupdate-asserts-the-repoint-reset-and-no-longer by=merge_gate note=TestUpdate starts from a past CreatedAt and asserts the repoint moves it; branch ci 43674059161+43674059261 green
+
+### DW-1380: Story 23.3's rollback_setting can put back an older value of an alert setting (e.g. AlertOnError, AlertGracePeriod) of a watched item, while 23.4's AC says no OcuTalon class writes alert configuration
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 23.4 plan reading (d)4; 23.3 RollbackSetting accepts any recorded SettingChange row on the failing item
+- 2026-11-15T14:08:34Z status=decision-pending owner=burndown by=spec_gate note=Planner call: exclude alert settings from rollback (a 23.3 follow-up) or accept (a user-approved restore of their own earlier value is not OcuTalon configuring alerts)
+- 2026-11-15T14:11:08Z status=routed owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=planner note=Planner_2026-11-15:accepted_as_user-approved_restore(no_exclusion);23.4_AC_amended;23.4_AC15_pins_no_other_class_writes_alert_configuration
+- 2026-11-15T18:52:16Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=AC15:test-class-rules_no-alert-config_rule(planted_write_turns_red);epics.md_AC_amended
+
+### DW-1383: 23.4 AC14 template branch (on-call-section.ts @if/@else) has no demonstrated mutation; only the text constant was mutated
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Verification (a443bfbb)
+- 2026-11-15T16:46:52Z status=open owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=QA to demonstrate
+- 2026-11-15T18:22:10Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=QA_demonstrated:@if_flip_turns_on-call.spec_O1_red
+
+### DW-1384: PagingLive.TestEscalationAsk asserts not_built and goes red when Story 24.3 builds the escalation timer
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Test.Watch.PagingLive TestEscalationAsk (a443bfbb)
+- 2026-11-15T16:46:52Z status=routed owner=burndown by=harvest note=24.3 must update the pin when it builds the timer (cross-lane)
+- 2026-11-15T16:47:08Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=harvest note=24.3_builds_the_escalation_timer_and_must_flip_this_pin
+
+### DW-1385: web/e2e/api/incident-page.spec.ts (AC11) has no demonstrated mutation
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Verification (a443bfbb)
+- 2026-11-15T16:46:52Z status=open owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=harvest note=QA to demonstrate
+- 2026-11-15T18:22:10Z status=resolved-by:23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=adjudication note=QA_demonstrated:person_in_page.channel_turns_incident-page.spec_red
 ### DW-1374: overviewdoc pins each ruled line of the worked example's source section only as present somewhere; an extra or moved line in section 4 passes
 - source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: mcp_doc_problems checks each ovw_mcp_example_lines line with grep -qxF over the whole file; no check that section 4 holds only ruled lines 15 to the intro-1, in order (22.6's mechanism, spec Task 1)
@@ -8446,6 +8477,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-13 L484 sends 'a read beyond the caller's own rows' through a read verb to the owning Ops class; 24.2 (Decided in-stage 8, gated) reads all contacts via the owning class's List() in the web process, as SettingsOps.Values already reads Data.Setting rows (Stored, KeyIndexOpen).
 - 2026-11-15T17:44:12Z status=decision-pending owner=burndown by=cr note=AD-13 call: amend for config tables listed via their owning class, or a ListPartnerContacts verb through SecretHandoff
 - 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ACCEPTED with an AD-13 clarification (verbatim in prompts/dw-1392-rulings-20261115.md), written into the spine by the DW-1392 story
+### DW-1396: 23.4 pages the on-call person, and escalates to the backup, for a session-owned incident (failures tagged with a user's TraceRef), which only that session may see (AD-4)
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Watch/Paging.cls Notice excludes only OwnerRef eval; FailurePoller scopes tagged failures to the session; PagingLive's real break is session-owned and pages another user as backup
+- 2026-11-15T18:48:07Z status=decision-pending owner=burndown by=cr note=Planner call: page only instance-owned incidents, or any incident (the paged person then reads another user's incident)
+
+### DW-1397: Test.Watch.PagingLive repeats Test.Web.LiveRolesApi's sign-in form post and GET inline (private helpers), as Test.Fix.EmailCard already does (Rule 2)
+- source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: PagingLive TestSettingsSaysPagesBuilt vs LiveRolesApi SignIn/Get and EmailCard SignIn; reason given in the spec (implement note 8) is that the helpers are private
+- 2026-11-15T18:48:07Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a fourth test class repeats the IRISUsername/IRISPassword form post; then extract one shared Test helper
 ### DW-1388: flake: web/e2e/settings/mcp.spec.ts:479 B13 (21.5 source form) times out after 60 s at line 600 waiting for the button 'Remove the source Existing' in the 'Your sources' region: a list reload before the row renders, or a selector race
 - source: orchestrator; Contest Planner ruling ~18:10Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: main ci 43737922579 shards-4 on ocutalon-ci-55 (1.0.11 main push run); feature ci 43733825684 on ocutalon-ci-16; passed on a1b4f2e2c and PR #16

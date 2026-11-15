@@ -1241,6 +1241,108 @@ XData Entries [ MimeType = application/json ]
    "reason": "sentence"
   },
   "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15 (pre-push ruling, DW-1365)"
+ },
+ "page.onCall": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within {minutes} minutes, I'll page {backup}.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "backup": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within one minute, I'll page {backup}."
+  }
+ },
+ "page.onCallEmail": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within {minutes} minutes, I'll page {backup}. Replying to this email doesn't count.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "backup": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within one minute, I'll page {backup}. Replying to this email doesn't count."
+  }
+ },
+ "page.backup": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. Press Got it to show you're on it.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "person": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within one minute. Press Got it to show you're on it."
+  }
+ },
+ "page.backupEmail": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "person": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within one minute. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count."
+  }
+ },
+ "page.subject": {
+  "text": "OcuTalon page: {production} incident",
+  "slots": {
+   "production": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "page.onCallAlone": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "page.onCallEmailAlone": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "page.causeUnknown": {
+  "text": "I couldn't work out the cause",
+  "slots": {},
+  "source": "Story 23.4 Decide when to page the on-call person, Public Text approved by the Contest Planner 2026-11-15"
  }
 }
 }

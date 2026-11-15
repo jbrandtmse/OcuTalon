@@ -47,6 +47,10 @@
 #     macro that expands to a read, a call split over several lines, embedded or dynamic SQL, an index that a product class inherits
 #     (none does today), or a comment after code on the same line (it is scanned as code); and a baseline entry passes every repeat of
 #     its own Class:Method:Target.
+#   - no-alert-config (FR-28, AD-15, Story 23.4): no code line of src/ outside the package OcuTalon.Test names an alert setting or the alerting classes of IRIS:
+#     AlertOnError, AlertGracePeriod, AlertRetryGracePeriod, QueueCountAlert, QueueWaitAlert, InactivityTimeout, AlertGroups, Ens.Alerting. (also as the
+#     item name Ens.Alert, which it contains). OcuTalon never writes the alert configuration of a production, so Managed Alerts keep working beside it; the
+#     two rollback kinds restore a setting by the name the history gives them and so name none of these (a package matches by whole name).
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -330,6 +334,23 @@ trace_join() {
     }
     ok || !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
     tolower($0) ~ /ocutalon\.core\.trace\)[ \t]*\.join[ \t]*\(/ { print FILENAME ":" FNR }
+  ' "$@"
+}
+
+alert_config() {
+  awk '
+    FNR == 1 {
+      cls = FILENAME
+      sub(/^.*\/cls\//, "", cls)
+      sub(/\.cls$/, "", cls)
+      gsub(/\//, ".", cls)
+      pkg = cls
+      sub(/\.[^.]*$/, "", pkg)
+      ok = (pkg == "OcuTalon.Test" || index(pkg, "OcuTalon.Test.") == 1)
+      code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/)
+    }
+    ok || !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    /AlertOnError|AlertGracePeriod|AlertRetryGracePeriod|QueueCountAlert|QueueWaitAlert|InactivityTimeout|AlertGroups|Ens\.Alert/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -907,6 +928,23 @@ for f in "$tj_good1" "$tj_good2" "$tj_good3" "$tj_good4"; do expect_clean "trace
 if [ "$samples_ok" -eq 1 ]; then
   scan_rule "trace-join: OcuTalon.Core.Trace.Join is called only from OcuTalon.Channel and OcuTalon.Test" trace_join \
     "$tj_bad1" "$tj_good1" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
+fi
+
+# --- no-alert-config ---
+
+ac_bad1=$(write_class ac/src/ocutalon/cls OcuTalon/Fix/ZzBad1 'ClassMethod A()' '{' '	Do item.Settings.Insert(##class(Ens.Config.Setting).%New("Host", "AlertOnError", 1))' '}')
+ac_bad2=$(write_class ac/src/ocutalon/cls OcuTalon/Watch/ZzBad2 'ClassMethod A()' '{' '	Set class = "Ens.Alerting.AlertManager"' '}')
+ac_bad3=$(write_class ac/src/ocutalon/cls OcuTalon/Core/ZzBad3 'ClassMethod A()' '{' '	Set item = ##class(Ens.Director).GetItem("Ens.Alert")' '	Set a = "QueueWaitAlert", b = "InactivityTimeout", c = "AlertGroups"' '}')
+ac_good1=$(write_class ac/src/ocutalon/cls OcuTalon/Test/Watch/ZzOk 'ClassMethod A()' '{' '	Do item.Settings.Insert(##class(Ens.Config.Setting).%New("Host", "AlertOnError", 1))' '}')
+ac_good2=$(write_class ac/src/ocutalon/cls OcuTalon/Fix/ZzComment '/// Never write AlertOnError or Ens.Alerting.AlertManager settings here.' 'ClassMethod A()' '{' '	// AlertGracePeriod, QueueCountAlert' '	; AlertRetryGracePeriod' '	Quit 1' '}')
+ac_good3=$(write_class ac/src/ocutalon/cls OcuTalon/Fix/ZzOther 'ClassMethod A()' '{' '	Set setting = entry.setting' '	Set text = "Alerts are not changed"' '	Quit 1' '}')
+samples_ok=1
+for f in "$ac_bad1" "$ac_bad2"; do expect_flagged "no-alert-config" alert_config "$f" 1; done
+expect_flagged "no-alert-config" alert_config "$ac_bad3" 2
+for f in "$ac_good1" "$ac_good2" "$ac_good3"; do expect_clean "no-alert-config" alert_config "$f"; done
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "no-alert-config: no product code line outside OcuTalon.Test names an alert setting or an alerting class of IRIS" alert_config \
+    "$ac_bad1" "$ac_good1" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
 fi
 
 if [ "$fails" -ne 0 ]; then
