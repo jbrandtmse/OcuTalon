@@ -4327,3 +4327,5 @@
 2026-11-15T15:31:56Z	Run	ci_green_verified	head=a1b4f2e2c(1.0.11_base) runs=43726997245,43726997243(att1)
 2026-11-15T15:31:56Z	Run	planner_notified	"1.0.11 REQUIRED GREEN a1b4f2e2c" 25.6=not_in 23.3=not_in
 2026-11-15T15:32:28Z	Run	release_started	via=contest_planner 1.0.11_from=a1b4f2e2c merges=continue(DW-1371,23.3,25.6) hold_new_pushes_on="RELEASE PR OPEN #n"_until_its_jobs_started
+2026-11-15T15:33:00Z	Epic 23	ci_red_classified	story=23.3 sha=5445b0e49 run=43720395242 story_reds=Test.Data.Tables:TestContracts(SettingChangeRef_not_in_contract),TelegramChat:TestNotices(Watch_key_count_34_vs_40) flake=production_row21(DW-306) action=rework_by_lane_B(message_queued)
+2026-11-15T15:39:03Z	Run	owner_decision	via=contest_planner SCOPE_HOLD epics=27,28(owner_leaning_drop) rule=no_dispatch/plan/spec,no_epics/tracker_edits
