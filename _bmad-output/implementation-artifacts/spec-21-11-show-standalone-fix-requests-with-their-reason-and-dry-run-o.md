@@ -179,7 +179,7 @@ All of it was checked on `OCT-epic21-s2111` at `21497b51d35a7257d17670c8b5a18e44
 **Acceptance Criteria:**
 - Given a pending standalone email request (no incident) to two other addresses, when it shows in the web chat, then its card shows:
   - "Send an email";
-  - the line "Why: an email to anyone but you counts as risky, so it is sent only after an approval.";
+  - the line "Why: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.";
   - "Dry run:" and the lines `to:` (every recipient), `subject:` and `text:`, exact and uncut, with line breaks as `\u000A`;
   - "Approving sends exactly this email once.";
   - Approve, Reject and the expiry.
@@ -259,7 +259,7 @@ No AC contradicts an AD's Rule.
 
 | # | Gate | Item | Recommended | Online demo |
 | --- | --- | --- | --- | --- |
-| V1 | (a) new text | N1 `fix.emailRequest`, text and web: "Send an email\nWhy: an email to anyone but you counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once." (`{inputs}` gives the lines `to: [...]`, `subject: "..."`, `text: "..."`, labelled by the stored member names) | approve | never shown |
+| V1 | (a) new text | N1 `fix.emailRequest`, text and web: "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once." (`{inputs}` gives the lines `to: [...]`, `subject: "..."`, `text: "..."`, labelled by the stored member names) | approve | never shown |
 | V2 | (a) new key, accepted text | N2 `fix.emailSent`: "The email was sent." (= `EmailOut` `MESSAGESENT`, Story 21.6) | approve | never shown |
 | V3 | (a) new key | N3 `fix.emailNotSent`: "{reason}", whose reason is only one of the accepted sentences in Boundaries, else `MESSAGEFAILED` | approve | never shown |
 | V4 | (a) new page text | N4 `RAIL_TEXTS.sendEmail`: "Send an email" (N1's first line; it replaces the false "Repair and resend" on an email's rail row) | approve | never shown |
@@ -273,7 +273,7 @@ There is no new command, route, grant, role, privilege, table, column, retention
 ## Public text
 
 **New (V1-V4, word for word; every channel unless noted):**
-- **N1 `fix.emailRequest`** (`web` the same): "Send an email\nWhy: an email to anyone but you counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once."
+- **N1 `fix.emailRequest`** (`web` the same): "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once."
 - **N2 `fix.emailSent`:** "The email was sent." (Story 21.6's `MESSAGESENT`)
 - **N3 `fix.emailNotSent`:** "{reason}", where the reason is one of the accepted sentences in Boundaries.
 - **N4 rail title:** "Send an email"
@@ -282,6 +282,16 @@ There is no new command, route, grant, role, privilege, table, column, retention
 **Reused (accepted):** "Approval needed", Approve, Reject, "Expires {when}", `answered.approved`, `answered.rejected`, `answered.expired`, and `EmailOut`'s and `EMAILNOSTART`'s sentences (as reasons).
 
 **Findability:** none (email is off on the online demo).
+
+## Spec gate rulings (Contest Planner, ~09:10Z Nov 15, BINDING)
+
+- APPROVED, with one wording fix: V1 N1 ships as "Send an email\nWhy: an email to any address but the connected mailbox's own counts as risky, so it is sent only after an approval.\nDry run:\n{inputs}\nApproving sends exactly this email once." `{inputs}` is as proposed (`to`, `subject`, `text`). The spec's three mentions of N1 carry this text.
+- V2, V3 and V4 APPROVED: V2 "The email was sent."; V3 "{reason}", an accepted Boundaries sentence, otherwise `MESSAGEFAILED`; V4 `RAIL_TEXTS.sendEmail` is "Send an email".
+- V5 GRANTED: `Channel/Telegram/Out.cls` (`STOREDKEYS`, one render branch, one doc line) and the one test in `Test/Channel/TelegramOut.cls`.
+- V6 ACCEPTED, on one CONDITION: a pin shows that the Ens trace carries only references for this notice, with no recipient, subject or body (it keeps 1.0.10's release-note claim "No email's recipients are in the trace" true). The pin needs its `mutation:` line (put a recipient, the subject or the text into a notice's Slots -> the pin goes red).
+- V7 APPROVED: AD-32 S1 and AD-31 S2, both additive.
+- V8 KEEP: Decided 3 and Decided 6.
+- Order: DW-1347 first, then 21.11.
 
 ## Verification
 
