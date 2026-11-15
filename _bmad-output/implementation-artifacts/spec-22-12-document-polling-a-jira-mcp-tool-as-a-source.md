@@ -186,6 +186,12 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `src
      - Add one control for P2: one word changed.
      - The committed files still give "".
   6. **The header comment** L32-46: "no source-poll text" becomes the source section's ruled lines and the code-derived facts (Story 22.12), plus the overview's source bullet.
+- [ ] **Planner ~07:30Z Nov 15 gate rulings (binding):**
+  - P1b's sentence "The poll itself asks no model; only a new item's attention decision does." is pinned (it is one of P1b's ruled lines; add it to the loop control like the others, and confirm a one-word change turns `overviewdoc` red).
+  - Every coverage number in P1b ("plus 3 minutes", "plus 2 minutes for each source", "the 50 newest", "1 to 100 characters", the six interval choices) is pinned to the CODE's constants (`Checks/Coverage.cls` `MISSEDSECONDS` and `QUEUESECONDS`, `Checks/Process.cls` `SEENMAX`, `Mcp/Ops.cls` `NAMEMAX`, `web/src/app/settings/mcp-view.ts` `INTERVAL_CHOICES`), read from the files by `mcp_source_problems`, never as literals copied into the test; each has a control that changes the constant in a code-root copy and turns the check red.
+  - `docs/security-overview.md`: after inserting P2 in the hand-written `## MCP tools` section, regenerate the file (`bash docker/tests/test-security-overview.sh --write` on lane D's throwaway, then `bash docker/tests/test-security-overview.sh` compare) and keep `test-security-overview.sh` green; the generated regions must not change.
+  - `_bmad-output/planning-artifacts/epics.md` Step 4 release check (the "**Step 4:** Story 22.6: ..." bullet near L1009): move "new tickets assigned to the user become items with decisions in Visual Trace" from Story 22.6's sentence to a new Story 22.12 sentence that also says the source shows on the digest's coverage list, with an `[AMENDED 2026-11-15, Story 22.12, Contest Planner gate ruling ~07:30Z Nov 15 (cross-lane item 2)]` marker and the old text. In 22.12's one commit.
+  - Do NOT edit `GUIDE.md` (lane B adds T7 as a follow-up). DW-1347 (lane C) changes P1b's cut sentence in its own commit; if it has landed when you integrate, take its wording.
 - [ ] This spec -- the `## Verification` mutation lines (implement stage).
 
 **Acceptance Criteria:**
@@ -203,6 +209,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `src
 **Release check** (the source half, moved from 22.6 by ruling M (4)): the Contest Planner's REL-7 hands-on pass, on the first daily release candidate that ships 22.11 and 22.12. It follows section 4 on a clean local install with a real Jira MCP server. New tickets assigned to the user become items with decisions in Visual Trace, and the source shows on the digest's coverage list, checked, or not checked with its reason. No script runs it: `test-release-sequence.sh` pins the text only (`overviewdoc`). For the lead, see Design Notes "Cross-lane and planning items" (2).
 
 ## Spec Change Log
+
+- 2026-11-15 (lead). **Gate ruled, Contest Planner ~07:30Z Nov 15 (relayed by the orchestrator; BINDING):** IMPLEMENT. P1a APPROVED verbatim. P1b APPROVED verbatim with ONE fix: "A poll asks no model." becomes "The poll itself asks no model; only a new item's attention decision does.", pinned; the coverage numbers are pinned to the code's constants, not to literals copied into the test. P2 APPROVED verbatim; regenerate `docs/security-overview.md` and keep `test-security-overview.sh` green. VETO: removing 22.6's "no source polls in the worked example" guard APPROVED. Release-check half: `test-release-sequence.sh` gets text pins only. Cross-lane: (1) GUIDE.md T7 is lane B's follow-up, lane D does not edit GUIDE.md; (2) the epics.md Step 4 release-check pointer fix (22.6 → 22.12) goes in 22.12's commit; (3) DW-1347 (lane C) changes P1b's cut sentence and its pin in its own commit; if it lands first, 22.12 takes its wording at integrate. Applied: P1b's sentence replaced in `## Public text`; the rulings task added under Execution.
 
 ## Review Triage Log
 
@@ -294,7 +302,7 @@ In the Tools table, press **Use as a source** on the `search_issues` row, fill i
 
 The source then shows under **Your sources**, and under Background checks its row reads "Polled every 15 minutes", with its last run, its result and a link to its trace. To change the source, save it again with the same name. **Remove** removes it, and removing the server removes its sources too.
 
-Each poll is one call of `call_mcp_tool`, through the same gate as a call from the chat, with the same audit entry, and shows as the step "Running search_issues on Jira" in Visual Trace. A poll asks no model. OcuTalon polls the source at its next background check, which comes every minute, and then every 15 minutes:
+Each poll is one call of `call_mcp_tool`, through the same gate as a call from the chat, with the same audit entry, and shows as the step "Running search_issues on Jira" in Visual Trace. The poll itself asks no model; only a new item's attention decision does. OcuTalon polls the source at its next background check, which comes every minute, and then every 15 minutes:
 
 - The first poll that gets an answer sets a baseline: OcuTalon keeps a hash of the answer and sends nothing.
 - A later answer that differs from each of the 50 newest different answers becomes one item, with the whole answer as its text, and OcuTalon makes an attention decision on it. The item and its decision show in Visual Trace. An answer that matches one of them, or an empty answer, sends nothing.
