@@ -1,8 +1,8 @@
 ---
-title: 'Story 24.4: Show the new fixes, partner warnings and setting changes on the cards'
+title: 'Story 24.4a: Show setting values redacted everywhere, and the setting change in the evidence panel'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'draft'
 baseline_revision: '1fc32ac5a2cb80e7be0c66800f34f8e58cf63cfd'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -148,6 +148,46 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
 - Playwright cases (`step5-requests.spec.ts`): F1 suspend and resume; F2 reroute; F3 rollback and undo with plain values, and F3b a rollback whose seeded dry run holds a token URL (card After redacted, no token in the card's text); F4 partner warning; F5 the setting-change cause line and panel rows (AC3, AC5), and F5b a `seedSettingChange` with a token-URL old value (panel redacted); F6 answers, bands, the phone Reject within 5 s, the closed card's undo request card, no other kind on a closed card, and the rail jump (AC4, AC5); F7 an undo notice whose slots come from `askedSlots` on the phone page (redacted, no token).
 
 ## Spec Change Log
+
+- 2026-11-15 (lead). **RE-PLAN RULINGS, Contest Planner ~22:00Z Nov 15 (BINDING)**, quoted in full:
+
+  > ## RE-PLAN RULINGS (Contest Planner, ~22:00Z). BINDING.
+  > 
+  > ### V5: GRANTED
+  > Lane D may edit:
+  > - Fix/Executor.cls;
+  > - Watch/IncidentManager.cls;
+  > - Fix/Msg/DryRunResult.cls (doc only);
+  > - the Test/Watch/Rollback helper.
+  > 
+  > Fix/Executor.cls is also changed by lane C's DW-1205, so the plain-union rule applies there.
+  > 
+  > How it works:
+  > - DryRunResult carries the redacted values plus a Core.SecretHandoff reference.
+  > - IncidentManager takes the raw values once, for the store.
+  > 
+  > CONDITIONS. Pin each of these:
+  > - The handoff entry is deleted when it is taken.
+  > - An entry that is never taken expires within SecretHandoff's existing limit.
+  > - After a rollback, the Ens trace message bodies for that run (DryRunResult and Notification) contain the redacted marker and NOT the raw token.
+  > - The undo of a System Default still works from the stored raw value, and the byte-for-byte restore pin still holds.
+  > 
+  > ### V4: CONFIRMED
+  > - Web, phone and Telegram show "[redacted]", Redact.Text's existing marker.
+  > - The new bare key= shape in Redact.Text is APPROVED, with its pin.
+  > 
+  > ### SPLIT: YES
+  > - **24.4a** goes FIRST and is the 1.0.12 BLOCKER. It covers:
+  >   - redaction on every display path;
+  >   - V5;
+  >   - the V1 panel rows.
+  > - **24.4b** follows. It covers V2's closed-card undo and the cross-surface pins. It also targets 1.0.12, but does not block it.
+  > - Charter both in epics.md with markers. The orchestrator re-records epics_md_hash at the merge.
+  > 
+  > ### Contention
+  > At integrate, flag lane B's Paged hunk next to Change in Live/Payload/Incident.cls. Union the two and keep both.
+
+  Applied by the lead: `epics.md` splits Story 24.4 into **24.4a** (this spec, renamed from `spec-24-4-...`; redaction on every display path, V5 and the V1 evidence-panel rows; the 1.0.12 blocker) and **24.4b** (V2's closed-card undo and the cross-surface pins; its spec is carved from this plan later), with `[AMENDED/ADDED 2026-11-15, Contest Planner split]` markers. Status reset to `draft` for a re-plan narrowed to 24.4a.
 
 - 2026-11-15 (plan, re-plan iteration 2). Folded in the REDACTOR RULING. Intent amended (marked `[AMENDED 2026-11-15, redactor ruling]` at each change): the Problem names the raw values and the two message bodies; the Approach adds server redaction with `Bridge.Redact.Text`, the hand-off reference in the dry-run answer and the `key=` shape; Always adds the redaction and the raw store and write; Never replaces "no Lane A file" with the granted list (plus NEW V5 once ruled) and adds "no second redactor; nothing stored redacted"; the matrix gains the token, plain and restore rows. AC4 gains V2's two pins; AC6 to AC9 added for the ruling; F3b, F5b and F7 added. V1's five strings, V2 and V3 kept; the implement stage's note (compact from the payload) is in the card task. Found during the trace check: `Fix.Msg.DryRunResult.DryRun` carries the raw values and is needed raw by the store (`UndoRollback.Approved`), so the reference form needs `Fix/Executor.cls` and `Watch/IncidentManager.cls`, beyond the grant: flagged NEW V5.
 
