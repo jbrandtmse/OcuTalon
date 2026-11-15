@@ -4245,3 +4245,5 @@
 2026-11-15T05:30:04Z	Epic 21	ci_green_verified	head=1ecb7150d runs=43651790835(att2),43651790939 gate=success base=a6821f1d
 2026-11-15T05:30:04Z	Epic 21	amendments_verified	DW-1351=hint_hidden_for_sources(in_21.5) bundle=888.96kB(<1MB)
 2026-11-15T05:30:04Z	Epic 21	merge_enqueued	story=21.5 head=1ecb7150d into=feature@d53500886+records
+2026-11-15T05:33:02Z	Epic 21	merged	story=21.5 merge=afd4ff35a pins=pass web=pass lint=pass feature_ci=pending
+2026-11-15T05:33:13Z	Epic 22	runner_resumed	lane=D task=integrate_22.11_over_afd4ff35a+push+PART_READY;then_22.12_spec_gate
