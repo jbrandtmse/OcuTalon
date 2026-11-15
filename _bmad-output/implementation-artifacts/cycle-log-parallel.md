@@ -4383,3 +4383,4 @@
 2026-11-15T19:44:21Z	Epic 21	merge_enqueued	story=DW-1388(HIGH)
 2026-11-15T19:46:11Z	Epic 21	merged	story=DW-1388 merge=3242f9657
 2026-11-15T19:46:21Z	Epic 24	runner_reported	PLANNER_REPORT story=24.4 head=bb9fe0b5(local) gaps=evidence_setting-change_rows,closed-card_undo vetoes=V1_5_strings,V2_closed_card_undo,V3_web/scripts_tests relayed=contest_planner
+2026-11-15T19:46:34Z	Epic 24	owner_decision	via=contest_planner 24.4=APPROVED(1.0.12;V1_verbatim+redactor_condition+secret-shaped_pin;V2_closed_card_undo_only+pins;V3_granted) DW-1388=further_B13_red_is_regression file=prompts/story-244-rulings-20261115.md
