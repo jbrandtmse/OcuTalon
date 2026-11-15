@@ -28,7 +28,7 @@
  *   appears or changes on a card already shown).
  */
 import type { ResultView } from '../approvals/approval-view';
-import type { DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun } from '../live/payloads';
+import type { DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun, SettingChange } from '../live/payloads';
 
 /** Every fixed string of the incident card, its panel and its announcements. The ellipsis is U+2026, the middle dot U+00B7. */
 export const INCIDENT_TEXTS = {
@@ -50,6 +50,10 @@ export const INCIDENT_TEXTS = {
   fixSuspend: 'I can suspend {item}.',
   fixResume: 'I can resume {item}.',
   fixReroute: 'I can reroute {count} {noun} to {to}.',
+  fixRollback: 'I can put {setting} on {target} back to its earlier value.',
+  fixUndoRollback: 'I can undo the rollback of {setting} on {target}.',
+  fixingRollback: 'Putting {setting} on {target} back\u2026',
+  fixingUndoRollback: 'Undoing the rollback of {setting} on {target}\u2026',
   showDetails: 'Show details',
   nounOne: 'message',
   nounOther: 'messages',
@@ -93,7 +97,9 @@ export interface IncidentContext {
   /** A time of a panel row: the page's time with the day when it is not today (pageWhen). */
   itemTime(iso: string, nowMs: number): string;
   /** The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
-  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string): ResultView | undefined;
+  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string, change?: SettingChange): ResultView | undefined;
+  /** The text of a catalog key the page renders, with its slots (renderPageText); the setting-cause line is incident.settingChangeCause. Absent in a context that has no catalog. */
+  render?(key: string, slots: Record<string, unknown>): string;
   /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
   reasonText(reason: string | undefined): string;
 }
@@ -145,6 +151,8 @@ export interface IncidentView {
   more: string;
   causeSentence: string;
   evidenceLine: string;
+  /** "The feed broke four minutes after this setting changed: {setting} on {target}, at {time}." when the incident names a setting change (Story 23.3); "" otherwise. */
+  settingCauseLine: string;
   fixSentence: string;
   fixingLine: string;
   /** True for a closed card: only the chip row, the headline and the Show details row remain. */
@@ -250,8 +258,20 @@ function evidenceLineOf(payload: IncidentPayload): string {
   return parts.filter((part) => part !== '').join(INCIDENT_TEXTS.separator);
 }
 
+/** The setting-cause line (Story 23.3): incident.settingChangeCause from the incident's settingChange and gapMinutes; "" when it names no change, has no gap or the context has no catalog. */
+function settingCauseOf(payload: IncidentPayload, ctx: IncidentContext): string {
+  const setting = textOf(payload.settingChange?.setting);
+  const target = textOf(payload.settingChange?.item);
+  const minutes = numberOf(payload.gapMinutes);
+  if (ctx.render === undefined || setting === '' || target === '' || minutes === undefined) {
+    return '';
+  }
+  const time = ctx.messageTime(textOf(payload.settingChange?.detectedAt), ctx.nowMs);
+  return time === '' ? '' : ctx.render('incident.settingChangeCause', { minutes, setting, target, time });
+}
+
 /** The fix kinds the user asks for in the chat (Story 23.2): a request of one has its own fix and fixing sentences. */
-const CHAT_KINDS: ReadonlySet<string> = new Set(['suspend_item', 'resume_item', 'reroute']);
+const CHAT_KINDS: ReadonlySet<string> = new Set(['suspend_item', 'resume_item', 'reroute', 'rollback_setting', 'undo_rollback']);
 
 /** True for a request that is about the incident's fix: a partner delay notice (Story 23.5) is not, so it gives no fix or fixing sentence. */
 const aboutFix = (request: IncidentRequest | undefined): boolean => request?.fixKind !== 'partner_warning';
@@ -263,6 +283,15 @@ function chatSentenceOf(request: IncidentRequest | undefined, payload: IncidentP
     return '';
   }
   const item = textOf(request?.item);
+  if (kind === 'rollback_setting' || kind === 'undo_rollback') {
+    const setting = textOf(payload.settingChange?.setting);
+    const target = textOf(payload.settingChange?.item) || item;
+    if (setting === '' || target === '') {
+      return '';
+    }
+    const own = kind === 'rollback_setting' ? (fixing ? INCIDENT_TEXTS.fixingRollback : INCIDENT_TEXTS.fixRollback) : fixing ? INCIDENT_TEXTS.fixingUndoRollback : INCIDENT_TEXTS.fixUndoRollback;
+    return fill(own, { setting, target });
+  }
   if (kind === 'reroute') {
     const count = numberOf(request?.count) ?? numberOf(request?.result?.total) ?? 0;
     return fill(fixing ? INCIDENT_TEXTS.fixingReroute : INCIDENT_TEXTS.fixReroute, { count: String(count), noun: nounFor(payload.itemNoun, count), to: item });
@@ -422,7 +451,7 @@ export function productionOf(payload: IncidentPayload): string {
 function bandsOf(payload: IncidentPayload, ctx: IncidentContext): { ref: string; band: ResultView }[] {
   const bands: { ref: string; band: ResultView }[] = [];
   for (const request of listOf(payload.requests)) {
-    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload)) : undefined;
+    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload), payload.settingChange) : undefined;
     if (band !== undefined) {
       bands.push({ ref: request.ref ?? '', band });
     }
@@ -458,6 +487,7 @@ export function incidentView(payload: IncidentPayload, ctx: IncidentContext): In
     more: compact ? '' : moreOf(payload),
     causeSentence: compact ? '' : causeOf(payload),
     evidenceLine: compact ? '' : evidenceLineOf(payload),
+    settingCauseLine: compact ? '' : settingCauseOf(payload, ctx),
     fixSentence: compact ? '' : fixSentenceOf(payload),
     fixingLine: compact ? '' : fixingLineOf(payload),
     compact,

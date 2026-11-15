@@ -110,6 +110,8 @@ describe('the fixed strings', () => {
         suspend: 'Suspend {item}',
         resume: 'Resume {item}',
         reroute: 'Reroute {n} {noun} to {to}',
+        rollback: 'Put {setting} on {target} back',
+        undoRollback: 'Undo the rollback of {setting} on {target}',
         partner: 'Send a delay notice',
         sendEmail: 'Send an email',
         runTool: 'Run {toolName}',
@@ -312,6 +314,8 @@ describe('approval requests', () => {
     assert.equal(approvalTitle(approval('a', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } } })), 'Repair and resend 1 order');
     assert.equal(approvalTitle(approval('a', { dryRun: { affected: 0, itemNoun: { one: 'order', other: 'orders' } } })), 'Repair and resend 0 orders');
     assert.equal(approvalTitle(approval('a', { dryRun: undefined })), 'Repair and resend');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'rollback_setting', dryRun: { item: 'OrdersFromPartner', field: 'TargetConfigName' } })), 'Put TargetConfigName on OrdersFromPartner back', 'a rollback of a setting (Story 23.3)');
+    assert.equal(approvalTitle(approval('a', { fixKind: 'undo_rollback', dryRun: { item: 'OrdersFromPartner', field: 'TargetConfigName' } })), 'Undo the rollback of TargetConfigName on OrdersFromPartner', 'and its undo');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', dryRun: undefined })), 'Run zz_tool');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', server: 'zzS', dryRun: undefined })), 'Run zz_tool on zzS', 'a tool call that names its MCP server');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', server: '  ', dryRun: undefined })), 'Run zz_tool', 'a blank server names none');

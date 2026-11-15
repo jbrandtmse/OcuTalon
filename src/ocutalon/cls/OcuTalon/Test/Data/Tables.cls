@@ -624,7 +624,8 @@ XData Contracts [ MimeType = application/json ]
    "RequestRefs": "%String(MAXLEN=)",
    "LaterSince": "%String(MAXLEN=20)",
    "AskingSince": "%String(MAXLEN=20)",
-   "Summary": "%String(MAXLEN=)"
+   "Summary": "%String(MAXLEN=)",
+   "SettingChangeRef": "%String(MAXLEN=64)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

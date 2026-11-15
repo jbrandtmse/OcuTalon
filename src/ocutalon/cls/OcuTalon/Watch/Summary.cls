@@ -72,7 +72,7 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 			Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
 			If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") Continue
 			Set ran = 1
-			If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") Continue
+			If (class '= "") && ($Parameter(class, "TARGETTYPE") '= "message") Continue
 			If (class = "") || $Parameter(class, "DIAGNOSED") Set diagnosed = 1
 			Set resent = resent + run.Resent
 			Set completed = completed + run.Completed
@@ -156,6 +156,8 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 		If count '= "" Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedReroute", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun), "to": (parameters.%Get("target"))})
 	} ElseIf request.FixKind = "partner_warning" {
 		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedPartner", {"time": (request.RaisedAt), "count": ($Length(request.FixTargets, ","))})
+	} ElseIf ##class(OcuTalon.Watch.SettingCause).IsSetting(parameters) {
+		If ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, request.RaisedAt, ##class(OcuTalon.Watch.SettingCause).SummaryRequestKey(request.FixKind), {"time": (request.RaisedAt), "setting": (setting), "target": (target)})
 	} ElseIf count '= "" {
 		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requested", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun)})
 	}
@@ -199,6 +201,11 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 		Set item = ..Parameters(request).%Get("item")
 		Set key = $Select(+run.Completed > 0: $Select($Parameter(class, "ENABLE"): "summary.itemResumed", 1: "summary.itemSuspended"), 1: "summary.itemNotChanged")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "item": (item)})
+		Quit
+	}
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting") {
+		Set key = ##class(OcuTalon.Watch.SettingCause).SummaryRunKey(request.FixKind, run)
+		If (key '= "") && ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "setting": (setting), "target": (target)})
 		Quit
 	}
 	Set slots = {"time": (run.EndedAt)}

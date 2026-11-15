@@ -56,6 +56,12 @@ Property Groups As list Of OcuTalon.Live.Payload.Part.IncidentGroup(%JSONFIELDNA
 /// The incident's approval requests.
 Property Requests As list Of OcuTalon.Live.Payload.Part.IncidentRequest(%JSONFIELDNAME = "requests");
 
+/// The setting change that the diagnosis named as the cause, and the whole minutes from it to the first failure (Story 23.3); both are absent when it named none, and on the
+/// online demo.
+Property SettingChange As OcuTalon.Live.Payload.Part.SettingChange(%JSONFIELDNAME = "settingChange");
+
+Property GapMinutes As %Integer(%JSONFIELDNAME = "gapMinutes");
+
 /// The evidence behind the diagnosis.
 Property Evidence As OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME = "evidence");
 
@@ -102,8 +108,29 @@ ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Inci
 			Set payload.ItemNoun = ""
 		}
 	}
+	Do ..Change(payload, row)
 	Do ..Details(payload, row)
 	Quit payload
+}
+
+/// Fills settingChange and gapMinutes from the SettingChange row that the incident names (Incident SettingChangeRef), by object access only; both stay empty when it names none
+/// or the row is gone. The values of a secret are blank in the row.
+ClassMethod Change(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Data.Incident) [ Private ]
+{
+	If row.SettingChangeRef = "" Quit
+	Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(row.SettingChangeRef)
+	If '$IsObject(change) Quit
+	Set part = ##class(OcuTalon.Live.Payload.Part.SettingChange).%New()
+	Set part.Item = change.Item
+	Set part.Target = change.Target
+	Set part.Setting = change.Setting
+	Set part.OldValue = change.OldValue
+	Set part.NewValue = change.NewValue
+	Set part.Credential = +change.Credential
+	Set part.DetectedAt = change.DetectedAt
+	Set payload.SettingChange = part
+	Set minutes = ##class(OcuTalon.Watch.SettingCause).GapMinutes(change.DetectedAt, row.FirstAt)
+	If minutes '= "" Set payload.GapMinutes = minutes
 }
 
 /// Fills groups, evidence, traceTargets and requests of the payload from the rows of the incident (see FromRow).
@@ -161,11 +188,15 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 }
 
 /// Fills the item and the count of a request part for the fix kinds the user asks for in the chat: the item of a suspend or resume, the target item of a reroute and the
-/// count of its dry run. Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
+/// count of its dry run, and the item of a setting kind's dry run (Story 23.3). Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
 ClassMethod Chosen(part As OcuTalon.Live.Payload.Part.IncidentRequest, request As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 {
-	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute"), request.FixKind) Quit
+	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute", "rollback_setting", "undo_rollback"), request.FixKind) Quit
 	Try {
+		If (request.FixKind = "rollback_setting") || (request.FixKind = "undo_rollback") {
+			Set part.Item = {}.%FromJSON(request.DryRun).%Get("item")
+			Quit
+		}
 		Set parameters = {}.%FromJSON(request.FixParameters)
 		Set part.Item = $Select(request.FixKind = "reroute": parameters.%Get("target"), 1: parameters.%Get("item"))
 		If request.FixKind = "reroute" Set part.Count = {}.%FromJSON(request.DryRun).%Get("affected")

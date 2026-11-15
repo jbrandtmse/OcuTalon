@@ -285,7 +285,7 @@ XData Entries [ MimeType = application/json ]
    "count": "count",
    "itemNoun": "noun",
    "time": "time",
-   "cause": "sentence",
+   "cause": "cause",
    "groups": "groups"
   },
   "source": "EXPERIENCE Message Catalog / Incident notice without a fix"
@@ -1125,6 +1125,122 @@ XData Entries [ MimeType = application/json ]
    "name": "text"
   },
   "source": "Story 25.3 (Core.Files TEXTNOREADER); sent to a paired Telegram chat by Story 26.2 while no reader is on (Planner ruling H2, 2026-11-14)"
+ },
+ "incident.rollbackRequest": {
+  "text": "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value.\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "cause": "cause",
+   "setting": "text",
+   "target": "text",
+   "before": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "incident.undoRollbackRequest": {
+  "text": "I can undo the rollback of {setting} on {target}. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can undo the rollback of {setting} on {target}.\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "before": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "incident.settingChangeCause": {
+  "text": "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.",
+  "slots": {
+   "minutes": "minutes",
+   "setting": "text",
+   "target": "text",
+   "time": "time"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "result.settingRestored": {
+  "text": "{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "result.settingChangedSince": {
+  "text": "{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval.",
+  "slots": {
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "result.rollbackUndone": {
+  "text": "The rollback is undone: {setting} on {target} is back to {after}.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.requestedRollback": {
+  "text": "{time}: OcuTalon asked for approval to put {setting} on {target} back.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "summary.requestedUndoRollback": {
+  "text": "{time}: OcuTalon asked for approval to undo the rollback of {setting} on {target}.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.settingRestored": {
+  "text": "{time}: {setting} on {target} was put back to its earlier value.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "summary.rollbackUndone": {
+  "text": "{time}: the rollback of {setting} on {target} was undone.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.settingNotChanged": {
+  "text": "{time}: {setting} on {target} was not changed.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "result.settingSavedNotApplied": {
+  "text": "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "reason": "sentence"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15 (pre-push ruling, DW-1365)"
  }
 }
 }

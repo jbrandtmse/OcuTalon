@@ -478,6 +478,7 @@ Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObj
 		If $IsObject(dry) {
 			If dry.Item '= "" Do slots.%Set("item", dry.Item, "string")
 			If dry.To '= "" Do slots.%Set("to", dry.To, "string")
+			If dry.Field '= "" Do slots.%Set("setting", dry.Field, "string")
 		}
 	} Catch {
 	}
@@ -495,6 +496,9 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 		If (kind = "suspend_item") || (kind = "resume_item") {
 			If slots.%Get("item") = "" Quit ""
 			Set key = $Select(kind = "suspend_item": "press.approvedSuspend", 1: "press.approvedResume"), use = {"item": (slots.item)}
+		} ElseIf (kind = "rollback_setting") || (kind = "undo_rollback") {
+			If (slots.%Get("setting") = "") || (slots.%Get("item") = "") Quit ""
+			Set key = $Select(kind = "rollback_setting": "press.approvedRollback", 1: "press.approvedUndoRollback"), use = {"setting": (slots.setting), "target": (slots.item)}
 		} ElseIf kind = "reroute" {
 			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
 			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}

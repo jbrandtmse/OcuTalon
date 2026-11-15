@@ -409,7 +409,7 @@ Method CheckGrants() [ Private ]
 			Do $$$AssertEquals(declared(n).resource, "", role_" holds no resource")
 		}
 		If ($Extract(role, 1, 8) = "OcuTalon") && (role '= hook) {
-			Do $$$AssertTrue(..Forbidden(declared(n).resource) = 0, "no OcuTalon role holds the forbidden "_declared(n).resource)
+			Do $$$AssertTrue((..Forbidden(declared(n).resource) = 0) || ((role_":"_declared(n).resource_":"_declared(n).permission) = ##class(OcuTalon.Install.Step.Roles).#FORBIDDENEXCEPTION), "no OcuTalon role holds the forbidden "_declared(n).resource_", but the one pair of FORBIDDENEXCEPTION (Story 23.3)")
 		}
 	}
 	Do $$$AssertEquals(holds, 6, "the registry sees the trace role's six grants")
