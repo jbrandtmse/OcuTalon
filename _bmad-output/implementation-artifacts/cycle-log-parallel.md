@@ -4412,3 +4412,5 @@
 2026-11-15T22:56:50Z	Epic 23	owner_decision	via=contest_planner 23.13_replan=APPROVED(lines_1,2_verbatim;D9_partner.emailSubject="Delay notice"+pin;D6-D8,D10_accepted)
 2026-11-15T23:09:35Z	Epic 21	ci_green_verified	story=DW-1391 head=b5725aded runs=43754668144,43754668190 note=report_not_received;verified_by_gate
 2026-11-15T23:09:35Z	Epic 21	merge_enqueued	story=DW-1391(test-only)
+2026-11-15T23:12:06Z	Epic 21	merged	story=DW-1391 merge=2129230b3
+2026-11-15T23:12:21Z	Epic 21	runner_reported	PLANNER_REPORT DW-1410(HIGH,pre-existing,reply-wait_BP_copy_miscounted;25/100,10/10) recommend=ship_DW-1205+494_with_follow-up DW-1205_status=probe_0/300,cond3_running relayed=contest_planner
