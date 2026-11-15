@@ -128,7 +128,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `src
    - a later answer whose SHA-256 is not in `seen` sends one Item (L1266-1268), and the newest 50 are kept (`SEENMAX` L1020, `Newest` L1300-1309);
    - an empty answer sends nothing (L1262).
 8. **The Item** (`SourceItem` L1323-1333): channel `system`, Provenance `untrusted`, Subject the source's name, Text the whole answer, sent to `Intake` (`SendFinding` L871-875, `Record` L638-644, `SendOwn` L411). Intake makes its attention decision: 22.11 `TestNewResultReachesIntake`.
-9. **The cut.** `Tools/McpCall.cls` L4 and L44 pass the tool-result room (`Tools/Result.cls` `Room` L68-71) to `Proxy.Call`, so a poll's answer is cut like any tool result. A change past the cut that keeps the length is missed: DW-1347, escalated, a low DW for lane C (Planner ~20:40Z).
+9. **The cut.** The proxy hashes the whole answer before the cut (`Mcp/Proxy.cls` `Noted`, `answerHash`), `Checks` compares that hash, and the Item holds the answer as cut (`Checks/Process.cls` `SourceItem`) [AMENDED 2026-11-15, DW-1347 option (a), Contest Planner ~09:10Z Nov 15; true once DW-1347 (lane C) is on feature; it read "`Tools/McpCall.cls` L4 and L44 pass the tool-result room (`Tools/Result.cls` `Room` L68-71) to `Proxy.Call`, so a poll's answer is cut like any tool result. A change past the cut that keeps the length is missed: DW-1347, escalated, a low DW ..."].
 10. **One poll at a time, install-wide.** `RunSources` L1037-1060, `PollInFlight` L1068-1087 (`INFLIGHTSECONDS` L1026), `PollSource` L1092-1095: a due source waits for a later Tick while a poll is in flight. A stopped source records at once.
 11. **The stop:**
     - `PollSource` L1094 and L1102-1104 (classification not `read-only`: no call);
@@ -211,6 +211,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `src
 
 ## Spec Change Log
 
+- 2026-11-15 (lead, after implement). **DW-1347 option (a), Contest Planner ~09:10Z Nov 15 (BINDING)**, from `<coordination>/prompts/epic-22-rulings-20261113-1715.md` "22.12 and DW-1347": P1b's answer-cut sentence is replaced, verbatim, with "- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item. Even a long answer is compared whole, so a change anywhere in it makes a new item, but a long answer is cut in the item, as any tool's result is. Keep the answer short, for example with `maxResults`, so that the item holds all of it.", in the doc and in its `ovw_mcp_example_lines` pin in one commit; Code Map claim 9 takes DW-1347's spec wording (706466a80). The line is true of the code once DW-1347's fix (lane C) is on feature: 22.12 merges after DW-1347.
+
 - 2026-11-15 (lead). **Gate ruled, Contest Planner ~07:30Z Nov 15 (relayed by the orchestrator; BINDING):** IMPLEMENT. P1a APPROVED verbatim. P1b APPROVED verbatim with ONE fix: "A poll asks no model." becomes "The poll itself asks no model; only a new item's attention decision does.", pinned; the coverage numbers are pinned to the code's constants, not to literals copied into the test. P2 APPROVED verbatim; regenerate `docs/security-overview.md` and keep `test-security-overview.sh` green. VETO: removing 22.6's "no source polls in the worked example" guard APPROVED. Release-check half: `test-release-sequence.sh` gets text pins only. Cross-lane: (1) GUIDE.md T7 is lane B's follow-up, lane D does not edit GUIDE.md; (2) the epics.md Step 4 release-check pointer fix (22.6 → 22.12) goes in 22.12's commit; (3) DW-1347 (lane C) changes P1b's cut sentence and its pin in its own commit; if it lands first, 22.12 takes its wording at integrate. Applied: P1b's sentence replaced in `## Public text`; the rulings task added under Execution.
 
 ## Review Triage Log
@@ -279,7 +281,7 @@ No AC contradicts an AD. No NFR trips Rule 5.
 **Decided in-stage:**
 1. **Code-derived pins.** "True of the code at merge" is pinned, not only reviewed: each quoted string and number is read from its source in code (Tasks 3). A later code change that makes the doc false turns `ci/checks.sh` red. Static and hermetic: no IRIS.
 2. **The six choices, not 5-1,440.** The page offers six intervals (`INTERVAL_CHOICES`). The server's 5 to 1,440 range is reachable only by the API, so the doc names the six choices.
-3. **The cut sentence (DW-1347).** It stays while DW-1347 is open. Whoever fixes DW-1347 (lane C, a low DW) changes this sentence and its pin in the same commit (Cross-lane items).
+3. **The cut sentence (DW-1347).** Closed: replaced by the Planner-approved line (option (a), ~09:10Z Nov 15) in this story's commit. [It read: "It stays while DW-1347 is open."] Whoever fixes DW-1347 (lane C, a low DW) changes this sentence and its pin in the same commit (Cross-lane items).
 4. **One overview bullet (P2).** The overview's MCP rules list every governed MCP path for the security reviewer, and polls are a new one. The epic's "never yields an all-clear" promise is stated there plainly. One bullet; the rest is already true.
 5. **Source name "Jira tickets".** The AC's "new tickets assigned to me" names the poll, not the label. A short name reads better in the digest's sentences. The heading and the arguments say "new tickets assigned to you".
 6. **No IRIS in Verification.** No class changes, and the overview's hand edit is not drift (`overviewdrift`: "a hand-written change: nothing is printed", L2169-2170). So no `ci/iris.sh` call is needed. If one is needed anyway, use the lane D values below.
@@ -336,7 +338,7 @@ Each poll is one call of `call_mcp_tool`, through the same gate as a call from t
 
 - The first poll that gets an answer sets a baseline: OcuTalon keeps a hash of the answer and sends nothing.
 - A later answer that differs from each of the 50 newest different answers becomes one item, with the whole answer as its text, and OcuTalon makes an attention decision on it. The item and its decision show in Visual Trace. An answer that matches one of them, or an empty answer, sends nothing.
-- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item, which holds the whole answer. A long answer is cut, as any tool's result is, and a change only in the part that was cut off may not make a new item, so keep the answer short, for example with `maxResults`.
+- OcuTalon compares whole answers, not tickets: an answer that changed for another reason than a new ticket also becomes a new item. Even a long answer is compared whole, so a change anywhere in it makes a new item, but a long answer is cut in the item, as any tool's result is. Keep the answer short, for example with `maxResults`, so that the item holds all of it.
 - Each item is untrusted content, as every result of an MCP tool is.
 - Saving the source with another tool or other arguments starts it over, with a new baseline. Changing only how often it is checked keeps its hashes.
 - OcuTalon runs one source's poll at a time for the whole install, so when several sources are due together, the others wait for a later minute.
