@@ -10,6 +10,7 @@ Include Ensemble
 ///   - TestRealBreakPagesTelegram (AC6, AC12, AC13): a real break of OCUORDERS pages the on-call user's paired Telegram chat through the real IncidentManager,
 ///     Notify and TelegramOut; a fixture Escalation pages the backup once; Got it pressed from another chat, then from the paired chat (the page is acknowledged on telegram and the message is
 ///     edited in place), then again, and an AckPage over the web channel for the backup's page edits the backup's Telegram copy; the paged people, the chat ids and the display names are in no message of the page, no audit entry, no log line, no live event and no /state payload;
+///   - TestSessionBreakNeverPages (DW-1396): with the on-call user set, a break tagged with a session's trace Ref is that session's incident and pages nobody;
 ///   - TestManagedAlertsBesidePaging (AC8): with an AlertManager fixture in OCUORDERS, a break pages the on-call user, Managed Alerts hold the failures, and no setting of any item changed;
 ///   - TestSettingsSaysPagesBuilt (AC10): over real HTTP, as an admin, GET /api/v1/settings has pagesBuilt true.
 /// Measured figures are printed as SKIP lines (a status 2 never fails a class).
@@ -312,7 +313,7 @@ Method TestPageReachesTelegram()
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Watch.Paging).Write(key, ""), "the key "_key_" has no value")
 	}
 	Set start = $ZHorolog
-	If '..Raised("pg", .a, .ref, .request) Quit
+	If '..RaisedShared("pg", .a, .ref) Quit
 	Set sent = ##class(OcuTalon.Test.Channel.LiveCase).WaitCalls("sendMessage", 1, 30)
 	Do ..Timing("Task 0 (b): the incident's notice reached the mock "_$FNumber($ZHorolog - start, "", 2)_" s after the break; sendMessage calls: "_sent.%Size())
 	Do $$$AssertTrue(sent.%Size() '< 1, "the mock recorded a sendMessage for the paired chat")
@@ -557,7 +558,7 @@ Method TestRealBreakPagesTelegram()
 	Set liveMark = ##class(OcuTalon.Test.Channel.LiveCase).LiveMark()
 	Set logMark = ..Top("Ens_Util.Log", $Namespace)
 	Set auditMark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
-	If '..Raised("pg", .a, .ref, .request) Quit
+	If '..RaisedShared("pg", .a, .ref) Quit
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 
 	// the on-call page
@@ -659,6 +660,39 @@ Method TestRealBreakPagesTelegram()
 	Do $$$AssertEquals(..Holds(##class(OcuTalon.Test.Channel.LiveCase).RowsText("SELECT Text FROM Ens_Util.Log WHERE ID > ?", logMark), names), userA, "control: the same search of the event log finds a line that holds a name")
 }
 
+/// The set-up of a break of the shared, watched production: the production is ready, the mock is pointed to, the approval role is ready, a session S watches Orders, and untagged failing
+/// orders (3) become an incident of the instance that is noticed to S. a is S and ref the incident. 1 when the set-up is done.
+Method RaisedShared(name As %String, Output a As %String, Output ref As %String) As %Boolean [ Private ]
+{
+	Set (a, ref) = ""
+	If '..Ready() Quit 0
+	If '..PointKeys() Quit 0
+	If '..ApprovalReady() Quit 0
+	Set a = ..Session(name)
+	Do ..ClearMark(..#ORDERS)
+	Do ..Watch(a)
+	If '..Fail(3, "") Quit 0
+	Set failed = ..WaitFailed(3)
+	Set rows = ..WaitIncident("instance", ..#ORDERSPRODUCTION)
+	Do $$$AssertEquals(rows.%Size(), 1, "one incident of the instance for the untagged break")
+	If rows.%Size() < 1 Quit 0
+	Set ref = rows.%Get(0).ref
+	Quit ..Noticed(ref, 1)
+}
+
+/// DW-1396: with the on-call user set, a break tagged with a session's trace Ref (that user's own Break the feed) is an incident of that session, and it pages nobody: the notice reaches
+/// the session, and no page row, page Notification or escalation ask follows.
+Method TestSessionBreakNeverPages()
+{
+	If '..Ready() Quit
+	Do ..SetKeys(..#SESSIONPREFIX_..Number_"so", "", 15)
+	If '..Raised("so", .a, .ref, .request) Quit
+	Hang 5
+	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(ref).OwnerRef, a, "the incident is the session's own")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Pages(ref), 0, "and no page row exists for it")
+	Do $$$AssertEquals(..NoticeBodies(ref, "page").%Size(), 0, "no page Notification carries its Ref")
+}
+
 /// AC8: with the AlertManager fixture in the Orders definition and an on-call user configured, a real break pages the user, an Ens_Alerting.ManagedAlert row exists for the failing item,
 /// and every setting of every item of the definition reads as it did before the break.
 Method TestManagedAlertsBesidePaging()
@@ -668,7 +702,6 @@ Method TestManagedAlertsBesidePaging()
 	If '..ApprovalReady() Quit
 	Set a = ..Session("al")
 	Set user = ..#SESSIONPREFIX_..Number_"al"
-	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Do ..SetKeys(user, "", 15)
 	Set ..AlertFloor = ..Top("Ens_Alerting.ManagedAlert", ..#ORDERS)
 	Set ..AlertSet = 1
@@ -681,11 +714,11 @@ Method TestManagedAlertsBesidePaging()
 	Do ..ClearMark(..#ORDERS)
 	Do ..Watch(a)
 	Set sentAt = $ZHorolog
-	If '..Fail(3, trace) Quit
+	If '..Fail(3, "") Quit
 	Set paged = ""
 	Set end = $ZHorolog + ..#WAITPAGE + 60
 	For {
-		Set incidents = ..Incidents(a, ..#ORDERSPRODUCTION)
+		Set incidents = ..Incidents("instance", ..#ORDERSPRODUCTION)
 		For i = 0:1:incidents.%Size() - 1 {
 			If ##class(OcuTalon.Test.Watch.Paging).Pages(incidents.%Get(i).ref) Set paged = incidents.%Get(i).ref
 		}
