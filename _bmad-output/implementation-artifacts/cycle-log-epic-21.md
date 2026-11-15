@@ -367,3 +367,5 @@
 2026-11-15T00:53:10Z	Epic 21	parked	reason=RELEASE_QUIET_WINDOW(~00:50Z) stacks=none
 2026-11-15T01:21:14Z	Story 22.15	resumed	quiet_off DW-1354=dropped(note_superseded-by:DW-1352;grammar_has_no_superseded-by)
 2026-11-15T01:21:14Z	Story 22.15	stage_spawned	stage=qa spawn_at=2026-11-15T01:21:14Z model=sonnet effort=high agent_name=22-15-qa-1 cycle_iteration=1
+2026-11-15T01:51:04Z	Story 22.15	qa_complete	model=sonnet tests=Test.Mcp.Ops(TestChangedTool:RecordAttach_path;TestRecordAttachRows:refused_not_marked,reclear_marked) mutations_demonstrated=2 findings=none
+2026-11-15T01:51:04Z	Story 22.15	stage_spawned	stage=code-review spawn_at=2026-11-15T01:51:04Z model=opus effort=high agent_name=22-15-code-review-1 cycle_iteration=1
