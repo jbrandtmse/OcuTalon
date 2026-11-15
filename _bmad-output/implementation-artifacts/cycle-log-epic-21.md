@@ -365,3 +365,5 @@
 2026-11-15T00:53:10Z	Story 21.5	part_ready	parts=21.5 code_head=1ecb7150d ci=success note=DW-1351_fix_included
 2026-11-15T00:53:10Z	Story 22.15	dev_complete	build_sha=e61e0e837 branch=OCT-epic22-s2215 base=a6821f1d4 review=13(high0,med0,low11:4_patched,false2) followup=false checks=8_classes_warm,fresh_Ops/Tools,test-storage,class-rules,boundaries_pass lint_10_low next=QA,CR,push
 2026-11-15T00:53:10Z	Epic 21	parked	reason=RELEASE_QUIET_WINDOW(~00:50Z) stacks=none
+2026-11-15T01:21:14Z	Story 22.15	resumed	quiet_off DW-1354=superseded-by:DW-1352
+2026-11-15T01:21:14Z	Story 22.15	stage_spawned	stage=qa spawn_at=2026-11-15T01:21:14Z model=sonnet effort=high agent_name=22-15-qa-1 cycle_iteration=1
