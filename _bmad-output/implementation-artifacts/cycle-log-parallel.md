@@ -4319,3 +4319,4 @@
 2026-11-15T14:57:15Z	Epic 0	dispatched	lane=C runner=a782ad9fd103aa691 task=0.37_plan_to_spec_gate(local) prompt=prompts/local-plans-20261115.md
 2026-11-15T14:57:15Z	Epic 24	dispatched	lane=D(exception) runner=a32f5289d7494a1ef task=24.2_or_24.4_plan_to_spec_gate(local)
 2026-11-15T15:02:10Z	Run	push_freeze_lifted	via=contest_planner runners=54(+36_ci-21..56_on_ci-e..j) rule=release_PR_first;report_port/DW-1099_on_runner>=21_at_once
+2026-11-15T15:08:11Z	Epic 0	runner_reported	PLANNER_REPORT story=0.37 head=0da3c5f60(local,OCT-epic0-s037) change=Triage.cls_26-27+pins guards=pass A/B=option_A_recommended(bars_f,g) relayed=contest_planner
