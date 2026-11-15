@@ -4327,3 +4327,13 @@
 2026-11-15T15:31:56Z	Run	ci_green_verified	head=a1b4f2e2c(1.0.11_base) runs=43726997245,43726997243(att1)
 2026-11-15T15:31:56Z	Run	planner_notified	"1.0.11 REQUIRED GREEN a1b4f2e2c" 25.6=not_in 23.3=not_in
 2026-11-15T15:32:28Z	Run	release_started	via=contest_planner 1.0.11_from=a1b4f2e2c merges=continue(DW-1371,23.3,25.6) hold_new_pushes_on="RELEASE PR OPEN #n"_until_its_jobs_started
+2026-11-15T15:33:00Z	Epic 23	ci_red_classified	story=23.3 sha=5445b0e49 run=43720395242 story_reds=Test.Data.Tables:TestContracts(SettingChangeRef_not_in_contract),TelegramChat:TestNotices(Watch_key_count_34_vs_40) flake=production_row21(DW-306) action=rework_by_lane_B(message_queued)
+2026-11-15T15:39:03Z	Run	owner_decision	via=contest_planner SCOPE_HOLD epics=27,28(owner_leaning_drop) rule=no_dispatch/plan/spec,no_epics/tracker_edits
+2026-11-15T16:08:20Z	Epic 21	runner_reported	PART_READY story=DW-1371 head=5b52467ec runs=43719358269(att2;att1=DW-1381_flake),43719358288 note=report_not_received_directly;verified_by_gate
+2026-11-15T16:08:20Z	Epic 21	merge_enqueued	story=DW-1371 (1.0.12)
+2026-11-15T16:08:57Z	Epic 21	merged	story=DW-1371 merge=475a86e44
+2026-11-15T16:09:06Z	Epic 0	runner_status	0.37 CR=0H/0M,7_lows_patched(pins_only) integrated=cc5f85fb6 fresh=running notes_to_Planner=heartbeat_and_chat_stopped_may_pull_to_act(no_eval_case)
+2026-11-15T16:09:17Z	Epic 0	owner_decision	via=contest_planner 0.37_review_notes=accepted_as_intended A/B_adds_2_observe-only_probes(heartbeat_stopped,user_chat_stopped;S6>0_in_NEW=FAIL)
+2026-11-15T16:22:09Z	Run	release_pr_open	via=contest_planner PR=#16 release/1.0.11-rc2@799f9a8b->main runs=43735018565,43735018578(all_IRIS_jobs_started) push_hold=none rule=never_merge_to_main
+2026-11-15T16:26:56Z	Epic 25	runner_reported	PART_READY story=25.6 head=ff3078ed7 runs=43728223291(att2;att1=DW-1382_new_flake_cand_ci-31,DW-1205_2nd_red_ci-16),43728223310 bundle=890.41kB
+2026-11-15T16:26:56Z	Epic 25	merge_enqueued	story=25.6 (1.0.12)

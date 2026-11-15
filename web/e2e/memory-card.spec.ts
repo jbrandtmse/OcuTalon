@@ -855,6 +855,83 @@ test('MC14: a pin that would go over the cap shows the refusal, announced and na
   }
 });
 
+/** MC14b (Story 25.6, DW-1313): a 409 pin_photo shows the photo sentence (a lazy chunk's text), and a 409 over_cap still shows the over-cap sentence. */
+test("MC14b: a pin that the server refuses with 409 pin_photo shows 'This memory came from a photo, so it can't be pinned.', and over_cap still shows its own sentence", async ({ page }) => {
+  test.setTimeout(150_000);
+  const PIN_PHOTO = "This memory came from a photo, so it can't be pinned.";
+  const refs: string[] = [];
+  try {
+    await recordAnnouncements(page);
+    const session = await openLive(page);
+    const text = `A zzphoto${Date.now().toString(36)} caption`;
+    refs.push(await seedMemory(session, text));
+    await showMemories(page);
+    const row = memoryRow(memoriesPanel(page), text);
+    const pin = row.getByRole('button', { name: `Pin ${text}`, exact: true });
+    await page.route(/\/api\/v1\/memory\/[^/?]+\/pin$/, (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'pin_photo', message: PIN_PHOTO } }) })
+        : route.fallback(),
+    );
+    await pin.click();
+    await expect(memoriesPanel(page).getByText(PIN_PHOTO, { exact: true }), 'the photo sentence shows').toBeVisible();
+    await expect(memoriesPanel(page).getByText(OVER_CAP, { exact: true }), 'and not the over-cap sentence').toHaveCount(0);
+    await expect(pin, "the button is described by it").toHaveAccessibleDescription(PIN_PHOTO);
+    await expect.poll(() => announcements(page, PIN_PHOTO), { message: 'it is announced once' }).toBe(1);
+    expect(await pinnedCountOf(session), 'nothing was pinned').toBe(0);
+
+    await page.unroute(/\/api\/v1\/memory\/[^/?]+\/pin$/);
+    await page.route(/\/api\/v1\/memory\/[^/?]+\/pin$/, (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'over_cap', message: OVER_CAP } }) })
+        : route.fallback(),
+    );
+    await pin.click();
+    await expect(memoriesPanel(page).getByText(OVER_CAP, { exact: true }), 'an over_cap refusal still shows the over-cap sentence').toBeVisible();
+    await expect(memoriesPanel(page).getByText(PIN_PHOTO, { exact: true })).toHaveCount(0);
+  } finally {
+    await removeAllMemories(refs);
+  }
+});
+
+/** MC14c (Story 25.6): when the lazy chunk of the photo sentence cannot load, a 409 pin_photo shows the pin-failed notice, not nothing. */
+test("MC14c: a pin refused with 409 pin_photo whose lazy chunk fails to load shows 'Couldn't pin it. Nothing was changed.'", async ({ page }) => {
+  test.setTimeout(150_000);
+  const PIN_PHOTO = "This memory came from a photo, so it can't be pinned.";
+  const PIN_FAILED = "Couldn't pin it. Nothing was changed.";
+  const refs: string[] = [];
+  try {
+    const session = await openLive(page);
+    const text = `A zzphotochunk${Date.now().toString(36)} caption`;
+    refs.push(await seedMemory(session, text));
+    await showMemories(page);
+    const row = memoryRow(memoriesPanel(page), text);
+    const pin = row.getByRole('button', { name: `Pin ${text}`, exact: true });
+    // The chunk's file name is a content hash, so the route reads each script that the page asks for from now on and aborts the one that holds the sentence.
+    let aborted = 0;
+    await page.route(/\/chunk-[A-Za-z0-9]+\.js$/, async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes(PIN_PHOTO)) {
+        aborted += 1;
+        return route.abort('failed');
+      }
+      return route.fulfill({ response });
+    });
+    await page.route(/\/api\/v1\/memory\/[^/?]+\/pin$/, (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'pin_photo', message: PIN_PHOTO } }) })
+        : route.fallback(),
+    );
+    await pin.click();
+    await expect(memoriesPanel(page).getByText(PIN_FAILED, { exact: true }), 'the pin-failed notice shows').toBeVisible();
+    expect(aborted, 'the chunk of the photo sentence was requested and refused').toBeGreaterThanOrEqual(1);
+    await expect(memoriesPanel(page).getByText(PIN_PHOTO, { exact: true })).toHaveCount(0);
+    expect(await pinnedCountOf(session), 'nothing was pinned').toBe(0);
+  } finally {
+    await removeAllMemories(refs);
+  }
+});
+
 /** MC15: Forget, in both lists. */
 test('MC15: Forget asks, then the memory leaves All memories and Pinned at once, and a search no longer finds it', async ({ page }) => {
   test.setTimeout(150_000);
