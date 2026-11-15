@@ -7583,6 +7583,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci 43235350028 OCT-epic23 4444bda0 iris (shards-11) attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: logic assertion (not a timeout) under a saturated CI host ~15:00Z; passed on attempt 2; 23.12 changes web live-store only
 - 2026-11-12T16:31:02Z status=routed owner=burndown by=orchestrator note=Planner rule: a logic red is not a load flake by default; investigate ordering/state the copies counter depends on; a second red on any head = real
+- 2026-11-15T15:40:49Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=epic-runner-25 note=ci_43728223291_OCT-epic25-s256_ff3078ed7_iris(shards-11)_job_132854720236_runner_ocutalon-ci-16_same_assert('it holds 3/3/0/3/0: the copies failed again');second_red_on_a_head=real_per_Planner_rule;25.6_touches_no_Fix_code;reported_to_orchestrator;rerun_of_failed_jobs
 
 ### DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
@@ -8343,3 +8344,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-22-12-document-polling-a-jira-mcp-tool-as-a-source.md (code-review) | severity: low | fix-risk: low | footprint: in-story
 - evidence: mcp_source_problems reads NAMEMAX and ENTRYMAILBOX but not Mcp/Ops.cls L216 (Length(name) < 1), L217 (ZConvert L compare) or Normalised L550 (secret:// in any case); behaviour is true today
 - 2026-11-15T10:06:08Z status=wontfix-accepted owner=22-12-document-polling-a-jira-mcp-tool-as-a-source by=cr note=reopen_if=Mcp/Ops.cls OnSetSource or Normalised drops one of these three rules while docs/mcp-jira-example.md keeps the sentence
+
+### DW-1382: flake candidate: live:sign-in history.spec H2 copied-link page found no Outcome control (element not found, 10 s) after the same context's reload passed
+- source: ci 43728223291 OCT-epic25-s256 ff3078ed7 iris (shards-10) job 132854720227 runner ocutalon-ci-31 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: assertion history.spec.ts:181 on context.newPage().goto(address); reload on the first page passed 4 lines earlier; 334 other specs passed; port 52804 swept clean (not port/DW-1099-shaped); 25.6 changes no history code
+- 2026-11-15T15:40:49Z status=routed owner=burndown by=epic-runner-25 note=one rerun of failed jobs; a second red on any head = real

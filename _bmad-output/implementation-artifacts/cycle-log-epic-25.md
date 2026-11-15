@@ -231,3 +231,6 @@
 2026-11-15T14:59:56Z	Story 25.6	cr_complete	spawn_at=2026-11-15T12:42Z model=opus cycle_iteration=2 scope=3b0fd267..HEAD resolved=1(comment_wording) dismissed=4 high=0 med=0 low=1 rows=0 unresolved_high_med=0 mutations_verified_from_logs=3 final=done
 2026-11-15T15:08:34Z	Story 25.6	smoke_complete	cycle_iteration=2 head_pre=c467619e lane=a tag=e25s6int5 live_sign-in_5/17=21_passed fresh_stack=yes local=build_890.41kB,node,lint,test-readme,boundaries_pass
 2026-11-15T15:08:34Z	Story 25.6	integrated	onto=a1b4f2e2 conflicts=sprint-status_last_updated(scalar,later_kept) overlap=deferred-work,spine,epics,security-overview,ux-strings(auto_merged) dw1347_files_touched=none target=1.0.12
+2026-11-15T15:09:48Z	Story 25.6	pushed	head=ff3078ed7 runs=43728223291(ci),43728223310(lane-a)
+2026-11-15T15:40:57Z	Story 25.6	ci_red	run=43728223291 jobs=shards-10(H2_copied_link,DW-1382_new_flake_candidate,ocutalon-ci-31),shards-11(Fix.Reroute,DW-1205_second_red,ocutalon-ci-16) class=infra/flake(not_story) action=rerun_failed_once lane-a=43728223310_green
+2026-11-15T16:26:35Z	Story 25.6	ci_green	head=ff3078ed7 runs=43728223291(attempt2_rerun_failed:shards-10_on_ocutalon-ci-34,shards-11_on_ocutalon-ci-49_green),43728223310 part_ready=sent
