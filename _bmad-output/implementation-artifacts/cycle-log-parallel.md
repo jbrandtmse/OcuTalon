@@ -4344,3 +4344,4 @@
 2026-11-15T17:18:47Z	Epic 0	runner_reported	PART_READY story=0.37 head=c8f7a3f39 runs=43737201539,43737201541(att1_green) state=held_merge(Planner_A/B)
 2026-11-15T17:18:47Z	Epic 21	runner_ended	reason=waiting waiting_on=23.3_merge(DW-1205+DW-494)
 2026-11-15T17:19:04Z	Epic 21	runner_resumed	lane=C task=DW-1205+DW-494_investigation_only(no_Fix_edits_until_23.3_merges) via=contest_planner
+2026-11-15T17:24:27Z	Run	dw_opened	DW-1388(MED,21.5_mcp.spec_B13_flake;ci-55,ci-16) owner=next_free_of_laneD/laneC 1.0.11=released(main_b2c3f6f6,tag_v1.0.11,merge-back_b337f61d)
