@@ -683,6 +683,27 @@ XData Contracts [ MimeType = application/json ]
    "IncidentRefIndex": "IncidentRef"
   }
  },
+ "OcuTalon.Data.Page": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(MAXLEN=22)",
+   "IncidentRef": "%String(MAXLEN=22)",
+   "Role": "%String(MAXLEN=16)",
+   "Person": "%String(MAXLEN=320)",
+   "Channels": "%String(MAXLEN=64)",
+   "SentAt": "%String(MAXLEN=20)",
+   "AcknowledgedAt": "%String(MAXLEN=20)",
+   "AcknowledgedChannel": "%String(MAXLEN=32)",
+   "EscalationRef": "%String(MAXLEN=22)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique",
+   "IncidentRoleIndex": "IncidentRef,Role unique"
+  },
+  "sql": {
+   "Role": "PageRole"
+  }
+ },
  "OcuTalon.Data.HeartbeatBeat": {
   "super": "%Persistent",
   "props": {
@@ -886,6 +907,11 @@ XData Registry [ MimeType = application/json ]
   "short": "SettingChange",
   "global": "^OcuTalonP.SettingChange",
   "class": "OcuTalon.Data.SettingChange"
+ },
+ {
+  "short": "Page",
+  "global": "^OcuTalonP.Page",
+  "class": "OcuTalon.Data.Page"
  }
 ]
 }

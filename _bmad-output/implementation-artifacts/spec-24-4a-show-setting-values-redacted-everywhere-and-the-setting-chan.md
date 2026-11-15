@@ -135,6 +135,25 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
 
 ## Spec Change Log
 
+- 2026-11-15 (lead). **V6 RULING, Contest Planner ~22:30Z Nov 15 (BINDING)**, quoted in full:
+
+  > ## V6 RULING (Contest Planner, ~22:30Z). BINDING for 24.4a.
+  > OPTION (a) is APPROVED.
+  > - FixExecutor starts a detached job that discards the handoff entry after VALUESSECONDS (60 s).
+  > - Do not edit SecretHandoff.
+  > - IncidentManager takes the entry as soon as an answer arrives, before any early exit.
+  > 
+  > ADDED CONDITION, the missing-entry rule:
+  > - If IncidentManager's Take finds NO entry (expired, discarded or never put), it must NOT store the redacted value as if it were the raw one.
+  > - In that case the request is NOT raised. The incident goes down the existing refusal path with the NOSTART reason ("OcuTalon couldn't change the setting"), so an approval can never restore "[redacted]" into a production.
+  > 
+  > PINS:
+  > - Missing entry: force the discard before the take. Assert there is no request and no stored DryRun containing the marker.
+  > - 60 s discard: the entry is gone after the 60 s discard.
+  > - Normal take: a take within the window succeeds, and the entry is gone at once afterwards.
+
+  Applied: option (a) as planned; the ADDED CONDITION (missing entry -> no request, the incident takes the existing refusal path with `NOSTART`, never a redacted value stored as raw) and its three PINS are binding on the implement stage. Integrated over feature 92937a03 (23.4 and lane B's `Paged` hunk in `Live/Payload/Incident.cls`, auto-merged; `Watch/IncidentManager.cls` also changed on feature): re-check Code Map line numbers at implement.
+
 - 2026-11-15 (plan, re-plan iteration 3, narrowed to 24.4a under the RE-PLAN RULINGS). Intent amended to 24.4a's scope (each change marked `[AMENDED 2026-11-15, re-plan narrowed to 24.4a]` or `[..., re-plan rulings, V5 ...]`): the Problem drops the closed-card bullet and the cross-surface paragraph and points to 24.4b; the Approach drops the compact-card bullet, adds V5's take-on-receipt and expiry, and narrows the pins; Always adds "raw values in locals only" and "every offered entry taken or discarded"; Never names V5's files, forbids `Core/SecretHandoff.cls`, and replaces the compact-card rule with "no change to the compact card (24.4b)"; the matrix drops the three closed-card rows (moved) and gains the hand-off taken, never-taken and System Default undo rows. ACs renumbered for 24.4a: AC1 was AC9, AC2 was AC6, AC3 was AC3 plus AC5's panel part, AC4 was AC7, AC5 was AC8 plus V5 condition 2, AC6 and AC7 are new (V5 conditions 1 and 3); old AC1, AC2, AC4 and AC5's card part moved to 24.4b (Design Notes). Tasks: V5's design made concrete (`OfferValues`, `Expire`, `TakeValues`; the take on receipt before every early exit; the Rollback helper's `AskDryRun` override); `TestValuesHandoff` and `TestUndoSystemDefaultTokenRaw` added; `TestStepFiveRequests`, the compact-card tasks and their web/scripts pins moved. Found during the plan: SecretHandoff has no lifetime, so "expires within SecretHandoff's existing limit" (V5 condition 1) has no existing limit to use: flagged NEW V6, with the recommended 60-second discard job. `multiple-goals` cleared (Decided 18). `baseline_revision` moved to HEAD 9514d500 (no code change since 1fc32ac5).
 
 - 2026-11-15 (lead). **RE-PLAN RULINGS, Contest Planner ~22:00Z Nov 15 (BINDING)**, quoted in full:

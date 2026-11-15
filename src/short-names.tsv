@@ -40,3 +40,4 @@ McpTool	^OcuTalonP.McpTool	OcuTalon.Mcp.ToolClassification	A
 SettingSnap	^OcuTalonP.SettingSnap	OcuTalon.Data.SettingSnapshot	A
 SettingChange	^OcuTalonP.SettingChange	OcuTalon.Data.SettingChange	A
 PartnerContact	^OcuTalonP.PartnerContact	OcuTalon.Data.PartnerContact	B
+Page	^OcuTalonP.Page	OcuTalon.Data.Page	A
