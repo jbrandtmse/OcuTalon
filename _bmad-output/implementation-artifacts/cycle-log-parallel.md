@@ -4495,3 +4495,4 @@
 2026-11-16T14:00:09Z	Run	ci_green_verified	head=625900415(1.0.12_base) runs=43870851457(att2;att1=DW-306_ci-22),43870851505
 2026-11-16T14:00:09Z	Run	planner_notified	"1.0.12 REQUIRED GREEN 625900415"
 2026-11-16T14:00:37Z	Run	release_started	via=contest_planner 1.0.12_BASE=625900415 hold=feature_records_only_until_MERGE-BACK_DONE;lanes_keep_working;light_branch_CI;24.3a/b_first_after
+2026-11-16T14:01:59Z	Epic 24	runner_reported	PART_READY 24.3a(a92d5426b;runs_43856258908_att2_DW-306,43856258969)+24.3b(411a61e11;runs_43875617563,43875617565) state=held_until_MERGE-BACK_DONE DW-1430(Telegram_page_cause_unredacted;escalated) AD-14/18/27_old+new_sent relayed=contest_planner
