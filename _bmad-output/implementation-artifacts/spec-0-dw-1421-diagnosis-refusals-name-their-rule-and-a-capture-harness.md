@@ -351,6 +351,14 @@ It is an internal diagnostic name, not public text (Veto item 1).
 
 None new. The tags and `CAPTURE` lines are internal diagnostics (Veto item 1). No catalog key, sentence or UI string is added or changed.
 
+## Spec gate rulings (Contest Planner, ~10:30Z Nov 16, BINDING): C0 + C1 APPROVED, both deviations included
+
+- C1: `REFUSALRULES` is an ALLOWLIST. PIN, with a mutation, that a reply value can NEVER appear after "rule" in the refusal text.
+- Deviation 1 (the harness inside `eval/run.sh`): opt-in through `OCUTALON_EVAL_CAPTURE_DIR` ONLY; no workflow sets it. It runs after the report numbers are final. PIN that `run.sh` without the variable gives a byte-identical report. Refuse a folder inside the checkout AND a missing folder.
+- `Decide.Recheck`: unreachable from any REST, Telegram or chat path. PIN that it saves nothing, fires nothing and logs nothing.
+- Deviation 2 (the three inherited DecisionPayload rules tagged): APPROVED, no A/B; keep the two updated pins (`Test.Bridge.ReplyCheck` row 9, `Test.Agent.RememberDecision` DEMOTAIL).
+- When pushed, the lead sends the sha and the EXACT key-holder command.
+
 ## Verification
 
 Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh`, `ci/warm.sh` and `eval/run.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=0 stage=<stage>'`.
