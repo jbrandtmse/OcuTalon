@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 25 is Lane B's half of step 6: the History page, sending a file from the web app or Telegram, approver and viewer roles in Settings with enforcement, and OcuTalon's reply to a sent file. All of that is merged, and so are the two burn-down stories that followed: 25.7 (CI port release) and 25.8 (the web gap-fill). The open work is Story 25.9, a server-side burn-down that keeps the audit log a true record of Settings changes. Every audited Settings save must write its row first and its audit entry last, inside one transaction, and roll the row back when the audit write fails. Today the order is reversed. IRIS writes audit records outside the transaction, so a row write that fails after the audit leaves an entry for a change that never happened. The same story writes two Contest Planner rulings into the architecture spine: an AD-19 amendment (the save order) and an AD-13 clarification (the web process may read Settings tables directly). It closes ledger items DW-1392 and DW-1395 and targets release 1.0.12 if it is ready in time.
+Epic 25 is Lane B's half of step 6: the History page, sending a file from the web app or Telegram, approver and viewer roles in Settings with enforcement, and OcuTalon's reply to a sent file. All of that is merged, as are the burn-down stories 25.7 (CI port release) and 25.8 (the web gap-fill). The open work is Story 25.9, a server-side burn-down that keeps the audit log a true record of Settings changes: every audited Settings save writes its row first and its audit entry last, inside one transaction, and rolls the row back when the audit write fails. Today the order is reversed, and because IRIS writes audit records outside the transaction, a row write that fails after the audit leaves an entry for a change that never happened. The story closes ledger items DW-1392 and DW-1395 and targets release 1.0.12 if it is ready in time.
 
 ## Stories
 
@@ -14,34 +14,41 @@ Epic 25 is Lane B's half of step 6: the History page, sending a file from the we
 - Story 25.5: Answer only with the right approver role, and say why otherwise (done)
 - Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure (done)
 - Story 25.7: Epic 25 burn-down: a cancelled CI job's stack no longer blocks its runner's web port (done)
-- Story 25.8: Epic 25 burn-down: the web gap-fill (Usage withdraws its stale error, and a viewer gets no file-reply add or Documents drop) (done)
-- Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction (backlog)
+- Story 25.8: Epic 25 burn-down: the web gap-fill (done)
+- Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction (ready for dev)
 
 ## Requirements & Constraints
 
-- **The order, inside one transaction:** (1) write the row; (2) write the audit entry; (3) if the audit write fails, `TROLLBACK` the row and report the failure; (4) only then `TCOMMIT`. The reasoning: an audit entry for a change that never happened is a false record, but an unaudited change is worse.
-- **Scope is every audited Settings save of the audit-then-row pattern.** That covers at least Story 24.2's partner contact save (`SettingsOps.WritePartner`) and `SaveProduct` (Stories 33.2 and 36.4). Grep for any other audited write that follows the same pattern, and list every one in the spec.
+- **The order, inside one transaction:** (1) write the row(s); (2) write the audit entries; (3) if an audit write fails, `TROLLBACK` and report it; (4) only then `TCOMMIT`. A row write that fails rolls back and writes no audit entry. Reasoning: an entry for a change that never happened is a false record, and an unaudited change is worse.
+- **Scope is every audited Settings save of the audit-then-row pattern**, found by grep and listed in the spec: in practice the audited saves in `OcuTalon.Core.SettingsOps` (demo mode, persona and heartbeat keys, `SaveProduct` for the step 2 and on-call sections, the email section and its OAuth/client writes, webhook create and secret change, and Story 24.2's partner contacts). Saves that already write before they audit (the bridge-value saves and their put-backs, role assignment, the MCP saves) stay unchanged.
+- **Failure reports reuse what exists.** Each save keeps its current outcomes (`failed`, `not_audited`, `name_taken`, `refused`) and messages, and its log lines. A failed webhook save no longer writes a compensating "undone" entry; it writes nothing.
+- **Hard scope limits.** No new user-visible text, `MESSAGE*` parameter, outcome, route, role, reply shape, Data class or index. Existing Web API and Settings browser specs must pass unchanged.
+- **Audit content is unchanged.** From and to values appear only in the IRIS audit log. A partner contact's entry names only `partnerContact.<Ref>` and which fields changed. No setting value in a result, log line or test output; the leak scans from Stories 24.2 and 36.4 still cover the audit rows.
 - **Tests, each mutation-proof:**
-  - Force the row write to fail. No audit entry is written, and the failure is reported.
-  - Force the audit write to fail. The row is unchanged, and the failure is reported.
-  - Each test must fail when the ordering or the rollback is removed, and the story records that demonstrated mutation.
-  - The existing rollback test proves the rollback only for its probe's global, not for the IRIS audit entry. The new tests must check the real audit log and the real row.
-  - Every test creates and removes its own state and passes in either order.
-- **Spine text, verbatim.** Add the AD-19 sentence and the AD-13 sentence exactly as the epic's acceptance criteria give them, with their `[ADDED 2026-11-15, …]` markers. The spine's current Story 33.2 save-order text says "each changed value's audit entry and then its row" for product keys. That text now contradicts AD-19, so the story must reconcile it.
-- **Hard scope limits.** No new public text, and no change to any route, role or reply shape.
-- **Audit content is unchanged.** From and to values appear only in the IRIS audit log. A partner contact's entry holds only `partnerContact.<Ref>` and which fields changed, never a value. A failure report, a log line or test output must not carry a setting value. Leak scans from Stories 24.2 and 36.4 cover the audit rows.
+  - Force the row write to fail: the outcome is reported and the real IRIS audit log has no entry for the test's session (checked against a control save whose entry is found).
+  - Force the audit write to fail: `not_audited`, and every row is as before, read fresh from storage.
+  - Each test must go red when the ordering or the rollback is removed, and the story records the demonstrated mutation.
+  - After a rolled-back save, don't assert probe call records kept in ordinary globals (a rollback now undoes them); use process-private counters or the real log.
+  - Every test creates and removes its own state, uses its own session Ref, and passes in either order. Extend each site's existing test class rather than copying tests.
+- **Comments state the contract, not the history.** Every "audit entry first" doc comment is corrected in place.
 
 ## Technical Decisions
 
-- **Why the rollback cannot undo an audit entry.** `Bridge.Audit.Record` writes through `$SYSTEM.Security.Audit`. IRIS suspends the open transaction while it writes an audit record, so a `TROLLBACK` never removes the entry. Writing the row first leaves only one way to get a false entry: a commit that fails after the audit write. The AD-19 amendment accepts that case.
-- **The single writer.** At run time `OcuTalon.Core.SettingsOps` is the only Settings writer. It runs in the production job, and a save reaches it as a `SaveSettings` command through `Commands.Submit`. It validates every field before it writes anything and drops unchanged values. A refused value changes nothing and writes no audit entry.
-- **Bridge values do not use the product-key transaction.** `SettingsOps` writes them through `OcuTalon.Bridge.Settings`: every `Check` runs first, then each `Set` writes its audit entry. If a later `Set` fails, `SettingsOps` sets the earlier values back and audits the reversal. The spec decides whether that path falls under the grep's pattern.
-- **AD-13 clarification.** The web process may read Settings tables directly, as `SettingsOps.Values` reads `Data.Setting` and as `GET /v1/settings` lists partner contacts through `PartnerContact.List()`. Every write still goes through the production. Reads of other product storage keep AD-13's rule: only the owning class's methods or `Ownership.Rows`.
-- **Ownership.** `Data.Setting`, `PartnerContact` and `SettingsOps` belong to Lane B. The Planner gave the story to Lane A after Story 25.8, or to the first free lane. If another lane's files change, record an AD-33 exception that names them, as Story 25.8 did. The ownership tables don't change.
-- **Runtime.** Tests run on real runtimes (Lane A throwaway stacks), with no shared slot or MCP target.
+- **Why rollback cannot undo an audit entry.** `Bridge.Audit.Record` (the one audit writer) goes through `$SYSTEM.Security.Audit`, and IRIS suspends the open transaction while writing the record, so `TROLLBACK` never removes it. Writing the row first leaves only one way to get a false entry: a commit that fails after the audit write, which the ruling accepts.
+- **The spine already carries the rulings** (written during planning; the implementation only verifies them by grep):
+  - The audited-save rule: an audited save writes its row and then its audit entry inside one transaction and rolls the row back if the audit write fails.
+  - The Settings save order for product keys now reads row, then audit entry, with an amendment marker; no text saying "audit entry and then its row" may remain.
+  - Reads of Settings tables: the web process may read them directly (as `SettingsOps.Values` reads `Data.Setting`); every write goes through the production. Reads of other product storage keep the existing rule: only the owning class's methods or `Ownership.Rows`.
+  - An ownership-exception bullet for Story 25.9 naming the files it may change.
+- **The single writer.** `SettingsOps` is the only Settings writer at run time, in the production job; a save reaches it as a `SaveSettings` command through `Commands.Submit`. It validates every field before writing and drops unchanged values; a refused or unchanged save opens no transaction and writes no entry.
+- **One shared audit-and-commit helper, plus a row seam.** The audit-and-commit step, today copied across every site, becomes one private helper called inside the caller's open transaction after the rows; a private row-save seam (like the existing audit seam) lets the test probe force webhook row failures and stage a name clash just before the save.
+- **Writes that cannot sit in the transaction** (the email section's credential, item rows and OAuth client, which the production update runs after) follow the bridge-value rule: write, then audit, then put everything back on a failed audit. Their entries come after the item restart, so a failed start never leaves an entry for a value that was put back.
+- **Ownership.** `SettingsOps`, its probe and the Settings test classes belong to Lane B; Story 25.9 runs in Lane A and changes only the files its ownership-exception bullet names. The ownership tables don't change. Don't touch `Watch/*`, `Fix/*` or `Live/Payload/*` (held by Stories 23.13 and 24.4a).
+- **Runtime.** Tests run on Lane A throwaway stacks, never a shared slot, MCP target or another lane's stacks.
 
 ## Cross-Story Dependencies
 
-- The saves being reordered come from Story 24.2 (partner contacts, Epic 24), Story 33.2 (`SaveProduct` and the step 2 keys) and Story 36.4 (the on-call keys, which arrive through `SecretHandoff`). Their existing tests and leak scans must stay green.
-- Stories 25.4 and 26.4 also write `Settings` audit entries, for role assignments (`Install.Step.Roles.Assign`, in `%SYS`). The grep should check whether they follow the audit-then-row pattern.
+- The reordered saves come from Story 24.2 (partner contacts), Story 33.2 (`SaveProduct` and the step 2 keys), Story 36.4 (on-call keys via `SecretHandoff`), Story 39.2 (heartbeat keys), and the email and webhook settings stories; their existing tests and leak scans must stay green, with only the pins on the old order updated.
+- The test probe's seams and the email save's entry order are shared surfaces: every user of the Settings probe and the email form tests read them.
+- Role assignments (Stories 25.4 and 26.4) already write before auditing and are out of scope.
 - DW-1393 and DW-1394 (partner contact duplicates and the `TABLE` switch) belong to Story 23.13, not to this story.
