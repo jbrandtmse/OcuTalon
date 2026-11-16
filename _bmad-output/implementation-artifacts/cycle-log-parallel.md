@@ -4514,3 +4514,9 @@
 2026-11-16T15:08:03Z	Epic 21	owner_decision	via=contest_planner DW-1421_C0_results(3_diagnose_evidence>128,2_decide_confidence-missing;C2/C3_never) C2=dropped C3=deferred C2prime=evidence_cut_at_128 C1_tag_fix=evidence-too-long C5=report_first verify=5-run_recapture
 2026-11-16T15:19:37Z	Epic 28	runner_reported	PLANNER_REPORT 28.2_Task0=merge_not_viable(0_false_only_at_10%_true) split_applied(pre-approved):28.2=fading-only,28.4=nightly_merge proposal_28.4=exact-word-order_rule(9/30,0/42) laneC=implementing_28.2 relayed=contest_planner
 2026-11-16T15:19:51Z	Epic 28	owner_decision	via=contest_planner 28.4=HELD(owner_decision:a_exact_text,b_suggest+confirm,c_model;Planner_recommends_a+b) 72_pairs_fixture_kept next=28.3,then_LOW_items
+2026-11-16T15:20:39Z	Epic 23	runner_ended	lane_B_batch: items1-2_model-facing(ledgered_DW-1431,DW-1432_for_bundled_A/B) item3_DW-1429_check=pass item4_production_rebalance=pushed(38c20571,CI_queued) slot_B=released_to_Epic27 planner_notified
+2026-11-16T15:22:36Z	Run	owner_decision	via=contest_planner CI_queue: records_pushes_[skip_ci]+hourly_batch; branch_pushes_check_runners,hold_while_release_queued; Planner_cancelled_4_unstarted_runs(rerun_43889525115_after_main_green)
+2026-11-16T15:23:02Z	Epic 24	runner_reported	PART_READY DW-1430 head=aea51eb95(off_BASE) runs=43883622144(att2;att1=DW-28_ci-20),43883623069 state=held(MERGE-BACK;merges_first) note=ci-20_two_production_flakes_today
+2026-11-16T17:05:00Z	Epic 21	runner_reported	DW-1421_C2prime+C1_pushed=c573a86d0(CI_pending) C5_report(confidence=display_only;absent_default_recommended) open=cut_min_length,other_7_field_tags relayed=contest_planner
+2026-11-16T17:05:31Z	Run	merge_back_done	via=contest_planner main=974fc1c1(v1.0.12) feature=efcd0be84 rule=one_feature_merge_at_a_time_until_MAIN_CI_GREEN order=DW-1430,24.3b,OCT-epic23-s2314
+2026-11-16T17:05:31Z	Epic 24	merge_enqueued	DW-1430 head=aea51eb95
