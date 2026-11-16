@@ -39,6 +39,8 @@
 ///   - TestSettingLines (Story 23.3): the requested line of a rollback_setting and of an undo_rollback, the restored, undone and not changed lines of their runs, and message counts that the setting runs leave alone.
 ///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365; DW-1376): a rollback_setting run and an undo_rollback run that saved the setting and could not apply it end with summary.settingSavedNotApplied.
 ///   - TestItemSavedNotAppliedLine (DW-1373; DW-1376): a suspend_item run and a resume_item run that stored the flag and could not apply it end with summary.settingSavedNotApplied (setting Enabled, target the item).
+///   - TestSavedNotAppliedLineEdges (DW-1376, QA): the not-applied line is only for a run that ended, was not interrupted, completed nothing and has Unreached above 0: the could-not-start, skipped, done, interrupted and message-kind runs keep their own lines, and a setting request without names has none.
+///   - TestSavedNotAppliedLineOrderAndChannels (DW-1376, QA): the line sits at its run's end among the other lines, with the slots of its own run, and renders once for each run on the web, the phone and Telegram.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -926,6 +928,131 @@ Method TestItemSavedNotAppliedLine()
 	Do $$$AssertStatusOK(sc, "the summary renders")
 	Do $$$AssertTrue(text [ ": Enabled on OrdersToWarehouse was changed, but the production couldn't apply it.", "the suspend reads as ruled")
 	Do $$$AssertTrue(text [ ": Enabled on OrdersForReview was changed, but the production couldn't apply it.", "and so does the resume")
+}
+
+/// DW-1376 (QA), the edges of the not-applied line: only a run that ended, was not interrupted and has Completed 0 with Unreached above 0 gets summary.settingSavedNotApplied. For a
+/// rollback_setting run and a suspend_item run, a run whose restore worked (the run could not start: Completed 0, Skipped 0, Unreached 0) and a run with one skipped keep
+/// summary.settingNotChanged or summary.itemNotChanged, a run with something completed keeps its done line whatever its Unreached (Completed decides, as the spec's condition reads), and an
+/// interrupted run reads summary.fixInterrupted; a rollback_setting request whose dry run names no setting has no ended line; and a reroute (a message kind) with Unreached above 0 ends
+/// with summary.fixEnded and its counts. mutation: SummaryRunKey's condition widened to Completed 0 alone (the not-changed setting runs get the new line); the item branch's condition
+/// widened to Completed 0 alone; the same two conditions made Unreached above 0 alone (the mixed run); the Quit of the interrupted block of Watch.Summary RunEvents taken out; the Names
+/// test of the setting branch taken out; the item branch's TARGETTYPE test made '= "contact".
+Method TestSavedNotAppliedLineEdges()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("savededges")
+	Set new = "summary.settingSavedNotApplied"
+	Set settingDry = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"
+	Set settingParameters = "{""change"":""zzchange0000000000001""}"
+	Set itemDry = "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"
+	Set itemParameters = "{""item"":""OrdersToWarehouse""}"
+	For kind = "rollback_setting", "suspend_item" {
+		Set setting = (kind = "rollback_setting")
+		Set parameters = $Select(setting: settingParameters, 1: itemParameters)
+		Set dryRun = $Select(setting: settingDry, 1: itemDry)
+		Set notChanged = $Select(setting: "summary.settingNotChanged", 1: "summary.itemNotChanged")
+		Set done = $Select(setting: "summary.settingRestored", 1: "summary.itemSuspended")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Unreached": 0})
+		Do $$$AssertEquals(..AfterStarted(keys), notChanged, kind_": a run whose restore worked (could not start, Unreached 0) keeps "_notChanged_": "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Skipped": 1, "Unreached": 0})
+		Do $$$AssertEquals(..AfterStarted(keys), notChanged, kind_": a skipped run keeps "_notChanged_": "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Total": 2, "Completed": 1, "Unreached": 1})
+		Do $$$AssertEquals(..AfterStarted(keys), done, kind_": a run with one completed and one unreached ends with "_done_": "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Interrupted": 1, "Unreached": 1, "Reason": "The update timed out"})
+		Do $$$AssertEquals(..AfterStarted(keys), "summary.fixInterrupted", kind_": an interrupted run with Unreached 1 reads as interrupted: "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Unreached": 1, "Reason": "The update timed out"})
+		Do $$$AssertEquals(..AfterStarted(keys), new, kind_": the run that was saved and not applied ends with the not-applied line (the control of the cases above): "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 1, kind_": exactly once")
+	}
+	Set keys = ..RunKeys(host, owner, "rollback_setting", settingParameters, "{}", {"Unreached": 1, "Reason": "The update timed out"})
+	Do $$$AssertEquals(..AfterStarted(keys), "summary.closedDismiss", "a setting request whose dry run names no setting has no ended line: "_keys)
+	Set keys = ..RunKeys(host, owner, "reroute", "{""target"":""OrdersForReview""}", "{""affected"":3,""resend"":3,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1""}", {"Total": 3, "Skipped": 3, "Unreached": 3, "Reason": "The production is not running"})
+	Do $$$AssertEquals(..AfterStarted(keys), "summary.fixEnded", "a message kind's run with Unreached above 0 ends with the counts: "_keys)
+	Do $$$AssertEquals($Length(keys, new) - 1, 0, "and has no not-applied line")
+}
+
+/// DW-1376 (QA), the line sits at the run's EndedAt and renders on every channel that the summary goes to (the web, the Simulated phone and Telegram; Watch.Summary Text is the only
+/// reader and email has none): a rollback_setting run that is started first and ended last, and a suspend_item run that starts and ends between those two, are ordered by their ends, each line
+/// has the slots of its own run, and each channel renders both lines once, with the time shown as a time (never the stored UTC stamp) and no placeholder left.
+/// mutation: the setting branch's Event keyed by run.StartedAt instead of run.EndedAt (the line moves before the other request's lines); the catalog entry's time slot declared "text" (the
+/// stored UTC stamp is shown).
+Method TestSavedNotAppliedLineOrderAndChannels()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("savedchannels")
+	Set incident = ..Incident(owner, "resolved")
+	Set settingEnded = ..T(-4600)
+	Set itemEnded = ..T(-4700)
+	Set rollback = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": ("{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Set suspend = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "suspend_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "6", "DryRun": ("{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Do ..Link(incident, rollback_","_suspend)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (settingEnded), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-4800)), "EndedAt": (itemEnded), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertTrue(keys [ "summary.requestedRollback,summary.approved,summary.fixStarted,summary.requestedSuspend,summary.approved,summary.fixStarted,summary.settingSavedNotApplied,summary.settingSavedNotApplied,summary.closedDismiss", "each line is at its run's end, after the other request's lines that fall between its start and its end: "_keys)
+	Set parts = ..Parts(row, "summary.settingSavedNotApplied")
+	Do $$$AssertEquals(parts.%Size(), 2, "one line for each run")
+	If parts.%Size() = 2 {
+		Do $$$AssertEquals(parts.%Get(0).time_"|"_parts.%Get(0).setting_"|"_parts.%Get(0).target, itemEnded_"|Enabled|OrdersToWarehouse", "the first line is the suspend's, with its own end and slots")
+		Do $$$AssertEquals(parts.%Get(1).time_"|"_parts.%Get(1).setting_"|"_parts.%Get(1).target, settingEnded_"|ZzFixtureNote|OrdersFromPartner", "the second is the rollback's")
+	}
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary renders")
+		Set tail = " was changed, but the production couldn't apply it."
+		Do $$$AssertEquals($Length(text, tail) - 1, 2, render_": the line is in the text once for each run")
+		Do $$$AssertTrue(text [ (": Enabled on OrdersToWarehouse"_tail), render_": the suspend's line has its slots filled")
+		Do $$$AssertTrue(text [ (": ZzFixtureNote on OrdersFromPartner"_tail), render_": and so has the rollback's")
+		Do $$$AssertEquals($Find(text, "{"), 0, render_": no placeholder is left")
+		Do $$$AssertEquals($Find(text, settingEnded), 0, render_": the time is shown as a time, not as the stored UTC stamp")
+	}
+}
+
+/// The keys of the stored summary of a new incident of the owner with one request of the kind (failed, answered on the web) and its FixRun, which has the fields after
+/// these defaults: started 5800 seconds ago and ended 5700 seconds ago, Total 1, nothing else counted. The incident is dismissed through the probe; the keys of its summary's parts.
+Method RunKeys(host As OcuTalon.Test.Watch.IncidentProbe, owner As %String, kind As %String, parameters As %String, dryRun As %String, run As %DynamicObject) As %String
+{
+	Set incident = ..Incident(owner, "resolved")
+	Set request = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": (kind), "FixParameters": (parameters), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Do ..Link(incident, request)
+	Set fields = {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0}
+	Set iterator = run.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Do fields.%Set(name, value)
+	}
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, fields)
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", kind_": the Dismiss closes the incident")
+	Quit ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+}
+
+/// The key that follows the first summary.fixStarted in the comma-separated keys, "" when there is none.
+ClassMethod AfterStarted(keys As %String) As %String
+{
+	Set list = $ListFromString(keys)
+	Set at = $ListFind(list, "summary.fixStarted")
+	Quit $Select(at = 0: "", 1: $ListGet(list, at + 1))
+}
+
+/// The slots of every part with the key, in order, as an array.
+ClassMethod Parts(row As OcuTalon.Data.Incident, key As %String) As %DynamicArray
+{
+	Set found = []
+	If row.Summary = "" Quit found
+	Set iterator = {}.%FromJSON(row.Summary).parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		If part.key = key Do found.%Push(part.slots)
+	}
+	Quit found
 }
 
 /// A shadow instance of the probe.

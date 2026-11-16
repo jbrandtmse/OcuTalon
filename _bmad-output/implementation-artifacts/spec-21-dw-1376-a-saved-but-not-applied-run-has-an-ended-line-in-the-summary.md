@@ -351,3 +351,34 @@ Blocking condition: none
 **Verification.** See `## Verification`: Task 0, the nine mutation lines, the warm classes (`Test.Msg.Catalog`, `Test.Watch.Summary`, `Test.Watch.Lifecycle`, `Test.Watch.SettingValues`, `Test.Fix.ItemKinds` after a production restart), the fresh `lane-a@Fix` shard (30 classes), `npm test` (2174 pass), the class-rules and boundaries scripts, and the spine lint (12 low, the baseline).
 
 **Residual risks.** The count goes 145 to 146 here; OCT-epic23 (DW-1416, `summary.partnerMaySent`) merges second and takes it to 147 at its integrate-forward (Design Notes). The implement handoff ran two ItemKinds methods in one message once (both passed).
+
+## QA Test Automation (bmad-qa-generate-e2e-tests, lane C, warm tag e21dw1376qw)
+
+Product code, the approved text and the catalog are unchanged. Only test classes changed.
+
+**Gaps checked against the ACs and the I/O matrix**
+- The line once per not-applied run, at its EndedAt, after `fixStarted`: the implement tests pinned the count, adjacency and the first run's time. Gap: nothing pinned the line to EndedAt rather than StartedAt (adjacent either way) -> added `TestSavedNotAppliedLineOrderAndChannels` (a run that starts first and ends last, another between).
+- Restore-OK run (Unreached 0) keeps `settingNotChanged` / `itemNotChanged`: pinned by the Summary tests only through counts of the old keys, never by "no new line", and never through the real executor. Gap -> `TestSavedNotAppliedLineEdges` (hand-built rows) and `Test.Fix.ItemKinds:TestRestoredRunSummary` (the real handler and `Finish`, a refused entry: the run could not start with Unreached 0).
+- Mixed run (Completed above 0 with Unreached above 0): cannot occur today for a setting or item kind (one target: Total 1, the executor's `notapplied` entry gives Completed 0), so the spec's condition (Completed 0 and Unreached above 0) decides: the done line wins. Pinned in `TestSavedNotAppliedLineEdges` (Total 2, Completed 1, Unreached 1 -> `summary.settingRestored` / `summary.itemSuspended`, no new line). The approved behaviour is not changed.
+- Interrupted with Unreached 1 -> `summary.fixInterrupted`; a setting request whose dry run names no setting -> no ended line (matrix 7); a message kind (reroute) with Unreached above 0 -> `summary.fixEnded` (matrix 8): all pinned in `TestSavedNotAppliedLineEdges`. Not ended (EndedAt "") with Unreached 1 is not added: `Event` drops a line with no UTC time, so no mutation of the product could make such an assertion red (the existing `TestRunEdges` already pins "only fixStarted").
+- Channels: `Watch.Summary.Text` is the only reader and serves the web, the Simulated phone and Telegram (`WebChat/Out`, `SimPhone/Out`, `Telegram/Out`, `RecentActivity`, `Web/History`); no email or mailbox summary exists. The implement tests rendered the web only; `TestSavedNotAppliedLineOrderAndChannels` renders all three: both lines once, slots filled, no `{`, the time shown as a time and not as the stored stamp. The catalog fixtures for every channel are already swept by `Test.Msg.Catalog`.
+- Summaries stored before the change: `Text` only renders the stored parts (`TestText`), nothing rebuilds a summary, so a stored summary without the line renders as before. No test added: no mutation of the product can make a test of it red (the only reader is `DigestText.Text` over the stored JSON). Matrix 9 rests on `TestText`.
+
+**Tests added**
+- `Test.Watch.Summary:TestSavedNotAppliedLineEdges`, `:TestSavedNotAppliedLineOrderAndChannels` (helpers `RunKeys`, `AfterStarted`, `Parts`).
+- `Test.Fix.ItemKinds:TestRestoredRunSummary` (helpers `SummaryKeys`, `KeyAfter`).
+
+**Mutations** (Rule 19; each applied warm, the test shown red, reverted from a copy with `cmp` identical and `git diff --stat` as before):
+- mutation: `SummaryRunKey`'s condition widened to `If (+run.Completed = 0) Quit ..#KEYSUMMARYSAVEDNOTAPPLIED` -> `Test.Watch.Summary:TestSavedNotAppliedLineEdges` red (the restore-OK and skipped rollback keep `summary.settingNotChanged`) and `Test.Fix.ItemKinds:TestRestoredRunSummary` red (the setting half).
+- mutation: the item branch's condition widened to `If (+run.Completed = 0) {` -> `TestSavedNotAppliedLineEdges` red (the item runs) and `TestRestoredRunSummary` red (the item half).
+- mutation: `SummaryRunKey`'s condition made `If (+run.Unreached > 0) Quit ..#KEYSUMMARYSAVEDNOTAPPLIED` -> `TestSavedNotAppliedLineEdges` red (the mixed rollback keeps `summary.settingRestored`).
+- mutation: the item branch's condition made `If (+run.Unreached > 0) {` -> `TestSavedNotAppliedLineEdges` red (the mixed suspend keeps `summary.itemSuspended`).
+- mutation: the `Quit` of the interrupted block of `RunEvents` taken out -> `TestSavedNotAppliedLineEdges` red (an interrupted run with Unreached 1 has no not-applied line, for both kinds).
+- mutation: the `Names` test of the setting branch taken out (`Do ...Names(...)` in its place) -> `TestSavedNotAppliedLineEdges` red (a request without names has no ended line).
+- mutation: the item branch's `TARGETTYPE` test made `'= "contact"` -> `TestSavedNotAppliedLineEdges` red (the reroute ends with `summary.fixEnded`, and the setting runs).
+- mutation: the setting branch's `Event` keyed by `run.StartedAt` instead of `run.EndedAt` -> `TestSavedNotAppliedLineOrderAndChannels` red (the line moves before the other request's lines, and the slot order).
+- mutation: the catalog entry's `time` slot declared `"text"` -> `TestSavedNotAppliedLineOrderAndChannels` red on the web, the phone and Telegram ("the time is shown as a time, not as the stored UTC stamp").
+
+**Runs** (warm tag e21dw1376qw, lane C, one call each): the two new Summary methods passed; `Test.Fix.ItemKinds:TestRestoredRunSummary` passed after a production restart; whole `Test.Watch.Summary` passed; `Test.Msg.Catalog` passed; whole `Test.Fix.ItemKinds` passed (production restarted first); `docker/tests/test-class-rules.sh` passed. `ci/warm.sh down` ran: 0 leftover containers, volumes, networks and images.
+
+**Findings for the lead:** none needing a product change. Mixed runs (Completed above 0 with Unreached above 0) cannot occur for a setting or item kind today; if a multi-target setting or item kind is ever added, the done line would win over a partly unreached run and the summary would not mention the unreached part (a future decision, not a defect now).
