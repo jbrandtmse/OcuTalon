@@ -8712,6 +8712,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: security-overview.md:151 'Who may answer' names the admin rule for an email only; :159 Action lists a fix run, a resend, a replayed tool call or Break the feed
 - 2026-11-16T06:12:20Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the Planner rules the security-overview text for DW-1415 (draft: 'a partner warning to Settings contacts can be approved only if its user holds OcuTalonAdmin;' and 'Action: ... or a refused approve of a partner warning'); ruled public text (DW-1315)
 - 2026-11-16T08:49:46Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut_story(prompts/dw-1415-1416-rulings-20261116.md_last_section);text_to_Planner_first
+- 2026-11-16T12:04:04Z status=resolved-by:23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=0ebf5bb2:approved_lines_verbatim
 
 ### DW-1424: Test.Partner.PartnerApprove repeats the IRIS user and role helpers of other test classes (HeldRole verbatim from Test.Core.AnswersInProduction; MakeUser, CreateUser, SetRoles, DropUsers and PairedChat as in Test.Fix.Email and Test.Fix.EmailCard)
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
@@ -8723,6 +8724,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: GUIDE.md:12 vs 23.13 (merged) partner-warning behaviour
 - 2026-11-16T06:14:10Z status=decision-pending owner=burndown by=cr note=human=Planner_public_text:a ruled GUIDE.md wording for partner warnings to Settings contacts
 - 2026-11-16T08:49:47Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut_story(prompts/dw-1415-1416-rulings-20261116.md_last_section);text_to_Planner_first
+- 2026-11-16T12:04:04Z status=resolved-by:23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=4a2a8c93:approved_sentence_verbatim_with_>
 ### DW-1411: flake: web/e2e/demo-path/telegram-page.spec.ts:977 T7 (Story 12.6): the chat turn's reply part read 'I couldn't answer that: the model returned an error. Nothing was changed.' instead of the CI mock's 'The CI mock looked at the productions.' (60 s expect), in CI iris (browser) live:demo-path
 - source: epic-runner; OCT-epic21-dw1205 fded9d158 ci 43777000338 attempt 1 job 133005443930 on ocutalon-ci-14 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: a model-call fallback on the mock's chat scenario (list_productions tool turn, ci/mock/scenarios/A/chat.json); list_productions reads Watch.Reader.Productions(), not the evidence branch DW-1205 changed; lane-a@Fix 29/29 on builds 154 and 109 at the same tree; no other recent ci.yml failure carries this signature; distinct from DW-609 (T7 120 s timeout)
@@ -8756,3 +8758,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: irislib %Net.SMTP GetResponse sets SMTPTimeout with no step; Sender.MayHaveSent quits 1 on any SMTPTimeout; Out.Send now applies it to approval claims (before 23.15 they answered MESSAGEUNREACHABLE, claim failed). Likeliest trigger: an implicit-TLS port (465) set without TLS, where the client waits for a greeting; no connect-time check of the mailbox exists. Errs safe: never a false not-sent, never a re-send
 - 2026-11-16T11:11:26Z status=decision-pending owner=burndown by=cr note=Planner text/product call with the deferred MESSAGEMAYHAVESENT internal-exception wording: accept the safe answer, reword, or a step-aware SMTP in 23.14
 - 2026-11-16T11:14:55Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=lead_ruling:rework_1_of_23.15(step-aware_may-have-sent;Planner_CONDITION_binding)
+- 2026-11-16T12:04:04Z status=resolved-by:23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=5250d600:Channel.Email.SMTP.DataBegan;may-have-sent_only_after_354
+
+### DW-1431: After DW-1429 a claimed send whose server greeted and then timed out at EHLO, AUTH, MAIL FROM, RCPT TO or DATA (before the 354) reads MESSAGEUNREACHABLE 'OcuTalon couldn't reach the mail server', which is imprecise: the server was reached
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Sender.Classify maps every SMTPTimeout to unreachable; the not-sent outcome is right (ruled: Planner CONDITION, lead's DW-1429 item), only the reason's wording is coarse; same sentence as before 23.15 and for every unclaimed tool send
+- 2026-11-16T12:01:11Z status=wontfix-accepted owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=cr note=reopen_if=a user report or a Planner text ruling that MESSAGEUNREACHABLE misleads after a mid-dialogue SMTP timeout

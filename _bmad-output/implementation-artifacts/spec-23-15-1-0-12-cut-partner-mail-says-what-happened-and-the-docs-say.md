@@ -154,6 +154,22 @@ Rejected:
 - (low) `SendBegan` stays 1 after a definite failure, so an exception in the claim bookkeeping after it would answer maysent — errs safe; nothing there realistically throws.
 - (low) The spec's `deferred:` A13 entry uses `severity: medium (unverified)` — the fix edits the spec under review (and A13 has now run).
 
+Code review, rework re-review (cr stage, 2026-11-16, iteration 1 of 3, `377fa9c16..HEAD`, DW-1429; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 15 raw findings, 12 entries after grouping). 0 `decision-needed`, 4 `patch` (all applied), 1 `defer` (ledgered), 7 rejected. No high. Checklist: `Channel.Email.SMTP`'s `Send` and `SendMessage` match `%Net.SMTP`'s signatures (`irislib/%Net/SMTP.cls:360`, `:550`), `##super` reaches the parent (over the wire, and the `SendMessage` mutation re-run here turns `Test.Fix.Email:TestSmtpKnowsWhenTheDataBegan` red), `SendMessage` runs only after DATA's 354 (`:503`, and the nested message of `SendMultiPart`), and `Send` clears the flag; the parent adapter builds its client with `SMTPNewObject()` from the declared type, and `Sender` is the only product class that touches `..SMTP` (SSL, STARTTLS, identity check and the OAuth2 authenticator unchanged); `Out.Send` is the only product caller of `Sender.MayHaveSent` and passes `..DataBegan()`; `Accepted` is unchanged; the mock's stall modes are set only by `Test.Fix.Email` (its `Setup` resets the stub, the test resets it at its end), each lane's stack has its own mock.
+- [x] [Review][Patch] (medium) The mock's `stall-greeting` node test read the connection count after a fixed sleep without waiting for the client's connect (Rule 19 readiness) [ci/mock/test/smtp.test.mjs] — it now awaits `connect` before the sleep; `node --test ci/mock/test` 192 passed.
+- [x] [Review][Patch] (low) `TestOutReadsTheAdaptersDataBegan`'s "a host with no adapter" check ran with an adapter (a shadow instance gets one from `ADAPTER`), so `Out.DataBegan`'s `$IsObject(..Adapter)` guard was run by no test [Test/Channel/EmailOut.cls:1433] — the probe's `Adapter` is now emptied first; mutation in Verification.
+- [x] [Review][Patch] (low) `Test.Channel.EmailOut`'s class doc did not list `TestOutReadsTheAdaptersDataBegan` [Test/Channel/EmailOut.cls:69] — listed (the final table's "Pinned by" cells are left as they are: a spec edit).
+- [x] [Review][Patch] (low) `Test.Channel.EmailOut`'s `TestNoDoubleSend` doc bullet still said a timeout is may-have-sent without "once the message data began" [Test/Channel/EmailOut.cls:66] — corrected.
+- [x] [Review][Defer] (low) A claimed send whose server greeted and then timed out before the 354 reads MESSAGEUNREACHABLE "OcuTalon couldn't reach the mail server", which is coarse (the not-sent outcome is the ruled one; only the wording) — DW-1431, `wontfix-accepted` with `reopen_if`; changing the sentence is Ask First.
+
+Rejected (re-review):
+- (low) `DataBegan` is set before `##super` writes the headers, so a connection lost mid-body reads may-have-sent although the message was never terminated — the lead's DW-1429 item says "set DataBegan = 1 and then call ##super" and keeps the DATA-param check; it errs safe, and a write error on a TCP device rarely surfaces before the read.
+- (low) An exception from `Deliver` before the 354 still answers MESSAGEMAYHAVESENT (`SendBegan`) — the final table's "exception after Transmit began" row; carried from both earlier passes.
+- (low) Two mock modes where the item allowed one — decided in-stage: `stall-data` is what lets the wire test show a timeout after the data began; CI mock only.
+- (low) The commit message says every failure before the data answers MESSAGEUNREACHABLE with the claim marked failed (a keyed claim is deleted; refused and rejected keep their sentences) — commit history is not rewritten; the code and the class docs are right.
+- (low) The final table's "Pinned by" cells and the triage log's reject count — the fix edits the spec under review.
+- (false) An EHLO timeout is pinned only with a synthetic status — `%Net.SMTP` gives the same `SMTPTimeout` with no step for every timeout, and the outcome depends only on `DataBegan`, which no step before the 354 sets.
+- (false) The implementer closed DW-1429 in the review records — the item told it to; the lead adjudicates the ledger entry.
+
 ## Spec Change Log
 
 - 2026-11-16 ~11:20Z (lead, rework iteration 1 of 3, trigger: code review DW-1429, decision-pending → lead ruling under the Planner CONDITION): step-aware may-have-sent.
@@ -269,6 +285,12 @@ Rework iteration 1, review-pass patches (warm `e23b15r1w`, lane B; each change r
 - mutation: `Sender`'s `Property SMTP` back to `%Net.SMTP` -> `TestSenderInit` red ("the SMTP client is the one that knows when the message data began").
 - mutation: the CI mock's `if (failure === 'stall-data') return;` removed -> `node --test ci/mock/test` red (1 failed of 192); the `stall-greeting` guard removed -> red (1 failed of 192).
 - Runs after the patches, warm `e23b15r1w`, all passed: `Test.Channel.EmailOut`, `Test.Partner.PartnerMail`, `Test.Fix.PartnerWarning`, `Test.Fix.Email`, `Test.Watch.Summary` (and, earlier in the pass, `Test.Fix.Executor`, `Test.Partner.PartnerApprove`); `node --test ci/mock/test` 192 passed; `test-boundaries.sh` and `test-ci-config.sh` passed. The warm tag is torn down.
+
+### Code review, rework re-review record (DW-1429; warm `e23b15cr2w`, lane B; each mutation restored from a backup in the scratch folder, compared byte for byte, `git status --short` identical afterwards, the class green again)
+
+- mutation: `Out.DataBegan` without its `$IsObject(..Adapter) &&` guard -> `Test.Channel.EmailOut:TestOutReadsTheAdaptersDataBegan` red ("a host with no adapter has no data begun: a timeout answers MESSAGEUNREACHABLE"), now that the probe's `Adapter` is emptied first.
+- mutation (re-run of the rework's): `Channel.Email.SMTP.SendMessage` without `Set ..DataBegan = 1` -> `Test.Fix.Email:TestSmtpKnowsWhenTheDataBegan` red over the wire (`none` and `stall-data`: DataBegan 1; `stall-data`: MayHaveSent 1).
+- Runs, warm `e23b15cr2w`, all passed after the patches and restores: `Test.Channel.EmailOut`, `Test.Fix.Email`, `Test.Partner.PartnerMail`; `node --test ci/mock/test` 192 passed. The warm tag is torn down.
 
 ## Review Triage Log
 
