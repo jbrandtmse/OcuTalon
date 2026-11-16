@@ -267,6 +267,8 @@ H_USE='What you can use it for'
 H_TALK='How you talk to it'
 # The guide that holds the install, feature and admin material (Story 0.30): its absolute address, which is how the README links it.
 GUIDE_URL=https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md
+# DW-1425 (Story 23.15, Contest Planner text ruling 2026-11-16): the end of the Partner delay notices bullet before "Try it", with the guide's own > separator.
+GUIDE_PARTNER_SENTENCE='on your own install the notice goes only to the partner contacts an admin set for that production in Settings > Partner contacts, by email from the mailbox connected in Settings > Channels > Email, and only an OcuTalon admin can approve it. With no mailbox connected, the approved notice is kept as a draft and nothing is sent. Try it: after the guide'"'"'s incident, More to try, *Warn the partner*.'
 GUIDE_TITLE='# OcuTalon guide: install, features and administration'
 # The H2 sections of GUIDE.md, in order.
 GUIDE_H2='New since 1.0.0
@@ -2142,6 +2144,10 @@ chk_guide() {
   if [ "$(sed -n '1p' "$2")" != "$GUIDE_TITLE" ]; then echo "guide: line 1 of $2 is not exactly '$GUIDE_TITLE'"; fi
   h2s=$(headings "$2" | awk -F'\t' '$1 == 2 { print $3 }')
   if [ "$h2s" != "$GUIDE_H2" ]; then echo "guide: the H2 sections of $2 are not exactly, in this order: $(printf '%s' "$GUIDE_H2" | tr '\n' ',' | sed 's/,/, /g')"; fi
+  n=$(grep -c -F -- "$GUIDE_PARTNER_SENTENCE" "$2")
+  if [ "$n" -ne 1 ]; then echo "guide: $2 holds the ruled sentences of the Partner delay notices bullet (DW-1425) $n times, not once"; fi
+  if grep -F -- "Partner delay notices." "$2" | grep -q -F -- "$(printf '\342\200\272')"; then echo "guide: the Partner delay notices bullet of $2 writes a single angle quote where the guide writes >"; fi
+  if grep -F -- "Partner delay notices." "$2" | grep -q -F -- "no notice is drafted"; then echo "guide: the Partner delay notices bullet of $2 still says that no notice is drafted without demo mode"; fi
   n=$(grep -cxF -- "$GUIDE_CI_LINE" "$2")
   if [ "$n" -ne 1 ]; then echo "guide: $2 holds the ruled line of Tests and CI ('... the check of the README. ...') $n times, not once"; fi
   n=$(grep -cxF -- "$POINTER" "$1")
@@ -3359,6 +3365,9 @@ rule_guide() {
   st 'a guide section removed' 2 "$GUIDE" '!/^## Sign in$/' chk_guide
   st 'two guide sections swapped' 2 "$GUIDE" '/^## Sign in$/ { print "## Telegram"; next } /^## Telegram$/ { print "## Sign in"; next } { print }' chk_guide
   st 'a section added to the guide' 2 "$GUIDE" '{ print } END { print ""; print "## Extra"; print ""; print "More." }' chk_guide
+  st 'the partner bullet back to no notice without demo mode' 2 "$GUIDE" '{ sub(/on your own install the notice goes only to the partner contacts an admin set for that production in Settings > Partner contacts, by email from the mailbox connected in Settings > Channels > Email, and only an OcuTalon admin can approve it\. With no mailbox connected, the approved notice is kept as a draft and nothing is sent\./, "without demo mode there are no partner contacts yet, so no notice is drafted.") } { print }' chk_guide
+  st 'the partner bullet writes a single angle quote in its path' 2 "$GUIDE" '{ sub(/in Settings > Partner contacts/, "in Settings \342\200\272 Partner contacts") } { print }' chk_guide
+  st 'the partner bullet without its admin clause' 2 "$GUIDE" '{ sub(/, and only an OcuTalon admin can approve it\./, ".") } { print }' chk_guide
   st 'the guide line of Tests and CI back to this README' 2 "$GUIDE" '{ sub(/among them the check of the README/, "among them the check of this README") } { print }' chk_guide
   st 'the pointer removed' 1 "$README" 'index($0, "The guide lists what is new since release 1.0.0") != 1' chk_guide
   st 'the pointer reworded' 1 "$README" '/^The guide lists what is new since release 1.0.0/ { sub(/your integrations/, "integrations") } { print }' chk_guide
