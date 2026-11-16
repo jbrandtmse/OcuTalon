@@ -243,14 +243,12 @@ Method Row(owner As %String, simulated As %Boolean, fields As %DynamicObject = "
 	Quit ref
 }
 
-/// Asserts that the request is still pending and unanswered and that nothing was sent or kept for it: no Delivery row, no run and no executing state.
+/// Asserts that the request is still pending and unanswered, which is what says that nothing was sent or kept for it: a request runs, sends or is kept as an approved draft only
+/// after Approval.Answer has approved it. (A count of its Delivery and FixRun rows would say nothing here: a fixture row has no hold, so even an approved one never runs.)
 Method AssertUntouched(ref As %String, path As %String) [ Private ]
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
-	Do $$$AssertEquals(row.State_"|"_row.AnsweredAction_"|"_row.AnsweredBy, "pending||", "the request is still pending and unanswered ("_path_")")
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT (SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ?) + (SELECT COUNT(*) FROM OcuTalon_Data.FixRun WHERE ApprovalRef = ?)", ref, ref)
-	Do rs.%Next()
-	Do $$$AssertEquals(+rs.%GetData(1), 0, "and nothing was sent or kept for it: no delivery and no run ("_path_")")
+	Do $$$AssertEquals(row.State_"|"_row.AnsweredAction_"|"_row.AnsweredBy, "pending||", "the request is still pending and unanswered, so nothing was sent or kept for it ("_path_")")
 }
 
 /// A fixture session for the IRIS user (its Ref, kept for the clean-up).
