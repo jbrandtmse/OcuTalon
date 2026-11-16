@@ -4499,3 +4499,4 @@
 2026-11-16T14:03:45Z	Epic 24	owner_decision	via=contest_planner DW-1430=fix_on_OCT-epic23-dw1430_off_BASE(not_1.0.12_blocker:pack_redacted_upstream_confirmed) AD-14/18/27=approved(+demo_no_email_claim_pin) orchestrator_confirmed_pack_redaction_from_code
 2026-11-16T14:03:53Z	Run	owner_decision	via=contest_planner 1.0.12_ships_as_is(BASE_unchanged;Planner_spot-checked) post-merge-back_order=DW-1430,then_24.3b(rebased)
 2026-11-16T14:20:33Z	Run	lane_status	A=25.9_building(active) B=dispatched(post-cut_texts,DW-1429_check,production_rebalance,23.14) C=DW-1421_CI D=DW-1430_CI(24.3a/b_held) planner_notified
+2026-11-16T14:21:07Z	Run	owner_decision	via=contest_planner Epics_27,28_START_NOW(on_freed_slots;order:in-flight_first,then_27,28.1,28.2,28.3_ahead_of_LOW/23.14;gates_to_Planner;Slack_off_on_demo;own_branches_until_MERGE-BACK)
