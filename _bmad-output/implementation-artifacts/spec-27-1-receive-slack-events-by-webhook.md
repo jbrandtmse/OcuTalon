@@ -2,7 +2,7 @@
 title: 'Story 27.1: Receive Slack events by webhook'
 type: 'feature'
 created: '2026-11-16'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -44,6 +44,12 @@ deferred: []
 - R10 Privileges: no new grant. If Task 0 shows the `OcuTalonWebhook` grants are not enough, STOP (HALT `intent gap`) for the Planner.
 - R11 Approved: the route, `Data.SlackLink`, `^OcuTalonP.SlackE`, the `SlackIn` item, `Intake` dropping `Ignored`, env-only secrets, no new dependencies; the AD amendments AD-13 (second route, its check order, the 200), AD-24 (`OcuTalonWebhook` serves `SlackIn`, no new grant), AD-26 (`Ignored` in its own trace session), AD-1 (`DraftTransform` from origin tool, answers `failed` until 28.1). Contended appends approved: Production.cls lane B region (sequence within lane B), `Test/Data/Tables.cls` append only, `live:slack-hook` in `shards-3` (~28.7 min).
 - R12 Public text: the catalog keys and `.env.example` lines are approved verbatim (27.1 ships only `.env.example`); the setup steps are REORDERED (secrets before the URL check) and step 1 is reworded; 27.2 adds `chat:write` to step 1 in the same commit as the reply code.
+
+**R7 RULING (Contest Planner, ~17:15Z Nov 16; BINDING; same file, last section):**
+- Option (a) APPROVED: `slack` becomes a new channel value in `Data/DailyNote.cls` `LINEMESSAGE` and `LINEDECISION` (not `(web)`, not `(chat)`). `Agent/Triage.cls:37` does NOT change. Findings 3 and 4 accepted (27.2 raises `Msg/Catalog.cls` `CHANNELS` at its gate).
+- BUILD 27.1 now; the MERGE is gated on the Planner's separate key-holder A/B passing (run by the Planner, never bundled with any other A/B).
+- A/B design, fixed before any data: an eval FIXTURE KNOB, in tests and eval only, with NO production code path, renders the session-start notes block with a chosen channel label from the same fixed note set. Side A = `(telegram)`, side B = `(slack)`. Cases: every existing session-start eval case that carries notes; if fewer than 4 exist, add up to 4 notes-bearing cases that mirror existing ones (same expectations, with the notes block added). The case list is PINNED in this spec (`## Verification`, "R7 A/B cases") before the Planner runs. Default model Haiku 5.5, N = 5 per side, alternating, one stack at a time, attempt 1 of each run. PASS only if no case does worse on B than on A (rule (i)); a fallback counts as a miss.
+- Deliverable for the A/B: once the knob and cases are pushed on `OCT-epic27`, the lead sends the orchestrator the sha and the EXACT command for each side. The spec therefore names both commands (side A, side B) under `## Verification`.
 
 **Never:**
 - No call to slack.com or any Slack API, no `SlackOut`, no reply in Slack, no WebSocket and no socket mode. The reply path is Story 27.2's.
@@ -127,6 +133,8 @@ All classes are under `src/ocutalon/cls/OcuTalon/`.
 - Given Slack off (either variable empty, or the online demo), when any request reaches the route, then it is 404 with nothing counted or handed over, `SlackIn` refuses input, and every other hook and test stays green (AD-25).
 
 ## Spec Change Log
+
+- 2026-11-16 ~17:20Z, lead: R7 ruled option (a) (see the binding R7 RULING block). Adds the eval fixture knob + pinned A/B cases + the two exact side commands to this story's scope (tests/eval only). Status reset `blocked` -> `draft` for re-plan 3; the re-plan derives everything left undone by re-plan 2 (R1-R12 tasks with pinning tests, R8 mechanism, R9 CI line, spine/AD edits, the split recorded as decided).
 
 - 2026-11-16 ~16:35Z, lead: Contest Planner gate rulings R1-R12 applied (Boundaries & Constraints, binding block; setup steps reordered under Planner gate items). Changes the plan must carry: R2 team_id in the link match; R3 signature before url_verification; R5 nothing stored from a rejected body; R6 approve-proof pin; R7 model-facing evidence (HALT if any agent instruction keys on the channel); R8 link rows deleted with the session/purge, pinned, in THIS story (prefer a mechanism inside the new `Data.SlackLink` class, e.g. an SQL foreign key with cascade or the session's own removal path; `Data/Purge.cls` is lane D's contended file: only a self-contained appended block, reported, if unavoidable); R9 dummy Slack env only for `live:slack-hook`'s throwaway + a default-throwaway 404 assertion (no global `ci/compose.ci.yml` env); R10 Task 0 hard gate on grants. Status stays `draft` for the re-plan (cycle_iteration 2).
 
