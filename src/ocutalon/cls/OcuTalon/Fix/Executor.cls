@@ -42,8 +42,9 @@ Include (EnsConstants, EnsErrors)
 ///       - A run that resent nothing (every target was skipped) closes the request done: Total and Skipped the number of targets, Resent, Completed and
 ///         FailedAgain 0, and the plain Reason of the lowest skipped target.
 ///       - A run that resent copies (also one that erred after its first copy) saves ResentAt on its FixRun and waits for its copies (Wait), up to WAITSECONDS from
-///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy is completed when its status is Completed and failed again
-///         when it is Error, Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
+///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy that the read gives as in flight (IRIS still holds its header, or a business process still handles it;
+///         Reader.Evidence inFlight) is still running, whatever its status. Otherwise a copy is completed when its status is Completed and failed again when it is Error,
+///         Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
 ///         every copy is completed or failed again the run ends done: Total the number of targets, Resent the number of copies, Completed and FailedAgain their
 ///         counts, Skipped the targets without a copy (Unreached, the targets the resend never reached, is part of it), Interrupted 0, and, for copies that failed again, the
 ///         Reason of the failed copy with the lowest id (FailReason). A run whose copies are not all done when the time is up is not waited for any more: one Type 3 warning
@@ -1169,8 +1170,9 @@ Method Look(id As %String, Output tally As %DynamicObject) As %Integer [ Private
 	Quit ""
 }
 
-/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE), failedAgain (one of COPYFAILED),
-/// running (any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of the failed copy with the lowest id, "" when none).
+/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE and they are not in flight), failedAgain (one of COPYFAILED, not in flight),
+/// running (a copy the read gives as in flight, whatever its status; any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of
+/// the failed copy with the lowest id, "" when none). An entry without inFlight is not in flight.
 ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %DynamicObject) As %DynamicObject
 {
 	Set completed = 0
@@ -1182,7 +1184,9 @@ ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %
 		Set copy = run.Copies.GetAt(i)
 		Set entry = $Select((outcome = "read") && $IsObject($Get(statuses)): statuses.%Get(copy), 1: "")
 		Set status = $Select($IsObject(entry): entry.status, 1: "")
-		If status = ..#COPYDONE {
+		If $IsObject(entry) && entry.inFlight {
+			Set running = running + 1
+		} ElseIf status = ..#COPYDONE {
 			Set completed = completed + 1
 		} ElseIf $ListFind(failedStatuses, status) {
 			Set failedAgain = failedAgain + 1
@@ -1202,7 +1206,7 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 
 /// The outcome of the read ("read" when statuses holds the copies) and the status of each copy of the run, for every job that counts a run's copies: statuses is a dynamic object
 /// by the copy's header id of {"status" (as Reader.Evidence gives it), "error" (the raw error text), "target" (the copy's TargetConfigName), "at" (the header's timeProcessed, the time
-/// of its last status change, a UTC stamp)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
+/// of its last status change, a UTC stamp), "inFlight" (Reader.Evidence's: 1 while IRIS still holds or still handles the copy)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
 /// that the one reader reads the production (AD-3). A header the read lacks is not in statuses.
 ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String
 {
@@ -1216,7 +1220,9 @@ ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun
 	If outcome '= "read" Quit outcome
 	For i = 0:1:snapshot.failures.%Size() - 1 {
 		Set failure = snapshot.failures.%Get(i)
-		Do statuses.%Set(failure.headerId, {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)})
+		Set entry = {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)}
+		Do entry.%Set("inFlight", +failure.inFlight, "boolean")
+		Do statuses.%Set(failure.headerId, entry)
 	}
 	Quit outcome
 }

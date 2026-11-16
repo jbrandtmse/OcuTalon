@@ -509,3 +509,4 @@
 2026-11-16T06:14:11Z	Story 23.13	ledger_adjudicated	owned=2 resolved=2(DW-1415,DW-1416) reowned=0 terminal=0 cycle_iteration=2
 2026-11-16T06:19:09Z	Story 23.13	smoke_complete	method=browser+other(real-HTTP_AP6_on_fresh_lane-B(live_sign-in_2/30);PartnerApprove_web/phone/Telegram;Summary_three_answers) result=pass iterations=1 defects_caught=1(real-HTTP_gap_found_by_re-review) cycle_iteration=2
 2026-11-16T06:19:09Z	Story 23.13	fresh_check	env=recipe(new_lane-B_warm_e23b13rr+review_stack_e23b13cr2w) tests=7_classes result=pass order=reverse(lead),forward(review) cycle_iteration=2
+2026-11-16T06:19:16Z	Epic 23	integrated	onto=dc9813a6 conflicts_resolved=none
