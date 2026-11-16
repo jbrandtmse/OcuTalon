@@ -4575,3 +4575,4 @@
 2026-11-16T21:42:42Z	Run	ci_green	feature d996ffcde ci=43939939727 att2 green (DW-1450 flake confirmed, browser ci-4)
 2026-11-16T21:42:42Z	Epic 24	ci_green_verified	24.3a+24.3b f979de2d0 runs=43953760061,43953760250
 2026-11-16T21:42:42Z	Epic 24	merge_enqueued	24.3b head=f979de2d0
+2026-11-16T21:47:25Z	Epic 24	merged	24.3a+24.3b merge=82d76911f
