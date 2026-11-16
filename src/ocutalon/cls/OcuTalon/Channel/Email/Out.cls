@@ -1,4 +1,4 @@
-/// EmailOut, the business operation that sends one email over SMTP (Story 21.6, 21.7; AD-1, AD-10, AD-14, AD-19, AD-25, AD-32, AD-33). It has three paths,
+/// EmailOut, the business operation that sends one email over SMTP (Story 21.6, 21.7; AD-1, AD-10, AD-14, AD-19, AD-25, AD-32, AD-33). It has four paths,
 /// all of them enumerated here, each with its own rule for the recipient. Its adapter, Channel.Email.Sender, connects over TLS only (see there); the
 /// item is disabled in the production until SettingsOps saves an outgoing server (the System Default Settings rows of the item), and it stays
 /// disabled on the online demo. Every email it sends carries the header X-OcuTalon-Ref, a random Ref (OcuTalon.Bridge.Ids.NewRef: 128 random bits, no
@@ -64,6 +64,23 @@
 ///     (the instance has one mailbox): the next one is refused and one warning is logged, with no contents; a count that cannot be read refuses as well;
 ///   - the message is sent once through Deliver, and success records a Data.Delivery row (owner the session, channel email, Kind digest, the Ref of the
 ///     header as the message id, the digest's DecisionRef and DigestKey; no text, no address). A failed send records nothing and is not tried again.
+/// The fourth path is the page email (OnNotification; Story 24.3a; AD-14, AD-19): an OcuTalon.Msg.Notification of Kind page that Notify routes here (rule PageEmail). It
+/// answers nothing and always returns OK. A page is identified by its Data.Page row, the one that the Notification's DecisionRef names, and nothing in the Notification chooses
+/// the recipient: the email goes only to the on-call key of the row's Role (oncall.primary.email for the role oncall, oncall.backup.email for the role backup), read from its row at
+/// send time, and from the product key email.address. Never to the row's Person, an address in the Notification, an item or a message. In order:
+///   - the online demo: nothing is read or written;
+///   - no Data.Page row for the DecisionRef (its Ref compared exactly), or email is not in the row's Channels: one warning, and nothing is written;
+///   - under a lock on the page's Ref, a Data.Delivery row of channel email, Kind page and this DecisionRef, whatever its owner or its mark (sent, failed or still pending), means
+///     the page was handled already and nothing more is done: at most one email goes out for a page row, whichever session the Notification names, and each is tried once. Otherwise
+///     the claim row is written before anything is rendered: owner the Notification's SessionRef (instance when it has none), channel email, Kind page, the DecisionRef, a new Ref
+///     as ChannelMessageId and FallbackReason pending (CLAIMPENDING);
+///   - the to-address is the role's on-call key and the from-address is email.address; one that is not an address marks the claim no_address or no_mailbox, with one warning, and sends nothing;
+///   - the subject is the catalog text of page.subject (Watch.Paging KEYSUBJECT) for the Slots' production, and the text is exactly Channel.PageText.Text(Notification, "email") (Watch.Paging.Text with the cause slot redacted by Bridge.Redact.Text and cut to 1000 characters, the sentence of the web card), the approved page
+///     email texts with no link; no item, message or Notification text goes in verbatim. A piece that does not render, or a subject or text beyond the limits of CheckValues, marks the claim
+///     failed, with one warning;
+///   - the message is sent once through Deliver, with the claim's Ref in X-OcuTalon-Ref. Success clears the mark; a failure marks the claim failed, with one warning by Sender.Classify's class.
+///     A claim that is marked is the page's undelivered report for email, and is never retried. There is no daily cap: a page row has at most one email, and an incident at most two pages.
+///     An email copy is never changed afterwards: Notify sends EmailOut no handled Notification, and a reply to the email acknowledges nothing.
 /// The operation logs counts and outcomes only: never an address, a subject, a text, the server's words or a credential.
 Class OcuTalon.Channel.Email.Out Extends OcuTalon.Channel.Operation
 {
@@ -99,6 +116,16 @@ Parameter MAXDIGESTS = 10;
 Parameter DIGESTSUBJECT = "email.digestSubject";
 
 Parameter TEXTCHANNEL = "email";
+
+/// The Kind of a page Notification and of the claim row of its email, and the FallbackReasons that mark a page email that could not go: the on-call key held no address, the
+/// mailbox (email.address) is not an address, the send failed.
+Parameter PAGEKIND = "page";
+
+Parameter PAGENOADDRESS = "no_address";
+
+Parameter PAGENOMAILBOX = "no_mailbox";
+
+Parameter PAGEFAILED = "failed";
 
 /// The header that every email carries, with the Ref of its Data.Delivery row.
 Parameter REFHEADER = "X-OcuTalon-Ref";
@@ -305,12 +332,19 @@ Method Transmit(from As %String, ByRef recipients, subject As %String, text As %
 	Quit sc
 }
 
-/// A Notification of Kind digest: the digest email of the class description. Always OK, and no response.
+/// A Notification of Kind digest or page: the digest email or the page email of the class description. Any other Kind gets one warning (nothing at all on the online demo).
+/// Always OK, and no response.
 Method OnNotification(request As OcuTalon.Msg.Notification, Output response As Ens.Response) As %Status
 {
 	Set response = ""
 	Try {
-		Do ..SendDigest(request)
+		If request.Kind = "digest" {
+			Do ..SendDigest(request)
+		} ElseIf request.Kind = ..#PAGEKIND {
+			Do ..SendPage(request)
+		} ElseIf ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 {
+			$$$LOGWARNING("EmailOut takes a notification of kind digest or page only, so it sent nothing")
+		}
 	} Catch exception {
 		$$$LOGERROR("EmailOut failed: "_exception.Name)
 	}
@@ -321,10 +355,6 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 Method SendDigest(request As OcuTalon.Msg.Notification) [ Private ]
 {
 	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit
-	If request.Kind '= "digest" {
-		$$$LOGWARNING("EmailOut takes a notification of kind digest only, so it sent nothing")
-		Quit
-	}
 	Set from = ##class(OcuTalon.Data.Setting).Fresh(..#ADDRESSKEY)
 	Set owner = request.SessionRef
 	If (owner = "") || (owner '= ##class(OcuTalon.Data.Setting).Fresh(..#OWNERKEY)) || '##class(OcuTalon.Core.SettingsOps).IsAddress(from) Quit
@@ -379,6 +409,91 @@ Method SendDigestLocked(request As OcuTalon.Msg.Notification, from As %String, o
 	Set recorded = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ref, "", "digest", "", request.DecisionRef, "", "", , "", key)
 	If $$$ISERR(recorded) $$$LOGERROR("EmailOut sent a digest email but could not record its delivery")
 	$$$LOGINFO("EmailOut sent one digest email")
+}
+
+/// The steps of the page path (see the class description).
+Method SendPage(request As OcuTalon.Msg.Notification) [ Private ]
+{
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit
+	Set ref = request.DecisionRef
+	Set page = $Select(ref '= "": ##class(OcuTalon.Data.Page).RefIndexOpen(ref), 1: "")
+	If '$IsObject(page) || (page.Ref '= ref) || '##class(OcuTalon.Core.Rule.Functions).PageChannel(ref, "email") {
+		$$$LOGWARNING("EmailOut takes a page with a page row that names email only, so it sent nothing")
+		Quit
+	}
+	Lock +^OcuTalon.EmailOut.Page(ref):..#CLAIMWAIT
+	If '$Test {
+		$$$LOGWARNING("EmailOut could not take the lock of a page email, so it sent nothing")
+		Quit
+	}
+	Try {
+		Do ..SendPageLocked(request, page)
+	} Catch exception {
+		$$$LOGERROR("EmailOut failed: "_exception.Name)
+	}
+	Lock -^OcuTalon.EmailOut.Page(ref)
+}
+
+/// The send of a page under the lock of its Ref: no second email for a page row that has a claim, the claim row before the render, then the checks, the render and the one send. A
+/// send that cannot go keeps its claim, marked.
+Method SendPageLocked(request As OcuTalon.Msg.Notification, page As OcuTalon.Data.Page) [ Private ]
+{
+	If ..Claimed("", "", "", page.Ref) Quit
+	Set owner = $Select(request.SessionRef '= "": request.SessionRef, 1: ..#INSTANCE)
+	Set sc = ##class(OcuTalon.Data.Delivery).Record(owner, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), "", ..#PAGEKIND, "", page.Ref, "", ..#CLAIMPENDING, .claim)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("EmailOut could not record the claim of a page email, so it sent nothing")
+		Quit
+	}
+	Set to = $ZStrip(##class(OcuTalon.Data.Setting).Fresh($Select(page.Role = ##class(OcuTalon.Watch.Paging).#BACKUP: ##class(OcuTalon.Watch.Paging).#KEYBACKUPEMAIL, 1: ##class(OcuTalon.Watch.Paging).#KEYPRIMARYEMAIL)), "<>W")
+	If '##class(OcuTalon.Core.SettingsOps).IsAddress(to) {
+		Do ..MarkPage(claim, ..#PAGENOADDRESS)
+		$$$LOGWARNING("EmailOut has no address for the on-call person of a page, so it sent nothing")
+		Quit
+	}
+	Set from = ##class(OcuTalon.Data.Setting).Fresh(..#ADDRESSKEY)
+	If '##class(OcuTalon.Core.SettingsOps).IsAddress(from) {
+		Do ..MarkPage(claim, ..#PAGENOMAILBOX)
+		$$$LOGWARNING("EmailOut has no mailbox to send a page email from, so it sent nothing")
+		Quit
+	}
+	Set production = ""
+	Try {
+		Set slots = {}.%FromJSON(request.Slots)
+		If slots.%GetTypeOf("production") = "string" Set production = slots.production
+	} Catch exception {
+		Set production = ""
+	}
+	Set subject = ##class(OcuTalon.Msg.Catalog).Render(##class(OcuTalon.Watch.Paging).#KEYSUBJECT, {"production": (production)}, ..#TEXTCHANNEL, .sc)
+	If $$$ISOK(sc) Set text = ##class(OcuTalon.Channel.PageText).Text(request, ..#TEXTCHANNEL, .sc)
+	If $$$ISERR(sc) {
+		Do ..MarkPage(claim, ..#PAGEFAILED)
+		$$$LOGWARNING("EmailOut could not render a page email, so it sent nothing")
+		Quit
+	}
+	Set bad = []
+	Do ..CheckValues(subject, text, bad)
+	If bad.%Size() {
+		Do ..MarkPage(claim, ..#PAGEFAILED)
+		$$$LOGWARNING("EmailOut refused a page email whose subject or text is not allowed, so it sent nothing")
+		Quit
+	}
+	Set recipients = 1, recipients(1) = to
+	Set sc = ..Transmit(from, .recipients, subject, text, claim.ChannelMessageId)
+	If $$$ISERR(sc) {
+		Do ..MarkPage(claim, ..#PAGEFAILED)
+		$$$LOGWARNING("EmailOut did not send the page email: "_##class(OcuTalon.Channel.Email.Sender).Classify(sc))
+		Quit
+	}
+	Do ..MarkPage(claim, "")
+	$$$LOGINFO("EmailOut sent one page email")
+}
+
+/// Sets the FallbackReason of a page email's claim row to reason ("" once sent) and saves it; a failed save is one error line.
+Method MarkPage(claim As OcuTalon.Data.Delivery, reason As %String) [ Private ]
+{
+	Set claim.FallbackReason = reason
+	If $$$ISERR(claim.%Save()) $$$LOGERROR("EmailOut could not mark the claim of a page email")
 }
 
 /// The key of a digest: 22 characters of the SHA-256 hash of the Notification's session, decision, key and slots and the UTC day, so that the
@@ -558,9 +673,10 @@ Method Authorised(request As OcuTalon.Msg.Command.SendEmail, from As %String, By
 /// (approval empty) the row of the owner whose DigestKey is exactly key (the column compares without regard to case, so the value read is compared
 /// again). 0 when there is none, CLAIMMAYHAVESENT when the row is the claim of a keyed tool send that may still have reached the server (FallbackReason
 /// CLAIMMAYSENT), CLAIMFAILED when it is the claim of a send that failed or never finished (FallbackReason failed or CLAIMPENDING), and 1 for a row of an
-/// email that was sent.
-ClassMethod Claimed(approval As %String, owner As %String = "", key As %String = "") As %Integer [ Private ]
+/// email that was sent. With a decisionRef (the third mode, for a page email) it answers PageClaimed: the row of Kind page with that DecisionRef, whatever its owner.
+ClassMethod Claimed(approval As %String, owner As %String = "", key As %String = "", decisionRef As %String = "") As %Integer [ Private ]
 {
+	If decisionRef '= "" Quit ..PageClaimed(decisionRef)
 	Set statement = ##class(%SQL.Statement).%New()
 	If approval '= "" {
 		Set sc = statement.%Prepare("SELECT TOP 1 FallbackReason, DigestKey FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ? AND Channel = ?")
@@ -573,6 +689,24 @@ ClassMethod Claimed(approval As %String, owner As %String = "", key As %String =
 	Set found = 0
 	While 'found && rows.%Next() {
 		If (approval '= "") || (rows.%Get("DigestKey") = key) Set found = $Select(rows.%Get("FallbackReason") = "": 1, rows.%Get("FallbackReason") = ..#CLAIMMAYSENT: ..#CLAIMMAYHAVESENT, 1: ..#CLAIMFAILED)
+	}
+	Quit found
+}
+
+/// The DecisionRef mode of Claimed, for a page email: 0 when no row of channel email and Kind page has exactly this DecisionRef (the column compares without regard to case, so the value read is compared
+/// again), whatever its owner; CLAIMFAILED when such a row is marked (no_address, no_mailbox, failed) or still pending, and 1 when it is the row of an email that was sent.
+ClassMethod PageClaimed(decisionRef As %String) As %Integer [ Private ]
+{
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("SELECT FallbackReason, DecisionRef FROM OcuTalon_Data.Delivery WHERE Channel = ? AND Kind = ? AND DecisionRef = ?")
+	If $$$ISERR(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Set rows = statement.%Execute(..#CHANNEL, ..#PAGEKIND, decisionRef)
+	If rows.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(rows.%SQLCODE, rows.%Message)
+	Set found = 0
+	While rows.%Next() {
+		If rows.%Get("DecisionRef") '= decisionRef Continue
+		Set found = $Select(rows.%Get("FallbackReason") = "": 1, 1: ..#CLAIMFAILED)
+		If found = 1 Quit
 	}
 	Quit found
 }

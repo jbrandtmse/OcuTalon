@@ -6,8 +6,10 @@
 ///   - Submit sends a command through Commands.Submit under such a context and ends it;
 ///   - Set submits a SetReminder for a session and returns what the test needs to know about the reminder and its waiter;
 ///   - Cancel submits a CancelReminder for a session and returns the answer;
-///   - Remove cancels the reminder if it is pending, waits for its waiter to end, and deletes the reminder and everything the product
-///     made for it;
+///   - Remove cancels the reminder if it is pending (an escalation row owned by instance with CancelReminder from system, a reminder
+///     through Cancel), waits for its waiter to end, and deletes the reminder and everything the product made for it;
+///   - RemoveTraces removes the trace sessions of commands that no session's TraceRef holds (a command for a session that does not exist,
+///     or one that the paging owner sends from origin system);
 ///   - RemoveAll removes every reminder of a session, whatever its state, through Remove;
 ///   - RemoveTurns removes every chat turn of a session with the Decision, AgentStep and Usage rows the product made for it;
 ///   - Timers, IsWaiting and WaitEnded tell whether the reminder's waiter is waiting, and WaitingCount how many of its waiters are;
@@ -92,7 +94,8 @@ ClassMethod Set(sessionRef As %String, text As %String, seconds As %Integer) As 
 ///     Ref (StartHeaders: a re-armed waiter has its own), with their bodies and their event-log, rule-log and I/O-log rows;
 ///   - the ReminderTimer instances with that Ref;
 ///   - the Reminder row.
-/// It does nothing for a Ref that has no row.
+/// A pending escalation row (owned by instance) is cancelled with a CancelReminder from system, through Commands.Submit, as the paging owner
+/// does; it has no session, so no Delivery row and no SimMessage exists for it. It does nothing for a Ref that has no row.
 ClassMethod Remove(ref As %String)
 {
 	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
@@ -100,7 +103,16 @@ ClassMethod Remove(ref As %String)
 	If row.State = "pending" {
 		Set owner = row.SessionRef
 		Set row = ""
-		Do ..Cancel(owner, ref)
+		If owner = ##class(OcuTalon.Schedule.Reminder).#OWNER {
+			Set command = ##class(OcuTalon.Msg.Command.CancelReminder).%New()
+			Set command.ReminderRef = ref
+			Set command.IdempotencyKey = "zzcanesc" _ $Increment(^OcuTalonTest("ReminderFixture", "cancel"))
+			Do ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+			Set bodies = $ListBuild(command.%Id())
+			Do ..RemoveTraces(bodies, "OcuTalon.Msg.Command.CancelReminder")
+		} Else {
+			Do ..Cancel(owner, ref)
+		}
 	}
 	Set row = ""
 	Do ..WaitEnded(ref, 10)
@@ -108,10 +120,12 @@ ClassMethod Remove(ref As %String)
 	If '$IsObject(row) Quit
 	Set id = row.%Id(), session = row.SessionRef, dueAt = row.DueAt, createdAt = row.CreatedAt, trace = row.TraceHeaderId
 	Set row = ""
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind = 'reminder' AND DueAt = ?", session, dueAt)
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, ChannelMessageId FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'phone' AND Kind = 'reminder' AND RecordedAt >= ?", session, createdAt)
-	While result.%Next() {
-		Set messages(result.%Get("ID")) = result.%Get("ChannelMessageId")
+	If session '= ##class(OcuTalon.Schedule.Reminder).#OWNER {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind = 'reminder' AND DueAt = ?", session, dueAt)
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, ChannelMessageId FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'phone' AND Kind = 'reminder' AND RecordedAt >= ?", session, createdAt)
+		While result.%Next() {
+			Set messages(result.%Get("ID")) = result.%Get("ChannelMessageId")
+		}
 	}
 	Set at = ""
 	For {
@@ -137,6 +151,31 @@ ClassMethod Remove(ref As %String)
 		Do ##class(OcuTalon.Schedule.ReminderTimer).%DeleteId(at)
 	}
 	Do ##class(OcuTalon.Data.Reminder).%DeleteId(id)
+}
+
+/// Deletes the trace sessions of the bodies (ids in a $List) of the command class, each header with its body, and answers "<trace sessions found>|<headers
+/// of those bodies left>". A command for a session that does not exist gets no SuperSession, and neither does one that the paging owner sends from origin
+/// system, so a clean-up by SuperSession misses it.
+ClassMethod RemoveTraces(bodies As %List, class As %String = "OcuTalon.Msg.Command.SetReminder") As %String
+{
+	Set query = "SELECT SessionId FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND MessageBodyId = ?"
+	Set found = 0
+	For i = 1:1:$ListLength(bodies) {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, query, class, $List(bodies, i))
+		While rs.%Next() { If (rs.%Get("SessionId") '= "") && '$Data(sessions(rs.%Get("SessionId"))) Set sessions(rs.%Get("SessionId")) = "", found = found + 1 }
+	}
+	Set session = ""
+	For {
+		Set session = $Order(sessions(session))
+		If session = "" Quit
+		Do ..RemoveSession(session)
+	}
+	Set left = 0
+	For i = 1:1:$ListLength(bodies) {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, query, class, $List(bodies, i))
+		While rs.%Next() { Set left = left + 1 }
+	}
+	Quit found _ "|" _ left
 }
 
 /// Removes every reminder of the session, whatever its state, through Remove.

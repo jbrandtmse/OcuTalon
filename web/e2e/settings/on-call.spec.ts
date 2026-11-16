@@ -12,7 +12,7 @@ import { ON_CALL_API, ON_CALL_KEYS, auditMark, auditSince, readOnCall, resetOnCa
  * Story 36.4, the On call section of Settings in a real browser, signed in as the README admin (O1 to O16; the sign-in-2 unit). The README account holds
  * OcuTalonAdmin, and has a session, so it is one of the OcuTalon users that the section lists. The cases run one after the other, because the on-call values are
  * the instance's own: each case starts from Nobody for both roles with 15 minutes (beforeEach, through the route), and puts back the values it found (afterEach).
- *   O1  the nav link, the heading, the help and the Telegram-only line (pagesBuilt is true), the two legends, a labelled control for every field, the Telegram box disabled with its text,
+ *   O1  the nav link, the heading, the help and the pages line (pagesBuilt is true; the DW-1400 line is gone), the two legends, a labelled control for every field, the Telegram box disabled with its text,
  *       the line under the on-call person who is by email, and the keyboard order;
  *   O2  the README admin as the on-call person (unpaired: Telegram disabled) and a backup by email with 20 minutes: the saved text, GET and the audit entries
  *       (the admin's user and session, the web channel) match;
@@ -41,7 +41,8 @@ const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
 const FAILED = "Couldn't save. Nothing was changed.";
 const HELP = 'Choose who OcuTalon pages when an incident starts, and who it pages next if nobody presses Got it in time.';
 const NOT_YET = "OcuTalon doesn't send pages yet. It keeps these choices for when it does.";
-const TELEGRAM_ONLY = "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.";
+const PAGES = "OcuTalon pages the on-call person for failures it finds in the productions it watches: in their OcuTalon chat if they're an OcuTalon user, and by Telegram or email as chosen below. Email pages go out from the mailbox set up under Channels. If nobody presses Got it within the minutes below, OcuTalon pages the backup. A practice Break the feed pages nobody while its user stays signed in.";
+const DW_1400_LINE = "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.";
 const BY_EMAIL_HELP = "Someone paged by email can't press Got it, so OcuTalon also pages the backup after the minutes below.";
 const BAD_EMAIL = 'Enter an email address such as name@example.com. Nothing was changed.';
 const BAD_MINUTES = 'Enter a whole number of minutes from 1 to 1440. Nothing was changed.';
@@ -112,7 +113,9 @@ test('O1: the section has its nav link, heading, help, two labelled groups and a
   await expect(page.getByText(HELP, { exact: true }), 'the help line').toBeVisible();
   expect(found?.pagesBuilt, 'the server reports that pages are built, because Data.Page is compiled').toBe(true);
   await expect(page.getByText(NOT_YET, { exact: true }), 'no not-yet line once pages are built').toHaveCount(0);
-  await expect(page.getByText(TELEGRAM_ONLY, { exact: true }), 'the Telegram-only line in its place').toBeVisible();
+  await expect(page.getByText(PAGES, { exact: true }), 'the pages line (24.3 rulings, new text 1) in its place').toBeVisible();
+  await expect(page.locator('#oncall-pages'), 'the pages line has its id').toHaveText(PAGES);
+  await expect(page.getByText(DW_1400_LINE, { exact: true }), 'the DW-1400 line is gone').toHaveCount(0);
   await expect(primary(page), 'the on-call person group').toBeVisible();
   await expect(backup(page), 'the backup group').toBeVisible();
 

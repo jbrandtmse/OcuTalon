@@ -30,6 +30,9 @@ const DIGEST_TEXT = 'Good morning.\nI checked the Chat agent (all running, no er
 const digest = (ref, over = {}) => notice(ref, { kind: 'digest', text: DIGEST_TEXT, ...over });
 const SUMMARY_TEXT = 'Incident summary: 50 orders failed in Orders.\nCause: The partner sent <b>x</b> and *y* in the date.\nMessages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped.';
 const summary = (ref, over = {}) => notice(ref, { kind: 'summary', text: SUMMARY_TEXT, ...over });
+const PAGE_TEXT = '3 messages failed in the Orders production since 14:00. The partner sent a bad date.';
+const PAGE_WHY = "Why now: you're on call for OcuTalon. Press Got it to show you're on it.";
+const page = (ref, over = {}) => notice(ref, { kind: 'page', text: PAGE_TEXT, whyNow: PAGE_WHY, decisionRef: 'PG1', handledAt: '', ...over });
 /** A message of the page's outbox. */
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
@@ -442,6 +445,15 @@ describe('the notice cards', () => {
     assert.ok(card.text.includes('<b>x</b>') && card.text.includes('*y*'), 'the markup characters of the text are kept as they are: the card binds them as text');
     assert.equal(view(summary('T', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, a summary card has no strip');
     assert.deepEqual(keys(chatView([turn('T1'), summary('S'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:S', 'notification:N'], 'it stands among the other entries as a card');
+  });
+
+  it('shows an on-call page (Story 24.3a) as a card with its text, its Why now line and the page\'s Ref for Got it, and no strip', () => {
+    const card = view(page('P', { createdAt: '2026-10-22T14:11:09Z' }));
+    assert.deepEqual([card.entry, card.kind, card.key, card.text, card.whyNow, card.time, card.dueAt, card.strip, card.decisionRef, card.handledAt], ['notice', 'page', 'notification:P', PAGE_TEXT, PAGE_WHY, '2026-10-22T14:11:09Z', '', false, 'PG1', '']);
+    assert.equal(view(page('Q', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, a page card has no strip');
+    assert.equal(view(page('H', { handledAt: '2026-10-22T14:20:00Z' })).handledAt, '2026-10-22T14:20:00Z', 'an acknowledged page carries its handled time, which the card shows in place of Got it');
+    assert.equal(noticeOf(page('N')).kind, 'page', 'noticeOf takes the kind');
+    assert.deepEqual(keys(chatView([turn('T1'), page('P'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:P', 'notification:N'], 'it stands among the other entries as a card');
   });
 
   it('carries the text, the Why now line, the times and the decision of its payload', () => {

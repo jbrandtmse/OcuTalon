@@ -10,6 +10,10 @@
 ///   - TestNotifyTargets: each kind of Notification with demo mode on and off, with and without a pairing and with Telegram
 ///     included or not, a reply that came from the web and from Telegram, and a pairing notice with and without a ChatRef;
 ///     the kind digest on top of that for no digest.channels row and for each value the setting can hold;
+///   - TestNotifyPageTargets (Story 24.3a; P1 Option A): kind page is routed by the Data.Page row that its DecisionRef names: nothing for no row, for an address-only person
+///     (SessionRef instance) and on the online demo (the flag onlineDemo, not demo mode); otherwise WebChatOut always, and TelegramOut as well when Telegram is included and the row's Channels names telegram, paired or not and
+///     never by the pairing; never the simulated phone; a handled Notification for a page takes the generic route and never EmailOut; and the rule PageEmail, which adds EmailOut for a row that names email only while EmailOut has an alive job, so every expected target
+///     list here is derived from whether EmailOut has a job on the stack (its cases with a job are also those of OcuTalon.Test.Channel.PageRoute);
 ///   - TestNotifyDigestEmail (Story 21.7): the rule DigestEmail adds no target to a digest while EmailOut has no alive job (the production here does not run it),
 ///     whatever digest.channels, email.owner, email.address and the demo flag say; with a job it is the job of OcuTalon.Test.Channel.EmailLive;
 ///   - TestFunctions: the functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
@@ -32,6 +36,12 @@ Parameter CHANNELSKEY = "digest.channels";
 
 /// The run's number.
 Property Number As %Integer;
+
+/// The online demo's flag (onlineDemo) before the run.
+Property SavedOnline As %String;
+
+/// The number of Data.Page fixture rows of the run.
+Property PageRows As %Integer [ InitialExpression = 0 ];
 
 /// The Refs of the fixture rows of the run, comma-separated.
 Property Refs As %String(MAXLEN = "");
@@ -56,6 +66,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..Refs = ""
 	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
 	Set ..SavedFound = found, ..SavedValue = value, ..SavedUpdatedAt = updatedAt
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Set ..SavedIncluded = $Get(^OcuTalonTest("TelegramIncluded"))
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..#CHANNELSKEY)
 	Set ..SavedChannels = $Select($IsObject(row): $ListBuild(1, row.Value, row.UpdatedAt), 1: $ListBuild(0, "", ""))
@@ -72,6 +83,8 @@ Method OnAfterAllTests() As %Status
 		Set ^OcuTalonTest("TelegramIncluded") = ..SavedIncluded
 	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE IncidentRef LIKE ?", "zzroute"_..Number_"p%")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -219,6 +232,7 @@ ClassMethod PutChannels(value As %String, exists As %Boolean = 1, updatedAt As %
 ///   - kind pairing: TelegramOut alone when ChatRef is set and Telegram is included, otherwise none;
 ///   - kind allowance: WebChatOut, and TelegramOut when Telegram is included and the session is paired;
 ///   - any other kind: WebChatOut, SimPhoneOut when demo mode is on, TelegramOut when Telegram is included and the session is paired;
+///   - page with no Data.Page row (DecisionRef empty): nothing, whatever the session says (TestNotifyPageTargets has the rows);
 ///   - digest: the same three, each only when digest.channels names it (no row: web, phone and telegram), and nothing when none holds;
 ///   - a reply: WebChatOut, and TelegramOut when it came from Telegram, Telegram is included and the session is paired.
 Method TestNotifyTargets()
@@ -226,7 +240,7 @@ Method TestNotifyTargets()
 	Set unpaired = ..Session("notify")
 	Set paired = ..Session("notifypaired")
 	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Pairing(paired)
-	Set kinds = $ListFromString("tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status")
+	Set kinds = $ListFromString("tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,handled,page")
 	For demo = 0, 1 {
 		Do ##class(OcuTalon.Test.Demo.Step).Put(demo, "2026-01-02T03:04:05Z")
 		For included = 0, 1 {
@@ -246,6 +260,8 @@ Method TestNotifyTargets()
 							Set expected = $Select(chat && included: "send:TelegramOut:", 1: "")
 						} ElseIf kind = "allowance" {
 							Set expected = "send:WebChatOut"_$Select(included && isPaired: ",TelegramOut", 1: "")_":"
+						} ElseIf kind = "page" {
+							Set expected = ""
 						} Else {
 							Set expected = "send:WebChatOut"_$Select(demo: ",SimPhoneOut", 1: "")_$Select(included && isPaired: ",TelegramOut", 1: "")_":"
 						}
@@ -309,6 +325,91 @@ Method TestNotifyDigestTargets()
 		}
 	}
 	Do ..PutChannels("", 0)
+}
+
+/// A fixture Data.Page row of the run (an incident of its own, so that the unique (IncidentRef, Role) never meets another row): its Ref. role is oncall or backup.
+Method PageRow(role As %String, person As %String, channels As %String) As %String [ Private ]
+{
+	Set page = ##class(OcuTalon.Data.Page).%New()
+	Set page.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..PageRows = ..PageRows + 1
+	Set page.IncidentRef = "zzroute"_..Number_"p"_..PageRows
+	Set page.Role = role
+	Set page.Person = person
+	Set page.Channels = channels
+	Set page.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(page.%Save(), "a page row for "_role_" with channels '"_channels_"' is made")
+	Quit page.Ref
+}
+
+/// Story 24.3a, P1 Option A: Notify routes kind page by the Data.Page row that DecisionRef names (the expected targets are written out here). A session gets its web card whatever
+/// the channels say, and TelegramOut when Telegram is included and the row's Channels names telegram, paired or not (an unpaired chat is TelegramOut's own report, so the route
+/// never reads the pairing), never SimPhoneOut. No row, a Ref that names no row, an address-only person (SessionRef instance) and the online demo route nowhere. A handled
+/// Notification for a page takes the generic route and never reaches EmailOut. The rule PageEmail adds EmailOut (a second send, after a ";") for a row that names email exactly
+/// when EmailOut has an alive job and the online demo is off, so the expected targets follow the stack's state, whichever it is.
+Method TestNotifyPageTargets()
+{
+	Set unpaired = ..Session("pageunpaired")
+	Set paired = ..Session("pagepaired")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Pairing(paired)
+	Set emailRuns = ##class(OcuTalon.Core.CommandsIn).ItemRunning("EmailOut")
+	Set channelsList = $ListBuild("telegram", "email", "telegram,email", " Email , TELEGRAM ", "")
+	For online = 0, 1 {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", online)
+		For demo = 0, 1 {
+			Do ##class(OcuTalon.Test.Demo.Step).Put(demo, "2026-01-02T03:04:05Z")
+			For included = 0, 1 {
+				Set ^OcuTalonTest("TelegramIncluded") = included
+				For isPaired = 0, 1 {
+					Set session = $Select(isPaired: paired, 1: unpaired)
+					Set position = 0
+					While $ListNext(channelsList, position, channels) {
+						Set page = ..PageRow("oncall", "zzpageperson", channels)
+						Set notification = ##class(OcuTalon.Msg.Notification).%New()
+						Set notification.SessionRef = session
+						Set notification.Kind = "page"
+						Set notification.DecisionRef = page
+						Set telegram = ($ZConvert($ZStrip(channels, "*W"), "L") [ "telegram")
+						Set expected = $Select(online: "", 1: "send:WebChatOut"_$Select(included && telegram: ",TelegramOut", 1: "")_":")
+						Set mail = $Select(emailRuns && 'online && ($ZConvert($ZStrip(channels, "*W"), "L") [ "email"): "send:EmailOut:", 1: "")
+						Set expected = expected_$Select((expected '= "") && (mail '= ""): ";", 1: "")_mail
+						Set label = "a page with channels '"_channels_"', online demo "_$Select(online: "on", 1: "off")_", demo mode "_$Select(demo: "on", 1: "off")_", Telegram "_$Select(included: "included", 1: "not included")_", "_$Select(isPaired: "paired", 1: "not paired")
+						Do $$$AssertEquals(..Route(..#NOTIFYRULE, notification), expected, label_": ["_expected_"]")
+						Set handled = ##class(OcuTalon.Msg.Notification).%New()
+						Set handled.SessionRef = session
+						Set handled.Kind = "handled"
+						Set handled.DecisionRef = page
+						Set route = ..Route(..#NOTIFYRULE, handled)
+						Do $$$AssertTrue(route '[ "EmailOut", label_": a handled Notification for it never reaches EmailOut ("_route_")")
+						Set expected = "send:WebChatOut"_$Select(demo: ",SimPhoneOut", 1: "")_$Select(included && isPaired: ",TelegramOut", 1: "")_":"
+						Do $$$AssertEquals(route, expected, label_": a handled Notification for it takes the generic route")
+					}
+				}
+			}
+		}
+	}
+	// no row, an unknown Ref, an address-only person and a Ref that is not the row's exactly
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	Do ##class(OcuTalon.Test.Demo.Step).Put(0, "2026-01-02T03:04:05Z")
+	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Set page = ..PageRow("backup", "zzpageperson@example.test", "email")
+	Set cases = $ListBuild($ListBuild("no DecisionRef", paired, "", 0), $ListBuild("a Ref that names no row", paired, ##class(OcuTalon.Bridge.Ids).NewRef(), 0), $ListBuild("an address-only person", "instance", page, 1), $ListBuild("an empty session", "", page, 1), $ListBuild("an unknown session", "zznosession", page, 1), $ListBuild("a Ref that differs in case", paired, $ZConvert(page, "L"), 0))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set notification = ##class(OcuTalon.Msg.Notification).%New()
+		Set notification.SessionRef = $List(case, 2)
+		Set notification.Kind = "page"
+		Set notification.DecisionRef = $List(case, 3)
+		Set mail = $Select(emailRuns && $List(case, 4): "send:EmailOut:", 1: "")
+		Do $$$AssertEquals(..Route(..#NOTIFYRULE, notification), mail, $List(case, 1)_": a page routes nowhere but to EmailOut, when it has a job and the row names email ["_mail_"]")
+	}
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = paired
+	Set notification.Kind = "page"
+	Set notification.DecisionRef = page
+	Do $$$AssertEquals(..Route(..#NOTIFYRULE, notification), "send:WebChatOut:"_$Select(emailRuns: ";send:EmailOut:", 1: ""), "control: the same page of a user, whose row names only email, gets the web card, and EmailOut when it has a job")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Core.Rule.Functions", "PageEmail", page), +emailRuns, "PageEmail is 1 for a row that names email exactly when EmailOut has a job ("_+emailRuns_")")
+	Set ^OcuTalonTest("TelegramIncluded") = 0
 }
 
 /// Story 21.7: the rule DigestEmail adds a target only while EmailOut has an alive job. Here the production does not run EmailOut (the item is disabled until an
@@ -409,7 +510,18 @@ Method TestFunctions()
 	Do ..PutChannels("", 0)
 	Do $$$AssertEquals($ClassMethod(functions, "DigestEmail", "")_$ClassMethod(functions, "DigestEmail", session)_$ClassMethod(functions, "DigestEmail", "instance"), "000", "DigestEmail: an empty Ref, a session that does not own the mailbox and the owner instance are 0 (EmailOut has no job on this stack either; the half with a job is Test.Channel.EmailLive's)")
 	Do $$$AssertEquals($ListToString($ClassMethod(functions, "DigestChannels", session)), "web", "DigestChannels: web alone for a session with demo mode off and no pairing, with no value saved")
-	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed", "DigestEmail", "DigestChannels" {
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	Set both = ..PageRow("oncall", "zzfunctionperson", "telegram,email")
+	Set telegramOnly = ..PageRow("backup", "zzfunctionperson", "Telegram")
+	Do $$$AssertEquals($ClassMethod(functions, "PageWeb", both, session)_$ClassMethod(functions, "PageWeb", both, "instance")_$ClassMethod(functions, "PageWeb", both, "")_$ClassMethod(functions, "PageWeb", both, "eval")_$ClassMethod(functions, "PageWeb", "", session)_$ClassMethod(functions, "PageWeb", $ZConvert(both, "L"), session)_$ClassMethod(functions, "PageWeb", ##class(OcuTalon.Bridge.Ids).NewRef(), session), "1000000", "PageWeb: the row exists and the session is a session; not an address-only person, an empty or eval owner, an empty, case-changed or unknown Ref")
+	Do $$$AssertEquals($ClassMethod(functions, "PageChannel", both, "telegram")_$ClassMethod(functions, "PageChannel", both, "email")_$ClassMethod(functions, "PageChannel", both, " EMAIL ")_$ClassMethod(functions, "PageChannel", both, "web")_$ClassMethod(functions, "PageChannel", both, "")_$ClassMethod(functions, "PageChannel", "", "email"), "111000", "PageChannel: the channels of the row, trimmed and lowercased; not web, an empty channel or Ref")
+	Do $$$AssertEquals($ClassMethod(functions, "PageChannel", telegramOnly, "telegram")_$ClassMethod(functions, "PageChannel", telegramOnly, "email")_$ClassMethod(functions, "PageChannel", $ZConvert(telegramOnly, "U"), "telegram"), "100", "PageChannel: a row that names telegram alone does not name email; a Ref that differs in case is no row")
+	Set emailRuns = +##class(OcuTalon.Core.CommandsIn).ItemRunning("EmailOut")
+	Do $$$AssertEquals($ClassMethod(functions, "PageEmail", both)_$ClassMethod(functions, "PageEmail", ""), emailRuns_"0", "PageEmail: 1 for a row that names email exactly when EmailOut has a job ("_emailRuns_"), 0 for an empty Ref")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do $$$AssertEquals($ClassMethod(functions, "PageWeb", both, session)_$ClassMethod(functions, "PageChannel", both, "telegram")_$ClassMethod(functions, "PageChannel", both, "email")_$ClassMethod(functions, "PageEmail", both), "0000", "PageWeb, PageChannel and PageEmail are 0 on the online demo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed", "DigestEmail", "DigestChannels", "PageWeb", "PageChannel", "PageEmail" {
 		Kill class
 		Set sc = ##class(Ens.Rule.Utilities).ResolveFunction(name, .class, .method)
 		Do $$$AssertStatusOK(sc, name_" resolves as a rule function")

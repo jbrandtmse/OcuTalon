@@ -29,6 +29,11 @@
 ///     no event;
 ///   - TestDigestCard also (Story 18.4): the Slots' rows are kept on the row as CheckRows (the rows JSON, "[]" for an empty rows) and the payload
 ///     carries them as checks;
+///   - TestPageCard (Story 24.3a): a page Notification is a card of kind page whose text is Channel.PageText for the web, recorded with a new message id, the page's Ref as DecisionRef,
+///     no due time, reason or approval, published as one notification event (text without the Why now line, whyNow, handledAt empty) and listed in RecentNotices; another session
+///     gets nothing; on the online demo and for a text that cannot be rendered nothing is recorded;
+///   - TestPageHandledRepublishesTheCard (Story 24.3a): a handled Notification for an acknowledged page publishes the page card again with its own ref and handledAt (Data.Page Marked),
+///     records the bare handled row, and the reloaded payload (FromRow of the card's row) carries the same handledAt;
 ///   - TestHandledRepublishesTheCard (Story 18.4): a handled Notification publishes the tell-now card again, with its own ref and handledAt, and
 ///     records the bare Delivery row; a second one (the newest row is then the handled row) records the row only;
 ///   - TestSummaryCard (Story 23.6; AC 5, AC 14): a summary Notification is a card of kind summary whose text is the stored summary's lines, with the markup of the
@@ -69,6 +74,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE IncidentRef LIKE ?", "zzweb"_..Number_"page%")
 	For i = 1:1:$Length(..Refs, ",") Do ##class(OcuTalon.Data.Handled).DropSession($Piece(..Refs, ",", i))
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
@@ -374,7 +380,7 @@ Method TestPersonaCards()
 Method TestOtherKindsRecordOnly()
 {
 	Do ..AssertRecordOnly(..Session("other"), $ListFromString("fallback,pairing,status"), "the other kinds")
-	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance,digest,summary", "allowance, digest and summary are card kinds, so they are not one of them")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance,digest,summary,page", "allowance, digest, summary and page are card kinds, so they are not one of them")
 }
 
 /// A digest (Story 17.10) is a card of kind digest. Its text is the rendering for the web of the parts and the lines of its Slots, one piece on each line,
@@ -471,6 +477,115 @@ Method TestHandledRepublishesTheCard()
 	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "a second handled Notification is delivered")
 	Do $$$AssertEquals(..Notifications(session).%Size(), 2, "no event for the second")
 	Do $$$AssertEquals(..Rows(session), 3, "only its row")
+}
+
+/// The on-call page row of a fixture incident, the Ref of a page Notification's DecisionRef; the row is deleted with the fixture rows (OnAfterAllTests).
+Method PageRow(incident As %String) As OcuTalon.Data.Page [ Private ]
+{
+	Set page = ##class(OcuTalon.Data.Page).%New()
+	Set page.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set page.IncidentRef = incident
+	Set page.Role = "oncall"
+	Set page.Person = "zzwebpage"
+	Set page.Channels = "telegram,email"
+	Set page.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(page.%Save(), "the page row is made")
+	Quit page
+}
+
+/// The page Notification for the session, the page's Ref as its DecisionRef.
+Method PageNotification(session As %String, page As OcuTalon.Data.Page, cause As %String) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set slots = {"count": 3, "itemNoun": {"one": "message", "other": "messages"}, "production": "Orders", "time": "2030-01-01T02:10:00Z", "minutes": 15}
+	If cause '= "" Do slots.%Set("cause", cause)
+	Set notification = ..Notification(session, "page", "page.onCall", slots)
+	Set notification.DecisionRef = page.Ref
+	Set notification.IncidentRef = page.IncidentRef
+	Quit notification
+}
+
+/// Story 24.3a: a page Notification is a card of the web chat (kind page). Its text is Channel.PageText for the web (Watch.Paging.Text with the cause redacted and capped): with no backup set, the catalog text of page.onCallAlone with the
+/// Notification's slots, ending in its Why now line. The row keeps the page's Ref as DecisionRef and no due time, reason or approval; the one notification event carries the text
+/// without that last line, whyNow and an empty handledAt; the card is in RecentNotices. Another session gets nothing, the online demo records nothing (Watch.Paging refuses
+/// it), a page with no cause is rendered with the unknown-cause sentence and a page whose key is no page key is an error.
+Method TestPageCard()
+{
+	Do ##class(OcuTalon.Test.Watch.Paging).SaveKeys()
+	For key = "oncall.backup.user", "oncall.backup.email" Do ##class(OcuTalon.Test.Watch.Paging).Write(key, "")
+	Set session = ..Session("page")
+	Set other = ..Session("pageother")
+	Set page = ..PageRow("zzweb"_..Number_"pagecard")
+	Set notification = ..PageNotification(session, page, "The partner sent a bad date.")
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the page is delivered")
+	Do $$$AssertEquals(..Rows(session)_"|"_..Rows(other), "1|0", "one row for the session and none for another")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "the page is a card in RecentNotices")
+	If $IsObject(row) {
+		Set body = "3 messages failed in the Orders production since "
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.DecisionRef_"|"_row.DueAt_"|"_row.FallbackReason_"|"_row.ApprovalRef, "web|page|"_page.Ref_"|||", "its channel, kind and the page's Ref, and nothing else")
+		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), "a new message id")
+		Do $$$AssertEquals($Extract(row.Text, 1, $Length(body)), body, "the text starts with the count, the noun and the production")
+		Do $$$AssertTrue(row.Text [ " The partner sent a bad date.", "and has the cause sentence")
+		Do $$$AssertEquals($Piece(row.Text, $Char(10), 2, *), "Why now: you're on call for OcuTalon. Press Got it to show you're on it.", "and ends in the page's Why now line (no backup is set)")
+		Do $$$AssertEquals(row.Text, ##class(OcuTalon.Channel.PageText).Text(notification, "web"), "the text is Channel.PageText for the web")
+	}
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.kind_"|"_payload.decisionRef_"|"_payload.handledAt_"|"_payload.dueAt_"|"_payload.fallbackReason, "page|"_page.Ref_"|||", "the payload: kind page, the page's Ref and no handledAt, due time or reason")
+		Do $$$AssertEquals(payload.whyNow, "Why now: you're on call for OcuTalon. Press Got it to show you're on it.", "whyNow is the last line")
+		Do $$$AssertEquals(payload.text_$Char(10)_payload.whyNow, row.Text, "and the text is the rest")
+		Do $$$AssertEquals(payload.%ToJSON(), ##class(%DynamicObject).%FromJSON(..Json(##class(OcuTalon.Live.Payload.Notification).FromRow(row))).%ToJSON(), "the payload is the one that FromRow makes of the row")
+	}
+	Do $$$AssertEquals(..Notifications(other).%Size(), 0, "another session has no event")
+	Set unknown = ..PageNotification(session, page, "")
+	Do $$$AssertStatusOK(..Out().OnNotification(unknown, .response), "a page with no cause is delivered")
+	Do $$$AssertTrue(..LastRow(session).Text [ " I couldn't work out the cause.", "with the unknown-cause sentence")
+	Set before = ..Rows(session)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do $$$AssertStatusNotOK(..Out().OnNotification(notification, .response), "on the online demo the page is refused")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set broken = ..PageNotification(session, page, "")
+	Set broken.CatalogKey = "notice.tellNow"
+	Do $$$AssertStatusNotOK(..Out().OnNotification(broken, .response), "and a page whose key is no page key is an error")
+	Do $$$AssertEquals(..Rows(session), before, "neither records a row")
+	Do ##class(OcuTalon.Test.Watch.Paging).PutKeysBack()
+}
+
+/// Story 24.3a: a handled Notification for an acknowledged page publishes the page card again (its own ref, now with handledAt = Data.Page Marked) and records the bare handled
+/// row; the card stays the only entry of RecentNotices, and the reloaded payload has the same handledAt. A second handled Notification records its row only (the newest row is then the handled row).
+Method TestPageHandledRepublishesTheCard()
+{
+	Do ##class(OcuTalon.Test.Watch.Paging).SaveKeys()
+	For key = "oncall.backup.user", "oncall.backup.email" Do ##class(OcuTalon.Test.Watch.Paging).Write(key, "")
+	Set session = ..Session("pagehandled")
+	Set page = ..PageRow("zzweb"_..Number_"pagehandled")
+	Do $$$AssertStatusOK(..Out().OnNotification(..PageNotification(session, page, "The partner sent a bad date."), .response), "the page is delivered")
+	Set card = ..Newest(session)
+	Do $$$AssertTrue($IsObject(card), "the card exists")
+	If '$IsObject(card) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Notification).FromRow(card).HandledAt, "", "before the acknowledgement: no handledAt")
+	Set page.AcknowledgedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set page.AcknowledgedChannel = "web"
+	Do $$$AssertStatusOK(page.%Save(), "the page is acknowledged")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, page.Ref), .response), "the handled Notification is delivered")
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 2, "one more notification event")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(1).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.decisionRef_"|"_payload.handledAt, card.ChannelMessageId_"|page|"_page.Ref_"|"_page.AcknowledgedAt, "the card's own ref, with handledAt")
+		Do $$$AssertEquals(payload.text_$Char(10)_payload.whyNow, card.Text, "and its text as it was")
+	}
+	Do $$$AssertEquals(..Rows(session), 2, "the card and the bare handled row")
+	Set last = ..LastRow(session)
+	Do $$$AssertEquals(last.Channel_"|"_last.Kind_"|"_last.DecisionRef_"|"_last.Text_"|"_last.ChannelMessageId, "web|handled|"_page.Ref_"||", "the bare row: no text, no message id")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "the card is still the only entry of RecentNotices")
+	Set payload = ##class(OcuTalon.Live.Payload.Notification).FromRow(##class(OcuTalon.Data.Ownership).RecentNotices(session, 1).GetAt(1))
+	Do $$$AssertEquals(payload.HandledAt_"|"_payload.Kind, page.AcknowledgedAt_"|page", "a reload shows the page card as handled")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, page.Ref), .response), "a second handled Notification is delivered")
+	Do $$$AssertEquals(..Notifications(session).%Size()_"|"_..Rows(session), "2|3", "no second event, only its row")
+	Do ##class(OcuTalon.Test.Watch.Paging).PutKeysBack()
 }
 
 /// A handled Notification with no tell-now card for its DecisionRef records the bare Delivery row only, with no event: none at all, and a digest card
