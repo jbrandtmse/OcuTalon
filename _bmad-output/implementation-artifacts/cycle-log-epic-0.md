@@ -1050,3 +1050,4 @@
 2026-11-16T00:48:51Z	DW-1389	stage_spawned	stage=qa spawn_at=2026-11-16T00:48:51Z model=sonnet effort=high agent_name=dw-1389-qa-1 cycle_iteration=1
 2026-11-16T01:16:16Z	DW-1389	qa_complete	model=sonnet commit=61ff38a68 tests=TestTriageOutcomes(+refusal_clause_pin,+position_after_Keep_it_for_that_digest;2_mutations) shard_lane-a@Agent=fwd_23/23,reverse_red_7/23(ScheduleHandler_race,new_flake_entry)_rerun_23/23 eval-set=pass
 2026-11-16T01:16:16Z	DW-1389	stage_spawned	stage=code-review spawn_at=2026-11-16T01:16:16Z model=opus effort=high agent_name=dw-1389-code-review-1 cycle_iteration=1
+2026-11-16T01:28:55Z	DW-1389	cr_complete	model=opus findings=24(2_low_patched:whole-sentence_pin+Verification_pointer,rest_rejected) high=0 med=0 ledger=none final_status=done rule3=Instructions_pass,eval-set_pass note=DW-1389_status_stays_open_until_the_Planner_A/B_passes

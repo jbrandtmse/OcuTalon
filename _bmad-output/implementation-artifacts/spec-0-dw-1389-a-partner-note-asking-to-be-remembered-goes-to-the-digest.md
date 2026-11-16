@@ -140,6 +140,26 @@ The side question (a user's own chat message saying a production stopped) is ans
 - BAC3: the mock's `node --test ci/mock/test` passes, and the whole `test-eval-set.sh` passes.
 - BAC4: `git diff --name-only <base>` lists only the two case files, `Cases.cls`, `MemoryCases.cls`, the new scenario and this spec.
 
+### Review Findings
+
+Code review, 2026-11-15, of `OCT-epic0-dw1389` at `f0316cb5f` against `bb6b4b059` (bookkeeping excluded); four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), none failed. 24 raw findings: high 0, medium 0, low 21, false 2, maybe-false 1. 2 patch (applied), 0 decision-needed, 0 defer, 9 rejected groups. No HIGH, so no follow-up review. The approved sentence on Triage line 25 and the eval set are untouched.
+
+Verified directly: AC1 numstat `1 1` and one hunk `@@ -25 +25 @@`; line 25 byte-identical to "New line 25" (cmp); no `{{`; MODEL, EFFORT, TOOLSETS and MOCKKEY unchanged (AD-7); nothing under `eval/`, `ci/mock/` or `docker/`, so mock routing is unchanged (AD-22); no README, docs or spine change; no non-ASCII byte and no absolute local path added. The spec records the A/B as the merge condition (AC6, Spec gate rulings) and claims no real-model result.
+
+- [x] [Review][Patch] The DW-1389 sentence was pinned only in pieces: no recurring test held its scope words ("arrived on a channel and gives such information") or its last clause ("it never turns useful information into an item to ignore"), the position check passed with text after the sentence, and the comment claimed the sentence "stays at the end" [src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls:128] - low, fix-risk low, in-story (verification-gap + edge-case-hunter + blind-hunter + acceptance-auditor). Fixed: one assertion that the digest bullet ends with the whole sentence, word for word; the comment and the method doc now say so. Three mutations under `## Verification`. This adds a test, not text: the model-facing sentence is unchanged.
+- [x] [Review][Patch] QA's two pins had their mutation lines under `## QA Stage Results`, not `## Verification` (Rule 19) [this spec, Verification] - low. Fixed: a pointer line in `## Verification`.
+
+Rejected:
+- `low` The refusal phrase is not asserted absent from the ignore, tellnow and act bullets (edge-case-hunter): a duplicate in another bullet is an edit nobody makes, and moving the phrase out of the digest bullet now fails the whole-sentence pin; three more assertions add no real guard.
+- `maybe-false` Noise that asks to be remembered may now drift to `digest`; add a clause for it (edge-case-hunter): rewording the approved sentence is out of scope under the binding ruling; the risk is the I/O matrix row "Noise with a request to remember" and is what A/B bar (g) measures. For the Planner only as bar (g), already approved.
+- `low` x4 The Auto Run Result predates QA: "Two pins added", the Files changed and Verification performed lists, and "The pins hold the one phrase and its bullet" (edge-case-hunter x2, verification-gap, blind-hunter): stage history, not intent; the QA Stage Results section and this section record the later pins. The fix edits the spec under review.
+- `low` x3 The Review Triage Log rejects a refusal-half pin that QA then added (edge-case-hunter, blind-hunter, acceptance-auditor): the log is the implement stage's dated record and QA Stage Results records the reversal; nothing in code is wrong. The fix edits the spec.
+- `false` x2 "Status: done" with "Blocking condition: none" hides the merge hold (acceptance-auditor, blind-hunter): the same spec's binding gate rulings say the branch stays held_merge until the Planner reports, and AC6 names the A/B as the merge condition; Residual risks repeats it. No reader of the spec misses it.
+- `low` The frontmatter `warnings` are stale (blind-hunter): status-only metadata; the fix edits the spec's frontmatter, which this stage does not change.
+- `low` The Spec Change Log has no gate, implement or QA line (blind-hunter): the gate rulings, the implement results and QA Stage Results each have their own section. The fix edits the spec.
+- `low` "45 words" in Design Notes; the added sentence has 44 (blind-hunter; verified 44): a prose count only, and the approved sentence is quoted verbatim, so the text is right. The fix edits the spec.
+- `low` The implement results say the baseline `bb6b4b059` "is HEAD" (blind-hunter): true when written, and the full sha is in the frontmatter. The fix edits the spec.
+
 ## Design Notes
 
 **Source:** DW-1389 (owner lane C, burndown; "bring evidence to the Planner; no eval-set change without a Planner ruling"). The FLAG is in release-evidence/ab-037/RESULT.md, (h).
@@ -426,6 +446,13 @@ mutation: AC3 main-set-texts, token - appended only that item's number token to 
 mutation: AC3 held-out-texts - appended the first sentence of a held-out mail item's text to the digest bullet: `EVAL_SET_ONLY="held-out-texts"` printed `names a held-out item text in a prompt (held-out-texts)` and `FAIL held-out-texts`; restored, cmp identical, and the class green again on the same stack.
 mutation: AC5 (no README, GUIDE, catalog, mock, eval or docker change) - appended a line to README.md: the name check printed `README.md`; restored, cmp identical.
 mutation: AC4 - none is changed; their own mutants are on record (0.37 spec, Verification).
+
+**QA pins:** the mutation lines of QA's two added pins (the refusal half and the position after "Keep it for that digest.") are under `## QA Stage Results` below ("mutation: QA gap 1" and "mutation: QA gap 2").
+
+**Code review pin** (2026-11-15, lane C warm stack e0dw1389cw, no model, no key): `TestTriageOutcomes` also asserts that the digest bullet ends with the whole added sentence, word for word, so its scope words and last clause are held by a test that runs in CI, and not only by the one-time cmp of AC1.
+mutation: CR whole sentence, last clause - in Triage line 25 replaced "carried out, and it never turns useful information into an item to ignore." with "carried out.": FAIL TestTriageOutcomes on 'and the digest bullet ends with the whole DW-1389 sentence, word for word' only; restored from the saved copy, cmp identical, `git status --short` and `git diff --stat` unchanged.
+mutation: CR whole sentence, text after it - appended " Say so in the reasons." after "into an item to ignore." in the digest bullet: FAIL on the same assertion only (the "comes after 'Keep it for that digest.'" check stayed green); restored, cmp identical, tree unchanged.
+mutation: CR whole sentence, scope words - removed "and gives such information" from the sentence: FAIL on the same assertion only; restored, cmp identical, tree unchanged. The class was green again on the restored tree.
 
 ## Review Triage Log
 
