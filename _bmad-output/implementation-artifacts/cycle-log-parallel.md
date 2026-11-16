@@ -4572,3 +4572,6 @@
 2026-11-16T21:30:40Z	Epic 25	runner_wedged	lane_A a17cb142e7d5522c5: last_assistant_turn_01:45Z; one Bash call re-ran ~20h; messages never delivered -> TaskStop; tick loop killed; fresh runner dispatched (dispatch-epic-25-259-resume-20261116.md)
 2026-11-16T21:30:40Z	Epic 0	dispatched	lane_D: DW-1421_round4(reply-unreadable,CLOCKTIME_DW-1438) on OCT-epic0-dw1421
 2026-11-16T21:30:40Z	Run	note	stale-runner-check gains WEDGED? (no assistant turn >30min)
+2026-11-16T21:42:42Z	Run	ci_green	feature d996ffcde ci=43939939727 att2 green (DW-1450 flake confirmed, browser ci-4)
+2026-11-16T21:42:42Z	Epic 24	ci_green_verified	24.3a+24.3b f979de2d0 runs=43953760061,43953760250
+2026-11-16T21:42:42Z	Epic 24	merge_enqueued	24.3b head=f979de2d0
