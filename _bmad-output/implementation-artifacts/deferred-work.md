@@ -8774,3 +8774,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-memory-offline.sh runs Test.Memory.Volume; settle by running that unit on a lane-C throwaway
 - 2026-11-16T17:02:30Z status=open owner=28-2-fade-unused-memories-and-merge-duplicates-nightly by=harvest note=settle at QA or the lead's smoke
 - 2026-11-16T17:56:56Z status=resolved-by:28-2-fade-unused-memories-and-merge-duplicates-nightly by=cr note=QA ran ci/iris.sh live memory-offline on a lane-C throwaway: PASS OcuTalon.Test.Memory.Volume (10,000 and 500 memories, the plan reads EmbeddingIdx) with NEARESTSQL selecting LastUsedAt
+
+### DW-1451: flake: live:sign-in-3 web/e2e/memory-card.spec.ts:219 MC3 hit the 45 s test timeout at line 119 (await answer.finished()), called from line 249, on a Playwright-fulfilled 500 of the notes route
+- source: ci run 43943159296 job iris (shards-5) 133565710915 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: runner ocutalon-ci-27; the hung response is route.fulfill (no server code serves it); fresh lane-C repro of sign-in-3 part 4/4 at the same code passed 34/34 (memory-card 26 tests, 57 s)
+- 2026-11-16T21:18:50Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second hit on any head makes it a cause-and-fix story
