@@ -4541,3 +4541,6 @@
 2026-11-16T18:58:11Z	Epic 21	merged	DW-1421_r2 merge=dddd24dfc
 2026-11-16T19:25:53Z	Epic 23	ci_green_verified	s2314 38c205712 runs=43889525115(att3;att2=DW-432_ci-17),43889525137
 2026-11-16T19:25:53Z	Epic 23	merge_enqueued	s2314 head=38c205712
+2026-11-16T19:29:56Z	Epic 23	merged	s2314 merge=d996ffcde production=24min browser=31min
+2026-11-16T19:30:31Z	Epic 27	runner_reported	27.1 pushed=d57a6d753(CI_pending) R7_A/B_ready(4_notes_cases,10_runs) merge=held_for_A/B decisions=DW-1440,DW-1441,DW-1442 relayed=contest_planner
+2026-11-16T19:30:31Z	Epic 28	runner_reported	28.2 pushed=095439140(lane-a_green,ci_running) PLANNER_REPORT_28.3_gate(G1-G9,P1-P10,iris-mcp-server_identity_blocker,split_28.5_proposed) relayed=contest_planner
