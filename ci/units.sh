@@ -142,6 +142,10 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # A known exception to Story 0.20's rule that a unit of two or more areas stays at 900 s or less: shard:lane-a@Docs,Partner is about 1,246 s (Docs 1,056 s planned plus about 190 s). A piece of its
 # own for Partner (about 613 s with a stack start and teardown of 423 s) would take shards-7 to about 33.7 min or shards-3 to about 31.6 min, so the two areas share one stack (inference). The
 # exception is recorded in the ledger under DW-1032 (contiguous class parts per area), which would let the piece be cut.
+# The CI rebalance of 2026-11-16 (the Contest Planner's 1.0.12 cut story, tests only, no limit raised): on run 43823569610 the job iris (shards-2) took 31.9 of its 32 minutes (READY lane-a@rest 296 s,
+# shard:lane-a@rest 1,250 s, live:session-data 338 s and live:install-script-live 299 s) and iris (shards-3) took 20.2 minutes (live:floor 659 s and live:demo-switch 530 s). live:install-script-live
+# moved from shards-2 to shards-3, the one unit moved: planned shards-2 about 26.9 minutes (31.9 less 299 s) and shards-3 about 25.2 minutes (20.2 plus 299 s) (inference until a run measures both). No group
+# is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo-path" ;;
@@ -149,9 +153,9 @@ group_units() {
     production) echo "live:production live:production-restart shard:lane-a@Channel" ;;
     browser) echo "live:demo-path live:online-demo" ;;
     shards) echo "shard:lane-a@Install,Digest,Eval live:online-allowance live:heartbeat-restart" ;;
-    shards-2) echo "shard:lane-a@rest live:session-data live:install-script-live" ;;
+    shards-2) echo "shard:lane-a@rest live:session-data" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b@Contract,Core,Data,Live live:compose-start" ;;
-    shards-3) echo "live:floor live:demo-switch" ;;
+    shards-3) echo "live:floor live:demo-switch live:install-script-live" ;;
     shards-4) echo "live:sign-in-2 live:memory-offline" ;;
     shards-5) echo "live:sign-in-3 live:security-overview live:audit" ;;
     shards-6) echo "live:documents shard:lane-b@rest live:bundle-folder" ;;

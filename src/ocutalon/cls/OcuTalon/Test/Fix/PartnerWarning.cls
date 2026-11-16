@@ -43,6 +43,8 @@ Include Ensemble
 ///   - TestSettingsContactsKeptWithoutAMailbox (AC6): with no mailbox it could not start with NOTSETUP, submits and delivers nothing, and reads result.partnerKept;
 ///   - TestSettingsContactsSkipped (AC7): a removed contact, and every contact removed, are skipped and counted: the run is done and reads result.partnerSkipped, and with none left nothing is submitted;
 ///   - TestSettingsContactsSendFailed (AC5): a send that was not made ends failed with the CommandResult's message: EmailOut's sentence reads fix.emailNotSent, any other reason result.partnerNotSent;
+///   - TestMayHaveSent, TestSendOutcome, TestFailedMessageKnowsWhetherTheSendBegan (Story 23.15): MayHaveSent is MESSAGEMAYHAVESENT only; SendOutcome, the one decision of sent, maysent, notsent or kept, for every answer
+///     (the claim of the approval says whether a run that a restart cut short had begun the send); the executor's wrappers turn MESSAGEFAILED into MESSAGEMAYHAVESENT when the claim shows that the send had begun;
 ///   - TestSettingsContactResultKeys (AC4, AC5): ResultKey, ResultSlots and AskedKey for a request that is not simulated, and the texts they render;
 ///   - TestNoOutcomeGuards (AC5, Story 23.11 QA): a full fix followed by a run of an unknown kind (an unknown kind counts as a run), a reroute of nothing on a Count 0 incident and a reroute whose run reports a skipped message give no Outcome line.
 Class OcuTalon.Test.Fix.PartnerWarning Extends %UnitTest.TestCase
@@ -674,6 +676,16 @@ Method TestSettingsContactsSendFailed()
 	Do ..Send(host, ref)
 	Set last = host.Results.%Get(host.Results.%Size() - 1)
 	Do $$$AssertEquals(last.completed_"|"_last.reason_"|"_..State(ref), "0|"_$Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")_"|failed", "a send that throws fails with EmailOut's MESSAGEFAILED")
+	Set host.MailIs = "throw"
+	Set ref = ..SettingsRequest(owner, incident, "approved", a, b)
+	Do ..Claim(ref, "pending")
+	Do ..Send(host, ref)
+	Set last = host.Results.%Get(host.Results.%Size() - 1)
+	Set maySent = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEMAYHAVESENT")
+	Do $$$AssertEquals(last.completed_"|"_last.reason_"|"_..State(ref), "0|"_maySent_"|failed", "a send that throws after EmailOut's claim was made (the send had begun) fails with MESSAGEMAYHAVESENT, not MESSAGEFAILED")
+	Set key = ##class(OcuTalon.Watch.Notice).ResultKey("failed", ..ResultOf(last), "partner_warning", 0)
+	Do $$$AssertEquals(key_"|"_##class(OcuTalon.Msg.Catalog).Render(key, ##class(OcuTalon.Watch.Notice).ResultSlots(key, ..ResultOf(last), {}, .sc), "web", .sc), "result.partnerMaySent|The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.", "which the chat reads as result.partnerMaySent")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", ref)
 	Set host.MailIs = {"sent": 0, "outcome": "failed", "message": "Some other words"}.%ToJSON()
 	Set ref = ..SettingsRequest(owner, incident, "approved", a, b)
 	Do ..Send(host, ref)
@@ -720,21 +732,95 @@ Method TestSettingsContactResultKeys()
 	Do $$$AssertEquals($ClassMethod(..#KIND, "OutReason", $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREJECTED"))_"|"_$ClassMethod(..#KIND, "OutReason", $Parameter("OcuTalon.Channel.Email.Out", "MESSAGESENT"))_"|"_$ClassMethod(..#KIND, "OutReason", "Some other words")_"|"_$ClassMethod(..#KIND, "OutReason", ""), "1|0|0|0", "OutReason knows EmailOut's sentences, and not its sent one")
 }
 
-/// DW-1416: MayHaveSent is 1 for the EmailOut sentences that do not say that the mail server never took the email (MESSAGEMAYHAVESENT, MESSAGEUNREACHABLE, MESSAGEFAILED: the claim of an approval is marked failed
-/// whatever the failure), and 0 for the sentences that say nothing was handed over (refused, not connected, rejected, refused login, sign-in, unavailable), for EmailOut's sent sentence, for the kind's own reasons and for no reason.
+/// DW-1416, Story 23.15: MayHaveSent is 1 only for MESSAGEMAYHAVESENT, the EmailOut sentence that says the email may have gone out (EmailOut and the executor's wrappers answer it for every failure that may have
+/// come after the message was handed over). It is 0 for the sentences that say nothing was handed over (refused, not connected, rejected, refused login, sign-in, unavailable, MESSAGEUNREACHABLE: the server was never
+/// reached, MESSAGEFAILED: an error before the hand-over), for EmailOut's sent sentence, for the kind's own reasons and for no reason.
 Method TestMayHaveSent()
 {
 	Set out = "OcuTalon.Channel.Email.Out"
-	For name = "MESSAGEMAYHAVESENT", "MESSAGEUNREACHABLE", "MESSAGEFAILED" {
-		Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(out, name)), 1, name_" may have been sent")
-	}
-	For name = "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE", "MESSAGESENT" {
+	Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(out, "MESSAGEMAYHAVESENT")), 1, "MESSAGEMAYHAVESENT may have been sent")
+	For name = "MESSAGEUNREACHABLE", "MESSAGEFAILED", "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE", "MESSAGESENT" {
 		Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(out, name)), 0, name_" was not handed to the mail server, or was sent")
 	}
 	Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(..#KIND, "NOSTART"))_"|"_$ClassMethod(..#KIND, "MayHaveSent", $Parameter(..#KIND, "NOTSETUP"))_"|"_$ClassMethod(..#KIND, "MayHaveSent", "Some other words")_"|"_$ClassMethod(..#KIND, "MayHaveSent", ""), "0|0|0|0", "the kind's own reasons, other words and no reason are not may-have-sent")
 }
 
+/// Story 23.15: SendOutcome, the one decision of what became of an approved notice. A run that completed any recipient is sent; the NOTSETUP reason is kept; a failed run is maysent only for MESSAGEMAYHAVESENT and
+/// notsent for every other reason; a run that a restart cut short is maysent when EmailOut's claim of the approval exists (pending, maysent or sent) and notsent when there is none or it is marked failed; a simulated
+/// notice is never maysent.
+Method TestSendOutcome()
+{
+	Set out = "OcuTalon.Channel.Email.Out"
+	Set ref = "zzoutcome"_..Number
+	Do ..DropClaims()
+	Set maySent = $Parameter(out, "MESSAGEMAYHAVESENT")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "done", 2, 0, 0, "", 0), "sent", "a run that completed its recipients is sent")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "done", 1, 1, 0, "", 0), "sent", "one that completed some and skipped one is sent")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "done", 0, 2, 0, "", 0), "notsent", "one that skipped every recipient sent nothing")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 0, $Parameter(..#KIND, "NOTSETUP"), 0), "kept", "a failed run with the NOTSETUP reason is kept")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 0, maySent, 0), "maysent", "MESSAGEMAYHAVESENT is maysent")
+	For name = "MESSAGEUNREACHABLE", "MESSAGEFAILED", "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE" {
+		Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 0, $Parameter(out, name), 0), "notsent", name_" is notsent")
+	}
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 0, $Parameter(..#KIND, "NOSTART"), 0), "notsent", "the kind's own reason is notsent")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "done", 0, 0, 0, maySent, 0), "notsent", "a done run is never maysent")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 0, maySent, 1), "notsent", "a simulated notice is never maysent")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 2, "", 0), "notsent", "a run cut short with no claim of the approval had not begun the send")
+	For mark = "pending", "maysent", "" {
+		Do ..Claim(ref, mark)
+		Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 2, "", 0), "maysent", "a run cut short whose claim is '"_mark_"' had begun the send")
+		Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 2, "", 1), "notsent", "but a simulated notice never is maysent, '"_mark_"'")
+		Do ..DropClaims()
+	}
+	Do ..Claim(ref, "failed")
+	Do $$$AssertEquals($ClassMethod(..#KIND, "SendOutcome", ref, "failed", 0, 0, 2, "", 0), "notsent", "a claim marked failed means the send did not begin")
+	Do ..DropClaims()
+}
+
+/// Story 23.15: Fix.Kind.Email FailedMessage and Unfinished, the executor's wrappers: Out's MESSAGEFAILED becomes MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (pending, maysent or sent), and stays
+/// when there is no claim or it is marked failed; any other message is returned as it is.
+Method TestFailedMessageKnowsWhetherTheSendBegan()
+{
+	Set email = "OcuTalon.Fix.Kind.Email"
+	Set out = "OcuTalon.Channel.Email.Out"
+	Set failed = $Parameter(out, "MESSAGEFAILED")
+	Set maySent = $Parameter(out, "MESSAGEMAYHAVESENT")
+	Set ref = "zzoutcome"_..Number_"w"
+	Do ..DropClaims()
+	Do $$$AssertEquals($ClassMethod(email, "FailedMessage", ref, failed), failed, "with no claim the send had not begun")
+	For mark = "pending", "maysent", "" {
+		Do ..Claim(ref, mark)
+		Do $$$AssertEquals($ClassMethod(email, "FailedMessage", ref, failed), maySent, "a claim '"_mark_"' means the send had begun")
+		Do $$$AssertEquals($ClassMethod(email, "FailedMessage", ref, $Parameter(out, "MESSAGEREJECTED")), $Parameter(out, "MESSAGEREJECTED"), "but EmailOut's own sentence is returned as it is, '"_mark_"'")
+		Do ..DropClaims()
+	}
+	Do ..Claim(ref, "failed")
+	Do $$$AssertEquals($ClassMethod(email, "FailedMessage", ref, failed), failed, "a claim marked failed means the send did not begin")
+	Do ..DropClaims()
+	Do ..Claim(ref, "pending")
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set row.Ref = ref
+	Set unfinished = $ClassMethod(email, "Unfinished", row)
+	Do $$$AssertEquals(unfinished.sent_"|"_unfinished.outcome_"|"_unfinished.message, "0|failed|"_maySent, "Unfinished reads the same claim")
+	Do ..DropClaims()
+	Set unfinished = $ClassMethod(email, "Unfinished", row)
+	Do $$$AssertEquals(unfinished.sent_"|"_unfinished.outcome_"|"_unfinished.message, "0|failed|"_failed, "and says MESSAGEFAILED with none")
+}
+
 /// --- helpers ---
+/// Story 23.15: a Delivery claim row of channel email for the approval, with the FallbackReason as given (EmailOut's claim of a send).
+Method Claim(approval As %String, mark As %String)
+{
+	Set sc = ##class(OcuTalon.Data.Delivery).Record("zzoutcomeowner", "email", ##class(OcuTalon.Bridge.Ids).NewRef(), approval, "", "", "", "", mark, .claim, "", "")
+	Do $$$AssertStatusOK(sc, "the claim row is made")
+}
+
+/// Removes the claim rows of TestSendOutcome and TestFailedMessageKnowsWhetherTheSendBegan.
+ClassMethod DropClaims()
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef LIKE 'zzoutcome%'")
+}
+
 /// Story 23.13: a Settings contact with the name and address (the productions as PartnerSupport Contact takes them); its ID, which is removed after the test.
 Method Contact(name As %String, address As %String, productions As %String = "") As %Integer
 {

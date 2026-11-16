@@ -98,9 +98,11 @@ Method TestEntries()
 	// Story 23.4 (Contest Planner ruling 2026-11-15, Public Text): the eight page.* keys (onCall, onCallEmail, backup, backupEmail, subject, onCallAlone, onCallEmailAlone, causeUnknown) take the Watch count to 141.
 	// Story 23.13 (Contest Planner rulings 2026-11-15 "23.13 GATE" and 2026-11-16 "23.13 re-plan"): incident.partnerRequestKept, incident.partnerRequestMailbox, result.partnerSkipped and partner.emailSubject take the Watch count to 145.
 	// Story 23.13 rework (Contest Planner ruling 2026-11-16, DW-1416): summary.partnerMaySent takes the Watch count to 146.
-	Do $$$AssertEquals(keys.watch.%Size(), 146, "the expected Watch list has 146 keys")
+	// DW-1376 (Contest Planner ruling 2026-11-15, "23.3 follow-ups"): summary.settingSavedNotApplied takes the Watch count to 147.
+	// Story 23.15 (Contest Planner ruling 2026-11-16, 23.15 text rulings): result.partnerMaySent takes the Watch count to 148 (with DW-1376's summary.settingSavedNotApplied, plain union at the merge).
+	Do $$$AssertEquals(keys.watch.%Size(), 148, "the expected Watch list has 148 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 161 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 146 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 148 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1394,6 +1396,7 @@ XData Keys [ MimeType = application/json ]
   "incident.partnerRequestKept",
   "incident.partnerRequestMailbox",
   "result.partnerSkipped",
+  "result.partnerMaySent",
   "partner.emailSubject",
   "mcp.serverUnavailable",
   "mcp.toolShadowsBuiltIn",
@@ -1416,6 +1419,7 @@ XData Keys [ MimeType = application/json ]
   "summary.settingRestored",
   "summary.rollbackUndone",
   "summary.settingNotChanged",
+  "summary.settingSavedNotApplied",
   "result.settingSavedNotApplied",
   "page.onCall",
   "page.onCallEmail",
@@ -1902,6 +1906,7 @@ XData Fixtures [ MimeType = application/json ]
  "incident.partnerRequestKept": {"slots": {"production": "Orders", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for the partner contacts set for Orders. Approve?\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent. The recipients are on the approval card on your OcuTalon page.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for the partner contacts set for Orders.\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
  "incident.partnerRequestMailbox": {"slots": {"production": "Orders", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for the partner contacts set for Orders. Approve sending it?\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card on your OcuTalon page.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for the partner contacts set for Orders.\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
  "result.partnerSkipped": {"slots": {"sent": 1, "skipped": 1, "total": 2}, "text": "The delay notice was sent to 1 of 2 partner contacts. Not sent to 1: they were removed from Settings > Partner contacts, or their address changed, since this request was made."},
+ "result.partnerMaySent": {"slots": {}, "text": "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again."},
  "partner.emailSubject": {"slots": {}, "text": "Delay notice"},
  "mcp.serverUnavailable": {"slots": {"server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "I couldn't connect to the MCP server Tickets at 14:15 ET, so I can't use its tools."},
  "mcp.toolShadowsBuiltIn": {"slots": {"server": "Tickets", "tool": "lookup"}, "text": "The MCP server Tickets offers a tool called 'lookup', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed."},
@@ -1924,6 +1929,7 @@ XData Fixtures [ MimeType = application/json ]
  "summary.settingRestored": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was put back to its earlier value."},
  "summary.rollbackUndone": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: the rollback of TargetConfigName on OrdersFromPartner was undone."},
  "summary.settingNotChanged": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was not changed."},
+ "summary.settingSavedNotApplied": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it."},
  "result.settingSavedNotApplied": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner", "reason": "The update timed out"}, "text": "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},

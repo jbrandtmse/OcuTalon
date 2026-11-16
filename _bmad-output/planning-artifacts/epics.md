@@ -8610,6 +8610,70 @@ So that the people who hear about a delay are the ones I chose.
 - DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
 - DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
 
+### Story 23.14: Epic 23 burn-down: results, summaries and partner mail say what really happened
+
+[ADDED 2026-11-16, chartered by Lane B's runner as Epic 23's burn-down story (Rule 17 (3), the burn-down gate; the gate needs no human). Its input is the routed MED entries Epic 23's reviews filed to the burn-down; flakes (DW-1083, DW-1428) and decision-pending entries (DW-1358, DW-1423, DW-1425) are not in it. It does not depend on Story 23.8 or inbox U-329. No public claim and no release-note line unless a ruling adds one.]
+[AMENDED 2026-11-16, orchestrator relay of the Contest Planner's 1.0.12 cut story (prompts/dw-1415-1416-rulings-20261116.md, last section, ~11:00Z): rescoped to DW-1050, DW-1117, DW-1417 and DW-1422's remainder; DW-1373, DW-1376 and DW-1378 stay with lane C; DW-1422's QUIT-after-250 case is fixed in the 1.0.12 cut story, not here; 23.14 runs after the cut]
+
+As an OcuTalon operator,
+I want every result line, summary line and partner email outcome to match what really happened,
+So that I never act on a record that says more, or less, than OcuTalon did.
+
+**Acceptance Criteria:**
+
+**Given** a partner request approved after its incident closed
+**When** the close tells `result.partnerNotSent`
+**Then** the request is ended and audited (ids only) so its session can be purged, and a repeated approved outcome is not told again (DW-1117)
+
+**Given** whatever of DW-1422 the 1.0.12 cut story leaves open (its QUIT-after-250 fix counts such an email as sent for every email kind)
+**When** EmailOut classifies an SMTP answer it can't place before or after the server accepted the message
+**Then** a partner warning's timeline never reads "not sent" for an email the server may have accepted, and each such case has a test (DW-1422, remainder)
+
+**Given** `Watch.Summary` and `Msg.Catalog`
+**When** a summary is stored or rendered
+**Then** both use one shared clean-character list and lookup (no private copy in `Watch.Summary`) (DW-1050), and `Test.Partner.PartnerMail` uses shared EmailOut test helpers instead of its copies of `Test.Channel.EmailOut`'s private ones (DW-1417)
+
+- DW-1050: Watch.Summary copies Msg.Catalog's private Clean character list and Lookup (ledger)
+- DW-1117: A partner request approved after its incident was closed stays approved for good (ledger)
+- DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (ledger)
+- DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage to REJECTED (ledger; remainder after the 1.0.12 cut story)
+
+
+### Story 23.15: 1.0.12 cut: partner mail says what happened, and the docs say who approves
+
+[ADDED 2026-11-16, Contest Planner's 1.0.12 CUT STORY for lane B (prompts/dw-1415-1416-rulings-20261116.md, last section, ~11:00Z; relayed by the orchestrator). BINDING. One branch from feature 0cdee2b76 or later, one commit per item. Public texts (DW-1423, DW-1425 and any card variant without {time}) land only after the Planner approves them.]
+
+As an OcuTalon admin,
+I want the card, the chat and the docs to say exactly what happened to a partner warning and who may approve one,
+So that nobody re-sends a notice that already went out, and nobody is surprised by who can approve outward email.
+
+**Acceptance Criteria:**
+
+**Given** `docs/security-overview.md`
+**When** it lists who may answer and what the `Action` audit records
+**Then** it states the admin-only approval rule for a partner warning to Settings contacts and the refused approve, in the Planner-approved words, and `test-security-overview.sh` stays green (DW-1423)
+
+**Given** `GUIDE.md`'s Partner delay notices bullet
+**When** it describes an install without demo mode
+**Then** its stale "without demo mode there are no partner contacts yet, so no notice is drafted" is replaced by the Planner-approved sentence (DW-1425)
+
+**Given** a partner warning whose send may have reached the mail server (EmailOut's may-have-sent answers, or a run interrupted by a restart)
+**When** the approval card and the chat show its result
+**Then** neither reads "Not sent: …" or "was not sent"; both use summary.partnerMaySent's wording (a variant without {time} only as the Planner approves it), and a test with a demonstrated mutation pins it
+
+**Given** an email of any kind that the mail server accepted (250 after DATA)
+**When** the QUIT that follows fails or gets no answer
+**Then** EmailOut counts the email as sent, for every email kind, and a test with a demonstrated mutation pins it (DW-1422; anything left over stays in Story 23.14)
+
+**Given** CI's shards-2 at 31.9 of its 32 minutes
+**When** a class moves to a lighter shard
+**Then** shards-2 has headroom, no limit is raised, only test placement changes, and the measured shard times are reported
+
+- DW-1423: docs/security-overview.md does not state the admin rule for partner warnings (ledger)
+- DW-1425: GUIDE.md line 12 is stale since 23.13 (ledger)
+- DW-1422: QUIT-stage SMTP answer after 250 classified as REJECTED (ledger; the QUIT-after-250 case)
+
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.

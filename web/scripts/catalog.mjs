@@ -124,6 +124,7 @@ export const LISTED_KEYS = [
   'result.rollbackUndone',
   'result.settingSavedNotApplied',
   'result.partnerSkipped',
+  'result.partnerMaySent',
   'fix.emailSent',
   'fix.emailNotSent',
   'incident.settingChangeCause',

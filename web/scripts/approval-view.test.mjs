@@ -6,6 +6,7 @@
 // the catalog's texts, the count-of-one forms, the tones and icons, the audit line, and undefined with no result. The view reads the catalog's page texts (msg/catalog.ts), the rail's title of a
 // request and the page's time formats through its context, so these tests pass the real ones.
 // Story 23.5: a partner delay notice's title, its To line, notice and note, and its four result bands.
+// DW-1378: the value a done setting band names (the request's after, the chat's result line, never the incident's recorded values).
 // Story 7.8: the dry run's either-way row, as the notice's line (many and one form, day first, the slots, the places it is absent, answered).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -113,7 +114,9 @@ describe('the rollback of a setting and its undo (Story 23.3)', () => {
   const CHANGE = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', credential: false, detectedAt: '2026-10-27T14:02:00Z' };
   const AUDIT = 'Recorded in the IRIS audit log.';
   const ran = (over = {}) => ({ total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over });
-  const band = (fixKind, result, over = {}) => resultView({ ref: 'A', state: 'done', fixKind, item: 'OrdersFromPartner', result, ...over }, undefined, renderPageText, 'Orders', CHANGE);
+  /** The dry runs' afters above: the value the server puts in the request part (DW-1378). */
+  const AFTER = { rollback_setting: 'OrdersToWarehouse', undo_rollback: 'OrdersToWarehous' };
+  const band = (fixKind, result, over = {}) => resultView({ ref: 'A', state: 'done', fixKind, item: 'OrdersFromPartner', after: AFTER[fixKind], result, ...over }, undefined, renderPageText, 'Orders', CHANGE);
 
   it('titles the request by the rail\'s title and names the buttons by it', () => {
     const view = approvalView(rollback(), ctx());
@@ -187,6 +190,100 @@ describe('the rollback of a setting and its undo (Story 23.3)', () => {
     assert.equal(band('rollback_setting', ran({ completed: 0, interrupted: 1, reason: 'x' })), undefined, 'interrupted');
     assert.equal(band('rollback_setting', ran({ completed: 0 })), undefined, 'nothing changed and no reason');
     assert.equal(resultView({ ref: 'A', state: 'done', fixKind: 'rollback_setting', result: ran() }, undefined, renderPageText, 'Orders'), undefined, 'no setting change in the incident');
+  });
+});
+
+describe('the value that the band of a done setting run names (DW-1378)', () => {
+  const CHANGE = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', credential: false, detectedAt: '2026-10-27T14:02:00Z' };
+  const POOL = { ...CHANGE, setting: 'PoolSize', oldValue: '1', newValue: '7' };
+  const ran = (over = {}) => ({ total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '', ...over });
+  const bandOf = (fixKind, change, after, result = ran()) => {
+    const request = { ref: 'A', state: 'done', fixKind, item: change.item, result };
+    if (after !== undefined) request.after = after;
+    return resultView(request, undefined, renderPageText, 'Orders', change);
+  };
+
+  it("names the request's after, the value the chat's result line names, and never the incident's recorded values", () => {
+    const table = [
+      ['rollback_setting', CHANGE, 'OrdersToWarehouse'],
+      ['undo_rollback', CHANGE, 'OrdersToWarehous'],
+      ['undo_rollback', POOL, '9'],
+      ['undo_rollback', CHANGE, 'https://feed.example.test/orders?token=[redacted]'],
+    ];
+    for (const [fixKind, change, after] of table) {
+      const key = fixKind === 'undo_rollback' ? 'result.rollbackUndone' : 'result.settingRestored';
+      const chat = renderPageText(key, { setting: change.setting, target: change.item, after });
+      const view = bandOf(fixKind, change, after);
+      assert.equal(view?.key, key);
+      assert.equal(view?.text, chat, `${fixKind} ${after}`);
+    }
+    // DW-1366: the System Default Setting moved to 9 while the item's own value hid it; the recorded new value 7 is stale.
+    assert.equal(bandOf('undo_rollback', POOL, '9')?.text, 'The rollback is undone: PoolSize on OrdersFromPartner is back to 9.');
+    assert.ok(!bandOf('undo_rollback', POOL, '9')?.text.includes('back to 7'));
+  });
+
+  it("gives a done run with no after no band and no error, for both kinds, though the incident has both recorded values", () => {
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      assert.equal(bandOf(fixKind, CHANGE, undefined), undefined, `${fixKind}: absent`);
+      assert.equal(bandOf(fixKind, CHANGE, ''), undefined, `${fixKind}: empty`);
+      assert.equal(bandOf(fixKind, CHANGE, '  '), undefined, `${fixKind}: blank`);
+    }
+  });
+
+  it('gives a done run that has an after but no setting or no item in the incident\'s change no band', () => {
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      const request = { ref: 'A', state: 'done', fixKind, item: CHANGE.item, after: '9', result: ran() };
+      assert.equal(resultView(request, undefined, renderPageText, 'Orders', undefined), undefined, `${fixKind}: no change`);
+      assert.equal(resultView(request, undefined, renderPageText, 'Orders', { ...CHANGE, setting: '' }), undefined, `${fixKind}: no setting`);
+      assert.equal(resultView(request, undefined, renderPageText, 'Orders', { ...CHANGE, item: '' }), undefined, `${fixKind}: no item`);
+      assert.notEqual(resultView(request, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}: the full change gives the band`);
+    }
+  });
+
+  it('keeps the not-applied, changed-since and not-changed bands whatever the after', () => {
+    const results = [
+      ran({ completed: 0, unreached: 1, reason: 'The update timed out' }),
+      ran({ completed: 0, skipped: 1, reason: 'TargetConfigName on OrdersFromPartner changed again since then' }),
+      ran({ completed: 0, reason: "OcuTalon isn't allowed to change settings in that production" }),
+    ];
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      for (const result of results) {
+        assert.deepEqual(bandOf(fixKind, CHANGE, '9', result), bandOf(fixKind, CHANGE, undefined, result), `${fixKind}: ${result.reason}`);
+        assert.notEqual(bandOf(fixKind, CHANGE, '9', result), undefined);
+      }
+    }
+  });
+
+  it('gives a setting request that has not ended no band, whatever its after: a pending, approved or executing request is not a result, and an executing one\'s result is not one yet', () => {
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      for (const state of ['pending', 'approved', 'executing']) {
+        const request = { ref: 'A', state, fixKind, item: CHANGE.item, after: '9' };
+        assert.equal(resultView(request, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, ${state}, no result`);
+      }
+      const executing = { ref: 'A', state: 'executing', fixKind, item: CHANGE.item, after: '9', result: ran() };
+      assert.equal(resultView(executing, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, executing, a done-shaped result while the run goes on`);
+      assert.notEqual(resultView({ ...executing, state: 'done' }, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}: the same result, done, is a band`);
+    }
+  });
+
+  it('keeps the band of a suspend or resume (DW-1373) as it is, though its request carries an after', () => {
+    const results = [
+      ran(),
+      ran({ completed: 0, unreached: 1, reason: 'The update timed out' }),
+      ran({ completed: 0, skipped: 1, reason: 'It was changed again' }),
+      ran({ completed: 0, reason: 'Not allowed' }),
+    ];
+    for (const fixKind of ['suspend_item', 'resume_item']) {
+      for (const result of results) {
+        const request = { ref: 'A', state: 'done', fixKind, item: CHANGE.item, result };
+        const without = resultView(request, undefined, renderPageText, 'Orders', CHANGE);
+        assert.notEqual(without, undefined, `${fixKind}: ${result.reason}`);
+        assert.deepEqual(resultView({ ...request, after: '9' }, undefined, renderPageText, 'Orders', CHANGE), without, `${fixKind}: ${result.reason}, with an after`);
+      }
+    }
+    const suspended = resultView({ ref: 'A', state: 'done', fixKind: 'suspend_item', item: CHANGE.item, after: '9', result: ran() }, undefined, renderPageText, 'Orders', CHANGE);
+    assert.equal(suspended?.key, 'result.itemSuspended');
+    assert.ok(!suspended?.text.includes('back to'));
   });
 });
 
@@ -360,6 +457,39 @@ describe('a partner delay notice (Story 23.5)', () => {
     const other = band({ state: 'failed', result: result({ total: 2, completed: 0, reason: 'Something else' }) });
     assert.deepEqual({ key: other.key, text: other.text }, { key: 'result.partnerNotSent', text: 'Not sent: Something else.' });
     assert.equal(band({ state: 'executing', result: result() }), undefined, 'a run still going has no band');
+  });
+
+  it('reads the may-have-sent band from the server\'s outcome, with the text of result.partnerMaySent and no "Not sent" (Story 23.15)', () => {
+    const request = (fields) => ({ ref: 'A', state: 'failed', fixKind: 'partner_warning', ...fields });
+    const maySent = 'The delay notice may have been sent. Check the mailbox\'s Sent folder before sending it again.';
+    const band = resultView(request({ result: result({ total: 2, completed: 0, outcome: 'maysent', reason: 'The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won\'t send it again.' }) }), undefined, render, '', undefined, false);
+    assert.deepEqual({ key: band.key, text: band.text, tone: band.tone, icon: band.icon }, { key: 'result.partnerMaySent', text: maySent, tone: 'partial', icon: 'triangle-alert' });
+    assert.equal(band.text, render('result.partnerMaySent', {}), 'the card\'s text is the catalog\'s');
+    assert.doesNotMatch(band.text, /Not sent/i);
+    assert.doesNotMatch(band.text, /new approval/i);
+    const cut = resultView(request({ result: result({ total: 2, completed: 0, interrupted: 2, outcome: 'maysent', reason: '' }) }), undefined, render, '', undefined, false);
+    assert.equal(cut.key, 'result.partnerMaySent', 'a run cut short after the send began reads the same');
+    const reasonOnly = resultView(request({ result: result({ total: 2, completed: 0, reason: 'The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won\'t send it again.' }) }), undefined, render, '', undefined, false);
+    assert.equal(reasonOnly.key, 'fix.emailNotSent', 'without the server\'s outcome the card does not work it out from the reason');
+    const notSent = resultView(request({ result: result({ total: 2, completed: 0, outcome: 'notsent', reason: "OcuTalon couldn't reach the mail server." }) }), undefined, render, '', undefined, false);
+    assert.equal(notSent.key, 'fix.emailNotSent', 'a not-sent outcome keeps the email result');
+    assert.equal(resultView(request({ state: 'executing', result: result({ outcome: 'maysent' }) }), undefined, render, '', undefined, false), undefined, 'a run still going has no band');
+    assert.equal(resultView(request({ result: result({ total: 2, completed: 0, interrupted: 2, outcome: 'notsent', reason: '' }) }), undefined, render, '', undefined, false), undefined, 'a run cut short before the send began has no band, as before');
+  });
+
+  it('takes sent, not sent and kept from the server\'s outcome too, never from the counts or the reason (Story 23.15)', () => {
+    const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
+    const view = (fields) => resultView(request(fields), undefined, render, '', undefined, false);
+    const sent = view({ result: result({ total: 2, completed: 1, skipped: 0, outcome: 'sent' }) });
+    assert.deepEqual({ key: sent.key, text: sent.text }, { key: 'fix.emailSent', text: 'The email was sent.' }, 'sent is the email result, even where the counts alone would read a part send to the Simulated mailbox');
+    const skipped = view({ result: result({ total: 3, completed: 2, skipped: 1, outcome: 'sent', reason: "OcuTalon couldn't deliver the delay notice" }) });
+    assert.equal(skipped.key, 'result.partnerSkipped', 'a done run that skipped someone names the skipped contacts');
+    const kept = view({ state: 'failed', result: result({ total: 2, completed: 0, outcome: 'kept', reason: 'Another reason.' }) });
+    assert.deepEqual({ key: kept.key, text: kept.text }, { key: 'result.partnerKept', text: "Approved and kept as a draft: email delivery isn't set up yet." }, 'kept is the draft band, whatever the reason says');
+    const notSent = view({ state: 'failed', result: result({ total: 2, completed: 2, outcome: 'notsent', reason: "OcuTalon couldn't reach the mail server." }) });
+    assert.equal(notSent.key, 'fix.emailNotSent', 'not sent is never a sent band, whatever the counts say');
+    const other = view({ state: 'failed', result: result({ total: 2, completed: 0, outcome: 'notsent', reason: "email delivery isn't set up yet" }) });
+    assert.deepEqual({ key: other.key, text: other.text }, { key: 'result.partnerNotSent', text: "Not sent: email delivery isn't set up yet." }, 'and never the kept band');
   });
 
   it('keeps today\'s bands for a simulated request or one that says nothing, and shows no sent band when it cannot tell (Story 23.13)', () => {

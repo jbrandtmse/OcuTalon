@@ -199,7 +199,7 @@ ClassMethod AsApproved(dryRun As %DynamicObject, parameters As %DynamicObject) A
 
 /// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner and nothing else: no recipients, no subject and
 /// no text. EmailOut takes all three from the approval's row, so that no address, subject or text is in the command or in its trace (DW-1255 rule 4, P4 (a)); parameters is only the
-/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
+/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn, or whose answer did not come back, is not sent, with Out's MESSAGEFAILED, or MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (SubmitApproved).
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
 	Set row = $Select($IsObject(run): ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(run.ApprovalRef), 1: "")
@@ -208,7 +208,8 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 }
 
 /// The submit of Execute, for the row of an approved request (the request's Ref and owner are all that the command carries): {"sent": 1 or 0, "outcome", "message"} from the CommandResult.
-/// A row that is not there, and a command that never reached CommandsIn, are not sent, with Out's MESSAGEFAILED.
+/// A row that is not there is not sent, with Out's MESSAGEFAILED. A command that never reached CommandsIn, one that CommandsIn answers with its own failure, and one that has no answer are not sent
+/// with Out's MESSAGEFAILED, unless the approval's claim shows that EmailOut had begun the send (FailedMessage): then the message is MESSAGEMAYHAVESENT.
 ClassMethod SubmitApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject
 {
 	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
@@ -218,8 +219,25 @@ ClassMethod SubmitApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Dyna
 	Set command.ApprovalRef = row.Ref
 	Set answered = ""
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .answered)
-	If $$$ISERR(sc) || '$IsObject(answered) Quit result
-	Quit {"sent": (+answered.Ok), "outcome": (answered.Outcome), "message": (answered.Message)}
+	If $$$ISERR(sc) || '$IsObject(answered) Quit ..Unfinished(row)
+	If +answered.Ok Quit {"sent": 1, "outcome": (answered.Outcome), "message": (answered.Message)}
+	Quit {"sent": 0, "outcome": (answered.Outcome), "message": (..FailedMessage(row.Ref, answered.Message))}
+}
+
+/// The result of a send of the row that ended without an answer from EmailOut (an error status, no answer, or an exception of the caller): not sent, with Out's MESSAGEFAILED, or with
+/// MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (FailedMessage).
+ClassMethod Unfinished(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject
+{
+	Quit {"sent": 0, "outcome": "failed", "message": (..FailedMessage($Select($IsObject(row): row.Ref, 1: ""), $Parameter(..#OUT, "MESSAGEFAILED")))}
+}
+
+/// The message of a send that was not sent: Out's MESSAGEFAILED is the sentence of an error that is not a failure of the mail server, and it comes from EmailOut itself (before the message
+/// was handed over), from CommandsIn (the command's answer did not come back) or from the caller (an exception); only the approval's claim says whether the send had begun. When the message is
+/// MESSAGEFAILED and the claim shows that it had (Out Began), the message is MESSAGEMAYHAVESENT. Any other message, which EmailOut chose for its own reason, is returned as it is.
+ClassMethod FailedMessage(ref As %String, message As %String) As %String
+{
+	If (message = $Parameter(..#OUT, "MESSAGEFAILED")) && $ClassMethod(..#OUT, "Began", ref) Quit $Parameter(..#OUT, "MESSAGEMAYHAVESENT")
+	Quit message
 }
 
 /// The mail method of an executing email row (see the class description): today's reading of its FixParameters. 0 for parameters that are not one JSON object.

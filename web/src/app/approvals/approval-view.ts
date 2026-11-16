@@ -32,7 +32,7 @@
  *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox." (no note for a request that is not simulated: its recipients are real contacts, and the chat's request
  *   text says whether a mailbox is connected). Its result bands for a simulated request are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
  *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent. For a request that is not simulated (Story 23.13) they are the catalog's texts:
- *   fix.emailSent (`completed` equal to `total` and above 0), result.partnerSkipped (a done run with `skipped` above 0), the kept draft's, fix.emailNotSent for a reason that ends with a full stop (one of EmailOut's sentences) and the not-sent text for any other reason; a caller that cannot tell whether the request is
+ *   result.partnerMaySent (the result's `outcome` is maysent, the server's one decision, Story 23.15: the card never works that out from the reason), fix.emailSent (`completed` equal to `total` and above 0), result.partnerSkipped (a done run with `skipped` above 0), the kept draft's, fix.emailNotSent for a reason that ends with a full stop (one of EmailOut's sentences) and the not-sent text for any other reason; a caller that cannot tell whether the request is
  *   simulated passes null, and a band that says anything was sent is then not shown.
  * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
  *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
@@ -564,14 +564,17 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
  * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
  *   place of result.allThrough; with failures or skips it has the bands above.
- * - a partner delay notice (fixKind partner_warning, Story 23.5): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
+ * - a partner delay notice (fixKind partner_warning, Story 23.5): a result whose `outcome` is maysent (Story 23.15; only a Settings-contact notice has one) is result.partnerMaySent, partial, `triangle-alert`, whatever the reason;
+ *   kept is the kept-as-a-draft band below; sent and notsent are result.partnerSkipped for a done run with `skipped` above 0, else fix.emailSent (sent), no band (notsent with no reason), fix.emailNotSent (a reason
+ *   that ends with a full stop) or "Not sent: {reason}." (the card follows the server's one decision and never works the outcome out from the counts or the reason); a result with no `outcome`
+ *   (a simulated notice): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
- * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting, item and value of the incident's settingChange): `completed` above 0 is
+ * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting and item of the incident's settingChange, and the request's `after`, the value that the chat's result line names, DW-1378): `completed` above 0 is
  *   result.settingRestored or result.rollbackUndone (after), success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (reason), partial,
  *   `triangle-alert`; a skip whose reason ends as the kind's CHANGEDAGAIN is result.settingChangedSince, partial; any other reason is result.itemNotChanged, partial. A run still
- *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band.
+ *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band; the band never names the settingChange's recorded values.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
@@ -692,7 +695,7 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
 /** The end of the reason of a setting request that was skipped because the setting changed again (Fix.Kind.RollbackSetting CHANGEDAGAIN). */
 const SETTING_CHANGED_AGAIN = ' changed again since then';
 
-/** The band of a rollback or an undo of a setting (Story 23.3): see resultView. The setting, its item and the value it has again are the incident's settingChange (the old value after a rollback, the new one after an undo). */
+/** The band of a rollback or an undo of a setting (Story 23.3): see resultView. The setting and its item are the incident's settingChange; the value it has again is the request's `after`, the After of its approved dry run that the chat's result line names (DW-1378), never the settingChange's recorded old or new value. */
 function settingResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, change: SettingChange | undefined): ResultView | undefined {
   const reason = textOf(result.reason);
   const setting = textOf(change?.setting);
@@ -700,7 +703,7 @@ function settingResultView(request: IncidentRequest, result: IncidentRequestResu
   if (request.state === 'executing' || (numberOf(result.interrupted) ?? 0) > 0) {
     return undefined;
   } else if ((numberOf(result.completed) ?? 0) > 0) {
-    const after = textOf(request.fixKind === 'undo_rollback' ? change?.newValue : change?.oldValue);
+    const after = textOf(request.after);
     if (setting === '' || target === '' || after === '') {
       return undefined;
     }
@@ -730,6 +733,25 @@ function partnerResultView(request: IncidentRequest, result: IncidentRequestResu
   let icon: ResultView['icon'] = 'triangle-alert';
   if (request.state === 'executing' || (simulated === null && completed > 0)) {
     return undefined;
+  } else if (result.outcome === 'maysent') {
+    return bandOf('result.partnerMaySent', {}, 'partial', 'triangle-alert', render);
+  } else if (result.outcome === 'kept') {
+    key = 'result.partnerKept';
+    text = APPROVAL_TEXTS.partnerKept;
+  } else if (result.outcome === 'sent' || result.outcome === 'notsent') {
+    // Story 23.15: the server's one decision says whether the notice was sent; the counts and the reason only pick the text of that answer.
+    const skipped = numberOf(result.skipped) ?? 0;
+    if (request.state === 'done' && skipped > 0) {
+      return bandOf('result.partnerSkipped', { sent: String(completed), skipped: String(skipped), total: String(total) }, 'partial', 'triangle-alert', render);
+    } else if (result.outcome === 'sent') {
+      return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
+    } else if (raw === '') {
+      return undefined;
+    } else if (raw.endsWith('.')) {
+      return bandOf('fix.emailNotSent', { reason: raw }, 'partial', 'triangle-alert', render);
+    }
+    key = 'result.partnerNotSent';
+    text = fill(APPROVAL_TEXTS.partnerNotSent, { reason });
   } else if (simulated === false && completed > 0 && completed >= total) {
     return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
   } else if (simulated === false && request.state === 'done' && (numberOf(result.skipped) ?? 0) > 0) {
