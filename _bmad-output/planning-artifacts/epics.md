@@ -8931,6 +8931,43 @@ So that one cancel doesn't fail every later browser unit on that runner.
 **And** nothing changes in the product, and there is no new public text (test and CI only)
 - DW-1335: infra: a cancelled job's stack holds the runner's fixed web port, and every later browser unit on that runner fails at live_web_port (ledger; routed by the orchestrator 2026-11-14, Contest Planner ruling ~13:25Z)
 
+### Story 25.8: Epic 25 burn-down: the web gap-fill (Usage withdraws its stale error, and a viewer gets no file-reply add or Documents drop)
+
+[ADDED 2026-11-15, Contest Planner A2 from Epic 25's retro] (Lane A runs it under an AD-33 exception for the Lane B web files its spec names; the ownership tables don't change)
+
+As a user of the page, including a viewer and a screen-reader user,
+I want the Usage page to withdraw its failed-read announcement once an answer arrives, and the page to offer a viewer no file control that the server would refuse,
+So that I never hear a stale error and never press a control that can only fail.
+
+**Acceptance Criteria:**
+
+**Given** the Usage page announced its failed read (`USAGE_TEXTS.error`)
+**When** a later read answers
+**Then** the page withdraws that announcement through `Announcer.retract`, as the History page does since Story 25.2's rework 2, and a browser test on a frozen page clock fails when the retract is removed (a demonstrated mutation)
+
+**Given** `Announcer.retract`'s guard that leaves the live region alone when a different text was spoken last
+**When** a test speaks one text and retracts another
+**Then** the region keeps the spoken text; the test is behavioural (not a source regex) and fails when the guard is removed (a demonstrated mutation)
+
+**Given** History's H15, which presses Retry a second time
+**When** the second read is refused
+**Then** the test waits on a page-side signal that the refused read was handled before it asserts, so a reversed order cannot pass without exercising the queued case (a demonstrated mutation)
+
+**Given** a viewer (the snapshot's `viewer`, Story 25.4's model, which Story 26.4 keeps) and an older file reply whose read is `addable`
+**When** the reply renders
+**Then** it shows no **Add to documents** button (the Saved to memory chip stays), and `chat/file-reply.ts` is on the `GUARDED` list of `web/scripts/viewer-sources.test.mjs`
+
+**Given** a viewer on the Documents page
+**When** files are dragged over it or dropped on it
+**Then** the page takes no drop and shows no drag outline (`[active]` is false for a viewer), pinned by a test
+
+**And** no new public text, no change to any route, IRIS class or role, and the initial web bundle stays at or under 921 kB
+- DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry (ledger; Contest Planner A2, 2026-11-15)
+- DW-1121: Announcer.retract's lastSpoken guard, which keeps it from emptying another page's announcement, has only a source-regex pin (ledger; Contest Planner A2, 2026-11-15)
+- DW-1122: H15 presses Retry a second time with no page-side signal that the second failure was handled (ledger; Contest Planner A2, 2026-11-15)
+- DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line (ledger; Contest Planner A2, 2026-11-15)
+- DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (ledger; Contest Planner A2, 2026-11-15)
+
 ## Epic 26: Approver roles and reading files (step 6)
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.

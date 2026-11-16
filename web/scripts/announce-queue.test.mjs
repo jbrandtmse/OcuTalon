@@ -15,17 +15,25 @@ const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'shared', 'announce-queue.ts');
 const { ANNOUNCE_MERGE_ABOVE, ANNOUNCE_MIN_GAP_MS, ANNOUNCE_WINDOW_MS, AnnounceQueue, NEW_UPDATES } = await import(pathToFileURL(source).href);
 
-/** A queue on a fake clock, with what it spoke and when. */
+/** A queue on a fake clock, with what it spoke and when, and a model of the region: `speak` sets it, `clear` empties it and counts. */
 function setup() {
   const clock = fakeClock();
   const spoken = [];
+  const region = { text: '', clears: 0 };
   const queue = new AnnounceQueue({
     setTimeout: (handler, ms) => clock.setTimeout(handler, ms),
     clearTimeout: (id) => clock.clearTimeout(id),
     now: () => clock.now,
-    speak: (text) => spoken.push({ at: clock.now, text }),
+    speak: (text) => {
+      region.text = text;
+      spoken.push({ at: clock.now, text });
+    },
+    clear: () => {
+      region.text = '';
+      region.clears += 1;
+    },
   });
-  return { clock, queue, spoken };
+  return { clock, queue, spoken, region };
 }
 
 /** The texts spoken, without their times. */
@@ -307,7 +315,7 @@ describe('retract', () => {
     assert.deepEqual(texts(spoken), ['Later.']);
   });
 
-  it('withdraws a message that waits for the gap after a spoken one, which is not recalled', () => {
+  it('withdraws a message that waits for the gap after a spoken one, and a spoken one is never spoken again', () => {
     const { clock, queue, spoken } = setup();
     queue.push('First.');
     clock.advance(0);
@@ -325,6 +333,117 @@ describe('retract', () => {
     queue.retract('');
     clock.advance(0);
     assert.deepEqual(texts(spoken), ['one']);
+  });
+});
+
+describe('retract guard', () => {
+  it('other text: keeps what was spoken and does not clear', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    clock.advance(0);
+    queue.retract('B.');
+    assert.equal(region.text, 'A.');
+    assert.equal(region.clears, 0);
+  });
+
+  it('own text spoken alone: clears once, and a second retract does nothing', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    clock.advance(0);
+    queue.retract('A.');
+    assert.equal(region.text, '');
+    assert.equal(region.clears, 1);
+    queue.retract('A.');
+    assert.equal(region.clears, 1);
+  });
+
+  it('own text with surrounding spaces: matches after trimming', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    clock.advance(0);
+    queue.retract(' A. ');
+    assert.equal(region.clears, 1);
+  });
+
+  it('joined text: keeps the joined text', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    queue.push('B.');
+    clock.advance(0);
+    assert.equal(region.text, 'A. B.');
+    queue.retract('A.');
+    assert.equal(region.text, 'A. B.');
+    assert.equal(region.clears, 0);
+  });
+
+  it('a later text replaces the earlier one as the text that can be cleared', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    clock.advance(0);
+    queue.push('B.');
+    clock.advance(ANNOUNCE_MIN_GAP_MS);
+    queue.retract('A.');
+    assert.equal(region.text, 'B.');
+    assert.equal(region.clears, 0);
+    queue.retract('B.');
+    assert.equal(region.text, '');
+    assert.equal(region.clears, 1);
+  });
+
+  it('an empty message never clears', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    clock.advance(0);
+    queue.retract('');
+    queue.retract('   ');
+    assert.equal(region.text, 'A.');
+    assert.equal(region.clears, 0);
+  });
+
+  it('an empty message never clears, also when nothing was spoken or the last text was joined', () => {
+    const fresh = setup();
+    fresh.queue.retract('');
+    fresh.queue.retract('   ');
+    assert.equal(fresh.region.clears, 0);
+    const joined = setup();
+    joined.queue.push('A.');
+    joined.queue.push('B.');
+    joined.clock.advance(0);
+    joined.queue.retract('');
+    assert.equal(joined.region.text, 'A. B.');
+    assert.equal(joined.region.clears, 0);
+  });
+
+  it('the joined text itself is not recalled by a retract of that exact text', () => {
+    const { clock, queue, region } = setup();
+    queue.push('A.');
+    queue.push('B.');
+    clock.advance(0);
+    queue.retract('A. B.');
+    assert.equal(region.text, 'A. B.');
+    assert.equal(region.clears, 0);
+  });
+
+  it('a count text is not recalled by a retract of that exact text', () => {
+    const { clock, queue, region } = setup();
+    for (const text of ['A.', 'B.', 'C.', 'D.']) queue.push(text);
+    clock.advance(0);
+    assert.equal(region.text, '4 new updates');
+    queue.retract('4 new updates');
+    assert.equal(region.text, '4 new updates');
+    assert.equal(region.clears, 0);
+  });
+
+  it('withdraws a waiting copy and clears the spoken one in the same call', () => {
+    const { clock, queue, region, spoken } = setup();
+    queue.push('Failed.');
+    clock.advance(0);
+    queue.push('Failed.');
+    queue.retract('Failed.');
+    clock.advance(5000);
+    assert.equal(spoken.length, 1);
+    assert.equal(region.text, '');
+    assert.equal(region.clears, 1);
   });
 });
 

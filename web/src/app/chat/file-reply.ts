@@ -4,6 +4,8 @@ import { catchError, type Observable, of, tap } from 'rxjs';
 import { ApiClient } from '../api/api-client';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
+import { isViewer } from '../shared/viewer-view';
+import { LiveState } from '../live/live-state';
 import type { Caption, FileRead } from '../live/payloads';
 import { FILE_REPLY_TEXTS, controlsOf } from './file-reply-view';
 
@@ -13,7 +15,7 @@ import { FILE_REPLY_TEXTS, controlsOf } from './file-reply-view';
  * server reads the bytes from its own store for this session) through the shared ServerButton, so a press is one call under the busy rule (a spinner, aria-busy and aria-disabled,
  * never `disabled`; a repeat press sends nothing; with no answer in 10 s the button is restored with the busy notice), on success it gives way to the line "Added to your
  * documents." and focus moves to that line (the pressed button is gone, so focus would otherwise fall to the page), and on a failure the line "Couldn't add it to your documents. Nothing was changed." shows under the button, which stays. Each line is spoken once through the Announcer, the page's one live
- * region (UX-DR132; the lines carry no live role of their own). The component is a lazy chunk, mounted by the reply (DW-1282), and its texts are the view module's.
+ * region (UX-DR132; the lines carry no live role of their own). A viewer (viewer-view.isViewer) gets no button, because the server refuses its add with 403 read_only, and keeps the chip. The component is a lazy chunk, mounted by the reply (DW-1282), and its texts are the view module's.
  */
 @Component({
   selector: 'app-file-reply',
@@ -76,11 +78,15 @@ export class FileReply {
   private readonly announcer = inject(Announcer);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly live = inject(LiveState);
 
   /** The add: idle, added (the line replaces the button) or failed (the line shows and the button stays). ServerButton holds the busy state of a press. */
   protected readonly state = signal<'idle' | 'added' | 'failed'>('idle');
 
-  protected readonly controls = computed(() => controlsOf(this.fileRead(), this.savedCaption()));
+  /** True for a viewer (Story 25.4): no Add to documents button. */
+  protected readonly viewer = computed(() => isViewer(this.live.snapshot()));
+
+  protected readonly controls = computed(() => controlsOf(this.fileRead(), this.savedCaption(), this.viewer()));
 
   /** The press: posts the file's ref to the documents route (ServerButton ignores a second press while it is out). Its answer sets the line, announced once. */
   protected readonly add = (): Observable<unknown> => {
