@@ -1,0 +1,351 @@
+---
+title: "DW-1421 C2' + C1 fix: an over-long evidence element is cut, not refused, and its remaining length refusal has a fixed tag (with the C5 confidence report)"
+type: 'feature'
+created: '2026-11-16'
+status: 'ready-for-dev'
+baseline_revision: 'ea44750964de4ca417749d559ac2d4cf969fa557'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-0-dw-1421-diagnosis-refusals-name-their-rule-and-a-capture-harness.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem (DW-1421 round 2; Contest Planner "DW-1421 C0 RESULTS and rulings", ~18:30Z Nov 16, BINDING):**
+- C0 measured 5 runs on Haiku 5.5. Diagnose fell back 3 times on `orders-target-to-review`, every time on "Evidence element 1: N > 128" (N = 129, 137, 144): the model quoted the pack's settingChanges line, and the replies were otherwise correct. Decide fell back twice on `confidence-missing`. C2 and C3 never occurred.
+- Rulings: C2 DROPPED, C3 DEFERRED. NEW C2' (not model-facing): in the DiagnosisPayload check, an evidence element over 128 characters is CUT to 128 at the last word boundary, ending in U+2026, instead of refusing the reply; each cut is recorded as a COUNT only; the cap on the NUMBER of elements (20) stays a refusal. C1 fix: "Evidence element N: X > Y" carries numbers, so it gets the FIXED tag `evidence-too-long`; check that no other rule string carries values. C5: report first (below, "C5 report"), build nothing.
+- Where the refusal comes from (read from the code, baseline `ea4475096`): not `%OnValidateObject`. `Decide.CheckReply` (`Decide.cls:1023`) calls `%JSONImport`, whose generated import calls each literal's `IsValid` (`irislib/%JSON/Generator.cls:931-939`), so the `MAXLEN = 128` of `DiagnosisPayload.Evidence` (`DiagnosisPayload.cls:50`) fails the import with #9406 on `evidence`. `RefusalText` then traces the field (`RefusalImport`, `Decide.cls:1167-1217`) and checks each element with `EvidenceIsValid` (`RefusalCheck`, L1220-1229), and `RefusalPart` writes the #7201 as "Evidence element <n>: <length> > 128" (L1152).
+
+**Approach:**
+- **C2', the cut (Lane A, `Watch/Msg/DiagnosisPayload.cls` only):** the class overrides `%JSONImport`. Before the inherited import runs, every string element of the reply's `evidence` array that is longer than 128 characters is cut (rule below). The property keeps `MAXLEN = 128`, so validation still guards every path; no other field is touched. The number of cut elements goes into a new output-only property `EvidenceCut` (JSON `evidenceCut`), which Decide's existing export writes into the Decision row's Payload JSON only when it is not empty. Nothing is logged.
+- **C1 fix (Lane A, `Bridge/Process/Decide.cls` and `REFUSALRULES`):** DiagnosisPayload's allowlist `REFUSALRULES` gains the pair `evidence-too-long:evidence`. `RefusalPart` writes a #7201 on a property as "ERROR #7201 rule <tag>" when the reply class lists a tag that ends in `-too-long` for that property's JSON field, with no position, length or limit. With the cut in place this remains reachable only when a reply filter lengthens a text (a custom `ReplyFilterClass`; the shipped `ReplyGuard` only deletes).
+- **The capture harness (Lane A, `Test/Eval/CaptureTool.cls`):** `RuleOf` takes the tag of any "ERROR #<code> rule <tag>" part, not only #5001, so the harness counts the new form under `evidence-too-long`, field `evidence`.
+
+## Boundaries & Constraints
+
+**Always:**
+- **Footprint.** All files are Lane A (Veto item 2). Lane C makes the edits under the Planner's DW-1421 round-2 ruling:
+  - `src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls`: the `%JSONImport` override, the private cut helper, the property `EvidenceCut`, the pair `evidence-too-long:evidence` at the end of `REFUSALRULES`, the class doc (L1-19), the `Evidence` property doc (L49).
+  - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `RefusalPart` (one new argument, one branch), a new private `LengthTag`, the two `RefusalPart` call sites (L1077, L1226), the `RefusalText` doc (L1036-1051).
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/CaptureTool.cls`: `RuleOf` (and its doc and the class doc L8-10); `RuleOf` and `FieldOf` become public `[ Internal ]` so the test can pin them.
+  - Tests: `src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls`, `src/ocutalon/cls/OcuTalon/Test/Eval/Capture.cls`.
+  - This spec.
+- The cut applies to `evidence` only, to string elements only, and never changes an element of 128 characters or fewer (byte for byte). The order and the number of elements are unchanged.
+- The cut result is at most 128 characters, the U+2026 included (Design Notes, "The cut").
+- The cut is recorded as a count only: `EvidenceCut` (an integer, the number of elements cut, empty when none). No text of an element, cut or kept, goes into a log, a trace row, a warning, a Decision column other than Payload's own `evidence`, or the harness stdout.
+- `DiagnosisPayload.Evidence` keeps `MAXLEN = 128`, and `MAXEVIDENCE = 20` stays a refusal (`evidence-over-max`).
+- A payload with no cut is exported byte for byte as before (no `evidenceCut` key).
+- A reply that itself carries a field `evidenceCut` is refused as an unexpected property (#9404), exactly as before this change.
+- `RefusalText`'s contract stands: a tag is shown only when the reply class lists it; never a reply value. The C1 rule "PIN, with a mutation, that a reply value can NEVER appear after 'rule'" covers the new form too.
+- Every refused reply still falls back with reason `invalid`. Every other fallback reason is unchanged.
+- ObjectScript stays ASCII (`docker/tests/test-boundaries.sh` L4, L34, L213): the ellipsis is written `$Char(8230)`. Comments state the contract, not review history. No absolute local path in any file.
+- Every existing test passes, with only the pins listed under Tasks changed.
+
+**Never:**
+- Change any model-facing text: an INSTRUCTIONS block, a pack, a tool description (the Diagnosis prompt's lengths sentence, `Agent/Diagnosis.cls:41`, stays as it is; Design Notes).
+- Change `DecisionPayload`, the triage path, any other field's length rule, `MAXEVIDENCE`, `Decide.CheckReply`, `Judge`, `Interpret`, `Conclude` or `Recheck`.
+- Log, `$$$TRACE` or write anywhere the text of an evidence element, or log the count (Recheck must stay silent, and the payload class runs outside a host).
+- Add a column, a table, a catalog key or a setting.
+- Delete, skip or weaken a test beyond the pins this spec changes.
+
+## I/O & Edge-Case Matrix
+
+"Cut(e)" is the rule of Design Notes. "Accepted" means `CheckReply` OK and, through `Conclude`, Fallback 0.
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| 1 At the limit | one element of exactly 128 characters | Accepted; element unchanged byte for byte; `EvidenceCut` empty; no `evidenceCut` key in Payload | none |
+| 2 One over | 129 characters, no space | Accepted; element = first 127 characters + U+2026 (128); `EvidenceCut` 1 | none |
+| 3 Space at 128 | 127 letters, a space, one letter | Accepted; element = the 127 letters + U+2026 | none |
+| 4 300, words | 300 characters of words and single spaces | Accepted; element = the text up to the last space at position 2..128, trailing white space removed, + U+2026; the original's next character is a space | none |
+| 5 No boundary | one word longer than 128 (300 characters) | Accepted; first 127 characters + U+2026 | none |
+| 6 Blank head | three spaces then 200 letters | Accepted; first 127 characters + U+2026 (the word-boundary head would be blank) | none |
+| 7 Split pair | 126 letters, a surrogate pair, more letters | Accepted; 126 letters + U+2026 (the pair is never split) | only if Task 0 item 2 finds a pair counts 2 |
+| 8 Several | three elements: 129, "h3", 200 | Accepted; the two long ones cut, "h3" unchanged, order kept; `EvidenceCut` 2; Payload `"evidenceCut":2` | none |
+| 9 Other fields | elementAtFault of 129; a reason of 1001 | Refused as today: "ElementAtFault: 129 > 128", "Reasons element 1: 1001 > 1000" | fallback invalid |
+| 10 Count cap | 21 elements, one of them 200 | Refused "ERROR #5001 rule evidence-over-max" | fallback invalid |
+| 11 At the cap | 20 elements, one of them 200 | Accepted, `EvidenceCut` 1 | none |
+| 12 Not a string | `"evidence": [12345]`, or an object element | Refused as today (#9406 "ERROR #9406 on Evidence" / "... element 1") | fallback invalid |
+| 13 Model sends the count | a reply with `"evidenceCut": 3` | Refused "ERROR #9404: an unexpected property" | fallback invalid |
+| 14 Object input | `%JSONImport` given a dynamic object with a long element | the payload is cut; the caller's object is unchanged | none |
+| 15 Not JSON | text that does not parse | the same status as before (the inherited import's) | fallback invalid |
+| 16 Filter lengthens | an element of 128 that a reply filter makes 132 (test filter `ProbeFilter`) | "After the reply filter ran: ...DiagnosisPayload refused the filtered payload: ERROR #7201 rule evidence-too-long" | fallback invalid |
+| 17 Recheck of a cut reply | `Decide.Recheck` of row 8's text | 1, problem ""; no row, no log, no message | none |
+| 18 Capture | a capture part "ERROR #7201 rule evidence-too-long" | rule `evidence-too-long`, field `evidence` | none |
+
+</intent-contract>
+
+## Code Map
+
+Line numbers are at the baseline `ea4475096`.
+
+- `src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls`:
+  - class doc L1-19 (the evidence bullet L4; the REFUSALRULES sentence L18-19);
+  - `REFUSALRULES` L36-38; `MAXEVIDENCE` L40-41;
+  - `Evidence` L49-50: `list Of %String(%JSONFIELDNAME = "evidence", MAXLEN = 128)`;
+  - `%OnValidateObject` L68-105: `##super()` L70, `evidence-over-max` L76;
+  - `Blank` L142-145.
+- `src/bridge/cls/OcuTalon/Bridge/Msg/DecisionPayload.cls`: `REFUSALRULES` L9-11, `Confidence` L19-20, `%OnValidateObject` L24-37 (`confidence-missing` L35). Not changed.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
+  - `CheckReply` L1017-1034 (`%JSONImport` L1023, `%ValidateObject` L1024). Not changed;
+  - `RefusalText` doc L1036-1051, body L1052-1094 (the non-#9406 part L1077-1080; the #5001 tag L1078);
+  - `RefusalTag` L1102-1108 (the allowlist); `RefusalProperty` L1121-1138;
+  - `RefusalPart` L1146-1164 (#7201/#7202 L1152, #7203/#7204 L1153);
+  - `RefusalImport` L1167-1217; `RefusalCheck` L1220-1229 (its `RefusalPart` call L1226);
+  - `Judge` L1665-1724: filter loop L1689-1707, the second validation L1708-1714, `confidence` L1721, export L1722. Not changed.
+- `irislib/%JSON/Adaptor.cls` `%JSONImport` L71-92 (a plain method: parses a string or takes a dynamic object, then `%JSONImportInternal`); `irislib/%JSON/Generator.cls`: import calls `IsValid` per literal L931-939; every mapped field name, an output-only one included, is put in `proplist` before the include check (L605-615), so an output-only field in the input is ignored silently, not refused (hence the guard of row 13). `irislib/%Library/RegisteredObject.cls` L945-946: `%ValidateObject` calls `%OnValidateObject` first, then validates the properties.
+- `src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls` L1-13: the shipped filter only deletes phrases ("never adds or rewrites a word"). `src/ocutalon/cls/OcuTalon/Test/Bridge/ProbeFilter.cls` L8-15 prefixes "[f] " (lengthens by 4).
+- `src/ocutalon/cls/OcuTalon/Test/Eval/CaptureTool.cls`: class doc L8-12; `Parse` L228-258; `RuleOf` L260-265 (only "ERROR #5001 rule "); `FieldOf` L267-279.
+- Precedents for the cut: `Watch/ErrorText.cls` `Summary` L64-90 (last space within max - 1, else a hard cut, then `$Char(8230)`, total at most max); `Memory/Learned.cls` `Fact` L32-41 (never splits a surrogate pair); `Core/Conversation.cls` L484, L944; `Bridge/Adapter/StepBuffer.cls` L275.
+- Where the diagnosis evidence is shown (Veto item 1):
+  - `Watch/Summary.cls` `Evidence` L288-309 (first evidence line that is more than a period) gives slot `summary.evidence`, `Msg/Catalog/Watch.cls` L762-766 ("Evidence: {evidence}.", slot type sentence);
+  - `Msg/Catalog.cls` L191-200: a sentence slot that ends in U+2026 gets no period after it (L199);
+  - the summary is sent by `Channel/Telegram/Out.cls` L212, `Channel/SimPhone/Out.cls` L79, `Channel/WebChat/Out.cls` L88, and read by `Web/History.cls` L161 and `Tools/RecentActivity.cls` L121 (the chat model reads it);
+  - the incident card's evidence (`Live/Payload/Incident.cls` L158-179) is the failure groups, not the diagnosis evidence.
+- Readers of the Decision Payload JSON (each picks keys by name, none rejects an extra key): `Watch/IncidentManager.cls` L803-815, `Eval/Sink.cls` L112-127, `Watch/Summary.cls` L296. `Decide.cls` L1886 copies it to the DecisionResponse (shown in Visual Trace).
+- Tests that pin the old behaviour:
+  - `Test/Watch/Payload.cls`: class doc L5-24; `TestPayloadAccepted` L126-153 (128 accepted, L150-152); `TestPayloadRefused` L155-228 (21 references L216-218, **129 refused L219-221**); `TestRefusalTrace` L314-358 (**"over the limit" L318-319, expected L339-340**); `AssertRule` L391-399; `RuleTags` L402-405; `TestRuleTags` L445-455 (**22 at L453**); `TestEveryRuleTagged` L458-488 (one `$$$ERROR` per own pair L480-486).
+  - `Test/Eval/Capture.cls`: class doc L8; `SeedAll` **L250-257** (an over-long evidence element, rule "Evidence element 2: 129 > 128"); `TestRecheckIsSilent` L526-545 (**"over the limit" L529-530, verdict 0**); `TestNothingIsWrittenAnywhere` L784-796 (a 129 element; asserts writes only).
+- Guards that must stay green: `Test/Watch/Payload.cls` `TestHostReplies` (payload fields equal the reply's), `Test/Bridge/ReplyCheck.cls` `TestRefusalTextForms` (DecisionPayload lists no `-too-long` pair, so its length forms are unchanged), `Test/Watch/Diagnose.cls`, `Test/Agent/Instructions.cls` (the prompt is unchanged), `Test/Bridge/CodeRules.cls`.
+
+## Tasks & Acceptance
+
+**Task 0 (measure first, lane-C throwaway, no model, no key; record under `## Verification`):**
+1. On the warm stack, with a scratch subclass of DiagnosisPayload (scratchpad only, never committed) that has the output-only `%Integer` property: record that `%JSONExportToString` writes no key for it when it is "" and writes it when it is 2; and that `%JSONImport` of a text with that field succeeds and ignores it (so the guard of row 13 is needed). **Rule:** if an empty value is exported, use `%JSONINCLUDE = "OUTPUTONLY"` with `%JSONNULL = 0` on the property and measure again; if it is still exported, stop with `## Clarification Needed`.
+2. Record `$Length($Char(128512))` and `$Length` of that character after a `%ToJSON`/`%FromJSON` round trip. **Rule:** 2 means the surrogate guard and row 7 are built; 1 means neither is.
+3. Record the `DecomposeStatus` of `%ValidateObject` for a DiagnosisPayload object (partner_outage, valid otherwise) with one 129-character Evidence element inserted directly: the top code (expect 7201), param 2 (expect 128) and the embedded #5802 (expect "...:Evidence(1)").
+
+**Execution:**
+- `src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls`:
+  - `/// The number of evidence references that %JSONImport cut to 128 characters (see the class description); empty when none was cut. Code-written, never model text; exported, never imported.`
+    `Property EvidenceCut As %Integer(%JSONFIELDNAME = "evidenceCut", %JSONINCLUDE = "OUTPUTONLY", MINVAL = 1);` (no MAXVAL: the count is set before `%ValidateObject` runs, so a bound of 20 would add a second refusal part to a reply of 21 cut references, which row 10 pins as the single `evidence-over-max`);
+  - `Method %JSONImport(input, %mappingName As %String = "") As %Status [ ServerOnly = 1 ]`:
+    - sets `EvidenceCut` to "";
+    - parses the input as the inherited method does (a dynamic object is copied with `%FromJSON(input.%ToJSON())`); when parsing throws, or the result is not a `%DynamicObject`, returns `##super(input, %mappingName)` (the same status as before; use `Return` inside Try/Catch);
+    - when the object has the key `evidenceCut`, returns `$$$ERROR($$$JSONImportBadField, "evidenceCut", $Select(%mappingName = "": "class base", 1: %mappingName))` (the inherited #9404, as the generated code makes it);
+    - when `evidence` is a `%DynamicArray`, replaces each element whose type is "string" and whose `$Length` is over 128 with `..Cut(element)` and counts them;
+    - returns `##super(object, %mappingName)`, and on OK sets `EvidenceCut` to the count when it is over 0;
+  - `ClassMethod Cut(text As %String) As %String [ Private ]`: the rule of Design Notes, with the limit as a parameter `EVIDENCEMAX = 128` (the property's MAXLEN; `TestEvidenceCut` pins that the two agree);
+  - `REFUSALRULES`: append `,evidence-too-long:evidence`;
+  - class doc: the evidence bullet (L4) says "each at most 128 characters: %JSONImport cuts a longer one (Cut) and counts the cuts in evidenceCut"; one sentence that `evidence-too-long` is the length tag that Decide shows for an Evidence element over 128 after the filter, and that a reply carrying `evidenceCut` is refused.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
+  - `RefusalPart(code, value, limit, property, position, replyClass As %String = "")`: before the #7201/#7202 forms, `If (code = 7201) && (property '= "") { Set tag = ..LengthTag(replyClass, property) If tag '= "" Quit "ERROR #7201 rule "_tag }`;
+  - both callers pass `replyClass` (L1077, L1226);
+  - new `ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ Private ]`: the JSON field of the compiled property (`%JSONFIELDNAME`, else its name); the tag of the first pair of `$Parameter(replyClass, "REFUSALRULES")` whose field is that and whose tag ends in `-too-long` and matches `?1L.(1L,1N,1"-")`; else "". Doc: "The length tag of the property: a tag that REFUSALRULES of replyClass lists for the property's JSON field and that ends in -too-long; never a value of the reply";
+  - `RefusalText` doc: a new bullet before the #7201 forms: "a #7201 on a property whose JSON field REFUSALRULES of replyClass lists with a tag that ends in -too-long is 'ERROR #7201 rule <tag>', with no position, length or limit".
+- `src/ocutalon/cls/OcuTalon/Test/Eval/CaptureTool.cls`:
+  - `RuleOf`: a part of the form `"ERROR #"1.N" rule "` followed by a tag (`?1L.(1L,1N,1"-")`) gives the tag; any other part is itself;
+  - `RuleOf` and `FieldOf` become `[ Internal ]` public class methods (they read no store and write nothing);
+  - the class doc's rule sentence names "ERROR #<code> rule <tag>".
+- Tests: below.
+
+**Acceptance Criteria:**
+- **AC 1 (the cut and its boundaries; rows 1-7, 11, 14, 15).** Given a usable reply with one more evidence element, when `Decide.CheckReply` checks it, then the result, the element and `EvidenceCut` are as the matrix says.
+  - Pinning test: new `Test.Watch.Payload` `TestEvidenceCut`, one assertion group per row; each cut element is compared with the exact expected string, its `$Length` is at most 128 and its last character is `$Char(8230)`; `$Parameter(CLASS, "EVIDENCEMAX")` equals the compiled MAXLEN of `Evidence`.
+  - Row 4's text is "abcdefghi " repeated 30 times (300 characters, spaces at 10, 20, ...): the expected element is its first 119 characters followed by `$Char(8230)` (120 characters).
+  - Row 14 calls `%JSONImport` with a dynamic object and asserts the object's element is still the original.
+- **AC 2 (several, and only evidence; rows 8, 9, 12).** Given row 8, the two long elements are cut and "h3" is unchanged, in order, and `EvidenceCut` is 2. Given row 9, each reply is refused with exactly the RefusalText shown. Given row 12, it is refused as at the baseline.
+  - Pinning test: `TestEvidenceCut`.
+  - Changed pin: `TestPayloadRefused` L219-221 ("an evidence reference of 129 characters" refused) becomes "an elementAtFault of 129 characters" refused; the 129 evidence case moves to `TestEvidenceCut` (accepted, cut).
+- **AC 3 (the count cap stays a refusal; rows 10, 11).** Given 21 elements with one over-long, then "ERROR #5001 rule evidence-over-max"; given 20 with one over-long, accepted with `EvidenceCut` 1.
+  - Pinning tests: `TestEvidenceCut`; the existing "21 evidence references" row (L216-218) and `TestRuleTags`' `evidence-over-max` row stay.
+- **AC 4 (the model cannot set the count; row 13).** Given a usable reply with `"evidenceCut": 3`, then it is refused, RefusalText "ERROR #9404: an unexpected property", and no payload.
+  - Pinning test: `TestEvidenceCut`.
+- **AC 5 (counted only, never logged; rows 8, 17).** Given row 8's reply, each long element carrying a distinct marker after its 130th character, when `Decide.Conclude` concludes it (the test's `Conclude` helper, ReplyGuard), then:
+  - Fallback 0; `{}.%FromJSON(row.Payload).evidenceCut` is 2 and the payload's `evidence` holds the cut elements;
+  - no marker is in the row's Payload, Reasons or the response, and no `Ens_Util.Log` row after the mark holds a marker or comes from the method `%JSONImport`;
+  - and for a usable reply with no long element, the row's Payload has no key `evidenceCut`.
+  - Pinning test: new `Test.Watch.Payload` `TestEvidenceCutRecorded`.
+  - `Test.Eval.Capture` `TestRecheckIsSilent`: a new label "an evidence element cut" (row 8's reply): verdict 1, problem "", and `Writes("Snap", ...)` is "". The label "over the limit" becomes an elementAtFault of 129 (still verdict 0).
+  - `Test.Eval.Capture` `TestNothingIsWrittenAnywhere`: unchanged code; its label "over the limit" is renamed "an evidence element cut", since its 129 element is now cut: it pins that the cut writes nothing in any table, header or audit entry.
+- **AC 6 (C1 fix: the fixed tag; rows 16, 9).** Given a partner_outage reply (`Outage()`) with one evidence element of 128 characters, when `Decide.Recheck` runs it with the filter `OcuTalon.Test.Bridge.ProbeFilter`, then it returns 0 and the problem is exactly "After the reply filter ran: OcuTalon.Watch.Msg.DiagnosisPayload refused the filtered payload: ERROR #7201 rule evidence-too-long" (the test kills `^||ZzProbeFilter`). Given a DiagnosisPayload object with a 129-character Evidence element inserted directly, then `RefusalText` of its `%ValidateObject` status is "ERROR #7201 rule evidence-too-long" and holds no digit after "rule". Given row 9, the elementAtFault part keeps its length form (no pair lists elementAtFault).
+  - Pinning test: new `Test.Watch.Payload` `TestEvidenceTooLongTag`.
+  - Changed pins: `TestRefusalTrace` "over the limit" (L318-319, L339-340) becomes an elementAtFault of 129, expected "...accepts: ElementAtFault: 129 > 128"; its class-doc lines L15-18 follow. `TestRuleTags` L453: 23 pairs, and the 23rd is `evidence-too-long:evidence` (L454 still compares the first 22 with `RuleTags()`).
+- **AC 7 (one allowlist).** Given the two REFUSALRULES, then `TestEveryRuleTagged` holds with its own-rule count taken over the pairs whose tag does not end in `-too-long`, and each `-too-long` pair: names a field that is the JSON name of a compiled property with a numeric MAXLEN, is the only `-too-long` pair of its field, and is written in no `%OnValidateObject`.
+  - Pinning test: `TestEveryRuleTagged`, extended.
+- **AC 8 (the harness counts the tag).** Given the parts "ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property" and "ERROR #7201 rule Evidence 2", then `RuleOf` gives `evidence-too-long`, `cause-blank` and the last three parts unchanged, and `FieldOf` gives `evidence`, `cause`, `elementAtFault`, "" and "".
+  - Pinning test: new `Test.Eval.Capture` `TestRuleNames`.
+  - Changed pin: `SeedAll` L250-257: the over-long evidence seed becomes an elementAtFault of 129 (marker kept in it), rule "ElementAtFault: 129 > 128", field `elementAtFault`; one more seed holds the old evidence reply and is counted under "passes the check" (the counts follow).
+- Standing criterion (Rule 19): every test added or changed passes on a fresh environment, in either order.
+
+## Design Notes
+
+**Where the cut belongs.** The three options of the brief, against the code:
+- *Raise MAXLEN and cut in `%OnValidateObject`*: rejected. `%JSONImport` already calls `EvidenceIsValid` (Generator L931-939), so MAXLEN would have to go; `%ValidateObject` runs `%OnValidateObject` before the property checks (RegisteredObject L945-946), so the cut would have to mutate the object inside a validation that `Judge` runs twice (L1024, L1709); and the property would lose its declared limit.
+- *Cut in `Decide.Judge` or `CheckReply`*: rejected. Decide is the generic bridge (AD-2: it names only Bridge classes); it would need a new reply-class hook and touches every reply class.
+- *Pre-process the reply JSON before import*: chosen, as an override of `%JSONImport` in DiagnosisPayload itself. It is one class, it runs exactly where the refusal fired, it leaves `MAXLEN = 128` (so the second validation still guards a filter that lengthens), it cannot touch another field or another reply class, and `CheckReply` is its only caller (grep of `%JSONImport` outside the tests: `Decide.cls:1023` only).
+
+**The cut** (`Cut(text)`, limit L = `EVIDENCEMAX` = 128), for a string element with `$Length(text) > L`:
+1. Find the last space (U+0020, the word boundary of `Watch.ErrorText.Summary`) at a position p with 2 <= p <= L. The head is `$Extract(text, 1, p - 1)` with trailing white space removed. A space at position L itself is a boundary, so a head of L - 1 whole characters is kept when the text breaks there (row 3).
+2. When there is no such space, or the head is blank once white space is removed (row 6), the head is `$Extract(text, 1, L - 1)`, minus one more character when that would end on a high surrogate (55296-56319; built only if Task 0 item 2 finds a pair counts 2), as `Memory.Learned.Fact` does.
+3. The result is head followed by `$Char(8230)`: at most L characters. **The ellipsis is inside the 128.** It must be: the property keeps MAXLEN 128 and `Judge` validates the payload again after the filter, so a 129-character result would be refused. It is also the repo's convention (`ErrorText.Summary`, `Learned.Fact`, `Conversation` L484 and L944, `StepBuffer` L275).
+- A word longer than 128 with no boundary (row 5) is cut hard at 127 characters plus U+2026. The rule is stated in the class doc.
+- ASCII: the class rules forbid non-ASCII in source (`test-boundaries.sh` L4, `non_ascii` L34, the rule L213), so the source writes `$Char(8230)`. The stored text then holds U+2026: one character (3 bytes in UTF-8) in the Payload JSON's `evidence` and in the DecisionResponse. It is shown only where Veto item 1 says. Telegram, the Simulated phone and the web chat already carry U+2026 from `ErrorText.Summary` in the incident notice.
+
+**Counted only.** The count is `EvidenceCut`, output-only, exported into the Decision row's Payload JSON as `"evidenceCut": n` (n = elements cut) when n > 0, by `Judge`'s existing `%JSONExportToString` (L1722). Why not the other mechanisms:
+- a `$$$LOGINFO` with the count: the cut runs inside `CheckReply`, which `Decide.Recheck` and the capture harness call too, and both are pinned silent (`TestRecheckIsSilent`, `TestNothingIsWrittenAnywhere`); the spine's logging row puts `$$$LOG*` in hosts (ARCHITECTURE-SPINE L1408), and a payload class is not one; a log in `Conclude` would need a new hook through `Interpret`/`Judge` (Decide, AD-2);
+- the C1 tag mechanism: tags name refusals, and a cut reply is not refused;
+- a Decision column: a schema change for a count that the payload can carry.
+- The model can never set the count: the field is output-only, and the override refuses a reply that names it (an output-only field would otherwise be ignored silently, Generator L605-615), so the refusal is exactly the old #9404.
+- AD-8 and the trace rules: no fallback reason or classification changes; no text and no count is written to the event log or a trace; the count is in the decision's own record, readable in Visual Trace through the DecisionResponse's Payload. No element text leaves the payload's own `evidence`.
+
+**C1 fix: the fixed tag.** `RefusalPart` gets the reply class and, for a #7201 on a known property, looks for a listed `-too-long` tag of that property's JSON field (`LengthTag`). DiagnosisPayload lists one: `evidence-too-long:evidence`. One list stays the allowlist that the Planner ruled (C1 gate); the tag is taken from the class's compiled parameter, never from the status, so a reply value can never follow "rule". The form drops the element position, the length and the limit: "ERROR #7201 rule evidence-too-long". `TestEveryRuleTagged` treats `-too-long` pairs as Decide's length tags (no `$$$ERROR` in `%OnValidateObject`). With the cut in place the tag applies only to what still refuses for evidence length: a reply filter that lengthens a reference past 128 (no shipped filter does; `ProbeFilter` does, for the test), and the theoretical JSON number element of more than 128 digits (an import type error traced to its length).
+
+**The rule-string audit** (every string that can name a refusal; "shown" means it reaches the warning or the harness):
+
+| Source | String | Values or numbers? | Shown? |
+|--------|--------|--------------------|--------|
+| `REFUSALRULES` (both classes, 22 tags + `evidence-too-long`) | the tags | none: fixed lower-case words | yes, after "rule" |
+| DecisionPayload L28 `outcome-unlisted` message | "The outcome '<Outcome>' is not one of ..." | the reply's outcome | no (param 1; only the tag is shown) |
+| DecisionPayload L34, L35 | fixed sentences | none | no |
+| DiagnosisPayload L72 `outcome-not-act` | quotes the outcome | reply value | no |
+| L74 `cause-category-unlisted`, L90-92 (`fix-kind-`, `fix-parameters-`, `fix-summary-not-for-category`) | quote the causeCategory | reply value | no |
+| L76 `evidence-over-max` | "more than 20 references" | the class constant 20 | no |
+| L81 `format-fix-kind-unlisted` | the DiagnosedFor list | code constants | no |
+| L86-88 `rollback-*` | quote the fixKind | reply value | no |
+| L77, L79, L82-84, L95, L97-98, L102 (outer) | fixed sentences | none | no |
+| L102 embedded `Fix.Kind.Check` status | quotes reply keys | reply values | no (embedded, not shown) |
+| RefusalText #7201/#7202 "<Property>[ element <n>]: <length> > <limit>" | position and length from the reply, limit from the class | yes (numbers) | yes. Evidence now "rule evidence-too-long"; still numeric for Outcome (32), Reasons (1000), CauseCategory (32), ElementAtFault (128), FixKind (32), Cause (1000), FixSummary (1000) |
+| RefusalText #7203/#7204 "<Property>: value > <limit>" | the class's limit only ("Confidence: value > 1") | constant only | yes |
+| "ERROR #9406 on <Property> element <n>", "ERROR #<code> on <Property> element <n>" | the position | yes (a position) | yes |
+| "; and <k> more" | a count | yes | yes (the harness skips it, `Parse` L249) |
+| "ERROR #9404: an unexpected property", "ERROR #9406[ on <Property>]", "ERROR #5035" | none | none | yes |
+| Nested properties (FixParameters.*, ItemNoun.*) | no label: "ERROR #7201" / "ERROR #9406" | none | yes |
+
+So after the fix, the strings that still carry numbers are the length forms of the seven other limited properties and the element positions. The ruling names Evidence only, so this spec tags Evidence only; tagging another field is one more pair (e.g. `element-at-fault-too-long:elementAtFault`) and one test row, with no code (Veto item 6(iii)).
+
+**The prompt.** `Agent/Diagnosis.cls:41` tells the model "a longer value makes the whole reply invalid: each "evidence" reference at most 128 characters". After C2' that is stricter than the code for evidence only. It is left as it is: it is model-facing (the ruling makes C2' not model-facing), and it still steers the model to short references.
+
+**AD-8.** The rule's words, "`invalid` (JSON that fails validation)" (ARCHITECTURE-SPINE L318) and "Content that doesn't validate is unusable (AD-8)" (L271), still hold: the cut is part of the reply class's own import, before validation, and Decide alone classifies. They do not speak of a reply class normalising a field before it validates, so no AD text must change (Veto item 4). If the Planner wants a record, the sentence of L271:
+- old: "Content that doesn't validate is unusable (AD-8)."
+- new: "Content that doesn't validate is unusable (AD-8). A reply class may normalise one field before it validates: `DiagnosisPayload` cuts an evidence reference over 128 characters to 128, at its last word boundary and ending in U+2026, and records only the number of references cut (`evidenceCut` in the stored payload); more than 20 references is still invalid (DW-1421 C2')."
+
+**Ledger inbox:** DW-1421 (C2', C1 fix). Status line per the run's DW process at merge, through `ledger.sh append`. C3 stays deferred in the backlog; C5 waits for the Planner's ruling on the report below.
+
+## Veto items
+
+| # | Gate item | What | Recommendation |
+|---|-----------|------|----------------|
+| 1 | (a) New public text | No catalog key, sentence or UI string changes. The diagnosis evidence IS user-visible: the first evidence line that is more than a period fills the slot of `summary.evidence` ("Evidence: {evidence}.", `Watch/Summary.cls` L288-309), the closed-incident summary that Telegram, the Simulated phone and the web chat send and that the web history and the recent_activity tool show. So a cut first line shows as "Evidence: <at most 127 characters of the model's reference>" followed by U+2026, with no period after it (the sentence slot ends at U+2026, `Msg/Catalog.cls` L199). U+2026 already ends a cut error summary in the incident notice (`Watch/ErrorText.cls` L87). Before C2' such a reply was a fallback, whose summary says "No cause was found: ..." instead. | Approve: model text in an existing slot, cut by the repo's existing rule. |
+| 2 | (b) Cross-lane edits | `Watch/Msg/DiagnosisPayload.cls`, `Bridge/Process/Decide.cls`, `Test/Eval/CaptureTool.cls`, `Test/Watch/Payload.cls` and `Test/Eval/Capture.cls` are Lane A (`Watch/Msg` and `Bridge/Process` included). Lane C makes the edits under the Planner's DW-1421 round-2 ruling. `DecisionPayload.cls` is not changed. At plan time no unmerged `OCT-*` branch touches these files (each local `OCT-*` branch against `feature/OCT_OcuTalon_MVP`). | Grant. |
+| 3 | (c) Stored data or schema | No class storage, column or table changes. The Decision row's Payload (a JSON text) of a diagnosis gains the optional key `evidenceCut` (an integer 1 to 20) only when a reference was cut; every other payload is byte-identical. Its readers pick keys by name and ignore it (`IncidentManager.cls` L803-815, `Eval/Sink.cls` L116-122, `Watch/Summary.cls` L296). A stored evidence reference may now end in U+2026. No migration. | Approve, with no migration. |
+| 4 | (d) Architecture change | None required. AD-8 (spine L309-318, L271) still holds: the bridge alone classifies, `invalid` is still "JSON that fails validation", and the cut is the reply class's own import before validation. The wording does not cover a reply class normalising a field, so the optional record sentence (old and new, verbatim) is in Design Notes. | Approve with no AD change, or add the record sentence. |
+| 5 | (e) Product behaviour change | A diagnosis whose only fault is an evidence reference over 128 characters is accepted, where it fell back `invalid`: the reference is cut (Design Notes) and counted in `evidenceCut`. Expected effect: the 3 of 5 `orders-target-to-review` fallbacks of C0 become diagnoses. More than 20 references, every other field's limit, a non-string element and a reply that names `evidenceCut` are refused as before. The warning for an evidence length refusal (now only after a filter that lengthens text) reads "ERROR #7201 rule evidence-too-long" in place of "Evidence element <n>: <length> > 128", and the capture harness counts it under `evidence-too-long`, field `evidence`. | Approve. |
+| 6 | Design beyond the ruling | (i) The count lives in the stored payload (`evidenceCut`), not in a log: a log cannot carry it without breaking Recheck's pinned silence (the cut runs inside Recheck too) or adding a hook through Decide. (ii) The fixed tag is one more `REFUSALRULES` pair, which Decide finds by its `-too-long` suffix and the property's JSON field, so the allowlist stays one list; `TestEveryRuleTagged` exempts such pairs from its one-`$$$ERROR` count. (iii) The other length forms keep their numbers (audit table); each could get its tag with one pair and one test row, no code. Default: Evidence only, as ruled. (iv) The Diagnosis prompt's "a longer value makes the whole reply invalid" sentence (`Agent/Diagnosis.cls` L41) is now stricter than the code for evidence; it stays, being model-facing. (v) `CaptureTool.RuleOf` and `FieldOf` become public `[ Internal ]` so they can be pinned. | Approve (i), (ii), (v); rule (iii) (default Evidence only); note (iv). |
+
+## Public text
+
+None new. No catalog key, sentence or UI string is added or changed. A cut evidence reference ends in U+2026 inside a model-text slot (Veto item 1).
+
+## Verification
+
+Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh`, `ci/warm.sh` and `eval/run.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=0 stage=<stage>'`.
+- Warm runs add `OCUTALON_WARM=1 OCUTALON_RUN_TAG=<warm tag>`; fresh runs leave `OCUTALON_WARM` unset.
+- One test class (or `Class:Method`) per foreground call, `timeout: 600000`, each under about 3 minutes, never two test calls in one message.
+- No model and no key anywhere.
+
+**Commands:**
+- (once) `ci/warm.sh up` with the warm tag, then Task 0 items 1 to 3.
+- (loop) Warm, each expected to pass: `ci/iris.sh class OcuTalon.Test.Watch.Payload`; `OcuTalon.Test.Eval.Capture`; `OcuTalon.Test.Bridge.ReplyCheck`; `OcuTalon.Test.Bridge.Decide`; `OcuTalon.Test.Fix.Validation`; `OcuTalon.Test.Bridge.CodeRules`.
+- (once) Fresh, each expected to pass: `OcuTalon.Test.Watch.Diagnose:TestDiagnosisVariants`; `OcuTalon.Test.Agent.Instructions`; `ci/iris.sh shard lane-a@Eval` (or its classes, split).
+- (once) `EVAL_SET_ONLY="capture eval-scripts" bash docker/tests/test-eval-set.sh` (no shell file changes, so this is a guard only).
+- (once) `bash docker/tests/test-boundaries.sh`, then `bash docker/tests/test-class-rules.sh`, one per call: each exits 0.
+- (once) `git diff --name-only ea4475096` lists only the footprint files; no added line holds a non-ASCII character or an absolute local path.
+- (once, at the end, also after a failure) `ci/warm.sh down` with the warm tag; `ci/iris.sh teardown` for the fresh tag.
+
+**Mutations (Rule 19).** One `mutation: <change> -> <test that went red>` line each; revert each byte for byte (`cmp` against a copy taken before it), and check `git status --short` and `git diff --stat` are as before. The planned mutations:
+- C2', the cut:
+  - the cut call removed from `%JSONImport` (import as before) -> `TestEvidenceCut` rows 2-8, 11 and `TestEvidenceCutRecorded` red;
+  - the threshold `> 128` made `> 127` -> `TestEvidenceCut` row 1 (128 unchanged) red;
+  - the ellipsis outside the limit (a head of 128 then U+2026) -> row 2 red (refused, 129 > 128);
+  - the word boundary ignored (always the hard cut) -> rows 3, 4 red;
+  - the boundary searched in 1..L-1 only -> row 3 red;
+  - the blank-head fallback removed -> row 6 red;
+  - the surrogate guard removed (if built) -> row 7 red;
+  - the cut applied to `reasons` too -> `TestEvidenceCut` row 9 (the reason of 1001 accepted) red;
+  - the cut dropping the elements after the 20th -> row 10 (21 elements accepted) red;
+  - the copy of a dynamic-object input removed -> row 14 red.
+- C2', the count:
+  - `EvidenceCut` never set -> `TestEvidenceCutRecorded` and row 8 red;
+  - `EvidenceCut` set to 1 per reply -> row 8 and `TestEvidenceCutRecorded` (2) red;
+  - `EvidenceCut` given `InitialExpression = 0` -> `TestEvidenceCutRecorded` (no key without a cut) red;
+  - the `evidenceCut` input guard removed -> row 13 red (accepted, the field ignored);
+  - a `$$$LOGINFO` of the count added to `%JSONImport` -> `Test.Eval.Capture` `TestRecheckIsSilent` (an evidence element cut) and `TestEvidenceCutRecorded` red;
+  - the same `$$$LOGINFO` with the element's text -> also the marker assertions of `TestEvidenceCutRecorded` red.
+- C1 fix:
+  - `LengthTag` returns "" -> `TestEvidenceTooLongTag` red (the length form with numbers);
+  - the `-too-long` suffix test removed from `LengthTag` -> `TestEvidenceTooLongTag` red ("rule evidence-over-max", the first pair of field evidence);
+  - the field test removed from `LengthTag` -> `TestEvidenceCut` row 9 red (ElementAtFault shown as evidence-too-long);
+  - `evidence-too-long:evidence` removed from `REFUSALRULES` -> `TestEvidenceTooLongTag` and `TestRuleTags` (23) red;
+  - a pair `reasons-too-long:reasonz` added to DiagnosisPayload's `REFUSALRULES` -> `TestEveryRuleTagged` red;
+  - `RuleOf` back to the #5001 prefix only -> `Test.Eval.Capture` `TestRuleNames` red.
+
+**Shared surfaces:** the reply-check warning text (pinned in `Test.Watch.Payload`, `Test.Bridge.ReplyCheck`, `Test.Agent.RememberDecision`, `Test.Watch.Diagnose`), the capture harness's rule names (pinned in `Test.Eval.Capture` and rule `capture`), and the stored diagnosis Payload (read by IncidentManager, Eval.Sink and Watch.Summary).
+
+**Size:** medium. Product: DiagnosisPayload (+45 lines: override, `Cut`, property, parameter, doc), Decide (+20: `LengthTag`, one branch, two call sites, doc), CaptureTool (+5). Tests: Payload (+130: three new tests, four changed pins), Capture (+30: one new test, three changed pins). One implementation pass, no shell change, no model run; the Planner's 5-run capture verifies.
+
+## C5 report
+
+DW-1421 C5 (confidence-missing), report only, from the code at `ea4475096`. Nothing is built.
+
+**1. What `DecisionPayload.confidence` drives.**
+- Routing (the outcome chosen): nothing. No code reads the confidence's value to choose or change an outcome.
+  - `Decide.Judge` sets the outcome from `payload.Outcome` (`Decide.cls:1715`) and changes it only by the user rule, on the provenance (L1716-1719). It copies the confidence as a number with two decimals (L1721).
+  - `Core/Intake.cls:197-214` keeps Decide's Outcome, or tellnow for a fallback (L209-211). The `ItemDecision` it sends carries Outcome, Fallback and FallbackReason and no confidence (L229-231). `Intake.cls:186` acts on outcome act only.
+  - `Core/Rule/Outcome.cls:18-27`, the OutcomeRouter's rule, routes on OwnerRef and Outcome only: digest goes to DigestStore, tellnow and act go to Notify for a session owner, and ignore goes nowhere.
+  - `Bridge/Settings.cls:405-416` (TestAnswer) reads Fallback and FallbackReason only.
+- Thresholds: none. No comparison of a confidence with a number exists in `src/`, `web/src` or `eval/`. The only bounds are the type's own `MINVAL = 0, MAXVAL = 1, SCALE = 2`: `DecisionPayload.cls:20` (import refuses a value outside them), `Bridge/Data/Decision.cls:30`, `Bridge/Msg/Result.cls:15` and `Live/Payload/Decision.cls:24`.
+- The digest: nothing. DigestStore receives the ItemDecision, which has no confidence.
+- The eval scorer: nothing. `Eval/Sink.cls:67-68` takes Fallback and FallbackReason, and L112-127 takes the payload's category, element, fix kind and parameters. `Eval/Gate.cls` and the `eval/` case files set no confidence expectation.
+- Wording: no channel text. The only wording is the web UI's "Confidence {n}" (`web/src/app/chat/decision-view.ts:19`, `confidenceText` L113-116, `formatConfidence` L94-97, which turns an absent value into "0.00"). It is used:
+  - in the decision strip (`chat/decision-strip.ts:233-239`), but not on a fallback and not when absent;
+  - in the rail (`rail/rail-view.ts:334-336`, `rail/status-rail.ts:60`), on the same terms;
+  - per `chat/notice-card.ts:21-22` (a fallback shows no confidence) and `rail/decision-row.ts:23`.
+- Storage and transport:
+  - the Decision row (`Decide.cls:1498`; fallback rows store "", L1610 and L1748), the DecisionResponse (L1883);
+  - the live payload (`Live/Payload/Decision.cls:89`, `web/src/app/live/payloads.ts:249`);
+  - the history API, which leaves it out when empty (`Web/History.cls:58`, `web/src/app/api/history-types.ts:35`).
+- Model-facing text: `Agent/Triage.cls:33` ("Use a low number when the item is unclear") and L45 (a persona never changes it); `Agent/Diagnosis.cls:40`; `Agent/Chat.cls:83` (stays exact under a persona); `BridgeExample/Agent.cls:32`.
+- What a MISSING confidence does today: `DecisionPayload.cls:35` refuses the reply (`confidence-missing`), and Decide records the fallback `invalid`.
+  - For decide, Intake turns the fallback into tellnow (`Intake.cls:209-211`). A session owner gets a tell-now card with the Fallback flag and the generic reason "the model's reply couldn't be used". The model's reasons are dropped.
+  - For diagnose, the incident is a fallback incident: no cause and no fix offer, with the `incident.fallback` notice.
+  - This refusal is the only way the confidence affects routing.
+
+**2. The most cautious value.** No confidence VALUE is more or less cautious than another. Every value from 0 to 1 routes the same, and no threshold exists, so no value can demote an act or a tellnow, and low confidence is treated neither as "tell now" nor as "digest". The values differ only in the number the web UI shows.
+
+What does change attention is whether a reply missing its confidence is refused or accepted:
+- **decide:** today's refusal gives tellnow, which routes like act (`Rule/Outcome.cls:25`) and above digest and ignore. Accepting the reply with ANY default lets the model's outcome stand, so it lowers attention exactly when that outcome is ignore or digest.
+- **diagnose:** the outcome is always act (`DiagnosisPayload.cls:72`), and the incident is noticed either way. Accepting never lowers attention: it adds a cause and possibly an approval-gated fix offer.
+
+**3. Each candidate default** (for a reply whose only fault is the missing confidence):
+
+| Default | Stored / shown | decide routing | diagnose routing |
+|---------|----------------|----------------|------------------|
+| 0 | 0.00 / "Confidence 0.00" (reads as "certainly wrong") | the model's outcome: ignore and digest lower attention vs today | act, with cause and fix: not lower |
+| 0.5 | 0.50 / "Confidence 0.50" (an invented midpoint) | same as 0 | same as 0 |
+| 1 | 1.00 / "Confidence 1.00" (an overclaim) | same as 0 | same as 0 |
+| absent ("" stored) | nothing shown: the strip, the rail, the history API and the live payload already leave an empty confidence out | same as 0 | same as 0 |
+| "most cautious" = absent, plus for decide the floor ignore/digest -> tellnow (the user rule's mechanism, `Decide.cls:1716-1719`) | nothing shown | never below today's tellnow fallback; tellnow and act are kept | as absent |
+| keep refusing (today) | fallback; nothing shown | tellnow (fallback) | fallback incident, no cause |
+
+Notes on the last two rows:
+- The floor needs a code-written reason line, like `USERANSWERED` (`Decide.cls:174`). That is new public text. Without it, the model's reasons argue for a digest under a tellnow chip.
+- The floor also makes the eval score a model's ignore or digest as tellnow on such replies. The two C0 cases expect act (`eval/held-out/mail-claims-rejected-today`) and tellnow (`eval/mail-access-expires-today`), so the floor would hide a wrong outcome on the second one.
+- "absent" changes a sentence of the spine: L271 says both payloads "carry ... a confidence between 0 and 1". It also changes `DecisionPayload`'s class doc ("a confidence that is present").
+
+**4. Conclusion.** No numeric confidence is strictly the most cautious, because the code reads the value only to display it. So 0, 0.5 and 1 are not cautious choices, only displayed claims, and 1 is the least honest. The strictly most cautious server-side treatment is:
+- **diagnose:** accept with the confidence absent. This never lowers attention and shows no invented number.
+- **decide:** either keep the refusal, which already gives the highest attention (tellnow), or accept with the confidence absent AND the tellnow floor for ignore and digest. The floor needs one new code-written reason line (a public-text gate item) and blunts the eval for those replies.
+
+Recommendation: if the Planner rules a server-side default, make it "absent" (not 0, 0.5 or 1). Apply it to diagnose always. For decide, apply it only together with the floor; otherwise keep decide's refusal and leave triage's missing confidence to the instruction change, which is model-facing and rides the post-cut Triage A/B. C0 saw the missing confidence only on decide (2 of 5), never on diagnose.
+
+## Auto Run Result
+
+Status: not run (ready-for-dev; awaiting the spec gate)
+Blocking condition: none
