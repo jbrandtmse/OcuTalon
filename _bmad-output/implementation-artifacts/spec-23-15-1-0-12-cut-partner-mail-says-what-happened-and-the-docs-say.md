@@ -125,6 +125,32 @@ Binding source: `{coordination}/prompts/dw-1415-1416-rulings-20261116.md`, secti
 - Given any email kind whose server accepted the message and then failed the QUIT, when EmailOut answers, then it answers sent and records the delivery.
 - Given CI, when it runs, then shards-2 has a unit fewer, no limit is raised, and `test-ci-config.sh` passes.
 
+### Review Findings
+
+Code review (cr stage, 2026-11-16; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 29 raw findings, 18 entries after grouping). Code review complete: 0 `decision-needed`, 9 `patch` (all applied), 2 `defer` (ledgered), 7 rejected.
+
+- [x] [Review][Patch] (high) A13's real-HTTP pin had never run, and it was red: it looked for `outcome` in `GET /api/v1/state`, which holds no incident payload [web/e2e/cards/approval-card.spec.ts:585] — it now reads the published incident event over `GET /api/v1/events` (the route that serves it) for `outcome: maysent` on the may-have-sent request and none on the sent one; `ci/iris.sh live cards` green, mutation in Verification.
+- [x] [Review][Patch] (medium) The card and the chat still worked out sent, not sent and kept from the counts and the reason; only maysent came from `SendOutcome` (intent Never: no second copy in the web) [web/src/app/approvals/approval-view.ts:733, src/ocutalon/cls/OcuTalon/Watch/Notice.cls:445] — the card's band now follows the server's `outcome` for all four values (the counts and the reason only pick the text of that answer), and `Notice.ResultKey` gives fix.emailSent from outcome sent; no row of the final table changes.
+- [x] [Review][Patch] (medium) `SubmitApproved` turning an answered MESSAGEFAILED into MESSAGEMAYHAVESENT when the claim shows the send began had no test (row "MESSAGEFAILED: a pending claim") [src/ocutalon/cls/OcuTalon/Fix/Kind/Email.cls:224] — `Test.Fix.Email:TestAnsweredFailureAfterTheSendBegan` added.
+- [x] [Review][Patch] (low) The card's agreement with the server was pinned only for maysent and two not-sent cases [web/scripts/approval-view.test.mjs] — new web test for sent, skipped, kept and not sent taken from `outcome`.
+- [x] [Review][Patch] (low) `Sender`'s class doc and `Accepted`'s doc said %Net.SMTP sends QUIT only after the 2xx to the end of the message; it writes QUIT after any step past the greeting and checks its answer only when no error came first [src/ocutalon/cls/OcuTalon/Channel/Email/Sender.cls:24,159] — corrected, and the docs say the QUIT-stage SMTPConnectionFailed does not occur in this build.
+- [x] [Review][Patch] (low) Stale docs: `Out.Send`, `Out`'s class doc (Began counts a sent claim too), `Fix.Kind.Email.Execute` and `Data.Delivery.FallbackReason` still said an approval's failed claim is always marked failed or that a command with no answer is always MESSAGEFAILED [Out.cls, Fix/Kind/Email.cls:202, Data/Delivery.cls:45] — corrected.
+- [x] [Review][Patch] (low) Stale test texts: catalog.test.mjs titles said "nineteen result keys" (23 now); `Test.Fix.PartnerWarning.DropClaims` named a test that does not exist [web/scripts/catalog.test.mjs:132,142, Test/Fix/PartnerWarning.cls:818] — corrected.
+- [x] [Review][Patch] (low) `Test.Partner.PartnerMail.ClaimId` is a silent copy of `Test.Channel.EmailOut`'s private ClaimId [Test/Partner/PartnerMail.cls:309] — noted for DW-1417 (Story 23.14) in its doc, as the intent asks.
+- [x] [Review][Patch] (low) `Test.Watch.Summary:TestSettingsContactMayHaveSent` ignored the status of the claim it writes, so the row "the claim marked failed" passed whether or not the claim existed [Test/Watch/Summary.cls:854] — asserted.
+- [x] [Review][Defer] (medium) DW-1422 remainder: a connection lost on QUIT reads `SMTPConnectionFailed` with step DATA in this %Net.SMTP (its `cmd` is never QUIT, and SendError overwrites an earlier error), so it is may-have-sent, not sent; `quitlost`/`quitafter` are synthesized statuses [Channel/Email/Sender.cls Accepted] — deferred: routed to 23.14 under DW-1422, per the Planner's "anything left over stays in 23.14".
+- [x] [Review][Defer] (medium) An approval or partner send whose greeting, EHLO, MAIL FROM or RCPT TO times out now answers MESSAGEMAYHAVESENT (SMTPTimeout names no step), so "it may have gone out" and "may have been sent" are shown for a message the server never received [Channel/Email/Sender.cls MayHaveSent, Out.cls Send] — deferred: DW-1429, decision-pending for the Planner with the MESSAGEMAYHAVESENT wording item; Task 2 requires the rule, and it errs safe.
+
+Rejected:
+- (low) "Send began" is coarser than the hand-over: `SendBegan` is set just before `Deliver`, and a pending claim counts as begun before `Transmit` builds the message, so an internal exception or a stop in that window reads maysent — errs safe, needs an internal exception or a stop inside microseconds; a finer marker adds state.
+- (low) A cut-short run, or a wrapper failure, after EmailOut marked the claim sent reads maysent, not sent — the final table groups pending, maysent and sent claims as maysent (spec-bound), and "may have been sent" is not false for a sent email.
+- (low) A cut-short run's maysent is recomputed from the claim, so a claim purged by retention would turn it notsent — needs an incident still open past the Delivery retention with a cut-short partner run; persisting the decision adds a write path.
+- (low) `BridgeSink.EmailReason` gives an interrupted plain email MESSAGEFAILED without reading `Began` — out of the spec's scope, and MESSAGEFAILED's text ("may not have finished") is not false.
+- (low) A13 cannot fail on the server's computation, since it publishes the outcome itself — the server half is pinned against real IRIS by `Test.Watch.Summary` and `Test.Live.Payloads`; A13 pins the member over real HTTP and the card.
+- (low) `approval-view.test.mjs` re-renders `result.partnerMaySent` with the same renderer — redundant, not vacuous: the literal text in the `deepEqual` above it is the pin.
+- (low) `SendBegan` stays 1 after a definite failure, so an exception in the claim bookkeeping after it would answer maysent — errs safe; nothing there realistically throws.
+- (low) The spec's `deferred:` A13 entry uses `severity: medium (unverified)` — the fix edits the spec under review (and A13 has now run).
+
 ## Spec Change Log
 
 ## Design Notes
@@ -210,6 +236,16 @@ Patches made after the review, each with its mutation:
 - `docker/tests/test-readme.sh` writes the single angle quote of its guide pin as an octal escape (`test-boundaries.sh` ascii rule).
 
 Runs after the patches (warm `e23b15iw`, all passed): `Test.Channel.EmailOut`, `Test.Partner.PartnerMail`, `Test.Fix.Email`, `Test.Fix.PartnerWarning`, `Test.Fix.Executor`, `Test.Watch.Summary`, `Test.Live.Payloads`, `Test.Partner.PartnerApprove`, `Test.Partner.PartnerTurns` (155 s), `Test.Channel.TelegramApproval`; `npm --prefix web test` 2186, `node --test ci/mock/test`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-readme.sh`, `test-security-overview.sh` and `test-boundaries.sh` all passed. The warm stack and the `e23b15i` tag are torn down.
+
+### Code review record (Story 23.15, cr stage; fresh `e23b15cr`, warm `e23b15crw`, lane B; each mutation restored from a backup in the scratch folder, compared byte for byte, the class or unit green again)
+
+- A13 first run, as committed: `ci/iris.sh live cards` red (31 passed, A13 failed: "the state carries the outcome of the request's result"; `GET /api/v1/state` holds no incident payload). Patched to read the incident event over `GET /api/v1/events`; then green (32 passed).
+- mutation: `approval-view.ts` may-have-sent branch made `false` (bundle rebuilt with `ci/iris.sh build`) -> `ci/iris.sh live cards` A13 red ("the may-have-sent band is the catalog's text": the card read EmailOut's sentence), after its new real-HTTP assertions (`outcome` maysent on the event, none on the sent request) had passed; restored, rebuilt, 32 passed.
+- mutation: `approval-view.ts` outcome branches for kept and for sent/notsent made `false` -> `node --test web/scripts/approval-view.test.mjs` red ("takes sent, not sent and kept from the server's outcome too, never from the counts or the reason").
+- mutation: `Notice.ResultKey`'s `If outcome = "sent" Quit ..#KEYEMAILSENT` made `If 0` -> `Test.Watch.Summary:TestSettingsContactMayHaveSent` red ("sent: the chat reads fix.emailSent").
+- mutation: `Fix.Kind.Email.SubmitApproved`'s answered failure back to `(answered.Message)` -> `Test.Fix.Email:TestAnsweredFailureAfterTheSendBegan` red ("failed/pending: the reason is MESSAGEMAYHAVESENT only for MESSAGEFAILED with a claim that began").
+
+Runs after the patches, all passed: warm `e23b15crw` `Test.Channel.EmailOut`, `Test.Fix.PartnerWarning`, `Test.Watch.Summary`, `Test.Fix.Email` (37 to 39 s), `Test.Live.Payloads`, `Test.Partner.PartnerMail`; fresh `ci/iris.sh live cards` 32 passed; `npm --prefix web test` 2187; `tsc -p web/tsconfig.e2e.json`; `test-ci-config.sh`; `test-boundaries.sh`. Both tags are torn down.
 
 ## Review Triage Log
 

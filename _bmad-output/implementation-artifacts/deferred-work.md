@@ -8705,6 +8705,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=fix in Sender.Classify (a QUIT-stage SMTPResponse is a send, or at least may-have-sent); it corrects email's own result sentence and DW-1416's timeline line together; rare (a server that does not answer QUIT)
 - 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 - 2026-11-16T08:49:47Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut:QUIT-after-250_counts_as_SENT_for_every_email_kind;remainder_stays_with_23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha
+- 2026-11-16T11:11:26Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=cr note=remainder:a_connection_lost_on_QUIT_reads_SMTPConnectionFailed(DATA)_in_this_%Net.SMTP_so_it_is_maysent_not_sent;23.15_did_the_QUIT_answer
 
 ### DW-1423: docs/security-overview.md does not say that a partner warning to Settings contacts can be approved only by an OcuTalonAdmin (DW-1415), and its Action audit line does not list the refused approve that AnswerOps.AuditRefused writes
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: in-story
@@ -8749,3 +8750,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: OCT-epic23 89b0eb50 run 43823569610 iris(shards-6) on ocutalon-ci-25; no Schedule/Notify/Ownership change in dbc68f1d..89b0eb50; same class green on 0c743465 (run 43816599381 shards-6)
 - 2026-11-16T08:09:24Z status=routed owner=burndown by=ci note=flake:reminders_two_waiters_ownership_counts;one_rerun_of_the_failed_jobs
 - 2026-11-16T08:14:49Z occurrence=epic23-89b0eb50 by=runner note=run_43823569610_att1_iris(shards-6)_on_ocutalon-ci-25_lane-b@rest;all_other_jobs_green;failed_jobs_rerun_once
+
+### DW-1429: Since 23.15 an approval or partner-warning send whose SMTP greeting, EHLO, MAIL FROM or RCPT TO times out answers MESSAGEMAYHAVESENT (claim maysent; card and chat read result.partnerMaySent), although the server never received the message: Sender.MayHaveSent counts every SMTPTimeout, which names no step
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: irislib %Net.SMTP GetResponse sets SMTPTimeout with no step; Sender.MayHaveSent quits 1 on any SMTPTimeout; Out.Send now applies it to approval claims (before 23.15 they answered MESSAGEUNREACHABLE, claim failed). Likeliest trigger: an implicit-TLS port (465) set without TLS, where the client waits for a greeting; no connect-time check of the mailbox exists. Errs safe: never a false not-sent, never a re-send
+- 2026-11-16T11:11:26Z status=decision-pending owner=burndown by=cr note=Planner text/product call with the deferred MESSAGEMAYHAVESENT internal-exception wording: accept the safe answer, reword, or a step-aware SMTP in 23.14
