@@ -60,10 +60,10 @@ Include (EnsConstants, EnsErrors)
 ///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
 ///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
 ///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
-///   - A kind whose target is a setting (TARGETTYPE setting, Story 23.3): when the production's update fails after the definition was saved, InProduction writes the earlier value back and
+///   - A kind whose target is a setting or an item (TARGETTYPE setting, Story 23.3; TARGETTYPE item, DW-1373): when the production's update fails after the new value was stored (a setting's definition saved, an item's flag stored where IRIS keeps it), InProduction writes the earlier value back and
 ///     updates again. If that works, the run ends as could not start with the kind's NOSTART (nothing was changed). If it fails too (code notapplied), the run ends failed through Finish
 ///     with Total the number of targets, Skipped 0, Unreached the targets not done and the redacted Reason holding the production's error text, one Action entry is written, and the
-///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey).
+///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey; for an item kind Watch.Notice ResultKey, with the setting Enabled).
 ///   - A kind whose targets are contacts (TARGETTYPE contact, Stories 23.5 and 23.13: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
 ///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: no mailbox is connected, or demo mode is off for the demo's production, so the approved notice is kept as the row's DryRun
 ///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
@@ -1299,11 +1299,14 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 ///     Ens.Director.UpdateProduction updates the running production. It never edits a System Default Setting row or a class, and it calls no OcuTalon class there (AD-3).
 ///     When the update fails after the save, the earlier stored state is written back, saved and the production updated again: if that works the entry is unreached with the
 ///     code "refused" and nothing is changed; if it fails too, the entry is unreached with the code "notapplied" and "reason" (the first error's text), and the setting may be left
-///     changed; the reason is the error's own sentence (Watch.ErrorText Sentence: no "ERROR #<n>: " or "ERROR <Ens>Name: " prefix, its first line). An entry's optional
-///     "updateErrors" N, which only a test sets (no kind's plan has it), makes the first N calls of UpdateProduction answer an Ens error, as UpdateProduction's own are, without calling it.
+///     changed; the reason is the error's own sentence (Watch.ErrorText Sentence: no "ERROR #<n>: " or "ERROR <Ens>Name: " prefix, its first line).
 ///   - an item change, {"id" (the Ens.Config.Item id), "action" (disable or enable), "item", "production"}: the item is opened by its id and must still be the named item of the
 ///     named production in the state the action leaves (enabled for disable, as IRIS runs it: its stored Enabled unless a System Default Setting Enabled overrides it), and
-///     Ens.Director.EnableConfigItem(production||item, enable) changes it.
+///     Ens.Director.EnableConfigItem(production||item, enable, 0) stores the flag where IRIS keeps it (the item definition, or the System Default Setting Enabled that overrides it), and
+///     Ens.Director.UpdateProduction updates the running production. When the update fails after the store, EnableConfigItem(production||item, 'enable, 0) stores the earlier flag
+///     again and the production is updated again, with the codes of a setting change: refused when that works, notapplied with reason when it does not.
+/// A setting or item entry's optional "updateErrors" N, which only a test sets (no kind's plan has it), makes the first N calls of UpdateProduction for that entry answer an Ens error,
+/// as UpdateProduction's own are, without calling it.
 /// Back in the home namespace the new header id of a copy is appended to the run's Copies and saved. The originals are never changed. done is the number of copies made, or of
 /// items changed; skipped holds {"id", "reason"} for each entry that really changed and so was not done, the reason a plain sentence that names the message or the item: it is no
 /// longer in the production, no longer in the error status, has no body, no longer has the field, or changed since the re-check. The first entry that errs (DW-419) stops the run:
@@ -1418,12 +1421,25 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 					If (''enabled) = enable {
 						Set code = "changed"
 					} Else {
-						Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, enable)
+						Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, enable, 0)
+						Set saved = $$$ISOK(sc)
+						Set updates = 0
+						If saved Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
 						If $$$ISOK(sc) {
 							Set code = "done"
 						} Else {
 							Set code = "refused"
 							Set detail = $SYSTEM.Status.GetErrorText(sc)
+							If saved {
+								#; the update failed after the flag was stored: the earlier flag is stored again, where EnableConfigItem keeps it, and the production is updated again
+								Try {
+									Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, 'enable, 0)
+									If $$$ISOK(sc) Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+								} Catch restoreError {
+									Set sc = restoreError.AsStatus()
+								}
+								If $$$ISERR(sc) Set code = "notapplied"
+							}
 						}
 					}
 				}

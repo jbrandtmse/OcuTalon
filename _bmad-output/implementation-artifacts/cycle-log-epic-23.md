@@ -524,3 +524,7 @@
 2026-11-16T08:41:38Z	Story 23.13	ci_resolved	sha=89b0eb50 runs=43823569610(att2_green_after_DW-1428_flake_rerun),43823569572 result=success shard_minutes=shards-11:27.2(was_31.3),shards-7:27.4(was_23.5),max=shards-2:31.9
 2026-11-16T08:41:38Z	Epic 23	ledger_burndown_chartered	key=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha owns=DW-1050,DW-1117,DW-1373,DW-1376,DW-1378,DW-1417,DW-1422 scope=epic23-born_routed_burndown overflow=0 to_decision_sheet=3(DW-1358,DW-1423,DW-1425) flakes_excluded=DW-1083,DW-1428 state=backlog(not_run:orchestrator_order_park_after_gate;independent_of_U-329)
 2026-11-16T08:41:38Z	Epic 23	ledger_burndown_complete	chartered=23.14 owned=7 overflow=0 note=epic_cannot_close:23.8_parked_U-329;23.14_and_decision_sheet_pending
+2026-11-16T08:49:47Z	Epic 23	resumed	by=orchestrator note=cut_items_merged_feature_0cdee2b7;1.0.12_cut_story_23.15;23.14_rescoped
+2026-11-16T08:49:47Z	Epic 23	integrated	onto=0cdee2b7 conflicts_resolved=sprint-status.yaml(last_updated:ours)
+2026-11-16T08:49:47Z	Epic 23	ledger_burndown_rescoped	key=23-14 owns=DW-1050,DW-1117,DW-1417,DW-1422(remainder) released=DW-1373(restored_resolved-by:dw-1373),DW-1376,DW-1378(lane_C) note=my_08:41Z_routing_of_DW-1373_predated_the_feature_merge_and_is_void
+2026-11-16T08:49:47Z	Story 23.15	story_chartered	key=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say owns=DW-1423,DW-1425,DW-1422(QUIT-after-250) items=5 public_text_pending=DW-1423,DW-1425,result.partnerMaySent(no_time_variant)

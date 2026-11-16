@@ -8357,6 +8357,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Fix/Kind suspend_item/resume_item save-then-update (23.2), same as DW-1365
 - 2026-11-15T10:04:07Z status=routed owner=burndown by=planner note=Planner pre-push ruling 2026-11-15: own DW for 1.0.12, not in 23.3
 - 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T07:10:26Z status=resolved-by:dw-1373 by=epic-runner note=item branch stores with EnableConfigItem(...,0), updates through the seam, restores the earlier flag on a failed update (refused) or ends notapplied with result.settingSavedNotApplied (97b0615f7); lock 40 s refused, 75 s notapplied
+- 2026-11-16T08:48:36Z status=resolved-by:dw-1373 by=burndown_gate note=restores_lane_C's_07:10Z_resolution(97b0615f7);my_08:41Z_23.14_routing_was_made_before_the_feature_merge_and_is_void;orchestrator_rescope_11:00Z
 
 ### DW-1376: A setting run saved but not applied (result.settingSavedNotApplied) has no ended line in the incident summary: no approved summary key for changed-but-not-applied
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
@@ -8364,6 +8366,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:approved_for_1.0.12_new_text_summary.settingSavedNotApplied='{time}: {setting} on {target} was changed, but the production couldn't apply it.'_pin_on_restore-failed_path;not_a_23.3_re-push
 - 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T08:48:36Z status=routed owner=burndown by=burndown_gate note=rescoped_out_of_23.14(orchestrator,Planner_cut_story_~11:00Z_Nov16):stays_with_lane_C
 
 ### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
@@ -8377,6 +8380,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:follow-up_for_1.0.12_with_new_/api/v1/state_field;CONDITION_band_must_not_contradict_chat_result_line;else_show_catalog_result_text
 - 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T08:48:36Z status=routed owner=burndown by=burndown_gate note=rescoped_out_of_23.14(orchestrator,Planner_cut_story_~11:00Z_Nov16):stays_with_lane_C
 
 ### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -8691,16 +8695,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
 
+### DW-1426: Closed card gives no outcome after its undo is answered: the card leaves, nothing is announced, focus goes to the main region
+- source: spec-24-4b-show-the-new-fixes-partner-warnings-and-the-closed-card-undo.md (code-review) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Binding ruling: a closed card draws nothing once the undo is answered, so Approve or Reject removes the card at the reply. Measured on a fresh stack (F6b b1, c): no status, no announcement; focus lands on main.main by the chat focus rule (not the body). Options: announce answered.* (existing text) and focus the incident headline as Dismiss does; or keep the card while in flight; or accept.
+- 2026-11-16T06:44:02Z status=decision-pending owner=burndown by=cr note=Planner call: feedback after answering a closed card's undo; recommend announce status + focus incident headline
 ### DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage (after the server accepted the message with 250) to REJECTED, so EmailOut answers MESSAGEREJECTED ('so it wasn't sent') for an email that was delivered, and a partner warning's timeline reads summary.partnerNotSent instead of summary.partnerMaySent
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: irislib %Net.SMTP Send: after the data terminator's 2xx it sends QUIT and calls UnexpectedResponse('QUIT', response) on a non-2xx or empty (timed-out) read; Sender.cls:151 maps SMTPResponse to REJECTED; Out.cls:245; PartnerWarning MAYHAVESENTSENTENCES keeps MESSAGEREJECTED as not sent
 - 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=fix in Sender.Classify (a QUIT-stage SMTPResponse is a send, or at least may-have-sent); it corrects email's own result sentence and DW-1416's timeline line together; rare (a server that does not answer QUIT)
 - 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T08:49:47Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut:QUIT-after-250_counts_as_SENT_for_every_email_kind;remainder_stays_with_23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha
 
 ### DW-1423: docs/security-overview.md does not say that a partner warning to Settings contacts can be approved only by an OcuTalonAdmin (DW-1415), and its Action audit line does not list the refused approve that AnswerOps.AuditRefused writes
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: security-overview.md:151 'Who may answer' names the admin rule for an email only; :159 Action lists a fix run, a resend, a replayed tool call or Break the feed
 - 2026-11-16T06:12:20Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the Planner rules the security-overview text for DW-1415 (draft: 'a partner warning to Settings contacts can be approved only if its user holds OcuTalonAdmin;' and 'Action: ... or a refused approve of a partner warning'); ruled public text (DW-1315)
+- 2026-11-16T08:49:46Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut_story(prompts/dw-1415-1416-rulings-20261116.md_last_section);text_to_Planner_first
 
 ### DW-1424: Test.Partner.PartnerApprove repeats the IRIS user and role helpers of other test classes (HeldRole verbatim from Test.Core.AnswersInProduction; MakeUser, CreateUser, SetRoles, DropUsers and PairedChat as in Test.Fix.Email and Test.Fix.EmailCard)
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
@@ -8711,11 +8721,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: GUIDE.md:12 vs 23.13 (merged) partner-warning behaviour
 - 2026-11-16T06:14:10Z status=decision-pending owner=burndown by=cr note=human=Planner_public_text:a ruled GUIDE.md wording for partner warnings to Settings contacts
+- 2026-11-16T08:49:47Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut_story(prompts/dw-1415-1416-rulings-20261116.md_last_section);text_to_Planner_first
 ### DW-1411: flake: web/e2e/demo-path/telegram-page.spec.ts:977 T7 (Story 12.6): the chat turn's reply part read 'I couldn't answer that: the model returned an error. Nothing was changed.' instead of the CI mock's 'The CI mock looked at the productions.' (60 s expect), in CI iris (browser) live:demo-path
 - source: epic-runner; OCT-epic21-dw1205 fded9d158 ci 43777000338 attempt 1 job 133005443930 on ocutalon-ci-14 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: a model-call fallback on the mock's chat scenario (list_productions tool turn, ci/mock/scenarios/A/chat.json); list_productions reads Watch.Reader.Productions(), not the evidence branch DW-1205 changed; lane-a@Fix 29/29 on builds 154 and 109 at the same tree; no other recent ci.yml failure carries this signature; distinct from DW-609 (T7 120 s timeout)
 - 2026-11-16T00:25:15Z status=routed owner=burndown by=flake note=(inference) the mock call timed out or errored under runner load; one rerun of the failed job
 - 2026-11-16T00:47:54Z occurrence=OCT-epic21-dw1205-fded9d158 by=epic-runner note=attempt 2 of run 43777000338 passed iris(browser) (flake confirmed by the rerun)
+- 2026-11-16T05:21:47Z status=dropped by=epic-runner note=superseded-by:DW-609 (same test, telegram-page.spec.ts T7; coordinator ledgered the ci-14 occurrence there)
+
+### DW-1427: DW-1373 item branch: an EnableConfigItem refusal (the forward store or the restore store) and a restore throw are never run live
+- source: spec-21-dw-1373-a-suspend-or-resume-that-could-not-be-applied-is-not-reported-as-nothing-changed.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: Tests force only UpdateProduction (updateErrors); a forced saved = 1 or a dropped restore Catch survives every test. A refusal needs a fixture item IRIS refuses (PoolSize 0 process, Director.cls L1570); a throw needs a new seam.
+- 2026-11-16T06:52:29Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=a change to the item branch saved gate or restore Try of InProduction, or a PoolSize 0 process in the Orders demo
 
 ### DW-1420: test-eval-set.sh main-set-texts reads only item and precedent fields, never a user-turn case's turn.text, so an instruction text could copy a user-turn case's wording unnoticed
 - source: lane C DW-1389 follow-up guard probe; Contest Planner ruling ~06:30Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint

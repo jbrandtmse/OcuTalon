@@ -13,7 +13,7 @@ import { TraceLink } from '../shared/trace-link';
 import { EvidencePanel } from './evidence-panel';
 import { IncidentDismiss, type DismissTarget } from './incident-dismiss';
 import { IncidentStateChip } from './incident-state-chip';
-import { INCIDENT_TEXTS, incidentView, productionOf, type IncidentContext } from './incident-view';
+import { INCIDENT_TEXTS, drawnOnClosed, incidentView, productionOf, stateOf, type IncidentContext } from './incident-view';
 
 /** The last id handed to a card, for the ids of its headline and its panel. */
 let lastId = 0;
@@ -22,7 +22,8 @@ let lastId = 0;
  * The context the incident view reads, with the page's real time formats: the headline's time is a message time (instance time,
  * " ET" on the online demo), the top time is the page's time with its day and the browser zone's name when its offset differs
  * from the instance's, and the panel's item times are page times with their day. A request's result band is the catalog's text
- * (approval-view.ts resultView with renderPageText), and a fallback reason is the catalog's reason text.
+ * (approval-view.ts resultView with renderPageText), and a fallback reason is the catalog's reason text. `drawn` holds the Refs of
+ * the requests the card draws as request cards, whose bands a compact card leaves out of its own.
  */
 export function incidentContext(
   decisions: readonly DecisionPayload[],
@@ -30,6 +31,7 @@ export function incidentContext(
   instanceZone: string,
   onlineDemo: boolean,
   approvals?: Readonly<Record<string, ApprovalPayload>>,
+  drawn?: ReadonlySet<string>,
 ): IncidentContext {
   return {
     decisions,
@@ -41,6 +43,7 @@ export function incidentContext(
     approvals,
     render: (key, slots) => renderPageText(key, slots),
     reasonText: fallbackReasonText,
+    drawn,
   };
 }
 
@@ -50,10 +53,12 @@ export function incidentContext(
  * (an h3), the "more since the notice" line, the cause, the evidence line, the proposed fix, the fixing line, the approval request
  * cards (Story 6.2: one for each approval payload of the store with this incident's ref, in the order raised, the first with Show
  * details at the right end of its row and the evidence panel below it), and the footer with the diagnosis decision's strip (or the
- * diagnosis trace link alone when the store holds no such decision). With no request card, and on a compact card, the card has its
+ * diagnosis trace link alone when the store holds no such decision). With no request card, a compact card included, the card has its
  * own actions row with Show details (aria-expanded) and the evidence panel directly below it. A 4px bar on the left follows the
- * state; a closed card keeps the chip row, the headline, the result band of each request of the payload (Story 6.4) and Show
- * details. A part with no data is left out.
+ * state; a closed card keeps the chip row, the headline, the result band of each request of the payload that has no request card
+ * (Story 6.4) and Show details, and draws the request card of an undo of a rollback only while that request is pending (incident-view.ts AFTER_CLOSE_KINDS and
+ * drawnOnClosed), with Show details at the end of its row; an answered or expired undo has no card.
+ * A part with no data is left out.
  * Story 6.4: a fallback or no-fix card shows its notice sentence and, under "Failures:", one line per group, in the place of the fix. Each
  * request card gets its request's result band from the payload's `requests`; Dismiss (incident-dismiss.ts) is offered while the state
  * is resolved or open: on the last request card (at the right end of its band, or of its answer row), and, with no request card, in
@@ -312,11 +317,20 @@ export class IncidentCard {
   protected readonly open = signal(false);
 
   protected readonly view = computed(() =>
-    incidentView(this.incident(), incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), this.approvals())),
+    incidentView(
+      this.incident(),
+      incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), this.approvals(), new Set(this.requests().map((request) => request.ref ?? ''))),
+    ),
   );
 
-  /** The incident's approval requests in the order raised; a compact (closed) card shows none. */
-  protected readonly requests = computed(() => (this.view().compact ? [] : requestsOf(this.incident(), this.approvals())));
+  /**
+   * The incident's approval requests in the order raised. A closed incident (read from the payload's state, never from the drawn
+   * view) shows only the pending requests of the kinds that may be asked after the close (`drawnOnClosed`), whenever each was raised.
+   */
+  protected readonly requests = computed(() => {
+    const asked = requestsOf(this.incident(), this.approvals());
+    return stateOf(this.incident().state)?.chip === 'closed' ? asked.filter(drawnOnClosed) : asked;
+  });
 
   /** The incident's production, which the band of a suspend or resume names the item in; empty when the payload names none. */
   protected readonly production = computed(() => productionOf(this.incident()));

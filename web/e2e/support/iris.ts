@@ -718,6 +718,19 @@ export async function askedSlots(kind: string, dryRun: Record<string, unknown>, 
   return JSON.parse(text) as Record<string, unknown>;
 }
 
+/**
+ * The slots of a catalog key's fixture (Test.Channel.LiveCase.FixtureSlots, the fixtures of Test.Msg.Catalog), for sendNotification of a
+ * notice that has no asked fill (the rollback's, a diagnosed kind): the catalog's own slots, never a copy of them.
+ */
+export async function fixtureSlots(key: string): Promise<Record<string, unknown>> {
+  const lines = await irisScript(
+    [`Set x=##class(OcuTalon.Test.Channel.LiveCase).FixtureSlots(${quoted(key)})`, 'Write !,"CHK|slots|",$Select($IsObject(x):x.%ToJSON(),1:"")'].join('\n'),
+  );
+  const text = chk(lines, 'slots');
+  if (!text || text === '{}') throw new Error(`the fixture slots of ${key} could not be read (${lines.join(' ')})`);
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
 /** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
 export async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
   const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
@@ -904,13 +917,67 @@ export async function answerHeaders(user: string): Promise<{ count: number; trac
   return { count, traceRef };
 }
 
-/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled. */
-export async function setApprovalState(ref: string, state: string): Promise<void> {
+/** The audit clock now (Test.Bridge.AuditLog.Now), the mark that approvalAudit reads from. */
+export async function auditClock(): Promise<string> {
+  const mark = chk(await irisScript('Write !,"CHK|now|",##class(OcuTalon.Test.Bridge.AuditLog).Now()'), 'now');
+  if (!mark) throw new Error('the audit clock could not be read');
+  return mark;
+}
+
+/** An Approval audit entry as Bridge.Approval writes it (Audited): the change, the states, the person, the channel and the kind. */
+export interface ApprovalAudit {
+  change: string;
+  from: string;
+  to: string;
+  irisUser: string;
+  channel: string;
+  kind: string;
+}
+
+/**
+ * The Approval audit entries of a request written at or after the mark (Test.Bridge.AuditLog.Wait, source OcuTalon, type Approval, the
+ * request's Ref as the marker), oldest first: waits up to `seconds` for `count` of them.
+ */
+export async function approvalAudit(mark: string, ref: string, count = 1, seconds = 30): Promise<ApprovalAudit[]> {
+  const lines = await irisScript(
+    [
+      `Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(${quoted(mark)},"OcuTalon","Approval","",${quoted(ref)},"",${count},${seconds})`,
+      'Write !,"CHK|n|",e.%Size()',
+      'For i=0:1:e.%Size()-1 { Set d=e.%Get(i).data Write !,"CHK|e"_i_"|",$Select($IsObject(d):d.change_"|"_d.from_"|"_d.to_"|"_d.irisUser_"|"_d.channel_"|"_d.kind,1:"") }',
+    ].join('\n'),
+  );
+  const found = Number(chk(lines, 'n'));
+  if (!Number.isInteger(found)) throw new Error(`the Approval audit entries could not be read (${lines.join(' ')})`);
+  const entries: ApprovalAudit[] = [];
+  for (let i = 0; i < found; i += 1) {
+    const [change = '', from = '', to = '', irisUser = '', channel = '', kind = ''] = (chk(lines, `e${i}`) ?? '').split('|');
+    entries.push({ change, from, to, irisUser, channel, kind });
+  }
+  return entries;
+}
+
+/** The answer that setApprovalState records with a state:the action (approve or reject), the channel and the person, and when (UTC), and the expiry when it changes. */
+export interface AnsweredFields {
+  action?: string;
+  channel?: string;
+  by?: string;
+  at?: string;
+  expiresAt?: string;
+}
+
+/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled, with the answer's fields when given. */
+export async function setApprovalState(ref: string, state: string, answered: AnsweredFields = {}): Promise<void> {
+  const set = (property: string, value: string | undefined): string[] => (value === undefined ? [] : [`Set r.${property}=${quoted(value)}`]);
   const lines = await irisScript(
     [
       `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
       `If '$IsObject(r) { Write !,"CHK|state|0" Halt }`,
       `Set r.State=${quoted(state)}`,
+      ...set('AnsweredAction', answered.action),
+      ...set('AnsweredChannel', answered.channel),
+      ...set('AnsweredBy', answered.by),
+      ...set('AnsweredAt', answered.at),
+      ...set('ExpiresAt', answered.expiresAt),
       'Write !,"CHK|state|",$System.Status.IsOK(r.%Save())',
     ].join('\n'),
   );
