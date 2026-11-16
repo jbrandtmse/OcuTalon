@@ -285,7 +285,7 @@ XData Entries [ MimeType = application/json ]
    "count": "count",
    "itemNoun": "noun",
    "time": "time",
-   "cause": "sentence",
+   "cause": "cause",
    "groups": "groups"
   },
   "source": "EXPERIENCE Message Catalog / Incident notice without a fix"
@@ -1036,12 +1036,56 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
  },
+ "summary.partnerMaySent": {
+  "text": "{time}: the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.13 rework DW-1416, Public Text ruled by the Contest Planner 2026-11-16 (prompts/dw-1415-1416-rulings-20261116.md)"
+ },
  "partner.subject": {
   "text": "Simulated delay notice to {recipient}",
   "slots": {
    "recipient": "text"
   },
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "incident.partnerRequestKept": {
+  "text": "I drafted a delay notice about this incident for the partner contacts set for {production}. Approve?\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent. The recipients are on the approval card on your OcuTalon page.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I drafted a delay notice about this incident for the partner contacts set for {production}.\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "production": "text",
+   "notice": "text"
+  },
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
+ "incident.partnerRequestMailbox": {
+  "text": "I drafted a delay notice about this incident for the partner contacts set for {production}. Approve sending it?\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card on your OcuTalon page.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I drafted a delay notice about this incident for the partner contacts set for {production}.\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "production": "text",
+   "notice": "text"
+  },
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
+ "result.partnerSkipped": {
+  "text": "The delay notice was sent to {sent} of {total} partner contacts. Not sent to {skipped}: they were removed from Settings > Partner contacts, or their address changed, since this request was made.",
+  "slots": {
+   "sent": "count",
+   "skipped": "count",
+   "total": "count"
+  },
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
+ "result.partnerMaySent": {
+  "text": "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+  "slots": {},
+  "source": "Story 23.15, Public Text ruled by the Contest Planner 2026-11-16 (prompts/dw-1415-1416-rulings-20261116.md, 23.15 text rulings)"
+ },
+ "partner.emailSubject": {
+  "text": "Delay notice",
+  "slots": {},
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
  },
  "mcp.serverUnavailable": {
   "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
@@ -1125,6 +1169,233 @@ XData Entries [ MimeType = application/json ]
    "name": "text"
   },
   "source": "Story 25.3 (Core.Files TEXTNOREADER); sent to a paired Telegram chat by Story 26.2 while no reader is on (Planner ruling H2, 2026-11-14)"
+ },
+ "incident.rollbackRequest": {
+  "text": "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "{count} {itemNoun} failed since {time}. {cause}. I can put {setting} on {target} back to its earlier value.\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "cause": "cause",
+   "setting": "text",
+   "target": "text",
+   "before": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "incident.undoRollbackRequest": {
+  "text": "I can undo the rollback of {setting} on {target}. Approve?\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I can undo the rollback of {setting} on {target}.\n\nDry run: {setting} on {target}. Before: {before}. After: {after}. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "before": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "incident.settingChangeCause": {
+  "text": "The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.",
+  "slots": {
+   "minutes": "minutes",
+   "setting": "text",
+   "target": "text",
+   "time": "time"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "result.settingRestored": {
+  "text": "{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "result.settingChangedSince": {
+  "text": "{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval.",
+  "slots": {
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "result.rollbackUndone": {
+  "text": "The rollback is undone: {setting} on {target} is back to {after}.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "after": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.requestedRollback": {
+  "text": "{time}: OcuTalon asked for approval to put {setting} on {target} back.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "summary.requestedUndoRollback": {
+  "text": "{time}: OcuTalon asked for approval to undo the rollback of {setting} on {target}.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.settingRestored": {
+  "text": "{time}: {setting} on {target} was put back to its earlier value.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 (texts approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "summary.rollbackUndone": {
+  "text": "{time}: the rollback of {setting} on {target} was undone.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.settingNotChanged": {
+  "text": "{time}: {setting} on {target} was not changed.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "summary.settingSavedNotApplied": {
+  "text": "{time}: {setting} on {target} was changed, but the production couldn't apply it.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "DW-1376 (Story 23.3 and DW-1373 follow-up), Public Text approved by the Contest Planner 2026-11-15 (23.3 follow-ups ruling)"
+ },
+ "result.settingSavedNotApplied": {
+  "text": "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
+  "slots": {
+   "setting": "text",
+   "target": "text",
+   "reason": "sentence"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15 (pre-push ruling, DW-1365)"
+ },
+ "page.onCall": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within {minutes} minutes, I'll page {backup}.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "backup": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it; if nobody does within one minute, I'll page {backup}."
+  }
+ },
+ "page.onCallEmail": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within {minutes} minutes, I'll page {backup}. Replying to this email doesn't count.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "backup": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page; if nobody does within one minute, I'll page {backup}. Replying to this email doesn't count."
+  }
+ },
+ "page.backup": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. Press Got it to show you're on it.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "person": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within one minute. Press Got it to show you're on it."
+  }
+ },
+ "page.backupEmail": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within {minutes} minutes. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause",
+   "minutes": "count",
+   "person": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15",
+  "one": {
+   "slot": "minutes",
+   "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're the backup, and nobody pressed Got it on {person}'s page within one minute. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count."
+  }
+ },
+ "page.subject": {
+  "text": "OcuTalon page: {production} incident",
+  "slots": {
+   "production": "text"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person (text approved in Story 36.1, 2026-11-12), Public Text ruled by the Contest Planner 2026-11-15"
+ },
+ "page.onCallAlone": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. Press Got it to show you're on it.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "page.onCallEmailAlone": {
+  "text": "{count} {itemNoun} failed in the {production} production since {time}. {cause}.\nWhy now: you're on call for OcuTalon. To show you're on it, press Got it on your OcuTalon page. Replying to this email doesn't count.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text",
+   "time": "time",
+   "cause": "cause"
+  },
+  "source": "Story 23.4 Decide when to page the on-call person, Public Text approved by the Contest Planner 2026-11-15"
+ },
+ "page.causeUnknown": {
+  "text": "I couldn't work out the cause",
+  "slots": {},
+  "source": "Story 23.4 Decide when to page the on-call person, Public Text approved by the Contest Planner 2026-11-15"
  }
 }
 }

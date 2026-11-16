@@ -1,0 +1,21 @@
+{
+  "name": "propose-fix-injected-undo",
+  "match": {
+    "marker": "propose-fix-injected-undo"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_fix",
+        "input": {
+          "kind": "undo_rollback"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the fix."
+    }
+  ]
+}

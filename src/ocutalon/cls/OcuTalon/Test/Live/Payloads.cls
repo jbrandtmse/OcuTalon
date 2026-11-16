@@ -1,11 +1,11 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 36 payload
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 40 payload
 /// and part classes (Story 41.15 adds the part Learned and the chat message's learned; Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 20.2 the parts Citation and Memory and the chat message's citations and memories, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
 /// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
-/// read from the request's FixRun, the kind, item and count that it lists for a chat-asked suspend, resume or reroute request (Story 23.2), and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// read from the request's FixRun, the kind, item and count that it lists for a chat-asked suspend, resume or reroute request (Story 23.2) and the after of a setting kind's request (DW-1378; Test.Watch.SettingCause TestRequestAfter), and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 36, "the contracts hold the 36 payload and part classes")
+	Do $$$AssertEquals(classes, 40, "the contracts hold the 40 payload and part classes (Story 23.3 adds Part.SettingChange, Story 23.4 Part.Page)")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -333,6 +333,7 @@ Method TestFromRowRequestResult()
 		If $IsObject(result) {
 			Do $$$AssertEquals(result.total_"|"_result.resent_"|"_result.completed_"|"_result.failedAgain_"|"_result.skipped_"|"_result.interrupted_"|"_result.reason, "50|48|45|3|2|1|the order date still wasn't accepted", "with its seven fields")
 			Do $$$AssertEquals(result.%GetTypeOf("total")_"|"_result.%GetTypeOf("interrupted")_"|"_result.%GetTypeOf("reason"), "number|number|string", "the counts are numbers")
+			Do $$$AssertEquals(result.%IsDefined("outcome"), 0, "and no outcome: only a partner warning's result has one (Story 23.15)")
 		}
 		Do $$$AssertEquals(object.requests.%Get(1).%IsDefined("result"), 0, "a request whose run has not ended has no result, whatever the run stores")
 		Do $$$AssertEquals(object.requests.%Get(2).%IsDefined("result"), 0, "and neither has a request that has no run of its own")
@@ -358,11 +359,11 @@ Method TestFromRowRequestKinds()
 	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
 	If object.requests.%Size() = 3 {
 		Set one = object.requests.%Get(0)
-		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.count_"|"_one.%GetTypeOf("count"), reroute_"|reroute|OrdersForReview|7|number", "the reroute names its target and counts its affected messages")
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.count_"|"_one.%GetTypeOf("count")_"|"_one.%IsDefined("after"), reroute_"|reroute|OrdersForReview|7|number|0", "the reroute names its target and counts its affected messages, and has no after")
 		Set one = object.requests.%Get(1)
-		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.%IsDefined("count"), suspend_"|suspend_item|OrdersToWarehouse|0", "the suspend names its item and gives no count")
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.%IsDefined("count")_"|"_one.%IsDefined("after"), suspend_"|suspend_item|OrdersToWarehouse|0|0", "the suspend names its item and gives no count, and no after: its dry run's after (disabled) does not reach the part")
 		Set one = object.requests.%Get(2)
-		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count"), repair_"|repair_resend|0|0", "the repair request names no item and gives no count")
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count")_"|"_one.%IsDefined("after"), repair_"|repair_resend|0|0|0", "the repair request names no item and gives no count, and no after")
 	}
 	Do $ClassMethod(fixture, "Clean", reroute_","_suspend_","_repair_","_row.Ref)
 }
@@ -496,6 +497,38 @@ Method TestChatMessageLearned()
 	}
 	Do payload.%JSONExportToString(.bareJson)
 	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(bareJson).%IsDefined("learned"), 0, "and the JSON then leaves the member out")
+}
+
+/// A turn's chat message carries the read result of its file and the caption of a photo (Story 25.6): fileRead {fileRef, kind, read, addable} from the row's FileRead (a failed read exports addable 0,
+/// and a member that the row holds beyond those four, such as a text or a reason, is never exported) and caption {memoryRef, text} from the row's Caption; both are left out of the JSON
+/// for an empty column and for text that is not a JSON object.
+Method TestChatMessageFileRead()
+{
+	Set row = ##class(OcuTalon.Data.Turn).%New()
+	Set row.Ref = "zzfrd"_..Number
+	Set row.FileRead = {"fileRef": "zzf1", "kind": "document", "read": 1, "chars": 12, "cut": 0, "addable": 1, "text": "zz must not be exported"}.%ToJSON()
+	Set row.Caption = {"memoryRef": "zzcap1", "text": "A red square.", "extra": 1}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do $$$AssertEquals(payload.FileRead.FileRef_"|"_payload.FileRead.Kind_"|"_payload.FileRead.Read_"|"_payload.FileRead.Addable, "zzf1|document|1|1", "the read result's four members")
+	Do $$$AssertEquals(payload.Caption.MemoryRef_"|"_payload.Caption.Text, "zzcap1|A red square.", "the caption's two members")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.fileRead.%ToJSON(), {"fileRef": "zzf1", "kind": "document", "read": 1, "addable": 1}.%ToJSON(), "fileRead is exactly {fileRef, kind, read, addable}")
+	Do $$$AssertEquals(exported.caption.%ToJSON(), {"memoryRef": "zzcap1", "text": "A red square."}.%ToJSON(), "caption is exactly {memoryRef, text}")
+	Do $$$AssertTrue(json '[ "must not be exported", "the extracted text is not exported")
+	Set row.FileRead = {"fileRef": "zzf2", "kind": "document", "read": 0, "reason": "damaged"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+	Do payload.%JSONExportToString(.json)
+	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(json).fileRead.%ToJSON(), {"fileRef": "zzf2", "kind": "document", "read": 0, "addable": 0}.%ToJSON(), "a failed read exports read 0 and addable 0, and no reason")
+	For text = "", "not json", "[", "[1]", "5", """x""" {
+		Set row.FileRead = text, row.Caption = text
+		Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(row)
+		Do payload.%JSONExportToString(.json)
+		Set exported = ##class(%DynamicObject).%FromJSON(json)
+		Do $$$AssertEquals(exported.%IsDefined("fileRead")_exported.%IsDefined("caption"), "00", "'"_text_"' leaves both members out")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Part.FileRead).FromJSON(""), "", "the part of an empty column is empty")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Part.Caption).FromJSON(""), "", "so is the caption's")
 }
 
 /// A turn's chat message carries its shown decision (the triage decision, or the reply decision of a fallback) as the decision
@@ -1297,7 +1330,9 @@ XData Contracts [ MimeType = application/json ]
    "Citations": "list Of OcuTalon.Live.Payload.Part.Citation(%JSONFIELDNAME=citations)",
    "Memories": "list Of OcuTalon.Live.Payload.Part.Memory(%JSONFIELDNAME=memories)",
    "Learned": "list Of OcuTalon.Live.Payload.Part.Learned(%JSONFIELDNAME=learned)",
-   "SentFile": "OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME=sentFile)"
+   "SentFile": "OcuTalon.Live.Payload.Part.SentFile(%JSONFIELDNAME=sentFile)",
+   "FileRead": "OcuTalon.Live.Payload.Part.FileRead(%JSONFIELDNAME=fileRead)",
+   "Caption": "OcuTalon.Live.Payload.Part.Caption(%JSONFIELDNAME=caption)"
   }
  },
  "OcuTalon.Live.Payload.Check": {
@@ -1374,6 +1409,9 @@ XData Contracts [ MimeType = application/json ]
    "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
    "Groups": "list Of OcuTalon.Live.Payload.Part.IncidentGroup(%JSONFIELDNAME=groups)",
    "Requests": "list Of OcuTalon.Live.Payload.Part.IncidentRequest(%JSONFIELDNAME=requests)",
+   "SettingChange": "OcuTalon.Live.Payload.Part.SettingChange(%JSONFIELDNAME=settingChange)",
+   "GapMinutes": "%Integer(%JSONFIELDNAME=gapMinutes)",
+   "Page": "OcuTalon.Live.Payload.Part.Page(%JSONFIELDNAME=page)",
    "Evidence": "OcuTalon.Live.Payload.Part.IncidentEvidence(%JSONFIELDNAME=evidence)",
    "TraceTargets": "OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFIELDNAME=traceTargets)"
   }
@@ -1574,6 +1612,27 @@ XData Contracts [ MimeType = application/json ]
    "LastAt": "%String(%JSONFIELDNAME=lastAt,MAXLEN=20)"
   }
  },
+ "OcuTalon.Live.Payload.Part.SettingChange": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Item": "%String(%JSONFIELDNAME=item,MAXLEN=256)",
+   "Target": "%String(%JSONFIELDNAME=target,MAXLEN=32)",
+   "Setting": "%String(%JSONFIELDNAME=setting,MAXLEN=256)",
+   "OldValue": "%String(%JSONFIELDNAME=oldValue,MAXLEN=2000)",
+   "NewValue": "%String(%JSONFIELDNAME=newValue,MAXLEN=2000)",
+   "Credential": "%Boolean(%JSONFIELDNAME=credential)",
+   "DetectedAt": "%String(%JSONFIELDNAME=detectedAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Page": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=16)",
+   "PagedAt": "%String(%JSONFIELDNAME=pagedAt,MAXLEN=20)",
+   "AcknowledgedAt": "%String(%JSONFIELDNAME=acknowledgedAt,MAXLEN=20)",
+   "Channel": "%String(%JSONFIELDNAME=channel,MAXLEN=32)"
+  }
+ },
  "OcuTalon.Live.Payload.Part.IncidentGroup": {
   "super": "%RegisteredObject,%JSON.Adaptor",
   "props": {
@@ -1591,6 +1650,7 @@ XData Contracts [ MimeType = application/json ]
    "FixKind": "%String(%JSONFIELDNAME=fixKind,MAXLEN=64)",
    "Item": "%String(%JSONFIELDNAME=item,MAXLEN=128)",
    "Count": "%Integer(%JSONFIELDNAME=count)",
+   "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
    "Result": "OcuTalon.Live.Payload.Part.IncidentRequestResult(%JSONFIELDNAME=result)"
   }
  },
@@ -1604,7 +1664,8 @@ XData Contracts [ MimeType = application/json ]
    "Skipped": "%Integer(%JSONFIELDNAME=skipped)",
    "Interrupted": "%Integer(%JSONFIELDNAME=interrupted)",
    "Unreached": "%Integer(%JSONFIELDNAME=unreached)",
-   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)"
+   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)",
+   "Outcome": "%String(%JSONFIELDNAME=outcome,MAXLEN=16)"
   }
  },
  "OcuTalon.Live.Payload.Part.IncidentTraceTargets": {
@@ -1627,6 +1688,22 @@ XData Contracts [ MimeType = application/json ]
   "props": {
    "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
    "Fact": "%String(%JSONFIELDNAME=fact,MAXLEN=)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.Caption": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "MemoryRef": "%String(%JSONFIELDNAME=memoryRef,MAXLEN=128)",
+   "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)"
+  }
+ },
+ "OcuTalon.Live.Payload.Part.FileRead": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "FileRef": "%String(%JSONFIELDNAME=fileRef,MAXLEN=22)",
+   "Kind": "%String(%JSONFIELDNAME=kind,MAXLEN=16)",
+   "Read": "%Integer(%JSONFIELDNAME=read)",
+   "Addable": "%Integer(%JSONFIELDNAME=addable)"
   }
  },
  "OcuTalon.Live.Payload.Part.SentFile": {

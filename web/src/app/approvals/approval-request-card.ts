@@ -21,7 +21,7 @@ import { EvidencePanel } from '../incidents/evidence-panel';
 import { IncidentDismiss, type DismissTarget } from '../incidents/incident-dismiss';
 import { INCIDENT_TEXTS, type PanelView } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
-import type { ApprovalPayload, IncidentRequest, ItemNoun } from '../live/payloads';
+import type { ApprovalPayload, IncidentRequest, ItemNoun, SettingChange } from '../live/payloads';
 import { renderPageText } from '../msg/catalog';
 import { approvalTitle } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
@@ -482,6 +482,8 @@ export class ApprovalRequestCard {
   readonly itemNoun = input<ItemNoun | undefined>(undefined);
   /** The incident's production, which the band of a suspend or resume names the item in. */
   readonly production = input('');
+  /** The incident's setting change (Story 23.3), which the band of a setting rollback or its undo names the setting, the item and the value by; undefined for none. */
+  readonly settingChange = input<SettingChange | undefined>(undefined);
   /** Dismiss, on the last request card of a resolved or open incident: at the band's right end, else at the end of the answer row; undefined for none. */
   readonly dismiss = input<DismissTarget | undefined>(undefined);
 
@@ -529,7 +531,7 @@ export class ApprovalRequestCard {
   protected readonly band = computed(() => {
     const request = this.result();
     const ctx = this.ctx();
-    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots), this.production());
+    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots), this.production(), this.settingChange(), this.shown().dryRun?.simulated ?? null);
   });
 
   /** True while a press is out: both buttons are busy. */

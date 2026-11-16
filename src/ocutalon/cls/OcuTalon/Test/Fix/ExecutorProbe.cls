@@ -24,6 +24,8 @@
 /// from disk, whether the run's FixRun has an EndedAt (storedEnd 1 or 0) and the request's State (storedState) at the send.
 /// Since Story 23.5 SendNotice (Deliver's send of a delay notice to SimMailboxOut) records each notice in Notices, as {sessionRef, approvalRef, incidentRef, catalogKey, slots, text}, and hands it to
 /// a shadow instance of SimMailboxOut, so that the mail is saved and published as the operation does; it answers that operation's status, or an error for a session that FailNoticeFor names.
+/// Since Story 23.13 MailApproved (the send of a Settings contact's approved email through Fix.Kind.Email SubmitApproved) records the Ref of each row it is given in MailCalls and sends nothing: it answers the
+/// canned MailIs, a JSON object {"sent", "outcome", "message"}, or {"sent": 1, "outcome": "sent", "message": ""} when none is set, and throws for MailIs throw.
 Class OcuTalon.Test.Fix.ExecutorProbe Extends OcuTalon.Fix.Executor
 {
 
@@ -324,6 +326,22 @@ Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As
 	If canned.%IsDefined("unreached") Set result.unreached = canned.unreached
 	If canned.%IsDefined("fail") Quit $SYSTEM.Status.Error(5001, canned.fail)
 	Quit $$$OK
+}
+
+/// The Refs of the rows that MailApproved was given, in order.
+Property MailCalls As %DynamicArray [ Transient ];
+
+/// The canned answer of MailApproved, a JSON object {"sent", "outcome", "message"}; "throw" makes it throw; empty gives a sent email.
+Property MailIs As %String(MAXLEN = "") [ Transient ];
+
+/// Records the call and answers the canned MailIs; nothing is submitted.
+Method MailApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
+{
+	If '$IsObject(..MailCalls) Set ..MailCalls = []
+	Do ..MailCalls.%Push(row.Ref)
+	If ..MailIs = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The send threw")
+	If ..MailIs = "" Quit {"sent": 1, "outcome": "sent", "message": ""}
+	Quit {}.%FromJSON(..MailIs)
 }
 
 Storage Default

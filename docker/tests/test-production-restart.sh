@@ -32,6 +32,10 @@
 #     from .env.example holds): it ends ready, the no-key check passes, both rows are 0, the mark is off, and every enabled item
 #     runs. The last start has the seam off, the mark on and the dummy token again, and leaves the rows 0 and the mark off. Both of
 #     these starts also run with LIVE_TELEGRAM=started, so that their Telegram checks read what the Telegram step left, not a park.
+#     Story 23.4 adds paging: before the kill three incidents of an instance owner have an on-call page each (Data.Page, with the on-call keys set): the first
+#     open and unacknowledged, the second open and acknowledged, the third closed. After the next start, an Escalation message for each page is sent twice to
+#     IncidentManager (the open, unacknowledged page's last, so that the others' are consumed first), and within 90 s the first incident has one backup page and the others none: after a kill and a restart, a backup is paged only while the
+#     on-call page is unacknowledged and its incident open, and only once. The rows and keys are removed afterwards.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -251,6 +255,21 @@ if [ -n "$turns_session" ] && [ "$(printf '%s' "$turns_refs" | tr ',' '\n' | gre
 else
   fail "row 20: the turn queue's fixture rows could not be seeded ('$seeded_turns')"
 fi
+seeded_pages=$(printf '%s\n' \
+  'Set F="OcuTalon.Test.Data.Fixture",now=##class(OcuTalon.Data.Time).NowUtc()' \
+  'Do ##class(OcuTalon.Data.Setting).Set("oncall.primary.user","zzrestartprimary")' \
+  'Do ##class(OcuTalon.Data.Setting).Set("oncall.backup.user","zzrestartbackup")' \
+  'Set i1=$ClassMethod(F,"Incident","instance",now,"ZZNS","Zz.RestartPaging",{"State":"open","OpenVariant":"no_fix"})' \
+  'Set i2=$ClassMethod(F,"Incident","instance",now,"ZZNS","Zz.RestartPaging",{"State":"open","OpenVariant":"no_fix"})' \
+  'Set i3=$ClassMethod(F,"Incident","instance",now,"ZZNS","Zz.RestartPaging",{"State":"closed","OpenVariant":"","ClosedAt":(now)})' \
+  'For n=1:1:3 { Set i=$Case(n,1:i1,2:i2,:i3),p=##class(OcuTalon.Data.Page).%New(),p.Ref=##class(OcuTalon.Bridge.Ids).NewRef(),p.IncidentRef=i,p.Role="oncall",p.Person="zzrestartprimary",p.Channels="telegram,email",p.SentAt=now  If n=2 { Set p.AcknowledgedAt=now,p.AcknowledgedChannel="web" }  Do p.%Save()  Write !,"CHK|page",n,"|",i,"|",p.Ref }' \
+  'Halt' | iris_script OCUTALON)
+page_lines=$(printf '%s\n' "$seeded_pages" | sed -n 's/^CHK|page//p')
+if [ "$(printf '%s\n' "$page_lines" | grep -c .)" = 3 ]; then
+  pass "row 20: three incidents with an on-call page each (open, acknowledged, closed) are seeded"
+else
+  fail "row 20: the paging fixture rows could not be seeded ('$seeded_pages')"
+fi
 check_session "row 20: journaling is enabled and the journal is synced to disk before the kill" OCUTALON \
   "CHK|journal|1" \
   'Try { Set state=##class(%SYS.Journal.System).GetState() Do ##class(%SYS.Journal.System).Sync() Write !,"CHK|journal|",(state=0) } Catch e { Write !,"CHK|journal|0" }' \
@@ -329,6 +348,26 @@ CHK|events|1|1|1" \
   'Set e=##class(OcuTalon.Live.Event).Since(b,0,100,"session"),i=e.%GetIterator(),n1=0,n2=0,s1=0,s2=0' \
   'While i.%GetNext(,.x) { If x.payload.state="done" { If x.payload.ref=t1.Ref { Set n1=n1+1,s1=x.seq } If x.payload.ref=t2.Ref { Set n2=n2+1,s2=x.seq } } }' \
   'Write !,"CHK|events|",n1,"|",n2,"|",(s1<s2)' \
+  'Halt'
+escalations=""
+for n in 1 2 3; do
+  pair=$(printf '%s\n' "$page_lines" | sed -n "${n}p")
+  escalations="$escalations$(printf '%s' "$pair" | cut -d'|' -f2)|$(printf '%s' "$pair" | cut -d'|' -f3) "
+done
+set -- $escalations
+check_session "row 20: two Escalation messages for each seeded page after the restart page the backup once, for the unacknowledged page of the open incident only, and the paging rows and keys are removed" OCUTALON \
+  "CHK|pages|2|1|1
+CHK|left|0" \
+  "For p=\"$2\",\"$3\",\"$1\" { Set i=\$Piece(p,\"|\",1),r=\$Piece(p,\"|\",2) For k=1,2 { Set m=##class(OcuTalon.Msg.Escalation).%New(),m.IncidentRef=i,m.PageRef=r,sc=##class(Ens.Director).CreateBusinessService(\"SimMailboxIn\",.v),sc=v.SendRequestAsync(\"IncidentManager\",m) } }" \
+  "Set i1=\$Piece(\"$1\",\"|\",1),i2=\$Piece(\"$2\",\"|\",1),i3=\$Piece(\"$3\",\"|\",1),end=\$ZHorolog+90" \
+  'For { If ##class(OcuTalon.Data.Page).IncidentRoleIndexExists(i1,"backup") Quit  If $ZHorolog>end Quit  Hang 1 }' \
+  'Hang 8' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT (SELECT COUNT(*) FROM OcuTalon_Data.Page WHERE IncidentRef=?),(SELECT COUNT(*) FROM OcuTalon_Data.Page WHERE IncidentRef=?),(SELECT COUNT(*) FROM OcuTalon_Data.Page WHERE IncidentRef=?)",i1,i2,i3) Do rs.%Next()' \
+  'Write !,"CHK|pages|",rs.%GetData(1),"|",rs.%GetData(2),"|",rs.%GetData(3)' \
+  'Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.Page WHERE IncidentRef IN (?,?,?)",i1,i2,i3)' \
+  'For k="oncall.primary.user","oncall.backup.user" { Set r=##class(OcuTalon.Data.Setting).KeyIndexOpen(k) If $IsObject(r) { Do ##class(OcuTalon.Data.Setting).%DeleteId(r.%Id()) } }' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Page WHERE IncidentRef IN (?,?,?)",i1,i2,i3) Do rs.%Next()' \
+  'Write !,"CHK|left|",rs.%GetData(1)+##class(OcuTalon.Data.Setting).KeyIndexExists("oncall.primary.user")+##class(OcuTalon.Data.Setting).KeyIndexExists("oncall.backup.user")' \
   'Halt'
 check_session "row 20: the snapshot's fixture rows are removed" OCUTALON \
   "CHK|left|0" \

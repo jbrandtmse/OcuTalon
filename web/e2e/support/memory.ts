@@ -51,6 +51,25 @@ export async function removePrecedent(ref: string): Promise<void> {
   );
 }
 
+/**
+ * Deletes the precedent rows that PrecedentOps recorded for these approval requests (SourceRef is the request's Ref), as an answer that
+ * a case pressed leaves them; answers how many it deleted. A Ref that is not a plain Ref is left alone.
+ */
+export async function removePrecedentsOf(sources: Array<string | undefined>): Promise<number> {
+  const mine = sources.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
+  if (mine.length === 0) return 0;
+  const lines = await irisScript(
+    [
+      'Set n=0',
+      ...mine.map((ref) => `Set r=##class(OcuTalon.Data.Precedent).SourceRefIndexOpen(${quoted(ref)}) If $IsObject(r),$SYSTEM.Status.IsOK(##class(OcuTalon.Data.Precedent).%DeleteId(r.%Id())) Set n=n+1`),
+      'Write !,"CHK|removed|",n',
+    ].join('\n'),
+  );
+  const removed = Number(chk(lines, 'removed'));
+  if (!Number.isInteger(removed)) throw new Error(`the precedent rows could not be removed (${lines.join(' ')})`);
+  return removed;
+}
+
 /** 1 when the precedent row with the Ref is there, else 0. */
 export async function precedentExists(ref: string): Promise<number> {
   const lines = await irisScript([`Write !,"CHK|exists|",##class(OcuTalon.Data.Precedent).RefIndexExists(${quoted(ref)})`].join('\n'));

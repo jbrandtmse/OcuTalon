@@ -49,6 +49,7 @@ Include Ensemble
 ///     session), the Ref is a reference, the paired session has a telegram Delivery row for that Ref (Ownership.DeliveryByRef), and the chat of that row's
 ///     message id is the pressing chat. Any other press submits nothing. Every Got it press is answered with answerCallbackQuery and no text, so the
 ///     press adds no text of its own; a failed Submit is one warning.
+///     When that Delivery row is of the kind page (Story 23.4), the press submits Msg.Command.AckPage {Ref, Channel telegram, SessionRef} instead, under the same checks.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
 ///     A refusal queues nothing and calls no model: with a retryAt, and on the first refusal of the window only, Notify gets the
@@ -63,8 +64,9 @@ Include Ensemble
 ///   - A paired chat's file (Story 26.2; FR-54, AD-14, AD-21): a message with a document object or a photo array is handled by File, in this order, and each step that refuses
 ///     answers one pairing Notification (files.* keys) and goes no further. (1) On the online demo (public setting onlineDemo 1) nothing is fetched and the chat is answered
 ///     files.offOnDemo. (2) The size that the update reports (the document's, or the largest photo size's) over Core.Files FILEMAX is refused with files.tooLarge before any call.
-///     (3) While Core.Files.Readable() is 0 (Agent.Input READSFILES), nothing is fetched or stored and the chat is answered files.noReader, which is Core.Files' reply to a file turn
-///     with no reader, so that the web chat and Telegram do not differ. A part with no file_id is files.unreadable with the reason of Docs.Extract.Reason("failed"). (4) Turn checks the
+///     (3) Core.Files.Readable() is 1 from Story 25.6 (Agent.Input READSFILES), so the file goes on to steps (4) to (6) and then to Conversation, which reads it as it reads a web
+///     file. Only when it is 0 (a test's reader seam) is nothing fetched or stored and the chat answered files.noReader, which is Core.Files' reply to a file turn with no reader,
+///     so that the web chat and Telegram do not differ. A part with no file_id is files.unreadable with the reason of Docs.Extract.Reason("failed"). (4) Turn checks the
 ///     session row and the allowance as for a text turn (the caption is the text), so that a message the allowance refuses costs no download (DW-1340). (5) getFile for the file_id (the
 ///     last, largest photo size), then Api.Download of the file_path it answers, which stops at FILEMAX bytes and at DOWNLOADSECONDS; a failure of either is one warning (no URL, path or
 ///     token) and files.unreadable with the reason of Docs.Extract.Reason("failed"); a download over the limit is files.tooLarge. (6) Core.Files.Store with channel telegram, the
@@ -436,6 +438,14 @@ Method GotIt(chatRef As %String, decisionRef As %String) [ Private ]
 	If '$IsObject(chat) || (chat.SessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(decisionRef) || '##class(OcuTalon.Bridge.Approval).IsRef(chat.SessionRef) Quit
 	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(decisionRef, ..#CHANNEL, chat.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) || ($Piece(row.ChannelMessageId, ":", 1) '= chatRef) Quit
+	If row.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
+		Set page = ##class(OcuTalon.Msg.Command.AckPage).%New()
+		Set page.Ref = decisionRef
+		Set page.Channel = ..#CHANNEL
+		Set page.SessionRef = chat.SessionRef
+		Do ..Outcome(page, ..#LOGGOTIT)
+		Quit
+	}
 	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
 	Set command.Ref = decisionRef
 	Set command.Channel = ..#CHANNEL
@@ -463,7 +473,7 @@ Method AnswerPress(query As %DynamicObject, text As %String, alert As %Boolean) 
 	}
 }
 
-/// Adds to the slots of an approved press the fix kind of its request (fixKind) and, from its dry run, the item a suspend or resume changes (item) and the item a reroute sends
+/// Adds to the slots of an approved press the fix kind of its request (fixKind) and, from its dry run, the item a suspend or resume changes (item), whether a partner warning is simulated (simulated) and the item a reroute sends
 /// the messages to (to), for the pressing chat's paired session (Story 23.2). A request that can't be read adds nothing, and PressText then shows no text for a kind it can't name.
 Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObject) [ Private ]
 {
@@ -477,6 +487,8 @@ Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObj
 		If $IsObject(dry) {
 			If dry.Item '= "" Do slots.%Set("item", dry.Item, "string")
 			If dry.To '= "" Do slots.%Set("to", dry.To, "string")
+			If dry.Field '= "" Do slots.%Set("setting", dry.Field, "string")
+			If row.FixKind = "partner_warning" Do slots.%Set("simulated", +dry.Simulated, "number")
 		}
 	} Catch {
 	}
@@ -494,11 +506,20 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 		If (kind = "suspend_item") || (kind = "resume_item") {
 			If slots.%Get("item") = "" Quit ""
 			Set key = $Select(kind = "suspend_item": "press.approvedSuspend", 1: "press.approvedResume"), use = {"item": (slots.item)}
+		} ElseIf (kind = "rollback_setting") || (kind = "undo_rollback") {
+			If (slots.%Get("setting") = "") || (slots.%Get("item") = "") Quit ""
+			Set key = $Select(kind = "rollback_setting": "press.approvedRollback", 1: "press.approvedUndoRollback"), use = {"setting": (slots.setting), "target": (slots.item)}
 		} ElseIf kind = "reroute" {
 			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
 			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}
 		} ElseIf kind = "partner_warning" {
-			Set key = "press.approvedPartner"
+			If slots.%GetTypeOf("simulated") '= "number" Quit ""
+			If 'slots.simulated {
+				If ##class(OcuTalon.Fix.Kind.PartnerWarning).MailboxConnected() Quit ""
+				Set key = "press.approvedPartnerKept"
+			} Else {
+				Set key = "press.approvedPartner"
+			}
 		} Else {
 			If slots.%GetTypeOf("count") '= "number" Quit ""
 			Set key = "press.approved", use = slots

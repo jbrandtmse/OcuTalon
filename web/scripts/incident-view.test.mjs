@@ -4,21 +4,22 @@
 // footer's decision, the Show details panel (its rows, the held note, the served links), the parts that a snapshot payload lacks, and
 // the announcement table; Story 6.4: the fallback and no-fix notices with their failure groups (a dated time included), the unknown
 // cause's own sentence, Dismiss for exactly the resolved and open states, the compact card's result bands and each request's band text for
-// the announcements. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
+// the announcements; DW-1378: a done setting band names the request's after, and an incident event published before it (no after) is applied by the live store and drawn with no error. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
 // syntax and imports only types. The times come from the real page-time.ts with named zones.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'incidents', 'incident-view.ts');
-const { INCIDENT_TEXTS, announcementOf, bandTexts, categoryText, incidentView, stateText } = await import(pathToFileURL(source).href);
+const { AFTER_CLOSE_KINDS, INCIDENT_TEXTS, announcementOf, bandTexts, categoryText, drawnOnClosed, incidentView, stateText } = await import(pathToFileURL(source).href);
 const { resultView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'approvals', 'approval-view.ts')).href);
 const { PAGE_TEXTS, REASON_KEYS, renderPageText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'msg', 'catalog.ts')).href);
 const { messageTime, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
+const { applyEvents, fromSnapshot } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'live', 'live-store.ts')).href);
 
 const NOW = Date.parse('2026-10-22T14:30:00Z');
 
@@ -173,6 +174,29 @@ describe('the same ref again: count and fixing', () => {
     assert.equal(card.bar, 'fixing');
     assert.equal(card.fixingLine, 'Repairing and resending 50 orders\u2026');
     assert.equal(card.evidenceLine, 'Data format change \u00B7 order date \u00B7 52 failures grouped into this incident');
+  });
+
+  it('names the setting change behind an incident, and says what its rollback and undo do (Story 23.3)', () => {
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersToWarehouse', newValue: 'OrdersToWarehous', credential: false, detectedAt: '2026-10-22T14:08:00Z' };
+    const named = (over = {}) => full({ causeCategory: 'setting_change', element: 'TargetConfigName', settingChange: change, gapMinutes: 4, requests: [{ state: 'pending', fixKind: 'rollback_setting', item: 'OrdersFromPartner' }], ...over });
+    const render = (key, slots) => renderPageText(key, slots);
+    assert.equal(view(named(), { render }).settingCauseLine, 'The feed broke four minutes after this setting changed: TargetConfigName on OrdersFromPartner, at 14:08.');
+    assert.equal(view(named(), { render }, { onlineDemo: true }).settingCauseLine, 'The feed broke four minutes after this setting changed: TargetConfigName on OrdersFromPartner, at 14:08 ET.', 'with " ET" on the online demo');
+    assert.equal(view(named({ gapMinutes: 0 }), { render }).settingCauseLine.startsWith('The feed broke less than a minute after'), true, 'a gap of 0 minutes');
+    assert.equal(view(named({ gapMinutes: 1212 }), { render }).settingCauseLine.startsWith('The feed broke 1,212 minutes after'), true, 'a long gap');
+    assert.equal(view(named({ settingChange: undefined }), { render }).settingCauseLine, '', 'an incident that names no change has no line');
+    assert.equal(view(named({ gapMinutes: undefined }), { render }).settingCauseLine, '', 'nor one with no gap');
+    assert.equal(view(named()).settingCauseLine, '', 'nor a context with no catalog');
+    assert.equal(view(full(), { render }).settingCauseLine, '', 'an ordinary incident has none');
+    assert.equal(view(named({ state: 'closed' }), { render }).settingCauseLine, '', 'a closed card is compact');
+    assert.equal(view(named()).fixSentence, 'I can put TargetConfigName on OrdersFromPartner back to its earlier value.');
+    assert.equal(view(named({ requests: [{ state: 'pending', fixKind: 'undo_rollback', item: 'OrdersFromPartner' }] })).fixSentence, 'I can undo the rollback of TargetConfigName on OrdersFromPartner.');
+    assert.equal(view(named({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'rollback_setting', item: 'OrdersFromPartner' }] })).fixingLine, 'Putting TargetConfigName on OrdersFromPartner back\u2026');
+    assert.equal(view(named({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'undo_rollback', item: 'OrdersFromPartner' }] })).fixingLine, 'Undoing the rollback of TargetConfigName on OrdersFromPartner\u2026');
+    assert.equal(view(named({ settingChange: undefined })).fixSentence, 'I can repair and resend all 50.', 'with no change to name, the sentence is the diagnosis\'s');
+    const closed = view(named({ state: 'closed', requests: [{ ref: 'A', state: 'done', fixKind: 'rollback_setting', item: 'OrdersFromPartner', after: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } }] }), { result: (request, itemNoun, production, one) => resultView(request, itemNoun, renderPageText, production, one) });
+    assert.equal(closed.results[0].key, 'result.settingRestored', 'a closed card carries the result band of the rollback');
+    assert.equal(closed.results[0].text, 'TargetConfigName on OrdersFromPartner is back to OrdersToWarehouse. To undo it, ask me to undo the rollback.');
   });
 
   it('takes the fixing count from the first executing request with a total, else noticeCount, else count', () => {
@@ -371,6 +395,50 @@ describe('the Show details panel', () => {
     ]);
   });
 
+  it('lists the setting change right after the cause: the change, the old and new values (mono), the time (Story 24.4a, V1)', () => {
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersRouter', newValue: 'OrdersRouterNew', credential: false, detectedAt: '2026-10-22T14:08:00Z' };
+    const rows = view(full({ settingChange: change })).panel.rows;
+    assert.deepEqual(rows.map((row) => row.label), ['Cause', 'Setting change', 'Old value', 'New value', 'Detected', 'Sample failed message', 'Error', 'Failures by item'], 'the four rows follow the Cause row');
+    assert.deepEqual(rows.slice(1, 5), [
+      { label: 'Setting change', lines: ['TargetConfigName on OrdersFromPartner'], mono: true },
+      { label: 'Old value', lines: ['OrdersRouter'], mono: true },
+      { label: 'New value', lines: ['OrdersRouterNew'], mono: true },
+      { label: 'Detected', lines: ['16:08'], mono: false },
+    ]);
+    assert.deepEqual(
+      [INCIDENT_TEXTS.labelSettingChange, INCIDENT_TEXTS.settingOnItem, INCIDENT_TEXTS.labelOldValue, INCIDENT_TEXTS.labelNewValue, INCIDENT_TEXTS.labelDetected],
+      ['Setting change', '{setting} on {item}', 'Old value', 'New value', 'Detected'],
+      'the five strings of the Planner\'s V1 ruling, verbatim',
+    );
+    const dayBefore = view(full({ settingChange: { ...change, detectedAt: '2026-10-21T14:08:00Z' } })).panel.rows.find((row) => row.label === 'Detected');
+    assert.deepEqual(dayBefore.lines, ['Wednesday at 16:08'], 'a time of another day has its day, as the panel\'s other times');
+  });
+
+  it('leaves out the value rows of a credential and of an empty value, and every row of a change that names no setting or item', () => {
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'Password', oldValue: '', newValue: '', credential: true, detectedAt: '2026-10-22T14:08:00Z' };
+    const labels = (settingChange) => view(full({ settingChange })).panel.rows.map((row) => row.label);
+    const plain = ['Cause', 'Sample failed message', 'Error', 'Failures by item'];
+    assert.deepEqual(labels(change), ['Cause', 'Setting change', 'Detected', ...plain.slice(1)], 'a credential: the change and the time only');
+    assert.deepEqual(labels({ ...change, oldValue: 'x', newValue: 'y' }), ['Cause', 'Setting change', 'Detected', ...plain.slice(1)], 'its values are never shown, even when the payload holds some');
+    assert.deepEqual(labels({ ...change, credential: false, oldValue: '', newValue: 'y' }), ['Cause', 'Setting change', 'New value', 'Detected', ...plain.slice(1)], 'an empty old value (the setting was added): no Old value row');
+    assert.deepEqual(labels({ ...change, credential: false, oldValue: 'x', newValue: '' }), ['Cause', 'Setting change', 'Old value', 'Detected', ...plain.slice(1)], 'and an empty new value: no New value row');
+    assert.deepEqual(labels({ ...change, detectedAt: 'not a time' }), ['Cause', 'Setting change', ...plain.slice(1)], 'an unreadable time: no Detected row');
+    assert.deepEqual(labels(undefined), plain, 'no change named: the panel is as before');
+    assert.deepEqual(labels({ ...change, setting: '' }), plain, 'no setting: no row');
+    assert.deepEqual(labels({ ...change, item: '' }), plain, 'no item: no row');
+    assert.deepEqual(labels({}), plain, 'an empty change: no row');
+  });
+
+  it('shows a value that the server redacted as it was sent, and a plain value byte for byte; it redacts nothing itself', () => {
+    const url = 'https://feed.example.test/orders?token=[redacted]';
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'Host', oldValue: url, newValue: ' OrdersRouter ', credential: false, detectedAt: '2026-10-22T14:08:00Z' };
+    const rows = view(full({ settingChange: change })).panel.rows;
+    assert.deepEqual(rows.find((row) => row.label === 'Old value').lines, [url]);
+    assert.deepEqual(rows.find((row) => row.label === 'New value').lines, [' OrdersRouter ']);
+    const raw = view(full({ settingChange: { ...change, oldValue: 'https://feed.example.test/orders?token=abc123' } })).panel.rows;
+    assert.deepEqual(raw.find((row) => row.label === 'Old value').lines, ['https://feed.example.test/orders?token=abc123'], 'the page shows what the server sent: the redaction is the server\'s');
+  });
+
   it('writes one line per item: one failure with its one time, more with the first and last, times as page times with their day', () => {
     const items = [
       { itemName: 'Order transform', count: 1, firstAt: '2026-10-22T14:12:03Z', lastAt: '2026-10-22T14:12:03Z' },
@@ -523,11 +591,20 @@ describe('the fixed strings', () => {
         fixSuspend: 'I can suspend {item}.',
         fixResume: 'I can resume {item}.',
         fixReroute: 'I can reroute {count} {noun} to {to}.',
+        fixRollback: 'I can put {setting} on {target} back to its earlier value.',
+        fixUndoRollback: 'I can undo the rollback of {setting} on {target}.',
+        fixingRollback: 'Putting {setting} on {target} back\u2026',
+        fixingUndoRollback: 'Undoing the rollback of {setting} on {target}\u2026',
         showDetails: 'Show details',
         nounOne: 'message',
         nounOther: 'messages',
         separator: ' \u00B7 ',
         labelCause: 'Cause',
+        labelSettingChange: 'Setting change',
+        settingOnItem: '{setting} on {item}',
+        labelOldValue: 'Old value',
+        labelNewValue: 'New value',
+        labelDetected: 'Detected',
         labelSample: 'Sample failed message',
         labelError: 'Error',
         labelItems: 'Failures by item',
@@ -689,6 +766,16 @@ describe('the result bands (Story 6.4)', () => {
     assert.equal(bandTexts(closed, context()).P1, 'Sent to the Simulated mailbox.');
   });
 
+  it('reads the band of a Settings contact\'s notice with the store\'s simulated, and shows no sent band when the store lacks the request (Story 23.13)', () => {
+    const requests = [{ ref: 'P1', state: 'done', fixKind: 'partner_warning', result: { total: 2, resent: 0, completed: 2, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } }];
+    const closed = { ...full({ state: 'closed' }), requests };
+    const asked = (simulated) => context({ result: (request, itemNoun, production, change, flag) => resultView(request, itemNoun, renderPageText, production, change, flag ?? null), approvals: simulated === undefined ? {} : { P1: { dryRun: { simulated } } } });
+    assert.deepEqual(view(closed, asked(false)).results.map((band) => [band.key, band.text]), [['fix.emailSent', 'The email was sent.']], 'a request that is not simulated reads fix.emailSent');
+    assert.deepEqual(view(closed, asked(true)).results.map((band) => band.key), ['result.partnerSent'], 'a simulated one reads the Simulated mailbox\'s band');
+    assert.deepEqual(view(closed, asked(undefined)).results, [], 'with no payload for the request no band says that anything was sent');
+    assert.equal(bandTexts(closed, asked(false)).P1, 'The email was sent.');
+  });
+
   it('give a suspend, a resume and a reroute their own band on a compact card, with the incident\'s production for the item kinds (Story 23.2)', () => {
     const asked = [
       { ref: 'S1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },
@@ -725,6 +812,160 @@ describe('the result bands (Story 6.4)', () => {
     const executing = [{ ref: 'A1', state: 'executing', result: { total: 50, completed: 30 } }];
     assert.equal(bandTexts(full({ state: 'fixing', requests: executing }), context()).A1, "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.");
     assert.equal(bandTexts(full({ state: 'resolved', requests: [{ ...executing[0], state: 'done', result: { total: 50, resent: 50, completed: 50 } }] }), context()).A1, 'All 50 orders went through.');
+  });
+});
+
+describe('the requests a closed card draws itself (Story 24.4b; Fix.Kind.AskedClosed)', () => {
+  const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+  const change = { item: 'OrdersToWarehouse', target: 'OrdersToWarehouse', setting: 'PoolSize', oldValue: '4', newValue: '8', credential: false, detectedAt: '2026-10-22T14:00:00Z' };
+  const asked = [
+    { ref: 'RB1', state: 'done', fixKind: 'rollback_setting', item: 'OrdersToWarehouse', after: '4', result: done },
+    { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', after: '8', result: done },
+    { ref: 'SU1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: done },
+  ];
+  const closed = (over = {}) => full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', settingChange: change, requests: asked, ...over });
+  const keys = (card) => card.results.map((band) => band.key);
+  /** The context's result with the payload's setting change, as the card's own context passes it. */
+  const withChange = { result: (request, itemNoun, production, changed) => resultView(request, itemNoun, renderPageText, production, changed) };
+  const seen = (card, over = {}) => view(card, { ...withChange, ...over });
+
+  it('names the undo of a rollback as the only kind asked after the close', () => {
+    assert.deepEqual([...AFTER_CLOSE_KINDS], ['undo_rollback']);
+    for (const [kind, expected] of [
+      ['undo_rollback', true],
+      ['', false],
+      ['repair', false],
+      ['repair_resend', false],
+      ['suspend_item', false],
+      ['resume_item', false],
+      ['reroute', false],
+      ['rollback_setting', false],
+      ['partner_warning', false],
+      ['email', false],
+      [undefined, false],
+      [null, false],
+    ]) {
+      assert.equal(drawnOnClosed({ fixKind: kind, state: 'pending' }), expected, `${String(kind)}, pending`);
+    }
+    assert.equal(drawnOnClosed({ state: 'pending' }), false, 'a pending approval with no fixKind is not drawn');
+  });
+
+  it('holds exactly the kinds whose class lists closed among its ASKEDSTATES (Fix.Kind.AskedClosed), read from the kind classes', () => {
+    const kinds = join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTalon', 'Fix', 'Kind');
+    const parameter = (text, name) => new RegExp(`^Parameter ${name} = "([^"]*)";`, 'm').exec(text)?.[1];
+    const base = parameter(readFileSync(`${kinds}.cls`, 'utf8'), 'ASKEDSTATES') ?? '';
+    const closed = [];
+    for (const file of readdirSync(kinds).filter((one) => one.endsWith('.cls'))) {
+      const text = readFileSync(join(kinds, file), 'utf8');
+      const name = parameter(text, 'NAME');
+      assert.ok(name, `${file} names its kind`);
+      if ((parameter(text, 'ASKEDSTATES') ?? base).split(',').includes('closed')) closed.push(name);
+    }
+    assert.ok(closed.length > 0 && !base.split(',').includes('closed'), 'the base class keeps closed out, and a kind class adds it');
+    assert.deepEqual([...AFTER_CLOSE_KINDS].sort(), closed.sort());
+  });
+
+  it('draws an undo on a closed card only while its request is pending', () => {
+    assert.equal(drawnOnClosed({ fixKind: 'undo_rollback', state: 'pending' }), true);
+    for (const state of ['rejected', 'expired', 'done', 'executing', 'failed', 'approved', 'cancelled', '', undefined, null]) {
+      assert.equal(drawnOnClosed({ fixKind: 'undo_rollback', state }), false, `an undo that is ${String(state)}`);
+    }
+    assert.equal(drawnOnClosed({ fixKind: 'undo_rollback' }), false, 'an undo whose state is absent');
+    for (const kind of ['repair', 'repair_resend', 'suspend_item', 'resume_item', 'reroute', 'rollback_setting', 'partner_warning', 'email']) {
+      assert.equal(drawnOnClosed({ fixKind: kind, state: 'pending' }), false, `a pending ${kind} is never drawn`);
+    }
+  });
+
+  it('with no drawn Refs keeps the band of a done undo among the compact bands, and gives a rejected or expired one with no result no band', () => {
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set() })), ['result.settingRestored', 'result.rollbackUndone', 'result.itemSuspended']);
+    const answered = closed({ requests: [{ ref: 'UN3', state: 'rejected', fixKind: 'undo_rollback' }, { ref: 'UN4', state: 'expired', fixKind: 'undo_rollback' }] });
+    assert.deepEqual(keys(seen(answered, { drawn: new Set() })), []);
+  });
+
+  it('keeps every band on a compact card with no drawn Refs, as before', () => {
+    assert.deepEqual(keys(seen(closed())), ['result.settingRestored', 'result.rollbackUndone', 'result.itemSuspended']);
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set() })), ['result.settingRestored', 'result.rollbackUndone', 'result.itemSuspended']);
+  });
+
+  it('leaves out only the band of a request drawn as a request card, and keeps the others', () => {
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set(['UN1']) })), ['result.settingRestored', 'result.itemSuspended']);
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set(['UN1', 'unknown']) })), ['result.settingRestored', 'result.itemSuspended']);
+  });
+
+  it('keeps the rollback\'s band among the compact bands when only the undo is drawn (a done rollback and a pending undo)', () => {
+    const mixed = closed({ requests: [asked[0], { ref: 'UN2', state: 'pending', fixKind: 'undo_rollback' }] });
+    assert.deepEqual(keys(seen(mixed, { drawn: new Set(['UN2']) })), ['result.settingRestored']);
+  });
+
+  it('has no effect on a card that is not compact', () => {
+    const open = full({ state: 'resolved', requests: asked });
+    assert.deepEqual(view(open, { drawn: new Set(['UN1']) }), view(open));
+    assert.equal(view(open, { drawn: new Set(['UN1']) }).compact, false);
+  });
+
+  it("names the request's after in a done undo's compact band and in the chat's announcement, not the recorded new value (DW-1378)", () => {
+    const text = 'The rollback is undone: PoolSize on OrdersToWarehouse is back to 9.';
+    const card = closed({ requests: [{ ref: 'UN9', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', after: '9', result: done }] });
+    assert.equal(seen(card).results[0].text, text);
+    assert.ok(!seen(card).results[0].text.includes(`back to ${change.newValue}`), 'and not the recorded new value');
+    assert.equal(bandTexts(card, context(withChange)).UN9, text);
+    const noAfter = closed({ requests: [{ ref: 'UN9', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done }] });
+    assert.deepEqual(seen(noAfter).results, [], 'a done undo whose request has no after has no band');
+    assert.equal('UN9' in bandTexts(noAfter, context(withChange)), false, 'and the chat announces none');
+  });
+
+  it('keeps every band in bandTexts, so the chat announces each result once', () => {
+    const texts = bandTexts(closed(), context({ ...withChange, drawn: new Set(['UN1']) }));
+    assert.deepEqual(Object.keys(texts), ['RB1', 'UN1', 'SU1']);
+  });
+});
+
+describe('an incident event with no after, as published before DW-1378, on the live page', () => {
+  const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+  const saved = { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, unreached: 1, reason: 'The update timed out' };
+  const change = { item: 'OrdersToWarehouse', target: 'OrdersToWarehouse', setting: 'PoolSize', oldValue: '4', newValue: '8', credential: false, detectedAt: '2026-10-22T14:00:00Z' };
+  const payload = (requests) => full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', settingChange: change, requests });
+  const withChange = { result: (request, itemNoun, production, changed) => resultView(request, itemNoun, renderPageText, production, changed) };
+  const snapshot = () => ({
+    version: '',
+    instanceZone: 'UTC',
+    epoch: 'epoch-1',
+    streams: { session: 5, instance: 2 },
+    chat: [],
+    rail: { approvals: [], checks: [], reminders: [], decisions: [] },
+    user: 'someone',
+    onlineDemo: false,
+    demoMode: false,
+    models: { triage: '', diagnosis: '', chat: '' },
+    telegram: { included: true, state: 'off', botUserName: '', paired: false, displayName: '', pausedUntil: '' },
+    status: [],
+  });
+  const incidentEvent = (seq, body) => ({ seq, stream: 'session', ts: '2030-01-01T10:00:00Z', type: 'incident', payload: body });
+  /** The incident payload that the live store holds for I1 after the events. */
+  const held = (store) => store.chat.find((entry) => entry.type === 'incident' && entry.payload.ref === 'I1').payload;
+
+  it('is applied and drawn with no error: a done rollback and undo have no band, a not-applied undo keeps its own', () => {
+    const before = payload([
+      { ref: 'RB1', state: 'done', fixKind: 'rollback_setting', item: 'OrdersToWarehouse', result: done },
+      { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done },
+      { ref: 'UN2', state: 'failed', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: saved },
+    ]);
+    const applied = applyEvents(fromSnapshot(snapshot()), { epoch: 'epoch-1', events: [incidentEvent(6, before)] });
+    assert.equal(applied.reload, false);
+    const card = incidentView(held(applied.store), context({ decisions: [DECISION], ...withChange }));
+    assert.deepEqual(card.results.map((band) => band.key), ['result.settingSavedNotApplied']);
+    assert.deepEqual(Object.keys(bandTexts(held(applied.store), context(withChange))), ['UN2']);
+  });
+
+  it('is replaced in place by the event that carries the after, and the band then names it', () => {
+    const request = { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done };
+    const first = applyEvents(fromSnapshot(snapshot()), { epoch: 'epoch-1', events: [incidentEvent(6, payload([request]))] });
+    assert.deepEqual(incidentView(held(first.store), context({ decisions: [DECISION], ...withChange })).results, []);
+    const second = applyEvents(first.store, { epoch: 'epoch-1', events: [incidentEvent(7, payload([{ ...request, after: '9' }]))] });
+    assert.equal(second.store.chat.length, 1, 'the same ref, so one card');
+    const card = incidentView(held(second.store), context({ decisions: [DECISION], ...withChange }));
+    assert.equal(card.results[0]?.text, 'The rollback is undone: PoolSize on OrdersToWarehouse is back to 9.');
+    assert.equal(bandTexts(held(second.store), context(withChange)).UN1, card.results[0]?.text);
   });
 });
 

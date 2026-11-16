@@ -26,6 +26,7 @@ const api = readFileSync(join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTa
 const GUARDED = [
   'chat/chat-panel.ts',
   'chat/chat-files.ts',
+  'chat/file-reply.ts',
   'approvals/approval-request-card.ts',
   'phone/phone-request.ts',
   'incidents/incident-dismiss.ts',
@@ -100,6 +101,7 @@ describe('the guards', () => {
     const documents = code('documents/documents-page.ts');
     assert.match(documents, /@if \(!viewer\(\)\) \{\s*<div class="bar">/);
     assert.match(documents, /@if \(row\.removable && !viewer\(\)\)/);
+    assert.match(documents, /appFileDrop\s*\[active\]="!viewer\(\)"/);
     assert.match(documents, /protected async addFiles\(files: readonly File\[\]\): Promise<void> \{\s*if \(this\.viewer\(\)\) \{\s*return;/);
     assert.match(code('mailbox/simulated-mailbox.ts'), /@if \(!viewer\(\)\) \{\s*<div class="chips">/);
   });

@@ -3,8 +3,10 @@
 /// answered. For an Answer it:
 ///   - reads the IRIS user from the Session row of the request's SessionRef (a message carries a SessionRef and never a user name,
 ///     AD-4); a SessionRef with no Session row is not_found;
-///   - refuses an approve of an email request to anyone but the owner's own address unless the IRIS user holds the role OcuTalonAdmin (Fix.Kind.Email MayApprove, DW-1262): the
-///     result is not_allowed, Approval.Answer is not called and the request stays as it was. A reject is never refused by this rule, and any other request is not asked;
+///   - refuses an approve of an email request to anyone but the owner's own address, and of a partner warning to Settings contacts, unless the IRIS user holds the role OcuTalonAdmin
+///     (Fix.Kind.Email MayApprove, DW-1262, DW-1415): the result is not_allowed, Approval.Answer is not called and the request stays as it was. A refused approve of a partner warning
+///     writes one Action entry (action partner_warning, result refused, the request's Ref, the contact ids, the approving user, session and channel; no name, address or text).
+///     A reject is never refused by this rule, and any other request is not asked;
 ///   - calls Approval.Answer(Ref, Action, Channel, IrisUser, SessionRef) in this production job, so that the answer, its Approval
 ///     audit entry and its live-event fan-out run with the production's privileges: the checked cross-owner reads that fan an
 ///     instance request out to its watchers fail in a web request and succeed here (DW-68). The RequiredRole rule stays with Answer;
@@ -61,6 +63,7 @@ Method Carry(request As %RegisteredObject, Output response As OcuTalon.Core.Msg.
 		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.Ref)
 		If $IsObject(row) && '##class(OcuTalon.Fix.Kind.Email).MayApprove(row, session.IrisUser) {
 			Set response.Result = "not_allowed"
+			If row.FixKind = ##class(OcuTalon.Fix.Kind.PartnerWarning).#NAME Do ..AuditRefused(row, request, session.IrisUser)
 			Quit $$$OK
 		}
 	}
@@ -73,6 +76,27 @@ Method Carry(request As %RegisteredObject, Output response As OcuTalon.Core.Msg.
 		Set response.WinnerAt = winner.%Get("at")
 	}
 	Quit $$$OK
+}
+
+/// Writes the Action entry of a refused approve of a partner warning (DW-1415), through Bridge.Audit: ids only, the contact ids of the row's targets and no name, address or text. A write that
+/// fails or throws is one warning and nothing else: the refusal stands.
+Method AuditRefused(row As OcuTalon.Bridge.Data.ApprovalRequest, request As OcuTalon.Core.Msg.Answer, irisUser As %String) [ Private ]
+{
+	Try {
+		Set data = {}
+		Do data.%Set("action", row.FixKind, "string")
+		Do data.%Set("target", "partner contacts ("_row.FixTargets_")", "string")
+		Do data.%Set("result", "refused", "string")
+		Do data.%Set("counts", {"contacts": ($Length(row.FixTargets, ","))})
+		Do data.%Set("approvalRef", row.Ref, "string")
+		Do data.%Set("irisUser", irisUser, "string")
+		Do data.%Set("sessionRef", request.SessionRef, "string")
+		Do data.%Set("channel", request.Channel, "string")
+		Set sc = ##class(OcuTalon.Bridge.Audit).Record("Action", data)
+		If $$$ISERR(sc) $$$LOGWARNING("AnswerOps could not audit the refused approve of "_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	} Catch exception {
+		$$$LOGWARNING("AnswerOps could not audit the refused approve of "_row.Ref_": "_exception.DisplayString())
+	}
 }
 
 /// Sends PrecedentOps the RecordPrecedent of a done answer. A failed send, and an error thrown, are one warning and nothing else.

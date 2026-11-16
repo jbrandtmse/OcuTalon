@@ -56,6 +56,15 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.itemSkipped': '{item} was not changed: {reason}. It needs a new approval.',
   'result.itemNotChanged': 'Nothing was changed: {reason}.',
   'result.rerouted': 'All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged.',
+  'result.settingRestored': '{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback.',
+  'result.settingChangedSince': '{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval.',
+  'result.rollbackUndone': 'The rollback is undone: {setting} on {target} is back to {after}.',
+  'result.settingSavedNotApplied': "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
+  'result.partnerSkipped': 'The delay notice was sent to {sent} of {total} partner contacts. Not sent to {skipped}: they were removed from Settings > Partner contacts, or their address changed, since this request was made.',
+  'result.partnerMaySent': "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+  'fix.emailSent': 'The email was sent.',
+  'fix.emailNotSent': '{reason}',
+  'incident.settingChangeCause': 'The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.',
   'audit.recorded': 'Recorded in the IRIS audit log.',
   'incident.eitherWayLine': 'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
   'button.gotIt': 'Got it',
@@ -136,6 +145,15 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'result.itemSkipped': { 'item': 'text', 'reason': 'sentence' },
   'result.itemNotChanged': { 'reason': 'sentence' },
   'result.rerouted': { 'count': 'count', 'itemNoun': 'noun', 'to': 'text' },
+  'result.settingRestored': { 'setting': 'text', 'target': 'text', 'after': 'text' },
+  'result.settingChangedSince': { 'setting': 'text', 'target': 'text' },
+  'result.rollbackUndone': { 'setting': 'text', 'target': 'text', 'after': 'text' },
+  'result.settingSavedNotApplied': { 'setting': 'text', 'target': 'text', 'reason': 'sentence' },
+  'result.partnerSkipped': { 'sent': 'count', 'skipped': 'count', 'total': 'count' },
+  'result.partnerMaySent': {},
+  'fix.emailSent': {},
+  'fix.emailNotSent': { 'reason': 'text' },
+  'incident.settingChangeCause': { 'minutes': 'minutes', 'setting': 'text', 'target': 'text', 'time': 'time' },
   'audit.recorded': {},
   'incident.eitherWayLine': { 'resendCount': 'count', 'reading': 'text', 'item': 'text' },
   'button.gotIt': {},
@@ -212,11 +230,23 @@ function nounText(value: unknown, slots: PageSlots): string {
   return cleanSlot(cleanSlot(Object.hasOwn(slots, 'count') ? slots['count'] : undefined) === '1' ? forms['one'] : forms['other']);
 }
 
-/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, a noun slot its form, the others the cleaned string. */
+/** A length of time in minutes as a sentence reads it (the minutes slot type, Story 23.3): 0 is "less than a minute", 1 is "one minute", 2 to 9 are "two minutes" to "nine minutes", and 10 or more is digits with a thousands separator ("12 minutes", "1,212 minutes"). A value that is missing, null or empty, or not a whole number of 0 or more, gives an empty string. */
+function minutesText(value: unknown): string {
+  const text = typeof value === 'number' ? String(value) : cleanSlot(value);
+  if (text === '') return '';
+  const count = Number(text);
+  if (!Number.isInteger(count) || count < 0) return '';
+  if (count === 0) return 'less than a minute';
+  if (count === 1) return 'one minute';
+  if (count < 10) return ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'][count - 2] + ' minutes';
+  return count.toLocaleString('en-US') + ' minutes';
+}
+
+/** The text of one slot by its type: a fallbackReason slot gives its reason text, a channel slot its name, a noun slot its form, a minutes slot its length of time, the others the cleaned string. */
 function slotText(types: Readonly<Record<string, string>>, name: string, slots: PageSlots): string {
   const value = Object.hasOwn(slots, name) ? slots[name] : undefined;
   const type = Object.hasOwn(types, name) ? types[name] : '';
-  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : cleanSlot(value);
+  return type === 'fallbackReason' ? reasonText(value) : type === 'channel' ? channelName(value) : type === 'noun' ? nounText(value, slots) : type === 'minutes' ? minutesText(value) : cleanSlot(value);
 }
 
 /** The text of a slot and the full stop that follows it in the template (empty when none does): a sentence slot never doubles the stop (a sentence that ends with one keeps that one), and a sentence that ends with "?", "!" or an ellipsis takes none. */

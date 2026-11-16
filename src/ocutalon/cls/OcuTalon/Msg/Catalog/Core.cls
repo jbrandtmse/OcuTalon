@@ -909,6 +909,27 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
  },
+ "press.approvedPartnerKept": {
+  "text": "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email.",
+  "slots": {},
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedRollback": {
+  "text": "Approved. Putting {setting} on {target} back.",
+  "slots": {
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15 (press keys placed in Catalog.Core by ruling)"
+ },
+ "press.approvedUndoRollback": {
+  "text": "Approved. Undoing the rollback of {setting} on {target}.",
+  "slots": {
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15 (press keys placed in Catalog.Core by ruling)"
+ },
  "email.digestSubject": {
   "text": "Your OcuTalon digest",
   "slots": {},

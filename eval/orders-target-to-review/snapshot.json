@@ -1,0 +1,145 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "OCUORDERS",
+    "production": "OcuTalon.Demo.Orders.Production",
+    "item": "OrdersForReview"
+  },
+  "failures": [
+    {
+      "headerId": 9,
+      "sessionId": 8,
+      "superSession": "j9i8vd3drz_osoxEQo3QMw",
+      "timeCreated": "2026-11-15T06:36:39Z",
+      "timeProcessed": "2026-11-15T06:36:39Z",
+      "sourceConfigName": "OrdersFromPartner",
+      "targetConfigName": "OrdersForReview",
+      "bodyClass": "OcuTalon.Demo.Orders.WarehouseOrder",
+      "bodyId": "5",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #5001: Review takes a PartnerOrder, not OcuTalon.Demo.Orders.WarehouseOrder",
+      "body": {
+        "OrderNumber": "PO-0001",
+        "Sku": "SKU-1001",
+        "OrderDate": 67879,
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": 11,
+      "sessionId": 10,
+      "superSession": "j9i8vd3drz_osoxEQo3QMw",
+      "timeCreated": "2026-11-15T06:36:40Z",
+      "timeProcessed": "2026-11-15T06:36:40Z",
+      "sourceConfigName": "OrdersFromPartner",
+      "targetConfigName": "OrdersForReview",
+      "bodyClass": "OcuTalon.Demo.Orders.WarehouseOrder",
+      "bodyId": "7",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #5001: Review takes a PartnerOrder, not OcuTalon.Demo.Orders.WarehouseOrder",
+      "body": {
+        "OrderNumber": "PO-0002",
+        "Sku": "SKU-1002",
+        "OrderDate": 67879,
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": 13,
+      "sessionId": 12,
+      "superSession": "j9i8vd3drz_osoxEQo3QMw",
+      "timeCreated": "2026-11-15T06:36:40Z",
+      "timeProcessed": "2026-11-15T06:36:40Z",
+      "sourceConfigName": "OrdersFromPartner",
+      "targetConfigName": "OrdersForReview",
+      "bodyClass": "OcuTalon.Demo.Orders.WarehouseOrder",
+      "bodyId": "9",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #5001: Review takes a PartnerOrder, not OcuTalon.Demo.Orders.WarehouseOrder",
+      "body": {
+        "OrderNumber": "PO-0003",
+        "Sku": "SKU-1003",
+        "OrderDate": 67879,
+        "Quantity": 3
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "39",
+      "timeLogged": "2026-11-15T06:36:39Z",
+      "type": "Error",
+      "configName": "OrdersForReview",
+      "sourceClass": "OcuTalon.Demo.Orders.Review",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 8,
+      "text": "ERROR #5001: Review takes a PartnerOrder, not OcuTalon.Demo.Orders.WarehouseOrder"
+    },
+    {
+      "id": "40",
+      "timeLogged": "2026-11-15T06:36:40Z",
+      "type": "Error",
+      "configName": "OrdersForReview",
+      "sourceClass": "OcuTalon.Demo.Orders.Review",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 10,
+      "text": "ERROR #5001: Review takes a PartnerOrder, not OcuTalon.Demo.Orders.WarehouseOrder"
+    },
+    {
+      "id": "41",
+      "timeLogged": "2026-11-15T06:36:40Z",
+      "type": "Error",
+      "configName": "OrdersForReview",
+      "sourceClass": "OcuTalon.Demo.Orders.Review",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 12,
+      "text": "ERROR #5001: Review takes a PartnerOrder, not OcuTalon.Demo.Orders.WarehouseOrder"
+    }
+  ],
+  "items": [
+    {
+      "name": "OrdersForReview",
+      "className": "OcuTalon.Demo.Orders.Review",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "8",
+      "type": "Request",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "status": "Completed",
+      "timeCreated": "2026-11-15T06:36:39Z",
+      "isError": false
+    },
+    {
+      "headerId": "9",
+      "type": "Request",
+      "sourceConfigName": "OrdersFromPartner",
+      "targetConfigName": "OrdersForReview",
+      "bodyClass": "OcuTalon.Demo.Orders.WarehouseOrder",
+      "status": "Error",
+      "timeCreated": "2026-11-15T06:36:39Z",
+      "isError": false
+    }
+  ],
+  "settingChanges": [
+    {
+      "item": "OrdersFromPartner",
+      "target": "Host",
+      "setting": "TargetConfigName",
+      "oldValue": "OrdersToWarehouse",
+      "newValue": "OrdersForReview",
+      "source": "production",
+      "credential": false,
+      "detectedAt": "2026-11-15T06:36:38Z"
+    }
+  ]
+}

@@ -702,6 +702,17 @@ export class MemoryCard {
       this.focusHeading();
       return;
     }
+    if (status === 409 && pinning && error instanceof HttpErrorResponse && error.error?.error?.code === 'pin_photo') {
+      void import('./pin-photo-text')
+        .then((loaded) => loaded.PIN_PHOTO_TEXT)
+        .catch(() => MEMORY_TEXTS.pinFailed)
+        .then((text) => {
+          if (this.shown) {
+            this.setNotice(panel, { ref, text });
+          }
+        });
+      return;
+    }
     const text = status === 409 && pinning ? MEMORY_TEXTS.overCap : pinning ? MEMORY_TEXTS.pinFailed : MEMORY_TEXTS.unpinFailed;
     this.setNotice(panel, { ref, text });
   }

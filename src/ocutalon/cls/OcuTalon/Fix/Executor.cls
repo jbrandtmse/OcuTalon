@@ -6,7 +6,10 @@ Include (EnsConstants, EnsErrors)
 ///   - A Fix.Msg.DryRun is answered with a Fix.Msg.DryRunResult (DryRun): the incident is opened by its Ref, the kind by its name, and the kind's DryRun works out
 ///     the targets and the dry run's JSON. It changes nothing and calls no model. A dry run that cannot be worked out (an unknown or closed incident, an unknown kind, parameters
 ///     that are not a JSON object or that the kind refuses, a production that cannot be read) is still answered with OK: Reason holds one plain sentence (redacted),
-///     and Targets and DryRun are empty.
+///     and Targets and DryRun are empty. The dry run of a setting kind (TARGETTYPE setting) holds the values of a production setting, which may hold a secret (a URL with a
+///     token): its before and after in the answer are redacted (Bridge.Redact), and the transient key values holds a SecretHandoff reference to the raw ones (OfferValues). The one
+///     that receives the answer takes them once (TakeValues) and stores the raw values; an entry that is never taken is discarded VALUESSECONDS after the offer (Expire), so that
+///     a raw value never stays in memory and never enters a message, a trace or a log.
 ///   - A Fix.Msg.Execute (IncidentManager sends it, asynchronously, when an approved request may run) carries only the Ref of the approval request; everything else
 ///     is read from the request's row (AD-11): the kind, its parameters and the targets (FixKind, FixParameters, FixTargets). It is handled in this order, and
 ///     the handler's answer is always OK (nothing is wanted back):
@@ -39,8 +42,9 @@ Include (EnsConstants, EnsErrors)
 ///       - A run that resent nothing (every target was skipped) closes the request done: Total and Skipped the number of targets, Resent, Completed and
 ///         FailedAgain 0, and the plain Reason of the lowest skipped target.
 ///       - A run that resent copies (also one that erred after its first copy) saves ResentAt on its FixRun and waits for its copies (Wait), up to WAITSECONDS from
-///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy is completed when its status is Completed and failed again
-///         when it is Error, Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
+///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy that the read gives as in flight (IRIS still holds its header, or a business process still handles it;
+///         Reader.Evidence inFlight) is still running, whatever its status. Otherwise a copy is completed when its status is Completed and failed again when it is Error,
+///         Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
 ///         every copy is completed or failed again the run ends done: Total the number of targets, Resent the number of copies, Completed and FailedAgain their
 ///         counts, Skipped the targets without a copy (Unreached, the targets the resend never reached, is part of it), Interrupted 0, and, for copies that failed again, the
 ///         Reason of the failed copy with the lowest id (FailReason). A run whose copies are not all done when the time is up is not waited for any more: one Type 3 warning
@@ -56,14 +60,22 @@ Include (EnsConstants, EnsErrors)
 ///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
 ///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
 ///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
-///   - A kind whose targets are contacts (TARGETTYPE contact, Story 23.5: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
-///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: demo mode is off, so the approved notice is kept as the row's DryRun
+///   - A kind whose target is a setting or an item (TARGETTYPE setting, Story 23.3; TARGETTYPE item, DW-1373): when the production's update fails after the new value was stored (a setting's definition saved, an item's flag stored where IRIS keeps it), InProduction writes the earlier value back and
+///     updates again. If that works, the run ends as could not start with the kind's NOSTART (nothing was changed). If it fails too (code notapplied), the run ends failed through Finish
+///     with Total the number of targets, Skipped 0, Unreached the targets not done and the redacted Reason holding the production's error text, one Action entry is written, and the
+///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey; for an item kind Watch.Notice ResultKey, with the setting Enabled).
+///   - A kind whose targets are contacts (TARGETTYPE contact, Stories 23.5 and 23.13: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
+///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: no mailbox is connected, or demo mode is off for the demo's production, so the approved notice is kept as the row's DryRun
 ///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
-///     sends nothing (AsApproved). Otherwise Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
+///     sends nothing (AsApproved). A request of a production that is not the fixture's (a Settings contact) is then sent by SendPartner and never delivered to the Simulated mailbox: the row is read again
+///     and the kind's mail method (Fix.Kind Mailed) gives the addresses that may still be sent to (a row that is not as approved could not start with NOSTART; with no address left the run is done with
+///     every target skipped and nothing sent); otherwise the seam MailApproved submits the approved email (Fix.Kind.Email SubmitApproved: a SendEmail command with origin system and the request's Ref only, no
+///     address, subject or text), and the run ends done when it was sent (Completed the addresses, Skipped the others, the first reason of the lowest skipped target) and failed with the CommandResult's message
+///     when it was not. For the fixture's production Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
 ///     SimMailboxOut (a Fix.Msg.PartnerNotice, synchronously) once for each delivery and each session of the incident's recipients; a recipient counts as sent when at least one
 ///     copy was saved. The run ends done through Finish with Total the number of targets, Resent 0, Completed the recipients sent, FailedAgain 0 and Skipped the rest (the first reason
 ///     is the lowest skipped target's), and as could not start with the kind's NOSTART when nothing was sent and a send erred. The Action entry's target is "<n> partner contacts
-///     (<their ids>) of <production> (simulated)": the ids, never the addresses.
+///     (<their ids>) of <production>", with " (simulated)" for the fixture's production: the ids, never the addresses.
 ///   - A waiter that stops (the job should quiesce or terminate, or its item is stopped) leaves its runs, with a ResentAt and no EndedAt, to Sweep (DW-395): a run whose copies
 ///     were all done inside its WAITSECONDS ends there, with the waiter's own counts and result, only later.
 ///   - One waiter (DW-381): Wait takes the lock WAITLOCK without waiting; the job that holds it makes a pass every WAITPAUSE seconds over every waiting run (Waiting:
@@ -162,6 +174,12 @@ Parameter EXECUTING = "executing";
 
 Parameter KINDFIX = "fix";
 
+/// The longest an entry of the hand-off of a setting kind's values lives when nobody takes it, in seconds (twice the longest a synchronous ask waits).
+Parameter VALUESSECONDS = 60;
+
+/// The longest TakeValues waits for the entry, in seconds: the entry is queued before the answer is sent, so this is a bound, not a wait.
+Parameter TAKESECONDS = 1;
+
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {
 	Set pResponse = ""
@@ -184,6 +202,10 @@ Method DryRun(request As OcuTalon.Fix.Msg.DryRun, Output response As OcuTalon.Fi
 		If $$$ISERR(sc) {
 			Set reason = $SYSTEM.Status.GetOneErrorText(sc)
 		} Else {
+			If $IsObject(dryRun) && (..IsSettingKind(request.FixKind)) {
+				Set sc = ..OfferValues(dryRun, ..Lifetime())
+				If $$$ISERR(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+			}
 			Set response.Targets = targets
 			Set response.DryRun = $Select($IsObject(dryRun): dryRun.%ToJSON(), 1: "")
 		}
@@ -199,6 +221,82 @@ Method DryRun(request As OcuTalon.Fix.Msg.DryRun, Output response As OcuTalon.Fi
 	Quit $$$OK
 }
 
+/// 1 when the fix kind acts on a setting (TARGETTYPE setting): its dry run holds the values of a production setting.
+ClassMethod IsSettingKind(kind As %String) As %Boolean [ Private ]
+{
+	Set class = ##class(OcuTalon.Fix.Kind).ForName($Get(kind))
+	Quit (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting")
+}
+
+/// Offers the raw before and after of a setting kind's dry run (a %DynamicObject) through SecretHandoff, and makes the object safe to send: the raw values are queued as the JSON
+/// {"before", "after"} (with their JSON types), a detached job (Expire) discards the entry after seconds (a lifetime under 1 second is an entry that is already gone), before and after become their Bridge.Redact form (a value that needs no
+/// change is not touched), and the transient key values holds the reference. A failed offer or job discards what was offered and is an error, and the object is left as it was.
+ClassMethod OfferValues(dryRun As %DynamicObject, seconds As %Integer = {..#VALUESSECONDS}) As %Status
+{
+	If '$IsObject($Get(dryRun)) Quit $SYSTEM.Status.Error(5001, "The dry run is not an object")
+	Set raw = {}
+	For name = "before", "after" {
+		If dryRun.%IsDefined(name) Do raw.%Set(name, dryRun.%Get(name), dryRun.%GetTypeOf(name))
+	}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(raw.%ToJSON(), .uri)
+	If $$$ISERR(sc) Quit sc
+	If +seconds < 1 {
+		Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	} Else {
+		Job ##class(OcuTalon.Fix.Executor).Expire(uri, +seconds):($Namespace):5
+		If '$Test {
+			Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+			Quit $SYSTEM.Status.Error(5001, "The hand-off of the values could not be started")
+		}
+	}
+	For name = "before", "after" {
+		If dryRun.%IsDefined(name) {
+			Set shown = ##class(OcuTalon.Bridge.Redact).Text(dryRun.%Get(name))
+			If shown '= dryRun.%Get(name) Do dryRun.%Set(name, shown, "string")
+		}
+	}
+	Do dryRun.%Set("values", uri, "string")
+	Quit $$$OK
+}
+
+/// The lifetime that DryRun gives an offer: VALUESSECONDS, or the whole number of seconds from 0 to VALUESSECONDS in ^IRIS.Temp.OcuTalon.Fix("valuesSeconds") when a test sets it (0 is an
+/// entry that has already expired when IncidentManager takes it: the test of the missing-entry rule). Any other value gives VALUESSECONDS, so the global can shorten the lifetime and never
+/// lengthen it. Nothing sets it in the product.
+ClassMethod Lifetime() As %Integer [ Internal ]
+{
+	Set seconds = $Number($Get(^IRIS.Temp.OcuTalon.Fix("valuesSeconds"), ..#VALUESSECONDS), "I", 0, ..#VALUESSECONDS)
+	Quit $Select(seconds = "": ..#VALUESSECONDS, 1: seconds)
+}
+
+/// The detached job of OfferValues: waits seconds, then discards the entry that uri names (no error when it was taken). It logs nothing and holds no value.
+ClassMethod Expire(uri As %String, seconds As %Integer) [ Internal ]
+{
+	Hang +seconds
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+}
+
+/// Takes the raw values that OfferValues offered, on the dry run (a %DynamicObject) of the answer: removes values, takes the reference once (the entry is deleted by the take) and
+/// puts the raw before and after back, with their types. A dry run without values is left as it is and is OK (a kind that offers none, a test double). A failed take (the entry is gone:
+/// expired, discarded or never put) is an error: before and after stay redacted, and the caller must not store them as the raw values.
+ClassMethod TakeValues(dryRun As %DynamicObject) As %Status
+{
+	If '$IsObject($Get(dryRun)) || 'dryRun.%IsDefined("values") Quit $$$OK
+	Set uri = dryRun.%Get("values")
+	Do dryRun.%Remove("values")
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(uri, .raw, ..#TAKESECONDS)
+	If $$$ISERR(sc) Quit sc
+	Set sc = $$$OK
+	Try {
+		Set values = {}.%FromJSON(raw)
+		For name = "before", "after" {
+			If values.%IsDefined(name) Do dryRun.%Set(name, values.%Get(name), values.%GetTypeOf(name))
+		}
+	} Catch {
+		Set sc = $SYSTEM.Status.Error(5001, "The values of the dry run could not be read")
+	}
+	Quit sc
+}
+
 /// The targets and the dry run of the request, or an error status that says why not.
 Method Work(request As OcuTalon.Fix.Msg.DryRun, Output targets As %String, Output dryRun As %DynamicObject) As %Status [ Private ]
 {
@@ -206,8 +304,8 @@ Method Work(request As OcuTalon.Fix.Msg.DryRun, Output targets As %String, Outpu
 	Set dryRun = ""
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
 	If '$IsObject(incident) Quit $$$ERROR($$$GeneralError, "There is no incident "_request.IncidentRef)
-	If incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED Quit $$$ERROR($$$GeneralError, "The incident "_request.IncidentRef_" is closed")
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
+	If (incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED) && '##class(OcuTalon.Fix.Kind).AskedClosed(class) Quit $$$ERROR($$$GeneralError, "The incident "_request.IncidentRef_" is closed")
 	If class = "" Quit $$$ERROR($$$GeneralError, "The fix kind '"_request.FixKind_"' is not one of "_$ListToString(##class(OcuTalon.Fix.Kind).Names(), ","))
 	Set parameters = ""
 	Try {
@@ -278,7 +376,7 @@ Method Outcome(request As OcuTalon.Bridge.Msg.ApprovalOutcome) As %Status [ Priv
 }
 
 /// The run of an approved email (see the class description): the parameters and the stored dry run are checked as approved and the request is not past its expiry (else it ends failed
-/// with EMAILNOSTART, sending nothing), then StartExecution, the FixRun, the kind's Execute and Finish. An exception of the send ends the run failed with Out's MESSAGEFAILED.
+/// with EMAILNOSTART, sending nothing), then StartExecution, the FixRun, the kind's Execute and Finish. An exception of the send ends the run failed with Out's MESSAGEFAILED, or with MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (Fix.Kind.Email Unfinished).
 Method SendEmail(row As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 {
 	Set class = "OcuTalon.Fix.Kind.Email"
@@ -319,7 +417,7 @@ Method SendEmail(row As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 		$$$ThrowOnError(..Carry(class, "", parameters, row.FixTargets, .result, run))
 	} Catch exception {
 		$$$LOGWARNING(..#LOGEMAIL_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
-		Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter($Parameter(class, "OUT"), "MESSAGEFAILED"))}
+		Set result = $ClassMethod(class, "Unfinished", row)
 	}
 	Set sent = +result.sent
 	Do ..Finish(row, run, $Select(sent: "done", 1: "failed"), {"total": 1, "resent": (sent), "completed": 0, "failedAgain": 0, "skipped": 0, "reason": ($Select(sent: "", 1: result.message)), "outcome": (result.outcome)})
@@ -365,7 +463,7 @@ Method Unusable(row As OcuTalon.Bridge.Data.ApprovalRequest, Output incident As 
 	If '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") Quit ..#UNUSABLE
 	If '..AscendingIds(row.FixTargets) Quit ..#UNUSABLE
 	Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
-	If '$IsObject(incident) || (incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED) Quit ..#UNUSABLE
+	If '$IsObject(incident) || ((incident.State = ##class(OcuTalon.Watch.Transitions).#CLOSED) && '##class(OcuTalon.Fix.Kind).AskedClosed(class)) Quit ..#UNUSABLE
 	Quit ""
 }
 
@@ -412,10 +510,12 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	Set skipped = []
 	Set notRunning = 0
 	Set unready = ""
+	Set mailing = 0
 	Set sent = 0
 	Set unreached = 0
 	Set first = ""
 	Set firstId = ""
+	Set firstReason = ""
 	Set targetType = ..KindReason(class, "TARGETTYPE", "message")
 	Try {
 		Set run = ##class(OcuTalon.Data.FixRun).%New()
@@ -432,7 +532,8 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		} Else {
 			Set notRunning = ..NotRunning(incident)
 		}
-		If 'notRunning && (unready = "") {
+		Set mailing = (targetType = "contact") && (unready = "") && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production)
+		If 'notRunning && (unready = "") && 'mailing {
 			$$$ThrowOnError(..Check(class, incident, parameters, row.FixTargets, .passed, .skipped))
 			If passed '= "" {
 				$$$ThrowOnError(..Carry(class, incident, parameters, passed, .result, run))
@@ -447,6 +548,7 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 					Set unreached = result.unreached.%Size()
 					Set first = result.unreached.%Get(0).code
 					Set firstId = result.unreached.%Get(0).id
+					Set firstReason = result.unreached.%Get(0).%Get("reason")
 				}
 			}
 		}
@@ -461,6 +563,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Do ..CouldNotStart(row, total, unready, 1)
 		Quit
 	}
+	If mailing && (failed = "") {
+		Do ..SendPartner(row, class, run, total)
+		Quit
+	}
 	Set copies = $Select($IsObject(run): run.Copies.Count(), 1: 0)
 	If failed '= "" {
 		$$$LOGWARNING(..#LOGRECHECK_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))
@@ -473,6 +579,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	}
 	If (failed = "") && (passed '= "") && (targetType '= "message") {
 		Set changed = $Select(targetType = "contact": sent, $IsObject($Get(result)): +result.changed, 1: 0)
+		If (changed = 0) && (unreached > 0) && (first = "notapplied") {
+			Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": 0, "unreached": (unreached), "reason": (firstReason)})
+			Quit
+		}
 		If (changed = 0) && (unreached > 0) {
 			Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), 1)
 			Quit
@@ -499,6 +609,48 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Quit
 	}
 	Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+}
+
+/// Sends the approved notice of a request of a Settings contact (see the class description), in a run that has started: the row is read again (it is executing now), and the kind's mail method
+/// gives the addresses that may be sent to and those skipped. A row that is not as approved could not start (the kind's NOSTART); with no address left nothing is sent and the run ends done with
+/// every target skipped; otherwise MailApproved sends once. An exception of the send ends the run failed with EmailOut's MESSAGEFAILED, or with MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (Fix.Kind.Email Unfinished).
+Method SendPartner(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String, run As OcuTalon.Data.FixRun, total As %Integer) [ Private ]
+{
+	Set recipients = []
+	Set skipped = []
+	Set mailed = 0
+	Try {
+		Set mailed = $$$ISOK(row.%Reload()) && ##class(OcuTalon.Fix.Kind).Mailed(row, .recipients, , , .skipped)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		Set mailed = 0
+	}
+	If 'mailed {
+		Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), $IsObject(run) && (run.%Id() '= ""))
+		Quit
+	}
+	If recipients.%Size() = 0 {
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+		Quit
+	}
+	Set outcome = {"sent": 0, "outcome": "failed", "message": ($Parameter($Parameter("OcuTalon.Fix.Kind.Email", "OUT"), "MESSAGEFAILED"))}
+	Try {
+		Set outcome = ..MailApproved(row)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		Set outcome = ##class(OcuTalon.Fix.Kind.Email).Unfinished(row)
+	}
+	If +outcome.sent {
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": (recipients.%Size()), "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (..FirstReason(skipped)), "outcome": (outcome.outcome)})
+	} Else {
+		Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (outcome.message), "outcome": (outcome.outcome)})
+	}
+}
+
+/// Submits the approved email of the row and answers {"sent", "outcome", "message"} (Fix.Kind.Email SubmitApproved; a seam for the tests).
+Method MailApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
+{
+	Quit ##class(OcuTalon.Fix.Kind.Email).SubmitApproved(row)
 }
 
 /// Delivers the approved notice of a request whose kind's targets are contacts (TARGETTYPE contact): for each delivery the kind's Execute gave, one PartnerNotice to
@@ -806,7 +958,11 @@ ClassMethod ActionTarget(row As OcuTalon.Bridge.Data.ApprovalRequest, incident A
 	}
 	If (class = "") || '$IsObject(parameters) Quit target
 	If $Parameter(class, "TARGETTYPE") = "item" Quit parameters.%Get("item")_" in "_target
-	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_" (simulated)"
+	If $Parameter(class, "TARGETTYPE") = "setting" {
+		Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(parameters.%Get("change"))
+		Quit $Select($IsObject(change): change.Setting_" on "_change.Item_" in "_target, 1: target)
+	}
+	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_$Select(##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production): " (simulated)", 1: "")
 	If parameters.%Get("target") '= "" Quit target_" to "_parameters.%Get("target")
 	Quit target
 }
@@ -1015,8 +1171,9 @@ Method Look(id As %String, Output tally As %DynamicObject) As %Integer [ Private
 	Quit ""
 }
 
-/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE), failedAgain (one of COPYFAILED),
-/// running (any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of the failed copy with the lowest id, "" when none).
+/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE and they are not in flight), failedAgain (one of COPYFAILED, not in flight),
+/// running (a copy the read gives as in flight, whatever its status; any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of
+/// the failed copy with the lowest id, "" when none). An entry without inFlight is not in flight.
 ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %DynamicObject) As %DynamicObject
 {
 	Set completed = 0
@@ -1028,7 +1185,9 @@ ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %
 		Set copy = run.Copies.GetAt(i)
 		Set entry = $Select((outcome = "read") && $IsObject($Get(statuses)): statuses.%Get(copy), 1: "")
 		Set status = $Select($IsObject(entry): entry.status, 1: "")
-		If status = ..#COPYDONE {
+		If $IsObject(entry) && entry.inFlight {
+			Set running = running + 1
+		} ElseIf status = ..#COPYDONE {
 			Set completed = completed + 1
 		} ElseIf $ListFind(failedStatuses, status) {
 			Set failedAgain = failedAgain + 1
@@ -1048,7 +1207,7 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 
 /// The outcome of the read ("read" when statuses holds the copies) and the status of each copy of the run, for every job that counts a run's copies: statuses is a dynamic object
 /// by the copy's header id of {"status" (as Reader.Evidence gives it), "error" (the raw error text), "target" (the copy's TargetConfigName), "at" (the header's timeProcessed, the time
-/// of its last status change, a UTC stamp)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
+/// of its last status change, a UTC stamp), "inFlight" (Reader.Evidence's: 1 while IRIS still holds or still handles the copy)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
 /// that the one reader reads the production (AD-3). A header the read lacks is not in statuses.
 ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String
 {
@@ -1062,7 +1221,9 @@ ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun
 	If outcome '= "read" Quit outcome
 	For i = 0:1:snapshot.failures.%Size() - 1 {
 		Set failure = snapshot.failures.%Get(i)
-		Do statuses.%Set(failure.headerId, {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)})
+		Set entry = {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)}
+		Do entry.%Set("inFlight", +failure.inFlight, "boolean")
+		Do statuses.%Set(failure.headerId, entry)
 	}
 	Quit outcome
 }
@@ -1133,9 +1294,20 @@ ClassMethod Resend(namespace As %String, plan As %DynamicArray, run As OcuTalon.
 ///     the original's TargetConfigName, copy);
 ///   - a reroute, {"id", "target"} (no field): the header must still be in the status Error and its message is resent as a copy to the target item, with
 ///     ResendDuplicatedMessage(original, newId, target), which makes the copy from the header and its body as they are;
+///   - a setting change, {"id" (the SettingChange id), "setting", "target" (Host or Adapter), "item", "production", "expect", "value" and, for an undo of a System Default Setting
+///     change, "remove" 1}: the effective value of the item's setting, read with Ens.Director.GetItemSettingValue, must still be expect; then the stored Ens.Config.Setting of that
+///     name and target of the item's definition is set to value (added when the item has none), or taken out with remove, the definition is saved and
+///     Ens.Director.UpdateProduction updates the running production. It never edits a System Default Setting row or a class, and it calls no OcuTalon class there (AD-3).
+///     When the update fails after the save, the earlier stored state is written back, saved and the production updated again: if that works the entry is unreached with the
+///     code "refused" and nothing is changed; if it fails too, the entry is unreached with the code "notapplied" and "reason" (the first error's text), and the setting may be left
+///     changed; the reason is the error's own sentence (Watch.ErrorText Sentence: no "ERROR #<n>: " or "ERROR <Ens>Name: " prefix, its first line).
 ///   - an item change, {"id" (the Ens.Config.Item id), "action" (disable or enable), "item", "production"}: the item is opened by its id and must still be the named item of the
 ///     named production in the state the action leaves (enabled for disable, as IRIS runs it: its stored Enabled unless a System Default Setting Enabled overrides it), and
-///     Ens.Director.EnableConfigItem(production||item, enable) changes it.
+///     Ens.Director.EnableConfigItem(production||item, enable, 0) stores the flag where IRIS keeps it (the item definition, or the System Default Setting Enabled that overrides it), and
+///     Ens.Director.UpdateProduction updates the running production. When the update fails after the store, EnableConfigItem(production||item, 'enable, 0) stores the earlier flag
+///     again and the production is updated again, with the codes of a setting change: refused when that works, notapplied with reason when it does not.
+/// A setting or item entry's optional "updateErrors" N, which only a test sets (no kind's plan has it), makes the first N calls of UpdateProduction for that entry answer an Ens error,
+/// as UpdateProduction's own are, without calling it.
 /// Back in the home namespace the new header id of a copy is appended to the run's Copies and saved. The originals are never changed. done is the number of copies made, or of
 /// items changed; skipped holds {"id", "reason"} for each entry that really changed and so was not done, the reason a plain sentence that names the message or the item: it is no
 /// longer in the production, no longer in the error status, has no body, no longer has the field, or changed since the re-check. The first entry that errs (DW-419) stops the run:
@@ -1162,7 +1334,84 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 		Set newId = ""
 		Try {
 			Set $NAMESPACE = namespace
-			If entry.%Get("action") '= "" {
+			If entry.%Get("setting") '= "" {
+				Set definition = ##class(Ens.Config.Production).%OpenId(entry.production)
+				Set item = ""
+				Set found = $$$OK
+				If $IsObject(definition) Set item = definition.findItemByName(entry.item, "", .found)
+				If '$IsObject(item) || $$$ISERR(found) {
+					Set code = "gone"
+				} Else {
+					Set current = ##class(Ens.Director).GetItemSettingValue(entry.production_"||"_entry.item, entry.target, entry.setting, .read)
+					If $$$ISERR(read) || (current '= entry.expect) {
+						Set code = "changed"
+					} Else {
+						Set matched = 0
+						Set inserted = 0
+						Kill prior, removed
+						For j = item.Settings.Count():-1:1 {
+							Set stored = item.Settings.GetAt(j)
+							If (stored.Name '= entry.setting) || (stored.Target '= entry.target) Continue
+							Set matched = 1
+							If entry.%Get("remove") {
+								Set removed(j) = $ListBuild(stored.Target, stored.Name, stored.Value)
+								Do item.Settings.RemoveAt(j)
+							} Else {
+								Set prior(j) = stored.Value
+								Set stored.Value = entry.value
+							}
+						}
+						If 'matched && 'entry.%Get("remove") {
+							Set stored = ##class(Ens.Config.Setting).%New()
+							Set stored.Target = entry.target
+							Set stored.Name = entry.setting
+							Set stored.Value = entry.value
+							Do item.Settings.Insert(stored)
+							Set inserted = 1
+						}
+						If 'matched && entry.%Get("remove") {
+							Set code = "changed"
+						} Else {
+							Set sc = definition.%Save()
+							Set saved = $$$ISOK(sc)
+							Set updates = 0
+							If saved Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+							If $$$ISOK(sc) {
+								Set code = "done"
+							} Else {
+								Set code = "refused"
+								Set detail = $SYSTEM.Status.GetErrorText(sc)
+								If saved {
+									#; the update failed after the save: the earlier stored state is written back and the production is updated again
+									Try {
+										Set key = $Order(prior(""), 1, value)
+										While key '= "" {
+											Set stored = item.Settings.GetAt(key)
+											Set stored.Value = value
+											Set key = $Order(prior(key), 1, value)
+										}
+										Set key = $Order(removed(""), 1, value)
+										While key '= "" {
+											Set stored = ##class(Ens.Config.Setting).%New()
+											Set stored.Target = $List(value, 1)
+											Set stored.Name = $List(value, 2)
+											Set stored.Value = $List(value, 3)
+											Do item.Settings.InsertAt(stored, key)
+											Set key = $Order(removed(key), 1, value)
+										}
+										If inserted Do item.Settings.RemoveAt(item.Settings.Count())
+										Set sc = definition.%Save()
+										If $$$ISOK(sc) Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+									} Catch restoreError {
+										Set sc = restoreError.AsStatus()
+									}
+									If $$$ISERR(sc) Set code = "notapplied"
+								}
+							}
+						}
+					}
+				}
+			} ElseIf entry.%Get("action") '= "" {
 				Set item = ##class(Ens.Config.Item).%OpenId(id)
 				If '$IsObject(item) || (item.Name '= entry.item) || '$IsObject(item.Production) || (item.Production.Name '= entry.production) {
 					Set code = "gone"
@@ -1173,12 +1422,25 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 					If (''enabled) = enable {
 						Set code = "changed"
 					} Else {
-						Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, enable)
+						Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, enable, 0)
+						Set saved = $$$ISOK(sc)
+						Set updates = 0
+						If saved Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
 						If $$$ISOK(sc) {
 							Set code = "done"
 						} Else {
 							Set code = "refused"
 							Set detail = $SYSTEM.Status.GetErrorText(sc)
+							If saved {
+								#; the update failed after the flag was stored: the earlier flag is stored again, where EnableConfigItem keeps it, and the production is updated again
+								Try {
+									Set sc = ##class(Ens.Director).EnableConfigItem(entry.production_"||"_entry.item, 'enable, 0)
+									If $$$ISOK(sc) Set sc = $Select($Increment(updates) '> +entry.%Get("updateErrors"): $$$ERROR($$$EnsErrGeneral, "the update was refused by the test"), 1: ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout()))
+								} Catch restoreError {
+									Set sc = restoreError.AsStatus()
+								}
+								If $$$ISERR(sc) Set code = "notapplied"
+							}
 						}
 					}
 				}
@@ -1251,9 +1513,14 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 			}
 			Continue
 		}
-		If (code = "stopped") || (code = "refused") || (code = "error") {
+		If (code = "stopped") || (code = "refused") || (code = "error") || (code = "notapplied") {
 			If code '= "stopped" $$$LOGWARNING(..#LOGCOPY_id_": "_##class(OcuTalon.Bridge.Redact).Text(detail))
-			Do unreached.%Push({"id": (id), "code": (code)})
+			Set last = {"id": (id), "code": (code)}
+			If code = "notapplied" {
+				Set detail = ##class(OcuTalon.Watch.ErrorText).Sentence(detail)
+				Do last.%Set("reason", detail, "string")
+			}
+			Do unreached.%Push(last)
 			Set stopped = 1
 			Continue
 		}
@@ -1265,6 +1532,11 @@ ClassMethod InProduction(namespace As %String, plan As %DynamicArray, run As Ocu
 /// entry is named in words, as the re-check names it. Any other code of an item entry gives the item kinds' NOSTART.
 ClassMethod SkipReason(code As %String, id As %String, entry As %DynamicObject) As %String [ Private ]
 {
+	If entry.%Get("setting") '= "" {
+		If code = "gone" Quit entry.item_" is no longer in the production"
+		If code = "changed" Quit ##class(OcuTalon.Fix.Kind.RollbackSetting).ChangedAgain(entry.setting, entry.item)
+		Quit ##class(OcuTalon.Fix.Kind.RollbackSetting).#NOSTART
+	}
 	If entry.%Get("action") '= "" {
 		If code = "gone" Quit entry.item_" is no longer in the production"
 		If code = "changed" Quit entry.item_" changed since the dry run"

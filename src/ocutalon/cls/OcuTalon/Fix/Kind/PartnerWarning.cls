@@ -1,17 +1,32 @@
-/// The fix kind that sends the partner a delay notice about an incident (AD-16; Story 23.5). The user asks for it in the chat (propose_fix, ASKED 1) with no parameter, and the
+/// The fix kind that sends the partner a delay notice about an incident (AD-16; Stories 23.5 and 23.13). The user asks for it in the chat (propose_fix, ASKED 1) with no parameter, and the
 /// diagnosis never names it (DIAGNOSED 0). Its text is drafted by the model (DRAFTED 1): IncidentManager has Decide write it from Facts, and only then asks for the dry run with
 /// the drafted parameters {"text", "to"}. A request of this kind never moves the incident's state (MOVES 0), and it needs no IRIS privilege (RESOURCES empty): it changes nothing
-/// in the production, and the send stays inside OcuTalon's own production, to the Simulated mailbox, never to a real inbox (Fix.Executor.Deliver).
-///   - The targets are the ids of the production's partner contacts (TARGETTYPE contact), in ascending order; Fix.PartnerContacts holds them, demo mode only. The parameter
-///     text is the notice, one line of at most NOTICEMAX characters (Normalise leaves it as it is), and to is the comma-separated addresses of the recipients, exactly the
-///     production's contacts' in id order.
-///   - Facts is the code-built input of the draft: the partner names, the production, the incident's state (underscores read as spaces), then, only for a resolved incident whose records give it, the Outcome line (built by Outcome, in code, never by the model), the failed items, the count with its item noun, the first and last failure and the stored
-///     plain cause. It holds no message body, sample error, setting value or evidence.
-///   - DryRun refuses a production with no contact (NOCONTACTS) and a to that is not the contacts' addresses; its answer is {"notice", "recipients": [{"name", "address"}],
-///     "simulated": 1}. Ready is 0 with NOTSETUP when demo mode is off, so that an approved notice is kept as a draft and says so.
-///   - Recheck and Execute read each target against the fixture again: it passes only if the id still is a contact of the production and has the address at its position in to;
-///     else it is skipped with a plain reason (RECHECK naming the contact, or NOSTART for an id the fixture does not name). Execute sends nothing: its result is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]},
-///     and the executor delivers the approved text from the row. Lane A.
+/// in the production.
+///   - The targets are the ids of the production's partner contacts (TARGETTYPE contact), in ascending order; Fix.PartnerContacts holds them (the fixture for the demo's production while
+///     demo mode is on, else the contacts of Settings > Partner contacts). The parameter text is the notice, one line of at most NOTICEMAX characters (Normalise leaves it as it is), and to
+///     is the comma-separated ids of the recipients, exactly the targets: no name and no address is ever in a parameter, a dry run, a trace or a log (DW-1254).
+///   - Facts is the code-built input of the draft: the production, the incident's state (underscores read as spaces), then, only for a resolved incident whose records give it, the Outcome line
+///     (built by Outcome, in code, never by the model), the failed items, the count with its item noun, the first and last failure and the stored plain cause. It holds no partner name,
+///     message body, sample error, setting value or evidence.
+///   - DryRun refuses a production with no contact (NOCONTACTS) and a to that is not the contacts' ids; its answer is {"notice", "recipients": [id, ...], "simulated"}, 1 for the fixture's
+///     production and 0 for any other. ForApprover turns the ids into {"id", "name", "address"} for the approval row, which the approver sees (an id that no longer resolves is left out).
+///   - Ready: the fixture's production is ready while demo mode is on (its notice goes to the Simulated mailbox); any other production is ready when a mailbox is connected in Settings > Channels
+///     > Email and this is not the online demo (MailboxConnected). Otherwise it is 0 with NOTSETUP, and the approved notice is kept as the row's text.
+///   - Mail is the mail method (AD-14, MAILS 1) of an executing row of a Settings-contact production: it gives the approved notice, the subject (catalog key partner.emailSubject) and the
+///     addresses stored in the row's dry run for the ids of to, for each id whose contact still is one of the production with exactly that address. Any other id is skipped, with the code removed
+///     (the contact is gone, no longer lists the production, or the row holds no address for it) or changed (its address is not the approved one) and the reason NOSTART, and nothing ever goes to a
+///     new address. It gives 0 for the fixture's production (a fictional contact is never mailed), for a row whose text is not the stored notice and for a to that is not the row's targets.
+///   - SendOutcome is the one decision of what became of an approved notice: sent, maysent, notsent or kept. The incident's timeline (Watch.Summary), the chat's result (Watch.Notice ResultKey) and the
+///     approval card (the request's result member outcome, Live.Payload.Incident) all take it from here, and none decides it again (Story 23.15). The run ended failed with the NOTSETUP reason: kept.
+///     Any recipient completed: sent. For a Settings contact (not simulated): a run that a restart cut short is maysent when EmailOut's claim shows that the send had begun (Channel.Email.Out Began)
+///     and notsent when it had not; a failed run is maysent when its reason is MESSAGEMAYHAVESENT (MayHaveSent), which EmailOut and the executor's wrappers answer for every failure that may have
+///     come after the message was handed over, and notsent for any other reason: MESSAGEUNREACHABLE (the message data never began: the server was never reached, or it never answered the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA), MESSAGEFAILED (an error before the hand-over, or none that
+///     began a send), MESSAGEREFUSED, MESSAGENOTCONNECTED, MESSAGEREJECTED, MESSAGEREFUSEDLOGIN, MESSAGESIGNIN, MESSAGEUNAVAILABLE and the kind's own reasons. A simulated notice never is maysent.
+///   - MayHaveSent says whether the reason of a failed send is the EmailOut sentence that says that the email may have gone out (MAYHAVESENTSENTENCES).
+///   - Recheck and Execute read each target against the source again. For the fixture's production a target passes only if the id still is a contact of the production at its position in to; else
+///     it is skipped with a plain reason (RECHECK naming the contact, or NOSTART). Execute sends nothing: its result is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]},
+///     and the executor delivers the approved text from the row, to the Simulated mailbox. A Settings contact is never delivered that way: every target is skipped with NOSTART, and the executor sends
+///     such a request only through EmailOut (Mail). Lane A.
 Class OcuTalon.Fix.Kind.PartnerWarning Extends OcuTalon.Fix.Kind
 {
 
@@ -29,13 +44,18 @@ Parameter ASKED = 1;
 
 Parameter DRAFTED = 1;
 
+Parameter MAILS = 1;
+
 Parameter MOVES = 0;
+
+/// The states in which the chat may ask for the notice: every state but closed (it never moves the incident's state).
+Parameter ASKEDSTATES = "open,awaiting_approval,fixing,resolved";
 
 /// The most characters of the notice.
 Parameter NOTICEMAX = 1000;
 
 /// The instruction that the draft's turn is given (agent text, never shown to a user). It is constant: no incident data enters it.
-Parameter SYSTEMNOTE = "Write a short delay notice to the partner named below about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the affected items went through.";
+Parameter SYSTEMNOTE = "Write a short delay notice to a partner about the failures described below. Use only these facts. Write one plain paragraph of two to four sentences, at most 500 characters, with no greeting line, no signature, no placeholders, no message contents and no setting values, and don't promise when it will be fixed. If the incident is resolved, say how it ended using only the Outcome fact, and don't say that work is still going on or that updates will follow. If there is no Outcome fact, don't say whether the affected items went through.";
 
 Parameter NOTSETUP = "email delivery isn't set up yet";
 
@@ -50,10 +70,21 @@ Parameter RECHECK = "{name} is no longer a partner contact of {production}";
 
 Parameter NOSTART = "OcuTalon couldn't deliver the delay notice";
 
+/// The catalog key of the subject of a real email, and the names of the Channel.Email.Out sentences (MESSAGE parameters, read with $Parameter) that its failed send gives as the reason.
+Parameter KEYEMAILSUBJECT = "partner.emailSubject";
+
+Parameter OUTSENTENCES = "MESSAGEREFUSED,MESSAGENOTCONNECTED,MESSAGEREJECTED,MESSAGEUNREACHABLE,MESSAGEREFUSEDLOGIN,MESSAGESIGNIN,MESSAGEUNAVAILABLE,MESSAGEFAILED,MESSAGEMAYHAVESENT";
+
+/// The names of the Channel.Email.Out sentences (MESSAGE parameters, read with $Parameter) that say that the email may have gone out: MESSAGEMAYHAVESENT, which EmailOut answers for every claimed
+/// send that failed in a way that may have come after the server took the message (a timeout or a connection lost during DATA once the message data began, Sender.MayHaveSent; an error after the hand-over) and the executor's wrappers
+/// answer when the approval's claim shows that the send had begun. Every other OUTSENTENCES word says that nothing was handed to the server: MESSAGEUNREACHABLE means that the message data never began (the server
+/// was never reached, or a timeout at the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA).
+Parameter MAYHAVESENTSENTENCES = "MESSAGEMAYHAVESENT";
+
 /// The reason of a run that failed before anything was sent (the executor's NOREAD for this kind): the same words as NOSTART.
 Parameter NOREAD = "OcuTalon couldn't deliver the delay notice";
 
-/// The input of the draft, built from the incident's rows and the fixture only (see the class description): one line each for the partner, the production, the incident's state, the failed items,
+/// The input of the draft, built from the incident's rows only (see the class description): one line each for the production, the incident's state, the failed items,
 /// the failures, the first and the last failure and, when the incident has one, the cause.
 ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 {
@@ -65,8 +96,7 @@ ClassMethod Facts(incident As OcuTalon.Data.Incident) As %String
 		Set name = groups.GetAt(i).ItemName
 		If '$ListFind($ListFromString(items, ", "), name) Set items = items_$Select(items = "": "", 1: ", ")_name
 	}
-	Set text = "Partner: "_##class(OcuTalon.Fix.PartnerContacts).Names(##class(OcuTalon.Fix.PartnerContacts).For(incident.Production))
-	Set text = text_$Char(10)_"Production: "_..ProductionName(incident)_" ("_incident.Production_")"
+	Set text = "Production: "_..ProductionName(incident)_" ("_incident.Production_")"
 	Set text = text_$Char(10)_"Incident state: "_$Translate(incident.State, "_", " ")
 	Set outcome = ..Outcome(incident)
 	If outcome '= "" Set text = text_$Char(10)_outcome
@@ -162,8 +192,8 @@ ClassMethod Normalise(text As %String) As %String
 	Quit $ZStrip($ZStrip(text, "<>W"), "=W")
 }
 
-/// The base's schema check, then: text is one line (Normalise leaves it as it is) of at most NOTICEMAX characters, and to is a comma-separated list of addresses. Whether the
-/// addresses are the production's contacts' is the dry run's and the re-check's.
+/// The base's schema check, then: text is one line (Normalise leaves it as it is) of at most NOTICEMAX characters, and to is a comma-separated list of positive whole numbers (contact ids).
+/// Whether the ids are the production's contacts' is the dry run's and the re-check's.
 ClassMethod CheckParameters(parameters As %DynamicObject, fields As %DynamicArray) As %Status
 {
 	Set sc = ##super(parameters, fields)
@@ -172,40 +202,54 @@ ClassMethod CheckParameters(parameters As %DynamicObject, fields As %DynamicArra
 	If (text '= ..Normalise(text)) || ($Length(text) > ..#NOTICEMAX) {
 		Quit $$$ERROR($$$GeneralError, "The parameter 'text' of "_..#NAME_" is not one line of at most "_..#NOTICEMAX_" characters")
 	}
-	If '..AddressList(parameters.%Get("to")) Quit $$$ERROR($$$GeneralError, "The parameter 'to' of "_..#NAME_" is not a comma-separated list of addresses")
+	If '..IdList(parameters.%Get("to")) Quit $$$ERROR($$$GeneralError, "The parameter 'to' of "_..#NAME_" is not a comma-separated list of contact ids")
 	Quit $$$OK
 }
 
-/// 1 when every piece of the comma-separated list is an address: no white space, angle bracket or comma, one @ and a dot in the domain.
-ClassMethod AddressList(to As %String) As %Boolean [ Private ]
+/// 1 when every piece of the comma-separated list is a positive whole number with no leading zero.
+ClassMethod IdList(to As %String) As %Boolean [ Private ]
 {
-	For i = 1:1:$Length(to, ",") {
-		If '$Match($Piece(to, ",", i), "^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$") Return 0
-	}
-	Quit 1
+	Quit $Match($Get(to), "^[1-9][0-9]{0,17}(,[1-9][0-9]{0,17})*$")
 }
 
 /// The ids of the production's contacts as the targets, and the dry run {"notice", "recipients", "simulated"} (see the class description). An error status that says why when
-/// the parameters don't pass CheckParameters, the production has no contact (NOCONTACTS) or to is not exactly the contacts' addresses in id order.
+/// the parameters don't pass CheckParameters, the production has no contact (NOCONTACTS) or to is not exactly the contacts' ids in id order.
 ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output targets As %String, Output dryRun As %DynamicObject) As %Status
 {
 	Set targets = ""
 	Set dryRun = ""
 	Set sc = ..CheckParameters(parameters, "")
 	If $$$ISERR(sc) Quit sc
-	Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production)
+	Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production, incident.Namespace)
 	If contacts.%Size() = 0 Quit $$$ERROR($$$GeneralError, ..Reason(..#NOCONTACTS, incident))
-	If parameters.%Get("to") '= ##class(OcuTalon.Fix.PartnerContacts).Addresses(contacts) {
+	Set ids = ##class(OcuTalon.Fix.PartnerContacts).Ids(contacts)
+	If parameters.%Get("to") '= ids {
 		Quit $$$ERROR($$$GeneralError, "The recipients of the notice are not the partner contacts set up for "_..ProductionName(incident))
 	}
 	Set recipients = []
 	Set iterator = contacts.%GetIterator()
 	While iterator.%GetNext(, .contact) {
-		Set targets = targets_$Select(targets = "": "", 1: ",")_contact.id
-		Do recipients.%Push({"name": (contact.name), "address": (contact.address)})
+		Do recipients.%Push(contact.id)
 	}
-	Set dryRun = {"notice": (parameters.%Get("text")), "recipients": (recipients), "simulated": 1}
+	Set targets = ids
+	Set dryRun = {"notice": (parameters.%Get("text")), "recipients": (recipients), "simulated": (##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production))}
 	Quit $$$OK
+}
+
+/// The dry run as the approver is shown it: each id of recipients becomes {"id", "name", "address"} of the contact it names now; an id that no longer resolves is left out. The result is
+/// stored in the approval row and is never part of a traced message.
+ClassMethod ForApprover(incident As OcuTalon.Data.Incident, dryRun As %DynamicObject) As %DynamicObject
+{
+	If '$IsObject(dryRun) || (dryRun.%GetTypeOf("recipients") '= "array") Quit dryRun
+	Set shown = []
+	Set iterator = dryRun.recipients.%GetIterator()
+	While iterator.%GetNext(, .id, .type) {
+		If type '= "number" Continue
+		Set contact = ##class(OcuTalon.Fix.PartnerContacts).Named(incident.Production, id, incident.Namespace)
+		If $IsObject(contact) Do shown.%Push({"id": (contact.id), "name": (contact.name), "address": (contact.address)})
+	}
+	Do dryRun.%Set("recipients", shown)
+	Quit dryRun
 }
 
 /// The reason with {production} filled in: the production's display name.
@@ -214,13 +258,123 @@ ClassMethod Reason(template As %String, incident As OcuTalon.Data.Incident) As %
 	Quit $Replace(template, "{production}", ..ProductionName(incident))
 }
 
-/// 0 with the reason NOTSETUP when demo mode is off: the only contacts there are are the demo's simulated ones, and nothing is delivered without them.
+/// For the fixture's production: 1 while demo mode is on, else 0 with the reason NOTSETUP (the only contacts there are the demo's simulated ones). For any other production: 1 when a mailbox is
+/// connected and this is not the online demo (MailboxConnected), else 0 with NOTSETUP. An approved notice that is not ready is kept as the row's text and nothing is sent.
 ClassMethod Ready(incident As OcuTalon.Data.Incident, Output reason As %String) As %Boolean
 {
 	Set reason = ""
-	If ##class(OcuTalon.Demo.Guide).DemoOn() Quit 1
+	If ##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production) {
+		If ##class(OcuTalon.Demo.Guide).DemoOn() Quit 1
+	} ElseIf ..MailboxConnected() {
+		Quit 1
+	}
 	Set reason = ..#NOTSETUP
 	Quit 0
+}
+
+/// 1 when a mailbox is connected in Settings > Channels > Email (the product key email.address, read from its row, holds an address) and this is not the online demo.
+ClassMethod MailboxConnected() As %Boolean
+{
+	Set connected = 0
+	Try {
+		Set connected = '##class(OcuTalon.Watch.Reader).OnlineDemo() && ##class(OcuTalon.Core.SettingsOps).IsAddress($ZStrip(##class(OcuTalon.Data.Setting).Fresh($Parameter("OcuTalon.Channel.Email.Out", "ADDRESSKEY")), "<>W"))
+	} Catch {
+		Set connected = 0
+	}
+	Quit connected
+}
+
+/// 1 when the reason is one of the sentences of Channel.Email.Out that a failed send gives (OUTSENTENCES, read from the class), so that a result shows it as EmailOut said it.
+ClassMethod OutReason(reason As %String) As %Boolean
+{
+	If $Get(reason) = "" Quit 0
+	Set found = 0
+	For i = 1:1:$Length(..#OUTSENTENCES, ",") {
+		If $Parameter("OcuTalon.Channel.Email.Out", $Piece(..#OUTSENTENCES, ",", i)) = reason Set found = 1
+	}
+	Quit found
+}
+
+/// 1 when the reason of a failed send is one of the sentences of Channel.Email.Out that say that the email may have gone out (MAYHAVESENTSENTENCES, read from the class). Any other reason gives 0.
+/// SendOutcome is the decision that the surfaces use; this is its reading of a failed run's reason.
+ClassMethod MayHaveSent(reason As %String) As %Boolean
+{
+	If $Get(reason) = "" Quit 0
+	Set found = 0
+	For i = 1:1:$Length(..#MAYHAVESENTSENTENCES, ",") {
+		If $Parameter("OcuTalon.Channel.Email.Out", $Piece(..#MAYHAVESENTSENTENCES, ",", i)) = reason Set found = 1
+	}
+	Quit found
+}
+
+/// What became of the approved notice of a run (see the class description): "kept", "sent", "maysent" or "notsent". ref is the request's Ref, state the request's state (done or failed),
+/// completed, skipped and interrupted the run's counts, reason the run's Reason and simulated 1 for the fixture's production, whose notice goes to the Simulated mailbox. The one decision that
+/// the timeline, the chat and the card read: no surface decides it again.
+ClassMethod SendOutcome(ref As %String, state As %String, completed As %Integer, skipped As %Integer, interrupted As %Integer, reason As %String, simulated As %Boolean = 0) As %String
+{
+	If ($Get(state) = "failed") && (..#NOTSETUP '= "") && ($Get(reason) = ..#NOTSETUP) Quit "kept"
+	If +$Get(completed) > 0 Quit "sent"
+	If $Get(simulated) Quit "notsent"
+	If +$Get(interrupted) > 0 Quit $Select($ClassMethod("OcuTalon.Channel.Email.Out", "Began", $Get(ref)): "maysent", 1: "notsent")
+	If ($Get(state) = "failed") && ..MayHaveSent($Get(reason)) Quit "maysent"
+	Quit "notsent"
+}
+
+/// The outcome that the approval card reads (the result member outcome of the incident's request): SendOutcome for the request and its ended run, or "" for the simulated notice of the fixture's production,
+/// whose bands the card keeps as they were.
+ClassMethod ResultOutcome(request As OcuTalon.Bridge.Data.ApprovalRequest, run As OcuTalon.Data.FixRun, production As %String) As %String
+{
+	If ##class(OcuTalon.Fix.PartnerContacts).Simulated(production) Quit ""
+	Quit ..SendOutcome(request.Ref, request.State, run.Completed, run.Skipped, run.Interrupted, run.Reason, 0)
+}
+
+/// The mail method (see the class description). Gives 1 with the recipients, the subject, the approved text and the skipped entries {"id", "code", "reason"} for a row that is as approved, even
+/// when every recipient was skipped (recipients is then empty); 0 with empty outputs for anything else.
+ClassMethod Mail(row As OcuTalon.Bridge.Data.ApprovalRequest, Output recipients As %DynamicArray, Output subject As %String, Output text As %String, Output skipped As %DynamicArray) As %Boolean
+{
+	Set recipients = []
+	Set subject = ""
+	Set text = ""
+	Set skipped = []
+	Set mailed = 0
+	Try {
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(row.IncidentRef)
+		If '$IsObject(incident) || ##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production) Quit
+		Set parameters = {}.%FromJSON(row.FixParameters)
+		Set stored = {}.%FromJSON(row.DryRun)
+		If '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") || '$IsObject(stored) || 'stored.%IsA("%Library.DynamicObject") Quit
+		If $$$ISERR(..CheckParameters(parameters, "")) Quit
+		If (stored.%GetTypeOf("notice") '= "string") || (stored.notice = "") || (stored.notice '= parameters.text) || (parameters.to '= row.FixTargets) Quit
+		If stored.%GetTypeOf("recipients") '= "array" Quit
+		Kill approved, current
+		Set iterator = stored.recipients.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If $IsObject(entry) && entry.%IsA("%Library.DynamicObject") && (entry.%Get("id") ? 1.N) && (entry.%GetTypeOf("address") = "string") Set approved(+entry.%Get("id")) = $ZStrip(entry.address, "<>W")
+		}
+		Set iterator = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production, incident.Namespace).%GetIterator()
+		While iterator.%GetNext(, .contact) {
+			Set current(contact.id) = $ZStrip(contact.address, "<>W")
+		}
+		For i = 1:1:$Length(parameters.to, ",") {
+			Set id = +$Piece(parameters.to, ",", i)
+			If ($Get(approved(id)) '= "") && $Data(current(id)) && (current(id) = approved(id)) {
+				Do recipients.%Push(approved(id))
+			} Else {
+				Do skipped.%Push({"id": (id), "code": ($Select(($Get(approved(id)) = "") || '$Data(current(id)): "removed", 1: "changed")), "reason": (..#NOSTART)})
+			}
+		}
+		Set subject = ##class(OcuTalon.Msg.Catalog).Render(..#KEYEMAILSUBJECT, "", "email", .sc)
+		If $$$ISERR(sc) Set subject = ""
+		Set text = stored.notice
+		Set mailed = 1
+	} Catch {
+		Set mailed = 0
+		Set recipients = []
+		Set subject = ""
+		Set text = ""
+		Set skipped = []
+	}
+	Quit mailed
 }
 
 /// Re-checks the contacts of an approved request before anything is sent (see the class description): passed holds the ids that pass, comma-separated and ascending, skipped
@@ -249,21 +403,22 @@ ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 	Quit $$$OK
 }
 
-/// The test of Recheck and Execute: deliveries holds {"id", "name", "address"} for each target that is still a contact of the production with the address at its position in
-/// to, skipped holds {"id", "reason"} for each other target: RECHECK with the contact's name for a contact whose address is not the one at its position, NOSTART for an id that the
-/// fixture does not name (no name is known for it). Parameters that don't pass CheckParameters skip every target with NOSTART. It changes nothing.
+/// The test of Recheck and Execute: for the fixture's production, deliveries holds {"id", "name", "address"} for each target that is still a contact of the production at its position in to,
+/// and skipped {"id", "reason"} for each other target: RECHECK with the contact's name for a contact that is not at its position, NOSTART for an id that the fixture does not name (no
+/// name is known for it). A Settings contact is never delivered here: every target is skipped with NOSTART, as is every target of parameters that don't pass CheckParameters. It changes
+/// nothing.
 ClassMethod Plan(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output deliveries As %DynamicArray, Output skipped As %DynamicArray) As %Status [ Private ]
 {
 	Set deliveries = []
 	Set skipped = []
-	Set valid = $$$ISOK(..CheckParameters(parameters, ""))
+	Set valid = $$$ISOK(..CheckParameters(parameters, "")) && ##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production)
 	For i = 1:1:$Length(targets, ",") {
 		Set id = $Piece(targets, ",", i)
 		If id = "" Continue
-		Set contact = ##class(OcuTalon.Fix.PartnerContacts).Named(incident.Production, id)
+		Set contact = $Select(valid: ##class(OcuTalon.Fix.PartnerContacts).Named(incident.Production, id, incident.Namespace), 1: "")
 		If 'valid {
 			Do skipped.%Push({"id": (+id), "reason": (..#NOSTART)})
-		} ElseIf $IsObject(contact) && (contact.address = $Piece(parameters.%Get("to"), ",", i)) {
+		} ElseIf $IsObject(contact) && (contact.id = +$Piece(parameters.%Get("to"), ",", i)) {
 			Do deliveries.%Push(contact)
 		} ElseIf $IsObject(contact) {
 			Do skipped.%Push({"id": (+id), "reason": ($Replace(..Reason(..#RECHECK, incident), "{name}", contact.name))})

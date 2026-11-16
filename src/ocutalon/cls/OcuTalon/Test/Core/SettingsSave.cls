@@ -438,7 +438,7 @@ Method TestValues()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode,channels,on-call", "the sections that hold values, the channels and on-call last (neither on the online demo)")
+	Do $$$AssertEquals(keys, "daily-digest,check-thresholds,demo-mode,channels,on-call"_$Select(##class(OcuTalon.Core.SettingsOps).PartnersShown(): ",partner-contacts", 1: ""), "the sections that hold values, then the channels, on-call and, only while the Partner contacts switch is on, partner-contacts (none of the three on the online demo)")
 	Set channels = body.sections.channels
 	Set shape = ""
 	Set iterator = channels.%GetIterator()

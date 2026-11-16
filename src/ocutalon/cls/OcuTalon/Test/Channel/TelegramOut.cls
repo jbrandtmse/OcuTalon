@@ -34,6 +34,11 @@
 ///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
 ///     goes in parts of at most 3,840 units with the buttons on the last part only; the Delivery row records the Ref and the last part's
 ///     text, the redacted text with no chat id, name or Telegram user name (a stored text that the redactor cannot check is "");
+///   - TestRedactedValue (Story 24.4a; AC2): the undo request filled by Watch.Notice AskedSlots from a dry run with a token URL goes with the URL redacted and no token, and one with plain values
+///     with them byte for byte;
+///   - TestStepFiveRequests (Story 24.4b; AC1, AC2): the approval request of each step-5 kind (suspend, resume, reroute, partner warning, rollback, undo of a rollback), filled with its
+///     catalog fixture's slots, goes as the catalog's telegram text with no parse_mode and exactly Approve and Reject (approve:<Ref>, reject:<Ref>) on its last part; the partner's text holds the whole notice
+///     and both recipients;
 ///   - TestEmailRequestRendersTheStoredDryRun (Story 21.11): a standalone email request (kind approval, fix.emailRequest, empty Slots) is sent as the text of
 ///     Core.BridgeSink.RequestText, the stored dry run of its row: one sendMessage with the lines to, subject and text (the line break and the tab as \uXXXX, the spaces
 ///     kept) and Approve and Reject on its last part; a 9,000-character text is split whole at 3,840 units with the buttons on the last part only and no cut line; a row
@@ -814,6 +819,108 @@ ClassMethod Request(session As %String, approvalRef As %String, kind As %String 
 ClassMethod Answered(session As %String, approvalRef As %String, key As %String, slots As %DynamicObject, incidentRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
 {
 	Quit ..Notification(session, "answered", key, slots, approvalRef, incidentRef)
+}
+
+/// Story 24.4a, AC2: the undo request that the server fills from a dry run (Watch.Notice AskedSlots) is sent with a token URL redacted and no token, and the same notice for plain values with
+/// them byte for byte. The fixture chat is 8650.
+Method TestRedactedValue()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8650
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set token = "tk" _ "z9" _ "Q" _ "w3"
+		Set url = "https://feed.example.test/orders?token=" _ token
+		Set incident = ##class(OcuTalon.Data.Incident).%New()
+		Set incident.Ref = "zzredacted24a000001"
+		Set secretRef = ..NewRef(), plainRef = ..NewRef()
+
+		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots("undo_rollback", {"item": "OrdersFromPartner", "field": "Host", "before": (url), "after": "OrdersRouterNew"}, incident, .sc)
+		Do $$$AssertStatusOK(sc, "the server fills the slots of the undo request")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "incident.undoRollbackRequest", slots, secretRef), .response), "(a) the request with a token URL is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "as one sendMessage")
+		If calls.%Size() = 1 {
+			Set text = calls.%Get(0).params.text
+			Do $$$AssertTrue(text [ "https://feed.example.test/orders?token=[redacted]", "the text holds the URL with the marker in place of the token: "_text)
+			Do $$$AssertEquals($Find(text, token), 0, "and no token")
+		}
+
+		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots("undo_rollback", {"item": "OrdersFromPartner", "field": "Host", "before": "LegacyRouter", "after": "OrdersRouterNew"}, incident, .sc)
+		Do $$$AssertStatusOK(sc, "the slots of the plain undo request")
+		Set notice = ..Notification(session, "approval", "incident.undoRollbackRequest", slots, plainRef)
+		Set expected = ##class(OcuTalon.Msg.Catalog).Render("incident.undoRollbackRequest", notice.Slots, "telegram")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "(b) the request with plain values is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 2, "as one more sendMessage")
+		If calls.%Size() = 2 {
+			Set text = calls.%Get(1).params.text
+			Do $$$AssertEquals(text, expected, "with the catalog text")
+			Do $$$AssertTrue((text [ "LegacyRouter") && (text [ "OrdersRouterNew") && ($Find(text, "[redacted]") = 0), "holding both values byte for byte and no marker: "_text)
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the redacted-value test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// Story 24.4b, AC1 and AC2: the approval request of each step-5 kind (suspend, resume, reroute, partner warning, rollback, undo of a rollback), filled with its catalog fixture's
+/// slots (the partner's recipients as two "Name <address>" entries joined by ", ", as Watch.Notice AskedSlots joins them), is sent as the catalog's telegram text with no parse_mode, and the
+/// last part of the message carries exactly Approve (approve:<Ref>) and Reject (reject:<Ref>). The partner's text holds the whole notice and both recipients. The fixture chat is 8660.
+Method TestStepFiveRequests()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8660
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set first = "IT <it@results-partner.example>", second = "Ops <ops@results-partner.example>"
+		Set keys = $ListBuild("incident.suspendRequest", "incident.resumeRequest", "incident.rerouteRequest", "incident.partnerRequest", "incident.rollbackRequest", "incident.undoRollbackRequest")
+		For i = 1:1:$ListLength(keys) {
+			Set key = $List(keys, i)
+			Set slots = ..FixtureSlots(key)
+			Do $$$AssertTrue($IsObject(slots) && (slots.%ToJSON() '= "{}"), key_" has fixture slots")
+			If key = "incident.partnerRequest" Do slots.%Set("recipients", first_", "_second, "string")
+			Set requestRef = ..NewRef()
+			Set notice = ..Notification(session, "approval", key, slots, requestRef)
+			Set expected = ##class(OcuTalon.Msg.Catalog).Render(key, notice.Slots, "telegram", .sc)
+			Do $$$AssertStatusOK(sc, key_" renders")
+			Set before = ..SentTo(chatId).%Size()
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), key_" is sent")
+			Set calls = ..SentTo(chatId)
+			Set count = calls.%Size() - before
+			Do $$$AssertTrue(count >= 1, key_" goes as at least one sendMessage")
+			Set joined = "", marked = 0, lastMarked = 0, parsed = 0
+			For j = before:1:calls.%Size() - 1 {
+				Set params = calls.%Get(j).params
+				Set joined = joined_$Select(joined = "": "", 1: $Char(10))_params.text
+				If params.%IsDefined("parse_mode") Set parsed = parsed + 1
+				If params.%IsDefined("reply_markup") {
+					Set marked = marked + 1
+					If j = (calls.%Size() - 1) Set lastMarked = 1
+				}
+			}
+			Do $$$AssertEquals(joined, expected, key_" is sent as the catalog's telegram text")
+			Do $$$AssertEquals(parsed, 0, key_" is sent with no parse_mode")
+			Do $$$AssertEquals(marked_"|"_lastMarked, "1|1", key_" has the buttons on its last part only")
+			If count >= 1 {
+				Set markup = calls.%Get(calls.%Size() - 1).params."reply_markup"
+				Do $$$AssertEquals($Select($IsObject(markup): markup.%ToJSON(), 1: ""), {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_requestRef)}, {"text": "Reject", "callback_data": ("reject:"_requestRef)}]]}.%ToJSON(), key_" has exactly Approve and Reject, with the request's Ref")
+			}
+			If key = "incident.partnerRequest" {
+				Do $$$AssertTrue($Find(joined, slots.notice) > 0, "the partner text holds the whole notice")
+				Do $$$AssertTrue(($Find(joined, first) > 0) && ($Find(joined, second) > 0), "and both recipients as plain text: "_joined)
+			}
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the step-5 requests test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
 }
 
 /// AC1, U-218: the buttons go on the last part of a request notice, and its Delivery row keeps the Ref and the redacted last part.

@@ -8,7 +8,10 @@
 ///     request is approved on the channel telegram by the session's IRIS user; the audit entry names the channel and holds neither the chat id
 ///     nor the chat's name; no Turn is made and no chat message is sent;
 ///   - TestApproveKinds (Story 23.2): the Approve of a suspend, a resume and a reroute is answered "Approved. Suspending {item}.", "Approved. Resuming {item}." and
-///     "Approved. Rerouting {count} {itemNoun} to {to}."; Story 23.5: that of a partner delay notice is answered "Approved. Sending the delay notice to the Simulated mailbox.";
+///     "Approved. Rerouting {count} {itemNoun} to {to}."; Story 23.5: that of a partner delay notice is answered "Approved. Sending the delay notice to the Simulated mailbox."; Story 23.13: that of a Settings contact's notice (not simulated) is answered "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email." with no mailbox connected and with no text with one;
+///     Story 23.3: that of a rollback_setting and of an undo_rollback is answered "Approved. Putting {setting} on {item} back." and "Approved. Undoing the rollback of {setting} on {item}.", and with no text when the dry run names no setting;
+///   - TestApprovePartnerNeedsAnAdmin (DW-1415): a non-admin's press on the Approve of a warning to Settings contacts is refused with email's admin refusal (no text, one warning), the request stays pending, and the
+///     same non-admin approves the demo's simulated warning;
 ///   - TestReject: reject:<Ref> is answered "Rejected. Nothing was changed." and the request is rejected;
 ///   - TestLate: a press after another channel answered is an alert "Already answered: approved from the web chat at <time>." (the winner's
 ///     action and channel, also rejected from the simulated phone), and both requests stay as they were;
@@ -26,12 +29,12 @@
 ///     shows it as its answer; the result follows as one new chat message.
 ///   - TestPressAnswerFails (QA): when Telegram refuses the answer to a press (a 400), the request is still answered, TelegramIn logs one
 ///     warning that names no Ref, chat id, name or callback data, and the next press is answered as usual;
-/// The fixture chats are 84017734140 to 84017734149, and the fixture sessions zztgappr....
+/// The fixture chats are 84017734140 to 84017734152, and the fixture sessions zztgappr....
 Class OcuTalon.Test.Channel.TelegramApproval Extends OcuTalon.Test.Channel.LiveCase
 {
 
 /// The fixture chat ids.
-Parameter CHATS = "84017734140,84017734141,84017734142,84017734143,84017734144,84017734145,84017734146,84017734147,84017734148,84017734149";
+Parameter CHATS = "84017734140,84017734141,84017734142,84017734143,84017734144,84017734145,84017734146,84017734147,84017734148,84017734149,84017734150,84017734151,84017734152";
 
 /// The most seconds between an answered notification and the edited copies.
 Parameter FIVE = 5;
@@ -50,6 +53,9 @@ Property Answered As %String(MAXLEN = "") [ Private ];
 
 /// The presses sent so far, for their ids.
 Property Presses As %Integer [ InitialExpression = 0, Private ];
+
+/// The IRIS users that a test made (an admin and a user who is no admin, for the partner warnings of DW-1415), comma-separated, for DropUsers.
+Property Users As %String(MAXLEN = "") [ Private ];
 
 Method OnBeforeAllTests() As %Status
 {
@@ -73,12 +79,14 @@ Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Refs = ""
 	Set ..Answered = ""
+	Set ..Users = ""
 	Quit $$$OK
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ..Tidy()
+	Do ..DropUsers()
 	Quit $$$OK
 }
 
@@ -104,14 +112,15 @@ Method Tidy() [ Private ]
 	Set ..Answered = ""
 }
 
-/// A fixture session (zztgappr...) of this process's user, which holds the role of the requests; its Ref. It is paired by the caller and
+/// A fixture session (zztgappr...) of the IRIS user (this process's user when none is given), which holds the role of the requests; its Ref. It is paired by the caller and
 /// removed by Tidy.
-Method WebSession() As %String [ Private ]
+Method WebSession(user As %String = "") As %String [ Private ]
 {
+	If user = "" Set user = $Username
 	Set ref = ..NewSession("zztgappr")
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
-	Set row.IrisUser = $Username
-	Do $$$AssertStatusOK(row.%Save(), "the fixture session belongs to "_$Username)
+	Set row.IrisUser = user
+	Do $$$AssertStatusOK(row.%Save(), "the fixture session belongs to "_user)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_##class(OcuTalon.Test.Data.Fixture).Adopt(row)
 	Quit ref
 }
@@ -121,6 +130,33 @@ ClassMethod HeldRole() As %String [ Private ]
 {
 	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet($Username, .roles)
 	Quit $Piece(roles, ",", 1)
+}
+
+/// Makes an IRIS user that holds OcuTalonUser, and OcuTalonAdmin too when admin is 1 (DW-1415: only an admin approves a partner warning to Settings contacts); its name. DropUsers deletes it.
+Method MakeUser(admin As %Boolean) As %String [ Private ]
+{
+	Set user = "zztgapp"_$Select(admin: "adm", 1: "usr")_$Increment(^OcuTalonTest("TelegramLive", "n"))
+	Set sc = ..CreateUser(user, "OcuTalonUser"_$Select(admin: ",OcuTalonAdmin", 1: ""), "Zz-tg-pw-"_$Random(1000000))
+	Do $$$AssertStatusOK(sc, "the fixture user "_user_" holds OcuTalonUser"_$Select(admin: " and OcuTalonAdmin", 1: " only"))
+	Set ..Users = ..Users_$Select(..Users = "": "", 1: ",")_user
+	Quit user
+}
+
+/// The status of Security.Users.Create for the user with the roles and the password, which the caller never prints. Runs in %SYS.
+ClassMethod CreateUser(user As %String, roles As %String, password As %String) As %Status [ Private ]
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ##class(Security.Users).Create(user, roles, password, "OcuTalon test fixture", "OCUTALON", "", "", 0, 1, "Created by a test; the test deletes it.", 1, "", "", , 1, 1)
+}
+
+/// Deletes the IRIS users that the test made.
+Method DropUsers() [ Private ]
+{
+	For i = 1:1:$Length(..Users, ",") {
+		Do ##class(OcuTalon.Test.Install.PasswordGuard).RemoveUser($Piece(..Users, ",", i))
+	}
+	Set ..Users = ""
 }
 
 /// A fixture request of the owner that this process's user may answer, with the dry run of 50 orders; fields change the defaults. Its Ref
@@ -142,10 +178,11 @@ Method Request(owner As %String, fields As %DynamicObject = "") As %String [ Pri
 	Quit ref
 }
 
-/// A session paired with the chat through the real /start path, and the confirmation that the chat gets waited for; the session's Ref.
-Method Paired(chatId As %String, name As %String, Output chatRef As %String) As %String [ Private ]
+/// A session paired with the chat through the real /start path, and the confirmation that the chat gets waited for; the session's Ref. The session belongs to the IRIS user
+/// (this process's user when none is given).
+Method Paired(chatId As %String, name As %String, Output chatRef As %String, user As %String = "") As %String [ Private ]
 {
-	Set session = ..WebSession()
+	Set session = ..WebSession(user)
 	Do $$$AssertTrue(..PairChat(chatId, name, session), "chat "_chatId_" is paired with its session")
 	Do ..ChatRow(chatId, .chatRef)
 	Do $$$AssertEquals(..TextsAfter(chatId, 1).%Size(), 1, "the chat got its confirmation")
@@ -401,30 +438,87 @@ Method TestApproveNoDryRun()
 }
 
 /// Story 23.2: the paired chat's Approve of a suspend, a resume and a reroute is answered with the kind's own text (press.approvedSuspend, press.approvedResume and press.approvedReroute),
-/// not "Repairing and resending".
+/// not "Repairing and resending". Story 23.3: that of a rollback_setting and an undo_rollback is answered with press.approvedRollback and press.approvedUndoRollback, naming the setting and the item;
+/// one whose dry run has no field, or none, is approved and answered with no text.
+/// DW-1415: the approve of a warning to Settings contacts (not simulated) is pressed by the chat of an admin's session (a fixture user with OcuTalonAdmin), as only an admin may approve it;
+/// the demo's simulated warning is pressed by this process's user, who need not be an admin.
 Method TestApproveKinds()
 {
 	If '..Go() Quit
 	Try {
 		Set chatId = 84017734150
 		Set session = ..Paired(chatId, "Zqkinds", .chatRef)
+		Set adminChat = 84017734151
+		Set adminSession = ..Paired(adminChat, "Zqadmin", .adminRef, ..MakeUser(1))
 		Set cases = $ListBuild(
 			$ListBuild("suspend_item", "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}", "Approved. Suspending OrdersToWarehouse."),
 			$ListBuild("resume_item", "{""item"":""OrdersToWarehouse"",""before"":""disabled"",""after"":""enabled""}", "Approved. Resuming OrdersToWarehouse."),
 			$ListBuild("reroute", "{""affected"":50,""resend"":50,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1234""}", "Approved. Rerouting 50 orders to OrdersForReview."),
-			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}", "Approved. Sending the delay notice to the Simulated mailbox."))
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}", "Approved. Sending the delay notice to the Simulated mailbox."),
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""id"":7,""name"":""Zz Partner"",""address"":""zz@results-partner.example""}],""simulated"":0}", "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email.", 0),
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""id"":7,""name"":""Zz Partner"",""address"":""zz@results-partner.example""}],""simulated"":0}", "", 1),
+			$ListBuild("rollback_setting", "{""item"":""OrdersFromPartner"",""field"":""TargetConfigName"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", "Approved. Putting TargetConfigName on OrdersFromPartner back."),
+			$ListBuild("undo_rollback", "{""item"":""OrdersFromPartner"",""field"":""TargetConfigName"",""before"":""OrdersToWarehouse"",""after"":""OrdersToWarehous""}", "Approved. Undoing the rollback of TargetConfigName on OrdersFromPartner."),
+			$ListBuild("rollback_setting", "{""item"":""OrdersFromPartner"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", ""),
+			$ListBuild("undo_rollback", "", ""))
 		Set position = 0
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).SaveMailbox()
 		While $ListNext(cases, position, case) {
-			Set request = ..Request(session, {"FixKind": ($List(case, 1)), "DryRun": ($List(case, 2))})
+			Do ##class(OcuTalon.Test.Fix.PartnerSupport).Mailbox(+$ListGet(case, 4))
+			Set admin = ($ListLength(case) > 3)
+			Set fields = {"FixKind": ($List(case, 1)), "DryRun": ($List(case, 2))}
+			If admin Do fields.%Set("RequiredRole", "OcuTalonUser")
+			Set request = ..Request($Select(admin: adminSession, 1: session), fields)
 			Set answers = ..CallsOf("answerCallbackQuery").%Size()
-			Do ..Press(chatId, "Zqkinds", "approve:"_request)
+			Do ..Press($Select(admin: adminChat, 1: chatId), $Select(admin: "Zqadmin", 1: "Zqkinds"), "approve:"_request)
 			Set found = ..WaitAnswers(answers, 1)
 			Do $$$AssertEquals(found.%Size(), 1, $List(case, 1)_": one answerCallbackQuery")
 			If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), $List(case, 3), 0, $List(case, 1))
 			Do $$$AssertEquals(..Facts(request), "approved|approve|telegram", $List(case, 1)_": the request is approved on the channel telegram")
 		}
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
 	} Catch ex {
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
 		Do $$$AssertTrue(0, "the kinds test failed: "_..Safe(ex))
+	}
+}
+
+/// DW-1415: the paired chat of a session whose user is no admin presses Approve on a partner warning to Settings contacts (not simulated, with and without a mailbox): AnswersIn refuses it with email's own refusal
+/// (not_allowed {"kind": "email", "admin": true}), the press is answered with no text and no alert and one warning, and the request stays pending, so nothing is sent or kept. The demo's simulated warning
+/// is approved by the same chat, and the same non-simulated request is approved by an admin's chat (TestApproveKinds does it for the texts), so the refusal is the rule and not the fixture.
+Method TestApprovePartnerNeedsAnAdmin()
+{
+	If '..Go() Quit
+	Try {
+		Set chatId = 84017734152
+		Set session = ..Paired(chatId, "Zqplain", .chatRef, ..MakeUser(0))
+		Set dryRun = "{""notice"":""Orders failed."",""recipients"":[{""id"":7,""name"":""Zz Partner"",""address"":""zz@results-partner.example""}],""simulated"":0}"
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).SaveMailbox()
+		For mailbox = 0, 1 {
+			Do ##class(OcuTalon.Test.Fix.PartnerSupport).Mailbox(mailbox)
+			Set request = ..Request(session, {"FixKind": "partner_warning", "FixTargets": "7", "RequiredRole": "OcuTalonUser", "DryRun": (dryRun)})
+			Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+			Set answers = ..CallsOf("answerCallbackQuery").%Size()
+			Do ..Press(chatId, "Zqplain", "approve:"_request)
+			Set found = ..WaitAnswers(answers, 1)
+			Do $$$AssertEquals(found.%Size(), 1, "mailbox "_mailbox_": one answerCallbackQuery")
+			If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), "", 0, "a non-admin's press, mailbox "_mailbox)
+			Do $$$AssertEquals(..Warnings(log, "may not answer this kind of request"), 1, "mailbox "_mailbox_": one warning")
+			Do $$$AssertEquals(..Facts(request), "pending||", "mailbox "_mailbox_": the request stays pending, so nothing is sent or kept")
+			Do ##class(OcuTalon.Core.AnswersIn).FromTelegram(request, "approve", chatRef, .code, .slots)
+			Do $$$AssertEquals(code_"|"_slots.%ToJSON(), "not_allowed|{""kind"":""email"",""admin"":true}", "mailbox "_mailbox_": email's own admin refusal")
+		}
+		Set simulated = ..Request(session, {"FixKind": "partner_warning", "RequiredRole": "OcuTalonUser", "DryRun": ("{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}")})
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqplain", "approve:"_simulated)
+		Set found = ..WaitAnswers(answers, 1)
+		Do $$$AssertEquals(found.%Size(), 1, "the simulated warning: one answerCallbackQuery")
+		If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), "Approved. Sending the delay notice to the Simulated mailbox.", 0, "the demo's simulated warning")
+		Do $$$AssertEquals(..Facts(simulated), "approved|approve|telegram", "a non-admin approves the demo's simulated warning")
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
+	} Catch ex {
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
+		Do $$$AssertTrue(0, "the partner admin test failed: "_..Safe(ex))
 	}
 }
 

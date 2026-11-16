@@ -9,8 +9,8 @@
 ///         (RequestRefs, rows that name the incident): summary.requested (RaisedAt, the dry run's resend count; left out when the dry run holds no count; for a fix the user asked for in the chat summary.requestedSuspend, summary.requestedResume or summary.requestedReroute, Story 23.2, and summary.requestedPartner with the number of recipients for a partner delay notice, Story 23.5), its answer (summary.approved or summary.rejected at
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
 ///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
-///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded, and a
-///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
+///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded (summary.settingSavedNotApplied, with the setting Enabled and the item as the target, for a run that stored the flag and could not apply it), and a
+///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13, and a Settings-contact run that may have sent the email ends with summary.partnerMaySent, DW-1416, Story 23.15; the line is chosen by the kind's one decision, PartnerWarning SendOutcome (sent, maysent, notsent or kept), which the chat and the card read as well; none of these lines holds a recipient, subject or text); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
 ///       summary.evidence (the first evidence line of the diagnosis payload that is more than a period; omitted when there is none), summary.sampleError (the first sentence of the sample
@@ -72,7 +72,7 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 			Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
 			If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") Continue
 			Set ran = 1
-			If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") Continue
+			If (class '= "") && ($Parameter(class, "TARGETTYPE") '= "message") Continue
 			If (class = "") || $Parameter(class, "DIAGNOSED") Set diagnosed = 1
 			Set resent = resent + run.Resent
 			Set completed = completed + run.Completed
@@ -156,6 +156,8 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 		If count '= "" Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedReroute", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun), "to": (parameters.%Get("target"))})
 	} ElseIf request.FixKind = "partner_warning" {
 		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requestedPartner", {"time": (request.RaisedAt), "count": ($Length(request.FixTargets, ","))})
+	} ElseIf ##class(OcuTalon.Watch.SettingCause).IsSetting(parameters) {
+		If ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, request.RaisedAt, ##class(OcuTalon.Watch.SettingCause).SummaryRequestKey(request.FixKind), {"time": (request.RaisedAt), "setting": (setting), "target": (target)})
 	} ElseIf count '= "" {
 		Do ..Event(.timeline, .seq, request.RaisedAt, "summary.requested", {"time": (request.RaisedAt), "count": (count), "itemNoun": (noun)})
 	}
@@ -178,14 +180,21 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 }
 
 /// The lines of a fix run: started, then ended or interrupted when it has ended. The end of a run of a kind whose targets are items says what happened to the item
-/// (suspended, resumed or not changed), not the message counts. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
-/// says whether the notice was sent, kept as a draft or not sent.
+/// (suspended, resumed, not changed, or changed and not applied), not the message counts. A run of a setting kind ends with the key of Watch.SettingCause SummaryRunKey, the setting and the item of its dry run. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
+/// says whether the notice was sent, kept as a draft, not sent or may have been sent.
 ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Data.ApprovalRequest, ByRef timeline, ByRef seq As %Integer) [ Private ]
 {
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
 		If run.EndedAt = "" Quit
-		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
+		Set real = $IsObject(incident) && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production)
+		Set outcome = ##class(OcuTalon.Fix.Kind.PartnerWarning).SendOutcome(request.Ref, request.State, run.Completed, run.Skipped, run.Interrupted, run.Reason, 'real)
+		If (outcome = "sent") && real {
+			Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", ..EndedSlots(run))
+			Quit
+		}
+		Set key = $Case(outcome, "sent": "summary.partnerSent", "kept": "summary.partnerKept", "maysent": "summary.partnerMaySent", : "summary.partnerNotSent")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
 		Quit
 	}
@@ -197,16 +206,31 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 	}
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
 		Set item = ..Parameters(request).%Get("item")
+		If (+run.Completed = 0) && (+run.Unreached > 0) {
+			Do ..Event(.timeline, .seq, run.EndedAt, ##class(OcuTalon.Watch.SettingCause).#KEYSUMMARYSAVEDNOTAPPLIED, {"time": (run.EndedAt), "setting": ($Parameter(class, "ENABLEDSETTING")), "target": (item)})
+			Quit
+		}
 		Set key = $Select(+run.Completed > 0: $Select($Parameter(class, "ENABLE"): "summary.itemResumed", 1: "summary.itemSuspended"), 1: "summary.itemNotChanged")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "item": (item)})
 		Quit
 	}
+	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting") {
+		Set key = ##class(OcuTalon.Watch.SettingCause).SummaryRunKey(request.FixKind, run)
+		If (key '= "") && ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "setting": (setting), "target": (target)})
+		Quit
+	}
+	Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", ..EndedSlots(run))
+}
+
+/// The slots of summary.fixEnded: the end time and the run's counts.
+ClassMethod EndedSlots(run As OcuTalon.Data.FixRun) As %DynamicObject [ Private ]
+{
 	Set slots = {"time": (run.EndedAt)}
 	Do slots.%Set("resent", +run.Resent, "number")
 	Do slots.%Set("completed", +run.Completed, "number")
 	Do slots.%Set("failedAgain", +run.FailedAgain, "number")
 	Do slots.%Set("skipped", +run.Skipped, "number")
-	Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", slots)
+	Quit slots
 }
 
 /// The request's FixParameters as a dynamic object; {} when they are not one.

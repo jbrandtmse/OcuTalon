@@ -49,17 +49,23 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     included: the caller redacts them. Given resent 1 (Story 7.3), each failure also gains resentBy, an array of the ids of the headers of its session
 ///     whose Description names it as resent: the ids that follow "Resent " and precede any ":" (IRIS writes "Resent <id>[,<earlier ids>][: <description>]" on a
 ///     copy, whoever resends it); without the flag the failures have no such member.
+///     Each failure also carries inFlight, a boolean: 1 when IRIS still holds or still handles the header, that is when, after its row was read, the row is Completed and a
+///     business process instance of it is not complete (Ens.BusinessProcess, %PrimaryRequestHeader, %IsCompleted 0) or a job handles a response of its session addressed to its
+///     target, or it is the active message of a job of the namespace (Ensemble.inc's EnsActiveMessage), or a second read of its status, made after those checks, gives another
+///     status (IRIS sets an erroring message Completed just before Error, sets a business process's request Completed at each pass while it waits for replies, and lets go of it
+///     after). A failed read of the business process instances or of the replies counts as 1.
 ///   - Items reads the production's items for the item fix kinds (Story 23.2) inside the same switching method and under the same two checks: one {"id", "name",
 ///     "className", "businessType", "enabled"} per item, enabled as IRIS runs it.
 ///   - Settings reads the setting history marks of a production (Story 36.1): the namespace's production-change counter and the production's start mark, and
 ///     with full every item's effective settings (its stored settings with the class defaults and the System Default Settings that apply), inside the same switching
 ///     method and under the same two checks. Items that share a name are one: the first of them in the definition's item list that is enabled as IRIS runs it, else the first. A setting that
 ///     references an Ens.Config.Credentials entry keeps the ID it holds; any other setting whose name CredentialName matches loses its value and is given a
-///     salted hash, which only tells a later read that the value changed. It writes nothing.
+///     salted hash, which only tells a later read that the value changed. With full 2 each entry of a setting that is not a secret also carries default, the value the item would
+///     have if its stored setting were taken out (the System Default Setting that applies, else the class's default; Story 23.3's undo). It writes nothing.
 ///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
 ///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
 ///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
-///     per-header read, and gives the failures of that snapshot (the shape Evidence gives) as good.
+///     per-header read, and gives the failures of that snapshot (the shape Evidence gives) as good. Its failures carry inFlight too.
 /// The Orders identity is read from OcuTalon.Install.Step.Demo (NAMESPACE and PRODUCTION), never copied. The namespace switch is in one method,
 /// Current, which calls no OcuTalon class while it is in the other namespace. A reader runs inside AI Hub's callback, so this class makes no
 /// AI Hub call, no Python call and no session call (AD-6).
@@ -530,14 +536,15 @@ ClassMethod Items(namespace As %String, production As %String, Output items As %
 /// The setting history marks of the production in the namespace and, with full, its settings (see the class description), for SettingHistory: marks is
 /// {"counter" (the namespace's production-change counter, "" when it has none), "started" (the production's start time and check sum, joined by "|")}, read
 /// before the settings; settings is a sorted array of {"item", "target", "setting", "value", "source" (production, default or class), "credential" (1 for a
-/// secret value), "hash"}. A setting that references an Ens.Config.Credentials entry keeps its value, the ID, with credential 0. Any other setting whose name
+/// secret value), "hash"}, with full 2 also "default" (the value the item would have without its stored setting: the System Default Setting that applies, else the class's
+/// default; "" for a setting that only the item stores; never on a secret). A setting that references an Ens.Config.Credentials entry keeps its value, the ID, with credential 0. Any other setting whose name
 /// CredentialName matches is a secret: its value is "" and credential 1, and hash is the salt.hash of Data.Webhook.HashSecret, kept from salts (a dynamic object
 /// of "item|target|setting" to the earlier hash) when it still matches the value, so that a change of the secret is told and nothing else is. The outcome is
 /// read (marks, and settings with full, hold what was found), unreadable (the service user cannot read the namespace: nothing was entered) or not_current (the
 /// production is not the namespace's own, or a name is empty: nothing was read), as for Failures; marks are empty and settings [] with the others. A namespace that
 /// cannot be read for another reason is an error. Items that share a name are one: the settings of the first of them in the definition's item list that is enabled as IRIS
 /// runs it (the stored Enabled unless a System Default Setting Enabled overrides it), else of the first. It writes nothing and switches namespace in Current only.
-ClassMethod Settings(namespace As %String, production As %String, full As %Boolean = 0, salts As %DynamicObject = "", Output marks As %DynamicObject, Output settings As %DynamicArray) As %String
+ClassMethod Settings(namespace As %String, production As %String, full As %Integer = 0, salts As %DynamicObject = "", Output marks As %DynamicObject, Output settings As %DynamicArray) As %String
 {
 	Set marks = {"counter": "", "started": ""}
 	Set settings = []
@@ -572,7 +579,9 @@ ClassMethod SettingEntry(entry As %DynamicObject, salts As %DynamicObject = "") 
 		}
 		Set value = ""
 	}
-	Quit {"item": (entry.item), "target": (entry.target), "setting": (entry.setting), "value": (value), "source": (entry.source), "credential": (credential), "hash": (hash)}
+	Set result = {"item": (entry.item), "target": (entry.target), "setting": (entry.setting), "value": (value), "source": (entry.source), "credential": (credential), "hash": (hash)}
+	If entry.%IsDefined("default") && 'credential Do result.%Set("default", entry.default, "string")
+	Quit result
 }
 
 /// The key of a setting in salts (see Settings): the item, the target and the setting's name, joined by "|" (pure).
@@ -602,7 +611,7 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// and id, headers before log rows of one time. The text of a header's error is the Type 2 row whose MessageId is the header and whose SessionId
 /// matches; else the session's Type 2 row of the header's target; else the header's own ErrorStatus text when IsError; else "".
 /// When item is not empty (Evidence) it reads, instead of the failures from a time on, the evidence of the failures with the keys (comma-separated
-/// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). The body of a header
+/// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). Each failure carries inFlight (a boolean: IRIS still holds or still handles the header). The body of a header
 /// is read through the class dictionary: the stored datatype properties of its class, at most VALUEMAX characters each.
 /// A key g<header id> in keys (Good only, with limit as the most per reference) stands for the newest good messages of the same source as that header: the headers of Status 9,
 /// IsError 0 and Type 1 whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession equal the header's, highest id first, each read as a key h<id> is.
@@ -612,8 +621,8 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// of which another item is enabled is not disabled), in ID order, each name once, and stoppedAt the stop time that Ens.Director wrote for the production
 /// (^Ens.Configuration("csp","Activity",production,"stopped"), IRIS UTC as stored; killed at a start), "" when there is none; with every other outcome,
 /// and when the read threw, they are [] and "". resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
-/// With readSettings 1 and the outcome read, settingMarks is {"counter", "started"} (the namespace's production-change counter and the production's start time and check sum, read first) and, with fullSettings 1, settingList is a sorted array of {"item", "target", "setting", "value", "source", "reference"} for every item (PopulateVirtualSettings and the item's stored settings, "reference" 1 for a Credentials reference). The values are raw: Settings is the one caller, and it hashes and drops the secret ones. Otherwise they are {"counter": "", "started": ""} and [].
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray, readSettings As %Boolean = 0, fullSettings As %Boolean = 0, Output settingMarks As %DynamicObject, Output settingList As %DynamicArray) As %String [ Private ]
+/// With readSettings 1 and the outcome read, settingMarks is {"counter", "started"} (the namespace's production-change counter and the production's start time and check sum, read first) and, with fullSettings 1 or 2, settingList is a sorted array of {"item", "target", "setting", "value", "source", "reference"} for every item (PopulateVirtualSettings and the item's stored settings, "reference" 1 for a Credentials reference), with fullSettings 2 also "default" (PopulateVirtualSettings' Default: the System Default Setting that applies, else the class's default; "" for a setting that only the item stores). The values are raw: Settings is the one caller, and it hashes and drops the secret ones. Otherwise they are {"counter": "", "started": ""} and [].
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray, listItems As %Boolean = 0, Output items As %DynamicArray, readSettings As %Boolean = 0, fullSettings As %Integer = 0, Output settingMarks As %DynamicObject, Output settingList As %DynamicArray) As %String [ Private ]
 {
 	Set items = []
 	Set settingMarks = {"counter": "", "started": ""}
@@ -740,6 +749,8 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 					Set headers = ##class(%SQL.Statement).%New()
 					If evidence {
 						$$$ThrowOnError(headers.%Prepare("SELECT ID, SessionId, SuperSession, SourceConfigName, TargetConfigName, MessageBodyClassName, IsError, ErrorStatus, TimeProcessed, MessageBodyId, TimeCreated, Status FROM Ens.MessageHeader WHERE ID = ?", 1))
+						Set flightStatus = ##class(%SQL.Statement).%New()
+						$$$ThrowOnError(flightStatus.%Prepare("SELECT Status FROM Ens.MessageHeader WHERE ID = ?", 1))
 					} Else {
 						$$$ThrowOnError(headers.%Prepare("SELECT TOP ? ID, SessionId, SuperSession, SourceConfigName, TargetConfigName, MessageBodyClassName, IsError, ErrorStatus, TimeProcessed, MessageBodyId, TimeCreated, Status FROM Ens.MessageHeader WHERE Status = 8 AND TimeProcessed >= ? ORDER BY TimeProcessed, ID", 1))
 					}
@@ -792,6 +803,83 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 							If evidence {
 								Set failure = {"headerId": (id), "sessionId": (sessionId), "superSession": (result.%GetData(3)), "timeCreated": ($Translate($Piece(result.%GetData(11), ".", 1), " ", "T")_"Z"), "timeProcessed": ($Translate($Piece(result.%GetData(9), ".", 1), " ", "T")_"Z"), "sourceConfigName": (result.%GetData(4)), "targetConfigName": (target), "bodyClass": (result.%GetData(6)), "bodyId": (result.%GetData(10)), "status": (##class(Ens.DataType.MessageStatus).LogicalToDisplay(result.%GetData(12)))}
 								Do failure.%Set("isError", +result.%GetData(7), "boolean")
+								// inFlight: IRIS still holds or still handles the header. IRIS sets an erroring message Completed, then Error, and lets go of the active-message entry after both.
+								// A business process sets its request Completed at each pass and lets go of it while it waits for replies. So a Completed header is held while an unfinished
+								// instance of it exists, or while a job handles a reply for it (IRIS deletes the instance before it writes the final status, and lets go of the reply after).
+								// The order is: status, instance, reply in hand, entry, second status read. A failed read of the instances or of the replies holds the header.
+								// ^||OcuTalonFlightSeam("process") holds data only, set by a test in this process: that read then fails as if it had thrown, once.
+								Set flightHeld = 0
+								Set flightFirst = result.%GetData(12)
+								If flightFirst = $$$eMessageStatusCompleted {
+									Try {
+										If $Data(^||OcuTalonFlightSeam("process")) {
+											Kill ^||OcuTalonFlightSeam("process")
+											$$$ThrowStatus($SYSTEM.Status.Error(5001, "flight seam"))
+										}
+										If '$Get(flightPrepared) {
+											Set flightProcess = ##class(%SQL.Statement).%New()
+											$$$ThrowOnError(flightProcess.%Prepare("SELECT TOP 1 ID FROM Ens.BusinessProcess WHERE %SessionId = ? AND %PrimaryRequestHeader = ? AND (%IsCompleted = 0 OR %IsCompleted IS NULL)", 1))
+											Set flightReply = ##class(%SQL.Statement).%New()
+											$$$ThrowOnError(flightReply.%Prepare("SELECT SessionId, TargetConfigName, Type FROM Ens.MessageHeader WHERE ID = ?", 1))
+											Set flightPrepared = 1
+										}
+										If sessionId '= "" {
+											Set flightRows = flightProcess.%Execute(sessionId, id)
+											If flightRows.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, flightRows.%Message))
+											If flightRows.%Next() Set flightHeld = 1
+										}
+										If 'flightHeld {
+											Set flightJob = ""
+											For {
+												Set flightJob = $Order($$$EnsActiveMessage(flightJob), 1, flightId)
+												If flightJob = "" Quit
+												If (flightId = "") || (flightId = id) Continue
+												If '$Data(flightSeen(flightId)) {
+													Set flightRows = flightReply.%Execute(flightId)
+													If flightRows.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, flightRows.%Message))
+													Set flightSeen(flightId) = $Select(flightRows.%Next(): $ListBuild(flightRows.%GetData(1), flightRows.%GetData(2), flightRows.%GetData(3)), 1: "")
+												}
+												Set flightInfo = flightSeen(flightId)
+												If (flightInfo '= "") && ($List(flightInfo, 3) = $$$eMessageTypeResponse) && ($List(flightInfo, 1) = sessionId) && ($List(flightInfo, 2) = target) {
+													Set flightHeld = 1
+													Quit
+												}
+											}
+										}
+									} Catch {
+										Set flightHeld = 1
+									}
+								}
+								// The entry of the header itself, then a second status read: a changed status is in flight. A failed entry read never skips the second status read:
+								// the loop ends as not held, and the second read decides. ^||OcuTalonFlightSeam, set only by a test in this process, holds a status number: the entry
+								// read then fails as if it had thrown, once, and the second status read is compared with that number in place of the first read's status.
+								If 'flightHeld {
+									Try {
+										Set flightSeam = $Get(^||OcuTalonFlightSeam)
+										If flightSeam '= "" {
+											Kill ^||OcuTalonFlightSeam
+											Set flightFirst = flightSeam
+											$$$ThrowStatus($SYSTEM.Status.Error(5001, "flight seam"))
+										}
+										Set flightJob = ""
+										For {
+											Set flightJob = $Order($$$EnsActiveMessage(flightJob), 1, flightId)
+											If flightJob = "" Quit
+											If flightId = id {
+												Set flightHeld = 1
+												Quit
+											}
+										}
+									} Catch {
+										Set flightHeld = 0
+									}
+									If 'flightHeld {
+										Set flightRead = flightStatus.%Execute(id)
+										If flightRead.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, flightRead.%Message))
+										If flightRead.%Next() && (flightRead.%GetData(1) '= flightFirst) Set flightHeld = 1
+									}
+								}
+								Do failure.%Set("inFlight", flightHeld, "boolean")
 								Set failure.error = text
 								Set body = {}
 								Set bodyClass = result.%GetData(6)
@@ -932,7 +1020,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 								$$$ThrowOnError(stItem.PopulateVirtualSettings())
 								For stJ = 1:1:stItem.VirtualSettings.Count() {
 									Set stData = stItem.VirtualSettings.GetAt(stJ)
-									Set stRow($List(stData, 1), $List(stData, 2)) = $ListBuild($List(stData, 3), $Case($List(stData, 4), $$$eConfigSettingValueTypeProduction: "production", $$$eConfigSettingValueTypeRegistry: "production", $$$eConfigSettingValueTypeSystem: "default", : "class"), ($Extract($List(stData, 18), 1, 19) = "credentialsSelector"))
+									Set stRow($List(stData, 1), $List(stData, 2)) = $ListBuild($List(stData, 3), $Case($List(stData, 4), $$$eConfigSettingValueTypeProduction: "production", $$$eConfigSettingValueTypeRegistry: "production", $$$eConfigSettingValueTypeSystem: "default", : "class"), ($Extract($List(stData, 18), 1, 19) = "credentialsSelector"), $List(stData, 5))
 								}
 							} Catch stSkipped {
 								Kill stRow
@@ -965,7 +1053,9 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 								For {
 									Set stName = $Order(stAll(stItemName, stTarget, stName), 1, stCell)
 									Quit:stName=""
-									Do settingList.%Push({"item": (stItemName), "target": (stTarget), "setting": (stName), "value": ($List(stCell, 1)), "source": ($List(stCell, 2)), "reference": (+$List(stCell, 3))})
+									Set stEntry = {"item": (stItemName), "target": (stTarget), "setting": (stName), "value": ($List(stCell, 1)), "source": ($List(stCell, 2)), "reference": (+$List(stCell, 3))}
+									If fullSettings = 2 Do stEntry.%Set("default", $ListGet(stCell, 4), "string")
+									Do settingList.%Push(stEntry)
 								}
 							}
 						}

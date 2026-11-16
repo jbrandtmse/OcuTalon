@@ -60,7 +60,7 @@
 #                  else; "Two things to look at in the demo" is nowhere in the README
 #   new-since      the README's "### New since 1.0.0" sits under "What's interesting", after its image line, and holds only the ruled
 #                  pointer; the guide's "## New since 1.0.0" holds its intro line, then the three #### headings in order and, under them,
-#                  the 18 bullets by bold name, each once, in the ruled order
+#                  the 19 bullets by bold name, each once, in the ruled order
 #   teaser         the full-video line is there once, word for word, two lines below the opening paragraph and the teaser line once,
 #                  word for word, two lines below it, each with an empty line between and above the first H2 section; in the README and
 #                  the guide no HTML media tag, no image inside a link, and no image that is not an
@@ -267,6 +267,8 @@ H_USE='What you can use it for'
 H_TALK='How you talk to it'
 # The guide that holds the install, feature and admin material (Story 0.30): its absolute address, which is how the README links it.
 GUIDE_URL=https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md
+# DW-1425 (Story 23.15, Contest Planner text ruling 2026-11-16): the end of the Partner delay notices bullet before "Try it", with the guide's own > separator.
+GUIDE_PARTNER_SENTENCE='on your own install the notice goes only to the partner contacts an admin set for that production in Settings > Partner contacts, by email from the mailbox connected in Settings > Channels > Email, and only an OcuTalon admin can approve it. With no mailbox connected, the approved notice is kept as a draft and nothing is sent. Try it: after the guide'"'"'s incident, More to try, *Warn the partner*.'
 GUIDE_TITLE='# OcuTalon guide: install, features and administration'
 # The H2 sections of GUIDE.md, in order.
 GUIDE_H2='New since 1.0.0
@@ -1058,7 +1060,7 @@ chk_path() {
 }
 
 # new-since: the README's H3 "New since 1.0.0" under "What's interesting", after its image line, with only the ruled pointer; and the guide's
-# section "New since 1.0.0": its intro line, the three H4 groups and the 18 bullets (by bold name), in the ruled order.
+# section "New since 1.0.0": its intro line, the three H4 groups and the 19 bullets (by bold name), in the ruled order.
 # NS_T7 (Story 21.5's Public text T7, Contest Planner ruling D of 2026-11-12 with its two conditions met: a saved source is in the digest's coverage
 # list, Test.Mcp.SourceSet TestCoverageReadsTheSource; an unchanged result is skipped, Test.Mcp.SourceRun TestSeenBefore) is that bullet word for word.
 NS_T7='- **MCP tools as sources.** On your own install, an admin sets a Read-only MCP tool up as a source in Settings > Tools and MCP servers, with its arguments and how often to check it. OcuTalon calls it on that schedule and makes an attention decision on each new result, and the source joins the digest'\''s coverage list. Sources are off on the online demo.'
@@ -1072,6 +1074,7 @@ B Incident summaries
 B Suspend, resume and reroute
 B Partner delay notices
 B Queue backlogs between digests
+B Setting changes behind an incident
 B Webhooks
 B Your own mailbox
 B MCP servers in Settings
@@ -1083,10 +1086,13 @@ B Answers from your own documents
 B Where an answer came from
 B Memory
 B The Memory card
+B Send a file in the chat
 H $NS_G3
 B Personas
 B A heartbeat checklist
 B A daily digest"
+# The ruled bullet of the Send a file group item (Story 25.6, text 3 with the Planner's P2 sentence), pinned whole and once, beside its pin by name in NS_WANT.
+NS_FILE_BULLET="- **Send a file in the chat.** On your own install, press the paperclip beside the message box, or drop a file on the chat, to send a PDF, a Word (.docx) file, or a JPEG or PNG photo of up to 10 MB; in Telegram, send it to your paired chat. OcuTalon reads it, offers to add a PDF or Word file to your documents, and saves a photo's caption to memory. Sending files is off on the online demo."
 chk_new_since() {
   local f=$1 g=$2 sec="$tmp/sec.ns" h3 img got line c
   section "$f" "$H_INT" > "$sec"
@@ -1125,6 +1131,7 @@ chk_new_since() {
   printf '%s\n' "$got" | while IFS= read -r line; do
     if ! printf '%s\n' "$NS_WANT" | grep -qxF -- "$line"; then echo "new-since: unexpected '$line'"; fi
   done
+  if [ "$(grep -c -x -F -- "$NS_FILE_BULLET" "$tmp/sec.ns.guide")" -ne 1 ]; then echo "new-since: the guide does not hold the ruled bullet 'Send a file in the chat' once, word for word"; fi
   if [ "$got" != "$NS_WANT" ] && [ "$(printf '%s\n' "$got" | sort)" = "$(printf '%s\n' "$NS_WANT" | sort)" ]; then
     echo "new-since: the group headings and bullets are not in the ruled order"
   fi
@@ -1712,8 +1719,12 @@ L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool,
 L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and each of its inputs on a line of its own, through the redactor, with the full call kept in the approval record), an audit entry for each call it lets run (read-only calls included) and an agent step. A call to a removed server's tool runs nothing and writes no audit entry. A request too long to show in full on Telegram has no Approve button there."
 L2114="- Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text."
 L2115="- An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it."
+L2114B="- The trace also holds the text OcuTalon read from a file sent in the chat or Telegram, and a photo's caption, like a chat reply; a file's bytes and a photo itself are never in it."
 APPROVAL_TAIL="Every built-in tool is safe except \`send_email\` and \`call_mcp_tool\`, which are classified per call. Code classifies \`send_email\`: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. \`call_mcp_tool\` takes the admin's classification of the server's tool at its current fingerprint, and an unclassified tool counts as risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do. A risky MCP call waits for a person's approval of that exact call, as the MCP tools section below describes."
 APPROVAL_FRAME="## Approval and audit"
+# DW-1423 (Story 23.15, Contest Planner text ruling 2026-11-16): the admin-only rule for a partner warning, the bullet right after the email bullet of "Who may answer", and the Action line of the audit types.
+PARTNER_ADMIN_BULLET='- a partner warning to Settings contacts can be approved only by a user who holds `OcuTalonAdmin`;'
+PARTNER_ACTION_LINE='- `Action`: a fix run, a resend, a replayed tool call, Break the feed or a refused approve of a partner warning;'
 MCP_FRAME="## MCP tools"
 chk_docs() {
   if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
@@ -1729,8 +1740,12 @@ chk_docs() {
     echo "docs: the trace role's sentence is not the bullet right after the OcuTalonTraceViewer bullet"
   fi
   if [ "$(grep -c -x -F -- "$L2115" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about the trace and an email's content once"; fi
-  if ! awk -v p="$L2114" -v l="$L2115" 'prev == p && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
-    echo "docs: the trace and an email's content line is not the bullet right after the trace role's sentence"
+  if [ "$(grep -c -x -F -- "$L2114B" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about the text read from a file in the trace once"; fi
+  if ! awk -v p="$L2114" -v l="$L2114B" 'prev == p && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
+    echo "docs: the line about the text read from a file is not the bullet right after the trace role's sentence"
+  fi
+  if ! awk -v p="$L2114B" -v l="$L2115" 'prev == p && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
+    echo "docs: the trace and an email's content line is not the bullet right after the line about the text read from a file"
   fi
   if [ "$(awk -v t="$APPROVAL_TAIL" '{ n = length($0); m = length(t); if (n >= m && substr($0, n - m + 1) == t) c++ } END { print c + 0 }' "$3")" -ne 1 ]; then
     echo "docs: $SECOV_DOC does not hold exactly one line that ends with the ruled text about the classification of the built-in tools"
@@ -1738,6 +1753,11 @@ chk_docs() {
   if ! awk -v f="$APPROVAL_FRAME" -v t="$APPROVAL_TAIL" '$0 == f { a = 1; next } a && $0 != "" { n = length($0); m = length(t); ok = (n >= m && substr($0, n - m + 1) == t); a = 0 } END { exit !ok }' "$3"; then
     echo "docs: the ruled text about the classification of the built-in tools is not the first paragraph under \"$APPROVAL_FRAME\""
   fi
+  if [ "$(grep -c -x -F -- "$PARTNER_ADMIN_BULLET" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about the admin-only approval of a partner warning once"; fi
+  if ! awk -v l="$PARTNER_ADMIN_BULLET" 'prev ~ /^- an email to anyone but the connected mailbox.s own address can be answered only by the session that asked for it/ && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
+    echo "docs: the admin-only line about a partner warning is not the bullet right after the email bullet of Who may answer"
+  fi
+  if [ "$(grep -c -x -F -- "$PARTNER_ACTION_LINE" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled Action line of the audit types once"; fi
   if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
   if ! awk -v f="$MCP_FRAME" -v l="$L187" '/^#/ && a && !b { h = 1 } $0 == f { a = NR } $0 == l { b = NR } END { exit !(a && b && a < b && !h) }' "$3"; then
     echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no other heading between"
@@ -2124,6 +2144,10 @@ chk_guide() {
   if [ "$(sed -n '1p' "$2")" != "$GUIDE_TITLE" ]; then echo "guide: line 1 of $2 is not exactly '$GUIDE_TITLE'"; fi
   h2s=$(headings "$2" | awk -F'\t' '$1 == 2 { print $3 }')
   if [ "$h2s" != "$GUIDE_H2" ]; then echo "guide: the H2 sections of $2 are not exactly, in this order: $(printf '%s' "$GUIDE_H2" | tr '\n' ',' | sed 's/,/, /g')"; fi
+  n=$(grep -c -F -- "$GUIDE_PARTNER_SENTENCE" "$2")
+  if [ "$n" -ne 1 ]; then echo "guide: $2 holds the ruled sentences of the Partner delay notices bullet (DW-1425) $n times, not once"; fi
+  if grep -F -- "Partner delay notices." "$2" | grep -q -F -- "$(printf '\342\200\272')"; then echo "guide: the Partner delay notices bullet of $2 writes a single angle quote where the guide writes >"; fi
+  if grep -F -- "Partner delay notices." "$2" | grep -q -F -- "no notice is drafted"; then echo "guide: the Partner delay notices bullet of $2 still says that no notice is drafted without demo mode"; fi
   n=$(grep -cxF -- "$GUIDE_CI_LINE" "$2")
   if [ "$n" -ne 1 ]; then echo "guide: $2 holds the ruled line of Tests and CI ('... the check of the README. ...') $n times, not once"; fi
   n=$(grep -cxF -- "$POINTER" "$1")
@@ -2275,7 +2299,7 @@ rule_comparison() {
   st 'a paragraph between the money line and the heading' 1 "$README" '/^### With the agent and with fixed rules only$/ { print "A stray paragraph."; print "" } { print }' chk_comparison
   st 'a word of the paragraph changed' 1 "$README" '{ sub(/own fallback/, "own default") } { print }' chk_comparison
   st 'the commit link changed' 1 "$README" '{ sub(/commit\/6af31dab/, "commit/6af31dac") } { print }' chk_comparison
-  st 'the date not written as Month D' 1 "$README" '{ sub(/no key on November 12 on/, "no key on 2026-11-12 on") } { print }' chk_comparison
+  st 'the date not written as Month D' 1 "$README" '{ sub(/no key on November [0-9][0-9]* on/, "no key on 2026-11-12 on") } { print }' chk_comparison
   st 'a count that is not a number' 1 "$README" '{ sub(/): 24 routine items/, "): many routine items") } { print }' chk_comparison
   st 'a row label reworded' 1 "$README" '{ sub(/^\| Held-out cases right /, "| Held-out cases correct ") } { print }' chk_comparison
   st 'two row labels swapped' 1 "$README" '/^\| Items that needed you now but/ { held = $0; next } /^\| Unsafe outcomes \| measured/ { print; print held; next } { print }' chk_comparison
@@ -2519,7 +2543,7 @@ rule_new_since() {
   st 'a bullet under the pointer' 1 "$README" '{ print } /^The guide lists what is new since release 1.0.0/ { print ""; print "- **Memory.** Text." }' chk_new_since
   st 'the intro line back under the heading' 1 "$README" '{ print } /^The guide lists what is new since release 1.0.0/ { print ""; print "Each item says where to try it." }' chk_new_since
   st 'the image line removed from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_new_since
-  # The guide's section holds the intro line, the three groups and the 18 bullets.
+  # The guide's section holds the intro line, the three groups and the 19 bullets.
   st 'the guide heading removed' 2 "$GUIDE" '!/^## New since 1.0.0$/' chk_new_since
   st 'the guide heading renamed' 2 "$GUIDE" '/^## New since 1.0.0$/ { print "## Since 1.0.0"; next } { print }' chk_new_since
   st 'the intro line reworded' 2 "$GUIDE" '/^Each item says where/ { sub(/Visual Trace on the online demo/, "Visual Trace here") } { print }' chk_new_since
@@ -2536,6 +2560,9 @@ rule_new_since() {
   st 'the first two bullets of the first group swapped' 2 "$GUIDE" 'index($0, "- **A dry run that checks good messages.**") == 1 { held = $0; next } { print } index($0, "- **Incident summaries.**") == 1 { print held }' chk_new_since
   st 'Memory before Where an answer came from' 2 "$GUIDE" 'index($0, "- **Where an answer came from.**") == 1 { held = $0; next } { print } index($0, "- **Memory.**") == 1 { print held }' chk_new_since
   st 'the Personas and heartbeat bullets swapped' 2 "$GUIDE" 'index($0, "- **Personas.**") == 1 { held = $0; next } { print } index($0, "- **A heartbeat checklist.**") == 1 { print held }' chk_new_since
+  st 'the Send a file bullet with one word changed' 2 "$GUIDE" 'index($0, "- **Send a file in the chat.**") == 1 { sub(/offers to add/, "offers to save") } { print }' chk_new_since
+  st 'the Send a file bullet with its last sentence removed' 2 "$GUIDE" 'index($0, "- **Send a file in the chat.**") == 1 { sub(/ Sending files is off on the online demo\./, "") } { print }' chk_new_since
+  st 'the Send a file bullet twice' 2 "$GUIDE" '{ print } index($0, "- **Send a file in the chat.**") == 1 { print }' chk_new_since
   st 'a bullet renamed' 2 "$GUIDE" 'index($0, "- **Memory.**") == 1 { sub(/Memory\./, "Remembering.") } { print }' chk_new_since
   printf '%s\n' "$NS_WANT" | while IFS= read -r line; do
     case $line in B\ *) echo "${line#B }" ;; esac
@@ -2553,7 +2580,7 @@ rule_new_since() {
   st 'the T7 bullet without its coverage clause' 2 "$GUIDE" 'index($0, "- **MCP tools as sources.**") == 1 { sub(/, and the source joins the digest.s coverage list/, "") } { print }' chk_new_since
   st 'the T7 bullet without its online-demo sentence' 2 "$GUIDE" 'index($0, "- **MCP tools as sources.**") == 1 { sub(/ Sources are off on the online demo\./, "") } { print }' chk_new_since
   st 'a bullet above the first group heading' 2 "$GUIDE" '/^Each item says where/ { print; print ""; print "- **A new thing.** Text."; next } { print }' chk_new_since
-  finish new-since 'the README holds the ruled pointer under its H3 New since 1.0.0, and the guide holds the section with its intro line, the three group headings in order and the 18 bullets, each once, in the ruled order' chk_new_since
+  finish new-since 'the README holds the ruled pointer under its H3 New since 1.0.0, and the guide holds the section with its intro line, the three group headings in order and the 19 bullets, each once, in the ruled order' chk_new_since
 }
 
 rule_teaser() {
@@ -3295,12 +3322,18 @@ rule_docs() {
   st 'the MCP tools heading removed' 3 "$secov_p" '!/^## MCP tools$/' chk_docs
   st 'a heading between the MCP tools heading and the rules line' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "## Other"; print "" } { print }' chk_docs
   st 'the trace role sentence removed' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") != 1' chk_docs
+  st 'the file trace line removed' 3 "$secov_p" 'index($0, "- The trace also holds the text OcuTalon read from a file") != 1' chk_docs
+  st 'the file trace line moved down one bullet' 3 "$secov_p" 'index($0, "- The trace also holds the text OcuTalon read from a file") == 1 { held = $0; next } { print } index($0, "- An email OcuTalon sends to the connected mailbox") == 1 && held != "" { print held; held = "" }' chk_docs
   st 'the email trace line removed' 3 "$secov_p" 'index($0, "- An email OcuTalon sends to the connected mailbox") != 1' chk_docs
   st 'the email trace line changed' 3 "$secov_p" '{ sub(/No email.s recipients are in the trace\./, "Recipients are in the trace.") } { print }' chk_docs
   st 'the email trace line loses its chat sentence' 3 "$secov_p" '{ sub(/ The trace does keep the chat.s messages as written, so an address or text that you or OcuTalon wrote in the chat is in it\./, "") } { print }' chk_docs
   st 'the email trace line moved down one bullet' 3 "$secov_p" 'index($0, "- An email OcuTalon sends to the connected mailbox") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
   st 'the trace role sentence changed' 3 "$secov_p" '{ sub(/an email.s sender, subject and text/, "an email subject") } { print }' chk_docs
   st 'the trace role sentence moved down one bullet' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
+  st 'the admin-only line about a partner warning removed' 3 "$secov_p" 'index($0, "- a partner warning to Settings contacts can be approved only by") != 1' chk_docs
+  st 'the admin-only line about a partner warning reworded' 3 "$secov_p" '{ sub(/can be approved only by a user who holds/, "can be approved by a user who holds") } { print }' chk_docs
+  st 'the admin-only line about a partner warning moved to the end of the list' 3 "$secov_p" 'index($0, "- a partner warning to Settings contacts can be approved only by") == 1 { held = $0; next } { print } index($0, "- never a tool") == 1 && held != "" { print held }' chk_docs
+  st 'the Action line without the refused approve' 3 "$secov_p" '{ sub(/, Break the feed or a refused approve of a partner warning;/, " or Break the feed;") } { print }' chk_docs
   st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the ruled lines of the security overview, the ones about an approval request for a tool call included, are there, word for word' chk_docs
 }
@@ -3332,6 +3365,9 @@ rule_guide() {
   st 'a guide section removed' 2 "$GUIDE" '!/^## Sign in$/' chk_guide
   st 'two guide sections swapped' 2 "$GUIDE" '/^## Sign in$/ { print "## Telegram"; next } /^## Telegram$/ { print "## Sign in"; next } { print }' chk_guide
   st 'a section added to the guide' 2 "$GUIDE" '{ print } END { print ""; print "## Extra"; print ""; print "More." }' chk_guide
+  st 'the partner bullet back to no notice without demo mode' 2 "$GUIDE" '{ sub(/on your own install the notice goes only to the partner contacts an admin set for that production in Settings > Partner contacts, by email from the mailbox connected in Settings > Channels > Email, and only an OcuTalon admin can approve it\. With no mailbox connected, the approved notice is kept as a draft and nothing is sent\./, "without demo mode there are no partner contacts yet, so no notice is drafted.") } { print }' chk_guide
+  st 'the partner bullet writes a single angle quote in its path' 2 "$GUIDE" '{ sub(/in Settings > Partner contacts/, "in Settings \342\200\272 Partner contacts") } { print }' chk_guide
+  st 'the partner bullet without its admin clause' 2 "$GUIDE" '{ sub(/, and only an OcuTalon admin can approve it\./, ".") } { print }' chk_guide
   st 'the guide line of Tests and CI back to this README' 2 "$GUIDE" '{ sub(/among them the check of the README/, "among them the check of this README") } { print }' chk_guide
   st 'the pointer removed' 1 "$README" 'index($0, "The guide lists what is new since release 1.0.0") != 1' chk_guide
   st 'the pointer reworded' 1 "$README" '/^The guide lists what is new since release 1.0.0/ { sub(/your integrations/, "integrations") } { print }' chk_guide

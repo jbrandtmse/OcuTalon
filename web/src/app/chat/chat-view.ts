@@ -26,9 +26,11 @@ import type {
   ApprovalPayload,
   ChatMessagePayload,
   CheckRow,
+  Caption,
   Citation,
   Cost,
   DecisionPayload,
+  FileRead,
   IncidentPayload,
   Learned,
   Memory,
@@ -144,6 +146,10 @@ export interface TurnView {
   learned?: readonly Learned[];
   /** The file the message carries, as its chat.message served it (Story 25.3); absent for a message of text. */
   sentFile?: SentFile;
+  /** The read result of the message's file (Story 25.6), as its chat.message served it: whether OcuTalon read it and whether it can be added to the documents; absent when the message has none. */
+  fileRead?: FileRead;
+  /** The caption that a photo's reply saved as a memory (Story 25.6), as its chat.message served it; absent when none was saved. Not `caption`, which is the "via Telegram" label. */
+  savedCaption?: Caption;
   /** Where the turn's trace opens, as the chat.message served it; absent when the message has none. */
   traceUrl?: string;
 }
@@ -420,6 +426,12 @@ export function chatView(
     }
     if (message.sentFile !== undefined) {
       view.sentFile = message.sentFile;
+    }
+    if (message.fileRead !== undefined) {
+      view.fileRead = message.fileRead;
+    }
+    if (message.caption !== undefined) {
+      view.savedCaption = message.caption;
     }
     if (message.traceUrl) {
       view.traceUrl = message.traceUrl;

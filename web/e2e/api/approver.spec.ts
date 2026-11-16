@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from '../support/fixtures';
 
 import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
-import { cleanFixtureRows, fixtureUser, readApproval, seedApproval } from '../support/iris';
+import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted, readApproval, seedApproval } from '../support/iris';
 
 /**
  * Story 25.5, the role check before an answer, over real HTTP, on the stack that test-sign-in.sh seeds (the fixture role OcuTalonApprover exists with no resources;
@@ -15,6 +15,9 @@ import { cleanFixtureRows, fixtureUser, readApproval, seedApproval } from '../su
  *   AP4  the README account's state shows its own pending request, which needs OcuTalonUser, as answerable;
  *   AP5  an email request to another address (Story 22.7's rule): the role check comes first, so ZzRoleTarget is told the fallback sentence, and ZzApprover, who passes it but
  *        is no admin, is told "Only an OcuTalon admin can approve this email." on an Approve (still pending) and has its Reject answered.
+ *   AP6  a partner warning to Settings contacts (DW-1415, Fix.Kind.Email MayApprove): the LIVE user, who holds OcuTalonUser only, is told the same email sentence on an
+ *        Approve of its own warning, the request stays pending and unanswered (so nothing is sent or kept), and one Action entry records the refusal with ids only; the
+ *        README admin's Approve of its own warning is 200 done and approved by the admin.
  */
 const STATE = '/ocutalon/api/v1/state';
 const answerPath = (ref: string): string => `/ocutalon/api/v1/approvals/${ref}/answer`;
@@ -126,6 +129,93 @@ test('AP5: an email to another address: the role check comes first, and a holder
     const rejected = await request.post(answerPath(held), { headers: envelope(), data: { action: 'reject', channel: 'web' } });
     expect(rejected.status(), await rejected.text()).toBe(200);
     expect(await readApproval(held).then((row) => row.state), 'its Reject is answered').toBe('rejected');
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/** A partner warning's name, address and notice, which a refusal must never put in an audit entry. */
+const PARTNER_NAME = 'Zz Partner Http Name';
+const PARTNER_ADDRESS = 'zz-partner-http@example.test';
+const PARTNER_NOTICE = 'Zz partner http notice text.';
+
+/**
+ * A pending partner warning to the Settings contacts 7 and 8, owned by the user's session and needing OcuTalonUser, as IncidentManager stores it: the ids in the targets and
+ * the parameters, the names and addresses only in the dry run, and simulated 0.
+ */
+async function seedPartnerWarning(user: string): Promise<string> {
+  const ref = await seedApproval(user, { requiredRole: 'OcuTalonUser', fixKind: 'partner_warning', fixParameters: JSON.stringify({ text: PARTNER_NOTICE, to: '7,8' }) });
+  const dryRun = JSON.stringify({
+    notice: PARTNER_NOTICE,
+    recipients: [
+      { id: 7, name: PARTNER_NAME, address: PARTNER_ADDRESS },
+      { id: 8, name: `${PARTNER_NAME} 2`, address: `two.${PARTNER_ADDRESS}` },
+    ],
+    simulated: 0,
+  });
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      'If \'$IsObject(r) { Write !,"CHK|set|0" Halt }',
+      'Set r.FixTargets="7,8"',
+      `Set r.DryRun=${quoted(dryRun)}`,
+      'Write !,"CHK|set|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'set') !== '1') throw new Error(`the partner warning could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/** The audit clock now, in the form that refusalAudit takes. */
+async function auditNow(): Promise<string> {
+  const mark = chk(await irisScript('Write !,"CHK|now|",##class(OcuTalon.Test.Bridge.AuditLog).Now()'), 'now');
+  expect(mark, 'the audit clock').toBeTruthy();
+  return mark as string;
+}
+
+/** The Action entries that name the request, written at or after the mark (waits up to 20 s for one): each as its data's fields and its whole text. */
+async function refusalAudit(mark: string, ref: string): Promise<Array<{ fields: string; text: string }>> {
+  const lines = await irisScript(
+    [
+      `Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(${quoted(mark)},"OcuTalon","Action","Action",${quoted(ref)},"",1,20)`,
+      'Write !,"CHK|n|",e.%Size()',
+      'For i=0:1:e.%Size()-1 { Set d=e.%Get(i).data Write !,"CHK|f"_i_"|",d.action_"|"_d.result_"|"_d.approvalRef_"|"_d.channel_"|"_d.irisUser_"|"_d.target_"|"_d.counts.contacts Write !,"CHK|t"_i_"|",d.%ToJSON()_e.%Get(i).description }',
+    ].join('\n'),
+  );
+  const found = Number(chk(lines, 'n') ?? '-1');
+  expect(found, 'the audit entries could be read').toBeGreaterThanOrEqual(0);
+  const entries: Array<{ fields: string; text: string }> = [];
+  for (let i = 0; i < found; i += 1) entries.push({ fields: chk(lines, `f${i}`) ?? '', text: chk(lines, `t${i}`) ?? '' });
+  return entries;
+}
+
+test('AP6: a partner warning to Settings contacts: the LIVE user is told the email sentence on an Approve and it stays pending, the refusal is audited with ids only, and the admin approves', async ({ request }) => {
+  const rows: string[] = [];
+  const live = fixtureUser('LIVE');
+  try {
+    const own = await seedPartnerWarning(live.user);
+    const admins = await seedPartnerWarning(README_ACCOUNT.user);
+    rows.push(own, admins);
+    const mark = await auditNow();
+    expect((await signInOverHttp(request, live.user, live.password)).status()).toBeLessThan(400);
+    await expectError(await approve(request, own), 403, 'not_allowed', NOT_ADMIN);
+    const after = await readApproval(own);
+    // A request runs, sends or is kept as an approved draft only once it is approved, so pending and unanswered is what says nothing was sent or kept (a fixture row has no hold, so a
+    // count of its Delivery and FixRun rows would stay 0 even if it were approved).
+    expect(`${after.state}|${after.action}|${after.by}`, 'the LIVE user\'s warning is still pending and unanswered, so nothing was sent or kept').toBe('pending||');
+    const entries = await refusalAudit(mark, own);
+    expect(entries.length, 'one Action entry names the refused request').toBe(1);
+    expect(entries[0]?.fields, 'it names the action, the outcome, the request, the channel, the user and the contact ids').toBe(`partner_warning|refused|${own}|web|${live.user}|partner contacts (7,8)|2`);
+    const text = entries[0]?.text ?? '';
+    expect([text.includes(PARTNER_NAME), text.includes(PARTNER_ADDRESS), text.includes(PARTNER_NOTICE)], 'and holds no name, address or notice').toEqual([false, false, false]);
+    expect((await request.post('/ocutalon/api/v1/session/end', { headers: envelope(), data: '{}' })).status()).toBe(204);
+
+    expect((await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password)).status()).toBeLessThan(400);
+    const done = await approve(request, admins);
+    expect(done.status(), await done.text()).toBe(200);
+    expect(((await done.json()) as { result: string }).result, 'the admin\'s Approve is done').toBe('done');
+    const approved = await readApproval(admins);
+    expect(`${approved.state}|${approved.by}|${approved.channel}`, 'the admin\'s warning is approved by the admin on the web').toBe(`approved|${README_ACCOUNT.user}|web`);
   } finally {
     await cleanFixtureRows(rows);
   }

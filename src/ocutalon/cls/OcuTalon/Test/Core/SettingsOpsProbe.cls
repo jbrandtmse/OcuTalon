@@ -38,8 +38,50 @@
 /// handler answers. The "roster" answers: "error" is an error status, "throw" throws, "busy" is an Ok 0 result of outcome busy, "nohandoff" is an Ok 1 result whose
 /// handoff names nothing, and "garbled", "notlist", "badrow" and "shortrow" answer Ok 1 with a handoff of their own whose text is not JSON, is not an array, holds a row
 /// whose user is not a string, and holds one good row and one row without paired.
+/// The partner-contacts seams (Story 24.2): SubmitProductions stands in for Commands.Submit of a ListProductions as SubmitRoster does for a ListOnCallUsers: it counts its calls in
+/// ^OcuTalonTest("SettingsOpsProbe", "productions"), and, unless the "productions" answer says otherwise, sends the command to a shadow instance of this class as CommandsIn would
+/// (origin web_admin), so that the real handler answers. The "productions" answers: "error" is an error status, "throw" throws, "busy" is an Ok 0 result of outcome busy,
+/// "garbled" is an Ok 1 result whose Data is not JSON, "notlist" one whose productions member is not an array, and "badrow" one that holds a good row and a row without displayName.
+/// PartnersShown is the real answer unless ^OcuTalonTest("SettingsOpsProbe", "table") is set: then it is that value (1 or 0), whatever the class. ProductionRows throws when the
+/// "productions" answer is "readerthrows" (Watch.Reader Productions cannot read), is the JSON array of ^OcuTalonTest("SettingsOpsProbe", "rows") when that is set (a list of
+/// {namespace, production, displayName}, so that a test does not depend on the productions of the instance), and is the real one otherwise.
 Class OcuTalon.Test.Core.SettingsOpsProbe Extends OcuTalon.Core.SettingsOps
 {
+
+ClassMethod SubmitProductions(command As OcuTalon.Msg.Command.ListProductions, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Set count = $Increment(^OcuTalonTest("SettingsOpsProbe", "productions"))
+	Set answer = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "productions"))
+	If answer = "error" Quit $SYSTEM.Status.Error(5001, "zz productions submit failed")
+	If answer = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz productions submit threw"))
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	If answer = "busy" {
+		Set result.Ok = 0, result.Outcome = "busy"
+		Quit $$$OK
+	}
+	If (answer = "garbled") || (answer = "notlist") || (answer = "badrow") {
+		Set result.Ok = 1, result.Outcome = "listed"
+		Set result.Data = $Case(answer, "garbled": "not json", "notlist": "{""productions"": 5}", : "{""productions"": [{""namespace"": ""zzns"", ""production"": ""zzp"", ""displayName"": ""zz""}, {""namespace"": ""zzns"", ""production"": ""zzq""}]}")
+		Quit $$$OK
+	}
+	Set command.Origin = "web_admin"
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.SettingsOpsProbe", .sc)
+	If $$$ISERR(sc) Quit sc
+	Quit probe.OnMessage(command, .result)
+}
+
+ClassMethod PartnersShown(class As %String = "OcuTalon.Fix.PartnerContacts") As %Boolean
+{
+	If $Data(^OcuTalonTest("SettingsOpsProbe", "table")) Quit ''$Get(^OcuTalonTest("SettingsOpsProbe", "table"))
+	Quit ##super(class)
+}
+
+ClassMethod ProductionRows() As %DynamicArray [ Private ]
+{
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "productions")) = "readerthrows" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz reader cannot read"))
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "rows")) '= "" Quit ##class(%DynamicAbstractObject).%FromJSON(^OcuTalonTest("SettingsOpsProbe", "rows"))
+	Quit ##super()
+}
 
 ClassMethod SubmitRoster(command As OcuTalon.Msg.Command.ListOnCallUsers, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {

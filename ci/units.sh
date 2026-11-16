@@ -17,7 +17,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs Mcp" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs Mcp Partner" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
@@ -30,7 +30,8 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
 # A shard too long for one job runs in pieces, shard:<name>@<piece> (shard_unit_areas): every area of the shard is in exactly
 # one piece, so every test class runs once. lane-a runs in eight pieces and lane-b in two (Story 0.20); shard:lane-a@rest in shards-2
-# takes any area added to lane-a later, and shard:lane-b@rest in shards-6 any area added to lane-b. The CI rebalance of 2026-10-30
+# takes any area added to lane-a later that no piece names (the area Partner, added 2026-11-16, is named in shards-7's piece), and
+# shard:lane-b@rest in shards-6 any area added to lane-b. The CI rebalance of 2026-10-30
 # (an owner decision, taken by the Contest Planner under the owner's delegation, carried by Story 9.6) moved live:cards out of
 # install-fresh and live:audit out of install-upgrade, the two longest groups. Each unit runs in its own project and needs no state
 # of its group's install, so a unit can sit in any group whose job builds what it reads. At Epic 29's integrate-forward of Epic 9
@@ -133,6 +134,18 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # minutes and the then 40-minute timeout, and possibly above Story 0.20's 1,687 s a group (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
 # ready, the first tick 62 s after ready, restart 2 44 s), so the CI figure is the one to confirm. The unit reads no web bundle, but it is not added to NO_WEB_BUNDLE_UNITS: shards holds units that read
 # it, so listing it would change no skip (list it if it ever moves to a group whose other units read no bundle). No group is added, renamed or given a longer deadline.
+# The CI rebalance of 2026-11-16 (the Contest Planner's ruling on shards-11, tests only, no limit raised): shards-11 took 31 min 18 s against its 32 minutes on run 43794653657 (shard:lane-a@Fix
+# 1,377 s with the stack's start, live:cards 459 s; the largest classes of the area were Waits 122 s and PartnerTurns 158 s, and PartnerMail only 1 s). The partner classes of Story 23.13, PartnerTurns
+# (158 s) and PartnerMail (1 s) moved from the area Fix, and the new PartnerApprove (DW-1415, 31 s on a warm stack) joined them, in the new lane-a area Partner (OcuTalon.Test.Partner.*), which runs with the area Docs in one piece,
+# shard:lane-a@Docs,Partner, in shards-7: one stack, so the group gains only the classes' seconds (shards-7 took 23.5 min on that run, shards-3 21.4 min, the others 26.8 to 31.9). Planned: shards-11
+# about 28.7 min (31.3 minus 158 s and PartnerMail's 1 s), shards-7 about 26.7 min (23.5 plus 190 s) (inference until a run measures both). No group is added, renamed or given a longer deadline.
+# A known exception to Story 0.20's rule that a unit of two or more areas stays at 900 s or less: shard:lane-a@Docs,Partner is about 1,246 s (Docs 1,056 s planned plus about 190 s). A piece of its
+# own for Partner (about 613 s with a stack start and teardown of 423 s) would take shards-7 to about 33.7 min or shards-3 to about 31.6 min, so the two areas share one stack (inference). The
+# exception is recorded in the ledger under DW-1032 (contiguous class parts per area), which would let the piece be cut.
+# The CI rebalance of 2026-11-16 (the Contest Planner's 1.0.12 cut story, tests only, no limit raised): on run 43823569610 the job iris (shards-2) took 31.9 of its 32 minutes (READY lane-a@rest 296 s,
+# shard:lane-a@rest 1,250 s, live:session-data 338 s and live:install-script-live 299 s) and iris (shards-3) took 20.2 minutes (live:floor 659 s and live:demo-switch 530 s). live:install-script-live
+# moved from shards-2 to shards-3, the one unit moved: planned shards-2 about 26.9 minutes (31.9 less 299 s) and shards-3 about 25.2 minutes (20.2 plus 299 s) (inference until a run measures both). No group
+# is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo-path" ;;
@@ -140,13 +153,13 @@ group_units() {
     production) echo "live:production live:production-restart shard:lane-a@Channel" ;;
     browser) echo "live:demo-path live:online-demo" ;;
     shards) echo "shard:lane-a@Install,Digest,Eval live:online-allowance live:heartbeat-restart" ;;
-    shards-2) echo "shard:lane-a@rest live:session-data live:install-script-live" ;;
+    shards-2) echo "shard:lane-a@rest live:session-data" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b@Contract,Core,Data,Live live:compose-start" ;;
-    shards-3) echo "live:floor live:demo-switch" ;;
+    shards-3) echo "live:floor live:demo-switch live:install-script-live" ;;
     shards-4) echo "live:sign-in-2 live:memory-offline" ;;
     shards-5) echo "live:sign-in-3 live:security-overview live:audit" ;;
     shards-6) echo "live:documents shard:lane-b@rest live:bundle-folder" ;;
-    shards-7) echo "shard:lane-a@Docs live:answers" ;;
+    shards-7) echo "shard:lane-a@Docs,Partner live:answers" ;;
     shards-8) echo "shard:lane-a@Watch shard:lane-a@Agent" ;;
     shards-9) echo "shard:lane-a@Bridge live:online-session" ;;
     shards-10) echo "live:sign-in live:reminder-restart" ;;

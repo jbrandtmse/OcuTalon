@@ -1,7 +1,7 @@
 // Tests that the written rows of Story 25.3 are in the architecture spine, once each (AD-33): the Tables paragraph's SentFile sentence, the cross-area rows
 // (the file-store call, the read-path probe and the paperclip and drop), the REST rows (the state row naming filesReadable, and the files route naming exactly
 // the route that OcuTalon.Web.Files' URL map serves), the Conventions REST code bad_file, and the amendments of AD-4 (the sign-out list), AD-22 (the mock's
-// getFile and download path) and AD-27 (the Web area's purge). No GUIDE.md or README line belongs to this story (the Planner's ruling 5).
+// getFile and download path) and AD-27 (the Web area's purge). No GUIDE.md or README line belongs to this story (the Planner's ruling 5); Story 25.6 adds the GUIDE bullet and the security-overview lines, which docker/tests/test-readme.sh and test-heartbeat-overview.sh pin.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

@@ -11,8 +11,12 @@
 ///     no incident and ResultTarget FixExecutor through Approval.Raise.
 ///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef and the owner's session and nothing else: no recipients, no subject and no text
 ///     (EmailOut reads all three from the request's row, so that none of them is in the command or in the trace), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
+///   - Mail is the kind's mail method (AD-14, MAILS 1): the recipients, subject and text of the executing row's FixParameters, as EmailOut reads them. The recipients are the member recipients when
+///     every entry is a string (else none); the subject and the text are the member when it is a string (else ""); nothing is skipped. SubmitApproved is the submit of Execute, which the executor's
+///     other mailing kinds use too.
 ///   - MayApprove is the interim approver rule of an email request (DW-1262): an approval of an email to anyone but the owner's own address is answered only by a holder of the role
-///     OcuTalonAdmin. AnswerOps asks it before every approve.
+///     OcuTalonAdmin. AnswerOps asks it before every approve. The rule also covers a partner warning to Settings contacts (DW-1415), which goes out by email: AdminRuled names the rows it
+///     asks, and such a warning has no own-address exemption, so only an admin approves it. A warning of the demo's simulated contact (its dry run says simulated 1) is not asked.
 ///   - Audit writes the one Action entry of a send (tool or approved): the action email, the target EmailOut, the outcome, the number of recipients sent to and, for an approved send, the IRIS user who approved it (AD-17). It holds no address, subject or text.
 /// Lane A.
 Class OcuTalon.Fix.Kind.Email Extends OcuTalon.Fix.Kind
@@ -25,6 +29,8 @@ Parameter PARAMETERS = "recipients,subject,text";
 Parameter RESOURCES;
 
 Parameter TARGETTYPE = "recipient";
+
+Parameter MAILS = 1;
 
 Parameter DIAGNOSED = 0;
 
@@ -193,20 +199,76 @@ ClassMethod AsApproved(dryRun As %DynamicObject, parameters As %DynamicObject) A
 
 /// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner and nothing else: no recipients, no subject and
 /// no text. EmailOut takes all three from the approval's row, so that no address, subject or text is in the command or in its trace (DW-1255 rule 4, P4 (a)); parameters is only the
-/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
+/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn, or whose answer did not come back, is not sent, with Out's MESSAGEFAILED, or MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (SubmitApproved).
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
-	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
 	Set row = $Select($IsObject(run): ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(run.ApprovalRef), 1: "")
-	If '$IsObject(row) Quit $$$OK
+	Set result = ..SubmitApproved(row)
+	Quit $$$OK
+}
+
+/// The submit of Execute, for the row of an approved request (the request's Ref and owner are all that the command carries): {"sent": 1 or 0, "outcome", "message"} from the CommandResult.
+/// A row that is not there is not sent, with Out's MESSAGEFAILED. A command that never reached CommandsIn, one that CommandsIn answers with its own failure, and one that has no answer are not sent
+/// with Out's MESSAGEFAILED, unless the approval's claim shows that EmailOut had begun the send (FailedMessage): then the message is MESSAGEMAYHAVESENT.
+ClassMethod SubmitApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject
+{
+	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
+	If '$IsObject(row) Quit result
 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
 	Set command.SessionRef = row.OwnerRef
 	Set command.ApprovalRef = row.Ref
 	Set answered = ""
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .answered)
-	If $$$ISERR(sc) || '$IsObject(answered) Quit $$$OK
-	Set result = {"sent": (+answered.Ok), "outcome": (answered.Outcome), "message": (answered.Message)}
-	Quit $$$OK
+	If $$$ISERR(sc) || '$IsObject(answered) Quit ..Unfinished(row)
+	If +answered.Ok Quit {"sent": 1, "outcome": (answered.Outcome), "message": (answered.Message)}
+	Quit {"sent": 0, "outcome": (answered.Outcome), "message": (..FailedMessage(row.Ref, answered.Message))}
+}
+
+/// The result of a send of the row that ended without an answer from EmailOut (an error status, no answer, or an exception of the caller): not sent, with Out's MESSAGEFAILED, or with
+/// MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (FailedMessage).
+ClassMethod Unfinished(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject
+{
+	Quit {"sent": 0, "outcome": "failed", "message": (..FailedMessage($Select($IsObject(row): row.Ref, 1: ""), $Parameter(..#OUT, "MESSAGEFAILED")))}
+}
+
+/// The message of a send that was not sent: Out's MESSAGEFAILED is the sentence of an error that is not a failure of the mail server, and it comes from EmailOut itself (before the message
+/// was handed over), from CommandsIn (the command's answer did not come back) or from the caller (an exception); only the approval's claim says whether the send had begun. When the message is
+/// MESSAGEFAILED and the claim shows that it had (Out Began), the message is MESSAGEMAYHAVESENT. Any other message, which EmailOut chose for its own reason, is returned as it is.
+ClassMethod FailedMessage(ref As %String, message As %String) As %String
+{
+	If (message = $Parameter(..#OUT, "MESSAGEFAILED")) && $ClassMethod(..#OUT, "Began", ref) Quit $Parameter(..#OUT, "MESSAGEMAYHAVESENT")
+	Quit message
+}
+
+/// The mail method of an executing email row (see the class description): today's reading of its FixParameters. 0 for parameters that are not one JSON object.
+ClassMethod Mail(row As OcuTalon.Bridge.Data.ApprovalRequest, Output recipients As %DynamicArray, Output subject As %String, Output text As %String, Output skipped As %DynamicArray) As %Boolean
+{
+	Set recipients = []
+	Set subject = ""
+	Set text = ""
+	Set skipped = []
+	Try {
+		Set parameters = {}.%FromJSON(row.FixParameters)
+		If '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") Quit
+		Set list = parameters.%Get("recipients")
+		If $IsObject(list) && list.%IsA("%Library.DynamicArray") {
+			Set clean = 1
+			Set iterator = list.%GetIterator()
+			While iterator.%GetNext(, , .type) {
+				If type '= "string" Set clean = 0
+			}
+			If clean Set recipients = list
+		}
+		If parameters.%GetTypeOf("subject") = "string" Set subject = parameters.%Get("subject")
+		If parameters.%GetTypeOf("text") = "string" Set text = parameters.%Get("text")
+		Set mailed = 1
+	} Catch {
+		Set recipients = []
+		Set subject = ""
+		Set text = ""
+		Set mailed = 0
+	}
+	Quit +$Get(mailed)
 }
 
 /// The recipients of an approved email as the Recipients of its SendEmail command: the entries as they are, joined by commas.
@@ -276,19 +338,37 @@ ClassMethod SessionUser(ownerRef As %String) As %String [ Private ]
 	Quit $Select($IsObject(session): session.IrisUser, 1: "")
 }
 
-/// 1 when the IRIS user may approve the request (DW-1262; Story 26.4's plan decides the approver rule of the kind email). Raise asks it of the requester before it raises, and AnswerOps asks it before every approve. Any row that is not a fix request of the kind email
+/// 1 when the row is one that the admin rule asks (DW-1262, DW-1415): a fix request of the kind email, or a fix request of the kind partner_warning that is not simulated, that is, one whose
+/// approval sends an email to Settings contacts (its dry run does not say simulated 1; a dry run that cannot be read is not simulated). Any other row is not asked.
+ClassMethod AdminRuled(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Boolean
+{
+	If '$IsObject(row) || (row.Kind '= "fix") Quit 0
+	If row.FixKind = ..#NAME Quit 1
+	If row.FixKind '= ##class(OcuTalon.Fix.Kind.PartnerWarning).#NAME Quit 0
+	Set simulated = 0
+	Try {
+		Set simulated = ({}.%FromJSON(row.DryRun).%Get("simulated") = 1)
+	} Catch {
+		Set simulated = 0
+	}
+	Quit 'simulated
+}
+
+/// 1 when the IRIS user may approve the request (DW-1262; Story 26.4's plan decides the approver rule of the kind email; DW-1415). Raise asks it of the requester before it raises, and AnswerOps asks it before every approve. Any row that AdminRuled does not name
 /// may be answered as before. An email request whose recipients are exactly the own address of the request's owner (OwnAddressOnly) may be answered as before. Any other email
-/// request (any other address, a mailbox that now belongs to another session, parameters that cannot be read) may be approved only by a user who holds the role OcuTalonAdmin by its
-/// whole name, among the roles the user holds directly or through other roles (never the job's roles). An unknown user, an error and a user with no roles hold nobody. A reject is not asked.
+/// request (any other address, a mailbox that now belongs to another session, parameters that cannot be read) and every partner warning to Settings contacts may be approved only by a user who holds the role OcuTalonAdmin by its
+/// whole name, among the roles the user holds directly or through other roles (never the job's roles), as they are at the time of the question. An unknown user, an error and a user with no roles hold nobody. A reject is not asked.
 ClassMethod MayApprove(row As OcuTalon.Bridge.Data.ApprovalRequest, irisUser As %String) As %Boolean
 {
-	If '$IsObject(row) || (row.Kind '= "fix") || (row.FixKind '= ..#NAME) Quit 1
+	If '..AdminRuled(row) Quit 1
 	Set may = 0
-	Try {
-		Set recipients = {}.%FromJSON(row.FixParameters).recipients
-		If ..OwnAddressOnly(row.OwnerRef, recipients) Set may = 1
-	} Catch {
-		Set may = 0
+	If row.FixKind = ..#NAME {
+		Try {
+			Set recipients = {}.%FromJSON(row.FixParameters).recipients
+			If ..OwnAddressOnly(row.OwnerRef, recipients) Set may = 1
+		} Catch {
+			Set may = 0
+		}
 	}
 	If may Quit 1
 	If $Get(irisUser) = "" Quit 0

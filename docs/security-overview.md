@@ -47,9 +47,12 @@ One tool has no class of its own: `documents`, the search over your added docume
 | `OcuTalon.Fix.Kind.RepairResend` | `repair_resend` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.Reroute` | `reroute` | risky | `%Ens_MessageResend:U` |
 | `OcuTalon.Fix.Kind.ResumeItem` | `resume_item` | risky | `%Ens_ConfigItemRun:U` |
+| `OcuTalon.Fix.Kind.RollbackSetting` | `rollback_setting` | risky | `%Ens_ProductionConfig:W` |
 | `OcuTalon.Fix.Kind.SuspendItem` | `suspend_item` | risky | `%Ens_ConfigItemRun:U` |
+| `OcuTalon.Fix.Kind.UndoRollback` | `undo_rollback` | risky | `%Ens_ProductionConfig:W` |
 
-On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so OcuTalon can't suspend or resume items there.
+On the online demo, OcuTalonServiceRole holds neither %Ens_ConfigItemRun:U nor %Ens_ProductionConfig:W, so OcuTalon can't suspend or resume items or change settings there.
+On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only because rollback_setting and undo_rollback declare it: each puts back one setting of a watched production's item after an approval, and no other OcuTalon role holds %Ens_ProductionConfig.
 
 <!-- END GENERATED fix-kinds -->
 
@@ -63,6 +66,7 @@ On the online demo, OcuTalonServiceRole does not hold %Ens_ConfigItemRun:U, so O
 | `OcuTalonAdmin` | none | - | `Users` |
 | `OcuTalonServiceRole` | `%Ens_ConfigItemRun` | U | `Fix` |
 | `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |
+| `OcuTalonServiceRole` | `%Ens_ProductionConfig` | W | `Fix` |
 | `OcuTalonTraceViewer` | `%DB_OCUTALON_CODE` | R | `Web` |
 | `OcuTalonTraceViewer` | `%DB_OCUTALON_DATA` | R | `Web` |
 | `OcuTalonTraceViewer` | `%Ens_MessageContent` | U | `Web` |
@@ -145,6 +149,7 @@ Who may answer:
 
 - a holder of the role named in the bridge's approval-role setting, which OcuTalon seeds with `OcuTalonUser`;
 - an email to anyone but the connected mailbox's own address can be answered only by the session that asked for it, and can be approved only if its user holds `OcuTalonAdmin`;
+- a partner warning to Settings contacts can be approved only by a user who holds `OcuTalonAdmin`;
 - on the online demo, only the session that owns the request;
 - never a tool's own job.
 
@@ -152,7 +157,7 @@ No person is a Workflow user: the Workflow role `OcuTalonApprovals` has one memb
 
 The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types and what each records:
 
-- `Action`: a fix run, a resend, a replayed tool call or Break the feed;
+- `Action`: a fix run, a resend, a replayed tool call, Break the feed or a refused approve of a partner warning;
 - `Approval`: answered, expired, cancelled, started or finished;
 - `Pairing`: a chat paired, unpaired or refused;
 - `Settings`: setting, from, to;
@@ -167,6 +172,7 @@ Roles and accounts:
 - `OcuTalonAdmin` switches demo mode with the documented terminal command.
 - `OcuTalonTraceViewer` is the trace role: Use on the four `%Ens_*` resources, Read on the data and code databases, `SELECT` on `Ens.MessageHeader`, and nothing on the private database.
 - Anyone with the trace role can read the content of every item that reaches OcuTalon in Visual Trace and the message viewer, such as a chat message's text and an email's sender, subject and text.
+- The trace also holds the text OcuTalon read from a file sent in the chat or Telegram, and a photo's caption, like a chat reply; a file's bytes and a photo itself are never in it.
 - An email OcuTalon sends to the connected mailbox's own address keeps its subject and text in the trace, like a chat message. An email to anyone else keeps them only in its approval record. No email's recipients are in the trace. The trace does keep the chat's messages as written, so an address or text that you or OcuTalon wrote in the chat is in it.
 - The local (README) account holds all three roles. The online demo account holds `OcuTalonUser` and `OcuTalonTraceViewer`. The read-only account holds `OcuTalonTraceViewer` alone.
 - The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly seven: the six trace and message-viewer pages and `%CSP.Broker`. It can't use the OcuTalon page or its API.
@@ -183,7 +189,7 @@ Storage:
 
 Data leaves the instance only:
 
-- In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. Daily notes and precedents also go to the configured provider inside requests: a person's turn that starts a session carries their daily notes for today and yesterday, which code builds from OcuTalon's own records, and the decision on an arriving item carries up to three of the person's earlier answers on items from the same sender or source. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor. A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval. Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap.
+- In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. Daily notes and precedents also go to the configured provider inside requests: a person's turn that starts a session carries their daily notes for today and yesterday, which code builds from OcuTalon's own records, and the decision on an arriving item carries up to three of the person's earlier answers on items from the same sender or source. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor. A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval. Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap. A chat turn with a PDF or Word file carries the text OcuTalon read from it, quoted as data. A chat turn with a photo also carries that photo.
 - In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its chat replies, notices, reminders and approval requests, and the answers to them).
 - In calls to the MCP servers an admin has added, never on the online demo: a check that the server answers, the list of its tools, and each tool call with its arguments, which can hold content that OcuTalon read. The results come back as untrusted content.
 

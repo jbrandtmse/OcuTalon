@@ -29,8 +29,11 @@
  *   resend row "{count} copies to {to}; the originals stay unchanged." (one copy: "1 copy to {to}; the original stays unchanged.").
  * - A partner delay notice (Story 23.5; fixKind partner_warning) has no dry run block and no fixed-targets line. Its `partner` holds "To: {recipients}" (the payload's dry run
  *   recipients, each "Name <address>", with the Simulated label beside it when `simulated` is true), the notice as the payload gives it (shown with its line breaks) and, while pending only,
- *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.". Its result bands are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
- *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent.
+ *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox." (no note for a request that is not simulated: its recipients are real contacts, and the chat's request
+ *   text says whether a mailbox is connected). Its result bands for a simulated request are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
+ *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent. For a request that is not simulated (Story 23.13) they are the catalog's texts:
+ *   result.partnerMaySent (the result's `outcome` is maysent, the server's one decision, Story 23.15: the card never works that out from the reason), fix.emailSent (`completed` equal to `total` and above 0), result.partnerSkipped (a done run with `skipped` above 0), the kept draft's, fix.emailNotSent for a reason that ends with a full stop (one of EmailOut's sentences) and the not-sent text for any other reason; a caller that cannot tell whether the request is
+ *   simulated passes null, and a band that says anything was sent is then not shown.
  * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
  *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
  *   `setting` holds the three lines "Now: {old}", "Proposed: {new}" (the payload's dry run before and after) and, while pending only,
@@ -45,7 +48,7 @@
  *   with the count-of-one forms, the tone (success only for all-through, a completed suspend or resume and a completed reroute, else partial), the icon and the
  *   audit line.
  */
-import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, IncidentRequestResult, ItemNoun } from '../live/payloads';
+import type { ApprovalPayload, DryRun, IncidentPayload, IncidentRequest, IncidentRequestResult, ItemNoun, SettingChange } from '../live/payloads';
 
 /** Every fixed string of the approval request card and its notices. */
 export const APPROVAL_TEXTS = {
@@ -69,6 +72,7 @@ export const APPROVAL_TEXTS = {
   resendCopyOne: '1 repaired copy; the original stays unchanged.',
   nothingYet: 'Nothing has changed yet.',
   itemState: '{item}: {state}',
+  settingRow: '{setting}: {value}',
   rerouteBefore: 'Message {example}: {from}',
   rerouteAfter: 'Message {example}: {to}',
   rerouteCopies: '{count} copies to {to}; the originals stay unchanged.',
@@ -273,6 +277,24 @@ function itemDryRunView(approval: ApprovalPayload, pending: boolean): DryRunView
   };
 }
 
+/** The dry run block of a rollback or an undo of a setting (Story 23.3): the setting's value now and the value it will have, "{setting}: {value}" each, or undefined when the dry run names no setting. */
+function settingDryRunView(approval: ApprovalPayload, pending: boolean): DryRunView | undefined {
+  const dry = approval.dryRun;
+  const setting = dry === null || typeof dry !== 'object' ? '' : textOf(dry.field);
+  if (setting === '') {
+    return undefined;
+  }
+  return {
+    countLine: '',
+    field: '',
+    before: fill(APPROVAL_TEXTS.settingRow, { setting, value: textOf(dry?.before) }),
+    after: fill(APPROVAL_TEXTS.settingRow, { setting, value: textOf(dry?.after) }),
+    eitherWay: '',
+    resendLine: '',
+    nothingYet: pending ? APPROVAL_TEXTS.nothingYet : '',
+  };
+}
+
 /** The dry run block of a reroute (Story 23.2): the example message where it is now and where it would go, and the copies that will be resent. */
 function rerouteDryRunView(dry: DryRun & { affected: number }, pending: boolean): DryRunView {
   const resend = numberOf(dry.resend);
@@ -297,6 +319,9 @@ function dryRunView(approval: ApprovalPayload, pending: boolean, ctx: ApprovalCo
   }
   if (approval.fixKind === 'suspend_item' || approval.fixKind === 'resume_item') {
     return itemDryRunView(approval, pending);
+  }
+  if (approval.fixKind === 'rollback_setting' || approval.fixKind === 'undo_rollback') {
+    return settingDryRunView(approval, pending);
   }
   const dry = dryRunOf(approval);
   if (dry === undefined) {
@@ -348,7 +373,7 @@ function partnerView(approval: ApprovalPayload, pending: boolean): PartnerView |
     to: fill(APPROVAL_TEXTS.partnerTo, { recipients: recipients.join(', ') }),
     notice,
     simulated: dry.simulated === true,
-    note: pending ? APPROVAL_TEXTS.partnerNote : '',
+    note: pending && dry.simulated === true ? APPROVAL_TEXTS.partnerNote : '',
   };
 }
 
@@ -534,19 +559,27 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  * - otherwise result.allThrough, success, `circle-check`.
  * A request of a kind the user asks for in the chat (Story 23.2) has its own bands, the texts of the chat's notice, because "went through" would hide what was done:
  * - a suspend or resume (fixKind suspend_item, resume_item; `item` of the request, `production` of the incident): `completed` above 0 is result.itemSuspended or
- *   result.itemResumed, success, `circle-check`; else `skipped` above 0 is result.itemSkipped (reason), partial, `triangle-alert`; else a reason is result.itemNotChanged,
+ *   result.itemResumed, success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (setting Enabled, target the item, reason), partial,
+ *   `triangle-alert`; else `skipped` above 0 is result.itemSkipped (reason), partial, `triangle-alert`; else a reason is result.itemNotChanged,
  *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
  * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
  *   place of result.allThrough; with failures or skips it has the bands above.
- * - a partner delay notice (fixKind partner_warning, Story 23.5): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
+ * - a partner delay notice (fixKind partner_warning, Story 23.5): a result whose `outcome` is maysent (Story 23.15; only a Settings-contact notice has one) is result.partnerMaySent, partial, `triangle-alert`, whatever the reason;
+ *   kept is the kept-as-a-draft band below; sent and notsent are result.partnerSkipped for a done run with `skipped` above 0, else fix.emailSent (sent), no band (notsent with no reason), fix.emailNotSent (a reason
+ *   that ends with a full stop) or "Not sent: {reason}." (the card follows the server's one decision and never works the outcome out from the counts or the reason); a result with no `outcome`
+ *   (a simulated notice): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
+ * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting and item of the incident's settingChange, and the request's `after`, the value that the chat's result line names, DW-1378): `completed` above 0 is
+ *   result.settingRestored or result.rollbackUndone (after), success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (reason), partial,
+ *   `triangle-alert`; a skip whose reason ends as the kind's CHANGEDAGAIN is result.settingChangedSince, partial; any other reason is result.itemNotChanged, partial. A run still
+ *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band; the band never names the settingChange's recorded values.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
  */
-export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = ''): ResultView | undefined {
+export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = '', change?: SettingChange, simulated: boolean | null = true): ResultView | undefined {
   const result = request.result;
   if (result === null || typeof result !== 'object' || Array.isArray(result)) {
     return undefined;
@@ -554,8 +587,11 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   if (request.fixKind === 'suspend_item' || request.fixKind === 'resume_item') {
     return itemResultView(request, result, render, production);
   }
+  if (request.fixKind === 'rollback_setting' || request.fixKind === 'undo_rollback') {
+    return settingResultView(request, result, render, change);
+  }
   if (request.fixKind === 'partner_warning') {
-    return partnerResultView(request, result, render);
+    return partnerResultView(request, result, render, simulated);
   }
   const total = numberOf(result.total) ?? 0;
   const resent = numberOf(result.resent) ?? 0;
@@ -614,7 +650,10 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   return bandOf(key, slots, tone, icon, render);
 }
 
-/** The band of a suspend or resume (Story 23.2): see resultView. */
+/** The item setting that a suspend or resume changes, by its IRIS name (Fix.Kind.SuspendItem ENABLEDSETTING). */
+const ENABLED_SETTING = 'Enabled';
+
+/** The band of a suspend or resume (Story 23.2, DW-1373): see resultView. */
 function itemResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, production: string): ResultView | undefined {
   const item = textOf(request.item);
   const reason = textOf(result.reason);
@@ -634,6 +673,12 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
     icon = 'circle-check';
   } else if (reason === '') {
     return undefined;
+  } else if ((numberOf(result.unreached) ?? 0) > 0) {
+    if (item === '') {
+      return undefined;
+    }
+    key = 'result.settingSavedNotApplied';
+    slots = { setting: ENABLED_SETTING, target: item, reason };
   } else if ((numberOf(result.skipped) ?? 0) > 0) {
     if (item === '') {
       return undefined;
@@ -647,20 +692,70 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
   return bandOf(key, slots, tone, icon, render);
 }
 
+/** The end of the reason of a setting request that was skipped because the setting changed again (Fix.Kind.RollbackSetting CHANGEDAGAIN). */
+const SETTING_CHANGED_AGAIN = ' changed again since then';
+
+/** The band of a rollback or an undo of a setting (Story 23.3): see resultView. The setting and its item are the incident's settingChange; the value it has again is the request's `after`, the After of its approved dry run that the chat's result line names (DW-1378), never the settingChange's recorded old or new value. */
+function settingResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, change: SettingChange | undefined): ResultView | undefined {
+  const reason = textOf(result.reason);
+  const setting = textOf(change?.setting);
+  const target = textOf(change?.item);
+  if (request.state === 'executing' || (numberOf(result.interrupted) ?? 0) > 0) {
+    return undefined;
+  } else if ((numberOf(result.completed) ?? 0) > 0) {
+    const after = textOf(request.after);
+    if (setting === '' || target === '' || after === '') {
+      return undefined;
+    }
+    return bandOf(request.fixKind === 'undo_rollback' ? 'result.rollbackUndone' : 'result.settingRestored', { setting, target, after }, 'success', 'circle-check', render);
+  } else if (reason === '') {
+    return undefined;
+  } else if ((numberOf(result.unreached) ?? 0) > 0) {
+    return setting === '' || target === '' ? undefined : bandOf('result.settingSavedNotApplied', { setting, target, reason }, 'partial', 'triangle-alert', render);
+  } else if ((numberOf(result.skipped) ?? 0) > 0 && reason.endsWith(SETTING_CHANGED_AGAIN)) {
+    return setting === '' || target === '' ? undefined : bandOf('result.settingChangedSince', { setting, target }, 'partial', 'triangle-alert', render);
+  }
+  return bandOf('result.itemNotChanged', { reason }, 'partial', 'triangle-alert', render);
+}
+
 /** The reason of a partner request that is kept as a draft: the kind's NOTSETUP (Fix.Kind.PartnerWarning). */
 export const PARTNER_NOT_SET_UP = "email delivery isn't set up yet";
 
-/** The band of a partner delay notice (Story 23.5): see resultView. */
-function partnerResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender): ResultView | undefined {
+/** The band of a partner delay notice (Stories 23.5 and 23.13): see resultView. simulated is null when the caller cannot tell. */
+function partnerResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, simulated: boolean | null): ResultView | undefined {
   const total = numberOf(result.total) ?? 0;
   const completed = numberOf(result.completed) ?? 0;
-  const reason = textOf(result.reason).replace(/\.$/, '');
+  const raw = textOf(result.reason);
+  const reason = raw.replace(/\.$/, '');
   let key: string;
   let text: string;
   let tone: ResultView['tone'] = 'partial';
   let icon: ResultView['icon'] = 'triangle-alert';
-  if (request.state === 'executing') {
+  if (request.state === 'executing' || (simulated === null && completed > 0)) {
     return undefined;
+  } else if (result.outcome === 'maysent') {
+    return bandOf('result.partnerMaySent', {}, 'partial', 'triangle-alert', render);
+  } else if (result.outcome === 'kept') {
+    key = 'result.partnerKept';
+    text = APPROVAL_TEXTS.partnerKept;
+  } else if (result.outcome === 'sent' || result.outcome === 'notsent') {
+    // Story 23.15: the server's one decision says whether the notice was sent; the counts and the reason only pick the text of that answer.
+    const skipped = numberOf(result.skipped) ?? 0;
+    if (request.state === 'done' && skipped > 0) {
+      return bandOf('result.partnerSkipped', { sent: String(completed), skipped: String(skipped), total: String(total) }, 'partial', 'triangle-alert', render);
+    } else if (result.outcome === 'sent') {
+      return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
+    } else if (raw === '') {
+      return undefined;
+    } else if (raw.endsWith('.')) {
+      return bandOf('fix.emailNotSent', { reason: raw }, 'partial', 'triangle-alert', render);
+    }
+    key = 'result.partnerNotSent';
+    text = fill(APPROVAL_TEXTS.partnerNotSent, { reason });
+  } else if (simulated === false && completed > 0 && completed >= total) {
+    return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
+  } else if (simulated === false && request.state === 'done' && (numberOf(result.skipped) ?? 0) > 0) {
+    return bandOf('result.partnerSkipped', { sent: String(completed), skipped: String(numberOf(result.skipped) ?? 0), total: String(total) }, 'partial', 'triangle-alert', render);
   } else if (completed > 0 && completed >= total) {
     key = 'result.partnerSent';
     text = APPROVAL_TEXTS.partnerSent;
@@ -674,6 +769,8 @@ function partnerResultView(request: IncidentRequest, result: IncidentRequestResu
     text = APPROVAL_TEXTS.partnerKept;
   } else if (reason === '') {
     return undefined;
+  } else if (simulated === false && raw.endsWith('.')) {
+    return bandOf('fix.emailNotSent', { reason: raw }, 'partial', 'triangle-alert', render);
   } else {
     key = 'result.partnerNotSent';
     text = fill(APPROVAL_TEXTS.partnerNotSent, { reason });

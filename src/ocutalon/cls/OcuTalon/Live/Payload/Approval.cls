@@ -78,7 +78,9 @@ Property ApproverKind As %String(%JSONFIELDNAME = "approverKind", MAXLEN = 32);
 /// field of the part stays empty, eitherWay is 0 and Reading is not asked. An email request (a fix request of the kind email, Story 22.7) has the DryRun {to, subject, text}, with to an array of
 /// addresses: its part holds the recipients as plain addresses, the exact text as the notice and the exact subject as before, every other field empty, simulated 0, eitherWay 0 and no
 /// reading. A dry run of an email request that is not as expected leaves those members out, and the part is still there, never an error. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
-/// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
+/// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The before and after of a fix
+/// request's part are shown through Bridge.Redact (the one redactor, Story 24.4a), so that a setting's value that holds a secret (a URL with a token) reads [redacted] in place; a plain value,
+/// "enabled" and "disabled" and a date are unchanged, and the row's stored dry run stays raw. The reason has no source in the row and
 /// stays empty, and so does cancelledAt. A tool_call row's server is ServerOf(ToolSource), empty when the source names none. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
 /// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
 /// TraceHeaderId, traceHeaderId is that id and traceNamespace the current namespace. Otherwise the payload has no target.
@@ -145,8 +147,8 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 			Set part.Resend = dry.resend
 			Set part.LeftOut = dry.leftOut
 			Set part.Field = dry.field
-			Set part.Before = dry.before
-			Set part.After = dry.after
+			Set part.Before = ##class(OcuTalon.Bridge.Redact).Text(dry.before)
+			Set part.After = ##class(OcuTalon.Bridge.Redact).Text(dry.after)
 			Set part.Item = dry.item
 			Set part.From = dry.from
 			Set part.To = dry.to

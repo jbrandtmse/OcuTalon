@@ -346,6 +346,50 @@ Method TestMeasuredCounter()
 	Do $$$AssertEquals(stored, 1, "so Reader.Settings adds the stored settings to the listed ones")
 }
 
+/// The default member of Reader.Settings' entries (Story 23.3's undo): with full 1 no entry has it; with full 2 every entry of a setting that is not a secret has it, the value that
+/// the item would have without its stored setting (the System Default Setting that applies, else the class's default), and an entry of a secret setting has none. The System Default
+/// Setting 7 on ITEMNAME gives its entry the default 7 (the class value is 5), and a stored setting that its class does not know has a value and an empty default.
+Method TestSettingDefault()
+{
+	If '..Ready() Quit
+	Set probe = "ZzDefaultProbe"
+	Do $$$AssertStatusOK(..SaveDefault(..#SDSVALUE), "a System Default Setting gives "_..#SDSSETTING_" the value "_..#SDSVALUE)
+	Do $$$AssertStatusOK($ClassMethod(..#DEFINITION, "Put", 1, "", "gamma", ..#NOTE), "and a stored setting that the class does not know holds gamma")
+	Do $$$AssertStatusOK(..AddItem(probe, 0, 0, [{"target": "Adapter", "name": "UseCookies", "value": "zz-cookie"}], ..#PROBECLASS), "an item with a secret-looking class setting is saved")
+	Set outcome = ##class(OcuTalon.Watch.Reader).Settings(..#ORDERS, ..#ORDERSPRODUCTION, 1, , .marks, .settings)
+	Do $$$AssertEquals(outcome, "read", "full 1 reads the settings")
+	Set withDefault = 0
+	Set iterator = settings.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If entry.%IsDefined("default") Set withDefault = withDefault + 1
+	}
+	Do $$$AssertTrue(settings.%Size() > 0, "and lists entries")
+	Do $$$AssertEquals(withDefault, 0, "none of them has a default member")
+	Set outcome = ##class(OcuTalon.Watch.Reader).Settings(..#ORDERS, ..#ORDERSPRODUCTION, 2, , .marks, .settings)
+	Do $$$AssertEquals(outcome, "read", "full 2 reads the settings")
+	Set missing = 0
+	Set secretWith = 0
+	Set secrets = 0
+	Set found = ""
+	Set stored = ""
+	Set iterator = settings.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If entry.credential {
+			Set secrets = secrets + 1
+			If entry.%IsDefined("default") Set secretWith = secretWith + 1
+		} ElseIf 'entry.%IsDefined("default") {
+			Set missing = missing + 1
+		}
+		If (entry.item = ..#ITEMNAME) && (entry.target = "Host") && (entry.setting = ..#SDSSETTING) Set found = entry.default_"|"_entry.%GetTypeOf("default")
+		If (entry.item = ..#DEFINEDITEM) && (entry.target = "Host") && (entry.setting = ..#NOTE) Set stored = entry.value_"|"_entry.%IsDefined("default")_"|"_entry.%Get("default")
+	}
+	Do $$$AssertTrue(secrets > 0, "the secret-looking class setting is listed as a secret")
+	Do $$$AssertEquals(missing, 0, "every entry that is not a secret has a default member")
+	Do $$$AssertEquals(secretWith, 0, "no entry of a secret has one")
+	Do $$$AssertEquals(found, ..#SDSVALUE_"|string", "the entry of the System Default Setting's item has it as its default, a string: "_found)
+	Do $$$AssertEquals(stored, "gamma|1|", "and the stored setting has its value and an empty default: "_stored)
+}
+
 Method TestCounterUnchanged()
 {
 	If '..Ready() Quit

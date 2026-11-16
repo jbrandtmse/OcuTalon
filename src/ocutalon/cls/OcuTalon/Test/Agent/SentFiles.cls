@@ -4,7 +4,7 @@ Include Ensemble
 /// OcuTalon's Docker image, through the CI environment (the mock's base URL and OCUTALON_MOCK_KEY_HEADER=1) for the end-to-end tests; the Render and ReadFile tests need the sessions and files only
 /// (and Docs.Extract's worker). The fixtures are fixture sessions, files stored through Core.Files.Store (PDFs and Word files that Test.Docs.Samples builds, with a unique zz26s2 marker
 /// in the text and, for a PDF, a comment line of the bytes that is never in the text), and Data.Turn rows; everything is removed after each test.
-///   - TestSwitchOff (H2): READSFILES is defined as 0, so Core.Files.Readable() is 0 (Story 25.6 flips both); the Render and ReadFile branches below work at that value;
+///   - TestSwitchOn (H2): READSFILES is defined as 1 (Story 25.6), so Core.Files.Readable() is 1; the Render and ReadFile branches below work at any value;
 ///   - TestRenderReadable (matrix "PDF read", "Word read", "Caption and document"): an untrusted Item of a stored PDF, and one of a .docx, render the label, FILEINTRO, and the extracted text quoted, with no file
 ///     name and no bytes; a caption is quoted first, then a blank line, then the text; the result of ReadFile is exactly {fileRef, kind document, read 1, chars, cut 0, addable 1};
 ///   - TestRenderCut (matrix "Cut"): a PDF over MAXTEXT ends the quoted text with CUTNOTE, ReadFile has cut 1 and chars of at most MAXTEXT, without the cut note;
@@ -198,12 +198,11 @@ ClassMethod TextOf(stream As %Stream.Object, type As %String) As %String [ Priva
 	Quit $Select(answer.ok: answer.text, 1: "")
 }
 
-/// (H2) READSFILES is 0 until Story 25.6, so that the feature head is releasable at every merge: Core.Files.Readable() is 0 and nothing of the files shows. The document and photo branches
-/// are tested below at that value.
-Method TestSwitchOff()
+/// (H2, Story 25.6) READSFILES is 1: Core.Files.Readable() is 1 and a sent file reaches a reader. The document and photo branches are tested below.
+Method TestSwitchOn()
 {
-	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Input", "READSFILES"), 0, "READSFILES is defined, as 0")
-	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 0, "so Core.Files.Readable() is 0")
+	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Input", "READSFILES"), 1, "READSFILES is defined, as 1")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Files).Readable(), 1, "so Core.Files.Readable() is 1")
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).IsDocumentType(" Application/PDF "), 1, "a PDF is a document type, in any case and trimmed")
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).IsDocumentType(##class(OcuTalon.Core.Files).#DOCX), 1, "and so is a Word (.docx) file")
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).IsDocumentType("image/png")_##class(OcuTalon.Agent.Input).IsDocumentType("")_##class(OcuTalon.Agent.Input).IsDocumentType("text/plain"), "000", "a photo, no type and a text file are not")

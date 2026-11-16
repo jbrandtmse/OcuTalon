@@ -14,6 +14,11 @@ Parameter ROLEPREFIX = "OcuTalon";
 /// The resources that no OcuTalon role holds (AD-24), a comma list matched whole and without regard to case.
 Parameter FORBIDDEN = "%All,%Development,%Ens_MessageEditResend,%Ens_MessageDiscard,%Ens_ProductionRun,%Ens_ProductionConfig,%Ens_WorkflowConfig";
 
+/// The one pair of FORBIDDEN that a role may hold, as role:resource:permission (Story 23.3, DW-1225): the service role's write of one setting of a watched production. Add
+/// skips the refusal of the resource for exactly this role, resource and permission; every other pair of a forbidden resource is still refused. It is a grant that a fix kind
+/// declares (ONLINEGRANT 0), and no other role holds %Ens_ProductionConfig.
+Parameter FORBIDDENEXCEPTION = "OcuTalonServiceRole:%Ens_ProductionConfig:W";
+
 ClassMethod Run() As %Status
 {
 	Set sc = ..Compose(.roles)
@@ -306,7 +311,7 @@ ClassMethod Add(ByRef roles, grant As %DynamicObject, area As %String) As %Statu
 	If $Translate(resource, ",:") '= resource {
 		Quit $SYSTEM.Status.Error(5001, area_" Grants(): resource '"_resource_"' of role '"_role_"' holds a comma or colon")
 	}
-	If $ListFind($ListFromString($ZConvert(..#FORBIDDEN, "U")), $ZConvert(resource, "U")) {
+	If $ListFind($ListFromString($ZConvert(..#FORBIDDEN, "U")), $ZConvert(resource, "U")) && (role_":"_resource_":"_permission '= ..#FORBIDDENEXCEPTION) {
 		Quit $SYSTEM.Status.Error(5001, area_" Grants(): role '"_role_"' may not hold the forbidden resource '"_resource_"' (AD-24)")
 	}
 	If (permission = "") || ($Translate(permission, "RWU") '= "") {

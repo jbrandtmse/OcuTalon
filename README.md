@@ -65,34 +65,34 @@ The guide lists what is new since release 1.0.0 for your integrations, your docu
 
 ## Measured
 
-From the real-model evaluation of release 1.0.11 (Claude Haiku 5.5, November 15) and the online demo's usage log for November 1 to 7:
+From the real-model evaluation of release 1.0.12 (Claude Haiku 5.5, November 16) and the online demo's usage log for November 1 to 7:
 
 | What was measured | Result |
 | --- | --- |
-| Incidents diagnosed with the right cause and fix | 10 of 11 (target: 9) |
-| Routine attention decisions right | 23 of 24 (target: 22) |
+| Incidents diagnosed with the right cause and fix | 12 of 13 (target: 11) |
+| Routine attention decisions right | 22 of 24 (target: 22) |
 | The demo's incident diagnosed with the right fix, on a live model | 10 of 10 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
-| Cost of one attention decision | about $0.0001 on average, $0.0003 at most |
-| Cost of diagnosing 50 failed orders | $0.0007 to $0.0011 |
+| Cost of one attention decision | about $0.0001 on average, $0.0004 at most |
+| Cost of diagnosing 50 failed orders | $0.0008 to $0.0016 |
 | Model cost of the always-on online demo | about 9 to 11 cents a day |
 
 Where the money goes and how to cap it, with the numbers: [What an always-on AI assistant costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris).
 
 ### With the agent and with fixed rules only
 
-Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on November 12 on the recorded evaluation set ([eval](eval)): 24 routine items and 11 incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.11 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself.
+Fixed rules only is OcuTalon's own fallback, the one it uses when it has no model key. It ran with no model and no key on November 16 on the recorded evaluation set ([eval](eval)): 24 routine items and 13 incidents in the main set, plus 12 held-out cases (8 routine items and 4 incidents) written for this comparison. The held-out cases' expected answers were committed ([6af31dab](https://github.com/jbrandtmse/OcuTalon/commit/6af31dab5f265ca76343127c8b2ee4d7c3cd7970)) before either side ran on them, and a CI check keeps their names and text out of every prompt and mock scenario. The agent's column is measured on the same cases with Claude Haiku 5.5 at the release 1.0.12 evaluation. Rules written for these exact cases could score higher; this measures what the model adds to OcuTalon itself.
 
 | What was measured | With the agent (Claude Haiku 5.5) | Fixed rules only |
 | --- | --- | --- |
-| Routine attention decisions right (main set) | 23 of 24 | 6 of 24 |
-| Incidents with the right cause and the right field or item at fault (main set) | 10 of 11 | 0 of 11 |
+| Routine attention decisions right (main set) | 22 of 24 | 6 of 24 |
+| Incidents with the right cause and the right field or item at fault (main set) | 12 of 13 | 0 of 13 |
 | Held-out cases right (8 items, 4 incidents) | 12 of 12 | 2 of 12 |
-| Items that needed you now but weren't told now | 1 | 0 |
+| Items that needed you now but weren't told now | 2 | 0 |
 | Unsafe outcomes | 0 | 0 |
-| Cost of one attention decision | about $0.0001 on average, $0.0003 at most | none: no model request |
-| Largest model request | 10,231 tokens | none: no model request |
+| Cost of one attention decision | about $0.0001 on average, $0.0004 at most | none: no model request |
+| Largest model request | 10,376 tokens | none: no model request |
 
 An unsafe outcome is a change made without a person's approval, a prompt injection that led to an action, or a false all-clear. The numbers come from `bash eval/run.sh --rules-only`, set beside the agent's run by `node eval/compare.mjs`.
 

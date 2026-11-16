@@ -13,6 +13,9 @@
 ///   - TestListOnCallUsersRouting (Story 36.4, DW-1278): the read verb ListOnCallUsers from web_admin reaches SettingsOps, and only SettingsOps, with the same object; from
 ///     every other origin, "zz" and "" included, it is not_allowed with the existing text and sends nothing; it is no tool verb, and it waits SEARCHTIMEOUT seconds
 ///     and answers Ok 0 busy when nothing answers, as the other read verbs do;
+///   - TestListProductionsRouting (Story 24.2): the read verb ListProductions from web_admin reaches SettingsOps, and only SettingsOps, with the same object; from every other
+///     origin, "zz" and "" included, it is not_allowed with the existing text and sends nothing; inside a bridge context a command that says web_admin is refused as from the chat;
+///     it is no tool verb, and it waits SEARCHTIMEOUT seconds and answers Ok 0 busy when nothing answers;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
 ///   - TestPersonaVerbsInsideAContext: inside a context SetPersona that says web_user is refused and ProposePersona that says
 ///     web_user is routed; outside it the origin rules apply;
@@ -184,17 +187,44 @@ Method TestStepFiveRefusals()
 	}
 }
 
-/// The ListOnCallUsers read (Story 36.4, DW-1278; AD-1, AD-13): an admin's web request alone sends it, and SettingsOps alone carries it out. The oracle of the refusals is
-/// written out here: a tool gets the text of the chat, every other origin the admin-only text of a settings verb.
+/// The ListOnCallUsers read (Story 36.4, DW-1278; AD-1, AD-13): an admin's web request alone sends it, and SettingsOps alone carries it out (ReadVerbRouting).
 Method TestListOnCallUsersRouting()
 {
-	Set session = ..Session("oncalllist")
+	Do ..ReadVerbRouting("ListOnCallUsers", ..Session("oncalllist"))
+}
+
+/// The ListProductions read (Story 24.2; AD-1, AD-13): an admin's web request alone sends it, and SettingsOps alone carries it out (ReadVerbRouting); and nothing inside
+/// a bridge context can, a command that says web_admin included.
+Method TestListProductionsRouting()
+{
+	Set session = ..Session("prodlist")
+	Do ..ReadVerbRouting("ListProductions", session)
 	Set probe = ..NewProbe("ok")
-	Set command = ..NewCommand("ListOnCallUsers", "web_admin", session, "zzkey"_..Number)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(##class(OcuTalon.Bridge.Msg.Request).%New(), "zzss"_..Number), "a context begins")
+	Try {
+		Set command = ..NewCommand("ListProductions", "web_admin", session, "zzkey"_..Number)
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "a ListProductions that says web_admin is refused inside a context")
+		Do $$$AssertEquals(output.Message, "That can't be done from the chat. Nothing was changed.", "as from the chat")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// The routing of a web_admin read verb of SettingsOps (verb is its class name in OcuTalon.Msg.Command): from web_admin it is sent once, to SettingsOps, as the command
+/// object itself with its origin and session; from every other origin, "zz" and "" included, it is not_allowed and sends nothing; it is no tool verb; and it waits
+/// SEARCHTIMEOUT (20) seconds and answers Ok 0 busy when nothing answers. The oracle of the refusals is written out here: a tool gets the text of the chat, every other
+/// origin the admin-only text of a settings verb.
+Method ReadVerbRouting(verb As %String, session As %String) [ Private ]
+{
+	Set probe = ..NewProbe("ok")
+	Set command = ..NewCommand(verb, "web_admin", session, "zzkey"_..Number)
 	Do probe.OnProcessInput(command, .output)
-	Do $$$AssertEquals(..Calls(), 1, "a ListOnCallUsers from web_admin is sent once")
+	Do $$$AssertEquals(..Calls(), 1, "a "_verb_" from web_admin is sent once")
 	Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", "to SettingsOps")
-	Do $$$AssertEquals(..Call(1, "class"), "OcuTalon.Msg.Command.ListOnCallUsers", "as its own class")
+	Do $$$AssertEquals(..Call(1, "class"), "OcuTalon.Msg.Command."_verb, "as its own class")
 	Do $$$AssertEquals(..Call(1, "origin")_"|"_..Call(1, "sessionRef"), "web_admin|"_session, "with its origin and session unchanged")
 	Set same = (probe.LastRequest = command)
 	Do $$$AssertEquals(same, 1, "the owner gets the command object itself")
@@ -203,19 +233,19 @@ Method TestListOnCallUsersRouting()
 	Set origins = $ListBuild("web_user", "telegram", "tool", "timer", "system", "zz", "")
 	For i = 1:1:$ListLength(origins) {
 		Set origin = $List(origins, i)
-		Set label = "ListOnCallUsers from '"_origin_"'"
+		Set label = verb_" from '"_origin_"'"
 		Set probe = ..NewProbe("ok")
-		Set command = ..NewCommand("ListOnCallUsers", origin, session, "zzkey"_..Number_i)
+		Set command = ..NewCommand(verb, origin, session, "zzkey"_..Number_i)
 		Set sc = probe.OnProcessInput(command, .output)
 		Do $$$AssertStatusOK(sc, label_" is answered with a status that is OK")
 		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed")
 		Do $$$AssertEquals(output.Message, $Select(origin = "tool": tool, 1: admin), label_" says why")
 		Do $$$AssertEquals(..Calls(), 0, label_" sends nothing")
 	}
-	Do $$$AssertEquals($ListFind($ListFromString($Parameter("OcuTalon.Core.CommandsIn", "TOOLVERBS")), "ListOnCallUsers"), 0, "it is no tool verb")
+	Do $$$AssertEquals($ListFind($ListFromString($Parameter("OcuTalon.Core.CommandsIn", "TOOLVERBS")), verb), 0, verb_" is no tool verb")
 	Set waiting = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsTimeoutProbe", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of the timeout probe is made")
-	Set command = ..NewCommand("ListOnCallUsers", "web_admin", session, "zzkey"_..Number)
+	Set command = ..NewCommand(verb, "web_admin", session, "zzkey"_..Number)
 	Set sc = waiting.OnProcessInput(command, .output)
 	Do $$$AssertStatusOK(sc, "the gate answers with a status that is OK")
 	Do $$$AssertEquals(waiting.Sends_"|"_waiting.SeenTarget_"|"_waiting.SeenTimeout, "1|SettingsOps|20", "one send, to SettingsOps, that waits 20 seconds")

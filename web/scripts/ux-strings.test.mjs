@@ -72,6 +72,7 @@ const IMPORTED = [
   ['settings/mcp-view.ts', ['MCP_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
   ['chat/files-view.ts', ['FILES_TEXTS']],
+  ['chat/file-reply-view.ts', ['FILE_REPLY_TEXTS']],
   ['documents/sample-runbook-view.ts', ['SAMPLE_RUNBOOK_TEXTS']],
   ['chat/noise-view.ts', ['NOISE_TEXTS']],
   ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS', 'ANSWER_WORDS']],
@@ -187,6 +188,7 @@ const SOURCES = {
     'Outcome',
     'Date',
     'No decisions match these filters.',
+    'The email was sent.',
     'Look back at past decisions',
     'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
     'Open the History page',
@@ -208,6 +210,8 @@ const SOURCES = {
     'Output',
     'That file is {size}; the limit is 10 MB.',
     "I couldn't read that file: {reason}.",
+    'Add to documents',
+    'Saved to memory',
     'Documents',
     'Add documents',
     'Add the sample runbook',
@@ -318,6 +322,15 @@ const SOURCES = {
     'Choose a way to reach this person: Telegram needs a paired chat, email needs an address. Nothing was changed.',
     "{user} isn't an OcuTalon user any more. Choose again. Nothing was changed.",
     "The online demo has no on-call person, because its visitors aren't admins. On your own install, an admin chooses one here.",
+    'Partner contacts',
+    'Partner warnings go only to the people listed here, and only after you approve each one.',
+    'Email address',
+    'Productions it concerns',
+    'Add contact',
+    'Remove {name}? Partner warnings will stop going to {address}.',
+    'Enter a name of 1 to 128 characters. Nothing was changed.',
+    'Choose at least one production. Nothing was changed.',
+    'Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install.',
     'Save changes',
     'Saved. Applies within a minute. Recorded in the audit log.',
     "Couldn't save. Nothing was changed.",
@@ -799,6 +812,17 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 24.4a Planner Gate ruling V1 2026-11-15 (the Contest Planner under the owner\'s delegation, story-244-rulings-20261115.md: the five evidence-panel strings approved verbatim; the values go through the server\'s redactor, Bridge.Redact, by the redactor ruling of the same day)': [
+      'Setting change',
+      '{setting} on {item}',
+      'Old value',
+      'New value',
+      'Detected',
+    ],
+    'Story 25.6 Planner Gate ruling P1 2026-11-15 (the Contest Planner under the owner\'s delegation, story-256-rulings-20261115.md: both new texts approved verbatim)': [
+      'Added to your documents.',
+      "Couldn't add it to your documents. Nothing was changed.",
+    ],
     'Story 25.5 Planner Gate rulings 2026-11-13 and the 25.4 final ruling 1 (the Contest Planner under the owner\'s delegation, story-255-rulings-20261113.md: PUBLIC TEXT items 1 to 10 approved as written, item 1 being the UX\'s own sentence; DW-1303: the self_viewer refusal text, word for word)': [
       'Only an approver for reroutes can answer this request.',
       'Only an approver for suspending and resuming items can answer this request.',
@@ -1016,6 +1040,29 @@ const SOURCES = {
       'A check every minute',
       'Watch the queue backlogs.',
     ],
+    'Story 23.3 ruling (Contest Planner, Public Text approved at the spec gate 2026-11-15: the rollback and undo-rollback texts of the rail, the approval card, the incident card and the page\'s result and cause lines, rendered from the catalog or drafted by Lane B in the spec\'s Public Text)': [
+      'Put {setting} on {target} back',
+      'Undo the rollback of {setting} on {target}',
+      'I can put {setting} on {target} back to its earlier value.',
+      'I can undo the rollback of {setting} on {target}.',
+      'Putting {setting} on {target} back\u2026',
+      'Undoing the rollback of {setting} on {target}\u2026',
+      '{setting}: {value}',
+      '{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback.',
+      '{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval.',
+      'The rollback is undone: {setting} on {target} is back to {after}.',
+      'The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.',
+    ],
+    'Story 23.13 rulings (Contest Planner, 23.13 re-plan 2026-11-16: result.partnerSkipped, approved verbatim; fix.emailNotSent, Story 21.11\'s approved email result, which the card and the incident card now render for a Settings contact\'s notice; fix.emailSent\'s text is in EXPERIENCE.md)': [
+      'The delay notice was sent to {sent} of {total} partner contacts. Not sent to {skipped}: they were removed from Settings > Partner contacts, or their address changed, since this request was made.',
+      '{reason}',
+    ],
+    'Story 23.15 text rulings (Contest Planner, 2026-11-16, prompts/dw-1415-1416-rulings-20261116.md: result.partnerMaySent, approved verbatim; the card renders it for a notice that may have been sent)': [
+      "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+    ],
+    'Story 23.3 pre-push ruling (Contest Planner, 2026-11-15, DW-1365: the result text of a setting that was saved and that the production could not apply, approved verbatim)': [
+      "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
+    ],
     'Story 23.2 ruling (Contest Planner, Public Text 2026-11-09, texts of the result.item* and result.rerouted catalog keys, result.itemSuspended as re-ruled on 2026-11-10 for DW-1068; its DW-1067 ruling of 2026-11-10 has the request card show them in its result band, rendered from the catalog)': [
       "{item} in {production} is suspended: it is disabled now. To undo it while this incident is open, ask me to resume {item}. After the incident closes, enable {item} again on the production's configuration page in the Management Portal.",
       '{item} in {production} is enabled again.',
@@ -1093,6 +1140,9 @@ Then ask the partner to go back to YYYY-MM-DD, so that the next batch does not f
 
 The Results partner gives notice before the TLS certificate on its results endpoint changes. Load the new certificate before the change, so that results keep flowing.
 `,
+    ],
+    'Story 23.4 ruling (the Contest Planner under the owner\'s delegation, 2026-11-15, prompts/story-234-rulings-20261115.md, deviation 2 changed: the On call section\'s line once pages are sent; its watched-productions clause added by DW-1400, prompts/story-238-rulings-20261115.md)': [
+      "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.",
     ],
   },
   calendar: [
@@ -1284,7 +1334,7 @@ describe('the ellipsis and the characters', () => {
   it('holds U+2026 once, from the UX, when a string holds it', () => {
     const marked = strings.filter((text) => text.includes('\u2026'));
     assert.ok(marked.length >= 4, `${marked.length} strings hold the ellipsis`);
-    const ruledEllipsis = entries(SOURCES).filter(([, kind, why]) => kind === 'ruled' && why.startsWith('Story 23.2 ruling')).map(([text]) => text);
+    const ruledEllipsis = entries(SOURCES).filter(([, kind, why]) => kind === 'ruled' && (why.startsWith('Story 23.2 ruling') || why.startsWith('Story 23.3 ruling'))).map(([text]) => text);
     for (const text of marked) {
       assert.equal(text.split('\u2026').length - 1, 1, `${JSON.stringify(text)} holds U+2026 once`);
       if (ruledEllipsis.includes(text)) {

@@ -8352,7 +8352,7 @@ So that someone answers every incident even when the people watching are away.
 
 **Given** the watched production's IRIS Managed Alerts
 **When** paging is configured and an incident pages
-**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration (FR-28)
+**Then** a test finds every alert setting unchanged and an alert raised in the watched production still reaching Managed Alerts, and no OcuTalon class writes alert configuration, except an approved rollback_setting or undo_rollback that puts back the user's own earlier value (FR-28) [AMENDED 2026-11-15, Story 23.4, Contest Planner ruling DW-1380: it read "and no OcuTalon class writes alert configuration"]
 **And** with no on-call person configured, as always on the online demo, no page is sent and nothing else changes (FR-28)
 
 **Given** automated tests in `OcuTalon.Test.Watch`
@@ -8589,6 +8589,91 @@ So that the rail never shows a request as still waiting after I have answered it
 
 - DW-1159: After Reject, the status rail's Approval requests keeps listing the rejected request until the async approval live event reaches the page (web and phone view) (ledger; routed by owner 2026-11-11)
 
+### Story 23.13: Partner warnings go to the Settings contacts
+
+[ADDED 2026-11-15, Contest Planner (prompts/story-242-rulings-20261115.md, "23.13 replaces 23.10"): Lane A files, run by lane B (Epic 23's runner); after 23.4 and 23.8, and only once Lane B's Story 24.2 has merged]
+
+As an admin,
+I want a partner warning to go only to the contacts I set for that production in Settings,
+So that the people who hear about a delay are the ones I chose.
+
+**Acceptance Criteria:**
+
+**Given** Lane B's Story 24.2 merged (its partner contacts table and Settings section)
+**When** this story lands
+**Then** `Fix.PartnerContacts` reads the contacts from 24.2's table, and its `TABLE` parameter is set to 1, which is the switch that shows 24.2's Settings section (the section shows only when `TABLE` = 1; both states pinned)
+**And** DW-1254's contact-id change applies to 23.5's warnings: a warning names contacts by id, and their names and addresses never appear in a traced message, log or audit beyond what DW-1254 allows
+
+**Given** a partner warning for an incident in a watched production
+**When** it is approved and sent
+**Then** it goes only to the contacts set for that production, and the leak scan still passes
+- DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
+- DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
+
+### Story 23.14: Epic 23 burn-down: results, summaries and partner mail say what really happened
+
+[ADDED 2026-11-16, chartered by Lane B's runner as Epic 23's burn-down story (Rule 17 (3), the burn-down gate; the gate needs no human). Its input is the routed MED entries Epic 23's reviews filed to the burn-down; flakes (DW-1083, DW-1428) and decision-pending entries (DW-1358, DW-1423, DW-1425) are not in it. It does not depend on Story 23.8 or inbox U-329. No public claim and no release-note line unless a ruling adds one.]
+[AMENDED 2026-11-16, orchestrator relay of the Contest Planner's 1.0.12 cut story (prompts/dw-1415-1416-rulings-20261116.md, last section, ~11:00Z): rescoped to DW-1050, DW-1117, DW-1417 and DW-1422's remainder; DW-1373, DW-1376 and DW-1378 stay with lane C; DW-1422's QUIT-after-250 case is fixed in the 1.0.12 cut story, not here; 23.14 runs after the cut]
+
+As an OcuTalon operator,
+I want every result line, summary line and partner email outcome to match what really happened,
+So that I never act on a record that says more, or less, than OcuTalon did.
+
+**Acceptance Criteria:**
+
+**Given** a partner request approved after its incident closed
+**When** the close tells `result.partnerNotSent`
+**Then** the request is ended and audited (ids only) so its session can be purged, and a repeated approved outcome is not told again (DW-1117)
+
+**Given** whatever of DW-1422 the 1.0.12 cut story leaves open (its QUIT-after-250 fix counts such an email as sent for every email kind)
+**When** EmailOut classifies an SMTP answer it can't place before or after the server accepted the message
+**Then** a partner warning's timeline never reads "not sent" for an email the server may have accepted, and each such case has a test (DW-1422, remainder)
+
+**Given** `Watch.Summary` and `Msg.Catalog`
+**When** a summary is stored or rendered
+**Then** both use one shared clean-character list and lookup (no private copy in `Watch.Summary`) (DW-1050), and `Test.Partner.PartnerMail` uses shared EmailOut test helpers instead of its copies of `Test.Channel.EmailOut`'s private ones (DW-1417)
+
+- DW-1050: Watch.Summary copies Msg.Catalog's private Clean character list and Lookup (ledger)
+- DW-1117: A partner request approved after its incident was closed stays approved for good (ledger)
+- DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (ledger)
+- DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage to REJECTED (ledger; remainder after the 1.0.12 cut story)
+
+
+### Story 23.15: 1.0.12 cut: partner mail says what happened, and the docs say who approves
+
+[ADDED 2026-11-16, Contest Planner's 1.0.12 CUT STORY for lane B (prompts/dw-1415-1416-rulings-20261116.md, last section, ~11:00Z; relayed by the orchestrator). BINDING. One branch from feature 0cdee2b76 or later, one commit per item. Public texts (DW-1423, DW-1425 and any card variant without {time}) land only after the Planner approves them.]
+
+As an OcuTalon admin,
+I want the card, the chat and the docs to say exactly what happened to a partner warning and who may approve one,
+So that nobody re-sends a notice that already went out, and nobody is surprised by who can approve outward email.
+
+**Acceptance Criteria:**
+
+**Given** `docs/security-overview.md`
+**When** it lists who may answer and what the `Action` audit records
+**Then** it states the admin-only approval rule for a partner warning to Settings contacts and the refused approve, in the Planner-approved words, and `test-security-overview.sh` stays green (DW-1423)
+
+**Given** `GUIDE.md`'s Partner delay notices bullet
+**When** it describes an install without demo mode
+**Then** its stale "without demo mode there are no partner contacts yet, so no notice is drafted" is replaced by the Planner-approved sentence (DW-1425)
+
+**Given** a partner warning whose send may have reached the mail server (EmailOut's may-have-sent answers, or a run interrupted by a restart)
+**When** the approval card and the chat show its result
+**Then** neither reads "Not sent: …" or "was not sent"; both use summary.partnerMaySent's wording (a variant without {time} only as the Planner approves it), and a test with a demonstrated mutation pins it
+
+**Given** an email of any kind that the mail server accepted (250 after DATA)
+**When** the QUIT that follows fails or gets no answer
+**Then** EmailOut counts the email as sent, for every email kind, and a test with a demonstrated mutation pins it (DW-1422; anything left over stays in Story 23.14)
+
+**Given** CI's shards-2 at 31.9 of its 32 minutes
+**When** a class moves to a lighter shard
+**Then** shards-2 has headroom, no limit is raised, only test placement changes, and the measured shard times are reported
+
+- DW-1423: docs/security-overview.md does not state the admin rule for partner warnings (ledger)
+- DW-1425: GUIDE.md line 12 is stale since 23.13 (ledger)
+- DW-1422: QUIT-stage SMTP answer after 250 classified as REJECTED (ledger; the QUIT-after-250 case)
+
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
@@ -8608,14 +8693,8 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** `SettingsOps` writes the partner-contact table, the change applies within a minute and is audited as a settings change, and these contacts are the only addresses a partner warning from Lane A's Story 23.5 can ever be sent to (FR-29, FR-17, FR-9)
 **And** an address that isn't valid is a field error and nothing is saved (UX-DR36)
 
-**Given** the SQL query watches section
-**When** an admin saves a query with its name and schedule
-**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
-**And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
+[AMENDED 2026-11-15, Contest Planner split of 24.2 (G1 (B), ~16:30Z Nov 15): the SQL query watches section and its removal moved, word for word, to Story 24.5; 24.2 is partner contacts only; its partner-contacts section stays hidden until Lane A's Story 23.13 sets `Fix.PartnerContacts` `TABLE = 1` (G2 (a)); its audit records `partnerContact.<Ref>` and which fields changed, never their values]
 
-**Given** a saved query
-**When** the admin removes it
-**Then** the removal goes to `WatchOps` by the same command path, the check stops, and it leaves the list and the rail within one live update (FR-33, AD-1, NFR-9)
 
 **Given** a user without the admin role
 **When** they call either section's routes
@@ -8656,10 +8735,37 @@ So that the backup is woken only when the on-call person really didn't answer.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 - DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
-### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
+**Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
+
+### Story 24.4a: Show setting values redacted everywhere, and the setting change in the evidence panel
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; the 1.0.12 blocker]
+
+**Lane:** B (the redaction edits in Lane A files are granted by the Contest Planner's redactor and re-plan rulings of 2026-11-15).
 
 As a user,
-I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and a setting-change cause,
+I want every setting value OcuTalon shows me to have its secrets redacted, and the incident card's evidence to list the setting change,
+So that a token in a setting never reaches a card, a phone, Telegram or the trace, and I can see what changed.
+
+**Acceptance Criteria:**
+
+**Given** a setting change whose before, after, old or new value holds a secret-shaped string (for example a URL with a token)
+**When** it is shown on the web approval card (rollback and undo Before and After), the incident card's evidence panel, the phone page, Telegram or a notice
+**Then** every shown value has passed through `OcuTalon.Bridge.Redact.Text` on the server and shows "[redacted]" for the secret, a plain value shows unchanged, and no web redactor exists; `Redact.Text` gains the bare `key=` shape (Contest Planner redactor ruling, V4)
+**And** the Ens trace bodies for the run (`DryRunResult`, `Notification`) carry the redacted values and a `SecretHandoff` reference, never the raw token; the handoff entry is deleted when taken and an untaken one expires within SecretHandoff's limit; the stored `DryRun` and the value the rollback writes stay raw, so a rollback (and the undo of a System Default) restores the token-bearing value byte for byte (V5)
+
+**Given** an incident whose cause is a setting change
+**When** its card shows
+**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
+
+### Story 24.4b: Show the new fixes, partner warnings and the closed-card undo on the cards
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; follows 24.4a]
+
+**Lane:** B. **Depends on:** Story 24.4a (story-level).
+
+As a user,
+I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and an undo even on a closed incident,
 So that I know exactly what I'm approving, whichever fix is proposed.
 
 **Acceptance Criteria:**
@@ -8673,10 +8779,6 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** it shows on any channel
 **Then** its exact text and every recipient appear in full before **Approve** and **Reject**, as plain text in Telegram and on the phone (FR-29, UX-DR136, UX-DR146)
 
-**Given** an incident whose cause is a setting change
-**When** its card shows
-**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
-
 **Given** requests of the new kinds that are answered, expire, run or are offered for undo
 **When** each happens
 **Then** the answered statuses and results follow the UX's rules ("Approved from {channel} at {time}", "Rejected from {channel} at {time}. Nothing was changed.", "Expired at {time}. Nothing was changed.", and "Recorded in the IRIS audit log." after every result), every copy updates within 5 seconds, and an undo arrives as its own approval request card in the same incident (FR-8, FR-26, UX-DR74, UX-DR76, UX-DR79, NFR-9)
@@ -8685,9 +8787,40 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** the web app builds
 **Then** its TypeScript interfaces match the `OcuTalon.Live.Payload` classes, a string test checks every new fixed text, and the cards meet the keyboard, focus and contrast rules in both themes (AD-12, UX-DR8, UX-DR33, UX-DR117, NFR-25)
 
+**And** a closed incident card draws only a rollback's undo request card, never another request kind, and the rail's "Show in the chat" jumps to that card (Contest Planner ruling V2, 2026-11-15)
+
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
+
+### Story 24.5: Set saved SQL query watches in Settings
+
+[ADDED 2026-11-15, Contest Planner split of 24.2]
+
+**Lane:** B. **Depends on:** Lane A's Story 23.8 merged (story-level: `WatchOps` handles `SaveSqlWatch`); its plan starts after 23.8 merges.
+
+As an admin,
+I want to save SQL queries for OcuTalon to watch,
+So that data conditions are watched without writing code.
+
+**Acceptance Criteria:**
+
+**Given** the SQL query watches section
+**When** an admin saves a query with its name and schedule
+**Then** the page submits it through `OcuTalon.Core.Commands.Submit`, with origin `web_admin` and the command verb Story 36.2 (was 24.1) fixes, to `WatchOps`, which Lane A's Story 23.8 builds, shows the synchronous result, and on a refusal shows the plain reason as a field error with nothing saved (FR-33, AD-1, UX-DR36)
+**And** saved queries are listed with their schedule, last run and last result, and appear as background checks in the saving admin's status rail (FR-33, UX-DR53)
+
+**Given** a saved query
+**When** the admin removes it
+**Then** the removal goes to `WatchOps` by the same command path, the check stops, and it leaves the list and the rail within one live update (FR-33, AD-1, NFR-9)
+
+**Given** a user without the admin role
+**When** they call the section's routes
+**Then** the routes refuse with 403 and nothing changes (FR-17, AD-13)
+
+**Given** automated tests and a Playwright spec under `web/e2e/`
+**When** they save, refuse and remove queries
+**Then** the submitted commands' fields and the audit entries match, and the section works by keyboard with every control labelled (NFR-25, UX-DR130)
 
 ## Epic 25: Usage, history and files in the page (step 6)
 
@@ -8852,6 +8985,14 @@ So that a read file can join my documents and a photo is remembered.
 **Then** the replies match, Add to documents adds the file, and across the whole flow no file content appears in a production message body (FR-54, AD-4)
 **And** the guide's "New since 1.0.0" gains its file line only with the clauses whose stories have merged ("offers to add it to your documents" with this story; "a photo's caption is saved to memory" with Story 26.3) (UX-DR147)
 - DW-1269: 37.1's obligation for 25.6: Conversation calls Agent.Input.ReadFile before a file turn's requests and ends the turn with result.text when read is 0; it renders the read result and the member caption, naming the carriers; 'no file content in a production message body' means no bytes and no image (ledger; Story 37.1 V8, Contest Planner 2026-11-13)
+- [ADDED 2026-11-15, Contest Planner 26.2 rulings (f) H2, approved texts; prompts/story-262-rulings-20261114.md] 25.6 flips `READSFILES` to 1 (web and Telegram together; they must not differ), with its chip and these three texts, which land in 25.6's commit:
+  1. security-overview, model requests: "A chat turn with a PDF or Word file carries the text OcuTalon read from it, quoted as data. A chat turn with a photo also carries that photo."
+  2. security-overview, after the trace-content bullet: "The trace also holds the text OcuTalon read from a file sent in the chat or Telegram, and a photo's caption, like a chat reply; a file's bytes and a photo itself are never in it."
+  3. GUIDE "Send a file in the chat", Option B, verbatim: "- **Send a file in the chat.** On your own install, press the paperclip beside the message box, or drop a file on the chat, to send a PDF, a Word (.docx) file, or a JPEG or PNG photo of up to 10 MB; in Telegram, send it to your paired chat. OcuTalon reads it, and a photo's caption is saved to memory. Sending files is off on the online demo." (an "offers to add it to your documents" extension goes to the Planner first)
+  - AD-21's unreadable-path sentence is reworded for `READSFILES` = 1.
+- DW-1313: the memory card's 409 `pin_photo` shows "This memory came from a photo, so it can't be pinned." in a lazy chunk once photos are visible (ledger; re-owned to 25.6 by the Contest Planner's 26.2 rulings)
+- DW-1312: the security overview's photo line (covered by text 1) (ledger)
+- DW-1342: the production readable-PDF and photo Telegram turns (TelegramChat with the reader on) and a web turn (ledger)
 - From Story 26.2 (Contest Planner ruling H2, 2026-11-14): this story sets `Agent.Input` `READSFILES` to 1 (26.2 ships it at 0), together with its chip and texts, so web and Telegram file turns reach the model only from this story on.
 - From Story 26.2 (Contest Planner ruling H2, 2026-11-14), texts approved for THIS story's commit: (1) docs/security-overview.md, model-requests bullet: "A chat turn with a PDF or Word file carries the text OcuTalon read from it, quoted as data. A chat turn with a photo also carries that photo." (2) docs/security-overview.md, after the trace-content bullet: "The trace also holds the text OcuTalon read from a file sent in the chat or Telegram, and a photo's caption, like a chat reply; a file's bytes and a photo itself are never in it." (3) GUIDE.md "New since 1.0.0", under "Your documents and memory": "- **Send a file in the chat.** On your own install, press the paperclip beside the message box, or drop a file on the chat, to send a PDF, a Word (.docx) file, or a JPEG or PNG photo of up to 10 MB; in Telegram, send it to your paired chat. OcuTalon reads it, and a photo's caption is saved to memory. Sending files is off on the online demo." Adding "offers to add it to your documents" goes to the Planner first. [ADDED 2026-11-14, Story 26.2 Planner rulings, by the epic-26 runner at the orchestrator's instruction]
 - DW-1312: the security overview for photos (texts 1 and 2 above) (ledger; re-owned from 26.2 by spec_gate 2026-11-14, ruling H2)
@@ -8878,6 +9019,43 @@ So that one cancel doesn't fail every later browser unit on that runner.
 **Then** the planted leftover is removed and the job proceeds, and the stack on the other port survives; with the cleanup skipped, the test fails (a demonstrated mutation)
 **And** nothing changes in the product, and there is no new public text (test and CI only)
 - DW-1335: infra: a cancelled job's stack holds the runner's fixed web port, and every later browser unit on that runner fails at live_web_port (ledger; routed by the orchestrator 2026-11-14, Contest Planner ruling ~13:25Z)
+
+### Story 25.8: Epic 25 burn-down: the web gap-fill (Usage withdraws its stale error, and a viewer gets no file-reply add or Documents drop)
+
+[ADDED 2026-11-15, Contest Planner A2 from Epic 25's retro] (Lane A runs it under an AD-33 exception for the Lane B web files its spec names; the ownership tables don't change)
+
+As a user of the page, including a viewer and a screen-reader user,
+I want the Usage page to withdraw its failed-read announcement once an answer arrives, and the page to offer a viewer no file control that the server would refuse,
+So that I never hear a stale error and never press a control that can only fail.
+
+**Acceptance Criteria:**
+
+**Given** the Usage page announced its failed read (`USAGE_TEXTS.error`)
+**When** a later read answers
+**Then** the page withdraws that announcement through `Announcer.retract`, as the History page does since Story 25.2's rework 2, and a browser test on a frozen page clock fails when the retract is removed (a demonstrated mutation)
+
+**Given** `Announcer.retract`'s guard that leaves the live region alone when a different text was spoken last
+**When** a test speaks one text and retracts another
+**Then** the region keeps the spoken text; the test is behavioural (not a source regex) and fails when the guard is removed (a demonstrated mutation)
+
+**Given** History's H15, which presses Retry a second time
+**When** the second read is refused
+**Then** the test waits on a page-side signal that the refused read was handled before it asserts, so a reversed order cannot pass without exercising the queued case (a demonstrated mutation)
+
+**Given** a viewer (the snapshot's `viewer`, Story 25.4's model, which Story 26.4 keeps) and an older file reply whose read is `addable`
+**When** the reply renders
+**Then** it shows no **Add to documents** button (the Saved to memory chip stays), and `chat/file-reply.ts` is on the `GUARDED` list of `web/scripts/viewer-sources.test.mjs`
+
+**Given** a viewer on the Documents page
+**When** files are dragged over it or dropped on it
+**Then** the page takes no drop and shows no drag outline (`[active]` is false for a viewer), pinned by a test
+
+**And** no new public text, no change to any route, IRIS class or role, and the initial web bundle stays at or under 921 kB
+- DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry (ledger; Contest Planner A2, 2026-11-15)
+- DW-1121: Announcer.retract's lastSpoken guard, which keeps it from emptying another page's announcement, has only a source-regex pin (ledger; Contest Planner A2, 2026-11-15)
+- DW-1122: H15 presses Retry a second time with no page-side signal that the second failure was handled (ledger; Contest Planner A2, 2026-11-15)
+- DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line (ledger; Contest Planner A2, 2026-11-15)
+- DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (ledger; Contest Planner A2, 2026-11-15)
 
 ## Epic 26: Approver roles and reading files (step 6)
 
@@ -8982,6 +9160,7 @@ So that only the right people can approve each kind of change.
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 6's stories in both lanes have merged **When** step 6's release is prepared **Then** a hands-on pass with real keys exercises usage and history, sending a file and a photo from the web app and Telegram, and answering with and without the right approver role, and its findings are fixed before the release (REL-7)"]
 - DW-1271: 37.1's obligation for 26.4: Roles.Assign is admin-only with an allowlist of exactly OcuTalonApprover and OcuTalonViewer, refusing every % role, every other OcuTalon role and the installer-managed accounts, with an IRIS audit entry per assignment and removal and a test per refusal (ledger; Story 37.1 V2/V3, Contest Planner 2026-11-13)
+- DW-1284: Telegram and email entries take a message in on the strength of the pairing (Telegram) or the saved mailbox (email), not of the person holding OcuTalonUser at use time, so a user whose OcuTalonUser role is removed can still start turns through a paired chat or the connected mailbox: the entries re-check the user's role when a message arrives (ledger; re-owned by Epic 25's burn-down gate 2026-11-15)
 
 ## Epic 27: Slack (step 7, Could)
 
@@ -10551,6 +10730,7 @@ So that what the automated tests can't see is found and fixed before the first r
 - DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
 - DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
 - DW-1125: Real-model check of Story 23.7's queue watch: for "Watch the queue backlogs." the model calls start_watch with kind queues, and for its stop calls stop_watch with kind queues (only the CI mock scripts it today) (ledger; routed by cr 2026-11-11)
+- DW-1357: The Conversation hold of a document file turn under the production's PoolSize 1 is unmeasured on the running production (one ReadFile plus two Render reads per turn; the unit harness measured 1.9 s for a 2-page PDF, 3.4 s for 10 pages and 13.6 s at the 200k cap): the hands-on pass measures it on the real production (ledger; re-owned by Epic 25's burn-down gate 2026-11-15)
 
 ### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
 

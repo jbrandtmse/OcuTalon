@@ -700,6 +700,37 @@ export function sendNotification(user: string, notification: NotificationFields)
   );
 }
 
+/**
+ * The slots of the approval notice of a fix the user asked for in the chat, as the server fills them (Watch.Notice.AskedSlots over the
+ * kind's name, the dry run and the incident's row), for sendNotification: the real fill, redaction included, never a copy of it.
+ */
+export async function askedSlots(kind: string, dryRun: Record<string, unknown>, incidentRef: string): Promise<Record<string, unknown>> {
+  const lines = await irisScript(
+    [
+      `Set i=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(incidentRef)})`,
+      `Set d=##class(%DynamicObject).%FromJSON(${quoted(JSON.stringify(dryRun))})`,
+      `Set x=##class(OcuTalon.Watch.Notice).AskedSlots(${quoted(kind)},d,i,.sc)`,
+      'Write !,"CHK|slots|",$Select($System.Status.IsOK(sc)&&$IsObject(x):x.%ToJSON(),1:"")',
+    ].join('\n'),
+  );
+  const text = chk(lines, 'slots');
+  if (!text) throw new Error(`the slots of ${kind} could not be filled (${lines.join(' ')})`);
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
+/**
+ * The slots of a catalog key's fixture (Test.Channel.LiveCase.FixtureSlots, the fixtures of Test.Msg.Catalog), for sendNotification of a
+ * notice that has no asked fill (the rollback's, a diagnosed kind): the catalog's own slots, never a copy of them.
+ */
+export async function fixtureSlots(key: string): Promise<Record<string, unknown>> {
+  const lines = await irisScript(
+    [`Set x=##class(OcuTalon.Test.Channel.LiveCase).FixtureSlots(${quoted(key)})`, 'Write !,"CHK|slots|",$Select($IsObject(x):x.%ToJSON(),1:"")'].join('\n'),
+  );
+  const text = chk(lines, 'slots');
+  if (!text || text === '{}') throw new Error(`the fixture slots of ${key} could not be read (${lines.join(' ')})`);
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
 /** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
 export async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
   const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
@@ -732,6 +763,8 @@ export interface SeedDryRun {
   from?: string;
   to?: string;
   example?: string;
+  /** A setting rollback's or undo's dry run (Story 23.3): the item whose setting it is (the setting is the field, the values are before and after). */
+  item?: string;
   /** A partner delay notice's dry run (Story 23.5): the exact text, each recipient as a name and an address, and simulated. */
   notice?: string;
   recipients?: ReadonlyArray<{ name: string; address: string }>;
@@ -787,6 +820,7 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
             before: fields.dryRun.before ?? '',
             after: fields.dryRun.after ?? '',
             itemNoun: fields.dryRun.itemNoun,
+            ...(fields.dryRun.item === undefined ? {} : { item: fields.dryRun.item }),
             ...(fields.dryRun.from === undefined ? {} : { from: fields.dryRun.from }),
             ...(fields.dryRun.to === undefined ? {} : { to: fields.dryRun.to }),
             ...(fields.dryRun.example === undefined ? {} : { example: fields.dryRun.example }),
@@ -883,13 +917,67 @@ export async function answerHeaders(user: string): Promise<{ count: number; trac
   return { count, traceRef };
 }
 
-/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled. */
-export async function setApprovalState(ref: string, state: string): Promise<void> {
+/** The audit clock now (Test.Bridge.AuditLog.Now), the mark that approvalAudit reads from. */
+export async function auditClock(): Promise<string> {
+  const mark = chk(await irisScript('Write !,"CHK|now|",##class(OcuTalon.Test.Bridge.AuditLog).Now()'), 'now');
+  if (!mark) throw new Error('the audit clock could not be read');
+  return mark;
+}
+
+/** An Approval audit entry as Bridge.Approval writes it (Audited): the change, the states, the person, the channel and the kind. */
+export interface ApprovalAudit {
+  change: string;
+  from: string;
+  to: string;
+  irisUser: string;
+  channel: string;
+  kind: string;
+}
+
+/**
+ * The Approval audit entries of a request written at or after the mark (Test.Bridge.AuditLog.Wait, source OcuTalon, type Approval, the
+ * request's Ref as the marker), oldest first: waits up to `seconds` for `count` of them.
+ */
+export async function approvalAudit(mark: string, ref: string, count = 1, seconds = 30): Promise<ApprovalAudit[]> {
+  const lines = await irisScript(
+    [
+      `Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(${quoted(mark)},"OcuTalon","Approval","",${quoted(ref)},"",${count},${seconds})`,
+      'Write !,"CHK|n|",e.%Size()',
+      'For i=0:1:e.%Size()-1 { Set d=e.%Get(i).data Write !,"CHK|e"_i_"|",$Select($IsObject(d):d.change_"|"_d.from_"|"_d.to_"|"_d.irisUser_"|"_d.channel_"|"_d.kind,1:"") }',
+    ].join('\n'),
+  );
+  const found = Number(chk(lines, 'n'));
+  if (!Number.isInteger(found)) throw new Error(`the Approval audit entries could not be read (${lines.join(' ')})`);
+  const entries: ApprovalAudit[] = [];
+  for (let i = 0; i < found; i += 1) {
+    const [change = '', from = '', to = '', irisUser = '', channel = '', kind = ''] = (chk(lines, `e${i}`) ?? '').split('|');
+    entries.push({ change, from, to, irisUser, channel, kind });
+  }
+  return entries;
+}
+
+/** The answer that setApprovalState records with a state:the action (approve or reject), the channel and the person, and when (UTC), and the expiry when it changes. */
+export interface AnsweredFields {
+  action?: string;
+  channel?: string;
+  by?: string;
+  at?: string;
+  expiresAt?: string;
+}
+
+/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled, with the answer's fields when given. */
+export async function setApprovalState(ref: string, state: string, answered: AnsweredFields = {}): Promise<void> {
+  const set = (property: string, value: string | undefined): string[] => (value === undefined ? [] : [`Set r.${property}=${quoted(value)}`]);
   const lines = await irisScript(
     [
       `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
       `If '$IsObject(r) { Write !,"CHK|state|0" Halt }`,
       `Set r.State=${quoted(state)}`,
+      ...set('AnsweredAction', answered.action),
+      ...set('AnsweredChannel', answered.channel),
+      ...set('AnsweredBy', answered.by),
+      ...set('AnsweredAt', answered.at),
+      ...set('ExpiresAt', answered.expiresAt),
       'Write !,"CHK|state|",$System.Status.IsOK(r.%Save())',
     ].join('\n'),
   );
@@ -1039,6 +1127,8 @@ export interface IncidentFields {
   openVariant?: string;
   /** The Refs of the incident's approval requests, comma-separated: the closed view lists the requests whose rows name the incident. */
   requestRefs?: string;
+  /** The Ref of the setting change that the incident names as its cause (Story 23.3; seedSettingChange). */
+  settingChangeRef?: string;
   /** The incident's stored summary (Story 23.6): the JSON {"parts": [{"key", "slots"}], "lines": []} that Watch.Summary builds; none by default. */
   summary?: string;
   /** When the incident was closed (UTC), the failure count, the first failure's time and the item noun (Story 25.2's History rows); the fixture's defaults when left out. */
@@ -1058,6 +1148,7 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     State: fields.state,
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
+    SettingChangeRef: fields.settingChangeRef,
     Summary: fields.summary,
     ClosedAt: fields.closedAt,
     Count: fields.count === undefined ? undefined : numeric(fields.count, 'count'),
@@ -1078,6 +1169,48 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
   const ref = chk(lines, 'incident');
   if (!ref) throw new Error(`the incident could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/** A setting change of a production (Story 23.3): the item, the setting, the two values and when it was detected (UTC). */
+export interface SettingChangeFields {
+  namespace?: string;
+  production?: string;
+  item: string;
+  setting: string;
+  oldValue: string;
+  newValue: string;
+  detectedAt: string;
+}
+
+/** Writes a Data.SettingChange row for the fields (target Host, source production, not a secret) and returns its Ref; dropSettingChange removes it. */
+export async function seedSettingChange(fields: SettingChangeFields): Promise<string> {
+  const lines = await irisScript(
+    [
+      'Set r=##class(OcuTalon.Data.SettingChange).%New()',
+      'Set r.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
+      'Set r.SnapshotRef="zzsnapshot"',
+      `Set r.Namespace=${quoted(fields.namespace ?? 'ZZNS')}`,
+      `Set r.Production=${quoted(fields.production ?? 'Zz.Fixture.Production')}`,
+      `Set r.Item=${quoted(fields.item)}`,
+      'Set r.Target="Host"',
+      `Set r.Setting=${quoted(fields.setting)}`,
+      `Set r.OldValue=${quoted(fields.oldValue)}`,
+      `Set r.NewValue=${quoted(fields.newValue)}`,
+      'Set r.Source="production"',
+      `Set r.DetectedAt=${quoted(fields.detectedAt)}`,
+      'Set sc=r.%Save()',
+      'Write !,"CHK|settingchange|",$Select($SYSTEM.Status.IsOK(sc):r.Ref,1:"")',
+    ].join('\n'),
+  );
+  const ref = chk(lines, 'settingchange');
+  if (!ref) throw new Error(`the setting change could not be seeded (${lines.join(' ')})`);
+  return ref;
+}
+
+/** Deletes the setting change with the Ref (a row that seedSettingChange wrote). */
+export async function dropSettingChange(ref: string): Promise<void> {
+  if (!/^[A-Za-z0-9_-]+$/.test(ref)) return;
+  await irisScript(`Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.SettingChange WHERE Ref = ?","${ref}")\nWrite !,"CHK|dropped|1"`);
 }
 
 /** The fields of a FixRun row that a spec may set: the counts and reason of its result (Fixture.FixRun ends the run unless endedAt is given). */

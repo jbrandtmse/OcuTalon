@@ -74,7 +74,7 @@ function client(port) {
     socket.write(`${text}\r\n`);
     return reply();
   };
-  return { socket, line, reply, send, raw: (t) => socket.write(t), close: () => socket.destroy() };
+  return { socket, line, reply, send, pending: () => buffer, raw: (t) => socket.write(t), close: () => socket.destroy() };
 }
 
 async function hello(port) {
@@ -249,6 +249,51 @@ test('the failure modes: refuse closes with no greeting, auth answers 535, rejec
     assert.equal(state.failure, 'error');
     assert.deepEqual(state.messages, []);
     assert.equal(state.connections, 4);
+  });
+});
+
+test('failure mode quit keeps the mail and answers QUIT with a 421', async () => {
+  await withStub(async ({ control, port }) => {
+    await control('failure', { mode: 'quit' });
+    const { c } = await hello(port);
+    await mail(c, { head: ['Subject: x'], body: 'text' });
+    assert.match((await c.send('QUIT'))[0], /^421/);
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.equal(state.failure, 'quit');
+    assert.equal(state.messages.length, 1);
+    assert.equal(state.commands.QUIT, 1);
+  });
+});
+
+test('failure mode stall-greeting accepts the connection and never sends the greeting', async () => {
+  await withStub(async ({ control, port }) => {
+    await control('failure', { mode: 'stall-greeting' });
+    const c = client(port);
+    await new Promise((resolve) => c.socket.once('connect', resolve));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(c.pending(), '');
+    c.close();
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.equal(state.failure, 'stall-greeting');
+    assert.equal(state.connections, 1);
+    assert.deepEqual(state.messages, []);
+  });
+});
+
+test('failure mode stall-data answers up to the data, then never answers the end of the message and keeps no mail', async () => {
+  await withStub(async ({ control, port }) => {
+    await control('failure', { mode: 'stall-data' });
+    const { c } = await hello(port);
+    assert.match((await c.send('MAIL FROM: <me@example.com>'))[0], /^250/);
+    assert.match((await c.send('RCPT TO: <me@example.com>'))[0], /^250/);
+    assert.match((await c.send('DATA'))[0], /^354/);
+    c.raw('Subject: x\r\n\r\ntext\r\n.\r\n');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(c.pending(), '');
+    c.close();
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.equal(state.failure, 'stall-data');
+    assert.deepEqual(state.messages, []);
   });
 });
 

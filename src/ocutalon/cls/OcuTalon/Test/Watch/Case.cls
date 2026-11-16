@@ -6,7 +6,7 @@ Include Ensemble
 /// the fixture sessions, the clean-up of the run's messages) and adds what the watch tests share:
 ///   - Reason: "" when OCUORDERS exists, demo mode is on and the Orders production is current there;
 ///   - the changes that a test makes to the instance, each put back by OnAfterOneTest, also after a failure: SetOnlineDemo (the public flag), GrantRole
-///     and RevokeRole (a resource of the service role), and Described (a production's description in a namespace's definition table);
+///     and RevokeRole (a resource of the service role), SaveRoles (every OcuTalon role, for a test that runs the Roles step, which rewrites them all), and Described (a production's description in a namespace's definition table);
 ///   - UseDouble and UseReal (Test.Tools.CommandsDouble behind the CommandsIn item, and the real service back), Begin (a bridge context for a turn), Calls (what the double
 ///     recorded), Rows and Row (the BackgroundCheck rows of a session) and Watch (a fixture session's watch of Orders);
 ///   - OnAfterOneTest and OnAfterAllTests delete the BackgroundCheck rows of the run's sessions, so a row that a test made through WatchOps is gone too;
@@ -79,6 +79,9 @@ Parameter ITEM = "CommandsIn";
 Parameter FIXTURE = "OcuTalon.Test.Agent.RunnerFixture";
 
 Parameter ROLE = {##class(OcuTalon.Install.Step.Users).#SERVICEROLE};
+
+/// The names of every OcuTalon role, as the pattern of Security.Roles:ListAll (resolved here, because OcuTalonRoles runs in %SYS, where the OcuTalon classes do not).
+Parameter ROLEPATTERN = {##class(OcuTalon.Install.Step.Roles).#ROLEPREFIX_"*"};
 
 /// The namespace and the production of the Orders demo, from the Demo step's own parameters.
 Parameter ORDERS = {##class(OcuTalon.Install.Step.Demo).#NAMESPACE};
@@ -171,6 +174,11 @@ Property Swap As %String(MAXLEN = "");
 Property RoleBefore As %String(MAXLEN = "");
 
 Property RoleSaved As %Boolean [ InitialExpression = 0 ];
+
+/// Every OcuTalon role as SaveRoles read it, JSON text of {"<role>": {"resources", "granted"}, ...}, with RolesSaved 1 while a test has it saved.
+Property RolesBefore As %String(MAXLEN = "");
+
+Property RolesSaved As %Boolean [ InitialExpression = 0 ];
 
 /// The value of the public flag onlineDemo before a test set it, with OnlineSaved 1 while it is changed.
 Property OnlineBefore As %String;
@@ -441,6 +449,86 @@ Method RevokeRole(resource As %String) [ Private ]
 	Do $$$AssertStatusOK(..WriteRole(..Without(current, resource)), "the service role no longer holds "_resource)
 }
 
+/// Every OcuTalon role, as {"<role>": {"resources": "resource:permission,...", "granted": "role,..."}, ...}, read in %SYS.
+ClassMethod OcuTalonRoles() As %DynamicObject
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Set result = {}
+	Set names = ""
+	Set list = ##class(%ResultSet).%New("Security.Roles:ListAll")
+	If $$$ISERR(list.Execute(..#ROLEPATTERN)) Quit result
+	While list.Next() {
+		Set names = names_$ListBuild(list.Get("Name"))
+	}
+	Set position = 0
+	While $ListNext(names, position, name) {
+		Kill props
+		If $$$ISERR(##class(Security.Roles).Get(name, .props)) Continue
+		Do result.%Set(name, {"resources": ($Get(props("Resources"))), "granted": ($Get(props("GrantedRoles")))})
+	}
+	Quit result
+}
+
+/// Remembers every OcuTalon role as it is, for a test that runs the Roles step, which rewrites all of them from the areas' Grants and so takes the demo-only grants of the Demo
+/// step (the trace role's OCUORDERS databases) from the roles it does not name; OnAfterOneTest and OnAfterAllTests put every role back, also after a failure. A second call keeps the first.
+Method SaveRoles() [ Private ]
+{
+	If ..RolesSaved Quit
+	Set ..RolesBefore = ..OcuTalonRoles().%ToJSON()
+	Set ..RolesSaved = 1
+}
+
+/// Puts every role that SaveRoles saved back to its saved resources and granted roles, and forgets them. A role that is as saved is not written.
+Method PutRolesBack() As %Status [ Private ]
+{
+	If '..RolesSaved Quit $$$OK
+	Set saved = {}.%FromJSON(..RolesBefore)
+	Set ..RolesSaved = 0
+	Set ..RolesBefore = ""
+	Set current = ..OcuTalonRoles()
+	Set sc = $$$OK
+	Set iterator = saved.%GetIterator()
+	While iterator.%GetNext(.name, .before) {
+		Set now = current.%Get(name)
+		If $IsObject(now) && (now.resources = before.resources) && (now.granted = before.granted) Continue
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ..WriteRoleOf(name, before.resources, before.granted))
+	}
+	Quit sc
+}
+
+/// Writes the resources and granted roles of the role, in %SYS; the role is created when it is gone.
+ClassMethod WriteRoleOf(role As %String, resources As %String, granted As %String) As %Status
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If '##class(Security.Roles).Exists(role) Quit ##class(Security.Roles).Create(role, "OcuTalon role", resources, granted)
+	Kill props
+	Set props("Resources") = resources
+	Set props("GrantedRoles") = granted
+	Quit ##class(Security.Roles).Modify(role, .props)
+}
+
+/// "" when every OcuTalon role that SaveRoles saved (or the roles of the JSON text given) is as it was, or the first difference as "<role> resources are ... , they were ...".
+ClassMethod RolesDifference(before As %String) As %String
+{
+	Set saved = {}.%FromJSON(before)
+	Set current = ..OcuTalonRoles()
+	Set iterator = saved.%GetIterator()
+	While iterator.%GetNext(.name, .was) {
+		Set now = current.%Get(name)
+		If '$IsObject(now) Quit
+		If now.resources '= was.resources Quit
+		If now.granted '= was.granted Quit
+		Set name = ""
+	}
+	If $Get(name) = "" Quit ""
+	Set now = current.%Get(name)
+	If '$IsObject(now) Quit name_" is gone"
+	If now.resources '= was.resources Quit name_" resources are "_now.resources_", they were "_was.resources
+	Quit name_" granted roles are "_now.granted_", they were "_was.granted
+}
+
 /// The resource list without the entries of the resource.
 ClassMethod Without(resources As %String, resource As %String) As %String
 {
@@ -483,7 +571,7 @@ ClassMethod LoadDefinition(namespace As %String, production As %String) As %Stat
 	Quit ##class(Ens.Config.Production).LoadFromClass(production)
 }
 
-/// Puts back what the test changed: the service role, onlineDemo, and the definitions that it made.
+/// Puts back what the test changed: the service role, every OcuTalon role that SaveRoles saved, onlineDemo, and the definitions that it made.
 Method PutBack() As %Status [ Private ]
 {
 	Set sc = $$$OK
@@ -507,9 +595,11 @@ Method PutBack() As %Status [ Private ]
 			If $Piece(items, ",", i) '= "" Set sc = $SYSTEM.Status.AppendStatus(sc, ..TempItem($Piece(items, ",", i), 0, $Namespace))
 		}
 	}
+	// every saved role first, so that the service role's own saved resources (RoleBefore) are the last word
+	Set sc = $SYSTEM.Status.AppendStatus(sc, ..PutRolesBack())
 	If ..RoleSaved {
 		Set ..RoleSaved = 0
-		Set sc = ..WriteRole(..RoleBefore)
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ..WriteRole(..RoleBefore))
 	}
 	If ..OnlineSaved {
 		Set ..OnlineSaved = 0
