@@ -4553,3 +4553,4 @@
 2026-11-16T19:56:04Z	Epic 27	owner_decision	via=contest_planner 27.3_gate=APPROVED(texts,veto_all,linking+one-workspace_limit+second-team_pin,overlaps_proceed,spine_incl_DW-1442) key_list_at_PART_READY
 2026-11-16T20:03:18Z	Epic 28	runner_reported	28.3_task0b=app_roles_work(OcuTalonMCPApp;Client=U_only) PUBLIC_TEXT_new_P8 28.2_red(web=own_spine_order,fixed;shards=DW-1083) new_head=d18c9a55c(CI_running) relayed=contest_planner
 2026-11-16T20:03:32Z	Epic 28	owner_decision	via=contest_planner 28.3_G3=APPROVED(app_roles) P8=approved_with_edit pins=outside-app_PROTECT,fresh-install_order
+2026-11-16T20:15:26Z	Epic 27	owner_decision	via=contest_planner 27.1_R7_A/B=PASS(4_cases_5/5_both_sides,0_fallbacks) 27.1=cleared_to_merge_on_green_CI
