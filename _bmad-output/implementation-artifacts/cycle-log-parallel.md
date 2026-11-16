@@ -4520,3 +4520,24 @@
 2026-11-16T17:05:00Z	Epic 21	runner_reported	DW-1421_C2prime+C1_pushed=c573a86d0(CI_pending) C5_report(confidence=display_only;absent_default_recommended) open=cut_min_length,other_7_field_tags relayed=contest_planner
 2026-11-16T17:05:31Z	Run	merge_back_done	via=contest_planner main=974fc1c1(v1.0.12) feature=efcd0be84 rule=one_feature_merge_at_a_time_until_MAIN_CI_GREEN order=DW-1430,24.3b,OCT-epic23-s2314
 2026-11-16T17:05:31Z	Epic 24	merge_enqueued	DW-1430 head=aea51eb95
+2026-11-16T17:07:02Z	Epic 24	merged	DW-1430 merge=e404c59d3
+2026-11-16T17:07:15Z	Epic 24	merged_note	DW-1430_in;24.3b_rebase_requested
+2026-11-16T17:07:15Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3:cut_floor_64,C1_other_7_tags,C5:decide_keeps_refusal,diagnose_absent(no_UI_line_pin),decide_question_to_post-cut_A/B
+2026-11-16T17:24:01Z	Epic 21	runner_reported	PLANNER_REPORT DW-1421_round3_plan(27ab41403;cut_floor,7_tags,C5_CONFIDENCEREQUIRED;Q1_range_tag,Q2,Q3;veto_i-v;spine_L271) relayed=contest_planner
+2026-11-16T17:24:17Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3=APPROVED(+Q1_confidence-out-of-range;veto_i-v;spine_L271) check=do_refusal_strings_reach_model_prompt(before_merge)
+2026-11-16T17:38:13Z	Epic 21	owner_decision	via=contest_planner DW-1421_verify@c573a86d0=PASS(orders-target-to-review_0/5;total_fallbacks_2) c573a86d0=may_merge_after_24.3b,s2314 r3_time-of-day=report_only
+2026-11-16T18:15:04Z	Epic 21	runner_reported	DW-1421_round3:model-prompt_check=YES_indirect(self-watch:refusal_warning_in_event_log->read_event_log);merge_waits_ruling bridge-guide_gap(LOW) relayed=contest_planner
+2026-11-16T18:15:18Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3: refusal tags can reach the diagnosis model only via read_event_log when OcuTalon watches its own production; same exposure class as before; no A/B (no eval coverage); Planner ruling 2026-11-16. bridge-guide=3_changes_in_round3(text_to_Planner_first) ledger_LOW=self-watch_eval_case
+2026-11-16T18:15:43Z	Run	ci_note	main_CI_974fc1c1e_green(43910902999,43910903047) s2314_ci_rerun=43889525115 24.3b_pushed=600b5f7ca
+2026-11-16T18:15:58Z	Run	owner_decision	via=contest_planner MAIN_CI_GREEN_974fc1c1(ci_att2:DW-987,DW-774_reruns) one-at-a-time_LIFTED queue=24.3b,s2314,DW-1421r2 release_phase2(demo+GH_release)=Planner,no_runners
+2026-11-16T18:17:06Z	Epic 21	public_text_relayed	DW-1421_r3_bridge-guide(a,b,c)@e700be4c0 DW-1437=self-watch_eval_LOW r3_time-of-day_report(legit_cause_likely_refused) relayed=contest_planner
+2026-11-16T18:17:20Z	Epic 21	owner_decision	via=contest_planner DW-1421_r3_guide:(a)ok,(b)edited_verbatim,(c)ok;proceed_PART_READY ledger_LOW=CLOCKTIME_quotes_own_datetime
+2026-11-16T18:30:28Z	Epic 25	stall_recovered	lane_A_25.9: implement_stage(aac925c8e35e46bf6)_finished_03:16Z(0e5e93d46) completion_lost(host_crash?) runner_polled_~15h; unstick_sent(integrate,push,PART_READY) planner_status_answered lane_B_27.1=code_review
+2026-11-16T18:31:05Z	Run	owner_decision	via=contest_planner stale-runner_check=approved(>2h_no_commit_local_or_origin;check_stage_final_result_not_transcript_time) tool=.coordination/stale-runner-check.py first_run=only_laneA_stale(handled) 25.9=refresh_fresh_check_after_integrate
+2026-11-16T18:35:33Z	Epic 24	ci_red	24.3b@600b5f7ca ci=43919911468 job=iris(shards-2)/133484098787 runner=ocutalon-ci-22 class=Test.Mcp.SourceRun:TestNoAnswerHash(reason!=error,10/10_forms) feature_e404c59d3_green;not_ledgered -> lane_D_classifying
+2026-11-16T18:35:57Z	Run	owner_decision	via=contest_planner queue_moves_past_24.3b(s2314,DW-1421r2_first);24.3b_back_when_green+classified leads=ReminderOps_AD-18,Notify_routing,EmailOut_union relayed=lane_D
+2026-11-16T18:36:07Z	Epic 21	ci_green_verified	DW-1421_r2 c573a86d0 runs=43914431337,43914431294 planner_verify=PASS
+2026-11-16T18:36:07Z	Epic 21	merge_enqueued	DW-1421_r2 head=c573a86d0
+2026-11-16T18:58:11Z	Epic 21	merged	DW-1421_r2 merge=dddd24dfc
+2026-11-16T19:25:53Z	Epic 23	ci_green_verified	s2314 38c205712 runs=43889525115(att3;att2=DW-432_ci-17),43889525137
+2026-11-16T19:25:53Z	Epic 23	merge_enqueued	s2314 head=38c205712

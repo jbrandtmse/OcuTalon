@@ -2,8 +2,13 @@
 /// Import refuses a field of the wrong type, a confidence outside 0 to 1 and a field that is not declared here;
 /// %OnValidateObject adds what import does not check: an outcome of Msg.Enum OUTCOME, at least one reason that is
 /// not blank, and a confidence that is present. Decide judges a reply by %JSONImport followed by %ValidateObject.
+/// Each rule of %OnValidateObject has a fixed tag, the second parameter of its error and the name that RefusalText of Decide shows for it when REFUSALRULES lists it (DW-1421).
 Class OcuTalon.Bridge.Msg.DecisionPayload Extends (%RegisteredObject, %JSON.Adaptor)
 {
+
+/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated; a subclass lists these first, then its own. A tag is
+/// lower-case letters, digits and hyphens. Decide shows a tag in a refusal only when the reply class lists it here, and never a value of the reply.
+Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence";
 
 /// One of Msg.Enum OUTCOME.
 Property Outcome As %String(%JSONFIELDNAME = "outcome", MAXLEN = 32);
@@ -20,14 +25,14 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 {
 	Set outcomes = ##class(OcuTalon.Bridge.Msg.Enum).#OUTCOME
 	If '$ListFind($ListFromString(outcomes), ..Outcome) {
-		Quit $$$ERROR($$$GeneralError, "The outcome '"_..Outcome_"' is not one of "_outcomes)
+		Quit $$$ERROR($$$GeneralError, "The outcome '"_..Outcome_"' is not one of "_outcomes, "outcome-unlisted")
 	}
 	Set reasons = 0
 	For i = 1:1:..Reasons.Count() {
 		If $ZStrip(..Reasons.GetAt(i), "*WC") '= "" Set reasons = reasons + 1
 	}
-	If 'reasons Quit $$$ERROR($$$GeneralError, "The reasons hold no reason that is not blank")
-	If ..Confidence = "" Quit $$$ERROR($$$GeneralError, "The confidence is missing")
+	If 'reasons Quit $$$ERROR($$$GeneralError, "The reasons hold no reason that is not blank", "reasons-blank")
+	If ..Confidence = "" Quit $$$ERROR($$$GeneralError, "The confidence is missing", "confidence-missing")
 	Quit $$$OK
 }
 

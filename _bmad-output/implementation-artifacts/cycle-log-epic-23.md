@@ -544,3 +544,9 @@
 2026-11-16T12:12:24Z	Story 23.15	smoke_complete	method=other(A13_real-HTTP_live_cards_32_cases_on_fresh_lane-B(review);wire_tests_mock_SMTP_quit/stall-greeting/stall-data) result=pass iterations=1 defects_caught=2(A13_red;DW-1429) cycle_iteration=2
 2026-11-16T12:12:24Z	Story 23.15	fresh_check	env=recipe(new_lane-B_warm_e23b15fc) tests=10_classes result=pass order=reverse cycle_iteration=2
 2026-11-16T12:12:31Z	Epic 23	integrated	onto=be9ad9f3 conflicts_resolved=none
+2026-11-16T14:24:19Z	Epic 23	resumed	by=orchestrator note=after-cut_items_1-4(prompts/dw-1415-1416-rulings-20261116.md#After-cut_rulings);branch=OCT-epic23-s2314_from_feature_e25f5d59;23.14_and_DW-1378_deferred(Epics_27/28_first)
+2026-11-16T14:24:19Z	Epic 23	model_exposure_check	strings=MESSAGEMAYHAVESENT,MESSAGEUNREACHABLE result=MODEL-FACING path=Tools/EmailTools.cls:SendEmail(answer.message=CommandResult.Message_of_Channel.Email.Out) action=not_landed;DW-1432,DW-1431_to_post-cut_A/B
+2026-11-16T14:24:19Z	Epic 23	dw1429_check	result=pass Channel.Email.SMTP_holds_only_DataBegan;Sender/SMTP_write_no_log/trace/audit;existing_wire_test=Test.Fix.Email:TestSmtpKnowsWhenTheDataBegan(mock_SMTP_none/stall-greeting/stall-data/error) change=none
+2026-11-16T14:24:19Z	Epic 23	ci_rebalance	move=live:production-restart:production->browser planned=production~26.8,browser~30.9 test-ci-config=pass test-ci-changes=pass
+2026-11-16T14:40:58Z	Epic 23	ci_red_classified	run=43885394951 workflow=.github/workflows/ci.yml class=story test=checks:demo-path-gate(browser_group_now_has_three_units) action=fix_test_stub;old_run_not_cancelled(self-hosted_jobs_started)
+2026-11-16T14:47:47Z	Epic 23	ci_retrigger	sha=cc37574f note=ci.yml_started_no_run_for_the_push(lane-a_did);bookkeeping_push_to_retrigger
