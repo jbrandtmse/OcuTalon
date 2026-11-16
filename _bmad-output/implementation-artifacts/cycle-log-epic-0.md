@@ -1058,3 +1058,5 @@
 2026-11-16T13:35:33Z	DW-1421	fresh_check	env=CR_fresh_lane-a@Eval_24+warm_Capture,Payload,ReplyCheck,Decide+test-eval-set_all+QA_mock_A/B_byte-identical;merge_adds_no_relevant_src
 2026-11-16T14:27:07Z	DW-1421	ci_resolved	sha=71e204715 result=success runs=43877321885,43877321910(attempt1)
 2026-11-16T14:27:07Z	DW-1421	part_ready	parts=DW-1421_C0+C1 code_head=71e204715 ci=success records=local note=key-holder_runs_capture_after_1.0.12_RC_eval;C2/C3_from_counts
+2026-11-16T15:08:28Z	DW-1421	ruling	Planner_~18:30Z:C0_results(diagnose_3:evidence_element_over_128_on_orders-target-to-review;decide_2:confidence-missing;C2/C3_never_seen) C2_DROPPED C3_DEFERRED C2prime=cut_evidence_over_128_at_word_boundary_with_ellipsis,count_only;C1_fix=evidence-too-long_fixed_tag;C5=report_only;VERIFY=Planner_reruns_5-run_capture
+2026-11-16T15:08:28Z	DW-1421	stage_spawned	stage=plan(C2prime+C1fix+C5_report) spawn_at=2026-11-16T15:08:28Z model=opus effort=high agent_name=dw-1421-plan-2 cycle_iteration=2 branch=OCT-epic0-dw1421 note=lane-C_throwaways_only(slot_C_is_Epic_28s)
