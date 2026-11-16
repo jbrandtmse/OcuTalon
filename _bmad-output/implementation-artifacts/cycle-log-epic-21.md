@@ -541,3 +541,7 @@
 2026-11-16T09:08:11Z	DW-1378	spec_validated	by=Planner gate=approved(AD-12_verbatim;fallback_confirmed) conditions=pin_done_run_equals_dry-run_after(mutation:succeeds_despite_moved_value);no-after:no_band_no_error(node) cut_item=1.0.12 order=ahead_of_DW-1421
 2026-11-16T09:08:11Z	DW-1378	integrated	feature=merged(conflicts:Test.Msg.Catalog_count->147(DW-1376+DW-1416),Watch.Summary_docs_union) merge=80a3cf02c
 2026-11-16T09:08:11Z	DW-1378	stage_spawned	stage=implement spawn_at=2026-11-16T09:08:11Z model=sonnet effort=high agent_name=dw-1378-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1378
+2026-11-16T10:03:51Z	DW-1376	ci_resolved	sha=5f9b7e3c7 result=success runs=43832095522,43832095431(attempt1)
+2026-11-16T10:03:51Z	DW-1376	part_ready	parts=DW-1376 code_head=5f9b7e3c7 ci=success records=local(on_OCT-epic21-dw1378) note=merge_conflict_Watch_count_147_union
+2026-11-16T10:03:51Z	DW-1378	dev_complete	build_sha=d67e8cda8 files=15 pins=A(undo_recheck_moved_value->TestUndoDefaultMovesAfterDryRun_red),B(no-after_no_band_node) condition=3_layers merge_check=Catalog147,Summary_pass review=27(med2_patched,low2_patched,20_rejected,false5) warm=SettingCause,Payloads,Rollback,Web.Api,Catalog,Summary node=2191 lint,payloads--check=pass cards=33 sign-in-2_part3/5=57 spine_lint=13_low(+1:{after}_in_verbatim_AD-12) extra_file=playwright-projects.test.mjs(32->33)
+2026-11-16T10:03:51Z	DW-1378	stage_spawned	stage=qa spawn_at=2026-11-16T10:03:51Z model=sonnet effort=high agent_name=dw-1378-qa-1 cycle_iteration=1
