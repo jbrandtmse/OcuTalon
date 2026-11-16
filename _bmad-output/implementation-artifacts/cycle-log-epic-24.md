@@ -58,3 +58,6 @@
 2026-11-16T01:52:03Z	Story 24.4a	ci_resolved	sha=9e3eb3f0 result=success runs=43785602645(ci),43785602560(lane-a) flake_reruns=0 B13=green
 2026-11-16T01:56:00Z	Epic 24	integrated_forward	feature=cdd250d0(24.4a_merged) conflicts=none
 2026-11-16T01:56:00Z	Story 24.4b	stage_spawned	stage=plan spawn_at=2026-11-16T01:56:00Z model=opus agent_name=24-4b-show-the-new-fixes-partner-warnings-and-the-closed-card-undo-plan-1 effort=high branch=OCT-epic24 note=carved_from_the_parent_24.4_plan(V2+cross-surface_pins)
+2026-11-16T02:08:53Z	Epic 24	epic_context_compiled	reason=planning_artifact_newer(24.4a_merge) model=opus(by_plan_stage)
+2026-11-16T02:08:53Z	Story 24.4b	story_created	spawn_at=2026-11-16T01:57:00Z model=opus build_status=ready-for-dev warnings=oversized
+2026-11-16T02:08:53Z	Story 24.4b	spec_validated	gate=lead(no_new_text;no_new_veto;V2+V3_ruled) decided_2=pending_undo_raised_before_close_also_drawn_on_closed_card(EXPERIENCE_says_after_the_close;no_close_time_field) contention=lane_B_23.13_incidentContext_and_two_web_scripts_tests(plain_union) implement_after=DW-1412 branch=OCT-epic24
