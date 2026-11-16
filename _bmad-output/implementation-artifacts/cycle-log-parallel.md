@@ -4561,3 +4561,5 @@
 2026-11-16T20:51:56Z	Epic 27	merge_enqueued	27.1 head=d57a6d753 (push waits for DW-1280 feature rerun)
 2026-11-16T21:10:54Z	Run	ci_red	feature d996ffcde ci=43939939727 browser runner=ocutalon-ci-31 live:online-demo_row6 classified=new_flake_DW-1450 rerun; DW-1280_rerun_on_dddd24dfc=GREEN feature_hold_cleared
 2026-11-16T21:11:06Z	Epic 27	merged	27.1 merge=854346fa1
+2026-11-16T21:11:48Z	Run	owner_decision	via=contest_planner no_stacked_merges_on_unexplained_red(28.2_waits_DW-1450_rerun) DW-1450_repeat=report_at_once
+2026-11-16T21:11:48Z	Epic 28	ci_red	28.2@d18c9a55c ci=43943159296 shards-5 runner=ocutalon-ci-27 live:sign-in-3 memory-card_MC3_timeout(read_never_finished) in_28.2_area->lane_C_classifying
