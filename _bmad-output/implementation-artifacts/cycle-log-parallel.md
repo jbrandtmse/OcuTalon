@@ -4529,3 +4529,4 @@
 2026-11-16T18:15:04Z	Epic 21	runner_reported	DW-1421_round3:model-prompt_check=YES_indirect(self-watch:refusal_warning_in_event_log->read_event_log);merge_waits_ruling bridge-guide_gap(LOW) relayed=contest_planner
 2026-11-16T18:15:18Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3: refusal tags can reach the diagnosis model only via read_event_log when OcuTalon watches its own production; same exposure class as before; no A/B (no eval coverage); Planner ruling 2026-11-16. bridge-guide=3_changes_in_round3(text_to_Planner_first) ledger_LOW=self-watch_eval_case
 2026-11-16T18:15:43Z	Run	ci_note	main_CI_974fc1c1e_green(43910902999,43910903047) s2314_ci_rerun=43889525115 24.3b_pushed=600b5f7ca
+2026-11-16T18:15:58Z	Run	owner_decision	via=contest_planner MAIN_CI_GREEN_974fc1c1(ci_att2:DW-987,DW-774_reruns) one-at-a-time_LIFTED queue=24.3b,s2314,DW-1421r2 release_phase2(demo+GH_release)=Planner,no_runners
