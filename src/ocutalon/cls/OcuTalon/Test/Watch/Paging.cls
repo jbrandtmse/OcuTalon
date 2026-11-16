@@ -6,7 +6,8 @@
 ///   - TestPageAtNotice (AC1, AC13): three watching sessions, a first notice, one page row, one page Notification, one escalation ask, one audit entry, and the person in none of them;
 ///   - TestEveryNotice (AC1): the page of a notice with a fix, a fallback notice and a no-fix notice, and the cause the page renders;
 ///   - TestAloneAndNotConfigured: no backup, the backup that is the on-call person, an address only, and no on-call person (a backup alone included);
-///   - TestOnlineDemoRefusesByCode (AC2): onlineDemo 1 with every key set pages nobody, and AckPage and an escalation do nothing;
+///   - TestOnlineDemoRefusesByCode (AC2): onlineDemo 1 with every key set pages nobody (a session's incident and an incident of the instance), and AckPage and an escalation do nothing;
+///   - TestSessionOwnedNeverPages (DW-1396): an incident that one session owns is never paged, and an incident of the instance with the same keys is;
 ///   - TestEscalation (AC3, AC7): the backup is paged once, and an escalation that repeats, follows a restart, an acknowledgement, a close or the backup's own page pages nobody;
 ///   - TestAcknowledge (AC4): the first AckPage of the paged person's session, a second, another session, a bad channel and a bad Ref;
 ///   - TestCloseCancels (AC5): the close cancels the timer of an unacknowledged page, once, and a failed cancel is one warning;
@@ -477,6 +478,48 @@ Method TestOnlineDemoRefusesByCode()
 	Do $$$AssertEquals($Select(##class(OcuTalon.Watch.Paging).PagePayload(incident) = "": "none", 1: "page"), "none", "and the payload shows no page")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do $$$AssertEquals(..Answer(host, ..Ack(page.Ref, sessionU)), "1|handled", "control: the same AckPage is handled when the flag is off")
+	// an incident of the instance (which pages when the flag is off) is not paged on the demo either, so that the flag, not the owner, is what refuses
+	Do ..Setup("demoshared", .a2, .b2, .c2, .shared, .sharedRow)
+	Set other = ..Host()
+	If '$IsObject(other) Quit
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ..Notice(other, shared)
+	Do $$$AssertEquals(..Pages(shared)_"|"_..Sent(other, "page").%Size()_"|"_..Asked(other), "0|0|0", "an incident of the instance is not paged on the demo: no row, no page, no ask")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set again = ..Host()
+	If '$IsObject(again) Quit
+	Do ..Setup("demoshared2", .a3, .b3, .c3, .shared2, .sharedRow2)
+	Do ..Notice(again, shared2)
+	Do $$$AssertEquals(..Pages(shared2)_"|"_..Sent(again, "page").%Size(), "1|1", "control: the same keys page an incident of the instance when the flag is off")
+}
+
+/// DW-1396: with the on-call and backup users set, an incident that one session owns (that user's own Break the feed) is paged by nobody: no page row, no page Notification, no escalation
+/// ask, no audit entry, no page in the payload and no warning, while its notice goes to its session as before. The control: an incident of the instance (a shared, watched production), with the same keys, is paged.
+Method TestSessionOwnedNeverPages()
+{
+	Do ..Setup("owned", .a, .b, .c, .incident, .row)
+	Do ..Setup("shared", .a2, .b2, .c2, .shared, .sharedRow)
+	Set row.OwnerRef = a
+	Do $$$AssertStatusOK(row.%Save(), "the first incident is the session's own")
+	Set user = ..User("u", .sessionU)
+	Set backup = ..User("b", .sessionB)
+	Do ..Keys(user, "zzoncall"_..Number_"@example.test", backup, "zzbackup"_..Number_"@example.test", 5)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	// the control first: the shared incident is paged, so that the keys are known to page
+	Set control = ..Host()
+	If '$IsObject(control) Quit
+	Do ..Notice(control, shared)
+	Do $$$AssertEquals(..Pages(shared)_"|"_..Sent(control, "page").%Size()_"|"_..Asked(control), "1|1|1", "control: an incident of the instance is paged with the same keys: one row, one page, one ask")
+	If '$IsObject(..Page(shared)) Quit
+	// the session's own incident
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Do ..Notice(host, incident)
+	Do $$$AssertEquals(..Pages(incident)_"|"_..Sent(host, "page").%Size()_"|"_..Asked(host)_"|"_##class(OcuTalon.Test.Watch.Lifecycle).SentCount(host), "0|0|0|1", "a session's own incident: no row, no page, no ask, and the incident's one Notification")
+	Do $$$AssertEquals(..Audited(mark, "page").%Size(), 1, "no audit entry for it: the only page entry is the control's")
+	Do $$$AssertEquals($Select(##class(OcuTalon.Watch.Paging).PagePayload(incident) = "": "none", 1: "page"), "none", "and no page in its payload")
+	Do $$$AssertEquals(..Payloads(a).%Size(), 1, "and its session gets the one incident event of the notice")
+	Do $$$AssertEquals(..Warned(), 0, "and nothing is warned")
 }
 
 /// AC3 and AC7: the escalation pages the backup once, and asks for no timer; repeating it, sending it from a new instance (a restart), after an acknowledgement, after a close, for the

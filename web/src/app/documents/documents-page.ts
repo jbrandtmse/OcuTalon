@@ -31,7 +31,8 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
  * once, one after the other, and has a row of the page's own: "Indexing\u2026" while the add is out, the server's row once the server lists the ref,
  * and "Couldn't read it: {reason}" when the route refused the file (the reason is the route's; a body or an answer it does not explain reads as
  * `failed`; a 501 as `not_built`). A refused file is not stored, so its row has no Remove and goes at the next reload. The page speaks a refused
- * row of the user's own add once, through the Announcer.
+ * row of the user's own add once, through the Announcer. A viewer (Story 25.4) has no add, so the drop target is inactive for a viewer: no outline, no
+ * handler, and the browser's own handling of a dropped file.
  *
  * With a `doc` query parameter (#/documents?doc=<ref>, which an answer's "Open document" sets) the page also shows that document's text above
  * the list (GET /v1/documents/:ref): a region named by the document's name, then the text exactly as stored, as plain text with its line breaks
@@ -58,6 +59,7 @@ import { SAMPLE_RUNBOOK_TEXTS } from './sample-runbook-view';
       class="documents"
       tabindex="-1"
       appFileDrop
+      [active]="!viewer()"
       (files)="addFiles($event)"
     >
       <h1 id="documents-heading" class="heading">{{ texts.heading }}</h1>
