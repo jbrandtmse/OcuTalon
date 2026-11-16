@@ -13,12 +13,13 @@
 ///   - TestFadeDays: the setting memory.fadeDays is read through Data.Setting, and an absent, empty, non-numeric, zero, negative or fractional value is 90 days;
 ///   - TestSearchFadedRanksBelow: with stored memories, the exact match that was never used and was saved 100 days ago comes back second after a memory that was last used a day
 ///     ago, with the period at 90 days; with the period at 3650 days it is first (the setting is read by Search); both are returned;
-///   - TestSearchOnlyFadedMatchReturned: a memory saved 400 days ago and never used is returned when nothing else matches; a forgotten one is never returned again;
+///   - TestSearchOnlyFadedMatchReturned: with the period at 90 days, a memory saved 400 days ago and never used is returned when nothing else matches; a forgotten one (a Ref new to the
+///     run, so that a run that stopped before its clean-up leaves nothing in the way of the next) is never returned again;
 ///   - TestSearchPinnedNeverFades: the pinned memory that was never used and was saved 100 days ago stays first at 90 days;
-///   - TestEquivalenceHardCoded: over a fixed set of five memories (mixed LastUsedAt, one pinned, all saved inside the period), Search returns the hard-coded refs in the hard-coded
+///   - TestEquivalenceHardCoded: over a fixed set of five memories (mixed LastUsedAt, one pinned, all saved inside the period, which the test sets to 90 days), Search returns the hard-coded refs in the hard-coded
 ///     order, the same as the fusion with no fadeBefore;
 ///   - TestEquivalenceEvalFixtures: over the memories that the eval's memory cases seed (the folder eval/ as mounted in a throwaway or CI stack: the facts that a session's
-///     forgotten member holds and the turns of the memory cases), stored with a mix of empty and recent LastUsedAt, a pin and SavedAt inside the period, Search returns for each question of
+///     forgotten member holds and the turns of the memory cases), stored with a mix of empty and recent LastUsedAt, a pin and SavedAt inside the period (set to 90 days), Search returns for each question of
 ///     those cases exactly the refs, order and texts that the fusion with no fadeBefore returns over the same two lists.
 Class OcuTalon.Test.Memory.Fade Extends %UnitTest.TestCase
 {
@@ -236,18 +237,20 @@ Method TestSearchFadedRanksBelow()
 Method TestSearchOnlyFadedMatchReturned()
 {
 	If '..OnImage() Quit
+	Do ..SetDays(90)
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzfadeforget")
+	Set forgotten = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmfa1", ..#EXACT, ..Ago(400)), "a memory saved 400 days ago and never used is stored")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(..#A, "Lee", 5, .rows), "a search answers")
 	Do $$$AssertEquals(..Refs(rows), "zzmfa1", "the faded memory is the only match and is returned")
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, "zzmfa9", ..#EXACT, ..Ago(400)), "the same for a session that has a row")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, forgotten, ..#EXACT, ..Ago(400)), "the same for a session that has a row")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(session, "Lee", 5, .rows), "it is found")
-	Do $$$AssertEquals(..Refs(rows), "zzmfa9", "when it is faded")
+	Do $$$AssertEquals(..Refs(rows), forgotten, "when it is faded")
 	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Memory.Ops", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of MemoryOps is made")
 	Set command = ##class(OcuTalon.Msg.Command.ForgetMemory).%New()
 	Set command.SessionRef = session
-	Set command.MemoryRef = "zzmfa9"
+	Set command.MemoryRef = forgotten
 	Do $$$AssertStatusOK(host.OnForget(command, .response), "the owner forgets it")
 	Do $$$AssertEquals(response.Outcome, "forgotten", "and it is forgotten")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(session, "Lee", 5, .rows), "a search answers")
@@ -295,6 +298,7 @@ Method StoreMixed(owner As %String, prefix As %String, texts As %List) As %Integ
 Method TestEquivalenceHardCoded()
 {
 	If '..OnImage() Quit
+	Do ..SetDays(90)
 	Set texts = $ListBuild("the Results partner's contact is Lee", "the warehouse closes at six on Fridays", "Morgan is the name of my manager", "the quarterly board meeting agenda covers budgets and hiring", "my neighbour's name is Sam")
 	Do ..StoreMixed(..#A, "zzmfa", texts)
 	Set expected = $ListBuild("who is the Results partner's contact?|zzmfa1,zzmfa3,zzmfa5,zzmfa2,zzmfa4", "when does the warehouse close?|zzmfa2,zzmfa1,zzmfa4,zzmfa3,zzmfa5")
@@ -312,6 +316,7 @@ Method TestEquivalenceHardCoded()
 Method TestEquivalenceEvalFixtures()
 {
 	If '..OnImage() Quit
+	Do ..SetDays(90)
 	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
 	Do $$$AssertTrue(##class(%File).DirectoryExists(folder), "the repository's eval/ is mounted at "_folder_" (a throwaway or CI stack)")
 	If '##class(%File).DirectoryExists(folder) Quit

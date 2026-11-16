@@ -29,7 +29,8 @@ Parameter SENDSPHOTOS = 1;
 /// The most characters of a caption memory.
 Parameter CAPTIONMAX = 2000;
 
-/// The most memories one reply marks as used.
+/// The most memories one reply marks as used: OcuTalon.Tools.MemoryTools SEARCHLIMIT, the most that a reply's HostData.memories holds, so that every memory a
+/// reply shows is marked; the two change together (Test.Memory.LastUsed TestAcceptedUsed holds them equal).
 Parameter MAXUSED = 5;
 
 /// The business service that takes the Used message.

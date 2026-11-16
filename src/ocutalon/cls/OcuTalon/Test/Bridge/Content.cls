@@ -20,6 +20,8 @@
 ///     and, on OcuTalon's image, for a turn whose runner put the member memories (the scenario photo-recall), exactly that member and not the probe's;
 ///   - TestAcceptedFailureKeepsTheReply: an error status and an exception from Accepted leave the reply unchanged (text, no fallback, the same Decision row), add no member (the probe
 ///     puts one in hostData before it fails) and log one warning of Decide's Accept;
+///   - TestAcceptedKeepsTheJobSession (Story 28.2; AD-26): an Accepted that leaves the job's session id and current header id cleared, as a business service run in Decide's job does
+///     (Agent.Content's Used through MemoryIn), does not take them from Decide: the warning that Decide's Accept then logs is in the turn's trace session, at a header of Decide;
 ///   - TestBaseSendsNothing: the base class gives no content and no member, and with the base named in the setting an untrusted turn is sent as text only and its HostData is unchanged
 ///     (the bridge alone, FR-5);
 ///   - TestMerge: HostData.Merge returns the JSON with each member set, replaces a member of the same name, keeps the others, takes a non-object or empty json as an empty object, keeps types,
@@ -345,6 +347,26 @@ Method TestAcceptedFailureKeepsTheReply()
 		Set row = $ClassMethod(..#FIXTURE, "DecisionOf", ref, "turn")
 		Do $$$AssertTrue($IsObject(row) && (row.Fallback = 0) && (row.Ref = answer.DecisionRef), mode_": the Decision row stands")
 	}
+}
+
+/// The job's session id and current header id are Decide's again after Accepted, whatever Accepted did to them.
+Method TestAcceptedKeepsTheJobSession()
+{
+	If '..Prepare() Quit
+	Do ..Use(..#PROBE)
+	Set request = ..NewTurn("untrusted", "Describe the photo. [[mock:photo-caption]]", .ref)
+	Set ^OcuTalonTest("ContentProbe", "mode") = "ids"
+	Set mark = $ClassMethod(..#FIXTURE, "EventMark")
+	Set sc = ..Ask(request, .answer, .entries)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn")
+	If '..Answered(answer) Quit
+	Do $$$AssertEquals(answer.Text_"|"_answer.Fallback, ..#CAPTION_"|0", "the reply is unchanged and not a fallback")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId, MessageId FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = 'OcuTalon.Bridge.Process.Decide' AND SourceMethod = 'Accept' AND Text [ ?", mark, answer.DecisionRef)
+	Do $$$AssertTrue(rs.%Next(), "Decide's Accept logs one warning that names the decision")
+	Set sessionId = rs.%Get("SessionId")
+	Set header = ##class(Ens.MessageHeader).%OpenId(rs.%Get("MessageId"))
+	Do $$$AssertTrue(sessionId '= "", "the warning is in a trace session, not in none: '"_sessionId_"'")
+	Do $$$AssertTrue($IsObject(header) && (header.SessionId = sessionId) && ((header.TargetConfigName = "Decide") || (header.SourceConfigName = "Decide")), "at a header of Decide in that session, as before Accepted ran")
 }
 
 /// The bridge alone: the base gives no content and no member, and a turn is then sent as text only.

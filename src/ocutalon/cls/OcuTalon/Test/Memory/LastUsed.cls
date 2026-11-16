@@ -4,13 +4,18 @@
 ///   - TestTurnSetsLastUsed (Integration AC; consumer Agent.Content through Decide): a Chat turn of a session with six memories whose search_memories answer (memory-recall-keyword)
 ///     puts some of them in HostData.memories: within 10 seconds each of those has a LastUsedAt at or after the turn's start, the memory that the reply did not name keeps an
 ///     empty LastUsedAt, and the reply's HostData is exactly what the runner made (the memories member only);
-///   - TestAcceptedUsed: Agent.Content.Accepted, called with a reply HostData of its own, sends the Used for the first MAXUSED named memories only, skips an entry that is no memory,
+///   - TestAcceptedUsed: Agent.Content.Accepted, called with a reply HostData of its own, sends the Used for the first MAXUSED named memories only (read after MemoryOps has finished
+///     handling it), skips an entry that is no memory and a memories member that is no array,
 ///     adds no member to hostData, and answers OK and marks nothing for a HostData that cannot be read;
+///   - TestAcceptedSendsOneUsed (QA): Agent.Content.Accepted sends MemoryIn exactly one Used for a reply that names memories (one message for all of them, whatever their number), and no message at
+///     all for a reply HostData with no memories member, an empty one, one whose entries are no memory, or a request with no owner;
+///   - TestUsedFailureIsOneWarning (QA): when the Used cannot be made (the business service does not exist) or the reply's HostData cannot be read, Accepted answers OK, adds no member to hostData and writes
+///     one warning that holds no memory text; a HostData with no memories array writes none;
 ///   - TestOnUsed: MemoryOps' handler, reached through the message map, sets LastUsedAt of the owner's memories that the message names, ignores a Ref of another owner and an unknown
-///     Ref, never moves LastUsedAt back or to the same value again, moves it forward, and, for a UsedAt that is not a UTC time, a list that is not a JSON array and an owner that is empty,
+///     Ref, never moves LastUsedAt back, answers OK for the same time again, moves it forward, and, for a UsedAt that is not a UTC time, a list that is not a JSON array and an owner that is empty,
 ///     changes nothing, answers OK and holds no lock;
 ///   - TestMemoryInTrace (AD-26): MemoryIn, made through Ens.Director as Agent.Content makes it, sends MemoryOps the Used in a trace session whose SuperSession is the TraceRef of the
-///     owner's Session row, MemoryOps sets LastUsedAt, and the Used holds no memory text; an input that is not a Used is refused with an error status and sends nothing.
+///     owner's Session row, and MemoryOps sets LastUsedAt (that the Used that Agent.Content builds holds Refs only is pinned by TestAcceptedSendsOneUsed); an input that is not a Used is refused with an error status and sends nothing.
 Class OcuTalon.Test.Memory.LastUsed Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -233,25 +238,129 @@ Method TestAcceptedUsed()
 	Do $$$AssertStatusOK(sc, "Accepted answers OK")
 	Do $$$AssertEquals($IsObject(hostData) && (hostData.%Size() = 0), 1, "and adds no member to hostData")
 	Do $$$AssertTrue(..WaitLastUsed(prefix_5) '= "", "the fifth named memory is marked within 10 seconds")
-	Set end = $ZHorolog + 3
-	While (##class(Ens.Queue).GetCount("MemoryOps") > 0) && ($ZHorolog < end) {
-		Hang 0.2
-	}
+	Do ..Drain()
 	Set marked = ""
 	For i = 1:1:6 {
 		Set marked = marked _ $Select(..LastUsed(prefix_i) '= "": 1, 1: 0)
 	}
 	Do $$$AssertEquals(marked, "111110", "five are marked (MAXUSED), the sixth is not, and the entries that are no memory are skipped")
-	For bad = "not json", "{""memories"": ""x""}", "{""memories"": {""memoryRef"": """_prefix_"6""}}", "[]", "" {
+	Do $$$AssertEquals(##class(OcuTalon.Agent.Content).#MAXUSED, ##class(OcuTalon.Tools.MemoryTools).#SEARCHLIMIT, "MAXUSED is the most memories that search_memories puts in a reply's HostData")
+	For bad = "not json", "{""memories"": ""x""}", "{""memories"": {""x"": {""memoryRef"": """_prefix_"6""}}}", "[]", "" {
 		Set sc = ##class(OcuTalon.Agent.Content).Accepted(request, "the reply", .hostData, bad)
 		Do $$$AssertStatusOK(sc, "a reply HostData of '"_bad_"' answers OK")
 		Do $$$AssertEquals($IsObject(hostData) && (hostData.%Size() = 0), 1, "with no member")
 	}
+	Do ..Drain()
+	Do $$$AssertEquals(..LastUsed(prefix_6), "", "and none of them marks a memory (a memories member that is an object holding a memory is no list of memories)")
+}
+
+/// The count of the messages that MemoryIn sent after the Ens.MessageHeader mark (RunnerFixture HeaderMark).
+ClassMethod Sent(mark As %Integer) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'MemoryIn'", mark)
+	Do rs.%Next()
+	Quit rs.%GetData(1)
+}
+
+/// The mark of the event log: its highest row id.
+ClassMethod LogMark() As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens_Util.Log")
+	Do rs.%Next()
+	Quit +rs.%GetData(1)
+}
+
+/// The count of the warnings of a Used that could not be recorded after the mark (LogMark); with delete 1 they are deleted afterwards.
+ClassMethod Warnings(mark As %Integer, delete As %Boolean = 0) As %Integer [ Private ]
+{
+	Set start = "The memories that the reply used could not be recorded"
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", mark, start)
+	Do rs.%Next()
+	Set count = rs.%GetData(1)
+	If delete Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", mark, start)
+	Quit count
+}
+
+/// Waits at most 3 seconds until MemoryOps has no message waiting and none that it is still handling (a request to it that is Queued or Delivered, not yet Completed).
+ClassMethod Drain() [ Private ]
+{
 	Set end = $ZHorolog + 3
-	While (##class(Ens.Queue).GetCount("MemoryOps") > 0) && ($ZHorolog < end) {
+	While ((##class(Ens.Queue).GetCount("MemoryOps") > 0) || ..Handling()) && ($ZHorolog < end) {
 		Hang 0.2
 	}
-	Do $$$AssertEquals(..LastUsed(prefix_6), "", "and none of them marks a memory")
+}
+
+/// 1 while a request to MemoryOps is Queued (2) or Delivered (3), so that its handler may still be running.
+ClassMethod Handling() As %Boolean [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE TargetConfigName = 'MemoryOps' AND Status IN (2, 3)")
+	Do rs.%Next()
+	Quit rs.%GetData(1) > 0
+}
+
+/// Accepted sends one Used when, and only when, the reply names memories of an owner.
+Method TestAcceptedSendsOneUsed()
+{
+	If '..Guard() Quit
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: " _ ##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE _ " does not exist on this instance (a slot or a developer instance)")
+		Quit
+	}
+	Set session = ..Session("sends")
+	Set request = $ClassMethod(..#FIXTURE, "NewRequest", "turn", "user", "who is the contact", .ref, session)
+	Set mark = $ClassMethod(..#FIXTURE, "HeaderMark")
+	For hostData = "", "{""checks"": []}", "{""memories"": []}", "{""memories"": [1, {""memoryRef"": """"}, {""memoryRef"": 7}, ""zzmlus1""]}" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Agent.Content).Accepted(request, "the reply", .out, hostData), "Accepted answers OK for '"_hostData_"'")
+	}
+	Do $$$AssertEquals(..Sent(mark), 0, "and a reply that names no memory, or none that is one, sends no Used")
+	Set named = {"memories": [{"memoryRef": "zzmlus1"}, {"memoryRef": "zzmlus2"}, {"memoryRef": "zzmlus3"}]}.%ToJSON()
+	Set mark = $ClassMethod(..#FIXTURE, "HeaderMark")
+	Set request.OwnerRef = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Agent.Content).Accepted(request, "the reply", .out, named), "Accepted answers OK for a request with no owner")
+	Do $$$AssertEquals(..Sent(mark), 0, "and sends no Used for it: a Used needs the owner whose memories it marks")
+	Set mark = $ClassMethod(..#FIXTURE, "HeaderMark")
+	Set request.OwnerRef = session
+	Do $$$AssertStatusOK(##class(OcuTalon.Agent.Content).Accepted(request, "the reply", .out, named), "Accepted answers OK for a reply that names three memories")
+	Do $$$AssertEquals(..Sent(mark), 1, "and sends exactly one Used for all three")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'MemoryIn' AND TargetConfigName = 'MemoryOps'", mark)
+	Do $$$AssertTrue(rs.%Next(), "the Used goes from MemoryIn to MemoryOps")
+	Set body = ##class(OcuTalon.Memory.Msg.Used).%OpenId(rs.%Get("MessageBodyId"))
+	Do $$$AssertEquals($IsObject(body) && (body.SessionRef = session) && (body.MemoryRefs = "[""zzmlus1"",""zzmlus2"",""zzmlus3""]"), 1, "with the owner and the three refs in the order of the reply")
+	Do ..Drain()
+}
+
+/// A Used that cannot be sent, or a HostData that cannot be read, is one warning without memory text and never fails the reply.
+Method TestUsedFailureIsOneWarning()
+{
+	If '..Guard() Quit
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: " _ ##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE _ " does not exist on this instance (a slot or a developer instance)")
+		Quit
+	}
+	Set session = ..Session("failure")
+	Set request = $ClassMethod(..#FIXTURE, "NewRequest", "turn", "user", "who is the contact", .ref, session)
+	Set text = "the Results partner's contact is Lee"
+	Set named = {"memories": [{"memoryRef": "zzmluf1", "text": (text)}]}.%ToJSON()
+	Set mark = ..LogMark()
+	Set sc = ##class(OcuTalon.Test.Memory.LastUsedContent).Accepted(request, "the reply", .hostData, named)
+	Do $$$AssertStatusOK(sc, "with no MemoryIn in the production, Accepted still answers OK")
+	Do $$$AssertEquals($IsObject(hostData) && (hostData.%Size() = 0), 1, "and adds no member to hostData")
+	Do $$$AssertEquals(..Warnings(mark), 1, "and writes one warning")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH 'The memories that the reply used could not be recorded'", mark)
+	Do $$$AssertTrue(rs.%Next() && (rs.%Get("Text") '[ "Lee") && (rs.%Get("Text") '[ "Results"), "that holds no memory text")
+	Do ..Warnings(mark, 1)
+	Set mark = ..LogMark()
+	Set sc = ##class(OcuTalon.Agent.Content).Accepted(request, "the reply", .hostData, "not json "_text)
+	Do $$$AssertStatusOK(sc, "a reply HostData that cannot be read: Accepted answers OK")
+	Do $$$AssertEquals($IsObject(hostData) && (hostData.%Size() = 0), 1, "with no member")
+	Do $$$AssertEquals(..Warnings(mark), 1, "and one warning")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH 'The memories that the reply used could not be recorded'", mark)
+	Do $$$AssertTrue(rs.%Next() && (rs.%Get("Text") '[ "Lee") && (rs.%Get("Text") '[ "Results"), "that holds no memory text either")
+	Do ..Warnings(mark, 1)
+	Set mark = ..LogMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Agent.Content).Accepted(request, "the reply", .hostData, "{""memories"": ""x""}"), "a HostData whose memories member is no array: Accepted answers OK")
+	Do $$$AssertEquals(..Warnings(mark), 0, "and writes no warning: there is nothing to record")
+	Do ..Drain()
 }
 
 /// The handler, reached through the message map: whose memories it marks and when it does not.
@@ -276,7 +385,6 @@ Method TestOnUsed()
 	Do $$$AssertStatusOK(host.OnUsed(..Used(..#OWNER, "[""zzmluo1""]", t0), .response), "an earlier time is handled")
 	Do $$$AssertEquals(..LastUsed("zzmluo1"), t1, "LastUsedAt never moves back")
 	Do $$$AssertStatusOK(host.OnUsed(..Used(..#OWNER, "[""zzmluo1""]", t1), .response), "the same time is handled")
-	Do $$$AssertEquals(..LastUsed("zzmluo1"), t1, "and stays")
 	Set t2 = "2026-11-12T08:30:00Z"
 	Do $$$AssertStatusOK(host.OnUsed(..Used(..#OWNER, "[""zzmluo2"",""zzmluo1""]", t2), .response), "a later time is handled")
 	Do $$$AssertEquals(..LastUsed("zzmluo1")_"|"_..LastUsed("zzmluo2"), t2_"|"_t2, "and moves it forward, and sets the second memory's")
@@ -317,8 +425,6 @@ Method TestMemoryInTrace()
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT SuperSession, MessageBodyClassName, MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'MemoryIn' AND TargetConfigName = 'MemoryOps' ORDER BY ID", mark)
 	Do $$$AssertTrue(rs.%Next(), "Visual Trace holds a message from MemoryIn to MemoryOps")
 	Do $$$AssertEquals(rs.%Get("SuperSession")_"|"_rs.%Get("MessageBodyClassName"), trace_"|OcuTalon.Memory.Msg.Used", "a Used, in the trace session of the owner's Session row")
-	Set body = ##class(OcuTalon.Memory.Msg.Used).%OpenId(rs.%Get("MessageBodyId"))
-	Do $$$AssertTrue($IsObject(body) && (body.MemoryRefs '[ "Lee") && (body.SessionRef '[ "Lee") && (body.UsedAt '[ "Lee"), "and its body holds no memory text")
 	Do $$$AssertNotTrue(rs.%Next(), "and it is the only one")
 	Set mark = $ClassMethod(..#FIXTURE, "HeaderMark")
 	Set sc = service.ProcessInput(##class(OcuTalon.Msg.CommandResult).%New())

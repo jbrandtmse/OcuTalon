@@ -1512,13 +1512,35 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 /// Tells the ContentClass setting of the Decide item (Ext.Content, AD-31) of the accepted turn reply, once, after Conclude saved the Decision row, with the reply's
 /// HostData JSON as replyHostData, and adds the members that its Accepted gives to the HostData of the response (HostData.Merge). The class is read through Ext.Accessor each time, so the
 /// runner and Decide agree. A setting that is not usable, an error status and an exception are one warning that names the DecisionRef and nothing is merged:
-/// the reply is never failed by it.
+/// the reply is never failed by it. Accepted runs in this job and may run a business service here (Agent.Content sends its Used through MemoryIn), whose
+/// ProcessInput replaces the job's session id ($$$JobSessionId) and current header id ($$$JobCurrentHeaderId); both are put back right after the call, as
+/// Approval.StartHold does, so that this decision's later event-log rows keep its session (AD-26).
 ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, text As %String, response As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
 	Set decisionRef = response.DecisionRef
+	Set hadSession = $Data($$$JobSessionId) # 2
+	Set session = $Get($$$JobSessionId)
+	Set hadHeader = $Data($$$JobCurrentHeaderId) # 2
+	Set header = $Get($$$JobCurrentHeaderId)
+	Set thrown = ""
 	Try {
 		Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ContentClass", "", "Decide", .sc)
-		If $$$ISOK(sc) Set sc = $ClassMethod(class, "Accepted", request, text, .hostData, response.HostData)
+		Try {
+			If $$$ISOK(sc) Set sc = $ClassMethod(class, "Accepted", request, text, .hostData, response.HostData)
+		} Catch exception {
+			Set thrown = exception
+		}
+		If hadSession {
+			Set $$$JobSessionId = session
+		} Else {
+			Kill $$$JobSessionId
+		}
+		If hadHeader {
+			Set $$$JobCurrentHeaderId = header
+		} Else {
+			Kill $$$JobCurrentHeaderId
+		}
+		If $IsObject(thrown) Throw thrown
 		If $$$ISERR(sc) {
 			$$$LOGWARNING("The ContentClass of the decision "_decisionRef_" did not accept the reply, so the reply goes out as it is: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit
