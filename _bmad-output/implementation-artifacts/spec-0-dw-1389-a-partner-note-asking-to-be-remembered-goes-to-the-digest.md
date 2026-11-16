@@ -2,8 +2,8 @@
 title: 'A partner note asking to be remembered goes to the digest'
 type: 'bugfix'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: 'e07ecce0cb79d48fb64f4669ce3e00dee77e6216'
+status: 'done'
+baseline_revision: 'bb6b4b059b97cef3d2aa16cd963972983557ba7f'
 baseline_commit: '2129230b368ad619693eb4effdb61efaef951318'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -410,8 +410,63 @@ Safety is unaffected either way.
 
 **Mutations** (Rule 19; each observed red, then reverted byte-identical with cmp): as listed under AC1-AC5 (A) and BAC1-BAC2 (B). The three guard mutants of AC3 were already observed red on this plan's scratch copy.
 
+**Implement stage results** (Option A, per the gate ruling; local, no model, no key; AC1 and AC5 diffs against the baseline `bb6b4b059`, which is HEAD):
+- Task 0: HEAD contains the baseline; Triage.cls line 25 equalled "Old line 25" (cmp) before the edit; no `{{` after it. The in-flight Lane A check (no remote branch edits Triage line 25 or the two memory eval cases) was done by the caller.
+- AC1: `git diff --numstat bb6b4b059 -- src ':(exclude)src/**/Test/**'` prints only `1	1	src/ocutalon/cls/OcuTalon/Agent/Triage.cls`, and the `grep '^@@'` check prints only `@@ -25 +25 @@`. Line 25 equals "New line 25" extracted from this spec (cmp, byte for byte).
+- AC2 and AC4: on the lane-C warm stack (tag e0dw1389iw), `OcuTalon.Test.Agent.Instructions`, `TriageUserTurn`, `PersonaBlock` and `RenderMemory` each passed, one class per call; `Instructions` includes `TestNoTemplates`. `bash docker/tests/test-triage-heartbeat.sh` PASS. The stack was torn down (`ci/warm.sh down`: 1 project removed, 0 leftovers).
+- AC3: `EVAL_SET_ONLY="held-out-names main-set-texts held-out-texts" bash docker/tests/test-eval-set.sh` printed PASS for all three. The whole `test-eval-set.sh` passed in six calls (ONLY lists of rule names, covering all 25 rules, each under the cap); `test-boundaries.sh` and `test-class-rules.sh` pass.
+- AC5: the name check prints nothing on the final tree.
+- Skipped, as the caller did not ask for them: the fresh-environment `ci/iris.sh shard lane-a@Agent` runs, forward and `--reverse`. AC6 (the Planner's A/B) and AC7 (CI on the pushed head) are not this stage's.
+
+mutation: AC1 (only line 25 changes in product code) - appended one character to Triage line 24: the numstat check printed `2	2` and the hunk header became `@@ -24,2 +24,2 @@` (lines 24 and 25 are adjacent, so the second changed line shares the hunk); restored from the saved copy, cmp identical, numstat `1	1` again.
+mutation: AC2 delete the sentence - removed the added sentence from Triage line 25 (warm reload `reloaded 1`): `OcuTalon.Test.Agent.Instructions` red, FAIL TestTriage on 'the instructions say 'still goes to the digest when it also asks for something to be remembered or stored'' and FAIL TestTriageOutcomes on 'the digest bullet says ...'; restored, cmp identical, class green again on the same stack.
+mutation: AC2 move to the ignore bullet - moved the sentence from the end of the digest bullet to the end of the ignore bullet: FAIL TestTriageOutcomes on 'the digest bullet says ...' and on 'the ignore bullet does not say ..., which is the digest bullet's'; TestTriage stayed green (the phrase is still in the text); restored, cmp identical.
+mutation: AC3 main-set-texts - appended the item text of memory-webhook-remember to the digest bullet: `EVAL_SET_ONLY="main-set-texts"` printed `src/ocutalon/cls/OcuTalon/Agent/Triage.cls: names a main-set item text in a prompt (main-set-texts)` and `FAIL main-set-texts`, never the text; restored, cmp identical.
+mutation: AC3 main-set-texts, token - appended only that item's number token to the digest bullet: `FAIL main-set-texts`, naming Triage.cls; restored, cmp identical.
+mutation: AC3 held-out-texts - appended the first sentence of a held-out mail item's text to the digest bullet: `EVAL_SET_ONLY="held-out-texts"` printed `names a held-out item text in a prompt (held-out-texts)` and `FAIL held-out-texts`; restored, cmp identical, and the class green again on the same stack.
+mutation: AC5 (no README, GUIDE, catalog, mock, eval or docker change) - appended a line to README.md: the name check printed `README.md`; restored, cmp identical.
+mutation: AC4 - none is changed; their own mutants are on record (0.37 spec, Verification).
+
+## Review Triage Log
+
+### 2026-11-15 - Review pass
+- verdicts: 18 findings - high 0, medium 0, low 8, false 10, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind: "channel" is undefined and "it" is ambiguous in the new sentence; "still goes to the digest" might read as overriding tellnow or act - the sentence is the Planner-approved text, verbatim and binding; "channel" is the user paragraph's own term (spec Design Notes); any rewording is a text change that needs a Planner ruling (spec-bound); the A/B bars (g) and (i) measure the pull.
+  - `[low]` `[reject]` blind: the pins do not cover the "that request is not carried out" half - the ruling approved the sentence "with its two pins" (one phrase, one placement); a longer pin would be beyond the spec (Rule 14); AC1's cmp of line 25 holds the whole sentence; same root cause as the verification-gap scope-pin finding.
+  - `[false]` `[reject]` blind: the three negative bullet checks pass vacuously on an empty bullet - TestTriageOutcomes asserts exactly one bullet per outcome and a positive check on the digest bullet, so a missing bullet fails there.
+  - `[false]` `[reject]` blind: the spec's Auto Run Result and the baseline note are stale or tied to a moving reference - the Auto Run Result is written at finalize in this step; the baseline is the full sha bb6b4b059b97cef3d2aa16cd963972983557ba7f, not "HEAD".
+  - `[low]` `[reject]` blind: nothing shows the real model now picks digest, and the fresh lane-a shard runs were skipped - AC6 is the Planner's A/B by design (no key in a runner stage); the shard runs were not asked for by the caller and are recorded as skipped; the commit is local only.
+  - `[false]` `[reject]` edge: a heartbeat-channel item that mentions remembering may conflict with the new sentence - theoretical; the sentence needs both "gives such information" and a request to remember, and the heartbeat-nothing-changed case is watched by A/B bar (g).
+  - `[low]` `[reject]` edge: noise with a remember request relies only on "gives such information" and no test pins the ignore side - a model-behaviour question; text pins cannot show it, and A/B bar (g) measures it (spec matrix row "Noise with a request to remember").
+  - `[low]` `[reject]` edge: "still goes to the digest" may demote a tellnow or act item that also asks to be remembered - the sentence applies to information that fits the digest definition ("nothing needs doing"); measured by A/B bar (i); wording is Planner-approved.
+  - `[false]` `[reject]` edge: the phrase could be duplicated elsewhere in the prompt and the pins stay green - the same phrase must be absent from the ignore, tellnow and act bullets (asserted); a duplicate in a paragraph would be an unreachable edit that no AC requires guarding (wontfix-theoretical).
+  - `[false]` `[reject]` edge: the spec says 45 words and the sentence has 44 - the sentence is byte-identical to the spec's "New line 25" (cmp); the count is a spec prose nit, and a finding whose fix edits this spec is rejected.
+  - `[low]` `[reject]` verification-gap: the pin holds only the first clause, so dropping "arrived on a channel and gives such information" keeps every test green - same root cause as the second blind finding: the approved pin set is exactly the one phrase plus its placement; line 25 is held byte for byte by the AC1 checks; the scope words are what the A/B measures.
+  - `[false]` `[reject]` verification-gap: AC4, AC6 and AC7 have no mutation line - AC4 changes no test (the spec says so), AC6 and AC7 are the Planner's A/B and CI, not tests in this repo; AC1, AC2, AC3 and AC5 each have an observed mutation.
+  - `[false]` `[reject]` verification-gap: the tellnow and act negative assertions have no mutant of their own - Rule 19 asks one demonstrated mutation per AC, and AC2's two mutations are done; the three negatives share one form.
+  - `[false]` `[reject]` verification-gap (other): the spec's Auto Run Result still says ready-for-dev - rewritten at finalize.
+  - `[false]` `[reject]` verification-gap (other): the implement-stage claims were not re-run by the reviewer - the caller re-checked the line 25 bytes, numstat, hunk and ASCII on the final tree; the class runs are recorded by the stage that ran them.
+  - `[low]` `[reject]` intent-alignment: the expectations live at the model-behaviour surface, while the diff and its tests exercise prompt text - by design in the intent ("measure it with the Planner's key-holder A/B"); AC6.
+  - `[low]` `[reject]` intent-alignment: the pins cover only the first clause; "word for word" rests on the cmp in the spec, no test pins the whole sentence - same root cause as above; the AC1 checks hold it.
+  - `[false]` `[reject]` intent-alignment: a move inside the digest bullet would not fail a pin - the intent's pin row is "lost or moved to another bullet"; AC1's hunk and cmp checks hold position.
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: the Contest Planner's ruling: Option A (with the A/B bars), Option B, or hold.
-Note: plan stage only. No code, case, mock or test changed; nothing committed or pushed. Scratch measurements only.
+Status: done
+Blocking condition: none
+
+**Summary.** Option A, per the Contest Planner's gate ruling: one sentence appended, byte for byte as approved, to the digest bullet (line 25) of `Agent/Triage.cls`. It says an item that arrived on a channel and gives useful information still goes to the digest when it also asks for something to be remembered or stored, and that the request is not carried out. Two pins added. The eval set, mock and every other product line are unchanged (Option B refused). The in-flight check of every remote branch found nobody editing Triage.cls line 25 or the two memory eval cases (the only Triage-touching branch, OCT-epic11, carries a merge commit with no net change to the file).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls`: line 25 only (numstat 1 1, one hunk `@@ -25 +25 @@`).
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`: the phrase pin in `TestTriage`; in `TestTriageOutcomes`, the phrase is in the digest bullet and not in the ignore, tellnow or act bullets; doc and comments extended by one clause each.
+- This spec: Verification (implement results, mutation lines), Review Triage Log, this section.
+
+**Review.** 18 findings from four layers: high 0, medium 0, low 8 (rejected: spec-bound or covered by the A/B bars), false 10. Patches applied: 0. Deferred: 0.
+
+**Follow-up review recommended:** false (no high patched).
+
+**Verification performed.** See Verification above: the four Agent classes on the lane-C warm stack, one class per call, all green; test-triage-heartbeat, test-boundaries, test-class-rules and all 25 rules of test-eval-set PASS; every Rule 19 mutation observed red and reverted byte for byte.
+
+**Residual risks.** Whether the real model now answers `digest` for the pair without moving the ignore-boundary cases or the user's own turns is shown only by the Planner's key-holder A/B (AC6) and CI on the pushed head (AC7). The fresh `lane-a@Agent` shard runs (forward and reverse) were not run in this stage. The pins hold the one phrase and its bullet; the sentence's scope words are held by the line-25 cmp, not by a test.
