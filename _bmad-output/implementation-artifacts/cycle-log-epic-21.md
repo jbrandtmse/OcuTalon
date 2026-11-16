@@ -508,3 +508,18 @@
 2026-11-16T04:20:50Z	DW-1410	ledger	DW-1410=resolved-by:dw-1410
 2026-11-16T04:43:47Z	DW-1410	integrated	feature=6e88ef29e merge=507a0d2b0; then feature=ecaf5ac9a(DW-1205_merged;no_src_delta) merge=b5de8d99c conflicts=none
 2026-11-16T04:43:47Z	DW-1410	fresh_check	env=507a0d2b0(src_identical_at_push_head) build154_lane-a@Fix_30/30,Watch.Evidence,Watch.Reader_pass bd,class-rules=pass lint=12_low torn_down
+2026-11-16T05:21:47Z	DW-1410	ci_resolved	sha=48f10354d result=success runs=43805853892,43805853876(attempt1)
+2026-11-16T05:21:47Z	DW-1410	part_ready	parts=DW-1410 code_head=48f10354d ci=success records=local
+2026-11-16T05:21:47Z	Epic 21	ledger	DW-1411=dropped(superseded-by:DW-609)
+2026-11-16T05:31:03Z	DW-1410	merged	feature=7958e46ee
+2026-11-16T05:31:03Z	DW-1373	stage_spawned	stage=plan spawn_at=2026-11-16T05:31:03Z model=opus effort=high agent_name=dw-1373-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1373 worktree=.worktrees/epic-21-dw1347(reused) base=7958e46ee(+DW-1410_records_c5a67225d) ruling=same_rule_as_DW-1365(restore+retry;itemNotChanged_only_if_restore_ok;else_settingSavedNotApplied_or_suspend_equivalent;new_text_to_Planner;pin_both_paths)
+2026-11-16T05:41:43Z	DW-1373	story_created	model=opus branch=OCT-epic21-dw1373 base=d1414c370 build_status=ready-for-dev size=small-medium text=reuse(itemNotChanged;settingSavedNotApplied_with_setting=Enabled) veto=1-6(no_new_text;cross-lane_incl_Lane_B_web_card) planner_report=not_needed(no_new_text,no_deviation) design=EnableConfigItem(...,0)+seam+restore_via_EnableConfigItem(not_enable,0)
+2026-11-16T05:41:43Z	DW-1373	stage_spawned	stage=implement spawn_at=2026-11-16T05:41:43Z model=sonnet effort=high agent_name=dw-1373-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1373
+2026-11-16T06:30:24Z	DW-1373	dev_complete	build_sha=97b0615f7 task0=defect_reproduced(lock_40s:old_call_errors_after_save);restore_40s=refused(Enabled_back_1);75s=notapplied;SDS_path_ok mutations=8 review=20(high0,med0,low13(1_deferred),false7) shard_lane-a@Fix_fresh=30/30 node=2174 bundle=ok cards=32/32 lint=12_low residual=red_test_may_leave_OrdersForReview_disabled
+2026-11-16T06:30:24Z	DW-1373	stage_spawned	stage=qa spawn_at=2026-11-16T06:30:24Z model=sonnet effort=high agent_name=dw-1373-qa-1 cycle_iteration=1
+2026-11-16T06:41:31Z	DW-1373	qa_complete	model=sonnet commit=9fbd4aa13 hygiene=OnBefore/OnAfterOneTest_restore(proved_with_forced_red) tests=resume_notapplied,TestItemAlreadyInTheWantedState,TestItemGone,TestItemUpdateFailureNotAppliedDefault(6_mutations) fresh_ItemKinds=pass findings=none_product
+2026-11-16T06:41:31Z	DW-1373	stage_spawned	stage=code-review spawn_at=2026-11-16T06:41:31Z model=opus effort=high agent_name=dw-1373-code-review-1 cycle_iteration=1
+2026-11-16T07:10:26Z	DW-1373	cr_complete	model=opus findings=28(med:LogSince_isolation_patched+mutation;med_by-design:restore-update-fails_wording(Planner_rule,23.3_Blind2);low_doc_patched3;low_DW-1427_wontfix-accepted(owner_23-2)) high=0 fresh_lane-a@Fix=30/30 node=2174 final_status=done
+2026-11-16T07:10:26Z	DW-1373	ledger	DW-1373=resolved-by:dw-1373 DW-1427=wontfix-accepted
+2026-11-16T07:10:36Z	DW-1373	integrated	feature=dc9813a66(no_Fix/Watch/approvals_change) merge=ed45942f5 conflicts=none
+2026-11-16T07:10:36Z	DW-1373	fresh_check	env=CR_fresh_lane-a@Fix_30/30+warm_ItemKinds,Summary+node_2174+impl_cards_32/32;merge_adds_no_relevant_src

@@ -230,6 +230,21 @@ describe('the result band of a fix the user asked for in the chat (Story 23.2, D
     });
   });
 
+  it('is the partial band of result.settingSavedNotApplied, with the setting Enabled and the item as the target, for a suspend or a resume whose flag was stored and could not be applied (DW-1373)', () => {
+    const notApplied = ran({ completed: 0, unreached: 1, reason: 'The update timed out' });
+    const band = {
+      key: 'result.settingSavedNotApplied',
+      text: `Enabled on ${ITEM} was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again.`,
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    };
+    assert.deepEqual(item('suspend_item', notApplied, { state: 'failed' }), band);
+    assert.deepEqual(item('resume_item', notApplied, { state: 'failed' }), band);
+    assert.equal(item('suspend_item', notApplied, { state: 'failed', item: undefined }), undefined, 'no band without the item');
+    assert.equal(item('suspend_item', ran({ completed: 0, unreached: 1 }), { state: 'failed' }), undefined, 'no band without the reason');
+  });
+
   it('claims nothing for an item kind that is still going, was interrupted, or lacks what its text names', () => {
     assert.equal(item('suspend_item', ran(), { state: 'executing' }), undefined, 'still going');
     assert.equal(item('suspend_item', ran({ completed: 0, interrupted: 1, reason: 'x' })), undefined, 'interrupted');

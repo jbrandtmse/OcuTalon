@@ -44,7 +44,7 @@
 ///   - A fix the user asked for in the chat (Story 23.2): AskedKey gives the catalog key of its approval notice from the kind's name (incident.suspendRequest,
 ///     incident.resumeRequest or incident.rerouteRequest) and AskedSlots builds the slots from the dry run: item and production for the two item kinds; count (the dry run's
 ///     affected), itemNoun, from, to, example and resendCount (its resend) for a reroute. ResultKey, given the kind's name, gives result.itemSuspended or result.itemResumed
-///     for an item kind that changed its item, result.itemSkipped when the re-check skipped it and result.itemNotChanged when the run could not start; for a reroute whose copies
+///     for an item kind that changed its item, result.itemSkipped when the re-check skipped it, result.settingSavedNotApplied (setting Enabled, target the item) when the item's flag was stored and the production could not apply it or have the earlier flag back (Unreached above 0), and result.itemNotChanged when the run could not start; for a reroute whose copies
 ///     all completed (the key that is result.allThrough) it gives result.rerouted. ResultSlots, given the item, production and target in extra, adds them.
 ///   - A partner delay notice (Stories 23.5 and 23.13): AskedKey, given the dry run, gives incident.partnerRequest for partner_warning when the dry run is simulated (the fixture's production; with
 ///     no dry run too) and AskedSlots {recipients ("Name <address>" of each recipient of the dry run, joined with ", "), notice (the dry run's text)}. For a Settings-contact request (simulated 0)
@@ -448,6 +448,7 @@ ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, ki
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting") Quit ##class(OcuTalon.Watch.SettingCause).ResultKey(kind, result)
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
 		If +result.Completed > 0 Quit $Select($Parameter(class, "ENABLE"): ..#KEYITEMRESUMED, 1: ..#KEYITEMSUSPENDED)
+		If +result.Unreached > 0 Quit ##class(OcuTalon.Watch.SettingCause).#KEYSAVEDNOTAPPLIED
 		If +result.Skipped > 0 Quit ..#KEYITEMSKIPPED
 		Quit ..#KEYITEMNOTCHANGED
 	}
@@ -476,6 +477,9 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Set sc = $$$OK
 	Set reason = ..Text(result.Reason)
 	If '$IsObject(extra) Set extra = {}
+	If (key = ##class(OcuTalon.Watch.SettingCause).#KEYSAVEDNOTAPPLIED) && (..Text(extra.%Get("setting")) = "") && (..Text(extra.%Get("item")) '= "") {
+		Set extra = {"setting": (##class(OcuTalon.Fix.Kind.SuspendItem).#ENABLEDSETTING), "target": (..Text(extra.%Get("item")))}
+	}
 	If ##class(OcuTalon.Watch.SettingCause).IsResultKey(key) Quit ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc, reason)
 	If key = ..#KEYEMAILSENT Quit {}
 	If key = ..#KEYPARTNERSKIPPED Quit {"sent": (+result.Completed), "skipped": (+result.Skipped), "total": (+result.Total)}
