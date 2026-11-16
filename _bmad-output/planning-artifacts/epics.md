@@ -9166,7 +9166,7 @@ So that only the right people can approve each kind of change.
 
 Slack works as a channel through its webhook route, with replies as Slack messages and no socket mode.
 
-**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
+**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] [AMENDED 2026-11-16, owner decision relayed by the Contest Planner (standing rulings, "OWNER DECISION ~14:30Z Nov 16"): Epics 27 and 28 start now, Epic 27 first, in Lane B; each story's spec gate goes to the Planner before it is built, Slack is off on the online demo, and until the 1.0.12 merge-back the stories build and run CI on their own branch]
 
 ### Story 27.1: Receive Slack events by webhook
 
