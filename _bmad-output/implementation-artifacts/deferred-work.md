@@ -8779,3 +8779,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Sender.Classify maps every SMTPTimeout to unreachable; the not-sent outcome is right (ruled: Planner CONDITION, lead's DW-1429 item), only the reason's wording is coarse; same sentence as before 23.15 and for every unclaimed tool send
 - 2026-11-16T12:01:11Z status=wontfix-accepted owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=cr note=reopen_if=a user report or a Planner text ruling that MESSAGEUNREACHABLE misleads after a mid-dialogue SMTP timeout
+
+### DW-1439: flake: Test.Mcp.SourceRun TestNoAnswerHash: every case's CheckRun Reason was not error, in CI shard lane-a@rest
+- source: epic-runner; OCT-epic24 600b5f7ca ci 43919911468 attempt 1 job 133484098787 on ocutalon-ci-22 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: all ten cases (none, raw forms, hash variants) failed 'the CheckRun Reason is error' after 21 Checks/Mcp classes in the shard; the class passes alone on a fresh lane-D stack at the same tree (e24tr1, 135 s); no Epic 24 class precedes it in the shard and Epic 24 touches no Mcp or Checks code; DW-1347 (09c1469c9, b4bcc74b5) last changed this area
+- 2026-11-16T18:21:43Z status=open owner=burndown by=epic-runner note=one rerun
+- 2026-11-16T18:35:34Z occurrence=OCT-epic24-600b5f7ca by=epic-runner note=one_rerun_of_job_133484098787_started
+- 2026-11-16T18:56:56Z status=resolved-by:24-3b-escalate-unanswered-pages-to-the-backup-and-say-so-in-settin by=lead note=root_cause:test_race(not_a_regression):RecordSource_runAt=NowUtc_whole_seconds;BackgroundCheck_trigger_writes_CheckRun_only_when_LastRunAt_changes;baseline_and_the_10_bad_forms_in_one_second_write_no_rows,RunOf_reads_the_baseline_row(passed,Reason_'');fix:NewSecond_before_each_run+SecondStart_pin;mutation_NewSecond_no-op_reproduces_all_10_CI_failures;Lane_D_test(Story_22.11/DW-1347)
