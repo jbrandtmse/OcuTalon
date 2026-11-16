@@ -57,3 +57,5 @@
 2026-11-16T01:19:29Z	Story 24.4a	committed	sha=pushed_below
 2026-11-16T01:57:19Z	DW-1412	story_created	by=lead(quick_gate;Planner_ruling_~03:45Z_Nov_16) path=_bmad-output/implementation-artifacts/spec-24-dw-1412-redact-url-signature-parameters.md branch=OCT-epic24-dw1412(from_cdd250d0) priority=1.0.12_blocker
 2026-11-16T01:57:19Z	DW-1412	stage_spawned	stage=implement spawn_at=2026-11-16T01:57:19Z model=sonnet effort=high
+2026-11-16T02:34:12Z	DW-1412	dev_complete	model=sonnet build_sha=49d268f1 files=3(Bridge/Redact.cls,Test/Bridge/Redact.cls,Test/Checks/Runs.cls) mutations=5(rule_dropped;name_guard;log_path;Lifetime_upper_bound;backslash) review_layers=4(22:1M_patched) decided=hash_does_not_end_a_value(reuse_key=_rule;over-redacts);escaped_quote_ends_unquoted_value(also_key=)
+2026-11-16T02:34:12Z	DW-1412	committed	sha=pushed_below base=feature_cdd250d0(current)
