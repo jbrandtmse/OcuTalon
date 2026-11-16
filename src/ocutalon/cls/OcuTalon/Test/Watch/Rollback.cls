@@ -20,6 +20,8 @@ Include Ensemble
 ///     TestTakeMissingNoRequest (the Planner's V6 condition): an answer whose hand-off entry is gone when IncidentManager takes it raises no request, stores no redacted dry run and takes
 ///     the refusal path with the kind's NOSTART;
 ///     TestUndoSystemDefaultTokenRaw (AC7): the undo of a rollback of a System Default Setting change whose current default is a token URL restores that URL byte for byte;
+///     TestUndoRequestTokenRedacted (QA, AC2, AC4, AC5): a rollback of a token URL and then its undo, asked by a real ProposeFix: the phone messages of both requests, the undo request's
+///     payload, notice slots and text show the token redacted, its stored dry run is raw, the undo restores the plain value, and no trace body, log row, live event or phone message holds the token;
 ///   - TestMeasuredOnline and TestRolesPutBackAfterAFailure: the Roles step rewrites every OcuTalon role, so the roles are saved (SaveRoles) and put back, by the test and by PutBack after a failed one;
 ///     OnBeforeAllTests reads every OcuTalon role and OnAfterAllTests fails the class when one is not as the class found it.
 Class OcuTalon.Test.Watch.Rollback Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
@@ -1156,5 +1158,119 @@ Method TestUndoSystemDefaultTokenRaw()
 	Do ..Run(a, trace, incident, "undo_rollback", row.ref, item, setting, "Host", "alpha", url)
 	Do $$$AssertEquals(..Effective(item, "Host", setting), url, "the undo made the token URL apply, byte for byte")
 	Do $$$AssertEquals(..Stored(item), storedBefore, "and the item's stored settings are as they were before the rollback")
+}
+
+/// The Notification bodies of the incident with the catalog key, as NoticeBodies gives them, waiting up to WAITINCIDENT seconds for at least one.
+Method NoticesWithKey(incident As %String, key As %String) As %DynamicArray [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	For {
+		Set found = []
+		Set all = ..NoticeBodies(incident)
+		For i = 0:1:all.%Size() - 1 {
+			If all.%Get(i).catalogKey = key Do found.%Push(all.%Get(i))
+		}
+		If (found.%Size() '< 1) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Quit found
+}
+
+/// QA of Story 24.4a (AC2, AC4, AC5; the undo request's Before and After end to end, and the phone page on the real runtime): a real setting change whose old value is a token URL, the real
+/// rollback (the mock diagnosis, the real raise, the real approval and run), and then the undo that the chat asks for (a real ProposeFix to IncidentManager, which asks FixExecutor for the
+/// dry run, takes the hand-off, raises the request and sends its notice). The phone message of each request holds the marker and not the token; the undo request's stored dry run holds the
+/// raw values (the token URL as Before), and its approval payload, its notice's slots and its phone text show the token redacted and the plain After as it is; the undo restores the plain
+/// value; the result notice's slots hold no token; and no trace body, event-log row, live event or phone message holds the token, the DryRunResult bodies of both asks holding the marker
+/// and a hand-off reference.
+Method TestUndoRequestTokenRedacted()
+{
+	If '..Ready() Quit
+	If '..PointKeys() Quit
+	If '..ApprovalReady() Quit
+	Set url = ##class(OcuTalon.Test.Watch.SettingCause).TokenUrl()
+	Set token = ##class(OcuTalon.Test.Watch.SettingCause).Token()
+	Set plain = "https://feed.example.test/orders?format=json"
+	Set shown = ..Shown()
+	Set a = ..Prepare(.trace)
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set change = ..Change(a, "Host", url, plain, .unused, 0)
+	If change = "" Quit
+	If '..RaiseTokenRollback(a, change, .incident, .rollback) Quit
+	Do $$$AssertTrue($IsObject(rollback), "the rollback request is raised")
+	If '$IsObject(rollback) Quit
+	// the rollback request on the phone page: the token URL is the After
+	Set phone = ..PhoneText(a, rollback.ref)
+	Do $$$AssertTrue((phone [ shown) && ($Find(phone, token) = 0), "the phone message of the rollback request holds the marker and no token: "_phone)
+	Set done = ##class(OcuTalon.Bridge.Approval).Answer(rollback.ref, "approve", "web", ..#ANSWERER, a, .winner)
+	Do $$$AssertEquals(done, "done", "the rollback is approved")
+	Do $$$AssertEquals(..WaitState(incident, rollback.ref, "done"), "done", "and it is done")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#NOTE), url, "the item's setting is the token URL again")
+	Do $$$AssertEquals(..WaitIncidentState(incident, "resolved"), "resolved", "the incident is resolved")
+	// the Tick records the rollback's own change, which the undo must not take for a later change of the setting
+	Hang 1
+	Do ..Tick(##class(OcuTalon.Data.Time).NowUtc())
+	// the undo, asked as the chat's tool asks it: a ProposeFix to the real IncidentManager
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#SENDER, .service)
+	Do $$$AssertStatusOK(sc, "the sender service is there")
+	If $$$ISERR(sc) Quit
+	Set command = ##class(OcuTalon.Msg.Command.ProposeFix).%New()
+	Set command.Origin = "tool"
+	Set command.SessionRef = a
+	Set command.IncidentRef = incident
+	Set command.FixKind = "undo_rollback"
+	Set command.Parameters = "{}"
+	Set sc = service.SendRequestSync(..#MANAGER, command, .response, 60)
+	Set ..ExecuteSessions = ..ExecuteSessions _ $Select(..ExecuteSessions = "": "", 1: ",") _ service.%SessionId
+	Do $$$AssertStatusOK(sc, "IncidentManager answers the ProposeFix")
+	If $$$ISERR(sc) || '$IsObject($Get(response)) Quit
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|raised", "the undo is raised: "_response.Message)
+	If response.Outcome '= "raised" Quit
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(response.Ref)
+	Do $$$AssertTrue($IsObject(row), "the undo request's row exists")
+	If '$IsObject(row) Quit
+	Set stored = {}.%FromJSON(row.DryRun)
+	Do $$$AssertEquals(row.FixKind_"|"_stored.%IsDefined("values")_"|"_stored.field_"|"_stored.before_"|"_stored.after, "undo_rollback|0|"_..#NOTE_"|"_url_"|"_plain, "its stored dry run holds the raw values (the token URL as Before) and no hand-off reference: "_$Extract(row.DryRun, 1, 200))
+	Set part = ##class(OcuTalon.Live.Payload.Approval).FromRow(row).DryRun
+	Do $$$AssertEquals(part.Before_"|"_part.After, shown_"|"_plain, "its approval payload shows the token URL redacted in Before and the plain After as it is")
+	Kill row
+	Set notes = ..NoticesWithKey(incident, "incident.undoRollbackRequest")
+	Do $$$AssertEquals(notes.%Size(), 1, "one incident.undoRollbackRequest Notification")
+	If notes.%Size() = 1 {
+		Set note = notes.%Get(0)
+		Do $$$AssertEquals(note.slots.before_"|"_note.slots.after, shown_"|"_plain, "its slots: {before} is the redacted URL and {after} the plain value")
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc)
+		Do $$$AssertTrue((text [ shown) && ($Find(text, token) = 0), "and its text holds the marker and no token: "_text)
+	}
+	Set phone = ..PhoneText(a, response.Ref)
+	Do $$$AssertTrue((phone [ shown) && ($Find(phone, token) = 0), "the phone message of the undo request holds the marker and no token: "_phone)
+	Set done = ##class(OcuTalon.Bridge.Approval).Answer(response.Ref, "approve", "web", ..#ANSWERER, a, .winner)
+	Do $$$AssertEquals(done, "done", "the undo is approved")
+	Do $$$AssertEquals(..WaitState(incident, response.Ref, "done"), "done", "and it is done")
+	Do $$$AssertEquals(..Effective(..#FAILING, "Host", ..#NOTE), plain, "the undo put the plain value back")
+	Set results = ..WaitResultNotices(incident, 2)
+	Set undone = ""
+	For i = 0:1:results.%Size() - 1 {
+		If results.%Get(i).catalogKey = "result.rollbackUndone" Set undone = results.%Get(i)
+	}
+	Do $$$AssertTrue($IsObject(undone), "the session reads result.rollbackUndone")
+	If $IsObject(undone) Do $$$AssertEquals(undone.slots.after, plain, "its {after} is the plain value")
+	// the trace: both asks' DryRunResult bodies hold the marker and a reference, never the token
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT DryRun FROM OcuTalon_Fix_Msg.DryRunResult WHERE IncidentRef = ? AND DryRun <> ''", incident)
+	Set bodies = 0
+	While rs.%Next() {
+		Set bodies = bodies + 1
+		Set text = rs.%GetData(1)
+		Do $$$AssertTrue((text [ "[redacted]") && (text [ "secret://handoff/") && ($Find(text, token) = 0), "a DryRunResult body holds the marker and a hand-off reference and not the token: "_text)
+	}
+	Do $$$AssertTrue(bodies '< 2, "the incident has a DryRunResult body for each ask")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT CatalogKey, Slots FROM OcuTalon_Msg.Notification WHERE IncidentRef = ?", incident)
+	While rs.%Next() {
+		Do $$$AssertEquals($Find(rs.%GetData(2), token), 0, "the "_rs.%GetData(1)_" Notification body holds no token")
+	}
+	Set leaks = ##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(token)
+	Do $$$AssertEquals(leaks, "", "no Ens message body or header and no event-log global holds the token: "_leaks_" "_..FirstHit(token))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, token), 0, "no event-log row holds the token")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Live.Event", "Payload", token), 0, "no live event payload holds the token")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TableHolds("OcuTalon_Data.SimMessage", "Text", token), 0, "and no phone message")
 }
 }
