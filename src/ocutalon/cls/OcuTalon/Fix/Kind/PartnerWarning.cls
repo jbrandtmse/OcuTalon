@@ -16,6 +16,8 @@
 ///     addresses stored in the row's dry run for the ids of to, for each id whose contact still is one of the production with exactly that address. Any other id is skipped, with the code removed
 ///     (the contact is gone, no longer lists the production, or the row holds no address for it) or changed (its address is not the approved one) and the reason NOSTART, and nothing ever goes to a
 ///     new address. It gives 0 for the fixture's production (a fictional contact is never mailed), for a row whose text is not the stored notice and for a to that is not the row's targets.
+///   - MayHaveSent says whether the reason of a failed send is an EmailOut sentence that does not say that the mail server never took the email (MAYHAVESENTSENTENCES), which the incident's
+///     timeline reads as "may have been sent" (DW-1416).
 ///   - Recheck and Execute read each target against the source again. For the fixture's production a target passes only if the id still is a contact of the production at its position in to; else
 ///     it is skipped with a plain reason (RECHECK naming the contact, or NOSTART). Execute sends nothing: its result is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]},
 ///     and the executor delivers the approved text from the row, to the Simulated mailbox. A Settings contact is never delivered that way: every target is skipped with NOSTART, and the executor sends
@@ -67,6 +69,11 @@ Parameter NOSTART = "OcuTalon couldn't deliver the delay notice";
 Parameter KEYEMAILSUBJECT = "partner.emailSubject";
 
 Parameter OUTSENTENCES = "MESSAGEREFUSED,MESSAGENOTCONNECTED,MESSAGEREJECTED,MESSAGEUNREACHABLE,MESSAGEREFUSEDLOGIN,MESSAGESIGNIN,MESSAGEUNAVAILABLE,MESSAGEFAILED,MESSAGEMAYHAVESENT";
+
+/// The names of the Channel.Email.Out sentences that a failed send of an approved row gives without saying that the mail server never took the email (DW-1416): the claim of an approval is marked
+/// failed whatever the failure was, so a timeout or a lost connection during DATA reads MESSAGEUNREACHABLE, an error after the claim reads MESSAGEFAILED, and a repeat of a keyed send reads
+/// MESSAGEMAYHAVESENT. Every other OUTSENTENCES word means that nothing was handed to the server (refused before the send, refused login or sign-in, or rejected by the server).
+Parameter MAYHAVESENTSENTENCES = "MESSAGEMAYHAVESENT,MESSAGEUNREACHABLE,MESSAGEFAILED";
 
 /// The reason of a run that failed before anything was sent (the executor's NOREAD for this kind): the same words as NOSTART.
 Parameter NOREAD = "OcuTalon couldn't deliver the delay notice";
@@ -278,6 +285,18 @@ ClassMethod OutReason(reason As %String) As %Boolean
 	Set found = 0
 	For i = 1:1:$Length(..#OUTSENTENCES, ",") {
 		If $Parameter("OcuTalon.Channel.Email.Out", $Piece(..#OUTSENTENCES, ",", i)) = reason Set found = 1
+	}
+	Quit found
+}
+
+/// 1 when the reason of a failed send is one of the sentences of Channel.Email.Out that do not say that the email was not handed to the mail server (MAYHAVESENTSENTENCES, read from the class), so that the
+/// timeline says that the notice may have been sent. Any other reason, a sentence of OUTSENTENCES that says nothing was sent included, gives 0.
+ClassMethod MayHaveSent(reason As %String) As %Boolean
+{
+	If $Get(reason) = "" Quit 0
+	Set found = 0
+	For i = 1:1:$Length(..#MAYHAVESENTSENTENCES, ",") {
+		If $Parameter("OcuTalon.Channel.Email.Out", $Piece(..#MAYHAVESENTSENTENCES, ",", i)) = reason Set found = 1
 	}
 	Quit found
 }

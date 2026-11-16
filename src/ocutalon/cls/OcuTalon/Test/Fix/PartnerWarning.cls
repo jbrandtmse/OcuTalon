@@ -720,6 +720,20 @@ Method TestSettingsContactResultKeys()
 	Do $$$AssertEquals($ClassMethod(..#KIND, "OutReason", $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREJECTED"))_"|"_$ClassMethod(..#KIND, "OutReason", $Parameter("OcuTalon.Channel.Email.Out", "MESSAGESENT"))_"|"_$ClassMethod(..#KIND, "OutReason", "Some other words")_"|"_$ClassMethod(..#KIND, "OutReason", ""), "1|0|0|0", "OutReason knows EmailOut's sentences, and not its sent one")
 }
 
+/// DW-1416: MayHaveSent is 1 for the EmailOut sentences that do not say that the mail server never took the email (MESSAGEMAYHAVESENT, MESSAGEUNREACHABLE, MESSAGEFAILED: the claim of an approval is marked failed
+/// whatever the failure), and 0 for the sentences that say nothing was handed over (refused, not connected, rejected, refused login, sign-in, unavailable), for EmailOut's sent sentence, for the kind's own reasons and for no reason.
+Method TestMayHaveSent()
+{
+	Set out = "OcuTalon.Channel.Email.Out"
+	For name = "MESSAGEMAYHAVESENT", "MESSAGEUNREACHABLE", "MESSAGEFAILED" {
+		Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(out, name)), 1, name_" may have been sent")
+	}
+	For name = "MESSAGEREFUSED", "MESSAGENOTCONNECTED", "MESSAGEREJECTED", "MESSAGEREFUSEDLOGIN", "MESSAGESIGNIN", "MESSAGEUNAVAILABLE", "MESSAGESENT" {
+		Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(out, name)), 0, name_" was not handed to the mail server, or was sent")
+	}
+	Do $$$AssertEquals($ClassMethod(..#KIND, "MayHaveSent", $Parameter(..#KIND, "NOSTART"))_"|"_$ClassMethod(..#KIND, "MayHaveSent", $Parameter(..#KIND, "NOTSETUP"))_"|"_$ClassMethod(..#KIND, "MayHaveSent", "Some other words")_"|"_$ClassMethod(..#KIND, "MayHaveSent", ""), "0|0|0|0", "the kind's own reasons, other words and no reason are not may-have-sent")
+}
+
 /// --- helpers ---
 /// Story 23.13: a Settings contact with the name and address (the productions as PartnerSupport Contact takes them); its ID, which is removed after the test.
 Method Contact(name As %String, address As %String, productions As %String = "") As %Integer

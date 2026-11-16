@@ -3,7 +3,7 @@ import { afterNextRender, type Injector } from '@angular/core';
 import type { Popovers } from './popover';
 
 /** Where focus goes when nothing nearer takes it: the page's main region. */
-const MAIN_REGION = 'main.main';
+export const MAIN_REGION = 'main.main';
 
 /** What a rule knows about the item that held focus when an update removed the focused element. */
 export interface LostFocus {

@@ -10,7 +10,7 @@
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
 ///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
 ///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded (none for a run that stored the flag and could not apply it), and a
-///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
+///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13, and a Settings-contact run that failed with an EmailOut sentence that does not say the email was never handed to the mail server (the kind's MayHaveSent), or that a restart cut short, ends with summary.partnerMaySent, DW-1416; none of these lines holds a recipient, subject or text); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
 ///       summary.evidence (the first evidence line of the diagnosis payload that is more than a period; omitted when there is none), summary.sampleError (the first sentence of the sample
@@ -181,7 +181,7 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 
 /// The lines of a fix run: started, then ended or interrupted when it has ended. The end of a run of a kind whose targets are items says what happened to the item
 /// (suspended, resumed or not changed), not the message counts. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
-/// says whether the notice was sent, kept as a draft or not sent.
+/// says whether the notice was sent, kept as a draft, not sent or may have been sent.
 ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Data.ApprovalRequest, ByRef timeline, ByRef seq As %Integer) [ Private ]
 {
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
@@ -193,6 +193,9 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 			Quit
 		}
 		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
+		If (key = "summary.partnerNotSent") && $IsObject(incident) && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production) {
+			If (+run.Interrupted > 0) || ((request.State = "failed") && $ClassMethod(class, "MayHaveSent", run.Reason)) Set key = "summary.partnerMaySent"
+		}
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
 		Quit
 	}
