@@ -103,3 +103,5 @@
 2026-11-16T13:15:25Z	Story 24.3a	ci_resolved	sha=a92d5426 result=success runs=43856258908(ci),43856258969(lane-a) reruns=1(DW-306_row_21_on_ocutalon-ci-20;green_on_ocutalon-ci-28) runner_reds_21-56=none
 2026-11-16T13:15:25Z	Story 24.3b	implement_done	commit=472b5add build_status=done review=29(0H,3M,22L,4F)_8_patched,0_deferred followup_review_recommended=false mutations=all_red_reverted
 2026-11-16T13:15:25Z	Story 24.3b	spine_amended	AD-18(escalation_timers_as_built)+AD-27(purge_finished_escalations) lint=12_before=12_after
+2026-11-16T13:25:25Z	Epic 24	integrated_forward	feature=62590041(23.15,DW-1376/1378) conflicts=Channel/Email/Out.cls(PageClaimed_vs_Began:plain_union),sprint-status(regenerated) overlap_lane_B=GUIDE.md,docker/tests/test-readme.sh,Channel/Email/Out.cls,Test/Channel/EmailOut.cls,web/scripts/ux-strings.test.mjs checks=web_2199/0,test-readme,class-rules,ci-config,EmailOut(fresh),PageRoute(fresh)
+2026-11-16T13:25:25Z	Story 24.3b	pushed	branch=OCT-epic24
