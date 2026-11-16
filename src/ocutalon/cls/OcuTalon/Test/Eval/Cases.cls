@@ -13,7 +13,7 @@
 ///     expects, the three situations are all there (failing with a fix waiting, every check passing, nothing watched), each asks "Is everything
 ///     fine?", the command case records the key phrases of the UX sentence, and every turn case is plain ASCII, not held out, has no item, and
 ///     holds the fields of its kind and nothing else;
-///   - TestUserTurnCases (Story 30.5, DW-500; DW-908): the user-turn cases are exactly the six named ones, one for each "Try it yourself" chip, one remember case (Story 30.9, DW-890) and one forget case (Story 9.11, DW-902), each with the exact
+///   - TestUserTurnCases (Story 30.5, DW-500; DW-908; DW-1389 follow-up): the user-turn cases are exactly the seven named ones, one for each "Try it yourself" chip, one remember case (Story 30.9, DW-890), one forget case (Story 9.11, DW-902) and one in which the user reports that the Orders production has stopped (DW-1389 follow-up), each with the exact
 ///     text, the key phrase "user", the absent phrases of a reason that describes production state or tool limits, its own recordedBy, and the fields of its kind and nothing else;
 ///   - (QA) TestCommandPhrasesAreSentence (Story 9.7): each key phrase of the command case (one of its alternatives) is part of the catalog sentence
 ///     agent.noCommands, which the INSTRUCTIONS of the Chat agent hold (Test.Agent.Instructions), so the case cannot expect words that the product never says;
@@ -267,7 +267,7 @@ Method TestTurnCases()
 	Do $$$AssertTrue(command.%GetTypeOf("checks") = "unassigned", "and it records no checks")
 }
 
-/// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, one remember case (Story 30.9, DW-890) and one forget case (Story 9.11, DW-902), with the chip's exact text,
+/// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, one remember case (Story 30.9, DW-890), one forget case (Story 9.11, DW-902) and one in which the user reports that the Orders production has stopped (DW-1389 follow-up), with its exact text,
 /// kind user-turn, not held out, the key phrase "user" and a list of absent phrases (the words of a reason that describes production state, tool
 /// limits or an all-clear), and the fields of its kind and nothing else.
 Method TestUserTurnCases()
@@ -287,9 +287,9 @@ Method TestUserTurnCases()
 		If name = "" Quit
 		Set joined = joined_$Select(joined = "": "", 1: ",")_name
 	}
-	Do $$$AssertEquals(joined, "user-turn-anything-wrong,user-turn-failure-earlier,user-turn-forget,user-turn-productions,user-turn-remember,user-turn-what-can-you-do", "the user-turn cases of eval/ are exactly the six named ones")
+	Do $$$AssertEquals(joined, "user-turn-anything-wrong,user-turn-failure-earlier,user-turn-forget,user-turn-orders-stopped,user-turn-productions,user-turn-remember,user-turn-what-can-you-do", "the user-turn cases of eval/ are exactly the seven named ones")
 	Set chip = "written for the evaluation set (Story 30.5, DW-500)"
-	Set wanted = $ListBuild($ListBuild("user-turn-productions", "Which productions are running?", chip), $ListBuild("user-turn-anything-wrong", "Is anything wrong right now?", chip), $ListBuild("user-turn-failure-earlier", "What was that failure earlier?", chip), $ListBuild("user-turn-what-can-you-do", "What can you do?", chip), $ListBuild("user-turn-remember", "Remember that the Results partner's contact is Lee.", "written for the evaluation set (Story 30.9, DW-890)"), $ListBuild("user-turn-forget", "Forget that the Orders partner contact is Kim.", "written for the evaluation set (Story 9.11, DW-902)"))
+	Set wanted = $ListBuild($ListBuild("user-turn-productions", "Which productions are running?", chip), $ListBuild("user-turn-anything-wrong", "Is anything wrong right now?", chip), $ListBuild("user-turn-failure-earlier", "What was that failure earlier?", chip), $ListBuild("user-turn-what-can-you-do", "What can you do?", chip), $ListBuild("user-turn-remember", "Remember that the Results partner's contact is Lee.", "written for the evaluation set (Story 30.9, DW-890)"), $ListBuild("user-turn-forget", "Forget that the Orders partner contact is Kim.", "written for the evaluation set (Story 9.11, DW-902)"), $ListBuild("user-turn-orders-stopped", "Our Orders production has stopped and no orders have come through since lunchtime.", "written for the evaluation set (DW-1389 follow-up)"))
 	Set position = 0
 	While $ListNext(wanted, position, entry) {
 		Set name = $List(entry, 1)

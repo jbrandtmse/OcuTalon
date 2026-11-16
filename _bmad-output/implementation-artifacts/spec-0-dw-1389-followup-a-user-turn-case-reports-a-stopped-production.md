@@ -2,13 +2,20 @@
 title: 'DW-1389 follow-up: a user-turn case reports a stopped production'
 type: 'chore'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: '8fa1e285b5579f89c69d68f8d9bc2edaf972fbc2'
+status: 'done'
+baseline_revision: 'a0add4f4a803fe0d7fc6ee982cbd020186306f87'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      No committed check ties scores.userTurns.total, or the per-case entries of rules-only.json, to the number of user-turn folders in eval/.
+    evidence: |-
+      test-eval-set.sh rule `cases` does not read scores.userTurns or compare cases[] with the folders, and compare.mjs --column has no user-turn row, so the committed report can drift from the case set. Pre-existing for the six siblings; the spec forbids editing test-eval-set.sh and the release fork's re-run replaces the file.
+    location: >-
+      docker/tests/test-eval-set.sh rule cases
+    severity: low
 ---
 
 <intent-contract>
@@ -252,21 +259,58 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - AC 5: in a scratch copy of `eval/results`, copy the fresh run's `rules-only.json` whole. Expected: `cmp` differs, and `readme-column` FAILs on the date. This is why the story splices.
 - AC 6: lead (CI evidence).
 
+## Review Triage Log
+
+### 2026-11-16 - Review pass
+- verdicts: 15 findings - high 0, medium 0, low 11, false 2, maybe-false 2
+- findings:
+  - `[low]` `[reject]` Blind 1: TestShippedChipCasesScoreTheHostReasons (Report.cls) is not extended to the new case - spec decision (Design Notes): the expectation is byte-identical to user-turn-forget's so it adds no coverage; Report.cls is in the Never list.
+  - `[low]` `[reject]` Blind 2: no In.cls equivalent of TestForgetCaseRecorded - Cases.TestUserTurnCases pins the case generically; In.cls is outside the footprint and Eval.In handles user turns generically.
+  - `[low]` `[reject]` Blind 3: rules-only.json is a spliced mix of two runs with no marker in the file - the chosen option (iii) of the spec, recorded in Residual risks; the release fork's re-run replaces the whole file; the fix would change the file's form (Always).
+  - `[false]` `[reject]` Blind 4: recordedBy "DW-1389 follow-up" is not a ticket id - the ruling gives the case no DW id and the draft's text is approved verbatim; no bad outcome occurs.
+  - `[low]` `[reject]` Blind 5: the TestUserTurnCases doc does not say why the reason-wording rules apply to a fault report - the case's description says so; a doc change is cosmetic.
+  - `[maybe-false]` `[reject]` Blind 6: the absent phrase "nothing" may mark a correct reason that echoes the user's report - the phrase list is the Planner's approved text (Never: edit the draft); the score is report-only, so if true the grade would be low.
+  - `[low]` `[defer]` VerGap 1: no committed test ties rules-only.json user-turn entries and total 7 to the eval/ folders - pre-existing for the six siblings, test-eval-set.sh is in Never; recorded in `deferred`.
+  - `[low]` `[reject]` VerGap 2: the spec has a mutation list, not `mutation:` lines, and the Auto Run Result was blanket - each mutation and its red test is recorded per line in the Auto Run Result below; the fix would not change the spec's frozen text.
+  - `[low]` `[reject]` VerGap 3: description is not pinned beyond non-blank (AssertTurnShape) - the byte hash covers it (AC 1); siblings are pinned the same way.
+  - `[false]` `[reject]` VerGap 4: the fixed six-name list in Report.cls is not extended, "for the record" - same as Blind 1; the reviewer itself found it consistent with the spec, so there is no bad outcome.
+  - `[low]` `[reject]` Edge 1: Report.cls chip list not extended - same as Blind 1.
+  - `[low]` `[reject]` Edge 2: spliced provenance of rules-only.json - same as Blind 3.
+  - `[low]` `[reject]` Edge 3: the `turns >= 8` floor message still says four - spec Never (Cases L211 stays; the floor holds at 7 user turns); pre-existing stale wording.
+  - `[maybe-false]` `[reject]` Edge 4: absentPhrases do not hold "stopped" etc., so a reason that restates the fault may score right - approved text, verbatim by ruling; an RC run would show it, and if true the grade is low (report-only).
+  - `[low]` `[reject]` Intent audit: reading B (the case is scored against reasons) is not exercised by any changed test, only by a later real-model run - the intent says eval-only and report-only, and the Never list forbids the files such a test would live in.
+
 ## Auto Run Result
 
-Status: (pending)
-Blocking condition: (pending)
+Status: done
+Blocking condition: none
 
-Summary: (pending)
+Summary: added the approved case byte for byte, grew the `Test.Eval.Cases` pin from six to seven user-turn cases (header, method doc, joined list, message, `wanted`), and spliced the case's three measured entries into `eval/results/rules-only.json` (`userTurns.total` 7). README, column and every other entry untouched.
 
-Files changed: (pending)
+Files changed:
+- `eval/user-turn-orders-stopped/case.json` (new): the approved case, SHA-256 7df8056a73b085670892302fd263426f5e2e51e851232db263b73b82212a9fcc;
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls`: the pin (6 to 7) and two doc comments;
+- `eval/results/rules-only.json`: the case's three entries and `userTurns.total` 7;
+- this spec.
 
-Verification performed: (pending). Record:
-- the fresh run's tag and EXIT;
-- `fresh ok`;
-- the AC 4 lines;
-- the unchanged column;
-- the fresh run's incidents count and date (the 23.3 drift for the release fork);
-- each mutation and its red test.
+Review findings: 15 findings (high 0, medium 0, low 11, false 2, maybe-false 2). Patches applied: none. Deferred: 1 (VerGap 1, low). Rejected: 14, each with its reason in the triage log. Follow-up review recommended: false (no high patched).
 
-Residual risks: (pending)
+Verification performed:
+- fresh run tag e0utrm: EXIT=0, all rules-only PASS lines, mock received 0 requests; torn down;
+- `fresh ok`; AC 4: `entries ok`, `identical apart from the new case`; column unchanged (cmp clean); `git diff --exit-code` on the held-out report and README clean;
+- fresh run: incidents 0 of 13, builtAt 2026-11-16T13:53:33Z (the 23.3 drift; its whole-copy column reads `date|November 16`, `main-incidents|13`; the release fork must re-commit);
+- Eval.Cases and Eval.Report warm: passed; test-eval-set parts 1 and 2, test-boundaries and test-class-rules: all passed;
+- mutation: `lunchtime` to `noon` -> red: Cases.TestUserTurnCases (it asks the chip's exact text) and the hash check;
+- mutation: delete the case folder -> red: Cases.TestUserTurnCases (exactly the seven named ones; the case is in eval/);
+- mutation: copy the folder as `eval/user-turn-zz/` -> red: Cases.TestUserTurnCases (the joined list);
+- mutation: recordedBy to `(DW-1389)` -> red: Cases.TestUserTurnCases (it says which story wrote it);
+- mutation: drop "nothing" from absentPhrases -> red: Cases.TestUserTurnCases (it forbids 'nothing'; those 14 phrases);
+- mutation: heldOut true -> red: Cases.TestUserTurnCases (not held out);
+- mutation: kind `user-turns` -> red: test-eval-set rule `cases` (kind is not one of the case kinds);
+- mutation: name `user-turn-stopped` -> red: test-eval-set rule `cases` (name is not its folder's name);
+- mutation: userTurns.total left at 6 in a scratch copy -> red: AC 4 check threw `score`;
+- mutation: new fallbacks entry deleted in a scratch copy -> red: AC 4 check threw `fallbacks`;
+- mutation: fresh rules-only.json copied whole -> red: column cmp differs and `readme-column` FAILs (date, incident count);
+- each mutation was reverted byte for byte. AC 6 (CI on the head) and the lead's forward/reverse fresh check are the lead's.
+
+Residual risks: the committed `rules-only.json` is no longer a single measured run (Nov 12 run plus three measured entries); the release fork's re-run replaces it. The stale "next paragraph" reference in Triage and the `turns >= 8` message are untouched by design.
