@@ -62,7 +62,7 @@ check_forms() {
     echo "eval/run.sh: the script is missing"
     return 0
   fi
-  for args in '--personas:unset' '--personas:fake' '--release-candidate --personas:fake' '--rules-only:unset' '--rules-only:fake' '--rules-only main:fake' '--rules-only held-out:unset' '--rules-only held-out:fake'; do
+  for args in '--personas:unset' '--personas:fake' '--release-candidate --personas:fake' '--rules-only:unset' '--rules-only:fake' '--rules-only main:fake' '--rules-only held-out:unset' '--rules-only held-out:fake' '--notes slack:unset' '--notes slack:fake' '--release-candidate --notes slack:fake'; do
     key=${args##*:}
     # shellcheck disable=SC2086
     rc=$(run_form "$tree" "$key" ${args%:*})
@@ -70,22 +70,26 @@ check_forms() {
       echo "eval/run.sh: '${args%:*}' (key $key) does not go on to the container tool (exit $rc)"
     elif grep -qF -- "$fake" "$tmp/out.log" "$calls" || grep -rqF --exclude=out.log -- "$fake" "$tmp/run"; then
       echo "eval/run.sh: the key appears in the output, in a call or in a file of '${args%:*}'"
-    elif { [ "${args%:*}" = --personas ] || [ "${args%%[ :]*}" = --rules-only ]; } && [ -s "$tmp/stub.env" ]; then
+    elif { [ "${args%:*}" = --personas ] || [ "${args%%[ :]*}" = --rules-only ] || [ "${args%%[ :]*}" = --notes ]; } && [ -s "$tmp/stub.env" ]; then
       echo "eval/run.sh: '${args%:*}' (key $key) leaves the key in the environment of the container tool"
     fi
   done
   for key in unset empty; do
-    rc=$(run_form "$tree" "$key" --release-candidate --personas)
-    if [ "$rc" -ne 2 ]; then
-      echo "eval/run.sh: --release-candidate --personas with the key $key is not refused with exit 2 (exit $rc)"
-    elif [ -s "$calls" ]; then
-      echo "eval/run.sh: --release-candidate --personas with the key $key reached the container tool before it was refused"
-    elif ! grep -q 'ANTHROPIC_API_KEY' "$tmp/out.log"; then
-      echo "eval/run.sh: the refusal of --release-candidate --personas with the key $key does not name ANTHROPIC_API_KEY"
-    fi
+    for args in '--release-candidate --personas' '--release-candidate --notes slack'; do
+      # shellcheck disable=SC2086
+      rc=$(run_form "$tree" "$key" $args)
+      if [ "$rc" -ne 2 ]; then
+        echo "eval/run.sh: $args with the key $key is not refused with exit 2 (exit $rc)"
+      elif [ -s "$calls" ]; then
+        echo "eval/run.sh: $args with the key $key reached the container tool before it was refused"
+      elif ! grep -q 'ANTHROPIC_API_KEY' "$tmp/out.log"; then
+        echo "eval/run.sh: the refusal of $args with the key $key does not name ANTHROPIC_API_KEY"
+      fi
+    done
   done
   for args in '--personas extra' '--on-mock --personas' '--personas --release-candidate' '--release-candidate --on-mock --personas' \
-    '--rules-only --personas' '--rules-only --release-candidate' '--rules-only other' '--personas --rules-only' '--release-candidate --rules-only' '--rules-only main held-out'; do
+    '--rules-only --personas' '--rules-only --release-candidate' '--rules-only other' '--personas --rules-only' '--release-candidate --rules-only' '--rules-only main held-out' \
+    '--notes' '--notes bogus' '--release-candidate --notes bogus' '--notes slack extra' '--notes --release-candidate' '--release-candidate --notes' '--notes slack --release-candidate' '--personas --notes slack' '--rules-only --notes slack'; do
     # shellcheck disable=SC2086
     rc=$(run_form "$tree" fake $args)
     if [ "$rc" -ne 2 ]; then
@@ -103,6 +107,11 @@ check_forms() {
     /key_value_hits "\$report_dir\/\$name\.md"/ { v = 1 }
     /^ *cat "\$report_dir\/\$name\.md"$/ { n++; if (!(k && v)) bad = 1 }
     END { if (!n || bad) print "eval/run.sh: the persona sweep prints personas.md without checking it for key-like text and the key first" }'
+  sed -n '/^# --- the notes run/,/^# --- the persona sweep/p' "$tree/eval/run.sh" | awk '
+    /key_like "\$report_dir\/\$name\.md"/ { k = 1 }
+    /key_value_hits "\$report_dir\/\$name\.md"/ { v = 1 }
+    /^ *cat "\$report_dir\/\$name\.md"$/ { n++; if (!(k && v)) bad = 1 }
+    END { if (!n || bad) print "eval/run.sh: the notes run prints its .md without checking it for key-like text and the key first" }'
 }
 
 # sample <name> <python expression on s>: a copy tree of the real script with one edit; the tree's other folders are the real ones.
@@ -146,11 +155,16 @@ flagged rules-only-accepts-personas "s.replace('[ \"\$2\" = main ] || [ \"\$2\" 
 flagged rules-only-key-kept "s.replace('if [ \"\$keypath\" -eq 0 ] && {', 'if [ \"\$keypath\" -eq 0 ] && [ \"\$mode\" != rulesonly ] && {')"
 flagged prints-key "s.replace('. \"\$root/docker/tests/lib-keys.sh\"\n', '. \"\$root/docker/tests/lib-keys.sh\"\necho \"key \${ANTHROPIC_API_KEY:-}\"\n', 1)"
 flagged calls-before-guard "s.replace('set -u\n\nroot=', 'set -u\n$tool version > /dev/null 2>&1\n\nroot=', 1)"
-flagged prints-unchecked "s.replace('      if [ -n \"\$(key_like \"\$report_dir/\$name.md\")\" ]; then', '      if false; then', 1)"
+flagged prints-unchecked "(lambda a, b: s[::-1].replace(a[::-1], b[::-1], 1)[::-1])('      if [ -n \"\$(key_like \"\$report_dir/\$name.md\")\" ]; then', '      if false; then')"
+flagged notes-accepts-bogus "s.replace('[ \$# -eq 2 ] && [ \"\$1\" = --notes ] && notes_channel_ok \"\$2\"', '[ \$# -ge 2 ] && [ \"\$1\" = --notes ]')"
+flagged notes-rc-accepts-bogus "s.replace('[ \"\$2\" = --notes ] && notes_channel_ok \"\$3\"', '[ \"\$2\" = --notes ]')"
+flagged notes-key-kept "s.replace('if [ \"\$keypath\" -eq 0 ] && {', 'if [ \"\$keypath\" -eq 0 ] && [ \"\$notes\" -eq 0 ] && {')"
+flagged notes-key-not-needed "s.replace('if [ \"\$mode\" = rc ] && { [ \"\$onmock\" -eq 0 ] || [ \"\$keypath\" -eq 1 ]; } && [ -z', 'if [ \"\$mode\" = rc ] && [ \"\$notes\" -eq 0 ] && { [ \"\$onmock\" -eq 0 ] || [ \"\$keypath\" -eq 1 ]; } && [ -z')"
+flagged notes-prints-unchecked "s.replace('      if [ -n \"\$(key_like \"\$report_dir/\$name.md\")\" ]; then', '      if false; then', 1)"
 
 found=$(check_forms "$root")
 if [ -z "$found" ]; then
-  pass "forms: eval/run.sh goes on with --personas, --release-candidate --personas and --rules-only (alone, main or held-out), refuses the other forms and a missing key, never shows the key or leaves it in the environment of the container tool, and checks personas.md before it prints it"
+  pass "forms: eval/run.sh goes on with --personas, --release-candidate --personas, --rules-only (alone, main or held-out) and --notes <channel> (also with --release-candidate), refuses the other forms and a missing key, never shows the key or leaves it in the environment of the container tool, and checks personas.md and notes-<channel>.md before it prints them"
 else
   fail "forms: $found"
 fi

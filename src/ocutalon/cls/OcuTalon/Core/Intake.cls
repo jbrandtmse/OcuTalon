@@ -20,6 +20,8 @@
 ///   - the ItemDecision: the Item's ItemId, SourceItemId, owner, Channel, CatalogKey and Slots, the request's Summary and
 ///     Decide's answer as above. It goes asynchronously, with no answer, to OutcomeRouter (a session or instance owner) or
 ///     to EvalSink (owner eval, AD-22), never to both.
+/// A Channel.Slack.Ignored record (Story 27.1, AD-26) is the trace of a Slack event that is not a turn: Intake answers OK at once, before any check, with no warning, no
+/// trace join and no decision, and sends nothing, so that it only appears in Visual Trace.
 /// Intake never sends to Conversation or Notify, writes no Turn row and publishes no live event. OnResponse and OnError never
 /// throw: an exception inside is logged and sends the fallback ItemDecision when none has gone yet.
 Class OcuTalon.Core.Intake Extends Ens.BusinessProcess
@@ -72,6 +74,7 @@ Property CallError As %Status [ InitialExpression = {$$$OK} ];
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
 	Set response = ""
+	If $IsObject($Get(request)) && request.%IsA("OcuTalon.Channel.Slack.Ignored") Quit $$$OK
 	Set refusal = ..Refusal($Get(request))
 	If refusal '= "" {
 		$$$LOGWARNING(..#LOGREFUSED_refusal_..Describe($Get(request)))

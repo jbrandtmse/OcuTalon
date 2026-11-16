@@ -146,6 +146,11 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:lane-a@rest 1,250 s, live:session-data 338 s and live:install-script-live 299 s) and iris (shards-3) took 20.2 minutes (live:floor 659 s and live:demo-switch 530 s). live:install-script-live
 # moved from shards-2 to shards-3, the one unit moved: planned shards-2 about 26.9 minutes (31.9 less 299 s) and shards-3 about 25.2 minutes (20.2 plus 299 s) (inference until a run measures both). No group
 # is added, renamed or given a longer deadline.
+# Story 27.1 (2026-11-16; the Contest Planner's gate rulings R9 and R11) adds live:slack-hook (docker/tests/test-slack-hook.sh: one fresh start of the default stack, a recreate on the same
+# volume with dummy SLACK_* values in the unit's own temporary compose override, signed and unsigned requests to the Slack route of the hook application with curl, and the leak scan) to shards-3,
+# planned at about 3.5 minutes (inference: live:compose-start is 173 to 191 s for a start, and a recreate on the same volume took 23 to 44 s in live:production-restart and live:heartbeat-restart),
+# so shards-3 goes from about 25.2 to about 28.7 minutes (inference until a run measures it). No group is added, renamed or
+# given a longer deadline, and no other unit's stack has a SLACK_* variable: ci/compose.ci.yml is not changed.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo-path" ;;
@@ -155,7 +160,7 @@ group_units() {
     shards) echo "shard:lane-a@Install,Digest,Eval live:online-allowance live:heartbeat-restart" ;;
     shards-2) echo "shard:lane-a@rest live:session-data" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b@Contract,Core,Data,Live live:compose-start" ;;
-    shards-3) echo "live:floor live:demo-switch live:install-script-live" ;;
+    shards-3) echo "live:floor live:demo-switch live:install-script-live live:slack-hook" ;;
     shards-4) echo "live:sign-in-2 live:memory-offline" ;;
     shards-5) echo "live:sign-in-3 live:security-overview live:audit" ;;
     shards-6) echo "live:documents shard:lane-b@rest live:bundle-folder" ;;

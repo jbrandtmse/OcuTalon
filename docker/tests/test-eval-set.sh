@@ -56,6 +56,9 @@
 #                                       (saved, none or denied), expectation.memories (none) and expectation.absentPhrases (a non-empty array of
 #                                       non-empty strings), and a command case may hold session (Story 41.14): an object whose forgotten, when
 #                                       present, is an array of 1 to 3 non-blank strings of at most 2,000 characters; no other kind has a session;
+#                                       an all-clear or command case of eval/notes-cases/ (Story 27.1, the R7 channel A/B) holds notes: an array of 1 to 4 objects
+#                                       {minutesAgo, text}, minutesAgo a whole number of 1 to 600 and text a non-blank string of at most 200 characters, with no session;
+#                                       every case of that folder has notes, and no case of another folder has any;
 #                   documents           (Story 19.4) a turn object with a non-blank text; documents, a non-empty array of {name, file}, each name a
 #                                       non-blank string that ends .md, .markdown or .txt (in any case) and each file a non-blank path of a
 #                                       file that exists, below eval/ (a case may name the file of another case with ../); expectation.citations,
@@ -348,6 +351,21 @@ const memoryExpectation = (file, x) => {
     bad(file, 'expectation.absentPhrases is not a non-empty array of non-empty strings');
   }
 };
+// Story 27.1: the notes of a case of eval/notes-cases/ (the R7 channel A/B; Eval.In NotesShape), the only folder whose cases may hold them and whose cases all do.
+const NOTESFOLDER = 'eval/notes-cases/';
+const notesOf = (file, c) => {
+  const inFolder = file.startsWith(NOTESFOLDER);
+  if (c.notes === undefined) {
+    if (inFolder) bad(file, 'a case of eval/notes-cases/ has no notes');
+    return;
+  }
+  if (!inFolder) bad(file, 'only a case of eval/notes-cases/ may have notes');
+  else if (c.kind !== 'all-clear' && c.kind !== 'command') bad(file, 'only an all-clear or command case may have notes');
+  else if (c.session !== undefined) bad(file, 'a case has a session or notes, not both');
+  else if (!(Array.isArray(c.notes) && c.notes.length >= 1 && c.notes.length <= 4 && c.notes.every((n) => isObject(n) && Number.isInteger(n.minutesAgo) && n.minutesAgo >= 1 && n.minutesAgo <= 600 && text(n.text) && n.text.length <= 200))) {
+    bad(file, 'notes is not an array of 1 to 4 {minutesAgo: a whole number of 1 to 600, text: 1 to 200 characters}');
+  }
+};
 const sessionOf = (file, c) => {
   if (c.session === undefined) return;
   if (c.kind !== 'command') bad(file, 'only a command case may have a session');
@@ -432,6 +450,7 @@ try {
       }
     }
     sessionOf(file, c);
+    notesOf(file, c);
     if (c.kind === 'item' || c.kind === 'injection') {
       if (c.kind === 'item') {
         const choice = Array.isArray(x.outcome) && x.outcome.length > 0 && x.outcome.every((o) => OUTCOMES.includes(o)) && new Set(x.outcome).size === x.outcome.length;
@@ -963,7 +982,7 @@ function mainSetTexts(all, held = false) {
   const caseFile = held ? /^eval\/held-out\/[^/]+\/case\.json$/ : /^eval\/[^/]+\/case\.json$/;
   const texts = [];
   const subjects = [];
-  for (const file of all.filter((f) => caseFile.test(f) && (held || !/^eval\/(held-out|mock-wrong|persona-cases)\//.test(f)))) {
+  for (const file of all.filter((f) => caseFile.test(f) && (held || !/^eval\/(held-out|mock-wrong|persona-cases|notes-cases)\//.test(f)))) {
     let c;
     try {
       c = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
@@ -1930,6 +1949,23 @@ variant('cases', 'bad-command-session-forgotten-four', 'session.forgotten is not
 variant('cases', 'bad-command-session-forgotten-blank', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: ['a', ' '] }; });
 variant('cases', 'bad-command-session-forgotten-number', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: [5] }; });
 variant('cases', 'bad-command-session-forgotten-long', 'session.forgotten is not an array of 1 to 3 non-blank strings', (f) => { f[COMMAND].session = { forgotten: ['x'.repeat(2001)] }; });
+const NOTE = { minutesAgo: 40, text: 'Back from lunch now.' };
+const NOTESCASE = 'eval/notes-cases/notes-good/case.json';
+const notesCase = (f, edit = () => {}) => { f[NOTESCASE] = { ...f[COMMAND], name: 'notes-good', notes: [NOTE] }; edit(f[NOTESCASE]); };
+variant('cases', 'good-notes-command', '', (f) => { notesCase(f); });
+variant('cases', 'good-notes-all-clear', '', (f) => { notesCase(f, (c) => { Object.assign(c, { ...f[CLEAR], name: 'notes-good', notes: [NOTE, { minutesAgo: 600, text: 'x'.repeat(200) }, NOTE, NOTE] }); }); });
+variant('cases', 'bad-notes-outside-folder', 'only a case of eval/notes-cases/ may have notes', (f) => { f[COMMAND].notes = [NOTE]; });
+variant('cases', 'bad-notes-missing-in-folder', 'a case of eval/notes-cases/ has no notes', (f) => { notesCase(f, (c) => { delete c.notes; }); });
+variant('cases', 'bad-notes-not-array', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = { minutesAgo: 5, text: 'x' }; }); });
+variant('cases', 'bad-notes-empty', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = []; }); });
+variant('cases', 'bad-notes-five', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = [NOTE, NOTE, NOTE, NOTE, NOTE]; }); });
+variant('cases', 'bad-notes-minutes-zero', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = [{ minutesAgo: 0, text: 'x' }]; }); });
+variant('cases', 'bad-notes-minutes-601', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = [{ minutesAgo: 601, text: 'x' }]; }); });
+variant('cases', 'bad-notes-minutes-fraction', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = [{ minutesAgo: 1.5, text: 'x' }]; }); });
+variant('cases', 'bad-notes-text-blank', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = [{ minutesAgo: 5, text: ' ' }]; }); });
+variant('cases', 'bad-notes-text-long', 'notes is not an array of 1 to 4', (f) => { notesCase(f, (c) => { c.notes = [{ minutesAgo: 5, text: 'x'.repeat(201) }]; }); });
+variant('cases', 'bad-notes-with-session', 'a case has a session or notes, not both', (f) => { notesCase(f, (c) => { c.session = {}; }); });
+variant('cases', 'bad-notes-on-item', 'only an all-clear or command case may have notes', (f) => { notesCase(f, (c) => { Object.assign(c, { ...f[ITEM], name: 'notes-good', notes: [NOTE] }); c.item = { ...f[ITEM].item, itemId: 'notes-good' }; }); });
 variant('cases', 'bad-session-on-documents', 'only a command case may have a session', (f) => { f[DOCUMENTS].session = {}; });
 variant('cases', 'bad-session-on-injection', 'only a command case may have a session', (f) => { f[INJECTION].session = {}; });
 variant('cases', 'bad-session-on-item', 'only a command case may have a session', (f) => { f[ITEM].session = {}; });
@@ -2604,7 +2640,7 @@ variant('main-set-texts', 'bad-unread-header', `${MAINPROMPT}: has an XData INST
 variant('main-set-texts', 'bad-no-prompts', 'src: holds no XData INSTRUCTIONS block to read (main-set-texts)', mainTree(GENERIC, (f) => { delete f[MAINPROMPT]; }));
 const OTHERSENTENCE = 'The quarterly zz roster audit found three duplicate ZzRoster entries in the ledger today.';
 variant('main-set-texts', 'good-other-folders-not-read', '', mainTree(OTHERSENTENCE, (f) => {
-  for (const dir of ['held-out', 'mock-wrong', 'persona-cases']) f[`eval/${dir}/zz-other/case.json`] = { ...mainCase(), item: { ...mainCase().item, subject: 'Quarterly zz roster audit', text: OTHERSENTENCE }, precedents: [] };
+  for (const dir of ['held-out', 'mock-wrong', 'persona-cases', 'notes-cases']) f[`eval/${dir}/zz-other/case.json`] = { ...mainCase(), item: { ...mainCase().item, subject: 'Quarterly zz roster audit', text: OTHERSENTENCE }, precedents: [] };
 }));
 
 // held-out-texts (Story 0.35, QA): the same detectors over the held-out cases. heldTextTree is mainTree with the case moved below eval/held-out/.

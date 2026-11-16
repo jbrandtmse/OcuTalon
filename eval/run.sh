@@ -10,6 +10,17 @@
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --personas                           the persona sweep, on the CI mock (Story 40.7)
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --personas       the persona sweep, on the real model (the Planner's measurement)
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --rules-only [main|held-out]         the fixed rules alone, with no model and no key (Story 0.27)
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --notes <channel>                    the notes cases of eval/notes-cases/ once, on the CI mock, their notes written in <channel> (Story 27.1)
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --notes <channel>   the same on the real model (the Planner's channel A/B)
+# The notes run (--notes <channel> and --release-candidate --notes <channel>, Story 27.1; the Contest Planner's R7 channel A/B). <channel> is one of the channels
+# of Msg.Enum CHANNEL (web, phone, mailbox, telegram, email, webhook, slack, system, heartbeat). It starts the stack of the push run (--notes) or of the real release
+# candidate (--release-candidate --notes, which needs the key like any real run and exits 2 naming ANTHROPIC_API_KEY without it), and then runs OcuTalon.Eval.In
+# Start once over eval/notes-cases/ with the notes channel, attempt 1 only: each case gets an eval-only session whose three fixed notes are Turn rows in <channel>, and its
+# turn is rendered as the first turn of that session, so that the product's own notes block shows "message (<channel>): ..." lines. The result is saved as
+# notes-<channel>.json ({channel, cases: [{name, hit, fallback}]}: a case is a hit only when the check that Eval.Report applies to the main set passes, and a fallback is a
+# miss) and notes-<channel>.md in the report folder. Nothing is written in eval/ and neither the main set, the held-out set nor eval/results/ is run. The structural checks
+# print one PASS or FAIL line each: the run started and finished, every case of the folder was sent, every note of the cases was a Turn row in the channel while the run was up, the report has no problem, no eval watch row, eval session or Turn row is left,
+# and the result was saved with one entry for each case. The A/B verdict (every case's hits on one channel at least those on the other) is the Planner's, from the saved files.
 # Any other argument prints a usage line and exits 2, before any call to the container tool. Every mode but --override sources ci/iris.sh
 # (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own that is built from this checkout, and reaches the
 # container only through the functions of those files (stack_start, stack_ready, check_session, iris_script, dc exec). It never pulls the
@@ -152,8 +163,18 @@ mode=push
 onmock=0
 keypath=0
 personas=0
+notes=0
+notes_channel=
 rules_set=both
 override_reason=
+# notes_channel_ok <channel>: 0 when it is a value of Msg.Enum CHANNEL.
+notes_channel_ok() {
+  case $1 in
+    web | phone | mailbox | telegram | email | webhook | slack | system | heartbeat) return 0 ;;
+  esac
+  return 1
+}
+
 if [ $# -eq 0 ]; then
   :
 elif [ $# -eq 1 ] && [ "$1" = --release-candidate ]; then
@@ -174,13 +195,21 @@ elif [ $# -eq 1 ] && [ "$1" = --personas ]; then
 elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --personas ]; then
   mode=rc
   personas=1
+elif [ $# -eq 2 ] && [ "$1" = --notes ] && notes_channel_ok "$2"; then
+  mode=notes
+  notes=1
+  notes_channel=$2
+elif [ $# -eq 3 ] && [ "$1" = --release-candidate ] && [ "$2" = --notes ] && notes_channel_ok "$3"; then
+  mode=rc
+  notes=1
+  notes_channel=$3
 elif [ $# -eq 1 ] && [ "$1" = --rules-only ]; then
   mode=rulesonly
 elif [ $# -eq 2 ] && [ "$1" = --rules-only ] && { [ "$2" = main ] || [ "$2" = held-out ]; }; then
   mode=rulesonly
   rules_set=$2
 else
-  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock [--key-path]] | --override "<reason>" | --personas | --rules-only [main|held-out]]'
+  echo 'usage: bash eval/run.sh [--release-candidate [--on-mock [--key-path]] | --override "<reason>" | --personas | --rules-only [main|held-out] | [--release-candidate] --notes <channel>]'
   exit 2
 fi
 
@@ -815,6 +844,135 @@ CHK|keys|1" \
     die "the stack is not ready for the evaluation set"
   fi
   echo "KEYS ready and keys $((SECONDS - keys_begun))s"
+fi
+
+# --- the notes run (Story 27.1) ---
+
+# notes_run <channel>: the notes cases in one IRIS session: Eval.In Start over eval/notes-cases/ with the notes channel, Wait, Report.Build over the run, Finish, and the
+# result saved as notes-<channel>.json and .md in the container. The early CHK line keeps iris_script from starting the run a second time. A case is a hit only when
+# Report.Build scores it right (the check the main set gets) and it is not a fallback; a case that is not scored, or not sent, is a miss. The lines are in $tmp/notes-<channel>.chk.
+notes_run() {
+  local channel=$1 name="notes-$1" folder="${EVAL_FOLDER}notes-cases/" begun=$SECONDS
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "Set folder=\"$folder\"" \
+    "Set sc=##class(OcuTalon.Eval.In).Start(folder,\"\",.runRef,.sent,.skipped,.watches,\"\",\"\",\"$channel\")" \
+    'Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+    'If $SYSTEM.Status.IsError(sc) { Write !,"CHK|error|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ") Halt }' \
+    'Set report="",why=""' \
+    "Try { Do ##class(OcuTalon.Eval.In).Wait(runRef,$limit) Set report=##class(OcuTalon.Eval.Report).Build(runRef,folder,skipped,watches) } Catch e { Set why=e.DisplayString() }" \
+    "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE Channel = ?\",\"$channel\") Do rs.%Next() Write !,\"CHK|noteturns|\",+rs.%GetData(1)" \
+    'Set fin=##class(OcuTalon.Eval.In).Finish(watches) Write !,"CHK|finished|",$SYSTEM.Status.IsOK(fin)' \
+    'If why'"'"'="" { Write !,"CHK|error|",$Translate(why,$Char(13,10),"  ") Halt }' \
+    'Set names=##class(OcuTalon.Eval.In).CaseNames(folder,"")' \
+    'Write !,"CHK|sent|",sent,"|",$ListLength(names)' \
+    'Set problems=##class(OcuTalon.Eval.Report).Problems(report)' \
+    'Write !,"CHK|problems|",problems.%Size()' \
+    'For i=0:1:problems.%Size()-1 { Write !,"CHK|problem|",$Translate(problems.%Get(i),$Char(13,10),"  ") }' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?",##class(OcuTalon.Data.Ownership).#EVAL) Do rs.%Next() Write !,"CHK|leftwatches|",+rs.%GetData(1)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE COALESCE(IrisUser, '"''"') = '"''"'") Do rs.%Next() Write !,"CHK|leftsessions|",+rs.%GetData(1)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Turn") Do rs.%Next() Write !,"CHK|leftturns|",+rs.%GetData(1)' \
+    "Set out={\"channel\":\"$channel\",\"cases\":[]}" \
+    "Set md=\"# Notes run on the channel $channel\"_\$Char(10,10)_\"| Case | Hit | Fallback |\"_\$Char(10)_\"|---|---|---|\"_\$Char(10)" \
+    'Set pos=0 While $ListNext(names,pos,n) { Set right=0,fb=0 For i=0:1:report.cases.%Size()-1 { Set c=report.cases.%Get(i) If c.case=n,c.%Get("right") Set right=1 } For i=0:1:report.fallbacks.%Size()-1 { If report.fallbacks.%Get(i).case=n Set fb=1 } Set hit=(right&&'"'"'fb) Set one={"name":(n)} Do one.%Set("hit",hit,"boolean") Do one.%Set("fallback",fb,"boolean") Do out.cases.%Push(one) Set md=md_"| "_n_" | "_$Select(hit:"yes",1:"no")_" | "_$Select(fb:"yes",1:"no")_" |"_$Char(10) }' \
+    'Write !,"CHK|cases|",out.cases.%Size()' \
+    "Set sc=##class(OcuTalon.Eval.Report).WriteFiles(\"$CONTAINER_REPORTS/\",\"$name\",out.%ToJSON(),md)" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name $((SECONDS - begun))s"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
+# notes_in_tree: how many notes the cases of eval/notes-cases/ declare in all.
+notes_in_tree() {
+  node -e '
+    const fs = require("node:fs");
+    const dir = process.argv[1];
+    let n = 0;
+    for (const d of fs.readdirSync(dir)) {
+      const f = dir + "/" + d + "/case.json";
+      if (fs.existsSync(f)) n += (JSON.parse(fs.readFileSync(f, "utf8")).notes || []).length;
+    }
+    console.log(n);
+  ' "$root/eval/notes-cases"
+}
+
+# notes_cases_in_tree: how many cases eval/notes-cases/ holds (the folders with a case.json).
+notes_cases_in_tree() {
+  local n=0 file
+  for file in "$root"/eval/notes-cases/*/case.json; do
+    if [ -f "$file" ]; then n=$((n + 1)); fi
+  done
+  echo "$n"
+}
+
+if [ "$notes" -eq 1 ]; then
+  name="notes-$notes_channel"
+  want=$(notes_cases_in_tree)
+  notes_run "$notes_channel"
+  if run_started "$name"; then
+    if [ "$(chk_value "$name" finished)" = 1 ]; then pass "$name: the run finished and removed its sessions and watches"; else fail "$name: the run did not finish cleanly"; fi
+    sent=$(chk_value "$name" sent | cut -d'|' -f1)
+    expected=$(chk_value "$name" sent | cut -d'|' -f2)
+    if [ "$want" -gt 0 ] && [ "$sent" = "$want" ] && [ "$expected" = "$want" ]; then
+      pass "$name: the $want case(s) of eval/notes-cases/ were sent"
+    else
+      fail "$name: cases sent ${sent:-none}, listed by the session ${expected:-none}, in eval/notes-cases/ $want"
+    fi
+    wantnotes=$(notes_in_tree)
+    if [ "$wantnotes" -gt 0 ] && [ "$(chk_value "$name" noteturns)" = "$wantnotes" ]; then
+      pass "$name: the $wantnotes note(s) of the cases were written as Turn rows in the channel $notes_channel before the run ended"
+    else
+      fail "$name: Turn rows in the channel $notes_channel while the run was up $(chk_value "$name" noteturns), notes declared by the cases $wantnotes"
+    fi
+    if [ "$(chk_value "$name" problems)" = 0 ]; then
+      pass "$name: the run has no problem"
+    else
+      fail "$name: the run has $(chk_value "$name" problems) problem(s): $(sed -n 's/^CHK|problem|//p' "$tmp/$name.chk" | head -n 3 | paste -s -d';' -)"
+    fi
+    if [ "$(chk_value "$name" leftwatches)" = 0 ] && [ "$(chk_value "$name" leftsessions)" = 0 ] && [ "$(chk_value "$name" leftturns)" = 0 ]; then
+      pass "$name: the run left no eval watch row, eval session or Turn row"
+    else
+      fail "$name: the run left rows (watches $(chk_value "$name" leftwatches), eval sessions $(chk_value "$name" leftsessions), Turn rows $(chk_value "$name" leftturns))"
+    fi
+    if [ "$(chk_value "$name" saved)" = 1 ] && [ "$(chk_value "$name" cases)" = "$want" ]; then
+      fetch "$name"
+      if node -e '
+        const fs = require("node:fs");
+        const [file, channel, count] = process.argv.slice(1);
+        const r = JSON.parse(fs.readFileSync(file, "utf8"));
+        const names = new Set((r.cases || []).map((c) => c.name));
+        const shaped = (r.cases || []).every((c) => typeof c.hit === "boolean" && typeof c.fallback === "boolean" && typeof c.name === "string");
+        process.exit(r.channel === channel && r.cases.length === Number(count) && names.size === Number(count) && shaped ? 0 : 1);
+      ' "$report_dir/$name.json" "$notes_channel" "$want" 2> /dev/null; then
+        pass "$name: $name.json lists the $want case(s) once each, with a hit and a fallback flag"
+      else
+        fail "$name: $name.json is not {channel $notes_channel, $want cases with name, hit and fallback}"
+      fi
+    else
+      fail "$name: the result could not be saved with one entry for each case (saved $(chk_value "$name" saved), entries $(chk_value "$name" cases), cases $want)"
+    fi
+  fi
+  if [ -s "$report_dir/$name.md" ]; then
+    echo "==== report $name"
+    if [ -n "$(key_like "$report_dir/$name.md")" ]; then
+      echo "NOTE the text of $name is not printed: it holds key-like text (the scan below names the place)"
+    elif [ -n "$(key_value_hits "$report_dir/$name.md" 2> /dev/null)" ]; then
+      echo "NOTE the text of $name is not printed: it holds the value of the model key"
+    else
+      cat "$report_dir/$name.md"
+    fi
+  fi
+  if [ -s "$report_dir/$name.json" ] && [ -s "$report_dir/$name.md" ]; then
+    scan_pair "$name" "$report_dir/$name.json" "$report_dir/$name.md" || exit 4
+  fi
+  echo "REPORT $report_dir"
+  if [ "$fails" -ne 0 ]; then
+    echo "eval/run: $fails check(s) failed (project $P)"
+    exit 1
+  fi
+  echo "eval/run: all checks passed"
+  exit 0
 fi
 
 # --- the persona sweep (Story 40.7) ---

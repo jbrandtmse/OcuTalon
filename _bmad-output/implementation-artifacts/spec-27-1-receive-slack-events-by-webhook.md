@@ -2,9 +2,10 @@
 title: 'Story 27.1: Receive Slack events by webhook'
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '8d801c4f33bfc23dbc8782e200344a2ccdba5872'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-27-context.md'
 warnings: [oversized]
@@ -185,6 +186,50 @@ All classes are under `src/ocutalon/cls/OcuTalon/`. Lane = AD-29 owner.
 
 ## Review Triage Log
 
+### 2026-11-16 — Review pass
+- verdicts: 40 findings — high 0, medium 3, low 28, false 9, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind Hunter: `test-slack-hook.sh` takes two `date +%s` readings for the challenge header and its signature — real: a second boundary between them gives a 401; patched: one `ts` read once.
+  - `[low]` `[reject]` BH: `LinkedInAnotherTeam` scans every link row — real but the link table holds one row per linked member; the fix adds an index and a storage change, and an unlinked DM costs one short scan.
+  - `[low]` `[reject]` BH: `Event.EnvelopeType` is never read — Slack signs only `event_callback` envelopes with an event; other types carry no `event` and fall to `unhandled_type`; the fix is a new branch with changed fixtures.
+  - `[low]` `[reject]` BH: an event with no usable `event_id` is recorded as `Ignored` `unhandled_type` — Slack's `event_callback` always has a short event id; a guard would add a reason and a branch for a case Slack does not produce.
+  - `[low]` `[patch]` BH: claim retention worded as two hours — buckets are whole UTC hours, so a claim is kept two to three hours; `CLAIMSECONDS` and `ClaimEvent` comments reworded.
+  - `[low]` `[reject]` BH: Slack's `&amp;`, `&lt;`, `&gt;` and `<@U...>` markup reaches the Item text — real but cosmetic for a model that reads it plainly; decoding is a text-transform decision the spec does not make (27.2 or 27.3 can take it); recorded under Residual risks.
+  - `[low]` `[reject]` BH: no unit test for a failed `Trace.Join` or `Trace.Started` — the paths are one logged warning each; forcing the failures needs a seam that adds more code than the paths hold.
+  - `[low]` `[reject]` BH: `notes_run` counts all Turn rows and duplicates the channel list — the run owns a fresh throwaway; the duplicate list is now pinned by the `test-eval-personas.sh` forms (a bogus channel is refused).
+  - `[false]` `[reject]` BH: the `2030` claim buckets of `TestClaimEvent` stay in the global — `Test.Data.SlackLink` kills `^OcuTalonP.SlackE` before and after the class.
+  - `[low]` `[reject]` Edge Case Hunter: an event id over 64 characters or not a string is dropped — same as the BH event-id row.
+  - `[low]` `[reject]` ECH: the envelope type is not checked — same as the BH row.
+  - `[low]` `[reject]` ECH: the claim is given back when an exception follows a successful send — after `SendTurn` returns OK only `Trace.Started` (a status, logged) remains; an exception there is not shown to occur.
+  - `[low]` `[reject]` ECH: zero-width or Unicode spaces count as text — the harm is one model turn for a message that looks blank, and the message is the member's own.
+  - `[low]` `[reject]` ECH: the unlinked scan — same as the BH row.
+  - `[false]` `[reject]` ECH: `RawBody` re-encodes a character stream with another charset — Task 0 (a) measured a binary stream for `application/json` with and without a charset, and Slack sends no charset.
+  - `[false]` `[reject]` ECH: an unparseable `Now` makes every request stale — `Now` is the system clock in the fixed UTC format.
+  - `[low]` `[reject]` ECH: `DropEval` deletes turns and the row without a transaction — eval-only; a half-dropped session is swept by the next start's `SweepSessions`.
+  - `[low]` `[reject]` ECH: notes on a case that is not a turn kind are ignored silently — the notes lint of `test-eval-set.sh` admits notes only on all-clear and command cases.
+  - `[low]` `[patch]` ECH: the `Signature` comment says all characters of the longer value are compared — the loop runs over the fixed expected length and the length test covers a longer value; comments reworded.
+  - `[medium]` `[patch]` Verification Gap: the `--notes` and `--release-candidate --notes` forms of `eval/run.sh` have no repository check (key handling, refused forms, print guard) — patched: `docker/tests/test-eval-personas.sh` pins the forms, the key drop and refusal, the print order, and six sample mutations that it flags.
+  - `[medium]` `[patch]` VG: nothing observes the `Start` notes-channel plumbing; deleting `Set service.NotesChannel = notesChannel` leaves `--notes` green and the A/B vacuous — patched: `notes_run` counts the Turn rows in the channel before `Finish` and `run.sh` checks they equal the notes the cases declare; mutation recorded.
+  - `[medium]` `[patch]` VG: `Web.Hook.RawBody` has no test with non-ASCII or multi-chunk bodies, which a decode change would reject with 401 — patched: live phase 3c posts a signed UTF-8 event and a signed 40,000-byte event; mutation recorded.
+  - `[low]` `[patch]` VG: `TestWholeLengthIsCompared` claims an early exit would fail it — a timing property is not testable here; the test's doc now says per-position detection only.
+  - `[false]` `[reject]` VG: the last assertion of `TestTypedApproveApprovesNothing` cannot fail — the real `SlackIn` runs (only the two sends are stubbed) and a defect that answered an approval would turn it red.
+  - `[false]` `[reject]` VG: probe mode `real` has no unit host — live phase 3 runs the real `SlackHand` and `ProcessInput`.
+  - `[low]` `[reject]` VG: `TestUnsigned`'s wrong signature differs in length only — same-length mismatch is pinned by `SlackSignature.TestMismatch` and `SlackHook.TestRawBytesAreSigned`.
+  - `[low]` `[reject]` VG: sub-rows (R1 edit, R2, 413/400, stale, thread join, `.env.example`) have no `mutation:` line of their own — each AC has a recorded mutation, and the sub-rows share the code those mutations break; extra lines would be more runs for the same code.
+  - `[low]` `[reject]` VG: the AC 1 mutation as planned (one deleted tag) stays green at 7 tags — the recorded mutation deletes the four tags of AD-1, AD-13, AD-24 and AD-26 and drops the count to 2; the fix would edit the spec's planned wording.
+  - `[low]` `[reject]` VG: `Settle()` is a wall-clock `Hang 1` — recorded in decision 24; the audit timestamps have one-second granularity.
+  - `[low]` `[reject]` VG: `sleep 5` before the negative Turn and Ignored checks — each is preceded by an awaited positive (the Turn, the 200s), and the work is asynchronous but local.
+  - `[low]` `[reject]` VG: `notes_run` asserts absolute counts — the run owns a fresh throwaway; same as the BH row.
+  - `[low]` `[reject]` VG: `SlackIn` unit tests carry no throwaway-only note — documentation only; the class restores what it changes.
+  - `[low]` `[patch]` VG: `TestDraftTransformToolOnly` doc says "the sibling of DraftTransform" — reads "the sibling of ProposeFix".
+  - `[low]` `[patch]` VG: claim retention two to three hours — same as the BH wording row.
+  - `[false]` `[reject]` Intent Alignment: a form is answered 400 before the signature check — the matrix row "a form, text or JSON scalar → 400" and decision 18 (the web server keeps no raw bytes for a form).
+  - `[low]` `[reject]` IA: "answers `failed` until 28.1" is not pinned at `IncidentManager` — AC 7 is pinned through the `Send` override and `Watch/IncidentManager.cls` is Lane A's, not to be edited; the generic unhandled-request error is the existing behaviour.
+  - `[false]` `[reject]` IA: class-level tests use a probe subclass — the live unit covers the real web application surface (44 PASS lines).
+  - `[false]` `[reject]` IA: R7 adds no product edit to `DailyNote` — `LINEMESSAGE` and `LINEDECISION` take the channel as a value and `Msg.Enum` `CHANNEL` already holds `slack`; `Test.Data.DailyNote` pins the `(slack)` lines.
+  - `[false]` `[reject]` IA: additions outside the spec's list (`DropEval` turns, `Turn.ForEval`, boundary and compose-file test repairs) — gate items g and h and decisions 25 and 26.
+  - `[low]` `[reject]` IA: an envelope with no event id is `Ignored` — same as the BH event-id row.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -227,6 +272,15 @@ All classes are under `src/ocutalon/cls/OcuTalon/`. Lane = AD-29 owner.
 15. R7 knob: no eval case renders notes today (Code Map), so the knob adds the smallest real path: Turn rows written through an eval-only writer and rendered by the product's own `DailyNote` and `Agent.Input.NotesPart`, instead of a text substitution that would test nothing. Run-level argument + case member + `run.sh` mode is the persona sweep's precedent (Story 40.7: `Start(..., preset, language)`, `--personas`, `eval/persona-cases/`). Story 0.35/0.37's A/Bs had no knob (they compared two checkouts), so they set only the run-command form. The four notes cases live in `eval/notes-cases/`, outside the main and held-out sets, so SM-1/SM-2, the held-out hashes and `rules-only.json` are unchanged. A notes case's Item has the case's eval session as `SessionRef` (so `NotesPart` reads it); the request's `OwnerRef` stays `eval`. Its input can differ from its source case by what an empty eval session adds to the persona and core blocks; both A/B sides share that, so the comparison isolates the channel label.
 16. The fixed notes set (identical on both sides, no personal data, nothing actionable): `{"minutesAgo": 170, "text": "Good morning, I'm on shift until six."}`, `{"minutesAgo": 95, "text": "Thanks, that helps."}`, `{"minutesAgo": 40, "text": "Back from lunch now."}`.
 17. The A/B verdict is computed by the Planner from the ten `notes-<channel>.json` files (command under `## Verification`); the pipeline never runs a side.
+18. (implement stage) A form content type (`application/x-www-form-urlencoded`, `multipart/`) is answered 400 before the signature check, not after it. Measured in Task 0 (a): for a form the web server parses the body and leaves `%request.Content` unset, so no signature over its bytes can be computed, and a signed form would otherwise be 401 and never 400. It is a rejection counted like the others and Slack's events are never forms.
+19. An envelope field longer than its limit (event id 64, team and member id 32, type 64, and so on) or not a string is read as empty (`Channel.Slack.Event`), so a long value never matches a row by its first characters and an event id is always a usable global subscript. An envelope with no usable event id is recorded as `Ignored` (kind `other`, reason `unhandled_type`, empty event id) and never claimed.
+20. Claims are bucketed by UTC hour and a claim is kept at least 2 and at most 3 hours (the buckets from the hour of now minus 2 hours on); `UnclaimEvent` gives a claim back when the hand-over fails (a send error or a throw), so that Slack's retry after the 503 is processed instead of dropped.
+21. `SlackIn.On(demo = "")` takes the online-demo flag as an optional argument so that the route passes its own seam (`Hook.OnlineDemo`) and stays the one source of "Slack on"; an `Ignored` reason for a member that is linked only in another workspace is found by `Data.SlackLink.LinkedInAnotherTeam` (object reads over the link rows by id: one row per linked person).
+22. `eval/run.sh --notes` calls `Eval.In.Start`, `Wait`, `Report.Build` and `Finish` itself (all public) instead of adding an argument to `Eval.Report.Run`, so `Eval/Report.cls` is not edited. A case is a hit when `Report.Build` scores it right and it is not in `report.fallbacks`; a case that is skipped or not scored is a miss, so every run lists the same four names.
+23. `live:slack-hook` runs the rejection burst (its phase 4) straight after the unsigned challenge of phase 3, before the events, so that all six rejections fall inside one 60-second audit window and the "one audit entry" check is exact; the phases are otherwise the plan's. Its leak scan uses `Test.Eval.KeyProof.GlobalHits` and `TraceHits` (existing helpers, any value) with a positive control for each, and a shell loop of `grep -cF` over the container's output, `messages.log` and the after-start log.
+24. The unit tests use the real clock for the hook probe (a fixed time in 2030 let the web area's purge of the rejection counters, which writes an entry for a slot stamped in the future, interleave with a test) and wait 1 s (`Settle`) before taking an audit mark, because the audit entry of the previous test's first rejection can land after the next test's mark (seen 3 runs in 4 without it).
+25. Two scripts outside the spec's file list needed a one-line change that the story's own change forces, both made and reported: `docker/tests/test-boundaries.sh` (the rule "ForEval and DropEval are called only by Eval/In.cls" names the definition line of `Data.Turn.ForEval`, the eval-only writer of gate item h, as it names those of `Data.Session`) and `docker/tests/test-compose-file.sh` (the `.env.example` check lists the two Slack lines the story ships, with no value).
+26. `ci/units.sh` carries a comment for the new unit as earlier rebalances do. No `ci/compose.ci.yml`, workflow or `release/**` change.
 
 **Integration ACs / Consumed-by / Consumes:**
 - Consumes: `Conversation` (turns; Integration AC 4, real production in `live:slack-hook`), `Intake` (`Ignored`; Integration AC 5), `Core.Trace`, `Data.Session`, `Data.Webhook` counters, `Data.DailyNote` and `Agent.Input` (R7).
@@ -323,7 +377,11 @@ All classes are under `src/ocutalon/cls/OcuTalon/`. Lane = AD-29 owner.
 
 LANE below means `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=27 stage=implement'`. Every call runs in the foreground with `timeout: 600000` from the worktree root, one test-runner call per message, sized to about 150 s. Warm runs use tag `e27s1iw` after `LANE OCUTALON_RUN_TAG=e27s1iw ci/warm.sh up`; the stage ends with `LANE OCUTALON_RUN_TAG=e27s1iw ci/warm.sh down`, also after a failure. Never slot B.
 
-**Task 0 record (R10):** the implement stage writes here, before any code relies on it, the results of Task 0 (a)-(d) with the throwaway's tag. If (c) needs a new grant, the stage HALTs `intent gap: R10 new grant needed` instead.
+**Task 0 record (R10), measured 2026-11-16 on lane-B throwaways tagged `e27s1t0` (two runs, same results; the second fixed a CRLF artefact of the probe's own comparison), with dummy `SLACK_*` values from a `$tmp` compose override, in a temporary `/e27probe` application built from `/ocutalon/hook`'s own properties (role `OcuTalonWebhook`, unauthenticated, user `UnknownUser`) and a scratch probe class; both were removed with the throwaway:**
+- (a) Raw body: for `application/json` and for `application/json; charset=utf-8`, `%request.Content` is a `%CSP.BinaryStream`, `IsCharacter()` is 0, `Size` equals the bytes sent, and the characters read are all below 256. For a non-ASCII body (UTF-8 for `{"t":"caf<e-acute> <CJK> <u-umlaut>x"}`, 21 bytes) the bytes read equal the bytes sent (hex compare, both content types), and `$SYSTEM.Encryption.HMACSHA(256, "v0:<ts>:"_raw, secret)` as hex equals `openssl dgst -sha256 -hmac` over the same bytes (both content types). `%request.ContentType` shows `application/json` without the charset. A form content type leaves `%request.Content` unset (not an object), so `RawBody()` and `BodySize()` must test `$IsObject` (the existing `BodySize` and `BodyText` already do).
+- (b) `$SYSTEM.Util.GetEnviron("SLACK_SIGNING_SECRET")` and `("SLACK_BOT_TOKEN")` in the hook process return the container's values (length and SHA-256 compared with the shell's, no value printed).
+- (c) In the hook process, under the role's existing grants alone (`$Roles` = `OcuTalonWebhook`): `Data.Session` read OK; a read of a link-shaped table with a unique `(TeamId, MemberId)` index and a `SessionRef` index OK; `$Increment` of a `^OcuTalonP.*` node OK; `Core.Trace.Join` and `Started` (a read and a write of the Session row, with its lock) OK; `CreateBusinessService` of the existing `WebhookIn` item and `SendRequestAsync` from it to `Conversation` and to `Intake` OK (status OK each). `SlackIn` itself did not exist yet, so the stand-in is `WebhookIn`, whose item and hook role are the ones `SlackIn` will have; live phase 3 re-proves it with the real item. No new grant, role or resource is needed.
+- (d) R8: with a `ForeignKey SessionFK(SessionRef) References OcuTalon.Data.Session(RefIndex) [ OnDelete = cascade ]` on a link-shaped scratch table compiled, `Data.Session` `%DeleteId` removed the session's link row, and an SQL `DELETE FROM OcuTalon_Data.Session` removed the other session's link row. The same key refuses a link whose `SessionRef` has no session. The cascade works; the Design Notes 11 fallback is not needed.
 
 **Commands:**
 - (loop) `LANE OCUTALON_WARM=1 OCUTALON_RUN_TAG=e27s1iw ci/iris.sh class OcuTalon.Test.Channel.SlackSignature` -- expected: CLASS passed
@@ -341,6 +399,13 @@ LANE below means `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=ab
 - (once) `bash docker/tests/test-ci-config.sh`, `bash docker/tests/test-eval-set.sh` and `bash ci/checks.sh`, one per call -- expected: pass
 - (once) `grep -c "AMENDED 2026-11-16, Story 27.1, Contest Planner ruling" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- expected: 4 or more; and `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- expected: `"ok": true`
 - CI: no workflow and no `ci/compose.ci.yml` change. `live:slack-hook` (group `shards-3`) is the only unit whose throwaway has `SLACK_*` set, through its own `$tmp/slack.yml` layered by `live_add_file`; its phase 1 asserts that a default throwaway answers 404 on POST `/ocutalon/hook/slack/events` (R9). The new `Test.Channel.*` classes run in `shard:lane-a@Channel` (group `production`), `Test.Data.SlackLink` in `shard:lane-b@Contract,Core,Data,Live` (group `image`), `Test.Eval.NotesKnob` in `shard:lane-a@Install,Digest,Eval` (group `shards`). new_units: `live:slack-hook` → `shards-3` (about 25.2 + 3.5 = 28.7 min planned, inference; R11).
+
+**Implement-stage results (2026-11-16, lane-B throwaways and the lane-B warm stack tagged `e27s1iw`, brought down at the end):**
+- Classes, each `CLASS ... passed` on the warm stack, run singly and, after the last edit, again: `Test.Channel.SlackSignature`, `Test.Channel.SlackHook` (5 runs in a row), `Test.Channel.SlackIn`, `Test.Data.SlackLink`, `Test.Data.DailyNote`, `Test.Web.Hook`, `Test.Core.Intake`, `Test.Core.CommandsRouting`, `Test.Eval.NotesKnob`, `Test.Eval.In` (the existing class that the `Eval.In` edit could break), `Test.Install.Production`, `Test.Data.Tables`, `Test.Msg.Contracts` and `Test.Bridge.CodeRules`. `OcuTalon.Test.Core.ProductionItems` in the Commands above is the oracle of lane B's rows, not a test class (`ci/iris.sh class` refuses it): `Test.Install.Production` reads it and passes with the SlackIn row.
+- `live:slack-hook` (`ci/iris.sh live slack-hook`): 44 PASS lines and `test-slack-hook: all checks passed`, in about 4 minutes 15 seconds on a developer machine (first start 108 s, the recreate 6 s of waiting). The linked direct message was answered in 0.03 s.
+- `bash eval/run.sh --notes slack` on the CI mock (tag `e27s1n`): exit 0, six PASS lines, `notes-slack.json` lists exactly the four R7 A/B cases (each a miss on the mock, whose default chat script scores no turn case right, as for the main set), and no eval session, Turn row or watch was left. About 2 minutes 20 seconds with the stack's start.
+- `bash docker/tests/test-ci-config.sh`, `bash docker/tests/test-eval-set.sh` (with the new notes lint and its variants) and `bash ci/checks.sh` (33 scripts) pass, after the two one-line repairs recorded under Design Notes 25; `bash docker/tests/test-boundaries.sh` passes.
+- Spine: `grep -c "AMENDED 2026-11-16, Story 27.1, Contest Planner ruling"` is 7 (AD-1, AD-13 twice, AD-24, AD-26, AD-29 and Deferred). `lint_spine.py` reports `"ok": false` with 13 low `placeholder` findings (the `{time}`-style tokens of existing catalog text, lines 457 to 1391), and reports exactly the same 13 on the spine as it was at HEAD before this change: the change adds none. The memlog entry was appended (`.memlog.md` is gitignored and was created for it).
 
 **live:slack-hook phases** (`docker/tests/test-slack-hook.sh`; dummy values in shell variables, never echoed; fixture ids `T0FIXTURE1`/`U0FIXTURE1`, other team `T0FIXTURE2`, unlinked `U0FIXTURE9`):
 1. Default stack, no override: a signed POST `/ocutalon/hook/slack/events` → 404, nothing counted (R9).
@@ -373,6 +438,23 @@ Every test added or changed passes on a fresh environment, in either order. The 
 - AC 9 (R7 knob): `TurnRequest` writes the notes with Channel `telegram` whatever the knob → `NotesKnob.TestChannelLabel` red.
 - Also recorded: `ClaimEvent` always returns 1 → `SlackIn.TestRetryOnce` red (R4); `Hang 4` before the hand-over → live phase 3 red (R4).
 
+**Mutation record (implement stage, 2026-11-16; each applied to the file named, run on the lane-B warm stack, observed red, reverted byte-identical (`cmp` against the saved copy), and the class run green again):**
+- mutation: AC 1 (spine): the `[AMENDED 2026-11-16, Story 27.1, Contest Planner ruling]` tags of AD-1, AD-13 (both lines), AD-24 and AD-26 deleted → the grep count 7 drops to 2 (below 4); restored to 7.
+- mutation: AC 2 (no secret or id): `SlackIn.OnProcessInput` logs `event.MemberId` in an Ens log line → `SlackIn.TestRecordsHoldNoIds` red ("no event-log row after the events holds the text, a member id or a team id"). The live phase 5 scan reads the same rows.
+- mutation: AC 3 (route matrix): `Signature.Check` ends `Quit ""` → `SlackHook.TestUnsigned` (wrong signature, counts, nothing handed over), `TestRawBytesAreSigned` and `TestRejectedStoresNothing` red.
+- mutation: AC 4 (linked DM): Item Provenance `untrusted` → `SlackIn.TestLinkedDm` and `TestTypedApproveApprovesNothing` red.
+- mutation: AC 5 (other events): the `bot_id` check dropped from `Classify` → `SlackIn.TestBotIdIgnored` red (reason, kind and the Item).
+- mutation: AC 6 (R8): the `ForeignKey SessionFK` removed from `Data.SlackLink` → `SlackLink.TestLinkGoesWithSession` red (`%DeleteId` and `DropEval` leave the link row).
+- mutation: AC 7 (DraftTransform): `DraftTransform` removed from the own-incident check of `CommandsIn` → `CommandsRouting.TestDraftTransformToolOnly` red (not_found cases and the context cases).
+- mutation: AC 8 (off): `SlackIn.On()` ends `Quit 1` (ignores the demo flag) → `SlackHook.TestOnlineDemo` red (and `TestRejectedStoresNothing`, which counts on the demo flag being read).
+- mutation: AC 9 (R7 knob): `Eval.In.NotesUp` writes the notes with Channel `"telegram"` whatever the knob → `NotesKnob.TestChannelLabel` and `TestNotesShape` red.
+- mutation: `Eval.In` reads the `notes` member whatever the notes channel (the inert guard dropped) → `NotesKnob.TestInertWhenUnset` red.
+- mutation: `ClaimEvent` always returns 1 (`Do $Increment(...)` then `Quit 1`) → `SlackIn.TestRetryOnce` red (R4).
+- mutation: `Hang 4` at the start of `SlackIn.OnProcessInput` → `live:slack-hook` phase 3 red: "FAIL phase 3 (R4): status '200', 4.026283s" (run `e27s1l`, the other checks of that run passed but for a quoting bug of the unit's own marker check, fixed after); the file was restored and the unit run clean afterwards (44 PASS lines, `test-slack-hook: all checks passed`).
+- mutation: review patch (RawBody, VG): `Web.Hook.RawBody` ends `Quit $ZConvert(raw, "I", "UTF8")` instead of `Quit raw` (decoding the bytes before the signature) -> `live:slack-hook` phase 3c red: "FAIL phase 3 (R3): a signed event whose text is UTF-8 ...: wanted 200, got '401'" and "1 new Ignored header(s) ... wanted 2" (run `e27s1l`); the file was restored byte-identical (`cmp` against the saved copy) and the unit run clean (all checks passed, 47 PASS lines).
+- mutation: review patch (notes plumbing, VG): `Eval.In.Start` loses `Set service.NotesChannel = notesChannel` -> `bash eval/run.sh --notes slack` exit 1: "FAIL notes-slack: Turn rows in the channel slack while the run was up 0, notes declared by the cases 12"; restored byte-identical and the run clean (exit 0, 9 PASS lines, the 12 notes counted).
+- mutation: review patch (forms, VG): six sample trees of `eval/run.sh` with one edit each (a bogus channel accepted, a bogus channel accepted after `--release-candidate`, the key kept for `--notes`, the key not needed for `--release-candidate --notes`, the notes report printed unchecked, and the persona sweep printed unchecked) are each flagged by `docker/tests/test-eval-personas.sh`; the real tree passes.
+
 **R7 A/B cases (PINNED; the four notes-bearing session-start cases; no existing case carries notes):**
 - `eval/notes-cases/notes-allclear-all-passing/case.json` -- mirrors `eval/allclear-all-passing/case.json`
 - `eval/notes-cases/notes-allclear-orders-failing/case.json` -- mirrors `eval/allclear-orders-failing/case.json`
@@ -392,5 +474,27 @@ Every test added or changed passes on a fresh environment, in either order. The 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Story 27.1 adds the Slack Events API route and its adapterless service. `POST /ocutalon/hook/slack/events` is on only when both `SLACK_*` variables are set and the install is not the online demo (404 otherwise). It checks size, Slack's v0 signature over the raw bytes in constant time (401 for a missing, wrong or stale one, before any challenge), answers URL verification, and hands every other event to `SlackIn` before answering 200. `SlackIn` claims the event id (a retry does nothing), turns a linked member's plain direct message into one `user` Item on channel `slack` in the member's session, and leaves one content-free `Ignored` record for every other event. The story also creates the `DraftTransform` verb and its `CommandsIn` route (origin tool, own incidents), the R7 eval knob with its four pinned notes cases, and the spine amendments of gate item f.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Web/Hook.cls`: the `/slack/events` route and its helpers.
+- `src/ocutalon/cls/OcuTalon/Channel/Slack/{Signature,Event,Ignored,In}.cls`: the signature check, the parsed event, the trace record and SlackIn.
+- `src/ocutalon/cls/OcuTalon/Data/SlackLink.cls`, `src/short-names.tsv`, `Test/Data/Tables.cls`: the link table (cascading foreign key to the session) and the event-id claims.
+- `src/ocutalon/cls/OcuTalon/Core/{Intake,CommandsIn}.cls`, `Msg/Command/DraftTransform.cls`, `Production.cls`: the silent drop of `Ignored`, the new verb and route, the SlackIn item.
+- `src/ocutalon/cls/OcuTalon/{Data/Turn,Data/Session,Eval/In}.cls`, `eval/run.sh`, `eval/notes-cases/*`: the eval-only notes knob (inert when unset).
+- `docker/tests/{test-slack-hook,test-eval-set,test-eval-personas,test-boundaries,test-compose-file}.sh`, `ci/units.sh`, `.env.example`: the live unit (`shards-3`), lints and the two `.env.example` lines.
+- `src/ocutalon/cls/OcuTalon/Test/**`: the new and extended unit classes.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the AD-1, AD-13, AD-24, AD-26 amendments and their tags.
+
+**Review (pass 1).** 40 findings from four layers: high 0, medium 3, low 28, false 9. Patched: 3 medium (the `--notes` forms of `eval/run.sh` pinned in `test-eval-personas.sh`; the Start notes plumbing observed by a Turn-row count in `notes_run`; non-ASCII and multi-chunk signed bodies in live phase 3c) and 6 low (the doubled timestamp read in the live unit, three comment corrections, the claim-retention wording, one typo). Deferred: none. Rejected, each with its reason in the Review Triage Log: 22 low findings (unlikely or cosmetic, or a fix larger than the defect) and 9 false findings.
+
+**Verification performed.** On the lane-B warm stack (tag `e27s1iw`, down at the end), after the last patch: `Test.Channel.SlackSignature`, `SlackHook`, `SlackIn`, `Test.Data.SlackLink`, `Test.Data.DailyNote`, `Test.Web.Hook`, `Test.Core.Intake`, `Test.Core.CommandsRouting`, `Test.Eval.NotesKnob`, `Test.Install.Production`, `Test.Data.Tables`, `Test.Msg.Contracts`, `Test.Bridge.CodeRules` and `Test.Eval.In` all passed. `ci/iris.sh live slack-hook` passed (47 PASS lines, about 4 min). `bash eval/run.sh --notes slack` exited 0 (the 12 notes counted as Turn rows, nothing left). `test-ci-config.sh`, `test-eval-set.sh`, `test-eval-personas.sh`, `test-boundaries.sh` and `ci/checks.sh` (33 scripts) passed. The spine grep count is 7. `lint_spine.py` still reports the same 13 low `placeholder` findings of existing catalog text that HEAD had (the change adds none), so the spec's `"ok": true` is not reachable; this is not caused by this story. The `OcuTalon.Test.Core.ProductionItems` command is an oracle read by `Test.Install.Production`, which passed. The once-lines ran on the warm stack instead of fresh `e27s1o` throwaways (same code, no `teardown` needed).
+
+**Residual risks.**
+- Slack's text escaping (`&amp;`, `&lt;`, `&gt;`) and `<@U...>` mention markup reach the Item text unchanged; Story 27.2 or 27.3 can decide whether to decode them.
+- `Data.SlackLink.LinkedInAnotherTeam` walks every link row for each direct message from an unlinked member; fine for a handful of links, to be indexed if the link table grows.
+- The R7 merge is gated on the Planner's separate key-holder A/B; the pipeline did not run it and no key was used.
+- `followup_review_recommended` is true: three medium patches (the live phase 3c cases, the `notes_run` Turn-row check, the `--notes` forms in `test-eval-personas.sh`) were added after the review layers read the diff and were not themselves reviewed; the unverified risk is a flake or false red in those three checks on another machine.
