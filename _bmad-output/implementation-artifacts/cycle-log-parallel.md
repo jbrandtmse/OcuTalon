@@ -4549,3 +4549,4 @@
 2026-11-16T19:35:56Z	Run	owner_decision	via=contest_planner quota_hold_protocol(QUOTA_HOLD_NOW_at_95%;68%_now;ETA_6-12h;commit+push_own_branch,report,wait)
 2026-11-16T19:48:52Z	Epic 21	runner_reported	PART_READY DW-1421_r3 head=3e3627c5f runs=43928987062(att2;att1=DW-306_ci-3),43928987136 state=held_for_planner_recapture runner=ended
 2026-11-16T19:49:09Z	Epic 21	note	DW-1421_r3_recapture_queued_after_27.1_R7_A/B(at_B-2/10) ETA_1.5-2h held
+2026-11-16T19:55:40Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_spec_gate(SlackW_global,admin_routes+commands,2_texts+GUIDE_heading,overlaps_SettingsOps_Carry+chat-view,DW-1442_spine) 27.1_CI_waiting relayed=contest_planner
