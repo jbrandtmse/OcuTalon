@@ -171,6 +171,45 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B (AD-29) unless marked.
 
 - Given a workspace already noted in `^OcuTalonP.SlackW` and a link in it, when a signed event arrives from a SECOND team (a direct message from the same member id, and one from an unlinked member id), then no `Data.SlackLink` row is created or changed (row count, every row's TeamId/MemberId/SessionRef unchanged), and the event is Ignored under R2 (Contest Planner ruling 2026-11-16, PIN; e.g. `SlackIn.TestSecondTeamChangesNoLink` plus a live phase-3 check).
 
+### Review Findings
+
+Code review 2026-11-16 (stage code-review, 4 layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full tier, no model override). 39 findings: high 0, medium 3, low 33, false 3. After grouping: 5 patch, 2 defer, 31 rejected.
+
+- [x] [Review][Patch] (medium, verification-gap) `Test.Web.ViewerApi` `GETROUTES` did not list the new `GET /v1/settings/channels/slack`, so `TestEveryGetRouteIsClassified` was red on HEAD (shared surface "Api's UrlMap") [src/ocutalon/cls/OcuTalon/Test/Web/ViewerApi.cls:31] -- added the route (an admin route, so not a `WRITINGGETS` one); red observed on HEAD, green after. fix-risk low (one list item). Outside the spec's file list, not contended (reported).
+- [x] [Review][Patch] (medium, verification-gap) `SettingsSlack.TestListThroughHandoff` counted every link of the namespace, not its own (Rule 19 hermeticity) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsSlack.cls:109] -- the link assertions now read only the fixture member's links (new private `Mine`). fix-risk low.
+- [x] [Review][Patch] (low, blind-hunter+edge-case-hunter) A POST of `{"user":"","member":""}` answered 500: `LinkSlack` read "both empty" as an unreadable handoff [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:3140] -- a `read` flag now separates the two, so both empty is refused `bad_member` as the matrix row says; `TestLinkReasons` gained the case. fix-risk low (inside the appended block).
+- [x] [Review][Patch] (low, review) `SlackError` in `api-types.ts` was exported and never used [web/src/app/api/api-types.ts:418] -- removed; `tsc -p tsconfig.app.json` passes. fix-risk low.
+- [x] [Review][Patch] (low, edge-case-hunter) `settings/slack.spec.ts` SS2 linked whichever user the picker showed first, so it depended on no other user sorting before the README account [web/e2e/settings/slack.spec.ts:95] -- it now picks the README user. fix-risk low; `tsc -p tsconfig.e2e.json` passes, the live part was not re-run.
+- [x] [Review][Defer] (medium, blind-hunter) An admin can link any user with a session row, a viewer included, and SlackIn turns that member's direct messages into turns with no use-time `OcuTalonUser` check, so a viewer or a user whose role was removed can chat through Slack [src/ocutalon/cls/OcuTalon/Channel/Slack/In.cls Classify; Core/SettingsOps.cls OnCallUsers] -- deferred: the root cause is DW-1284 (turn entries take a message on the strength of the pairing, not of the role at use time; routed to 26-4); occurrence appended. fix-risk med (a role read in the production job, and the picker's roster).
+- [x] [Review][Defer] (low, review, Rule 2) `Web.SlackSettings.List` near-copies `Web.RoleSettings.List`; the stated reason covers the routes, not the method body [src/ocutalon/cls/OcuTalon/Web/SlackSettings.cls:47] -- deferred: DW-1456 `wontfix-accepted` (the shared helper belongs in the contended `Web/Api.cls`).
+
+**Rejected** (each closed here with its reason):
+- `false` Edge 11: an unparseable list `Data` leaves the handoff behind -- `ListSlack` always answers `{"handoff": uri}` from the same code that put it; nothing else answers `listed`.
+- `false` Edge 18: the two Slack e2e specs race on `^OcuTalonP.SlackW` -- Playwright runs `fullyParallel: false`, `workers: 1`, and the two files are in different projects.
+- `false` Auditor 5: a failed link shows `SETTINGS_TEXTS.failed`, which gate (a) does not list -- it is existing approved text, the save-failure line the Webhooks section shows the same way; no new string.
+- `low` Blind 3: `SlackSettings.Text` falls back to the bad-settings text -- only when a shipped catalog key fails to render, which `Test.Msg.Catalog` pins; a guard adds branches.
+- `low` Blind 4: the e2e specs kill `^OcuTalonP.SlackW` without restoring it -- they run on throwaway stacks with no Slack; the next signed event notes it again.
+- `low` Blind 5: nothing says a person must sign in once before they can be linked -- the four steps and the texts are approved verbatim (Decided 1); any added sentence is unruled public text.
+- `low` Edge 2, 3, 4, 5: races between `Taken`/`RefIndexOpen` and the write (same pair linked twice at once, a row removed or re-linked in between) -- two admins on the same member within one save; `Carry` answers a thrown error as `failed`; the guards add branches.
+- `low` Edge 6, 7: `undone` is never read -- a second audit-write failure right after the first; the first already logs.
+- `low` Edge 8: a second workspace overwrites the noted one -- the ruled limit (DW-1454, by-design); occurrence appended.
+- `low` Edge 9: `NoteWorkspace` sits outside the Try -- its only write is to the database `ClaimEvent` has just written; Task 0 proved it.
+- `low` Edge 10: links of an old team stay listed -- the ruled Limit: links are not migrated; the admin unlinks them.
+- `low` Edge 12: a `done` with no `ref` gives an empty link Ref -- `LinkSlack` always sets it.
+- `low` Edge 13: `link.user` echoes the typed case -- the page picks names from the list; only a direct API caller sees it.
+- `low` Edge 14, 15, 16: a 404 unlink leaves the stale row, overlapping reloads, a rejected chunk import -- the Webhooks and Roles sections share the shape; Retry or a reload clears each; the guards add branches.
+- `low` Verification-gap 2: the server refusals shown under the user picker have no browser test -- `refused()` routes `fields:["user"]` to `#slack-user-error` and its focus (read); a new e2e case needs a live part and adds no AC pin.
+- `low` Verification-gap 3: `Link`'s re-check after a failed save is never run -- reachable only by a race inside one save; a seam there is new machinery.
+- `low` Verification-gap other: `TestNoIdsInRecords`' trace and log scans see nothing on these paths -- they still fail if a path logs or sends an id; the live scans cover the real production.
+- `low` Verification-gap other: "a command holds only the handoff's uri" checks a command the test built -- harmless; `SlackSettingsApi` checks the route's own command.
+- `low` Verification-gap other: `TestWorkspace` cannot see "write only on change" -- a repeated write of the same value has no observable effect.
+- `low` Verification-gap other: SL2 "the member is not listed yet" cannot fail -- a precondition of the test, not a claim.
+- `low` Auditor 1: `ux-strings.test.mjs` inserts `SLACK_TEXTS` mid-list and deletes `'Slack'` from the 23.2 ruled list -- the deletion is forced (the test's "twice" and "names the UX first" checks, since `EXPERIENCE.md` now holds "Slack"); the mid-list place keeps clear of other lanes' end-of-list appends.
+- `low` Auditor 2: `chat-view.ts` rewords the `captionOf` doc line -- Rule 14: the doc states the contract, which now includes Slack.
+- `low` Auditor 3: GUIDE step 3's URL is in backticks -- the words are the approved ones; without the backticks GitHub hides `<your public address>`.
+- `low` Auditor 4: some `SettingsOps` results carry existing message texts -- constant texts with no name or id; the route renders its own.
+- `low` Auditor 6: the AD-17 sentence sits before the earlier tags -- the words match gate (f).
+
 ## Spec Change Log
 
 - 2026-11-16 ~20:40Z, lead: Contest Planner gate rulings (prompts/story-273-rulings-20261116.md, outside the repo) applied. APPROVED: the two new texts (`settings.slackNoWorkspace`, `settings.slackUnknownUser`) and the GUIDE `## Slack` heading verbatim; all veto items; the linking design; Task 0's grant check (STOP if a new grant would be needed); proceed NOW on the contended `SettingsOps` Carry lines and the chat-view / ux-strings inserts (whichever branch lands second re-runs its web tests after the merge); the spine edits exactly as in Design Notes › Planner gate items (f), including DW-1442's AD-13/14/17/22 and AD-33 fixes and the linking additions. Two additions: (1) Design Notes records the one-workspace-per-install limit; (2) a new acceptance criterion pins that an event from a second team creates or changes no link. At PART READY the lead reports the catalog key count (161 + R12's + 2) with the list of added keys.
@@ -322,6 +361,9 @@ All commands from the worktree root. `LANE` below means `OCUTALON_LOCK_DIR="$(di
 - AC 4 and 7 (a failed link after its audit entry is reversed): delete the `Set undone = ..WriteAudit(...)` line of `LinkSlack` → `Test.Core.SettingsSlack.TestFailedAfterAudit` red ("the member race: two audit entries, the link's and its reversal"); reverted (byte-identical).
   - mutation: delete the reversing `WriteAudit` of `LinkSlack` → `TestFailedAfterAudit` red; reverted (byte-identical).
 - AC 1: none (a document edit, checked by `lint_spine.py` and the reviewer against gate f).
+- AC 4 (code review 2026-11-16, the both-empty body): `TestLinkReasons` gained "an empty user and an empty member" (`bad_member`).
+  - mutation: `LinkSlack`'s `If 'read Quit ... "failed"` put back to `If (user = "") && (member = "") Quit ... "failed"` → `Test.Core.SettingsSlack.TestLinkReasons` red (`<INVALID OREF>` in `AssertRefused`: a `failed` answer has no reason); reverted (byte-identical, `cmp`).
+- Shared surface Api's UrlMap (code review 2026-11-16): `Test.Web.ViewerApi.TestEveryGetRouteIsClassified` was red on HEAD ("GET /v1/settings/channels/slack is a route this class has classified") and is green with the route in `GETROUTES`.
 
 **Task 0 record:** (implement stage, 2026-11-16, a lane-B throwaway, never slot B) PASSED: no new grant, role or resource is needed (R10 stands). On a fresh throwaway with the Slack override (`SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` set to dummy values in a compose override of a temporary folder; `SlackIn.On()` answered 1), a fixture user that holds only the role `OcuTalonWebhook` (the hook application's role, which the web application adds alone) logged in with `$SYSTEM.Security.Login` in the namespace OCUTALON and: `Set ^OcuTalonP.SlackW` (no error), read it back (the value), `$Increment` of `^OcuTalonP.SlackE` (the precedent write of Story 27.1, no error), and killed both again; `$ROLES` was exactly `OcuTalonWebhook`. The grant that serves it is the role's existing Read and Write on `%DB_OCUTALON_PRIVATE`, the database that every `^OcuTalonP.` global resolves to (`Install.Step.PrivateData` PREFIXES). The probe was a scratch script outside the repository.
 
@@ -332,6 +374,15 @@ All commands from the worktree root. `LANE` below means `OCUTALON_LOCK_DIR="$(di
 - Edits outside the story's file list that the new group made necessary (reported): `web/scripts/announce-focus-sources.test.mjs` (the new group is one more announcer speaker, `.focus(` caller and `afterNextRender` user: three list entries), `web/e2e/settings/settings.spec.ts` S12 (the Channels field count gains the Slack member ID field, and the Telegram link is read inside the Telegram block, because the Slack group has a "How to set it up" link too), and `web/scripts/ux-strings.test.mjs` (the string "Slack" moved from the ruled list to `ux`, because `EXPERIENCE.md` now holds it).
 - `lint_spine.py`: 13 findings, all the low `placeholder` ones that were there before (the same 13 on the unchanged spine); no new finding. `"ok"` is false only because the script counts those 13.
 
+**QA-stage record (2026-11-16, Lane B; web-script tests only, no IRIS stack started):**
+- Gap review: every AC and matrix row already had a pinning test whose red the implement stage observed (admin-only: `SlackSettingsApi.TestNotAdmin`/`TestViewer`, `SettingsSlack.TestWebAdminOnly`, `CommandsRouting.TestSlackVerbsWebAdminOnly`, `api/slack.spec.ts` SL3; demo: `SlackSettingsApi.TestOnlineDemo`, `SettingsSlack.TestOnlineDemo`, `settings/slack.spec.ts` SS4; the two refusals and `no_workspace`/`user_unknown`: `SettingsSlack.TestLinkReasons`, `TestRefusalTexts`, SL1/SL2; audit first: `TestLinkAuditsFirst`, `TestNotAudited`, `TestFailedAfterAudit`; no ids: `TestNoIdsInRecords` and the `live:slack-hook` leak scans; second team: `SlackIn.TestSecondTeamChangesNoLink` and the phase 3 row check; caption: `chat-view.test.mjs`, `via-slack.spec.ts`; catalog 182: `Test.Msg.Catalog`). Two gaps were found and pinned:
+  - (a) AC 2 (the four setup steps word for word in `EXPERIENCE.md` Later Steps and `GUIDE.md` > Slack): no test read either document (`ux-strings.test.mjs` pins the catalog rows, not the steps, the `## Slack` heading that `GUIDE.md#slack` opens, the "nothing else" rule, the absent `chat:write`, or that the URL path equals `SettingsOps` `SLACKPATH`).
+  - (b) AC 5 (the lazy chunk): `slack-view.test.mjs` read only `channels-section.ts`; a static import of `slack-section.ts` from any other file (`settings-page.ts`, a shared module) passed every test.
+- `web/scripts/slack-setup-steps.test.mjs` (QA, new; CI: `node --test scripts/*.test.mjs` from `web/`, the hosted `web` job runs `npm --prefix web test`, which globs every `web/scripts/*.test.mjs`) -- 9 tests.
+- `web/scripts/slack-lazy-chunk.test.mjs` (QA, new; same runner) -- 4 tests.
+- mutation: one word of `GUIDE.md` > Slack step 2 changed ("then restart OcuTalon." to "then restart OcuTalon now.") -> `slack-setup-steps.test.mjs` "GUIDE.md > Slack holds the four approved steps word for word, as a numbered list" red (1 fail); reverted (QA, byte-identical, `cmp` against the backup).
+- mutation: `import { SlackSection } from './slack-section';` added to `settings-page.ts` -> `slack-lazy-chunk.test.mjs` "no source file imports slack-section statically" red (1 fail; `slack-view.test.mjs` stayed green, which is the gap); reverted (QA, byte-identical, `cmp`; `git status --short` unchanged).
+- Re-run after the mutations: `slack-setup-steps`, `slack-lazy-chunk`, `slack-view`, `lazy-routes`, `ux-strings`, `chat-view` all pass.
 
 ## Auto Run Result
 

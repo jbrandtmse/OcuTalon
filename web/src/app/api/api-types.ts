@@ -414,13 +414,6 @@ export interface SlackUnlinked {
   message: string;
 }
 
-/** The error body of a refused Slack call: `{error: {code, message}}`, and for `bad_slack_link` the refused `fields` (member, user or none) and the `reason`. */
-export interface SlackError {
-  error: { code: string; message: string };
-  fields?: string[];
-  reason?: string;
-}
-
 /** A user of GET /ocutalon/api/v1/settings/roles (Story 25.4): the IRIS user name, the OcuTalon roles the user holds (sorted) and whether OcuTalon manages the account. */
 export interface RoleHolder {
   user: string;

@@ -123,10 +123,11 @@ Method TestListThroughHandoff()
 	Set body = {}.%FromJSON(text)
 	Do $$$AssertEquals(body.state, "on", "Slack is on with both variables set")
 	Do $$$AssertEquals(body.path, "/ocutalon/hook/slack/events", "the route's path is given")
-	Do $$$AssertEquals(body.links.%Size(), 1, "one link is listed")
-	Do $$$AssertEquals(body.links.%Get(0).user_"|"_body.links.%Get(0).member, ..#USERONE_"|"_..#MEMBER, "with its user and member")
-	Do $$$AssertEquals(body.links.%Get(0).ref, ##class(OcuTalon.Data.SlackLink).MemberIndexOpen(..#TEAM, ..#MEMBER).Ref, "and its Ref")
-	Do $$$AssertEquals(body.links.%Get(0).%Size(), 3, "and nothing else of the row")
+	Set mine = ..Mine(body.links)
+	Do $$$AssertEquals(mine.%Size(), 1, "the fixture's link is listed once")
+	Do $$$AssertEquals(mine.%Get(0).user_"|"_mine.%Get(0).member, ..#USERONE_"|"_..#MEMBER, "with its user and member")
+	Do $$$AssertEquals(mine.%Get(0).ref, ##class(OcuTalon.Data.SlackLink).MemberIndexOpen(..#TEAM, ..#MEMBER).Ref, "and its Ref")
+	Do $$$AssertEquals(mine.%Get(0).%Size(), 3, "and nothing else of the row")
 	Set users = ""
 	Set iterator = body.users.%GetIterator()
 	While iterator.%GetNext(, .name) { Set users = users_","_name }
@@ -140,7 +141,7 @@ Method TestListThroughHandoff()
 	Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("SLACK_SIGNING_SECRET")
 	Set body = ..ListBody()
 	Do $$$AssertEquals(body.state, "off", "with the signing secret unset Slack is off")
-	Do $$$AssertEquals(body.links.%Size(), 1, "and the links are listed all the same")
+	Do $$$AssertEquals(..Mine(body.links).%Size(), 1, "and the links are listed all the same")
 	Do $$$AssertEquals(one_two '= "", 1, "the fixture sessions exist")
 }
 
@@ -188,6 +189,7 @@ Method TestLinkReasons()
 	Do ..AssertRefused(..Link(..#USERONE, "U"_$Translate($Justify("", 32), " ", "A")), "bad_member", "member", "a member of 33 characters")
 	Do ..AssertRefused(..Link(..#USERONE, "U01 AB"), "bad_member", "member", "a member with a space inside")
 	Do ..AssertRefused(..Link(..#USERONE, ""), "bad_member", "member", "an empty member")
+	Do ..AssertRefused(..Link("", ""), "bad_member", "member", "an empty user and an empty member")
 	Do ..AssertRefused(..Link("zzslknosuchuser", ..#MEMBER), "user_unknown", "user", "a user with no session row")
 	Do ..AssertRefused(..Link("", ..#MEMBER), "user_unknown", "user", "an empty user")
 	Kill ^OcuTalonP.SlackW
@@ -457,6 +459,17 @@ Method ListBody() As %DynamicObject [ Private ]
 	Set result = ..ListResult()
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Take({}.%FromJSON(result.Data).handoff, .text, 0), "the list's handoff is taken")
 	Quit {}.%FromJSON(text)
+}
+
+/// The links of a list whose member is the fixture's, so that links of other fixtures in the namespace are not counted.
+Method Mine(links As %DynamicArray) As %DynamicArray [ Private ]
+{
+	Set mine = []
+	Set iterator = links.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If one.member = ..#MEMBER Do mine.%Push(one)
+	}
+	Quit mine
 }
 
 /// Asserts that the two audit entries of a link that failed after its audit write are the link's (from nothing to the user) and its reversal (from the user to nothing), under

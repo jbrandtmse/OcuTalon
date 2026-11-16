@@ -3129,15 +3129,15 @@ Method LinkSlack(command As OcuTalon.Msg.Command.LinkSlackMember) As OcuTalon.Ms
 	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.slackOffOnDemo"))
 	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	If '..HasSession(command.SessionRef) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
-	Set user = "", member = ""
+	Set user = "", member = "", read = 0
 	Try {
 		Set body = {}.%FromJSON(json)
-		If (body.%GetTypeOf("user") = "string") && (body.%GetTypeOf("member") = "string") Set user = body.user, member = body.member
+		If (body.%GetTypeOf("user") = "string") && (body.%GetTypeOf("member") = "string") Set user = body.user, member = body.member, read = 1
 	} Catch {
-		Set user = "", member = ""
+		Set user = "", member = "", read = 0
 	}
 	Kill json
-	If (user = "") && (member = "") Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If 'read Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	Set member = $ZConvert($ZStrip(member, "<>W"), "U")
 	If '$Match(member, "^[UW][A-Z0-9]{2,31}\z") Quit ..SlackRefusal("bad_member", "member")
 	Do ..OnCallUsers(.names)

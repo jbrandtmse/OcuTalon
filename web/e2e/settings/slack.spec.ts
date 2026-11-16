@@ -92,6 +92,7 @@ test('SS2: a link shows its refusal when no workspace is noted, then makes a row
     const group = await openSlack(page);
     const field = group.getByLabel('Slack member ID', { exact: true });
     await field.fill(member);
+    await group.getByLabel('OcuTalon user', { exact: true }).selectOption(README_ACCOUNT.user);
     await group.getByRole('button', { name: 'Link member', exact: true }).click();
     await expect(group.locator('#slack-form-error'), 'no workspace: the refusal under the button').toHaveText(NO_WORKSPACE);
     expect(await rowCount(), 'no row was made').toBe(0);

@@ -7914,6 +7914,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
 - 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
 - 2026-11-15T16:32:37Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=burndown note=overflow:26.4_enforces_roles_wherever_an_answer_arrives;the_same_use-time_check_belongs_at_the_Telegram_and_email_turn_entries(Telegram/In.cls,Email/In.cls);Planner_C3_report-only_in_25.4;DW-n_bullet_for_the_orchestrator_post-merge
+- 2026-11-16T22:31:45Z occurrence=27-3-link-slack-members-in-settings by=cr note=SlackIn_turns_also_skip_the_use-time_OcuTalonUser_check;27.3_lets_an_admin_link_any_user_with_a_session_row_(a_viewer_too),_whose_Slack_DMs_then_become_turns
 
 ### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
@@ -8788,6 +8789,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-17: rejected-request audit target is the webhook Ref, Slack writes target slack; AD-13 hook bullet hands events only to WebhookIn, AD-24 now adds SlackIn; AD-14: every inbound message becomes an Item, Slack's others become Ignored; AD-22 silent on eval-session Turn rows
 - 2026-11-16T18:25:33Z status=escalated owner=burndown by=cr note=AD Rule wording edits are a Planner veto item; 27.3's spine gate can carry them
 - 2026-11-16T19:33:49Z status=routed owner=27-3-link-slack-members-in-settings by=merge_gate note=Contest_Planner:carry_AD-13/14/17/22_wording_in_27.3_spine_gate
+- 2026-11-16T22:33:08Z status=resolved-by:27-3-link-slack-members-in-settings owner=27-3-link-slack-members-in-settings by=adjudication note=spine_AD-13/14/17/22+AD-33_wording_fixed_in_49b6fd728(6_AMENDED_Story_27.3_DW-1442_tags);reviewed_by_cr_word_for_word_vs_gate_f
 
 ### DW-1443: SlackIn.Turn copies Channel.Telegram.In Turn (itself in the steps of WebChatIn.Accept): a third copy of the open-session, Trace.Join, Item, SendTurn, Trace.Started, clear-ids recipe
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8822,8 +8824,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Data.SlackLink NoteWorkspace; ruled by the Contest Planner (one workspace per install); pinned by TestNotesWorkspace and the second-team criterion
 - 2026-11-16T22:08:03Z status=by-design owner=27-3-link-slack-members-in-settings by=harvest note=Contest_Planner_ruling_2026-11-16_one_workspace_per_install
+- 2026-11-16T22:31:45Z occurrence=27-3-link-slack-members-in-settings by=cr note=re-raised_by_cr_edge_layer;still_the_ruled_one-workspace_limit
 
 ### DW-1455: The reversing audit entry of an unlink whose row removal fails is untested
 - source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: SettingsOps UnlinkSlack; no probe seam can make %DeleteId fail; link side covered by TestFailedAfterAudit
 - 2026-11-16T22:08:03Z status=wontfix-accepted owner=27-3-link-slack-members-in-settings by=harvest note=reopen_if=an_Unlink_%DeleteId_failure_is_observed_or_a_seam_for_it_is_added
+
+### DW-1456: Web.SlackSettings List near-copies Web.RoleSettings List (submit a list verb, take its SecretHandoff once, discard on every path); the spec's reason (a forward target cannot share routes) covers the routes, not the method body
+- source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Web/SlackSettings.cls List and Web/RoleSettings.cls List share about 25 of 30 lines; a shared helper would live in the contended Web/Api.cls
+- 2026-11-16T22:31:45Z status=wontfix-accepted owner=27-3-link-slack-members-in-settings by=cr note=reopen_if=a_third_Web_settings_class_copies_the_take-once-and-discard_list_block
