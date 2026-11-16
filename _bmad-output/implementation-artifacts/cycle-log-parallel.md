@@ -4520,3 +4520,6 @@
 2026-11-16T17:05:00Z	Epic 21	runner_reported	DW-1421_C2prime+C1_pushed=c573a86d0(CI_pending) C5_report(confidence=display_only;absent_default_recommended) open=cut_min_length,other_7_field_tags relayed=contest_planner
 2026-11-16T17:05:31Z	Run	merge_back_done	via=contest_planner main=974fc1c1(v1.0.12) feature=efcd0be84 rule=one_feature_merge_at_a_time_until_MAIN_CI_GREEN order=DW-1430,24.3b,OCT-epic23-s2314
 2026-11-16T17:05:31Z	Epic 24	merge_enqueued	DW-1430 head=aea51eb95
+2026-11-16T17:07:02Z	Epic 24	merged	DW-1430 merge=e404c59d3
+2026-11-16T17:07:15Z	Epic 24	merged_note	DW-1430_in;24.3b_rebase_requested
+2026-11-16T17:07:15Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3:cut_floor_64,C1_other_7_tags,C5:decide_keeps_refusal,diagnose_absent(no_UI_line_pin),decide_question_to_post-cut_A/B
