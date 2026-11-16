@@ -4451,3 +4451,5 @@
 2026-11-16T04:25:32Z	Epic 21	ci_red_classified	DW-1205_att1 browser(ci-14)=DW-609(telegram-page_T7) planner_accepted
 2026-11-16T04:25:32Z	Epic 0	owner_decision	via=contest_planner DW-1389_A/B_started(OLD=044b6c2e1_merge-base,NEW=004cdb5e6,N=5,~70min;after_PASS_merge_over_feature) cut_list_confirmed=DW-1415(blocker),DW-1416,shards-11,DW-1389(if_PASS),DW-1410;24.4b,25.9_optional
 2026-11-16T04:44:33Z	Epic 21	runner_status	DW-1410_pushed=48f10354d(runs_43805853892,43805853876) fresh_Fix=30/30 next=LOW_eval_case_draft DW-1411=likely_dup_DW-609
+2026-11-16T05:28:44Z	Epic 21	ci_green_verified	story=DW-1410 head=48f10354d runs=43805853892,43805853876(att1) note=report_not_received;verified_by_gate
+2026-11-16T05:28:44Z	Epic 21	merge_enqueued	story=DW-1410 (1.0.12)
