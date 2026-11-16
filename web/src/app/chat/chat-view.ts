@@ -61,6 +61,7 @@ export const CHAT_TEXTS = {
   newMessages: 'New messages',
   name: 'OcuTalon',
   viaTelegram: 'via Telegram',
+  viaSlack: 'via Slack',
   fromGuide: 'From the demo guide',
   separator: ' \u00B7 ',
   opensInNewTab: '(opens in a new tab)',
@@ -346,10 +347,13 @@ function replyOf(
   }
 }
 
-/** The caption of a message: Telegram's, else the guide's, else none. */
+/** The caption of a message: Telegram's or Slack's, else the guide's, else none. */
 function captionOf(channel: string | undefined, fromGuide: boolean | undefined): string {
   if (channel === 'telegram') {
     return CHAT_TEXTS.viaTelegram;
+  }
+  if (channel === 'slack') {
+    return CHAT_TEXTS.viaSlack;
   }
   return fromGuide ? CHAT_TEXTS.fromGuide : '';
 }

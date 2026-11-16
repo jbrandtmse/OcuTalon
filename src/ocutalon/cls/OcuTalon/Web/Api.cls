@@ -317,6 +317,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Map Prefix="/v1/settings/on-call" Forward="OcuTalon.Web.OnCallSettings"/>
 <Map Prefix="/v1/settings/partner-contacts" Forward="OcuTalon.Web.PartnerSettings"/>
 <Map Prefix="/v1/settings/mcp" Forward="OcuTalon.Web.McpSettings"/>
+<Map Prefix="/v1/settings/channels/slack" Forward="OcuTalon.Web.SlackSettings"/>
 </Routes>
 }
 

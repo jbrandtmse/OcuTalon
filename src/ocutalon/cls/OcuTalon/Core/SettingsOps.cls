@@ -224,6 +224,9 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.CreateWebhook" Quit ..CreateWebhook(command)
 	If class = "OcuTalon.Msg.Command.SetWebhookSecret" Quit ..SetWebhookSecret(command)
 	If class = "OcuTalon.Msg.Command.ListRoles" Quit ..ListRoles(command)
+	If class = "OcuTalon.Msg.Command.ListSlackLinks" Quit ..ListSlack(command)
+	If class = "OcuTalon.Msg.Command.LinkSlackMember" Quit ..LinkSlack(command)
+	If class = "OcuTalon.Msg.Command.UnlinkSlackMember" Quit ..UnlinkSlack(command)
 	Quit ..Result(0, "unknown_command", ##class(OcuTalon.Core.CommandsIn).#MESSAGEUNKNOWN)
 }
 
@@ -3072,6 +3075,140 @@ Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As 
 		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
 	Quit ..Result(1, "done", ..#MESSAGESECTIONSAVED)
+}
+
+/// The path of the Slack route of the hook application, which an admin subscribes the Slack app's events to (Story 27.3).
+Parameter SLACKPATH = "/ocutalon/hook/slack/events";
+
+/// Carries out a ListSlackLinks (Story 27.3; origin web_admin, a read) in the production job: not_allowed for another origin, not_available (the text settings.slackOffOnDemo)
+/// on the online demo, otherwise the body {state, path, links, users} is offered to SecretHandoff and the answer is Ok 1, Outcome listed and Data {"handoff": uri}. state is
+/// "on" or "off" as Channel.Slack.In On answers it, never derived here; links is [{ref, user, member}] with the IRIS user of each link's session; users are the names that
+/// OnCallUsers gives, once each, in the order of their upper-cased names. No user name or member id is in the command, the result, a log line or a message of the trace.
+Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.slackOffOnDemo"))
+	Set links = []
+	Set stored = ##class(OcuTalon.Data.SlackLink).List()
+	Set iterator = stored.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(one.sessionRef)
+		If '$IsObject(session) Continue
+		Do links.%Push({"ref": (one.ref), "user": (session.IrisUser), "member": (one.member)})
+	}
+	Do ..OnCallUsers(.names)
+	Set users = []
+	Set key = ""
+	For {
+		Set key = $Order(names(key), 1, name)
+		Quit:key=""
+		Do users.%Push(name)
+	}
+	Set body = {"state": ($Select(##class(OcuTalon.Channel.Slack.In).On(): "on", 1: "off")), "path": (..#SLACKPATH), "links": (links), "users": (users)}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(body.%ToJSON(), .uri)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Slack settings could not be handed over")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "listed", "", {"handoff": (uri)}.%ToJSON())
+}
+
+/// Carries out a LinkSlackMember (Story 27.3; origin web_admin): the handoff is taken first, on every path, and holds {user, member}. In order: another origin is not_allowed;
+/// the online demo is not_available (the text settings.slackOffOnDemo); a handoff that cannot be taken or read is failed; an admin session without a row is no_session; the member (trimmed
+/// and upper-cased) that is not U or W and 2 to 31 letters or digits is refused with Data {"reason": "bad_member", "field": "member"}; a user who has no session row (OnCallUsers) is
+/// refused user_unknown (field user); no noted workspace (Data.SlackLink Workspace) is refused no_workspace (no field); a member linked to another user is refused member_taken (field
+/// member) and a user whose session has another member user_taken (field user). The link goes to Data.Session ForUser, the user's oldest session row. The Settings audit entry
+/// (setting slackLink.<Ref>, from empty, to the user's name, never an id) is written before the row, and a failed write is not_audited and changes nothing; a link that then fails
+/// writes the reversing entry. The same pair again answers done with the existing link's Ref and is audited as a link. Done is Ok 1 with Data {"ref": ref}; the Message of every
+/// answer holds no name and no id.
+Method LinkSlack(command As OcuTalon.Msg.Command.LinkSlackMember) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set json = ""
+	Set taken = ..TakeSecret(command.Handoff, .json)
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.slackOffOnDemo"))
+	If $$$ISERR(taken) Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If '..HasSession(command.SessionRef) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
+	Set user = "", member = ""
+	Try {
+		Set body = {}.%FromJSON(json)
+		If (body.%GetTypeOf("user") = "string") && (body.%GetTypeOf("member") = "string") Set user = body.user, member = body.member
+	} Catch {
+		Set user = "", member = ""
+	}
+	Kill json
+	If (user = "") && (member = "") Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Set member = $ZConvert($ZStrip(member, "<>W"), "U")
+	If '$Match(member, "^[UW][A-Z0-9]{2,31}\z") Quit ..SlackRefusal("bad_member", "member")
+	Do ..OnCallUsers(.names)
+	Set key = $ZConvert($ZStrip(user, "<>W"), "U")
+	If (key = "") || '$Data(names(key), name) Quit ..SlackRefusal("user_unknown", "user")
+	Set team = ##class(OcuTalon.Data.SlackLink).Workspace()
+	If team = "" Quit ..SlackRefusal("no_workspace", "")
+	Set session = ##class(OcuTalon.Data.Session).ForUser(name, .sc)
+	If $$$ISERR(sc) || '$IsObject(session) {
+		$$$LOGERROR("The Slack link could not open the user's session")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set sessionRef = session.Ref
+	Set clash = ##class(OcuTalon.Data.SlackLink).Taken(team, member, sessionRef)
+	If (clash = "member_taken") || (clash = "user_taken") Quit ..SlackRefusal(clash, $Select(clash = "member_taken": "member", 1: "user"))
+	If clash = "same" {
+		Set ref = ##class(OcuTalon.Data.SlackLink).MemberIndexOpen(team, member, 0).Ref
+	} Else {
+		Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	}
+	Set setting = "slackLink."_ref
+	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, "", name))
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Settings audit entry of a Slack link could not be written")
+		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+	}
+	Set made = ##class(OcuTalon.Data.SlackLink).Link(team, member, sessionRef, .sc, .reason, ref)
+	If (made = "") || $$$ISERR(sc) {
+		Set undone = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, name, ""))
+		If (reason = "member_taken") || (reason = "user_taken") Quit ..SlackRefusal(reason, $Select(reason = "member_taken": "member", 1: "user"))
+		$$$LOGERROR("A Slack link could not be saved")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "done", "", {"ref": (made)}.%ToJSON())
+}
+
+/// The refusal of a Slack link: Ok 0, Outcome refused, no Message text (the route renders the text of the reason) and Data {"reason": reason, "field": field}, with field "" when no
+/// field of the form is at fault.
+ClassMethod SlackRefusal(reason As %String, field As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Quit ..Result(0, "refused", "", {"reason": (reason), "field": (field)}.%ToJSON())
+}
+
+/// Carries out an UnlinkSlackMember (Story 27.3; origin web_admin): another origin is not_allowed, the online demo is not_available (the text settings.slackOffOnDemo), a LinkRef
+/// that names no link is not_found and writes no audit entry. Otherwise the Settings audit entry (setting slackLink.<Ref>, from the IRIS user of the link's session, to empty) is
+/// written first, a failed write is not_audited and changes nothing, and Data.SlackLink Unlink removes the row; a removal that fails writes the reversing entry and answers failed.
+/// Done is Ok 1 with no Message.
+Method UnlinkSlack(command As OcuTalon.Msg.Command.UnlinkSlackMember) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	If ..OnlineDemo() Quit ..Result(0, "not_available", ..WebhookFieldText("settings.slackOffOnDemo"))
+	Set row = $Select(command.LinkRef = "": "", 1: ##class(OcuTalon.Data.SlackLink).RefIndexOpen(command.LinkRef, 0))
+	If '$IsObject(row) Quit ..Result(0, "not_found", ..#MESSAGENOTSAVED)
+	Set sessionRef = row.SessionRef
+	Set setting = "slackLink."_row.Ref
+	Set row = ""
+	Set owner = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+	Set name = $Select($IsObject(owner): owner.IrisUser, 1: "")
+	Set owner = ""
+	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, name, ""))
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Settings audit entry of a Slack unlink could not be written")
+		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+	}
+	Set sc = ##class(OcuTalon.Data.SlackLink).Unlink(sessionRef)
+	If $$$ISERR(sc) {
+		Set undone = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, "", name))
+		$$$LOGERROR("A Slack link could not be removed")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "done", "")
 }
 
 }

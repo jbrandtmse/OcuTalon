@@ -386,6 +386,41 @@ export interface WebhookCreated {
   webhook: WebhookRow;
 }
 
+/** A linked Slack member as the Slack settings route lists it (Story 27.3): the link's Ref, the OcuTalon user and the Slack member ID. */
+export interface SlackLinkRow {
+  ref: string;
+  user: string;
+  member: string;
+}
+
+/** The 200 answer to GET /ocutalon/api/v1/settings/channels/slack: Slack's state, the path of the events route, the linked members and the users who can be linked. */
+export interface SlackList {
+  state: 'on' | 'off';
+  path: string;
+  links: SlackLinkRow[];
+  users: string[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/settings/channels/slack: the new link. */
+export interface SlackLinked {
+  result: 'done';
+  message: string;
+  link: SlackLinkRow;
+}
+
+/** The 200 answer to DELETE /ocutalon/api/v1/settings/channels/slack/<ref>. */
+export interface SlackUnlinked {
+  result: 'done';
+  message: string;
+}
+
+/** The error body of a refused Slack call: `{error: {code, message}}`, and for `bad_slack_link` the refused `fields` (member, user or none) and the `reason`. */
+export interface SlackError {
+  error: { code: string; message: string };
+  fields?: string[];
+  reason?: string;
+}
+
 /** A user of GET /ocutalon/api/v1/settings/roles (Story 25.4): the IRIS user name, the OcuTalon roles the user holds (sorted) and whether OcuTalon manages the account. */
 export interface RoleHolder {
   user: string;

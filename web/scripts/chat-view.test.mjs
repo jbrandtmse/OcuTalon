@@ -176,6 +176,11 @@ describe('what a turn shows', () => {
     assert.equal(chatView([], [local('g', 'sent', { fromGuide: true })], NO_RUNNING, NOW)[0].caption, 'From the demo guide');
     assert.equal(chatView([], [local('p', 'sent')], NO_RUNNING, NOW)[0].caption, '');
   });
+
+  it('captions a Slack turn "via Slack", also over the guide marker', () => {
+    const [slack, both] = chatView([turn('S', { channel: 'slack' }), turn('B', { channel: 'slack', fromGuide: true })], [], NO_RUNNING, NOW);
+    assert.deepEqual([slack.caption, both.caption], ['via Slack', 'via Slack']);
+  });
 });
 
 describe('the reply of a turn', () => {
@@ -556,6 +561,7 @@ describe('the fixed strings', () => {
         newMessages: 'New messages',
         name: 'OcuTalon',
         viaTelegram: 'via Telegram',
+        viaSlack: 'via Slack',
         fromGuide: 'From the demo guide',
         separator: ' \u00B7 ',
         opensInNewTab: '(opens in a new tab)',

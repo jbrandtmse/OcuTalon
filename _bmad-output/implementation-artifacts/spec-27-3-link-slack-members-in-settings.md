@@ -2,13 +2,28 @@
 title: 'Story 27.3: Link Slack members in Settings'
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7d5735b40e7b17dcad8269aa17ddbf9e8cc7f7b7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-27-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A signed event of a second Slack workspace overwrites the noted workspace, so the admin's next link is saved under that team and never matches the real member's events.
+    evidence: |-
+      Ruled by the Contest Planner (Design Notes Decided 2 and the Limit paragraph: one workspace per install, overwritten when it differs) and pinned by TestNotesWorkspace; the second-team criterion (no link row created or changed) holds. A different rule (keep the first workspace until an admin resets it, or show the workspace on the link form) needs a ruling. Needs the install's Slack app to be installed in a second workspace.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/SlackLink.cls NoteWorkspace
+    severity: low
+  - summary: >-
+      The reversing audit entry of an unlink whose row removal fails is not tested.
+    evidence: |-
+      TestFailedAfterAudit covers the link side through a race seam; Unlink fails only when %DeleteId fails, which no seam of the probes can force.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls UnlinkSlack
+    severity: low
 ---
 
 <intent-contract>
@@ -161,6 +176,41 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B (AD-29) unless marked.
 
 ## Review Triage Log
 
+### 2026-11-16 — Review pass
+- verdicts: 31 findings — high 0, medium 1, low 27, false 3, maybe-false 0
+- findings (a finding that two layers reported shares one row, its layers named first):
+  - `[low]` `[defer]` Blind 1 / Edge 2 / Verification-gap defect / Intent C2: a signed event of a second workspace overwrites `^OcuTalonP.SlackW`, so the next link is saved under that team — real but ruled: Decided 2 and the Limit paragraph (Contest Planner, "overwritten when it differs") and `TestNotesWorkspace` pin it; the second-team AC (no link row created or changed) holds; a different design needs a ruling; deferred (low)
+  - `[false]` `[reject]` Blind 2: the same pair again writes a second audit entry — the I/O matrix row "Same pair again" says "audited as a link"; the behaviour is the contract
+  - `[medium]` `[patch]` Blind 3 / Verification-gap 1: the reversing audit entry of a link that fails after its audit write has no test — added `SettingsSlack.TestFailedAfterAudit` (member and user races through the new `Test.Core.SettingsSlackProbe`) and mutation-checked it; the unlink half (a failed `%DeleteId`) cannot be forced by any seam and is deferred (low)
+  - `[low]` `[reject]` Blind 3 (second half): `undone` is never read, so a failed reversing write is silent — a second failure of the audit write has no further remedy and the first failure already logs; a guard adds complexity for an unlikely double failure
+  - `[low]` `[reject]` Blind 4 / Edge 5: `link.user` and the `user_taken` text echo the typed name, not the stored case — the spec says the result holds no names and the route fills `{user}`; the page picks the name from a select, so only a direct API caller sees a case difference
+  - `[low]` `[reject]` Blind 5: GUIDE step 4 does not say to send the bot a direct message first — the four setup steps are approved verbatim; the `no_workspace` text covers the case; any added sentence is unruled public text
+  - `[low]` `[reject]` Blind 6: `not_audited` and `no_session` answer a generic 500 — the spec maps "anything else" to 500 `server_error`; a new public text for it is unruled
+  - `[low]` `[reject]` Blind 7 / Edge 7: a per-pass `unlink` closure and no destroyed or rejected-import guard around `createComponent` — the lazy section copies the roles pattern the spec names; the failure needs a chunk load error or leaving Settings in one tick; the guard adds branches
+  - `[false]` `[reject]` Blind 8: the `WORKSPACEGLOBAL` class doc misstates the mechanism — the doc states the ruled limit (an install has one workspace); matching uses the event's own team, which changes with the workspace, so the effect is as described
+  - `[low]` `[reject]` Edge 1: `NoteWorkspace` runs outside the Try of `OnProcessInput` — it fails only if a write to `^OcuTalonP.SlackW` fails, in the database that `ClaimEvent` has just written; Task 0 proved the write
+  - `[low]` `[reject]` Edge 3: `MemberIndexOpen(...).Ref` on a row removed between `Taken` and the open — a window of microseconds; `Carry` answers `failed` for a thrown error, with nothing written before the audit entry
+  - `[low]` `[reject]` Edge 4: an over-long body field reaches `SecretHandoff.Put` and answers 500 instead of 400 — a member of any length is refused `bad_member` and a user `user_unknown` by the operation; only a pathological body size differs, and the web server bounds the request
+  - `[low]` `[reject]` Edge 6: a 404 on unlink (another admin was first) leaves the stale row and a generic failure — a second admin unlinking the same row in the same minute; Retry or any reload clears it; the fix adds a branch
+  - `[low]` `[reject]` Edge 8: a failed reload after a successful link replaces the group with the load error — the webhooks section does the same, and the next Retry reloads; the change is done and audited
+  - `[low]` `[reject]` Edge 9: overlapping loads can show an older list — two requests from one admin within a round trip; the webhooks section has the same shape
+  - `[false]` `[reject]` Edge 10: a link whose session row is missing is hidden from the list but still blocks its member — Decided 4: the cascading foreign key makes such a row impossible outside a `%NOCHECK` test delete
+  - `[low]` `[reject]` Edge 11: after a workspace change an old-team link blocks `user_taken` and looks live — the ruled Limit says links are not migrated or rewritten; the admin unlinks it
+  - `[low]` `[reject]` Edge 12: `Taken` answers "" when a read throws — `Link` re-checks the unique indexes after a failed save and the audit entry is then reversed; no wrong row can be stored
+  - `[low]` `[patch]` Verification-gap 2: `no_session` and unreadable-handoff outcomes of `LinkSlack` are untested — added `SettingsSlack.TestLinkGuards` (no row for the admin session; a handoff that is not JSON, an array, of the wrong types, or gone)
+  - `[low]` `[reject]` Verification-gap 3: the lazy chunk is pinned by source text only — it is the pin the spec names (`slack-view.test.mjs`, planned mutation AC 5); `initial-bundle.test.mjs` caps the initial bytes; a built-chunk assertion is new test machinery
+  - `[low]` `[patch]` Verification-gap other: `SlackIn.TestNotesWorkspace` "an envelope with no team notes nothing" cannot fail (the global was already empty) — the workspace is set first and the assertion is that it stays
+  - `[low]` `[patch]` Verification-gap other: `slack-view.test.mjs` `matchAll(/slack-section/g).length >= 1` cannot fail (the class doc names the file) — assertion removed; the two import checks above it pin the contract
+  - `[low]` `[reject]` Verification-gap other: `one_two '= ""` and `two '= ""` assert only fixtures — they are preconditions of the test, not claims about the code
+  - `[low]` `[reject]` Verification-gap other: `TestRoutes` asserts `REFMAX` = 22 — a control that the route pattern's length matches the column; harmless
+  - `[low]` `[patch]` Verification-gap other: the second-team AC has no `mutation:` line — mutation recorded below (member-only match in `SessionFor`: `TestOtherTeamIgnored` and `TestSecondTeamChangesNoLink` red)
+  - `[low]` `[reject]` Verification-gap other: AC 1 has no mutation line — the spec says none (a document edit checked by `lint_spine.py` and the reviewer)
+  - `[low]` `[reject]` Verification-gap other: the AC 3 and AC 4 mutations were not re-run on the live stages — each is red at the unit level and recorded; the live phases pass unmutated; a live mutation run costs minutes for the same assertion
+  - `[low]` `[reject]` Verification-gap other: possible defect, a workspace overwrite re-points the next link — same finding as row 1
+  - `[low]` `[reject]` Verification-gap other: possible defect, typed-case user echoed — same finding as Blind 4
+  - `[low]` `[reject]` Verification-gap other: e2e SL1, SS1 and SS4 assume a default stack (no Slack variables, no links) — the specs state it as a precondition and run on the default `live:sign-in` stacks the spec names; each leaves what it creates removed
+  - `[low]` `[reject]` Intent audit: second-team criterion read as C1 (no link row changes) while C2 (a stable workspace) is not met — same as row 1; the Planner ruled C1 and the overwrite
+
 ## Design Notes
 
 **Governing ADs:** AD-1 (three new `web_admin`-only verbs to `SettingsOps`), AD-4 (identity only in its own row), AD-13 (the web process reads no stored row; DW-1442 hook wording), AD-14 (DW-1442), AD-17 (audit first, `Settings` entries; V4 allows the IRIS user name; DW-1442), AD-19 (env-only Slack config, no setting key), AD-22 (DW-1442), AD-24 (personal data through `SecretHandoff`; `OcuTalonWebhook` grants unchanged), AD-25 (online demo), AD-27 (retention: links go with their session), AD-29 and AD-33 (Lane B ownership; contended appends). No AC contradicts an AD Rule; DW-1442's fixes align the wording with 27.1's shipped behaviour.
@@ -253,19 +303,44 @@ All commands from the worktree root. `LANE` below means `OCUTALON_LOCK_DIR="$(di
 
 **Planned mutations (one per AC; the implement stage records each as `mutation: … → …`):**
 - AC 2: change one word of `settings.slackLinked` in `Core.cls` → `slack-view.test.mjs` parity red.
+  - mutation: `settings.slackLinked` "Recorded in the audit log." → "Written in the audit log." in `Core.cls` → `slack-view.test.mjs` "are the texts of the catalog keys, word for word" red (1 fail); reverted (byte-identical).
 - AC 3: drop the `NoteWorkspace` call in `SlackIn` → `live:slack-hook` link refused `no_workspace` (and `SlackIn.TestNotesWorkspace` red).
+  - mutation: delete the `NoteWorkspace(event.TeamId)` line of `SlackIn.OnProcessInput` → `Test.Channel.SlackIn.TestNotesWorkspace` red (3 asserts: the unlinked member's, the second team's and the linked member's event note no workspace); reverted (byte-identical). The live phase (`no_workspace` in `live:slack-hook`) was not re-run mutated: its pre-link check of `Workspace()` reads the same value.
 - AC 4: return `member_taken` for `user_taken` in `SettingsOps.LinkSlack` → `SettingsSlack.TestLinkReasons` and `api/slack.spec.ts` red.
+  - mutation: `LinkSlack` refuses a `user_taken` clash with reason `member_taken` → `Test.Core.SettingsSlack.TestLinkReasons` red ("a user whose session has another member is refused as user_taken"); reverted (byte-identical). `api/slack.spec.ts` (SL2 asserts `user_taken` over HTTP) was not run mutated.
 - AC 5: import `./slack-section` statically in `channels-section.ts` → `slack-view.test.mjs` lazy check red.
+  - mutation: add `import { SlackSection } from './slack-section';` to `channels-section.ts` → `slack-view.test.mjs` "is never imported statically by the Channels section" red; reverted (byte-identical).
 - AC 6: remove the demo check from `SlackSettings.Refusal` → `SlackSettingsApi.TestOnlineDemo` red.
+  - mutation: delete the `OnlineDemo()` line of `SlackSettings.Refusal` → `Test.Web.SlackSettingsApi.TestOnlineDemo` red (every route's 409, the text, "nothing was submitted" and "no handoff was made"); reverted (byte-identical).
 - AC 7: put the member id in the audit `to` value → `SettingsSlack.TestNoIdsInRecords` red.
+  - mutation: `LinkSlack`'s audit `to` value `name` → `name_" "_member` → `Test.Core.SettingsSlack.TestNoIdsInRecords` red ("no audit entry holds U0SLKOPS01", and `TestLinkAuditsFirst`'s entry checks); reverted (byte-identical).
 - AC 8: drop the `slack` branch of `captionOf` → `chat-view.test.mjs` caption case red.
+  - mutation: delete the `if (channel === 'slack')` branch of `captionOf` in `chat-view.ts` → `chat-view.test.mjs` "captions a Slack turn \"via Slack\", also over the guide marker" red; reverted (byte-identical).
+- Second-team AC (Planner ruling): match the member id alone in `SlackLink.SessionFor` (ignore the team) → `Test.Channel.SlackIn.TestOtherTeamIgnored` and `TestSecondTeamChangesNoLink` red ("the linked member id from a second team is Ignored as other_team"); reverted (byte-identical to the backup, `cmp`).
+  - mutation: `SlackLink.SessionFor` opens the first row whose `MemberId` matches, whatever its team → `TestSecondTeamChangesNoLink` red; reverted (byte-identical).
+- AC 4 and 7 (a failed link after its audit entry is reversed): delete the `Set undone = ..WriteAudit(...)` line of `LinkSlack` → `Test.Core.SettingsSlack.TestFailedAfterAudit` red ("the member race: two audit entries, the link's and its reversal"); reverted (byte-identical).
+  - mutation: delete the reversing `WriteAudit` of `LinkSlack` → `TestFailedAfterAudit` red; reverted (byte-identical).
 - AC 1: none (a document edit, checked by `lint_spine.py` and the reviewer against gate f).
 
-**Task 0 record:** (filled by the implement stage).
+**Task 0 record:** (implement stage, 2026-11-16, a lane-B throwaway, never slot B) PASSED: no new grant, role or resource is needed (R10 stands). On a fresh throwaway with the Slack override (`SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` set to dummy values in a compose override of a temporary folder; `SlackIn.On()` answered 1), a fixture user that holds only the role `OcuTalonWebhook` (the hook application's role, which the web application adds alone) logged in with `$SYSTEM.Security.Login` in the namespace OCUTALON and: `Set ^OcuTalonP.SlackW` (no error), read it back (the value), `$Increment` of `^OcuTalonP.SlackE` (the precedent write of Story 27.1, no error), and killed both again; `$ROLES` was exactly `OcuTalonWebhook`. The grant that serves it is the role's existing Read and Write on `%DB_OCUTALON_PRIVATE`, the database that every `^OcuTalonP.` global resolves to (`Install.Step.PrivateData` PREFIXES). The probe was a scratch script outside the repository.
+
+**Implement-stage record (2026-11-16):**
+- Catalog key count (Core): before 161, after 182 (`Test.Msg.Catalog` expects 182). Added, 21: `settings.slackHeading`, `settings.slackNotSetUp`, `settings.slackHowTo`, `settings.slackOn`, `settings.slackAddress`, `settings.slackOffOnDemo`, `settings.slackMembersHeading`, `settings.slackMembersHelp`, `settings.slackMemberId`, `settings.slackMemberUser`, `settings.slackLink`, `settings.slackUnlink`, `settings.slackNoMembers`, `settings.slackBadMemberId`, `settings.slackMemberTaken`, `settings.slackUserTaken`, `settings.slackLinked`, `settings.slackUnlinked`, `chat.viaSlack` (the 19 of R12) and the two ruled: `settings.slackNoWorkspace`, `settings.slackUnknownUser`.
+- Initial bundle (`web/scripts/initial-bundle.test.mjs`, the sum of the files the page loads up front, measured with the test's own walk): before 898,526 bytes, after 898,862 bytes (+336; the cap, 921,000, is unchanged). The Slack group is its own lazy chunk.
+- Measured live times (a lane-B throwaway, wall clock of the `ci/iris.sh live` call, stack start included): `live:slack-hook` 373 s (63 checks, 62 of them before the last phase, which is new); `live:sign-in --part 4/16` (holds `api/slack.spec.ts`, 3 tests, 3 s) 314 s; `live:sign-in --part 9/16` (holds `chat/via-slack.spec.ts`, 1 test, under 1 s) 245 s; `live:sign-in-2 --part 8/8` (holds `settings/slack.spec.ts`, 6 tests, about 15 s) 192 s; `live:sign-in-2 --part 7/8` (holds `settings/settings.spec.ts`, whose S12 counts the Channels fields) 224 s.
+- Edits outside the story's file list that the new group made necessary (reported): `web/scripts/announce-focus-sources.test.mjs` (the new group is one more announcer speaker, `.focus(` caller and `afterNextRender` user: three list entries), `web/e2e/settings/settings.spec.ts` S12 (the Channels field count gains the Slack member ID field, and the Telegram link is read inside the Telegram block, because the Slack group has a "How to set it up" link too), and `web/scripts/ux-strings.test.mjs` (the string "Slack" moved from the ruled list to `ux`, because `EXPERIENCE.md` now holds it).
+- `lint_spine.py`: 13 findings, all the low `placeholder` ones that were there before (the same 13 on the unchanged spine); no new finding. `"ok"` is false only because the script counts those 13.
+
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+- Summary: Story 27.3 links Slack members in Settings. Three `web_admin`-only verbs (`ListSlackLinks`, `LinkSlackMember`, `UnlinkSlackMember`) in `SettingsOps`, behind `Web.SlackSettings` (`/api/v1/settings/channels/slack`, admin only, 409 `not_available` on the online demo); `Data.SlackLink` gained `Taken`, `List`, `NoteWorkspace`, `Workspace` and the reason output of `Link`; `SlackIn` notes the workspace; a lazy Settings > Channels > Slack group; the "via Slack" chat caption; the approved texts in the catalog, `EXPERIENCE.md` and `GUIDE.md`; the gate (f) spine edits, tagged and memlogged. Task 0 passed (no new grant). Catalog 161 to 182 keys; initial bundle 898,526 to 898,862 bytes (cap 921,000).
+- Files changed: see the Implement-stage record above and `git show` of the finalize commit. Besides the spec's list: `web/scripts/announce-focus-sources.test.mjs` (three list entries for the new section), `web/e2e/settings/settings.spec.ts` S12 (field count and a scoped Telegram link), `Test/Core/SettingsSlackProbe.cls` (new; a link-race seam for `SettingsSlack`).
+- Review pass (4 layers, 31 findings): patches applied 5 (1 medium: `TestFailedAfterAudit`; 4 low: `TestLinkGuards`, the strengthened `TestNotesWorkspace` assertion, the removed `>= 1` assertion, the second-team mutation line); deferred 2 (low); rejected 25 (false 3, low 22), each with its reason in the Review Triage Log. Follow-up review: not recommended (one medium patched, no high).
+- Verification: nine IRIS test classes pass on a lane-B warm stack (re-run after the patches, one class per call); web `node --test` of slack-view, chat-view, ux-strings, webhooks-view, announce-focus-sources, initial-bundle and lazy-routes pass (132); `test-class-rules.sh` and `test-boundaries.sh` pass; `lint_spine.py` reports the 13 pre-existing low placeholders only (`"ok": false` on the unchanged spine too); the live units (`live:slack-hook`, `live:sign-in` parts 4/16 and 9/16, `live:sign-in-2` parts 6/8 to 8/8) passed in the implement pass before the review patches, which touched only tests. The patched mutations were observed red and reverted. Warm stack down.
+- Residual risks: (1) one workspace per install by ruling; a second workspace's signed event re-points the noted workspace (deferred, low). (2) The GUIDE step 3 URL is in backticks so `<your public address>` renders; the words are the approved ones. (3) The two forced test edits above sit outside the spec's file list and could conflict with a merge of another lane touching the same lines. (4) The live units were not re-run after the review patches (tests only); CI runs them.
 
 - Plan stage (2026-11-16): planned against the delivered 27.1 code on `OCT-epic27` at `4324facb44f782bdbfc0e9f701de2b4251ea0637`; halted after planning as dispatched. The build waits for the Planner's ruling on `### Planner gate items` (a) new public text, (c) veto items, (e) contended paths and (f) spine edits including DW-1442.

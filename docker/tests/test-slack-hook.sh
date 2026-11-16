@@ -6,17 +6,26 @@
 # prints counts only. In order:
 #   1. (R9) the default stack, with no override: Slack is off, so a signed POST to the route is 404 with no body, SlackIn.On() is 0, and nothing is counted;
 #   2. the override with the two dummy values is layered and the stack is recreated on the same volume; it ends ready, every enabled adapterless item (SlackIn included) answers
-#      CreateBusinessService, SlackIn.On() is 1, and a session, a link of the fixture member (T0FIXTURE1, U0FIXTURE1) to it and an open approval request are seeded;
+#      CreateBusinessService, SlackIn.On() is 1, and the README account's session (the one durable session of its user) and an open approval request are seeded; no link is seeded:
+#      the link is made through the real settings route (Story 27.3, below);
 #   3a. (R3) a signed url_verification is 200 text/plain with the challenge, and the same request unsigned is 401 with no challenge in the answer;
 #   4. (R5) rejections with a marker in each body, straight after the unsigned challenge: unsigned, a wrong signature, a timestamp 301 s old and over 65,536 bytes are 401 or 413,
 #      and a form body is 400; all are counted in the slot slack (6 with the unsigned challenge), the burst wrote one audit entry, no event id was claimed and no marker is in the
 #      event log, the audit log or any log of the container;
+#   3-link. (Story 27.3) the README admin signs in with curl: GET /api/v1/settings/channels/slack answers state on and the events path; a signed direct message from the fixture member
+#      before the link is Ignored (unlinked) and notes the workspace (T0FIXTURE1) in ^OcuTalonP.SlackW; POST links the member to the README user (200, one Settings entry slackLink.<Ref>,
+#      from nothing to the user, and no id in it), and a second POST of the same pair answers the same Ref;
 #   3b. (R1, R2, R4, R6) signed events: a linked member's direct message is 200 in under 3 s and, in the end, exactly one Turn of channel slack in the member's session, joined to the
 #      session's thread; the same event id with X-Slack-Retry-Num 1 is 200 and still one Turn; a typed "approve" is a second user Turn and leaves the open approval request pending; an
 #      unlinked member, the same member id in another team, a bot_id, a message_changed and a channel message are 200 each, add no Turn and leave one Ignored header each, in a trace
 #      session of its own;
+#      The five ignored events also leave the rows of the link table exactly as they were, the second team's (R2, Contest Planner ruling 2026-11-16) included: the same member id from a second
+#      team and an unlinked member id create and change no link row;
 #   5. (R8, NFR-11) the leak scan: neither dummy value, no fixture id and no marker of an ignored or rejected request is in the event log, the live events, the audit log, the container's
-#      output, messages.log, the after-start log, the globals or the Interoperability message bodies, with a positive control for each scan (the linked message's text is found).
+#      output, messages.log, the after-start log, the globals or the Interoperability message bodies, with a positive control for each scan (the linked message's text is found; the audit holds
+#      the link's entry);
+#   6. (Story 27.3) the README admin DELETEs the link (200, the row gone, one more Settings entry, from the user to nothing, with no id in either entry), and a further signed direct message from the
+#      member is Ignored (unlinked), makes no Turn and leaves the open approval request pending.
 # The project is unique and publishes its web port on 127.0.0.1 only (OCUTALON_TEST_WEB_PORT or the first free of 52800 to 52819). An EXIT trap removes the project with its volume
 # and images. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), node and curl.
@@ -98,6 +107,36 @@ ignored_headers() {
   scalar OCUTALON ignored "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Channel.Slack.Ignored'\") Do rs.%Next() Write !,\"CHK|ignored|\",+rs.%GetData(1)"
 }
 
+# ignored_are <count>: true when the Ignored headers number the count.
+ignored_are() { [ "$(ignored_headers)" = "$1" ]; }
+
+# link_rows: every row of the link table as "team/member/session;" in the order of the rows' ids.
+link_rows() {
+  scalar OCUTALON rows 'Set r="",id="" For { Set id=$Order(^OcuTalonP.SlackLinkD(id)) Quit:id=""  Set o=##class(OcuTalon.Data.SlackLink).%OpenId(id) If $IsObject(o) { Set r=r_o.TeamId_"/"_o.MemberId_"/"_o.SessionRef_";" } } Write !,"CHK|rows|",r'
+}
+
+# The README account of a local install signs in with the cookie jar, and the settings routes are called with the browser envelope (a copy of test-documents.sh's helpers,
+# because lib-live.sh is shared).
+readme_user=ocutalon
+readme_password=ocutalon
+jar="$tmp/jar"
+sign_in() {
+  : > "$jar"
+  curl -s --max-time 30 -o /dev/null -c "$jar" -b "$jar" "$base/ocutalon/"
+  curl -s --max-time 30 -o /dev/null -c "$jar" -b "$jar" -d "IRISUsername=$readme_user" -d "IRISPassword=$readme_password" --data-urlencode 'IRISLogin=Sign in' "$base/ocutalon/"
+}
+
+# api_send <method> <path> [<body file>]: prints the status code; the body is in $tmp/api.body.
+api_send() {
+  local method=$1 path=$2 file=${3:-} args=()
+  args=(-s --max-time 60 -b "$jar" -c "$jar" -o "$tmp/api.body" -w '%{http_code}' -X "$method" -H 'Content-Type: application/json' -H 'X-OcuTalon-Request: 1' -H "Origin: $base")
+  if [ -n "$file" ]; then args+=(--data-binary "@$file"); fi
+  curl "${args[@]}" "$base/ocutalon/api/v1/$path"
+}
+
+# json_field <field>: the first string value of the field in $tmp/api.body.
+json_field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" "$tmp/api.body" | head -n 1; }
+
 # --- 1 (R9): the default stack: Slack is off ---
 
 if ! dc up -d --build > "$tmp/up.log" 2>&1; then
@@ -146,15 +185,14 @@ check_session "phase 2: Slack is on in the process of the stack" OCUTALON \
   'Write !,"CHK|on|",##class(OcuTalon.Channel.Slack.In).On()' \
   'Halt'
 seed=$(printf '%s\n' \
-  'Set s=##class(OcuTalon.Test.Data.Fixture).Session("zzslackhook")' \
-  "Set l=##class(OcuTalon.Data.SlackLink).Link(\"$TEAM\",\"$MEMBER\",s,.sc)" \
+  'Set s=##class(OcuTalon.Data.Session).ForUser("ocutalon",.sc).Ref' \
   'Set a=##class(OcuTalon.Test.Data.Fixture).Approval(s)' \
   'Write !,"CHK|seed|",s,"|",a,"|",$SYSTEM.Status.IsOK(sc)' \
   'Halt' | session_value OCUTALON seed)
 session=$(printf '%s' "$seed" | cut -d'|' -f1)
 approval=$(printf '%s' "$seed" | cut -d'|' -f2)
 if [ -n "$session" ] && [ -n "$approval" ] && [ "$(printf '%s' "$seed" | cut -d'|' -f3)" = 1 ]; then
-  pass "phase 2: a session, a link of the fixture member to it and an open approval request are seeded"
+  pass "phase 2: the README account's session and an open approval request are seeded, and no link"
 else
   die "phase 2: the seed failed ($seed)"
 fi
@@ -196,6 +234,42 @@ CHK|markeringlobals|0" \
   "Set n=0,r=\"^OcuTalonP.SlackE\" For { Set r=\$Query(@r,1,v) If r=\"\" { Quit } If (r[\"$REJECTEDTEXT\")||(v[\"$REJECTEDTEXT\") { Set n=n+1 } } Write !,\"CHK|markeringlobals|\",n" \
   'Halt'
 
+# --- 3-link (Story 27.3): the admin links the member through the real settings route ---
+
+sign_in
+code=$(api_send GET settings/channels/slack)
+if [ "$code" = 200 ] && grep -q '"state":"on"' "$tmp/api.body" && grep -q '"path":"/ocutalon/hook/slack/events"' "$tmp/api.body"; then
+  pass "phase 3-link: GET of the Slack settings is 200 with state on and the events path"
+else
+  fail "phase 3-link: GET of the Slack settings is '$code' and does not say state on with the path"
+fi
+if grep -q '"users":\[[^]]*"ocutalon"' "$tmp/api.body"; then pass "phase 3-link: and it offers the README user"; else fail "phase 3-link: the list does not offer the README user"; fi
+mkevent "$tmp/prelink.json" Ev0PRELINK "$TEAM" "$MEMBER" "$IGNOREDTEXT before the link"
+expect_post "phase 3-link (R2): a signed direct message from the fixture member before the link" 200 "$tmp/prelink.json"
+if wait_until 90 ignored_are 1; then pass "phase 3-link: it is Ignored (one Ignored header), as an unlinked member's"; else fail "phase 3-link: $(ignored_headers) Ignored header(s), wanted 1"; fi
+check_session "phase 3-link: SlackIn noted the workspace of the signed event, and no row links the member yet" OCUTALON \
+  "CHK|workspace|$TEAM
+CHK|rows|" \
+  'Write !,"CHK|workspace|",##class(OcuTalon.Data.SlackLink).Workspace()' \
+  'Write !,"CHK|rows|",$Order(^OcuTalonP.SlackLinkD(""))' \
+  'Halt'
+link_mark=$(scalar OCUTALON mark 'Write !,"CHK|mark|",##class(OcuTalon.Test.Bridge.AuditLog).Now()')
+printf '{"user":"%s","member":"%s"}' "$readme_user" "$MEMBER" > "$tmp/link.json"
+code=$(api_send POST settings/channels/slack "$tmp/link.json")
+if [ "$code" = 200 ] && grep -q '"result":"done"' "$tmp/api.body"; then pass "phase 3-link: POST links the member to the README user (200 done)"; else fail "phase 3-link: POST answered '$code'"; fi
+link_ref=$(json_field ref)
+check_session "phase 3-link: the member is linked to the README account's session, and one Settings entry names slackLink.<Ref>, from nothing to the user" OCUTALON \
+  "CHK|session|$session
+CHK|entries|1
+CHK|from||to|$readme_user" \
+  "Write !,\"CHK|session|\",##class(OcuTalon.Data.SlackLink).SessionFor(\"$TEAM\",\"$MEMBER\")" \
+  "Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(\"$link_mark\",\"OcuTalon\",\"Settings\",\"\",\"slackLink.\",\"\",1,30)" \
+  'Write !,"CHK|entries|",e.%Size()' \
+  'Set d=e.%Get(0).data Write !,"CHK|from|",d.from,"|to|",d.to' \
+  'Halt'
+code=$(api_send POST settings/channels/slack "$tmp/link.json")
+if [ "$code" = 200 ] && [ -n "$link_ref" ] && [ "$(json_field ref)" = "$link_ref" ]; then pass "phase 3-link: the same pair again is 200 with the same Ref"; else fail "phase 3-link: the repeat answered '$code' with another Ref"; fi
+
 # --- 3b (R1, R2, R4, R6): the events ---
 
 mkevent "$tmp/dm.json" Ev0LINKED "$TEAM" "$MEMBER" "$LINKEDTEXT hello from slack"
@@ -235,6 +309,7 @@ check_session "phase 3 (R6): the open approval request is still pending and unan
   'Halt'
 
 before=$(ignored_headers)
+rows_before=$(link_rows)
 mkevent "$tmp/i1.json" Ev0UNLINKED "$TEAM" "$UNLINKED" "$IGNOREDTEXT unlinked"
 mkevent "$tmp/i2.json" Ev0OTHERTEAM "$OTHERTEAM" "$MEMBER" "$IGNOREDTEXT other team"
 mkevent "$tmp/i3.json" Ev0BOT "$TEAM" "$MEMBER" "$IGNOREDTEXT bot" ',"bot_id":"B0FIXTURE1"'
@@ -247,9 +322,14 @@ sleep 5
 after=$(ignored_headers)
 if [ "$(turns)" = 2 ]; then pass "phase 3: none of the five ignored events became a Turn"; else fail "phase 3: $(turns) Turn(s) after the ignored events, wanted 2"; fi
 if [ "$((after - before))" = 5 ]; then pass "phase 3: each left one Ignored header (5 new)"; else fail "phase 3: $((after - before)) new Ignored header(s), wanted 5"; fi
-check_session "phase 3: the Ignored headers are SlackIn to Intake, each in a trace session of its own, none in the member's thread" OCUTALON \
-  "CHK|route|5
-CHK|sessions|5
+if [ -n "$rows_before" ] && [ "$(link_rows)" = "$rows_before" ]; then
+  pass "phase 3 (R2, Contest Planner ruling 2026-11-16): the second team's events, and the unlinked member's, created and changed no link row (the rows are exactly as they were)"
+else
+  fail "phase 3 (R2): the rows of the link table changed (before: $(printf '%s' "$rows_before" | wc -c | tr -d ' ') characters, after: $(link_rows | wc -c | tr -d ' '))"
+fi
+check_session "phase 3: the Ignored headers (the five and the one before the link) are SlackIn to Intake, each in a trace session of its own, none in the member's thread" OCUTALON \
+  "CHK|route|6
+CHK|sessions|6
 CHK|inthread|0" \
   "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Channel.Slack.Ignored' AND SourceConfigName = 'SlackIn' AND TargetConfigName = 'Intake'\") Do rs.%Next() Write !,\"CHK|route|\",rs.%GetData(1)" \
   "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(DISTINCT SessionId) FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Channel.Slack.Ignored'\") Do rs.%Next() Write !,\"CHK|sessions|\",rs.%GetData(1)" \
@@ -258,8 +338,6 @@ CHK|inthread|0" \
 
 # --- 3c (R3): the signature is over the bytes as received: UTF-8 text and a body longer than one read chunk ---
 
-# ignored_are <count>: true when the Ignored headers number the count.
-ignored_are() { [ "$(ignored_headers)" = "$1" ]; }
 before=$(ignored_headers)
 utf8=$(printf 'caf\303\251 \346\227\245\346\234\254 \303\274x')
 mkevent "$tmp/u8.json" Ev0UTF8 "$TEAM" "$MEMBER" "$utf8" "" channel
@@ -309,6 +387,37 @@ CHK|control|1" \
   "Set bad=0 For v=\"$DUMMY\",\"$IGNOREDTEXT\",\"$REJECTEDTEXT\" { Set n=##class(OcuTalon.Test.Eval.KeyProof).GlobalHits(v,\"\",.places,.stats) Set bad=bad+\$Select(n<0:1,1:n) } Write !,\"CHK|globals|\",bad" \
   "Set n=##class(OcuTalon.Test.Eval.KeyProof).GlobalHits(\"$LINKEDTEXT\",\"\",.places,.stats) Write !,\"CHK|control|\",(n>0)" \
   'Halt'
+
+# --- 6 (Story 27.3): the admin unlinks the member through the real route ---
+
+unlink_mark=$(scalar OCUTALON mark 'Write !,"CHK|mark|",##class(OcuTalon.Test.Bridge.AuditLog).Now()')
+code=$(api_send DELETE "settings/channels/slack/$link_ref")
+if [ "$code" = 200 ] && grep -q '"result":"done"' "$tmp/api.body"; then pass "phase 6: DELETE of the link is 200 done"; else fail "phase 6: DELETE answered '$code'"; fi
+code=$(api_send DELETE "settings/channels/slack/$link_ref")
+if [ "$code" = 404 ]; then pass "phase 6: and a second DELETE of the same Ref is 404"; else fail "phase 6: the second DELETE answered '$code'"; fi
+check_session "phase 6: the link is gone, and one more Settings entry names it, from the user to nothing" OCUTALON \
+  "CHK|session|
+CHK|rows|
+CHK|entries|1
+CHK|from|$readme_user|to|" \
+  "Write !,\"CHK|session|\",##class(OcuTalon.Data.SlackLink).SessionFor(\"$TEAM\",\"$MEMBER\")" \
+  'Write !,"CHK|rows|",$Order(^OcuTalonP.SlackLinkD(""))' \
+  "Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(\"$unlink_mark\",\"OcuTalon\",\"Settings\",\"\",\"slackLink.\",\"\",1,30)" \
+  'Write !,"CHK|entries|",e.%Size()' \
+  'Set d=e.%Get(0).data Write !,"CHK|from|",d.from,"|to|",d.to' \
+  'Halt'
+check_session "phase 6: no audit entry holds a fixture id (control: the three entries of the link, its repeat and the unlink are there)" %SYS \
+  "CHK|audit|0
+CHK|control|1" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ? OR Description [ ?","0FIXTURE","0FIXTURE") Do rs.%Next() Write !,"CHK|audit|",rs.%GetData(1)' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ?","slackLink.") Do rs.%Next() Write !,"CHK|control|",(rs.%GetData(1)>=3)' \
+  'Halt'
+before=$(ignored_headers)
+mkevent "$tmp/after.json" Ev0AFTERUNLINK "$TEAM" "$MEMBER" "$IGNOREDTEXT after the unlink"
+expect_post "phase 6: a signed direct message from the member after the unlink" 200 "$tmp/after.json"
+if wait_until 90 ignored_are "$((before + 1))"; then pass "phase 6: it is Ignored (one more Ignored header), as an unlinked member's"; else fail "phase 6: $(($(ignored_headers) - before)) new Ignored header(s), wanted 1"; fi
+sleep 5
+if [ "$(turns)" = 2 ]; then pass "phase 6: and it makes no new Turn (still 2)"; else fail "phase 6: $(turns) Turn(s) after the unlink, wanted 2"; fi
 
 if [ "$fails" -ne 0 ]; then
   echo "test-slack-hook: $fails check(s) failed (project $P)"
