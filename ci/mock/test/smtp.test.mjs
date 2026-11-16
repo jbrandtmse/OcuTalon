@@ -269,6 +269,7 @@ test('failure mode stall-greeting accepts the connection and never sends the gre
   await withStub(async ({ control, port }) => {
     await control('failure', { mode: 'stall-greeting' });
     const c = client(port);
+    await new Promise((resolve) => c.socket.once('connect', resolve));
     await new Promise((resolve) => setTimeout(resolve, 300));
     assert.equal(c.pending(), '');
     c.close();

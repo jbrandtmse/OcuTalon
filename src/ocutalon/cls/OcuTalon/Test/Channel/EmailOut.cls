@@ -63,12 +63,12 @@ Include Ensemble
 ///     another owner session of the mailbox count, the rows of an earlier day and of other kinds do not; the count is taken against the rows already there;
 ///   - TestDigestLock: while another process holds the lock of the mailbox's digest emails nothing is sent;
 ///   - TestDigestNoPersonalDataInTheLog: after digests and failures the log holds no address, subject, text, key or server words;
-///   - TestNoDoubleSend (Story 23.15, Task 2): a failed send of an approval that may still have reached the server (a timeout, a connection lost during DATA) or an error after the message was handed
+///   - TestNoDoubleSend (Story 23.15, Task 2): a failed send of an approval that may still have reached the server (a timeout or a connection lost during DATA once the message data began) or an error after the message was handed
 ///     over answers MESSAGEMAYHAVESENT and marks the claim maysent, as a keyed tool send does; a send that never reached the server answers MESSAGEUNREACHABLE with the claim marked failed; the claim shows
 ///     whether a send began (Began);
-///   - TestMayHaveSentNeedsTheDataBegan, TestNoDoubleSend, TestToolKeyFailureClasses (DW-1429): a timeout or a lost connection is may-have-sent only once the message data began (Sender.MayHaveSent with the adapter's
+///   - TestMayHaveSentNeedsTheDataBegan, TestOutReadsTheAdaptersDataBegan, TestNoDoubleSend, TestToolKeyFailureClasses (DW-1429): a timeout or a lost connection is may-have-sent only once the message data began (Sender.MayHaveSent with the adapter's
 ///     DataBegan): at the greeting, EHLO or DATA before the 354 an approval's or a keyed tool send answers MESSAGEUNREACHABLE (claim failed, or none for the key), after the data began MESSAGEMAYHAVESENT; the adapter
-///     resets the flag at every send;
+///     resets the flag at every send, and Out reads the flag of the adapter it holds (none: not begun);
 ///   - TestAccepted, TestQuitStageIsSent (DW-1422): a status whose errors are all about QUIT (Sender.Accepted) is a sent email on every path, with its Delivery row and its claim marked sent, while a QUIT error
 ///     after an earlier error is a failed send;
 ///   - TestSenderInit, TestSenderTransport, TestSenderTlsSettings, TestSenderNoConnection, TestClassify (ruling c, Sender): OnInit forces the identity check on and ContinueAfterBadSend off
@@ -1430,6 +1430,7 @@ Method TestOutReadsTheAdaptersDataBegan()
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
 	Set ^||OcuTalonEmailOutProbe("realflag") = 1
 	Set ^||OcuTalonEmailOutProbe("answer") = "timeout"
+	Set probe.Adapter = $$$NULLOREF
 	Set ref = ..Approval("zzemailoutap0082", ..#ADDRESS)
 	Set sc = probe.OnSendEmail(..Command("system", ..#OWNER, ..#ADDRESS, "fix", "text", ref, ""), .response)
 	Do $$$AssertEquals(response.Message, $Parameter(..#PROBE, "MESSAGEUNREACHABLE"), "a host with no adapter has no data begun: a timeout answers MESSAGEUNREACHABLE")
