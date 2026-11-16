@@ -4453,3 +4453,5 @@
 2026-11-16T04:44:33Z	Epic 21	runner_status	DW-1410_pushed=48f10354d(runs_43805853892,43805853876) fresh_Fix=30/30 next=LOW_eval_case_draft DW-1411=likely_dup_DW-609
 2026-11-16T05:28:44Z	Epic 21	ci_green_verified	story=DW-1410 head=48f10354d runs=43805853892,43805853876(att1) note=report_not_received;verified_by_gate
 2026-11-16T05:28:44Z	Epic 21	merge_enqueued	story=DW-1410 (1.0.12)
+2026-11-16T05:30:30Z	Epic 21	merged	story=DW-1410 merge=7958e46ee
+2026-11-16T05:30:48Z	Epic 21	runner_resumed	lane=C next=DW-1373(23.2_suspend_false_Nothing_was_changed) relayed=eval_case_draft+stale_ref_to_Planner
