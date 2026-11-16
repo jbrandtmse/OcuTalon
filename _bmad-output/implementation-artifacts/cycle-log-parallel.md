@@ -4456,3 +4456,4 @@
 2026-11-16T05:30:30Z	Epic 21	merged	story=DW-1410 merge=7958e46ee
 2026-11-16T05:30:48Z	Epic 21	runner_resumed	lane=C next=DW-1373(23.2_suspend_false_Nothing_was_changed) relayed=eval_case_draft+stale_ref_to_Planner
 2026-11-16T05:31:18Z	Run	owner_decision	via=contest_planner user-turn_case=main_draft_approved(after_DW-1389;rules-only_7) guard_gap=DW-1420(LOW_LaneB_post-1.0.12) stale_ref=approved(after_DW-1389) laneC_order=DW-1373,DW-1376,DW-1378,eval_case+stale_ref DW-1205_known-limit_line=dropped
+2026-11-16T05:37:03Z	Epic 0	owner_decision	via=contest_planner DW-1389_A/B=FAIL(drift;bars_b,c,g,i) DW-1389=closed_for_1.0.12(narrower_LOW_post-1.0.12;branch_kept) stale_ref=held_post-1.0.12_bundled_A/B user-turn_case=lands_when_ready new=DW-1421(MED,orders-target-to-review_invalid_fallback;diagnose_before_RC)
