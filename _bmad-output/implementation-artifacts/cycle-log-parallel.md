@@ -4485,3 +4485,6 @@
 2026-11-16T12:46:16Z	Run	owner_decision	via=contest_planner RESULT=Experts_1st(108_vs_82),Community_3rd 1.0.12_includes_online_demo_update(Planner) merge_delegated_to_Planner(signal_REQUIRED_GREEN) hosts_stay epics_27,28=APPROVED_after_1.0.12(scope_hold_lifted;gates_to_Planner)
 2026-11-16T12:47:23Z	Epic 21	ci_green_verified	DW-1376 head=5f9b7e3c7 runs=43832095522,43832095431; DW-1378 head=d1cc64e0e(contains_DW-1376) runs=43848746962,43848747032 note=reports_not_received;verified_by_gate+Planner_live_check
 2026-11-16T12:47:23Z	Epic 21	merge_enqueued	DW-1376+DW-1378 (1.0.12 cut items) via OCT-epic21-dw1378
+2026-11-16T12:49:58Z	Epic 21	merged	DW-1376+DW-1378 merge=87fce253a
+2026-11-16T12:50:05Z	Epic 23	runner_reported	PART_READY 23.15(cut_story) head=55c5223fe runs=43864772409,43864772546(att1) DW-1429(self-ruled_rework:DataBegan) mapping_table=in_spec shards:2=27.9,3=28.6,production=33.7
+2026-11-16T12:50:05Z	Epic 23	merge_enqueued	23.15 (1.0.12 cut)
