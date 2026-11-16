@@ -324,6 +324,15 @@ Release note (the Planner's text, not product text): if this ships in 1.0.12, th
 
 **Findability:** no UI change.
 
+## Spec gate rulings (Contest Planner, ~02:30Z Nov 16, BINDING): APPROVED, all items
+
+- Design: the read order (status, instance, reply in hand, DW-1205's entry check, second status read) APPROVED. Veto 6 (reply in hand) APPROVED; its one false hold for a single pass is accepted; Task 0 still measures the instance-only check for the record. Any failed read holds the copy (prepare, SQL privilege, <PROTECT>, <UNDEFINED>, negative SQLCODE); the 60 s wait bounds it. TestHeldCopyStopsAtTheWait with its two mutations APPROVED.
+- Task 0 is a HARD GATE:
+  - STOP if the executor's or the sweep's users lack SELECT on Ens.BusinessProcess: report which grant is missing; never add a grant without the Planner.
+  - PUSH CONDITION: 0 wrong in 300 at 1 ms, unloaded and loaded; 0 wrong in 30 at 1 s; no false "still running" on the fan-out with a disabled leg.
+  - Record Fix.Scale before and after; a slowdown over 10% goes back to the Planner.
+- (a) No new public text (if DW-1410 ships in 1.0.12 the Planner drops DW-1205's "known limit" release-note line). (b) Cross-lane GRANTED (Watch.Reader, Fix.Executor docs, the two test classes, AD-16); merges after DW-1205. (c) No stored-data change. (d) The AD-16 sentence is REPLACED verbatim as given in this spec. (e) Behaviour approved as described.
+
 ## Verification
 
 Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
