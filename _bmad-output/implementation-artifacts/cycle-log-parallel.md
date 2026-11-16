@@ -4511,3 +4511,4 @@
 2026-11-16T14:57:57Z	Epic 27	owner_decision	via=contest_planner 27.1_R7=option_a(slack_label;build_now;merge_gated_on_separate_A/B;knob+pinned_cases;N=5;rule_i)
 2026-11-16T15:01:56Z	Epic 28	runner_reported	PLANNER_REPORT 28.2_gate(8ab341798;G1-G8;AD-31,AD-1_amendments;G7_trace;P1_bridge-guide;P2_later;R-28.2-1/2) relayed=contest_planner
 2026-11-16T15:02:31Z	Epic 28	owner_decision	via=contest_planner 28.2=APPROVED(G1-G8;purge_merge_records_pin;G7_texts_out_of_trace_AC_amend;R-28.2-3_precision_Task0_gate;P1_verbatim;no_A/B_but_equivalence+behaviour_pins;split_pre-approved) file=prompts/story-282-rulings-20261116.md
+2026-11-16T15:08:03Z	Epic 21	owner_decision	via=contest_planner DW-1421_C0_results(3_diagnose_evidence>128,2_decide_confidence-missing;C2/C3_never) C2=dropped C3=deferred C2prime=evidence_cut_at_128 C1_tag_fix=evidence-too-long C5=report_first verify=5-run_recapture
