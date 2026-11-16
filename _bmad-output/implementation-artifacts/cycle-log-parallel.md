@@ -4501,3 +4501,4 @@
 2026-11-16T14:20:33Z	Run	lane_status	A=25.9_building(active) B=dispatched(post-cut_texts,DW-1429_check,production_rebalance,23.14) C=DW-1421_CI D=DW-1430_CI(24.3a/b_held) planner_notified
 2026-11-16T14:21:07Z	Run	owner_decision	via=contest_planner Epics_27,28_START_NOW(on_freed_slots;order:in-flight_first,then_27,28.1,28.2,28.3_ahead_of_LOW/23.14;gates_to_Planner;Slack_off_on_demo;own_branches_until_MERGE-BACK)
 2026-11-16T14:21:59Z	Epic 27	provisioned	worktree=.worktrees/epic-27 branch=OCT-epic27(from_feature_b86741bda,records-only_over_BASE) note=provision_push_triggered_runs_43884842828,43884842832;cancelled(no_self-hosted_job_started;code=BASE,already_green;frees_runners_for_release)
+2026-11-16T14:22:29Z	Epic 27	dispatched	lane=B(throwaways_until_slot_B_free) runner=a847bb1757d647aa8 stories=27.1,27.2 start=spec_gates_to_Planner prompt=prompts/dispatch-epic-27-20261116.md
