@@ -199,7 +199,8 @@ Method TestOtherPaths()
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("HookProbe", "sent")), 0, "nothing is handed over")
 	Do $$$AssertEquals($Data(^OcuTalonP.WebhookC("r", ..Ref)) + $Data(^OcuTalonP.WebhookC("r", "?")), 0, "and no rejection is counted")
 	Kill ^OcuTalonP.WebhookC("r", "slack")
-	Set saved = $SYSTEM.Util.GetEnviron("SLACK_SIGNING_SECRET") _ "|" _ $SYSTEM.Util.GetEnviron("SLACK_BOT_TOKEN")
+	Set hadSecret = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_SIGNING_SECRET"), savedSecret = $SYSTEM.Util.GetEnviron("SLACK_SIGNING_SECRET")
+	Set hadToken = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_BOT_TOKEN"), savedToken = $SYSTEM.Util.GetEnviron("SLACK_BOT_TOKEN")
 	Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("SLACK_SIGNING_SECRET")
 	Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("SLACK_BOT_TOKEN")
 	Try {
@@ -209,8 +210,8 @@ Method TestOtherPaths()
 	} Catch exception {
 		Do $$$AssertTrue(0, "the Slack route threw: "_exception.DisplayString())
 	}
-	Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", $Piece(saved, "|", 1))
-	Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", $Piece(saved, "|", 2))
+	If hadSecret Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", savedSecret)
+	If hadToken Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", savedToken)
 }
 
 Method TestRejectionAudit()

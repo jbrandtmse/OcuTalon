@@ -121,7 +121,7 @@ ClassMethod IsId(value As %String) As %Boolean
 }
 
 /// 1 when this is the first claim of the event id within the last CLAIMSECONDS (and the hour bucket that holds them), 0 when it was claimed before (Slack's retry). The claim is one $Increment of the event's
-/// node in the bucket of the current UTC hour, so two claims at once cannot both win; a claim in an earlier bucket that is still kept makes this one a repeat.
+/// node in the bucket of the current UTC hour, so two claims at once in the same hour cannot both win; a claim in an earlier bucket that is still kept makes this one a repeat.
 /// Each claim deletes the buckets older than CLAIMSECONDS. An empty or over-long event id is never claimed (0). now is the current UTC time unless a test gives one.
 ClassMethod ClaimEvent(eventId As %String, now As %String = "") As %Boolean
 {

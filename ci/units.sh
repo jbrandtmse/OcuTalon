@@ -149,7 +149,8 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # Story 27.1 (2026-11-16; the Contest Planner's gate rulings R9 and R11) adds live:slack-hook (docker/tests/test-slack-hook.sh: one fresh start of the default stack, a recreate on the same
 # volume with dummy SLACK_* values in the unit's own temporary compose override, signed and unsigned requests to the Slack route of the hook application with curl, and the leak scan) to shards-3,
 # planned at about 3.5 minutes (inference: live:compose-start is 173 to 191 s for a start, and a recreate on the same volume took 23 to 44 s in live:production-restart and live:heartbeat-restart),
-# so shards-3 goes from about 25.2 to about 28.7 minutes (inference until a run measures it). No group is added, renamed or
+# so shards-3 goes from about 25.2 to about 28.7 minutes (inference until a run measures it). Measured on the developer machine (Story 27.1 implement, ARM): about 4 min 15 s
+# with a first start of 108 s, so the runner's figure may be above the plan (inference). No group is added, renamed or
 # given a longer deadline, and no other unit's stack has a SLACK_* variable: ci/compose.ci.yml is not changed.
 group_units() {
   case $1 in

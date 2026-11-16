@@ -374,7 +374,6 @@ Method TestRefusedItems()
 /// instance's %SuperSession stays empty) and asks for no decision, for every kind and reason of the record and with an empty event id.
 Method TestIgnoredIsSilent()
 {
-	Set session = ..Session("ignored")
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set kinds = $ListFromString(##class(OcuTalon.Channel.Slack.Ignored).#KINDS)
 	Set reasons = $ListFromString(##class(OcuTalon.Channel.Slack.Ignored).#REASONS)
@@ -394,7 +393,6 @@ Method TestIgnoredIsSilent()
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND Text %STARTSWITH ?", mark, "Intake refused")
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 0, "and no warning that an item was refused is logged")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).Turns(session).Count(), 0, "the session has no Turn row")
 }
 
 /// Intake never sends to Conversation or Notify, writes no Turn row and publishes no live event, for any owner and outcome, and

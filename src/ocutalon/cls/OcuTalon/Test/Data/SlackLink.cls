@@ -7,6 +7,7 @@
 ///     is already linked, and none of its error texts holds an id; Unlink removes the session's link and is OK when there is none;
 ///   - TestLinkGoesWithSession: R8, deleting the session row with %DeleteId (the AD-27 purge's call), through DropEval (an evaluation session) and with an SQL DELETE
 ///     each deletes its link row, and SessionFor is empty afterwards;
+///   - TestLinkWithoutSessionIsNoLink: (QA) a link row whose session row is gone (made with a %NOCHECK delete) gives no session, so the member is unlinked;
 ///   - TestLinkedInAnotherTeam: the member id of a row in a workspace other than the one asked is found, the row's own workspace and an unknown id are not;
 ///   - TestClaimEvent: the first claim of an event id wins and a repeat does not, in the same hour and across an hour boundary; a claim is kept for 2 hours and its bucket is
 ///     deleted at the first claim after that; UnclaimEvent gives one back; an empty or over-long id is never claimed.
@@ -61,6 +62,23 @@ Method TestSessionForNeedsBothIds()
 	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor(..#TEAM, "u0fixture1"), "", "the ids are compared exactly, so another case gives none")
 	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor("", "U0FIXTURE1")_##class(OcuTalon.Data.SlackLink).SessionFor(..#TEAM, "")_##class(OcuTalon.Data.SlackLink).SessionFor("", ""), "", "an empty id gives none")
 	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor(..#TEAM, "U0FIXTURE1"), session, "and the link is unchanged")
+}
+
+/// (QA) The matrix row "a link whose session row is gone": SessionFor answers none, so the member counts as unlinked. The foreign key's cascade makes such a row
+/// impossible through the product's own deletes, so the test removes the session row with %NOCHECK (no foreign key action) and asserts first that the link row is
+/// still there, so that the assertion on SessionFor cannot pass vacuously.
+Method TestLinkWithoutSessionIsNoLink()
+{
+	Set session = ..Session("dangling")
+	Do ##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0DANGLE1", session, .sc)
+	Do $$$AssertStatusOK(sc, "a member is linked")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor(..#TEAM, "U0DANGLE1"), session, "and gives the session while it has a row")
+	Do ##class(OcuTalon.Data.Session).RefIndexExists(session, .id)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE %NOCHECK FROM OcuTalon_Data.Session WHERE ID = ?", id)
+	Do $$$AssertEquals(result.%SQLCODE, 0, "the session row is deleted without the foreign key's action")
+	Do $$$AssertNotTrue(##class(OcuTalon.Data.Session).RefIndexExists(session), "the session row is gone")
+	Do $$$AssertTrue(##class(OcuTalon.Data.SlackLink).SessionRefIndexExists(session), "and the link row is still there")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor(..#TEAM, "U0DANGLE1"), "", "so the member's session is none: a link whose session row is gone is no link")
 }
 
 Method TestLinkRules()

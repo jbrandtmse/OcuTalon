@@ -289,18 +289,10 @@ ClassMethod IsForm() As %Boolean [ Private ]
 	Quit (type = "application/x-www-form-urlencoded") || ($Extract(type, 1, 10) = "multipart/")
 }
 
-/// The body decoded from UTF-8 to text. It is called only for a body of at most BODYMAX bytes.
+/// The body decoded from UTF-8 to text (RawBody's bytes). It is called only for a body of at most BODYMAX bytes.
 ClassMethod BodyText() As %String [ Private ]
 {
-	Set content = %request.Content
-	If '$IsObject(content) Quit ""
-	Do content.Rewind()
-	Set raw = ""
-	While 'content.AtEnd {
-		Set raw = raw_content.Read(32000)
-	}
-	If content.IsCharacter() Quit raw
-	Quit $ZConvert(raw, "I", "UTF8")
+	Quit $ZConvert(..RawBody(), "I", "UTF8")
 }
 
 /// Hands the event to WebhookIn: the service is created in this process and takes the event with ProcessInput, so that the Item enters the production through its

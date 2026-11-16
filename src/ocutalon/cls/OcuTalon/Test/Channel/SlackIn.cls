@@ -9,6 +9,7 @@ Include Ensemble
 ///   - TestRetryOnce: R4, the same event id again is OK and sends nothing more, for a turn and for an ignored event;
 ///   - TestUnlinkedIgnored, TestOtherTeamIgnored (R2), TestBotIdIgnored and TestMessageChangedIgnored (R1), TestOtherEventsIgnored, TestBlankAndNoSender: each leaves one
 ///     Ignored record with its fixed kind and reason and no Item, in no trace session;
+///   - TestLinkWithoutSessionIgnored: (QA) a member whose link row has no session row any more is unlinked: one Ignored (message.im, unlinked), no Item;
 ///   - TestOffWhenUnset: with either variable empty, or the online demo on, On is 0 and ProcessInput refuses and sends nothing;
 ///   - TestRefusesOtherInput: an input that is not an Event is refused;
 ///   - TestFailedSendGivesTheClaimBack: a send that fails or throws is an error status and the claim is given back, so that Slack's retry is processed;
@@ -65,6 +66,7 @@ Method OnBeforeOneTest() As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Kill ^OcuTalonP.SlackE
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SlackLink WHERE TeamId LIKE 'T0FIXTURE%'")
 	Quit $$$OK
 }
 
@@ -170,6 +172,19 @@ Method TestMessageChangedIgnored()
 		Do probe.OnProcessInput(event, .out)
 		Do $$$AssertEquals(..Targets()_"|"_..Call(1, "kind")_"|"_..Call(1, "reason"), "Intake|message.im|subtype", "R1: subtype "_subtype_" is recorded as subtype, with no Item")
 	}
+}
+
+/// (QA) The matrix row "a link whose session row is gone": the member counts as unlinked. The row is made with a %NOCHECK delete (no foreign key action); the test
+/// first asserts that the link row is still there, so that the Ignored result cannot come from a missing link.
+Method TestLinkWithoutSessionIgnored()
+{
+	Set session = ..LinkedSession("nosession")
+	Set probe = ..NewProbe()
+	Do ##class(OcuTalon.Data.Session).RefIndexExists(session, .id)
+	Do $$$AssertEquals(##class(%SQL.Statement).%ExecDirect(, "DELETE %NOCHECK FROM OcuTalon_Data.Session WHERE ID = ?", id).%SQLCODE, 0, "the session row is deleted without the foreign key's action")
+	Do $$$AssertTrue(##class(OcuTalon.Data.SlackLink).SessionRefIndexExists(session), "and the member's link row is still there")
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Event("Ev0NOSESSION", ..#TEAM, ..#MEMBER, "zz linked, but the session is gone"), .out), "the event is taken")
+	Do $$$AssertEquals(..Targets()_"|"_..Call(1, "kind")_"|"_..Call(1, "reason")_"|"_..Call(1, "eventId"), "Intake|message.im|unlinked|Ev0NOSESSION", "one Ignored (message.im, unlinked), and no Item")
 }
 
 Method TestOtherEventsIgnored()
