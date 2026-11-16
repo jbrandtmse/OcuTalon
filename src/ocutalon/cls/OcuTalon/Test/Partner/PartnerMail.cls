@@ -7,6 +7,8 @@ Include Ensemble
 ///   - TestRemovedContactIsSkipped (AC7): a contact that was removed, or that no longer lists the production, is skipped with the code removed and gets nothing;
 ///   - TestChangedAddressIsSkipped (AC7): a contact whose address was changed is skipped with the code changed; neither its old nor its new address ever appears in a send;
 ///   - TestQuitStageIsSent (DW-1422): a send that failed only on the answer to QUIT is sent, with its claim marked sent;
+///   - TestTimeoutIsMayHaveSentOnlyOnceTheDataBegan (DW-1429): a partner send that times out at the greeting or EHLO answers MESSAGEUNREACHABLE, its claim is failed and the one classifier (SendOutcome) and the chat (Notice ResultKey)
+///     read it as not sent; one that times out after the message data began answers MESSAGEMAYHAVESENT, its claim is maysent and both read it as may have been sent;
 ///   - TestAllSkippedSendsNothing (AC7): with every contact gone the mail method has no recipient and EmailOut refuses the send: nothing is delivered and no claim is made;
 ///   - TestOnlineDemoRefusesPartnerWarning (AC8): with the online-demo flag on EmailOut answers not_available first: nothing is delivered, no claim row;
 ///   - TestFixtureIsNeverMailed (AC8): an executing row of the demo's Orders production, whose contact is fictional, gets no mail method: EmailOut refuses it and sends nothing;
@@ -199,6 +201,32 @@ Method TestQuitStageIsSent()
 	Set again = ..Send(approval, owner)
 	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|already_sent", "the same approval again is already sent")
 	Do $$$AssertEquals(..Delivered(), 1, "and nothing more is delivered")
+}
+
+/// DW-1429: a partner send that stops answering is "may have been sent" only once the message data began. A timeout at the greeting or EHLO (the likeliest cause is an implicit-TLS port used without TLS) never
+/// handed the message over: it answers MESSAGEUNREACHABLE, marks the claim failed, and the classifier and the chat say not sent. A timeout after the data began answers MESSAGEMAYHAVESENT, marks the claim maysent, and both say may have been sent.
+Method TestTimeoutIsMayHaveSentOnlyOnceTheDataBegan()
+{
+	Do ..Mailbox()
+	For answer = "timeoutearly", "timeout" {
+		Set approval = ..Approval(.owner, .a, .b, .addressA, .addressB, "zzpctm"_answer)
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set result = ..Send(approval, owner)
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Set maySent = (answer = "timeout")
+		Set expected = $Parameter(..#PROBE, $Select(maySent: "MESSAGEMAYHAVESENT", 1: "MESSAGEUNREACHABLE"))
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_expected, answer_": the partner send answers "_$Select(maySent: "MESSAGEMAYHAVESENT", 1: "MESSAGEUNREACHABLE"))
+		Set claim = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(approval))
+		Do $$$AssertEquals(claim.FallbackReason, $Select(maySent: "maysent", 1: "failed"), answer_": and its claim is marked "_$Select(maySent: "maysent", 1: "failed"))
+		Set outcome = ##class(OcuTalon.Fix.Kind.PartnerWarning).SendOutcome(approval, "failed", 0, 0, 0, result.Message)
+		Do $$$AssertEquals(outcome, $Select(maySent: "maysent", 1: "notsent"), answer_": the classifier reads the answer as "_$Select(maySent: "maysent", 1: "notsent"))
+		Set fixResult = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set fixResult.ApprovalRef = approval
+		Set fixResult.Final = 1
+		Set fixResult.Total = 2
+		Set fixResult.Reason = result.Message
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey("failed", fixResult, "partner_warning", 0), $Select(maySent: "result.partnerMaySent", 1: "fix.emailNotSent"), answer_": and the chat reads "_$Select(maySent: "result.partnerMaySent", 1: "fix.emailNotSent"))
+	}
 }
 
 Method TestTamperedRowIsRefused()

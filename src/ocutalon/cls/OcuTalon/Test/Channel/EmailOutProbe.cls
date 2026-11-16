@@ -4,10 +4,13 @@ Include Ensemble
 /// records each message it is given under ^||OcuTalonEmailOutProbe("sent", n) = $ListBuild(from, to (comma-separated), subject, text, charset, multipart,
 /// parts, attachments, the value of the header X-OcuTalon-Ref) and counts the calls in ^||OcuTalonEmailOutProbe("calls"), and, when a Delivery row of channel
 /// email has exactly that Ref as its ChannelMessageId at the time of the call (the claim of a claimed send), its FallbackReason under
-/// ^||OcuTalonEmailOutProbe("claim", n). It answers by ^||OcuTalonEmailOutProbe("answer"): "" for OK, unreachable (SMTPOpen), timeout (SMTPTimeout),
-/// dropped (SMTPConnectionFailed during DATA), lost (SMTPConnectionFailed before the greeting), quit (SMTPResponse to QUIT only: the server took the message), quitlost (SMTPConnectionFailed on QUIT only),
+/// ^||OcuTalonEmailOutProbe("claim", n). It answers by ^||OcuTalonEmailOutProbe("answer"): "" for OK, unreachable (SMTPOpen), timeout (SMTPTimeout once the message data began),
+/// dropped (SMTPConnectionFailed during DATA, the data begun), lost (SMTPConnectionFailed before the greeting), timeoutearly (SMTPTimeout at the greeting or EHLO, the data never begun: the stand-in of an
+/// implicit-TLS port used without TLS), droppedearly (SMTPConnectionFailed at DATA before the server's 354, the data never begun), quit (SMTPResponse to QUIT only: the server took the message), quitlost (SMTPConnectionFailed on QUIT only),
 /// quitafter (the answer to QUIT and an error of an earlier command), refused (SMTPAUTHFailed), rejected (SMTPResponse, whose text holds SERVER-WORDS and an address) or throw. OAuth2Mode answers ^||OcuTalonEmailOutProbe("oauth") (1 stands in for an adapter
-/// with OAuth2ApplicationName set, Story 21.8). The product never refers to it.
+/// with OAuth2ApplicationName set, Story 21.8). DataBegan stands in for the adapter's flag (DW-1429): it answers 1 for the answers whose send reached the message data (timeout, dropped, quit, quitlost) and 0 for
+/// every other one, as the real SMTP object (Channel.Email.SMTP) sets it, and after a send through a real sender it answers that sender's flag; with ^||OcuTalonEmailOutProbe("realflag") set it
+/// answers Out's own (the flag of the adapter the test put in the host's Adapter). The product never refers to it.
 Class OcuTalon.Test.Channel.EmailOutProbe Extends OcuTalon.Channel.Email.Out
 {
 
@@ -17,6 +20,12 @@ Parameter CLAIMWAIT = 1;
 Method OAuth2Mode() As %Boolean [ Private ]
 {
 	Quit +$Get(^||OcuTalonEmailOutProbe("oauth"))
+}
+
+Method DataBegan() As %Boolean [ Private ]
+{
+	If $Get(^||OcuTalonEmailOutProbe("realflag")) Quit ##super()
+	Quit +$Get(^||OcuTalonEmailOutProbe("databegan"))
 }
 
 Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
@@ -39,12 +48,17 @@ Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
 		Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
 		Set adapter.SMTPServer = $List(sender, 1), adapter.SMTPPort = $List(sender, 2), adapter.Credentials = $List(sender, 3), adapter.SSLConfig = $List(sender, 4)
 		Do adapter.OnInit()
-		Quit adapter.SendMail(message)
+		Set sc = adapter.SendMail(message)
+		Set ^||OcuTalonEmailOutProbe("databegan") = adapter.DataBegan()
+		Quit sc
 	}
 	Set answer = $Get(^||OcuTalonEmailOutProbe("answer"))
+	Set ^||OcuTalonEmailOutProbe("databegan") = $ListFind($ListBuild("timeout", "dropped", "quit", "quitlost"), answer) > 0
 	If answer = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "SERVER-WORDS zzthrown@example.com"))
 	If answer = "unreachable" Quit $$$ERROR($$$SMTPOpen)
 	If answer = "timeout" Quit $$$ERROR($$$SMTPTimeout)
+	If answer = "timeoutearly" Quit $$$ERROR($$$SMTPTimeout)
+	If answer = "droppedearly" Quit $$$ERROR($$$SMTPConnectionFailed, "DATA", "<READ>")
 	If answer = "dropped" Quit $$$ERROR($$$SMTPConnectionFailed, "DATA", "<READ>")
 	If answer = "lost" Quit $$$ERROR($$$SMTPConnectionFailed, "init", "<READ>")
 	If answer = "quit" Quit $$$ERROR($$$SMTPResponse, "QUIT", "421 closing")

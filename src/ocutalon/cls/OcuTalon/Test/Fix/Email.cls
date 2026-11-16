@@ -13,6 +13,8 @@
 ///     done, its FixRun has no incident and counts one, one Action entry names the Ref and the IRIS user who approved it (AD-17); a second outcome, an Execute and a second answer send nothing more;
 ///   - TestSeededApprovedRowSendsOnce (Task 0, item 1): a seeded approved row of two recipients, handed to the real FixExecutor as an approved outcome, is sent once to both with origin system;
 ///   - TestQuitFailureAfterTheMailIsSent (DW-1422): a stub that keeps the mail and answers QUIT with an error ends the approved email done, with one mail, one claim marked sent and a FixRun that counts one sent;
+///   - TestSmtpKnowsWhenTheDataBegan (DW-1429): the real SMTP client of the adapter (Channel.Email.SMTP) against the stub's stall modes: a server that never sends its greeting, and one that answers DATA with an error, leave DataBegan at 0, so a timeout there is
+///     not may-have-sent; one that never answers the end of the message leaves it at 1, so that timeout is may-have-sent (Sender.MayHaveSent); a normal send ends OK with it at 1;
 ///   - TestRejectedAndExpiredSendNothing: a rejected request (its outcome sent by the hold) and an expired one (Approval.Expire moves the row only, so the test hands FixExecutor the expired
 ///     outcome that the hold's timer would send) send nothing and change nothing more, once FixExecutor has logged its one info line for the outcome;
 ///   - TestNotApprovedSendsNothing (AD-16's one test per kind, matrix row Not approved): an Execute and an approved ApprovalOutcome for a pending, rejected, expired or cancelled row, for a row of another
@@ -641,6 +643,38 @@ Method TestQuitFailureAfterTheMailIsSent()
 	Do $$$AssertEquals("["_claim.%Get("FallbackReason")_"]", "[]", "marked sent, not failed")
 	Set run = ..WaitEmailRun(ref)
 	If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Total_"|"_run.Resent_"|"_run.Reason, "|1|1|", "the FixRun counts one, sent, with no reason")
+	Do ..SmtpControl("reset", {})
+}
+
+/// DW-1429, over the wire: the adapter's own SMTP client (Channel.Email.SMTP, with short timeouts) sets DataBegan only once the stub has answered DATA with its 354. A stub that never sends its greeting (the stand-in of an implicit-TLS port
+/// used without TLS) times the send out with DataBegan 0, so Sender.MayHaveSent says no; one that answers DATA with an error fails the send with DataBegan 0; one that never answers the end of the message times the send out with DataBegan 1, which
+/// is may-have-sent; and a normal send is OK.
+Method TestSmtpKnowsWhenTheDataBegan()
+{
+	If '..Setup() Quit
+	// mode | does the send end OK | the timeout's status expected | DataBegan | MayHaveSent
+	Set cases = $ListBuild($ListBuild("none", 1, 0, 1, 0), $ListBuild("stall-greeting", 0, 1, 0, 0), $ListBuild("stall-data", 0, 1, 1, 1), $ListBuild("error", 0, 0, 0, 0))
+	// One SMTP object for every mode, so that a send that stops early after one whose data began shows that Send starts with DataBegan at 0.
+	Set smtp = ##class(OcuTalon.Channel.Email.SMTP).%New()
+	Set smtp.smtpserver = ..#STUBHOST, smtp.port = ..#SMTPPORT
+	For command = "EHLO", "HELO", "MAIL", "RCPT", "AUTH", "STARTTLS", "RSET", "QUIT", "DATA", ##class(%Net.SMTP).#TimeoutKeyInitial, ##class(%Net.SMTP).#TimeoutKeyDataTermination {
+		Set smtp.Timeouts(command) = 2
+	}
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set mode = $List(case, 1)
+		Do $$$AssertEquals(..SmtpControl("failure", {"mode": (mode)}), 1, mode_": the stub is set to the mode")
+		Set message = ##class(%Net.MailMessage).%New("UTF-8")
+		Set message.From = "zzsmtp@example.test"
+		Set message.Subject = "zz"
+		Do message.To.Insert("zzsmtpto@example.test")
+		Do message.TextData.Write("zz")
+		Set sc = smtp.Send(message)
+		Do $$$AssertEquals($$$ISOK(sc), $List(case, 2), mode_": the send "_$Select($List(case, 2): "is OK", 1: "fails"))
+		Do $$$AssertEquals($$$StatusEquals(sc, $$$SMTPTimeout), $List(case, 3), mode_": "_$Select($List(case, 3): "it is a timeout", 1: "it is not a timeout"))
+		Do $$$AssertEquals(smtp.DataBegan, $List(case, 4), mode_": DataBegan is "_$List(case, 4))
+		Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc, smtp.DataBegan), $List(case, 5), mode_": MayHaveSent is "_$List(case, 5))
+	}
 	Do ..SmtpControl("reset", {})
 }
 

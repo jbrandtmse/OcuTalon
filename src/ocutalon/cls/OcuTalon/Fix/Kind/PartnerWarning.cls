@@ -20,7 +20,7 @@
 ///     approval card (the request's result member outcome, Live.Payload.Incident) all take it from here, and none decides it again (Story 23.15). The run ended failed with the NOTSETUP reason: kept.
 ///     Any recipient completed: sent. For a Settings contact (not simulated): a run that a restart cut short is maysent when EmailOut's claim shows that the send had begun (Channel.Email.Out Began)
 ///     and notsent when it had not; a failed run is maysent when its reason is MESSAGEMAYHAVESENT (MayHaveSent), which EmailOut and the executor's wrappers answer for every failure that may have
-///     come after the message was handed over, and notsent for any other reason: MESSAGEUNREACHABLE (the server was never reached), MESSAGEFAILED (an error before the hand-over, or none that
+///     come after the message was handed over, and notsent for any other reason: MESSAGEUNREACHABLE (the message data never began: the server was never reached, or it never answered the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA), MESSAGEFAILED (an error before the hand-over, or none that
 ///     began a send), MESSAGEREFUSED, MESSAGENOTCONNECTED, MESSAGEREJECTED, MESSAGEREFUSEDLOGIN, MESSAGESIGNIN, MESSAGEUNAVAILABLE and the kind's own reasons. A simulated notice never is maysent.
 ///   - MayHaveSent says whether the reason of a failed send is the EmailOut sentence that says that the email may have gone out (MAYHAVESENTSENTENCES).
 ///   - Recheck and Execute read each target against the source again. For the fixture's production a target passes only if the id still is a contact of the production at its position in to; else
@@ -76,8 +76,9 @@ Parameter KEYEMAILSUBJECT = "partner.emailSubject";
 Parameter OUTSENTENCES = "MESSAGEREFUSED,MESSAGENOTCONNECTED,MESSAGEREJECTED,MESSAGEUNREACHABLE,MESSAGEREFUSEDLOGIN,MESSAGESIGNIN,MESSAGEUNAVAILABLE,MESSAGEFAILED,MESSAGEMAYHAVESENT";
 
 /// The names of the Channel.Email.Out sentences (MESSAGE parameters, read with $Parameter) that say that the email may have gone out: MESSAGEMAYHAVESENT, which EmailOut answers for every claimed
-/// send that failed in a way that may have come after the server took the message (a timeout, a connection lost during DATA, an error after the hand-over) and the executor's wrappers answer when the
-/// approval's claim shows that the send had begun. Every other OUTSENTENCES word says that nothing was handed to the server: MESSAGEUNREACHABLE means that it was never reached.
+/// send that failed in a way that may have come after the server took the message (a timeout or a connection lost during DATA once the message data began, Sender.MayHaveSent; an error after the hand-over) and the executor's wrappers
+/// answer when the approval's claim shows that the send had begun. Every other OUTSENTENCES word says that nothing was handed to the server: MESSAGEUNREACHABLE means that the message data never began (the server
+/// was never reached, or a timeout at the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA).
 Parameter MAYHAVESENTSENTENCES = "MESSAGEMAYHAVESENT";
 
 /// The reason of a run that failed before anything was sent (the executor's NOREAD for this kind): the same words as NOSTART.

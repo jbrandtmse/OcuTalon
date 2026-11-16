@@ -24,9 +24,16 @@ Include Ensemble
 /// Accepted says when a failed status still means that the server took the message: %Net.SMTP writes QUIT after any step past the greeting, but it looks at the answer to QUIT
 /// only when no earlier error is set, that is after the server's 2xx answer to the end of the message, so a status whose errors are all about QUIT (a QUIT answer that is not 2xx, or a
 /// connection that fails while QUIT is written or read) is a sent email, whatever the kind of email. In this build %Net.SMTP never names QUIT as the step of a lost connection: one lost
-/// while QUIT is written or read reads DATA and so counts as may-have-sent (MayHaveSent), not as sent. MayHaveSent says when a failed status may still have reached the server.
+/// while QUIT is written or read reads DATA and so counts as may-have-sent (MayHaveSent), not as sent.
+/// MayHaveSent says when a failed send may still have reached the server, and it is step-aware (DW-1429): only once the message data began. The adapter's SMTP object is an
+/// OcuTalon.Channel.Email.SMTP, whose DataBegan is 1 from the server's 354 answer to DATA on (DataBegan reads it, for the send just made), because a timeout names no step: a server that
+/// never answered the greeting, EHLO, STARTTLS, AUTH, MAIL FROM or RCPT TO (an implicit-TLS port used without TLS is the likeliest cause) never received the message, so that failure is not
+/// may-have-sent, however it is classified.
 Class OcuTalon.Channel.Email.Sender Extends EnsLib.EMail.OutboundAdapter
 {
+
+/// The SMTP client: %Net.SMTP with the DataBegan flag (see there), made by the parent's OnInit.
+Property SMTP As OcuTalon.Channel.Email.SMTP;
 
 /// The CI-only environment variable (ruling c) that lets the adapter use plain SMTP, and EmailIn's adapter plain POP3 in OAuth2 mode (PlainFor), and the one host name they then do.
 /// It also allows plain POP3 in OAuth2 mode, for the CI mock only (host mock; set only in ci/compose.ci.yml).
@@ -107,6 +114,7 @@ Method SendMail(pMailMessage As %Net.MailMessage, Output pFailedRecipients As %L
 {
 	Kill pFailedRecipients
 	Set pFailedRecipients = $$$NULLOREF
+	If $IsObject(..SMTP) Set ..SMTP.DataBegan = 0
 	Set transport = ..Transport()
 	If transport = "" Quit $$$ERROR($$$STARTTLSConfigRequired)
 	Do ..CredentialsSet(..Credentials)
@@ -174,13 +182,21 @@ ClassMethod Accepted(sc As %Status) As %Boolean
 	Quit onlyQuit
 }
 
-/// 1 when a failed send may still have reached the server: a timeout waiting for an answer (SMTPTimeout, which does not say which answer, so any, the
-/// one at the end of the message included), or a connection lost once the message was started (SMTPConnectionFailed during DATA). Any other failure
-/// (the server could not be reached or dropped the connection before the message, refused the login or answered with an error) means the server did
-/// not take the email. An OK status gives 0.
-ClassMethod MayHaveSent(sc As %Status) As %Boolean
+/// 1 when the message data began in the send just made: the server answered DATA with its 354 and the headers were started (OcuTalon.Channel.Email.SMTP DataBegan). 0 before that, for a
+/// send that stopped at an earlier step or that was never made, and for an adapter with no SMTP object.
+Method DataBegan() As %Boolean
+{
+	Quit $IsObject(..SMTP) && ..SMTP.DataBegan
+}
+
+/// 1 when a failed send may still have reached the server: the message data began (dataBegan, from DataBegan: 1 once the server had answered DATA with 354) and then the server stopped
+/// answering (SMTPTimeout, which does not say which answer, the one at the end of the message included) or the connection was lost (SMTPConnectionFailed during DATA). A failure before the data
+/// began (the server could not be reached, never answered the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA, dropped the connection, refused the login or answered with an error)
+/// means that the server did not take the email, whatever the status says; so does an answer with an error after the data. An OK status gives 0. This is the one decision of may-have-sent.
+ClassMethod MayHaveSent(sc As %Status, dataBegan As %Boolean = 0) As %Boolean
 {
 	If $$$ISOK($Get(sc, $$$OK)) Quit 0
+	If '$Get(dataBegan) Quit 0
 	If $$$StatusEquals(sc, $$$SMTPTimeout) Quit 1
 	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
 	Set found = 0

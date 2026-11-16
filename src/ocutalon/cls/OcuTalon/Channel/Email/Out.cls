@@ -30,9 +30,9 @@
 ///     approval was sent already, so the answer is already_sent (Ok 1, MESSAGESENT) and nothing is sent; a row marked failed (a send that did not go
 ///     through) or still pending (a send that never finished, such as one whose job was stopped during it) answers failed (Ok 0, MESSAGEFAILED) and sends
 ///     nothing; otherwise the claim row is written, with FallbackReason pending (CLAIMPENDING), and the send follows. A sent email clears the mark. A failed send that may still have
-///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA), and an error after the message was handed to Deliver (SendBegan), mark the claim maysent
+///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA, once the message data began), and an error after the message was handed to Deliver (SendBegan), mark the claim maysent
 ///     (CLAIMMAYSENT) and answer failed with MESSAGEMAYHAVESENT, an approval's claim as a keyed tool send's; a repeat of the approval answers the same. Any other failed send (the server
-///     could not be reached, refused the login or answered with an error: nothing was handed over), and an error before the hand-over, keep the claim marked failed. So no approval is ever sent
+///     could not be reached, a timeout or a lost connection before the message data began (the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA), refused the login or answered with an error: nothing was handed over), and an error before the hand-over, keep the claim marked failed. So no approval is ever sent
 ///     twice and only an email that was sent ever answers already_sent. MESSAGEFAILED of a system send says that this call handed nothing over; the claim row is the record of whether a send
 ///     began (Began: a pending, maysent or sent claim), which the executor's wrappers read when the answer did not come back from here (Fix.Kind.Email FailedMessage);
 ///   - a tool send with an IdempotencyKey is claimed the same way (SendClaimed), by its session and the key, and only the key decides: the subject, the
@@ -42,7 +42,7 @@
 ///     marked failed, or a lock that cannot be taken in CLAIMWAIT, answers failed (Ok 0, MESSAGEFAILED) and sends nothing; otherwise the claim is written
 ///     pending and the send follows. A sent email clears the mark. A failed send that the server did not take (one of Sender.Classify's classes) deletes
 ///     the claim, so that the key can be sent again and leaves no row, and answers failed with the message of its class. A failed send that may still have
-///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA) marks the claim maysent (CLAIMMAYSENT) and answers failed with
+///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA, once the message data began) marks the claim maysent (CLAIMMAYSENT) and answers failed with
 ///     MESSAGEMAYHAVESENT, which does not say that the email was not sent; the same key again answers the same message and sends nothing, so that the key
 ///     never sends twice. An error after the claim marks it failed, or maysent when it came after the message was handed over. A tool send with no key is sent every time;
 ///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. A send whose only failure is the answer to QUIT (Sender.Accepted: the server took the message
@@ -50,7 +50,7 @@
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
 ///     MESSAGEREFUSEDLOGIN or MESSAGEREJECTED, and records nothing for a tool send; for a claimed send (an approval, a keyed tool send) a failure that Sender.MayHaveSent says may have reached the
-///     server answers MESSAGEMAYHAVESENT instead, so MESSAGEUNREACHABLE of a claimed send means that the server was never reached (a send with no claim, a tool send with no key, keeps its class's message). With a provider sign-in (the adapter's OAuth2ApplicationName is set,
+///     server (the message data began, DW-1429) answers MESSAGEMAYHAVESENT instead, so MESSAGEUNREACHABLE of a claimed send means that the message data never began, however the server failed (a send with no claim, a tool send with no key, keeps its class's message). With a provider sign-in (the adapter's OAuth2ApplicationName is set,
 ///     Story 21.8) the refused class means that the sign-in cannot be used, so its message is MESSAGESIGNIN instead of MESSAGEREFUSEDLOGIN; a failed send
 ///     of the digest path is logged by its class, as a refused one, and nothing is recorded.
 /// The third path is the daily digest (OnNotification): an OcuTalon.Msg.Notification of Kind digest that Notify routes here (rule DigestEmail). It
@@ -256,7 +256,7 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: $Select(..OAuth2Mode(): ..#MESSAGESIGNIN, 1: ..#MESSAGEREFUSEDLOGIN), class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
 	If $IsObject(claim) {
 		Set mark = "failed"
-		If ##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc) {
+		If ##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc, ..DataBegan()) {
 			Set mark = ..#CLAIMMAYSENT
 			Set errorMessage = ..#MESSAGEMAYHAVESENT
 		} ElseIf claim.ApprovalRef = "" {
@@ -273,6 +273,13 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	}
 	$$$LOGWARNING("EmailOut did not send the email: "_class)
 	Quit ..Result(0, "failed", errorMessage)
+}
+
+/// 1 when the message data began in the send that Deliver just made (Sender DataBegan: the server had answered DATA with its 354), which Sender.MayHaveSent needs to tell a failure
+/// that may have reached the server from one that never did. A test subclass overrides it to stand in for the adapter.
+Method DataBegan() As %Boolean [ Private ]
+{
+	Quit $IsObject(..Adapter) && ..Adapter.DataBegan()
 }
 
 /// 1 when the adapter signs in with OAuth2 (its OAuth2ApplicationName is set). A test subclass overrides it to stand in for the adapter.

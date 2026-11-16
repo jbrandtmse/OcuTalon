@@ -10,9 +10,11 @@
 // logged or echoed. A mail is never relayed: it is parsed and kept in the
 // state, up to MAX_MESSAGES (the oldest go first).
 // The control side is served by the mock's HTTP port (server.mjs routes /_mock/smtp/ here):
-//   POST /_mock/smtp/failure  {"mode":"none"|"refuse"|"auth"|"reject"|"error"|"quit"}
+//   POST /_mock/smtp/failure  {"mode":"none"|"refuse"|"auth"|"reject"|"error"|"quit"|"stall-greeting"|"stall-data"}
 //        refuse: the connection is closed at once, with no greeting; auth: AUTH is answered 535; reject: RCPT is answered 550;
-//        error: DATA is answered 554; quit: the mail is accepted and kept (250 after the data), then QUIT is answered 421 and the connection is closed
+//        error: DATA is answered 554; quit: the mail is accepted and kept (250 after the data), then QUIT is answered 421 and the connection is closed;
+//        stall-greeting: the connection is accepted and the greeting is never sent (a client waits for it until its timeout); stall-data: everything is answered as usual up to the data, which is read and
+//        never answered (no 250 to the end of the message, and the mail is not kept), so a client times out after its message data began
 //   POST /_mock/smtp/reset    no mail, no failure, every count 0
 //   GET  /_mock/smtp/state    {"messages":[{"from","to":[...],"subject","text","headerFrom","headerTo","contentType","parts","attachments","xOcutalonRef"}],
 //                              "connections":n,"logins":n,"xoauth2":n,"xoauth2Refused":n,"user":"<last user>","failure":"<mode>","commands":{"RCPT":n,...}}
@@ -27,7 +29,7 @@
 import net from 'node:net';
 import { parseXoauth2 } from './oauth.mjs';
 
-export const FAILURES = ['none', 'refuse', 'auth', 'reject', 'error', 'quit'];
+export const FAILURES = ['none', 'refuse', 'auth', 'reject', 'error', 'quit', 'stall-greeting', 'stall-data'];
 export const MAX_MESSAGES = 100;
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -264,6 +266,7 @@ export function createSmtp({ checkAccessToken = () => false } = {}) {
       if (mode === 'data') {
         if (text === '.') {
           mode = 'command';
+          if (failure === 'stall-data') return;
           messages.push(parse(data, envelope));
           if (messages.length > MAX_MESSAGES) messages.shift();
           envelope = { from: '', to: [] };
@@ -298,6 +301,7 @@ export function createSmtp({ checkAccessToken = () => false } = {}) {
         line(text);
       }
     });
+    if (failure === 'stall-greeting') return;
     send('220 stub.example SMTP stub ready');
   }
 

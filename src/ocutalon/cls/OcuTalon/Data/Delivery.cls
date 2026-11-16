@@ -45,7 +45,7 @@ Property DueAt As %String(MAXLEN = 20);
 /// The fallback reason the card shows: one of Msg.Enum FALLBACKREASON; empty when the card is not a fallback. On EmailOut's claim of an approval (a row
 /// of channel email with an ApprovalRef) or of a keyed tool send (a row of channel email with a DigestKey and no Kind) it is instead pending while the send
 /// has not finished, failed when it did not go through, and empty once sent. A failed approval send keeps its row, marked failed; a failed keyed tool
-/// send deletes its row. For either, a failure that may still have reached the server (a timeout, a connection lost during DATA, an error after the message was handed over) marks it
+/// send deletes its row. For either, a failure that may still have reached the server (a timeout or a connection lost during DATA once the message data began, an error after the message was handed over) marks it
 /// maysent instead (Story 23.15), and an error after the claim and before the hand-over marks it failed.
 Property FallbackReason As %String(MAXLEN = 32);
 
