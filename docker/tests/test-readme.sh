@@ -1720,6 +1720,9 @@ L2115="- An email OcuTalon sends to the connected mailbox's own address keeps it
 L2114B="- The trace also holds the text OcuTalon read from a file sent in the chat or Telegram, and a photo's caption, like a chat reply; a file's bytes and a photo itself are never in it."
 APPROVAL_TAIL="Every built-in tool is safe except \`send_email\` and \`call_mcp_tool\`, which are classified per call. Code classifies \`send_email\`: an email to the connected mailbox's own address is safe, and an email to anyone else is risky. \`call_mcp_tool\` takes the admin's classification of the server's tool at its current fingerprint, and an unclassified tool counts as risky. Each risky built-in action, such as repair and resend or an email to anyone else, is a fix kind that waits for a person's approval and shows first exactly what it will do. A risky MCP call waits for a person's approval of that exact call, as the MCP tools section below describes."
 APPROVAL_FRAME="## Approval and audit"
+# DW-1423 (Story 23.15, Contest Planner text ruling 2026-11-16): the admin-only rule for a partner warning, the bullet right after the email bullet of "Who may answer", and the Action line of the audit types.
+PARTNER_ADMIN_BULLET='- a partner warning to Settings contacts can be approved only by a user who holds `OcuTalonAdmin`;'
+PARTNER_ACTION_LINE='- `Action`: a fix run, a resend, a replayed tool call, Break the feed or a refused approve of a partner warning;'
 MCP_FRAME="## MCP tools"
 chk_docs() {
   if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
@@ -1748,6 +1751,11 @@ chk_docs() {
   if ! awk -v f="$APPROVAL_FRAME" -v t="$APPROVAL_TAIL" '$0 == f { a = 1; next } a && $0 != "" { n = length($0); m = length(t); ok = (n >= m && substr($0, n - m + 1) == t); a = 0 } END { exit !ok }' "$3"; then
     echo "docs: the ruled text about the classification of the built-in tools is not the first paragraph under \"$APPROVAL_FRAME\""
   fi
+  if [ "$(grep -c -x -F -- "$PARTNER_ADMIN_BULLET" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about the admin-only approval of a partner warning once"; fi
+  if ! awk -v l="$PARTNER_ADMIN_BULLET" 'prev ~ /^- an email to anyone but the connected mailbox.s own address can be answered only by the session that asked for it/ && $0 == l { ok = 1 } { prev = $0 } END { exit !ok }' "$3"; then
+    echo "docs: the admin-only line about a partner warning is not the bullet right after the email bullet of Who may answer"
+  fi
+  if [ "$(grep -c -x -F -- "$PARTNER_ACTION_LINE" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled Action line of the audit types once"; fi
   if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
   if ! awk -v f="$MCP_FRAME" -v l="$L187" '/^#/ && a && !b { h = 1 } $0 == f { a = NR } $0 == l { b = NR } END { exit !(a && b && a < b && !h) }' "$3"; then
     echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no other heading between"
@@ -3316,6 +3324,10 @@ rule_docs() {
   st 'the email trace line moved down one bullet' 3 "$secov_p" 'index($0, "- An email OcuTalon sends to the connected mailbox") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
   st 'the trace role sentence changed' 3 "$secov_p" '{ sub(/an email.s sender, subject and text/, "an email subject") } { print }' chk_docs
   st 'the trace role sentence moved down one bullet' 3 "$secov_p" 'index($0, "- Anyone with the trace role can read the content of every item") == 1 { held = $0; next } { print } index($0, "- The local (README) account holds all three roles.") == 1 && held != "" { print held; held = "" }' chk_docs
+  st 'the admin-only line about a partner warning removed' 3 "$secov_p" 'index($0, "- a partner warning to Settings contacts can be approved only by") != 1' chk_docs
+  st 'the admin-only line about a partner warning reworded' 3 "$secov_p" '{ sub(/can be approved only by a user who holds/, "can be approved by a user who holds") } { print }' chk_docs
+  st 'the admin-only line about a partner warning moved to the end of the list' 3 "$secov_p" 'index($0, "- a partner warning to Settings contacts can be approved only by") == 1 { held = $0; next } { print } index($0, "- never a tool") == 1 && held != "" { print held }' chk_docs
+  st 'the Action line without the refused approve' 3 "$secov_p" '{ sub(/, Break the feed or a refused approve of a partner warning;/, " or Break the feed;") } { print }' chk_docs
   st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the ruled lines of the security overview, the ones about an approval request for a tool call included, are there, word for word' chk_docs
 }
