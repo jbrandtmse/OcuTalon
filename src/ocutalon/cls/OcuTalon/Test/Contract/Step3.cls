@@ -155,7 +155,8 @@ XData Contracts [ MimeType = application/json ]
    "Embedding": "%Vector",
    "Source": "%String(MAXLEN=16)",
    "Pinned": "%Boolean",
-   "PinnedAt": "%String(MAXLEN=20)"
+   "PinnedAt": "%String(MAXLEN=20)",
+   "LastUsedAt": "%String(MAXLEN=20)"
   },
   "indexes": {
    "RefIndex": "Ref unique",

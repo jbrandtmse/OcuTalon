@@ -2,14 +2,22 @@
 title: 'Story 28.2: Fade unused memories and merge duplicates nightly'
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '35a3049e94be88911c53b14c224ec7fe4e6148b3'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-28-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/19-3-task0-memory-indexes.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Test.Memory.Volume explains NEARESTSQL, which now selects the extra column LastUsedAt, and was not run in this story.
+    evidence: |-
+      The plan guard runs only in the memory-offline live unit (docker/tests/test-memory-offline.sh), which needs the offline flag. Only a select-list column was added, so the plan assertions are expected to hold (unverified). Settle it by running Test.Memory.Volume in that unit.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Memory.cls (NEARESTSQL), src/ocutalon/cls/OcuTalon/Test/Memory/Volume.cls
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -121,6 +129,47 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-16 - Review pass
+- verdicts: 37 findings - high 0, medium 6, low 23, false 7, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Blind: an old three-argument `Accepted` override fails when `Decide` passes a fourth argument - the optional trailing argument is the Planner-approved AD-31 amendment (G5) and P1 is approved verbatim; the in-repo overrides (`Agent.Content`, `ContentProbe`) follow the signature; the fix would change approved text.
+  - `[low]` `[reject]` Blind: a huge `memory.fadeDays` turns fading off - a period over 100 years means "never fade", the intended outcome; no harm.
+  - `[low]` `[patch]` Blind: `OnUsed` abandons the remaining refs when one save fails - rare; the spec treats any failure as one warning; the class description now says the refs after a failing one are not marked.
+  - `[medium]` `[patch]` Blind: `TestFallbackWritesNothing` cannot fail (the refusal scenario names no memory) - removed; the matrix row "Fallback reply" is pinned by `Test.Bridge.Content` TestAcceptedOnlyOnAccept, with a mutation line (Decide calls Accept on a fallback -> red).
+  - `[medium]` `[patch]` Blind: no unit test for the `Agent.Content.Used` path (cap, malformed HostData, failure isolation) - `TestAcceptedUsed` added with two mutation lines (cap removed, catch rethrows).
+  - `[low]` `[reject]` Blind: `OnUsed` warning paths not asserted - the handler answers OK and changes nothing is asserted; counting log rows adds no protection a user would meet.
+  - `[low]` `[reject]` Blind: `Hits`, `Words`, `ToText` made public for tests - documented on `Hits`, behaviour unchanged, and the equivalence reference needs the same lists `Search` fuses (Rule 2).
+  - `[low]` `[reject]` Blind: hard-coded equivalence orders depend on the embedding model - the Planner required a hard-coded list so the reference cannot drift; the model is baked into the image.
+  - `[low]` `[reject]` Blind: existing memories begin to fade at upgrade - the spec decides that an empty `LastUsedAt` reads as `SavedAt`; recorded as a residual risk.
+  - `[low]` `[reject]` Edge: huge `memory.fadeDays` silently turns fading off - same as the Blind row.
+  - `[low]` `[reject]` Edge: duplicate refs use up the five slots - `search_memories` lists a memory once; no demonstrated path to duplicates.
+  - `[false]` `[reject]` Edge: one malformed `memories` element drops the whole send - the loop skips non-objects with `$IsObject` and entries without a string `memoryRef`; `TestAcceptedUsed` feeds `1`, `"text"` and an empty ref.
+  - `[low]` `[reject]` Edge: a failed save for one ref skips later refs - same as the Blind row; the doc is corrected.
+  - `[false]` `[reject]` Edge: a future `UsedAt` exempts a memory from fading - `UsedAt` is stamped with now by `Agent.Content`; no tool, route or channel can send a `Used`.
+  - `[low]` `[reject]` Edge: a busy lock drops the use - the spec makes any failure one warning, async, not retried; a missed use only delays a fade.
+  - `[false]` `[reject]` Edge: no `OnlineDemo()` guard on `Used` - the spec's Online demo paragraph says `LastUsedAt` updates and fading run on the demo (own session data, nothing outward).
+  - `[false]` `[reject]` Edge: a failed seed fails the Memory step - `Install.Step.Digest` returns the `Seeds.Defaults` status the same way; a failed seed is a real install fault.
+  - `[low]` `[reject]` Edge: public `Hits`/`Words`/`ToText` widen the API - same as the Blind row.
+  - `[low]` `[patch]` Edge: the class description claims "nothing else changes" although earlier refs may be saved - the sentence now says the refs after a failing one are not marked.
+  - `[false]` `[reject]` Edge: an admin cannot change `memory.fadeDays` through the product - the spec (G4) ships no settings-page field; a later Lane B story adds it.
+  - `[medium]` `[patch]` Verification: `TestFallbackWritesNothing` cannot fail on its defect - same root cause as the Blind row; removed and pinned in `Test.Bridge.Content`.
+  - `[medium]` `[patch]` Verification: `Agent.Content.Used` failure isolation, the cap and malformed HostData are unexercised - same root cause as the Blind row; `TestAcceptedUsed`.
+  - `[low]` `[reject]` Verification: `TestAcceptedGetsReplyHostData`'s first assertion holds for `""` - it is the no-HostData control; the `photo-recall` half goes red under the recorded mutation on the throwaway.
+  - `[low]` `[patch]` Verification: `TestOnUsed`'s lock assertion has no positive control - a lock taken by the test is now seen first; mutation (`Lock -` dropped) red.
+  - `[medium]` `[patch]` Verification: missing mutation lines (only-match returned, no hostData member, another memory stays empty, cap, lock, fallback gate) - applied, observed red, reverted byte-identical, and written under `## Verification`; the "forgotten never returns" assertion exercises the existing `OnForget` and is not this story's pin.
+  - `[low]` `[reject]` Verification: ambient `memory.fadeDays` in `TestSearchOnlyFadedMatchReturned` and the equivalence tests - the instance is seeded 90 by the install and the faded memory is 400 days old.
+  - `[low]` `[reject]` Verification: the session made by `TestSearchOnlyFadedMatchReturned` is cleaned on the success path only - a throwaway or CI instance is discarded, and the next run reuses the same zz-prefixed name.
+  - `[false]` `[reject]` Verification: the eval-fixture equivalence test compares the code with itself - the hard-coded pins (`TestEquivalenceHardCoded`, `TestFuseNothingFadedIsUnchanged`) are the independent reference, as the spec requires; both go red under the empty-`LastUsedAt` mutation.
+  - `[medium]` `[patch]` Verification: `Test.Memory.Search` (and Pins, Ops) store fixed 2026-11-05 dates and mix pinned and unpinned memories, so they can reorder from 2027-02-03 - `Test.Memory.Fixture.HoldFade`/`ReleaseFade` hold `memory.fadeDays` at 36500 in those three classes; all three pass.
+  - `[maybe-false]` `[defer]` Verification: `Test.Memory.Volume` (memory-offline live unit) explains `NEARESTSQL`, which now selects one more column - plan assertions expected to hold, not run (needs the offline flag); deferred as medium (unverified).
+  - `[low]` `[reject]` Verification: `Hits`, `Words`, `ToText` public - same as the Blind row.
+  - `[low]` `[reject]` Intent: the equivalence pin lives at `Memory.Search`, not at the `search_memories` or `SearchMemory` answers - both callers go through `Search`, which is the surface the spec names for the pin.
+  - `[low]` `[reject]` Intent: write path and read path never joined in one test - the ACs separate them (AC 1 and AC 3); a joined end-to-end test adds a minutes-long turn for no new risk.
+  - `[low]` `[reject]` Intent: "used" means returned by `search_memories` in an accepted turn - this is the spec's definition (Planner condition 4).
+  - `[false]` `[reject]` Intent: the web search is faded but writes no `LastUsedAt` - the spec says the Memory card's search does not count as a use.
+  - `[low]` `[reject]` Intent: the no-memory-text rule is tested for the `Used` body and trace only - the warnings carry the redacted status text and never a memory; the ContentClass hook sees the reply HostData in-process only.
+  - `[low]` `[reject]` Intent: the `Ext.Content.Accepted` signature change lies outside the memory area - Planner-approved (G5, P1), recorded in the spine.
+
 ## Design Notes
 
 **Planner gate rulings (2026-11-16, `prompts/story-282-rulings-20261116.md`, binding):** G1-G4 approved (condition: merge records hold personal text, so the existing user and session data purge deletes them too; pinned). G5 approved: AD-31's optional `replyHostData` is recorded in the spine as a re-architecture under U7 (reason: it keeps the story inside Lane A's files, and an optional trailing argument breaks no caller). G6 approved (Tick precedent). G7: texts stay out of Visual Trace; the AC now says the trace shows refs, sources, counts and time only; no literal one-line change. G8: R-28.2-1, R-28.2-2 binding, plus R-28.2-3 (merge precision hard gate in Task 0, report before continuing). P1 approved verbatim. P2 not shipped (it comes with the story that shows it). Model-facing: no A/B; instead the equivalence pin and the behaviour pins (faded sole match returns; faded ranks below a fresh equal match; pinned never fades) and the STOP rule. Split fallback pre-approved (28.2 = ACs 1-3, 28.4 = the nightly merge), also under R-28.2-3. CI: report the measured shards-2 time at PART READY.
@@ -187,11 +236,60 @@ Throwaway only (slot C is busy; the story mutates stored data). Fresh tag `e28s2
 
 **Mutations (Rule 19, one per AC, recorded by the implement stage as `mutation: … → …`):** LastUsed: skip the `Used` send in `Agent.Content`; Bridge: pass `""` in `Decide.Accept`; Fade: `FADEWEIGHT` 1; equivalence: apply the weight to every memory (or change the tie-break) and observe the equivalence pin red; pinned: drop the pinned exemption; OnUsed: drop the never-backwards check.
 
+**Mutation results (Rule 19, implement stage; each applied, red observed, reverted to a byte-identical file):**
+- mutation: `Agent.Content.Accepted` without the `Used` send -> `Test.Memory.LastUsed` TestTurnSetsLastUsed red (named memories keep an empty LastUsedAt).
+- mutation: `Decide.Accept` passes `""` as `replyHostData` -> `Test.Bridge.Content` TestAcceptedGetsReplyHostData red (Accepted got no replyHostData).
+- mutation: `FADEWEIGHT` 1 -> `Test.Memory.Fade` TestFuseFadesOnlyTheUnused, TestFuseEqualMatchRecentFirst, TestFusePinnedNeverFades (control) and TestSearchFadedRanksBelow red.
+- mutation: an empty `LastUsedAt` is treated as never fresh (`used = "0"` instead of `SavedAt`) -> `Test.Memory.Fade` TestEquivalenceHardCoded and TestEquivalenceEvalFixtures red (the order of fresh memories changed).
+- mutation: the pinned exemption dropped from `Memory.Faded` -> `Test.Memory.Fade` TestFusePinnedNeverFades and TestSearchPinnedNeverFades red.
+- mutation: `OnUsed` without the never-backwards check -> `Test.Memory.LastUsed` TestOnUsed red ("LastUsedAt never moves back").
+- mutation: `OnUsed` without the own-session check -> `Test.Memory.LastUsed` TestOnUsed red (another owner's memory marked).
+- mutation: `MemoryIn` without the SuperSession -> `Test.Memory.LastUsed` TestMemoryInTrace red.
+- mutation: `Install.Step.Memory.Run` without the seed -> `Test.Memory.Install` TestSeedsFadeDays red.
+- mutation: `Fuse` drops a faded hit (`Continue` instead of the weight) -> `Test.Memory.Fade` TestFuseOnlyMatchStillReturned and TestSearchOnlyFadedMatchReturned red (a faded sole match must come back).
+- mutation: `Agent.Content.Used` without the MAXUSED cap -> `Test.Memory.LastUsed` TestAcceptedUsed red ("five are marked (MAXUSED), the sixth is not").
+- mutation: `Agent.Content.Used` rethrows in its Catch -> `Test.Memory.LastUsed` TestAcceptedUsed ERROR (Accepted throws on a HostData that cannot be read).
+- mutation: `Agent.Content.Accepted` adds a member to hostData -> `Test.Memory.LastUsed` TestAcceptedUsed ("adds no member to hostData") and TestTurnSetsLastUsed ("the reply's HostData holds the memories member only") red.
+- mutation: `OnUsed` marks every memory of the session -> `Test.Memory.LastUsed` TestTurnSetsLastUsed ("a memory that was not named keeps an empty LastUsedAt") and TestOnUsed red.
+- mutation: `OnUsed` without the `Lock -` -> `Test.Memory.LastUsed` TestOnUsed ("no lock of the owner's memories is held after the handler") and the unit-test locked-global check red.
+- mutation: `Decide` calls `Accept` on a fallback reply -> `Test.Bridge.Content` TestAcceptedOnlyOnAccept and TestPartErrorMakesNoCall red (the matrix row "Fallback reply: Accepted not called, nothing written" is pinned there)
+
 **Shared surfaces:** `Data.Memory` property list (`Test.Contract.Step3` XData `Contracts`); production item list and counts (`Test.Install.Production` XData `Items`); the `ContentClass.Accepted` signature (`Test.Bridge.ContentProbe`, `Agent.Content`, the ruled guide line in `test-bridge-guide.sh`); `Data.Setting` rows (new seeded key; no test asserts the full list); Task Manager tasks (new task; no test asserts the full list). Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned at `82d8f9f4425de2a741eb9433ec6b981e946539c3` on `OCT-epic28`; halted after planning as instructed. Gate items G1-G8, PUBLIC TEXT P1-P2 and the proposed spine update are listed under Design Notes for the Contest Planner's spec gate.
+Summary: Story 28.2 ships in its fading-only scope (merge work is Story 28.4's). `Data.Memory.LastUsedAt` (slot 12) is set by `MemoryOps.OnUsed` from `OcuTalon.Memory.Msg.Used`, which `Agent.Content.Accepted` sends through the adapterless `MemoryIn` after `Decide` accepts a usable turn reply (`Ext.Content.Accepted` gained the optional `replyHostData`, P1 verbatim in the guide and its pinned copy). `Memory.Fuse` multiplies the fused score of an unpinned memory last used (else saved) before `now - memory.fadeDays` by 0.5; the setting is seeded to 90. A memory inside the period keeps bit-identical scores (equivalence pin, hard-coded and over the eval's memory cases).
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Data/Memory.cls` - `LastUsedAt` with committed storage.
+- `src/ocutalon/cls/OcuTalon/Memory.cls` - fading parameters, `FadeDays`, `Fuse(fadeBefore)`, `Faded`, queries select `LastUsedAt`.
+- `src/ocutalon/cls/OcuTalon/Memory/Ops.cls`, `Memory/In.cls`, `Memory/Msg/Used.cls` - `OnUsed`, `MemoryIn`, the `Used` message.
+- `src/ocutalon/cls/OcuTalon/Agent/Content.cls`, `src/bridge/cls/OcuTalon/Bridge/Ext/Content.cls`, `Bridge/Process/Decide.cls` - the `Used` send and `replyHostData`.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Memory.cls`, `Production.cls` - the seed and the `MemoryIn` item.
+- `docs/bridge-guide.md`, `docker/tests/test-bridge-guide.sh` - P1.
+- Tests: new `Test/Memory/Fade.cls`, `Test/Memory/LastUsed.cls`; changed `Test/Bridge/Content.cls`, `ContentProbe.cls`, `Test/Contract/Step3.cls`, `Test/Install/Production.cls`, `Test/Memory/{Fixture,Install,Search,Pins,Ops}.cls`.
+
+Review: 37 findings (high 0, medium 6, low 23, false 7, maybe-false 1). Patches applied: `TestFallbackWritesNothing` replaced by the pin in `Test.Bridge.Content` (4 mediums share 3 root causes: the fallback test, the untested `Used` path, the missing mutation lines), `TestAcceptedUsed` added, lock positive control, `OnUsed` description wording, and a fixed-date time bomb in `Test.Memory.Search`/`Pins`/`Ops` closed with `Fixture.HoldFade`. Deferred: `Test.Memory.Volume` not run (medium, unverified). Every other finding is rejected with its reason in the Review Triage Log.
+
+Follow-up review recommended: true. Patched mediums (entries): 4 (fallback test, `Used` path coverage, mutation lines, date dependency), so the rule trips; the named unverified risks are the new `TestAcceptedUsed` and `HoldFade` hold in classes that were not run with an aged clock (`Test.Memory.Turns`, `Test.Tools.Memory` store the same fixed dates and were left unchanged).
+
+Verification (throwaway stacks, tags `e28s2i`/`e28s2iw`; warm tag was held by another runner's lock, so fresh runs were used): passed `Test.Memory.Fade` (19 s), `Test.Memory.LastUsed` (16 s), `Test.Bridge.Content` (30 s), `Test.Contract.Step3`, `Test.Memory.Search` (47 s), `Test.Memory.Ops` (22 s), `Test.Memory.Pins` (6 s), `Test.Memory.Drop`, `Test.Memory.Turns`, `Test.Agent.Content`, `Test.Tools.Memory`, `Test.Memory.Install`, `Test.Install.Production` (fresh); `test-storage.sh`, `test-class-rules.sh`, `test-bridge-guide.sh` exit 0. Mutations: 16 recorded in `## Verification`, each observed red and reverted byte-identical.
+
+Residual risks: `Test.Memory.Volume` unrun; existing memories older than 90 days halve their score at upgrade (spec: empty `LastUsedAt` reads as `SavedAt`); a third-party `ContentClass` override with the old three-argument signature needs the new optional argument.
+
+## Implementation Notes
+
+- Built per SCOPE: `LastUsedAt` (slot 12), `OcuTalon.Memory.Msg.Used`, `MemoryOps.OnUsed`, `MemoryIn` (item added after `MemoryOps`), `memory.fadeDays` seed in `Install.Step.Memory.Run`, fading in `Memory.Fuse(..., fadeBefore)`, `Agent.Content` sending `Used`, `Ext.Content.Accepted`/`Decide.Accept` with `replyHostData`, P1 verbatim in the guide and `test-bridge-guide.sh`. Nothing from "Moved to Story 28.4" was built.
+- `Memory.Hits`, `Words` and `ToText` lost their `[ Private ]` flag so that `Test.Memory.Fade` reads the same two lists that `Search` fuses for its reference; their behaviour is unchanged.
+- `Fuse` applies the weight only to a memory that has faded, after the scores are summed, so a memory inside the period keeps bit-identical scores. `Faded` reads an empty or missing `lastUsedAt` as `savedAt`, and an unpinned/missing `pinned` as unpinned.
+- `NEARESTSQL` and `KEYWORDSQL` select one more column (`LastUsedAt`); their other text is unchanged. `Test.Memory.Volume` (offline flag, not run here) explains `NEARESTSQL`; its plan assertions are expected to hold.
+- `Test.Memory.Fixture.Store` gained optional `lastUsedAt` and `pinned`. `Test.Memory.Install` gained TestSeedsFadeDays (not in the spec's test list; it pins the seed, which `Test.Install.Production` does not assert). `Test.Memory.LastUsed` carries its own small turn helpers because `Test.Memory.Turns`' are Private and extending that class would rerun its tests.
+- `Test.Memory.Fade` equivalence fixtures: the facts and questions come from the eval's memory cases as mounted at `Eval.In` FOLDER (the class fails with the mount reason where `eval/` is not mounted), stored with mixed `LastUsedAt`, one pin, `SavedAt` inside the period. The hard-coded order was observed on the throwaway (`zzmfa1,zzmfa3,zzmfa5,zzmfa2,zzmfa4`, `zzmfa2,zzmfa1,zzmfa4,zzmfa3,zzmfa5`).
+- Latent date dependency in existing tests (not changed here): `Test.Memory.Search` stores fixtures with `SavedAt` 2026-11-05 and pins some of them; once those are older than 90 days (from 2027-02-03) the unpinned ones fade and the pinned one does not, which can reorder their asserts. They pass today.
+- Review pass: `Test.Memory.LastUsed` TestFallbackWritesNothing was removed (the refusal scenario names no memory, so it could not fail on the defect it guarded); the matrix row "Fallback reply" is pinned by `Test.Bridge.Content` TestAcceptedOnlyOnAccept (mutation above). TestAcceptedUsed was added (MAXUSED cap, entries that are no memory, no hostData member, a reply HostData that cannot be read), and TestOnUsed's lock check got a positive control.
+- Review pass: `Search` reads the clock now, so classes that store fixtures with fixed 2026-11-05 dates and mix pinned and unpinned memories hold `memory.fadeDays` at 36500 days (`Test.Memory.Fixture` HoldFade/ReleaseFade, used by `Test.Memory.Search`, `Test.Memory.Pins` and `Test.Memory.Ops`); `Test.Memory.Fade` keeps its own per-test values and restores through the same `PutFade`. `Test.Memory.Turns` and `Test.Tools.Memory` store the same fixed dates but pin nothing that a search ranks; not changed (inference, not run with an aged clock).
+- Measured run times on the throwaway (warm): `Test.Memory.Fade` 19 s, `Test.Memory.LastUsed` 16 s, `Test.Bridge.Content` 30 s (new test about 3 s of it).
+

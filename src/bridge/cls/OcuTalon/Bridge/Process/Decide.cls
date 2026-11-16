@@ -1509,8 +1509,8 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Quit ..ResponseFromRow(row, .response)
 }
 
-/// Tells the ContentClass setting of the Decide item (Ext.Content, AD-31) of the accepted turn reply, once, after Conclude saved the Decision row, and adds
-/// the members that its Accepted gives to the HostData of the response (HostData.Merge). The class is read through Ext.Accessor each time, so the
+/// Tells the ContentClass setting of the Decide item (Ext.Content, AD-31) of the accepted turn reply, once, after Conclude saved the Decision row, with the reply's
+/// HostData JSON as replyHostData, and adds the members that its Accepted gives to the HostData of the response (HostData.Merge). The class is read through Ext.Accessor each time, so the
 /// runner and Decide agree. A setting that is not usable, an error status and an exception are one warning that names the DecisionRef and nothing is merged:
 /// the reply is never failed by it.
 ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, text As %String, response As OcuTalon.Bridge.Msg.Reply) [ Private ]
@@ -1518,7 +1518,7 @@ ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, text As %String, resp
 	Set decisionRef = response.DecisionRef
 	Try {
 		Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("ContentClass", "", "Decide", .sc)
-		If $$$ISOK(sc) Set sc = $ClassMethod(class, "Accepted", request, text, .hostData)
+		If $$$ISOK(sc) Set sc = $ClassMethod(class, "Accepted", request, text, .hostData, response.HostData)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING("The ContentClass of the decision "_decisionRef_" did not accept the reply, so the reply goes out as it is: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit

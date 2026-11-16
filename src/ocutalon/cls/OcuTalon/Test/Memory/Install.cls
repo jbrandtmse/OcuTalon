@@ -2,6 +2,7 @@
 /// and the step is run against them. A test restores the categories and the configuration row to what the instance had before it ran.
 ///   - TestRun: Run() creates the category OcuTalon.Memory.Embedder (2 active workers, 1 default), the category OcuTalon.Docs.Extractor (1 and 1; Story 19.6) and the row OcuTalonMemory (class, 384), and a second Run()
 ///     changes nothing and leaves one row; a changed category and a changed row are put back to the declared values;
+///   - TestSeedsFadeDays (Story 28.2): Run() seeds the product setting memory.fadeDays with 90 when it has no row, and a second Run() keeps the value that an admin changed; the setting is put back as it was;
 ///   - TestModelFolderRule: ModelFolder() is the named variable's value when it is set and not empty, otherwise the manager directory's fastembed/;
 ///   - TestPresentFolder: a folder that holds the model is left alone: no download is attempted, no warning, no new file, on a first run and on a second;
 ///   - TestHasModel: a snapshot needs the model file, the tokenizer and the three configuration files;
@@ -87,6 +88,28 @@ Method TestRun()
 	Do statement.%Execute("changed", ..#CONFIG)
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Memory).Run(folder), "Run() after a change succeeds")
 	Do ..AssertDeclared("and puts the declared values back")
+	Do ..RemoveFolder(folder)
+}
+
+Method TestSeedsFadeDays()
+{
+	Set key = ##class(OcuTalon.Memory).#FADEKEY
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists(key)
+	Set saved = ##class(OcuTalon.Data.Setting).Fresh(key)
+	Set folder = ..FolderWithModel()
+	Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(key)
+	Kill ^||OcuTalon.Setting(key)
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Memory).Run(folder), "Run() with no memory.fadeDays row succeeds")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Fresh(key), 90, "and seeds it with 90")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(key, 30), "an admin sets 30")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Memory).Run(folder), "a second Run() succeeds")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Fresh(key), 30, "and keeps 30")
+	If existed {
+		Do ##class(OcuTalon.Data.Setting).Set(key, saved)
+	} Else {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(key)
+		Kill ^||OcuTalon.Setting(key)
+	}
 	Do ..RemoveFolder(folder)
 }
 

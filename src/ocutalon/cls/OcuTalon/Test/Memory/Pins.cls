@@ -40,6 +40,13 @@ Property Host As OcuTalon.Memory.Ops [ Transient ];
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("MemoryPins", "n"))
+	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() Do ##class(OcuTalon.Test.Memory.Fixture).HoldFade()
+	Quit $$$OK
+}
+
+Method OnAfterAllTests() As %Status
+{
+	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() Do ##class(OcuTalon.Test.Memory.Fixture).ReleaseFade()
 	Quit $$$OK
 }
 
