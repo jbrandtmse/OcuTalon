@@ -105,3 +105,5 @@
 2026-11-16T13:15:25Z	Story 24.3b	spine_amended	AD-18(escalation_timers_as_built)+AD-27(purge_finished_escalations) lint=12_before=12_after
 2026-11-16T13:25:25Z	Epic 24	integrated_forward	feature=62590041(23.15,DW-1376/1378) conflicts=Channel/Email/Out.cls(PageClaimed_vs_Began:plain_union),sprint-status(regenerated) overlap_lane_B=GUIDE.md,docker/tests/test-readme.sh,Channel/Email/Out.cls,Test/Channel/EmailOut.cls,web/scripts/ux-strings.test.mjs checks=web_2199/0,test-readme,class-rules,ci-config,EmailOut(fresh),PageRoute(fresh)
 2026-11-16T13:25:25Z	Story 24.3b	pushed	branch=OCT-epic24
+2026-11-16T14:01:10Z	Story 24.3b	ci_resolved	sha=411a61e1 result=success runs=43875617563(ci),43875617565(lane-a) reruns=0 runner_reds=none
+2026-11-16T14:01:10Z	Story 24.3	merge_held	note=1.0.12_release_started_BASE_625900415;24.3a_and_24.3b_merge_back_to_back_after_Planner_MERGE-BACK_DONE;no_further_push
