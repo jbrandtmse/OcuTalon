@@ -17,7 +17,7 @@ const STEPS = [
   'Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history scope, and install it to the workspace.',
   'Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon.',
   "Under Event Subscriptions, set the request URL to https://<your public address>/ocutalon/hook/slack/events and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once.",
-  "As an admin, open Settings › Channels › Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.",
+  "As an admin, open Settings \u203A Channels \u203A Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.",
 ];
 
 /** The lines after the heading line up to the next line that starts with `stop` (or the end), or [] when the heading is missing. */
