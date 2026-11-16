@@ -4525,3 +4525,4 @@
 2026-11-16T17:07:15Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3:cut_floor_64,C1_other_7_tags,C5:decide_keeps_refusal,diagnose_absent(no_UI_line_pin),decide_question_to_post-cut_A/B
 2026-11-16T17:24:01Z	Epic 21	runner_reported	PLANNER_REPORT DW-1421_round3_plan(27ab41403;cut_floor,7_tags,C5_CONFIDENCEREQUIRED;Q1_range_tag,Q2,Q3;veto_i-v;spine_L271) relayed=contest_planner
 2026-11-16T17:24:17Z	Epic 21	owner_decision	via=contest_planner DW-1421_round3=APPROVED(+Q1_confidence-out-of-range;veto_i-v;spine_L271) check=do_refusal_strings_reach_model_prompt(before_merge)
+2026-11-16T17:38:13Z	Epic 21	owner_decision	via=contest_planner DW-1421_verify@c573a86d0=PASS(orders-target-to-review_0/5;total_fallbacks_2) c573a86d0=may_merge_after_24.3b,s2314 r3_time-of-day=report_only
