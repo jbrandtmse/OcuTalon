@@ -3788,6 +3788,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
 - 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
 - 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+- 2026-11-16T04:25:32Z occurrence=OCT-epic21-dw1205-fded9d158 by=orchestrator note=ci 43777000338 att1 iris(browser) on ocutalon-ci-14: demo-path telegram-page.spec.ts:977 T7 'the reply part with the same key shows the mock's reply' not found; DW-1205 touches no web code; attempt 2 green
 
 ### DW-614: TelegramPageFixture.Notify and the upgrade harness's pairing readings (Move, session, replies, notify) run only in the release harness's live phases, never in CI
 - source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: med | footprint: in-story
