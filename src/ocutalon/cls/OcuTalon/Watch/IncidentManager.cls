@@ -112,8 +112,9 @@
 ///     whatever its parameters) or drafting, after StartDraft has sent this item a Watch.Msg.Draft in the incident's trace session. Drafting sends Decide, asynchronously with the key
 ///     DRAFTKEY, one request (DraftRequest: a turn, untrusted, fresh, the asking session as owner, the carrier item with the kind's Facts as input and its SYSTEMNOTE), so the
 ///     draft runs after the ask's own turn and the ask does not wait for it. Drafted ends it: a usable answer (a Reply that is no fallback, whose text is, after Normalise, one line
-///     of at most NOTICEMAX characters) gives the parameters {"text", "to"} and goes through RaiseAsked, the tail that every asked request shares: a dry run, the request raised, its
-///     Ref in RequestRefs and one Notification of kind approval (incident.partnerRequest) with the incident event, through Move to the incident's own state. Any other end (an
+///     of at most NOTICEMAX characters) gives the parameters {"text", "to"}, where to is the ids of the production's contacts (Story 23.13), and goes through RaiseAsked, the tail that every asked
+///     request shares: a dry run (traced with ids only), the request raised with the dry run as the approver is shown it (Fix.Kind Shown: names and addresses, stored in the row and never traced),
+///     its Ref in RequestRefs and one Notification of kind approval (incident.partnerRequest, or incident.partnerRequestMailbox or incident.partnerRequestKept for a request that is not simulated) with the incident event, through Move to the incident's own state. Any other end (an
 ///     error, a fallback, an empty or over-long text, a refused dry run, a failed raise) raises nothing and tells each recipient result.partnerNotDrafted (NotDrafted, no
 ///     ApprovalRef), and a draft that finds a request of the kind waiting by then stops with one Type 4 line and nothing sent. A request of a kind with MOVES 0 never moves the
 ///     incident: Event gives its approved, rejected, expired and result events to Aside, which tells the sessions and sends the Execute for an approved one but keeps the state and
@@ -1145,7 +1146,7 @@ Method AskedDraft(incident As OcuTalon.Data.Incident, command As OcuTalon.Msg.Co
 {
 	If parameters.%Size() > 0 Quit ..Verdict(.response, 0, "refused", ##class(OcuTalon.Fix.Kind.PartnerWarning).Reason($Parameter(class, "NOITEM"), incident), "", incident)
 	If ..AlreadyAsked(incident, command.FixKind, "", 1) Quit ..Verdict(.response, 0, "already_asked", ..#MESSAGEALREADYASKED, "", incident)
-	Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production)
+	Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production, incident.Namespace)
 	If contacts.%Size() = 0 Quit ..Verdict(.response, 0, "refused", ##class(OcuTalon.Fix.Kind.PartnerWarning).Reason($Parameter(class, "NOCONTACTS"), incident), "", incident)
 	Set allowed = ##class(OcuTalon.Core.Allowance).MailAllowed(command.SessionRef, ##class(OcuTalon.Data.Time).NowUtc(), , .sc, contacts.%Size())
 	If $$$ISERR(sc) {
@@ -1191,6 +1192,7 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			Quit
 		}
 		Set dryRun = {}.%FromJSON(result.DryRun)
+		Set dryRun = ##class(OcuTalon.Fix.Kind).Shown(kind, incident, dryRun)
 		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots(kind, dryRun, incident, .sc)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -1201,7 +1203,7 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit
 		}
-		Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).AskedKey(kind), slots, request))
+		Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).AskedKey(kind, dryRun), slots, request))
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Set cancelled = ..CancelRequest(request)
@@ -1301,8 +1303,8 @@ Method Drafted(draft As OcuTalon.Watch.Msg.Draft, answer As %Library.Persistent,
 		}
 		Set outcome = "failed"
 		If text '= "" {
-			Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production)
-			Set parameters = {"text": (text), "to": (##class(OcuTalon.Fix.PartnerContacts).Addresses(contacts))}
+			Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production, incident.Namespace)
+			Set parameters = {"text": (text), "to": (##class(OcuTalon.Fix.PartnerContacts).Ids(contacts))}
 			Do ..RaiseAsked(incident, draft.FixKind, parameters, incident.State, incident.OpenVariant, .outcome, .detail)
 		}
 		If outcome '= "raised" Do ..NotDrafted(incident)
@@ -1711,7 +1713,7 @@ Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 /// warning (LOGRESULT) when the slots cannot be built.
 Method ResultNotice(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, result As OcuTalon.Fix.Msg.FixResult) As OcuTalon.Msg.Notification [ Private ]
 {
-	Set key = ##class(OcuTalon.Watch.Notice).ResultKey(row.State, result, row.FixKind)
+	Set key = ##class(OcuTalon.Watch.Notice).ResultKey(row.State, result, row.FixKind, ##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production))
 	Set slots = ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, ..Noun(incident, row), .sc, ..ResultExtra(incident, row))
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGRESULT_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))

@@ -473,7 +473,7 @@ Method AnswerPress(query As %DynamicObject, text As %String, alert As %Boolean) 
 	}
 }
 
-/// Adds to the slots of an approved press the fix kind of its request (fixKind) and, from its dry run, the item a suspend or resume changes (item) and the item a reroute sends
+/// Adds to the slots of an approved press the fix kind of its request (fixKind) and, from its dry run, the item a suspend or resume changes (item), whether a partner warning is simulated (simulated) and the item a reroute sends
 /// the messages to (to), for the pressing chat's paired session (Story 23.2). A request that can't be read adds nothing, and PressText then shows no text for a kind it can't name.
 Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObject) [ Private ]
 {
@@ -488,6 +488,7 @@ Method FixSlots(chatRef As %String, approvalRef As %String, slots As %DynamicObj
 			If dry.Item '= "" Do slots.%Set("item", dry.Item, "string")
 			If dry.To '= "" Do slots.%Set("to", dry.To, "string")
 			If dry.Field '= "" Do slots.%Set("setting", dry.Field, "string")
+			If row.FixKind = "partner_warning" Do slots.%Set("simulated", +dry.Simulated, "number")
 		}
 	} Catch {
 	}
@@ -512,7 +513,12 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
 			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}
 		} ElseIf kind = "partner_warning" {
-			Set key = "press.approvedPartner"
+			If (slots.%GetTypeOf("simulated") = "number") && 'slots.simulated {
+				If ##class(OcuTalon.Fix.Kind.PartnerWarning).MailboxConnected() Quit ""
+				Set key = "press.approvedPartnerKept"
+			} Else {
+				Set key = "press.approvedPartner"
+			}
 		} Else {
 			If slots.%GetTypeOf("count") '= "number" Quit ""
 			Set key = "press.approved", use = slots

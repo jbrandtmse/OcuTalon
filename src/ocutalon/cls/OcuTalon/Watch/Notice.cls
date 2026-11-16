@@ -46,10 +46,14 @@
 ///     affected), itemNoun, from, to, example and resendCount (its resend) for a reroute. ResultKey, given the kind's name, gives result.itemSuspended or result.itemResumed
 ///     for an item kind that changed its item, result.itemSkipped when the re-check skipped it and result.itemNotChanged when the run could not start; for a reroute whose copies
 ///     all completed (the key that is result.allThrough) it gives result.rerouted. ResultSlots, given the item, production and target in extra, adds them.
-///   - A partner delay notice (Story 23.5): AskedKey gives incident.partnerRequest for partner_warning and AskedSlots {recipients ("Name <address>" of each recipient of the dry
-///     run, joined with ", "), notice (the dry run's text)}. ResultKey, given the kind's name, gives for a kind whose targets are contacts result.partnerKept (the run failed with the
+///   - A partner delay notice (Stories 23.5 and 23.13): AskedKey, given the dry run, gives incident.partnerRequest for partner_warning when the dry run is simulated (the fixture's production; with
+///     no dry run too) and AskedSlots {recipients ("Name <address>" of each recipient of the dry run, joined with ", "), notice (the dry run's text)}. For a Settings-contact request (simulated 0)
+///     it gives incident.partnerRequestMailbox when a mailbox is connected (Fix.Kind.PartnerWarning MailboxConnected), else incident.partnerRequestKept, and AskedSlots {production, notice}: no
+///     recipient is named. ResultKey, given the kind's name, gives for a kind whose targets are contacts and a simulated request result.partnerKept (the run failed with the
 ///     kind's NOTSETUP reason), result.partnerSent (every recipient was sent), result.partnerSentSome (some were) or result.partnerNotSent (none was); ResultSlots gives count
-///     (Completed), or completed, total and reason (the Reason), or reason, by the key. result.partnerNotDrafted, the result of a draft that failed, is IncidentManager's and has no slots.
+///     (Completed), or completed, total and reason (the Reason), or reason, by the key. For a request that is not simulated it gives result.partnerKept (the NOTSETUP reason), fix.emailSent (every
+///     recipient was sent), result.partnerSkipped (the run is done and some recipients were skipped: sent, skipped and total counts), fix.emailNotSent (the run failed with one of EmailOut's
+///     sentences: reason) or result.partnerNotSent. result.partnerNotDrafted, the result of a draft that failed, is IncidentManager's and has no slots.
 ///   - The good-message refusal (DW-823): NoFixKey gives incident.goodChanged, in place of incident.noFix, for the reason of a repair dry run that the good-message check refused
 ///     (Fix.Kind.RepairResend GOODCHANGED); its slots are those of incident.noFix and noun, the plural item noun.
 /// Slots, WithFixSlots and ResultSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
@@ -153,6 +157,18 @@ Parameter KEYPARTNERKEPT = "result.partnerKept";
 
 Parameter KEYPARTNERNOTDRAFTED = "result.partnerNotDrafted";
 
+/// The catalog keys of a Settings-contact warning (Story 23.13): its approval notice with a mailbox connected and with none, the result of a send that left some recipients out, and the
+/// sent and not-sent results of an email (Story 21.11; the keys of Core.BridgeSink KEYEMAILSENT and KEYEMAILNOTSENT).
+Parameter KEYPARTNERMAILREQUEST = "incident.partnerRequestMailbox";
+
+Parameter KEYPARTNERKEPTREQUEST = "incident.partnerRequestKept";
+
+Parameter KEYPARTNERSKIPPED = "result.partnerSkipped";
+
+Parameter KEYEMAILSENT = "fix.emailSent";
+
+Parameter KEYEMAILNOTSENT = "fix.emailNotSent";
+
 /// The state of an approval request that is still carrying out its fix.
 Parameter EXECUTING = "executing";
 
@@ -219,10 +235,13 @@ ClassMethod NoFixKey(reason As %String) As %String
 	Quit ..#KEYNOFIX
 }
 
-/// The catalog key of the approval notice of a fix the user asked for in the chat, from the kind's name (suspend_item, resume_item, reroute or partner_warning); "" for any
-/// other kind. Pure.
-ClassMethod AskedKey(kind As %String) As %String
+/// The catalog key of the approval notice of a fix the user asked for in the chat, from the kind's name (suspend_item, resume_item, reroute or partner_warning) and, for partner_warning, its
+/// dry run (see the class description); "" for any other kind. It reads the mailbox only for a Settings-contact warning.
+ClassMethod AskedKey(kind As %String, dryRun As %DynamicObject = "") As %String
 {
+	If ($Get(kind) = "partner_warning") && $IsObject(dryRun) && (dryRun.%Get("simulated") '= 1) {
+		Quit $Select(##class(OcuTalon.Fix.Kind.PartnerWarning).MailboxConnected(): ..#KEYPARTNERMAILREQUEST, 1: ..#KEYPARTNERKEPTREQUEST)
+	}
 	Quit $Case($Get(kind), "suspend_item": ..#KEYSUSPENDREQUEST, "resume_item": ..#KEYRESUMEREQUEST, "reroute": ..#KEYREROUTEREQUEST, "partner_warning": ..#KEYPARTNERREQUEST, "undo_rollback": ##class(OcuTalon.Watch.SettingCause).#KEYUNDOREQUEST, : "")
 }
 
@@ -231,7 +250,7 @@ ClassMethod AskedKey(kind As %String) As %String
 ClassMethod AskedSlots(kind As %String, dryRun As %DynamicObject, incident As OcuTalon.Data.Incident, Output sc As %Status) As %DynamicObject
 {
 	Set sc = $$$OK
-	Set key = ..AskedKey(kind)
+	Set key = ..AskedKey(kind, $Get(dryRun))
 	If key = "" {
 		Set sc = $SYSTEM.Status.Error(5001, "'"_$Get(kind)_"' is not a fix that the chat asks for")
 		Quit ""
@@ -241,6 +260,14 @@ ClassMethod AskedSlots(kind As %String, dryRun As %DynamicObject, incident As Oc
 		Quit ""
 	}
 	If key = ##class(OcuTalon.Watch.SettingCause).#KEYUNDOREQUEST Quit ##class(OcuTalon.Watch.SettingCause).UndoSlots(dryRun, incident, .sc)
+	If (key = ..#KEYPARTNERMAILREQUEST) || (key = ..#KEYPARTNERKEPTREQUEST) {
+		Set notice = ..Text(dryRun.notice)
+		If notice = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has no notice")
+			Quit ""
+		}
+		Quit {"production": (##class(OcuTalon.Fix.Kind).ProductionName(incident)), "notice": (notice)}
+	}
 	If key = ..#KEYPARTNERREQUEST {
 		Set notice = ..Text(dryRun.notice)
 		Set recipients = ""
@@ -401,13 +428,19 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 }
 
 /// The catalog key of the notice of a FixResult, for the state of the request's row (see the class description). Pure.
-ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, kind As %String = "") As %String
+ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, kind As %String = "", simulated As %Boolean = 1) As %String
 {
 	If ($Get(state) = ..#EXECUTING) || ('result.Final && 'result.Interrupted) Quit ..#KEYSTILL
 	If result.Interrupted Quit ..#KEYINTERRUPTED
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(kind)
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
 		If ($Get(state) = "failed") && ($Parameter(class, "NOTSETUP") '= "") && (result.Reason = $Parameter(class, "NOTSETUP")) Quit ..#KEYPARTNERKEPT
+		If 'simulated {
+			If (+result.Completed > 0) && (+result.Completed = +result.Total) Quit ..#KEYEMAILSENT
+			If ($Get(state) = "done") && (+result.Skipped > 0) Quit ..#KEYPARTNERSKIPPED
+			If ($Get(state) = "failed") && $ClassMethod(class, "OutReason", result.Reason) Quit ..#KEYEMAILNOTSENT
+			Quit ..#KEYPARTNERNOTSENT
+		}
 		If (+result.Completed > 0) && (+result.Completed = +result.Total) Quit ..#KEYPARTNERSENT
 		If +result.Completed > 0 Quit ..#KEYPARTNERSENTSOME
 		Quit ..#KEYPARTNERNOTSENT
@@ -444,6 +477,15 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Set reason = ..Text(result.Reason)
 	If '$IsObject(extra) Set extra = {}
 	If ##class(OcuTalon.Watch.SettingCause).IsResultKey(key) Quit ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc, reason)
+	If key = ..#KEYEMAILSENT Quit {}
+	If key = ..#KEYPARTNERSKIPPED Quit {"sent": (+result.Completed), "skipped": (+result.Skipped), "total": (+result.Total)}
+	If key = ..#KEYEMAILNOTSENT {
+		If reason = "" {
+			Set sc = $SYSTEM.Status.Error(5001, "The result of "_result.ApprovalRef_" has no reason")
+			Quit ""
+		}
+		Quit {"reason": (reason)}
+	}
 	If $ListFind($ListBuild(..#KEYPARTNERSENT, ..#KEYPARTNERSENTSOME, ..#KEYPARTNERNOTSENT, ..#KEYPARTNERKEPT), key) {
 		If key = ..#KEYPARTNERKEPT Quit {}
 		If key = ..#KEYPARTNERSENT Quit {"count": (+result.Completed)}

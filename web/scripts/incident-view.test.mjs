@@ -716,6 +716,16 @@ describe('the result bands (Story 6.4)', () => {
     assert.equal(bandTexts(closed, context()).P1, 'Sent to the Simulated mailbox.');
   });
 
+  it('reads the band of a Settings contact\'s notice with the store\'s simulated, and shows no sent band when the store lacks the request (Story 23.13)', () => {
+    const requests = [{ ref: 'P1', state: 'done', fixKind: 'partner_warning', result: { total: 2, resent: 0, completed: 2, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } }];
+    const closed = { ...full({ state: 'closed' }), requests };
+    const asked = (simulated) => context({ result: (request, itemNoun, production, change, flag) => resultView(request, itemNoun, renderPageText, production, change, flag ?? null), approvals: simulated === undefined ? {} : { P1: { dryRun: { simulated } } } });
+    assert.deepEqual(view(closed, asked(false)).results.map((band) => [band.key, band.text]), [['fix.emailSent', 'The email was sent.']], 'a request that is not simulated reads fix.emailSent');
+    assert.deepEqual(view(closed, asked(true)).results.map((band) => band.key), ['result.partnerSent'], 'a simulated one reads the Simulated mailbox\'s band');
+    assert.deepEqual(view(closed, asked(undefined)).results, [], 'with no payload for the request no band says that anything was sent');
+    assert.equal(bandTexts(closed, asked(false)).P1, 'The email was sent.');
+  });
+
   it('give a suspend, a resume and a reroute their own band on a compact card, with the incident\'s production for the item kinds (Story 23.2)', () => {
     const asked = [
       { ref: 'S1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } },

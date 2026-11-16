@@ -320,6 +320,44 @@ describe('a partner delay notice (Story 23.5)', () => {
     assert.equal(resultView(request({ result: result({ completed: 0 }) }), undefined, render), undefined, 'a result with no reason to give claims nothing');
   });
 
+  it('gives a request that is not simulated no pending note (Story 23.13)', () => {
+    const real = warning({ dryRun: { notice: NOTICE, recipients: ['Zz Partner <zz@results-partner.example>'], simulated: false } });
+    const view = approvalView(real, ctx());
+    assert.deepEqual(view.partner, { to: 'To: Zz Partner <zz@results-partner.example>', notice: NOTICE, simulated: false, note: '' });
+    assert.equal(approvalView(warning(), ctx()).partner.note.length > 0, true, 'a simulated one keeps its note');
+  });
+
+  it('reads the bands of a request that is not simulated from the email results (Story 23.13)', () => {
+    const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
+    const band = (fields, simulated = false) => resultView(request(fields), undefined, render, '', undefined, simulated);
+    const sent = band({ result: result({ total: 2, completed: 2 }) });
+    assert.deepEqual({ key: sent.key, text: sent.text, tone: sent.tone, icon: sent.icon }, { key: 'fix.emailSent', text: 'The email was sent.', tone: 'success', icon: 'circle-check' });
+    const some = band({ result: result({ total: 3, completed: 2, skipped: 1, reason: "OcuTalon couldn't deliver the delay notice" }) });
+    assert.deepEqual({ key: some.key, tone: some.tone }, { key: 'result.partnerSkipped', tone: 'partial' });
+    assert.equal(some.text, 'The delay notice was sent to 2 of 3 partner contacts. Not sent to 1: they were removed from Settings > Partner contacts, or their address changed, since this request was made.');
+    const none = band({ result: result({ total: 2, completed: 0, skipped: 2, reason: "OcuTalon couldn't deliver the delay notice" }) });
+    assert.deepEqual({ key: none.key, tone: none.tone }, { key: 'result.partnerSkipped', tone: 'partial' }, 'a done run that skipped everyone reads result.partnerSkipped');
+    assert.match(none.text, /^The delay notice was sent to 0 of 2 partner contacts\. Not sent to 2:/);
+    const kept = band({ state: 'failed', result: result({ total: 2, completed: 0, reason: "email delivery isn't set up yet" }) });
+    assert.deepEqual({ key: kept.key, text: kept.text }, { key: 'result.partnerKept', text: "Approved and kept as a draft: email delivery isn't set up yet." });
+    const sentence = band({ state: 'failed', result: result({ total: 2, completed: 0, reason: "OcuTalon couldn't reach the mail server." }) });
+    assert.deepEqual({ key: sentence.key, text: sentence.text }, { key: 'fix.emailNotSent', text: "OcuTalon couldn't reach the mail server." });
+    const other = band({ state: 'failed', result: result({ total: 2, completed: 0, reason: 'Something else' }) });
+    assert.deepEqual({ key: other.key, text: other.text }, { key: 'result.partnerNotSent', text: 'Not sent: Something else.' });
+    assert.equal(band({ state: 'executing', result: result() }), undefined, 'a run still going has no band');
+  });
+
+  it('keeps today\'s bands for a simulated request or one that says nothing, and shows no sent band when it cannot tell (Story 23.13)', () => {
+    const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
+    const sentResult = result({ total: 2, completed: 2 });
+    assert.equal(resultView(request({ result: sentResult }), undefined, render, '', undefined, true).key, 'result.partnerSent');
+    assert.equal(resultView(request({ result: sentResult }), undefined, render).key, 'result.partnerSent', 'with no argument the bands are the Simulated mailbox\'s');
+    assert.equal(resultView(request({ result: sentResult }), undefined, render, '', undefined, null), undefined, 'a band that says something was sent is not shown when the request cannot be told');
+    assert.equal(resultView(request({ result: result({ total: 3, completed: 2, skipped: 1, reason: 'x' }) }), undefined, render, '', undefined, null), undefined, 'nor a part-sent one');
+    const kept = resultView(request({ state: 'failed', result: result({ completed: 0, reason: "email delivery isn't set up yet" }) }), undefined, render, '', undefined, null);
+    assert.equal(kept.key, 'result.partnerKept', 'a kept draft is still shown');
+  });
+
   it('never says or implies that a real email was sent', () => {
     for (const key of ['partnerNote', 'partnerSent', 'partnerSentSome', 'partnerKept', 'partnerNotSent']) {
       assert.doesNotMatch(APPROVAL_TEXTS[key], /\bemailed\b|\bby email\b|email was sent/i, key);

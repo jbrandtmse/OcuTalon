@@ -909,6 +909,11 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09 (press keys placed in Catalog.Core by ruling)"
  },
+ "press.approvedPartnerKept": {
+  "text": "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email.",
+  "slots": {},
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 (press keys placed in Catalog.Core by ruling)"
+ },
  "press.approvedRollback": {
   "text": "Approved. Putting {setting} on {target} back.",
   "slots": {

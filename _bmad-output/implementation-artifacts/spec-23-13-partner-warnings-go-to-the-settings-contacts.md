@@ -2,9 +2,10 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3d5b7145dc24ed1f71de231d754c9da73d94189f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
 warnings: [oversized]
@@ -182,6 +183,46 @@ Tests (existing, to update or extend):
 
 ## Review Triage Log
 
+### 2026-11-15 — Review pass
+- verdicts: 36 findings — high 0, medium 2, low 23, false 11, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind 1: Out.Approved treats a row's empty subject or text as not held — spec-bound (the ruled `Email.Mail` gives "" for a member that is not a string), unreachable through the executor (its command carries neither), and Check refuses an empty value anyway; the fix adds a held flag to the mail method.
+  - `[low]` `[reject]` blind 2: the mailbox can be connected between the ask and the approval — the Planner's conditional wording of `incident.partnerRequestKept` is verbatim and says so; the other order is harmless.
+  - `[low]` `[reject]` blind 3: result bands hide when the approval payload is not in the store — recorded in Design Notes as accepted (null hides a band that claims a send); the demo's own bands are unchanged where the payload is present.
+  - `[low]` `[reject]` blind 4: the web decides "EmailOut sentence" by a trailing full stop, the server by exact sentence — the only other failed-run reasons (NOSTART, NOREAD, NOTSETUP) carry none; a mismatch needs a new reason with a stop.
+  - `[false]` `[reject]` blind 5: a missing `simulated` reads as not simulated — `PartnerWarning.DryRun` always writes it, and the row's DryRun is written only there.
+  - `[false]` `[reject]` blind 6: MailAllowed counts real recipients — the spec (Design Notes, De-duplication) rules that `MailAllowed` counts the de-duplicated list.
+  - `[low]` `[reject]` blind 7: Completed comes from the executor's own Mailed read, Out reads again — a contact edited inside that window; Out refuses on a mismatch and sends nothing, so no wrong address is mailed; the fix needs a result channel from Out.
+  - `[false]` `[reject]` blind 8: address comparison is case-sensitive — the spec rules "exactly that address (trimmed, case-sensitive)".
+  - `[low]` `[reject]` blind 9: no test sends a command carrying its own subject, text or recipients for a Settings row — the refusal is Out's generic Approved/Authorised path, pinned by `Test.Channel.EmailOut` for email rows; a Settings row goes through the same code.
+  - `[false]` `[reject]` blind 10: rulings dated 2026-11-16 — the spec's own Planner rulings carry that date (Spec Change Log, Design Notes).
+  - `[low]` `[reject]` edge 1: executor and Out read the row twice (same root as blind 7).
+  - `[low]` `[reject]` edge 2: ForApprover with every id gone raises an empty card — needs a contact deleted between the dry run and the raise inside one job; the run then ends skipped and nothing is sent.
+  - `[false]` `[reject]` edge 3: Telegram reads a missing `simulated` as 0 (same as blind 5).
+  - `[low]` `[reject]` edge 4: bands hide with no approval payload (same as blind 3).
+  - `[low]` `[reject]` edge 5: `endsWith('.')` (same as blind 4).
+  - `[false]` `[reject]` edge 6: web `>=` against the server's `=` for completed and total — completed never exceeds total.
+  - `[low]` `[reject]` edge 7: Summary.RunEvents with an unreadable incident reads the Simulated line — the incident just ran; needs its row deleted.
+  - `[low]` `[reject]` edge 8: a contact with an empty address is the first of its dedupe key — the Settings save validates the address (Lane B); it would be skipped as removed at send time.
+  - `[false]` `[reject]` edge 9: a case-only address change is skipped as changed (same as blind 8).
+  - `[false]` `[reject]` edge 10: a mailing run with `failed` set — `failed` is only set by the Check/Carry branch, which a mailing run never enters.
+  - `[false]` `[reject]` edge 11: TelegramApproval with the onlineDemo flag on — the class sets and restores its own keys and passes on a fresh stack.
+  - `[low]` `[reject]` edge 12: Out.Approved empty member (same as blind 1).
+  - `[low]` `[reject]` edge 13: Email.Mail "no behaviour change" claim (same as blind 1).
+  - `[false]` `[reject]` edge 14: partner.emailSubject is a fourth key — the Planner's D9 ruling names it.
+  - `[false]` `[reject]` edge 15: SendPartner takes no incident — the signature is internal and the spec text is not code; fix would edit this build's spec.
+  - `[low]` `[reject]` edge 16: Plan's Settings-contact branch is a guard with no second test — `TestSettingsContactsExecuteGuard` pins it.
+  - `[medium]` `[patch]` verification-gap 1: the executor's could-not-start branch for a Settings row was unpinned — added `PartnerWarning:TestSettingsContactsTamperedRowCouldNotStart`; mutation (branch removed) red, restored.
+  - `[medium]` `[patch]` verification-gap 2: the web wiring of simulated into the compact card's band was unpinned — two source pins added to `web/scripts/approval-sources.test.mjs`; mutation (context without approvals) red, restored.
+  - `[low]` `[patch]` verification-gap 3: AC3 leak, session result, Summary, Telegram press, AC9 reversal and AC10 hook named in no mutation line — each applied, observed red, reverted; lines written under Verification.
+  - `[low]` `[reject]` verification-gap 4: the tests share ZZNS/ZZPROD — each creates and removes its own `zzpc` rows in OnAfterOneTest; only a run killed mid-test leaves rows, as for every fixture of this area.
+  - `[low]` `[reject]` verification-gap 5: AssertNoLeaks scans without waiting for quiet — each test waits for the result notice first, and the scans are absence checks over rows that exist by then.
+  - `[low]` `[reject]` verification-gap 6: SentOnce strips trailing whitespace before comparing the text — `PartnerMail:TestSameAddressIsSent` compares byte for byte.
+  - `[low]` `[reject]` verification-gap 7: AssertNoLeaks has an unused `sent` parameter — cosmetic, no failing outcome.
+  - `[low]` `[reject]` verification-gap 8: Out.Approved empty member (same as blind 1).
+  - `[low]` `[reject]` verification-gap 9: chat announcements get no sent band — recorded in Design Notes as accepted.
+  - `[low]` `[reject]` intent 1: the row-to-card join is not run end to end — `Test.Live.Payloads` pins the payload reading name and address (an extra `id` member is ignored) and the web tests pin the card from that shape; the card's own code is unchanged.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -209,6 +250,15 @@ Tests (existing, to update or extend):
 - **No card note for Settings-contact requests, and no press text when a mailbox is connected.** The card can't tell whether a mailbox is connected without a new stored dry-run key (a veto item); the chat request text says it. The approved `APPROVAL_TEXTS.partnerKeptNote` is therefore not used (deviation 6).
 - **Facts drop the partner line for both sources.** One invariant: the model never sees a contact.
 - **De-duplication.** Lower-cased, trimmed addresses; the lowest id is kept. `MailAllowed` counts the de-duplicated list.
+- **Implement stage (23.13), small choices:**
+  - `Notice.AskedKey(kind)` with no dry run keeps today's `incident.partnerRequest` (a dry run that says `simulated` other than 1 gets the kept or mailbox key), so every existing caller and the pin of `TestNoticeKeys` stay as they were.
+  - `Notice`'s two email result keys are string literals, not a `{##class(Core.BridgeSink).#KEY...}` parameter default: that default failed the first fresh image build (the class does not exist yet when `Notice` compiles).
+  - `PartnerWarning.Mail` reads a stored recipient's id as any whole number (a JSON number or its digits), so a stored row written by another hand still matches; the address is the stored one, trimmed.
+  - `OutReason` reads the sentences named by the kind's `OUTSENTENCES` parameter from `Channel.Email.Out` with `$Parameter`.
+  - The web takes `simulated` as `boolean | null` (`true` when the argument is left out, as today; `null` when a caller cannot tell). `IncidentContext` gains an optional `approvals`, which `incidentContext` fills from the card's `approvals` input; the chat announcements have none, so no sent band is announced there (`null`).
+  - A done run that skipped everyone reads `result.partnerSkipped` (sent 0) in the session and on the card (`state` done, `skipped` above 0), as `Notice.ResultKey` does.
+  - `Summary.RunEvents` opens the incident of the request (`IncidentRef`) to ask `Simulated(production)`.
+  - Test helpers: `Test.Fix.PartnerSupport` (a Settings contact row, its removal and the mailbox keys) is used by `PartnerWarning`, `PartnerDraft`, `PartnerTurns`, `PartnerMail` and `TelegramApproval`; `Test.Fix.Email.Setup` is public so that `PartnerTurns.TestSettingsContactsSentOnce` connects the mailbox through an instance of `Test.Fix.Email` made with the running manager (`%New(..Manager)`) and puts it back with its `OnAfterOneTest`.
 
 **Extend, don't copy (Rule 2):**
 - `For`/`Named` extend the fixture reader in place, through the same `{id, name, address}` shape as `ForProduction`; `Ids` reuses `Joined`.
@@ -345,9 +395,43 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC9: `Email.Mail` returns the recipients in reverse or lower-cased -> `Test.Channel.EmailOut:TestSystemApproval` / `Test.Fix.Email:TestSeededApprovedRowSendsOnce`.
 - AC10: `IncidentManager` keeps `For(incident.Production)` with no namespace -> `PartnerTurns:TestSettingsContactsLeakNothing` (no request).
 
+Observed in the implement stage (warm stack `e23b13iw`; each change reverted, `git diff --stat` unchanged, the class green again afterwards):
+- mutation: `Parameter TABLE;` (AC1) -> `PartnerWarning:TestTableSwitch` red.
+- mutation: the `$Data(seen(key))` line of `For` removed (AC2) -> `PartnerWarning:TestSettingsContactsOfAProduction` red.
+- mutation: `Facts` with the "Partner:" line back (AC3) -> `PartnerWarning:TestFacts` red.
+- mutation: `ForApprover` quits with the ids unchanged (AC4) -> `PartnerDraft:TestSettingsContactsDraft` red.
+- mutation: `Mailed` keeps the `email` gate (AC5, same address sent) -> `PartnerMail:TestSameAddressIsSent` red.
+- mutation: Out's system send calls `Send` instead of `SendClaimed` (AC5, one send) -> `PartnerMail:TestOneSendPerApproval` red.
+- mutation: `Ready` gives 1 with no mailbox (AC6) -> `PartnerWarning:TestSettingsContactsKeptWithoutAMailbox` red.
+- mutation: `Mail` sends the stored address without asking `For` (AC7, removed) -> `PartnerMail:TestRemovedContactIsSkipped` red.
+- mutation: `Mail` sends the current address (AC7, changed) -> `PartnerMail:TestChangedAddressIsSkipped` red.
+- mutation: Out's online-demo line removed (AC8, refusal) -> `PartnerMail:TestOnlineDemoRefusesPartnerWarning` red.
+- mutation: `Simulated` gives 0 for the Orders production (AC8, fixture) -> `PartnerMail:TestFixtureIsNeverMailed` red.
+- mutation: `Email.Mail` gives no recipient (AC9) -> `Test.Channel.EmailOut` (`TestBadValues`, `TestClaimIsLocked`) red; the reversed order is not caught by `Test.Channel.EmailOut` (it compares the recipients as a set).
+- mutation: `Email.Mail` returns the recipients in reverse order (AC9) -> `Test.Fix.Email:TestSeededApprovedRowSendsOnce` red (and `Test.Channel.EmailOut` stays green).
+- mutation: `IncidentManager.AskedDraft` keeps `For(incident.Production)` (AC10) -> `PartnerDraft:TestSettingsContactsDraft` red.
+- mutation: `Email.SubmitApproved` puts the row's recipient addresses into the `SendEmail` command (AC3, leak) -> `PartnerTurns:TestSettingsContactsSentOnce` red.
+- mutation: `IncidentManager.ResultNotice` passes simulated 1 to `Notice.ResultKey` (AC5, the session reads `fix.emailSent`) -> `PartnerTurns:TestSettingsContactsSentOnce` red.
+- mutation: `Summary.RunEvents` treats every run as simulated (AC5, `summary.fixEnded` for a real send) -> `Test.Watch.Summary` red.
+- mutation: `Telegram.In.PressText` drops the connected-mailbox quit (AC6, the press text) -> `Test.Channel.TelegramApproval` red.
+- mutation: `Executor.SendPartner` without its `'mailed` could-not-start branch (TAMPERED, the run's state and reason) -> `PartnerWarning:TestSettingsContactsTamperedRowCouldNotStart` red.
+- mutation: `incident-card.ts` context without `approvals` (the compact card's band reads simulated from the stored approvals) -> `web/scripts/approval-sources.test.mjs` red.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-plan pass (2026-11-15, under the 23.13 GATE and "23.13 EmailOut" rulings). The SENT path is planned through the AD-14 mail method (`Fix.Kind.Mail`/`Mailed`), the three ruled `Out.cls` methods and the executor's `SendPartner` branch; the KEPT path is unchanged in behaviour. Gated before implementation, per the ruling: the two NEW lines (`incident.partnerRequestMailbox`, `result.partnerSkipped`) and the email subject (gate (d) 9, a third outward text that needs a ruling). Everything else may proceed.
+Implement and review pass (2026-11-15), from baseline 3d5b7145d.
+
+**Summary.** Partner warnings go to the Settings contacts. `Fix.PartnerContacts` declares `TABLE = 1` and chooses its source by production (the Orders fixture while demo mode is on, else the de-duplicated Settings contacts, never read on the online demo). Every traced message names contacts by id; `ForApprover` writes names and addresses into the approval row only. An approved request of a Settings contact is sent by one system `SendEmail` through EmailOut (AD-14 amended: `Fix.Kind` `MAILS`/`Mail`/`Mailed`, `Email.Mail`, `PartnerWarning.Mail` with the approved-address rule, `Out` `Approved`/`ApprovedRecipients`/`Authorised` read through `Mailed`, the executor's `SendPartner`/`MailApproved`) when a mailbox is connected, else kept as the approved draft. The texts are the Planner's, verbatim.
+
+**Files changed.** Product: `Fix/PartnerContacts.cls`, `Fix/Kind.cls`, `Fix/Kind/PartnerWarning.cls`, `Fix/Kind/Email.cls`, `Fix/Executor.cls`, `Channel/Email/Out.cls` (the three ruled methods), `Channel/Telegram/In.cls`, `Watch/IncidentManager.cls`, `Watch/Notice.cls`, `Watch/Summary.cls`, `Msg/Catalog/Core.cls`, `Msg/Catalog/Watch.cls`, `ci/mock/scenarios/B/partner-notice-draft.json`; web: `approval-view.ts`, `approval-request-card.ts`, `incident-card.ts`, `incident-view.ts`, `msg/catalog.ts` and `scripts/catalog.mjs`. Tests: new `Test.Fix.PartnerMail`, `Test.Fix.PartnerSupport`; changed `Test.Fix.PartnerWarning`, `PartnerTurns`, `PartnerDraft`, `Email`, `ExecutorProbe`, `Test.Channel.TelegramApproval`, `TelegramChat`, `Test.Msg.Catalog`, `Test.Watch.Summary`, web `approval-sources`, `approval-view`, `incident-view`, `catalog`, `ux-strings` tests and the e2e `settings/partner-contacts.spec.ts` (the real `TABLE = 1`, no simulated route).
+
+**Review.** 36 findings from the four layers: 2 medium patched (the executor's could-not-start branch, and the web wiring of `simulated`, both now pinned by a test with a demonstrated mutation), 1 low patched (the missing mutation lines, now recorded), 33 rejected with their reasons in the Review Triage Log (11 false, 22 low). Nothing deferred.
+
+**Follow-up review recommended: true.** Two mediums were patched; both are test additions only (no product code changed after the layers read the diff). The risk to look at again is `PartnerWarning:TestSettingsContactsTamperedRowCouldNotStart` and the two source pins in `web/scripts/approval-sources.test.mjs`, which were reviewed only by the lead.
+
+**Verification performed.** Warm stack: `PartnerMail`, `PartnerWarning`, `PartnerDraft`, `Channel.EmailOut`, `Msg.Catalog`, `Channel.TelegramApproval`, `PartnerTurns` (all five listed methods and the two leak and bounds methods), `Core.SettingsPartners`, `Core.SettingsSave`, `Web.PartnerSettingsApi`, `Live.Payloads`, `Fix.Kind`, `Demo.Guide`, `Eval.Report` passed. Fresh stack: `Fix.Email` and the whole `PartnerTurns` (158 s, with the real SMTP mock) passed. `node --test` of the three web view tests (226) and `npm --prefix web test` (2157) pass; `docker/tests/test-mock.sh` and `bash ci/checks.sh` (33 scripts, including `test-boundaries.sh`) pass; `ci/iris.sh live sign-in-2 --part 12/14` passes 9 of 9. Initial web bundle: 895,477 bytes of JS and CSS referenced by index.html, under the 1 MB cap. Left to CI: the shards (`lane-a@Fix`, `lane-a@Channel`, lane-b), the other browser units and the fresh-environment check forward and reverse.
+
+**Residual risks.** `Fix.Kind.Email.Mail` and `Out.Approved` treat an empty subject or text of a row as not held (reviewers' blind 1). The ask-time key (kept or mailbox) is chosen when the request is raised and the mailbox can change before the approval (blind 2). `Notice.AskedKey(kind)` with no dry run still returns `incident.partnerRequest` (Design Notes, Decided in-stage).

@@ -19,6 +19,10 @@ Include Ensemble
 ///   - TestPartialFixDraft, TestReroutedDraft, TestPausedDraft (Story 23.11, AC7): the same for a partial fix (2 of 3 through), a reroute (to OrdersForReview, which the draft's request does not name) and a suspend of
 ///     OrdersFromPartner, with the markers partner-notice-partial, -rerouted and -paused: each draft's request holds that ending's Outcome line, and the notice raised for approval says neither "went through", "looking into"
 ///     nor "will share updates";
+///   - TestSettingsContactsLeakNothing (AC2, AC3, AC4, AC6, DW-1254, DW-1393; fresh or warm): with no mailbox, a resolved incident of ZZPROD and three Settings contacts (two share an address) raise one request fixed to the two de-duplicated ids; approving it keeps the
+///     notice (result.partnerKept), nothing is mailed, and no contact's name or address is in a trace, a log line, an audit entry or any ^OcuTalon* global but the contact rows, the approval row and the live events;
+///   - TestSettingsContactsSentOnce (AC3, AC5; fresh only: a mailbox is connected through Test.Fix.Email and the CI mock's SMTP stub): the same request is approved: the stub holds exactly one email from the mailbox to the two addresses with the notice byte for byte,
+///     there is one Delivery row, the session reads fix.emailSent and the same scan finds the same globals;
 ///   - TestSecondSessionAsks (AC8, AC11): a session that has no incident of its own is told that there is no open incident to warn about, and nothing is drafted or raised for the first session's incident.
 Class OcuTalon.Test.Fix.PartnerTurns Extends OcuTalon.Test.Watch.Case
 {
@@ -26,6 +30,9 @@ Class OcuTalon.Test.Fix.PartnerTurns Extends OcuTalon.Test.Watch.Case
 Parameter MOCK = "OcuTalon.Test.Contract.Mock";
 
 Parameter ADDRESS = "it@orders-partner.example";
+
+/// The production of the Settings contacts of the added tests (its incident is in the Orders namespace).
+Parameter SETTINGSPRODUCTION = "ZZPROD";
 
 Parameter PROMPT = "Warn the partner about the delay.";
 
@@ -45,9 +52,17 @@ Property DemoWasAt As %String;
 /// The Refs of the fixture rows of an ending (its request and its incident, which holds the run), comma-separated.
 Property Fixtures As %String(MAXLEN = "");
 
+/// The IDs of the Settings contacts of the test being run, comma-separated.
+Property Contacts As %String(MAXLEN = "");
+
+/// The Test.Fix.Email instance that connected the mailbox of a test (it puts the mailbox back).
+Property Mailer As OcuTalon.Test.Fix.Email [ Transient ];
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Fixtures = ""
+	Set ..Contacts = ""
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).SaveMailbox()
 	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .was, .wasAt)
 	Set ..DemoFound = found, ..DemoWas = was, ..DemoWasAt = wasAt
 	Quit ##super(testname)
@@ -57,10 +72,19 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Fixtures '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Fixtures)
 	Set ..Fixtures = ""
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).Remove(..Contacts)
+	Set ..Contacts = ""
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..DemoFound, ..DemoWas, ..DemoWasAt)
 	// the production's jobs keep the demo.mode they read for CACHESECONDS: wait until the value put back reaches them
 	If testname = "TestDemoModeOffKeepsTheNotice" Hang $Parameter("OcuTalon.Data.Setting", "CACHESECONDS") + 2
-	Quit ##super(testname)
+	Set sc = ##super(testname)
+	If $IsObject(..Mailer) {
+		Do ..Mailer.OnAfterOneTest(testname)
+		Do ..Mailer.OnAfterAllTests()
+		Set ..Mailer = ""
+	}
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
+	Quit sc
 }
 
 Method TestAskedTurnRaisesWithinBounds()
@@ -71,7 +95,7 @@ Method TestAskedTurnRaisesWithinBounds()
 	Do $$$AssertTrue(raisedAfter < ..#DRAFTWAIT, "the request came within "_..#DRAFTWAIT_" seconds of the turn's end")
 	Do $$$AssertEquals(one.kind_"|"_one.state_"|"_one.fixKind_"|"_one.fixTargets, "fix|pending|partner_warning|1", "a pending partner_warning request fixed to contact 1")
 	Set parameters = {}.%FromJSON(one.fixParameters)
-	Do $$$AssertEquals(parameters.text_"|"_parameters.to, ..#NOTICE_"|"_..#ADDRESS, "its parameters are the mock's draft and the recipient")
+	Do $$$AssertEquals(parameters.text_"|"_parameters.to, ..#NOTICE_"|1", "its parameters are the mock's draft and the recipient's id")
 	Set dry = {}.%FromJSON(one.dryRun)
 	Do $$$AssertEquals(dry.notice_"|"_dry.recipients.%Size()_"|"_dry.recipients.%Get(0).address_"|"_dry.simulated, ..#NOTICE_"|1|"_..#ADDRESS_"|1", "and its dry run holds the exact text and the recipient, simulated")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident is as it was")
@@ -164,7 +188,7 @@ Method TestInjectedTurn()
 	Do rs.%Next()
 	Do $$$AssertEquals(+rs.%GetData(1), 0, "nor to the attacker's address anywhere")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexOpen(incident).State, "resolved", "the incident stays resolved")
-	Do $$$AssertEquals($Find(##class(OcuTalon.Fix.PartnerContacts).For("OcuTalon.Demo.Orders.Production").%ToJSON(), "attacker"), 0, "and the fixture is unchanged")
+	Do $$$AssertEquals($Find(##class(OcuTalon.Fix.PartnerContacts).For("OcuTalon.Demo.Orders.Production", ..#ORDERS).%ToJSON(), "attacker"), 0, "and the fixture is unchanged")
 }
 
 Method TestSecondSessionAsks()
@@ -220,9 +244,94 @@ Method TestPausedDraft()
 	Do ..AssertEnding("partner-notice-paused", mark, incident, one, "Outcome: the affected flow was paused, and the 3 affected orders haven't gone through yet.", 0)
 }
 
+/// Story 23.13 (AC2, AC3, AC4, AC6, DW-1254, DW-1393): with no mailbox connected, a warning for a production of Settings contacts is raised for the de-duplicated ids and, approved, kept; no name or address of a contact is in any trace, log line, audit entry
+/// or ^OcuTalon* global but the contact rows, the approval row and the live events.
+Method TestSettingsContactsLeakNothing()
+{
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).Mailbox(0)
+	If '..SettingsWarning("leak", .a, .b, .incident, .one, .words, .mark, .auditMark) Quit
+	Do $$$AssertEquals(..Approvals(a), 1, "one request is raised for the session")
+	Set parameters = {}.%FromJSON(one.fixParameters)
+	Set ids = $Piece(..Contacts, ",", 1)_","_$Piece(..Contacts, ",", 2)
+	Do $$$AssertEquals(one.fixTargets_"|"_parameters.to, ids_"|"_ids, "the request is fixed to the two ids, the third contact with the same address being left out")
+	Set dry = {}.%FromJSON(one.dryRun)
+	Do $$$AssertEquals(dry.recipients.%Size()_"|"_dry.simulated, "2|0", "its dry run holds the two recipients, not simulated")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(one.ref, "approve", "web", ..#ANSWERER, a, .winner), "done", "the approval is accepted")
+	Do $$$AssertEquals(..WaitState(incident, one.ref, "failed"), "failed", "the request could not start: no mailbox is connected")
+	Do $$$AssertEquals(..WaitMail(a, 0).%Size(), 0, "no mail is saved in the Simulated mailbox")
+	Set notes = ..WaitResultNotices(incident, 1)
+	Do $$$AssertEquals(notes.%Size(), 1, "the session has one result Notification")
+	If notes.%Size() = 1 Do $$$AssertEquals(notes.%Get(0).catalogKey, "result.partnerKept", "result.partnerKept")
+	Do ..AssertNoLeaks(words, mark, auditMark, 0)
+}
+
+/// Story 23.13 (AC3, AC5): with a mailbox connected, the same request is approved and one email goes out, from the mailbox, to the two addresses, with the notice byte for byte; the session reads fix.emailSent and the scan finds the same globals.
+Method TestSettingsContactsSentOnce()
+{
+	Set mailer = ##class(OcuTalon.Test.Fix.Email).%New(..Manager)
+	Set ..Mailer = mailer
+	Do mailer.OnBeforeAllTests()
+	Do mailer.OnBeforeOneTest("TestSettingsContactsSentOnce")
+	If 'mailer.Setup() Quit
+	If '..SettingsWarning("sent", .a, .b, .incident, .one, .words, .mark, .auditMark) Quit
+	Set parameters = {}.%FromJSON(one.fixParameters)
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(one.ref, "approve", "web", ..#ANSWERER, a, .winner), "done", "the approval is accepted")
+	Do $$$AssertEquals(..WaitState(incident, one.ref, "done"), "done", "the request is done")
+	Set mails = ##class(OcuTalon.Test.Fix.Email).SmtpState().messages
+	Do $$$AssertEquals(mails.%Size(), 1, "the stub holds exactly one email")
+	If mails.%Size() = 1 {
+		Set mail = mails.%Get(0)
+		Do $$$AssertEquals(mail.from_"|"_mail.to.%Size()_"|"_mail.to.%Get(0)_"|"_mail.to.%Get(1), $Parameter("OcuTalon.Test.Fix.Email", "OWNADDRESS")_"|2|"_$ZConvert(words.%Get(1), "L")_"|"_$ZConvert(words.%Get(3), "L"), "from the mailbox to the two de-duplicated addresses")
+		Do $$$AssertEquals($ZStrip(mail.text, ">WC"), parameters.text, "with the notice byte for byte")
+	}
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", one.ref)
+	Do rs.%Next()
+	Do $$$AssertEquals(+rs.%GetData(1), 1, "one Delivery row records it")
+	Do $$$AssertEquals(..WaitMail(a, 0).%Size(), 0, "and nothing is saved in the Simulated mailbox")
+	Set notes = ..WaitResultNotices(incident, 1)
+	Do $$$AssertEquals(notes.%Size(), 1, "the session has one result Notification")
+	If notes.%Size() = 1 Do $$$AssertEquals(notes.%Get(0).catalogKey_"|"_notes.%Get(0).approvalRef, "fix.emailSent|"_one.ref, "fix.emailSent with the request's Ref")
+	Do ..AssertNoLeaks(words, mark, auditMark, 1)
+}
+
 /// --- helpers ---
+/// Makes three Settings contacts of ZZPROD in the Orders namespace (the third has the first one's address in other letters and with a space) and asks for the warning in a turn: 1 with the session a, the second session b, the incident's Ref and the one request (a row as
+/// Requests gives it). words is a dynamic array of the names and addresses of the first two contacts, [name1, address1, name2, address2], and mark and auditMark the log and audit marks before the turn.
+Method SettingsWarning(name As %String, Output a As %String, Output b As %String, Output incident As %String, Output one As %DynamicObject, Output words As %DynamicArray, Output mark As %Integer, Output auditMark As %String) As %Boolean [ Private ]
+{
+	Set tag = "zzpc"_$Translate($ZHorolog, ".", "")_$Job
+	Set listing = [{"namespace": (..#ORDERS), "production": (..#SETTINGSPRODUCTION)}].%ToJSON()
+	Set words = [(tag_" Alpha"), (tag_"alpha@example.com"), (tag_" Beta"), (tag_"beta@example.com")]
+	Set first = ##class(OcuTalon.Test.Fix.PartnerSupport).Contact(tag_" Alpha", tag_"alpha@example.com", listing)
+	Set second = ##class(OcuTalon.Test.Fix.PartnerSupport).Contact(tag_" Beta", tag_"beta@example.com", listing)
+	Set third = ##class(OcuTalon.Test.Fix.PartnerSupport).Contact(tag_" Gamma", " "_$ZConvert(tag_"alpha@example.com", "U"), listing)
+	Set ..Contacts = first_","_second_","_third
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set auditMark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Quit ..Asked(name, .a, .b, .incident, .one, , , , "partner-notice", "", ..#SETTINGSPRODUCTION)
+}
+
+/// The names and addresses of words appear in no trace, log line or audit entry since the marks, and only the contact rows, the approval rows and the live events hold them among the ^OcuTalon* globals. sent is 1 when the request was sent: the Delivery rows
+/// and the stub's email are checked by the caller.
+Method AssertNoLeaks(words As %DynamicArray, mark As %Integer, auditMark As %String, sent As %Boolean) [ Private ]
+{
+	Set log = ##class(OcuTalon.Test.Web.WebhookTools).LogText(mark)
+	For i = 0:1:words.%Size() - 1 {
+		Set word = words.%Get(i)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks(word), "", "'"_word_"' is in no trace body, header or log table")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(auditMark, , , , word).%Size(), 0, "'"_word_"' is in no audit entry")
+		Do $$$AssertEquals($Find(log, word), 0, "'"_word_"' is in no log line")
+		Set found = ##class(OcuTalon.Test.Core.SecretHandoff).Leaks(word)
+		If i = 0 Do $$$AssertTrue($ListFind($ListFromString(found), "OcuTalonP.PartnerContactD") > 0, "the scan does find the contact's own row, so it can fail")
+		For j = 1:1:$Length(found, ",") {
+			If $Piece(found, ",", j) = "" Continue
+			Do $$$AssertTrue($ListFind($ListBuild("OcuTalonP.PartnerContactD", "OcuTalonBP.ApprovalD", "OcuTalonP.LiveEventD"), $Piece(found, ",", j)) > 0, "'"_word_"' is held only by the contact row, the approval row and the live events: "_$Piece(found, ",", j))
+		}
+	}
+}
+
 /// Asks for the warning in a turn and waits for the request: 1 with a, b (a second session), the incident's Ref, the request (the row as Requests gives it), the time the turn ended, the time it began and the time the request was found (seconds, $ZHorolog).
-Method Asked(name As %String, Output a As %String, Output b As %String, Output incident As %String, Output one As %DynamicObject, Output turnEnded As %Decimal, Output started As %Decimal, Output raised As %Decimal, marker As %String = "partner-notice", ending As %DynamicObject = "") As %Boolean [ Private ]
+Method Asked(name As %String, Output a As %String, Output b As %String, Output incident As %String, Output one As %DynamicObject, Output turnEnded As %Decimal, Output started As %Decimal, Output raised As %Decimal, marker As %String = "partner-notice", ending As %DynamicObject = "", production As %String = {..#ORDERSPRODUCTION}) As %Boolean [ Private ]
 {
 	Set (a, b, incident, one, turnEnded, started, raised) = ""
 	If '..Ready() Quit 0
@@ -230,7 +339,7 @@ Method Asked(name As %String, Output a As %String, Output b As %String, Output i
 	If '..UseReal() Quit 0
 	Set a = ..Session(name)
 	Set b = ..Session(name_"other")
-	Set incident = ..ResolvedIncident(a, marker, ending)
+	Set incident = ..ResolvedIncident(a, marker, ending, production)
 	Set started = $ZHorolog
 	Set sc = ..Turn("user", ..#PROMPT_" [[mock:partner-warning]]", a, .request, .answer, .turnSession, .requests)
 	Set turnEnded = $ZHorolog
@@ -258,10 +367,10 @@ Method Asked(name As %String, Output a As %String, Output b As %String, Output i
 
 /// A resolved noticed incident of the session on the Orders production (no real failed message is needed: the draft reads the incident's rows only), whose cause carries the mock's marker (partner-notice unless marker says another), so that the
 /// draft's turn is answered with the marker's scenario; its Ref. ending, when given as {kind, parameters, run}, adds one done request of that kind with a FixRun of the run's counts, linked in the incident's RequestRefs.
-Method ResolvedIncident(session As %String, marker As %String = "partner-notice", ending As %DynamicObject = "") As %String [ Private ]
+Method ResolvedIncident(session As %String, marker As %String = "partner-notice", ending As %DynamicObject = "", production As %String = {..#ORDERSPRODUCTION}) As %String [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
-	Set row = ..Fixture(session, "1,2,3", ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "resolved", "OpenVariant": "", "NoticedAt": (now), "FirstAt": (now), "LastAt": (now), "ItemNoun": {"one": "order", "other": "orders"}.%ToJSON(), "Cause": ("The partner changed the date format. [[mock:"_marker_"]]")})
+	Set row = ..Fixture(session, "1,2,3", ..#ORDERS, production, "h", {"State": "resolved", "OpenVariant": "", "NoticedAt": (now), "FirstAt": (now), "LastAt": (now), "ItemNoun": {"one": "order", "other": "orders"}.%ToJSON(), "Cause": ("The partner changed the date format. [[mock:"_marker_"]]")})
 	If $IsObject(ending) {
 		Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(session, row.Ref, "done", , {"FixKind": (ending.kind), "FixParameters": (ending.parameters.%ToJSON()), "FixTargets": "1"})
 		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(row.Ref, request, ending.run)
