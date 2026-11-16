@@ -68,3 +68,5 @@
 2026-11-16T03:13:41Z	Epic 24	integrated_forward	feature=28ee30d1(DW-1412_merged;23.13_not_landed) conflicts_resolved=cycle-log-epic-24(union)
 2026-11-16T03:13:41Z	Story 24.4b	planner_rulings_applied	source=<coordination>/prompts/story-244-rulings-20261115.md#24.4b_closed-card_ruling every_pending_undo_whenever_raised pins=(a)(b1)(b2)(c) EXPERIENCE_reworded=(d) demo=(e)
 2026-11-16T03:13:41Z	Story 24.4b	stage_spawned	stage=implement spawn_at=2026-11-16T03:13:41Z model=sonnet effort=high branch=OCT-epic24
+2026-11-16T06:14:13Z	Story 24.4b	dev_complete	model=sonnet build_sha=8b096f1f baseline=6be77202 files=10 mutations=13(pins_a_kind,a_state,b1,b2,c(test-side),jump,band_once,kind_rule,F1-F4,BUTTONKINDS(reverted),AC3,AC5) web=2178_pass deferred=2(closed_card_silent_after_answer(ruling_consequence);pin_c_no_settle_step) B13=not_run note=spec_truncated_by_a_script_and_rebuilt_by_the_stage
+2026-11-16T06:14:13Z	Story 24.4b	stage_spawned	stage=code-review spawn_at=2026-11-16T06:14:13Z model=opus effort=high scope=6be77202..HEAD branch=OCT-epic24
