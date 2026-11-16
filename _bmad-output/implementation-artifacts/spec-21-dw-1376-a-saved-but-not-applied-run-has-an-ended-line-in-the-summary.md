@@ -213,6 +213,29 @@ Line numbers are at the baseline `40f087aa1` (DW-1373's head plus its plan log).
    - mutation: the entry's "but " taken out of its text -> `TestEveryKeyOnEveryChannel` red (the fixture text), and `TestSettingSavedNotAppliedLine` red ("and reads as ruled").
 5. Given a run whose restore worked (could not start), a done or skipped run, an interrupted run or one that has not ended, then its summary line is as before. `TestKindLines`, `TestSettingLines` and `TestRunEdges` pass unchanged, and so do `Test.Watch.Lifecycle` and `Test.Watch.SettingValues`, which read setting and item summary keys.
 
+### Review Findings
+
+Code review (2026-11-16, lane C, diff `5a0038e16..dc7c6bfb9` without the bookkeeping files; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). High 0, medium 1, low 4 patched; 9 rejected. The approved text and the product code are unchanged; the patches touch test classes only.
+
+- [x] [Review][Patch] (med, Rule 2) The two new `Test.Fix.ItemKinds` helpers repeated the same open, set `RequestRefs`, save, `Build` and assert sequence, and `KeyAfter` copied `Test.Watch.Summary.AfterStarted` — one private `StoredSummary` now builds the summary for `SummaryKeys` and `SavedNotAppliedLine`, and `TestRestoredRunSummary` calls `Test.Watch.Summary.AfterStarted` [src/ocutalon/cls/OcuTalon/Test/Fix/ItemKinds.cls:764]
+- [x] [Review][Patch] (low, Rule 19) "no placeholder is left" (`$Find(text, "{")`) could never fail: `Msg.Catalog.Fill` refuses a leftover slot and `Text` then returns "" with an error status — the assertion is removed; the status, count and slot-text asserts carry the claim [src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls:1015]
+- [x] [Review][Patch] (low) The channel test checked the raw UTC stamp for the rollback's line only — one assertion now checks both ends (`settingEnded` and `itemEnded`) [src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls:1015]
+- [x] [Review][Patch] (low) `TestRestoredRunSummary`'s doc said the runs "are failed with Unreached 0", which the method does not assert — the doc now names the methods that assert it (`TestSettingNotApplied`, `TestItemThatCannotBeChanged`) [src/ocutalon/cls/OcuTalon/Test/Fix/ItemKinds.cls:732]
+- [x] [Review][Patch] (low) No fresh run of `Test.Msg.Catalog` or `Test.Watch.Summary`, and no `catalog.mjs --check`, was recorded, and QA's tests had warm runs only — run in this review (see `## Verification`, "Code review runs")
+
+Focus checks (no finding): the catalog text is byte-identical to the approved text, ASCII apostrophe, slots `time`/`setting`/`target` as the other setting summary lines; the only stored end with Completed 0 and Unreached above 0 for a setting or item kind is `Fix.Run`'s `notapplied` path (`InProduction` sets it only after the change was saved and the restore failed; `CouldNotStart` and the done `Finish` pass no `unreached`), so the line is true wherever it appears; the restore-stored-but-update-failed sub-case is the Planner-accepted wording (23.3 Blind 2, DW-1373), confirmed, not reopened; `Test.Msg.Catalog` 146 is consistent and no `summary.*` key is on the web; OCT-epic23's Watch key takes the count to 147 when it merges second (Design Notes); no AD change (AD-15, AD-32 hold).
+
+Rejected:
+- Edge 1 (false): an item request without `item` gives an empty target slot — `SuspendItem.DryRun` runs `CheckParameters` (PARAMETERS "item") and looks the name up in the production, so no stored item request lacks it; `summary.itemSuspended` takes the same value.
+- Edge 2 (false): an item kind that does not inherit `ENABLEDSETTING` — `SuspendItem` and `ResumeItem` (which extends it) are the only kinds with TARGETTYPE "item".
+- Edge 3 (false): a padded item name — `DryRun` requires the name to be an item of the production (`ItemNamed`), so a padded name never reaches a stored request.
+- Edge 4 (false): `RefIndexOpen` returning no object in the test helpers — the test made the incident itself one line earlier, and an <INVALID OREF> fails the method loudly.
+- Blind 2b (low): `TestRestoredRunSummary` repeats the refused halves of `TestSettingNotApplied` and `TestItemThatCannotBeChanged` — one claim per method; folding it in is a restructure, not a direct correction, for about one second of run time.
+- Blind 5 (low): the `Watch.Summary` class header names no setting-run end — pre-existing since 23.3 (rejected as Blind 6 in the build review); the `RunEvents` doc names `SummaryRunKey`; the line is the OCT-epic23 merge overlap.
+- Blind 6 (low): stale spec bookkeeping (Code Map baseline, "nine mutation lines", residual-risk wording) — the fix edits the spec under review.
+- Auditor 2 (low): the build review's log heading is dated 2026-11-15 — the fix edits the spec under review.
+- Blind 1 / Auditor 1 are grouped into the last patch above.
+
 ## Design Notes
 
 **One key for both kinds.** The Planner approved one text with `{setting}` and `{target}`. DW-1373 already renders the item run's result line through `result.settingSavedNotApplied` with setting `Enabled` and target the item (`Notice.ResultSlots`). Using the same slots here keeps the session, the card and the summary saying the same thing about the same run:
@@ -308,6 +331,15 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - Run by the build stage after the handoff: fresh `ci/iris.sh shard lane-a@Fix` (tag e21dw1376if): passed, 30 classes, 1073 s, `Test.Fix.ItemKinds` passed on the fresh stack (9.80 s); `cd web && npm test`: 2174 tests, 2174 pass, 0 fail; `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh`: all rules passed; the spine lint: 12 findings, all low (the baseline of 12 low).
 - The diff holds only the footprint files, no added non-ASCII character, no absolute local path; the catalog text is byte-identical to the approved text, with an ASCII apostrophe.
 - The warm stack was removed with `ci/warm.sh down` at the end.
+
+**Code review runs** (2026-11-16, lane C; warm tag e21dw1376cw, fresh tag e21dw1376cf; one class per call):
+- Warm, before the patches: `OcuTalon.Test.Watch.Summary` passed, `OcuTalon.Test.Msg.Catalog` passed, and after a production restart `OcuTalon.Test.Fix.ItemKinds` passed.
+- Warm, after the patches: `OcuTalon.Test.Watch.Summary` passed, `OcuTalon.Test.Msg.Catalog` passed, and after a production restart `OcuTalon.Test.Fix.ItemKinds` passed.
+- mutation (review, the channel test's time assert now covers both lines): the catalog entry's `time` slot declared `"text"` -> `Test.Watch.Summary:TestSavedNotAppliedLineOrderAndChannels` red on the web, the phone and Telegram ("each time is shown as a time, not as the stored UTC stamp"); reverted, `cmp` identical, `git status --short` and `git diff --stat` as before.
+- mutation (review, after the helper change): the item branch's condition widened to `If (+run.Completed = 0) {` -> `Test.Fix.ItemKinds:TestRestoredRunSummary` red ("suspend_item: the summary ends the run that could not start with its not-changed line", and "and has no not-applied line"); reverted, `cmp` identical, tree as before, the method green again.
+- Fresh, after the patches: `OcuTalon.Test.Watch.Summary` passed, `OcuTalon.Test.Msg.Catalog` passed, `OcuTalon.Test.Fix.ItemKinds` passed.
+- `node web/scripts/catalog.mjs --check` exit 0 ("generated files are current"); `bash docker/tests/test-class-rules.sh`: all rules passed.
+- Both tags torn down: 0 leftover containers, volumes, networks and images.
 
 ## Review Triage Log
 

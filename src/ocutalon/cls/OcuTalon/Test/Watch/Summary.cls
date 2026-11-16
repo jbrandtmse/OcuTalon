@@ -978,7 +978,7 @@ Method TestSavedNotAppliedLineEdges()
 
 /// DW-1376 (QA), the line sits at the run's EndedAt and renders on every channel that the summary goes to (the web, the Simulated phone and Telegram; Watch.Summary Text is the only
 /// reader and email has none): a rollback_setting run that is started first and ended last, and a suspend_item run that starts and ends between those two, are ordered by their ends, each line
-/// has the slots of its own run, and each channel renders both lines once, with the time shown as a time (never the stored UTC stamp) and no placeholder left.
+/// has the slots of its own run, and each channel renders both lines once, with their slots filled and each time shown as a time (never the stored UTC stamp).
 /// mutation: the setting branch's Event keyed by run.StartedAt instead of run.EndedAt (the line moves before the other request's lines); the catalog entry's time slot declared "text" (the
 /// stored UTC stamp is shown).
 Method TestSavedNotAppliedLineOrderAndChannels()
@@ -1012,8 +1012,7 @@ Method TestSavedNotAppliedLineOrderAndChannels()
 		Do $$$AssertEquals($Length(text, tail) - 1, 2, render_": the line is in the text once for each run")
 		Do $$$AssertTrue(text [ (": Enabled on OrdersToWarehouse"_tail), render_": the suspend's line has its slots filled")
 		Do $$$AssertTrue(text [ (": ZzFixtureNote on OrdersFromPartner"_tail), render_": and so has the rollback's")
-		Do $$$AssertEquals($Find(text, "{"), 0, render_": no placeholder is left")
-		Do $$$AssertEquals($Find(text, settingEnded), 0, render_": the time is shown as a time, not as the stored UTC stamp")
+		Do $$$AssertEquals($Find(text, settingEnded)_"|"_$Find(text, itemEnded), "0|0", render_": each time is shown as a time, not as the stored UTC stamp")
 	}
 }
 

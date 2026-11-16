@@ -730,9 +730,9 @@ Method TestItemNotApplied()
 }
 
 /// DW-1376 (QA), the other end of the restore-failed path, through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a setting and an item that the production
-/// refused and whose earlier value was written back (the entry unreached as refused, so the run could not start) are failed with Unreached 0, and the incident summary, built from the stored run,
-/// ends each with summary.settingNotChanged or summary.itemNotChanged and has no summary.settingSavedNotApplied. mutation: Watch.SettingCause SummaryRunKey's condition widened to Completed 0
-/// alone; the item branch of Watch.Summary RunEvents widened to Completed 0 alone.
+/// refused and whose earlier value was written back (the entry unreached as refused, so the run could not start, with Unreached 0, as TestSettingNotApplied and TestItemThatCannotBeChanged
+/// assert): the incident summary, built from the stored run, ends each with summary.settingNotChanged or summary.itemNotChanged and has no summary.settingSavedNotApplied.
+/// mutation: Watch.SettingCause SummaryRunKey's condition widened to Completed 0 alone; the item branch of Watch.Summary RunEvents widened to Completed 0 alone.
 Method TestRestoredRunSummary()
 {
 	Set a = ..Session("restored")
@@ -754,19 +754,27 @@ Method TestRestoredRunSummary()
 		Set ref = ..Request(a, incident, kind, parameters, "7", dryRun)
 		Do $$$AssertStatusOK(..Handle(host, ref), kind_": the Execute of the restored change is handled")
 		Set keys = ..SummaryKeys(incident, ref)
-		Do $$$AssertEquals(..KeyAfter(keys, "summary.fixStarted"), $Select(setting: "summary.settingNotChanged", 1: "summary.itemNotChanged"), kind_": the summary ends the run that could not start with its not-changed line: "_keys)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Summary).AfterStarted(keys), $Select(setting: "summary.settingNotChanged", 1: "summary.itemNotChanged"), kind_": the summary ends the run that could not start with its not-changed line: "_keys)
 		Do $$$AssertEquals($Length(keys, "summary.settingSavedNotApplied") - 1, 0, kind_": and has no not-applied line")
 	}
 }
 
-/// The keys of the parts of the incident's summary, comma-separated, as Watch.Summary builds it from the stored rows with the request as the incident's only request. "" when it cannot be built.
-Method SummaryKeys(incident As %String, ref As %String) As %String [ Private ]
+/// The incident's summary as Watch.Summary builds it from the stored rows with the request as the incident's only request (the incident is saved with RequestRefs the request).
+/// "" when it cannot be built.
+Method StoredSummary(incident As %String, ref As %String) As %DynamicObject [ Private ]
 {
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Set row.RequestRefs = ref
 	Do $$$AssertStatusOK(row.%Save(), "the incident names the request")
 	Set summary = ##class(OcuTalon.Watch.Summary).Build(row, "dismiss", ##class(OcuTalon.Data.Time).NowUtc(), 0, .sc)
 	Do $$$AssertStatusOK(sc, "the summary is built from the stored run")
+	Quit $Select($IsObject(summary): summary, 1: "")
+}
+
+/// The keys of the parts of the incident's StoredSummary, comma-separated. "" when it cannot be built.
+Method SummaryKeys(incident As %String, ref As %String) As %String [ Private ]
+{
+	Set summary = ..StoredSummary(incident, ref)
 	If '$IsObject(summary) Quit ""
 	Set keys = ""
 	Set iterator = summary.parts.%GetIterator()
@@ -776,23 +784,10 @@ Method SummaryKeys(incident As %String, ref As %String) As %String [ Private ]
 	Quit keys
 }
 
-/// The key that follows the first occurrence of key in the comma-separated keys, "" when there is none.
-ClassMethod KeyAfter(keys As %String, key As %String) As %String [ Private ]
-{
-	Set list = $ListFromString(keys)
-	Set at = $ListFind(list, key)
-	Quit $Select(at = 0: "", 1: $ListGet(list, at + 1))
-}
-
-/// The incident's summary line of the run of the request, as Watch.Summary builds it from the stored rows with the request as the incident's only request, rendered for the phone. "" when
-/// the summary has no summary.settingSavedNotApplied part.
+/// The summary.settingSavedNotApplied line of the incident's StoredSummary, rendered for the phone. "" when the summary has no such part.
 Method SavedNotAppliedLine(incident As %String, ref As %String) As %String [ Private ]
 {
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
-	Set row.RequestRefs = ref
-	Do $$$AssertStatusOK(row.%Save(), "the incident names the request")
-	Set summary = ##class(OcuTalon.Watch.Summary).Build(row, "dismiss", ##class(OcuTalon.Data.Time).NowUtc(), 0, .sc)
-	Do $$$AssertStatusOK(sc, "the summary is built from the stored run")
+	Set summary = ..StoredSummary(incident, ref)
 	If '$IsObject(summary) Quit ""
 	Set line = ""
 	Set iterator = summary.parts.%GetIterator()

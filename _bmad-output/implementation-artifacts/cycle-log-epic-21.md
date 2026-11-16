@@ -532,3 +532,5 @@
 2026-11-16T07:58:08Z	DW-1376	stage_spawned	stage=qa spawn_at=2026-11-16T07:58:08Z model=sonnet effort=high agent_name=dw-1376-qa-1 cycle_iteration=1
 2026-11-16T08:07:34Z	DW-1376	qa_complete	model=sonnet commit=e5f7fb440 tests=TestSavedNotAppliedLineEdges,TestSavedNotAppliedLineOrderAndChannels(web,phone,Telegram),TestRestoredRunSummary mutations=8 findings=none_product(mixed_run_cannot_occur_today:single-target_kinds)
 2026-11-16T08:07:34Z	DW-1376	stage_spawned	stage=code-review spawn_at=2026-11-16T08:07:34Z model=opus effort=high agent_name=dw-1376-code-review-1 cycle_iteration=1
+2026-11-16T08:26:49Z	DW-1376	cr_complete	model=opus findings=14(med1_patched:StoredSummary_helper;low4_patched;9_rejected) high=0 tests_only text_unchanged fresh=Summary,Catalog,ItemKinds_pass catalog.mjs--check=0 final_status=done
+2026-11-16T08:26:49Z	DW-1376	ledger	DW-1376=resolved-by:dw-1376

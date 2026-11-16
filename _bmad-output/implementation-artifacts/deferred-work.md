@@ -8357,6 +8357,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Watch.SettingCause SummaryRunKey returns empty for Completed 0 with Unreached>0 (c968df2b)
 - 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:approved_for_1.0.12_new_text_summary.settingSavedNotApplied='{time}: {setting} on {target} was changed, but the production couldn't apply it.'_pin_on_restore-failed_path;not_a_23.3_re-push
+- 2026-11-16T08:26:49Z status=resolved-by:dw-1376 by=epic-runner note=summary.settingSavedNotApplied (approved text verbatim) ends a saved-but-not-applied setting or item run (f4b52a8c2); restore-OK runs keep was-not-changed; web, phone and Telegram render it
 
 ### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
