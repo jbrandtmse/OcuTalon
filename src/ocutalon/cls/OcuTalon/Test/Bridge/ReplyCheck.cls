@@ -411,7 +411,7 @@ Method TestRefusalTextForms()
 	Do $$$AssertTrue((text '[ marker) && (text '[ "rule"), "l: and holds nothing of it")
 	Set sc = $SYSTEM.Status.Error(5001, "t", "zzmarkerprobe")
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "l: nor does a value that has the form of a tag but is not listed")
-	Set sc = $SYSTEM.Status.Error(5001, "t", "zz-"_$ZConvert($Piece(marker, "zzmark", 2), "L"))
+	Set sc = $SYSTEM.Status.Error(5001, "t", "zz-"_$ZConvert($Translate($Piece(marker, "zzmark", 2), "_", "-"), "L"))
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "l: nor does a lower-case value with a hyphen")
 	Set sc = $SYSTEM.Status.Error(5001, "t", "cause-blank")
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "m: a tag of another reply class (the probe's own list lacks cause-blank)")
@@ -419,7 +419,7 @@ Method TestRefusalTextForms()
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, "OcuTalon.NoSuchClass"), "ERROR #5001", "m: a class that does not exist lists none")
 	Set sc = $SYSTEM.Status.Error(5001, "t", "confidence-missing:confidence")
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "m: a pair of the list is not a tag")
-	// n (QA): a value that is a part of the list but not a whole tag - a field of a pair, the start or the end of a tag - is not one either
+	// n: a value that is a part of the list but not a whole tag - a field of a pair, the start or the end of a tag - is not one either
 	For near = "confidence", "outcome", "reasons", "confidence-miss", "missing", "unlisted", "blank" {
 		Set sc = $SYSTEM.Status.Error(5001, "t", near)
 		Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "n: "_near_", a part of the list that is not a whole tag, gives the bare form")

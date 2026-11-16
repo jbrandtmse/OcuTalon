@@ -2,8 +2,9 @@
 /// reply that a fallback decision of kind decide or diagnose got, from the Ens message store, and checks each one again with Decide.Recheck, the reply check that Decide
 /// makes, to say which rule of the reply class refused it. It writes one file per reply into a folder, and summary.json (when there is a decision). The files hold the raw text: nothing else does.
 ///   - The replies of a decision. The request headers whose body is an OcuTalon.Bridge.Msg.Request that carries the decision's Ref (the request that Decide sent to a runner,
-///     and the one it sent to the retry runner), in header order, are the attempts 1, 2; the reply of an attempt is the OcuTalon.Bridge.Msg.Reply body of the response header
-///     whose CorrespondingMessageId is that request header. The runner is the TargetConfigName of the request header, and its reply class is Decide.ReplyClassOf.
+///     a re-send to the same runner, and the one it sent to the retry runner), in header order, are the attempts 1, 2, ...; the reply of an attempt is the OcuTalon.Bridge.Msg.Reply
+///     body of the response header whose CorrespondingMessageId is that request header. The runner is the TargetConfigName of the request header, and its reply class is Decide.ReplyClassOf.
+///     Each reply of a decision whose reason is invalid is checked again, whatever ended its own attempt; its file keeps the attempt's finishReason, which tells a cut-off one apart.
 ///   - The rule and the field of a reply. The problem of Recheck says the stage (the check, the check after the filter, or no reason left after the filter) and the parts
 ///     that the check refused, in words that quote nothing of the reply (Decide RefusalText). The rule is the first part: the tag of "ERROR #5001 rule <tag>", else the part as it is.
 ///     The field is the tag's field in REFUSALRULES of the reply class, else the JSON field name of a compiled property that the part names, else empty. The fixed rule names are
@@ -32,16 +33,16 @@ Parameter NOCHECK = "no check";
 
 /// Writes the files of the fallback decisions of kind decide and diagnose (only the Refs in the comma-separated refs, when given) into the folder, and gives the summary: the
 /// counts of the decisions, replies and files, the decisions by reason, the replies by rule and field, and by case and rule. The folder is made when it is missing; the files of
-/// an earlier capture in it (this class's own file names) are deleted first.
+/// an earlier capture in it (this class's own file names) are deleted first. An empty folder is an error, never the process's own directory.
 ClassMethod Run(folder As %String, refs As %String = "", Output summary As %DynamicObject) As %Status
 {
 	Set summary = {"decisions": 0, "decide": 0, "diagnose": 0, "replies": 0, "files": 0, "noReply": 0, "reasons": {}, "rules": [], "cases": [], "names": []}
 	Try {
-		Set folder = ##class(%File).NormalizeDirectory(folder)
-		If folder = "" {
+		If $ZStrip(folder, "<>W") = "" {
 			Set sc = $$$ERROR($$$GeneralError, "The capture folder is empty")
 			Quit
 		}
+		Set folder = ##class(%File).NormalizeDirectory(folder)
 		If '##class(%File).DirectoryExists(folder) && '##class(%File).CreateDirectoryChain(folder) {
 			Set sc = $$$ERROR($$$GeneralError, "The capture folder cannot be made")
 			Quit

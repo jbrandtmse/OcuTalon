@@ -258,6 +258,44 @@ Line numbers are at the baseline `1de31e808`.
   - Pinning test: rule `capture`.
 - Standing criterion (Rule 19): every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review (lane C, 2026-11-16, tags e0dw1421c*; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; diff `165547dd1`..`64b72d142` without the bookkeeping files). 30 entries after grouping: high 0, medium 3, low 25, false 2, plus a note. Every patch is applied (unattended option 1); nothing is deferred and no ledger entry is made. AD-8 is unchanged: the same replies are refused, in the same rule order, with the same `invalid` fallback (acceptance auditor and triage).
+
+- [x] [Review][Patch] (medium) The silence tests compared counts of the whole instance while the production runs: `TestNothingIsWrittenAnywhere` (row counts of every product table, non-OcuTalon headers, all OcuTalon audit entries) and `Snap` (Decision, Usage, bridge headers) can go red from another job's work. Patched: `Writes` calls Run or Recheck up to three times and fails only on a count that changed in every try (`Moved`, `Counts`; `Snap` in the same `name=count;` form), and the audit count is of this process's user [src/ocutalon/cls/OcuTalon/Test/Eval/Capture.cls]
+- [x] [Review][Patch] (medium) "A second run replaces the files of the first" could not fail (same refs, same names; its status unasserted), so `Clear` and "only its own names" were unpinned. Patched: a file of another name is put into the folder, the second run covers one decision, its status is asserted, and the folder must hold 3 files with the foreign one kept [Capture.cls TestOneReplyPerRule]
+- [x] [Review][Patch] (medium) I/O row 8 (no fallback decision, no file, summary.json included) had no test. Patched: new `TestNoFallbackWritesNoFile` [Capture.cls]
+- [x] [Review][Patch] (low) `Run("")` wrote into the IRIS process's directory: `NormalizeDirectory("")` is the current directory (`$$$FileNormalizeDirectoryFull`), so the "empty folder" check after it never fired (the earlier review's Blind 9 patch). Patched: the raw argument is checked first; pinned in `TestNoFallbackWritesNoFile` [src/ocutalon/cls/OcuTalon/Test/Eval/CaptureTool.cls:Run]
+- [x] [Review][Patch] (low) The fixed rule `no check` had no test. Patched: new `TestUncheckableReplyIsCounted` (a reply to an item with no reply class is `no check`, the other reply of the run is still judged and written) [Capture.cls]
+- [x] [Review][Patch] (low) The shell's unsafe-file-name filter had no sample, though it is the one guard on the copy's write path. Patched: stub `RCF_CAP=unsafe` (`CHK|file|../zz-escape.json`) and bad sample `bad-no-name-filter` in rule `capture` [docker/tests/test-eval-set.sh]
+- [x] [Review][Patch] (low) The folder guard refused only this checkout: a folder in the main checkout or a sibling worktree was accepted (QA note; Planner focus). Patched: `capture_inside` also refuses each checkout that `git worktree list --porcelain` names, and below it (no git, or not a repository: as before); samples with a stub git (the main checkout, a folder in it, a folder in a sibling worktree refused; a folder beside them gets its session) and bad sample `bad-one-checkout` [eval/capture-fallbacks.sh:capture_inside]
+- [x] [Review][Patch] (low) A failed or empty copy left its partial or empty file in the evidence folder, looking like a capture file. Patched: `rm -f` of that file; the copy-fail samples assert an empty folder; bad sample `bad-failed-copy-kept` [eval/capture-fallbacks.sh]
+- [x] [Review][Patch] (low) `cd "$given"` with an exported CDPATH and a relative folder could print a path into `resolved`. Patched: `CDPATH= cd --` (and in the worktree loop); `bad-logical-path` follows the new text [eval/capture-fallbacks.sh]
+- [x] [Review][Patch] (low) The rc stub runs other than rc-flow inherit the caller's `OCUTALON_EVAL_CAPTURE_DIR` (rule hermeticity). Patched: `test-eval-set.sh` unsets it at its start; the rule's own samples set it per session [docker/tests/test-eval-set.sh]
+- [x] [Review][Patch] (low) The rule's copy check passed when either file held the text (`grep -qF` over two files). Patched: each file is checked [docker/tests/test-eval-set.sh check_capture]
+- [x] [Review][Patch] (low) AC 7's source scan did not name the runner items. Patched: TriageAgent, DiagnosisAgent and ChatAgent added [Capture.cls TestRecordsAndLogsNothing]
+- [x] [Review][Patch] (low) `TestEveryRuleTagged` counted only `$$$ERROR(`: a rule written with `$SYSTEM.Status.Error(` shipped untagged unseen. Patched: both forms are counted. A status returned from a helper (the `CheckFix` shape) is still not counted; such a rule fails safe as the bare "ERROR #5001" [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls]
+- [x] [Review][Patch] (low) The field half of `REFUSALRULES` was only compared with a hand copy, so one typo in both passed. Patched: each pair's field (its first part) must be the `%JSONFIELDNAME` of a compiled property of the class (`JsonField`) [Payload.cls TestEveryRuleTagged]
+- [x] [Review][Patch] (low) Row l of `TestRefusalTextForms` was not deterministic: about 29% of `NewRef` values hold "_", so that sample failed the form check, not the allowlist. Patched: "_" becomes "-" (the fixed `zzmarkerprobe` row already pinned the allowlist) [src/ocutalon/cls/OcuTalon/Test/Bridge/ReplyCheck.cls]
+- [x] [Review][Patch] (low) Doc comments narrated review history ("(QA, DW-1421)", "(QA, attempt 2)", "// n (QA)"), against Rule 14. Patched [Capture.cls, ReplyCheck.cls]
+- [x] [Review][Patch] (low) CaptureTool's doc said the attempts are "1, 2" (first and retry runner), but a rate_limited re-send to the same runner (AD-20) is an attempt too, and a cut-off first attempt of an invalid decision is re-checked like the others. Patched: the doc states both and that each file keeps its finishReason; `TestNothingIsWrittenAnywhere`'s doc says "add or remove no row" (it counts rows) [CaptureTool.cls, Capture.cls]
+
+**Rejected**
+- (false) The capture session can run 3 times (`iris_script` retries): it retries only a session that printed no CHK line, and the script prints `CHK|started|1` before Run, so a retry follows only a session that never ran Run.
+- (false) A tagged error with an embedded 5802 reads "ERROR #5001 on <P> rule <tag>": CheckFix's inner status comes from `Fix.Kind.Check`/`CheckParameters` (#5001 only) or `%JSONExportToString`; no fix kind returns a 5802 (grep of `Fix/`), and TestRuleTags pins the exact form.
+- (low, wontfix-accepted) A reused evidence folder mixes two runs' files: the key-holder makes a new run folder per run (Design Notes); refusing a non-empty folder would be a refusal the Planner's ruling (b) does not list. reopen_if=a capture folder holding files of two runs.
+- (low, wontfix-accepted) A folder named in another case than the disk's (case-insensitive macOS) passes the guard: the key-holder passes `$E/<run folder>/capture`; a case fold would add branches. reopen_if=a capture command that names the folder in a case other than the disk's.
+- (low, wontfix-theoretical) A symlink already named like a capture file in the evidence folder redirects the write: it needs a planted link in the key-holder's own new folder.
+- (low, wontfix-theoretical) The capture session has no time limit: every `iris_script` session of eval/run.sh has the same property.
+- (low, wontfix-accepted) eval/key-proof.sh's inner eval/run.sh inherits an exported `OCUTALON_EVAL_CAPTURE_DIR` (out of footprint). reopen_if=a key-holder sequence that exports the variable around eval/key-proof.sh.
+- (low, wontfix-accepted) A cut-off first attempt of an invalid decision is counted under the rule its text fails now (its file keeps finishReason; doc patched above). reopen_if=a key-holder capture whose file with a finishReason other than end_turn is counted under a check rule.
+- (low, wontfix-accepted) The row counts cannot see an update in place: Recheck is Interpret, which records nothing by contract; the doc now says so. reopen_if=Interpret or Judge gains a save.
+- (low, by-design) The summary does not split runs or uncased decisions: the stdout form is the spec's (Design Notes); each file carries runRef and case.
+- (low, reject) The Auto Run Result's "4 medium entries patched" against the triage log's 9: the fix edits the spec under review.
+- (low, by-design) The name filter runs without `LC_ALL=C` and lets `.`/`..` through: a name never holds "/", and `.`/`..` fail on the redirect and are counted.
+- (low, by-design) AC 8's "passes key-like" is vacuous for the new script (the rule is about sourcing lib-keys); `check_capture`'s own needle grep covers it.
+- (note) `OcuTalon.Test.Eval.CaptureTool` ships in the IPM (Veto 6(v)) and is reachable from no web, REST, CSP, `SqlProc` or `WebMethod` entry: only a terminal user with ObjectScript rights can call it. The Capture tests rely on the production's runner items, as the class doc says.
+
 ## Design Notes
 
 **The tags (C1).** Each tag is followed by its field; source lines are at the baseline.
@@ -460,6 +498,21 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - mutation: the emptiness check (`[ ! -s ... ]`) removed in eval/capture-fallbacks.sh (the status check kept) -> rule capture red (the empty copy gives no `CAPTURE copy failed` line).
 - mutation: the `Print(summary)` line deleted from the printf list of eval/capture-fallbacks.sh -> rule capture red (the capture session does not print the summary).
 - The rule's own bad samples are each the real script with one edit and each is flagged for its reason: no script, no run.sh, one code line naming `.env`, the key variable, curl, wget, /v1/, api., PointKeys, LIVE_SESSION_ENV or the container tool, no usage exit, unguarded folder, a missing folder made, no filter, no copy, a copy that prints the text, always capturing, inverted test, never capturing, a failed capture that fails the run, the capture before the result, the capture after the REPORT line, a capture that writes into the report folder.
+
+### Code review record (lane C, 2026-11-16; tags e0dw1421c*)
+
+Runs, every stack command through the lane-C wrapper, no model and no key: warm `Test.Eval.Capture` (10 tests), `Test.Watch.Payload`, `Test.Bridge.ReplyCheck` and `Test.Bridge.Decide` pass before and after the patches; fresh `ci/iris.sh shard lane-a@Eval` passes (24 classes, 320 s); `docker/tests/test-eval-set.sh` passes in three calls (`capture eval-scripts key-like`, `rc-flow`, `rc-stack run-guard rc-guard rules-flow`) with the new samples `bad-one-checkout`, `bad-no-name-filter` and `bad-failed-copy-kept` each flagged for its reason; `test-class-rules.sh` and `test-boundaries.sh` exit 0.
+
+Mutations (each applied to one copy, run warm, reverted with `cp` and checked with `cmp`; `git status --short` and `git diff --stat` were the same before and after):
+- mutation: `Do ..Clear(folder)` deleted from CaptureTool.Run -> Test.Eval.Capture TestOneReplyPerRule red (the second run leaves the first run's files).
+- mutation: `If summary.decisions {` -> `If 1 {` in CaptureTool.Run -> Test.Eval.Capture TestNoFallbackWritesNoFile red (a file and its count with no decision).
+- mutation: the raw empty-folder check of CaptureTool.Run disabled (`If 0 {`, the old place after NormalizeDirectory) -> Test.Eval.Capture TestNoFallbackWritesNoFile red ("an empty folder is an error").
+- mutation: the no-check branch of CaptureTool.Reply gives `..#PASSES` -> Test.Eval.Capture TestUncheckableReplyIsCounted red.
+- mutation: an empty Ens.MessageHeader saved in Decide.Recheck on every call -> Test.Eval.Capture TestNothingIsWrittenAnywhere (Run and the four Recheck rows) and TestRecheckIsSilent red; the same header saved on the second Recheck call of the process only (one try) -> TestRecheckIsSilent stays green (background work in one try does not fail it).
+- mutation: the field of `cause-blank` changed to `causes` in DiagnosisPayload's REFUSALRULES and in Test.Watch.Payload RuleTags together -> Test.Watch.Payload TestEveryRuleTagged red (the field is not a JSON name of the class); TestRuleTags stayed green.
+- mutation: an untagged `$SYSTEM.Status.Error(5001, "zz")` rule added to DiagnosisPayload's %OnValidateObject -> Test.Watch.Payload TestEveryRuleTagged red.
+- mutation: a code line naming TriageAgent added to CaptureTool.Run -> Test.Eval.Capture TestRecordsAndLogsNothing red.
+- The shell pins are the rule's bad samples: `bad-one-checkout` (a checkout that git lists is not refused), `bad-no-name-filter` (an unsafe name is copied), `bad-failed-copy-kept` (a failed or empty copy leaves its file), each flagged; `bad-logical-path` follows the new `CDPATH= cd --` line.
 
 ## Review Triage Log
 

@@ -5,11 +5,11 @@
 #   OCUTALON_EVAL_CAPTURE_DIR=<an existing evidence folder outside the checkout> bash eval/run.sh --release-candidate [--on-mock]
 # capture_fallbacks <folder>:
 #   - resolves the folder (cd and pwd -P) and refuses, with the line "CAPTURE refused: ..." and no session and no file, one that is missing or that is the checkout or
-#     below it (a raw reply is never written inside the checkout);
+#     below it, or another checkout of the same repository that git lists (the main checkout or a worktree) or below one (a raw reply is never written inside a checkout);
 #   - runs one IRIS session in OCUTALON that calls OcuTalon.Test.Eval.CaptureTool, which reads the raw reply of every reply that a fallback decision of kind decide or
 #     diagnose got, checks it again with Decide.Recheck and writes one file per reply, plus summary.json, into a folder of the container;
 #   - copies each file whose name is made of letters, digits, dots, hyphens and underscores into the folder, with the run's own cat, and removes the folder
-#     of the container; a file that was named and not copied (a failed cat, an empty copy or an unsafe name) is only counted;
+#     of the container; a file that was named and not copied (a failed cat, an empty copy or an unsafe name) is counted, and what a failed copy left is removed;
 #   - prints counts and rule names only (the CAPTURE lines below): never a reply text. A value that the container gave and that holds a character outside
 #     [A-Za-z0-9 #:;<>.,()_-] is printed as (withheld).
 # It reads no key and no environment file, calls no model and no runner, and sends no message. It returns 0 (also for a refusal) or 1 when the capture failed
@@ -35,13 +35,23 @@ capture_value() {
   )
 }
 
-# capture_inside <folder>: 0 when the resolved folder is the checkout or below it.
+# capture_inside <folder>: 0 when the resolved folder is the checkout or below it, or a checkout of the same repository that git lists or below one.
 capture_inside() {
-  local here
+  local here line top
   here=$(cd "$root" && pwd -P) || return 0
   case $1/ in
     "$here"/*) return 0 ;;
   esac
+  while IFS= read -r line; do
+    case $line in
+      'worktree '*)
+        top=$(CDPATH= cd -- "${line#worktree }" 2> /dev/null && pwd -P) || continue
+        case $1/ in
+          "$top"/*) return 0 ;;
+        esac
+        ;;
+    esac
+  done < <(git -C "$here" worktree list --porcelain 2> /dev/null)
   return 1
 }
 
@@ -52,7 +62,7 @@ capture_fallbacks() {
     echo "CAPTURE refused: the evidence folder does not exist (make it first, outside the checkout)"
     return 0
   fi
-  resolved=$(cd "$given" && pwd -P) || {
+  resolved=$(CDPATH= cd -- "$given" && pwd -P) || {
     echo "CAPTURE refused: the evidence folder cannot be entered"
     return 0
   }
@@ -92,6 +102,7 @@ capture_fallbacks() {
           *[!A-Za-z0-9._-]*) failed=$((failed + 1)) ;;
           *)
             if ! dc exec -T iris cat "$CAPTURE_CONTAINER_DIR/$name" < /dev/null > "$resolved/$name" 2> /dev/null || [ ! -s "$resolved/$name" ]; then
+              rm -f "$resolved/$name"
               failed=$((failed + 1))
             fi
             ;;

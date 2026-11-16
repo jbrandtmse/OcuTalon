@@ -20,8 +20,8 @@
 ///     by their tag (DW-1421): "... ERROR #5001 rule cause-category-unlisted" for the key in a refused value, again with neither the key nor [redacted]. Decide.Recheck, run with the same request, class and
 ///     filter, returns 0 with the problem that the warning holds (and 1 with no problem for a usable reply);
 ///   - TestRuleTags (DW-1421, AC 1): a reply that breaks exactly one rule is refused with RefusalText "ERROR #5001 rule <tag>" for each of the 22 rules of the class and its parent, and the tag's field in REFUSALRULES is the rule's;
-///   - TestEveryRuleTagged (DW-1421, AC 3): each REFUSALRULES lists distinct tag:field pairs of the tag form, the class's list starts with its parent's, and the %OnValidateObject of each class has exactly one $$$ERROR for each of
-///     its own tags, each tag written once;
+///   - TestEveryRuleTagged (DW-1421, AC 3): each REFUSALRULES lists distinct tag:field pairs of the tag form whose field (its first part) is the JSON name of a property of the class, the class's list
+///     starts with its parent's, and the %OnValidateObject of each class has exactly one $$$ERROR (or $SYSTEM.Status.Error) for each of its own tags, each tag written once;
 ///   - TestOtherFallbacksLogNothing (row Other fallbacks): a cut_off and a refusal whose text fails the check, and a turn that the filter empties (invalid with no check error),
 ///     are fallbacks of their own reason and log no warning of the reply check (Story 5.12, QA);
 ///   - TestFilteredParameter: the parameter FILTERED names every text of the model that the payload holds, which Decide filters (AD-31);
@@ -470,13 +470,14 @@ Method TestEveryRuleTagged()
 			Set tag = $Piece(pair, ":", 1)
 			Do $$$AssertTrue(tag ? 1L.(1L,1N,1"-"), tag_": a tag is lower-case letters, digits and hyphens")
 			Do $$$AssertTrue($Piece(pair, ":", 2) '= "", tag_": the pair names a field")
+			Do $$$AssertTrue(..JsonField(class, $Piece($Piece(pair, ":", 2), ".", 1)), tag_": and its field is the JSON name of a property of the class")
 			Do $$$AssertTrue('$Data(seen(tag)), tag_": and the tag is listed once")
 			Set seen(tag) = ""
 		}
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), class_" has source")
 		Set body = ..ValidateBody(text)
 		Do $$$AssertTrue(body '= "", class_": its %OnValidateObject is found")
-		Set errors = $Length(body, "$$$ERROR(") - 1
+		Set errors = ($Length(body, "$$$ERROR(") - 1) + ($Length(body, "$SYSTEM.Status.Error(") - 1)
 		Do $$$AssertEquals(errors, $ListLength(list), class_": one $$$ERROR for each of its own rules")
 		Set position = 0
 		While $ListNext(list, position, pair) {
@@ -484,6 +485,17 @@ Method TestEveryRuleTagged()
 			Do $$$AssertEquals($Length(body, ", """_tag_""")") - 1, 1, class_": the tag "_tag_" is written once")
 		}
 	}
+}
+
+/// 1 when a compiled property of the class has the JSON field name.
+ClassMethod JsonField(class As %String, field As %String) As %Boolean [ Private ]
+{
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ?", class)
+	While rows.%Next() {
+		Set property = ##class(%Dictionary.CompiledProperty).%OpenId(class_"||"_rows.%Get("Name"))
+		If $IsObject(property) && (property.Parameters.GetAt("%JSONFIELDNAME") = field) Return 1
+	}
+	Quit 0
 }
 
 /// The code lines of the class's %OnValidateObject, from its Method line to its closing brace.

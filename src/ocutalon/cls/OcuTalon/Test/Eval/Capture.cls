@@ -12,10 +12,14 @@ Include Ensemble
 ///   - TestRecordsAndLogsNothing (AC 7): Run leaves the event log rows of its job, the Decision and Usage rows and the bridge's Ens message headers as they were, and the source of the tool names no logging, no AI call, no send, no
 ///     Conclude and no runner item;
 ///   - TestRecheckIsSilent (DW-1421): Decide.Recheck, for a refused reply, a usable one, one that the filter leaves with no reason and one that the filter makes invalid, changes none of those counts;
-///   - TestNothingIsWrittenAnywhere (QA, DW-1421): Run and Recheck change no row of any persistent table of the product, no non-OcuTalon message header (an alert) and write no audit entry;
-///   - TestAttemptsAreNumberedByRequest (QA, DW-1421): the attempts of a decision are numbered by their request headers, whether or not each has an answer in the store, and not by the order of the answers;
-///   - TestHostileRepliesStayOffStdout (QA, DW-1421): replies, a case name and a fallback reason that carry line ends, quotes, bars, a fake CHK line, non-ASCII characters and a rule name never put anything but the known CHK lines on stdout, and the files hold each reply byte for byte;
-///   - TestRecheckIsUnreachable (DW-1421): no class of the REST, channel, conversation, tool, agent or MCP code names Recheck, and no class but Decide names Recheck of Decide.
+///   - TestNothingIsWrittenAnywhere (DW-1421): Run and Recheck add or remove no row of any persistent table of the product and no non-OcuTalon message header (an alert), and write no audit entry;
+///   - TestAttemptsAreNumberedByRequest (DW-1421): the attempts of a decision are numbered by their request headers, whether or not each has an answer in the store, and not by the order of the answers;
+///   - TestHostileRepliesStayOffStdout (DW-1421): replies, a case name and a fallback reason that carry line ends, quotes, bars, a fake CHK line, non-ASCII characters and a rule name never put anything but the known CHK lines on stdout, and the files hold each reply byte for byte;
+///   - TestRecheckIsUnreachable (DW-1421): no class of the REST, channel, conversation, tool, agent or MCP code names Recheck, and no class but Decide names Recheck of Decide;
+///   - TestNoFallbackWritesNoFile (I/O row 8): with no fallback decision among the refs the summary counts nothing and no file is written, summary.json included; an empty folder is an error;
+///   - TestUncheckableReplyIsCounted: a reply whose runner has no reply class is counted under "no check", and the other replies of the run are still judged and written.
+/// The silence tests count rows (Writes): a write of the call under test changes a count in each of up to three tries, while the production's background work in other jobs, which
+/// may land in one try, does not fail them.
 Class OcuTalon.Test.Eval.Capture Extends %UnitTest.TestCase
 {
 
@@ -366,8 +370,44 @@ Method TestOneReplyPerRule()
 	Do $$$AssertTrue($ListFind(names, "summary.json") > 0, "summary.json is written")
 	Set written = {}.%FromJSON(..FileText(..Folder_"summary.json"))
 	Do $$$AssertEquals(written.files_"|"_written.replies_"|"_written.decisions, "33|32|32", "and it holds the counts of the folder, itself among its files")
-	Set again = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
-	Do $$$AssertEquals($ListLength(..Files(..Folder)), 33, "a second run replaces the files of the first")
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Set stream.Filename = ..Folder_"zz-notes.json"
+	Do stream.Write("{}")
+	Do $$$AssertStatusOK(stream.%Save(), "a file of another name is put into the folder")
+	Set again = $ClassMethod(..#TOOL, "Run", ..Folder, $Piece(..Refs, ",", 1), .summary)
+	Do $$$AssertStatusOK(again, "a second run, over one decision, runs")
+	Set names = ..Files(..Folder)
+	Do $$$AssertEquals($ListLength(names), 3, "it replaces the files of the first run (its one reply and summary.json are left) and keeps the file of another name")
+	Do $$$AssertTrue($ListFind(names, "zz-notes.json") > 0, "the file of another name is kept")
+}
+
+Method TestNoFallbackWritesNoFile()
+{
+	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, "zzNoSuchRef", .summary)
+	Do $$$AssertStatusOK(sc, "the capture runs")
+	Do $$$AssertEquals(summary.decisions_"|"_summary.replies_"|"_summary.files, "0|0|0", "no decision, no reply and no file are counted")
+	Do $$$AssertEquals($ListLength(..Files(..Folder)), 0, "and no file is written, summary.json included")
+	Do $$$AssertEquals($ClassMethod(..#TOOL, "Lines", summary), "CHK|decisions|0|0|0|0|0", "the lines are the count line only")
+	Set sc = $ClassMethod(..#TOOL, "Run", "", "zzNoSuchRef", .summary)
+	Do $$$AssertTrue($$$ISERR(sc), "an empty folder is an error, not the process's own directory")
+}
+
+Method TestUncheckableReplyIsCounted()
+{
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", "zzNoSuchRunner", ..Marker()_" is not JSON")
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, ..Marker()_" is not JSON")
+	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
+	Do $$$AssertStatusOK(sc, "the capture runs")
+	Kill found
+	Set iterator = summary.rules.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set found(entry.rule) = entry.count
+	}
+	Do $$$AssertEquals($Get(found("no check")), 1, "the reply of a runner with no reply class is counted under no check")
+	Do $$$AssertEquals($Get(found("ERROR #5035")), 1, "and the other reply of the run is judged")
+	Do $$$AssertEquals(summary.replies_"|"_summary.files, "2|3", "each reply has its file, and summary.json is written")
 }
 
 /// The number of rules in the array count.
@@ -421,7 +461,47 @@ Method TestLinesHoldNoReplyText()
 /// and the headers that name no body (the production's own background work, which runs in other jobs, is not counted).
 ClassMethod Snap() As %String [ Private ]
 {
-	Quit ..One("SELECT COUNT(*) FROM Ens_Util.Log WHERE Job = ?", $Job)_"|"_..One("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision")_"|"_..One("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage")_"|"_..One("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName %STARTSWITH 'OcuTalon.Bridge.Msg.' OR MessageBodyClassName IS NULL OR MessageBodyClassName = ''")
+	Quit "log="_..One("SELECT COUNT(*) FROM Ens_Util.Log WHERE Job = ?", $Job)_";decision="_..One("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision")_";usage="_..One("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage")_";headers="_..One("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName %STARTSWITH 'OcuTalon.Bridge.Msg.' OR MessageBodyClassName IS NULL OR MessageBodyClassName = ''")_";"
+}
+
+/// The counts of Rows (which = "Rows") or of Snap, as "name=count;" pairs.
+ClassMethod Counts(which As %String) As %String [ Private ]
+{
+	Quit $Select(which = "Rows": ..Rows(), 1: ..Snap())
+}
+
+/// The names of the pairs of after whose count is not the one in before.
+ClassMethod Moved(before As %String, after As %String) As %List [ Private ]
+{
+	Set moved = ""
+	For i = 1:1:$Length(after, ";") {
+		Set pair = $Piece(after, ";", i)
+		If (pair '= "") && ((";"_before) '[ (";"_pair_";")) Set moved = moved _ $ListBuild($Piece(pair, "=", 1))
+	}
+	Quit moved
+}
+
+/// The names of the counts (which: "Rows" or "Snap") that a call of the class method with the arguments changes in each of up to three tries, comma-separated; "" when one try
+/// changes none. A write of the call changes its count in every try; the production's background work in other jobs that lands in one try is not in every one.
+ClassMethod Writes(which As %String, class As %String, method As %String, args...) As %String [ Private ]
+{
+	Set common = ""
+	For try = 1:1:3 {
+		Set before = ..Counts(which)
+		Do $ClassMethod(class, method, args...)
+		Set moved = ..Moved(before, ..Counts(which))
+		If try > 1 {
+			Set kept = ""
+			Set position = 0
+			While $ListNext(moved, position, name) {
+				If $ListFind(common, name) Set kept = kept _ $ListBuild(name)
+			}
+			Set moved = kept
+		}
+		Set common = moved
+		If common = "" Quit
+	}
+	Quit $ListToString(common, ",")
 }
 
 ClassMethod One(sql As %String, arg As %String = "") As %String [ Private ]
@@ -433,13 +513,12 @@ ClassMethod One(sql As %String, arg As %String = "") As %String [ Private ]
 Method TestRecordsAndLogsNothing()
 {
 	Do ..SeedAll(.expected, .count)
-	Set before = ..Snap()
 	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
 	Do $$$AssertStatusOK(sc, "the capture runs")
-	Do $$$AssertEquals(..Snap(), before, "the event log, the Decision and Usage rows and the message headers are as they were")
 	Do $$$AssertTrue(summary.replies > 20, "and it did capture replies")
+	Do $$$AssertEquals(..Writes("Snap", ..#TOOL, "Run", ..Folder, ..Refs), "", "the event log, the Decision and Usage rows and the message headers are as they were")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#TOOL, .text), "the tool has source")
-	For name = "$$$LOG", "Ens.Util.Log", "%AI", "Chat", "SendRequest", "Conclude", "Ens.Director" {
+	For name = "$$$LOG", "Ens.Util.Log", "%AI", "Chat", "SendRequest", "Conclude", "Ens.Director", ..#TRIAGE, ..#DIAGNOSIS, "ChatAgent" {
 		Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Bridge.Source).Lines(text, name, 1)), 0, "no code line of the tool names "_name)
 	}
 }
@@ -458,11 +537,10 @@ Method TestRecheckIsSilent()
 	Do odd.%Set("zzextra", 1)
 	For label = "over the limit", "no reason left", "invalid after the filter", "an unknown field", "a usable reply" {
 		Set reply = $Case(label, "over the limit": long, "no reason left": emptied, "invalid after the filter": blanked, "an unknown field": odd, : usable)
-		Set before = ..Snap()
 		Set valid = $ClassMethod(..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard", .problem)
 		Do $$$AssertEquals(valid, $Case(label, "a usable reply": 1, : 0), label_": the verdict")
 		Do $$$AssertEquals($Select(valid: problem = "", 1: problem '= ""), 1, label_": and the problem")
-		Do $$$AssertEquals(..Snap(), before, label_": no event is logged, no Decision or Usage row is saved and no message is sent")
+		Do $$$AssertEquals(..Writes("Snap", ..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard"), "", label_": no event is logged, no Decision or Usage row is saved and no message is sent")
 	}
 }
 
@@ -522,7 +600,7 @@ ClassMethod Named(names As %List, ref As %String, attempt As %Integer) As %Strin
 	Quit one
 }
 
-/// DW-1421 (QA, attempt 2): the attempts of a decision are numbered by their request headers, in header order, whether or not an attempt has an answer in the store, and not by the order of the answers.
+/// The attempts of a decision are numbered by their request headers, in header order, whether or not an attempt has an answer in the store, and not by the order of the answers.
 ///   - the first request has no answer and the retry's reply is the second attempt (file "-2", the retry runner);
 ///   - the first attempt's answer and a retry request with no answer is one reply, attempt 1;
 ///   - two requests with no answer count as a decision with no reply;
@@ -574,7 +652,7 @@ ClassMethod ShortHostile() As %String [ Private ]
 	Quit "q"""_$Char(10)_"CHK|file|../evil"_$Char(233, 26085)
 }
 
-/// DW-1421 (QA, AC 6): replies that carry a line end, quotes, a bar, a fake CHK line, non-ASCII characters and the name of a rule - in every field that a reply holds, as a key, as the whole text and in the failure text - and a case name and a
+/// AC 6: replies that carry a line end, quotes, a bar, a fake CHK line, non-ASCII characters and the name of a rule - in every field that a reply holds, as a key, as the whole text and in the failure text - and a case name and a
 /// fallback reason that carry a line end and a bar too (the tool's own values) never reach the CHK lines: every line is one ASCII CHK line of the known shapes, whose rule names are exactly the expected ones, while the files hold each reply byte for byte.
 Method TestHostileRepliesStayOffStdout()
 {
@@ -679,17 +757,17 @@ ClassMethod Rows() As %String [ Private ]
 		Set table = tables.%GetData(1)
 		Set text = text _ table _ "=" _ ..One("SELECT COUNT(*) FROM " _ table) _ ";"
 	}
-	Quit text _ "headers=" _ ..One("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName IS NULL OR MessageBodyClassName = '' OR NOT MessageBodyClassName %STARTSWITH 'OcuTalon.'")
+	Quit text _ "headers=" _ ..One("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName IS NULL OR MessageBodyClassName = '' OR NOT MessageBodyClassName %STARTSWITH 'OcuTalon.'") _ ";"
 }
 
-/// The number of entries that the product's audit writer made in the IRIS audit log since the mark (OcuTalon.Test.Bridge.AuditLog.Now).
+/// The number of entries that the product's audit writer made in the IRIS audit log since the mark (OcuTalon.Test.Bridge.AuditLog.Now) for the user of this process.
 ClassMethod AuditCount(mark As %String) As %Integer [ Private ]
 {
-	Quit ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, ##class(OcuTalon.Bridge.Audit).#SOURCE).%Size()
+	Quit ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, ##class(OcuTalon.Bridge.Audit).#SOURCE, "", "", "", $Username).%Size()
 }
 
-/// DW-1421 (QA, Planner condition: saves nothing, fires nothing, logs nothing): CaptureTool.Run and Decide.Recheck change no row of any persistent table of the product, no alert or other non-OcuTalon message header, and write no entry to
-/// the IRIS audit log (the other pins count the event log of the job, Decision, Usage and the bridge's headers). A control entry, written first, shows that the audit reader sees an entry of the product's writer on this stack.
+/// The Planner's condition (saves nothing, fires nothing, logs nothing): CaptureTool.Run and Decide.Recheck add or remove no row of any persistent table of the product and no alert or other non-OcuTalon
+/// message header (row counts: an update in place is the narrower tests' and the code rules' to see), and write no entry of this process's user to the IRIS audit log (the other pins count the event log of the job, Decision, Usage and the bridge's headers). A control entry, written first, shows that the audit reader sees an entry of the product's writer on this stack.
 Method TestNothingIsWrittenAnywhere()
 {
 	Set control = ..Marker()
@@ -698,11 +776,10 @@ Method TestNothingIsWrittenAnywhere()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(before, "OcuTalon", "", "", control).%Size(), 1, "and the audit reader finds it, so that a count of zero means something")
 	Do ..SeedAll(.expected, .count)
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
-	Set rows = ..Rows()
 	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
 	Do $$$AssertStatusOK(sc, "the capture runs")
 	Do $$$AssertTrue(summary.replies > 20, "and it did capture replies")
-	Do $$$AssertEquals(..Rows(), rows, "Run: no table of the product has a row more or fewer, and no header of another body is made")
+	Do $$$AssertEquals(..Writes("Rows", ..#TOOL, "Run", ..Folder, ..Refs), "", "Run: no table of the product has a row more or fewer, and no header of another body is made")
 	Do $$$AssertEquals(..AuditCount(mark), 0, "Run: no audit entry is written")
 	Set request = ..NewRequest("diagnose", "")
 	Set long = $ClassMethod(..#PAYLOAD, "Usable")
@@ -714,8 +791,7 @@ Method TestNothingIsWrittenAnywhere()
 	Set usable = $ClassMethod(..#PAYLOAD, "Usable")
 	For label = "over the limit", "no reason left", "invalid after the filter", "a usable reply" {
 		Set reply = $Case(label, "over the limit": long, "no reason left": emptied, "invalid after the filter": blanked, : usable)
-		Do $ClassMethod(..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard", .problem)
-		Do $$$AssertEquals(..Rows(), rows, "Recheck of "_label_": no table of the product has a row more or fewer, and no header of another body is made")
+		Do $$$AssertEquals(..Writes("Rows", ..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard"), "", "Recheck of "_label_": no table of the product has a row more or fewer, and no header of another body is made")
 		Do $$$AssertEquals(..AuditCount(mark), 0, "Recheck of "_label_": no audit entry is written")
 	}
 }

@@ -193,8 +193,9 @@
 #                 session prints nothing, and "CAPTURE copy failed: <n> file(s) were not copied" (before the folder line, a count only) when a copy fails or comes out empty,
 #                 and a normal run does not; the session script prints the summary and ends with CHK|run|1; a folder inside the copy tree and a missing one are refused with no session and no file, also when the folder leads into the tree through
 #                 a link, "..", a relative name or a trailing slash, a file and an empty name are refused as a missing folder, and a folder beside the tree whose
-#                 name starts with the tree's, one outside it and a link to one outside it are not refused. The bad samples are the
-#                 repository's two scripts with one edit each;
+#                 name starts with the tree's, one outside it and a link to one outside it are not refused; another checkout of the repository that git lists (the
+#                 main checkout, a sibling worktree) and a folder below one are refused, and a folder beside one is not; a failed or empty copy leaves no file, and a
+#                 file name that is not safe (../ in it) is counted as not copied and writes nothing. The bad samples are the repository's two scripts with one edit each;
 #   rules-flow    (Story 0.27) eval/run.sh --rules-only, --rules-only main and --rules-only held-out, from the same copy tree and stub as rc-flow (the stub answers
 #                 the rules-only session by what it calls: RestoreKeys and Keys.Status of the runners, the mock's request count, the rules-only runs): the keys are
 #                 restored with RestoreKeys (never PointKeys) and Keys.Status is read before any case is sent; each set is a rules-only run (rulesOnly 1) kept as
@@ -233,6 +234,8 @@
 # Each bad sample of a rule carries the reason it must be flagged for (expect.txt in its folder): a sample that another rule flags does
 # not count.
 set -u
+# The capture of eval/run.sh runs only when a sample sets its folder: a value of the caller's environment never reaches a run of this file.
+unset OCUTALON_EVAL_CAPTURE_DIR
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
@@ -2367,7 +2370,10 @@ for (const [name, word, reason] of [
 ]) variant('capture', name, reason, (f) => { f['eval/run.sh'] = RUNSH; f['eval/capture-fallbacks.sh'] = `${CAPSH}\n${word}\n`; });
 capVariant('bad-no-usage-exit', 'run directly it does not print its usage line and exit 2', [], [['  exit 2\nfi', '  exit 0\nfi']]);
 capVariant('bad-unguarded', 'a capture folder inside the checkout is not refused', [], [['  if capture_inside "$resolved"; then', '  if false; then']]);
-capVariant('bad-logical-path', 'that leads into the checkout is not refused as inside it', [], [['  resolved=$(cd "$given" && pwd -P) || {', '  resolved=$(cd "$given" && pwd) || {']]);
+capVariant('bad-logical-path', 'that leads into the checkout is not refused as inside it', [], [['  resolved=$(CDPATH= cd -- "$given" && pwd -P) || {', '  resolved=$(CDPATH= cd -- "$given" && pwd) || {']]);
+capVariant('bad-one-checkout', 'in another checkout of the repository is not refused as inside it', [], [['          "$top"/*) return 0 ;;', '          "$top"/*) ;;']]);
+capVariant('bad-no-name-filter', 'a capture file name that is not safe is copied or not counted', [], [['          *[!A-Za-z0-9._-]*) failed=$((failed + 1)) ;;\n', '']]);
+capVariant('bad-failed-copy-kept', 'a failed or empty copy of a capture file leaves a file in the folder', [], [['              rm -f "$resolved/$name"\n', '']]);
 capVariant('bad-prefix-match', 'the folder t-evidence, which is not the checkout or below it, is refused or does not get its capture session', [], [['  case $1/ in\n    "$here"/*) return 0 ;;', '  case $1 in\n    "$here"*) return 0 ;;']]);
 capVariant('bad-no-root-resolve', 'that leads into the checkout is not refused as inside it', [], [['  here=$(cd "$root" && pwd -P) || return 0', '  here=$root']]);
 capVariant('bad-missing-made', 'a missing capture folder is not refused', [], [['  if [ -z "$given" ] || [ ! -d "$given" ]; then', '  if [ ! -d "$given" ]; then mkdir -p "$given"; fi\n  if false; then']]);
@@ -3611,10 +3617,11 @@ case "$*" in
     printf '%s\n' "$script" >> "$RCF_CALLS"
     case $script in
       *CaptureTool*)
-        # the capture session of eval/capture-fallbacks.sh (RCF_CAP: none prints no line, empty gives no decision; RCF_CAPMARK plants a field)
+        # the capture session of eval/capture-fallbacks.sh (RCF_CAP: none prints no line, empty gives no decision, unsafe names a file ../zz-escape.json; RCF_CAPMARK plants a field)
         case ${RCF_CAP:-} in
           none) ;;
           empty) printf 'CHK|started|1\nCHK|decisions|0|0|0|0|0\nCHK|run|1\n' ;;
+          unsafe) printf 'CHK|started|1\nCHK|decisions|1|0|1|1|2\nCHK|file|../zz-escape.json\nCHK|file|summary.json\nCHK|run|1\n' ;;
           *)
             printf 'CHK|started|1\nCHK|decisions|3|1|2|3|4\nCHK|reason|invalid|3\nCHK|rule|fix-summary-not-for-category|fixSummary|2\nCHK|rule|confidence-missing|confidence|1\n'
             if [ -n "${RCF_CAPMARK:-}" ]; then printf 'CHK|rule|zz-planted|%s|1\n' "$RCF_CAPMARK"; fi
@@ -4149,12 +4156,17 @@ cap_snap() {
 }
 
 # cap_guard <folder>: capture_fallbacks of eval/capture-fallbacks.sh ($cap of check_capture) for the folder, in a subshell whose root is a link to the copy tree of rc-flow ($tmp/flow-cap/t) and whose container functions are stubs that only note
-# their calls in $tmp/cap-guard/calls ("session" for the IRIS session, which prints nothing; "dc ..." for the container tool). The CAPTURE lines go to the output.
+# their calls in $tmp/cap-guard/calls ("session" for the IRIS session, which prints nothing; "dc ..." for the container tool). The CAPTURE lines go to the output. git is a stub
+# whose worktree list names the folders of CAP_WORKTREES (space-separated) in git's porcelain form, and nothing when it is unset.
 cap_guard() {
   (
     root="$tmp/cap-guard/rootlink"
     iris_script() { cat > /dev/null; echo session >> "$tmp/cap-guard/calls"; }
     dc() { echo "dc $*" >> "$tmp/cap-guard/calls"; }
+    git() {
+      local w
+      for w in ${CAP_WORKTREES:-}; do printf 'worktree %s\nHEAD 0000000000000000000000000000000000000000\ndetached\n\n' "$w"; done
+    }
     . "$cap"
     capture_fallbacks "$1"
   )
@@ -4251,7 +4263,7 @@ check_capture() {
   if grep -qF -- "$marker" "$dir/out.log" "$dir/calls" || grep -qF -- "$planted" "$dir/out.log"; then
     echo "eval/run.sh: the output of the capture shows the text of a reply or a field with an unsafe character"
   fi
-  if [ "$(find "$evidence" -type f | wc -l | tr -d ' ')" -ne 4 ] || ! grep -qF -- "$marker" "$evidence/1-aaa-1.json" "$evidence/summary.json"; then
+  if [ "$(find "$evidence" -type f | wc -l | tr -d ' ')" -ne 4 ] || ! grep -qF -- "$marker" "$evidence/1-aaa-1.json" || ! grep -qF -- "$marker" "$evidence/summary.json"; then
     echo "eval/run.sh: the capture does not copy the files of the container into the folder"
   fi
   if grep -q '^CAPTURE copy failed' "$dir/out.log"; then echo "eval/run.sh: a capture whose files were all copied prints a CAPTURE copy failed line"; fi
@@ -4266,7 +4278,15 @@ check_capture() {
       [ "$(grep -n '^CAPTURE copy failed' "$dir/out.log" | cut -d: -f1)" -ge "$(grep -n '^CAPTURE folder ' "$dir/out.log" | cut -d: -f1)" ]; then
       echo "eval/run.sh: a failed or empty copy of a capture file is not counted in one CAPTURE copy failed line, with the count, before the CAPTURE folder line, with the verdict and the exit code as they were (copy $mode, exit $rc)"
     fi
+    if [ -n "$(find "$evidence" -type f 2> /dev/null)" ]; then
+      echo "eval/run.sh: a failed or empty copy of a capture file leaves a file in the folder (copy $mode)"
+    fi
   done
+  # a file name that is not safe: counted as not copied, nothing written outside the folder, the other file copied
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAP=unsafe rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  if [ "$rc" -ne "$rc_a" ] || [ -e "$dir/zz-escape.json" ] || ! grep -qx 'CAPTURE copy failed: 1 file(s) were not copied' "$dir/out.log" || [ ! -s "$evidence/summary.json" ]; then
+    echo "eval/run.sh: a capture file name that is not safe is copied or not counted (exit $rc)"
+  fi
   # a folder inside the tree, and a missing one: refused, no session, no file
   rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$dir/t/zz-evidence" rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
   if ! grep -q '^CAPTURE refused: ' "$dir/out.log" || grep -qF 'CaptureTool' "$dir/calls" || [ -n "$(find "$dir/t/zz-evidence" -type f 2> /dev/null)" ] || [ "$rc" -ne "$rc_a" ]; then
@@ -4310,6 +4330,21 @@ check_capture() {
       echo "eval/capture-fallbacks.sh: the folder $(basename "$g"), which is not the checkout or below it, is refused or does not get its capture session"
     fi
   done
+  # another checkout of the repository that git lists (the main checkout, a sibling worktree) and a folder below one: refused as inside the checkout, with no call; a folder
+  # beside them is not
+  mkdir -p "$guard/main/zz-evidence" "$guard/wt-b/zz-evidence" "$guard/main-evidence"
+  for g in "$guard/main" "$guard/main/zz-evidence" "$guard/wt-b/zz-evidence"; do
+    : > "$gcalls"
+    gout=$(CAP_WORKTREES="$guard/main $guard/wt-b" cap_guard "$g" 2>&1)
+    if [ "${gout#CAPTURE refused: the evidence folder is inside the checkout}" = "$gout" ] || [ -s "$gcalls" ]; then
+      echo "eval/capture-fallbacks.sh: the folder $(basename "$g") in another checkout of the repository is not refused as inside it, with no call"
+    fi
+  done
+  : > "$gcalls"
+  gout=$(CAP_WORKTREES="$guard/main $guard/wt-b" cap_guard "$guard/main-evidence" 2>&1)
+  if [ "${gout#CAPTURE refused}" != "$gout" ] || [ "$(grep -c '^session$' "$gcalls")" -ne 1 ]; then
+    echo "eval/capture-fallbacks.sh: the folder main-evidence, beside a checkout of the repository, is refused or does not get its capture session"
+  fi
   # a session that prints nothing: one CAPTURE failed line, the same verdict and exit code
   rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAP=none rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
   if [ "$rc" -ne "$rc_a" ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || [ "$(grep -c '^CAPTURE failed: ' "$dir/out.log")" -ne 1 ] || ! grep -q '^REPORT ' "$dir/out.log"; then
