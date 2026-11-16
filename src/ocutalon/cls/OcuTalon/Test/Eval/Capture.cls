@@ -12,6 +12,9 @@ Include Ensemble
 ///   - TestRecordsAndLogsNothing (AC 7): Run leaves the event log rows of its job, the Decision and Usage rows and the bridge's Ens message headers as they were, and the source of the tool names no logging, no AI call, no send, no
 ///     Conclude and no runner item;
 ///   - TestRecheckIsSilent (DW-1421): Decide.Recheck, for a refused reply, a usable one, one that the filter leaves with no reason and one that the filter makes invalid, changes none of those counts;
+///   - TestNothingIsWrittenAnywhere (QA, DW-1421): Run and Recheck change no row of any persistent table of the product, no non-OcuTalon message header (an alert) and write no audit entry;
+///   - TestAttemptsAreNumberedByRequest (QA, DW-1421): the attempts of a decision are numbered by their request headers, whether or not each has an answer in the store, and not by the order of the answers;
+///   - TestHostileRepliesStayOffStdout (QA, DW-1421): replies, a case name and a fallback reason that carry line ends, quotes, bars, a fake CHK line, non-ASCII characters and a rule name never put anything but the known CHK lines on stdout, and the files hold each reply byte for byte;
 ///   - TestRecheckIsUnreachable (DW-1421): no class of the REST, channel, conversation, tool, agent or MCP code names Recheck, and no class but Decide names Recheck of Decide.
 Class OcuTalon.Test.Eval.Capture Extends %UnitTest.TestCase
 {
@@ -114,8 +117,8 @@ Method SeedDecision(kind As %String, reason As %String = "invalid") As %String [
 	Quit ref
 }
 
-/// Seeds one attempt of the decision: the Request body and its header (to the runner), the Reply body and its response header.
-Method SeedReply(ref As %String, kind As %String, runner As %String, text As %String, failure As %String = "", retryOf As %String = "")
+/// Seeds the request of one attempt of the decision: the Request body and its header (to the runner). Gives the header's id, which the answer links to.
+Method SeedRequest(ref As %String, kind As %String, runner As %String, retryOf As %String = "") As %String
 {
 	Set request = ..NewRequest(kind, ref, retryOf)
 	$$$ThrowOnError(request.%Save())
@@ -130,6 +133,12 @@ Method SeedReply(ref As %String, kind As %String, runner As %String, text As %St
 	Set out.TimeCreated = ##class(OcuTalon.Bridge.Time).NowUtc()
 	$$$ThrowOnError(out.%Save())
 	Set ..Made = ..Made _ $ListBuild("header|"_out.%Id())
+	Quit out.%Id()
+}
+
+/// Seeds the answer to the request header: the Reply body and its response header (linked by CorrespondingMessageId).
+Method SeedAnswer(requestHeader As %String, runner As %String, text As %String, failure As %String = "")
+{
 	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 	Set reply.Text = text
 	Set reply.FailureText = failure
@@ -141,12 +150,18 @@ Method SeedReply(ref As %String, kind As %String, runner As %String, text As %St
 	Set back.TargetConfigName = "Decide"
 	Set back.Type = 2
 	Set back.Status = 9
-	Set back.CorrespondingMessageId = out.%Id()
+	Set back.CorrespondingMessageId = requestHeader
 	Set back.MessageBodyClassName = "OcuTalon.Bridge.Msg.Reply"
 	Set back.MessageBodyId = reply.%Id()
 	Set back.TimeCreated = ##class(OcuTalon.Bridge.Time).NowUtc()
 	$$$ThrowOnError(back.%Save())
 	Set ..Made = ..Made _ $ListBuild("header|"_back.%Id())
+}
+
+/// Seeds one attempt of the decision: the request and its answer.
+Method SeedReply(ref As %String, kind As %String, runner As %String, text As %String, failure As %String = "", retryOf As %String = "")
+{
+	Do ..SeedAnswer(..SeedRequest(ref, kind, runner, retryOf), runner, text, failure)
 }
 
 /// Seeds every kind of fallback that the tool tells apart (see the class description) and keeps each one's expectation in the array expected(ref, attempt) = $ListBuild(text, marker, runner, rule, field)
@@ -494,6 +509,215 @@ Method TestRecheckIsUnreachable()
 	Set offending = ..Offenders("", "process\.decide.*recheck|recheck.*process\.decide", "OcuTalon.Bridge.Process.Decide", .scanned)
 	Do $$$AssertTrue(scanned > 100, "the scan read the source of the OcuTalon classes: "_scanned)
 	Do $$$AssertEquals(offending, "", "no class but Decide names Recheck of Decide")
+}
+
+/// The name of the file of the decision's attempt in the folder's names, or "".
+ClassMethod Named(names As %List, ref As %String, attempt As %Integer) As %String [ Private ]
+{
+	Set position = 0
+	While $ListNext(names, position, one) {
+		If ($Piece(one, "-", 2, $Length(one, "-") - 1) = ref) && ($Piece($Piece(one, ".", 1), "-", $Length(one, "-")) = attempt) Quit
+		Set one = ""
+	}
+	Quit one
+}
+
+/// DW-1421 (QA, attempt 2): the attempts of a decision are numbered by their request headers, in header order, whether or not an attempt has an answer in the store, and not by the order of the answers.
+///   - the first request has no answer and the retry's reply is the second attempt (file "-2", the retry runner);
+///   - the first attempt's answer and a retry request with no answer is one reply, attempt 1;
+///   - two requests with no answer count as a decision with no reply;
+///   - the first attempt's answer that is stored after the retry's reply is still attempt 1.
+Method TestAttemptsAreNumberedByRequest()
+{
+	Set unanswered = ..SeedDecision("diagnose")
+	Do ..SeedRequest(unanswered, "diagnose", ..#DIAGNOSIS)
+	Do ..SeedReply(unanswered, "diagnose", ..#RETRY, $ClassMethod(..#PAYLOAD, "RuleReply", "reasons-blank").%ToJSON(), , ..#DIAGNOSIS)
+	Set retryless = ..SeedDecision("diagnose")
+	Do ..SeedReply(retryless, "diagnose", ..#DIAGNOSIS, $ClassMethod(..#PAYLOAD, "RuleReply", "outcome-not-act").%ToJSON())
+	Do ..SeedRequest(retryless, "diagnose", ..#RETRY, ..#DIAGNOSIS)
+	Set silent = ..SeedDecision("diagnose")
+	Do ..SeedRequest(silent, "diagnose", ..#DIAGNOSIS)
+	Do ..SeedRequest(silent, "diagnose", ..#RETRY, ..#DIAGNOSIS)
+	Set late = ..SeedDecision("diagnose")
+	Set firstHeader = ..SeedRequest(late, "diagnose", ..#DIAGNOSIS)
+	Set retryHeader = ..SeedRequest(late, "diagnose", ..#RETRY, ..#DIAGNOSIS)
+	Do ..SeedAnswer(retryHeader, ..#RETRY, $ClassMethod(..#PAYLOAD, "RuleReply", "item-noun-blank").%ToJSON())
+	Do ..SeedAnswer(firstHeader, ..#DIAGNOSIS, $ClassMethod(..#PAYLOAD, "RuleReply", "cause-blank").%ToJSON())
+	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
+	Do $$$AssertStatusOK(sc, "the capture runs")
+	Do $$$AssertEquals(summary.decisions_"|"_summary.replies_"|"_summary.noReply_"|"_summary.files, "4|4|1|5", "4 decisions, 4 replies, one decision with no reply, 4 files and summary.json")
+	Set names = ..Files(..Folder)
+	Do $$$AssertEquals($ListLength(names), 5, "5 files in the folder")
+	For want = $ListBuild(unanswered, 2, ..#RETRY, "reasons-blank"), $ListBuild(retryless, 1, ..#DIAGNOSIS, "outcome-not-act"), $ListBuild(late, 1, ..#DIAGNOSIS, "cause-blank"), $ListBuild(late, 2, ..#RETRY, "item-noun-blank") {
+		Set ref = $List(want, 1)
+		Set attempt = $List(want, 2)
+		Set name = ..Named(names, ref, attempt)
+		Do $$$AssertTrue(name '= "", "a file for attempt "_attempt_" of the decision with the rule "_$List(want, 4))
+		If name = "" Continue
+		Set file = {}.%FromJSON(..FileText(..Folder_name))
+		Do $$$AssertEquals(file.attempt_"|"_file.runner_"|"_file.rule, attempt_"|"_$List(want, 3)_"|"_$List(want, 4), "attempt "_attempt_" is the reply of "_$List(want, 3)_" with the rule "_$List(want, 4))
+	}
+	Do $$$AssertEquals(..Named(names, unanswered, 1), "", "the first attempt that has no answer has no file")
+	Do $$$AssertEquals(..Named(names, retryless, 2), "", "nor has a retry that has no answer")
+	Do $$$AssertEquals(..Named(names, silent, 1)_..Named(names, silent, 2), "", "nor has a decision whose two requests have none")
+}
+
+/// A text with a line end, a carriage return, a tab, quotes, a back slash, a bar, a line of its own that looks like a CHK line, characters outside ASCII (and one outside the basic plane) and a rule name; label tells the text apart.
+ClassMethod Hostile(label As %String) As %String [ Private ]
+{
+	Quit "first line "_label_$Char(10)_"CHK|file|../../evil.json"_$Char(13, 10)_"""quoted"" 'single' \ back"_$Char(9)_"tab | pipe | "_$Char(233, 252, 26085, 26412, 128512)_" ERROR #5001 rule cause-blank"
+}
+
+/// A hostile text that fits the 32 characters of a category or an outcome.
+ClassMethod ShortHostile() As %String [ Private ]
+{
+	Quit "q"""_$Char(10)_"CHK|file|../evil"_$Char(233, 26085)
+}
+
+/// DW-1421 (QA, AC 6): replies that carry a line end, quotes, a bar, a fake CHK line, non-ASCII characters and the name of a rule - in every field that a reply holds, as a key, as the whole text and in the failure text - and a case name and a
+/// fallback reason that carry a line end and a bar too (the tool's own values) never reach the CHK lines: every line is one ASCII CHK line of the known shapes, whose rule names are exactly the expected ones, while the files hold each reply byte for byte.
+Method TestHostileRepliesStayOffStdout()
+{
+	Set hostile = ..Hostile("long")
+	Set short = ..ShortHostile()
+	Set whole = ..Hostile("whole")
+	Set keyed = $ClassMethod(..#PAYLOAD, "Usable")
+	Do keyed.%Set(..Hostile("key"), 1)
+	Set categorised = $ClassMethod(..#PAYLOAD, "Usable")
+	Set categorised.causeCategory = short
+	Set reasoned = $ClassMethod(..#PAYLOAD, "Usable")
+	Set reasoned.cause = ..Hostile("cause")
+	Set reasoned.fixSummary = ..Hostile("summary")
+	Do reasoned.reasons.%Set(0, ..Hostile("reason"))
+	Set fixed = $ClassMethod(..#PAYLOAD, "Usable")
+	Set fixed.fixParameters.field = ..Hostile("field")
+	Set triage = {"outcome": (short), "reasons": [(hostile)], "confidence": 0.5}
+	Set texts = ""
+	Set expected = ""
+	For one = $ListBuild(whole, "ERROR #5035", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "ERROR #9404: an unexpected property", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "ERROR #5035", ..#DIAGNOSIS, "diagnose") {
+		Set ref = ..SeedDecision($List(one, 4))
+		Do ..SeedReply(ref, $List(one, 4), $List(one, 3), $List(one, 1))
+		Set texts = texts _ $ListBuild($List(one, 1))
+		Set expected = expected _ $ListBuild($List(one, 2))
+	}
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, "", ..Hostile("failure"))
+	Set expected = expected _ $ListBuild("no reply text")
+	Set ref = ..SeedDecision("diagnose", "in"_$Char(10)_"CHK|file|zzreason.json|v")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, ..Hostile("passes"))
+	Set expected = expected _ $ListBuild("passes the check")
+	Set case = ##class(OcuTalon.Eval.Data.CaseResult).%New()
+	Set case.RunRef = "zzcaptureRun"
+	Set case.CaseName = "zz"_$Char(10)_"CHK|file|zzcase.json|x"
+	Set case.DecisionRef = ref
+	Set case.State = "decided"
+	$$$ThrowOnError(case.%Save())
+	Set ..Made = ..Made _ $ListBuild("case|"_case.%Id())
+	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
+	Do $$$AssertStatusOK(sc, "the capture runs")
+	Do $$$AssertEquals(summary.decisions_"|"_summary.replies_"|"_summary.files, "9|9|10", "9 decisions, 9 replies and 10 files with summary.json")
+	Set lines = $ClassMethod(..#TOOL, "Lines", summary)
+	Do $$$AssertTrue($Match(lines, "[\n -~]*"), "the lines are ASCII, with line ends and no other control character")
+	Set files = 0
+	Set shapes = $ListBuild("decisions", 7, "reason", 4, "rule", 5, "case", 5, "file", 3)
+	For i = 1:1:$Length(lines, $Char(10)) {
+		Set line = $Piece(lines, $Char(10), i)
+		Set kind = $Piece(line, "|", 2)
+		Set at = $ListFind(shapes, kind)
+		Do $$$AssertTrue(($Piece(line, "|", 1) = "CHK") && (at > 0) && ($Length(line, "|") = $List(shapes, at + 1)), "line "_i_" is one CHK line of the shape of "_kind_": "_$Select($Length(line) > 60: $Extract(line, 1, 60)_"...", 1: line))
+		If kind = "file" Set files = files + 1
+		If kind = "rule" Set got($Piece(line, "|", 3)) = $Get(got($Piece(line, "|", 3))) + $Piece(line, "|", 5)
+	}
+	Do $$$AssertEquals(files, summary.files, "one file line for each file of the folder: no line of the text or of the names adds one")
+	Set position = 0
+	While $ListNext(expected, position, name) {
+		Set want(name) = $Get(want(name)) + 1
+	}
+	Set name = ""
+	For {
+		Set name = $Order(want(name))
+		If name = "" Quit
+		Do $$$AssertEquals($Get(got(name)), want(name), "the rule "_name_" is counted in the lines as often as it was seeded")
+	}
+	Set name = ""
+	For {
+		Set name = $Order(got(name))
+		If name = "" Quit
+		Do $$$AssertTrue($Data(want(name)), "and the rule "_name_" is one that was seeded")
+	}
+	For fragment = "evil", "quoted", "single", "first line", "pipe", "back", "cause-blank", "../" {
+		Do $$$AssertTrue(lines '[ fragment, "the lines hold no "_fragment)
+	}
+	Do $$$AssertTrue((lines [ "zzcase") && (lines [ "zzreason"), "the case name and the fallback reason, which the tool takes from its own rows, are cleaned and not dropped")
+	Set names = ..Files(..Folder)
+	Set position = 0
+	While $ListNext(names, position, one) {
+		Do $$$AssertTrue($Match(one, "[A-Za-z0-9._-]+"), "the file name "_one_" is safe to copy")
+	}
+	Set position = 0
+	Set found = 0
+	While $ListNext(texts, position, text) {
+		Set holds = 0
+		Set position2 = 0
+		While $ListNext(names, position2, one) {
+			If one '= "summary.json" {
+				Set file = {}.%FromJSON(..FileText(..Folder_one))
+				If file.text = text Set holds = 1
+			}
+		}
+		Do $$$AssertTrue(holds, "a file holds the reply "_$Length(text)_" characters long, byte for byte, with its line ends, quotes and non-ASCII characters")
+	}
+}
+
+/// The row count of every persistent table of the product (the classes of OcuTalon outside OcuTalon.Test), and of the message headers whose body is not an OcuTalon class or that name no body (an Ens alert, for one): what a record, an alert, a
+/// notice or a live event of the product would change, whichever table it went to.
+ClassMethod Rows() As %String [ Private ]
+{
+	Set text = ""
+	Set tables = ##class(%SQL.Statement).%ExecDirect(, "SELECT SqlQualifiedNameQ FROM %Dictionary.CompiledClass WHERE Name %STARTSWITH 'OcuTalon.' AND NOT Name %STARTSWITH 'OcuTalon.Test.' AND ClassType = 'persistent' AND Abstract = 0")
+	While tables.%Next() {
+		Set table = tables.%GetData(1)
+		Set text = text _ table _ "=" _ ..One("SELECT COUNT(*) FROM " _ table) _ ";"
+	}
+	Quit text _ "headers=" _ ..One("SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName IS NULL OR MessageBodyClassName = '' OR NOT MessageBodyClassName %STARTSWITH 'OcuTalon.'")
+}
+
+/// The number of entries that the product's audit writer made in the IRIS audit log since the mark (OcuTalon.Test.Bridge.AuditLog.Now).
+ClassMethod AuditCount(mark As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, ##class(OcuTalon.Bridge.Audit).#SOURCE).%Size()
+}
+
+/// DW-1421 (QA, Planner condition: saves nothing, fires nothing, logs nothing): CaptureTool.Run and Decide.Recheck change no row of any persistent table of the product, no alert or other non-OcuTalon message header, and write no entry to
+/// the IRIS audit log (the other pins count the event log of the job, Decision, Usage and the bridge's headers). A control entry, written first, shows that the audit reader sees an entry of the product's writer on this stack.
+Method TestNothingIsWrittenAnywhere()
+{
+	Set control = ..Marker()
+	Set before = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Write("Action", {"marker": (control)}, "zzcapture control"), "the control audit entry is written")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(before, "OcuTalon", "", "", control).%Size(), 1, "and the audit reader finds it, so that a count of zero means something")
+	Do ..SeedAll(.expected, .count)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set rows = ..Rows()
+	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
+	Do $$$AssertStatusOK(sc, "the capture runs")
+	Do $$$AssertTrue(summary.replies > 20, "and it did capture replies")
+	Do $$$AssertEquals(..Rows(), rows, "Run: no table of the product has a row more or fewer, and no header of another body is made")
+	Do $$$AssertEquals(..AuditCount(mark), 0, "Run: no audit entry is written")
+	Set request = ..NewRequest("diagnose", "")
+	Set long = $ClassMethod(..#PAYLOAD, "Usable")
+	Do long.evidence.%Push($Translate($Justify("", 129), " ", "e"))
+	Set emptied = $ClassMethod(..#PAYLOAD, "Usable")
+	Do emptied.reasons.%Set(0, "No issues.")
+	Set blanked = $ClassMethod(..#PAYLOAD, "Usable")
+	Set blanked.cause = "No problems."
+	Set usable = $ClassMethod(..#PAYLOAD, "Usable")
+	For label = "over the limit", "no reason left", "invalid after the filter", "a usable reply" {
+		Set reply = $Case(label, "over the limit": long, "no reason left": emptied, "invalid after the filter": blanked, : usable)
+		Do $ClassMethod(..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard", .problem)
+		Do $$$AssertEquals(..Rows(), rows, "Recheck of "_label_": no table of the product has a row more or fewer, and no header of another body is made")
+		Do $$$AssertEquals(..AuditCount(mark), 0, "Recheck of "_label_": no audit entry is written")
+	}
 }
 
 }

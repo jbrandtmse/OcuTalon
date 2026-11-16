@@ -18,7 +18,7 @@
 ///   - TestRefusalTextForms: Decide.RefusalText for statuses built with the forms of IRIS's own (the length and value forms, the position, a property that the class lacks, a limit that
 ///     is not a number, a code that is not a number, a repeated error, the cap of five, and no error), and the tag form (DW-1421): a #5001 whose second parameter is a tag that REFUSALRULES of the
 ///     reply class lists is "ERROR #5001 rule <tag>" (rows k); one whose second parameter is a marker, a form that is a tag but is not listed, or a tag of another class is the bare "ERROR #5001"
-///     (rows l and m), so that no value of a reply can ever follow "rule".
+///     (rows l and m), so that no value of a reply can ever follow "rule"; and a value that is only a part of the list (a field, the start or the end of a tag) is bare too (row n).
 /// Each test removes its Decision rows and its REFUSED warnings, and kills ^||ZzProbeFilter and ^||ZzProbeReplyCheck, also after a failure (OnAfterOneTest).
 Class OcuTalon.Test.Bridge.ReplyCheck Extends %UnitTest.TestCase
 {
@@ -419,6 +419,13 @@ Method TestRefusalTextForms()
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, "OcuTalon.NoSuchClass"), "ERROR #5001", "m: a class that does not exist lists none")
 	Set sc = $SYSTEM.Status.Error(5001, "t", "confidence-missing:confidence")
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "m: a pair of the list is not a tag")
+	// n (QA): a value that is a part of the list but not a whole tag - a field of a pair, the start or the end of a tag - is not one either
+	For near = "confidence", "outcome", "reasons", "confidence-miss", "missing", "unlisted", "blank" {
+		Set sc = $SYSTEM.Status.Error(5001, "t", near)
+		Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "n: "_near_", a part of the list that is not a whole tag, gives the bare form")
+	}
+	Set sc = $SYSTEM.Status.Error(5001, "t", "reasons-blank")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001 rule reasons-blank", "n: and a whole tag in the middle of the list is shown")
 }
 
 }

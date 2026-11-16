@@ -191,7 +191,9 @@
 #                 CAPTURE lines with counts and rule names and (withheld) for a field with a character outside [A-Za-z0-9 #:;<>.,()_-], never the text of
 #                 a reply (the folder holds it), leaves the report folder, the verdict and the exit code as they were, and says "CAPTURE failed" when the
 #                 session prints nothing, and "CAPTURE copy failed: <n> file(s) were not copied" (before the folder line, a count only) when a copy fails or comes out empty,
-#                 and a normal run does not; the session script prints the summary and ends with CHK|run|1; a folder inside the copy tree and a missing one are refused with no session and no file. The bad samples are the
+#                 and a normal run does not; the session script prints the summary and ends with CHK|run|1; a folder inside the copy tree and a missing one are refused with no session and no file, also when the folder leads into the tree through
+#                 a link, "..", a relative name or a trailing slash, a file and an empty name are refused as a missing folder, and a folder beside the tree whose
+#                 name starts with the tree's, one outside it and a link to one outside it are not refused. The bad samples are the
 #                 repository's two scripts with one edit each;
 #   rules-flow    (Story 0.27) eval/run.sh --rules-only, --rules-only main and --rules-only held-out, from the same copy tree and stub as rc-flow (the stub answers
 #                 the rules-only session by what it calls: RestoreKeys and Keys.Status of the runners, the mock's request count, the rules-only runs): the keys are
@@ -2365,6 +2367,9 @@ for (const [name, word, reason] of [
 ]) variant('capture', name, reason, (f) => { f['eval/run.sh'] = RUNSH; f['eval/capture-fallbacks.sh'] = `${CAPSH}\n${word}\n`; });
 capVariant('bad-no-usage-exit', 'run directly it does not print its usage line and exit 2', [], [['  exit 2\nfi', '  exit 0\nfi']]);
 capVariant('bad-unguarded', 'a capture folder inside the checkout is not refused', [], [['  if capture_inside "$resolved"; then', '  if false; then']]);
+capVariant('bad-logical-path', 'that leads into the checkout is not refused as inside it', [], [['  resolved=$(cd "$given" && pwd -P) || {', '  resolved=$(cd "$given" && pwd) || {']]);
+capVariant('bad-prefix-match', 'the folder t-evidence, which is not the checkout or below it, is refused or does not get its capture session', [], [['  case $1/ in\n    "$here"/*) return 0 ;;', '  case $1 in\n    "$here"*) return 0 ;;']]);
+capVariant('bad-no-root-resolve', 'that leads into the checkout is not refused as inside it', [], [['  here=$(cd "$root" && pwd -P) || return 0', '  here=$root']]);
 capVariant('bad-missing-made', 'a missing capture folder is not refused', [], [['  if [ -z "$given" ] || [ ! -d "$given" ]; then', '  if [ ! -d "$given" ]; then mkdir -p "$given"; fi\n  if false; then']]);
 capVariant('bad-no-filter', 'the output of the capture shows the text of a reply or a field with an unsafe character', [], [['      *[!A-Za-z0-9\\ \\#:\\;\\<\\>.,\\(\\)_-]*) printf \'(withheld)\' ;;\n', '']]);
 const CAPCOPY = 'if ! dc exec -T iris cat "$CAPTURE_CONTAINER_DIR/$name" < /dev/null > "$resolved/$name" 2> /dev/null || [ ! -s "$resolved/$name" ]; then';
@@ -4143,6 +4148,18 @@ cap_snap() {
   cp -R "$tmp/flow-cap/reports" "$tmp/cap-$1/reports"
 }
 
+# cap_guard <folder>: capture_fallbacks of eval/capture-fallbacks.sh ($cap of check_capture) for the folder, in a subshell whose root is a link to the copy tree of rc-flow ($tmp/flow-cap/t) and whose container functions are stubs that only note
+# their calls in $tmp/cap-guard/calls ("session" for the IRIS session, which prints nothing; "dc ..." for the container tool). The CAPTURE lines go to the output.
+cap_guard() {
+  (
+    root="$tmp/cap-guard/rootlink"
+    iris_script() { cat > /dev/null; echo session >> "$tmp/cap-guard/calls"; }
+    dc() { echo "dc $*" >> "$tmp/cap-guard/calls"; }
+    . "$cap"
+    capture_fallbacks "$1"
+  )
+}
+
 # check_capture <root>: the violations of eval/capture-fallbacks.sh and of the opt-in step of eval/run.sh that sources it (DW-1421). Static: no code line of the
 # script names .env, the model key's variable, curl, wget, /v1/, api., PointKeys, LIVE_SESSION_ENV or the container tool, and it has no key-like text of its own. Run directly it
 # exits 2 with its usage line and makes no call. Dynamic, from the copy tree and stub of rc-flow with the script added to the tree (RCF_CAPTURE):
@@ -4259,6 +4276,40 @@ check_capture() {
   if ! grep -q '^CAPTURE refused: ' "$dir/out.log" || grep -qF 'CaptureTool' "$dir/calls" || [ -e "$dir/zz-missing" ] || [ "$rc" -ne "$rc_a" ]; then
     echo "eval/run.sh: a missing capture folder is not refused with no session and no folder made (exit $rc)"
   fi
+  # the folder is judged after it is resolved, and by whole path parts: a path that leads into the checkout (the checkout itself, below it, through ".." or a link, or relative) is refused with no call, a file or an
+  # empty name is refused as a missing folder, and a folder beside the checkout whose name only starts with the checkout's (or a link to a folder outside it) is not refused
+  local guard="$tmp/cap-guard" gcalls="$tmp/cap-guard/calls" gout g gname
+  rm -rf "$guard"
+  mkdir -p "$guard/outside" "$dir/t/zz-sub" "$dir/t-evidence"
+  ln -s "$dir/t" "$guard/link-in"
+  ln -s "$dir/t" "$guard/rootlink"
+  ln -s "$guard/outside" "$dir/t/zz-link-out"
+  for g in "$dir/t" "$dir/t/" "$dir/t/zz-sub" "$dir/t/zz-sub/.." "$dir/t/zz-sub/../zz-sub/" "$guard/link-in" "$guard/link-in/zz-sub" "REL:."; do
+    gname=$g
+    : > "$gcalls"
+    if [ "${g#REL:}" != "$g" ]; then
+      gout=$(cd "$dir/t/zz-sub" && cap_guard "${g#REL:}" 2>&1)
+    else
+      gout=$(cap_guard "$g" 2>&1)
+    fi
+    if [ "${gout#CAPTURE refused: the evidence folder is inside the checkout}" = "$gout" ] || [ -s "$gcalls" ]; then
+      echo "eval/capture-fallbacks.sh: the folder $(basename "$gname") that leads into the checkout is not refused as inside it, with no call"
+    fi
+  done
+  for g in "$dir/t/eval/run.sh" "$dir/zz-no-such-folder" ""; do
+    : > "$gcalls"
+    gout=$(cap_guard "$g" 2>&1)
+    if [ "${gout#CAPTURE refused: the evidence folder does not exist}" = "$gout" ] || [ -s "$gcalls" ]; then
+      echo "eval/capture-fallbacks.sh: a file, a missing folder or an empty name is not refused as a missing folder, with no call"
+    fi
+  done
+  for g in "$guard/outside" "$dir/t-evidence" "$dir/t/zz-link-out"; do
+    : > "$gcalls"
+    gout=$(cap_guard "$g" 2>&1)
+    if [ "${gout#CAPTURE refused}" != "$gout" ] || [ "$(grep -c '^session$' "$gcalls")" -ne 1 ]; then
+      echo "eval/capture-fallbacks.sh: the folder $(basename "$g"), which is not the checkout or below it, is refused or does not get its capture session"
+    fi
+  done
   # a session that prints nothing: one CAPTURE failed line, the same verdict and exit code
   rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAP=none rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
   if [ "$rc" -ne "$rc_a" ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || [ "$(grep -c '^CAPTURE failed: ' "$dir/out.log")" -ne 1 ] || ! grep -q '^REPORT ' "$dir/out.log"; then
