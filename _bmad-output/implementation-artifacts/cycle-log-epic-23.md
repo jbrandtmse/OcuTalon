@@ -548,3 +548,4 @@
 2026-11-16T14:24:19Z	Epic 23	model_exposure_check	strings=MESSAGEMAYHAVESENT,MESSAGEUNREACHABLE result=MODEL-FACING path=Tools/EmailTools.cls:SendEmail(answer.message=CommandResult.Message_of_Channel.Email.Out) action=not_landed;DW-1432,DW-1431_to_post-cut_A/B
 2026-11-16T14:24:19Z	Epic 23	dw1429_check	result=pass Channel.Email.SMTP_holds_only_DataBegan;Sender/SMTP_write_no_log/trace/audit;existing_wire_test=Test.Fix.Email:TestSmtpKnowsWhenTheDataBegan(mock_SMTP_none/stall-greeting/stall-data/error) change=none
 2026-11-16T14:24:19Z	Epic 23	ci_rebalance	move=live:production-restart:production->browser planned=production~26.8,browser~30.9 test-ci-config=pass test-ci-changes=pass
+2026-11-16T14:40:58Z	Epic 23	ci_red_classified	run=43885394951 workflow=.github/workflows/ci.yml class=story test=checks:demo-path-gate(browser_group_now_has_three_units) action=fix_test_stub;old_run_not_cancelled(self-hosted_jobs_started)
