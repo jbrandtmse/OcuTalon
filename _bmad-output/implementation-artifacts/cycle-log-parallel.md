@@ -4536,3 +4536,5 @@
 2026-11-16T18:31:05Z	Run	owner_decision	via=contest_planner stale-runner_check=approved(>2h_no_commit_local_or_origin;check_stage_final_result_not_transcript_time) tool=.coordination/stale-runner-check.py first_run=only_laneA_stale(handled) 25.9=refresh_fresh_check_after_integrate
 2026-11-16T18:35:33Z	Epic 24	ci_red	24.3b@600b5f7ca ci=43919911468 job=iris(shards-2)/133484098787 runner=ocutalon-ci-22 class=Test.Mcp.SourceRun:TestNoAnswerHash(reason!=error,10/10_forms) feature_e404c59d3_green;not_ledgered -> lane_D_classifying
 2026-11-16T18:35:57Z	Run	owner_decision	via=contest_planner queue_moves_past_24.3b(s2314,DW-1421r2_first);24.3b_back_when_green+classified leads=ReminderOps_AD-18,Notify_routing,EmailOut_union relayed=lane_D
+2026-11-16T18:36:07Z	Epic 21	ci_green_verified	DW-1421_r2 c573a86d0 runs=43914431337,43914431294 planner_verify=PASS
+2026-11-16T18:36:07Z	Epic 21	merge_enqueued	DW-1421_r2 head=c573a86d0
