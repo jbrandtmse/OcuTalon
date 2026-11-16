@@ -15,18 +15,22 @@
 ///   - TestRefusalTrace (rows Over the limit and Key in a refused value): a diagnose reply that fails its check, or that the filter leaves with no reason or makes invalid,
 ///     gives the fallback invalid, with no reasons and no payload on the row and the response, and one Type 3 warning of Decide.Conclude that starts with REFUSED and the
 ///     decision's Ref and is exactly the words of what failed, never the reply: "The reply check failed: the reply is not one JSON object that <class> accepts: ElementAtFault:
-///     129 > 128" (a text over its limit); "... ERROR #5001" for a key in a refused value (the class's own check), with neither the key nor [redacted];
+///     rule element-at-fault-too-long" (a text over its limit, DW-1421 round 3); "... ERROR #5001" for a key in a refused value (the class's own check), with neither the key nor [redacted];
 ///     "No reason is left once the reply filter has run"; "After the reply filter ran: <class> refused the filtered payload: ERROR #5001 rule cause-blank". The class's own rules are named
 ///     by their tag (DW-1421): "... ERROR #5001 rule cause-category-unlisted" for the key in a refused value, again with neither the key nor [redacted]. Decide.Recheck, run with the same request, class and
 ///     filter, returns 0 with the problem that the warning holds (and 1 with no problem for a usable reply);
-///   - TestRuleTags (DW-1421, AC 1): a reply that breaks exactly one rule is refused with RefusalText "ERROR #5001 rule <tag>" for each of the 22 rules of the class and its parent, and the tag's field in REFUSALRULES is the rule's;
-///     the class's list holds 23 pairs, the 23rd the length tag evidence-too-long:evidence;
-///   - TestEveryRuleTagged (DW-1421, AC 3): each REFUSALRULES lists distinct tag:field pairs of the tag form whose field (its first part) is the JSON name of a property of the class, the class's list
-///     starts with its parent's, and the %OnValidateObject of each class has exactly one $$$ERROR (or $SYSTEM.Status.Error) for each of its own tags that does not end in -too-long, each tag written once;
-///     each -too-long pair names the JSON field of a property with a numeric MAXLEN, is the only one of its field, and is written in no %OnValidateObject;
-///   - TestEvidenceCut (DW-1421 C2'): an evidence reference over 128 characters is cut (at most 128 characters, ending in U+2026, at the last word boundary), never refused, and a reference of 128 or fewer is
+///   - TestRuleTags (DW-1421, AC 1): a reply that breaks exactly one rule is refused with RefusalText "ERROR #5001 rule <tag>" for each of the 21 rules that a diagnosis can meet (the 22 rules of the class and its parent less
+///     confidence-missing, which a diagnosis never meets: it is accepted, C5), and the tag's field in REFUSALRULES is the rule's; the class's list holds 31 pairs: without its length and range tags it is RuleTags(), and its length tags are LengthTags();
+///   - TestEveryRuleTagged (DW-1421, AC 3 and 5): each REFUSALRULES lists distinct tag:field pairs of the tag form (lower-case letters and hyphens, no digit) whose field (its first part) is the JSON name of a property of the class, the class's list
+///     starts with its parent's whole list (which lists three rules, outcome-too-long:outcome, reasons-too-long:reasons and one range tag), and the %OnValidateObject of each class has exactly one $$$ERROR (or $SYSTEM.Status.Error) for each of its own
+///     tags that does not end in -too-long or -out-of-range, each tag written once; each -too-long pair names the JSON field of a property with a numeric MAXLEN, is the only one of its field, and is written in no %OnValidateObject, and every
+///     top-level field with a numeric MAXLEN has one; each -out-of-range pair names a top-level field with a numeric MINVAL or MAXVAL, is written in no %OnValidateObject, and each class has exactly one, for confidence;
+///   - TestLengthTags (DW-1421 round 3, AC 2 and 3): a text over the limit of any of the eight limited fields is "ERROR #7201 rule <field>-too-long" with no digit after the code, for the diagnosis class, for the triage class and after the reply filter;
+///   - TestRangeTag (Option R): a confidence over 1 or under 0 is "ERROR #7203 rule confidence-out-of-range" or "ERROR #7204 rule ..." for both reply classes;
+///   - TestConfidenceAbsent (DW-1421 C5, AC 6 and 7): a diagnosis with no confidence (or a null one) is accepted and stored with none, never 0, with no confidence key in its payload or its live payload; a confidence of 0 is kept as 0; the triage class still refuses a reply with none;
+///   - TestEvidenceCut (DW-1421 C2' and round 3): an evidence reference over 128 characters is cut (at most 128 characters, ending in U+2026, at the last word boundary when that keeps at least EVIDENCEFLOOR = 64 characters, else mid-word), never refused, and a reference of 128 or fewer is
 ///     unchanged; each row of the cut (the limit, a space at 128, no boundary, a blank head, a surrogate pair, several, the count cap, a reference that is not a string, a reply that names evidenceCut, a dynamic
-///     object as input, text that is not JSON) is pinned, and no other field is cut;
+///     object as input, text that is not JSON, and the floor: an early space, a head of 64, of 63, and of 63 once two spaces are removed) is pinned, and no other field is cut;
 ///   - TestEvidenceCutRecorded (DW-1421 C2'): Decide.Conclude of a reply with cut references gives no fallback and a payload whose evidenceCut is the number of cuts, and no text of a reference and no log row of the
 ///     import is left anywhere, and the conclusion writes no event log or trace row of its job; with no cut, the payload has no evidenceCut;
 ///   - TestEvidenceTooLongTag (DW-1421 C1): an Evidence reference over 128 characters that is still there at validation (a filter that lengthens one) is "ERROR #7201 rule evidence-too-long", with no number;
@@ -345,7 +349,7 @@ Method TestRefusalTrace()
 		Set start = ..#REFUSED_ref_": "
 		Set first = start_"The reply check failed: the reply is not one JSON object that "_..#CLASS_" accepts: "
 		If label = "over the limit" {
-			Set expected = first_"ElementAtFault: 129 > 128"
+			Set expected = first_"ERROR #7201 rule element-at-fault-too-long"
 		} ElseIf label = "key in a refused value" {
 			Set expected = first_"ERROR #5001 rule cause-category-unlisted"
 		} ElseIf label = "no reason left after the filter" {
@@ -449,48 +453,93 @@ ClassMethod RollbackPack() As %DynamicObject
 	Quit pack
 }
 
-/// DW-1421 (AC 1): one reply for each of the 22 rules (the parent's three and the class's nineteen); the rule that fails is the one named.
+/// The length tags, in order, as "tag:field" (the -too-long pairs of REFUSALRULES that the test pins): the parent's two, then the class's six.
+ClassMethod LengthTags() As %String
+{
+	Quit "outcome-too-long:outcome,reasons-too-long:reasons,evidence-too-long:evidence,cause-category-too-long:causeCategory,element-at-fault-too-long:elementAtFault,fix-kind-too-long:fixKind,cause-too-long:cause,fix-summary-too-long:fixSummary"
+}
+
+/// The pairs of a REFUSALRULES list (a $ListBuild list) whose tag ends in the suffix, as a $ListBuild list.
+ClassMethod TagsEnding(pairs As %List, suffix As %String) As %List [ Private ]
+{
+	Set result = ""
+	Set position = 0
+	While $ListNext(pairs, position, pair) {
+		Set tag = $Piece(pair, ":", 1)
+		If ($Length(tag) > $Length(suffix)) && ($Extract(tag, *-($Length(suffix) - 1), *) = suffix) Set result = result _ $ListBuild(pair)
+	}
+	Quit result
+}
+
+/// DW-1421 (AC 1, AC 5, AC 6): one reply for each of the 21 rules that a diagnosis can meet (the parent's three less confidence-missing, and the class's nineteen); the rule that fails is the one named.
+/// confidence-missing is the parent's rule that the class does not meet: a reply without a confidence is accepted.
 Method TestRuleTags()
 {
 	Do ..BeginRollbackPack()
 	Set pairs = $ListFromString(..RuleTags(), ",")
 	Set position = 0
 	While $ListNext(pairs, position, pair) {
+		If $Piece(pair, ":", 1) = "confidence-missing" {
+			Set reply = ..RuleReply("confidence-missing")
+			Do $$$AssertStatusOK(..Check(reply, .payload), "confidence-missing: a diagnosis without a confidence is accepted, not refused")
+			If $IsObject(payload) Do $$$AssertEquals(payload.Confidence, "", "confidence-missing: and it has no confidence")
+			Continue
+		}
 		Do ..AssertRule($Piece(pair, ":", 1), $Piece(pair, ":", 2), ..RuleReply($Piece(pair, ":", 1)))
 	}
-	Do $$$AssertEquals($Length($Parameter(..#CLASS, "REFUSALRULES"), ","), 23, "the list holds 22 rules and the length tag")
-	Do $$$AssertEquals(..RuleTags(), $Piece($Parameter(..#CLASS, "REFUSALRULES"), ",", 1, 22), "and the rules are the class's list, in order")
-	Do $$$AssertEquals($Piece($Parameter(..#CLASS, "REFUSALRULES"), ",", 23), "evidence-too-long:evidence", "the 23rd pair is the length tag of the evidence")
+	Set actual = $ListFromString($Parameter(..#CLASS, "REFUSALRULES"), ",")
+	Do $$$AssertEquals($ListLength(actual), 31, "the list holds 22 rules, 8 length tags and the range tag of the confidence")
+	Set rules = ""
+	Set position = 0
+	While $ListNext(actual, position, pair) {
+		Set tag = $Piece(pair, ":", 1)
+		If ($ListLength(..TagsEnding($ListBuild(pair), "-too-long")) = 0) && ($ListLength(..TagsEnding($ListBuild(pair), "-out-of-range")) = 0) Set rules = rules _ $ListBuild(pair)
+	}
+	Do $$$AssertEquals($ListToString(rules, ","), ..RuleTags(), "the list without its length and range tags is the rules of the class, in order")
+	Do $$$AssertEquals($ListToString(..TagsEnding(actual, "-too-long"), ","), ..LengthTags(), "its length tags, in order, are the eight of LengthTags")
+	Do $$$AssertEquals($ListToString(..TagsEnding(actual, "-out-of-range"), ","), "confidence-out-of-range:confidence", "and its range tag is confidence-out-of-range")
 }
 
-/// DW-1421 (AC 3): the tag lists, and one tag literal for each $$$ERROR of each class's own %OnValidateObject.
+/// DW-1421 (AC 3, AC 5): the tag lists, and one tag literal for each $$$ERROR of each class's own %OnValidateObject.
 Method TestEveryRuleTagged()
 {
 	Set parent = "OcuTalon.Bridge.Msg.DecisionPayload"
 	Set parentPairs = $ListFromString($Parameter(parent, "REFUSALRULES"), ",")
 	Set pairs = $ListFromString($Parameter(..#CLASS, "REFUSALRULES"), ",")
-	Do $$$AssertEquals($ListLength(parentPairs), 3, "the parent lists its three rules")
-	Do $$$AssertEquals($ListToString($List(pairs, 1, 3), ","), $ListToString(parentPairs, ","), "the class's list starts with its parent's")
+	Set parentRules = 0
+	Set position = 0
+	While $ListNext(parentPairs, position, pair) {
+		If ($ListLength(..TagsEnding($ListBuild(pair), "-too-long")) = 0) && ($ListLength(..TagsEnding($ListBuild(pair), "-out-of-range")) = 0) Set parentRules = parentRules + 1
+	}
+	Do $$$AssertEquals(parentRules, 3, "the parent lists its three rules")
+	Do $$$AssertEquals($ListLength(..TagsEnding(parentPairs, "-too-long")), 2, "and two length tags")
+	Do $$$AssertEquals($ListLength(..TagsEnding(parentPairs, "-out-of-range")), 1, "and one range tag")
+	Do $$$AssertEquals($ListToString($List(pairs, 1, $ListLength(parentPairs)), ","), $ListToString(parentPairs, ","), "the class's list starts with its parent's whole list")
 	For class = parent, ..#CLASS {
 		Set list = ""
 		Set lengthTags = ""
-		Kill seen, lengthFields
+		Set rangeTags = ""
+		Kill seen, lengthFields, rangeFields
 		Set index = 0
 		Set position = 0
 		While $ListNext($Select(class = parent: parentPairs, 1: pairs), position, pair) {
 			Set index = index + 1
 			Set tag = $Piece(pair, ":", 1)
-			Do $$$AssertTrue(tag ? 1L.(1L,1N,1"-"), tag_": a tag is lower-case letters, digits and hyphens")
+			Do $$$AssertTrue(tag ? 1L.(1L,1"-"), tag_": a tag is lower-case letters and hyphens, with no digit")
 			Do $$$AssertTrue($Piece(pair, ":", 2) '= "", tag_": the pair names a field")
 			Do $$$AssertTrue(..JsonField(class, $Piece($Piece(pair, ":", 2), ".", 1)), tag_": and its field is the JSON name of a property of the class")
 			Do $$$AssertTrue('$Data(seen(tag)), tag_": and the tag is listed once")
 			Set seen(tag) = ""
-			If $Length(tag) > 9 && ($Extract(tag, *-8, *) = "-too-long") {
+			If $ListLength(..TagsEnding($ListBuild(pair), "-too-long")) {
 				Set lengthTags = lengthTags _ $ListBuild(pair)
 				Do $$$AssertTrue(..MaxLen(class, $Piece(pair, ":", 2)) ? 1.N, tag_": a length tag names the JSON field of a property with a numeric MAXLEN")
 				Do $$$AssertTrue('$Data(lengthFields($Piece(pair, ":", 2))), tag_": and is the only length tag of its field")
 				Set lengthFields($Piece(pair, ":", 2)) = ""
-			} ElseIf (class = parent) || (index > 3) {
+			} ElseIf $ListLength(..TagsEnding($ListBuild(pair), "-out-of-range")) {
+				Set rangeTags = rangeTags _ $ListBuild(pair)
+				Do $$$AssertTrue($Piece(pair, ":", 2) '[ ".", tag_": a range tag names a top-level field")
+				Do $$$AssertTrue($IsValidNum(..Param(class, $Piece(pair, ":", 2), "MINVAL")) || $IsValidNum(..Param(class, $Piece(pair, ":", 2), "MAXVAL")), tag_": and a field with a numeric MINVAL or MAXVAL")
+			} ElseIf (class = parent) || (index > $ListLength(parentPairs)) {
 				Set list = list _ $ListBuild(pair)
 			}
 		}
@@ -498,22 +547,41 @@ Method TestEveryRuleTagged()
 		Set body = ..ValidateBody(text)
 		Do $$$AssertTrue(body '= "", class_": its %OnValidateObject is found")
 		Set errors = ($Length(body, "$$$ERROR(") - 1) + ($Length(body, "$SYSTEM.Status.Error(") - 1)
-		Do $$$AssertEquals(errors, $ListLength(list), class_": one $$$ERROR for each of its own rules that is not a length tag")
+		Do $$$AssertEquals(errors, $ListLength(list), class_": one $$$ERROR for each of its own rules that is not a length or range tag")
 		Set position = 0
 		While $ListNext(list, position, pair) {
 			Set tag = $Piece(pair, ":", 1)
 			Do $$$AssertEquals($Length(body, ", """_tag_""")") - 1, 1, class_": the tag "_tag_" is written once")
 		}
 		Set position = 0
-		While $ListNext(lengthTags, position, pair) {
-			Do $$$AssertTrue(body '[ $Piece(pair, ":", 1), class_": the length tag "_$Piece(pair, ":", 1)_" is written in no %OnValidateObject")
+		While $ListNext(lengthTags _ rangeTags, position, pair) {
+			Do $$$AssertTrue(body '[ $Piece(pair, ":", 1), class_": the length or range tag "_$Piece(pair, ":", 1)_" is written in no %OnValidateObject")
 		}
+		// every top-level field with a numeric MAXLEN has exactly one length tag
+		Set limited = 0
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ?", class)
+		While rows.%Next() {
+			Set property = ##class(%Dictionary.CompiledProperty).%OpenId(class_"||"_rows.%Get("Name"))
+			If '$IsObject(property) Continue
+			Set field = property.Parameters.GetAt("%JSONFIELDNAME")
+			If (field = "") || '(property.Parameters.GetAt("MAXLEN") ? 1.N) Continue
+			Set limited = limited + 1
+			Do $$$AssertTrue($Data(lengthFields(field)), class_": the limited field "_field_" has a length tag")
+		}
+		Do $$$AssertEquals(limited, $ListLength(lengthTags), class_": there is one length tag for each limited field, and no other")
+		Do $$$AssertEquals($ListToString(rangeTags, ","), "confidence-out-of-range:confidence", class_": its one range tag is the confidence's")
 	}
-	Do $$$AssertNotTrue($Parameter(parent, "REFUSALRULES") [ "-too-long:", "the parent lists no length tag")
+	Do $$$AssertEquals($ListToString(..TagsEnding(parentPairs, "-too-long"), ","), "outcome-too-long:outcome,reasons-too-long:reasons", "the parent lists outcome-too-long:outcome and reasons-too-long:reasons")
 }
 
 /// The MAXLEN of the compiled property of the class whose JSON field name is the field, or "".
 ClassMethod MaxLen(class As %String, field As %String) As %String [ Private ]
+{
+	Quit ..Param(class, field, "MAXLEN")
+}
+
+/// The parameter (MAXLEN, MINVAL, MAXVAL) of the compiled property of the class whose JSON field name is the field, or "".
+ClassMethod Param(class As %String, field As %String, name As %String) As %String [ Private ]
 {
 	Set property = ""
 	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ?", class)
@@ -522,7 +590,7 @@ ClassMethod MaxLen(class As %String, field As %String) As %String [ Private ]
 		If $IsObject(property) && (property.Parameters.GetAt("%JSONFIELDNAME") = field) Quit
 		Set property = ""
 	}
-	Quit $Select($IsObject(property): property.Parameters.GetAt("MAXLEN"), 1: "")
+	Quit $Select($IsObject(property): property.Parameters.GetAt(name), 1: "")
 }
 
 /// 1 when a compiled property of the class has the JSON field name.
@@ -577,10 +645,11 @@ Method AssertCut(label As %String, input As %String, expected As %String, cuts A
 	If cuts '= "" Do $$$AssertEquals($Extract(element, $Length(element)), $Char(8230), label_": a cut reference ends in U+2026")
 }
 
-/// DW-1421 C2' (rows 1 to 15): an evidence reference over 128 characters is cut, never refused.
+/// DW-1421 C2' (rows 1 to 15) and round 3 (rows 16 to 19, the floor): an evidence reference over 128 characters is cut, never refused.
 Method TestEvidenceCut()
 {
 	Do $$$AssertEquals($Parameter(..#CLASS, "EVIDENCEMAX"), ##class(%Dictionary.CompiledProperty).%OpenId(..#CLASS_"||Evidence").Parameters.GetAt("MAXLEN"), "the limit of the cut is the MAXLEN of Evidence")
+	Do $$$AssertEquals($Parameter(..#CLASS, "EVIDENCEFLOOR"), 64, "the floor of a cut at a word boundary is 64 characters")
 	Set ellipsis = $Char(8230)
 	Set e128 = $Translate($Justify("", 128), " ", "e")
 	Do ..AssertCut("row 1, 128 characters", e128, e128)
@@ -618,10 +687,10 @@ Method TestEvidenceCut()
 	// row 9, the other fields
 	Set reply = ..Outage()
 	Set reply.elementAtFault = $Extract(e300, 1, 129)
-	Do ..AssertRefusal(reply, "ElementAtFault: 129 > 128", "row 9, an elementAtFault of 129")
+	Do ..AssertRefusal(reply, "ERROR #7201 rule element-at-fault-too-long", "row 9, an elementAtFault of 129")
 	Set reply = ..Outage()
 	Set reply.reasons = [($Extract(e300, 1, 100)_$Translate($Justify("", 901), " ", "r"))]
-	Do ..AssertRefusal(reply, "Reasons element 1: 1001 > 1000", "row 9, a reason of 1001")
+	Do ..AssertRefusal(reply, "ERROR #7201 rule reasons-too-long", "row 9, a reason of 1001")
 	// rows 10 and 11, the count cap
 	Set elements = []
 	For i = 1:1:20 Do elements.%Push("h"_i)
@@ -658,6 +727,16 @@ Method TestEvidenceCut()
 		Do $$$AssertStatusNotOK(actual, "row 15: "_text_" is not imported")
 		Do $$$AssertEquals($SYSTEM.Status.GetErrorText(actual), $SYSTEM.Status.GetErrorText(expected), "row 15: with the status of the inherited import")
 	}
+	// rows 16 to 19, the floor of the cut at a word boundary
+	Set early = "TargetConfigNames: "_$Translate($Justify("", 140), " ", "e")
+	Do $$$AssertEquals($Find(early, " ") - 1, 19, "row 16: the only space is at 19")
+	Do ..AssertCut("row 16, a reference whose only space is early", early, $Extract(early, 1, 127)_ellipsis, 1)
+	Set kept64 = $Translate($Justify("", 64), " ", "a")_" "_$Translate($Justify("", 100), " ", "b")
+	Do ..AssertCut("row 17, a word boundary that keeps 64", kept64, $Extract(kept64, 1, 64)_ellipsis, 1)
+	Set kept63 = $Translate($Justify("", 63), " ", "a")_" "_$Translate($Justify("", 100), " ", "b")
+	Do ..AssertCut("row 18, a word boundary that keeps 63", kept63, $Extract(kept63, 1, 127)_ellipsis, 1)
+	Set twice = $Translate($Justify("", 63), " ", "a")_"  "_$Translate($Justify("", 100), " ", "b")
+	Do ..AssertCut("row 19, 63 kept once two spaces are removed", twice, $Extract(twice, 1, 127)_ellipsis, 1)
 }
 
 /// Asserts that the reply is refused and RefusalText of the cause is the text.
@@ -736,12 +815,149 @@ Method TestEvidenceTooLongTag()
 	Do $$$AssertEquals($Translate($Piece(text, " rule ", 2), "0123456789"), $Piece(text, " rule ", 2), "and holds no digit after rule")
 	Set reply = ..Outage()
 	Set reply.elementAtFault = $Translate($Justify("", 129), " ", "e")
-	Do ..AssertRefusal(reply, "ElementAtFault: 129 > 128", "an elementAtFault of 129 keeps its length form")
+	Do ..AssertRefusal(reply, "ERROR #7201 rule element-at-fault-too-long", "an elementAtFault of 129 has its own length tag")
 	Set reply = ..EvidenceReply([($Translate($Justify("", 128), " ", "e"))])
 	Set valid = $ClassMethod(..#DECIDE, "Recheck", ..NewRequest(), reply.%ToJSON(), ..#CLASS, "OcuTalon.Test.Bridge.ProbeFilter", .problem)
 	Kill ^||ZzProbeFilter
 	Do $$$AssertEquals(valid, 0, "a reference of 128 characters that the filter lengthens is refused")
 	Do $$$AssertEquals(problem, "After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #7201 rule evidence-too-long", "with the length tag in the words of the check")
+}
+
+/// A text of n copies of the letter.
+ClassMethod Of(n As %Integer, letter As %String = "e") As %String [ Private ]
+{
+	Quit $Translate($Justify("", n), " ", letter)
+}
+
+/// Asserts that the text is refused by CheckReply of the reply class with RefusalText exactly "ERROR #<code> rule <tag>" (no digit after the code), and that the capture harness reads
+/// the tag as the rule and the field as the field.
+Method AssertTag(class As %String, text As %String, tag As %String, field As %String, label As %String, code As %Integer = 7201) [ Private ]
+{
+	Set checked = $ClassMethod(..#DECIDE, "CheckReply", text, class, .payload, .cause)
+	Do $$$AssertStatusNotOK(checked, label_": the reply is refused")
+	Set shown = $ClassMethod(..#DECIDE, "RefusalText", cause, class, text)
+	Do $$$AssertEquals(shown, "ERROR #"_code_" rule "_tag, label_": the refusal is the tag")
+	Do $$$AssertEquals($Translate($Piece(shown, " rule ", 2), "0123456789"), $Piece(shown, " rule ", 2), label_": and holds no digit after rule")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Test.Eval.CaptureTool", "RuleOf", shown), tag, label_": the capture reads the tag as the rule")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Test.Eval.CaptureTool", "FieldOf", shown, tag, class), field, label_": and "_field_" as the field")
+}
+
+/// DW-1421 round 3 (AC 2, AC 3): each limited field has its own length tag, with no position, length or limit.
+Method TestLengthTags()
+{
+	Set triage = "OcuTalon.Bridge.Msg.DecisionPayload"
+	Set reply = ..Usable()
+	Set reply.outcome = ..Of(33)
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "outcome-too-long", "outcome", "L1, an outcome of 33")
+	Set reply = ..Outage()
+	Set reply.reasons = [(..Of(1001, "r"))]
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "reasons-too-long", "reasons", "L2, a reason of 1001")
+	Set reply = ..Outage()
+	Set reply.causeCategory = ..Of(33)
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "cause-category-too-long", "causeCategory", "L3, a causeCategory of 33")
+	Set reply = ..Outage()
+	Set reply.elementAtFault = ..Of(129)
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "element-at-fault-too-long", "elementAtFault", "L4, an elementAtFault of 129")
+	Set reply = ..Usable()
+	Set reply.fixKind = ..Of(33)
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "fix-kind-too-long", "fixKind", "L5, a fixKind of 33")
+	Set reply = ..Outage()
+	Set reply.cause = ..Of(1001, "c")
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "cause-too-long", "cause", "L6, a cause of 1001")
+	Set reply = ..Usable()
+	Set reply.fixSummary = ..Of(1001, "s")
+	Do ..AssertTag(..#CLASS, reply.%ToJSON(), "fix-summary-too-long", "fixSummary", "L7, a fixSummary of 1001")
+	Set text = $Replace(..EvidenceReply(["x"]).%ToJSON(), """evidence"":[""x""]", """evidence"":["_..Of(129, "7")_"]")
+	Do ..AssertTag(..#CLASS, text, "evidence-too-long", "evidence", "L8, a number of 129 digits")
+	Set reply = ..EvidenceReply([(..Of(128))])
+	Set valid = $ClassMethod(..#DECIDE, "Recheck", ..NewRequest(), reply.%ToJSON(), ..#CLASS, "OcuTalon.Test.Bridge.ProbeFilter", .problem)
+	Kill ^||ZzProbeFilter
+	Do $$$AssertEquals(valid_"|"_problem, "0|After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #7201 rule evidence-too-long", "L8, a 128 element that the filter lengthens")
+	Set reply = {"outcome": "ignore", "reasons": ["r"], "confidence": 0.9}
+	Set reply.outcome = ..Of(33)
+	Do ..AssertTag(triage, reply.%ToJSON(), "outcome-too-long", "outcome", "L9, a triage outcome of 33")
+	Set reply = {"outcome": "ignore", "reasons": ["r"], "confidence": 0.9}
+	Set reply.reasons = [(..Of(1001, "r"))]
+	Do ..AssertTag(triage, reply.%ToJSON(), "reasons-too-long", "reasons", "L9, a triage reason of 1001")
+	Set reply = ..Outage()
+	Set reply.cause = ..Of(997, "c")
+	Set valid = $ClassMethod(..#DECIDE, "Recheck", ..NewRequest(), reply.%ToJSON(), ..#CLASS, "OcuTalon.Test.Bridge.ProbeFilter", .problem)
+	Kill ^||ZzProbeFilter
+	Do $$$AssertEquals(valid_"|"_problem, "0|After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #7201 rule cause-too-long", "L10, a cause of 997 that the filter makes 1001")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Test.Eval.CaptureTool", "FieldOf", "ERROR #7201 rule element-at-fault-too-long", "element-at-fault-too-long", ..#CLASS), "elementAtFault", "L12, the harness reads the field of the tag")
+}
+
+/// Option R (DW-1421 round 3): a confidence over 1 or under 0 has the fixed tag confidence-out-of-range, with no value or limit, for both reply classes.
+Method TestRangeTag()
+{
+	Set triage = "OcuTalon.Bridge.Msg.DecisionPayload"
+	For value = 85, -1 {
+		Set code = $Select(value > 1: 7203, 1: 7204)
+		Set reply = {"outcome": "ignore", "reasons": ["r"]}
+		Set reply.confidence = value
+		Do ..AssertTag(triage, reply.%ToJSON(), "confidence-out-of-range", "confidence", "decide, a confidence of "_value, code)
+		Set reply = ..Outage()
+		Set reply.confidence = value
+		Do ..AssertTag(..#CLASS, reply.%ToJSON(), "confidence-out-of-range", "confidence", "diagnose, a confidence of "_value, code)
+	}
+	Set reply = ..Outage()
+	Set reply.confidence = 1
+	Do $$$AssertStatusOK(..Check(reply, .payload), "a confidence of 1 is accepted")
+}
+
+/// Asserts the stored and the live form of a diagnose reply: the Decision row, its payload, the answer and the live payload, for the confidence as given ("" for none).
+Method AssertStored(label As %String, reply As %DynamicObject, confidence As %String) [ Private ]
+{
+	Set request = ..NewRequest()
+	Do ..Conclude(request, reply.%ToJSON(), .response, .sc)
+	Do $$$AssertStatusOK(sc, label_": the reply is concluded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "0|", label_": no fallback")
+	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")
+	Do $$$AssertTrue($IsObject(row) && (row.Payload '= ""), label_": the row holds a payload")
+	If '$IsObject(row) || '$IsObject(response) Quit
+	Set type = $Select(confidence = "": "unassigned", 1: "number")
+	Do $$$AssertEquals($Length(row.Confidence)_"|"_row.Confidence, $Length(confidence)_"|"_confidence, label_": the row's confidence is "_$Select(confidence = "": "empty", 1: confidence))
+	Do $$$AssertEquals({}.%FromJSON(row.Payload).%GetTypeOf("confidence"), type, label_": the payload's confidence is "_type)
+	Do $$$AssertEquals($Length(response.Confidence)_"|"_response.Confidence, $Length(confidence)_"|"_confidence, label_": the answer's confidence is the row's")
+	Set live = ##class(OcuTalon.Live.Payload.Decision).FromRow(row)
+	Do live.%JSONExportToString(.json)
+	Set exported = {}.%FromJSON(json)
+	Do $$$AssertEquals(exported.%GetTypeOf("confidence"), type, label_": the live payload's confidence is "_type)
+	If confidence '= "" Do $$$AssertEquals(exported.confidence, confidence, label_": and it is "_confidence)
+}
+
+/// DW-1421 C5 (AC 6, AC 7): a diagnosis with no confidence is accepted, stored with none (never 0) and shown with none; the triage class still refuses one.
+Method TestConfidenceAbsent()
+{
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Msg.DecisionPayload", "CONFIDENCEREQUIRED"), 1, "DecisionPayload requires a confidence")
+	Do $$$AssertEquals($Parameter(..#CLASS, "CONFIDENCEREQUIRED"), 0, "DiagnosisPayload does not")
+	Do $$$AssertEquals($Parameter("OcuTalon.Test.Bridge.ProbeReplyCheck", "CONFIDENCEREQUIRED"), 1, "and the test probe does")
+	// C1
+	Set usable = ..Usable()
+	Do usable.%Remove("confidence")
+	Set outage = ..Outage()
+	Do outage.%Remove("confidence")
+	Do $$$AssertStatusOK(..Check(usable, .payload), "C1: a usable diagnosis with no confidence is accepted")
+	If $IsObject(payload) Do $$$AssertEquals($Length(payload.Confidence), 0, "C1: and its confidence is empty")
+	Do $$$AssertStatusOK(..Check(outage, .payload), "C1: an outage with no confidence is accepted")
+	If $IsObject(payload) Do $$$AssertEquals($Length(payload.Confidence), 0, "C1: and its confidence is empty")
+	// C3 (a check, so before the conclusions, which end the test's ReplyCheck)
+	Set nulled = ..Usable()
+	Do nulled.%Set("confidence", "", "null")
+	Do $$$AssertStatusOK(..Check(nulled, .payload), "C3: a null confidence is accepted")
+	If $IsObject(payload) Do $$$AssertEquals($Length(payload.Confidence), 0, "C3: and it is absent")
+	// C2
+	Do ..AssertStored("C2, a usable diagnosis", usable, "")
+	Do ..AssertStored("C2, an outage", outage, "")
+	// C4
+	Set zero = ..Usable()
+	Set zero.confidence = 0
+	Do ..AssertStored("C4, a confidence of 0", zero, 0)
+	Set kept = ..Usable()
+	Set kept.confidence = 0.94
+	Do ..AssertStored("a confidence of 0.94", kept, 0.94)
+	// C6
+	Do ..AssertTag("OcuTalon.Bridge.Msg.DecisionPayload", {"outcome": "ignore", "reasons": ["r"]}.%ToJSON(), "confidence-missing", "confidence", "C6, a decide reply with no confidence", 5001)
 }
 
 Method TestFilteredParameter()

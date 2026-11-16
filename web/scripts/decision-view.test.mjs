@@ -1,9 +1,10 @@
 // Tests the decision strip's view rules (src/app/chat/decision-view.ts): the fixed strings against the UX's wording, the cost format
 // (the 14 cases of the server's Test.Msg.Catalog.TestCost and the rest of the matrix), the token, confidence and duration formats,
-// the reason lines of a strip, the cost row of the details, the chip of an outcome and the view of a check row. The module is
+// the reason lines of a strip, the items of the strip's line 1 (stripMeta: no Confidence line for a decision without one, DW-1421 C5), the cost row of the details, the chip of an outcome and the view of a check row. The module is
 // imported as it is: Node strips its types, which holds only while it keeps to erasable syntax and imports only types.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -22,6 +23,7 @@ const {
   outcomeOf,
   reasonLines,
   sentenceOf,
+  stripMeta,
   tokensLine,
 } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'decision-view.ts')).href);
 
@@ -187,6 +189,32 @@ describe('formatTokens, formatConfidence and confidenceText', () => {
     assert.equal(formatConfidence(undefined), '0.00');
     assert.equal(confidenceText(0.92), 'Confidence 0.92');
     assert.equal(confidenceText(0.9), 'Confidence 0.90');
+  });
+});
+
+describe('stripMeta', () => {
+  const diagnosis = { ref: 'D1', kind: 'diagnose', outcome: 'act', reasons: ['r'] };
+
+  it('has no Confidence item for a decision that has no confidence, and still the cost', () => {
+    const items = stripMeta(diagnosis, false, 0.0006);
+    assert.deepEqual(items, ['$0.0006']);
+    assert.ok(!items.some((item) => item.startsWith('Confidence')));
+  });
+
+  it('shows a confidence of 0 as Confidence 0.00 (absent is not 0), and any other as it is', () => {
+    assert.deepEqual(stripMeta({ ...diagnosis, confidence: 0 }, false, 0.0006), ['Confidence 0.00', '$0.0006']);
+    assert.deepEqual(stripMeta({ ...diagnosis, confidence: 0.94 }, false, 0.0006), ['Confidence 0.94', '$0.0006']);
+  });
+
+  it('shows no confidence on a fallback, and nothing for an undefined decision and an undefined cost', () => {
+    assert.deepEqual(stripMeta({ ...diagnosis, confidence: 0.9 }, true, undefined), []);
+    assert.deepEqual(stripMeta(undefined, false, undefined), []);
+  });
+
+  it('is what the strip component shows: it calls stripMeta and not confidenceText', () => {
+    const strip = readFileSync(join(here, '..', 'src', 'app', 'chat', 'decision-strip.ts'), 'utf8');
+    assert.ok(strip.includes('stripMeta('));
+    assert.ok(!strip.includes('confidenceText('));
   });
 });
 

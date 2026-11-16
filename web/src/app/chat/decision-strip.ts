@@ -6,7 +6,7 @@ import { PAGE_TEXTS, REASON_KEYS } from '../msg/catalog';
 import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionDetails } from './decision-details';
-import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines, sentenceOf } from './decision-view';
+import { DECISION_TEXTS, outcomeOf, reasonLines, sentenceOf, stripMeta } from './decision-view';
 import { FallbackFlag } from './fallback-flag';
 import { meaningOf, OutcomeChip } from './outcome-chip';
 
@@ -231,18 +231,7 @@ export class DecisionStrip {
   protected readonly lines = computed(() => reasonLines(this.decision()?.reasons, this.sentence(), this.newest() ? NEWEST_LINES : 1));
 
   /** The items after the chip and the flag: the confidence (not on a fallback) and the cost. */
-  protected readonly meta = computed(() => {
-    const items: string[] = [];
-    const confidence = this.decision()?.confidence;
-    if (!this.fallback() && confidence !== undefined) {
-      items.push(confidenceText(confidence));
-    }
-    const cost = this.cost();
-    if (cost !== undefined) {
-      items.push(formatCost(cost));
-    }
-    return items;
-  });
+  protected readonly meta = computed(() => stripMeta(this.decision(), this.fallback(), this.cost()));
 
   /** Esc on the strip collapses the details when they are open and no popover is, and stops the event then; focus stays where it is. */
   protected collapse(event: Event): void {

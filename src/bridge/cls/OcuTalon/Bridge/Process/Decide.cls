@@ -1037,6 +1037,7 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 /// made only of fixed words, an error code, the name of a compiled property of replyClass, an element position, a numeric limit and a computed length: never a
 /// value of the reply, an IRIS message text or a field name taken from the reply. The parts, in DecomposeStatus order and without repeats:
 ///   - a #7201 on a property whose JSON field REFUSALRULES of replyClass lists with a tag that ends in -too-long (LengthTag) is "ERROR #7201 rule <tag>", with no position, length or limit;
+///   - a #7203 or #7204 on a property whose JSON field REFUSALRULES of replyClass lists with a tag that ends in -out-of-range (LengthTag) is "ERROR #<code> rule <tag>", with no value or limit;
 ///   - a text over or under its limit (#7201, #7202) and a value outside its limits (#7203, #7204), with a property and a numeric limit, give
 ///     "<Property>[ element <n>]: <length> > <limit>" (the length of the value, never the value) and "<Property>[ element <n>]: value > <limit>"; the property and
 ///     the position come from the embedded #5802 (or a #5659) as "<class>:<Property>[(<n>)]", and only a name that replyClass compiles is used;
@@ -1144,8 +1145,8 @@ ClassMethod RefusalNumber(value As %String) As %Boolean [ Private ]
 	Quit value ? .1"-"1.N.1(1".".N)
 }
 
-/// The length tag of the property: a tag that REFUSALRULES of replyClass lists for the property's JSON field and that ends in -too-long; never a value of the reply. "" when there is none.
-ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ Private ]
+/// The tag of the property: a tag that REFUSALRULES of replyClass lists for the property's JSON field and that ends in the suffix (-too-long for a length tag, -out-of-range for a range tag); never a value of the reply. "" when there is none.
+ClassMethod LengthTag(replyClass As %String, property As %String, suffix As %String = "-too-long") As %String [ Private ]
 {
 	If '##class(%Dictionary.CompiledProperty).%ExistsId(replyClass_"||"_property) Quit ""
 	Set compiled = ##class(%Dictionary.CompiledProperty).%OpenId(replyClass_"||"_property)
@@ -1157,7 +1158,7 @@ ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ P
 	Set position = 0
 	While $ListNext(pairs, position, pair) {
 		Set candidate = $Piece(pair, ":", 1)
-		If ($Piece(pair, ":", 2) = field) && ($Length(candidate) > 9) && ($Extract(candidate, *-8, *) = "-too-long") && (candidate ? 1L.(1L,1N,1"-")) {
+		If ($Piece(pair, ":", 2) = field) && ($Length(candidate) > $Length(suffix)) && ($Extract(candidate, *-($Length(suffix) - 1), *) = suffix) && (candidate ? 1L.(1L,1N,1"-")) {
 			Set tag = candidate
 			Quit
 		}
@@ -1171,6 +1172,10 @@ ClassMethod RefusalPart(code As %String, value As %String, limit As %String, pro
 	If (code = 7201) && (property '= "") {
 		Set tag = ..LengthTag(replyClass, property)
 		If tag '= "" Quit "ERROR #7201 rule "_tag
+	}
+	If ((code = 7203) || (code = 7204)) && (property '= "") {
+		Set tag = ..LengthTag(replyClass, property, "-out-of-range")
+		If tag '= "" Quit "ERROR #"_code_" rule "_tag
 	}
 	Set label = property
 	If (label '= "") && (position '= "") Set label = label_" element "_position

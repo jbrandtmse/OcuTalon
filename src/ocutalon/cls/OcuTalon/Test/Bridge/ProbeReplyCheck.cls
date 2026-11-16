@@ -5,6 +5,9 @@
 Class OcuTalon.Test.Bridge.ProbeReplyCheck Extends OcuTalon.Bridge.Msg.DecisionPayload
 {
 
+/// The parent's rules without its length and range tags: the probe is the reply class that lists none, so the tests of OcuTalon.Bridge.ReplyCheck pin Decide's generic forms ("<Property>[ element <n>]: <length> > <limit>" and "<Property>: value > <limit>").
+Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence";
+
 /// The properties that Decide filters.
 Parameter FILTERED = "Note";
 

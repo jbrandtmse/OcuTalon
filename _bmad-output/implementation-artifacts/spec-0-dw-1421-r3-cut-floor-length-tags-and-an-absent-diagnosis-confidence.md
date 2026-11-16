@@ -2,7 +2,7 @@
 title: "DW-1421 round 3: the evidence cut keeps at least 64 characters at a word boundary, every length refusal has a fixed tag with no number, and a diagnosis may leave its confidence out (none stored, none shown)"
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'in-review'
 baseline_revision: '0575abeba6c9d0fe40021576914260d8486421b9'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -379,7 +379,43 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
   - `stripMeta`'s `confidence !== undefined` removed -> `decision-view.test.mjs` (stripMeta, absent) and `incident-view.test.mjs` (the diagnosis strip) red;
   - `decision-strip.ts` `meta` back to its own inline body -> the source assertion of `decision-view.test.mjs` red.
 
-**Results:** (to be filled by the implementation).
+**Results (implementation, lane-C warm throwaway tag e1421r3i, no model, no key):**
+
+Task 0 (no stop rule fired):
+- Item 1: `$Number("", 2)` is "" (length 0). `Judge` is unchanged and `Decide.cls` joins the footprint only for Option R.
+- Item 2: `DiagnosisPayload.%JSONImport` of a reply with `"confidence": null` gives status OK and `Confidence` "" (length 0). Row C3 therefore expects acceptance with the confidence absent (pinned in `TestConfidenceAbsent`).
+- Item 3: `%JSONExportToString` of a DiagnosisPayload with Confidence "" is `{"outcome":"act"}` (no `confidence` key); of `Live.Payload.Decision.FromRow` for a row with Confidence "" it has no `confidence` key (`%GetTypeOf` "unassigned").
+- Item 4: no test, stub or eval script expects a diagnose reply without a confidence to fall back. The only hits are `Test.Watch.Payload` `RuleReply("confidence-missing")` (used by `TestRuleTags`, now asserted accepted) and the `Test.Eval.Capture` `SeedAll` loop (it skips `confidence-missing` and seeds one passing diagnose reply); the decide-side pins (`Test.Bridge.Decide` L653, `Test.Agent.RememberDecision`, ReplyCheck row k, the triage seed) stay.
+
+Warm tests (all passed; methods/asserts): `Test.Watch.Payload` 16/777; `Test.Eval.Capture` 12/589; `Test.Bridge.ReplyCheck` 7/191; `Test.Bridge.Decide` 76/3055; `Test.Agent.RememberDecision` 4/56; guards `Test.Watch.Summary` 34/600, `Test.Watch.Diagnose` 5/172, `Test.Live.Payloads` 24/787, `Test.Web.HistoryApi` 7/301, `Test.Bridge.Contracts` 5/92, `Test.Bridge.CodeRules` 19/459, `Test.Agent.Instructions` 8/287. Fresh (tag e1421r3f): `Test.Watch.Payload` passed; `shard lane-a@Eval` passed (24 classes, 354 s).
+
+Node: `node --test web/scripts/decision-view.test.mjs web/scripts/incident-view.test.mjs` 123/123; `npm test` 2202/2202; `npm run lint` and `npm run build` pass. Shell guards: `test-boundaries.sh`, `test-bridge-guide.sh`, `test-class-rules.sh`, `test-eval-set.sh` (capture, eval-scripts) all rules passed. Spine lint: 13 low findings (the baseline, all placeholders).
+
+Changed pins: `TestRefusalTrace` (element-at-fault-too-long), `TestEvidenceCut` row 9, `TestEvidenceTooLongTag` (elementAtFault), `TestRuleTags`, `TestEveryRuleTagged`, `Test.Eval.Capture` (the loop skips confidence-missing, one passing no-confidence diagnose seed, the elementAtFault seed, `TestRuleNames` one more part, "passes the check" 4).
+
+Mutations (each reverted byte for byte, cmp identical):
+- mutation: floor test back to `$ZStrip(head, "*W") = ""` -> TestEvidenceCut rows 16, 18, 19 red
+- mutation: `'> ..#EVIDENCEFLOOR` -> TestEvidenceCut row 17 red
+- mutation: EVIDENCEFLOOR 63 -> TestEvidenceCut the parameter assertion, rows 18 and 19 red
+- mutation: floor measured before the trailing strip -> TestEvidenceCut row 19 red
+- mutation: `If 0 {` in Cut -> TestEvidenceCut (rows 2, 5, 6, 7, 8, 14, 16, 18, 19) and TestEvidenceCutRecorded red
+- mutation: the five DiagnosisPayload pairs removed -> TestEveryRuleTagged, TestEvidenceCut, TestEvidenceTooLongTag, TestLengthTags, TestRefusalTrace, TestRuleTags red
+- mutation: the parent's two length pairs removed from DecisionPayload -> TestLengthTags (L9) and TestEveryRuleTagged red
+- mutation: cause and fix-summary pairs swapped -> TestLengthTags and TestRuleTags red
+- mutation: `fix-kind-too-long2` -> TestEveryRuleTagged, TestLengthTags, TestRuleTags red
+- mutation: ProbeReplyCheck REFUSALRULES override removed -> Test.Bridge.ReplyCheck TestRefusalNamesTheLimitNotTheReply and TestRefusalTextForms red
+- mutation: `LengthTag` never matches (`If 0 &&`) -> TestLengthTags, TestRangeTag, TestEvidenceCut, TestEvidenceTooLongTag, TestRefusalTrace red
+- mutation: RefusalPart's range branch dropped (Option R) -> TestRangeTag red
+- mutation: DiagnosisPayload CONFIDENCEREQUIRED 1 -> TestConfidenceAbsent and TestRuleTags red (Payload); TestOneReplyPerRule red (Capture)
+- mutation: the guard reads the parent's value -> TestConfidenceAbsent and TestRuleTags red
+- mutation: DecisionPayload CONFIDENCEREQUIRED 0 -> TestConfidenceAbsent (the decide row), Test.Bridge.Decide TestReplyCheck ("no confidence") and Test.Agent.RememberDecision TestProbeShapeIsTheDemoWarning red
+- mutation: Judge `Set confidence = +payload.Confidence` -> TestConfidenceAbsent red
+- mutation: Live.Payload.Decision Confidence with %JSONNULL = 1 -> TestConfidenceAbsent red
+- mutation: stripMeta without `confidence !== undefined` -> decision-view.test.mjs (stripMeta) and incident-view.test.mjs (the diagnosis strip) red
+- mutation: decision-strip.ts `meta` back to an inline body -> the source assertion of decision-view.test.mjs red
+All planned mutations were run.
+
+Model-prompt check (Planner's one check): NO. A refusal or rule string reaches only the event-log warning (`Decide.cls` Conclude logs the problem with `$$$LOGWARNING`, redacted) and the `problem` that `Decide.Recheck` returns; nothing outside `Decide.cls` and the test classes (the capture harness `Test.Eval.CaptureTool`) calls `Recheck` or `RefusalText`. The second-model retry (`TryRetry`) sends a clone of the request, never the problem text, and no agent, tool or retry turn reads RefusalText.
 
 **Size:** small to medium.
 - Product: DecisionPayload +6 lines (parameter, guard, pairs, docs); DiagnosisPayload +8 (two parameters, one line of `Cut`, the list, docs); ProbeReplyCheck +3.
@@ -390,12 +426,11 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 
 ## Auto Run Result
 
-Status: ready-for-dev (plan only; nothing built)
-Blocking condition: none for the ruled scope. PLANNER REPORT requested on the number cases outside the length refusals (Q1 to Q3) and on Veto item 6.
+Status: in-review (implemented; review not run by this stage)
+Blocking condition: none
 
-- Summary: the cut floor (64, measured after the trailing strip; mid-word 127 + U+2026 below it), eight length tags with no digit (seven new: two in DecisionPayload, five in DiagnosisPayload), and C5 for diagnose (CONFIDENCEREQUIRED 0: accepted, stored "", no key, no Confidence line), with decide's refusal kept.
-- Files: see Boundaries, "Footprint".
-- Review: not run (plan stage).
+- Summary: the cut floor (EVIDENCEFLOOR 64, measured after the trailing strip), eight length tags and the confidence range tag with no digit (Option R, `Decide.LengthTag` takes a suffix and `RefusalPart` has one branch), and C5 for diagnose (CONFIDENCEREQUIRED 0: accepted, stored "", no key, no Confidence line via the pure `stripMeta`), with decide's refusal kept. The spine L271 amendment is made verbatim with its marker.
+- Files: see Boundaries, "Footprint"; `Decide.cls` changed for Option R only (Task 0 item 1 did not require the Judge line).
+- Verification: see `## Verification`, "Results".
 - Follow-up review recommendation: false.
-- Verification: see `## Verification`.
-- Residual risks: Task 0 items 1 to 3 (`$Number("")`, the null import, the empty export); the generic numeric form remains for reply classes that list no tag; the Confidence range form still shows "1" and "0" until Q1 is ruled.
+- Deviations: none from the spec.
