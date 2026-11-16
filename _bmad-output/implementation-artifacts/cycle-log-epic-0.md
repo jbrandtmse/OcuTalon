@@ -1043,3 +1043,5 @@
 2026-11-15T16:44:39Z	Story 0.37	integrated	feature=7622f6df8(25.6,DW-1371) merge=631422de1 conflicts=none 0.37_files_untouched
 2026-11-15T16:44:39Z	Story 0.37	fresh_check	env=631422de1 eval-set,boundaries,class-rules,triage-heartbeat,heartbeat-overview,readme=pass shard_lane-a@Agent=fwd(e037f2)_23_pass torn_down
 2026-11-16T13:36:28Z	DW-1389-followup	stage_spawned	stage=plan spawn_at=2026-11-16T13:36:28Z model=opus effort=high agent_name=userturn-plan-1 branch=OCT-epic0-userturn worktree=.worktrees/epic-21-dw1347(reused) base=625900415 ruling=main_draft_verbatim(case.json;Cases.cls_6->7+docs;rules-only.json_userTurns_7);no_stale-ref_fix
+2026-11-16T13:44:03Z	DW-1389-followup	story_created	model=opus branch=OCT-epic0-userturn base=8fa1e285b build_status=ready-for-dev files=case.json(verbatim),Cases.cls(6->7+docs),rules-only.json(measured_splice:new_case_entries+total_7) planner_report=not_needed note=committed_eval/results_lags_23.3_incidents(release_fork_refresh)
+2026-11-16T13:44:03Z	DW-1389-followup	stage_spawned	stage=implement spawn_at=2026-11-16T13:44:03Z model=sonnet effort=high agent_name=userturn-implement-1 cycle_iteration=1
