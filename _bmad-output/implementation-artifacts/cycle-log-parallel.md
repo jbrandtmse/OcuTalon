@@ -4582,3 +4582,5 @@
 2026-11-16T22:01:58Z	Run	ci_red	feature 854346fa1(27.1_merge) ci=43957453035: production=DW-306(ci-29) shards-5=guide_Q7_new_flake_DW-1452(ci-18) rerun_failed; 28.2_merge_held_until_green
 2026-11-16T22:29:27Z	Run	ci_green	feature 82d76911f ci+lane-a green (contains 854346fa1 code; DW-306/DW-1452 explained) via=contest_planner
 2026-11-16T22:29:29Z	Epic 28	merged	28.2 merge=1f8733c0e
+2026-11-16T22:40:04Z	Epic 21	ci_green_verified	DW-1421_r3 3e3627c5f runs=43928987062(att2;DW-306),43928987136 planner_control=cleared
+2026-11-16T22:40:04Z	Epic 21	merge_enqueued	DW-1421_r3 head=3e3627c5f (push after 1f8733c0e CI clean)
