@@ -253,6 +253,36 @@ describe('the value that the band of a done setting run names (DW-1378)', () => 
       }
     }
   });
+
+  it('gives a setting request that has not ended no band, whatever its after: a pending, approved or executing request is not a result', () => {
+    for (const fixKind of ['rollback_setting', 'undo_rollback']) {
+      for (const state of ['pending', 'approved', 'executing']) {
+        const request = { ref: 'A', state, fixKind, item: CHANGE.item, after: '9' };
+        assert.equal(resultView(request, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, ${state}, no result`);
+        assert.equal(resultView({ ...request, result: ran({ completed: 0 }) }, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, ${state}, a result with nothing done`);
+      }
+    }
+  });
+
+  it('keeps the band of a suspend or resume (DW-1373) as it is, though its request carries an after', () => {
+    const results = [
+      ran(),
+      ran({ completed: 0, unreached: 1, reason: 'The update timed out' }),
+      ran({ completed: 0, skipped: 1, reason: 'It was changed again' }),
+      ran({ completed: 0, reason: 'Not allowed' }),
+    ];
+    for (const fixKind of ['suspend_item', 'resume_item']) {
+      for (const result of results) {
+        const request = { ref: 'A', state: 'done', fixKind, item: CHANGE.item, result };
+        const without = resultView(request, undefined, renderPageText, 'Orders', CHANGE);
+        assert.notEqual(without, undefined, `${fixKind}: ${result.reason}`);
+        assert.deepEqual(resultView({ ...request, after: '9' }, undefined, renderPageText, 'Orders', CHANGE), without, `${fixKind}: ${result.reason}, with an after`);
+      }
+    }
+    const suspended = resultView({ ref: 'A', state: 'done', fixKind: 'suspend_item', item: CHANGE.item, after: '9', result: ran() }, undefined, renderPageText, 'Orders', CHANGE);
+    assert.equal(suspended?.key, 'result.itemSuspended');
+    assert.ok(!suspended?.text.includes('back to'));
+  });
 });
 
 describe('the result band of a fix the user asked for in the chat (Story 23.2, DW-1067)', () => {

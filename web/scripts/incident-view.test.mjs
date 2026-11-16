@@ -4,7 +4,7 @@
 // footer's decision, the Show details panel (its rows, the held note, the served links), the parts that a snapshot payload lacks, and
 // the announcement table; Story 6.4: the fallback and no-fix notices with their failure groups (a dated time included), the unknown
 // cause's own sentence, Dismiss for exactly the resolved and open states, the compact card's result bands and each request's band text for
-// the announcements; DW-1378: a done setting band names the request's after. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
+// the announcements; DW-1378: a done setting band names the request's after, and an incident event published before it (no after) is applied by the live store and drawn with no error. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
 // syntax and imports only types. The times come from the real page-time.ts with named zones.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -19,6 +19,7 @@ const { AFTER_CLOSE_KINDS, INCIDENT_TEXTS, announcementOf, bandTexts, categoryTe
 const { resultView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'approvals', 'approval-view.ts')).href);
 const { PAGE_TEXTS, REASON_KEYS, renderPageText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'msg', 'catalog.ts')).href);
 const { messageTime, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
+const { applyEvents, fromSnapshot } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'live', 'live-store.ts')).href);
 
 const NOW = Date.parse('2026-10-22T14:30:00Z');
 
@@ -916,6 +917,55 @@ describe('the requests a closed card draws itself (Story 24.4b; Fix.Kind.AskedCl
   it('keeps every band in bandTexts, so the chat announces each result once', () => {
     const texts = bandTexts(closed(), context({ ...withChange, drawn: new Set(['UN1']) }));
     assert.deepEqual(Object.keys(texts), ['RB1', 'UN1', 'SU1']);
+  });
+});
+
+describe('an incident event with no after, as published before DW-1378, on the live page', () => {
+  const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+  const saved = { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, unreached: 1, reason: 'The update timed out' };
+  const change = { item: 'OrdersToWarehouse', target: 'OrdersToWarehouse', setting: 'PoolSize', oldValue: '4', newValue: '8', credential: false, detectedAt: '2026-10-22T14:00:00Z' };
+  const payload = (requests) => full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', settingChange: change, requests });
+  const withChange = { result: (request, itemNoun, production, changed) => resultView(request, itemNoun, renderPageText, production, changed) };
+  const snapshot = () => ({
+    version: '',
+    instanceZone: 'UTC',
+    epoch: 'epoch-1',
+    streams: { session: 5, instance: 2 },
+    chat: [],
+    rail: { approvals: [], checks: [], reminders: [], decisions: [] },
+    user: 'someone',
+    onlineDemo: false,
+    demoMode: false,
+    models: { triage: '', diagnosis: '', chat: '' },
+    telegram: { included: true, state: 'off', botUserName: '', paired: false, displayName: '', pausedUntil: '' },
+    status: [],
+  });
+  const incidentEvent = (seq, body) => ({ seq, stream: 'session', ts: '2030-01-01T10:00:00Z', type: 'incident', payload: body });
+  /** The incident payload that the live store holds for I1 after the events. */
+  const held = (store) => store.chat.find((entry) => entry.type === 'incident' && entry.payload.ref === 'I1').payload;
+
+  it('is applied and drawn with no error: a done rollback and undo have no band, a not-applied undo keeps its own', () => {
+    const before = payload([
+      { ref: 'RB1', state: 'done', fixKind: 'rollback_setting', item: 'OrdersToWarehouse', result: done },
+      { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done },
+      { ref: 'UN2', state: 'failed', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: saved },
+    ]);
+    const applied = applyEvents(fromSnapshot(snapshot()), { epoch: 'epoch-1', events: [incidentEvent(6, before)] });
+    assert.equal(applied.reload, false);
+    const card = incidentView(held(applied.store), context({ decisions: [DECISION], ...withChange }));
+    assert.deepEqual(card.results.map((band) => band.key), ['result.settingSavedNotApplied']);
+    assert.deepEqual(Object.keys(bandTexts(held(applied.store), context(withChange))), ['UN2']);
+  });
+
+  it('is replaced in place by the event that carries the after, and the band then names it', () => {
+    const request = { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done };
+    const first = applyEvents(fromSnapshot(snapshot()), { epoch: 'epoch-1', events: [incidentEvent(6, payload([request]))] });
+    assert.deepEqual(incidentView(held(first.store), context({ decisions: [DECISION], ...withChange })).results, []);
+    const second = applyEvents(first.store, { epoch: 'epoch-1', events: [incidentEvent(7, payload([{ ...request, after: '9' }]))] });
+    assert.equal(second.store.chat.length, 1, 'the same ref, so one card');
+    const card = incidentView(held(second.store), context({ decisions: [DECISION], ...withChange }));
+    assert.equal(card.results[0]?.text, 'The rollback is undone: PoolSize on OrdersToWarehouse is back to 9.');
+    assert.equal(bandTexts(held(second.store), context(withChange)).UN1, card.results[0]?.text);
   });
 });
 

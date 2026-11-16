@@ -488,6 +488,23 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - Spine lint (`lint_spine.py --workspace`): 13 low against the baseline's 12. The one new finding is the slot name `{after}` inside the AD-12 sub-bullet. Veto item 4 and the Planner's gate ruling approve that text word for word, so it cannot change; the check is a false positive on a catalog slot name in a code span, and it lists `{time}`, `{cause}` and others in the spine's existing text.
 - Merge resolution check (Planner's override d): warm `Test.Msg.Catalog` (Watch count 147) and `Test.Watch.Summary` pass on the entry tree and on the implemented tree.
 
+## QA Records (bmad-qa-generate-e2e-tests, 2026-11-16)
+
+Gaps checked against the ACs and the I/O matrix. Already pinned by the implement stage, no test added: a token or URL value redacted as in the chat (`TestRequestAfter` row d, `TestTokenValueRestoredRaw`); a padded value trimmed (the direct `ShownAfter` assertion); the not-applied, changed-since and not-changed bands whatever the after (`approval-view.test.mjs`); an undo with no `after` shows no band and no error (both node files); other kinds carry no `after` (`TestRequestAfter` row f, `TestFromRowRequestKinds`). No product change; no new public text, stored-data shape or posture change; the approved AD-12 text and the catalog are untouched.
+
+Tests added (real gaps):
+- `Test.Watch.SettingCause:TestRequestAfterStates` (matrix row 10, row 1 trim): a pending, approved, executing, not-applied (failed) and done setting request each carry the dry run's after, trimmed; only the ended runs have a result; the padded done undo's band slots render to the chat's line.
+  - mutation: the `Set part.After = ...` line of `Chosen` made `If request.State = "done" Set part.After = ...` -> `TestRequestAfterStates` red ("every state of a setting request carries its dry run's after, trimmed, and only an ended run has a result"). Reverted from a copy (`cmp` identical); the method and the whole class green again.
+- `approval-view.test.mjs`, "gives a setting request that has not ended no band, whatever its after" (row 10: the pending card shows no result).
+  - mutation: `resultView`'s `const result = request.result` made `request.result ?? (textOf(request.after) !== '' ? { completed: 1 } : undefined)` -> that test red. Reverted from a copy (`cmp` identical).
+- `approval-view.test.mjs`, "keeps the band of a suspend or resume (DW-1373) as it is, though its request carries an after" (row 11 / DW-1373 unchanged): four results for both kinds, with and without a stray `after`.
+  - mutation: the suspend/resume dispatch of `resultView` routed to `settingResultView` when the request has an `after` -> that test red. Reverted from a copy (`cmp` identical).
+- `incident-view.test.mjs`, "an incident event with no after, as published before DW-1378, on the live page" (Veto item 3, the live event path through the real `applyEvents`, not only `/state`): the pre-change closed incident is applied and drawn with no error, a done rollback and undo give no band and a not-applied undo keeps its own band; the event that then carries `after` replaces the card in place and the band names it.
+  - mutation: the live store's in-place replace `i === at ? item : entry` made `entry` -> "is replaced in place by the event that carries the after, and the band then names it" red.
+  - mutation: `settingResultView` returns undefined first when the request has no `after` (the guard hoisted above the not-applied branch) -> "is applied and drawn with no error" red. Both reverted from copies (`cmp` identical).
+
+Runs (lane C, tag e21dw1378qw, warm, torn down): `TestRequestAfterStates` passed; the whole `Test.Watch.SettingCause` passed (63.7 s). `cd web && npm test`: 2195 of 2195 (the 2191 of the implement stage plus four new). `npm run lint` passed; `test-class-rules.sh` exit 0. No browser spec touched, so no browser run. `git diff` holds no added non-ASCII character or absolute local path.
+
 ## Review Triage Log
 
 ### 2026-11-16 — Review pass
