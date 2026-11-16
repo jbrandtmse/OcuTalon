@@ -55,7 +55,22 @@
 2026-11-16T01:19:29Z	Story 24.4a	smoke_complete	method=other(CR:fresh_live_sign-in-2_part_17/26_F3b,F5,F5b,F7;fresh_Rollback:TestTakeMissingNoRequest;QA:fresh_Rollback:TestUndoRequestTokenRedacted) result=pass
 2026-11-16T01:19:29Z	Story 24.4a	fresh_check	env=fresh_lane-D_stack_e24s4fc(merged_tree) tests=Test.Watch.SettingCause result=pass torn_down=yes
 2026-11-16T01:19:29Z	Story 24.4a	committed	sha=pushed_below
+2026-11-16T01:52:03Z	Story 24.4a	ci_resolved	sha=9e3eb3f0 result=success runs=43785602645(ci),43785602560(lane-a) flake_reruns=0 B13=green
+2026-11-16T01:56:00Z	Epic 24	integrated_forward	feature=cdd250d0(24.4a_merged) conflicts=none
+2026-11-16T01:56:00Z	Story 24.4b	stage_spawned	stage=plan spawn_at=2026-11-16T01:56:00Z model=opus agent_name=24-4b-show-the-new-fixes-partner-warnings-and-the-closed-card-undo-plan-1 effort=high branch=OCT-epic24 note=carved_from_the_parent_24.4_plan(V2+cross-surface_pins)
+2026-11-16T02:08:53Z	Epic 24	epic_context_compiled	reason=planning_artifact_newer(24.4a_merge) model=opus(by_plan_stage)
+2026-11-16T02:08:53Z	Story 24.4b	story_created	spawn_at=2026-11-16T01:57:00Z model=opus build_status=ready-for-dev warnings=oversized
+2026-11-16T02:08:53Z	Story 24.4b	spec_validated	gate=lead(no_new_text;no_new_veto;V2+V3_ruled) decided_2=pending_undo_raised_before_close_also_drawn_on_closed_card(EXPERIENCE_says_after_the_close;no_close_time_field) contention=lane_B_23.13_incidentContext_and_two_web_scripts_tests(plain_union) implement_after=DW-1412 branch=OCT-epic24
 2026-11-16T01:57:19Z	DW-1412	story_created	by=lead(quick_gate;Planner_ruling_~03:45Z_Nov_16) path=_bmad-output/implementation-artifacts/spec-24-dw-1412-redact-url-signature-parameters.md branch=OCT-epic24-dw1412(from_cdd250d0) priority=1.0.12_blocker
 2026-11-16T01:57:19Z	DW-1412	stage_spawned	stage=implement spawn_at=2026-11-16T01:57:19Z model=sonnet effort=high
 2026-11-16T02:34:12Z	DW-1412	dev_complete	model=sonnet build_sha=49d268f1 files=3(Bridge/Redact.cls,Test/Bridge/Redact.cls,Test/Checks/Runs.cls) mutations=5(rule_dropped;name_guard;log_path;Lifetime_upper_bound;backslash) review_layers=4(22:1M_patched) decided=hash_does_not_end_a_value(reuse_key=_rule;over-redacts);escaped_quote_ends_unquoted_value(also_key=)
 2026-11-16T02:34:12Z	DW-1412	committed	sha=pushed_below base=feature_cdd250d0(current)
+2026-11-16T03:13:41Z	Epic 24	integrated_forward	feature=28ee30d1(DW-1412_merged;23.13_not_landed) conflicts_resolved=cycle-log-epic-24(union)
+2026-11-16T03:13:41Z	Story 24.4b	planner_rulings_applied	source=<coordination>/prompts/story-244-rulings-20261115.md#24.4b_closed-card_ruling every_pending_undo_whenever_raised pins=(a)(b1)(b2)(c) EXPERIENCE_reworded=(d) demo=(e)
+2026-11-16T03:13:41Z	Story 24.4b	stage_spawned	stage=implement spawn_at=2026-11-16T03:13:41Z model=sonnet effort=high branch=OCT-epic24
+2026-11-16T06:14:13Z	Story 24.4b	dev_complete	model=sonnet build_sha=8b096f1f baseline=6be77202 files=10 mutations=13(pins_a_kind,a_state,b1,b2,c(test-side),jump,band_once,kind_rule,F1-F4,BUTTONKINDS(reverted),AC3,AC5) web=2178_pass deferred=2(closed_card_silent_after_answer(ruling_consequence);pin_c_no_settle_step) B13=not_run note=spec_truncated_by_a_script_and_rebuilt_by_the_stage
+2026-11-16T06:14:13Z	Story 24.4b	stage_spawned	stage=code-review spawn_at=2026-11-16T06:14:13Z model=opus effort=high scope=6be77202..HEAD branch=OCT-epic24
+2026-11-16T06:48:11Z	Story 24.4b	cr_complete	model=opus patched=17(med3:reject_case_b1,audit_compared_with_open_card,precedent_rows_cleaned;low14) decision_pending=1(DW-1426:closed_card_silent_after_answer) closed=9 high=0 final=done focus_lands_on_main(pinned) B13=pass
+2026-11-16T06:48:11Z	Story 24.4b	fresh_check	env=fresh_lane-D(e24s4bcr) tests=live_sign-in-2_part_12/20(10_pass),Test.Channel.TelegramOut result=pass torn_down=yes
+2026-11-16T06:53:58Z	Epic 24	integrated_forward	feature=dc9813a6(23.13_merged) conflicts_resolved=sprint-status(regenerated;24.4b_done),incident-card.ts+incident-view.ts(union:23.13_approvals+24.4b_drawn;incidentContext(...,approvals,drawn)),approval-sources+incident-sources_source_pins(union_call) checks=web_2184_pass,lint,build,live_sign-in-2_part_12/20_fresh_pass
+2026-11-16T06:53:58Z	Story 24.4b	committed	sha=pushed_below

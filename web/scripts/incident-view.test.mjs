@@ -8,14 +8,14 @@
 // syntax and imports only types. The times come from the real page-time.ts with named zones.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'incidents', 'incident-view.ts');
-const { INCIDENT_TEXTS, announcementOf, bandTexts, categoryText, incidentView, stateText } = await import(pathToFileURL(source).href);
+const { AFTER_CLOSE_KINDS, INCIDENT_TEXTS, announcementOf, bandTexts, categoryText, drawnOnClosed, incidentView, stateText } = await import(pathToFileURL(source).href);
 const { resultView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'approvals', 'approval-view.ts')).href);
 const { PAGE_TEXTS, REASON_KEYS, renderPageText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'msg', 'catalog.ts')).href);
 const { messageTime, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
@@ -811,6 +811,100 @@ describe('the result bands (Story 6.4)', () => {
     const executing = [{ ref: 'A1', state: 'executing', result: { total: 50, completed: 30 } }];
     assert.equal(bandTexts(full({ state: 'fixing', requests: executing }), context()).A1, "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.");
     assert.equal(bandTexts(full({ state: 'resolved', requests: [{ ...executing[0], state: 'done', result: { total: 50, resent: 50, completed: 50 } }] }), context()).A1, 'All 50 orders went through.');
+  });
+});
+
+describe('the requests a closed card draws itself (Story 24.4b; Fix.Kind.AskedClosed)', () => {
+  const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
+  const change = { item: 'OrdersToWarehouse', target: 'OrdersToWarehouse', setting: 'PoolSize', oldValue: '4', newValue: '8', credential: false, detectedAt: '2026-10-22T14:00:00Z' };
+  const asked = [
+    { ref: 'RB1', state: 'done', fixKind: 'rollback_setting', item: 'OrdersToWarehouse', result: done },
+    { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done },
+    { ref: 'SU1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: done },
+  ];
+  const closed = (over = {}) => full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', settingChange: change, requests: asked, ...over });
+  const keys = (card) => card.results.map((band) => band.key);
+  /** The context's result with the payload's setting change, as the card's own context passes it. */
+  const withChange = { result: (request, itemNoun, production, changed) => resultView(request, itemNoun, renderPageText, production, changed) };
+  const seen = (card, over = {}) => view(card, { ...withChange, ...over });
+
+  it('names the undo of a rollback as the only kind asked after the close', () => {
+    assert.deepEqual([...AFTER_CLOSE_KINDS], ['undo_rollback']);
+    for (const [kind, expected] of [
+      ['undo_rollback', true],
+      ['', false],
+      ['repair', false],
+      ['repair_resend', false],
+      ['suspend_item', false],
+      ['resume_item', false],
+      ['reroute', false],
+      ['rollback_setting', false],
+      ['partner_warning', false],
+      ['email', false],
+      [undefined, false],
+      [null, false],
+    ]) {
+      assert.equal(drawnOnClosed({ fixKind: kind, state: 'pending' }), expected, `${String(kind)}, pending`);
+    }
+    assert.equal(drawnOnClosed({ state: 'pending' }), false, 'a pending approval with no fixKind is not drawn');
+  });
+
+  it('holds exactly the kinds whose class lists closed among its ASKEDSTATES (Fix.Kind.AskedClosed), read from the kind classes', () => {
+    const kinds = join(here, '..', '..', 'src', 'ocutalon', 'cls', 'OcuTalon', 'Fix', 'Kind');
+    const parameter = (text, name) => new RegExp(`^Parameter ${name} = "([^"]*)";`, 'm').exec(text)?.[1];
+    const base = parameter(readFileSync(`${kinds}.cls`, 'utf8'), 'ASKEDSTATES') ?? '';
+    const closed = [];
+    for (const file of readdirSync(kinds).filter((one) => one.endsWith('.cls'))) {
+      const text = readFileSync(join(kinds, file), 'utf8');
+      const name = parameter(text, 'NAME');
+      assert.ok(name, `${file} names its kind`);
+      if ((parameter(text, 'ASKEDSTATES') ?? base).split(',').includes('closed')) closed.push(name);
+    }
+    assert.ok(closed.length > 0 && !base.split(',').includes('closed'), 'the base class keeps closed out, and a kind class adds it');
+    assert.deepEqual([...AFTER_CLOSE_KINDS].sort(), closed.sort());
+  });
+
+  it('draws an undo on a closed card only while its request is pending', () => {
+    assert.equal(drawnOnClosed({ fixKind: 'undo_rollback', state: 'pending' }), true);
+    for (const state of ['rejected', 'expired', 'done', 'executing', 'failed', 'approved', 'cancelled', '', undefined, null]) {
+      assert.equal(drawnOnClosed({ fixKind: 'undo_rollback', state }), false, `an undo that is ${String(state)}`);
+    }
+    assert.equal(drawnOnClosed({ fixKind: 'undo_rollback' }), false, 'an undo whose state is absent');
+    for (const kind of ['repair', 'repair_resend', 'suspend_item', 'resume_item', 'reroute', 'rollback_setting', 'partner_warning', 'email']) {
+      assert.equal(drawnOnClosed({ fixKind: kind, state: 'pending' }), false, `a pending ${kind} is never drawn`);
+    }
+  });
+
+  it('with no drawn Refs keeps the band of a done undo among the compact bands, and gives a rejected or expired one with no result no band', () => {
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set() })), ['result.settingRestored', 'result.rollbackUndone', 'result.itemSuspended']);
+    const answered = closed({ requests: [{ ref: 'UN3', state: 'rejected', fixKind: 'undo_rollback' }, { ref: 'UN4', state: 'expired', fixKind: 'undo_rollback' }] });
+    assert.deepEqual(keys(seen(answered, { drawn: new Set() })), []);
+  });
+
+  it('keeps every band on a compact card with no drawn Refs, as before', () => {
+    assert.deepEqual(keys(seen(closed())), ['result.settingRestored', 'result.rollbackUndone', 'result.itemSuspended']);
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set() })), ['result.settingRestored', 'result.rollbackUndone', 'result.itemSuspended']);
+  });
+
+  it('leaves out only the band of a request drawn as a request card, and keeps the others', () => {
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set(['UN1']) })), ['result.settingRestored', 'result.itemSuspended']);
+    assert.deepEqual(keys(seen(closed(), { drawn: new Set(['UN1', 'unknown']) })), ['result.settingRestored', 'result.itemSuspended']);
+  });
+
+  it('keeps the rollback\'s band among the compact bands when only the undo is drawn (a done rollback and a pending undo)', () => {
+    const mixed = closed({ requests: [asked[0], { ref: 'UN2', state: 'pending', fixKind: 'undo_rollback' }] });
+    assert.deepEqual(keys(seen(mixed, { drawn: new Set(['UN2']) })), ['result.settingRestored']);
+  });
+
+  it('has no effect on a card that is not compact', () => {
+    const open = full({ state: 'resolved', requests: asked });
+    assert.deepEqual(view(open, { drawn: new Set(['UN1']) }), view(open));
+    assert.equal(view(open, { drawn: new Set(['UN1']) }).compact, false);
+  });
+
+  it('keeps every band in bandTexts, so the chat announces each result once', () => {
+    const texts = bandTexts(closed(), context({ ...withChange, drawn: new Set(['UN1']) }));
+    assert.deepEqual(Object.keys(texts), ['RB1', 'UN1', 'SU1']);
   });
 });
 
