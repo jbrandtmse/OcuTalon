@@ -3952,6 +3952,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 125791394066 attempt 1: FAIL the load phase; attempt 2 green
 - 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
+- 2026-11-16T03:33:16Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
 ### DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/)
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 10.5 plan: overlap found by the planner; 31.3 is backlog (Epic 31's README pass, after Epic 10)
@@ -6731,6 +6732,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
 - 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-4) Telegram park 32 s, first start not ready in 510 s; same code green on 81b65a6a (43445650699); not rerun (superseded)
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(shards-8) lane-a@Agent: same lib-live.sh:630 Telegram park message (TelegramOut Ens.Job Alive, dequeuing, 32 s after disabled), now in a shard run, not reminder-restart; not rerun: d53500886 ci green, 2e6366b00 shards-8 green
+- 2026-11-16T03:33:17Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
