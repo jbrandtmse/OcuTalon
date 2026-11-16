@@ -6498,6 +6498,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: single-area units over 900 s on runs 42634825529/42633085173/42603815732/42583599821: Bridge 981-1,167 s, Fix about 1,012-1,123 s, Docs about 814-1,006 s
 - 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09; trigger early only if any single area's measured unit time passes 1,400 s, and then report it with PLANNER REPORT and do not split
 - 2026-11-09T18:00:26Z occurrence=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
+- 2026-11-16T06:12:20Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
+- 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=23.13 rework 1 (shards-11): shard:lane-a@Docs,Partner is a two-area unit planned at about 1,246 s, above Story 0.20's 900 s for two or more areas; a Partner piece of its own would take shards-7 to about 33.7 min or shards-3 to about 31.6 min; recorded in ci/units.sh; below the 1,400 s trigger
 
 ### DW-1033: after voting: the 278-423 s stack start and teardown each shard unit pays is a large share of the ~25,700 s of IRIS unit time; could units share a stack without losing isolation?
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -8629,17 +8631,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: MayApprove quits 1 for FixKind other than email (Fix/Kind/Email.cls:328); since 23.13 an approved partner_warning mails the Settings contacts from the email.owner mailbox through EmailOut; no ruling covers who may approve it
 - 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=for the Planner (veto: privileges): keep any asker as approver (admin-curated recipients) or require OcuTalonAdmin as for email
 - 2026-11-16T04:03:13Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-16_dw-1415-1416-rulings:1.0.12_cut_item;23.13_rework_1
+- 2026-11-16T06:14:11Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=5b40e533+AP6:MayApprove_admin_rule_for_partner_warnings_on_web/phone/Telegram;real-HTTP_AP6;mutations
 
 ### DW-1416: Summary.RunEvents reads summary.partnerNotSent ('the delay notice was not sent.') for a failed Settings-contact send even when EmailOut answered MESSAGEMAYHAVESENT or MESSAGEFAILED, so the timeline can deny an email that may have gone out
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Executor.SendPartner ends failed on any Ok 0 (incl. MESSAGEMAYHAVESENT 'it may have gone out') and on an exception after Submit; Summary.RunEvents then picks summary.partnerNotSent for Completed 0
 - 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling for the may-have-sent timeline line (public text, veto 5); the session and card read Out's own sentence
 - 2026-11-16T04:03:13Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-16_dw-1415-1416-rulings:1.0.12_cut_item;23.13_rework_1
+- 2026-11-16T06:14:11Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=7d7df952:summary.partnerMaySent;not_sent_only_when_definitely_not_handed_over;pins_for_all_three_answers
 
 ### DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (Delivered and Claims verbatim; Send, Mailbox and Reset adapted), forced by the spec because the originals are private in a Lane B test class
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: PartnerMail.cls 255-311 vs Test/Channel/EmailOut.cls 1372-1505; the spec's Task names the copy and its reason (Rule 2: a spec-forced copy is routed to the story that unifies it)
 - 2026-11-16T02:15:05Z status=routed owner=burndown by=cr note=unify into a shared EmailOut test helper class after the contest, as DW-603 for ToolCallNotices
+- 2026-11-16T06:12:21Z note=the class Test.Fix.PartnerMail moved to Test.Partner.PartnerMail in 23.13 rework 1 (shards-11, commit b39c8121); its helper lines are unchanged
 
 ### DW-1418: Core/CommandsIn.cls's class description still calls a system SendEmail FixExecutor's approved email fix; since 23.13 the executor also sends approved partner warnings that way
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8656,3 +8661,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
+
+### DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage (after the server accepted the message with 250) to REJECTED, so EmailOut answers MESSAGEREJECTED ('so it wasn't sent') for an email that was delivered, and a partner warning's timeline reads summary.partnerNotSent instead of summary.partnerMaySent
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: irislib %Net.SMTP Send: after the data terminator's 2xx it sends QUIT and calls UnexpectedResponse('QUIT', response) on a non-2xx or empty (timed-out) read; Sender.cls:151 maps SMTPResponse to REJECTED; Out.cls:245; PartnerWarning MAYHAVESENTSENTENCES keeps MESSAGEREJECTED as not sent
+- 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=fix in Sender.Classify (a QUIT-stage SMTPResponse is a send, or at least may-have-sent); it corrects email's own result sentence and DW-1416's timeline line together; rare (a server that does not answer QUIT)
+
+### DW-1423: docs/security-overview.md does not say that a partner warning to Settings contacts can be approved only by an OcuTalonAdmin (DW-1415), and its Action audit line does not list the refused approve that AnswerOps.AuditRefused writes
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: security-overview.md:151 'Who may answer' names the admin rule for an email only; :159 Action lists a fix run, a resend, a replayed tool call or Break the feed
+- 2026-11-16T06:12:20Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the Planner rules the security-overview text for DW-1415 (draft: 'a partner warning to Settings contacts can be approved only if its user holds OcuTalonAdmin;' and 'Action: ... or a refused approve of a partner warning'); ruled public text (DW-1315)
+
+### DW-1424: Test.Partner.PartnerApprove repeats the IRIS user and role helpers of other test classes (HeldRole verbatim from Test.Core.AnswersInProduction; MakeUser, CreateUser, SetRoles, DropUsers and PairedChat as in Test.Fix.Email and Test.Fix.EmailCard)
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the same helpers are already copied across about nine test classes (Test.Fix.Email, EmailCard, EmailRoute, Core.AnswersInProduction, AnswersInWebRoles, AnswerPrecedentsProduction, AnswersTelegramProduction, Channel.TelegramApproval, Bridge.WebStatus): an existing project pattern, Rule 2 weak reason
+- 2026-11-16T06:12:21Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=DW-1417's unification of the shared test helpers is scheduled (fold the user and role helpers in), or a helper copy diverges and a test goes red for it
+
+### DW-1425: GUIDE.md line 12 says without demo mode there are no partner contacts yet, so no notice is drafted; since 23.13 a notice to Settings contacts is drafted and sent (admin approval) or kept
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: GUIDE.md:12 vs 23.13 (merged) partner-warning behaviour
+- 2026-11-16T06:14:10Z status=decision-pending owner=burndown by=cr note=human=Planner_public_text:a ruled GUIDE.md wording for partner warnings to Settings contacts

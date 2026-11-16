@@ -858,17 +858,19 @@ Method TestSettingsContactMayHaveSent()
 	Do $$$AssertStatusOK(sc, "the summary renders")
 	Do $$$AssertEquals(($Length(text, ": the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.") - 1)_"|"_($Length(text, ": the delay notice was not sent.") - 1), "4|6", "the lines read as ruled")
 	Do $$$AssertEquals($Find(text, "Simulated mailbox")_"|"_$Find(text, "7,8"), "0|0", "and name neither the Simulated mailbox nor a contact id")
-	// The demo's simulated contact: a failed run is never "may have been sent".
+	// The demo's simulated contact: a failed run, and a run that a restart cut short, are never "may have been sent".
 	Set demo = ..Incident(owner, "resolved", , "OcuTalon.Demo.Orders.Production")
 	Set fixtureParameters = "{""text"":""A notice."",""to"":""1""}"
 	Set fixtureDryRun = "{""notice"":""A notice."",""recipients"":[1],""simulated"":1}"
 	Set fixture = ..Request(owner, demo, "failed", ..T(-4000), {"FixKind": "partner_warning", "FixParameters": (fixtureParameters), "FixTargets": "1", "DryRun": (fixtureDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-3900))})
 	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(demo, fixture, {"StartedAt": (..T(-3800)), "EndedAt": (..T(-3700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Reason": ($Parameter(out, "MESSAGEUNREACHABLE"))})
-	Do ..Link(demo, fixture)
+	Set fixtureCut = ..Request(owner, demo, "interrupted", ..T(-3600), {"FixKind": "partner_warning", "FixParameters": (fixtureParameters), "FixTargets": "1", "DryRun": (fixtureDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-3500))})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(demo, fixtureCut, {"StartedAt": (..T(-3400)), "EndedAt": (..T(-3300)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Interrupted": 1})
+	Do ..Link(demo, fixture_","_fixtureCut)
 	Set result = ..Command(host, "dismiss", demo, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident of the demo's production")
 	Set keys = ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(demo))
-	Do $$$AssertEquals(($Length(keys, "summary.partnerMaySent") - 1)_"|"_($Length(keys, "summary.partnerNotSent") - 1), "0|1", "a failed run of the simulated contact ends with summary.partnerNotSent: "_keys)
+	Do $$$AssertEquals(($Length(keys, "summary.partnerMaySent") - 1)_"|"_($Length(keys, "summary.partnerNotSent") - 1), "0|2", "a failed run and a cut-short run of the simulated contact end with summary.partnerNotSent: "_keys)
 }
 
 /// Story 23.3 (AC13 of the summary): an incident that ran a done rollback_setting, a done undo_rollback and a rollback_setting that changed nothing has the requested line of
