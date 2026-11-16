@@ -4488,3 +4488,17 @@
 2026-11-16T12:49:58Z	Epic 21	merged	DW-1376+DW-1378 merge=87fce253a
 2026-11-16T12:50:05Z	Epic 23	runner_reported	PART_READY 23.15(cut_story) head=55c5223fe runs=43864772409,43864772546(att1) DW-1429(self-ruled_rework:DataBegan) mapping_table=in_spec shards:2=27.9,3=28.6,production=33.7
 2026-11-16T12:50:05Z	Epic 23	merge_enqueued	23.15 (1.0.12 cut)
+2026-11-16T12:54:47Z	Epic 23	merged	23.15 merge=625900415 conflicts=Summary_doc(union),Catalog_count_148(verified_Test.Msg.Catalog_fresh)
+2026-11-16T12:55:09Z	Run	cut_items_merged	all_1.0.12_cut_items_in feature=625900415 awaiting_feature_CI_for_REQUIRED_GREEN planner_notified
+2026-11-16T12:55:54Z	Run	owner_decision	via=contest_planner post-cut:DW-1429_check,MESSAGEMAYHAVESENT_one_sentence,DW-1431_text(A/B_if_model-facing),production_rebalance_after_BASE,DW-1422_remainder_accepted
+2026-11-16T13:27:46Z	Run	ci_red_classified	head=625900415 run=43870851457 production(ci-22)=DW-306 lane-a=green action=rerun_failed_once
+2026-11-16T14:00:09Z	Run	ci_green_verified	head=625900415(1.0.12_base) runs=43870851457(att2;att1=DW-306_ci-22),43870851505
+2026-11-16T14:00:09Z	Run	planner_notified	"1.0.12 REQUIRED GREEN 625900415"
+2026-11-16T14:00:37Z	Run	release_started	via=contest_planner 1.0.12_BASE=625900415 hold=feature_records_only_until_MERGE-BACK_DONE;lanes_keep_working;light_branch_CI;24.3a/b_first_after
+2026-11-16T14:01:59Z	Epic 24	runner_reported	PART_READY 24.3a(a92d5426b;runs_43856258908_att2_DW-306,43856258969)+24.3b(411a61e11;runs_43875617563,43875617565) state=held_until_MERGE-BACK_DONE DW-1430(Telegram_page_cause_unredacted;escalated) AD-14/18/27_old+new_sent relayed=contest_planner
+2026-11-16T14:03:45Z	Epic 24	owner_decision	via=contest_planner DW-1430=fix_on_OCT-epic23-dw1430_off_BASE(not_1.0.12_blocker:pack_redacted_upstream_confirmed) AD-14/18/27=approved(+demo_no_email_claim_pin) orchestrator_confirmed_pack_redaction_from_code
+2026-11-16T14:03:53Z	Run	owner_decision	via=contest_planner 1.0.12_ships_as_is(BASE_unchanged;Planner_spot-checked) post-merge-back_order=DW-1430,then_24.3b(rebased)
+2026-11-16T14:20:33Z	Run	lane_status	A=25.9_building(active) B=dispatched(post-cut_texts,DW-1429_check,production_rebalance,23.14) C=DW-1421_CI D=DW-1430_CI(24.3a/b_held) planner_notified
+2026-11-16T14:21:07Z	Run	owner_decision	via=contest_planner Epics_27,28_START_NOW(on_freed_slots;order:in-flight_first,then_27,28.1,28.2,28.3_ahead_of_LOW/23.14;gates_to_Planner;Slack_off_on_demo;own_branches_until_MERGE-BACK)
+2026-11-16T14:21:59Z	Epic 27	provisioned	worktree=.worktrees/epic-27 branch=OCT-epic27(from_feature_b86741bda,records-only_over_BASE) note=provision_push_triggered_runs_43884842828,43884842832;cancelled(no_self-hosted_job_started;code=BASE,already_green;frees_runners_for_release)
+2026-11-16T14:22:29Z	Epic 27	dispatched	lane=B(throwaways_until_slot_B_free) runner=a847bb1757d647aa8 stories=27.1,27.2 start=spec_gates_to_Planner prompt=prompts/dispatch-epic-27-20261116.md
