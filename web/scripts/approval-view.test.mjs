@@ -380,6 +380,21 @@ describe('a partner delay notice (Story 23.5)', () => {
     assert.equal(resultView(request({ result: result({ total: 2, completed: 0, interrupted: 2, outcome: 'notsent', reason: '' }) }), undefined, render, '', undefined, false), undefined, 'a run cut short before the send began has no band, as before');
   });
 
+  it('takes sent, not sent and kept from the server\'s outcome too, never from the counts or the reason (Story 23.15)', () => {
+    const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
+    const view = (fields) => resultView(request(fields), undefined, render, '', undefined, false);
+    const sent = view({ result: result({ total: 2, completed: 1, skipped: 0, outcome: 'sent' }) });
+    assert.deepEqual({ key: sent.key, text: sent.text }, { key: 'fix.emailSent', text: 'The email was sent.' }, 'sent is the email result, even where the counts alone would read a part send to the Simulated mailbox');
+    const skipped = view({ result: result({ total: 3, completed: 2, skipped: 1, outcome: 'sent', reason: "OcuTalon couldn't deliver the delay notice" }) });
+    assert.equal(skipped.key, 'result.partnerSkipped', 'a done run that skipped someone names the skipped contacts');
+    const kept = view({ state: 'failed', result: result({ total: 2, completed: 0, outcome: 'kept', reason: 'Another reason.' }) });
+    assert.deepEqual({ key: kept.key, text: kept.text }, { key: 'result.partnerKept', text: "Approved and kept as a draft: email delivery isn't set up yet." }, 'kept is the draft band, whatever the reason says');
+    const notSent = view({ state: 'failed', result: result({ total: 2, completed: 2, outcome: 'notsent', reason: "OcuTalon couldn't reach the mail server." }) });
+    assert.equal(notSent.key, 'fix.emailNotSent', 'not sent is never a sent band, whatever the counts say');
+    const other = view({ state: 'failed', result: result({ total: 2, completed: 0, outcome: 'notsent', reason: "email delivery isn't set up yet" }) });
+    assert.deepEqual({ key: other.key, text: other.text }, { key: 'result.partnerNotSent', text: "Not sent: email delivery isn't set up yet." }, 'and never the kept band');
+  });
+
   it('keeps today\'s bands for a simulated request or one that says nothing, and shows no sent band when it cannot tell (Story 23.13)', () => {
     const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
     const sentResult = result({ total: 2, completed: 2 });

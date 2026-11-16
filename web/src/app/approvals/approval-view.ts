@@ -564,7 +564,10 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
  * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
  *   place of result.allThrough; with failures or skips it has the bands above.
- * - a partner delay notice (fixKind partner_warning, Story 23.5): a result whose `outcome` is maysent (Story 23.15; only a Settings-contact notice has one) is result.partnerMaySent, partial, `triangle-alert`, whatever the reason; otherwise `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
+ * - a partner delay notice (fixKind partner_warning, Story 23.5): a result whose `outcome` is maysent (Story 23.15; only a Settings-contact notice has one) is result.partnerMaySent, partial, `triangle-alert`, whatever the reason;
+ *   kept is the kept-as-a-draft band below; sent and notsent are result.partnerSkipped for a done run with `skipped` above 0, else fix.emailSent (sent), no band (notsent with no reason), fix.emailNotSent (a reason
+ *   that ends with a full stop) or "Not sent: {reason}." (the card follows the server's one decision and never works the outcome out from the counts or the reason); a result with no `outcome`
+ *   (a simulated notice): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
@@ -732,6 +735,23 @@ function partnerResultView(request: IncidentRequest, result: IncidentRequestResu
     return undefined;
   } else if (result.outcome === 'maysent') {
     return bandOf('result.partnerMaySent', {}, 'partial', 'triangle-alert', render);
+  } else if (result.outcome === 'kept') {
+    key = 'result.partnerKept';
+    text = APPROVAL_TEXTS.partnerKept;
+  } else if (result.outcome === 'sent' || result.outcome === 'notsent') {
+    // Story 23.15: the server's one decision says whether the notice was sent; the counts and the reason only pick the text of that answer.
+    const skipped = numberOf(result.skipped) ?? 0;
+    if (request.state === 'done' && skipped > 0) {
+      return bandOf('result.partnerSkipped', { sent: String(completed), skipped: String(skipped), total: String(total) }, 'partial', 'triangle-alert', render);
+    } else if (result.outcome === 'sent') {
+      return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
+    } else if (raw === '') {
+      return undefined;
+    } else if (raw.endsWith('.')) {
+      return bandOf('fix.emailNotSent', { reason: raw }, 'partial', 'triangle-alert', render);
+    }
+    key = 'result.partnerNotSent';
+    text = fill(APPROVAL_TEXTS.partnerNotSent, { reason });
   } else if (simulated === false && completed > 0 && completed >= total) {
     return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
   } else if (simulated === false && request.state === 'done' && (numberOf(result.skipped) ?? 0) > 0) {

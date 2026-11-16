@@ -851,7 +851,7 @@ Method TestSettingsContactMayHaveSent()
 		Set row = $List(rows, i)
 		Set request = ..Request(owner, incident, $List(row, 2), ..T(-5000 + (i * 100)), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900 + (i * 100)))})
 		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"StartedAt": (..T(-4800 + (i * 100))), "EndedAt": (..T(-4700 + (i * 100))), "Total": 2, "Resent": 0, "Completed": ($List(row, 3)), "FailedAgain": 0, "Skipped": ($List(row, 4)), "Interrupted": ($List(row, 5)), "Reason": ($List(row, 6))})
-		If $List(row, 7) '= "none" Do ##class(OcuTalon.Data.Delivery).Record("zzsumclaimowner", "email", ##class(OcuTalon.Bridge.Ids).NewRef(), request, "", "", "", "", $Select($List(row, 7) = "sent": "", 1: $List(row, 7)), .claim, "", "")
+		If $List(row, 7) '= "none" Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record("zzsumclaimowner", "email", ##class(OcuTalon.Bridge.Ids).NewRef(), request, "", "", "", "", $Select($List(row, 7) = "sent": "", 1: $List(row, 7)), .claim, "", ""), $List(row, 1)_": the claim is written")
 		Set refs = refs_$Select(refs = "": "", 1: ",")_request
 		Set expectedLines = expectedLines_$ListBuild($List(row, 9))
 	}

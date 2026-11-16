@@ -443,8 +443,8 @@ ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, ki
 		If outcome = "kept" Quit ..#KEYPARTNERKEPT
 		If 'simulated {
 			If outcome = "maysent" Quit ..#KEYPARTNERMAYSENT
-			If (+result.Completed > 0) && (+result.Completed = +result.Total) Quit ..#KEYEMAILSENT
 			If ($Get(state) = "done") && (+result.Skipped > 0) Quit ..#KEYPARTNERSKIPPED
+			If outcome = "sent" Quit ..#KEYEMAILSENT
 			If ($Get(state) = "failed") && $ClassMethod(class, "OutReason", result.Reason) Quit ..#KEYEMAILNOTSENT
 			Quit ..#KEYPARTNERNOTSENT
 		}

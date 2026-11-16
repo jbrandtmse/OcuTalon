@@ -815,7 +815,7 @@ Method Claim(approval As %String, mark As %String)
 	Do $$$AssertStatusOK(sc, "the claim row is made")
 }
 
-/// Removes the claim rows of TestOutcome.
+/// Removes the claim rows of TestSendOutcome and TestFailedMessageKnowsWhetherTheSendBegan.
 ClassMethod DropClaims()
 {
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef LIKE 'zzoutcome%'")

@@ -813,6 +813,34 @@ Method TestCommandsInGivesNoAnswerAfterTheSendBegan()
 	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")
 }
 
+/// An answer that comes back Ok 0 (Story 23.15, Fix.Kind.Email SubmitApproved): MESSAGEFAILED with the approval's claim pending (the send began, as for a repeat of a send that a stop cut
+/// off) ends the run failed with MESSAGEMAYHAVESENT; with the claim marked failed it stays MESSAGEFAILED; and any other sentence of EmailOut is kept as it is, claim or not.
+Method TestAnsweredFailureAfterTheSendBegan()
+{
+	If '..Setup() Quit
+	If '..UseDouble() Quit
+	Set maySent = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEMAYHAVESENT")
+	Set failed = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	Set rejected = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREJECTED")
+	For answer = "failed", "rejected" {
+		For mark = "pending", "failed" {
+			Kill ^OcuTalonTest("CommandsDouble")
+			Set ^OcuTalonTest("CommandsDouble", "refuse", "SendEmail") = $Select(answer = "failed": failed, 1: rejected)
+			Set ref = ..Seed(..Owner, "approved")
+			Set claim = ""
+			Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..Owner, "email", ##class(OcuTalon.Bridge.Ids).NewRef(), ref, "", "", "", "", mark, .claim, ""), answer_"/"_mark_": the claim of the approval is written")
+			Do $$$AssertStatusOK(..SendOutcome(ref), answer_"/"_mark_": an approved outcome is handled")
+			Do $$$AssertEquals(..WaitState(ref, "failed"), "failed", answer_"/"_mark_": the request ends failed")
+			Set run = ..WaitEmailRun(ref)
+			Do $$$AssertTrue($IsObject(run), answer_"/"_mark_": it has a FixRun")
+			Set expected = $Select(answer = "rejected": rejected, mark = "pending": maySent, 1: failed)
+			If $IsObject(run) Do $$$AssertEquals(run.Reason, expected, answer_"/"_mark_": the reason is MESSAGEMAYHAVESENT only for MESSAGEFAILED with a claim that began")
+		}
+	}
+	Kill ^OcuTalonTest("CommandsDouble")
+	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")
+}
+
 /// The commands that the CommandsIn double recorded, in order, as a dynamic array of {class, origin, sessionRef, key, fields}.
 ClassMethod DoubleCalls() As %DynamicArray [ Private ]
 {

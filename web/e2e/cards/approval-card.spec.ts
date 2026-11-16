@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { signIn, signInOverHttp } from '../sign-in/helpers';
-import { STATE, changeSnapshot, post } from '../support/api';
+import { EVENTS, STATE, changeSnapshot, post } from '../support/api';
 import { CARD_MS, HEADER, applied, composerOf, mainOf, unique, loadedAfter } from '../support/floor';
 import {
   answerHeaders,
@@ -581,8 +581,13 @@ test('A13: a partner delay notice carries its notice and recipients over real HT
       { ref: kept, state: 'failed', fixKind: 'partner_warning', result: keptResult },
       { ref: maySent, state: 'failed', fixKind: 'partner_warning', result: maySentResult },
     ];
-    await applied(page, await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', requests: finished }));
-    expect(JSON.stringify(await (await http.get(STATE)).json()), 'the state carries the outcome of the request\'s result').toContain('"outcome":"maysent"');
+    const finishedSeq = await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', requests: finished });
+    await applied(page, finishedSeq);
+    // The published incident is served by GET /api/v1/events (the state route holds no incident payload): its request result carries the additive outcome member.
+    type Served = { seq: number; type: string; payload: { requests?: Array<{ ref: string; result?: { outcome?: string } }> } };
+    const served = ((await (await http.get(`${EVENTS}?after=${finishedSeq - 1}&afterInstance=0`)).json()) as { events: Served[] }).events.find((one) => one.seq === finishedSeq && one.type === 'incident');
+    expect(served?.payload.requests?.find((one) => one.ref === maySent)?.result?.outcome, 'the incident event over real HTTP carries the outcome of the request\'s result').toBe('maysent');
+    expect(served?.payload.requests?.find((one) => one.ref === request)?.result?.outcome, 'and a request whose result has no outcome carries none').toBeUndefined();
     await expect(requestCard(page, maySent).locator('[data-part="result"] .text'), 'the may-have-sent band is the catalog\'s text').toHaveText("The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.", { timeout: CARD_MS });
     await expect(card.locator('[data-part="result"] .text'), 'the sent band names the Simulated mailbox').toHaveText('Sent to the Simulated mailbox.', { timeout: CARD_MS });
     await expect(requestCard(page, kept).locator('[data-part="result"] .text'), 'the kept band says that it is a draft').toHaveText("Approved and kept as a draft: email delivery isn't set up yet.", { timeout: CARD_MS });

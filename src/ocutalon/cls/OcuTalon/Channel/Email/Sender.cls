@@ -21,9 +21,10 @@ Include Ensemble
 /// SendMail answers the status of %Net.SMTP, and Classify says what a status means for the person: unreachable (the server could not be reached or
 /// used: connection, TLS, STARTTLS, a first answer that is not a greeting, a timeout), refused (the user name or password was refused or there was
 /// none, or in OAuth2 mode the token could not be had or was refused), or rejected (the server answered the sender, a recipient or the message with an error).
-/// Accepted says when a failed status still means that the server took the message: %Net.SMTP sends QUIT only after the server's 2xx answer to the end of the message
-/// (and it does not look at the answer to QUIT when an earlier error is set), so a status whose errors are all about QUIT (a QUIT answer that is not 2xx, or a connection
-/// that fails while QUIT is written or read) is a sent email, whatever the kind of email. MayHaveSent says when a failed status may still have reached the server.
+/// Accepted says when a failed status still means that the server took the message: %Net.SMTP writes QUIT after any step past the greeting, but it looks at the answer to QUIT
+/// only when no earlier error is set, that is after the server's 2xx answer to the end of the message, so a status whose errors are all about QUIT (a QUIT answer that is not 2xx, or a
+/// connection that fails while QUIT is written or read) is a sent email, whatever the kind of email. In this build %Net.SMTP never names QUIT as the step of a lost connection: one lost
+/// while QUIT is written or read reads DATA and so counts as may-have-sent (MayHaveSent), not as sent. MayHaveSent says when a failed status may still have reached the server.
 Class OcuTalon.Channel.Email.Sender Extends EnsLib.EMail.OutboundAdapter
 {
 
@@ -156,8 +157,8 @@ ClassMethod Classify(sc As %Status) As %String
 }
 
 /// 1 when a failed status is only about QUIT: every error of it is the server's answer to QUIT (SMTPResponse, first parameter QUIT) or a connection that failed while QUIT was
-/// written or read (SMTPConnectionFailed, first parameter QUIT). %Net.SMTP sends QUIT only when no error came first and the server had answered the end of the message with a 2xx,
-/// and it does not check the answer to QUIT when an earlier error is set, so such a status means that the server accepted the message: the email was sent. A status that holds
+/// written or read (SMTPConnectionFailed, first parameter QUIT, which this build of %Net.SMTP does not produce: see the class description). %Net.SMTP checks the answer to QUIT only
+/// when no error came first, that is when the server had answered the end of the message with a 2xx, so such a status means that the server accepted the message: the email was sent. A status that holds
 /// any other error as well, and an OK status, give 0 (an OK status needs no decision).
 ClassMethod Accepted(sc As %Status) As %Boolean
 {

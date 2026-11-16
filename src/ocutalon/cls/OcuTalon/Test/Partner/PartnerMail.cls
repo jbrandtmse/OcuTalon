@@ -306,7 +306,7 @@ ClassMethod Delivered() As %Integer [ Private ]
 	Quit +$Get(^||OcuTalonEmailOutProbe("calls"))
 }
 
-/// The id of the Delivery row of channel email with the approval's Ref.
+/// The id of the Delivery row of channel email with the approval's Ref. A copy of Test.Channel.EmailOut's private ClaimId, kept for DW-1417 (Story 23.14), which moves the shared EmailOut test helpers into one class.
 ClassMethod ClaimId(approval As %String) As %String
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", approval)

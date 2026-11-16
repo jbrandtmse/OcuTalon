@@ -34,7 +34,7 @@
 ///     (CLAIMMAYSENT) and answer failed with MESSAGEMAYHAVESENT, an approval's claim as a keyed tool send's; a repeat of the approval answers the same. Any other failed send (the server
 ///     could not be reached, refused the login or answered with an error: nothing was handed over), and an error before the hand-over, keep the claim marked failed. So no approval is ever sent
 ///     twice and only an email that was sent ever answers already_sent. MESSAGEFAILED of a system send says that this call handed nothing over; the claim row is the record of whether a send
-///     began (Began: a pending or maysent claim), which the executor's wrappers read when the answer did not come back from here (Fix.Kind.Email FailedMessage);
+///     began (Began: a pending, maysent or sent claim), which the executor's wrappers read when the answer did not come back from here (Fix.Kind.Email FailedMessage);
 ///   - a tool send with an IdempotencyKey is claimed the same way (SendClaimed), by its session and the key, and only the key decides: the subject, the
 ///     text and the recipients of a repeat are not compared. The claim row has the owner of the command's SessionRef, an empty ApprovalRef (even when the
 ///     command names an approval) and, in DigestKey, ToolKeyOf: 22 characters of the hash of the key, never equal to a digest's key. Under a lock on the
@@ -234,9 +234,9 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 }
 
 /// Builds the message from the subject and the text (Approved), delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
-/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed. It deletes
-/// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again, unless the email may still have reached the server
-/// (Sender.MayHaveSent); that claim is kept, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message.
+/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send that may still have reached the server (Sender.MayHaveSent) keeps the claim, an approval's
+/// as a keyed tool send's, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message (Story 23.15). Any other failed send keeps the claim of an approval, marked
+/// failed, and deletes the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again.
 Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery, subject As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())

@@ -199,7 +199,7 @@ ClassMethod AsApproved(dryRun As %DynamicObject, parameters As %DynamicObject) A
 
 /// Submits the approved email as a SendEmail command with origin system, the ApprovalRef of the run and the SessionRef of the request's owner and nothing else: no recipients, no subject and
 /// no text. EmailOut takes all three from the approval's row, so that no address, subject or text is in the command or in its trace (DW-1255 rule 4, P4 (a)); parameters is only the
-/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
+/// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn, or whose answer did not come back, is not sent, with Out's MESSAGEFAILED, or MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (SubmitApproved).
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
 	Set row = $Select($IsObject(run): ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(run.ApprovalRef), 1: "")

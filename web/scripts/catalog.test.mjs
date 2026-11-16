@@ -129,7 +129,7 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the nineteen result keys, the either-way line and the two Got it keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the 23 result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
@@ -139,7 +139,7 @@ describe('the real tree', () => {
     assert.equal(Object.keys(real.PAGE_TEXTS).length, 79);
   });
 
-  it('holds the 16 banner and action keys, the 19 answered keys and the nineteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 16 banner and action keys, the 19 answered keys and the 23 result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 19);
     assert.equal(RESULT_KEYS.length, 23);
