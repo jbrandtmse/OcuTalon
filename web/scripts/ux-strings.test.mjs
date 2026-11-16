@@ -1162,8 +1162,8 @@ Then ask the partner to go back to YYYY-MM-DD, so that the next batch does not f
 The Results partner gives notice before the TLS certificate on its results endpoint changes. Load the new certificate before the change, so that results keep flowing.
 `,
     ],
-    'Story 23.4 ruling (the Contest Planner under the owner\'s delegation, 2026-11-15, prompts/story-234-rulings-20261115.md, deviation 2 changed: the On call section\'s line once pages are sent; its watched-productions clause added by DW-1400, prompts/story-238-rulings-20261115.md)': [
-      "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.",
+    'Story 24.3 rulings (the Contest Planner under the owner\'s delegation, 2026-11-16, prompts/story-243-rulings-20261116.md, new text 1: the On call section\'s line once pages are sent, Option A; it replaces the line of DW-1400)': [
+      "OcuTalon pages the on-call person for failures it finds in the productions it watches: in their OcuTalon chat if they're an OcuTalon user, and by Telegram or email as chosen below. Email pages go out from the mailbox set up under Channels. If nobody presses Got it within the minutes below, OcuTalon pages the backup. A practice Break the feed pages nobody while its user stays signed in.",
     ],
   },
   calendar: [

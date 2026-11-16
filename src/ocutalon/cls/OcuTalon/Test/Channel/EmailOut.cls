@@ -293,7 +293,7 @@ Method TestDigestNotSent()
 	While $ListNext(kinds, position, kind) {
 		Set before = ..LastLog()
 		Do ..Notify(kind, ..#OWNER, slots)
-		Do $$$AssertEquals(..Delivered()_"|"_$ListToString(..LogTexts(before), "|"), "0|EmailOut takes a notification of kind digest only, so it sent nothing", "kind '"_kind_"': nothing is sent, one warning")
+		Do $$$AssertEquals(..Delivered()_"|"_$ListToString(..LogTexts(before), "|"), "0|EmailOut takes a notification of kind digest or page only, so it sent nothing", "kind '"_kind_"': nothing is sent, one warning")
 	}
 	Do $$$AssertEquals(..Deliveries(..#OWNER), 0, "no Delivery row was recorded")
 	Do ..Notify("digest", ..#OWNER, slots)

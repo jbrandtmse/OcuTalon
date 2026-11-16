@@ -256,16 +256,20 @@ Method TestNoAnswerHash()
 	Do ..Run(host, ref, 0, "T-1 open", "none")
 	Set row = ..Stored(ref)
 	Do $$$AssertEquals(row.Result _ "|" _ row.Finding _ "|" _ ##class(%DynamicAbstractObject).%FromJSON(row.Reported).baseline, "not_checked|" _ $Parameter(..#PROBE, "REASONREAD") _ "|0", "a first answer with no hash is not_checked and not the baseline")
-	// a baseline, so that seen and baseline have values to keep
+	// a baseline, so that seen and baseline have values to keep. DW-1439: each run below starts in a second of its own (NewSecond), since a run in the same second
+	// as the one before it writes no CheckRun row; the baseline starts early in a second, so that without those waits the first bad form would share its second
+	Do ..NewSecond(ref)
+	Do ..SecondStart()
 	Do ..Run(host, ref, 1, "T-1 open")
 	Set before = ..Stored(ref).Reported
 	Do $$$AssertEquals(##class(%DynamicAbstractObject).%FromJSON(before).baseline, 1, "the baseline is made")
 	For i = 1:1:$ListLength(bad) {
 		Set form = $ListGet(bad, i)
+		Do ..NewSecond(ref)
 		Do ..Run(host, ref, i + 1, "T-2 open", form)
 		Set row = ..Stored(ref)
 		Do $$$AssertEquals(row.Result _ "|" _ row.Finding, "not_checked|" _ $Parameter(..#PROBE, "REASONREAD"), "(" _ form _ ") not_checked with REASONREAD")
-		Do $$$AssertEquals(..RunOf(ref).reason, "error", "(" _ form _ ") the CheckRun Reason is error")
+		Do $$$AssertEquals(..RunOf(ref).reason _ "|" _ ..RunCount(ref), "error|" _ (i + 2), "(" _ form _ ") the CheckRun Reason is error, in a CheckRun row of its own")
 		Do $$$AssertEquals(..FindingItems().%Size(), 0, "(" _ form _ ") no Item is sent")
 		Do $$$AssertEquals(row.Reported, before, "(" _ form _ ") seen and baseline are as they were")
 	}
@@ -764,6 +768,28 @@ Method Run(host As OcuTalon.Test.Mcp.SourceProbe, ref As %String, n As %Integer,
 	Do ..ForceDue(ref)
 	Do ..Tick(host, ..At(n * 20))
 	Do ..Answer(host, ref, text, "", "", hash)
+}
+
+/// Waits (at most 2 s) until the UTC second differs from the row's LastRunAt (DW-1439). A run records its time in whole seconds (Data.Time NowUtc), and the BackgroundCheck
+/// trigger writes a CheckRun row only when LastRunAt changes, so a second run within the same second as the last one would write no row and RunOf would read the run before it.
+ClassMethod NewSecond(ref As %String)
+{
+	Set row = ..Stored(ref)
+	If '$IsObject(row) Quit
+	Set until = $ZHorolog + 2
+	While (##class(OcuTalon.Data.Time).NowUtc() = row.LastRunAt) && ($ZHorolog < until) {
+		Hang 0.05
+	}
+}
+
+/// Waits until a new UTC second begins (at most 1.1 s), so that the steps after it run early in one second.
+ClassMethod SecondStart()
+{
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set until = $ZHorolog + 1.1
+	While (##class(OcuTalon.Data.Time).NowUtc() = now) && ($ZHorolog < until) {
+		Hang 0.01
+	}
 }
 
 /// Makes the row due again, as 15 minutes would.

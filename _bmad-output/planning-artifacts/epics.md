@@ -8705,11 +8705,15 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** the submitted commands' fields, the audit entries and the stored contacts match, and both sections work by keyboard with every control labelled (NFR-25, UX-DR130)
 - DW-1254: partner contacts' names and addresses go through the same SecretHandoff as 36.4's on-call section (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri, the values reach only the IRIS audit entry, and a leak-scan test pins it (ledger; routed by merge_gate 2026-11-13, Contest Planner 36.4 ruling S1)
 
-### Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement
+**Story 24.3 was split into Stories 24.3a and 24.3b** [AMENDED 2026-11-16, Contest Planner split (24.3 rulings ~08:30Z Nov 16, P5); 24.3a (delivery and the web acknowledgement) merges after the 1.0.12 cut; 24.3b (the escalation timer, the On call line, DW-1384 and the GUIDE bullet) follows; every acceptance criterion of the old Story 24.3 is carried word for word by one of them; P1 Option A settles DW-1251 (a page always gets a web chat card, not counted as a channel; Telegram and email follow the chosen channels exactly; an email copy is never marked handled); P2: the undelivered report is a `not_paired` delivery row that Paging reads]
+
+### Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement
+
+[ADDED 2026-11-16, Contest Planner split of 24.3; merges after the 1.0.12 cut]
 
 As an admin,
-I want each page to reach the on-call person on their configured channel, and an acknowledgement from any channel it reached to stop escalation,
-So that the backup is woken only when the on-call person really didn't answer.
+I want each page to reach the on-call person on their configured channels, and an acknowledgement from the web page to reach the paging owner,
+So that a page is seen and handled wherever the person is.
 
 **Acceptance Criteria:**
 
@@ -8723,6 +8727,25 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** the acknowledgement reaches the paging owner once through `CommandsIn` with the command verb Story 36.2 (was 24.1) fixes, every copy of the page shows "Marked as handled at {time}", and a second acknowledgement changes nothing (FR-28, AD-1, UX-DR143)
 **And** **Got it** on Telegram, which submits the same command and edits the Telegram copy in place, is Lane A's Story 23.4 (FR-20, AD-29)
 
+**Given** automated tests in `OcuTalon.Test.Channel`, with a mock mail server, against the paging owner
+**When** pages and acknowledgements run
+**Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+
+### Story 24.3b: Escalate unanswered pages to the backup, and say so in Settings
+
+[ADDED 2026-11-16, Contest Planner split of 24.3]
+
+**Lane:** B. **Depends on:** Story 24.3a (story-level).
+
+As an admin,
+I want an unanswered page to escalate to the backup after the minutes I chose, and Settings to say plainly how paging works,
+So that the backup is woken only when the on-call person really didn't answer.
+
+**Acceptance Criteria:**
+
 **Given** the paging owner (Lane A's Story 23.4) asks `ReminderOps` for an escalation timer with origin `system`
 **When** it is created
 **Then** a `Reminder` row of the escalation kind and its `ReminderTimer` waiter exist; at the due time the waiter sends the escalation message to the paging owner instead of a notification, a cancellation from the paging owner removes it, and neither shows in any session's reminder list (FR-28, AD-5, AD-18)
@@ -8732,8 +8755,8 @@ So that the backup is woken only when the on-call person really didn't answer.
 **When** pages, acknowledgements and escalations run, with a restart in between
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
-- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+**And** the Settings On call line reads the Contest Planner's approved text (Option A, 2026-11-16), replacing DW-1400's line, pinned in `ux-strings`, `on-call-view` and the on-call spec; GUIDE.md gains the approved On-call pages bullet with its existing Settings separator; DW-1384's escalation-ask test lands (Contest Planner 24.3 rulings, P4 and new text 1)
+
 
 **Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
 
@@ -9249,7 +9272,7 @@ So that only the people I choose can message OcuTalon from Slack (step 7, Could)
 
 OcuTalon drafts a transform change as a proposal it never applies, fades and consolidates old memories, and offers its read-only tools to MCP clients under IRIS authentication.
 
-**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
+**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] [AMENDED 2026-11-16, owner decision ~14:30Z relayed by the Contest Planner: "Epics 27 and 28 START NOW"; the scope hold of 2026-11-15 is lifted; 28.2 and 28.3 run in parallel with Epic 27 and 28.1 waits for it; order 28.2, 28.3, 28.1]
 
 ### Story 28.1: Draft a transform change as a proposal that is never applied
 
@@ -9261,7 +9284,7 @@ So that I can review a starting point for the real fix (step 7, Could).
 
 **Given** step 7 starts in Lane A
 **When** this story begins
-**Then** the spine is updated in the same change with Lane A's step-7 additions: where a transform draft is stored with its incident, the memory-fading setting and the merge record, the nightly consolidation task, and `OcuTalon.Mcp.Service` with its web application, resource, role and installer step (AD-16, AD-21, AD-24, AD-29, AD-33)
+**Then** the spine is updated in the same change with Lane A's step-7 additions: where a transform draft is stored with its incident, the memory-fading setting and the merge record, the nightly consolidation task, and `OcuTalon.Mcp.Service` with its web application, resource, role and installer step (AD-16, AD-21, AD-24, AD-29, AD-33) [AMENDED 2026-11-16, run order 28.2, 28.3, 28.1 (owner decision ~14:30Z): Stories 28.2 and 28.3, built first, each record their own share of these additions in their own change (28.2: the memory-fading setting, the merge record and the nightly consolidation task; 28.3: `OcuTalon.Mcp.Service` with its web application, resource, role and installer step); this story records the transform draft's storage and the verb]
 **And** the update names the command verb by which a chat request asks for a draft: `DraftTransform`, carrying the incident's `IncidentRef`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents (AD-1's list of commands accepted from origin `tool` gains it) and routes to `IncidentManager`, which writes the draft; Lane B's Story 27.1 creates the verb under that name, and this story's chat path waits for Epic 27 (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: a tool that changes state does so only through a command verb]
 **And** the step 7 texts the UX doesn't give (the transform draft's presentation and its never-applied note, and a memory merge as the user sees it) are proposed to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
@@ -9293,14 +9316,11 @@ So that recall stays relevant as memory grows (step 7, Could).
 **When** recall ranks its results
 **Then** they rank below equally matching memories used more recently, and still come back when nothing else matches; a forgotten memory never comes back (FR-43, FR-41)
 
-**Given** the nightly consolidation task
-**When** it runs
-**Then** it enters through the production, finds duplicate memories within each owner by vector similarity and keyword match above a set threshold, keeps one memory per duplicate set carrying every source of the set, marks it as from untrusted content if any merged memory was, records each merge (the kept memory, the merged ones with their texts and sources, and the time) where Visual Trace shows it, and calls no model (FR-43, AD-1, AD-10, NFR-20)
-**And** memories of different sessions are never merged (AD-4)
+- The nightly merge of duplicate memories moved to Story 28.4. [SPLIT 2026-11-16 to Story 28.4, under the Contest Planner's pre-approved split (story-282 gate rulings, R-28.2-3): Task 0 found no cosine and keyword threshold with zero false merges and a useful true-merge rate (3 of 30 true, 0 of 42 false; evidence/28-2-task0-duplicate-thresholds.md)]
 
 **Given** automated tests in `OcuTalon.Test.Memory`
-**When** duplicate and distinct memories are stored and the task runs twice
-**Then** only the duplicates merge, every source is kept, the second run merges nothing new, and a faded memory ranks below a recent one with the same match (FR-43)
+**When** recent and faded memories with the same match are stored
+**Then** a faded memory ranks below a recent one with the same match (FR-43) [AMENDED 2026-11-16: the merge clauses ("only the duplicates merge, every source is kept, the second run merges nothing new") moved to Story 28.4 with the merge; it read "**When** duplicate and distinct memories are stored and the task runs twice **Then** only the duplicates merge, every source is kept, the second run merges nothing new, and a faded memory ranks below a recent one with the same match"]
 
 ### Story 28.3: Offer OcuTalon's read-only tools to MCP clients
 
@@ -9312,15 +9332,13 @@ So that I can check status and history from my own tools without opening a new w
 
 **Given** the Mcp area's installer step
 **When** it runs
-**Then** `OcuTalon.Mcp.Service`, a `%AI.MCP.Service` subclass with `Parameter RESOURCE = "OcuTalon_MCPServer"`, offers only OcuTalon's read-only toolsets; the web application `/mcp/ocutalon` has password authentication only, namespace OCUTALON and no application roles; and the role `OcuTalonMCPClient` holds Use on `OcuTalon_MCPServer`, read access to the databases its tools read, and SQL `SELECT` on exactly the tables they query (FR-51, AD-21, AD-24)
+**Then** `OcuTalon.Mcp.Service`, a `%AI.MCP.Service` subclass with `Parameter RESOURCE = "OcuTalon_MCPServer"`, offers only OcuTalon's read-only toolsets; the web application `/mcp/ocutalon` has password authentication only, namespace OCUTALON and no application roles; and the role `OcuTalonMCPClient` holds Use on `OcuTalon_MCPServer`, read access to the databases its tools read, and SQL `SELECT` on exactly the tables they query (FR-51, AD-21, AD-24) [AMENDED 2026-11-16, Contest Planner ruling G3: Task 0 first tries application roles on `/mcp/ocutalon` holding the database reads OcuTalon needs, so that `OcuTalonMCPClient` holds only Use on `OcuTalon_MCPServer`; if that cannot work, the measured reason is recorded in the spec and the role keeps the read grants; either way no SQL privilege, no write, and the installer grants the role to no one]
 
-**Given** `iris-mcp-server` in front of the service
-**When** it is configured
-**Then** it has no endpoint credentials, `allow_anonymous = false` (never copied from AI Hub's development template) and its status tool off, and its own login is a role-less user whose password comes from the environment (FR-51, AD-21, NFR-11)
+- The `iris-mcp-server` configuration moved to Story 28.5. [SPLIT 2026-11-16 to Story 28.5, Contest Planner spec-gate ruling G7/G8 (prompts/story-283-rulings-20261116.md): Task 0 measured that iris-mcp-server 2.0.0 on build 154 lists and calls no tool of any %AI.MCP.Service subclass ("failed identity checking"), so the configuration and the end-to-end client list and call move to 28.5]
 
 **Given** an MCP client
 **When** it connects anonymously, with a wrong password, or as a user without `OcuTalonMCPClient`
-**Then** it is refused; a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records (FR-51, AD-4, AD-24)
+**Then** it is refused; a user with the role passes IRIS sign-in and the resource check, and the tools, run as that IRIS user, return only that user's session's records (FR-51, AD-4, AD-24) [AMENDED 2026-11-16, Planner ruling G8: listing and calling the tools end to end through an MCP client moved to Story 28.5; it read "a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records"]
 
 **Given** a client that asks through the service for anything risky (a resend, any other fix, a settings change)
 **When** it calls
@@ -9334,6 +9352,50 @@ So that I can check status and history from my own tools without opening a new w
 **Then** the results match, and the security overview lists the service's tools from its specification and the `OcuTalonMCPClient` role (FR-51, FR-61)
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 7 stories that were built have merged **When** step 7's release is prepared **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)"]
+
+### Story 28.4: Merge duplicate memories nightly
+
+As a user,
+I want duplicate memories merged without losing where they came from,
+So that recall stays relevant as memory grows (step 7, Could).
+
+[SPLIT 2026-11-16 to Story 28.4, under the Contest Planner's pre-approved split (story-282 gate rulings, R-28.2-3): Task 0 found no cosine and keyword threshold with zero false merges and a useful true-merge rate (3 of 30 true, 0 of 42 false; evidence/28-2-task0-duplicate-thresholds.md)] The merge rule must first meet R-28.2-3 (zero merges on a labelled set of distinct-but-similar pairs, with a useful true-merge rate); the Contest Planner decides the rule at this story's spec gate (Task 0's proposal: merge only when the in-order, lower-cased word lists match, ignoring punctuation: 9 of 30 true, 0 of 42 false).
+
+**Acceptance Criteria:**
+
+**Given** the nightly consolidation task
+**When** it runs
+**Then** it enters through the production, finds duplicate memories within each owner by the rule the Contest Planner approved under R-28.2-3, keeps one memory per duplicate set carrying every source of the set, marks it as from untrusted content if any merged memory was, records each merge (the kept memory, the merged ones with their texts and sources, and the time) in an owned merge record, with Visual Trace showing refs, sources, counts and time only, and calls no model (FR-43, AD-1, AD-10, NFR-20)
+**And** memories of different sessions are never merged (AD-4)
+**And** pinned memories are never merged, a set holding a `told` memory keeps a `told` one, and every merged memory's text and source are kept in the merge record (R-28.2-1, R-28.2-2)
+**And** the user and session data purge (sign-out, the eval drop, forgetting the kept memory) deletes its merge records
+
+**Given** automated tests in `OcuTalon.Test.Memory`
+**When** duplicate and distinct memories are stored and the task runs twice
+**Then** only the duplicates merge, every source is kept, the second run merges nothing new, no distinct pair of Story 28.2's Task 0 set merges, and the task is off on the online demo (FR-43)
+
+### Story 28.5: Connect an MCP client through iris-mcp-server
+
+As a production developer,
+I want to connect my own MCP client to OcuTalon's read-only tools through `iris-mcp-server`,
+So that I can check status and history from my own tools (step 7, Could).
+
+[SPLIT 2026-11-16 to Story 28.5, Contest Planner spec-gate ruling G7/G8 (prompts/story-283-rulings-20261116.md): Task 0 measured that iris-mcp-server 2.0.0 on build 154 lists and calls no tool of any %AI.MCP.Service subclass ("failed identity checking"), so the configuration and the end-to-end client list and call move to 28.5] Not dispatched: the Contest Planner takes the platform identity-check failure to the owner first.
+
+**Acceptance Criteria:**
+
+**Given** a fresh measurement on the current build
+**When** `iris-mcp-server` lists and calls the tools of `OcuTalon.Mcp.Service`
+**Then** the identity check passes, or the story stops with the measured failure for the owner
+
+**Given** `iris-mcp-server` in front of the service
+**When** it is configured
+**Then** it has no endpoint credentials, `allow_anonymous = false` (never copied from AI Hub's development template) and its status tool off, and its own login is a role-less user whose password comes from the environment (FR-51, AD-21, NFR-11)
+
+**Given** automated tests with a minimal MCP client over real HTTP
+**When** they connect anonymously, with a wrong password, as a user without `OcuTalonMCPClient`, and as a user with it
+**Then** the first three are refused, and a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records, never a second user's (FR-51, AD-4, AD-24)
+**And** a guide says how to connect, and the server stays off on the online demo
 
 ## Epic 29: The online demo's platform side
 

@@ -5,7 +5,7 @@
  * pageTime themselves.
  *
  * - chatView lists the store's chat.message entries (turns), its incident entries (incident cards, one per Ref) and its notification
- *   entries of the kinds tellnow, reminder, allowance, digest, summary (an incident's summary, Story 23.6), and approval or result with an approvalRef (notices) in store order, then the page's own messages that the store does not hold
+ *   entries of the kinds tellnow, page, reminder, allowance, digest, summary (an incident's summary, Story 23.6), and approval or result with an approvalRef (notices) in store order, then the page's own messages that the store does not hold
  *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its status
  *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x): the kinds incident and answered, and approval or result with no approvalRef, are the incident card's.
  *   liveRequest says which notice of a tool call's request is drawn as a live approval request card.
@@ -156,10 +156,10 @@ export interface TurnView {
 }
 
 /** The kinds of notification that the chat shows as a notice card. */
-export type NoticeKind = 'tellnow' | 'reminder' | 'allowance' | 'digest' | 'summary' | 'approval' | 'result';
+export type NoticeKind = 'tellnow' | 'page' | 'reminder' | 'allowance' | 'digest' | 'summary' | 'approval' | 'result';
 
 /**
- * One notice card of the chat: a notification of the kind tellnow, reminder, allowance (the session allowance and the daily-cap
+ * One notice card of the chat: a notification of the kind tellnow, page (the on-call page of a user's session, Story 24.3a: the tell-now card's look, its Why now line and Got it, with no decision strip), reminder, allowance (the session allowance and the daily-cap
  * message, Story 16.9) or digest (the digest's text with its check rows, Stories 17.10 and 18.4), or a tool call's request (kind approval) or result (kind result) with the approvalRef it carries (Story 31.6).
  */
 export interface NoticeView {
@@ -169,7 +169,7 @@ export interface NoticeView {
   kind: NoticeKind;
   /** The card's text as the server rendered it; for a tell now without its last line, the "Why now:" line. */
   text: string;
-  /** The "Why now:" line of a tell-now card, "" for a reminder. */
+  /** The "Why now:" line of a tell-now or page card, "" for a reminder. */
   whyNow: string;
   /** An ISO time: when the card arrived. */
   time: string;
@@ -185,9 +185,9 @@ export interface NoticeView {
   approvalRef?: string;
   /** The check rows of a digest card, one each; empty for any other card and for a digest that has none. */
   checks: readonly CheckRow[];
-  /** An ISO time: when the user marked a tell-now notice as handled, "" while it is not handled. */
+  /** An ISO time: when the user marked a tell-now notice as handled, or a page was acknowledged, "" while it is not handled. */
   handledAt: string;
-  /** The Ref of the notice: the Decision behind it, "" when it has none or that Decision is an act one (Got it marks tell-now Decisions only, AD-14). Got it names it. */
+  /** The Ref Got it names: for a tell-now notice the Decision behind it, "" when it has none or that Decision is an act one (Got it marks tell-now Decisions only, AD-14); for a page card the page's Ref. */
   decisionRef: string;
 }
 
@@ -234,7 +234,7 @@ function messageOf(item: LiveItem): ChatMessagePayload | undefined {
 }
 
 /**
- * The notice card of a chat entry: a notification of the kind tellnow, reminder, allowance, digest or summary, or of the kind approval or result
+ * The notice card of a chat entry: a notification of the kind tellnow, page, reminder, allowance, digest or summary, or of the kind approval or result
  * with an approvalRef (a tool call's request or result), or of the kind result with no approvalRef but a card `ref` of its own (the notice that a delay notice could not
  * be drafted, Story 23.5: a fix's result with no card Ref belongs to the incident card, which draws it); undefined for any other entry.
  */
@@ -245,7 +245,7 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
   const payload: NotificationPayload = item.payload;
   const toolCall = (payload.kind === 'approval' || payload.kind === 'result') && !!payload.approvalRef;
   const bareResult = payload.kind === 'result' && !payload.approvalRef && !!payload.ref;
-  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && payload.kind !== 'digest' && payload.kind !== 'summary' && !toolCall && !bareResult) {
+  if (payload.kind !== 'tellnow' && payload.kind !== 'page' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && payload.kind !== 'digest' && payload.kind !== 'summary' && !toolCall && !bareResult) {
     return undefined;
   }
   const view: NoticeView = {
