@@ -700,6 +700,24 @@ export function sendNotification(user: string, notification: NotificationFields)
   );
 }
 
+/**
+ * The slots of the approval notice of a fix the user asked for in the chat, as the server fills them (Watch.Notice.AskedSlots over the
+ * kind's name, the dry run and the incident's row), for sendNotification: the real fill, redaction included, never a copy of it.
+ */
+export async function askedSlots(kind: string, dryRun: Record<string, unknown>, incidentRef: string): Promise<Record<string, unknown>> {
+  const lines = await irisScript(
+    [
+      `Set i=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(incidentRef)})`,
+      `Set d=##class(%DynamicObject).%FromJSON(${quoted(JSON.stringify(dryRun))})`,
+      `Set x=##class(OcuTalon.Watch.Notice).AskedSlots(${quoted(kind)},d,i,.sc)`,
+      'Write !,"CHK|slots|",$Select($System.Status.IsOK(sc)&&$IsObject(x):x.%ToJSON(),1:"")',
+    ].join('\n'),
+  );
+  const text = chk(lines, 'slots');
+  if (!text) throw new Error(`the slots of ${kind} could not be filled (${lines.join(' ')})`);
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
 /** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
 export async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
   const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));

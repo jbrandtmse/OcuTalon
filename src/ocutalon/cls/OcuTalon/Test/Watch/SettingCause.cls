@@ -13,7 +13,16 @@
 ///   - TestNoFixCause (AC12): the incident.noFix notice of a setting_change incident has the structured setting cause when it names a change, and the model's string when not;
 ///   - TestNoNamespaceSwitch (AC5): neither fix kind nor this class contains a namespace switch, so that the only write is Fix.Executor InProduction's;
 ///   - TestKinds (AC3): the setting kinds' names, parameters and resources;
-///   - TestUndoNoRead (AC14): the undo of a done rollback in a production whose settings can't be read gives the kind's plain NOREAD reason, in its dry run and its re-check.
+///   - TestUndoNoRead (AC14): the undo of a done rollback in a production whose settings can't be read gives the kind's plain NOREAD reason, in its dry run and its re-check;
+///   - TestShownRedacted (Story 24.4a, AC2): a setting's value that holds a token (a URL) is shown redacted, a plain value as it is, in the incident payload, the approval payload of the
+///     rollback and the undo, and the slots of the four notice keys (and the phone text rendered from them); the SettingChange row and the stored dry run stay raw; a 1,000-character
+///     value exports;
+///   - TestValuesHandoff (AC6): Fix.Executor OfferValues gives a dry run with redacted values and a reference, TakeValues puts the raw values back byte for byte and deletes the entry, an
+///     entry that is not taken expires, a dry run with no reference is left as it is and a reference that is gone is an error that leaves no raw value;
+///   - TestValuesExpireDefault (AC6, the Planner's V6): the default lifetime is 60 seconds, and an entry that nobody takes is gone after it, and still held before;
+///   - TestValuesLifetime (AC6, V6): a real dry run's offer lives 60 seconds, and the test global of the missing-entry pin can shorten that and never lengthen it;
+///   - TestAskedTakeOnReceipt (AC4, the Planner's V6 on the chat ask): IncidentManager's RaiseAsked takes the entry on receipt, stores the raw values and sends redacted slots, and an
+///     answer whose entry is gone raises no request, sends nothing and is refused with the kind's NOSTART.
 Class OcuTalon.Test.Watch.SettingCause Extends %UnitTest.TestCase
 {
 
@@ -384,6 +393,282 @@ Method TestPayload()
 	Set incident.SettingChangeRef = ""
 	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident)
 	Do $$$AssertEquals($IsObject(payload.SettingChange)_"|"_payload.GapMinutes, "0|", "an incident that names no change has neither")
+}
+
+/// The URL of the token fixtures, from fragments.
+ClassMethod TokenUrl() As %String
+{
+	Quit "https://feed.example.test/orders?token=" _ "tk" _ "z9" _ "Q" _ "w3"
+}
+
+/// The token of TokenUrl.
+ClassMethod Token() As %String
+{
+	Quit "tk" _ "z9" _ "Q" _ "w3"
+}
+
+/// AC2 (the server views): a non-secret change whose value holds a token is shown redacted in the incident payload (Old/NewValue), in the approval payload of a rollback and of an undo
+/// (Before/After) and in the slots of the four notice keys and the phone text rendered from them; a plain value is as it is everywhere; the SettingChange row and the stored dry run are
+/// raw; and a value of 1,000 characters exports.
+Method TestShownRedacted()
+{
+	Set mark = "[redacted]"
+	Set url = ..TokenUrl()
+	Set token = ..Token()
+	Set shown = "https://feed.example.test/orders?token=" _ mark
+	Do ..Snapshot("2026-11-01T00:00:00Z")
+	Set tokenRef = ..Change("2026-11-10T11:56:00Z", "Fails", "Host", url, "OrdersRouterNew")
+	Set plainRef = ..Change("2026-11-10T11:57:00Z", "Fails", "Target", "OrdersRouter", "OrdersRouterNew")
+	Set incident = ..Incident("Fails", tokenRef)
+	// (a) the incident payload
+	Set change = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident).SettingChange
+	Do $$$AssertTrue($IsObject(change), "the payload names the token change")
+	If $IsObject(change) {
+		Do $$$AssertEquals(change.OldValue_"|"_change.NewValue, shown_"|OrdersRouterNew", "the old value is redacted in place, the plain new value is as it is")
+		Do change.%JSONExportToString(.changeJson)
+		Do $$$AssertEquals($Find($Get(changeJson), token), 0, "and the payload's JSON holds no token")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.SettingChange).RefIndexOpen(tokenRef).OldValue, url, "the SettingChange row keeps the raw value")
+	Set incident.SettingChangeRef = plainRef
+	Set change = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident).SettingChange
+	If $IsObject(change) Do $$$AssertEquals(change.OldValue_"|"_change.NewValue, "OrdersRouter|OrdersRouterNew", "plain values are unchanged")
+	Set incident.SettingChangeRef = tokenRef
+	// (b) the approval payload, a rollback (before now, after the old value) and an undo (before the old value, after the new)
+	For kind = "rollback_setting", "undo_rollback" {
+		Set dry = $Select(kind = "rollback_setting": {"item": "Fails", "field": "Host", "before": "OrdersRouterNew", "after": (url)}, 1: {"item": "Fails", "field": "Host", "before": (url), "after": "OrdersRouterNew"})
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+		Set row.Kind = "fix"
+		Set row.State = "pending"
+		Set row.FixKind = kind
+		Set row.IncidentRef = ..#INCIDENT
+		Set row.DryRun = dry.%ToJSON()
+		Set stored = row.DryRun
+		Set part = ##class(OcuTalon.Live.Payload.Approval).FromRow(row).DryRun
+		Do $$$AssertTrue($IsObject(part), kind_": the payload has the dry run")
+		If $IsObject(part) {
+			Do $$$AssertEquals(part.Before_"|"_part.After, $Select(kind = "rollback_setting": "OrdersRouterNew|"_shown, 1: shown_"|OrdersRouterNew"), kind_": the token value is redacted, the plain one is as it is")
+		}
+		Do $$$AssertEquals(row.DryRun, stored, kind_": the row's dry run is unchanged")
+		Do $$$AssertEquals($Find(row.DryRun, token) > 0, 1, kind_": and still holds the raw token")
+	}
+	// (c) the slots of the four keys, and the phone text rendered from them
+	Set now = "2026-11-10T12:30:00Z"
+	Set slots = {}
+	Do $$$AssertStatusOK(##class(OcuTalon.Watch.SettingCause).RollbackSlots(incident, {"item": "Fails", "field": "Host", "before": "OrdersRouterNew", "after": (url)}, slots), "the rollback slots are made")
+	Do $$$AssertEquals(slots.before_"|"_slots.after, "OrdersRouterNew|"_shown, "incident.rollbackRequest: {before} and {after}")
+	// the incident's own slots, which Watch.Notice adds in the real fill
+	Do slots.%Set("count", 5, "number")
+	Do slots.%Set("itemNoun", {"one": "order", "other": "orders"})
+	Do slots.%Set("time", "2026-11-10T12:00:00Z", "string")
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(##class(OcuTalon.Watch.SettingCause).#KEYROLLBACKREQUEST, slots.%ToJSON(), "phone", now, 0, .sc)
+	Do $$$AssertStatusOK(sc, "the rollback request renders")
+	Do $$$AssertTrue((text [ shown) && ($Find(text, token) = 0), "and its phone text holds the marker and no token: "_text)
+	Set slots = ##class(OcuTalon.Watch.SettingCause).UndoSlots({"item": "Fails", "field": "Host", "before": (url), "after": "OrdersRouterNew"}, incident, .sc)
+	Do $$$AssertStatusOK(sc, "the undo slots are made")
+	If $IsObject(slots) {
+		Do $$$AssertEquals(slots.before_"|"_slots.after, shown_"|OrdersRouterNew", "incident.undoRollbackRequest: {before} and {after}")
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(##class(OcuTalon.Watch.SettingCause).#KEYUNDOREQUEST, slots.%ToJSON(), "phone", now, 0, .sc)
+		Do $$$AssertTrue((text [ shown) && ($Find(text, token) = 0), "and its phone text holds the marker and no token: "_text)
+	}
+	For key = ##class(OcuTalon.Watch.SettingCause).#KEYRESTORED, ##class(OcuTalon.Watch.SettingCause).#KEYUNDONE {
+		Set slots = ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, {"setting": "Host", "target": "Fails", "after": (url)}, .sc)
+		Do $$$AssertStatusOK(sc, key_": the result slots are made")
+		If '$IsObject(slots) Continue
+		Do $$$AssertEquals(slots.after, shown, key_": {after} is redacted")
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "phone", now, 0, .sc)
+		Do $$$AssertTrue((text [ shown) && ($Find(text, token) = 0), key_": the phone text holds the marker and no token: "_text)
+		Set slots = ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, {"setting": "Target", "target": "Fails", "after": "OrdersRouter"}, .sc)
+		If $IsObject(slots) Do $$$AssertEquals(slots.after, "OrdersRouter", key_": a plain {after} is as it is")
+	}
+	// (d) a value of 1,000 characters exports
+	Set long = "https://feed.example.test/orders?token=" _ $Translate($Justify("", 961), " ", "x")
+	Do $$$AssertEquals($Length(long), 1000, "the value is 1,000 characters")
+	Set longRef = ..Change("2026-11-10T11:58:00Z", "Fails", "Long", long, "OrdersRouterNew")
+	Set incident.SettingChangeRef = longRef
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident)
+	Set sc = payload.%JSONExportToString(.json)
+	Do $$$AssertStatusOK(sc, "the payload of a 1,000-character token value exports")
+	Do $$$AssertTrue($Find($Get(json), mark) > 0, "and holds the marker")
+}
+
+/// 1 when the hand-off entry that the reference names still exists (its event resource is defined): taken and discarded entries are deleted, not only emptied.
+ClassMethod Held(uri As %String) As %Boolean
+{
+	Quit ''$SYSTEM.Event.Defined(##class(OcuTalon.Core.SecretHandoff).#RESOURCE _ $Piece(uri, "/", *))
+}
+
+/// A dry run of a setting kind with the values before and after, as a dynamic object.
+ClassMethod Dry(before As %String, after As %String) As %DynamicObject
+{
+	Quit {"item": "Fails", "field": "Host", "before": (before), "after": (after)}
+}
+
+/// AC6 (V5 condition 1): OfferValues redacts the values of the dry run and offers the raw ones through SecretHandoff; TakeValues puts them back byte for byte and the entry is gone; an
+/// entry that is not taken expires (1 second here; the default lifetime is TestValuesExpireDefault's); a dry run with no reference is left as it is; a reference that is gone is an error.
+Method TestValuesHandoff()
+{
+	Set url = ..TokenUrl()
+	Set token = ..Token()
+	Set shown = "https://feed.example.test/orders?token=[redacted]"
+	Set executor = "OcuTalon.Fix.Executor"
+	// (a) offered: redacted before, plain after, a reference
+	Set dry = ..Dry(url, "OrdersRouter")
+	Do $$$AssertStatusOK($ClassMethod(executor, "OfferValues", dry), "the values are offered")
+	Set uri = dry.values
+	Try {
+		Do $$$AssertEquals(dry.before_"|"_dry.after, shown_"|OrdersRouter", "before is redacted in place, after is unchanged")
+		Do $$$AssertEquals($Extract(uri, 1, 17), "secret://handoff/", "the dry run holds a hand-off reference")
+		Do $$$AssertEquals($Find(dry.%ToJSON(), token), 0, "and its JSON holds no token")
+		// (b) taken: the raw values are back, byte for byte, the reference is gone, and the entry is deleted
+		Do $$$AssertStatusOK($ClassMethod(executor, "TakeValues", dry), "the values are taken")
+		Do $$$AssertEquals(dry.before_"|"_dry.after, url_"|OrdersRouter", "the raw values are back, byte for byte")
+		Do $$$AssertEquals(dry.%IsDefined("values"), 0, "and values is removed")
+		Do $$$AssertEquals(dry.%GetTypeOf("before")_"|"_dry.%GetTypeOf("after"), "string|string", "with their types")
+		Do $$$AssertEquals(..Held(uri), 0, "the entry's resource is deleted when taken")
+		Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, , 0), "a second take of the reference fails: the entry was deleted when taken")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no error")
+	}
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	// types are kept
+	Set typed = {"item": "Fails", "field": "Port", "before": 80, "after": 8080}
+	Do $$$AssertStatusOK($ClassMethod(executor, "OfferValues", typed), "numbers are offered")
+	Do $$$AssertEquals(typed.%GetTypeOf("before")_"|"_typed.before_"|"_typed.after, "number|80|8080", "a value that needs no redaction is left as it is, with its type")
+	Do $$$AssertStatusOK($ClassMethod(executor, "TakeValues", typed), "and taken")
+	Do $$$AssertEquals(typed.%GetTypeOf("before")_"|"_typed.before_"|"_typed.%GetTypeOf("after")_"|"_typed.after, "number|80|number|8080", "with their JSON types")
+	// (c) never taken: gone after the lifetime
+	Set dry = ..Dry(url, "OrdersRouter")
+	Do $$$AssertStatusOK($ClassMethod(executor, "OfferValues", dry, 1), "values are offered with a lifetime of 1 second")
+	Set uri = dry.values
+	Do ..WaitGone(uri, 10)
+	Do $$$AssertEquals(..Held(uri), 0, "an entry that nobody took is deleted after its lifetime")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, , 0), "an entry that nobody took is gone after its lifetime")
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	// (c2) within its lifetime the entry is still there and is taken
+	Set dry = ..Dry(url, "OrdersRouter")
+	Do $$$AssertStatusOK($ClassMethod(executor, "OfferValues", dry, 5), "values are offered with a lifetime of 5 seconds")
+	Set uri = dry.values
+	Hang 1
+	Do $$$AssertEquals(..Held(uri), 1, "an entry is still held one second into its lifetime")
+	Do $$$AssertStatusOK($ClassMethod(executor, "TakeValues", dry), "and is taken")
+	Do $$$AssertEquals(dry.before, url, "with the raw value")
+	Do $$$AssertEquals(..Held(uri), 0, "and the entry is gone at once")
+	// (d) no reference: left as it is
+	Set dry = ..Dry(url, "OrdersRouter")
+	Set before = dry.%ToJSON()
+	Do $$$AssertStatusOK($ClassMethod(executor, "TakeValues", dry), "a dry run without a reference is OK")
+	Do $$$AssertEquals(dry.%ToJSON(), before, "and is left as it is")
+	// (e) a reference that was taken
+	Set dry = ..Dry(url, "OrdersRouter")
+	Do $ClassMethod(executor, "OfferValues", dry)
+	Set uri = dry.values
+	Do ##class(OcuTalon.Core.SecretHandoff).Take(uri, , 0)
+	Do $$$AssertStatusNotOK($ClassMethod(executor, "TakeValues", dry), "the take of a reference already taken is an error")
+	Do $$$AssertEquals($Find(dry.%ToJSON(), token) _ "|" _ dry.%IsDefined("values"), "0|0", "and leaves no raw value and no reference")
+	Do $$$AssertEquals(dry.before, shown, "before stays redacted")
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+}
+
+/// AC6, the Planner's V6 pin: the default lifetime is 60 seconds, and an entry that nobody takes is gone after it.
+Method TestValuesExpireDefault()
+{
+	Set executor = "OcuTalon.Fix.Executor"
+	Do $$$AssertEquals($Parameter(executor, "VALUESSECONDS"), 60, "the default lifetime is 60 seconds")
+	Set dry = ..Dry(..TokenUrl(), "OrdersRouter")
+	Do $$$AssertStatusOK($ClassMethod(executor, "OfferValues", dry), "values are offered with the default lifetime")
+	Set uri = dry.values
+	Set started = $ZHorolog
+	Hang 50
+	Do $$$AssertEquals(..Held(uri), 1, "after 50 seconds the entry is still held")
+	Do ..WaitGone(uri, 40)
+	Set elapsed = $ZHorolog - started
+	Do $$$AssertEquals(..Held(uri), 0, "the entry's resource is deleted")
+	Do $$$AssertTrue((elapsed '< 59) && (elapsed < 75), "the entry went after about 60 seconds, not before 59 and not after 75")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, , 0), "and the entry is gone")
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+}
+
+/// AC6, V6: the lifetime that a real dry run's offer gets (Fix.Executor Lifetime) is 60 seconds; the test global can only shorten it to a whole number of seconds from 0, and any other
+/// value of it (above 60, negative, a fraction, a word) gives 60.
+Method TestValuesLifetime()
+{
+	Set global = $Name(^IRIS.Temp.OcuTalon.Fix("valuesSeconds"))
+	Kill @global
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).Lifetime(), 60, "with no test global the lifetime is 60 seconds")
+	For value = 0, 5, 60 {
+		Set @global = value
+		Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).Lifetime(), value, "the test global "_value_" gives "_value)
+	}
+	For value = 600, 61, -1, 1.5, "soon" {
+		Set @global = value
+		Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).Lifetime(), 60, "the test global "_value_" gives 60: it never lengthens the lifetime")
+	}
+	Kill @global
+}
+
+/// Waits up to seconds for the hand-off entry to be deleted.
+ClassMethod WaitGone(uri As %String, seconds As %Integer)
+{
+	Set until = $ZHorolog + seconds
+	While ..Held(uri) && ($ZHorolog < until) {
+		Hang 0.2
+	}
+}
+
+/// AC4 and the V6 ADDED CONDITION on the chat ask (RaiseAsked), through the probe host of Test.Fix.Asked: an answer whose entry is taken stores the raw values in the request, and the
+/// notice's slots are redacted; an answer whose entry was discarded before the take raises no request, sends no Notification and is refused with the kind's NOSTART, and no stored dry run
+/// holds the marker.
+Method TestAskedTakeOnReceipt()
+{
+	Set url = ..TokenUrl()
+	Set token = ..Token()
+	Set asked = ##class(OcuTalon.Test.Fix.Asked).%New(..Manager)
+	Do asked.OnBeforeAllTests()
+	Do asked.OnBeforeOneTest("TestAskedTakeOnReceipt")
+	Set uris = ""
+	Try {
+		Set host = asked.Host()
+		If '$IsObject(host) Quit
+		Set owner = asked.Owner("takeraw")
+		Set incident = asked.Incident(owner, "resolved")
+		Set change = "zzchangeref0000000003"
+		Do asked.DoneRollback(owner, incident, change)
+		// the entry is there: the request stores the raw values and the notice shows them redacted
+		Set dry = {"item": "OrdersFromPartner", "field": "TargetConfigName", "before": (url), "after": "OrdersToWarehouse"}
+		Do $$$AssertStatusOK(##class(OcuTalon.Fix.Executor).OfferValues(dry, 30), "the values are offered")
+		Set uris = uris_$ListBuild(dry.values)
+		Set host.DryAnswer = asked.Answer("5", dry)
+		Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set response = asked.Ask(host, owner, incident, "undo_rollback", {})
+		Do $$$AssertEquals(response.Outcome, "raised", "the undo is raised")
+		Do $$$AssertEquals(..Held($List(uris, 1)), 0, "and its entry was taken: the resource is gone")
+		Set raised = $Select($IsObject(host.Raised): host.Raised.%Size(), 1: 0)
+		Do $$$AssertEquals(raised, 1, "with one request")
+		If raised = 1 {
+			Set stored = {}.%FromJSON(host.Raised.%Get(0).dryRun)
+			Do $$$AssertEquals(stored.before, url, "its stored dry run holds the raw value")
+			Do $$$AssertEquals(stored.%IsDefined("values"), 0, "and no reference")
+		}
+		Set note = host.Sent.%Get(host.Sent.%Size() - 1)
+		Do $$$AssertTrue((note.slots [ "[redacted]") && ($Find(note.slots, token) = 0), "the notice's slots are redacted: "_note.slots)
+		// the entry is gone before the take: nothing is raised, nothing is sent, the ask is refused with NOSTART
+		Set sent = host.Sent.%Size()
+		Set dry = {"item": "OrdersFromPartner", "field": "TargetConfigName", "before": (url), "after": "OrdersToWarehouse"}
+		Do $$$AssertStatusOK(##class(OcuTalon.Fix.Executor).OfferValues(dry, 30), "values are offered again")
+		Set uris = uris_$ListBuild(dry.values)
+		Do ##class(OcuTalon.Core.SecretHandoff).Discard(dry.values)
+		Set host.DryAnswer = asked.Answer("5", dry)
+		Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set response = asked.Ask(host, owner, incident, "undo_rollback", {})
+		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|refused", "an answer whose entry is gone is refused")
+		Do $$$AssertTrue(response.Message [ ##class(OcuTalon.Fix.Kind.RollbackSetting).#NOSTART, "with the kind's NOSTART: "_response.Message)
+		Do $$$AssertEquals(host.Raised.%Size()_"|"_host.Sent.%Size(), "1|"_sent, "no further request is raised and no Notification is sent")
+		Do $$$AssertEquals($Find(host.Raised.%ToJSON(), "[redacted]"), 0, "and no stored dry run holds the marker")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "no error")
+	}
+	For i = 1:1:$ListLength(uris) Do ##class(OcuTalon.Core.SecretHandoff).Discard($List(uris, i))
+	Do asked.OnAfterOneTest("TestAskedTakeOnReceipt")
 }
 
 /// The code of every method of the class, upper-cased, as one text.

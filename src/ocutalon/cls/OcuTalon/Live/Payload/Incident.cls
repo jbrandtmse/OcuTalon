@@ -133,7 +133,8 @@ ClassMethod Paged(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Dat
 }
 
 /// Fills settingChange and gapMinutes from the SettingChange row that the incident names (Incident SettingChangeRef), by object access only; both stay empty when it names none
-/// or the row is gone. The values of a secret are blank in the row.
+/// or the row is gone. The values of a secret are blank in the row. The old and new values are shown through Bridge.Redact (the one redactor), so that a token in a URL reaches no
+/// person; the SettingChange row keeps the raw values, and an empty value stays empty.
 ClassMethod Change(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Data.Incident) [ Private ]
 {
 	If row.SettingChangeRef = "" Quit
@@ -143,8 +144,8 @@ ClassMethod Change(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.Da
 	Set part.Item = change.Item
 	Set part.Target = change.Target
 	Set part.Setting = change.Setting
-	Set part.OldValue = change.OldValue
-	Set part.NewValue = change.NewValue
+	Set part.OldValue = ##class(OcuTalon.Bridge.Redact).Text(change.OldValue)
+	Set part.NewValue = ##class(OcuTalon.Bridge.Redact).Text(change.NewValue)
 	Set part.Credential = +change.Credential
 	Set part.DetectedAt = change.DetectedAt
 	Set payload.SettingChange = part

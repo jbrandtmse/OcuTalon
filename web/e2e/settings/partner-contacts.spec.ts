@@ -4,14 +4,14 @@ import { README_ACCOUNT, envelope } from '../sign-in/helpers';
 import { readmeSession } from '../support/demo-path';
 import { signInReadmeLoaded } from '../support/floor';
 import { announcements, recordAnnouncements } from '../support/page';
-import { PARTNER_API, aProduction, auditMark, auditSince, forProduction, partnerMember, removeZzContacts, type PartnerProduction } from '../support/partner-contacts';
+import { PARTNER_API, aProduction, auditMark, auditSince, forProduction, partnerMember, partnerShown, realTable, removeZzContacts, type PartnerProduction } from '../support/partner-contacts';
 
 /**
  * Story 24.2, the Partner contacts section of Settings in a real browser, signed in as the README admin (P1 to P9; the sign-in-2 unit). The section shows only while the
- * real GET /v1/settings carries the `partner-contacts` member, which it does only once OcuTalon.Fix.PartnerContacts has TABLE = 1 (Story 23.13). So these cases simulate
- * that one state and nothing else: a `page.route` on every settings answer fetches the real answer, then adds `sections['partner-contacts']` as the server's own
- * PartnerValues() builds it in a fresh IRIS process. The POSTs reach the real route, SecretHandoff, SettingsOps and the real rows and audit log. The cases run one
- * after the other and each is self-contained: the contacts that a case makes have names that begin zz-, and afterAll removes any that survive.
+ * real GET /v1/settings carries the `partner-contacts` member, which it does since OcuTalon.Fix.PartnerContacts has TABLE = 1 (Story 23.13, DW-1394), so these cases read the
+ * real page and simulate nothing on the settings GET. The POSTs reach the real route, SecretHandoff, SettingsOps and the real rows and audit log (a case that needs a
+ * failure routes its own POST). The cases run one after the other and each is self-contained: the contacts that a case makes have names that begin zz-, and afterAll removes any
+ * that survive.
  *   P1  the nav link, the heading, the help line, a labelled control for every field, the Productions it concerns boxes and the keyboard order;
  *   P2  an add: the saved text, the new contact's group, the stored row, ForProduction in a fresh process and the one audit entry (the field names, the admin, the session);
  *   P3  a bad address and no production mark both fields, focus the address, and change nothing;
@@ -57,21 +57,6 @@ test.afterAll(async () => {
 
 test.beforeEach(async ({ page }) => {
   await recordAnnouncements(page);
-  await page.route('**/api/v1/settings**', async (route) => {
-    const response = await route.fetch();
-    const type = response.headers()['content-type'] ?? '';
-    if (response.status() !== 200 || !type.includes('application/json')) {
-      await route.fulfill({ response });
-      return;
-    }
-    const body = (await response.json()) as { sections?: Record<string, unknown> };
-    if (body.sections === undefined || typeof body.sections !== 'object') {
-      await route.fulfill({ response });
-      return;
-    }
-    body.sections['partner-contacts'] = await partnerMember();
-    await route.fulfill({ response, json: body });
-  });
   await signInReadmeLoaded(page);
 });
 
@@ -86,6 +71,8 @@ async function openPartners(page: Page): Promise<void> {
 test('P1: the section has its nav link, heading, help and a labelled control for every field, and a keyboard order', async ({ page }) => {
   test.setTimeout(180_000);
   const production = await aProduction();
+  expect(await realTable(), 'the class declares TABLE = 1').toBe('1');
+  expect(await partnerShown(page.request), 'the real GET /v1/settings carries partner-contacts').toBe(true);
   await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(sectionsNav(page).getByRole('link', { name: 'Partner contacts', exact: true }), 'Partner contacts is listed, after On call').toBeVisible();
   const links = await sectionsNav(page).getByRole('link').allTextContents();
@@ -96,6 +83,8 @@ test('P1: the section has its nav link, heading, help and a labelled control for
   await expect(sectionsNav(page).getByRole('link', { name: 'Partner contacts', exact: true }), 'its link is the current one').toHaveAttribute('aria-current', 'true');
   await expect(page, 'the page keeps its title').toHaveTitle('Settings \u00B7 OcuTalon');
   await expect(page.getByText(HELP, { exact: true }), 'the help line, word for word').toBeVisible();
+  await expect(page.getByText(/go only to the people listed here/), 'its first half: only the listed people').toBeVisible();
+  await expect(page.getByText(/only after you approve each one/), 'its second half: only after each approval').toBeVisible();
   await expect(page.getByText("isn't built yet"), 'no "not yet" text').toHaveCount(0);
 
   const group = addGroup(page);

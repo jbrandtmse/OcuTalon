@@ -1043,6 +1043,38 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
  },
+ "incident.partnerRequestKept": {
+  "text": "I drafted a delay notice about this incident for the partner contacts set for {production}. Approve?\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent. The recipients are on the approval card on your OcuTalon page.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I drafted a delay notice about this incident for the partner contacts set for {production}.\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "production": "text",
+   "notice": "text"
+  },
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
+ "incident.partnerRequestMailbox": {
+  "text": "I drafted a delay notice about this incident for the partner contacts set for {production}. Approve sending it?\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card on your OcuTalon page.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "I drafted a delay notice about this incident for the partner contacts set for {production}.\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card.\n\n{notice}\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "production": "text",
+   "notice": "text"
+  },
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
+ "result.partnerSkipped": {
+  "text": "The delay notice was sent to {sent} of {total} partner contacts. Not sent to {skipped}: they were removed from Settings > Partner contacts, or their address changed, since this request was made.",
+  "slots": {
+   "sent": "count",
+   "skipped": "count",
+   "total": "count"
+  },
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
+ "partner.emailSubject": {
+  "text": "Delay notice",
+  "slots": {},
+  "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
+ },
  "mcp.serverUnavailable": {
   "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
   "slots": {

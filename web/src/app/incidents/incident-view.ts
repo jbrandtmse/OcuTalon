@@ -16,8 +16,12 @@
  *   humanized cause category, the element and the grouping, and shows only when a category or an element is set.
  * - While the state is fixing, the card says "Repairing and resending {n} {noun}\u2026" with the count of the executing request's
  *   result when there is one, else `noticeCount`, else `count`.
- * - The Show details panel holds the rows that have data (cause, sample header id, error, failures by item, the held-as-a-task
- *   note while a request is pending, the two trace links); with no row there is no Show details.
+ * - The Show details panel holds the rows that have data (cause, the setting change, sample header id, error, failures by item, the
+ *   held-as-a-task note while a request is pending, the two trace links); with no row there is no Show details. The setting change
+ *   (Story 24.4a) is four rows after the cause, from `settingChange`, when it names both a setting and an item: "Setting change"
+ *   ("{setting} on {item}"), "Old value" and "New value" (each left out for a credential or an empty value) and "Detected" (the
+ *   page time with its day, left out when unreadable); the names and values are mono. The values are shown as the server sent
+ *   them: the server has redacted them (Bridge.Redact), and the page redacts nothing.
  * - announcementOf says what the chat announces for an incident: at first sight "Approval needed" for awaiting approval, "No fix
  *   proposed" for a fallback or a no-fix variant, else the state; afterwards the state, once, when it changes; else nothing.
  * - Story 6.4: a fallback or no-fix card shows its notice sentence (EXPERIENCE: Fallback incident notice, Incident notice without a
@@ -28,7 +32,7 @@
  *   appears or changes on a card already shown).
  */
 import type { ResultView } from '../approvals/approval-view';
-import type { DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun, SettingChange } from '../live/payloads';
+import type { ApprovalPayload, DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun, SettingChange } from '../live/payloads';
 
 /** Every fixed string of the incident card, its panel and its announcements. The ellipsis is U+2026, the middle dot U+00B7. */
 export const INCIDENT_TEXTS = {
@@ -59,6 +63,11 @@ export const INCIDENT_TEXTS = {
   nounOther: 'messages',
   separator: ' \u00B7 ',
   labelCause: 'Cause',
+  labelSettingChange: 'Setting change',
+  settingOnItem: '{setting} on {item}',
+  labelOldValue: 'Old value',
+  labelNewValue: 'New value',
+  labelDetected: 'Detected',
   labelSample: 'Sample failed message',
   labelError: 'Error',
   labelItems: 'Failures by item',
@@ -96,8 +105,13 @@ export interface IncidentContext {
   topTime(iso: string, nowMs: number): string;
   /** A time of a panel row: the page's time with the day when it is not today (pageWhen). */
   itemTime(iso: string, nowMs: number): string;
-  /** The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
-  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string, change?: SettingChange): ResultView | undefined;
+  /**
+   * The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result.
+   * simulated is the stored dry run's `simulated` of a partner request (undefined when the context has no payload for it, which a partner band that says something was sent reads as unknown).
+   */
+  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string, change?: SettingChange, simulated?: boolean): ResultView | undefined;
+  /** The live store's approval payloads by Ref, from which a partner request's `simulated` is read (absent in a context that has no store). */
+  approvals?: Readonly<Record<string, ApprovalPayload>>;
   /** The text of a catalog key the page renders, with its slots (renderPageText); the setting-cause line is incident.settingChangeCause. Absent in a context that has no catalog. */
   render?(key: string, slots: Record<string, unknown>): string;
   /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
@@ -358,6 +372,33 @@ function itemLinesOf(payload: IncidentPayload, ctx: IncidentContext): string[] {
     });
 }
 
+/**
+ * The panel rows of the incident's setting change (Story 24.4a): none unless it names both a setting and an item. The change row and the
+ * values are mono; a value is left out for a credential or when it is empty; the time is the page time with its day, not mono, and left
+ * out when unreadable. The values are the server's text (redacted there), never changed here.
+ */
+function settingRowsOf(payload: IncidentPayload, ctx: IncidentContext): PanelRow[] {
+  const change = payload.settingChange;
+  const setting = textOf(change?.setting);
+  const item = textOf(change?.item);
+  if (setting === '' || item === '') {
+    return [];
+  }
+  const rows: PanelRow[] = [{ label: INCIDENT_TEXTS.labelSettingChange, lines: [fill(INCIDENT_TEXTS.settingOnItem, { setting, item })], mono: true }];
+  if (change?.credential !== true) {
+    for (const [label, value] of [[INCIDENT_TEXTS.labelOldValue, change?.oldValue], [INCIDENT_TEXTS.labelNewValue, change?.newValue]] as const) {
+      if (typeof value === 'string' && value !== '') {
+        rows.push({ label, lines: [value], mono: true });
+      }
+    }
+  }
+  const detected = ctx.itemTime(textOf(change?.detectedAt), ctx.nowMs);
+  if (detected !== '') {
+    rows.push({ label: INCIDENT_TEXTS.labelDetected, lines: [detected], mono: false });
+  }
+  return rows;
+}
+
 /** The panel's view, or undefined when it has no row at all. */
 function panelOf(payload: IncidentPayload, ctx: IncidentContext): PanelView | undefined {
   const rows: PanelRow[] = [];
@@ -365,6 +406,7 @@ function panelOf(payload: IncidentPayload, ctx: IncidentContext): PanelView | un
   if (cause !== '') {
     rows.push({ label: INCIDENT_TEXTS.labelCause, lines: [cause], mono: false });
   }
+  rows.push(...settingRowsOf(payload, ctx));
   const sample = numberOf(payload.evidence?.sampleHeaderId);
   if (sample !== undefined && sample > 0) {
     rows.push({ label: INCIDENT_TEXTS.labelSample, lines: [String(sample)], mono: true });
@@ -451,7 +493,7 @@ export function productionOf(payload: IncidentPayload): string {
 function bandsOf(payload: IncidentPayload, ctx: IncidentContext): { ref: string; band: ResultView }[] {
   const bands: { ref: string; band: ResultView }[] = [];
   for (const request of listOf(payload.requests)) {
-    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload), payload.settingChange) : undefined;
+    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload), payload.settingChange, ctx.approvals?.[request.ref ?? '']?.dryRun?.simulated) : undefined;
     if (band !== undefined) {
       bands.push({ ref: request.ref ?? '', band });
     }

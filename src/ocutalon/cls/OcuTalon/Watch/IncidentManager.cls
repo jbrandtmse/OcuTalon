@@ -112,8 +112,9 @@
 ///     whatever its parameters) or drafting, after StartDraft has sent this item a Watch.Msg.Draft in the incident's trace session. Drafting sends Decide, asynchronously with the key
 ///     DRAFTKEY, one request (DraftRequest: a turn, untrusted, fresh, the asking session as owner, the carrier item with the kind's Facts as input and its SYSTEMNOTE), so the
 ///     draft runs after the ask's own turn and the ask does not wait for it. Drafted ends it: a usable answer (a Reply that is no fallback, whose text is, after Normalise, one line
-///     of at most NOTICEMAX characters) gives the parameters {"text", "to"} and goes through RaiseAsked, the tail that every asked request shares: a dry run, the request raised, its
-///     Ref in RequestRefs and one Notification of kind approval (incident.partnerRequest) with the incident event, through Move to the incident's own state. Any other end (an
+///     of at most NOTICEMAX characters) gives the parameters {"text", "to"}, where to is the ids of the production's contacts (Story 23.13), and goes through RaiseAsked, the tail that every asked
+///     request shares: a dry run (traced with ids only), the request raised with the dry run as the approver is shown it (Fix.Kind Shown: names and addresses, stored in the row and never traced),
+///     its Ref in RequestRefs and one Notification of kind approval (incident.partnerRequest, or incident.partnerRequestMailbox or incident.partnerRequestKept for a request that is not simulated) with the incident event, through Move to the incident's own state. Any other end (an
 ///     error, a fallback, an empty or over-long text, a refused dry run, a failed raise) raises nothing and tells each recipient result.partnerNotDrafted (NotDrafted, no
 ///     ApprovalRef), and a draft that finds a request of the kind waiting by then stops with one Type 4 line and nothing sent. A request of a kind with MOVES 0 never moves the
 ///     incident: Event gives its approved, rejected, expired and result events to Aside, which tells the sessions and sends the Execute for an approved one but keeps the state and
@@ -969,11 +970,16 @@ Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Pri
 /// warning, and clears AskingSince. An error (a dry run or slots that cannot be used, a failed Raise, a request cancelled after a failed save, a thrown error
 /// before any raise) also puts the marks back (Unask with unmark 1), so the round's failures join the next round; a refused dry run, an empty Targets and an
 /// open incident keep them, and so does a request that was raised and could not be cancelled, which still holds the window.
+/// The dry run of a setting kind carries redacted values and a hand-off reference to the raw ones (Fix.Executor OfferValues). Proposed takes the reference once, on receipt, before any
+/// early exit (Received), so that every answer ends its entry; the raw values live in the local dry run only, never on the message. A take that finds no entry (expired, discarded or
+/// never put) is acted on only where the method would go on to raise: it takes the refusal route, as a Reason equal to the kind's NOSTART does (one Type 3 warning, the no-fix
+/// route or, for a later round, AskingSince cleared), and nothing is raised, so that a redacted value is never stored as the raw one.
 Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult, later As %Boolean = 0) As %Status [ Private ]
 {
 	Set incident = ""
 	Set log = $Select(later: ..#LOGLATER, 1: ..#LOGPROPOSE)
 	Try {
+		Do ..Received(result, .dryRun, .taken)
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If $Select(later: '..Asking(incident), 1: '..Open(incident)) Quit
 		If result.Reason '= "" {
@@ -989,13 +995,12 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 			If later Do ..Unask(incident)
 			Quit
 		}
-		Set dryRun = ""
-		Try {
-			Set dryRun = {}.%FromJSON(result.DryRun)
-		} Catch {
-			Set dryRun = ""
+		If 'taken {
+			$$$LOGWARNING(log_ref_": the values of the dry run could not be taken: "_##class(OcuTalon.Bridge.Redact).Text(..NoStart(ask)))
+			Do ..Decline(incident, later, 0, ##class(OcuTalon.Watch.Notice).NoFixKey(..NoStart(ask)))
+			Quit
 		}
-		If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
+		If '$IsObject(dryRun) {
 			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": the dry run is not one JSON object")
 			If later Do ..Unask(incident, 1)
 			Quit
@@ -1145,7 +1150,7 @@ Method AskedDraft(incident As OcuTalon.Data.Incident, command As OcuTalon.Msg.Co
 {
 	If parameters.%Size() > 0 Quit ..Verdict(.response, 0, "refused", ##class(OcuTalon.Fix.Kind.PartnerWarning).Reason($Parameter(class, "NOITEM"), incident), "", incident)
 	If ..AlreadyAsked(incident, command.FixKind, "", 1) Quit ..Verdict(.response, 0, "already_asked", ..#MESSAGEALREADYASKED, "", incident)
-	Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production)
+	Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production, incident.Namespace)
 	If contacts.%Size() = 0 Quit ..Verdict(.response, 0, "refused", ##class(OcuTalon.Fix.Kind.PartnerWarning).Reason($Parameter(class, "NOCONTACTS"), incident), "", incident)
 	Set allowed = ##class(OcuTalon.Core.Allowance).MailAllowed(command.SessionRef, ##class(OcuTalon.Data.Time).NowUtc(), , .sc, contacts.%Size())
 	If $$$ISERR(sc) {
@@ -1164,7 +1169,9 @@ Method AskedDraft(incident As OcuTalon.Data.Incident, command As OcuTalon.Msg.Co
 /// The tail that every request the user asks for shares, for the kind and the parameters (a dynamic object): one dry run, asked of FixExecutor synchronously (AskDryRun), and,
 /// when it gives targets, the request raised (RaiseFix), its Ref appended to RequestRefs and Move to the state with one Notification of kind approval (Notice.AskedKey and
 /// AskedSlots). outcome is raised (detail is the request's Ref), refused (the dry run's reason is detail), nothing (the dry run has no target) or failed (a failed ask, an answer
-/// or slots that cannot be used, a failed raise or a failed save, each with one Type 3 warning (LOGASK); a request whose save failed is cancelled).
+/// or slots that cannot be used, a failed raise or a failed save, each with one Type 3 warning (LOGASK); a request whose save failed is cancelled). The answer's hand-off of a setting
+/// kind's raw values is taken on receipt (Received), before the Reason and Targets checks; a take that finds no entry is refused after them, with the kind's NOSTART as the detail
+/// and one Type 3 warning (LOGASK), and no request is raised.
 Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameters As %DynamicObject, to As %String, variant As %String, Output outcome As %String, Output detail As %String) [ Private ]
 {
 	Set outcome = "failed"
@@ -1181,6 +1188,7 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit
 		}
+		Do ..Received(result, .dryRun, .taken)
 		If result.Reason '= "" {
 			Set outcome = "refused"
 			Set detail = result.Reason
@@ -1190,7 +1198,17 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			Set outcome = "nothing"
 			Quit
 		}
-		Set dryRun = {}.%FromJSON(result.DryRun)
+		If 'taken {
+			$$$LOGWARNING(..#LOGASK_incident.Ref_": the values of the dry run could not be taken: "_##class(OcuTalon.Bridge.Redact).Text(..NoStart(ask)))
+			Set outcome = "refused"
+			Set detail = ..NoStart(ask)
+			Quit
+		}
+		If '$IsObject(dryRun) {
+			$$$LOGWARNING(..#LOGASK_incident.Ref_": the dry run is not one JSON object")
+			Quit
+		}
+		Set dryRun = ##class(OcuTalon.Fix.Kind).Shown(kind, incident, dryRun)
 		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots(kind, dryRun, incident, .sc)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -1201,7 +1219,7 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit
 		}
-		Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).AskedKey(kind), slots, request))
+		Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).AskedKey(kind, dryRun), slots, request))
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Set cancelled = ..CancelRequest(request)
@@ -1301,8 +1319,8 @@ Method Drafted(draft As OcuTalon.Watch.Msg.Draft, answer As %Library.Persistent,
 		}
 		Set outcome = "failed"
 		If text '= "" {
-			Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production)
-			Set parameters = {"text": (text), "to": (##class(OcuTalon.Fix.PartnerContacts).Addresses(contacts))}
+			Set contacts = ##class(OcuTalon.Fix.PartnerContacts).For(incident.Production, incident.Namespace)
+			Set parameters = {"text": (text), "to": (##class(OcuTalon.Fix.PartnerContacts).Ids(contacts))}
 			Do ..RaiseAsked(incident, draft.FixKind, parameters, incident.State, incident.OpenVariant, .outcome, .detail)
 		}
 		If outcome '= "raised" Do ..NotDrafted(incident)
@@ -1340,6 +1358,33 @@ Method AlreadyAsked(incident As OcuTalon.Data.Incident, kind As %String, paramet
 Method AskDryRun(ask As OcuTalon.Fix.Msg.DryRun, Output result As OcuTalon.Fix.Msg.DryRunResult) As %Status [ Private ]
 {
 	Quit ..SendRequestSync(..#FIXEXECUTOR, ask, .result, ..#ASKSECONDS)
+}
+
+/// Takes, on receipt of a DryRunResult, the raw values of a setting kind's dry run (Fix.Executor TakeValues): the answer's DryRun is parsed once into dryRun (a local object, "" when the
+/// answer has none or it is not one JSON object) and the hand-off reference in it is taken and deleted. taken is 0 when the take found no entry; dryRun then holds redacted values and must
+/// not be stored. The raw values are never set on the message.
+Method Received(result As OcuTalon.Fix.Msg.DryRunResult, Output dryRun As %DynamicObject, Output taken As %Boolean) [ Private ]
+{
+	Set dryRun = ""
+	Set taken = 1
+	If result.DryRun = "" Quit
+	Try {
+		Set dryRun = {}.%FromJSON(result.DryRun)
+	} Catch {
+		Set dryRun = ""
+	}
+	If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
+		Set dryRun = ""
+		Quit
+	}
+	Set taken = $$$ISOK(##class(OcuTalon.Fix.Executor).TakeValues(dryRun))
+}
+
+/// The kind's plain reason for a run that could not start (NOSTART) of the kind that the dry run was asked for, "" when the kind is unknown.
+ClassMethod NoStart(ask As OcuTalon.Fix.Msg.DryRun) As %String [ Private ]
+{
+	Set class = $Select($IsObject($Get(ask)): ##class(OcuTalon.Fix.Kind).ForName(ask.FixKind), 1: "")
+	Quit $Select(class = "": "", 1: $Parameter(class, "NOSTART"))
 }
 
 /// The dry run as the request's row stores it: JSON of a copy with only the keys of ApprovalRequest DRYRUNKEYS, in their order (the kind's answer may hold other keys,
@@ -1711,7 +1756,7 @@ Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 /// warning (LOGRESULT) when the slots cannot be built.
 Method ResultNotice(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, result As OcuTalon.Fix.Msg.FixResult) As OcuTalon.Msg.Notification [ Private ]
 {
-	Set key = ##class(OcuTalon.Watch.Notice).ResultKey(row.State, result, row.FixKind)
+	Set key = ##class(OcuTalon.Watch.Notice).ResultKey(row.State, result, row.FixKind, ##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production))
 	Set slots = ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, ..Noun(incident, row), .sc, ..ResultExtra(incident, row))
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGRESULT_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))

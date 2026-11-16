@@ -473,7 +473,7 @@ Method TestNotices()
 				Do $$$AssertTrue(0, key_" has a fixture")
 				Continue
 			}
-			Set kind = $Case($Piece(key, ".", 1), "incident": $Select((key = "incident.laterRequest") || (key = "incident.laterRequestEitherWay") || (key = "incident.laterRequestChecked") || (key = "incident.laterRequestEitherWayChecked") || (key = "incident.suspendRequest") || (key = "incident.resumeRequest") || (key = "incident.rerouteRequest") || (key = "incident.partnerRequest") || (key = "incident.rollbackRequest") || (key = "incident.undoRollbackRequest"): "approval", 1: "incident"), "result": "result", "notice": "tellnow", "reminder": "reminder", : "allowance")
+			Set kind = $Case($Piece(key, ".", 1), "incident": $Select((key = "incident.laterRequest") || (key = "incident.laterRequestEitherWay") || (key = "incident.laterRequestChecked") || (key = "incident.laterRequestEitherWayChecked") || (key = "incident.suspendRequest") || (key = "incident.resumeRequest") || (key = "incident.rerouteRequest") || (key = "incident.partnerRequest") || (key = "incident.partnerRequestKept") || (key = "incident.partnerRequestMailbox") || (key = "incident.rollbackRequest") || (key = "incident.undoRollbackRequest"): "approval", 1: "incident"), "result": "result", "notice": "tellnow", "reminder": "reminder", : "allowance")
 			Set approval = ""
 			If (kind = "incident") || (kind = "approval") {
 				Set approvals = approvals + 1

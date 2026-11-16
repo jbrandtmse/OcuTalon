@@ -7,8 +7,10 @@
 ///   - TestDraftRequest (AC1): the request to Decide is a turn, untrusted, fresh, owned by the asking session, with a new ItemId, the kind's instruction and, as input, exactly what
 ///     Agent.Input renders of the kind's Facts: no sample error, evidence or fix summary of the incident;
 ///   - TestDraftRaised (AC1, AC2, AC9): the draft's text is normalised to one paragraph and raised as exactly one partner_warning request that holds the text and the recipient and is fixed to
-///     contact 1, with the dry run's notice, recipients and simulated 1; the session gets one approval Notification incident.partnerRequest with the request's Ref, whose slots render as ruled for
+///     contact 1 (to is its id), with the dry run's notice, recipients (as the approver is shown them: id, name and address) and simulated 1; the session gets one approval Notification incident.partnerRequest with the request's Ref, whose slots render as ruled for
 ///     the web, the phone and Telegram; the incident's state and open variant are as they were;
+///   - TestSettingsContactsDraft (AC3, AC4, DW-1254): for a production of Settings contacts the facts, the request to Decide, the dry run that is asked and its answer hold no contact's name or address, the request is
+///     fixed to the contact ids, and the row's dry run holds the names and addresses; the session gets incident.partnerRequestKept with no mailbox and incident.partnerRequestMailbox with one, whose slots name only the production and the notice;
 ///   - TestAlreadyAsked (AC1): a pending or an approved request of the kind (whatever its text) makes the ask already_asked and starts no draft; a late draft raises nothing, writes one info line and tells
 ///     nobody; a rejected request does not block a new ask;
 ///   - TestRefusals (AC7): an item or an address is refused with NOITEM, no contact (demo mode off, or another production) with NOCONTACTS, a closed incident is not_found, a session that is not a recipient is
@@ -55,6 +57,9 @@ Property WasAt As %String;
 
 Property OnlineWas As %String;
 
+/// The IDs of the Settings contacts of the test being run, comma-separated.
+Property Contacts As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("PartnerDraft", "n"))
@@ -65,6 +70,9 @@ Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Refs = ""
 	Set ..Incidents = ""
+	Set ..Contacts = ""
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).SaveMailbox()
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).Mailbox(0)
 	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .was, .wasAt)
 	Set ..Found = found, ..Was = was, ..WasAt = wasAt
@@ -86,6 +94,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..Incidents = ""
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..Found, ..Was, ..WasAt)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..OnlineWas)
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).Remove(..Contacts)
+	Set ..Contacts = ""
+	Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
 	For method = "AskedDraft", "Drafted", "RaiseAsked", "NotDrafted" {
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, method, $Parameter(..#PROBE, "LOGDRAFT"))
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, method, $Parameter(..#PROBE, "LOGASK"))
@@ -141,7 +152,8 @@ Method TestDraftRequest()
 	For secret = "secret-sample-text", "secret-fix-summary", "secret-element" {
 		Do $$$AssertEquals($Find(request.input, secret), 0, "the input holds no "_secret)
 	}
-	Do $$$AssertTrue($Find(request.input, "Orders Partner IT") > 0 && ($Find(request.input, "The partner changed the date format.") > 0), "but it holds the partner and the cause")
+	Do $$$AssertTrue($Find(request.input, "The partner changed the date format.") > 0, "but it holds the cause")
+	Do $$$AssertEquals($Find(request.input, "Orders Partner IT")_"|"_$Find(request.input, ..#ADDRESS), "0|0", "and no partner name or address")
 	Do $$$AssertTrue($Find(request.input, "Incident state: resolved") > 0, "and the incident's state")
 	// a closed or missing incident drafts nothing
 	Set closed = ..Incident(owner, "closed")
@@ -173,7 +185,7 @@ Method TestDraftRaised()
 		Do $$$AssertEquals(..Count(host.Raised), case, "case "_case_": one request is raised")
 		Set row = host.Raised.%Get(host.Raised.%Size() - 1)
 		Do $$$AssertEquals(row.kind_"|"_row.incidentRef_"|"_row.ownerRef_"|"_row.resultTarget_"|"_row.fixKind_"|"_row.fixTargets, "fix|"_incident_"|"_owner_"|IncidentManager|partner_warning|1", "case "_case_": a partner_warning request fixed to contact 1")
-		Do $$$AssertEquals(row.fixParameters, {"text": (expected), "to": (..#ADDRESS)}.%ToJSON(), "case "_case_": its parameters are the normalised text and the recipient")
+		Do $$$AssertEquals(row.fixParameters, {"text": (expected), "to": "1"}.%ToJSON(), "case "_case_": its parameters are the normalised text and the recipient's id")
 		Set dry = {}.%FromJSON(row.dryRun)
 		Do $$$AssertEquals(dry.notice_"|"_dry.recipients.%Size()_"|"_dry.recipients.%Get(0).name_"|"_dry.recipients.%Get(0).address_"|"_dry.simulated, expected_"|1|Orders Partner IT|"_..#ADDRESS_"|1", "case "_case_": its dry run holds the exact text, every recipient and simulated 1")
 		Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
@@ -501,7 +513,7 @@ Method TestNoticeKeys()
 		Do $ClassMethod(notice, "AskedSlots", "partner_warning", copy, incident, .sc)
 		Do $$$AssertStatusNotOK(sc, "a dry run without "_missing_" gives no slots")
 	}
-	Do $ClassMethod(notice, "AskedSlots", "partner_warning", {"notice": "A.", "recipients": []}, incident, .sc)
+	Do $ClassMethod(notice, "AskedSlots", "partner_warning", {"notice": "A.", "recipients": [], "simulated": 1}, incident, .sc)
 	Do $$$AssertStatusNotOK(sc, "and one with no recipient gives none")
 }
 
@@ -531,6 +543,50 @@ Method TestDraftRequestCarriesOutcome()
 	Do $$$AssertEquals(..Count(host.DraftRequests), 2, "and sends its request")
 	If ..Count(host.DraftRequests) '= 2 Quit
 	Do $$$AssertEquals($Find(host.DraftRequests.%Get(1).input, "Outcome:"), 0, "whose input holds no Outcome line")
+}
+
+/// Story 23.13 (AC3, AC4, DW-1254): a Settings-contact draft names its contacts by id in everything that is traced, and the approver's row holds the names and addresses.
+Method TestSettingsContactsDraft()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("settingsdraft")
+	Set tag = "zzpc"_..Number_"d"
+	Set a = ##class(OcuTalon.Test.Fix.PartnerSupport).Contact(tag_" Alpha", tag_"alpha@example.com")
+	Set b = ##class(OcuTalon.Test.Fix.PartnerSupport).Contact(tag_" Beta", tag_"beta@example.com")
+	Set ..Contacts = a_","_b
+	Set incident = ..Incident(owner, "resolved", {"Production": "ZZPROD"})
+	Do $$$AssertStatusOK(host.BeginDraft(..Draft(incident, owner)), "the draft is handled")
+	Do $$$AssertEquals(..Count(host.DraftRequests), 1, "one request goes to Decide")
+	If ..Count(host.DraftRequests) '= 1 Quit
+	Do $$$AssertEquals($Find(host.DraftRequests.%Get(0).input, tag), 0, "its input holds no contact's name or address")
+	Set text = "Orders from your feed failed."
+	For case = 1, 2 {
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).Mailbox(case = 2)
+		Set host.RaiseRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set ref = host.RaiseRef
+		Set host.DryAnswer = ..RealAnswer(incident, text, a_","_b)
+		Do $$$AssertEquals($Find(host.DryAnswer.DryRun, tag), 0, "case "_case_": the dry run that FixExecutor answers holds no name or address")
+		Do $$$AssertEquals({}.%FromJSON(host.DryAnswer.DryRun).recipients.%ToJSON(), "["_a_","_b_"]", "case "_case_": only the ids")
+		Set sent = ..Count(host.Sent)
+		Do $$$AssertStatusOK(host.EndDraft(..Draft(incident, owner), ..Reply(text)), "case "_case_": the answer of Decide is handled")
+		Set ask = host.Asks.%Get(host.Asks.%Size() - 1)
+		Do $$$AssertEquals(ask.parameters, {"text": (text), "to": (a_","_b)}.%ToJSON(), "case "_case_": the dry run is asked with the ids")
+		Do $$$AssertEquals($Find(ask.parameters, tag), 0, "case "_case_": and no name or address")
+		Set row = host.Raised.%Get(host.Raised.%Size() - 1)
+		Do $$$AssertEquals(row.fixTargets_"|"_row.fixParameters, a_","_b_"|"_{"text": (text), "to": (a_","_b)}.%ToJSON(), "case "_case_": the request is fixed to the contact ids")
+		Set dry = {}.%FromJSON(row.dryRun)
+		Do $$$AssertEquals(dry.recipients.%Size()_"|"_dry.recipients.%Get(0).id_"|"_dry.recipients.%Get(0).name_"|"_dry.recipients.%Get(1).address_"|"_dry.simulated, "2|"_a_"|"_tag_" Alpha|"_tag_"beta@example.com|0", "case "_case_": the row's dry run holds each recipient's id, name and address")
+		Do $$$AssertEquals(..Count(host.Sent), sent + 1, "case "_case_": the session gets one Notification")
+		Set note = host.Sent.%Get(host.Sent.%Size() - 1)
+		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef, "approval|"_$Select(case = 1: "incident.partnerRequestKept", 1: "incident.partnerRequestMailbox")_"|"_ref, "case "_case_": of kind approval with the "_$Select(case = 1: "kept", 1: "mailbox")_" key")
+		Set slots = {}.%FromJSON(note.slots)
+		Do $$$AssertEquals(slots.%Size()_"|"_slots.production_"|"_slots.notice, "2|ZZPROD|"_text, "case "_case_": its slots are the production and the notice")
+		Do $$$AssertEquals($Find(note.slots, tag), 0, "case "_case_": and name no contact")
+		Set web = ##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots, "web", .sc)
+		Do $$$AssertStatusOK(sc, "case "_case_": its text renders")
+		Do $$$AssertEquals($Find(web, tag), 0, "case "_case_": and names no contact")
+	}
 }
 
 /// --- helpers ---
@@ -598,18 +654,18 @@ Method Incident(owner As %String, state As %String, fields As %DynamicObject = "
 Method Row(owner As %String, incident As %String, state As %String, text As %String) As %String
 {
 	Set all = {"FixKind": "partner_warning", "FixTargets": "1", "ResultTarget": "IncidentManager"}
-	Do all.%Set("FixParameters", {"text": (text), "to": (..#ADDRESS)}.%ToJSON())
-	Do all.%Set("DryRun", {"notice": (text), "recipients": [{"name": "Orders Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON())
+	Do all.%Set("FixParameters", {"text": (text), "to": "1"}.%ToJSON())
+	Do all.%Set("DryRun", {"notice": (text), "recipients": [{"id": 1, "name": "Orders Partner IT", "address": (..#ADDRESS)}], "simulated": 1}.%ToJSON())
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, incident, state, , all)
 	Set ..Refs = ..Refs_","_ref
 	Quit ref
 }
 
 /// The answer of FixExecutor to the dry run of the notice: the real kind's own dry run for the incident.
-Method RealAnswer(incident As %String, text As %String) As OcuTalon.Fix.Msg.DryRunResult
+Method RealAnswer(incident As %String, text As %String, to As %String = "1") As OcuTalon.Fix.Msg.DryRunResult
 {
 	Set answer = ##class(OcuTalon.Fix.Msg.DryRunResult).%New()
-	Set sc = ##class(OcuTalon.Fix.Kind.PartnerWarning).DryRun(##class(OcuTalon.Data.Incident).RefIndexOpen(incident), {"text": (text), "to": (..#ADDRESS)}, .targets, .dry)
+	Set sc = ##class(OcuTalon.Fix.Kind.PartnerWarning).DryRun(##class(OcuTalon.Data.Incident).RefIndexOpen(incident), {"text": (text), "to": (to)}, .targets, .dry)
 	If $$$ISERR(sc) {
 		Set answer.Reason = $SYSTEM.Status.GetErrorText(sc)
 		Quit answer

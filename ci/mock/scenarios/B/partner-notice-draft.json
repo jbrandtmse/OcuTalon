@@ -1,7 +1,7 @@
 {
   "name": "partner-notice-draft",
   "match": {
-    "prompt": "Write a short delay notice to the partner named below about the failures described below.",
+    "prompt": "Write a short delay notice to a partner about the failures described below.",
     "mockkey": "chat"
   },
   "replies": [

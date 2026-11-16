@@ -6178,6 +6178,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: lane-D smoke 2026-11-08 23:20Z: L2 visitor readings 1/1,3/2 2/2,5/2 1/1,7/2; rerun 23:28Z 1/1 for all three
 - 2026-11-08T23:29:15Z status=routed owner=burndown by=lead note=flake, priority; the three load visitors overlap at sign-in (inference)
 - 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:flake_with_priority(Story_29.8's_load_check);kept_owner=burndown
+- 2026-11-15T18:50:52Z occurrence=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=lead note=lane_D;run_43747033320_job_132912512676_iris(install-fresh)_runner_ocutalon-ci-24_live:online-demo-path_L2_readings_1/1,4/3_1/1,5/2_1/1,7/2(visitor_1_one_extra_connection_after_its_pages);other_L2_checks_pass;24.2_changes_no_trace_or_licence_path;one_rerun
 ### DW-978: Install/Step/Production.cls NotRunning() names an item whose System Default Enabled row is 0 as not running (checks only the runtime flag); Runners() in the same file honours the row. The install's Production check can show a false 'not running' for a disabled-by-default item (TelegramIn)
 - source: Story 32.7 investigation G2 (DW-639 cause) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 32.7 PLANNER REPORT: every DW-639 red is 'TelegramIn row 0, runtime flag 1, jobs none'; Ens takes effective Enabled from the System Default row (Ens.Director getProductionItems ~1084, EnableConfigItem 1572-1580); NotRunning() lines 154-177
@@ -8490,12 +8491,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 24.2's matrix accepts duplicates (no approved refusal text); ForProduction returns one {id,name,address} per row, so two contacts with one address both naming a production give it twice once Story 23.13 switches 23.5's reader to the table.
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13 (Lane A reader): de-duplicate recipients by address; key 23-13 is not in this worktree's tracker
 - 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
+- 2026-11-16T02:17:24Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=13da5d2c:recipients_de-duplicated_by_lower-cased_trimmed_address(lowest_id_kept);pinned_in_PartnerWarning/PartnerMail
 
 ### DW-1394: The TABLE = 1 state of Settings > Partner contacts is only simulated in 24.2: the real switch class and both halves of partnersHelp are unpinned until 23.13
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: PartnersShown's default class and Values' call are not falsifiable while Fix.PartnerContacts has no TABLE (both sides 0); partner-view.test.mjs pins partnersHelp's halves as text only (EXPERIENCE.md L1059 condition), and 'only after you approve each one' rests on 23.5 (inference).
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13: at the real TABLE = 1, pin the section shows, warnings go only to listed contacts and only after approval
 - 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
+- 2026-11-16T02:17:24Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=13da5d2c:real_TABLE=1;e2e_P1_section_shown+both_halves_of_partnersHelp;warnings_only_to_listed_contacts_after_approval(PartnerTurns,PartnerMail);TABLE-removed_mutation_red
 
 ### DW-1395: AD-13 L484 is ambiguous for unowned config tables: GET /v1/settings lists every PartnerContact row in the web process through PartnerContact.List()
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8562,6 +8565,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: documents-page.ts binds appFileDrop [active]="!viewer()"; with no handler, Chrome's default drop opens the PDF in the tab. The spec's Never list leaves the drop to the browser, as the chat does for a viewer.
 - 2026-11-15T20:15:51Z status=by-design owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=spec-bound (Never: drop left to the browser's own handling, chat precedent); reopens only via spec amendment
+- 2026-11-16T00:53:42Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=orchestrator note=Contest Planner ~03:00Z Nov 16: NOT by-design; on the Documents page AND in the chat a viewer's drop is prevented (preventDefault on dragover and drop) and does nothing, no text, no navigation; LOW; pin both surfaces in 26.4
 
 ### DW-1402: documents.spec.ts:178 still builds its PDF DataTransfer inline instead of support/files.ts fileTransfer
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8613,6 +8617,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-16T03:08:44Z by=implement note=instance-only: 11/20 retry, 10/300 wrong; session signal 66/300 wrong, 30/30 false hold on fan-out; Scale 22.3s to 18.7s
 - 2026-11-16T04:20:50Z status=resolved-by:dw-1410 by=epic-runner note=BP-instance check + reply-in-hand check in Watch.Reader (d19e70a5b); fixed code 0 wrong (1 ms 300 unloaded and loaded, 1 s 30, retry, sync, BPL), no false fan-out hold; lane-a@Fix 29/29 on builds 154 and 109
 
+### DW-1412: Redact.Text misses common URL signature parameters (sig=, signature=, X-Amz-Signature=, X-Amz-Credential=, auth=): an Azure SAS or S3 presigned URL setting value is shown raw on card, panel, phone and Telegram
+- source: spec-24-4a code review | severity: med | fix-risk: med | footprint: in-story
+- evidence: SENSITIVEKEYS has no signature, sig or auth and the bare rule covers only key=; the redactor ruling listed user:password, token=, key= and Bearer; widening the shared redactor (logs everywhere) is a security-posture call
+- 2026-11-16T01:11:57Z status=decision-pending owner=burndown by=cr note=owner: approve more shapes in Redact.Text (sig=, a signature suffix, auth=) with pins, or keep the ruled list
+- 2026-11-16T03:10:05Z status=resolved-by:burndown by=merge_gate note=Redact.Text redacts sig, signature, X-Amz-Signature, X-Amz-Credential, X-Amz-Security-Token and auth values (name kept); branch OCT-epic24-dw1412 a6280a77, ci 43792972706+43792972612 green
+
+### DW-1413: Each setting-kind dry run holds a detached Expire process for VALUESSECONDS (60 s) even after the take; from a licensed process (a test, a terminal) the 8th concurrent JOB fails on IRIS Community (8 connections)
+- source: spec-24-4a code review | severity: low | fix-risk: low | footprint: in-story
+- evidence: measured on lane-D warm: 7 Expire jobs from an iris session, then JOB :5 gives Test=0; FixExecutor's own jobs run as _Ensemble with no LicenseUserId and InstanceConnections stays 1; a failed JOB discards the entry and the dry run is refused
+- 2026-11-16T01:11:57Z status=wontfix-accepted owner=24-4a-show-setting-values-redacted-everywhere-and-the-setting-chan by=cr note=V6 option (a) ruled; reopen_if=a setting-kind DryRunResult with the internal-error Reason or a failed Expire JOB in a running production
 ### DW-1406: flake candidate: web/e2e/heartbeat-card.spec.ts:305 HC6 (dailyCap and noModelKey hold Run) failed at :333 toHaveAccessibleDescription: element not found, waiting for the Status region's app-heartbeat-card button 'Run the heartbeat now'
 - source: orchestrator; feature ci | severity: low | fix-risk: low | footprint: in-epic
 - evidence: feature 3242f9657 (DW-1388 merge, test-only, no heartbeat change) ci 43754264003 att1 iris(shards-5) on ocutalon-ci-54; HC6 green on every earlier feature run; superseded by 92937a03e
@@ -8622,6 +8636,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: FailurePoller.Scope (Lane D Watch/**) owner fallback; 23.4 re-review 2
 - 2026-11-15T22:14:50Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a page row exists for an incident whose first failure carried a session trace tag, or for a production with no watch at notice time
+
+### DW-1415: A Settings-contact partner_warning sends a real email to outside addresses, but Fix.Kind.Email.MayApprove (the DW-1262 admin-only approver rule) passes every kind but email, so any user who asked for the warning can approve it
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: MayApprove quits 1 for FixKind other than email (Fix/Kind/Email.cls:328); since 23.13 an approved partner_warning mails the Settings contacts from the email.owner mailbox through EmailOut; no ruling covers who may approve it
+- 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=for the Planner (veto: privileges): keep any asker as approver (admin-curated recipients) or require OcuTalonAdmin as for email
+
+### DW-1416: Summary.RunEvents reads summary.partnerNotSent ('the delay notice was not sent.') for a failed Settings-contact send even when EmailOut answered MESSAGEMAYHAVESENT or MESSAGEFAILED, so the timeline can deny an email that may have gone out
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Executor.SendPartner ends failed on any Ok 0 (incl. MESSAGEMAYHAVESENT 'it may have gone out') and on an exception after Submit; Summary.RunEvents then picks summary.partnerNotSent for Completed 0
+- 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling for the may-have-sent timeline line (public text, veto 5); the session and card read Out's own sentence
+
+### DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (Delivered and Claims verbatim; Send, Mailbox and Reset adapted), forced by the spec because the originals are private in a Lane B test class
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: PartnerMail.cls 255-311 vs Test/Channel/EmailOut.cls 1372-1505; the spec's Task names the copy and its reason (Rule 2: a spec-forced copy is routed to the story that unifies it)
+- 2026-11-16T02:15:05Z status=routed owner=burndown by=cr note=unify into a shared EmailOut test helper class after the contest, as DW-603 for ToolCallNotices
+
+### DW-1418: Core/CommandsIn.cls's class description still calls a system SendEmail FixExecutor's approved email fix; since 23.13 the executor also sends approved partner warnings that way
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CommandsIn class doc (Lane B file, not in 23.13's footprint); Out, Executor, Kind, Notice, Summary and IncidentManager docs were updated
+- 2026-11-16T02:15:05Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=a reader or reviewer acts on the stale CommandsIn description, or a later story edits CommandsIn's system-send paragraph
+
+### DW-1419: The web glue that passes a partner request's simulated to its band (incidentContext's simulated ?? null, the request card's shown().dryRun?.simulated) is pinned only by source regexes; no executed test drives store -> card -> band
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: approval-sources.test.mjs 315-316 and 339 are source pins (mutation recorded red); approval-view/incident-view tests execute the band logic with their own contexts; e2e A13 checks the open card with simulated true only
+- 2026-11-16T02:15:06Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the lead's smoke or a live run shows a partner band missing or wrong on the open or compact card (sent, skipped or demo)
 - 2026-11-15T19:36:41Z note=measured by DW-1391 QA: Summary.cls -3600 at Incident L878, Group L929, Resolved lastOffset L936/L943; closeQuiet hammer (2 jobs) turned Test.Watch.Summary red 5/11 (TestClosingLines 3, TestRunEdges 2, TestFixedDismissed 1), green without it. Not a one-line change (TestClosingLines L163 builds a quiet incident on purpose), so not folded into DW-1391. FIX path: LastAt=now in the helpers + Settle.Quiet guard, and build TestClosingLines' quiet case as Test/Watch/Lifecycle.cls does (LastAt=now, probe QuietNowIs (IncidentProbe.cls L58) = now+960 s). Margin notes (not this race): Checks/Heartbeat TestQuietClose 60 s margin; Tools/RecentActivity TestDemoPath 240 s margin. by=qa
 
 ### DW-1399: DW-1391: the closeQuiet hammer behind AC 1 lives only in scratch, so no repo or CI run repeats the race measurement

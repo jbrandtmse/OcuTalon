@@ -10,7 +10,7 @@
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
 ///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
 ///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded, and a
-///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
+///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
 ///       summary.evidence (the first evidence line of the diagnosis payload that is more than a period; omitted when there is none), summary.sampleError (the first sentence of the sample
@@ -187,6 +187,11 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(request.FixKind)
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
 		If run.EndedAt = "" Quit
+		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
+		If (+run.Completed > 0) && $IsObject(incident) && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production) {
+			Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", ..EndedSlots(run))
+			Quit
+		}
 		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
 		Quit
@@ -208,12 +213,18 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 		If (key '= "") && ##class(OcuTalon.Watch.SettingCause).Names(request, .setting, .target) Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "setting": (setting), "target": (target)})
 		Quit
 	}
+	Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", ..EndedSlots(run))
+}
+
+/// The slots of summary.fixEnded: the end time and the run's counts.
+ClassMethod EndedSlots(run As OcuTalon.Data.FixRun) As %DynamicObject [ Private ]
+{
 	Set slots = {"time": (run.EndedAt)}
 	Do slots.%Set("resent", +run.Resent, "number")
 	Do slots.%Set("completed", +run.Completed, "number")
 	Do slots.%Set("failedAgain", +run.FailedAgain, "number")
 	Do slots.%Set("skipped", +run.Skipped, "number")
-	Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", slots)
+	Quit slots
 }
 
 /// The request's FixParameters as a dynamic object; {} when they are not one.

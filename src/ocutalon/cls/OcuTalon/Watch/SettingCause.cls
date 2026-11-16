@@ -11,7 +11,9 @@
 ///   - Named is the newest row of the window whose setting is the element of the diagnosis, on a failing item first. GapMinutes is whole minutes, rounded half up. CauseSlot is
 ///     the structured cause of incident.settingChangeCause, rendered by the catalog.
 ///   - IsSetting, RollbackSlots, UndoSlots, ResultKey, ResultSlots, Names and the summary keys are the notice and summary texts of the two setting kinds (Fix.Kind.RollbackSetting and
-///     UndoRollback), which Notice and Summary call, so that the kinds' texts live here and the two classes only delegate.
+///     UndoRollback), which Notice and Summary call, so that the kinds' texts live here and the two classes only delegate. The slots of a setting's value (before and after) hold
+///     it as Shown gives it, redacted by Bridge.Redact (the one redactor, on the server), so that a token in a URL reaches no person, message body or log; the stored dry run
+///     and the value a run writes stay raw.
 Class OcuTalon.Watch.SettingCause
 {
 
@@ -280,8 +282,8 @@ ClassMethod RollbackSlots(incident As OcuTalon.Data.Incident, dryRun As %Dynamic
 	Do slots.%Set("cause", cause)
 	Do slots.%Set("setting", setting, "string")
 	Do slots.%Set("target", target, "string")
-	Do slots.%Set("before", before, "string")
-	Do slots.%Set("after", after, "string")
+	Do slots.%Set("before", ..Shown(before), "string")
+	Do slots.%Set("after", ..Shown(after), "string")
 	Quit $$$OK
 }
 
@@ -304,8 +306,8 @@ ClassMethod UndoSlots(dryRun As %DynamicObject, incident As OcuTalon.Data.Incide
 	Set slots = {}
 	Do slots.%Set("setting", setting, "string")
 	Do slots.%Set("target", target, "string")
-	Do slots.%Set("before", before, "string")
-	Do slots.%Set("after", after, "string")
+	Do slots.%Set("before", ..Shown(before), "string")
+	Do slots.%Set("after", ..Shown(after), "string")
 	Quit slots
 }
 
@@ -344,7 +346,7 @@ ClassMethod ResultSlots(key As %String, extra As %DynamicObject, Output sc As %S
 	Set slots = {}
 	Do slots.%Set("setting", setting, "string")
 	Do slots.%Set("target", target, "string")
-	If 'plain Do slots.%Set("after", after, "string")
+	If 'plain Do slots.%Set("after", ..Shown(after), "string")
 	If key = ..#KEYSAVEDNOTAPPLIED Do slots.%Set("reason", reason, "string")
 	Quit slots
 }
@@ -383,6 +385,13 @@ ClassMethod SummaryRunKey(kind As %String, run As OcuTalon.Data.FixRun) As %Stri
 ClassMethod Text(value As %String) As %String [ Private ]
 {
 	Quit $ZStrip($Get(value), "<>W")
+}
+
+/// The text of a setting's value as a person sees it: Bridge.Redact of the trimmed text. A plain value is unchanged; a secret-shaped one (a URL with a token) reads [redacted] in
+/// place.
+ClassMethod Shown(value As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Redact).Text(..Text(value))
 }
 
 }

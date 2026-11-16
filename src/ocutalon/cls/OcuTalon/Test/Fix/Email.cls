@@ -309,9 +309,10 @@ Method Disconnect() [ Private ]
 	Do ..DropUsers()
 }
 
+/// (Public since Story 23.13: Test.Fix.PartnerTurns connects the mailbox through an instance of this class, with its Manager, and puts it back with OnAfterOneTest.)
 /// The set-up of every test: the production is ready with demo mode on, the entries of the runners point at the mock, the real CommandsIn is behind its item, the stub is empty and the mailbox
 /// of a new session is connected with the address. 1 when all that holds.
-Method Setup(address As %String = {..#OWNADDRESS}) As %Boolean [ Private ]
+Method Setup(address As %String = {..#OWNADDRESS}) As %Boolean
 {
 	If '..Ready() Quit 0
 	If '..PointKeys() Quit 0
