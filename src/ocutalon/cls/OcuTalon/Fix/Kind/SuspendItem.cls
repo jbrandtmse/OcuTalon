@@ -6,7 +6,7 @@
 ///     is in the state the kind leaves. Its answer is {"item", "before", "after"}, the item's state before and after as "enabled" and "disabled".
 ///   - Recheck and Execute (Story 7.3) read the item again from the approved row's target: it passes only if the id still names the item and its state still is the dry run's
 ///     before; else it is skipped with a plain reason that names the item. Execute makes the change through Fix.Executor.InProduction, which holds the one namespace switch of
-///     the executor and calls Ens.Director.EnableConfigItem there; its result is {"changed": the items changed, "skipped": [{"id", "reason"}], "unreached": [{"id", "code"}]}.
+///     the executor and calls Ens.Director.EnableConfigItem there, stores the flag and updates the production; when the update fails it puts the earlier flag back (see Fix.Executor); its result is {"changed": the items changed, "skipped": [{"id", "reason"}], "unreached": [{"id", "code", "reason" (notapplied only)}]}.
 ///   - The kind needs %Ens_ConfigItemRun:U. An online-demo install does not grant it to the service role (ONLINEGRANT 0, AD-24), so the kind could not run there even if
 ///     the ONLINESHARED check were bypassed. Lane A.
 Class OcuTalon.Fix.Kind.SuspendItem Extends OcuTalon.Fix.Kind
@@ -28,6 +28,9 @@ Parameter ONLINEGRANT = 0;
 
 /// 1 when the kind enables the item (ResumeItem), 0 when it disables it.
 Parameter ENABLE = 0;
+
+/// The item's setting that the kind changes, by its IRIS name: Ens.Config.Item Enabled, or the System Default Setting Enabled that overrides it. The result of a change that was stored and could not be applied names it (result.settingSavedNotApplied).
+Parameter ENABLEDSETTING = "Enabled";
 
 Parameter NOTALLOWED = "OcuTalon isn't allowed to suspend or resume items in that production";
 
