@@ -4563,3 +4563,4 @@
 2026-11-16T21:11:06Z	Epic 27	merged	27.1 merge=854346fa1
 2026-11-16T21:11:48Z	Run	owner_decision	via=contest_planner no_stacked_merges_on_unexplained_red(28.2_waits_DW-1450_rerun) DW-1450_repeat=report_at_once
 2026-11-16T21:11:48Z	Epic 28	ci_red	28.2@d18c9a55c ci=43943159296 shards-5 runner=ocutalon-ci-27 live:sign-in-3 memory-card_MC3_timeout(read_never_finished) in_28.2_area->lane_C_classifying
+2026-11-16T21:12:08Z	Epic 28	note	via=contest_planner 28.2_MC3_leads(sync_Used_on_read,LastUsedAt_lock,fading_in_read) pin=read_returns_while_Used_held relayed=lane_C
