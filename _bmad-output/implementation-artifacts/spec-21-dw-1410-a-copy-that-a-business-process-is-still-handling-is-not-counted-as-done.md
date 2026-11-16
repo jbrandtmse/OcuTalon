@@ -241,6 +241,34 @@ Line numbers are at the baseline `872d8cb59` (DW-1205's head `fded9d158` plus a 
    - `Test.Watch.Evidence` (including `TestInFlightHeader` and `TestInFlightEntryReadFails`);
    - `Test.Fix.Partial`, `Test.Fix.Reroute`, `Test.Watch.Reader`, `Test.Watch.GoodMessages`, `Test.Fix.Recheck`, `Test.Eval.Record` and `Test.Fix.Scale`.
 
+### Review Findings
+
+Code review stage (full mode, four layers, diff `89fa33d6a`..`17d5b904e` without bookkeeping). 19 findings: high 0, medium 2, low 11, false 6. Code review actions: 0 decision-needed, 4 patched (tests only), 1 deferred (ledger occurrence), 14 rejected. No product code changed.
+
+- [x] [Review][Patch] (medium, verification-gap) The instance query's bindings were not pinned for a copy whose session is not its own id, as with every real resent copy: every instance fixture read had `%SessionId` = the header's id, so `%Execute(id, id)` passed every test. `TestBusinessProcessHoldsACopy` now also reads the sibling (Completed, session = the first header, an unfinished instance of its own) and asserts `Completed|1`. [src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls:587]
+- [x] [Review][Patch] (low, verification-gap) `TestReplyInHandHoldsACopy`'s "once the job lets go of the reply" step went from not held to not held; the entry is now set back to the reply before `KillEntry`, so the step goes from held to not held. [src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls:634]
+- [x] [Review][Patch] (low, edge-case-hunter) `TestReadOrderStatusInstanceReplyEntry` went on after a fixture instance failed to save, so the later read-order asserts would fail with misleading messages; it now quits there. [src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls:711]
+- [x] [Review][Patch] (low, blind-hunter) The final `Test.Watch.Evidence` (19 methods, with QA's BPL and routing-engine instances) had run on build 154 only; it now passes fresh on build 109 (Verification, code review records).
+- [x] [Review][Defer] (medium, acceptance-auditor+blind-hunter) `Test.Watch.Reader` `TestDisabledItemsInStoredOrderAcrossAStopAndAStart` is red in 4 of 4 fresh lane-C runs, so AC 6 is not literally met for that class [src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls] — deferred: pre-existing; it fails the same way with `Reader.cls` at `89fa33d6a` (`e21dw1410qr2`), the test reads the production state, not the evidence branch, and it is DW-626 (routed owner=burndown); an occurrence with these run tags was appended (`by=cr`).
+- Confirmed: implement's rejected mediums (matrix 8: an instance that never completes holds its copy, so the wait ends stillResending and Sweep leaves the run executing) are the approved Veto 5 and matrix 8 behaviour, the same as a copy queued for good at a disabled target; the rejections stand.
+- Confirmed: the reply-in-hand check cannot hold for good (it holds only while a job's active message is that reply, and a hung job falls to `WAITSECONDS`), and it cannot hold a copy of another session (`TestReplyInHandHoldsACopy` and `TestReplyInHandJudgesEachCopy`, both with mutations).
+
+**Rejected:**
+- (low, blind-hunter+edge-case-hunter) A failed instance or reply read holds the copy silently, with no log line: by-design. The spec rules out new log text (Design Notes, "Why a failed read holds the copy"), and Task 0 item 4 showed the job user `_Ensemble` (`%All`) can read `Ens.BusinessProcess`. It can reopen only through a spec amendment.
+- (low, blind-hunter) The block's reads also run for callers that never read `inFlight` (Good, the dry run, EvidencePack, `Eval.Record`): by-design (matrix 14, Cost). `Test.Fix.Scale` did not slow down, and a flag would add a parameter.
+- (low, blind-hunter) The reply match could use the reply's `BusinessProcessId` to drop replies to the original's own live instance: by-design. Matrix 10's one-pass false hold is approved, the counts are never wrong, and the fix adds a query and a branch.
+- (low, blind-hunter) Task 0's records repeat items 2, 3 and 7 and run out of order: the fix edits the spec, and a reader is not misled (the numbers agree).
+- (low, acceptance-auditor) The Verification footprint command names `872d8cb59`, but the baseline moved to `89fa33d6a`: the fix edits the spec. The check at `89fa33d6a` is recorded under Verification instead: footprint files plus bookkeeping only.
+- (low, edge-case-hunter) `TestHeldCopyStopsAtTheWait`'s `Reads > 1` could fail if one read took over 3 s: wontfix-theoretical. QA's 5 runs under 16-core load passed, and so did this review's warm run.
+- (low, edge-case-hunter) The upper bound `Reads '> 150` lets a wait that overruns up to fivefold pass: by-design. The gate approved the test as specified; its job is "never hangs", pinned by the drop-the-limit mutation.
+- (low, edge-case-hunter) "sets a business process's request Completed at each pass" is loose (`Actor.cls:285` quits before the reset to the primary on a non-final response pass, so only request and retry passes and completion set it): by-design. It is the gate's verbatim AD-16 text and the spec's own doc text, and the mechanism the code relies on (the copy stays Completed through the wait) holds.
+- (false, blind-hunter) The Auto Run Result leaves out QA's tests and runs: it covers the implement pass only (Rule 14); QA's work is under Verification's QA records.
+- (false, blind-hunter) The last assert of `TestBusinessProcessHoldsACopy` is mislabelled: at that point the only unfinished instance in the header's session is the sibling's, which is exactly the label's case, and the `%PrimaryRequestHeader` mutation went red there.
+- (false, acceptance-auditor) QA's three extra tests and `Retarget` go beyond the footprint: they are in the footprint's `Test/Watch/Evidence.cls`, and `Retarget` updates a fixture header the test made, in OCUORDERS on a throwaway (Veto 3).
+- (false, acceptance-auditor) `deferred-work.md` changed at implement: that was the sanctioned `ledger.sh append` of the push numbers (the Auto Run Result lists it), and bookkeeping is out of the review diff by the stage prompt.
+- (false, acceptance-auditor) Task 0 item 1(a) used `E=RF` and not `E=R`: the recorded reason holds (`E=R` ends the copy Completed, so no count of it can be wrong).
+- (false, edge-case-hunter) An instance whose `%SessionId` is NULL hides a waiting process: the save at `BusinessProcess.cls:228`, the one a reply-required call makes, follows `:259`, so it carries the session. Actor's session-less fallback `UPDATE` (`Actor.cls:219-236`) runs only after a failed save, and `SaveExit` (`:199-215`) has by then set `%IsCompleted` 1, so that row is never a waiting instance.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -421,6 +449,16 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - Test changes: `Test/Watch/Evidence.cls` only (three methods, `ReadsOf`, a `class` argument on `FixtureProcess`/`MakeProcess`, the `:1` to `:4` entry cleanup, header bullets). No product change by QA. `bash docker/tests/test-class-rules.sh` exit 0. No added line holds a non-ASCII character or an absolute local path.
 - Regression on fresh lane-C stacks (one throwaway per run, tags `e21dw1410qa1-5`, `qb1-5`, `qc1-5`; one `yes > /dev/null` per core, 16, started in the container once it was ready and gone with it): `Test.Fix.Partial` 5/5 passed (48.98 to 54.22 s), `Test.Fix.Reroute` 5/5 passed (8.11 to 10.77 s), `Test.Fix.Executor` 5/5 passed (46.47 to 48.85 s, the new `TestHeldCopyStopsAtTheWait` in). `Test.Watch.Evidence` fresh with the QA tests: passed.
 - DW-626: `Test.Watch.Reader` `TestDisabledItemsInStoredOrderAcrossAStopAndAStart` fails on a fresh stack the same way on HEAD (run `e21dw1410qr1`) and with `Reader.cls` at `89fa33d6a` (run `e21dw1410qr2`, `Reader.cls` put back with `cp` and `cmp`): "stopped, with the disabled items: suspended|[PartnerOrdersIn,OrdersToWarehouse]", no other test of the class failed. The ledger's DW-626 has the same test and the same text ("stopped, with the disabled items: suspended") in repeated occurrences, on units with no Watch change. It matches; it is not this change.
+
+**Code review records** (code review stage, lane C; warm tag `e21dw1410cw` and fresh tag `e21dw1410cf`; HEAD `17d5b904e`; no product change by the review):
+- Warm, build 154, before the patches: `Test.Watch.Evidence` passed (3.54 s) and `Test.Fix.Executor` passed (40.83 s, `TestHeldCopyStopsAtTheWait` in).
+- Test patches (`Test/Watch/Evidence.cls` only; see Review Findings). Then warm `Test.Watch.Evidence` passed (2.90 s).
+- mutation: `flightProcess.%Execute(sessionId, id)` made `flightProcess.%Execute(id, id)` -> `TestBusinessProcessHoldsACopy` red ("a Completed copy in another header's session (a resent copy keeps its original's) is held by its own unfinished instance"), the only red. Reverted with `cp` and `cmp` against a copy taken before; `git status --short` and `git diff --stat` were as before, `Reader.cls` is at HEAD, and `Test.Watch.Evidence` was green again warm (2.88 s).
+- Fresh, build 109 (`IRIS_IMAGE` the `irishealth-community:2027.1.0AI.109.0` image), the final class with the review patches: `ci/iris.sh class OcuTalon.Test.Watch.Evidence` passed (3.59 s; stack ready in 136 s).
+- No product code was patched, so the fresh `lane-a@Fix` shard and the push-condition probe were not re-run; implement's runs on this `Reader.cls` stand.
+- `bash docker/tests/test-class-rules.sh` exit 0. `git diff --name-only 89fa33d6a` (the baseline now) lists only the spec, the spine, `Watch/Reader.cls`, `Fix/Executor.cls`, the two test classes and the bookkeeping files (`cycle-log-epic-21.md`, `deferred-work.md`).
+- AD-3 grep over the added lines of `git diff 89fa33d6a`: no raw `^Ens` global, no `Xecute`, no `@` indirection, no literal `Ens.ActiveMessage`, no non-ASCII and no absolute local path. The only `Execute` hits are `%SQL.Statement`'s `%Execute`. The new reads sit in `Current`'s evidence branch, under its one `New $NAMESPACE` / `Set $NAMESPACE = namespace` (L642-644).
+- The probe evidence here (Task 0 items 5-7, `Scale`) matches DW-1410's two `by=implement` ledger notes.
 
 ## Review Triage Log
 

@@ -504,3 +504,5 @@
 2026-11-16T03:09:18Z	DW-1410	stage_spawned	stage=qa spawn_at=2026-11-16T03:09:18Z model=sonnet effort=high agent_name=dw-1410-qa-1 cycle_iteration=1
 2026-11-16T04:07:31Z	DW-1410	qa_complete	model=sonnet commit=74412c0e0 tests=TestReadOrderStatusInstanceReplyEntry,TestBusinessProcessOfAnyKindHoldsACopy,TestReplyInHandJudgesEachCopy(9_mutations) regression_fresh_under_load=Partial_5/5,Reroute_5/5,Executor_5/5 DW-626=confirmed_preexisting not_pinnable=failed_prepare(needs_%SYS_security_change),reply-read_failure
 2026-11-16T04:07:31Z	DW-1410	stage_spawned	stage=code-review spawn_at=2026-11-16T04:07:31Z model=opus effort=high agent_name=dw-1410-code-review-1 cycle_iteration=1
+2026-11-16T04:20:50Z	DW-1410	cr_complete	model=opus findings=19(med2:1_patched_test(session!=id_param_pin+mutation),1_ledger_DW-626_occurrence;low11(2_patched);false6) high=0 product_code_unchanged_by_CR evidence_154_and_109_fresh=pass grep=no_raw_Ens_global/Xecute final_status=done
+2026-11-16T04:20:50Z	DW-1410	ledger	DW-1410=resolved-by:dw-1410

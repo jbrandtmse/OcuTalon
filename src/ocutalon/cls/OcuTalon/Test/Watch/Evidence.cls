@@ -35,7 +35,8 @@
 ///     as running, not completed; a seeded status equal to the row's is not in flight; a Completed header that nothing holds is not in flight;
 ///   - TestBusinessProcessHoldsACopy (DW-1410; AC 1): a Completed header whose business process instance is not complete (an Ens.BusinessProcess row of its session whose
 ///     %PrimaryRequestHeader it is and whose %IsCompleted is 0) is given with inFlight 1, a JSON boolean; an Error header is final whatever its instance; Fix.Executor Read carries
-///     it and Tally counts the copy as running; once the instance is complete, or gone, it is completed, and another header's unfinished instance in the session does not hold it;
+///     it and Tally counts the copy as running; a Completed copy whose session is another header's (a resent copy keeps its original's) is held by its own unfinished instance;
+///     once the instance is complete, or gone, it is completed, and another header's unfinished instance in the session does not hold it;
 ///   - TestReplyInHandHoldsACopy (DW-1410; AC 2): a Completed header with no instance is in flight while a (fake) job's active message is a response (Type 2) of its session addressed
 ///     to its target, and is not while that message is a reply of another session, a reply of its session addressed to another target, a request of its session, or none;
 ///   - TestBusinessProcessReadFails (DW-1410; AC 3): when the read of the instances or of the replies fails (the reader's test seam ^||OcuTalonFlightSeam("process")), Evidence still
@@ -583,6 +584,7 @@ Method TestBusinessProcessHoldsACopy()
 	Do $$$AssertEquals(heldFailure.status_"|"_heldFailure.inFlight, "Completed|1", "a Completed header whose business process is not complete is in flight")
 	Do $$$AssertEquals(heldFailure.%GetTypeOf("inFlight"), "boolean", "inFlight is a JSON boolean")
 	Do $$$AssertEquals(failedFailure.status_"|"_failedFailure.inFlight, "Error|0", "an Error header is final, whatever its instance")
+	Do $$$AssertEquals(..ReadOf(sibling), "Completed|1", "a Completed copy in another header's session (a resent copy keeps its original's) is held by its own unfinished instance")
 
 	Set incident = ..Fixture(owner, held_","_failed)
 	Set run = ##class(OcuTalon.Data.FixRun).%New()
@@ -629,6 +631,7 @@ Method TestReplyInHandHoldsACopy()
 	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "a request of its session is not a reply in hand")
 	Do ..SetEntry(..EntryKey, elsewhere)
 	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "a reply of its session addressed to another target does not")
+	Do ..SetEntry(..EntryKey, reply)
 	Do ..KillEntry(..EntryKey)
 	Set ..EntryKey = ""
 	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "once the job lets go of the reply, it is completed")
@@ -702,8 +705,10 @@ Method TestReadOrderStatusInstanceReplyEntry()
 	Set reply = ..FixtureHeader({"Type": 2, "Status": 3, "SessionId": (viaReply)})
 	Do $$$AssertTrue(reply '= "", "a reply of the second header's session is made")
 	If reply = "" Quit
-	Do $$$AssertTrue(..FixtureProcess(viaProcess, viaProcess) '= "", "an unfinished instance of the first header is made")
-	Do $$$AssertTrue(..FixtureProcess(failed, failed) '= "", "an unfinished instance of the Error header is made")
+	Set viaProcessInstance = ..FixtureProcess(viaProcess, viaProcess)
+	Set failedInstance = ..FixtureProcess(failed, failed)
+	Do $$$AssertTrue((viaProcessInstance '= "") && (failedInstance '= ""), "an unfinished instance of the first header and one of the Error header are made")
+	If (viaProcessInstance = "") || (failedInstance = "") Quit
 
 	// the entry check runs after the instance: a header that an instance holds is never read for its entry, so the status seam of the entry check stays unread
 	Set ^||OcuTalonFlightSeam = 8
