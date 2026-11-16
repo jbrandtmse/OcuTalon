@@ -4551,3 +4551,4 @@
 2026-11-16T19:49:09Z	Epic 21	note	DW-1421_r3_recapture_queued_after_27.1_R7_A/B(at_B-2/10) ETA_1.5-2h held
 2026-11-16T19:55:40Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_spec_gate(SlackW_global,admin_routes+commands,2_texts+GUIDE_heading,overlaps_SettingsOps_Carry+chat-view,DW-1442_spine) 27.1_CI_waiting relayed=contest_planner
 2026-11-16T19:56:04Z	Epic 27	owner_decision	via=contest_planner 27.3_gate=APPROVED(texts,veto_all,linking+one-workspace_limit+second-team_pin,overlaps_proceed,spine_incl_DW-1442) key_list_at_PART_READY
+2026-11-16T20:03:18Z	Epic 28	runner_reported	28.3_task0b=app_roles_work(OcuTalonMCPApp;Client=U_only) PUBLIC_TEXT_new_P8 28.2_red(web=own_spine_order,fixed;shards=DW-1083) new_head=d18c9a55c(CI_running) relayed=contest_planner
