@@ -247,8 +247,8 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Do odd.%Set(marker, 1)
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, odd.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(odd.%ToJSON(), marker, ..#DIAGNOSIS, "ERROR #9404: an unexpected property", "", "check")
-	Set count("ERROR #9404: an unexpected property") = 1
+	Set expected(ref, 1) = $ListBuild(odd.%ToJSON(), marker, ..#DIAGNOSIS, "unexpected-field", "", "check")
+	Set count("unexpected-field") = 1
 	// A reply that is not JSON, and begins with its marker (the first characters of a file's text).
 	Set marker = ..Marker()
 	Set ref = ..SeedDecision("diagnose")
@@ -404,9 +404,9 @@ Method TestOneReplyPerRule()
 /// DW-1421 C1 (AC 8): RuleOf and FieldOf of the parts that a refusal gives.
 Method TestRuleNames()
 {
-	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "ERROR #7201 rule element-at-fault-too-long")
-	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "element-at-fault-too-long")
-	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "", "elementAtFault")
+	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "ERROR #7201 rule element-at-fault-too-long", "ERROR #9404 rule unexpected-field", "ERROR #5035 rule reply-unreadable")
+	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "element-at-fault-too-long", "unexpected-field", "reply-unreadable")
+	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "", "elementAtFault", "", "")
 	For i = 1:1:$ListLength(parts) {
 		Set rule = $ClassMethod(..#TOOL, "RuleOf", $List(parts, i))
 		Do $$$AssertEquals(rule, $List(rules, i), "the rule of "_$List(parts, i))
@@ -745,7 +745,7 @@ Method TestHostileRepliesStayOffStdout()
 	Set triage = {"outcome": (short), "reasons": [(hostile)], "confidence": 0.5}
 	Set texts = ""
 	Set expected = ""
-	For one = $ListBuild(whole, "reply-unreadable", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "ERROR #9404: an unexpected property", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "reply-unreadable", ..#DIAGNOSIS, "diagnose") {
+	For one = $ListBuild(whole, "reply-unreadable", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "unexpected-field", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "reply-unreadable", ..#DIAGNOSIS, "diagnose") {
 		Set ref = ..SeedDecision($List(one, 4))
 		Do ..SeedReply(ref, $List(one, 4), $List(one, 3), $List(one, 1))
 		Set texts = texts _ $ListBuild($List(one, 1))

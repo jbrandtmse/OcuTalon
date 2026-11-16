@@ -716,9 +716,9 @@ Method TestEvidenceCut()
 	// row 13, the model sends the count
 	Set reply = ..Outage()
 	Set reply.evidenceCut = 3
-	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut")
+	Do ..AssertRefusal(reply, "ERROR #9404 rule unexpected-field", "row 13, a reply that names evidenceCut")
 	Do reply.%Set("evidenceCut", "", "null")
-	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut with null")
+	Do ..AssertRefusal(reply, "ERROR #9404 rule unexpected-field", "row 13, a reply that names evidenceCut with null")
 	// row 14, a dynamic object as input is not changed
 	Set reply = ..EvidenceReply([(e300)])
 	Set object = $ClassMethod(..#CLASS, "%New")

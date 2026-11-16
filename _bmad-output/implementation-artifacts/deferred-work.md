@@ -8786,3 +8786,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: DiagnosisPayload.cls CLOCKTIME (?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9]) checked on cause and fixSummary; the case field ShippedAt holds 16/10/2026 09:30:00, so a cause that quotes the failed value matches at 09:30 and the diagnosis falls back invalid; reasoned from the case fixture and the rule, the reply text not read
 - 2026-11-16T18:18:51Z status=routed owner=burndown by=orchestrator note=narrowing: allow an h:mm directly after a date (d/m/y or y-m-d, then a space or T) or followed by :ss; fix only after a second occurrence, or in a burndown, with a test that 16/10/2026 09:30:00 in a cause is accepted and that a bare at 09:30 is still refused
 - 2026-11-16T21:32:25Z occurrence=2 by=lead note=occurrence 2 in the Planner's round-3 re-capture r4, shipments-day-first-date; fixed in DW-1421 round 4 (CLOCKTIME allows an h:mm directly after a date or followed by :ss)
+
+### DW-1453: #9404 seen once in the Planner's control on diagnose claims-archive-internal-error; reconsider on repeats (C2)
+- source: Contest Planner control verdict ~22:05Z Nov 16 (DW-1421 round 4 additions) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: the control run at c573a86d0 gave one diagnose fallback on claims-archive-internal-error with ERROR #9404 (a field the reply class does not have), the case DW-1421 C2 targeted, at its 1st occurrence; round 4 maps #9404 to the fixed tag unexpected-field so the capture names it
+- 2026-11-16T22:02:44Z status=open owner=burndown by=lead note=against C2; reconsider on repeats

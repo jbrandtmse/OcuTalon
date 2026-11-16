@@ -1045,7 +1045,7 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 ///     checked the way the property would be: every element of a list, or the value, by the property's own <Property>IsValid check, which gives the forms above;
 ///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
 ///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
-///   - a field that replyClass does not have (#9404) is "ERROR #9404: an unexpected property": the field's name came from the reply, so it is never given;
+///   - a field that replyClass does not have (#9404) is "ERROR #9404 rule unexpected-field" (UNEXPECTEDTAG, DW-1421 round 4): the field's name came from the reply, so it is never given;
 ///   - a #5035 (a general exception: the import of a reply that is not JSON, or a check that throws) is "ERROR #5035 rule reply-unreadable" (UNREADABLETAG), with no
 ///     exception Name, Code or Data: the Data can carry text of the reply (DW-1421 round 4);
 ///   - a #5001 whose second parameter is a tag that REFUSALRULES of replyClass lists (the fixed name of a rule of the class's %OnValidateObject, DW-1421) is
@@ -1102,6 +1102,9 @@ Parameter CHECKFAILED = "The reply check failed: the reply is not one JSON objec
 
 /// The fixed tag of a #5035 (a general exception) in RefusalText: a reply that could not be read, whatever the exception said.
 Parameter UNREADABLETAG = "reply-unreadable";
+
+/// The fixed tag of a #9404 (a field that the reply class does not have) in RefusalText: the field's name came from the reply, so it is never given.
+Parameter UNEXPECTEDTAG = "unexpected-field";
 
 /// The most parts that RefusalText names before "and <k> more".
 Parameter MAXREFUSALPARTS = 5;
@@ -1192,7 +1195,7 @@ ClassMethod RefusalPart(code As %String, value As %String, limit As %String, pro
 	Set text = "ERROR"
 	If code ? 1.N {
 		Set text = text_" #"_code
-		If code = 9404 Quit text_": an unexpected property"
+		If code = 9404 Quit text_" rule "_..#UNEXPECTEDTAG
 	} ElseIf code ? 1"<"1.AN1">"1.AN {
 		Set text = text_" "_code
 	}
