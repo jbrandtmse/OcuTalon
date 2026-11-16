@@ -506,3 +506,5 @@
 2026-11-16T04:07:31Z	DW-1410	stage_spawned	stage=code-review spawn_at=2026-11-16T04:07:31Z model=opus effort=high agent_name=dw-1410-code-review-1 cycle_iteration=1
 2026-11-16T04:20:50Z	DW-1410	cr_complete	model=opus findings=19(med2:1_patched_test(session!=id_param_pin+mutation),1_ledger_DW-626_occurrence;low11(2_patched);false6) high=0 product_code_unchanged_by_CR evidence_154_and_109_fresh=pass grep=no_raw_Ens_global/Xecute final_status=done
 2026-11-16T04:20:50Z	DW-1410	ledger	DW-1410=resolved-by:dw-1410
+2026-11-16T04:43:47Z	DW-1410	integrated	feature=6e88ef29e merge=507a0d2b0; then feature=ecaf5ac9a(DW-1205_merged;no_src_delta) merge=b5de8d99c conflicts=none
+2026-11-16T04:43:47Z	DW-1410	fresh_check	env=507a0d2b0(src_identical_at_push_head) build154_lane-a@Fix_30/30,Watch.Evidence,Watch.Reader_pass bd,class-rules=pass lint=12_low torn_down
