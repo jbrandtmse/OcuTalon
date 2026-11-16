@@ -8576,3 +8576,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
+
+### DW-1411: flake: web/e2e/demo-path/telegram-page.spec.ts:977 T7 (Story 12.6): the chat turn's reply part read 'I couldn't answer that: the model returned an error. Nothing was changed.' instead of the CI mock's 'The CI mock looked at the productions.' (60 s expect), in CI iris (browser) live:demo-path
+- source: epic-runner; OCT-epic21-dw1205 fded9d158 ci 43777000338 attempt 1 job 133005443930 on ocutalon-ci-14 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: a model-call fallback on the mock's chat scenario (list_productions tool turn, ci/mock/scenarios/A/chat.json); list_productions reads Watch.Reader.Productions(), not the evidence branch DW-1205 changed; lane-a@Fix 29/29 on builds 154 and 109 at the same tree; no other recent ci.yml failure carries this signature; distinct from DW-609 (T7 120 s timeout)
+- 2026-11-16T00:25:15Z status=routed owner=burndown by=flake note=(inference) the mock call timed out or errored under runner load; one rerun of the failed job
