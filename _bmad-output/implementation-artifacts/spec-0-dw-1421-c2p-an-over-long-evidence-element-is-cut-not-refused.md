@@ -174,6 +174,32 @@ Line numbers are at the baseline `ea4475096`.
   - Changed pin: `SeedAll` L250-257: the over-long evidence seed becomes an elementAtFault of 129 (marker kept in it), rule "ElementAtFault: 129 > 128", field `elementAtFault`; one more seed holds the old evidence reply and is counted under "passes the check" (the counts follow).
 - Standing criterion (Rule 19): every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Round-2 review (2026-11-16, tier 1, full mode, acceptance auditor armed; diff `08f55bc99..e9aacec4f` without the bookkeeping files). Every patch was applied; no decision is needed and nothing is deferred.
+
+- [x] [Review][Patch] (med) The "no trace row" half of `TestEvidenceCutRecorded` could not fail: outside a host `$$$TRACE` writes no row, so a trace of the count from the conclusion passed [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:TestEvidenceCutRecorded]. Fixed: the conclusion of the cut reply now runs with trace logging on for the job (`%Ensemble("DoTrace")`, `%Ensemble("LogSystemTrace")`, `%QUIET`, each restored afterwards).
+- [x] [Review][Patch] (med) No fresh-environment evidence for the new Watch tests (standing criterion) [Test.Watch.Payload, Test.Watch.Summary]. Fixed by runs: fresh `class` runs of both classes and the fresh `lane-a@Eval` shard (Verification, review runs).
+- [x] [Review][Patch] (low) QA's record called a `null` `evidenceCut` "already pinned", but no test sent one [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:TestEvidenceCut row 13]. Fixed: row 13 also sends `"evidenceCut": null`.
+- [x] [Review][Patch] (low) "the parent lists no length tag" repeated the count check before it and never looked for a length tag [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:TestEveryRuleTagged]. Fixed: it now asserts that the parent's list holds no "-too-long:".
+- [x] [Review][Patch] (low) `TestEvidenceCutRecorded` read `response.Payload` and `response.Reasons` without checking for a response [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls:TestEvidenceCutRecorded]. Fixed: guarded, plus an assertion that the conclusion gives a response.
+- [x] [Review][Patch] (low) The class doc said evidence-too-long is only for a reference lengthened by a filter. The refusal also gives it for a number element of more than 128 digits, and for a long reference of the reply as it came when the import refuses the list for another element [src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls:20-23]. Fixed: the doc names all three.
+- [x] [Review][Patch] (low) The `TestOneReplyPerRule` doc gave confidence-missing no count [src/ocutalon/cls/OcuTalon/Test/Eval/Capture.cls:10]. Fixed: "confidence-missing and cause-blank twice".
+
+Rejected or closed:
+- by-design (spec-bound): `Cut` keeps no minimum head. A reference whose only space in the first 128 is early (e.g. "TargetConfigNames: <140 characters with no space>") becomes "TargetConfigNames:" + U+2026. This is the rule as specified: "the last space at a position p with 2 <= p <= L" (Design Notes) and the Planner's "at the last word boundary". `Watch.ErrorText.Summary` behaves the same way. A floor (e.g. fall back to the hard cut below L/2) needs a ruling. Before C2' such a reply fell back.
+- by-design: only the space is a word boundary. Design Notes step 1 and the `ErrorText.Summary` precedent say so. A reference with tabs or line ends in place of spaces is cut hard, which is still valid and at most 128.
+- by-design: `TestEvidenceTooLongTag`'s "holds no digit after rule" is implied by the exact equality before it. It is AC 6's clause written out.
+- low, rejected: when the import refuses the evidence list for a non-string element, `RefusalImport` re-checks the reply as it came, so an uncut long string in the same list is reported as evidence-too-long too, and the harness takes that as the first rule. This needs a reply with both kinds of element. The reply is refused either way. A fix needs a reply-class hook in the generic Decide (AD-2).
+- low, rejected: the test helper `MaxLen` (and the older `JsonField`) match only an explicit `%JSONFIELDNAME`, while `LengthTag` falls back to the property name. Every property of both reply classes declares `%JSONFIELDNAME`, and the convention predates this change.
+- low, closed by this review's runs: QA ran no shell check after its commit. The eval-set rules, boundaries and class rules ran on the final tree (Verification).
+- low, rejected: QA's `TestCutEvidence` (Test.Watch.Summary) is outside the footprint list. It is a test-only addition, recorded in the QA Record.
+- low, rejected: Row 15's branches, AC 7's two sub-assertions and the `index > 3` exclusion have no mutation line. Each AC's pinning test has one.
+- false: making `RefusalPart`'s `replyClass` required gives no compile error in ObjectScript. Each call site is pinned by a test with a mutation: `TestEvidenceTooLongTag` for `RefusalText`, row 12 for `RefusalCheck`.
+- false: `Test.Watch.Summary` `TestCutEvidence` opening the Decision with no guard is not a risk. `Resolved` always creates the Decision through `Test.Data.Fixture`, and the sibling tests do the same.
+- false: the line numbers in the Intent and Code Map are not out of date. The Code Map states them at `ea4475096`.
+- rejected (the fix edits this spec's earlier record): the "Shared surfaces" sentence and the Size paragraph are out of date. Results lists Diagnose, RememberDecision and the eval-set `capture` rule as run. The round-1 triage line says the `EvidenceCut` reset is held by the new-payload assertion, but no test observes the reset, because every caller imports into a new object. `TestNothingIsWrittenAnywhere` keeps a refused row, which is stronger than AC 5's wording. The facts are recorded here.
+
 ## Design Notes
 
 **Where the cut belongs.** The three options of the brief, against the code:
@@ -332,6 +358,21 @@ Mutations (each applied to the one file, the class run red, the file restored by
 
 **Size:** medium. Product: DiagnosisPayload (+45 lines: override, `Cut`, property, parameter, doc), Decide (+20: `LengthTag`, one branch, two call sites, doc), CaptureTool (+5). Tests: Payload (+130: three new tests, four changed pins), Capture (+30: one new test, three changed pins). One implementation pass, no shell change, no model run; the Planner's 5-run capture verifies.
 
+**Review round 2 (lane C; warm tag e0dw1421q2w, fresh tag e0dw1421q2f; no model, no key, every `ci/` command through the lane-C wrapper).**
+
+Mutations on the review patches. Each was applied to one file and run red on the warm stack; the file was restored with `cp` and `cmp` showed it identical. `git status --short` and `git diff --stat` were unchanged after each.
+- mutation: `$$$TRACE("evidence references cut: "_<the payload's evidenceCut>)` in `Decide.Conclude` after setting `row.Payload` -> Test.Watch.Payload TestEvidenceCutRecorded red ("the conclusion writes no event log or trace row"). It was green before the patch, with trace logging off.
+- mutation: the `evidenceCut` guard in `DiagnosisPayload.%JSONImport` tests the value (`object.evidenceCut '= ""`) instead of the key's presence -> Test.Watch.Payload TestEvidenceCut row 13 "with null" red (accepted, with a payload).
+- mutation: the parent's REFUSALRULES gains `,reasons-too-long:reasons` -> Test.Watch.Payload TestEveryRuleTagged red ("the parent lists no length tag", and the two count and prefix checks).
+
+Runs on the final tree:
+- warm, one class per call: `OcuTalon.Test.Watch.Payload`, `OcuTalon.Test.Watch.Summary`, `OcuTalon.Test.Eval.Capture`, `OcuTalon.Test.Bridge.ReplyCheck` and `OcuTalon.Test.Bridge.Decide` passed;
+- fresh: `ci/iris.sh shard lane-a@Eval` passed (24 classes, 360 s), `ci/iris.sh class OcuTalon.Test.Watch.Payload` passed (140 s), and `ci/iris.sh class OcuTalon.Test.Watch.Summary` passed. Its first try exited 75: the lane-C throwaway lock was held by the Epic 28 runner for 240 s. The retry waited for the lock (643 s in all, the class itself 8.6 s). Both tags are torn down;
+- `bash docker/tests/test-eval-set.sh` in six `EVAL_SET_ONLY` calls that together name all 26 rules: five calls passed (57, 27, 36, 180 and 43 s). The `capture` call (203 s) failed once on "with the capture variable empty, the run is not the same, byte for byte, as with it unset", then passed on the same tree (234 s). This diff changes no shell file; it is ledgered as DW-1435, a flake, routed to burndown;
+- `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-class-rules.sh` exited 0.
+
+No added line holds a non-ASCII character or an absolute local path. The reversed-order shard runs remain the lead's pre-push check (Rule 21).
+
 ## C5 report
 
 DW-1421 C5 (confidence-missing), report only, from the code at `ea4475096`. Nothing is built.
@@ -411,6 +452,13 @@ Recommendation: if the Planner rules a server-side default, make it "absent" (no
   - `[false]` `[reject]` Verification-gap: `test-eval-set.sh` reads `DiagnosisPayload.cls` and was not run — it was run and passed (all rules)
   - `[low]` `[reject]` Verification-gap: only the space is a word boundary (same as the sixth row)
   - `[false]` `[reject]` Intent-alignment: the 5-run live capture is not part of the diff — the intent assigns it to the Planner; no defect in the change
+
+### 2026-11-16 - Review pass, round 2 (after QA round 2)
+- verdicts: 26 findings from four layers (blind 9, edge 7, verification-gap 7, acceptance 3) - high 0, medium 2, low 14, false 3, plus 7 rejected because their fix edits this spec's earlier record; after grouping: 7 patched, 3 by-design, 5 low rejected or closed, 3 false, 1 spec-record group (see `### Review Findings`)
+- patched: the trace half of `TestEvidenceCutRecorded` (med), fresh runs of the new Watch tests (med, runs), the `null` `evidenceCut` row, the parent's length-tag check, the response guard, the DiagnosisPayload class doc on where evidence-too-long appears, the Capture class doc count
+- focus checks (acceptance auditor, confirmed): no element text reaches a log, a trace or the capture's stdout, and only a listed tag can follow "rule"; AD-8 holds (only `evidence` is normalised, every other refusal and the 20-element cap unchanged); the source is ASCII, `$Char(8230)` is inside the 128, and space-only boundaries are by design; the other seven length forms keep their numbers (only Evidence is tagged, by ruling); `CaptureTool.RuleOf`/`FieldOf` are public `[ Internal ]` on a `%RegisteredObject` in the Test package, called only from the eval shell scripts and tests, with no web or `$ClassMethod` path that can name them
+- ledger: DW-1435 (the capture rule's flake, out of footprint, routed to burndown)
+- follow-up review recommended: false (no high)
 
 ## Auto Run Result
 

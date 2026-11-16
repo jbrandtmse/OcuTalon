@@ -509,7 +509,7 @@ Method TestEveryRuleTagged()
 			Do $$$AssertTrue(body '[ $Piece(pair, ":", 1), class_": the length tag "_$Piece(pair, ":", 1)_" is written in no %OnValidateObject")
 		}
 	}
-	Do $$$AssertEquals($ListLength($ListFromString($Parameter(parent, "REFUSALRULES"), ",")), 3, "the parent lists no length tag")
+	Do $$$AssertNotTrue($Parameter(parent, "REFUSALRULES") [ "-too-long:", "the parent lists no length tag")
 }
 
 /// The MAXLEN of the compiled property of the class whose JSON field name is the field, or "".
@@ -641,6 +641,8 @@ Method TestEvidenceCut()
 	Set reply = ..Outage()
 	Set reply.evidenceCut = 3
 	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut")
+	Do reply.%Set("evidenceCut", "", "null")
+	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut with null")
 	// row 14, a dynamic object as input is not changed
 	Set reply = ..EvidenceReply([(e300)])
 	Set object = $ClassMethod(..#CLASS, "%New")
@@ -676,7 +678,21 @@ Method TestEvidenceCutRecorded()
 	Set markerB = "zzmarkb"_##class(OcuTalon.Bridge.Ids).NewRef()
 	Set filler = $Translate($Justify("", 130), " ", "e")
 	Set request = ..NewRequest()
-	Do ..Conclude(request, ..EvidenceReply([(filler_markerA), "h3", (filler_markerB)]).%ToJSON(), .response, .sc)
+	// Trace logging is on for this job during the conclusion, as in a host with Log Trace Events, so that a $$$TRACE writes an Ens_Util.Log row that the checks below see.
+	Merge ensemble = %Ensemble
+	Set hadQuiet = $Data(%QUIET) # 2
+	Set quiet = $Get(%QUIET)
+	Set %Ensemble("DoTrace") = 1
+	Set %Ensemble("LogSystemTrace") = 1
+	Set %QUIET = 1
+	Try {
+		Do ..Conclude(request, ..EvidenceReply([(filler_markerA), "h3", (filler_markerB)]).%ToJSON(), .response, .sc)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Kill %Ensemble
+	Merge %Ensemble = ensemble
+	If hadQuiet { Set %QUIET = quiet } Else { Kill %QUIET }
 	Do $$$AssertStatusOK(sc, "a reply with two long references is concluded")
 	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "0|", "it gives no fallback")
 	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")
@@ -686,7 +702,7 @@ Method TestEvidenceCutRecorded()
 	Set cut = $Extract(filler, 1, 127)_$Char(8230)
 	Do $$$AssertEquals(answer.evidenceCut, 2, "its evidenceCut is the number of references cut")
 	Do $$$AssertEquals(answer.evidence.%Get(0)_"|"_answer.evidence.%Get(1)_"|"_answer.evidence.%Get(2), cut_"|h3|"_cut, "and its evidence holds the cut references")
-	Set all = row.Payload_"|"_row.Reasons_"|"_response.Payload_"|"_response.Reasons
+	Set all = row.Payload_"|"_row.Reasons_"|"_$Select($IsObject(response): response.Payload_"|"_response.Reasons, 1: "")
 	Do $$$AssertTrue((all '[ markerA) && (all '[ markerB), "no text beyond the cut is in the row or the response")
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND (Text [ ? OR Text [ ? OR SourceMethod = '%JSONImport')", mark, markerA, markerB)
 	Do result.%Next()
@@ -694,7 +710,8 @@ Method TestEvidenceCutRecorded()
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Job = ?", mark, $Job)
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 0, "and the conclusion writes no event log or trace row at all: the count is in the payload only")
-	Do $$$AssertEquals(($Length(row.Payload, "evidenceCut") - 1)_"|"_(row.Reasons [ "evidenceCut")_"|"_(response.Reasons [ "evidenceCut"), "1|0|0", "the count is named once, in the payload, and in no reason")
+	Do $$$AssertTrue($IsObject(response), "the conclusion gives a response")
+	Do $$$AssertEquals(($Length(row.Payload, "evidenceCut") - 1)_"|"_(row.Reasons [ "evidenceCut")_"|"_($Select($IsObject(response): response.Reasons, 1: "") [ "evidenceCut"), "1|0|0", "the count is named once, in the payload, and in no reason")
 	Set request = ..NewRequest()
 	Do ..Conclude(request, ..Outage().%ToJSON(), .response, .sc)
 	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")

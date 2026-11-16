@@ -18,7 +18,8 @@
 /// Each rule of %OnValidateObject, the parent's three and this class's nineteen, has a fixed tag as the second parameter of its error and the tag and its field are listed in
 /// REFUSALRULES: Decide's RefusalText shows "ERROR #5001 rule <tag>" for a listed tag and never a value of the reply (DW-1421). The tags are internal names, in no text a user reads.
 /// A tag that ends in -too-long is a length tag: Decide's RefusalText shows "ERROR #7201 rule <tag>" for a text over the limit of that field, with no position, length or limit. evidence-too-long is the one
-/// for an Evidence reference over 128 characters that is still there when the payload is validated (after a reply filter that lengthens a text). A reply that carries evidenceCut is refused, as an
+/// for an Evidence reference over 128 characters that the check still meets: after a reply filter that lengthens a text, a number element of more than 128 digits (the cut leaves an element
+/// that is not a string), and a long reference of the reply as it came when the import refuses the list for another element. A reply that carries evidenceCut is refused, as an
 /// unexpected property. Lane A.
 Class OcuTalon.Watch.Msg.DiagnosisPayload Extends OcuTalon.Bridge.Msg.DecisionPayload
 {
