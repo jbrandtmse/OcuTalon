@@ -528,3 +528,6 @@
 2026-11-16T08:49:47Z	Epic 23	integrated	onto=0cdee2b7 conflicts_resolved=sprint-status.yaml(last_updated:ours)
 2026-11-16T08:49:47Z	Epic 23	ledger_burndown_rescoped	key=23-14 owns=DW-1050,DW-1117,DW-1417,DW-1422(remainder) released=DW-1373(restored_resolved-by:dw-1373),DW-1376,DW-1378(lane_C) note=my_08:41Z_routing_of_DW-1373_predated_the_feature_merge_and_is_void
 2026-11-16T08:49:47Z	Story 23.15	story_chartered	key=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say owns=DW-1423,DW-1425,DW-1422(QUIT-after-250) items=5 public_text_pending=DW-1423,DW-1425,result.partnerMaySent(no_time_variant)
+2026-11-16T08:54:22Z	Story 23.15	ruling	source=prompts/dw-1415-1416-rulings-20261116.md#23.15_text_rulings texts=DW-1423(fix:only_by_a_user_who_holds),DW-1425(verbatim,>),result.partnerMaySent(verbatim) condition=one_mapping_timeline/card/chat
+2026-11-16T08:54:22Z	Story 23.15	spec_written	by=lead(small_cut_story;rulings_binding;no_separate_plan_stage) baseline=543f8bdf
+2026-11-16T08:54:22Z	Story 23.15	stage_spawned	stage=implement spawn_at=2026-11-16T08:54:22Z model=sonnet effort=high agent_name=23-15-cut-implement cycle_iteration=1
