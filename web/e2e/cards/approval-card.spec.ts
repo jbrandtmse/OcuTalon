@@ -18,6 +18,7 @@ import {
   quoted,
   readApproval,
   seedApproval,
+  seedFixRun,
   seedIncident,
   seedOtherSession,
   seedSettingChange,
@@ -37,7 +38,7 @@ import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../suppo
  * A2 is an Approve, A3 two requests and a Reject, A4 the busy rule (one request however often pressed, the notice after 10 s and the late
  * answer), A5 the press that lost the race to the phone, A6 the 1280x600 layout and A7 another session's request (signed in over HTTP,
  * with no page load), A8 the replies that are not an answer, A9 a closed incident, A10 the headline cap letting go once the reader scrolls
- * on and A11 the result band of a run that stopped partway (Story 31.2); A12 (Story 23.2, AC15) a reroute request over real HTTP and A13 (Story 23.5, AC14) a partner delay notice over real HTTP.
+ * on and A11 the result band of a run that stopped partway (Story 31.2); A12 (Story 23.2, AC15) a reroute request over real HTTP, A13 (Story 23.5, AC14) a partner delay notice over real HTTP and A15 (DW-1378) the after of a done undo over real HTTP, named by the closed card's band.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -503,6 +504,54 @@ test('A14: a setting rollback carries its change, gap and dry run over real HTTP
     expect(body.approval?.fixKind).toBe('rollback_setting');
     expect(body.approval?.dryRun?.field).toBe('TargetConfigName');
     expect(await readApproval(mine).then((one) => one.state), 'the rejected request is rejected, and nothing ran').toBe('rejected');
+  } finally {
+    await cleanFixtureRows(rows);
+    if (change !== '') await dropSettingChange(change);
+  }
+});
+
+/**
+ * A15 (DW-1378, AC8): a done undo over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http). A seeded closed incident names a setting change whose recorded new value
+ * is 7, and its undo request has a done run whose dry run's after is 9 (the System Default Setting moved while the item's own value hid it). GET /api/v1/state lists the request with its `after` 9
+ * beside the incident's `settingChange.newValue` 7, and in the page the closed card's band names the request's after, as the chat's result line does: "back to 9", never "back to 7".
+ */
+test('A15: a done undo carries its dry run\'s after over real HTTP, and the closed card\'s band names it, not the recorded new value (DW-1378)', async ({ page, request: http }) => {
+  const { user, password } = fixtureUser(KIND);
+  const rows: string[] = [];
+  let change = '';
+  try {
+    await signInOverHttp(http, user, password);
+    expect((await http.get(STATE)).status(), 'signed in').toBe(200);
+    change = await seedSettingChange({ item: 'OrdersFromPartner', setting: 'PoolSize', oldValue: '1', newValue: '7', detectedAt: today('14:08:00') });
+    const undo = refOf('A15u');
+    const incident = await seedIncident(user, { state: 'closed', closedAt: today('14:20:00'), firstAt: today('14:12:00'), settingChangeRef: change, requestRefs: undo });
+    rows.push(incident);
+    rows.push(
+      await seedApproval(user, {
+        ref: undo,
+        fixKind: 'undo_rollback',
+        state: 'done',
+        incidentRef: incident,
+        requiredRole: 'OcuTalonUser',
+        dryRun: { item: 'OrdersFromPartner', field: 'PoolSize', before: '1', after: '9' },
+        answeredAction: 'approve',
+        answeredChannel: 'web',
+        answeredBy: user,
+        answeredAt: today('14:18:00'),
+      }),
+    );
+    await seedFixRun(incident, undo, { total: 1, resent: 0, completed: 1 });
+    const state = (await (await http.get(STATE)).json()) as {
+      chat: Array<{ type: string; payload: { ref?: string; requests?: Array<Record<string, unknown>>; settingChange?: { newValue?: string } } }>;
+    };
+    const named = state.chat.find((item) => item.type === 'incident' && item.payload.ref === incident);
+    expect(named?.payload.requests, 'the state lists the done undo with the after of its dry run').toMatchObject([{ ref: undo, state: 'done', fixKind: 'undo_rollback', item: 'OrdersFromPartner', after: '9' }]);
+    expect(named?.payload.settingChange?.newValue, 'beside the recorded new value, which is not the value the item has').toBe('7');
+
+    await open(page);
+    const band = incidentCard(page, incident).locator('[data-part="result"] .text');
+    await expect(band, 'the closed card\'s band names the request\'s after').toHaveText('The rollback is undone: PoolSize on OrdersFromPartner is back to 9.', { timeout: CARD_MS });
+    await expect(band, 'and never the recorded new value').not.toContainText('back to 7');
   } finally {
     await cleanFixtureRows(rows);
     if (change !== '') await dropSettingChange(change);

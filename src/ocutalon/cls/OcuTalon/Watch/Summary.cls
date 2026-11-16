@@ -9,7 +9,7 @@
 ///         (RequestRefs, rows that name the incident): summary.requested (RaisedAt, the dry run's resend count; left out when the dry run holds no count; for a fix the user asked for in the chat summary.requestedSuspend, summary.requestedResume or summary.requestedReroute, Story 23.2, and summary.requestedPartner with the number of recipients for a partner delay notice, Story 23.5), its answer (summary.approved or summary.rejected at
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
 ///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
-///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded (none for a run that stored the flag and could not apply it), and a
+///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded (summary.settingSavedNotApplied, with the setting Enabled and the item as the target, for a run that stored the flag and could not apply it), and a
 ///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13, and a Settings-contact run that failed with an EmailOut sentence that does not say the email was never handed to the mail server (the kind's MayHaveSent), or that a restart cut short, ends with summary.partnerMaySent, DW-1416; none of these lines holds a recipient, subject or text); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
@@ -180,7 +180,7 @@ ClassMethod RequestEvents(incident As OcuTalon.Data.Incident, request As OcuTalo
 }
 
 /// The lines of a fix run: started, then ended or interrupted when it has ended. The end of a run of a kind whose targets are items says what happened to the item
-/// (suspended, resumed or not changed), not the message counts. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
+/// (suspended, resumed, not changed, or changed and not applied), not the message counts. A run of a setting kind ends with the key of Watch.SettingCause SummaryRunKey, the setting and the item of its dry run. A run of a kind whose targets are contacts is not a fix: it has no started or interrupted line, only its end, which
 /// says whether the notice was sent, kept as a draft, not sent or may have been sent.
 ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Data.ApprovalRequest, ByRef timeline, ByRef seq As %Integer) [ Private ]
 {
@@ -207,7 +207,10 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 	}
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "item") {
 		Set item = ..Parameters(request).%Get("item")
-		If (+run.Completed = 0) && (+run.Unreached > 0) Quit
+		If (+run.Completed = 0) && (+run.Unreached > 0) {
+			Do ..Event(.timeline, .seq, run.EndedAt, ##class(OcuTalon.Watch.SettingCause).#KEYSUMMARYSAVEDNOTAPPLIED, {"time": (run.EndedAt), "setting": ($Parameter(class, "ENABLEDSETTING")), "target": (item)})
+			Quit
+		}
 		Set key = $Select(+run.Completed > 0: $Select($Parameter(class, "ENABLE"): "summary.itemResumed", 1: "summary.itemSuspended"), 1: "summary.itemNotChanged")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt), "item": (item)})
 		Quit

@@ -99,6 +99,7 @@ export interface IncidentRequest {
   fixKind?: string;
   item?: string;
   count?: number;
+  after?: string;
   result?: IncidentRequestResult;
 }
 

@@ -207,14 +207,14 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 	}
 }
 
-/// Fills the item and the count of a request part for the fix kinds the user asks for in the chat: the item of a suspend or resume, the target item of a reroute and the
-/// count of its dry run, and the item of a setting kind's dry run (Story 23.3). Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
+/// Fills the item, the count and the after of a request part for the fix kinds the user asks for in the chat and the setting kinds: the item of a suspend or resume, the target item of a reroute and the count of its dry run, and the item and the after of a setting kind's dry run (Story 23.3; the after as Watch.SettingCause ShownAfter gives it, the value of the result notice's {after}, DW-1378). Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
 ClassMethod Chosen(part As OcuTalon.Live.Payload.Part.IncidentRequest, request As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 {
 	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute", "rollback_setting", "undo_rollback"), request.FixKind) Quit
 	Try {
 		If (request.FixKind = "rollback_setting") || (request.FixKind = "undo_rollback") {
 			Set part.Item = {}.%FromJSON(request.DryRun).%Get("item")
+			Set part.After = ##class(OcuTalon.Watch.SettingCause).ShownAfter(request.DryRun)
 			Quit
 		}
 		Set parameters = {}.%FromJSON(request.FixParameters)
