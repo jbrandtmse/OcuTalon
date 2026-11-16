@@ -81,3 +81,5 @@
 2026-11-16T07:35:41Z	Epic 24	integrated_forward	feature=c5c4186c(24.4b_merged) conflicts=none
 2026-11-16T07:35:41Z	Story 24.3	planner_rulings_applied	source=<coordination>/prompts/story-243-rulings-20261116.md P5=split(24.3a_delivery+web_ack,after_1.0.12_cut;24.3b_escalation+On_call_line+DW-1384+GUIDE) P1=A P2=not_paired_row P4=GUIDE_bullet(existing_separator) V1-V6=approved_with_conditions epics=24.3_stub+24.3a+24.3b spec=renamed_to_24.3a,draft ledger=DW-1251->24.3a,DW-1384->24.3b
 2026-11-16T07:35:41Z	Story 24.3a	stage_spawned	stage=plan spawn_at=2026-11-16T07:35:41Z model=opus effort=high branch=OCT-epic24 note=re-plan_narrowed
+2026-11-16T07:47:19Z	Story 24.3a	story_created	spawn_at=2026-11-16T07:36:00Z model=opus build_status=ready-for-dev warnings=oversized cycle_iteration=2
+2026-11-16T07:47:19Z	Story 24.3a	spec_validated	gate=planner_pending(V2_body:approved_page_email_texts_carry_the_diagnosed_cause,escalation_minutes,a_name_and_no_link_vs_ruling_production/count/time/link;On_call_line_false_between_24.3a_and_24.3b_merges(no_cut_between)) branch=OCT-epic24

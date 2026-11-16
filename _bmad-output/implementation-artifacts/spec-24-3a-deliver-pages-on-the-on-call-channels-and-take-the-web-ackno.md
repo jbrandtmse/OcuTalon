@@ -2,13 +2,13 @@
 title: 'Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement'
 type: 'feature'
 created: '2026-11-15'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-24-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md'
-warnings: [oversized, multiple-goals]
+warnings: [oversized]
 deferred: []
 ---
 
@@ -16,258 +16,210 @@ deferred: []
 
 ## Intent
 
-**Problem:** Story 23.4 pages the on-call person, but a page still takes Notify's generic route, so it reaches only the paired Telegram chat. The web chat records a bare row with no card, `EmailOut` refuses every kind but `digest`, the web Got it route accepts tell-now notices only, and `ReminderOps` answers every escalation timer `not_built`. As a result, nothing ever pages the backup, and the Settings On call line has to say so.
+**Problem:** Story 23.4 pages the on-call person, but a page still takes Notify's generic route. It reaches only a paired Telegram chat, the web chat keeps a bare row with no card, `EmailOut` refuses every kind but `digest`, and the web Got it route accepts tell-now notices only. So an email-only person is never paged, and nobody can acknowledge a page on the web.
 
-**Approach:** Lane B builds the rest of AD-14/AD-18's page contract:
-- a `page` route in `Notify` (the web chat card, Telegram when chosen, email when chosen);
+**Approach:** Lane B builds the delivery half of AD-14's page contract, on the Contest Planner's P1 Option A and P2 rulings:
+- a `page` route in `Notify`;
 - `EmailOut`'s fourth path, the page email;
 - the web chat page card, whose Got it submits `AckPage` through the existing got-it route;
-- the escalation timer in `ReminderOps`/`Schedule.Reminder` (`Data.Reminder` gains `Kind`, `IncidentRef`, `PageRef`; the waiter sends `Msg.Escalation`; it is re-armed at start, cancelled from `system`, and purged).
+- the undelivered report: a `not_paired` Delivery row written by Lane A's `TelegramOut`, about 5 lines.
 
-The On call line is then replaced with one that is true of the code.
+The escalation timer, the On call line, DW-1384 and the GUIDE bullet are Story 24.3b's.
 
 ## Boundaries & Constraints
 
 **Always:**
-- Pages follow the DW-1251 reading under Design Notes (P1, recommended option A). A user's page has a web chat card in the page's session. It goes to Telegram only when `telegram` is in the page row's `Channels` and the session is paired at send time, and to `EmailOut` only when `email` is in `Channels`. A person who chose one channel gets only that one, plus the chat card. An address-only page (`SessionRef` `instance`) goes to email only. The simulated phone never gets a page.
-- `EmailOut` sends a page only to the on-call key of the page row's `Role` (`oncall.primary.email` / `oncall.backup.email`), read from its row at send time. It sends at most one email per page row, claimed by a `Delivery` row of channel `email` with the page's Ref. Its subject is the catalog key `page.subject`, and its body is `Watch.Paging.Text(n, "email")`. It logs counts and outcomes only.
-- An acknowledgement reaches `IncidentManager` only as `AckPage` through `Commands.Submit` (AD-1). The web route never decides; `Watch.Paging.Acknowledge` does.
-- An escalation `Reminder` row has `SessionRef` `instance`, `Kind` `escalation` and both Refs. It is created and cancelled from origin `system` only, and it never shows in `ListReminders`, a live event or a session's lists. Each page has at most one row (a repeat ask answers the same Ref). Due, it sends `Msg.Escalation` (`IncidentRef`, `PageRef`) asynchronously to `IncidentManager`, never a Notification.
-- On the online demo nothing is paged:
-  - `Watch.Paging` already refuses;
-  - `ReminderOps` refuses an escalation, `EmailOut` sends no page, and the Notify functions are false;
-  - the got-it route answers 404 for a page Ref.
-- No on-call value, Telegram chat id or display name appears in any message body or header OcuTalon writes, any log line, audit entry, trace or payload (AD-19, NFR-11). The rendered channel text and its Delivery row are the approved exception (23.4 deviation 1).
-- Text comes only from the catalog and approved strings (Public text). Storage is append-only, with committed storage blocks (AD-5).
+- **Routing (P1 Option A).** A page is routed by its `Data.Page` row, the one the Notification's `DecisionRef` names:
+  - A user's page (its `SessionRef` names a session) always gets a web chat card in that session. The card is not counted as a channel.
+  - Telegram and email follow the row's `Channels` exactly, with no fallback either way.
+  - `TelegramOut` gets the page when `telegram` is chosen and Telegram is included. A session that is not paired at send time gets no message: `TelegramOut` writes one `not_paired` Delivery row instead, which the paging owner reads with `Ownership.DeliveryByRef(pageRef, "telegram", sessionRef)` (P2).
+  - A person given only as an address (`SessionRef` `instance`) gets email only.
+  - The simulated phone never gets a page.
+  - Notify routes no `page` on the online demo, and no `handled` to `EmailOut`. An email copy is never marked handled.
+- **Page email (V2).**
+  - It goes only to the on-call key of the row's `Role` (`oncall.primary.email` or `oncall.backup.email`), which an admin set in Settings › On call, read from its row at send time. Never to an address from the Notification, an item, the model or a message.
+  - It is sent from `email.address`.
+  - Subject: `Catalog.Render("page.subject", {production}, "email")`. Body: `Watch.Paging.Text(n, "email")`, the approved page email keys, and nothing else. No item, message or Notification text goes in verbatim.
+  - At most one email per page row, claimed by a `Delivery` row (channel `email`, kind `page`, `DecisionRef` = the page's Ref) under a lock, whatever the Notification's `SessionRef` is. Each email is tried once.
+  - Trace, logs and audit carry Refs and counts only: never an address, subject or body.
+  - It is refused on the online demo in both `Notify` (`PageWeb`, `PageEmail`) and `EmailOut` (checked first, before anything is read or written).
+- **Got it (V3).** `POST /v1/decisions/:ref/got-it` accepts a page Ref only when the signed-in session holds its own web copy of the page (`Ownership.DeliveryByRef(ref, "web", session)` of kind `page`).
+  - In every other case it answers exactly as for a missing Ref (404 `not_found`, the same body) before anything is submitted: another session's page, an unknown Ref, and any page Ref on the online demo.
+  - An accepted press submits `AckPage` {Ref, SessionRef, Channel `web`} from `web_user` through `Commands.Submit` (AD-1). `Watch.Paging.Acknowledge` decides; the route never does.
+- No on-call value, Telegram chat id or display name appears in any Ens message body or header that 24.3a writes, nor in any log line, audit entry, trace or payload (AD-19, NFR-11). The exceptions are the rendered channel text and its web/Telegram Delivery row (23.4 deviation 1).
+- Text comes from the catalog and approved strings only (Public text). No storage change.
 
 **Never:**
-- Edit `Watch/IncidentManager.cls`, `Watch/Paging.cls`, `Data/Page.cls`, `Msg/Catalog/Watch.cls`, `Core/SessionOps.cls` or `Channel/Telegram/In.cls`. Lane A edits are only the two listed under Veto items (V5).
-- Add a route, a verb, a table, a catalog key, a production item or a web dependency.
-- Let a reply to a page email acknowledge anything (ruling V5: email is untrusted content).
-- Make a timer outside `ReminderTimer` (AD-5), or create a Session row for a page.
-- Fall back from an unreachable Telegram to email, or from email to anything else. A chosen channel that cannot be reached is reported, not replaced.
+- Edit `Watch/**`, `Data/Page.cls`, `Msg/Catalog/**`, `Core/SessionOps.cls` or `Channel/Telegram/In.cls`. The only Lane A edit is the `Channel/Telegram/Out.cls` one named in V5.
+- Add a route, verb, table, column, catalog key, production item or web dependency, or change any Settings text.
+- Let a reply to a page email acknowledge anything (36.2 ruling V5; the approved texts say "Replying to this email doesn't count").
+- Touch `Schedule/**`, `Data/Reminder.cls`, `Data/Purge.cls` or the On call line (24.3b).
+- Send a page email with no page row, or more than once per row.
+- Fall back from Telegram to email or the other way round.
 
 ## I/O & Edge-Case Matrix
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| User, both channels, paired | page Notification (SessionRef S, DecisionRef P, Channels `telegram,email`) | 1 web chat card (Delivery kind `page`, text = `Paging.Text(n,"web")`, Got it); 1 Telegram `sendMessage` (23.4's); 1 email to the role's key address, subject `page.subject`, header `X-OcuTalon-Ref` | none |
-| One channel chosen | Channels `telegram` (or `email`) | the chat card plus only that channel | none |
-| Telegram chosen, not paired | Channels `telegram`, S unpaired | the chat card; no `sendMessage`; one TelegramOut Delivery row (channel telegram, kind page, DecisionRef P, FallbackReason `not_paired`, no text) that the paging owner reads with `Delivery.FindByRef` | no error status, no warning with an identity |
-| Address-only person | SessionRef `instance`, Channels `email` | email only; no chat card, no Telegram | none |
-| Email cannot go | `email` chosen, role address empty or not an address, or no mailbox (`email.address`) | no email; one Delivery claim row for P with FallbackReason `no_address` / `no_mailbox` | one count-only warning |
-| Same page again | the same Notification delivered twice to EmailOut | no second email | none |
-| Online demo | `onlineDemo` 1 | EmailOut sends nothing; `PageEmail` is false; ReminderOps refuses escalation (`not_allowed`); got-it for a page Ref answers 404 | refusal by code |
-| Web Got it on a page | POST `/v1/decisions/P/got-it` from S (body `{}`) | `AckPage` {P, web} from `web_user`; 200 `{"result":"done","handledAt"}` (`Page.Marked(P)`); the card and the Telegram copy show "Marked as handled at {time}"; the escalation is cancelled (23.4) | another session, an unknown Ref, or a Ref that is neither tell-now nor a page copy of S: 404 `not_found`, nothing submitted |
-| Second press, any channel | P already acknowledged | 200, same handledAt; nothing changes | none |
-| Escalation set | SetReminder {Kind escalation, IncidentRef, PageRef, DelaySeconds 900} from `system` | row (SessionRef `instance`, pending, Kind, Refs, DueAt now+900 s, Text ""), one live waiter, Ok 1 `set` with Ref and DueAt; no live event | from any other origin: `not_allowed`; bad Refs or delay: `refused` `bad_time`; a failed start deletes the row and answers `failed` |
-| Escalation asked again | the same PageRef | the first row's Ref and DueAt, no new row or waiter | none |
-| Escalation due | waiter wakes at DueAt, row pending | row `fired` (Late as for reminders); one `Msg.Escalation` to `IncidentManager`; no Notification, no publish | a failed send is logged with the Ref, not retried |
-| Escalation cancelled | CancelReminder {ReminderRef} from `system` on a pending escalation row | `cancelled`; the waiter interrupted; Ok 1 | from a session origin: `no_reminder`, nothing changed |
-| Restart | a pending escalation row, its waiter gone (one due during downtime) | Reconcile re-arms it; one due in the past fires about 1 s after the start | none |
-| Lists | a session lists reminders, or reads `/state` or its reminder notes | no escalation row appears | none |
-| Purge | fired or cancelled escalation rows created before the cutoff | deleted; pending and newer rows stay | as the other parts |
+| User, both channels, paired | page Notification (SessionRef S, DecisionRef P, row Channels `telegram,email`) | 1 web card (Delivery kind `page`, text `Paging.Text(n,"web")`, Got it); 1 Telegram `sendMessage` (23.4's, Got it); 1 email to the role key's address, subject `page.subject`, body `Paging.Text(n,"email")`, header `X-OcuTalon-Ref` | none |
+| One channel | Channels `telegram`, or `email` | the card plus that channel only | none |
+| Telegram chosen, unpaired | Channels `telegram`, S not paired | the card; no `sendMessage`; one Delivery row (S, telegram, kind page, DecisionRef P, FallbackReason `not_paired`, no text, no message id) | Target's existing count-only warning; no error status |
+| Telegram not included | Channels `telegram`, `TelegramOn()` 0 | the card only; no Telegram row | none |
+| Address only | SessionRef `instance`, Channels `email` | email only; no card, no Telegram | none |
+| Email cannot go | `email` chosen, role key empty or not an address (`no_address`), or `email.address` not an address (`no_mailbox`) | no email; the claim row for P marked with that FallbackReason | one count-only warning |
+| Same page again | the same page delivered to EmailOut twice, or with another SessionRef | no second email, no second row | none |
+| No page row / not chosen | DecisionRef names no `Data.Page`, or `email` not in Channels | Notify routes nothing to EmailOut; EmailOut, if reached directly, sends nothing and writes nothing | one count-only warning |
+| Online demo | `onlineDemo` 1, with a page row and every key set | Notify routes the page nowhere; EmailOut reached directly writes no row and sends nothing; got-it on a page Ref is 404 with nothing submitted | refusal by code |
+| Web Got it | POST `/v1/decisions/P/got-it` from S (body `{}`) | `AckPage` {P, S, web} from `web_user`; 200 `{"result":"done","handledAt": Page.Marked(P)}`; the card and the Telegram copy show "Marked as handled at {time}"; no email | none |
+| Second press | P already acknowledged, from any channel | 200, the same handledAt; nothing changes | none |
+| Not own copy | another session's P, an unknown Ref, a Ref that is neither the session's tell-now Decision nor its own page copy | 404 `not_found`, byte-identical to the unknown-Ref answer; no `AckPage` submitted | none |
+| Handled | `handled` Notification for P | the web card is republished with handledAt; Telegram edits its copy (23.4); EmailOut gets nothing | none |
 
 </intent-contract>
 
 ## Code Map
 
-All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-level folder.
+All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-level folder. Line numbers are from `da7526b34`.
 
 **Routing (Lane B)**
 - `Core/Rule/Notify.cls`:
-  - `page` takes the generic branches at 71-82 today.
-  - The `Notification` rule (35-83) is first-match. The second rule `DigestEmail` (84-89) adds EmailOut and is the pattern for `PageEmail`.
-- `Core/Rule/Functions.cls`: `IsSession` 8, `TelegramOn` 30, `TelegramPaired` 36. `DigestEmail` 73 is the model for `PageEmail`, including the EmailOut alive-job check and the online-demo check.
-- `Test/Core/Routing.cls` evaluates rules on a shadow router. `TestNotifyTargets` 224 enumerates every kind, so it is a shared surface; `TestNotifyDigestEmail` 317 is the sibling.
+  - The `Notification` rule is first-match. Today `page` falls to the generic branches at the rule's end (`DemoOn`/`TelegramPaired`).
+  - The rule `DigestEmail` is the pattern for the new rule `PageEmail`.
+  - The class doc lists every branch.
+- `Core/Rule/Functions.cls`:
+  - `IsSession` 8 (0 for `instance`), `TelegramOn` 30.
+  - `DigestEmail` 73 is the model for `PageEmail`: it reads `onlineDemo` with `Data.Setting.Get` and checks the alive job with `CommandsIn.ItemRunning("EmailOut")`.
+  - Function names must be unique across function sets.
+- `Test/Core/Routing.cls` evaluates rules on a shadow router:
+  - `TestNotifyTargets` 224 enumerates the kinds (a shared surface);
+  - `TestNotifyDigestEmail` 317 is the sibling;
+  - `TestFunctions` 369; `TestRuleTargetsAreProductionItems` 432.
 
-**Email (Lane B; outside epic-24's paths_hint)**
+**Email (Lane B)**
 - `Channel/Email/Out.cls`:
-  - `OnNotification` 289-299 calls `SendDigest`, which warns at 304-306 for any other kind.
-  - `SendDigest`/`SendDigestLocked` 301-365 are the page path's sibling (from-address check, render, `CheckValues`, lock, `Transmit` 277 with `REFHEADER` 96).
-  - The one-send claim pattern is `Claimed` 542 / `SendClaimed` 194.
-  - `MESSAGEUNAVAILABLE` 135.
-- `Data/Delivery.cls`: `Record` 69 (fallbackReason, digestKey), `FindByRef` 176.
-- Tests: `Test/Channel/EmailLive.cls` (running production, CI SMTP mock `ci/mock/smtp.mjs`, `OCUTALON_TEST_PLAIN_SMTP` with host `mock`); `Test/Channel/EmailOut.cls`.
+  - The class doc enumerates three paths; it gets the fourth.
+  - `OnNotification` 289 calls `SendDigest` 301, whose kind check (303-306) warns for any other kind.
+  - `SendDigest`/`SendDigestLocked` 301-364 are the sibling: online-demo check, `Fresh(email.address)`, `IsAddress`, render, `CheckValues` 487, lock, `Transmit` 277 with `REFHEADER`, `Delivery.Record`.
+  - The claim pattern is `Claimed` 542 (approval or owner+key modes), with `CLAIMPENDING`/`CLAIMFAILED`.
+- `Watch/Paging.cls` (read only):
+  - `Text` 329 (channel `email` picks the Email key and refuses on the online demo);
+  - `KEYSUBJECT`, `ONCALL`/`BACKUP`, `KEYPRIMARYEMAIL`/`KEYBACKUPEMAIL`, `KIND` (parameters, read them, never copy them);
+  - `SessionOf` 130, `Acknowledge` 251, `Handled` 267.
+- `Data/Page.cls` (read only): `RefIndexOpen`, `Role` (SQL `PageRole`), `Person`, `Channels`, `Marked` 68.
+- `Data/Delivery.cls`: `Record` 69; `FindByRef` 176 returns only the message id, so the `not_paired` report is read with `Ownership.DeliveryByRef`.
+- Tests: `Test/Channel/EmailLive.cls` (running production, the CI SMTP mock `ci/mock/smtp.mjs`, `OCUTALON_TEST_PLAIN_SMTP` with host `mock`; `TestDigestReachesTheStub` 1119 and `TestNotifyRoutesDigestToEmailOut` 1205 are the patterns); `Test/Channel/EmailOut.cls` (onlineDemo save and restore 89/109).
 
-**Web chat card and Got it (Lane B; `Channel/WebChat`, `Live/Payload/Notification.cls` and `web/src/app/chat/**` are outside epic-24's paths_hint)**
+**Web card and Got it (Lane B)**
 - `Channel/WebChat/Out.cls`:
   - `CARDKINDS` 51 has no `page`, so 82-83 record a bare row.
-  - The render branches are at 85-92, with `summary` → `Watch.Summary.Text` as the pattern.
+  - The render branches at 85-92 (`summary` → `Watch.Summary.Text`) are the pattern.
   - `OnHandled` 102-110 republishes `tellnow` cards only.
-- `Live/Payload/Notification.cls:63`: `handledAt` is set for `tellnow` only (`Handled.Marked`).
+- `Live/Payload/Notification.cls` `FromRow`:
+  - `handledAt` is set for `tellnow` only (`Handled.Marked`).
+  - The text/whyNow split by the last line applies to `tellnow` only.
 - `Web/Api.cls`:
-  - route 278;
-  - `GotIt` 898-922 (tell-now Decision only, 404 otherwise), `GotItChannel` 925.
-  - The sibling verb switch is `Channel/Telegram/In.cls:442` (AckPage chosen by the Delivery row's Kind).
-- `Data/Ownership.cls`: `DeliveryByRef` 659, `SessionRef`.
+  - route 278; route doc 33-34;
+  - `GotIt` 890-922 (tell-now Decision only, else 404 before submit), `GotItChannel` 925.
+  - The verb switch to copy in spirit is `Channel/Telegram/In.cls:442` (AckPage chosen by the Delivery row's Kind).
+- `Data/Ownership.cls`: `DeliveryByRef` (owner-exact, Ref-exact), `SessionRef`, `Decision`.
+- `Core/CommandsIn.cls:383`: `AckPage` is owned by `IncidentManager`, from `web_user,web_admin,telegram`.
 - Web:
-  - `web/src/app/chat/chat-view.ts`: `NoticeKind` 158, `noticeOf` 247 (drops `page`), `strip` 272.
-  - `web/src/app/chat/notice-card.ts:76`: Got it for `tellnow` only.
-  - `web/src/app/chat/got-it.ts` and `api-client.ts:267` stay unchanged.
-  - The web catalog already has `handled.marked` (`web/src/app/msg/catalog.ts:70`).
-- Tests: `Test/Web/GotItApi.cls` (`TestPressUpdatesEveryCopy` 83 is the pattern); `Test/Core/WebChatOut.cls` (pins CARDKINDS); `web/scripts/chat-view.test.mjs`, `chat-announcements.test.mjs`; `web/e2e/chat/notice.spec.ts` (the chromium project, `live:sign-in`).
-
-**Escalation timer (Lane B, Schedule/**)**
-- `Schedule/ReminderOps.cls`:
-  - `Set` 101-138: line 103 answers `not_built`.
-  - `Cancel` 175-212 and `IsPending` 215 (`Ownership.Reminders`, by session).
-  - `EndWaiter` 246-265 and `StartWaiter` 276-287 need the session's TraceRef.
-  - `SendIn` 292. `Refuse`/`Done`/`Result` 318-340.
-- `Schedule/Reminder.cls`:
-  - `Wake` 123-160 sends a `reminder` Notification and publishes.
-  - `StartFrom` 192-210 errors with no session.
-  - `Reconcile` 217-246 skips a row whose SessionRef names no Session (238-240).
-  - `LiveWaiter` 164.
-- `Data/Reminder.cls` 1-88 has no Kind, IncidentRef or PageRef; its storage is Values 1-11.
-- `Msg/Command/SetReminder.cls` (Kind 18, IncidentRef 21, PageRef 24), `Msg/Escalation.cls`, `Core/CommandsIn.cls:344-346` (origins include `system`), `MESSAGENOTALLOWED` 87.
-- Production items: `IncidentManager` (Production.cls:57), `ReminderOps`/`ReminderTimer` 100-101 (pool 1).
-- `Data/Purge.cls`: session-scoped Reminder delete at 104, `Keeps` pending check at 133. No part reaches `instance` rows.
-- Readers that must keep excluding instance rows (all `WHERE SessionRef = ?`): `Data/Ownership.cls:1236, 1361, 1442`.
+  - `web/src/app/chat/chat-view.ts`: `NoticeKind` 158; `noticeOf` 240-275 (the 247 filter drops `page`; the `strip` at 272).
+  - `web/src/app/chat/notice-card.ts`: Got it at 76 for `tellnow` only; the icon at 211; the class bindings at 48.
+  - `got-it.ts`, `api-client.ts` and the web catalog's `handled.marked` stay unchanged.
 - Tests:
-  - `Test/Schedule/Reminders.cls`: `TestEscalationNotBuilt` 674 and `TestEscalationGuardComesFirst` 730 are replaced.
-  - Probes `ReminderOpsProbe`, `ReminderOpsSendProbe`, `ReminderOpsStartedProbe`, `ReminderTimerDouble`, `ReminderFixture`.
-  - `docker/tests/test-production-restart.sh` (append a phase).
+  - `Test/Web/GotItApi.cls` (real HTTP: `TestPressUpdatesEveryCopy` 83, `TestOtherSessionIs404` 169, `TestDigestDecisionIs404` 192);
+  - `Test/Core/WebChatOut.cls` (pins the card kinds, `TestTellNowCard` 83);
+  - `web/scripts/chat-view.test.mjs`, `chat-announcements.test.mjs`;
+  - `web/e2e/chat/notice.spec.ts` with `web/e2e/support/iris.ts` (`irisScript` 108, `seedIncident` 1145, `sendNotification` 684, `cleanFixtureRows` 735, `fixtureUser`).
 
-**Paging owner, already built (Lane A; read only except V5)**
-- `Watch/IncidentManager.cls`:
-  - `Arm` 2082-2097 asks SetReminder escalation from `system`, with DelaySeconds = minutes x 60 and no SessionRef or key, and records `result.Ref` through `Paging.Armed`.
-  - `SendCommand` 2101 is the probe seam.
-  - `Escalated` 2104 handles `Msg.Escalation`.
-  - `Cancel` 2173-2181 is the CancelReminder from `system`, which warns unless Ok.
-- `Watch/Paging.cls`:
-  - `Notice` 150 (Channels from the role's key, SessionRef = `SessionOf` 130: the paired session, else the first, else `instance`);
-  - `Escalate` 171, `Acknowledge` 251 (channels web, phone, telegram; the session must be `SessionOf(Person)`);
-  - `Handled` 267 (one `handled` Notification to the page's session);
-  - `Text` 329 (the `email` variant at 372), `KEYSUBJECT` 58, `OnlineDemo` 90.
-- `Data/Page.cls`: Channels 34, `Marked` 67, `RefIndexOpen`.
+**Telegram (Lane A; V5)**
 - `Channel/Telegram/Out.cls`:
-  - `KINDS` 112, `GOTITKINDS` 126;
-  - the page branch 213-214; `Target` returns no chat for an unpaired session at 207-208 (V5 hooks here);
-  - `EditHandled` falls back to `Page.Marked`.
-- Tests: `Test/Watch/PagingLive.cls:327` `TestEscalationAsk` asserts `not_built` (DW-1384); `Test/Watch/IncidentProbe.cls` (`SendCommand` fixture); `Test/Channel/TelegramPageFixture.cls`, `LiveCase.cls`.
-
-**Settings line (Lane B section, Lane C pins)**
-- `web/src/app/settings/settings-view.ts:102` `telegramOnly`, and `byEmailHelp` 108, which stays.
-- `web/src/app/settings/on-call-section.ts:64-68` (`@if (!pagesBuilt())` / `oncall-telegram-only`) and its doc 43-44.
-- Pins:
-  - `web/scripts/ux-strings.test.mjs:1142`;
-  - `web/scripts/on-call-view.test.mjs:41`;
-  - `web/e2e/settings/on-call.spec.ts:44` (O1, the sign-in-2 project).
-- `pagesBuilt`: `Core/SettingsOps.cls:2811`, which stays.
+  - `OnNotification` 201; at 206-207 `Target` gives `chatId` "" for an unpaired session (it logs `LOGNOCHAT`, count-only) and the method returns OK.
+  - `KINDS` 112 and `GOTITKINDS` 126 already include `page`.
+  - `EditHandled` 365 falls back to `Page.Marked`.
+- Test fixtures (read only): `Test/Channel/TelegramPageFixture.cls` (`Start` 76), `Test/Channel/LiveCase.cls`.
 
 ## Tasks & Acceptance
 
-**Execution (Part A: delivery and the web acknowledgement):**
-- [ ] Task 0 (measure first; record under Design Notes › Measured; label anything unmeasured "(inference)"). On a fresh lane-D throwaway, measure:
-  - (a) how long `IncidentManager`'s `Arm` takes with the real waiter start (the sync chain IM → CommandsIn → ReminderOps → ReminderTimer), and that nothing deadlocks;
-  - (b) that a page Notification sent to Notify with `email` chosen reaches the SMTP mock through the enabled EmailOut, and the mail's headers;
-  - (c) what TelegramOut does today for a page to an unpaired session (no call, no warning, no row expected).
-- [ ] `Core/Rule/Functions.cls`:
-  - add `PageChannel(decisionRef, channel)`: 1 when the `Data.Page` row of the Ref exists and its `Channels` lists the channel. It reads by object access and is never true on the online demo.
-  - add `PageEmail(decisionRef)`: `PageChannel(…,"email")`, and EmailOut has an alive job (as `DigestEmail`).
-  - Both are pure reads (AD-14).
-- [ ] `Core/Rule/Notify.cls`:
+**Execution:**
+- [ ] Task 0 (measure first; record under Design Notes › Measured, and label anything unmeasured "(inference)"). On a lane-D throwaway, measure:
+  - (a) that a page Notification sent to Notify with `email` chosen reaches the SMTP mock through an enabled EmailOut, and the mail's headers;
+  - (b) that `Commands.Submit` of `AckPage` from `web_user` answers synchronously with IncidentManager's result.
+- [ ] `Core/Rule/Functions.cls` -- add three pure reads (AD-14). Each is 0 on any error and on the online demo, and reads the row by object access:
+  - `PageWeb(decisionRef, sessionRef)`: 1 when the `Data.Page` row of the Ref exists (Ref exact) and `IsSession(sessionRef)`;
+  - `PageChannel(decisionRef, channel)`: 1 when that row exists and its `Channels` names the channel;
+  - `PageEmail(decisionRef)`: `PageChannel(…,"email")` and EmailOut has an alive job (as `DigestEmail`).
+- [ ] `Core/Rule/Notify.cls` -- AD-14 as amended:
   - In the `Notification` rule, after the digest branches and before the generic ones:
-    - `Kind="page" && 'IsSession(SessionRef)`: no target;
-    - `Kind="page" && TelegramOn() && PageChannel(DecisionRef,"telegram")`: `WebChatOut,TelegramOut`;
-    - `Kind="page"`: `WebChatOut`.
-  - Add the rule `PageEmail`: `Kind="page" && PageEmail(DecisionRef)` → `EmailOut`.
-  - Update the class doc. -- AD-14 as amended (P1).
-- [ ] `Channel/Email/Out.cls`:
-  - `OnNotification` dispatches on Kind: `digest` → `SendDigest`, `page` → a new `SendPage`. The class doc lists the fourth path.
-  - `SendPage` steps:
-    - check the online demo first;
-    - read the page row (absent, or `email` not in `Channels`: a warning, nothing sent);
-    - the to-address is the role's key, `Fresh`; the from-address is `email.address`;
-    - the subject is `Catalog.Render("page.subject", {production}, "email")` (production from the Notification's Slots);
-    - the body is `Paging.Text(n, "email")`, checked with `CheckValues`;
-    - claim one `Delivery` row (channel email, kind page, DecisionRef P, `DigestKey` P) under a lock, so a second Notification for P sends nothing;
-    - one `Transmit` with `X-OcuTalon-Ref`;
-    - no address or no mailbox marks the claim row with FallbackReason `no_address` / `no_mailbox` and sends nothing.
-  - No daily cap. -- AD-14 fourth send.
+    - `Kind="page" && 'PageWeb(DecisionRef,SessionRef)` → no target;
+    - `Kind="page" && TelegramOn() && PageChannel(DecisionRef,"telegram")` → `WebChatOut,TelegramOut`;
+    - `Kind="page"` → `WebChatOut`.
+  - New rule `PageEmail`: `Kind="page" && PageEmail(DecisionRef)` → `EmailOut`.
+  - Update the class doc.
+- [ ] `Channel/Email/Out.cls` -- AD-14's fourth send:
+  - `OnNotification` dispatches `digest` → `SendDigest` and `page` → a new `SendPage`; any other kind gives one warning. Move the kind check out of `SendDigest`.
+  - `SendPage` steps, in order:
+    - the online demo: return before anything is read or written;
+    - open the page row by `DecisionRef`. If it is absent, its Ref differs, or `email` is not in `Channels`: one warning, nothing written;
+    - under `Lock +^OcuTalon.EmailOut.Page(ref):CLAIMWAIT`, an existing email row of kind page with this DecisionRef means nothing more is done. Extend `Claimed` with a DecisionRef mode; do not copy it;
+    - otherwise write the claim row: owner = the Notification's SessionRef, or `instance`; channel email; kind page; the DecisionRef; a new Ref as ChannelMessageId; FallbackReason `pending`;
+    - the to-address is `Fresh` of the role's key. Not an address: mark the row `no_address`, one warning, stop. The from-address is `Fresh(email.address)`. Not an address: mark the row `no_mailbox`, one warning, stop;
+    - subject `page.subject` with the Slots' `production`; body `Paging.Text(request,"email")`; `CheckValues`. A failure marks the row `failed` with one warning;
+    - one `Transmit` with the claim's Ref. Success clears the mark, with one info line "sent one page email". Failure marks the row `failed`, with one warning by `Sender.Classify`.
+  - No daily cap. Update the class doc (four paths).
 - [ ] `Channel/WebChat/Out.cls`:
   - `page` joins `CARDKINDS`; its text is `Watch.Paging.Text(request, ..#TEXTCHANNEL, .sc)`, beside `summary`.
   - `OnHandled` republishes a card of kind `tellnow` or `page`.
-- [ ] `Live/Payload/Notification.cls` -- `handledAt` for a `page` row is `Data.Page.Marked(DecisionRef)`.
-- [ ] `Web/Api.cls` `GotIt`:
-  - when the Ref is not the session's tell-now Decision, look for the session's own web copy of a page (`Ownership.DeliveryByRef(ref, "web", session)` of kind `page`);
-  - for a page copy, submit `AckPage` {Ref, SessionRef, Channel `GotItChannel()`} from `web_user`;
-  - answer 200 `{"result":"done","handledAt": Page.Marked(ref)}` on Ok, 404 on `not_found`, and as today otherwise;
-  - anything else stays 404 before any submit;
-  - update the route doc. -- AD-1, AD-14.
-- [ ] `web/src/app/chat/chat-view.ts`, `notice-card.ts` -- `page` joins `NoticeKind` and `noticeOf`. A page card shows Got it (channel web) until `handledAt`, then the `handled.marked` line, exactly as a tell-now card does. It has the tell-now icon and no strip.
-- [ ] `Channel/Telegram/Out.cls` (V5, Lane A, about 5 lines) -- in `OnNotification`, for kind `page` with no chat target: record one Delivery row (session, channel telegram, kind page, DecisionRef, FallbackReason `not_paired`, no text) and return OK. This is the undelivered report (P2).
-
-**Execution (Part B: the escalation timer):**
-- [ ] `Data/Reminder.cls` -- append `Kind` (32), `IncidentRef` (22), `PageRef` (22); let the compiler append the storage slots (12-14). -- AD-5, AD-18.
-- [ ] `Schedule/ReminderOps.cls`:
-  - `Set` for Kind `escalation`:
-    - refuse `not_allowed` (`CommandsIn.MESSAGENOTALLOWED`) unless the Origin is `system` and it is not the online demo;
-    - refuse `bad_time` unless IncidentRef and PageRef are Refs and DelaySeconds is a whole number > 0;
-    - an existing row for the PageRef answers `set` with its Ref and DueAt;
-    - otherwise save the row, start the waiter with an empty SuperSession, publish nothing, and answer `set`.
-  - `Cancel`: from `system`, a pending row of Kind `escalation` named by ReminderRef is cancelled without a session check, the waiter is ended, and nothing is published. Any other origin keeps today's session path, so an escalation row is `no_reminder` there.
-  - `StartWaiter`/`EndWaiter` use an empty SuperSession for an `instance` row.
   - Update the class doc.
-- [ ] `Schedule/Reminder.cls`:
-  - `Wake`: a pending escalation row is marked fired (with Late) and sends one `Msg.Escalation` (IncidentRef, PageRef) asynchronously to `IncidentManager`; no Notification and no publish.
-  - `StartFrom`: an `instance` escalation row starts with an empty SuperSession.
-  - `Reconcile`: an `instance` escalation row is re-armed, not skipped.
-  - Update the class doc.
-- [ ] `Data/Purge.cls` -- a new part deletes Reminder rows with `SessionRef = 'instance'`, a state of fired or cancelled, and `CreatedAt` before the cutoff. The class doc is updated. -- AD-27 (V1).
-
-**Execution (Part C: the line, the spine and the tests):**
-- [ ] `web/src/app/settings/settings-view.ts`, `on-call-section.ts` -- replace `telegramOnly` with `pages`, whose text is the NEW On call line verbatim (Public text). The template id becomes `oncall-pages`, shown while `pagesBuilt`; the doc comment is updated. `notYet` and `byEmailHelp` are unchanged.
-- [ ] Spine (the lead, Rule 20, once the Planner rules): amend AD-14's page bullets as P1 rules; add to AD-18 the as-built escalation (empty SuperSession, one row per PageRef, purge); add to AD-27 the `instance` reminder rows. Recompile `epic-24-context.md`.
-- [ ] `GUIDE.md` -- the On-call pages bullet (Public text), only if the Planner approves P4.
-- [ ] Tests (each with the mutation under Verification):
+- [ ] `Live/Payload/Notification.cls` `FromRow` -- for a `page` row, `handledAt` is `Data.Page.Marked(DecisionRef)`, and its text is split into text and whyNow by the last line, as for `tellnow`.
+- [ ] `Web/Api.cls` `GotIt` -- AD-1, AD-14, V3:
+  - When the Ref is not the session's tell-now Decision:
+    - unless it is the online demo, look up `Ownership.DeliveryByRef(ref,"web",session)`;
+    - a row of kind `page` submits `AckPage` {Ref, SessionRef, Channel `web`} from `web_user`;
+    - anything else stays the existing 404 before any submit.
+  - For a page: Ok → 200 `{"result":"done","handledAt": Page.Marked(ref)}`; `not_found` → the same 404; anything else as today.
+  - Update the route doc (33-34 and 890-897).
+- [ ] `web/src/app/chat/chat-view.ts`, `notice-card.ts` -- `page` joins `NoticeKind` and `noticeOf`. A page card has:
+  - the tell-now look and icon, and its whyNow line;
+  - no decision strip;
+  - Got it (channel web) until `handledAt`, then the `handled.marked` line.
+- [ ] `Channel/Telegram/Out.cls` (V5, Lane A, about 5 lines) -- in `OnNotification`, when `Target` gives no chat for a kind `page` with a session SessionRef: record one Delivery row (SessionRef, `telegram`, no message id, no approval, kind `page`, no text, DecisionRef, no dueAt, FallbackReason `not_paired`) and return OK. This is the undelivered report (P2).
+- [ ] Spine (the lead, Rule 20) -- apply the AD-14 amendment under Design Notes › Spine updates (V4), with memlog and lint_spine, and report its OLD and NEW text at merge. The implement stage does not edit the spine.
+- [ ] Tests (each pinned under Verification):
   - `Test/Core/Routing.cls`:
-    - new `TestNotifyPageTargets`: a page Notification, a session with Telegram chosen, paired or not and Telegram on or off; email only; an `instance` session; demo mode on (no SimPhoneOut); and the rule `PageEmail` with no alive EmailOut;
-    - `TestNotifyTargets` updated for the kind `page`;
-    - `TestFunctions` gains `PageChannel` and `PageEmail`.
-  - `Test/Channel/PageRoute.cls` (NEW; running production, the CI Telegram and SMTP mocks, the `TelegramPageFixture`/`EmailLive` set-up) covers Matrix rows 1-6 end to end through Notify:
-    - the mail's To is the role's key address, and the subject and body equal the catalog renderings;
-    - one email per page;
-    - the backup role's address;
-    - no identity in the messages, the logs or the audit.
-  - `Test/Schedule/Escalation.cls` (NEW, warm; ReminderOps probes) covers Matrix rows 9-15. The Reminders tests at 674 and 730 are replaced by it.
-  - `Test/Schedule/EscalationLive.cls` (NEW; running production, real `IncidentManager`, a fixture `Data.Page` on-call row with a backup configured):
-    - an escalation asked from `system` with DelaySeconds 3 makes exactly one backup page row;
-    - one cancelled before it falls due makes none.
-  - `Test/Web/GotItApi.cls` -- real HTTP:
-    - a page press gives 200 with handledAt, the row is acknowledged with channel web, and the Telegram copy is edited (mock `editMessageText`);
-    - a second press gives 200 with no change;
-    - another session gets 404 and nothing is submitted;
-    - the online demo gives 404.
-  - `Test/Watch/PagingLive.cls:327` (V5, DW-1384) -- `TestEscalationAsk` asserts Ok 1, `set`, a Ref recorded as the page's `EscalationRef`, and one pending `instance` row.
-  - `Test/Data/Tables.cls` (Reminder contract) and `Test/Data/Purge.cls` (the instance-row part).
-  - `docker/tests/test-production-restart.sh` -- append one self-contained phase. Before the kill, seed a fixture page with a pending escalation row due in about 5 s and one due in 1 h. After the start:
-    - the first fires exactly once (one backup row);
-    - the second has a live waiter.
-  - `web/scripts/chat-view.test.mjs` (the page notice view), `ux-strings.test.mjs:1142`, `on-call-view.test.mjs:41`, `web/e2e/settings/on-call.spec.ts:44` O1 (the new line, the old one absent).
-  - `web/e2e/chat/page-card.spec.ts` (NEW, Rule 3): as the LIVE user with a seeded page:
+    - new `TestNotifyPageTargets` covers every page row of the Matrix: online demo, `instance`, no row, Telegram on or off, paired or not, `handled` for a page → no EmailOut, and the rule `PageEmail` with no alive EmailOut;
+    - `TestNotifyTargets` updated for `page`;
+    - `TestFunctions` gains `PageWeb`, `PageChannel`, `PageEmail`.
+  - `Test/Core/WebChatOut.cls` -- a page card (text, kind, Delivery row), and `OnHandled` republishing it.
+  - `Test/Channel/PageRoute.cls` (NEW; running production, the CI Telegram and SMTP mocks, `TelegramPageFixture`/`EmailLive` set-up; one fixture `Data.Page` row and incident per method, removed after) -- Matrix rows 1-9 end to end, through Notify and EmailOut, with the V2 pins.
+  - `Test/Web/GotItApi.cls` -- real HTTP, with the V3 pins:
+    - a page press: 200 with handledAt; the row is acknowledged with channel web; the Telegram copy is edited (mock `editMessageText`); no mail;
+    - a second press: 200, unchanged;
+    - another session's page Ref: 404 byte-identical to an unknown Ref, and no `AckPage` header;
+    - the online demo: 404, and no `AckPage` header.
+  - `web/scripts/chat-view.test.mjs` -- the page notice view; `chat-announcements.test.mjs` only if it enumerates kinds.
+  - `web/e2e/chat/page-card.spec.ts` (NEW, Rule 3; chromium project), with a new `seedPage(user, fields)` in `web/e2e/support/iris.ts`. `seedPage` makes an incident, a page row whose `Person` is the fixture user, and the page Notification through WebChatOut, and asserts that `Paging.SessionOf(user)` is the signed-in session. As the fixture user, the spec checks that:
     - the chat shows the page card with the page text and Got it;
     - pressing it shows "Marked as handled at {time}";
-    - a reload keeps it.
+    - a reload keeps that line.
 
 **Acceptance Criteria:**
-- AC1: Given a page with each Channels value and pairing state, when Notify routes it, then exactly the targets of Matrix rows 1-4 receive it. A chosen channel that is unreachable sends nothing there. An unpaired Telegram leaves one `not_paired` row that `Delivery.FindByRef(P,"telegram",S)` returns (`Test.Core.Routing`, `Test.Channel.PageRoute`).
-- AC2: Given `email` chosen and a mailbox configured, when the page is delivered, then the SMTP mock receives one mail:
-  - To: exactly the role's key address;
+- AC1 (routing, P1): Given a page with each `Channels` value, pairing state and Telegram inclusion, when Notify routes it, then exactly the targets of Matrix rows 1-5 receive it, with no fallback. An unpaired Telegram leaves one `not_paired` row that `Ownership.DeliveryByRef(P,"telegram",S)` returns (`Routing`, `PageRoute`).
+- AC2 (page email, V2): Given `email` chosen and a mailbox, when the page is delivered, then the SMTP mock receives exactly one mail:
+  - To: exactly the role key's address, never the row's `Person` or any address in the Notification;
   - Subject: the `page.subject` rendering;
-  - body: the `page.*Email*` rendering, with an `X-OcuTalon-Ref` header.
-  A second delivery of the same Notification sends none. The online demo sends none (`PageRoute`).
-- AC3: Given a user's page, when the LIVE user opens the chat and presses Got it, then:
-  - `AckPage` reaches `IncidentManager` once with channel web;
-  - the web card and the Telegram copy show "Marked as handled at {time}";
+  - body: exactly `Paging.Text(n,"email")`;
+  - header: `X-OcuTalon-Ref` equal to the claim row's message id.
+  A backup row mails `oncall.backup.email`. A second delivery, from any session, sends nothing (`PageRoute`).
+- AC3 (online demo, V2): Given `onlineDemo` 1 with a page row and every key set, when the page is routed and when it is sent straight to EmailOut, then Notify gives no target, and EmailOut writes no Delivery row and sends no mail (`Routing`, `PageRoute`).
+- AC4 (no identity, V2/NFR-11): Given distinctive fixture addresses, user name and chat id, when AC1-AC3 run, then none of them appears in any Ens message body or header of the test window, any `Ens.Util.Log` line or any audit entry. The subject and body are absent too. Positive control: the mock received them (`PageRoute`).
+- AC5 (web Got it, V3; Integration, Rule 1): Given a user's page card, when the session that holds it presses Got it, then:
+  - `IncidentManager` records the acknowledgement once, with channel web;
+  - the web card and the Telegram copy show "Marked as handled at {time}", and no second mail goes;
   - a second press changes nothing;
-  - another session's press is 404 (`GotItApi`, `page-card.spec.ts`).
-- AC4: Given IncidentManager's escalation ask, when it is set, then one pending `instance` row with the Kind and both Refs and one live waiter exist. It appears in no session's `ListReminders`, `/state` or reminder notes. A repeat ask, or an ask from any origin but `system`, creates nothing (`Escalation`, `PagingLive` `TestEscalationAsk`).
-- AC5 (Integration, Rule 1): Given a pending escalation of an unacknowledged on-call page, when it falls due, then the real `IncidentManager` records exactly one backup page. When it is cancelled first (an acknowledgement or a close), no backup page is recorded (`EscalationLive`).
-- AC6: Given pending escalation rows and a real restart, when the production starts, then a row due during the downtime fires once within about 2 s of the reconcile, and a future one is re-armed (`live:production-restart`).
-- AC7: Given `pagesBuilt` true, when the On call section renders, then it shows the NEW On call line verbatim and not the 23.4 line (unit pins and O1).
-- AC8: Given every test above, when it runs with a distinctive fixture name and address, then no message, log line, trace, audit entry or payload holds a chat id, a display name, `oncall.*.user` or `oncall.*.email`. Each surface is checked against a distinctive fixture name or address, with a positive control.
+  - another session's press, and any press on the online demo, answers byte-identically to an unknown Ref with no `AckPage` submitted (`GotItApi`, `page-card.spec.ts`).
+- AC6: Given a page card, when the chat loads, is pressed and is reloaded, then it shows the page text, Got it, and then the handled line (`chat-view.test.mjs`, `page-card.spec.ts`).
 
 ## Spec Change Log
 
@@ -328,189 +280,221 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 
   Applied by the lead: `epics.md` replaces Story 24.3 with a split note and charters **24.3a** (this spec, renamed from `spec-24-3-...`; delivery and the web acknowledgement; merges after the 1.0.12 cut) and **24.3b** (the escalation timer, the On call line, DW-1384 and the GUIDE bullet). Status reset to `draft` for a re-plan narrowed to 24.3a with the V1-V3 conditions pinned.
 
+- 2026-11-16 (plan stage, re-plan). **The intent was amended to 24.3a's scope.**
+  - Removed from the intent: the escalation timer (Part B), the On call line and the GUIDE bullet, the V1 storage and purge, the restart phase and DW-1384. Each is listed under Design Notes › Moved to Story 24.3b.
+  - Kept: delivery per P1 Option A and P2, the page email (now carrying the V2 conditions), and the web Got it (now carrying the V3 conditions).
+  - Changed from the 24.3 plan:
+    - Notify routes no page on the online demo (`PageWeb`), so V2's "refused in BOTH Notify and EmailOut" is literal;
+    - EmailOut claims before it renders, so its own demo refusal is observable (no claim row);
+    - a page press is always channel web;
+    - the `not_paired` report is read with `Ownership.DeliveryByRef`, because `Delivery.FindByRef` returns only a message id.
+  - The 24.3 plan is kept at the scratch path `e24s3plan/spec-24-3-parent.md` and in git history (`da7526b34`).
+  - KEEP for any re-derivation: the Never list's Lane A boundary, the claim-before-render order, and the byte-identical 404.
+
 ## Review Triage Log
 
 ## Design Notes
 
-### For the Planner's gate (CHOICES, each with a recommendation)
-
-**P1. DW-1251: AD-14's page route.**
-
-The contradiction has three parts:
-- AD-14 lists "the web chat of that user's session" among the chosen channels, although `oncall.*.channels` holds only `telegram,email` (`Core/SettingsOps.cls:936-943`).
-- It says "a person with no paired chat ... gets email only", which contradicts that web copy.
-- It says every `*Out` updates its copy, although an email cannot be edited.
-
-The choice:
-- **(A, recommended)**:
-  - A user's page always has a web chat card in the page's session (it is not a "channel"). Telegram and email follow `Channels` exactly, with no fallback.
-  - "Email only" applies to an address-only person.
-  - On acknowledgement, the chat card and the Telegram copy show `handled.marked`. An email copy is never changed (it carries no acknowledgement, as ruled in V5).
-  - Why: the approved texts `page.onCallEmail`/`page.backupEmail` say "press Got it on your OcuTalon page", and AD-15 and the 36.1 rulings name "the page card's Got it" as the web acknowledgement. Only (A) gives a user who chose email-only a place to press it.
-- **(B)**: a web card only when no Telegram copy goes. A user paged by Telegram then has a single acknowledgement place, and an email-only user still gets a card. This contradicts nothing approved but adds a rule users can't see.
-
-This spec is planned on (A). Under (B), the Notify branch changes, and the On call line takes its option-B form.
-
-**P2. "Reported back to the paging owner as undelivered with a plain reason".**
-
-No contract defines the report.
-- **(a, recommended)**: the page is routed to `TelegramOut` whenever `telegram` is chosen (with Telegram on). `TelegramOut` then records a Delivery row with the code `not_paired` when there is no chat, which the paging owner reads with `Delivery.FindByRef`. It is a row, as AD-5's "rows are the truth" expects, with no new message. Cost: a cross-lane edit of about 5 lines (V5).
-- **(b)**: a new message to `IncidentManager` with a handler. That is a new contract and a Lane A handler, so it is not recommended now.
-
-Displaying the report (on the incident card, for example) is not in this story.
-
-**P3. The On call line (DW-1400 replacement; orchestrator line binding).** The NEW text is under Public text. It is true of the code at merge, DW-1409 included:
-- "for failures it finds in the productions it watches" holds for the edge where a production is unwatched between the poll and the notice, because the failure was found while it was watched.
-- "while its user stays signed in" holds for the edge where the session row is gone. `Data/Purge.cls` `Keeps` never deletes a session that a live CSP session holds, so `FailurePoller.Scope` (`Watch/FailurePoller.cls:134-141`) scopes that user's Break the feed to the session, and `Paging.Notice` refuses it (OwnerRef is not `instance`, `Watch/Paging.cls:155`).
-- "Email pages go out from the mailbox set up under Channels" holds because `PageEmail` requires an alive EmailOut and `email.address`.
-
-Recommendation: approve. The alternative, closing DW-1409 in Lane A code (`FailurePoller`/`Paging`), is larger and contended.
-
-**P4. Findability (23.4's accepted deviation 3: "24.3 carries them").**
-- Recommendation: one GUIDE.md bullet (Public text) and NO More to try item. The online demo never pages, so a try-it item would lead a judge to nothing visible.
-- Alternative: neither.
-
-**P5. Rule 5 split, recommended YES.** The story has three goals (delivery, acknowledgement paths, escalation timers) and about 25 files.
-- 24.3a: "Deliver pages on the chosen channels and acknowledge them on the web" (Part A, the routing and web tests, the P1 spine amendment).
-- 24.3b: "Page the backup when nobody acknowledges: the escalation timer" (Part B, the restart phase, DW-1384, the On call line and GUIDE).
-
-The On call line must ship with 24.3b, because it promises email and escalation. Without a split the spec stands as written; the parts are already ordered for it.
-
-### Already built (evidence on the feature; not re-planned)
-- The paging owner and its decisions: `Watch/Paging.cls` (Notice 150, Escalate 171, Acknowledge 251, Handled 267, Closing 280, Armed 293, Text 329 with the email variant 372, Audit 376) and `IncidentManager` (Arm 2082, Escalated 2104, Cancel 2173).
-- The page row: `Data/Page.cls`.
-- The catalog keys, all approved:
-  - `Msg/Catalog/Watch.cls` 1277-1374: `page.onCall`, `page.onCallEmail`, `page.backup`, `page.backupEmail`, `page.subject`, `page.onCallAlone`, `page.onCallEmailAlone`, `page.causeUnknown`;
-  - `button.gotIt` 426 and `handled.marked` 431.
-- Telegram delivery and Telegram Got it (23.4): `Channel/Telegram/Out.cls` 38-41, 112, 126, 213-214 and `EditHandled`; `Channel/Telegram/In.cls:52,442`.
-- `AckPage` routing: `Core/CommandsIn.cls:383`. `system` origins for the reminder verbs: 344-346.
-- What 23.4 sends: the escalation ask, its cancel on acknowledgement and close, and the probe fixture `Test/Watch/IncidentProbe.cls`. Until now `ReminderOps.cls:103` answers `not_built`, so `EscalationRef` stays empty.
-- `pagesBuilt`: `SettingsOps.cls:2811`.
-- Break the feed never pages: 23.4's `Test/Watch/PagingLive.cls:700` `TestSessionBreakNeverPages`.
-
-### Governing ADs (Rule 6)
-AD-1 (AckPage and the timer verbs through Submit), AD-4 (session-scoped copies and lists), AD-5 (row truth, append-only storage, the reconciler), AD-13 (object-access reads), AD-14 (the route, EmailOut's fourth send, Got it, no chat id), AD-15 (the paging rules), AD-17 (no identity in the audit), AD-18 (escalation timers), AD-19 (the on-call keys, read at send time), AD-22 (mocks, throwaways), AD-25 (the online demo), AD-26 (waiter trace sessions), AD-27 (purge), AD-29/33 (lanes, one writer), AD-32 (catalog only). The spine edits are listed in Part C.
+### Rulings applied (P1, P2, V2, V3)
+- P1 Option A: the Notify branches and the AD-14 amendment below. The email copy is never marked handled: Notify sends no `handled` to EmailOut, and EmailOut has no handled path.
+- 24.3a's "every copy shows Marked as handled" is read under P1 as every copy that can be edited: the web card and the Telegram copy.
+- 24.3a's example "a reply to the page email" is not built. 36.2's ruling V5 and the approved texts ("Replying to this email doesn't count") exclude it.
+- P2: the row is written by TelegramOut. The paging owner reads it with `Ownership.DeliveryByRef`. Showing it, on the incident card for example, is not in this story.
 
 ### Decided in-stage
-1. An escalation row's waiter has an empty SuperSession: no Session TraceRef exists for `instance`. Its trace session starts at its own start header.
-2. Repeat detection for escalations is by PageRef, not by IdempotencyKey. `Arm` sends none, and IncidentManager is not edited. No index is added; the read is SQL over few rows.
-3. Page emails have no daily cap. There is at most one per page row, and pages are at most two per incident.
-4. A page card uses the tell-now card's look and Got it. No new web text.
-5. A user with several sessions gets the card in the page's session only (`Paging.SessionOf`), the one whose Got it `Acknowledge` accepts.
-6. The simulated phone gets no page, following AD-14's list. Demo mode does not add it.
-7. With Telegram not included (`TelegramOn` false), a Telegram choice routes nowhere and leaves no `not_paired` row.
+1. **V2's body condition is read as the approved page email keys.** The 24.3a acceptance criterion says the text is "rendered by the `*Out` operation from the catalog key the author accepted from Story 36.1's proposal".
+   - Those keys (`page.onCallEmail`, `page.onCallEmailAlone`, `page.backupEmail`; Planner-approved 2026-11-12 and 2026-11-15) hold the production, the failure count and item noun, the time, the cause, the escalation minutes, the backup's or person's name, and "press Got it on your OcuTalon page". They hold no URL.
+   - So the body is exactly `Paging.Text(n,"email")`, and no link is added: a link would be new public text.
+   - `{cause}` is the diagnosed cause, a model-written sentence cleaned by the catalog's `sentence` rules, or the setting-change cause. It is the same sentence that the web card and the Telegram copy carry. No item or message text is ever a slot. (Flagged to the orchestrator as new beyond the rulings.)
+2. The claim is per page row (DecisionRef, channel email, kind page), not per session, so a page goes once whatever the Notification's SessionRef is.
+3. An email that cannot go (`no_address`, `no_mailbox`, `failed`) keeps its claim row and is never retried (one try, as the digest). The row is the undelivered report for email.
+4. Page emails have no daily cap: at most one per page row, and at most two pages per incident.
+5. A page press on the web is always channel `web`. No page copy exists on the simulated phone.
+6. With Telegram not included, a Telegram choice routes nowhere and leaves no row (the same as 24.3's decision 7).
+7. A page card uses the tell-now card's look, icon, whyNow line and Got it, with no strip and no new web text.
+8. An address-only person can only have `email`: `SettingsOps` refuses `telegram` for an address (Telegram is reachable only for a user with a paired session). So "email only" and "Channels exactly" agree.
+
+### Moved to Story 24.3b
+- `Schedule/ReminderOps.cls` -- Moved to Story 24.3b: the escalation `Set`/`Cancel` (it answers `not_built` until then).
+- `Schedule/Reminder.cls` (`ReminderTimer`'s `Wake`/`StartFrom`) -- Moved to Story 24.3b: the waiter that sends `Msg.Escalation`.
+- The reconciler re-arm of `instance` escalation rows -- Moved to Story 24.3b.
+- V1's `Data.Reminder` columns (`Kind`, `IncidentRef`, `PageRef`) -- Moved to Story 24.3b.
+- V1's `Data.Purge` part (finished `instance` rows) -- Moved to Story 24.3b.
+- V1's conditions -- Moved to Story 24.3b: re-armed exactly once, so a restart never pages twice; the purge removes only finished escalation rows; nothing is written on the demo; at most one escalation to the backup per page.
+- The On call line (new text 1, approved verbatim, Option A) and its pins in `ux-strings`, `on-call-view` and O1 -- Moved to Story 24.3b.
+- DW-1384 (`Test/Watch/PagingLive.cls` `TestEscalationAsk`) -- Moved to Story 24.3b.
+- The GUIDE.md On-call pages bullet (P4) -- Moved to Story 24.3b.
+- The `live:production-restart` phase -- Moved to Story 24.3b.
+- The AD-18 and AD-27 amendments (V4) -- Moved to Story 24.3b, with the timer they describe.
+
+### Spine updates (V4; Rule 20; the lead applies them and reports OLD and NEW at merge)
+AD-14, in `ARCHITECTURE-SPINE.md` under Rule › Outbound routing.
+
+**OLD (1), verbatim:**
+> - **The `page` kind (step 5)** [ADDED 2026-11-12, Story 36.2, Contest Planner rulings V1-V7]. From Story 24.3, kind `page` goes only to the paged person's chosen channels:
+>   - the web chat of that user's session;
+>   - the paired Telegram chat of that session (`telegram` chosen and paired at send time; `TelegramOut`'s delivery is Story 23.4);
+>   - `EmailOut` (`email` chosen).
+> - A person with no paired chat, or one given only as an address, gets email only. Until Story 24.3, a `page` takes the generic route and `Notify` is unchanged.
+
+**NEW (1):**
+> - **The `page` kind (step 5)** [ADDED 2026-11-12, Story 36.2, Contest Planner rulings V1-V7] [AMENDED 2026-11-16, Story 24.3a, Contest Planner 24.3 rulings P1 (Option A) and P2, DW-1251]. Notify routes kind `page` by its `Data.Page` row (the Notification's `DecisionRef`), and routes none on the online demo (`Functions.PageWeb`, `PageChannel`, `PageEmail`):
+>   - a user's page (its `SessionRef` a session, `Watch.Paging.SessionOf`'s) always gets a web chat card in that session; the card is not counted as a channel;
+>   - `TelegramOut` when `telegram` is in the row's `Channels` and Telegram is included. A session not paired at send time gets no message; `TelegramOut` records one `Delivery` row (channel `telegram`, kind `page`, the page's Ref, FallbackReason `not_paired`, no text), the undelivered report the paging owner reads with `Ownership.DeliveryByRef(pageRef, "telegram", sessionRef)`;
+>   - `EmailOut` (rule `PageEmail`) when `email` is in `Channels` and `EmailOut` has an alive job.
+> - Telegram and email follow `Channels` exactly, with no fallback from one to the other. A person given only as an address (`SessionRef` `instance`) gets email only. The simulated phone never gets a page.
+
+**OLD (2), verbatim:**
+> - On acknowledgement, the paging owner sends one `handled` Notification (`DecisionRef` = the page's `Ref`) per session holding a copy, and each `*Out` updates its copy to `handled.marked`.
+
+**NEW (2):**
+> - On acknowledgement, the paging owner sends one `handled` Notification (`DecisionRef` = the page's `Ref`) per session holding a copy. The web chat card and the Telegram copy show `handled.marked`. An email copy is never changed, and Notify sends `EmailOut` no `handled` [AMENDED 2026-11-16, Story 24.3a, P1].
+
+**OLD (3), verbatim (end of the fourth-send bullet):**
+> The email carries no acknowledgement. Story 36.2 sends nothing.
+
+**NEW (3):**
+> The email carries no acknowledgement. Story 36.2 sends nothing. As built in Story 24.3a [AMENDED 2026-11-16, Contest Planner 24.3 ruling V2]:
+> - the subject is `page.subject` and the body is exactly `Watch.Paging.Text(n, "email")`, the approved page email keys;
+> - the online demo is checked before anything is read or written;
+> - the claim is the page's Ref (`DecisionRef`, kind `page`), whatever the session, under a lock, and is written before the render. A send that cannot go keeps its claim, marked `no_address`, `no_mailbox` or `failed`, and is never retried;
+> - there is no daily cap;
+> - logs carry counts and outcomes only.
+
+**OLD (4), verbatim (the end of the Got it bullet's 18.4 sentence):**
+> the web chat's and the Simulated phone's **Got it** submit `GotIt` through `POST /api/v1/decisions/:ref/got-it` (origin `web_user`, 404 unless the Decision is the session's own tell-now one);
+
+**NEW (4):**
+> the web chat's and the Simulated phone's **Got it** submit `GotIt` through `POST /api/v1/decisions/:ref/got-it` (origin `web_user`, 404 unless the Decision is the session's own tell-now one). As built in Story 24.3a, the route also takes the session's own web copy of a page (`Ownership.DeliveryByRef(ref, "web", session)` of kind `page`) and submits `AckPage` (channel `web`) instead. Any other page Ref, and every page Ref on the online demo, answers 404 exactly as a missing Ref does, before anything is submitted [AMENDED 2026-11-16, Story 24.3a, Contest Planner 24.3 ruling V3];
+
+Memlog: `AD-14 amended (24.3a, P1/P2/V2/V3): page route by the Page row, web card always, channels exactly, no fallback, not_paired report, page email claim/body, got-it accepts own page copy; prevents email-only users having no Got it and a page reaching a channel nobody chose`.
+
+### Governing ADs (Rule 6)
+- AD-1: `AckPage` through Submit.
+- AD-4: session-scoped copies.
+- AD-5: rows are the truth; the Delivery report.
+- AD-13: object-access reads.
+- AD-14: the route, EmailOut's fourth send, Got it, no chat id.
+- AD-15: the paging rules.
+- AD-17: no identity in the audit.
+- AD-19: the on-call keys, read at send time.
+- AD-22: mocks and throwaways.
+- AD-25: the online demo.
+- AD-29 and AD-33: lanes, one writer.
+- AD-32: catalog only.
 
 ### Integration ACs (Rule 1) and linkage (Rule 2)
-- **Integration:** AC5 (the real IncidentManager consumes the waiter's `Msg.Escalation`), AC3 (IncidentManager consumes the web route's `AckPage`; TelegramOut consumes the `handled`), AC1/AC2 (WebChatOut, TelegramOut, EmailOut and the SMTP mock consume Notify's route).
-- **Consumes:** 23.4's `Watch.Paging` (Text, Acknowledge, Marked), `Data.Page`, IncidentManager's `Arm`/`Cancel`/`Escalated`; 36.2's `AckPage`, `Msg.Escalation`, `SetReminder` fields; 21.6/21.7's EmailOut claim and transmit; 18.4's got-it route and card.
-- **Consumed-by:** 24.4a/b's cards (the `page` payload, unchanged); the burn-down for any undelivered-report display (P2).
+- **Integration:**
+  - AC5: the real `IncidentManager` consumes the web route's `AckPage` and sends `handled`, which WebChatOut and TelegramOut consume.
+  - AC1/AC2: WebChatOut, TelegramOut, EmailOut and the SMTP mock consume Notify's route.
+  - The `not_paired` row has no consumer code in this story. Its reader is `Ownership.DeliveryByRef`, pinned in `PageRoute`. Its first display is not chartered (P2: display is out of scope).
+- **Consumes:** 23.4's `Watch.Paging` (`Text`, `Acknowledge`, `SessionOf`, `Handled`), `Data.Page`, and IncidentManager's AckPage handling; 36.2's `AckPage`; 21.6/21.7's EmailOut claim and transmit; 18.4's got-it route and card.
+- **Consumed-by:**
+  - 24.3b: the escalation is cancelled by any acknowledgement, the web one included, and its On call line describes this route.
+  - 24.4a/b: the cards (the `page` payload, unchanged).
 
 ### Extend, don't copy (Rule 2)
-- `SendPage` extends EmailOut's digest path and claim pattern.
+- `SendPage` extends the digest path's steps and `Claimed`, which gains a DecisionRef mode.
 - `PageEmail` mirrors `DigestEmail`.
-- The page card reuses the tell-now card and `GotIt`.
-- The got-it route switches verb as `TelegramIn` does.
-- The escalation reuses ReminderOps' row, waiter, reconcile and purge.
-- The tests reuse `EmailLive`, `TelegramPageFixture`, `LiveCase`, the ReminderOps probes and `Fixture`.
+- The page card reuses the tell-now card and `got-it.ts`.
+- The route's verb switch follows `TelegramIn`'s.
+- The tests reuse `EmailLive`, `TelegramPageFixture`, `LiveCase` and `e2e/support/iris.ts`.
 
-### Ledger (Rule 17; `LEDGER slice 24-3-…`)
-- DW-1251: addressed by P1 (choice A) and the AD-14 amendment (Part C).
-- DW-1384: addressed by the `TestEscalationAsk` task (V5).
+### Ledger (Rule 17; `LEDGER slice 24-3a-deliver-pages-on-the-on-call-channels-and-take-the-web-ackno`)
+- DW-1251 (the only entry): addressed. P1 Option A settles the reading; the AD-14 amendment above (OLD/NEW 1 and 2) writes it, and AC1 pins it.
+
+### Files (V5/V6; the orchestrator coordinates overlaps)
+- **Lane A** (cross-lane, V5): `src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls` only.
+- **Lane B, source:**
+  - `Core/Rule/Functions.cls`, `Core/Rule/Notify.cls`;
+  - `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`;
+  - `Live/Payload/Notification.cls`, `Web/Api.cls`;
+  - `web/src/app/chat/chat-view.ts`, `web/src/app/chat/notice-card.ts`.
+- **Lane B, tests:**
+  - `Test/Core/Routing.cls`, `Test/Core/WebChatOut.cls`;
+  - `Test/Channel/PageRoute.cls` (NEW);
+  - `Test/Web/GotItApi.cls`;
+  - `web/scripts/chat-view.test.mjs` (and `chat-announcements.test.mjs` if it enumerates kinds);
+  - `web/e2e/chat/page-card.spec.ts` (NEW), `web/e2e/support/iris.ts`.
+- **Spine:** `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` and `.memlog.md` (the lead).
+- Outside epic-24's `paths_hint` (footprint extensions to report): `Core/Rule/Functions.cls`, `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`, `Live/Payload/Notification.cls`, `web/src/app/chat/{chat-view,notice-card}.ts`, `web/scripts/chat-view.test.mjs` (and `chat-announcements.test.mjs`), plus the Lane A `Channel/Telegram/Out.cls`. `web/src/app/chat/**` is also in epic-25's `paths_hint`.
 
 ### CI
-- No new unit. `Test.Schedule.*` and `Test.Channel.PageRoute` join their areas' shards.
-- `page-card.spec.ts` runs in the chromium project (`live:sign-in`), O1 in sign-in-2.
-- The restart phase adds about 10-20 s to `production` (inference).
+- No new unit. `Test.Channel.PageRoute` joins `Test.Channel`'s shard.
+- `page-card.spec.ts` runs in the chromium project (`live:sign-in`).
 
 ## Public text
+No new text. Used unchanged:
+- `page.onCall`, `page.onCallAlone`, `page.backup` (web and Telegram);
+- `page.onCallEmail`, `page.onCallEmailAlone`, `page.backupEmail`, `page.subject` (email);
+- `page.causeUnknown`;
+- `button.gotIt`;
+- `handled.marked`;
+- the got-it 404 `MESSAGENOTFOUND`.
 
-1. **NEW — the On call line** (`web/src/app/settings/settings-view.ts` `onCall.pages`; replaces DW-1400's line), verbatim, option A:
-   "OcuTalon pages the on-call person for failures it finds in the productions it watches: in their OcuTalon chat if they're an OcuTalon user, and by Telegram or email as chosen below. Email pages go out from the mailbox set up under Channels. If nobody presses Got it within the minutes below, OcuTalon pages the backup. A practice Break the feed pages nobody while its user stays signed in."
-   - Option-B form (only if P1 = B): the same text with "in their OcuTalon chat if they're an OcuTalon user, and by Telegram or email as chosen below" replaced by "by Telegram or email as chosen below, and in their OcuTalon chat when no Telegram message goes".
-2. **NEW — the GUIDE.md bullet** (only if P4 is approved):
-   "- **On-call pages.** On your own install, choose an on-call person and a backup in Settings > On call. When OcuTalon finds failures in a production it watches, it pages the on-call person in their OcuTalon chat and by Telegram or email, and pages the backup if nobody presses Got it in time. The online demo never pages anyone."
-3. Existing approved text, used unchanged:
-   - `page.onCall`, `page.onCallEmail`, `page.backup`, `page.backupEmail`, `page.subject` "OcuTalon page: {production} incident" (36.1 gate, 2026-11-12);
-   - `page.onCallAlone`, `page.onCallEmailAlone`, `page.causeUnknown` (23.4 Planner ruling, 2026-11-15);
-   - `button.gotIt` "Got it";
-   - `handled.marked` "Marked as handled at {time}" (UX-DR143; `Msg/Catalog/Watch.cls:431`, `web/src/app/msg/catalog.ts:70`): existing, not new;
-   - `onCall.notYet` and `onCall.byEmailHelp` (36.4);
-   - the got-it 404 `MESSAGENOTFOUND`;
-   - `CommandsIn.MESSAGENOTALLOWED`, model-facing and never shown.
+Each was approved at the 36.1 gate (2026-11-12) or by the 23.4 Planner ruling (2026-11-15). The Settings On call line is unchanged; DW-1400's line stands until 24.3b (P5).
 
 ## Veto items
-
-- **V1 (NEW) Stored data.**
-  - `Data.Reminder` appends `Kind`, `IncidentRef` and `PageRef` (names fixed by AD-18 at 36.2).
-  - Escalation rows are owned by `instance`.
-  - Retention: `Data.Purge` deletes finished `instance` reminder rows older than `daysToKeep`. This is a new purge part (AD-27).
-  - Online demo: no row is ever written (ReminderOps refuses; Paging never asks).
-- **V2 (NEW) Outward action: page emails** through EmailOut to the on-call key's address, at most one per page row, with no approval (FR-28; AD-14's fourth send, ruled V5 at 36.2).
-  - Online demo: never. Paging refuses, `PageEmail` is false and EmailOut refuses, each by code.
-  - Tests reach only the CI SMTP mock.
-- **V3 (NEW) Changed route:** `POST /v1/decisions/:ref/got-it` also accepts the session's own page copy and submits `AckPage` (origin `web_user`). No new route or grant.
-  - Online demo: 404, since no page exists and `Acknowledge` answers `not_found`.
-- **V4 (NEW) AD amendment:** AD-14's page bullets per P1. AD-18 and AD-27 get as-built additions (Part C).
-- **V5 (NEW) Cross-lane edits (Lane A):**
-  - `Channel/Telegram/Out.cls`: the `not_paired` row, about 5 lines (P2);
-  - `Test/Watch/PagingLive.cls` `TestEscalationAsk`: DW-1384;
-  - no `IncidentManager`, `Paging` or `Data.Page` edit.
-- **V6 (NEW) Footprint extensions** (Lane B files outside epic-24's paths_hint):
-  - `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`;
-  - `Core/Rule/Functions.cls`, `Live/Payload/Notification.cls`, `Data/Purge.cls`;
-  - `web/src/app/chat/{chat-view,notice-card}.ts`, `web/scripts/chat-view.test.mjs`;
-  - `docker/tests/test-production-restart.sh`, `GUIDE.md` (P4).
-  - `Watch/**` is untouched.
-- **V7 (NEW) Public text:** the On call line and the GUIDE bullet.
-- None: a new verb, table, catalog key, production item, privilege or web dependency.
+All were approved at the 24.3 gate with the conditions pinned below.
+- **V2. Outward action: page emails**, through EmailOut, under the conditions (a). Tests reach only the CI SMTP mock.
+- **V3. Changed route:** got-it also takes the session's own page copy, under the conditions (b). No new route or grant.
+- **V4. AD-14 amendment:** OLD/NEW above.
+- **V5. Cross-lane edit:** the `not_paired` row in `Channel/Telegram/Out.cls`, about 5 lines.
+- **V6. Footprint extensions:** the Lane B files above.
+- None: a new verb, table, column, catalog key, production item, privilege, web dependency or stored-data change.
 
 ## Verification
 
-Every IRIS call runs from the worktree root with:
+Every `ci/iris.sh`/`ci/warm.sh` call runs from the worktree root with:
 
 ```
 OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=24 stage=implement'
 ```
 
-- The warm tag is `e24s3iw` and the fresh tag is `e24s3i`. IRIS MCP lookups run only on `ocutalon-slot-d`/`OCUTALON`.
-- Each line is one foreground call (`timeout: 600000`) that ends inside about 150 s. Run one class or one `Class:Method` per call, and never two test calls in one message.
-- After a `web/` change, `ci/iris.sh build` comes before a browser part.
+- The warm tag is `e24s3aiw` and the fresh tag is `e24s3ai`. IRIS MCP calls go to `ocutalon-slot-d`/`OCUTALON` only.
+- Each line is one foreground call (`timeout: 600000`) that ends inside about 150 s. Run one class, or one `Class:Method`, per call, and never two test calls in one message.
+- After a `web/` change, run `ci/iris.sh build` before a browser part.
 
 **Shared surfaces:**
-- Notify's targets for every kind (`Test.Core.Routing` `TestNotifyTargets`, `TestFunctions`, `TestRuleTargetsAreProductionItems`; `Test.Core.RoutingProduction`).
-- WebChatOut `CARDKINDS` (`Test.Core.WebChatOut`) and the chat's notice kinds (`chat-view.test.mjs`, `chat-announcements.test.mjs`, `web/e2e/chat/notice.spec.ts`).
-- The Reminder contract and its readers: `Test.Data.Tables`, `Test.Data.Ownership`, `Test.Data.Purge`, `Test.Schedule.Reminders` 674/730, the storage check `docker/tests/test-storage.sh`.
-- `Test.Watch.PagingLive` `TestEscalationAsk`.
-- The On call texts (`ux-strings`, `on-call-view`, O1).
-- The got-it route (`Test.Web.GotItApi` `TestDigestDecisionIs404` stays 404).
-- The mock call logs: the Telegram chat ids and the SMTP mailboxes used are new to this story.
+- Notify's targets for every kind: `Test.Core.Routing` (`TestNotifyTargets`, `TestFunctions`, `TestRuleTargetsAreProductionItems`) and `Test.Core.RoutingProduction`.
+- WebChatOut's card kinds (`Test.Core.WebChatOut`) and the chat's notice kinds (`chat-view.test.mjs`, `chat-announcements.test.mjs`, `web/e2e/chat/notice.spec.ts`).
+- The got-it route: `Test.Web.GotItApi` (`TestDigestDecisionIs404` and `TestOtherSessionIs404` stay 404).
+- EmailOut's paths: `Test.Channel.EmailOut` and `EmailLive`. The digest kind check moves to `OnNotification`.
+- Readers of telegram Delivery rows: grep for `"telegram"` with `Delivery`/`DeliveryByRef`, so that a `not_paired` row, which has no message id, breaks none of them.
+- The mock call logs: the Telegram chat ids and the SMTP mailboxes this story uses are its own.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Commands:**
 - (loop) `npm --prefix web test` -- passes.
 - (once) `npm --prefix web run lint` and `npm --prefix web run build` -- pass, with no budget error.
-- (once) `... OCUTALON_RUN_TAG=e24s3iw ci/warm.sh up` -- ready.
-- (loop) `... OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s3iw ci/iris.sh class <Class>`, one call each:
-  - `OcuTalon.Test.Core.Routing`, `OcuTalon.Test.Schedule.Escalation`, `OcuTalon.Test.Schedule.Reminders`;
-  - `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Data.Purge`, `OcuTalon.Test.Core.WebChatOut`;
-  - `OcuTalon.Test.Channel.EmailOut`, `OcuTalon.Test.Web.GotItApi`.
-  - Each gives `CLASS ... passed`.
-- (once) `... OCUTALON_RUN_TAG=e24s3iw ci/warm.sh down`.
-- (once, each its own call) `... OCUTALON_RUN_TAG=e24s3i ci/iris.sh class` for `OcuTalon.Test.Channel.PageRoute`, `OcuTalon.Test.Schedule.EscalationLive`, `OcuTalon.Test.Watch.PagingLive` -- passes on a fresh stack. Split by `Class:Method` if over 150 s.
-- (once) `... OCUTALON_RUN_TAG=e24s3i ci/iris.sh live production-restart` -- passes (split if needed; at most once locally).
-- (once) `... OCUTALON_RUN_TAG=e24s3i ci/iris.sh build`, then (loop) `... ci/iris.sh live sign-in --part k/N` for the part holding `chat/page-card.spec.ts`, and `live sign-in-2 --part k/N` for O1. Choose N so each part ends inside about 150 s.
-- (once) `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-storage.sh` -- pass.
+- (once) `… OCUTALON_RUN_TAG=e24s3aiw ci/warm.sh up` -- ready.
+- (loop) `… OCUTALON_WARM=1 OCUTALON_RUN_TAG=e24s3aiw ci/iris.sh class <Class>`, one call each:
+  - `OcuTalon.Test.Core.Routing`, `OcuTalon.Test.Core.WebChatOut`;
+  - `OcuTalon.Test.Channel.PageRoute`, `OcuTalon.Test.Channel.EmailOut`;
+  - `OcuTalon.Test.Web.GotItApi`.
+  - Each gives `CLASS … passed`.
+- (once) `… OCUTALON_RUN_TAG=e24s3aiw ci/warm.sh down`.
+- (once, each its own call) `… OCUTALON_RUN_TAG=e24s3ai ci/iris.sh class OcuTalon.Test.Channel.PageRoute`, then `OcuTalon.Test.Channel.EmailLive` and `OcuTalon.Test.Web.GotItApi` -- pass on a fresh stack. Split by `Class:Method` if a call nears 150 s.
+- (once) `… OCUTALON_RUN_TAG=e24s3ai ci/iris.sh build`. Then (loop) `… ci/iris.sh live sign-in --project chromium --part k/N` for the part holding `chat/page-card.spec.ts` and `chat/notice.spec.ts` (`web/scripts/e2e-part.mjs` lists the parts). Choose N so each part ends inside about 150 s.
+- (once) `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-ci-config.sh` -- pass.
 
-**Mutations (Rule 19, planned; the implement stage records the observed red):**
-- AC1: drop `TelegramOut` from the page branch → `TestNotifyPageTargets` (and `PageRoute` sendMessage count).
-- AC2: send to `email.address` instead of the role key → `PageRoute` To assertion. Remove the claim → the "one email per page" case.
-- AC3: submit `GotIt` instead of `AckPage` → `GotItApi` page press (row not acknowledged). Remove `page` from the card's Got it condition → `page-card.spec.ts`.
-- AC4: drop the origin check → the `Escalation` non-system case. Publish the reminder event → the no-live-event case.
-- AC5: send a Notification instead of `Msg.Escalation` in `Wake` → `EscalationLive` (no backup row).
-- AC6: skip `instance` rows in `Reconcile` → the restart phase.
-- AC7: restore the 23.4 line → `ux-strings`/`on-call-view`/O1.
-- AC8: put the role address in the EmailOut warning → the `PageRoute` log check.
+**Mutations (Rule 19; one per AC and per ruled condition; the implement stage records each observed red):**
+- AC1 (P1, channels exactly): route a paired session's page to TelegramOut by `TelegramPaired` instead of `PageChannel` → `TestNotifyPageTargets` (the email-only, paired case).
+- AC1 (P2): drop the `not_paired` Record in TelegramOut → `PageRoute` (no row from `DeliveryByRef`).
+- AC2 / V2 (only the admin-set address): send to the page row's `Person` instead of the role key → `PageRoute` To assertion (the row's Person is a distinctive other address).
+- V2 (the backup's key): always read `oncall.primary.email` → `PageRoute` backup case.
+- V2 (body from the fixed page keys only): append the fixture incident's first item text (a distinctive marker) to the body → `PageRoute` body equality and item-marker absence check. The positive control is that the marker is in the incident's item.
+- V2 (at most one per page row): remove the claim check → `PageRoute` "same page again" (two mails).
+- V2 (refused in Notify on the online demo): drop the online-demo check from `PageEmail` → `TestNotifyPageTargets` demo case (EmailOut target). Drop it from `PageWeb` → the same case (WebChatOut target).
+- V2 (refused in EmailOut on the online demo): remove `SendPage`'s demo check → `PageRoute` demo case (a claim row is written).
+- AC4 / V2 (ids only): put the to-address in `SendPage`'s sent info line → `PageRoute` log check.
+- AC5 (Integration): submit `GotIt` instead of `AckPage` for a page copy → `GotItApi` page press (the row is not acknowledged).
+- V3 (own copy only): look the copy up as any owner's row of that Ref, not `DeliveryByRef(…, session)` → `GotItApi` other-session case (an `AckPage` header appears).
+- V3 (byte-identical 404): answer 403 `forbidden` for another session's page → the same case (status and body compare).
+- V3 (online demo): remove the route's demo check → `GotItApi` demo case (an `AckPage` header appears).
+- AC6: remove `page` from the card's Got it condition → `page-card.spec.ts` (no Got it) and `chat-view.test.mjs`.
+- P1 (email never marked handled): drop `Kind="page"` from the rule `PageEmail` → `TestNotifyPageTargets` `handled` case (EmailOut target).
 
 ## Auto Run Result
 
