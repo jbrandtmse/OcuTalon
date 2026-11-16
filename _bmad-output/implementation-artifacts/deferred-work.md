@@ -8604,6 +8604,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-24-4a code review | severity: med | fix-risk: med | footprint: in-story
 - evidence: SENSITIVEKEYS has no signature, sig or auth and the bare rule covers only key=; the redactor ruling listed user:password, token=, key= and Bearer; widening the shared redactor (logs everywhere) is a security-posture call
 - 2026-11-16T01:11:57Z status=decision-pending owner=burndown by=cr note=owner: approve more shapes in Redact.Text (sig=, a signature suffix, auth=) with pins, or keep the ruled list
+- 2026-11-16T03:10:05Z status=resolved-by:burndown by=merge_gate note=Redact.Text redacts sig, signature, X-Amz-Signature, X-Amz-Credential, X-Amz-Security-Token and auth values (name kept); branch OCT-epic24-dw1412 a6280a77, ci 43792972706+43792972612 green
 
 ### DW-1413: Each setting-kind dry run holds a detached Expire process for VALUESSECONDS (60 s) even after the take; from a licensed process (a test, a terminal) the 8th concurrent JOB fails on IRIS Community (8 connections)
 - source: spec-24-4a code review | severity: low | fix-risk: low | footprint: in-story

@@ -15,8 +15,10 @@
 ///     tokens (6 or more digits, a colon and 30 or more of A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub tokens (ghp_ and the
 ///     other gh*_ forms, github_pat_), AWS access key ids (AKIA) and the user and password of a URL. A key of SENSITIVEKEYS followed by = or :
 ///     and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is not JSON and in the string values of
-///     JSON that is. So is the bare key= shape (a URL's ?key=): a name that is exactly key, in any case and not preceded by an ASCII letter or digit,
-///     _, . or -, followed by = (never :) and a value; monkey=, cacheKey=, keyboard= and the prose "key: value" are kept.
+///     JSON that is. So is the bare key= shape (a URL's ?key=, and its signature parameters sig=, signature=, X-Amz-Signature=, X-Amz-Credential=,
+///     X-Amz-Security-Token= and auth=, as in an Azure SAS or an S3 presigned URL): a name that is exactly one of BARENAMES, in any case and not
+///     preceded by an ASCII letter or digit, _, . or -, followed by = (never :) and a value, of which only the value is replaced (the name stays, so a URL
+///     stays readable); monkey=, cacheKey=, keyboard=, mysig=, oauth= and the prose "key: value" are kept.
 ///   - It is idempotent: Text(Text(x)) is Text(x).
 ///   - It never throws and never logs or stores its input. When it fails (for example when the redacted form of a text would
 ///     pass the limit of a string), it fails closed: it returns UNCHECKED and nothing of the text.
@@ -33,6 +35,11 @@ Parameter UNCHECKED = "[redacted: the text could not be checked]";
 /// The names of the keys whose values are sensitive, comma-separated, in lower case with _, -, . and spaces removed. A key whose name ends
 /// with one of them is sensitive too.
 Parameter SENSITIVEKEYS = "password,passwd,pwd,passphrase,secret,clientsecret,token,accesstoken,refreshtoken,idtoken,bottoken,apikey,xapikey,authorization,cookie,privatekey,chatid,firstname,lastname,username,displayname,secretkey,accesskey,userid,fromid";
+
+/// The names of the bare name= shape (BareKeyPattern), comma-separated, in lower case: key, and the signature parameters of a URL's query. Each is a whole
+/// name, not preceded by an ASCII letter or digit, _, . or -. None of them is a name of SENSITIVEKEYS, though x-amz-security-token ends with one (token) and is
+/// also replaced by that rule; it is listed so that its value is replaced whichever rule reads it.
+Parameter BARENAMES = "key,sig,signature,x-amz-signature,x-amz-credential,x-amz-security-token,auth";
 
 /// The members that hold the name of a name and value pair, and those that hold its value, in lower case, comma-separated.
 Parameter PAIRNAMES = "name,key";
@@ -218,7 +225,7 @@ ClassMethod PatternList(kv As %Boolean) As %List [ Private ]
 			$ListBuild(bare _ "(\\+"")(?:(?!\2)[\s\S])*\2", "$1$2" _ mark _ "$2"),
 			$ListBuild(bare _ """(?:[^""\\]|\\.)*""", "$1""" _ mark _ """"),
 			$ListBuild(bare _ "'[^']*'", "$1'" _ mark _ "'"),
-			$ListBuild(bare _ "(?!\\+"")(?:(?:Bearer|Basic|Digest|Negotiate)\s+)?[^\s""',;&]+", "$1" _ mark))
+			$ListBuild(bare _ "(?!\\+"")(?:(?:Bearer|Basic|Digest|Negotiate)\s+)?(?:[^\s""',;&\\]|\\(?!""))+", "$1" _ mark))
 	}
 	Quit patterns
 }
@@ -244,12 +251,13 @@ ClassMethod KeyPattern() As %String [ Private ]
 	Quit "(?i)((?:" _ alternatives _ ")\\*[""']?\s*[=:]\s*)"
 }
 
-/// The start of the regular expression of the bare key= shape: group 1 is the name key and the =. The name is not preceded by an ASCII letter or digit, _, . or -
-/// (so monkey, cacheKey and dedupKey are not it), and only = separates it from its value, so that the prose "key: value" and the pairs of JSON keep their
-/// meaning. key is not a name of SENSITIVEKEYS, which a name ends with, and must not become one. The value follows as KeyPattern's does.
+/// The start of the regular expression of the bare name= shape: group 1 is the name, one of BARENAMES, and the =. The name is not preceded by an ASCII letter or digit, _, . or -
+/// (so monkey, cacheKey, dedupKey, mysig and oauth are not it), and only = separates it from its value, so that the prose "key: value" and the pairs of JSON keep their
+/// meaning. The value follows as KeyPattern's does, except that a backslash
+/// before a double quote ends it (the escaped quote of JSON inside a text is not part of the value).
 ClassMethod BareKeyPattern() As %String [ Private ]
 {
-	Quit "(?i)((?<![A-Za-z0-9_.\-])key\s*=\s*)"
+	Quit "(?i)((?<![A-Za-z0-9_.\-])(?:" _ $Replace(..#BARENAMES, ",", "|") _ ")\s*=\s*)"
 }
 
 }
