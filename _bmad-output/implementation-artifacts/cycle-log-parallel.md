@@ -4445,3 +4445,6 @@
 2026-11-16T04:01:36Z	Run	protocol_slip	lane_B_subagent_compiled_23.13_into_slot_B(no_tests);reload_before_use;subagents_reminded_own_slot_only
 2026-11-16T04:22:07Z	Epic 21	ci_green_verified	story=DW-1205+DW-494 head=fded9d158 runs=43777000338(att2;att1=browser_ci-14),43777000352 cond3=109+154_pass note=report_not_received;verified_by_gate
 2026-11-16T04:22:07Z	Epic 21	merge_enqueued	story=DW-1205+DW-494 (1.0.12)
+2026-11-16T04:24:08Z	Epic 21	merged	story=DW-1205+DW-494 merge=ecaf5ac9a Executor_auto-merged_with_24.4a+23.13
+2026-11-16T04:24:24Z	Epic 0	planner_notified	"DW-1389 PUSHED 004cdb5e6"(CI_green;held_merge_A/B_after_reset)
+2026-11-16T04:24:24Z	Epic 21	runner_status	DW-1410_CR_done(0H;session!=id_pin) integrated=507a0d2b0 recheck_running
