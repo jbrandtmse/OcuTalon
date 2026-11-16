@@ -4532,3 +4532,4 @@
 2026-11-16T18:15:58Z	Run	owner_decision	via=contest_planner MAIN_CI_GREEN_974fc1c1(ci_att2:DW-987,DW-774_reruns) one-at-a-time_LIFTED queue=24.3b,s2314,DW-1421r2 release_phase2(demo+GH_release)=Planner,no_runners
 2026-11-16T18:17:06Z	Epic 21	public_text_relayed	DW-1421_r3_bridge-guide(a,b,c)@e700be4c0 DW-1437=self-watch_eval_LOW r3_time-of-day_report(legit_cause_likely_refused) relayed=contest_planner
 2026-11-16T18:17:20Z	Epic 21	owner_decision	via=contest_planner DW-1421_r3_guide:(a)ok,(b)edited_verbatim,(c)ok;proceed_PART_READY ledger_LOW=CLOCKTIME_quotes_own_datetime
+2026-11-16T18:30:28Z	Epic 25	stall_recovered	lane_A_25.9: implement_stage(aac925c8e35e46bf6)_finished_03:16Z(0e5e93d46) completion_lost(host_crash?) runner_polled_~15h; unstick_sent(integrate,push,PART_READY) planner_status_answered lane_B_27.1=code_review
