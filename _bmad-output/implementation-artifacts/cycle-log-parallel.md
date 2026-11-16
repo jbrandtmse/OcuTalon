@@ -4518,3 +4518,5 @@
 2026-11-16T15:22:36Z	Run	owner_decision	via=contest_planner CI_queue: records_pushes_[skip_ci]+hourly_batch; branch_pushes_check_runners,hold_while_release_queued; Planner_cancelled_4_unstarted_runs(rerun_43889525115_after_main_green)
 2026-11-16T15:23:02Z	Epic 24	runner_reported	PART_READY DW-1430 head=aea51eb95(off_BASE) runs=43883622144(att2;att1=DW-28_ci-20),43883623069 state=held(MERGE-BACK;merges_first) note=ci-20_two_production_flakes_today
 2026-11-16T17:05:00Z	Epic 21	runner_reported	DW-1421_C2prime+C1_pushed=c573a86d0(CI_pending) C5_report(confidence=display_only;absent_default_recommended) open=cut_min_length,other_7_field_tags relayed=contest_planner
+2026-11-16T17:05:31Z	Run	merge_back_done	via=contest_planner main=974fc1c1(v1.0.12) feature=efcd0be84 rule=one_feature_merge_at_a_time_until_MAIN_CI_GREEN order=DW-1430,24.3b,OCT-epic23-s2314
+2026-11-16T17:05:31Z	Epic 24	merge_enqueued	DW-1430 head=aea51eb95
