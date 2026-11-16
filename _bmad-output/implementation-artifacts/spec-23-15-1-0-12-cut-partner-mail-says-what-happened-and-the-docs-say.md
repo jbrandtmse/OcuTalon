@@ -2,9 +2,9 @@
 title: 'Story 23.15: 1.0.12 cut: partner mail says what happened, and the docs say who approves'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'done'
-baseline_revision: '88b6cec763a6d8a1c946e1aca8c0c499d3aebfba'
-baseline_commit: '88b6cec763a6d8a1c946e1aca8c0c499d3aebfba'
+status: 'in-progress'
+baseline_revision: '5d7e693e90f8c6283c2214bf3ee1c9bb7dda87eb'
+baseline_commit: '5d7e693e90f8c6283c2214bf3ee1c9bb7dda87eb'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -119,6 +119,9 @@ Binding source: `{coordination}/prompts/dw-1415-1416-rulings-20261116.md`, secti
 - [x] (3) Task 2 (MESSAGEMAYHAVESENT for approval claims), the one classifier, `result.partnerMaySent`, and Summary, Notice and the card all reading the classifier; the final mapping table in Design Notes; pins and mutations for every row.
 - [x] (5) shards-2: move one live unit to shards-3, update the comment, and run `test-ci-config.sh`.
 
+**Rework iteration 1 (lead ruling on DW-1429; the Planner's CONDITION "a connect or EHLO failure keeps not sent" binds):**
+- [ ] [DW-1429] Make "may have reached the server" step-aware, for every email kind. Today `Sender.MayHaveSent` counts EVERY `$$$SMTPTimeout`, which names no step, so since 23.15 a timeout at the greeting, EHLO, STARTTLS, AUTH, MAIL FROM or RCPT TO answers MESSAGEMAYHAVESENT (claim maysent; card and chat `result.partnerMaySent`). The likeliest trigger is an implicit-TLS port (465) set without TLS. Fix: add a small subclass of `%Net.SMTP` in our own package (for example `OcuTalon.Channel.Email.SMTP`; never edit `irislib`), used wherever `Sender` makes its SMTP object. It overrides the Private `SendMessage(msg)` (`irislib/%Net/SMTP.cls:503`, called only after DATA's 354) to set a public property `DataBegan = 1` and then call `##super(msg)`, and it resets `DataBegan = 0` at the start of `Send`. `Sender.MayHaveSent(sc)` becomes 1 only when `DataBegan` is 1 AND the status is a timeout or a lost connection (keep the existing DATA-param check as a second reason). Any failure before the data began is not sent (MESSAGEUNREACHABLE, claim failed, `fix.emailNotSent`), and DW-1422's `Accepted` is unchanged. If `MayHaveSent` is a ClassMethod that takes only `sc`, give it the SMTP object's flag via the Sender instance (keep one decision method). The test stub/mock that stands in for `%Net.SMTP` must model `DataBegan` (the CI mock SMTP can stall at the greeting or after DATA's 354; reuse its existing modes, or add one `stall-greeting` mode only if none fits). Pins, each with a demonstrated mutation: a timeout at the greeting or EHLO answers MESSAGEUNREACHABLE and reads not sent on the timeline, the card and the chat; a timeout after the data began still answers MESSAGEMAYHAVESENT and reads may-have-sent; a keyed tool send behaves the same way (`TestToolKeySendsOnce` or its neighbour). Update the final mapping table's MESSAGEMAYHAVESENT and MESSAGEUNREACHABLE rows, `Out.cls`/`Sender.cls` class docs and `PartnerWarning`'s doc. Close DW-1429 in the spec's review records (the lead adjudicates it). Commit as ONE commit `fix(23.15): may-have-sent only once the message data began (DW-1429)`, ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; the spec goes in the same commit.
+
 **Acceptance Criteria:**
 - Given the security overview and GUIDE, when read, then they hold the approved lines verbatim (with `>` in GUIDE), and their doc tests pass.
 - Given any partner-warning outcome, when the timeline, the chat and the card show it, then all three agree per the final mapping table, and none says "not sent" for an email that may have reached the server.
@@ -152,6 +155,8 @@ Rejected:
 - (low) The spec's `deferred:` A13 entry uses `severity: medium (unverified)` — the fix edits the spec under review (and A13 has now run).
 
 ## Spec Change Log
+
+- 2026-11-16 ~11:20Z (lead, rework iteration 1 of 3, trigger: code review DW-1429, decision-pending → lead ruling under the Planner CONDITION): step-aware may-have-sent.
 
 ## Design Notes
 
