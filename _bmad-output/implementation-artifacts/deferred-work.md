@@ -8767,3 +8767,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Sender.Classify maps every SMTPTimeout to unreachable; the not-sent outcome is right (ruled: Planner CONDITION, lead's DW-1429 item), only the reason's wording is coarse; same sentence as before 23.15 and for every unclaimed tool send
 - 2026-11-16T12:01:11Z status=wontfix-accepted owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=cr note=reopen_if=a user report or a Planner text ruling that MESSAGEUNREACHABLE misleads after a mid-dialogue SMTP timeout
+
+### DW-1436: 28.2: Test.Memory.Volume explains NEARESTSQL, which now also selects LastUsedAt; not run in the implement stage (memory-offline live unit only)
+- source: spec-28-2-fade-unused-memories-and-merge-duplicates-nightly.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: docker/tests/test-memory-offline.sh runs Test.Memory.Volume; settle by running that unit on a lane-C throwaway
+- 2026-11-16T17:02:30Z status=open owner=28-2-fade-unused-memories-and-merge-duplicates-nightly by=harvest note=settle at QA or the lead's smoke
