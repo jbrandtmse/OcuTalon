@@ -531,3 +531,5 @@
 2026-11-16T08:54:22Z	Story 23.15	ruling	source=prompts/dw-1415-1416-rulings-20261116.md#23.15_text_rulings texts=DW-1423(fix:only_by_a_user_who_holds),DW-1425(verbatim,>),result.partnerMaySent(verbatim) condition=one_mapping_timeline/card/chat
 2026-11-16T08:54:22Z	Story 23.15	spec_written	by=lead(small_cut_story;rulings_binding;no_separate_plan_stage) baseline=543f8bdf
 2026-11-16T08:54:22Z	Story 23.15	stage_spawned	stage=implement spawn_at=2026-11-16T08:54:22Z model=sonnet effort=high agent_name=23-15-cut-implement cycle_iteration=1
+2026-11-16T10:38:31Z	Story 23.15	dev_complete	spawn_at=2026-11-16T08:55:00Z model=sonnet effort=high cycle_iteration=1 build_sha=e1eeb94b commits=0ebf5bb2(DW-1423),4a2a8c93(DW-1425),c9008eff(DW-1422),647043f5(one_mapping),e1eeb94b(shards-2) deferred=3 bundle_kB=897.10 followup_review=true
+2026-11-16T10:38:31Z	Story 23.15	stage_spawned	stage=code-review spawn_at=2026-11-16T10:38:31Z model=opus effort=high agent_name=23-15-cut-cr cycle_iteration=1 baseline=88b6cec7
