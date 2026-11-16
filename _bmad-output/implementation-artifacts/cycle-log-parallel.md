@@ -4491,3 +4491,4 @@
 2026-11-16T12:54:47Z	Epic 23	merged	23.15 merge=625900415 conflicts=Summary_doc(union),Catalog_count_148(verified_Test.Msg.Catalog_fresh)
 2026-11-16T12:55:09Z	Run	cut_items_merged	all_1.0.12_cut_items_in feature=625900415 awaiting_feature_CI_for_REQUIRED_GREEN planner_notified
 2026-11-16T12:55:54Z	Run	owner_decision	via=contest_planner post-cut:DW-1429_check,MESSAGEMAYHAVESENT_one_sentence,DW-1431_text(A/B_if_model-facing),production_rebalance_after_BASE,DW-1422_remainder_accepted
+2026-11-16T13:27:46Z	Run	ci_red_classified	head=625900415 run=43870851457 production(ci-22)=DW-306 lane-a=green action=rerun_failed_once
