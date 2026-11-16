@@ -9293,15 +9293,13 @@ So that I can check status and history from my own tools without opening a new w
 
 **Given** the Mcp area's installer step
 **When** it runs
-**Then** `OcuTalon.Mcp.Service`, a `%AI.MCP.Service` subclass with `Parameter RESOURCE = "OcuTalon_MCPServer"`, offers only OcuTalon's read-only toolsets; the web application `/mcp/ocutalon` has password authentication only, namespace OCUTALON and no application roles; and the role `OcuTalonMCPClient` holds Use on `OcuTalon_MCPServer`, read access to the databases its tools read, and SQL `SELECT` on exactly the tables they query (FR-51, AD-21, AD-24)
+**Then** `OcuTalon.Mcp.Service`, a `%AI.MCP.Service` subclass with `Parameter RESOURCE = "OcuTalon_MCPServer"`, offers only OcuTalon's read-only toolsets; the web application `/mcp/ocutalon` has password authentication only, namespace OCUTALON and no application roles; and the role `OcuTalonMCPClient` holds Use on `OcuTalon_MCPServer`, read access to the databases its tools read, and SQL `SELECT` on exactly the tables they query (FR-51, AD-21, AD-24) [AMENDED 2026-11-16, Contest Planner ruling G3: Task 0 first tries application roles on `/mcp/ocutalon` holding the database reads OcuTalon needs, so that `OcuTalonMCPClient` holds only Use on `OcuTalon_MCPServer`; if that cannot work, the measured reason is recorded in the spec and the role keeps the read grants; either way no SQL privilege, no write, and the installer grants the role to no one]
 
-**Given** `iris-mcp-server` in front of the service
-**When** it is configured
-**Then** it has no endpoint credentials, `allow_anonymous = false` (never copied from AI Hub's development template) and its status tool off, and its own login is a role-less user whose password comes from the environment (FR-51, AD-21, NFR-11)
+- The `iris-mcp-server` configuration moved to Story 28.5. [SPLIT 2026-11-16 to Story 28.5, Contest Planner spec-gate ruling G7/G8 (prompts/story-283-rulings-20261116.md): Task 0 measured that iris-mcp-server 2.0.0 on build 154 lists and calls no tool of any %AI.MCP.Service subclass ("failed identity checking"), so the configuration and the end-to-end client list and call move to 28.5]
 
 **Given** an MCP client
 **When** it connects anonymously, with a wrong password, or as a user without `OcuTalonMCPClient`
-**Then** it is refused; a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records (FR-51, AD-4, AD-24)
+**Then** it is refused; a user with the role passes IRIS sign-in and the resource check, and the tools, run as that IRIS user, return only that user's session's records (FR-51, AD-4, AD-24) [AMENDED 2026-11-16, Planner ruling G8: listing and calling the tools end to end through an MCP client moved to Story 28.5; it read "a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records"]
 
 **Given** a client that asks through the service for anything risky (a resend, any other fix, a settings change)
 **When** it calls
@@ -9336,6 +9334,29 @@ So that recall stays relevant as memory grows (step 7, Could).
 **Given** automated tests in `OcuTalon.Test.Memory`
 **When** duplicate and distinct memories are stored and the task runs twice
 **Then** only the duplicates merge, every source is kept, the second run merges nothing new, no distinct pair of Story 28.2's Task 0 set merges, and the task is off on the online demo (FR-43)
+
+### Story 28.5: Connect an MCP client through iris-mcp-server
+
+As a production developer,
+I want to connect my own MCP client to OcuTalon's read-only tools through `iris-mcp-server`,
+So that I can check status and history from my own tools (step 7, Could).
+
+[SPLIT 2026-11-16 to Story 28.5, Contest Planner spec-gate ruling G7/G8 (prompts/story-283-rulings-20261116.md): Task 0 measured that iris-mcp-server 2.0.0 on build 154 lists and calls no tool of any %AI.MCP.Service subclass ("failed identity checking"), so the configuration and the end-to-end client list and call move to 28.5] Not dispatched: the Contest Planner takes the platform identity-check failure to the owner first.
+
+**Acceptance Criteria:**
+
+**Given** a fresh measurement on the current build
+**When** `iris-mcp-server` lists and calls the tools of `OcuTalon.Mcp.Service`
+**Then** the identity check passes, or the story stops with the measured failure for the owner
+
+**Given** `iris-mcp-server` in front of the service
+**When** it is configured
+**Then** it has no endpoint credentials, `allow_anonymous = false` (never copied from AI Hub's development template) and its status tool off, and its own login is a role-less user whose password comes from the environment (FR-51, AD-21, NFR-11)
+
+**Given** automated tests with a minimal MCP client over real HTTP
+**When** they connect anonymously, with a wrong password, as a user without `OcuTalonMCPClient`, and as a user with it
+**Then** the first three are refused, and a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records, never a second user's (FR-51, AD-4, AD-24)
+**And** a guide says how to connect, and the server stays off on the online demo
 
 ## Epic 29: The online demo's platform side
 
