@@ -513,3 +513,5 @@
 2026-11-16T05:21:47Z	Epic 21	ledger	DW-1411=dropped(superseded-by:DW-609)
 2026-11-16T05:31:03Z	DW-1410	merged	feature=7958e46ee
 2026-11-16T05:31:03Z	DW-1373	stage_spawned	stage=plan spawn_at=2026-11-16T05:31:03Z model=opus effort=high agent_name=dw-1373-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1373 worktree=.worktrees/epic-21-dw1347(reused) base=7958e46ee(+DW-1410_records_c5a67225d) ruling=same_rule_as_DW-1365(restore+retry;itemNotChanged_only_if_restore_ok;else_settingSavedNotApplied_or_suspend_equivalent;new_text_to_Planner;pin_both_paths)
+2026-11-16T05:41:43Z	DW-1373	story_created	model=opus branch=OCT-epic21-dw1373 base=d1414c370 build_status=ready-for-dev size=small-medium text=reuse(itemNotChanged;settingSavedNotApplied_with_setting=Enabled) veto=1-6(no_new_text;cross-lane_incl_Lane_B_web_card) planner_report=not_needed(no_new_text,no_deviation) design=EnableConfigItem(...,0)+seam+restore_via_EnableConfigItem(not_enable,0)
+2026-11-16T05:41:43Z	DW-1373	stage_spawned	stage=implement spawn_at=2026-11-16T05:41:43Z model=sonnet effort=high agent_name=dw-1373-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1373
