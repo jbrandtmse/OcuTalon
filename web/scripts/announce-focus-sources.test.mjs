@@ -86,7 +86,7 @@ describe('the page speaks only through the Announcer', () => {
     assert.match(stack, /this\.announcer\.announce\(banner\.text\)/);
   });
 
-  it('announces from one place per event: the rail, the header and the reply, card (notice and incident) and message components do not announce', () => {
+  it('announces from one place per event: the rail, the header and the reply, card (notice) and message components do not announce (the incident card speaks only for the answered undo of a closed card)', () => {
     // A story that makes one of these announce moves the event's announcement from the chat or the control that owns it, so that the
     // event is still heard once (Story 2.12, Decided 4); it then edits this list with that reason. The guide announces an advance and the
     // box announces "Sent" (Story 4.4): nothing else announces either.
@@ -95,13 +95,13 @@ describe('the page speaks only through the Announcer', () => {
     // Story 41.13: the Memory card speaks (memory-card.ts: the one notice of a panel, once, when a Pin, Unpin or search fails), the second rail file that is not silent.
     // Stories 12.4 and 12.5: the Telegram card speaks (telegram-card.ts: "Telegram paired" or "Telegram unpaired", once each, when the pairing
     // changes), the one rail file that is not silent; the pairing change is announced once, from the card that shows it (UX-DR132).
-    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && one.name !== 'app/rail/telegram-card/telegram-card.ts' && one.name !== 'app/rail/memory-card/memory-card.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
+    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && one.name !== 'app/rail/telegram-card/telegram-card.ts' && one.name !== 'app/rail/memory-card/memory-card.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
     assert.ok(silent.length >= 8, 'the silent files are found');
-    assert.ok(silent.some((one) => one.name === 'app/incidents/incident-card.ts'), 'the incident card is among them');
+    assert.ok(!silent.some((one) => one.name === 'app/incidents/incident-card.ts'), 'the incident card is not: it speaks for a closed card\'s answered undo');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2; the saved and failed texts of the Models and Budgets sections and the Test result line, once, Story 18.3) and the Documents page (a refused file or a failed document of the user\'s own add, once, Story 34.2) and Got it (the message of an error reply, once, Story 18.4) and the Memory card (the one notice of a panel, once, Story 41.13) and the shared confirm dialog (its failure notice, once, Story 41.13)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), the incident card (the status of an undo whose request card left its closed card answered, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2; the saved and failed texts of the Models and Budgets sections and the Test result line, once, Story 18.3) and the Documents page (a refused file or a failed document of the user\'s own add, once, Story 34.2) and Got it (the message of an error reply, once, Story 18.4) and the Memory card (the one notice of a panel, once, Story 41.13) and the shared confirm dialog (its failure notice, once, Story 41.13)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
@@ -120,6 +120,8 @@ describe('the page speaks only through the Announcer', () => {
       'app/header/credential-rows.ts',
       // The History page: its load failure, "Couldn't load your history.", once per failed read (Story 25.2).
       'app/history/history-page.ts',
+      // The incident card: the answered status of a closed card's undo, once, when its request card leaves (DW-1426).
+      'app/incidents/incident-card.ts',
       'app/incidents/incident-dismiss.ts',
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
@@ -157,6 +159,7 @@ describe('focus moves only for the user or through the focus rule', () => {
   const FOCUS_CALLS = {
     'app/chat/composer.ts': [1, 'the field takes focus after the user\'s own Send'],
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
+    'app/incidents/incident-card.ts': [1, 'the headline takes focus when the request card of a closed card\'s undo, which held it, leaves answered, after the chat\'s focus rule has put it on the main region (DW-1426)'],
     'app/chat/file-reply.ts': [1, 'the added line takes focus after the user\'s own Add to documents, whose button leaves with the press (Story 25.6)'],
     'app/guide/demo-guide.ts': [1, 'Show me focuses the phone\'s pending notification or its feed, for the user\'s own press (Story 4.7)'],
     'app/guide/more-to-try.ts': [1, 'an item of Other things to try hands focus to the control it presses, for the user\'s own press (Story 4.11)'],
@@ -196,8 +199,8 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bautofocus\b|cdkTrapFocus|cdkFocusInitial|FocusTrap|FocusMonitor|focusVia|focusInitialElement|\.select\(\)/), []);
   });
 
-  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) or the control an Other things to try item hands off to, that the user opened, to measure the room that the Other things to try panel and the banners leave, the heading of the document the user opened with Open document, the added line after the user\'s own Add to documents, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/chat/file-reply.ts', 'app/documents/documents-page.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/budgets-section.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/email-section.ts', 'app/settings/mcp-section.ts', 'app/settings/models-section.ts', 'app/settings/on-call-section.ts', 'app/settings/partner-contacts-section.ts', 'app/settings/roles-section.ts', 'app/settings/time-zone-section.ts', 'app/settings/webhooks-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) or the control an Other things to try item hands off to, that the user opened, to measure the room that the Other things to try panel and the banners leave, the heading of the document the user opened with Open document, the added line after the user\'s own Add to documents, the first field in error of a settings form that the user saved, for the focus rule, for the request card to read where focus is before it announces an answer from elsewhere, and for the incident card to give its headline the focus that the chat\'s rule left on the main region (DW-1426)', () => {
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/chat/file-reply.ts', 'app/documents/documents-page.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/incidents/incident-card.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/budgets-section.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/email-section.ts', 'app/settings/mcp-section.ts', 'app/settings/models-section.ts', 'app/settings/on-call-section.ts', 'app/settings/partner-contacts-section.ts', 'app/settings/roles-section.ts', 'app/settings/time-zone-section.ts', 'app/settings/webhooks-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {
