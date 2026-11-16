@@ -10,7 +10,9 @@
  *   out, so a snapshot payload (row-backed fields only) renders without groups, requests, evidence or trace targets.
  * - The chip shows the payload's `state`; a state the page does not know has no chip and the attention bar. The bar follows the
  *   state: attention (open, awaiting approval, and every open variant), fixing, resolved, closed. A closed card is compact: the
- *   chip row, the headline and the Show details row only.
+ *   chip row, the headline, the result bands of its requests and the Show details row only; the card component also draws the
+ *   request card of a request that is still pending and whose kind may be asked after the close (`drawnOnClosed`). Once that
+ *   request is answered or has expired, it has no request card and its band (when it has a result) is one of the compact bands.
  * - The headline is "{count} {noun} failed since {time}" with the message time of `firstAt`; "{n} more since the notice" shows
  *   while `count` is above `noticeCount`. The cause and fix are sentences with exactly one final ".". The evidence line joins the
  *   humanized cause category, the element and the grouping, and shows only when a category or an element is set.
@@ -27,12 +29,29 @@
  * - Story 6.4: a fallback or no-fix card shows its notice sentence (EXPERIENCE: Fallback incident notice, Incident notice without a
  *   fix; the unknown cause has its own sentence in place of the cause and the no-fix sentence) and, under "Failures:", one line per
  *   group; `dismissable` is true for a card in state resolved or open (never while awaiting approval or fixing, nor closed); a
- *   compact card holds the result band of each request of the payload, in order (`results`), and no notice and no groups.
+ *   compact card holds the result band of each request of the payload that has no request card of its own, in order (`results`),
+ *   and no notice and no groups.
  *   bandTexts says each band's text by the request's ref, for the chat's announcements (a result is announced once, when it first
  *   appears or changes on a card already shown).
  */
 import type { ResultView } from '../approvals/approval-view';
-import type { DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun, SettingChange } from '../live/payloads';
+import type { ApprovalPayload, DecisionPayload, IncidentPayload, IncidentRequest, ItemNoun, SettingChange } from '../live/payloads';
+
+/**
+ * The request kinds that may be asked on a closed incident, as the server answers it (Fix.Kind.AskedClosed: only the kinds that
+ * list `closed` among their ASKEDSTATES). Today that is the undo of a rollback. A later kind with `closed` in its ASKEDSTATES is
+ * added here.
+ */
+export const AFTER_CLOSE_KINDS: ReadonlySet<string> = new Set(['undo_rollback']);
+
+/**
+ * True when the approval's `fixKind` is one of `AFTER_CLOSE_KINDS` and its `state` is `pending`: the only requests a closed card draws,
+ * whenever each was raised. A request that is answered (rejected, approved, executing, done, failed) or expired, one of another kind, and
+ * one with no kind or no state, is not drawn.
+ */
+export function drawnOnClosed(approval: Pick<ApprovalPayload, 'fixKind' | 'state'>): boolean {
+  return approval.state === 'pending' && typeof approval.fixKind === 'string' && AFTER_CLOSE_KINDS.has(approval.fixKind);
+}
 
 /** Every fixed string of the incident card, its panel and its announcements. The ellipsis is U+2026, the middle dot U+00B7. */
 export const INCIDENT_TEXTS = {
@@ -111,6 +130,8 @@ export interface IncidentContext {
   render?(key: string, slots: Record<string, unknown>): string;
   /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
   reasonText(reason: string | undefined): string;
+  /** The Refs of the requests the card draws as request cards of their own; a compact card leaves their bands out of `results`, because each shows on its request card. Absent: none. */
+  drawn?: ReadonlySet<string>;
 }
 
 /** The inputs of the footer's decision strip. */
@@ -178,7 +199,7 @@ export interface IncidentView {
   groups: string[];
   /** True while Dismiss is offered: the state is resolved or open, and the card is not compact. */
   dismissable: boolean;
-  /** For a compact card, each request's result band in payload order; empty otherwise. */
+  /** For a compact card, the result band of each request without a request card of its own (`ctx.drawn`), in payload order; empty otherwise. */
   results: ResultView[];
 }
 
@@ -537,7 +558,7 @@ export function incidentView(payload: IncidentPayload, ctx: IncidentContext): In
     notice: compact ? '' : noticeOf(payload, ctx),
     groups: compact ? [] : groupLinesOf(payload, ctx),
     dismissable: !compact && (state?.chip === 'resolved' || state?.chip === 'open'),
-    results: compact ? bandsOf(payload, ctx).map((one) => one.band) : [],
+    results: compact ? bandsOf(payload, ctx).filter((one) => ctx.drawn?.has(one.ref) !== true).map((one) => one.band) : [],
   };
 }
 

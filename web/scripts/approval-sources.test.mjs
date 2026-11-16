@@ -313,7 +313,7 @@ describe('the incident card', () => {
     );
     assert.match(incident.code, /result: \(request, itemNoun, production, change\) => resultView\(request, itemNoun, \(key, slots\) => renderPageText\(key, slots\), production, change\),/, 'the compact card\'s bands name the production and the setting change (Story 23.3)');
     assert.match(incident.code, /production = computed\(\(\) => productionOf\(this\.incident\(\)\)\);/);
-    assert.match(incident.code, /requests = computed\(\(\) => \(this\.view\(\)\.compact \? \[\] : requestsOf\(this\.incident\(\), this\.approvals\(\)\)\)\)/);
+    assert.match(incident.code, /requests = computed\(\(\) => \{\s*const asked = requestsOf\(this\.incident\(\), this\.approvals\(\)\);\s*return stateOf\(this\.incident\(\)\.state\)\?\.chip === 'closed' \? asked\.filter\(drawnOnClosed\) : asked;\s*\}\);/);
     assert.ok(incidentTemplate.indexOf('{{ view().fixingLine }}') < incidentTemplate.indexOf('<app-approval-request-card'), 'the request cards follow the fixing line');
     assert.ok(incidentTemplate.indexOf('<app-approval-request-card') < incidentTemplate.indexOf('class="footer"'), 'and come before the footer');
   });

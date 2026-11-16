@@ -202,6 +202,22 @@ describe('the ending of the card (Story 6.4)', () => {
     assert.ok(cardTemplate.indexOf('{{ view().fixingLine }}') < cardTemplate.indexOf('<app-result-band'), 'and after the fixing line');
   });
 
+  it('computes the closedness of the request list from the payload with stateOf, filters by drawnOnClosed only then, and passes the drawn Refs into the context', () => {
+    assert.match(card.code, /import \{[^}]*\bdrawnOnClosed\b[^}]*\bstateOf\b[^}]*\} from '\.\/incident-view';/);
+    assert.match(card.code, /stateOf\(this\.incident\(\)\.state\)\?\.chip === 'closed' \? asked\.filter\(drawnOnClosed\) : asked/);
+    const requests = /protected readonly requests = computed\(\(\) => \{[\s\S]*?\n  \}\);/.exec(card.code)?.[0] ?? '';
+    assert.notEqual(requests, '');
+    assert.doesNotMatch(requests, /view\(\)/, 'never from the drawn view, which would be circular');
+    assert.match(card.code, /incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), new Set\(this\.requests\(\)\.map\(\(request\) => request\.ref \?\? ''\)\)\)/);
+    assert.match(card.code, /reasonText: fallbackReasonText,\s*drawn,\s*\};/);
+  });
+
+  it('draws a closed card\'s undo only while it is pending: drawnOnClosed reads the state and the kind, and the card filters with it', () => {
+    const view = file('incident-view.ts').code;
+    assert.match(view, /approval\.state === 'pending' && typeof approval\.fixKind === 'string' && AFTER_CLOSE_KINDS\.has\(approval\.fixKind\)/);
+    assert.match(view, /approval: Pick<ApprovalPayload, 'fixKind' \| 'state'>/);
+  });
+
   it('gives each request card the payload\'s request of its own ref, so that one request\'s band never stands for another\'s', () => {
     assert.match(cardTemplate, /\[result\]="resultOf\(request\.ref\)"/);
     assert.match(card.code, /byRef\.set\(request\.ref, request\);/);

@@ -718,6 +718,19 @@ export async function askedSlots(kind: string, dryRun: Record<string, unknown>, 
   return JSON.parse(text) as Record<string, unknown>;
 }
 
+/**
+ * The slots of a catalog key's fixture (Test.Channel.LiveCase.FixtureSlots, the fixtures of Test.Msg.Catalog), for sendNotification of a
+ * notice that has no asked fill (the rollback's, a diagnosed kind): the catalog's own slots, never a copy of them.
+ */
+export async function fixtureSlots(key: string): Promise<Record<string, unknown>> {
+  const lines = await irisScript(
+    [`Set x=##class(OcuTalon.Test.Channel.LiveCase).FixtureSlots(${quoted(key)})`, 'Write !,"CHK|slots|",$Select($IsObject(x):x.%ToJSON(),1:"")'].join('\n'),
+  );
+  const text = chk(lines, 'slots');
+  if (!text || text === '{}') throw new Error(`the fixture slots of ${key} could not be read (${lines.join(' ')})`);
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
 /** Deletes the fixture rows with these Refs (Test.Data.Fixture.Clean with the Refs), and no row that another test made. */
 export async function cleanFixtureRows(refs: Array<string | undefined>): Promise<void> {
   const mine = refs.filter((ref): ref is string => !!ref && /^[A-Za-z0-9_-]+$/.test(ref));
@@ -904,13 +917,28 @@ export async function answerHeaders(user: string): Promise<{ count: number; trac
   return { count, traceRef };
 }
 
-/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled. */
-export async function setApprovalState(ref: string, state: string): Promise<void> {
+/** The answer that setApprovalState records with a state: the action (approve or reject), the channel and the person, and when (UTC), and the expiry when it changes. */
+export interface AnsweredFields {
+  action?: string;
+  channel?: string;
+  by?: string;
+  at?: string;
+  expiresAt?: string;
+}
+
+/** Sets the state of an approval request, as the bridge would when it is answered, expires or is cancelled, with the answer's fields when given. */
+export async function setApprovalState(ref: string, state: string, answered: AnsweredFields = {}): Promise<void> {
+  const set = (property: string, value: string | undefined): string[] => (value === undefined ? [] : [`Set r.${property}=${quoted(value)}`]);
   const lines = await irisScript(
     [
       `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
       `If '$IsObject(r) { Write !,"CHK|state|0" Halt }`,
       `Set r.State=${quoted(state)}`,
+      ...set('AnsweredAction', answered.action),
+      ...set('AnsweredChannel', answered.channel),
+      ...set('AnsweredBy', answered.by),
+      ...set('AnsweredAt', answered.at),
+      ...set('ExpiresAt', answered.expiresAt),
       'Write !,"CHK|state|",$System.Status.IsOK(r.%Save())',
     ].join('\n'),
   );

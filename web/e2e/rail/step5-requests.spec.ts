@@ -9,9 +9,9 @@ import { scanContrast, scanNames } from '../support/scan';
 import { blockLiveSocket } from '../support/socket';
 
 /**
- * Story 24.4a, the step-5 requests with a setting's value (F3b, F5, F5b and F7; Story 24.4b adds F1 to F4 and F6 to this file), in a real
- * browser against a real stack, as the rail fixture user (OCUTALON_RAIL_USER, whose session R1 to R19 of rail.spec.ts expect empty: each
- * case removes its rows, its setting changes and its phone messages in finally). The page's clock is fixed at 14:30 UTC on the run's date.
+ * Story 24.4a, the step-5 requests with a setting's value (F3b, F5, F5b and F7; the kinds' own cards and the closed-card undo, F1 to F4, F6 and
+ * F6b, are in step5-cards.spec.ts), in a real browser against a real stack, as the rail fixture user (OCUTALON_RAIL_USER,
+ * whose session R1 to R19 of rail.spec.ts expect empty: each case removes its rows, its setting changes and its phone messages in finally). The page's clock is fixed at 14:30 UTC on the run's date.
  * A value that holds a token is built from fragments here and read back from the server as `[redacted]` on every surface: the web
  * approval card (F3b), the evidence panel (F5b) and the phone page (F7); a plain value is shown byte for byte (F3b, F5). The page redacts
  * nothing: each of these is the server's text. F5 also scans the card in both schemes and tabs to Show details.

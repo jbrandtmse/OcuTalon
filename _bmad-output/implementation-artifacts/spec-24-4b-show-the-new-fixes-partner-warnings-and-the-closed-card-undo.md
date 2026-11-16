@@ -2,13 +2,28 @@
 title: 'Story 24.4b: Show the new fixes, partner warnings and the closed-card undo on the cards'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6be7720280a3a1993cb06fd532b0c332eff26afa'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-24-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A closed card drops the undo's card the moment its answer lands (and an approved, failed, rejected or expired undo shows nothing on it), so the answer gives no status, no audit line and no focus target on the closed card.
+    evidence: |-
+      The binding ruling says nothing is drawn once the undo is answered or expired. The page drops the card's in-flight call with the card, and F6b proves the answer only from the reply, the stored row and the trace header. A decision for the Contest Planner: keep the card while the answer is in flight, or show the status among the compact bands.
+    location: >-
+      web/src/app/incidents/incident-card.ts requests; web/src/app/incidents/incident-view.ts drawnOnClosed
+    severity: medium
+  - summary: >-
+      Pin (c) reads the closed state once after the card leaves, with no settle step.
+    evidence: |-
+      A product path that reopens the incident asynchronously after the trace header would pass. IncidentManager refuses every event on a closed incident, so none is shown. What would settle it: a bounded poll of the incident's state after the undo reaches a terminal state.
+    location: >-
+      web/e2e/rail/step5-cards.spec.ts expectStillClosed
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -133,9 +148,18 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
     - the scans pass in both schemes, and the Tab order holds;
     - after the undo is published rejected, its card stays with its status;
     - after it is published done with a result, its band shows once (`[data-part="result"]` count 1 in the incident card).
+  - F6b is extended with the closed-card ruling's pins (binding; the ruling is quoted in the Spec Change Log, with the implement stage's reading above it):
+    - (a) only a PENDING undo's card is drawn on a closed card: no other kind (no repair, resend, new rollback, suspend or partner), and nothing once the undo is answered (rejected or done) or expired. Pin the expired state too (published `expired` after the pending one: no request card of it is drawn and the card keeps its status per the matrix row "undo answered").
+    - (b1) an undo raised BEFORE the close, then the incident is closed (raise and publish open, then publish closed): the card shows it, and Approve and Reject from that card work (a click answers through the real answer path) and are audited exactly as on an open card (same audit line and answer status as the open-card case in F6).
+    - (b2) an undo raised AFTER the close shows (this is the base F6b case).
+    - (c) answering an undo from a closed card (approve and reject, each in its own case) does not reopen the incident or change its status: the card's chip, state and `incident.state` from `/api/v1/state` stay `closed` after the answer.
+    - The rail's "Show in the chat" jump lands on (focuses) the undo card on a closed incident.
+    - Mutations to demonstrate red and revert `cmp`-identical: (a) draw every kind on a closed card (drop the `drawnOnClosed` filter) -> (a) red; also make the filter keep an answered or expired undo -> (a) red; (b1) filter the closed card's undo by a "raised after" rule, or drop the undo from the card when the incident is closed after it was raised -> (b1) red; (b2) `compact ? []` -> (b2) and the jump red; (c) make the closed card's undo answer reopen the incident (or fake a state change in the test's fixture check) -> (c) red, or if no product path exists to mutate, assert and record that the answer path carries no state write by pinning the unchanged `incident.state`; Show-in-chat: make `jump` land on the chat list (`compact ? []`) -> the jump pin red.
+    - Compactness stays computed from the payload (`stateOf(incident().state)?.chip === 'closed'`), not from the drawn view.
 
 ## Spec Change Log
 
+- 2026-11-16 (implement stage, literal reading of the closed-card ruling). The ruling's pin (a) governs where the matrix rows "Closed card, undo answered" and "Closed card, mixed" and F6b's "its card stays with its status" differ: a closed card draws a request card ONLY for an undo that is still pending, and none once the undo is answered, rejected, expired or done. An answered undo's result band (when it has one) is then one of the compact card's own bands, shown once; a rejected or expired undo has no card and no band. `drawnOnClosed` therefore holds both rules: the kind is in `AFTER_CLOSE_KINDS` and the approval's state is `pending`. The intent-contract block is read-only and keeps its wording; this entry supersedes the two matrix rows.
 - 2026-11-16 (lead). **24.4b closed-card ruling, Contest Planner ~04:30Z Nov 16 (BINDING)**, quoted in full:
 
   > ## 24.4b closed-card ruling (Contest Planner, ~04:30Z Nov 16). BINDING.
@@ -182,6 +206,33 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
   And from the RE-PLAN RULINGS (~22:00Z), SPLIT: YES: "> **24.4b** follows. It covers V2's closed-card undo and the cross-surface pins. It also targets 1.0.12, but does not block it." The EXPERIENCE.md line is already applied (`EXPERIENCE.md:316`, "A closed card still shows the request card of an undo of a rollback asked after the close, and no other request card.").
 
 ## Review Triage Log
+
+### 2026-11-16 - Review pass
+- verdicts: 26 findings - high 0, medium 3, low 21, false 1, maybe-false 1
+- findings:
+  - `[medium]` `[defer]` Closed-card answer gives no feedback: the card (status, audit line) leaves the moment the answer lands, a failed call goes with it, focus drops to the body, and a rejected, expired or failed undo is silent on the closed card (blind hunter 1) - the literal reading of the binding ruling ("nothing once answered or expired"); a decision for the Contest Planner whether the card should stay while the answer is in flight. Deferred with the edge-case layer's "approved or failed undo shows nothing" (same root cause).
+  - `[low]` `[reject]` Reject on an undo raised before the close is not exercised (blind hunter 2; edge hunter 5) - the same card and answer path as the after-close Reject case, which F6b covers; not worth a second long test.
+  - `[low]` `[reject]` The open-card control is compared on the reply, the row and the header, not the status text (blind hunter 3; edge hunter 4) - the card is gone after the answer by the ruling, so a status cannot be compared; the audit evidence is the stored row and the trace header.
+  - `[medium]` `[patch]` Mutation of `requestsOf` was marked "not re-run" (blind hunter 4) - re-run on the final tree: F3, F6 and four F6b cases red, reverted `cmp`-identical; the `mutation:` line rewritten.
+  - `[low]` `[patch]` No recorded green run of the unit tests, TelegramOut, lint, build (blind hunter 5) - run on the final tree and recorded under `## Verification`.
+  - `[low]` `[reject]` `AFTER_CLOSE_KINDS` is a hand-kept mirror of the server's `AskedClosed` (blind hunter 6) - Decided in-stage 1 (AD-12: the page cannot read the kind classes); its unit pin names the rule.
+  - `[low]` `[patch]` The Spec Change Log wording "the ruling is the first entry" is stale (blind hunter 7) - reworded; the Auto Run Result section rewritten at finalize.
+  - `[low]` `[reject]` Source pins match exact formatting; `stateOfApi` walks the body (blind hunter 8) - the `requests` regex pin is a spec task; the walker keys on `ref`, a string `state` and `count`, which only an incident row has; no wrong match is shown.
+  - `[low]` `[reject]` F6b base is one long scenario (blind hunter 9) - each step asserts its own state; stale answered fields do not change any assertion; splitting costs a stack start per case.
+  - `[low]` `[reject]` `TestStepFiveRequests` has a redundant size assertion (blind hunter 10) - harmless and cheap.
+  - `[low]` `[reject]` Edge hunter 1 (approved, executing or failed undo shows nothing on the closed card) - grouped with the first finding; the ruling's pending-only rule.
+  - `[false]` `[reject]` A drawn request with no ref puts '' into the drawn set (edge hunter 2) - every approval of the store is keyed by its ref; a ref-less approval cannot be drawn.
+  - `[low]` `[reject]` AC4's text says "its card stays with its status" (edge hunter 3; gap other 8) - superseded by the first Spec Change Log entry; a fix would edit the spec.
+  - `[maybe-false]` `[defer]` Pin (c) reads the closed state once, with no settle step (gap 1) - IncidentManager refuses every event on a closed incident (no product path reopens), so no async flip is shown; what would settle it: a bounded poll after the undo's execution; deferred as unverified medium.
+  - `[low]` `[patch]` The "no effect on a non-compact card" unit case could not fail (gap 2) - now deep-equals the whole view with and without `drawn`.
+  - `[low]` `[reject]` Several assertions have no `mutation:` line of their own (gap 3) - Rule 19 asks one demonstrated mutation per AC; each AC has one (AC1 three, AC2, AC3, AC4 several, AC5).
+  - `[low]` `[reject]` `headers: 1` is a constant in the compared objects (gap 4) - the real header check is the poll inside `answerFromCard`.
+  - `[low]` `[reject]` The done band and audit line assert on a hand-published payload (gap 5) - the answer's audit evidence is the stored row and the trace header; the band is the page's reading of a published result.
+  - `[low]` `[reject]` Telegram text check is self-referential (gap 6) - it compares with the catalog's own render, which is what AD-32 requires; the buttons and parse mode are independent assertions.
+  - `[low]` `[reject]` Redundant `SentTo` size assertion (gap 7) - same as blind 10.
+  - `[low]` `[reject]` Intent audit: the cases are in `step5-cards.spec.ts`, not `step5-requests.spec.ts` - the spec's own Tasks allow the split.
+  - `[low]` `[reject]` Intent audit: closed state, requests and results are seeded and published by the harness - the model of every case of this suite (24.4a, close-loop); not a defect.
+  - `[low]` `[reject]` Intent audit: the no-reopen guarantee is a server property the diff does not change - pinned as unchanged state after the answer.
 
 ## Design Notes
 
@@ -315,19 +366,47 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 **Manual checks:** none beyond the commands.
 
+**Mutations run (implement stage; each reverted `cmp`-identical, `git status --short` and `git diff --stat` unchanged):**
+- mutation: swap `dry?.before` and `dry?.after` in `itemDryRunView` -> F1 red ("suspend_item: the Before row, in mono": expected "OrdersToWarehouse: enabled", got "disabled")
+- mutation: remove `mono` from the `before` span (`approval-request-card.ts:154`) -> F1, F2, F3 and F6b red (the `.mono.before` row is not found)
+- mutation: remove `approval` from `Out.cls` `BUTTONKINDS` -> `TestStepFiveRequests` red (every kind: "has the buttons on its last part only" and "has exactly Approve and Reject"); `Out.cls` restored `cmp`-identical from a scratch copy and never left changed
+- mutation: `partnerView` keeps only the first recipient -> F4 red ("the To line names both recipients")
+- mutation: `.mono { color: var(--surface) }` as the spec words it -> NOT red: `.before` and `.after` set their own colour after `.mono` and win. Applied to `.before` and `.after` instead (`color: var(--surface)`) -> F6b `scanContrast` red ("span.mono ... text 1.16:1 is under 4.5:1")
+- mutation: `requests` returns nothing on a closed incident (`asked.filter((one) => drawnOnClosed(one) && false)`, compactness still read from the payload's state) -> F6b red (base, raised-before, approve and reject cases: "the undo has its request card on the closed incident", the rail jump has no card to focus) and the two source pins red (`approval-sources.test.mjs` the `requests` expression, `incident-sources.test.mjs` the closedness pin)
+- mutation: Show-in-chat jump lands on the chat list when the card is not drawn (`status-rail.ts` `jump` takes `CHAT_LIST` whenever `document.querySelector(card) === null || card`) -> only the F6b jump pin red ("the rail jump focuses the undo card in the chat": expected focused, received inactive), the other eight cases green
+- mutation: `drawnOnClosed` ignores the state (kind only: `return typeof approval.fixKind === 'string' && AFTER_CLOSE_KINDS.has(...)`) -> the two unit pins red ("draws an undo on a closed card only while its request is pending", the `incident-sources.test.mjs` state-and-kind source pin) and F6b red in four cases: base ("a rejected undo has no request card on the closed card"), raised-before, approve and reject ("the answered undo is not drawn any more")
+- mutation: drop the kind filter (`drawnOnClosed` returns `approval.state === 'pending'`) -> F6b red ("no other kind has a card" in the base case; "no request card of any kind is drawn" in the approve and reject cases, where the other kinds' pending requests appear) and the three unit pins red (kind, pending, source)
+- mutation: leave `drawn` out of the `results` filter -> F6b base red ("the incident payload gives the still pending undo a result: its band shows once in the incident card", expected 1, received 2) and the `incident-view.test.mjs` case "leaves out only the band of a request drawn as a request card" red
+- mutation: filter the closed card's undo by a "raised after" rule (`raisedAt` later than the incident's `lastAt`) -> only the (b1) case red ("the closed card still shows the pending undo"); the base, approve and reject cases stay green; the two source pins red
+- mutation: the test's fixture check sets the incident row to `open` before `expectStillClosed` reads it (no product path reopens an incident: IncidentManager refuses every event on a closed one) -> the (b1), approve and reject cases red ("the incident's row stays closed": expected "closed", received "open")
+- mutation: add `rollback_setting` to `AFTER_CLOSE_KINDS` -> the `incident-view.test.mjs` cases "names the undo of a rollback as the only kind asked after the close" and "draws an undo on a closed card only while its request is pending" red
+- mutation: `requestsOf` drops `undo_rollback` approvals -> F3, F6 and every F6b case red (no undo card): re-run in the review pass on the final tree (`ci/iris.sh build`, then `live sign-in-2 --part 12/20`: 6 failed, 3 passed); reverted `cmp`-identical, `git status --short` and `git diff --stat` unchanged
+- Closed-card answers: the answered undo is no longer drawn, and the page drops the card's call with the card (`takeUntilDestroyed`) when the live answer event reaches it before the reply. The page's own response event therefore may never fire; F6b reads the answer through a route (`route.fetch` then `route.fulfill`) that records the reply (200 and the approval it returns), the stored row and the one trace header, and compares them with an open-card control. The session's `/api/v1/state` rail lists pending requests only, so it proves that the answered undo is no longer pending and that the incident is still `closed`.
+- Unit and static runs on the final tree: `npm --prefix web test` 2178 pass, 0 fail (after the review patch to the non-compact case, `node --test web/scripts/incident-view.test.mjs` 82 pass); `npm --prefix web run lint` exit 0; `npm --prefix web run build` exit 0 (so `tokens.mjs --check`, `payloads.mjs --check` and `catalog.mjs --check` pass, no interface change); `bash docker/tests/test-class-rules.sh` exit 0; `OcuTalon.Test.Channel.TelegramOut` passed on a fresh stack (tag `e24s4bi`, 24 s, includes `TestStepFiveRequests`) and on the warm stack in the first pass. Not re-run by this stage: the CI groups (`live:cards`, `live:answers`, `shards`) and the lead's fresh-environment check.
+- Run on the lane-D throwaways of tag `e24s4bi` (fresh; `sign-in-2` parts 11/20, 12/20 and 13/20: rail-answer and rail, the step5-cards file alone at 9 tests in about 45 s, step5-requests and reminder); all green on the unmutated tree.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan only, as directed (halt after planning).
-- The epic context was recompiled, because the planning artifacts were newer than it. The result is 11,708 bytes and starts with `# Epic 24 Context:`.
-- Every Code Map line was re-checked against HEAD f5bd8256, which merges 24.4a.
-- Nothing is NEW: no string, no veto item, and no cross-lane edit beyond V2 and V3.
-- Warnings: `oversized`.
-- No test was run.
+**Summary.** A closed incident card now draws the request card of an `undo_rollback` request that is still pending, whenever it was raised, and no other kind. Nothing is drawn for an undo that is answered, rejected, expired or done; an answered undo's result band is then one of the compact card's own bands, shown once. Compactness is read from the payload's state, never from the drawn view. The step-5 kinds are pinned on the card, the rail and the phone page (F1 to F4, F6, F6b) and on the Telegram mock (`TestStepFiveRequests`). No server, payload, route, catalog, string or table change.
 
-Notes for the lead:
-- DW-1412's ruling says lane D does it ahead of 24.4b. It is in `OCT-epic24-dw1412`, and this story touches no redactor file.
-- Lane B's 23.13 (OCT-epic23) edits `incidentContext` and the card's `view` lines next to this story's hunks (plain union).
-- Decided 2 draws a pending undo raised before the close too. EXPERIENCE.md's "asked after the close" describes the usual case, and the payload has no close time.
+**Files changed.**
+- `web/src/app/incidents/incident-view.ts`: `AFTER_CLOSE_KINDS`, `drawnOnClosed` (kind and pending), `IncidentContext.drawn`, the compact `results` filter.
+- `web/src/app/incidents/incident-card.ts`: `requests` filters a closed incident by `drawnOnClosed`; `view` passes the drawn Refs.
+- `web/scripts/incident-view.test.mjs`, `incident-sources.test.mjs`, `approval-sources.test.mjs`: the view and source pins.
+- `web/e2e/support/iris.ts`: `fixtureSlots`, and an optional answered-fields argument of `setApprovalState`.
+- `web/e2e/rail/step5-cards.spec.ts` (new): F1 to F4, F6 and four F6b cases; `web/e2e/rail/step5-requests.spec.ts`: its header points to it.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls`: `TestStepFiveRequests` (chat 8660).
+- This spec: Spec Change Log entry (the literal reading of the closed-card ruling), Verification, triage log.
+
+**Review.** 26 findings from four layers: 4 patched (the `requestsOf` mutation re-run, the non-compact unit case, the recorded green runs, a stale spec sentence), 2 deferred (the closed card's silence after an answer, a decision for the Contest Planner; pin (c) without a settle step, unverified), 20 rejected with reasons in the triage log. Patched by verdict: medium 1, low 3. Follow-up review: not recommended.
+
+**Verification.** `npm --prefix web test` 2178 pass; lint, build (with `payloads.mjs --check`, `catalog.mjs --check`) and `docker/tests/test-class-rules.sh` exit 0; `TelegramOut` passed fresh and warm; `sign-in-2` parts 11/20, 12/20 and 13/20 all green on the unmutated tree; every mutation shown red and reverted `cmp`-identical (see `## Verification`). B13 (DW-1388) did not go red. Teardown done, no container or lock left.
+
+**Residual risks.**
+- The closed card drops the undo's card when the answer lands: no status, no audit line, focus falls to the body (deferred, for the Contest Planner).
+- The answer reply is not observable by the page for an undo answered from a closed card (the page drops the call with the card); the server records the answer regardless.
+- Lane B's 23.13 edits the same `incidentContext` and `view` hunks: plain union, keep both `approvals` and `drawn`.
+- Not run here: CI groups `live:cards`, `live:answers`, `shards`, and the lead's fresh-environment check (Rule 19).
