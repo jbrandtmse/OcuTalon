@@ -1,6 +1,6 @@
 // Tests the shape of the digest card's sources that Story 18.4 relies on and that no unit of the view model can see: the notice card draws a
 // digest on the --digest-card-* tokens (the surface, the border, the 4px brand-teal accent bar and the medium radius), shows its check rows
-// with app-check-rows inside a disclosure button with aria-expanded and aria-controls, and shows Got it (app-got-it) on a tell-now card until
+// with app-check-rows inside a disclosure button with aria-expanded and aria-controls, and shows Got it (app-got-it) on a tell-now or page card until
 // it is handled; the Got it control is a ServerButton that shows an error reply's message (messageOf) or the busy notice; the simulated phone
 // shows the same control on a tell-now message. The browser cases (e2e/chat/notice.spec.ts N16 to N19) pin what the running page does; this
 // reads the sources, so a state no case reaches cannot lose an attribute or read the wrong token without a test turning red.
@@ -66,8 +66,8 @@ describe('the digest card', () => {
     assert.match(template, /@if \(notice\(\)\.kind === 'digest' && notice\(\)\.checks\.length > 0\)/);
   });
 
-  it('shows Got it on a tell-now card with a decisionRef until it is handled, then the catalog line with the time in the browser zone', () => {
-    assert.match(template, /@if \(notice\(\)\.kind === 'tellnow' && notice\(\)\.decisionRef\)/);
+  it('shows Got it on a tell-now or page card with a decisionRef until it is handled, then the catalog line with the time in the browser zone', () => {
+    assert.match(template, /@if \(\(notice\(\)\.kind === 'tellnow' \|\| notice\(\)\.kind === 'page'\) && notice\(\)\.decisionRef\)/, 'a page card (Story 24.3a) has the same Got it and handled line');
     assert.match(template, /<app-got-it \[ref\]="notice\(\)\.decisionRef" channel="web" \/>/);
     assert.match(card.code, /renderPageText\('handled\.marked', \{ time: pageTimeBeside\(at, this\.instanceZone\(\)\) \}\)/);
   });

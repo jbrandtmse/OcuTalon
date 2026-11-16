@@ -14,7 +14,13 @@
 ///   - TestPhoneBody: exactly {"channel":"phone"} is the phone's press (the Handled row's channel is phone), and any other body is the web's;
 ///   - TestOtherSessionIs404: another session's tell-now Decision, an unknown Ref and a Ref that is not one are 404 not_found before anything is
 ///     submitted: no GotIt reaches SessionOps, no row is written and no event is published;
-///   - TestDigestDecisionIs404: the session's own Decision that is not tell-now is 404 too, with nothing submitted.
+///   - TestDigestDecisionIs404: the session's own Decision that is not tell-now is 404 too, with nothing submitted;
+///   - TestPagePress (Story 24.3a; V3, AC5): the press of the session's own page card is 200 {"result":"done","handledAt"} with Data.Page Marked; the page row is acknowledged with channel web
+///     (also for the body {"channel":"phone"}), one AckPage reaches IncidentManager, the page card is published again with handledAt, and a second press is 200 with the same handledAt and
+///     changes nothing;
+///   - TestPageNotOwnCopyIs404 (V3): another session's page Ref, the Ref of a page row whose person is the session but which has no web copy of it, and a Ref that is neither the session's
+///     tell-now Decision nor its own page copy answer 404 not_found, byte-identical to the answer for an unknown Ref, with no AckPage submitted and the page not acknowledged;
+///   - TestPageOnlineDemoIs404 (V3): with onlineDemo on, a press of the session's own page copy answers the same 404 and submits nothing.
 Class OcuTalon.Test.Web.GotItApi Extends %UnitTest.TestCase
 {
 
@@ -43,6 +49,9 @@ Property SavedModeValue As %String(MAXLEN = 1000);
 
 Property SavedModeUpdatedAt As %String(MAXLEN = 20);
 
+/// The page rows of the run are those of the incidents that start with this, and are deleted in OnAfterAllTests.
+Parameter PAGEINCIDENT = "zzgotitpage";
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -58,6 +67,7 @@ Method OnBeforeAllTests() As %Status
 		Quit $SYSTEM.Status.OK()
 	}
 	Do ##class(OcuTalon.Test.Demo.Step).Put(1, ##class(OcuTalon.Data.Time).NowUtc())
+	Do ##class(OcuTalon.Test.Watch.Paging).SaveKeys()
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -69,6 +79,8 @@ Method OnBeforeOneTest() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	Do ##class(OcuTalon.Test.Watch.Paging).PutKeysBack()
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE IncidentRef LIKE ?", ..#PAGEINCIDENT_..Number_"%")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..SavedModeFound, ..SavedModeValue, ..SavedModeUpdatedAt)
 	For i = 1:1:$Length(..Sessions, ",") Do ##class(OcuTalon.Data.Handled).DropSession($Piece(..Sessions, ",", i))
@@ -202,6 +214,92 @@ Method TestDigestDecisionIs404()
 	Do $$$AssertEquals(..HandledRows(decision), 0, "and no Handled row is written")
 }
 
+/// Story 24.3a (V3, AC5): the press of the session's own page card is the same route as a tell-now notice's, and submits AckPage (channel web, whatever the body says) instead of
+/// GotIt: 200 with Data.Page Marked, the row acknowledged by the web, one AckPage that reaches IncidentManager (the answer is IncidentManager's), the card published again with
+/// handledAt and a second press that is 200 with the first handledAt and changes nothing.
+Method TestPagePress()
+{
+	If '..Guard() Quit
+	Set session = ..OwnSession()
+	Set trace = ..TraceOf(session)
+	Set page = ..PageCopy(session, .card)
+	Set hops = ..Hops(trace, "CommandsIn", "IncidentManager")
+	Set body = ..Call(session, page, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "the answer is 200: "_body)
+	Do $$$AssertEquals(response.ContentType, "application/json", "JSON")
+	Set handledAt = ##class(OcuTalon.Data.Page).Marked(page)
+	Do $$$AssertTrue(handledAt '= "", "the page is acknowledged")
+	Do $$$AssertEquals(body, {"result": "done", "handledAt": (handledAt)}.%ToJSON(), "the body is {result: done, handledAt}")
+	Set row = ##class(OcuTalon.Data.Page).RefIndexOpen(page)
+	Do $$$AssertEquals(row.AcknowledgedChannel, "web", "the page row names the web channel")
+	Do $$$AssertEquals(..Hops(trace, "CommandsIn", "IncidentManager"), hops + 1, "one AckPage reached IncidentManager")
+	Do $$$AssertEquals(..HandledRows(page), 0, "and no Handled row of a tell-now notice was written")
+	Set events = ..WaitEvents(session, "notification", card, 2)
+	Do $$$AssertEquals(events.%Size(), 2, "the card's ref has the first event and one more")
+	If events.%Size() = 2 {
+		Do $$$AssertEquals(events.%Get(0).payload.handledAt, "", "the first has no handledAt")
+		Do $$$AssertEquals(events.%Get(1).payload.handledAt_"|"_events.%Get(1).payload.decisionRef_"|"_events.%Get(1).payload.kind, handledAt_"|"_page_"|page", "the second carries handledAt and the page's Ref")
+	}
+	Set again = ..Call(session, page, .response)
+	Do $$$AssertEquals(response.Status_"|"_again, "200 OK|"_body, "a second press is 200 with the same handledAt")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Page).Marked(page)_"|"_##class(OcuTalon.Data.Page).RefIndexOpen(page).AcknowledgedChannel, handledAt_"|web", "and changes nothing")
+	Hang 1
+	Do $$$AssertEquals(..EventsOf(session, "notification", card).%Size(), 2, "and publishes no new event")
+	// a body that names the phone is still the web's: a page has no phone copy
+	Set second = ..PageCopy(session, .secondCard)
+	Set phoneBody = ..Call(session, second, .response, {"channel": "phone"}.%ToJSON())
+	Do $$$AssertEquals(response.Status, "200 OK", "a press with the phone body is 200: "_phoneBody)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Page).RefIndexOpen(second).AcknowledgedChannel, "web", "its channel is web")
+}
+
+/// V3: what the session does not hold as its own page copy is 404 not_found, the answer of an unknown Ref byte for byte, before anything is submitted: another session's page,
+/// and a page row of the session's person with no web copy.
+Method TestPageNotOwnCopyIs404()
+{
+	If '..Guard() Quit
+	Set mine = ..OwnSession()
+	Set theirs = ..PageSession("theirs")
+	Set unknownBody = ..Call(mine, ##class(OcuTalon.Bridge.Ids).NewRef(), .unknown)
+	Do $$$AssertEquals(unknown.Status_"|"_unknownBody, "404 Not Found|"_..ErrorBody("not_found", ##class(OcuTalon.Web.Api).#MESSAGENOTFOUND), "an unknown Ref is the not_found answer")
+	Set theirPage = ..PageCopy(theirs, .theirCard)
+	Set bare = ..PageRow($Username, "bare")
+	Set cases = $ListBuild($ListBuild("another session's page", theirPage), $ListBuild("a page row of the session's person with no web copy", bare))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1), ref = $List(case, 2)
+		Set eventsBefore = ..AllEvents(mine) + ..AllEvents(theirs)
+		Set hopsBefore = ..Hops(..TraceOf(mine), "CommandsIn", "IncidentManager") + ..Hops(..TraceOf(theirs), "CommandsIn", "IncidentManager")
+		Set body = ..Call(mine, ref, .response)
+		Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, unknown.Status_"|"_unknown.ContentType_"|"_unknownBody, label_": the answer is the unknown Ref's, byte for byte")
+		Hang 0.5
+		Do $$$AssertEquals(..Hops(..TraceOf(mine), "CommandsIn", "IncidentManager") + ..Hops(..TraceOf(theirs), "CommandsIn", "IncidentManager"), hopsBefore, label_": no AckPage was submitted")
+		Do $$$AssertEquals(..AllEvents(mine) + ..AllEvents(theirs), eventsBefore, label_": no event is published")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Page).Marked(theirPage)_"|"_##class(OcuTalon.Data.Page).Marked(bare), "|", label_": no page is acknowledged")
+	}
+}
+
+/// V3: on the online demo the press of the session's own page copy is 404, the unknown Ref's answer, with nothing submitted and the page not acknowledged; with the flag off the same
+/// press is 200 (the control).
+Method TestPageOnlineDemoIs404()
+{
+	If '..Guard() Quit
+	Set session = ..OwnSession()
+	Set trace = ..TraceOf(session)
+	Set page = ..PageCopy(session, .card)
+	Set unknownBody = ..Call(session, ##class(OcuTalon.Bridge.Ids).NewRef(), .unknown)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set hops = ..Hops(trace, "CommandsIn", "IncidentManager")
+	Set body = ..Call(session, page, .response)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertEquals(response.Status_"|"_body, unknown.Status_"|"_unknownBody, "the press on the online demo is the unknown Ref's answer")
+	Hang 0.5
+	Do $$$AssertEquals(..Hops(trace, "CommandsIn", "IncidentManager"), hops, "no AckPage was submitted")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Page).Marked(page), "", "and the page is not acknowledged")
+	Set body = ..Call(session, page, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "control: the same press with the flag off is 200: "_body)
+	Do $$$AssertTrue(##class(OcuTalon.Data.Page).Marked(page) '= "", "and acknowledges the page")
+}
+
 /// --- helpers ---
 /// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
 Method Guard() As %Boolean [ Private ]
@@ -257,6 +355,66 @@ Method Notice(session As %String, Output card As %String, Output message As %Str
 	Set message = ##class(OcuTalon.Data.Delivery).FindByRef(decision, "phone", session)
 	Do $$$AssertTrue((card '= "") && (message '= ""), "the notice has its web card and its phone message")
 	Quit decision
+}
+
+/// A fixture session of an IRIS user of its own (another user than the one who runs the tests), which Watch.Paging.SessionOf finds for a page whose person is that user.
+Method PageSession(name As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzgotitpage"_..Number_name)
+	Do ..Keep(ref)
+	Quit ref
+}
+
+/// The signed-in session of a page press: the route takes the session of the IRIS user who is signed in (Ownership.SessionRef), the user who runs the tests, and a page reaches the
+/// user's first paired session, else the first session row of the user (Watch.Paging.SessionOf). The stack may hold other session rows of that user, so the session is paired
+/// (Fixture.Pairing, removed with the fixture rows), which SessionOf prefers, after the fixture sessions that the earlier tests of the run made for the user are removed, and the test
+/// asserts that Watch.Paging.SessionOf names it.
+Method OwnSession() As %String [ Private ]
+{
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Sessions)
+	Set ..Sessions = ""
+	Set ref = ..Session()
+	Do ##class(OcuTalon.Test.Data.Fixture).Pairing(ref)
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Paging).SessionOf($Username), ref, "Watch.Paging.SessionOf names the paired session of the user who is signed in")
+	Quit ref
+}
+
+/// A page row (the on-call role) whose Person is the IRIS user, so that Watch.Paging.SessionOf of it is the session of that user. The page's Ref; the row is deleted with the run's rows.
+Method PageRow(person As %String, name As %String) As %String [ Private ]
+{
+	Set page = ##class(OcuTalon.Data.Page).%New()
+	Set page.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set page.IncidentRef = ..#PAGEINCIDENT_..Number_name_$Increment(^||GotItApiPage)
+	Set page.Role = "oncall"
+	Set page.Person = person
+	Set page.Channels = "telegram,email"
+	Set page.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(page.%Save(), "the page row is made")
+	Quit page.Ref
+}
+
+/// A page of the session's user and its web card: no backup is set (so the text is page.onCallAlone), the page row's person is the session's IRIS user (which must be the user of
+/// this session alone, PageSession makes one, for Watch.Paging.SessionOf to find it) and the card is delivered as the production delivers a page. Returns the page's Ref; card is the card's ref.
+Method PageCopy(session As %String, Output card As %String) As %String [ Private ]
+{
+	Set user = ##class(OcuTalon.Data.Session).RefIndexOpen(session).IrisUser
+	For key = "oncall.backup.user", "oncall.backup.email" Do ##class(OcuTalon.Test.Watch.Paging).Write(key, "")
+	Set page = ..PageRow(user, "p")
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = session
+	Set notification.Kind = "page"
+	Set notification.DecisionRef = page
+	Set notification.IncidentRef = ##class(OcuTalon.Data.Page).RefIndexOpen(page).IncidentRef
+	Set notification.CatalogKey = "page.onCall"
+	Set notification.Slots = {"count": 3, "itemNoun": {"one": "message", "other": "messages"}, "production": "Orders", "time": "2030-01-01T02:10:00Z", "minutes": 15, "cause": "The partner sent a bad date."}.%ToJSON()
+	Set web = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Channel.WebChat.Out", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of WebChatOut is made")
+	Do $$$AssertStatusOK(web.OnNotification(notification, .response), "the page card is delivered")
+	Set card = ""
+	Set cards = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 50)
+	For i = 1:1:cards.Count() If cards.GetAt(i).DecisionRef = page Set card = cards.GetAt(i).ChannelMessageId
+	Do $$$AssertTrue(card '= "", "the page has its web card")
+	Quit page
 }
 
 /// Waits until the session's stream holds at least count events of the type for the ref, or WAIT seconds have passed. Answers the events.

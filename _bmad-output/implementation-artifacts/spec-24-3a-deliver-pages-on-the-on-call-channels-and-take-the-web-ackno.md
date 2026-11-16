@@ -2,14 +2,22 @@
 title: 'Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '99175c671a1ae86ad84d68a17a0b98dba70e0d58'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-24-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      Telegram's page text is not passed through the redactor and cap that the web card and the page email use (Channel.PageText), so a secret-shaped or over-long cause reaches the Telegram copy raw.
+    evidence: |-
+      Channel/Telegram/Out.cls renders a page with Watch.Paging.Text directly (Lane A, outside this story's one permitted edit); Channel.PageText redacts and caps the cause for the card and the email only. Q1's wording ("after Bridge.Redact.Text and the same length cap") holds for the web card and the email.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls
+    severity: medium
 ---
 
 <intent-contract>
@@ -143,21 +151,21 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure first; record under Design Notes › Measured, and label anything unmeasured "(inference)"). On a lane-D throwaway, measure:
+- [x] Task 0 (measure first; record under Design Notes › Measured, and label anything unmeasured "(inference)"). On a lane-D throwaway, measure:
   - (a) that a page Notification sent to Notify with `email` chosen reaches the SMTP mock through an enabled EmailOut, and the mail's headers;
   - (b) that `Commands.Submit` of `AckPage` from `web_user` answers synchronously with IncidentManager's result.
-- [ ] `Core/Rule/Functions.cls` -- add three pure reads (AD-14). Each is 0 on any error and on the online demo, and reads the row by object access:
+- [x] `Core/Rule/Functions.cls` -- add three pure reads (AD-14). Each is 0 on any error and on the online demo, and reads the row by object access:
   - `PageWeb(decisionRef, sessionRef)`: 1 when the `Data.Page` row of the Ref exists (Ref exact) and `IsSession(sessionRef)`;
   - `PageChannel(decisionRef, channel)`: 1 when that row exists and its `Channels` names the channel;
   - `PageEmail(decisionRef)`: `PageChannel(…,"email")` and EmailOut has an alive job (as `DigestEmail`).
-- [ ] `Core/Rule/Notify.cls` -- AD-14 as amended:
+- [x] `Core/Rule/Notify.cls` -- AD-14 as amended:
   - In the `Notification` rule, after the digest branches and before the generic ones:
     - `Kind="page" && 'PageWeb(DecisionRef,SessionRef)` → no target;
     - `Kind="page" && TelegramOn() && PageChannel(DecisionRef,"telegram")` → `WebChatOut,TelegramOut`;
     - `Kind="page"` → `WebChatOut`.
   - New rule `PageEmail`: `Kind="page" && PageEmail(DecisionRef)` → `EmailOut`.
   - Update the class doc.
-- [ ] `Channel/Email/Out.cls` -- AD-14's fourth send:
+- [x] `Channel/Email/Out.cls` -- AD-14's fourth send:
   - `OnNotification` dispatches `digest` → `SendDigest` and `page` → a new `SendPage`; any other kind gives one warning. Move the kind check out of `SendDigest`.
   - `SendPage` steps, in order:
     - the online demo: return before anything is read or written;
@@ -168,25 +176,25 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
     - subject `page.subject` with the Slots' `production`; body `Paging.Text(request,"email")`; `CheckValues`. A failure marks the row `failed` with one warning;
     - one `Transmit` with the claim's Ref. Success clears the mark, with one info line "sent one page email". Failure marks the row `failed`, with one warning by `Sender.Classify`.
   - No daily cap. Update the class doc (four paths).
-- [ ] `Channel/WebChat/Out.cls`:
+- [x] `Channel/WebChat/Out.cls`:
   - `page` joins `CARDKINDS`; its text is `Watch.Paging.Text(request, ..#TEXTCHANNEL, .sc)`, beside `summary`.
   - `OnHandled` republishes a card of kind `tellnow` or `page`.
   - Update the class doc.
-- [ ] `Live/Payload/Notification.cls` `FromRow` -- for a `page` row, `handledAt` is `Data.Page.Marked(DecisionRef)`, and its text is split into text and whyNow by the last line, as for `tellnow`.
-- [ ] `Web/Api.cls` `GotIt` -- AD-1, AD-14, V3:
+- [x] `Live/Payload/Notification.cls` `FromRow` -- for a `page` row, `handledAt` is `Data.Page.Marked(DecisionRef)`, and its text is split into text and whyNow by the last line, as for `tellnow`.
+- [x] `Web/Api.cls` `GotIt` -- AD-1, AD-14, V3:
   - When the Ref is not the session's tell-now Decision:
     - unless it is the online demo, look up `Ownership.DeliveryByRef(ref,"web",session)`;
     - a row of kind `page` submits `AckPage` {Ref, SessionRef, Channel `web`} from `web_user`;
     - anything else stays the existing 404 before any submit.
   - For a page: Ok → 200 `{"result":"done","handledAt": Page.Marked(ref)}`; `not_found` → the same 404; anything else as today.
   - Update the route doc (33-34 and 890-897).
-- [ ] `web/src/app/chat/chat-view.ts`, `notice-card.ts` -- `page` joins `NoticeKind` and `noticeOf`. A page card has:
+- [x] `web/src/app/chat/chat-view.ts`, `notice-card.ts` -- `page` joins `NoticeKind` and `noticeOf`. A page card has:
   - the tell-now look and icon, and its whyNow line;
   - no decision strip;
   - Got it (channel web) until `handledAt`, then the `handled.marked` line.
-- [ ] `Channel/Telegram/Out.cls` (V5, Lane A, about 5 lines) -- in `OnNotification`, when `Target` gives no chat for a kind `page` with a session SessionRef: record one Delivery row (SessionRef, `telegram`, no message id, no approval, kind `page`, no text, DecisionRef, no dueAt, FallbackReason `not_paired`) and return OK. This is the undelivered report (P2).
+- [x] `Channel/Telegram/Out.cls` (V5, Lane A, about 5 lines) -- in `OnNotification`, when `Target` gives no chat for a kind `page` with a session SessionRef: record one Delivery row (SessionRef, `telegram`, no message id, no approval, kind `page`, no text, DecisionRef, no dueAt, FallbackReason `not_paired`) and return OK. This is the undelivered report (P2).
 - [ ] Spine (the lead, Rule 20) -- apply the AD-14 amendment under Design Notes › Spine updates (V4), with memlog and lint_spine, and report its OLD and NEW text at merge. The implement stage does not edit the spine.
-- [ ] Tests (each pinned under Verification):
+- [x] Tests (each pinned under Verification):
   - `Test/Core/Routing.cls`:
     - new `TestNotifyPageTargets` covers every page row of the Matrix: online demo, `instance`, no row, Telegram on or off, paired or not, `handled` for a page → no EmailOut, and the rule `PageEmail` with no alive EmailOut;
     - `TestNotifyTargets` updated for `page`;
@@ -212,6 +220,7 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
   - body: exactly `Paging.Text(n,"email")`;
   - header: `X-OcuTalon-Ref` equal to the claim row's message id.
   A backup row mails `oncall.backup.email`. A second delivery, from any session, sends nothing (`PageRoute`).
+  Q1 conditions (Planner ruling, see the Spec Change Log): the body's cause is exactly the sentence that the web card and the Telegram copy of the same page show (after `OcuTalon.Bridge.Redact.Text` and the same length cap, never raw item or message text), and its name slot is the Settings name as the admin set it. `PageRoute` asserts both against the card's and Telegram's text, with a secret-shaped and an over-long cause, and asserts that no item or message text reaches the body. If `Msg.Catalog.Render` does not apply the redactor and cap alike for channel `email`, that is a `## Clarification Needed` (Catalog is not editable here).
 - AC3 (online demo, V2): Given `onlineDemo` 1 with a page row and every key set, when the page is routed and when it is sent straight to EmailOut, then Notify gives no target, and EmailOut writes no Delivery row and sends no mail (`Routing`, `PageRoute`).
 - AC4 (no identity, V2/NFR-11): Given distinctive fixture addresses, user name and chat id, when AC1-AC3 run, then none of them appears in any Ens message body or header of the test window, any `Ens.Util.Log` line or any audit entry. The subject and body are absent too. Positive control: the mock received them (`PageRoute`).
 - AC5 (web Got it, V3; Integration, Rule 1): Given a user's page card, when the session that holds it presses Got it, then:
@@ -222,6 +231,8 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 - AC6: Given a page card, when the chat loads, is pressed and is reloaded, then it shows the page text, Got it, and then the handled line (`chat-view.test.mjs`, `page-card.spec.ts`).
 
 ## Spec Change Log
+
+- 2026-11-16 (implement stage, before the handoff). Q1's cause and name conditions were added to AC2 and two mutation lines to Verification so that the handoff pins them; no intent-contract change.
 
 - 2026-11-16 (lead). **24.3a Q1 and Q2 rulings, Contest Planner ~12:30Z Nov 16 (BINDING)**, quoted in full:
 
@@ -310,6 +321,42 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 
 ## Review Triage Log
 
+### 2026-11-16 - Review pass
+- verdicts: 32 findings - high 1, medium 7, low 21, false 3, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind 1: GotIt/PageCommand comments say the route reads no Data.Page row and that the Ref must be a Data.Page row, but the code calls `Data.Page.Marked` and checks no row - comments corrected to what the code does.
+  - `[medium]` `[patch]` Blind 2: `TestNotifyPageTargets` assertions assume EmailOut has no alive job (state the test did not create) - expectations now derive from `ItemRunning("EmailOut")`; ran with EmailOut stopped only.
+  - `[medium]` `[patch]` Blind 3: EmailOut failure branches untested - added `TestEmailSendFails` and `TestEmailRefusesAnOverlongSubject`, each with a mutation.
+  - `[medium]` `[patch]` Blind 4: `Names` duplicates `Functions.PageChannel` (Rule 2 copy without a reason) - `Names` removed, `SendPage` calls `PageChannel`.
+  - `[low]` `[reject]` Blind 5: a failed page email is never surfaced or retried - by design (Design Notes decision 3: one try, the marked claim is the report); a consumer is not in this story.
+  - `[low]` `[reject]` Blind 6: no once-only guard on the `not_paired` row - the paging owner sends one Notification per session per page; a re-delivery is not shown to be reachable (wontfix-theoretical; reopen_if a page Notification is seen twice for one session).
+  - `[low]` `[reject]` Blind 7: `Claimed` has a hidden mode - the spec says "extend `Claimed` with a DecisionRef mode; do not copy it" (by-design, spec-bound).
+  - `[low]` `[patch]` Blind 8: `NoticeView.decisionRef` doc and a test title still say tell-now only - corrected.
+  - `[low]` `[reject]` Edge 1: an exception after the claim leaves it `pending` not `failed` - `pending` is also a marked, never-retried state, so the page is reported undelivered either way; the fix adds a nested Try (wontfix-accepted, reopen_if a pending page claim is seen with a mail sent).
+  - `[low]` `[reject]` Edge 2: a Role that is neither oncall nor backup emails the primary - Paging writes only those two roles (wontfix-theoretical).
+  - `[low]` `[reject]` Edge 3: `PageClaimed` has no index on DecisionRef - an index is a storage change (the spec's Never list); pages are at most two per incident (wontfix-accepted, reopen_if Delivery grows past a size that makes the page lock time out).
+  - `[low]` `[reject]` Edge 4: duplicate `not_paired` rows on a re-delivery - same root cause as Blind 6.
+  - `[low]` `[reject]` Edge 5: `EditHandled` warns on a `not_paired` row - only a session that pairs after the page can reach it, and the warning is count-only (wontfix-theoretical).
+  - `[low]` `[patch]` Edge 6: the PageCommand comment claims no Data.Page read - same root cause as Blind 1.
+  - `[false]` `[reject]` Edge 7: a page card whose Data.Page row was removed reaches the bus - the route answers the bus's `not_found` with the same 404 (the Matrix and `GotIt` do exactly that), so nothing reaches IncidentManager's state.
+  - `[medium]` `[patch]` Gap 1: the failure branches (failed send, render, CheckValues) have no test - same root cause as Blind 3.
+  - `[low]` `[patch]` Gap 2: mutation lines missing for `OnHandled`, `FromRow` handledAt, the email's from, subject and header, and `recentNotices` - each run, observed red and recorded.
+  - `[medium]` `[patch]` Gap 3: `TestOnlineDemo`'s absence checks have no positive control - a second page sent straight to EmailOut with the flag off must produce one mail.
+  - `[medium]` `[patch]` Gap 4: `TestUserBothChannels` asserts `person '= address` on two locals - the row's Person is now a distinctive other address and To is asserted against it.
+  - `[medium]` `[patch]` Gap 5: `TestFunctions` expects `PageEmail` "00" only while EmailOut has no job - state-aware now (same root cause as Blind 2).
+  - `[low]` `[reject]` Gap 6: the `handled` never-reaches-EmailOut assertion in `TestNotifyPageTargets` cannot fail without EmailOut - the pin is `PageRoute` `TestNotifyRoutesPageToEmailOut`, which has a running EmailOut (wontfix-accepted).
+  - `[low]` `[reject]` Gap 7: `PageEmail`'s own demo check is unpinned - an equivalent mutant (`PageChannel` already refuses), recorded in the mutation list.
+  - `[high]` `[patch]` Gap 8: Q1 is pinned in the wrong direction (a secret-shaped cause asserted verbatim in the body) because no redactor or cap runs at render - `Channel.PageText` added and used by the card and the email, the test reworked, two mutations added. Telegram (Lane A) remains and is deferred.
+  - `[low]` `[reject]` Gap 9: `EditHandled` on a `not_paired` row - same root cause as Edge 5.
+  - `[low]` `[reject]` Gap 10: the `not_paired` guard (`Kind = page` and a session) is pinned only for the page-with-session case - the other kinds keep their existing tests (`TelegramOut` `TestBySession`), which stay green.
+  - `[low]` `[reject]` Intent 1: Got it accepts a web copy of kind `handled` as well as `page` - needed for the second press (the Matrix's "second press: 200, the same handledAt"); gated by `Data.Page.Marked` (by-design).
+  - `[low]` `[patch]` Intent 2: the route reads `Data.Page.Marked` against its own comment - same root cause as Blind 1.
+  - `[low]` `[reject]` Intent 3: Channels are matched trimmed and case-insensitively - the settings store them as a lowercase list, so no behaviour differs; harmless.
+  - `[false]` `[reject]` Intent 4: the page rules key on the `onlineDemo` setting - the spec says "online demo" and names that setting.
+  - `[low]` `[reject]` Intent 5: the Lane A edit is about 7 lines, not 5 - the V5 text says "about 5 lines"; the extra lines are the guard and the warning.
+  - `[false]` `[reject]` Intent 6: `Test/Watch/PagingLive.cls` is a test path, not `Watch/**` of the product - it needed a page row to keep `TestHandledCopies` meaningful.
+  - `[low]` `[reject]` Intent 7: `GotItApi` calls `Api.GotIt` with stand-in request objects, not HTTP - the same style as the sibling tests of that class; real HTTP is `page-card.spec.ts` (Rule 3).
+
 ## Design Notes
 
 ### Rulings applied (P1, P2, V2, V3)
@@ -330,6 +377,11 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 6. With Telegram not included, a Telegram choice routes nowhere and leaves no row (the same as 24.3's decision 7).
 7. A page card uses the tell-now card's look, icon, whyNow line and Got it, with no strip and no new web text.
 8. An address-only person can only have `email`: `SettingsOps` refuses `telegram` for an address (Telegram is reachable only for a user with a paired session). So "email only" and "Channels exactly" agree.
+
+9. **Q1's redaction and cap are applied in our own files (implement stage, after review).** `Channel.PageText` (new, Lane B) redacts the `cause` slot with `Bridge.Redact.Text` and cuts it to 1000 characters (the incident Cause's MAXLEN) before `Watch.Paging.Text`; `WebChatOut` (the page card) and `EmailOut` `SendPage` (the body) both call it, so they show the identical sentence. Telegram (Lane A) is outside this story's one permitted edit and is recorded under `deferred`. Redaction runs before the cut, so a secret cut in half cannot slip through.
+10. **`Data/Ownership.cls` `recentNotices` gains `page`** (one SQL line, a footprint extension): without it a reload dropped the page card. Pinned by `Test.Data.Ownership:TestRecentNotices` and the page-card spec's reload step.
+11. **`Web.Api` `PageCommand` takes the newest web copy when it is kind `page`, or kind `handled` while `Data.Page.Marked(ref)` is set**, so a second press (when the handled row has become the newest) answers 200 with the same handledAt (Matrix: second press).
+12. **`SendPage` uses `Functions.PageChannel` for the Channels check**, so Notify and EmailOut share one parse (Rule 2).
 
 ### Moved to Story 24.3b
 - `Schedule/ReminderOps.cls` -- Moved to Story 24.3b: the escalation `Set`/`Cancel` (it answers `not_built` until then).
@@ -424,21 +476,29 @@ Memlog: `AD-14 amended (24.3a, P1/P2/V2/V3): page route by the Page row, web car
 - **Lane A** (cross-lane, V5): `src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls` only.
 - **Lane B, source:**
   - `Core/Rule/Functions.cls`, `Core/Rule/Notify.cls`;
-  - `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`;
+  - `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`, `Channel/PageText.cls` (NEW), `Data/Ownership.cls` (one SQL line);
   - `Live/Payload/Notification.cls`, `Web/Api.cls`;
   - `web/src/app/chat/chat-view.ts`, `web/src/app/chat/notice-card.ts`.
 - **Lane B, tests:**
-  - `Test/Core/Routing.cls`, `Test/Core/WebChatOut.cls`;
+  - `Test/Core/Routing.cls`, `Test/Core/WebChatOut.cls`, `Test/Channel/EmailOut.cls` (warning text), `Test/Watch/PagingLive.cls` (`TestHandledCopies`);
   - `Test/Channel/PageRoute.cls` (NEW);
   - `Test/Web/GotItApi.cls`;
   - `web/scripts/chat-view.test.mjs` (and `chat-announcements.test.mjs` if it enumerates kinds);
   - `web/e2e/chat/page-card.spec.ts` (NEW), `web/e2e/support/iris.ts`.
 - **Spine:** `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` and `.memlog.md` (the lead).
-- Outside epic-24's `paths_hint` (footprint extensions to report): `Core/Rule/Functions.cls`, `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`, `Live/Payload/Notification.cls`, `web/src/app/chat/{chat-view,notice-card}.ts`, `web/scripts/chat-view.test.mjs` (and `chat-announcements.test.mjs`), plus the Lane A `Channel/Telegram/Out.cls`. `web/src/app/chat/**` is also in epic-25's `paths_hint`.
+- Outside epic-24's `paths_hint` (footprint extensions to report): `Core/Rule/Functions.cls`, `Channel/Email/Out.cls`, `Channel/WebChat/Out.cls`, `Channel/PageText.cls`, `Data/Ownership.cls`, `Live/Payload/Notification.cls`, `web/src/app/chat/{chat-view,notice-card}.ts`, `web/scripts/chat-view.test.mjs` (and `chat-announcements.test.mjs`), plus the Lane A `Channel/Telegram/Out.cls`. `web/src/app/chat/**` is also in epic-25's `paths_hint`.
 
 ### CI
 - No new unit. `Test.Channel.PageRoute` joins `Test.Channel`'s shard.
 - `page-card.spec.ts` runs in the chromium project (`live:sign-in`).
+
+### Measured (implement stage, lane-D throwaways; nothing here contradicts the design)
+- Task 0 (a): a page Notification sent to Notify with `email` chosen, EmailOut enabled by a real save against the CI SMTP stub, reaches the stub through Notify's rule `PageEmail` and EmailOut. The stub holds exactly one mail: From `email.address`, To the role key's address alone, the `page.subject` rendering, one plain part, no attachment, header `X-OcuTalon-Ref` equal to the claim row's ChannelMessageId (22 characters), and the claim row's FallbackReason is empty once sent. `Test.Channel.PageRoute:TestUserBothChannels` takes 2.7 s on the warm stack, the pairing and the three copies included.
+- Task 0 (b): `Commands.Submit` of `AckPage` (origin `web_user`) answers synchronously with IncidentManager's own result: `handled` Ok 1 in 0.049 s, the repeat `already_handled` Ok 1 in 0.002 s, an unknown Ref `not_found` Ok 0 in 0.001 s (a script on the warm stack, real production).
+- Q1: `Msg.Catalog.Render` and `Watch.Paging.Text` apply neither `OcuTalon.Bridge.Redact.Text` nor a length cap to a `cause` slot for any channel (`Catalog.Clean` only normalises whitespace and control characters). So the new class `Channel.PageText` (Redact.Text of the cause slot, then cut to 1000 characters, then `Watch.Paging.Text`) renders the page for the web card and the email, and `PageRoute` `TestEmailBodyHoldsTheCardsCause` pins that both hold the same redacted, capped sentence. Telegram's page text (Lane A, `Channel/Telegram/Out.cls`) still renders with `Watch.Paging.Text` and is not passed through it (see `deferred`).
+- Gap found and closed: `Data.Ownership` `RecentNotices` (the chat's snapshot rows) listed no `page` kind, so a reload dropped the page card and AC6's "a reload keeps that line" could not hold. The kind list gained `page` (one line, `Data/Ownership.cls`); the page-card spec's reload step pins it.
+- `Web.Api` `GotIt` opens no `Data.Page` row (`test-class-rules.sh` rule `web-global-reads`, AD-13): its only `Data.Page` read is the class method `Marked(ref)`, which recognises the second press (the newest web row is then the `handled` row) and gives handledAt.
+- Times (warm unless stated): `Test.Core.Routing` 0.3 s, `Test.Core.WebChatOut` 1.2 s, `Test.Channel.PageRoute` 64 s (74 s fresh, plus a 127 s stack start), `Test.Channel.EmailOut` 5.3 s, `Test.Web.GotItApi` 6.6 s, `Test.Channel.EmailLive` 121.5 s fresh, `Test.Channel.TelegramOut` 28 s; `live sign-in --project chromium --part 16/35` (`chat/page-card.spec.ts` and `chat/sources.spec.ts`, 16 tests) 18.6 s of tests, `--part 14/35` (`chat/notice.spec.ts`, 21 tests) 11.7 s. Initial web bundle 897.90 kB raw (cap 1 MB, no error).
 
 ## Public text
 No new text. Used unchanged:
@@ -511,9 +571,78 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - V3 (byte-identical 404): answer 403 `forbidden` for another session's page → the same case (status and body compare).
 - V3 (online demo): remove the route's demo check → `GotItApi` demo case (an `AckPage` header appears).
 - AC6: remove `page` from the card's Got it condition → `page-card.spec.ts` (no Got it) and `chat-view.test.mjs`.
+- V2/Q1 (cause is exactly the card's sentence): make `SendPage` render the email with the incident's raw cause (unredacted, uncapped) instead of the Notification's slot → `PageRoute` cause case (secret-shaped marker present in the body, or body cause differs from the web card's).
+- V2/Q1 (name as the admin set it): render the backup's or person's name from another source (the page row's Person, or a case-folded or trimmed copy) instead of the Settings name → `PageRoute` name case (the Settings name has distinctive case and punctuation).
 - P1 (email never marked handled): drop `Kind="page"` from the rule `PageEmail` → `TestNotifyPageTargets` `handled` case (EmailOut target).
+
+**Mutations run (Rule 19; implement stage; each applied on a lane-D throwaway, observed red, reverted from a copy made before it, `cmp` identical and `git diff --stat` unchanged):**
+- mutation: AC1 (P1, channels exactly), the Notify branch `TelegramOn() && PageChannel(...,"telegram")` made `TelegramPaired(Document.SessionRef)` -> `Test.Core.Routing` `TestNotifyPageTargets` red (the paired email-only cases and the control).
+- mutation: AC1 (P2), the `not_paired` Delivery record in `Channel/Telegram/Out.cls` replaced by a no-op -> `PageRoute` `TestTelegramChosenUnpaired` red (no row from `Ownership.DeliveryByRef`).
+- mutation: AC2/V2 (only the admin-set address), `SendPageLocked` sends to the page row's Person instead of the role key -> `PageRoute` `TestAddressOnly` red (To assertion, "never to the row's Person").
+- mutation: V2 (the backup's key), `SendPageLocked` always reads `oncall.primary.email` -> `PageRoute` `TestBackupMailsTheBackupsKey` red.
+- mutation: V2 (body from the fixed page keys only), the incident's sample error (the item/message text marker) appended to the body -> `PageRoute` `TestEmailBodyHoldsTheCardsCause` red (body equality and the marker-absence check; the positive control, that the incident's item text holds the marker, stays green).
+- mutation: V2 (at most one per page row), the `Claimed` check removed from `SendPageLocked` -> `PageRoute` `TestSamePageAgain` red (more than one mail and row).
+- mutation: V2 (refused in EmailOut on the online demo), the demo check removed from `SendPage` -> `PageRoute` `TestOnlineDemo` red (a claim row is written; no mail goes because `Watch.Paging.Text` refuses on the demo and the claim is marked failed).
+- mutation: V2 (refused in Notify, `PageWeb`), the online-demo check removed from `Functions.PageWeb` -> `Test.Core.Routing` `TestNotifyPageTargets` and `TestFunctions` red (WebChatOut target on the demo).
+- mutation: V2 (refused in Notify, `PageEmail`), the online-demo check removed from BOTH `Functions.PageEmail` and `Functions.PageChannel` -> `PageRoute` `TestNotifyRoutesPageToEmailOut` red ("the online demo: nothing, EmailOut included"; needs a running EmailOut, so it is not `TestNotifyPageTargets`, which has none). Removing it from `PageEmail` alone leaves every test green: `PageChannel` (0 on the demo, as the spec's pure reads are) already refuses, so that check is defence in depth, an equivalent mutant.
+- mutation: P1 (email never marked handled), `Document.Kind="page" &&` dropped from the rule `PageEmail` -> `PageRoute` `TestNotifyRoutesPageToEmailOut` red (a handled Notification reaches EmailOut; same reason as above, `TestNotifyPageTargets` cannot see an EmailOut target).
+- mutation: AC4/V2 (ids only), the to-address appended to `SendPage`'s sent info line -> `PageRoute` `TestNoIdentityInTheTrace` red (the log holds the address).
+- mutation: V2/Q1 (cause is exactly the card's sentence), `SendPage` renders with the incident's own cause in place of the Notification's slot -> `PageRoute` `TestEmailBodyHoldsTheCardsCause` red (body differs from the card's text and the cause sentence).
+- mutation: V2/Q1 (name as the admin set it), the backup's name case-folded in the rendered body -> `PageRoute` `TestEmailBodyHoldsTheCardsCause` red (body equality and the name's case and punctuation).
+- mutation: V2 (each email tried once, the failed-send mark), the failed `Transmit` branch of `SendPageLocked` calls `MarkPage(claim, "")` instead of marking failed -> `PageRoute` `TestEmailSendFails` red (the claim row is not marked failed; the page again is not left failed).
+- mutation: V2 (the refused values mark the claim), the `CheckValues` refusal branch of `SendPageLocked` marks `""` instead of failed -> `PageRoute` `TestEmailRefusesAnOverlongSubject` red (the claim row is not marked failed).
+- mutation: P1 (a handled page republishes its card), `page` dropped from `WebChat.Out` `OnHandled`'s republish condition -> `Test.Core.WebChatOut` `TestPageHandledRepublishesTheCard` red (no second event).
+- mutation: AC5/AC6 (handledAt of a page card), the `page` line of `Live.Payload.Notification` `FromRow` dropped -> `Test.Core.WebChatOut` `TestPageHandledRepublishesTheCard` red (the card has no handledAt; a reload shows it unhandled).
+- mutation: V2 (the page email's From), `SendPageLocked` sends from another address -> `PageRoute` `TestAddressOnly` red (the from assertion of `AssertMail`).
+- mutation: V2 (the page email's subject), `SendPageLocked` sends the subject with a suffix -> `PageRoute` `TestAddressOnly` red (the subject assertion of `AssertMail`).
+- mutation: V2 (the header), `SendPageLocked` sends `X-OcuTalon-Ref` with an empty value -> `PageRoute` `TestAddressOnly` red (the header equals the claim row's message id; the 22-character Ref).
+- mutation: AC6 (a reload keeps the page card), `'page'` dropped from the SQL of `Data.Ownership` `recentNotices` -> `Test.Data.Ownership` `TestRecentNotices` red ("every kind that WebChatOut makes a card of is a card of the snapshot's chat", which walks CARDKINDS).
+- mutation: V2/Q1 (redacted and capped alike), `SendPage` renders with `Watch.Paging.Text` directly (no `Channel.PageText`) -> `PageRoute` `TestEmailBodyHoldsTheCardsCause` red (the raw secret values and the uncapped cause are in the body).
+- mutation: V2/Q1 (the card and the email alike), only the email redacts and caps (the web card renders with `Watch.Paging.Text`) -> `PageRoute` `TestEmailBodyHoldsTheCardsCause` red (the card holds the raw secret values and the uncapped cause; run on a fresh stack, because the warm stack's running WebChatOut job keeps the class it loaded at its start).
+- mutation: V2 (body from the fixed page keys only, re-run on the reworked test), the incident's sample error appended to the body -> `PageRoute` `TestEmailBodyHoldsTheCardsCause` red (body equals `PageText` and the marker-absence check).
+- mutation: AC5 (Integration), the route submits `GotIt` instead of `AckPage` for a page copy -> `Test.Web.GotItApi` `TestPagePress` and `TestPageOnlineDemoIs404` (control) red (the page is not acknowledged).
+- mutation: V3 (own copy only), the copy looked up as any owner's row of the Ref -> `GotItApi` `TestPageNotOwnCopyIs404` red ("no AckPage was submitted": another session's page reaches IncidentManager, which still answers 404).
+- mutation: V3 (byte-identical 404), another session's page answered 403 `forbidden` -> `GotItApi` `TestPageNotOwnCopyIs404` and `TestPageOnlineDemoIs404` red (status and body compare).
+- mutation: V3 (online demo), the route's demo check removed from `PageCommand` -> `GotItApi` `TestPageOnlineDemoIs404` red ("no AckPage was submitted"; the answer is still 404 because `Watch.Paging.Acknowledge` refuses on the demo).
+- mutation: AC6, `page` removed from the card's Got it condition (`notice-card.ts`) -> `web/e2e/chat/page-card.spec.ts` P1 red ("the card has Got it") and `web/scripts/digest-card-sources.test.mjs` red; with `page` removed from `noticeOf` (`chat-view.ts`) -> `web/scripts/chat-view.test.mjs` red (the page notice view).
+- Not mutated: the Lane A `Test.Channel.EmailOut` changes (the warning text) and `Test.Watch.PagingLive` `TestHandledCopies` (adapted to a page row; the phone has no page copy), the page card's `WebChatOut` branch (`TestPageCard`, `TestPageHandledRepublishesTheCard` are green and unmutated).
+
+**Verified (implement stage, lane D):**
+- Warm: `Test.Core.Routing`, `Test.Core.WebChatOut`, `Test.Channel.PageRoute`, `Test.Channel.EmailOut`, `Test.Web.GotItApi`, and also `Test.Core.RoutingProduction`, `Test.Data.Ownership`, `Test.Live.Payloads`, `Test.Watch.Paging`, `Test.Watch.PagingLive`, `Test.Channel.TelegramOut` and `Test.Install.ProductionRules` passed. Fresh: `PageRoute` (74 s), `EmailLive` (121.5 s) and `GotItApi` passed.
+- `npm --prefix web test` (2187), `npm --prefix web run lint`, `npm --prefix web run payloads -- --check`, `npm --prefix web run build` (no budget error), `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-ci-config.sh` pass. `live sign-in --project chromium --part 16/35` (`chat/page-card.spec.ts`) and `--part 14/35` (`chat/notice.spec.ts`) pass on a fresh stack.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Lane B's delivery half of AD-14's page contract, on P1 Option A, P2, V2, V3 and the Q1 rulings:
+- Notify routes a page by its `Data.Page` row (`Functions.PageWeb`, `PageChannel`, `PageEmail`; the rule `PageEmail`), none on the online demo, and no `handled` to EmailOut.
+- `EmailOut` has the fourth path, `SendPage`: one email per page row to the role's admin-set key, claimed before it renders, subject `page.subject`, body `Channel.PageText` of the approved page email keys.
+- The web chat shows the page card (Got it, then the handled line), and `POST /v1/decisions/:ref/got-it` submits `AckPage` (channel web) for the session's own page copy only; anything else, and every page Ref on the online demo, is the same 404 as a missing Ref.
+- `TelegramOut` records the `not_paired` Delivery row (Lane A, V5).
+- The AD-14 amendment (OLD/NEW 1 to 4 under Design Notes) is left for the lead.
+
+**Files changed** (`src/ocutalon/cls/OcuTalon/` unless `web/`; Lane A marked):
+- `Channel/Telegram/Out.cls` (Lane A): the `not_paired` row.
+- `Core/Rule/Functions.cls`, `Core/Rule/Notify.cls`: the page reads and branches.
+- `Channel/Email/Out.cls`: `SendPage`, `Claimed`'s DecisionRef mode.
+- `Channel/WebChat/Out.cls`, `Channel/PageText.cls` (new), `Live/Payload/Notification.cls`, `Data/Ownership.cls` (the `page` kind in `recentNotices`): the card.
+- `Web/Api.cls`: the page Got it.
+- `web/src/app/chat/chat-view.ts`, `web/src/app/chat/notice-card.ts`: the page notice view.
+- Tests: `Test/Channel/PageRoute.cls` (new), `Test/Core/Routing.cls`, `Test/Core/WebChatOut.cls`, `Test/Web/GotItApi.cls`, `Test/Channel/EmailOut.cls`, `Test/Watch/PagingLive.cls`, `web/scripts/chat-view.test.mjs`, `web/scripts/digest-card-sources.test.mjs`, `web/e2e/chat/page-card.spec.ts` (new), `web/e2e/support/iris.ts`.
+
+**Review findings** (32, see the triage log): 1 high, 7 medium and 7 low patched (Q1's redaction and cap in `Channel.PageText`, the failure-branch tests, the state-aware Routing tests, the positive control, the vacuous assertion, the shared Channels parse, the comments); 18 rejected with reasons (3 false); 1 deferred (Telegram's page text is not passed through `PageText`, Lane A).
+
+**Follow-up review recommended: true.** A patched entry was high (Q1: the redactor and cap were added after the first review). Unverified risk: `Test.Core.Routing`'s EmailOut-running branch was not run (only EmailOut-stopped stacks were), and `Channel.PageText` was written in the review pass, so its tests ran once on a warm and once on a fresh stack only.
+
+**Verification performed.** Patched counts: high 1, medium 7, low 7.
+- Warm: `Test.Core.Routing`, `Test.Core.WebChatOut`, `Test.Channel.PageRoute`, `Test.Channel.EmailOut`, `Test.Web.GotItApi` passed (after the patches).
+- Fresh stack after the patches: `Test.Channel.PageRoute` (83.6 s), `Test.Channel.EmailLive` (118.7 s), `Test.Web.GotItApi` (7.1 s) passed; `ci/iris.sh live sign-in --project chromium --part 16/35` (`chat/page-card.spec.ts`, 16 tests) and `--part 14/35` (`chat/notice.spec.ts`, 21 tests) passed.
+- `npm --prefix web test` (2187 pass), `npm --prefix web run lint`, `npm --prefix web run build` (one pre-existing `demo-guide.ts` style budget warning, no error), `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-ci-config.sh` pass.
+- Every mutation in `## Verification` was observed red and reverted `cmp`-identical.
+
+**Residual risks.**
+- Telegram's page text carries the cause raw (deferred, Lane A).
+- Q1's footprint extensions: `Channel/PageText.cls` and `Data/Ownership.cls` are outside epic-24's `paths_hint`.
+- The merge of 24.3a is held until 24.3b is green (Planner ruling Q2).

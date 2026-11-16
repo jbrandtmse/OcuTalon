@@ -1,7 +1,7 @@
 /// WebChatOut, the business operation that delivers a message to the web chat (AD-12, AD-14, AD-32, AD-33). Its message map
 /// takes the two messages that Notify routes here, and it acts only when the message's SessionRef is a session (Session.Recipients
 /// gives it back); for any other owner it logs a warning and records nothing.
-///   - Notification of a card kind (tellnow, reminder, allowance): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
+///   - Notification of a card kind (tellnow, reminder, allowance, page): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
 ///     web chat's copy of the card on a Delivery row: a new Ref as ChannelMessageId, the kind, the whole rendered text, the
 ///     DecisionRef, DueAt (the slot dueAt of a reminder) and FallbackReason (the value of the slot that the key's catalog entry
 ///     declares as type fallbackReason). After the save it publishes one notification event on the session's stream, with
@@ -18,12 +18,16 @@
 ///     incident's stored summary rendered one catalog line per part, in place of the rendering of the CatalogKey (its Slots are empty, so no untrusted text and no
 ///     user name travels in the message). The row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. A summary that cannot be read or rendered
 ///     is an error with no row and no event;
+///   - Notification of the kind page (Story 24.3a; AD-14): it takes the same card path, with the text of OcuTalon.Channel.PageText.Text(request, "web", .sc) (Watch.Paging.Text with the cause slot redacted and capped, as for the page email), the approved page text with the
+///     backup's or the person's name resolved from the rows, in place of the rendering of the CatalogKey. The row's DueAt and FallbackReason are "" and its DecisionRef is the page's Ref.
+///     Notify sends a page here only for a user's session, so the person of a page is never an address; a text that cannot be rendered (and any page on the online demo) is an error
+///     with no row and no event;
 ///   - A standalone email request's card (Story 21.11; kind approval, the key Core.BridgeSink KEYEMAILREQUEST): the same card path, with the text of Core.BridgeSink.RequestText(request,
 ///     "web", .sc) in place of the rendering of the CatalogKey: the email's stored dry run, read by the ApprovalRef, because its Slots are empty and no recipient, subject or text
 ///     travels in the message (they would be in the trace). Its result keys (fix.emailSent, fix.emailNotSent) are ordinary result cards. A request text that cannot be made is an
 ///     error with no row and no event;
-///   - Notification of the kind handled (Story 18.4; Core.SessionOps sends it once, when the user marks a tell-now notice as handled):
-///     Ownership.DeliveryByRef(DecisionRef, "web", SessionRef) gives the notice's newest web row. When that row is a tell-now card with a
+///   - Notification of the kind handled (Story 18.4; Core.SessionOps sends it once, when the user marks a tell-now notice as handled, and Watch.Paging when a page is acknowledged):
+///     Ownership.DeliveryByRef(DecisionRef, "web", SessionRef) gives the notice's newest web row. When that row is a tell-now or page card with a
 ///     ChannelMessageId, it publishes one more notification event with Live.Payload.Notification.FromRow of THAT row, so the card keeps
 ///     its Ref and now carries handledAt, and then records the Delivery row of kind handled (no text, no ChannelMessageId). A row of kind
 ///     handled (a second press), or no card, records the Delivery row only, with no event;
@@ -48,7 +52,7 @@ Class OcuTalon.Channel.WebChat.Out Extends OcuTalon.Channel.Operation
 Parameter CHANNEL = "web";
 
 /// The notification kinds that the web chat shows as cards.
-Parameter CARDKINDS = "tellnow,reminder,allowance,digest,summary";
+Parameter CARDKINDS = "tellnow,reminder,allowance,digest,summary,page";
 
 /// The notification kinds whose web form is the incident card: they record their Delivery row only and never a card or an event.
 Parameter INCIDENTKINDS = "incident,approval,answered,result";
@@ -86,6 +90,8 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
+	} ElseIf request.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
+		Set text = ##class(OcuTalon.Channel.PageText).Text(request, ..#TEXTCHANNEL, .sc)
 	} ElseIf (request.Kind = "approval") && (request.CatalogKey = $Parameter("OcuTalon.Core.BridgeSink", "KEYEMAILREQUEST")) {
 		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {
@@ -103,7 +109,7 @@ Method OnHandled(request As OcuTalon.Msg.Notification) As %Status [ Private ]
 {
 	Set card = ##class(OcuTalon.Data.Ownership).DeliveryByRef(request.DecisionRef, ..#CHANNEL, request.SessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	If $IsObject(card) && (card.Kind = "tellnow") && (card.ChannelMessageId '= "") {
+	If $IsObject(card) && ((card.Kind = "tellnow") || (card.Kind = ##class(OcuTalon.Watch.Paging).#KIND)) && (card.ChannelMessageId '= "") {
 		Do ..Announce(card.OwnerRef, "notification", "OcuTalon.Live.Payload.Notification", card)
 	}
 	Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", request.ApprovalRef, request.Kind, "", request.DecisionRef)

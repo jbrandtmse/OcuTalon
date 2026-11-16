@@ -343,22 +343,32 @@ Method TestEscalationAsk()
 	Do $$$AssertEquals(result.Ok, 0, "and it answers Ok 0")
 }
 
-/// Task 0 (d): what WebChatOut and SimPhoneOut log for a page copy with a bare Delivery row, when a handled notification for its Ref follows.
+/// Task 0 (d): what WebChatOut and SimPhoneOut log for a page copy, when a handled notification for its Ref follows. Since Story 24.3a a user's page (a Data.Page row, which Notify routes by) is the web card
+/// alone: the simulated phone never gets a page, so the handled notification finds no phone copy of it.
 Method TestHandledCopies()
 {
 	If '..Ready() Quit
 	Set a = ..Session("hc")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Set floor = ..Top("Ens_Util.Log", $Namespace)
-	Set page = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row = ##class(OcuTalon.Data.Page).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.IncidentRef = "zzpagelivehc"_..Number
+	Set row.Role = "oncall"
+	Set row.Person = ##class(OcuTalon.Data.Session).RefIndexOpen(a).IrisUser
+	Set row.Channels = "email"
+	Set row.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(row.%Save(), "a page row exists, as Notify routes a page by it")
+	Set page = row.Ref
 	Set one = ##class(OcuTalon.Msg.Notification).%New()
 	Set one.SessionRef = a
 	Set one.Kind = "page"
-	Set one.CatalogKey = "page.onCall"
+	Set one.CatalogKey = "page.onCallAlone"
 	Set one.DecisionRef = page
-	Set one.Slots = {"count": 3}.%ToJSON()
+	Set one.IncidentRef = row.IncidentRef
+	Set one.Slots = {"count": 3, "itemNoun": {"one": "message", "other": "messages"}, "production": "Orders", "time": "2030-01-01T02:10:00Z", "minutes": 15, "cause": "The partner sent a bad date"}.%ToJSON()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Channel.LiveCase).SendToNotify(one, trace), "a page Notification goes to Notify")
-	Do ..WaitDeliveries(a, page, "page", 2)
+	Do ..WaitDeliveries(a, page, "page", 1)
 	Set two = ##class(OcuTalon.Msg.Notification).%New()
 	Set two.SessionRef = a
 	Set two.Kind = "handled"
@@ -371,7 +381,11 @@ Method TestHandledCopies()
 		Set lines = lines_$Select(lines = "": "", 1: " / ")_"type "_rs.%GetData(1)_" "_rs.%GetData(2)_": "_$Extract(rs.%GetData(3), 1, 160)
 	}
 	Do ..Timing("Task 0 (d): warnings and errors of WebChatOut, SimPhoneOut and Notify: "_$Select(lines = "": "none", 1: lines))
-	Do $$$AssertEquals(lines, "", "the page copies and their handled notification log no warning")
+	Do $$$AssertEquals(lines, "", "the page copy and its handled notification log no warning")
+	Set count = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = 'phone' AND Kind = 'page'", page)
+	Do count.%Next()
+	Do $$$AssertEquals(+count.%GetData(1), 0, "the simulated phone has no copy of the page")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE Ref = ?", page)
 }
 
 /// Waits up to WAITCOPY seconds for count Delivery rows of the kind with the Ref, in the session's channels (web and phone).
@@ -385,7 +399,7 @@ Method WaitDeliveries(session As %String, ref As %String, kind As %String, count
 		If (found '< count) || ($ZHorolog > end) Quit
 		Hang 0.5
 	}
-	Do $$$AssertEquals(found, count, count_" "_kind_" Delivery row(s) of the Ref, one for each of the web and phone channels")
+	Do $$$AssertEquals(found, count, count_" "_kind_" Delivery row(s) of the Ref")
 	Quit found
 }
 

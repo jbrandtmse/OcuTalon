@@ -86,6 +86,63 @@ ClassMethod DigestEmail(sessionRef As %String) As %Boolean
 	Quit yes
 }
 
+/// 1 when the Data.Page row that decisionRef names (its Ref exactly) exists and sessionRef is a session (IsSession): the page of a user, which always gets a web chat card
+/// in that session (Story 24.3a). 0 for a Ref with no row, a person given only as an address (SessionRef instance), the online demo and any error.
+ClassMethod PageWeb(decisionRef As %String, sessionRef As %String) As %Boolean
+{
+	Try {
+		Set yes = 0
+		If (##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1) && ..IsSession($Get(sessionRef)) {
+			Set yes = ''$IsObject(..PageRow($Get(decisionRef)))
+		}
+	} Catch exception {
+		Set yes = 0
+	}
+	Quit yes
+}
+
+/// 1 when the Data.Page row that decisionRef names exists and its Channels names the channel (telegram or email; the list is a comma list, each name trimmed and lowercased).
+/// 0 for a Ref with no row, any other channel, the online demo and any error. The row is read by object access.
+ClassMethod PageChannel(decisionRef As %String, channel As %String) As %Boolean
+{
+	Try {
+		Set yes = 0
+		Set wanted = $ZConvert($ZStrip($Get(channel), "<>W"), "L")
+		If (wanted '= "") && (##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1) {
+			Set page = ..PageRow($Get(decisionRef))
+			If $IsObject(page) {
+				For i = 1:1:$Length(page.Channels, ",") {
+					If $ZConvert($ZStrip($Piece(page.Channels, ",", i), "<>W"), "L") = wanted Set yes = 1
+				}
+			}
+		}
+	} Catch exception {
+		Set yes = 0
+	}
+	Quit yes
+}
+
+/// 1 when a page goes by email (Story 24.3a): not the online demo, the Data.Page row of decisionRef names email in its Channels (PageChannel) and EmailOut has an alive job.
+/// The recipient is not decided here: EmailOut works it out itself from the role's on-call key. Any error gives 0.
+ClassMethod PageEmail(decisionRef As %String) As %Boolean
+{
+	Try {
+		Set yes = 0
+		If (##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1) && ..PageChannel($Get(decisionRef), "email") Set yes = ''##class(OcuTalon.Core.CommandsIn).ItemRunning("EmailOut")
+	} Catch exception {
+		Set yes = 0
+	}
+	Quit yes
+}
+
+/// The Data.Page row whose Ref is exactly ref, or "".
+ClassMethod PageRow(ref As %String) As OcuTalon.Data.Page [ Private ]
+{
+	If ref = "" Quit ""
+	Set page = ##class(OcuTalon.Data.Page).RefIndexOpen(ref)
+	Quit $Select($IsObject(page) && (page.Ref = ref): page, 1: "")
+}
+
 /// The channels a digest of the session goes to, as a list in the order web, phone, telegram, email: the ones that digest.channels names and that are
 /// available to the session, which are the channels that Notify's rule for kind digest sends it to. The list is empty when none holds. Any error gives
 /// the channels found so far.
