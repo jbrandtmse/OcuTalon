@@ -2,15 +2,22 @@
 title: 'DW-1373: A suspend or resume that could not be applied is not reported as "Nothing was changed"'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: 'd1414c370d0adf645ae99bf609aab49ea9a85a84'
+status: 'done'
+baseline_revision: '5f2b21ae5e31f4e661b95f16c4169709520eb505'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-23-2-suspend-resume-and-reroute-with-a-dry-run.md'
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      The restore's own EnableConfigItem erring or throwing (the Catch of the item branch) has no test, because the spec forbids a new seam.
+    evidence: |-
+      The three TestItemUpdateFailure* methods force only UpdateProduction through updateErrors. A restore whose store errs or throws would end notapplied by the code read, but no test pins it (matrix rows 3 and 10 name it).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Fix/Executor.cls InProduction, item branch restore Try/Catch
+    severity: low
 ---
 
 <intent-contract>
@@ -328,14 +335,80 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - Write one `mutation:` line per mutation under AC 1 to 6, as `mutation: <change> -> <test that went red>`.
 - Revert each byte for byte (`cmp` against a copy taken before it), and check that `git status --short` and `git diff --stat` are as before.
 
-**Task 0 records:** (to be filled by the implement stage)
+**Task 0 records** (lane C warm throwaway, tag e21dw1373iw, IRIS build of the base image; probe class ZzScratch.Dw1373 loaded into the throwaway only, never in the tree; every item put back: OrdersForReview enabled, the System Default Setting row removed, production up to date):
+1. The store without the update, `OrdersForReview`: `EnableConfigItem(prod||OrdersForReview, 0, 0)` returned OK; the definition's stored `Enabled` was 0; `ProductionNeedsUpdate` was 1 with the reason "Job '3340' needs to be terminated."; the item's job still ran (`Ens.Job:Enumerate` count 1). `EnableConfigItem(..., 1, 0)` returned OK: stored `Enabled` 1, `ProductionNeedsUpdate` 0. `UpdateProduction(GetRunningProductionUpdateTimeout())` returned OK, `ProductionNeedsUpdate` 0, the job still ran. The Ens event log of the four calls: "Disabled item 'OrdersForReview' in Production '<Orders>'." (Type 4), "Enabled item 'OrdersForReview' in Production '<Orders>'." (Type 4), "Production '<Orders>' updating... (UpdateTimeout: 10s, Force flag: 0)" (Type 4), "Production '<Orders>' is up-to-date." (Type 4).
+2. The defect, the old call (lock `^Ens.Runtime` held 40 s by a JOB): `EnableConfigItem(prod||OrdersForReview, 0)` took 30.0 s and returned `ERROR <Ens>ErrCanNotAcquireRuntimeLock: Could not acquire runtime global lock within timeout '30'`; `Watch.ErrorText.Sentence` of it is "Could not acquire runtime global lock within timeout 30" (the quotes of the text are dropped by the test shell's own doubling; the in-process reason of item 4(b) keeps them, see below). The stored `Enabled` was 0 after the failed call (the flag changed although the call failed) and `ProductionNeedsUpdate` was 1. The failure logged Type 2 lines with the same text. The defect is as read. The item was put back by `EnableConfigItem(..., 1, 0)` and `UpdateProduction`: both OK, stored `Enabled` 1, `ProductionNeedsUpdate` 0.
+3. The System Default Setting path, `OrdersToWarehouse`: the row written as `Case.SetItemDefault(1)` does (`^Ens.Config.DefaultSettingsD(prod, item, "*", "Enabled") = $ListBuild(1, "", 0)`). `EnableConfigItem(..., 0, 0)` returned OK and IRIS's SQL `UPDATE` found the row written straight to the global: the row's value was 0 and the definition's `Enabled` stayed 1; `ProductionNeedsUpdate` was 1. `EnableConfigItem(..., 1, 0)` returned OK: the row's value 1, definition 1, `ProductionNeedsUpdate` 0. `UpdateProduction` returned OK and the item's job still ran. So the test writes the row to the global, as `Case.SetItemDefault` does (no `Ens.Config.DefaultSettings` `%Save` needed). The row was killed afterwards.
+4. The restore with a real failure, after the product change was compiled and the OcuTalon production restarted (`Fix.Executor.InProduction` called from the probe, plan entry `{"id" (the Ens.Config.Item id, 4), "action": "disable", "item": "OrdersForReview", "production"}`, no `updateErrors`):
+   - (a) lock held 40 s: `InProduction` took 39.9 s, done 0, skipped [], unreached `[{"id":"4","code":"refused"}]`. The forward update failed at about 30 s; the restore's update took the lock when it was freed at about 40 s. The stored `Enabled` was 1 and `ProductionNeedsUpdate` 0. The log lines: "Disabled item 'OrdersForReview'" once, "Enabled item 'OrdersForReview'" once, three Type 2 `ErrCanNotAcquireRuntimeLock` lines (the failed forward update, logged by IRIS), "Production ... updating..." once, "Production ... is up-to-date." once.
+   - (b) lock held 75 s: `InProduction` took 60.0 s, done 0, skipped [], unreached `[{"id":"4","code":"notapplied","reason":"Could not acquire runtime global lock within timeout '30'"}]` (IRIS's own sentence, the `ERROR <Ens>ErrCanNotAcquireRuntimeLock: ` prefix stripped). The stored `Enabled` was 1 (the restore's store worked); the log: "Disabled item" once, "Enabled item" once, six Type 2 lock lines (two failed updates), no "updating" line. After the lock was freed the item was as before (stored 1, `ProductionNeedsUpdate` 0, the job running).
+
+**Mutations** (Rule 19; each applied, the named test run warm and shown red, then reverted from a copy taken before it and checked with `cmp`; `git status --short` and `git diff --stat` were as before after each):
+- mutation: the item branch's restore `If saved {` made `If 0 {` -> `TestItemUpdateFailureRestores` red ("the earlier flag was stored again", "the restore updated the running production once").
+- mutation: the restore's `'enable` made `enable` -> `TestItemUpdateFailureRestores` red (the entry is `notapplied`, not `refused`: "as refused").
+- mutation: the restore's update replaced by `$$$OK` -> `TestItemUpdateFailureRestores` red ("the restore updated the running production once").
+- mutation: the item branch's `If $$$ISERR(sc) Set code = "notapplied"` removed -> `TestItemUpdateFailureNotApplied` red ("as notapplied, with the production's error").
+- mutation: the restore's `EnableConfigItem(..., 'enable, 0)` replaced by `Set item.Enabled = 'enable` and `Set sc = item.Production.%Save()` -> `TestItemUpdateFailureRestoresDefault` red ("the restore wrote the System Default Setting it changed").
+- mutation: `Watch.Notice` `ResultKey`'s new `Unreached` line removed -> `TestItemNotApplied` red ("the session reads result.settingSavedNotApplied").
+- mutation: `Watch.Notice` `ResultSlots`' item mapping removed -> `TestItemNotApplied` red ("its slots are built", the setting-kind slots refuse the extra).
+- mutation: the new `Unreached` test of `Watch.Summary` `RunEvents` removed -> `TestItemSavedNotAppliedLine` red ("and no summary.itemNotChanged").
+- mutation: `itemResultView`'s unreached test made `false` -> `node --test web/scripts/approval-view.test.mjs` red (the new case: the band is `result.itemNotChanged`).
+
+**Command results** (lane C throwaway tags e21dw1373iw (warm) and e21dw1373if (fresh), both removed at the end; no stack of this stage is up):
+- Warm, after a production restart: `OcuTalon.Test.Fix.ItemKinds` (whole class, and each of the four new methods) passed; `OcuTalon.Test.Watch.Summary` passed; `OcuTalon.Test.Watch.Rollback` (whole class, 102 s) passed; `OcuTalon.Test.Msg.Catalog` passed.
+- Fresh: `ci/iris.sh shard lane-a@Fix` passed (30 classes, 1061 s), `Test.Fix.ItemKinds` and `Test.Fix.Executor` among them.
+- `npm --prefix web test` passed (2174 tests, 0 failed), `web/scripts/initial-bundle.test.mjs` passed (921 kB cap).
+- Browser: the approval card's spec is in the Playwright project `cards`, not in sign-in-2 (web/playwright.config.ts), so `ci/iris.sh live cards` was run on a fresh stack after `ci/iris.sh build`: 32 passed (approval-card.spec.ts and incident-card.spec.ts), no browser spec was changed.
+- `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-class-rules.sh`, one per call: all rules passed.
+- The spine lint (`.claude/skills/bmad-architecture/scripts/lint_spine.py --workspace` the spine folder; the spine is not edited): 12 findings, all low, as at the baseline.
+- The diff holds only the footprint files; no added line holds a non-ASCII character or an absolute local path.
+
+## Review Triage Log
+
+### 2026-11-15 - Review pass
+- verdicts: 20 findings - high 0, medium 0, low 13, false 7, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind 1: a restore whose store worked and whose update failed is notapplied and the text says "was changed" - the spec's Design Notes accept this wording (23.3 Blind 2: "Ask me to check the item" covers it); spec-bound, by design.
+  - `[false]` `[reject]` Blind 2 and Edge 7: the restore leaves other same-name enabled items changed - the spec lists two enabled items with one name as a production IRIS cannot run (residual, accepted).
+  - `[false]` `[reject]` Blind 3, Edge 2 and Edge 6: a failed first EnableConfigItem may leave stored state - Director.cls L1604-1620 shows the System Default Setting branch never sets tSaveProduction, so only the definition branch saves, and a failed %Save stores nothing; the claim "an error from the first call means nothing was stored" holds.
+  - `[low]` `[defer]` Blind 4 and Verification gap 1: the restore's EnableConfigItem erring or throwing is not exercised - real, but pinning it needs a new seam, which the spec forbids; recorded under `deferred`.
+  - `[low]` `[reject]` Blind 4 (second part): updateErrors gives the same text for the first and second error, so the first-error reason is not told apart - the seam's text is fixed by the spec; changing it is a new seam, and the reason is the first error's by the code read.
+  - `[false]` `[reject]` Blind 4 (third part): TestItemNotApplied runs the handler for suspend_item only - the spec asks for the same key with resume_item at the ResultKey level, which the test does.
+  - `[low]` `[reject]` Blind 5: the update expression is copied four times - the spec requires it inline and byte for byte (AD-3: no OcuTalon class in the namespace switch), so by design.
+  - `[low]` `[reject]` Blind 6: no ended line in the summary, and no resume_item case in TestItemSavedNotAppliedLine - spec-bound (SettingCause does the same, no approved text exists); the Quit is kind-agnostic, so a resume case adds no pin.
+  - `[low]` `[reject]` Blind 7: the name Enabled is held in three places - ObjectScript, TypeScript and the test cannot share one constant; the TS doc names its source, as PARTNER_NOT_SET_UP does.
+  - `[low]` `[reject]` Blind 8: DefinitionEnabled is unguarded - a missing item raises an error in the test, which fails loudly; not worth a guard.
+  - `[false]` `[reject]` Blind 9: LogSince does not filter by job - it reads rows after the floor with their ConfigName, and the job's own lines carry none, as Test.Watch.Rollback's helper does; the test counts only the lines it names.
+  - `[low]` `[reject]` Edge 1: an exception from the forward store or update outside the restore - spec matrix row 9 sets it to error as today (after a store only UpdateProduction runs, and it never throws).
+  - `[false]` `[reject]` Edge 3: a restore that errs because the flag is already back is notapplied - spec matrix row 10 sets this (notapplied, "Ask me to check the item").
+  - `[low]` `[reject]` Edge 4: Unreached above 0 with an empty reason gives no notice - the executor always gives notapplied a reason from the status's sentence, and ResultSlots refuses a missing reason as it does for setting kinds today.
+  - `[false]` `[reject]` Edge 5: the System Default Setting row written to the global may not be found by IRIS's SQL UPDATE - Task 0 item 3 measured that it is found (row 1, 0, 1; definition unchanged), and TestItemUpdateFailureRestoresDefault pins it.
+  - `[low]` `[reject]` Edge 6 (claims): "restore only undoes its own write" and the TemporarilyStopped flag - same as Blind 2; the flag is runtime state, listed in the spec's residuals.
+  - `[low]` `[reject]` Intent-alignment: executor tests call InProduction directly, TestItemNotApplied and the summary test use canned inputs, so no test joins the item branch to the notice in one run - descriptive; the same shape as 23.3's TestSettingNotApplied, and Task 0 item 4 ran the real restore.
+  - `[low]` `[reject]` Intent-alignment: other files mention itemNotChanged - read: they are the catalog, tests and the setting dispatcher, none reads an item run's result; the built bundle is gitignored.
+  - `[low]` `[reject]` Verification gap, other: the resume half, the item === '' guard and the Unreached-over-Skipped order have no mutation line of their own - they are asserted, and the per-AC mutation lines of Rule 19 are present for AC 1 to 6.
+  - `[low]` `[reject]` Verification gap, other: two of the new tests do not assert that the item starts enabled - a disabled start would fail loudly as a skipped entry, not pass.
 
 ## Auto Run Result
 
-Status: not run (plan stage; spec ready for dev)
+Status: done
 Blocking condition: none
 
-**Size.** Small to medium.
-- Product: about 25 lines of ObjectScript (the item branch about 20, `Notice` 5, `Summary` 1, one parameter) and about 6 lines of TypeScript, plus doc sentences.
-- Tests: four ItemKinds methods and a helper, one Summary method, and three web asserts (about 200 lines).
-- Runtime: Task 0 is about 10 minutes, mostly waiting on the 30 s lock, and the fresh runs are two or three calls.
+**Summary.** A suspend or resume whose production update fails after the flag was stored now writes the earlier flag back through `EnableConfigItem(..., 'enable, 0)` and updates again. The entry is `refused` (so "Nothing was changed", now true) when that works and `notapplied` when it does not, and a `notapplied` item run reads the approved `result.settingSavedNotApplied` (setting Enabled, target the item) in the session and on the card, with no summary ended line. No new text.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Fix/Executor.cls`: item branch of `InProduction` (store, update through the `updateErrors` seam, restore in Try) and its docs.
+- `src/ocutalon/cls/OcuTalon/Fix/Kind/SuspendItem.cls`: `ENABLEDSETTING` and the Execute sentence.
+- `src/ocutalon/cls/OcuTalon/Watch/Notice.cls`: `ResultKey` item branch, `ResultSlots`, class doc.
+- `src/ocutalon/cls/OcuTalon/Watch/Summary.cls`: no ended line for Completed 0 with Unreached above 0.
+- `web/src/app/approvals/approval-view.ts`: `itemResultView` band and `ENABLED_SETTING`.
+- Tests: `Test/Fix/ItemKinds.cls` (four methods, helpers), `Test/Watch/Summary.cls` (`TestItemSavedNotAppliedLine`), `web/scripts/approval-view.test.mjs`.
+- This spec.
+
+**Review.** 20 findings from four layers: high 0, medium 0, patched 0. One low deferred (the restore's own store erring or throwing has no test; the spec forbids a new seam). The other 19 are rejected with their reason in the triage log (false 7; low 12, by design, accepted in the spec or not worth a guard).
+
+**Follow-up review recommended:** false (no patch was applied; no high).
+
+**Verification.** See `## Verification`: Task 0 (defect reproduced at 30.0 s; restore at a 40 s lock hold gave `refused` and the flag back, at 75 s `notapplied`), nine mutation lines, the ItemKinds, Summary, Rollback and Catalog classes warm, `lane-a@Fix` fresh (30 classes), `npm test` (2174), the bundle cap, `live cards` (32 passed), the two docker scripts and the spine lint (12 low, baseline).
+
+**Residual risks.** A mid-test failure of the update-failure tests can leave `OrdersForReview` disabled until the next update (only the second part registers it for the cleanup). The restore's own failure branch is pinned only through `updateErrors`.

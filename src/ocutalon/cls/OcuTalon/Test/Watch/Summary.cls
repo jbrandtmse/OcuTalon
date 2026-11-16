@@ -38,6 +38,7 @@
 ///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, with no "the fix started" line, the message counts unchanged and "No fix ran" kept.
 ///   - TestSettingLines (Story 23.3): the requested line of a rollback_setting and of an undo_rollback, the restored, undone and not changed lines of their runs, and message counts that the setting runs leave alone.
 ///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365): a rollback_setting run that saved the setting and could not apply it has no ended line.
+///   - TestItemSavedNotAppliedLine (DW-1373): a suspend_item run that stored the flag and could not apply it has no ended line.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -877,6 +878,28 @@ Method TestSettingSavedNotAppliedLine()
 	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
 	Do $$$AssertEquals($Length(keys, "summary.settingNotChanged") - 1, 0, "and no summary.settingNotChanged")
 	Do $$$AssertEquals($Length(keys, "summary.settingRestored") - 1, 0, "and no summary.settingRestored")
+}
+
+/// DW-1373: a suspend_item run that stored the item's flag and could not apply it (Completed 0, Unreached 1, Skipped 0) has its requested line and its started line, and no ended line:
+/// summary.itemNotChanged would say that the item was not changed, and the summary has no text for this end. mutation: the Unreached test of Watch.Summary RunEvents' item branch taken out.
+Method TestItemSavedNotAppliedLine()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("itemsaved")
+	Set incident = ..Incident(owner, "resolved")
+	Set dryRun = "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"
+	Set suspend = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "suspend_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Do ..Link(incident, suspend)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertEquals($Length(keys, "summary.requestedSuspend") - 1, 1, "the request has summary.requestedSuspend: "_keys)
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
+	Do $$$AssertEquals($Length(keys, "summary.itemNotChanged") - 1, 0, "and no summary.itemNotChanged")
+	Do $$$AssertEquals($Length(keys, "summary.itemSuspended") - 1, 0, "and no summary.itemSuspended")
 }
 
 /// A shadow instance of the probe.
