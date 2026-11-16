@@ -2,8 +2,8 @@
 title: 'DW-1410: A copy that a business process is still handling is not counted as done'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: '872d8cb59a21d87293be0a6926c90cb2345e5db4'
+status: 'done'
+baseline_revision: '89fa33d6aa0a928faf75635d5964f56f872ae560'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -361,9 +361,100 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - Revert each byte for byte (`cmp` against a copy taken before it), and check that `git status --short` and `git diff --stat` are as before.
 - AC 5 is recorded with Task 0's numbers (items 5 and 6), not a unit test.
 
-**Task 0 records:** (to fill)
+**Run split (stage prompt, binding):** Task 0 items 1 to 4, item 2, item 3, item 7 and item 8's "before" are done and recorded below, on the lane-C warm throwaway with tag `e21dw1410iw` (already up; the lane lock is held by the stage agent: do not run `ci/warm.sh up` or `down`, and use it for the `(loop)` and `(once)` warm classes only). The implement subagent does the Execution tasks, the warm test classes, and the Rule 19 mutation runs (record each `mutation:` line under Verification; revert byte for byte with `cmp`; the two approved time-limit mutations for AC 4 are (a) drop the limit in `Waiting` and (b) `Tally`'s `inFlight` test made `If 0`). The stage agent itself does Task 0 items 5, 6 and the push-condition runs, the fresh runs (`lane-a@Fix`, `Test.Watch.Evidence`) on builds 154 and 109, `Scale` after, the scripts and the lint.
+
+**Task 0 records:**
+- Setup (lane C warm throwaway, tag `e21dw1410iw`, build 154; scratch classes in the lead's scratch folder only, never committed): `ZzScratch.CallBP` (1 ms `OkBO`), `SlowBP` (the 1 s operation), `RetryBP` (CallBP with `ReplyCodeActions` `E=RF`, `RetryInterval` 1, `FailureTimeout` 3), `SyncBP` (`SendRequestSync` then an error), `FanBP` (a no-reply send to the disabled `ZzScratchOffBO`, then the CallBP call), and `RespRace` in OCUTALON (Run, Watch with `i` and `r`, the session-signal emulation). Ens queues to a disabled item without error: the leg's header stays Queued (Status 2) for good. The BPL variant (item 1d) is recorded below.
+- Item 1, retry wait: the spec's `E=R` ends the copy Completed (9), not Error, after `FailureTimeout` (`finalReplyAction`'s else branch turns the error into OK and logs a warning), so no count of it can be wrong. The scratch uses `E=RF`, which ends the copy Error (8) after the 3 s.
+- Item 4 (the gate, passed): the production's jobs, where `Executor.Read` and Sweep run, run as `_Ensemble` (role `%All`); `CheckPrivilege(<user>, 1, <table>, "s")` in OCUORDERS gives `_Ensemble` 1 for `Ens.BusinessProcess` and 1 for `Ens.MessageHeader`. The service user `OcuTalonService` (role `OcuTalonServiceRole`) gives 0 for both, so no user can read `Ens.MessageHeader` and not `Ens.BusinessProcess`. A bare `Ens.BusinessProcess` row saves in OCUORDERS with `%New("zzPollerTarget")` (`%PrimaryRequestHeaderSetObjectId`, `%SessionId`, `%IsCompleted`). The instance query's plan: "Read index map Ens.BusinessProcess.SessionId, using the given %SessionId, and looping on ID", then the master map, with the other conditions tested per row.
+- Item 2 (the current code, DW-1205 only; `Run` = trials with 3 copies each; wrong = a count of completed while the copy ends Error): CallBP 1 ms `Run(300)` unloaded 83 wrong; loaded 131 wrong (16 `yes`, killed after); 1 s reply `Run(30)` loaded 30 wrong; RetryBP (`E=RF`) `Run(20)` 20 wrong; SyncBP `Run(100)` loaded 0 wrong (matrix 5); FanBP `Run(30)` 11 wrong.
+- Item 3, order at completion (`i` an instance exists by the product's query, `r` a reply is in hand, `a` the header is a job's active message; ms since the send): CallBP 1 ms `9i@2.3 9ir@2.6 9r@2.9 8@3.1`; CallBP 1 s `9i@2.5 9ir@1002.5 9r@1003.4 8@1003.6`; RetryBP `9ir@2.5 9r@3.1 3r@1003.9 9i@1004.1 9ir@1005.9 9r@1006.2 3ir@2007.0 9i@2007.3 9ir@2009.6 9r@2010.0 3r@3010.9 3ir@3011.0 9i@3011.2 9ir@3013.3 9r@3013.6 8@3014.0`. Every watch (6 of CallBP 1 ms, 3 of 1 s, 6 of RetryBP) shows `9r` without `i` before `8`: the instance is gone while the copy still reads Completed and the job still holds the reply.
+- Item 7 (the session signal, scratch emulation, DW-1205's `Reader` untouched): CallBP 1 ms `Run(300)` loaded 66 wrong; 1 s `Run(30)` loaded 9 wrong; FanBP `Run(30)` 30 of 30 trials still called running at the 5 s cap although all three copies had reached Error (false still-running).
+- Item 8, before (`Test.Fix.Scale`, 500 copies): fresh 22.29 s; warm 22.19, 20.22 and 20.24 s.
+
+- Item 1d, the BPL variant (`ZzScratch.BplBP`: `<call>` async to the OkBO, `<sync>`, then `<throw>`; a `<sequence>` wrapper is required): it shows the same sequence (`9i@2.0 9ir@2.8 9r@3.5 8@3.6`, `9ia 9i 9ir 9r 8`), and `Run(100)` on the fixed code, loaded, gave 0 wrong. The old code was not run on it.
+- Item 5, the fix measured (the warm stack was taken down and brought up again after the last product edit, so its production jobs run the final code: the image is built from the tree at that start; scratch classes loaded after; `Reader.cls` is byte-identical to the file the stack started with, `cmp`; build 154): CallBP 1 ms `Run(300)` unloaded 0 wrong (reads 460, 206 in flight); loaded 0 wrong (reads 699, 583 in flight); 1 s reply `Run(30)` loaded 0 wrong; RetryBP `Run(20)` 0 wrong, none ended at the cap; SyncBP `Run(100)` loaded 0 wrong; FanBP `Run(30)` 0 wrong, 0 of 30 trials ended at the 5 s cap (no false still-running); BplBP `Run(100)` loaded 0 wrong. The push condition holds (0 wrong in 300 at 1 ms unloaded and loaded, 0 in 30 at 1 s, no false still-running on the fan-out).
+- Item 6, the instance check alone (the reply-in-hand condition made `If 0 && ...`, compiled, run, then `Reader.cls` restored with `cp` and checked with `cmp`): RetryBP `Run(20)` 11 wrong; CallBP 1 ms `Run(300)` loaded 10 wrong. So the reply-in-hand check is needed: the instance check alone leaves the completion window.
+- Item 7 (the session signal, for the record): wrong 66 of 300 (CallBP 1 ms, loaded) and 9 of 30 (1 s, loaded) while still calling every FanBP trial (30 of 30) running at the 5 s cap.
+
+- Item 8, after (`Test.Fix.Scale`, 500 copies, fresh stack inside the `lane-a@Fix` shard, build 154): 18.67 s, against 22.29 s before (fresh) and 20.2 to 22.2 s (warm): no slowdown, so no line is needed.
+- Fresh runs, build 154, final code (`ci/iris.sh`, one per call): `shard lane-a@Fix` passed (29 classes, 1029 s; `Test.Fix.Executor` 42.15 s, `Test.Fix.Recheck` 1.66 s, `Test.Fix.Partial` 48.82 s, `Test.Fix.Reroute` 7.24 s; one existing SKIP, DW-399, in `TestRunOfAStoppedWaiterEnds`); `Test.Watch.Evidence` passed (16 methods, 3.29 s).
+- `Test.Watch.Reader`, fresh, build 154: 17 of 18 pass; `TestDisabledItemsInStoredOrderAcrossAStopAndAStart` fails ("stopped, with the disabled items: suspended") in both runs. With `Reader.cls` put back to HEAD (the DW-1205 code) the same class fails the same way in the same test on a fresh stack, so it is not this change: it is the ledger's DW-626 flake (same text, seen in CI on unchanged reruns). `Reader.cls` restored with `cp` and `cmp`, tree unchanged. The six failures the implement subagent saw on the warm stack were caused by the scratch items in that stack's Orders production.
+- Fresh runs, build 109 (`IRIS_IMAGE` the 2027.1.0AI.109.0 community image, final code): `shard lane-a@Fix` passed (29 classes, 1034 s; `Test.Fix.Scale` 20.05 s); `Test.Watch.Evidence` passed (16 methods, 3.36 s).
+- Scripts and lint: `bash docker/tests/test-boundaries.sh` exit 0 (all rules passed); `bash docker/tests/test-class-rules.sh` exit 0 (all rules passed); the spine lint reports 12 findings, all low, as at the baseline (none added).
+**Implementation records** (implement subagent, lane C warm throwaway `e21dw1410iw`, build 154; HEAD `89fa33d6a`, uncommitted):
+- Warm-stack note: `ci/iris.sh class` refused to run ("FAIL WARM stale: src/ocutalon/csp/3rdpartylicenses.txt changed since warm up", the file was rewritten at 17:51, after the warm up at about 17:32; only classes reload and the stage agent owns `ci/warm.sh down` and `up`). The classes were therefore loaded into the warm container with `docker exec ... iris session IRIS -U OCUTALON` (`$SYSTEM.OBJ.Load` of the bind-mounted `/opt/ocutalon/warm-src/...` files, then `Compile` with `cb-d`), and run with the very `class_script` of `ci/iris.sh` (one class or method per call). Scripts are in the scratch folder only. The stack's stored manifest is unchanged, so the stage agent still needs `ci/warm.sh down` and `up` before any later `ci/iris.sh` call on this tag.
+- Warm, whole classes, build 154: `Test.Watch.Evidence` passed (16 methods, 2.9 s; the three new ones in), `Test.Fix.Executor` passed (48 methods, 45.6 s; the new one in), `Test.Watch.GoodMessages` passed (10 methods, 132.5 s), `Test.Fix.Recheck` passed (3 methods, 62.4 s), `Test.Eval.Record` passed (20 methods, 51.3 s).
+- `Test.Watch.Reader` on the warm stack: 18 methods, 6 fail (`TestDisabledBySystemDefaultSetting`, `TestDisabledItems`, `TestDisabledItemsInStoredOrderAcrossAStopAndAStart`, `TestFailuresState`, `TestFailuresStateCodes`, `TestStoppedProduction`: the asserts list `ZzScratchOffBO`, the stage agent's scratch item that Task 0 added to the Orders production, as a disabled item, and the state reads suspended where the tests expect stopped). They test disabled items and the production state, not the evidence branch that this change edits. They need a stack without the scratch items: the stage agent's fresh run decides.
+- `bash docker/tests/test-class-rules.sh` exit 0 ("all rules passed"). `git diff --name-only` lists the spec, the spine, `Watch/Reader.cls`, `Fix/Executor.cls`, `Test/Watch/Evidence.cls` and `Test/Fix/Executor.cls`. No added code line holds `Ens.ActiveMessage`, a non-ASCII character or an absolute local path.
+
+**Mutation records** (warm `e21dw1410iw`, build 154; each mutation applied, loaded, the one test method run, then reverted with `cp` and `cmp` against a copy taken before it, `git status --short` and `git diff --stat` the same as before, and the class reloaded):
+- AC 1: mutation: `If flightRows.%Next() Set flightHeld = 1` made `If 0 Set flightHeld = 1` -> `TestBusinessProcessHoldsACopy` red ("a Completed header whose business process is not complete is in flight", "Read carries inFlight", "Tally gives completed 0, failed again 1, running 1").
+- AC 1: mutation: drop ` AND (%IsCompleted = 0 OR %IsCompleted IS NULL)` from the query -> `TestBusinessProcessHoldsACopy` red ("a completed instance does not hold it", "Tally gives completed 1, failed again 1, running 0").
+- AC 1: mutation: `AND %PrimaryRequestHeader = ?` made `AND ? IS NOT NULL` (the session only, the same parameters) -> `TestBusinessProcessHoldsACopy` red ("a completed instance does not hold it", "Tally gives completed 1, failed again 1, running 0", "another header's unfinished instance in its session does not hold it").
+- AC 1: mutation: `If flightFirst = $$$eMessageStatusCompleted {` made `If 1 {` -> `TestBusinessProcessHoldsACopy` red ("an Error header is final, whatever its instance", "Read carries inFlight", both Tally lines).
+- AC 2: mutation: the reply-in-hand condition made `If 0 && (...)` -> `TestReplyInHandHoldsACopy` red ("a job that handles a reply of its session to its target holds it").
+- AC 2: mutation: drop `&& ($List(flightInfo, 1) = sessionId)` -> `TestReplyInHandHoldsACopy` red ("a reply of another session does not").
+- AC 2: mutation: drop `&& ($List(flightInfo, 3) = $$$eMessageTypeResponse)` -> `TestReplyInHandHoldsACopy` red ("a request of its session is not a reply in hand").
+- AC 3: mutation: the new block's Catch sets `flightHeld = 0` -> `TestBusinessProcessReadFails` red ("a failed read of the business process instances never makes it done: it is in flight", "Tally counts the copy as running, never completed").
+- AC 4: mutation: drop the limit in `Waiting` (`If (start = "") || (now '< (start + ..#WAITSECONDS)) Continue` made `If (start = "") Continue`) -> `TestHeldCopyStopsAtTheWait` red ("the wait stopped at its limit and never read past it: 151 reads", then the request, the FixRun, the result, the audit, the `LOGWAIT` and the later-wait asserts); it ended without a hang, 15.5 s, at read 151.
+- AC 4: mutation: `Tally`'s `If $IsObject(entry) && entry.inFlight {` made `If 0 {` -> `TestHeldCopyStopsAtTheWait` red (1 read, the copies counted done at the first pass, and every later assert).
+- AC 2 (review patch): mutation: drop `&& ($List(flightInfo, 2) = target)` from the reply-in-hand condition -> `TestReplyInHandHoldsACopy` red ("a reply of its session addressed to another target does not"); reverted with `cp` and `cmp` against a copy taken before, `git status --short` and `git diff --stat` as before, `Test.Watch.Evidence` green again (warm, 16 methods).
+
+## Review Triage Log
+
+### 2026-11-16 — Review pass
+- verdicts: 27 findings — high 0, medium 5, low 16, false 6, maybe-false 0
+- findings:
+  - `[false]` `[reject]` (intent-alignment) Tests exercise reader fixtures and canned statuses, not a live BP — the live surface is Task 0 items 5-6 (real BP, real BO reply, real Actor), run on the throwaway and recorded under Verification; AC 5 says no unit test can drive the window.
+  - `[false]` `[reject]` (intent-alignment) The instance filter `%IsCompleted = 0 OR %IsCompleted IS NULL` and the no-session skip are the spec's own query and rule (Execution task, Matrix), not a divergence.
+  - `[false]` `[reject]` (blind-hunter) The comment 'IRIS deletes the instance before it writes the final status' is Actor.cls:265 (`%DeleteId` after `%IsCompleted` 1, unless RetainCompletedInstances); BusinessProcess.cls only marks it, so the claim holds.
+  - `[low]` `[reject]` (blind-hunter) AD-16's 'the 60 s wait still bounds every copy that runs' is the Planner's verbatim sentence (spec gate: REPLACED verbatim); the run staying executing with a held copy is matrix rows 7 and 8 and Veto 5, approved. Residual risk noted in Auto Run Result.
+  - `[low]` `[reject]` (blind-hunter) No-session case: the spec states 'A header without a session is not looked up' and why (Ens gives every header a session); a header without one falls to DW-1205's checks. Not worth a test.
+  - `[low]` `[reject]` (blind-hunter) Only the instance read has a seam by the spec's single data seam; both reads share one Try, so the Catch mutation pins both. A real SQL failure needs a privilege-less user (Task 0 item 4 checked the grant); reopen_if=a production user loses SELECT on Ens.BusinessProcess.
+  - `[low]` `[reject]` (blind-hunter) `IS NULL` branch mirrors Ens's own predicate (Purge.cls:210-213); a NULL row cannot be produced by the Actor; no user-reachable failure.
+  - `[low]` `[reject]` (blind-hunter) Two scans and cost on large resends: the cache bounds queries; Task 0 item 8 measured Test.Fix.Scale (500 copies) before and after.
+  - `[false]` `[reject]` (blind-hunter) The 2026-11-16 stamp is the UTC day of the edit (IRIS and the spec's `created` are 2026-11-16); the spec says the date is the day of the edit.
+  - `[low]` `[reject]` (blind-hunter) The AD-16 sentence is long because the Planner's verbatim text is; spec-bound, not editable here.
+  - `[false]` `[reject]` (blind-hunter) The bare `Ens.BusinessProcess` fixture saves and reads in OCUORDERS (Task 0 item 4 and the three new tests pass, Evidence 16 methods).
+  - `[low]` `[reject]` (blind-hunter) TestHeldCopyStopsAtTheWait is the approved 'Pin it' test with its two approved time-limit mutations (AC 4); it is meant to pin the wait's limit, not the reader.
+  - `[medium]` `[reject]` (edge-case-hunter) A BP instance that never completes keeps `inFlight` 1, so Sweep leaves the run executing: this is matrix row 8 and Veto 5, approved ('as it does today for a copy still queued at a disabled target'); closed by-design, residual risk noted.
+  - `[medium]` `[reject]` (edge-case-hunter) Same root cause as the row above (persistent held copy feeds Sweep): by-design, matrix 8.
+  - `[low]` `[reject]` (edge-case-hunter) A sessionless reply matching a sessionless copy: Ens gives every header a session; theoretical (wontfix-theoretical).
+  - `[low]` `[reject]` (edge-case-hunter) Siblings of one session and target hold each other for one pass: matrix row 10, accepted by the gate; the counts are never wrong.
+  - `[low]` `[reject]` (edge-case-hunter) Per-copy instance query on a 500-copy session: indexed by session and the rows are the unfinished instances only; Scale measured.
+  - `[low]` `[reject]` (edge-case-hunter) The `flightSeen` cache holds only fields that never change per header; a header unreadable now is read as not-a-reply and the next pass re-reads it. Bounded by the active-message entries of one call.
+  - `[false]` `[reject]` (edge-case-hunter) The control assertion does pin the PrimaryRequestHeader condition: mutation 3 (drop it) went red on 'another header's unfinished instance in its session does not hold it'.
+  - `[medium]` `[reject]` (edge-case-hunter) The claim 'never hangs' is about the wait (it ends at WAITSECONDS with the progress FixResult), as TestHeldCopyStopsAtTheWait pins; the run staying executing is the approved matrix row 7/8 behaviour. Same root as the first row.
+  - `[medium]` `[reject]` (verification-gap) The read order is not pinned by a committed test: spec AC 5 says no unit test can drive the window; its evidence is Task 0 items 5 and 6 (0 wrong; the instance check alone leaves 11 of 20 and 10 of 300 wrong). By-design.
+  - `[medium]` `[patch]` (verification-gap) The reply's target comparison had no test or mutation. Patched: TestReplyInHandHoldsACopy makes a reply of the copy's session addressed to another target (Retarget helper) and asserts Completed|0; mutation recorded and shown red, reverted byte for byte.
+  - `[low]` `[reject]` (verification-gap) `%SQLCODE < 0` throw lines have no test: they are DW-1205's own pattern, a privilege-less user is not producible in a warm test, and Task 0 item 4 checked the grant of the users that run the reads; reopen_if=a production user loses SELECT on Ens.BusinessProcess.
+  - `[low]` `[reject]` (verification-gap) Spec status fields mismatch (Auto Run Result 'ready-for-dev') is the finalization step's to set; not a code issue.
+  - `[low]` `[reject]` (verification-gap) AC 5 has no pinning test and AC 6 no mutation line: AC 5 is recorded with Task 0 numbers by the spec's own rule, AC 6 is the regression suite.
+  - `[low]` `[reject]` (verification-gap) The DW-1205 top-node seam can leak to a later header when the new block holds the header: test-only, in this process, killed by OnAfterOneTest; no shipped test sets both.
+  - `[low]` `[reject]` (verification-gap) A failed second prepare re-prepares for each later Completed header of the call: correct (a failure holds the copy) and bounded by the call.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the spec gate: Veto items 1 to 6)
+Status: done
+Blocking condition: none
+
+**Summary.** `Watch.Reader.Current` now holds a header whose first read is Completed while a business process instance of it is not complete (SQL on `Ens.BusinessProcess` through the session index) or a job handles a response of its session addressed to its target; any failed read of those holds the copy. DW-1205's entry check and second status read run after it, only when the header is not already held. `Fix.Executor`, `Tally`, `Read` and Sweep are unchanged (docs only), so a held copy is counted as running, bounded by the existing 60 s wait. AD-16's DW-1205 sentence is replaced with the spec's verbatim.
+
+**Files.**
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`: the new block, the class and `Current` docs.
+- `src/ocutalon/cls/OcuTalon/Fix/Executor.cls`: docs only.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Evidence.cls`: `TestBusinessProcessHoldsACopy`, `TestReplyInHandHoldsACopy` (with the review patch for the reply's target), `TestBusinessProcessReadFails`, fixtures and cleanup.
+- `src/ocutalon/cls/OcuTalon/Test/Fix/Executor.cls`: `TestHeldCopyStopsAtTheWait`.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: AD-16 sentence replaced, `updated:` refreshed.
+- `_bmad-output/implementation-artifacts/deferred-work.md`: the push-condition numbers appended to DW-1410 (`ledger.sh append`).
+- This spec.
+
+**Review.** 27 findings from four layers: high 0, medium 5, low 16, false 6. One patch applied (medium: the reply's target comparison had no pin; a test and a mutation line were added). Everything else rejected with the reason in the triage log (by-design for the matrix 7/8/10 behaviours, false for claims the code or the mutation runs disprove, low for theoretical or cost-only items). Follow-up review: false (no high patched).
+
+**Verification.** Task 0 gate passed (the job user `_Ensemble` has SELECT on `Ens.BusinessProcess`). Push condition measured after the fix on the lane-C throwaway: 0 wrong in 300 at 1 ms unloaded and loaded (the old code: 83 and 131 wrong), 0 in 30 at 1 s (old: 30), RetryBP 0 in 20 (old: 20), SyncBP 0 in 100, FanBP 0 in 30 with no false still-running (old: 11 wrong), BPL 0 in 100. The instance check alone: RetryBP 11 of 20 and CallBP 1 ms loaded 10 of 300 wrong. The session signal: 66 of 300 and 9 of 30 wrong, and 30 of 30 false still-running on the fan-out. `Test.Fix.Scale` 22.29 s before, 18.67 s after (build 154) and 20.05 s (build 109). Fresh `lane-a@Fix` and `Test.Watch.Evidence` pass on builds 154 and 109. The mutation lines are recorded above, each red then reverted byte for byte.
+
+**Residual risks.**
+- A business process instance that never completes (an aborted reply, a disabled callee, a long alarm) holds its copy for good: the wait ends at 60 s with the progress result, and Sweep leaves the run executing, as it does today for a copy queued at a disabled target (matrix 8, Veto 5; approved).
+- `Test.Watch.Reader` `TestDisabledItemsInStoredOrderAcrossAStopAndAStart` fails on a fresh stack both with and without this change (DW-626 flake family).
+- The order argument (AC 5) has no committed test; its evidence is the throwaway measurements above.
