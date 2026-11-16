@@ -495,3 +495,6 @@
 2026-11-16T00:04:56Z	DW-1410	stage_spawned	stage=plan spawn_at=2026-11-16T00:04:56Z model=opus effort=high agent_name=dw-1410-plan-1 branch=OCT-epic21-dw1410 base=fded9d158(DW-1205_head,not_yet_merged) ruling=lead_BP-instance_check;session_signal_comparison_only;pin_time_limit(stillResending,no_hang) note=read-only,spec_gate_only
 2026-11-16T00:20:34Z	DW-1410	story_created	model=opus branch=OCT-epic21-dw1410 base=872d8cb59 build_status=ready-for-dev size=medium design=BP-instance_check(lead)+reply-in-hand_check(veto6:instance_deleted_before_final_Error,Actor.cls:265<483) sync_queue=covered_by_DW-1205 time_limit_pin=TestHeldCopyStopsAtTheWait(2_mutations) AD-16=amended_sentence veto=1-6 gate=held_for_planner
 2026-11-16T00:25:16Z	DW-1205	ci_flake	run=43777000338 job=133005443930 iris(browser)@ocutalon-ci-14 demo-path_telegram-page_T7_model-error_fallback=new_flake_entry action=rerun_failed_once
+2026-11-16T00:47:54Z	DW-1205	ci_resolved	sha=fded9d158 result=success runs=43777000338(attempt2_after_DW-1411_flake),43777000352
+2026-11-16T00:47:54Z	DW-1205	part_ready	parts=DW-1205+DW-494 code_head=fded9d158 ci=success records=local(on_OCT-epic21-dw1410)
+2026-11-16T00:47:54Z	DW-1205	ledger	DW-1205,DW-494=resolved-by:dw-1205 DW-1411=occurrence
