@@ -4546,3 +4546,4 @@
 2026-11-16T19:30:31Z	Epic 28	runner_reported	28.2 pushed=095439140(lane-a_green,ci_running) PLANNER_REPORT_28.3_gate(G1-G9,P1-P10,iris-mcp-server_identity_blocker,split_28.5_proposed) relayed=contest_planner
 2026-11-16T19:31:24Z	Epic 27	owner_decision	via=contest_planner 27.1:R7_A/B_running(merge_held) DW-1441=ratified DW-1442=27.3_spine_gate footprint+units=approved
 2026-11-16T19:31:24Z	Epic 28	owner_decision	via=contest_planner 28.3:G7_split=approved(28.5_not_dispatched) G3=try_application_roles_first(else_keep+reason) G1,2,4,5,6,9+R1-3=approved P1-P10_approved(P8_conditional) no_A/B
+2026-11-16T19:35:56Z	Run	owner_decision	via=contest_planner quota_hold_protocol(QUOTA_HOLD_NOW_at_95%;68%_now;ETA_6-12h;commit+push_own_branch,report,wait)
