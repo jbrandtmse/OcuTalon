@@ -31,6 +31,8 @@
 ///   - TestPeriodElement: an element that is only a period leaves its line out, so that the stored summary still renders on every channel;
 ///   - TestPeriodFixAndEvidence (Story 23.10): a fix summary that is only a period leaves its line out, and an evidence line that is only a period gives way to
 ///     the next line, so that the stored summary still renders on every channel now that both lines end with their own full stop;
+///   - TestCutEvidence (DW-1421 C2', QA): an evidence reference that DiagnosisPayload's import cut is the evidence line as it is, ending in U+2026 with no full stop after it,
+///     on the web, the phone and Telegram;
 ///   - TestGroupsAtClose (AC3): the groups line lists every group with its count at the close, a group that formed after the notice (no NoticeCount) included;
 ///   - TestProductionName: the title names the demo production by its display name (Orders), and a production that is not listed by its class name;
 ///   - TestText: the stored summary is read back through Watch.Summary.Text, and an incident without one gives an error status.
@@ -639,6 +641,43 @@ Method TestPeriodFixAndEvidence()
 		Do $$$AssertStatusOK(sc, render_": the summary still renders")
 		Do $$$AssertTrue(text [ ($Char(10)_"Evidence: OrderDate in the sample."_$Char(10)), render_": with the evidence line and its full stop")
 		Do $$$AssertNotTrue(text [ "Fix:", render_": and no fix line")
+	}
+}
+
+/// DW-1421 C2' (QA): an evidence reference over 128 characters that DiagnosisPayload's import cut, stored as the diagnosis payload exports it, is the evidence line of the
+/// closed-incident summary as it is: the cut, ending in U+2026, with no full stop after it, on the web, the phone and Telegram.
+Method TestCutEvidence()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("cutevidence")
+	Do ..Resolved(owner, .incident, , .decision)
+	Set words = ""
+	For i = 1:1:30 Set words = words_"abcdefghi "
+	Set reply = {"outcome": "act", "causeCategory": "partner_outage", "elementAtFault": "", "evidence": [(words)], "cause": "The partner did not answer.", "fixSummary": "", "reasons": ["The failures show no data problem."], "confidence": 0.7}
+	Set checked = ##class(OcuTalon.Watch.Msg.DiagnosisPayload).%New()
+	Do $$$AssertStatusOK(checked.%JSONImport(reply.%ToJSON()), "a diagnosis with an evidence reference of 300 characters is imported")
+	Do $$$AssertStatusOK(checked.%JSONExportToString(.json), "and exported")
+	Set cut = $Extract(words, 1, 119)_$Char(8230)
+	Set row = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decision)
+	Set row.Payload = json
+	$$$ThrowOnError(row.%Save())
+	Set stored = ##class(%Library.DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(stored.evidence.%Get(0)_"|"_stored.evidenceCut, cut_"|1", "the stored payload holds the cut reference and the count")
+	Do $$$AssertEquals(..Command(host, "dismiss", incident, owner).Ok, 1, "the incident is dismissed")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Do $$$AssertEquals(..Slots(row, "summary.evidence").evidence, cut, "the evidence slot is the cut reference")
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary renders")
+		Set found = ""
+		Set lines = $ListFromString(text, $Char(10))
+		Set position = 0
+		While $ListNext(lines, position, line) {
+			If $Extract(line, 1, 10) = "Evidence: " Set found = line
+		}
+		Do $$$AssertEquals(found, "Evidence: "_cut, render_": the evidence line ends in U+2026 with no full stop after it")
+		Do $$$AssertNotTrue(text [ (cut_"."), render_": and no full stop follows the cut anywhere")
 	}
 }
 
