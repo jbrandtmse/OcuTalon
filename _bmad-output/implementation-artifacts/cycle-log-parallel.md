@@ -4568,3 +4568,4 @@
 2026-11-16T21:18:22Z	Epic 21	owner_decision	via=contest_planner DW-1421_round4_followup=#5035->reply-unreadable(no_exception_data,malformed_row,mutation)+DW-1438_CLOCKTIME_fix(2nd_occurrence) route_after_control_verdict
 2026-11-16T21:22:09Z	Epic 28	ci_red_classified	28.2_MC3=flake_DW-1451(Playwright-fulfilled_500_route;34/34_fresh_repro_pass;leads_disproved) rerun=43943159296_att2
 2026-11-16T21:25:29Z	Epic 24	runner_reported	PART_READY 24.3a+24.3b head=f979de2d0 runs=43953760061,43953760250(first_attempt) DW-1449:diag_added,purge_review_clean(Purge.cls_L69-79,L73_strict_lt,literal_instance,no_cascade),loop_10/10 -> cleared_per_ruling
+2026-11-16T21:25:48Z	Epic 24	owner_decision	via=contest_planner 24.3b=CLEARED(DW-1449_open;suspects=concurrent_shard_class_or_fixture_race;repeat=cause-and-fix) sequencing=first_green_of_24.3b/28.2_after_DW-1450
