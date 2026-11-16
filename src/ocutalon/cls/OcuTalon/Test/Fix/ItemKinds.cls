@@ -27,7 +27,7 @@
 ///     first) already is the action's is skipped as "changed", and an id that no longer names the item of the production is skipped as "gone"; neither calls Ens.Director.EnableConfigItem
 ///     or updates the production (the event log gains no line) and neither changes an item;
 ///   - OnBeforeOneTest and OnAfterOneTest (DW-1373 QA): every test puts the Orders production back as it was at its start, also after a failure: the items whose stored Enabled differs
-///     are switched back, the System Default Setting row of SetItemDefault is removed, and the running production is updated; a passing test changes nothing at its end;
+///     are switched back, the System Default Setting row of SetItemDefault is removed, and the running production is updated if it needs it; a passing test switches no item at its end;
 ///   - TestNoApprovedRow (AC8): a pending request is not carried out.
 Class OcuTalon.Test.Fix.ItemKinds Extends OcuTalon.Test.Watch.Case
 {
@@ -47,8 +47,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 /// Puts the Orders production of OCUORDERS back as it was when the test began, whether the test passed or failed (so that a red test never leaves OrdersForReview disabled until the
 /// next update): the System Default Setting row of SetItemDefault is removed, each item whose stored Enabled differs from its Original is switched back (EnableConfigItem, which
-/// updates the production), and the running production is updated if it still needs it. A test that left everything as it was gets no call at all, and the Case's list of disabled
-/// items is cleared first, so that a passing run has nothing to enable again and no "already enabled" error.
+/// updates the production), and the running production is updated if it still needs it, whatever left the update pending. A test that left everything as it was switches no
+/// item, and the Case's list of disabled items is cleared first, so that a passing run has nothing to enable again and no "already enabled" error.
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = $$$OK
@@ -744,7 +744,8 @@ ClassMethod DefaultEnabled(name As %String) As %String [ Private ]
 	Quit $List(row, 1)
 }
 
-/// The log rows of OCUORDERS after the floor as "config: text" joined by " / ", the text cut to 80 characters. The lines of this job have no config name.
+/// The log rows of OCUORDERS after the floor that have no config name, which are the lines of this job (a host's job and Ens.ScheduleHandler, whose own updates come at times
+/// no test controls, name themselves), as ": text" joined by " / ", the text cut to 80 characters.
 ClassMethod LogSince(floor As %Integer) As %String [ Private ]
 {
 	New $NAMESPACE
@@ -752,6 +753,7 @@ ClassMethod LogSince(floor As %Integer) As %String [ Private ]
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ConfigName, Text FROM Ens_Util.Log WHERE ID > ? ORDER BY ID", floor)
 	Set text = ""
 	While rs.%Next() {
+		If rs.%GetData(1) '= "" Continue
 		Set text = text_$Select(text = "": "", 1: " / ")_rs.%GetData(1)_": "_$Extract(rs.%GetData(2), 1, 80)
 	}
 	Quit text

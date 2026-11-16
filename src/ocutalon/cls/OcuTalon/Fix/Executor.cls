@@ -60,7 +60,7 @@ Include (EnsConstants, EnsErrors)
 ///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
 ///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
 ///     FixResult; Finish, when End refuses the run, does none of that and logs one Type 4 line (LOGENDED). Waiting leaves out a marked run, so that nothing resumes it.
-///   - A kind whose target is a setting or an item (TARGETTYPE setting, Story 23.3; TARGETTYPE item, DW-1373): when the production's update fails after the definition was saved, InProduction writes the earlier value back and
+///   - A kind whose target is a setting or an item (TARGETTYPE setting, Story 23.3; TARGETTYPE item, DW-1373): when the production's update fails after the new value was stored (a setting's definition saved, an item's flag stored where IRIS keeps it), InProduction writes the earlier value back and
 ///     updates again. If that works, the run ends as could not start with the kind's NOSTART (nothing was changed). If it fails too (code notapplied), the run ends failed through Finish
 ///     with Total the number of targets, Skipped 0, Unreached the targets not done and the redacted Reason holding the production's error text, one Action entry is written, and the
 ///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey; for an item kind Watch.Notice ResultKey, with the setting Enabled).

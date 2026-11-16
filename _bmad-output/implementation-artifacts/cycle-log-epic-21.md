@@ -519,3 +519,5 @@
 2026-11-16T06:30:24Z	DW-1373	stage_spawned	stage=qa spawn_at=2026-11-16T06:30:24Z model=sonnet effort=high agent_name=dw-1373-qa-1 cycle_iteration=1
 2026-11-16T06:41:31Z	DW-1373	qa_complete	model=sonnet commit=9fbd4aa13 hygiene=OnBefore/OnAfterOneTest_restore(proved_with_forced_red) tests=resume_notapplied,TestItemAlreadyInTheWantedState,TestItemGone,TestItemUpdateFailureNotAppliedDefault(6_mutations) fresh_ItemKinds=pass findings=none_product
 2026-11-16T06:41:31Z	DW-1373	stage_spawned	stage=code-review spawn_at=2026-11-16T06:41:31Z model=opus effort=high agent_name=dw-1373-code-review-1 cycle_iteration=1
+2026-11-16T07:10:26Z	DW-1373	cr_complete	model=opus findings=28(med:LogSince_isolation_patched+mutation;med_by-design:restore-update-fails_wording(Planner_rule,23.3_Blind2);low_doc_patched3;low_DW-1427_wontfix-accepted(owner_23-2)) high=0 fresh_lane-a@Fix=30/30 node=2174 final_status=done
+2026-11-16T07:10:26Z	DW-1373	ledger	DW-1373=resolved-by:dw-1373 DW-1427=wontfix-accepted
