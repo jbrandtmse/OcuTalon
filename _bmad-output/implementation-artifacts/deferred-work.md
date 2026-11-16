@@ -8556,6 +8556,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: documents-page.ts binds appFileDrop [active]="!viewer()"; with no handler, Chrome's default drop opens the PDF in the tab. The spec's Never list leaves the drop to the browser, as the chat does for a viewer.
 - 2026-11-15T20:15:51Z status=by-design owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=spec-bound (Never: drop left to the browser's own handling, chat precedent); reopens only via spec amendment
+- 2026-11-16T00:53:42Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=orchestrator note=Contest Planner ~03:00Z Nov 16: NOT by-design; on the Documents page AND in the chat a viewer's drop is prevented (preventDefault on dragover and drop) and does nothing, no text, no navigation; LOW; pin both surfaces in 26.4
 
 ### DW-1402: documents.spec.ts:178 still builds its PDF DataTransfer inline instead of support/files.ts fileTransfer
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: low | footprint: out-of-footprint

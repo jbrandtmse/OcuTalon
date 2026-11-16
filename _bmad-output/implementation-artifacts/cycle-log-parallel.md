@@ -4426,3 +4426,4 @@
 2026-11-16T00:51:05Z	Epic 25	merge_enqueued	story=25.8 (1.0.12)
 2026-11-16T00:53:20Z	Epic 25	merged	story=25.8 merge=044b6c2e1 epics_md_hash=re-recorded
 2026-11-16T00:53:30Z	Epic 25	runner_resumed	lane=A story=25.9(DW-1392) planner_notified=25.8_merged,DW-1401_viewer_drop_question
+2026-11-16T00:53:42Z	Run	owner_decision	via=contest_planner DW-1401=routed_to_26.4(LOW;preventDefault_on_viewer_drop_Documents+chat;pins) DW-1407,1408=burndown
