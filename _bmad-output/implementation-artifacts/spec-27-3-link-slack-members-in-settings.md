@@ -2,8 +2,8 @@
 title: 'Story 27.3: Link Slack members in Settings'
 type: 'feature'
 created: '2026-11-16'
-status: 'in-progress'
-baseline_revision: '7d5735b40e7b17dcad8269aa17ddbf9e8cc7f7b7'
+status: 'blocked'
+baseline_revision: 'db89c267b69730868488725b3e8e443cc64b8fd0'
 baseline_commit: '7d5735b40e7b17dcad8269aa17ddbf9e8cc7f7b7'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -406,3 +406,14 @@ Blocking condition: none
 - Residual risks: (1) one workspace per install by ruling; a second workspace's signed event re-points the noted workspace (deferred, low). (2) The GUIDE step 3 URL is in backticks so `<your public address>` renders; the words are the approved ones. (3) The two forced test edits above sit outside the spec's file list and could conflict with a merge of another lane touching the same lines. (4) The live units were not re-run after the review patches (tests only); CI runs them.
 
 - Plan stage (2026-11-16): planned against the delivered 27.1 code on `OCT-epic27` at `4324facb44f782bdbfc0e9f701de2b4251ea0637`; halted after planning as dispatched. The build waits for the Planner's ruling on `### Planner gate items` (a) new public text, (c) veto items, (e) contended paths and (f) spine edits including DW-1442.
+
+## Auto Run Result (rework iteration 1, implement pass)
+
+Status: blocked
+Blocking condition: intent gap: R10 new grant needed (`%Admin_Secure:USE`)
+
+- Task 0 (hard gate) failed, so nothing else of the iteration was started and no source file changed. On a lane-B warm throwaway (torn down, lock folder empty), a user holding only `OcuTalonWebhook` (the hook application's role) got `ERROR #921: Operation requires %Admin_Secure:USE privilege` from `$SYSTEM.Security.GetUserRecursedRoleSet(<another user>, .roles)`; reading its own set works. `%SYSTEM.Security` documents it: "If not your own username, you must have %Admin_Secure:USE privilege". `OcuTalonWebhook`'s existing grants (`Install/Step/Web.cls` `GrantsFor`) are database resources only.
+- `Bridge/Approval.cls` `HoldsRole` runs in the production job, not under `OcuTalonWebhook`, so it is no precedent for the hook process.
+- Options for the Contest Planner: (a) make the role check in the production job (SlackIn hands the turn on; the `Ignored` with reason `not_user` comes from the process that can read roles); (b) mirror the role into an own-table row at sign-in or link time and read that in SlackIn (cannot see a role removed after linking, so pin 3 would need a ruling); (c) rule a grant of `%Admin_Secure:USE` to the hook role (a privilege escalation on an unauthenticated application, an R10 veto item).
+- Still open: all six unchecked items of "Rework iteration 1". The README / `test-readme.sh` CI item does not depend on the gate and can be dispatched alone.
+- Frontmatter `baseline_revision` now holds this rework's baseline (`db89c267b`); `baseline_commit` keeps the story base.
