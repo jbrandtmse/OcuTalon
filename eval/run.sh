@@ -35,6 +35,11 @@
 #                             wait does not bound them
 #   OCUTALON_EVAL_REPORT_DIR  the folder that receives the report files (default: a new folder from mktemp -d below
 #                             ${RUNNER_TEMP:-${TMPDIR:-/tmp}})
+#   OCUTALON_EVAL_CAPTURE_DIR --release-candidate only, the Planner's tooling (DW-1421); no workflow, compose file or class default sets it. An existing
+#                             evidence folder outside the checkout: when it is set and not empty, eval/capture-fallbacks.sh runs once, after the result is
+#                             final and before the REPORT line (so before the exit trap tears the stack down), and writes the raw reply of each reply that a
+#                             fallback decision got, one file each, into the folder; the output has counts and rule names only. A folder inside the checkout
+#                             or a missing one is refused with a CAPTURE line. It changes neither the verdict nor the exit code. Unset, nothing changes
 #   ANTHROPIC_API_KEY         --release-candidate without --on-mock, and --release-candidate --on-mock --key-path: the model key, which must
 #                             be set and not empty in the environment of this script, or the script exits 2 before any call to the container
 #                             tool. The key reaches only the iris service of the throwaway, by the interpolation of
@@ -115,6 +120,9 @@
 #      (OcuTalon.Test.Eval.ThinkingSmoke: three turns in three jobs with the thinking rule forced, a tool change and a compaction through the guarded
 #      path) and its figure, passed or failed, goes into Gate.Result's context as thinkingHistorySmoke; a failed smoke is recorded and changes
 #      neither the verdict nor the exit code. The push run and --on-mock never run it, and their result says "not run";
+#   4b. only when OCUTALON_EVAL_CAPTURE_DIR is set (DW-1421), after the result is printed and just before the REPORT line, the capture of the fallback
+#      replies (eval/capture-fallbacks.sh, one IRIS session of OcuTalon.Test.Eval.CaptureTool) runs on the stack that is still up; it records nothing and
+#      calls no model, and a failure is one "CAPTURE failed" line;
 #   5. the pair that was written is scanned with the key-like patterns of docker/tests/lib-keys.sh, the definition that
 #      docker/tests/test-boundaries.sh also reads: "PASS <name>: the result pair holds no key-like text", or, on a match, a FAIL line that names
 #      file:line (never the text) and tells the author not to commit the pair, and exit 4 with both files kept.
@@ -1241,6 +1249,13 @@ if [ "$mode" = rc ]; then
       if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         { cat "$report_dir/$result_name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
       fi
+    fi
+  fi
+  # DW-1421: the opt-in capture of the fallback replies, after the result is final and before the exit trap tears the stack down
+  if [ -n "${OCUTALON_EVAL_CAPTURE_DIR:-}" ]; then
+    . "$root/eval/capture-fallbacks.sh"
+    if ! capture_fallbacks "$OCUTALON_EVAL_CAPTURE_DIR"; then
+      echo "CAPTURE failed: the fallback replies were not captured"
     fi
   fi
   echo "REPORT $report_dir"

@@ -13,10 +13,12 @@
 ///     failing value carries, not even a part of it;
 ///   - TestOtherRefusalsNameTheCode: a reply that is not JSON, one with an unknown field, one whose class check quotes a value, one of the wrong JSON type or shape (a string,
 ///     an object or an array where the property wants another, an object as a list element, a top-level array) and a check that throws give a warning of the error code,
-///     with the property and the element when they are known ("ERROR #5035", "ERROR #9404: an unexpected property" (never the field's name), "ERROR #5001", "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
+///     with the property and the element when they are known ("ERROR #5035", "ERROR #9404: an unexpected property" (never the field's name), "ERROR #5001 rule outcome-unlisted" (the class's own check, named by its tag), "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
 ///     "ERROR #9406 on Reasons element 1"), with no marker and no IRIS message text;
 ///   - TestRefusalTextForms: Decide.RefusalText for statuses built with the forms of IRIS's own (the length and value forms, the position, a property that the class lacks, a limit that
-///     is not a number, a code that is not a number, a repeated error, the cap of five, and no error).
+///     is not a number, a code that is not a number, a repeated error, the cap of five, and no error), and the tag form (DW-1421): a #5001 whose second parameter is a tag that REFUSALRULES of the
+///     reply class lists is "ERROR #5001 rule <tag>" (rows k); one whose second parameter is a marker, a form that is a tag but is not listed, or a tag of another class is the bare "ERROR #5001"
+///     (rows l and m), so that no value of a reply can ever follow "rule"; and a value that is only a part of the list (a field, the start or the end of a tag) is bare too (row n).
 /// Each test removes its Decision rows and its REFUSED warnings, and kills ^||ZzProbeFilter and ^||ZzProbeReplyCheck, also after a failure (OnAfterOneTest).
 Class OcuTalon.Test.Bridge.ReplyCheck Extends %UnitTest.TestCase
 {
@@ -335,7 +337,7 @@ Method TestOtherRefusalsNameTheCode()
 
 	Set reply = ..Usable()
 	Set reply.outcome = marker
-	Do ..Refuse("row 9: the class's own check", reply.%ToJSON(), "ERROR #5001", marker)
+	Do ..Refuse("row 9: the class's own check", reply.%ToJSON(), "ERROR #5001 rule outcome-unlisted", marker)
 
 	Set reply = ..Usable()
 	Set reply.reasons = marker
@@ -399,6 +401,31 @@ Method TestRefusalTextForms()
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "Confidence: value > 1", "j: a value above its limit")
 	Set sc = $SYSTEM.Status.EmbedStatus($SYSTEM.Status.Error(7204, -3, 0), $SYSTEM.Status.Error(5802, ..#PROBE_":Reasons(3)", -3))
 	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "Reasons element 3: value < 0", "j: a value below its limit, at its element")
+	Set sc = $SYSTEM.Status.Error(5001, "t", "confidence-missing")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001 rule confidence-missing", "k: a tag that the class lists")
+	Set sc = $SYSTEM.Status.AppendStatus($SYSTEM.Status.Error(5001, "t", "outcome-unlisted"), $SYSTEM.Status.Error(5001, "t", "reasons-blank"))
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001 rule outcome-unlisted; ERROR #5001 rule reasons-blank", "k: each tag of two errors")
+	Set sc = $SYSTEM.Status.Error(5001, "t", marker)
+	Set text = $ClassMethod(decide, "RefusalText", sc, ..#PROBE)
+	Do $$$AssertEquals(text, "ERROR #5001", "l: a reply value as the second parameter gives the bare form")
+	Do $$$AssertTrue((text '[ marker) && (text '[ "rule"), "l: and holds nothing of it")
+	Set sc = $SYSTEM.Status.Error(5001, "t", "zzmarkerprobe")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "l: nor does a value that has the form of a tag but is not listed")
+	Set sc = $SYSTEM.Status.Error(5001, "t", "zz-"_$ZConvert($Translate($Piece(marker, "zzmark", 2), "_", "-"), "L"))
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "l: nor does a lower-case value with a hyphen")
+	Set sc = $SYSTEM.Status.Error(5001, "t", "cause-blank")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "m: a tag of another reply class (the probe's own list lacks cause-blank)")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, "OcuTalon.Watch.Msg.DiagnosisPayload"), "ERROR #5001 rule cause-blank", "m: and the class that lists it shows it")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, "OcuTalon.NoSuchClass"), "ERROR #5001", "m: a class that does not exist lists none")
+	Set sc = $SYSTEM.Status.Error(5001, "t", "confidence-missing:confidence")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "m: a pair of the list is not a tag")
+	// n: a value that is a part of the list but not a whole tag - a field of a pair, the start or the end of a tag - is not one either
+	For near = "confidence", "outcome", "reasons", "confidence-miss", "missing", "unlisted", "blank" {
+		Set sc = $SYSTEM.Status.Error(5001, "t", near)
+		Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001", "n: "_near_", a part of the list that is not a whole tag, gives the bare form")
+	}
+	Set sc = $SYSTEM.Status.Error(5001, "t", "reasons-blank")
+	Do $$$AssertEquals($ClassMethod(decide, "RefusalText", sc, ..#PROBE), "ERROR #5001 rule reasons-blank", "n: and a whole tag in the middle of the list is shown")
 }
 
 }

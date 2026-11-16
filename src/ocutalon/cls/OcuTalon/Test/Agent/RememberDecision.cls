@@ -29,7 +29,7 @@ Parameter PANEL = "Remember that the Results partner's contact is Lee.";
 Parameter SCENARIO = "remember-no-confidence";
 
 /// The warning that the demo logged for the decision, after the decision's Ref.
-Parameter DEMOTAIL = ": The reply check failed: the reply is not one JSON object that OcuTalon.Bridge.Msg.DecisionPayload accepts: ERROR #5001";
+Parameter DEMOTAIL = ": The reply check failed: the reply is not one JSON object that OcuTalon.Bridge.Msg.DecisionPayload accepts: ERROR #5001 rule confidence-missing";
 
 /// The markers whose countdown a test armed, comma-separated; OnAfterOneTest clears them.
 Property Armed As %String(MAXLEN = "");
