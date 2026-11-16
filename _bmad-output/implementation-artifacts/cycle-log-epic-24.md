@@ -115,3 +115,4 @@
 2026-11-16T18:56:57Z	Story 24.3b	ci_red_classified	run=43919911468 job=133484098787 ocutalon-ci-22 class=Test.Mcp.SourceRun:TestNoAnswerHash verdict=test_race(DW-1439,not_story_caused) fix=SourceRun_NewSecond+SecondStart_pin mutation=NewSecond_no-op->10_red(CI_signature) fresh=SourceRun_green rerun_cancelled
 2026-11-16T19:59:42Z	Story 24.3b	ci_red	run=43934206289 sha=c321d4680 iris(browser)_ci-11=DW-1448(T2_main.main_not_found_after_reload) iris(image)_ci-20=DW-1449?(Purge_TestCurrentSessionLosesNoRows_intermittent) shards-2=green(DW-1439_fixed) action=one_rerun
 2026-11-16T20:37:04Z	Story 24.3b	ci_resolved	sha=c321d4680 result=success runs=43934206289(ci),43934206417(lane-a) reruns=1(DW-1448_browser_ci-11->ci-5;DW-1449_image_ci-20->ci-30)
+2026-11-16T20:49:21Z	Story 24.3b	dw1449_diagnosed	commit=eae99e206 review=no_path_to_kept_rows loop=10/10_green(lane-b@Data_warm_e24lp) feature_integrated=d996ffcde
