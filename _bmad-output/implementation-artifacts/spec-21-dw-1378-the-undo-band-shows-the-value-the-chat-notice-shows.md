@@ -397,6 +397,14 @@ None new. Read for consistency, unchanged:
 - `result.settingRestored`: "{setting} on {target} is back to {after}. To undo it, ask me to undo the rollback."
 - `result.rollbackUndone`: "The rollback is undone: {setting} on {target} is back to {after}."
 
+## Spec gate rulings (Contest Planner, Nov 16, BINDING): APPROVED; 1.0.12 CUT ITEM
+
+- APPROVED. The AD-12 sub-bullet is approved VERBATIM as given in this spec. The fallback reading is CONFIRMED (the band shows the catalog result text with the approved dry run's After; a request with no `after` shows no band).
+- PIN that a done run means the setting equals the dry run's After, with a mutation where the run succeeds despite a moved value (the band must not claim a value the run did not reach).
+- A no-`after` request shows NO band and NO error; cover it in the node tests.
+- Order: implement now, ahead of DW-1421.
+- Note for implement: the branch merged feature (DW-1416's summary.partnerMaySent); the Watch catalog count is now 147 (both keys); re-run Test.Msg.Catalog and Test.Watch.Summary.
+
 ## Verification
 
 Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
