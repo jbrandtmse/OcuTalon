@@ -223,6 +223,23 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 
 ## Spec Change Log
 
+- 2026-11-16 (lead). **24.3a Q1 and Q2 rulings, Contest Planner ~12:30Z Nov 16 (BINDING)**, quoted in full:
+
+  > ## 24.3a Q1 and Q2 (Contest Planner, ~12:30Z Nov 16). BINDING.
+  > 
+  > ### Q1, the page email: ACCEPTED
+  > Use the approved catalog texts as they are, with no link. Conditions:
+  > - **Cause:** the diagnosed cause in the email is EXACTLY the sentence shown on the web card and in Telegram, after Bridge.Redact.Text and the same length cap. It is never raw item or message text.
+  > - **Name:** the on-call or backup person's name exactly as an admin set it in Settings.
+  > - **Pin it:** no item or message text reaches the email body. Add a mutation.
+  > 
+  > ### Q2: hold 24.3a until 24.3b is green
+  > - 24.3a's merge is HELD until 24.3b is green.
+  > - The two merge back to back, with no release cut between them.
+  > - DW-1400's On call line stays true until then.
+
+  Applied: the email body uses the approved `page.*Email*` texts with no link; its cause slot is exactly the card and Telegram cause sentence after `OcuTalon.Bridge.Redact.Text` and the same length cap; its name slot is the Settings name as set; a mutation pins that no item or message text reaches the body. Q2 needs nothing in this story: the lead pushes 24.3a when ready and goes straight on to 24.3b; the merge is held until 24.3b is green. Lane B's 23.15 changes `chat-view`/`notice-card` (the partner card and the may-have-sent lines): union at integrate.
+
 - 2026-11-16 (lead). **24.3 gate rulings, Contest Planner ~08:30Z Nov 16 (BINDING)**, quoted in full:
 
   > ## 24.3: NOT in 1.0.12

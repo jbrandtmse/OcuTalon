@@ -559,7 +559,8 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  * - otherwise result.allThrough, success, `circle-check`.
  * A request of a kind the user asks for in the chat (Story 23.2) has its own bands, the texts of the chat's notice, because "went through" would hide what was done:
  * - a suspend or resume (fixKind suspend_item, resume_item; `item` of the request, `production` of the incident): `completed` above 0 is result.itemSuspended or
- *   result.itemResumed, success, `circle-check`; else `skipped` above 0 is result.itemSkipped (reason), partial, `triangle-alert`; else a reason is result.itemNotChanged,
+ *   result.itemResumed, success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (setting Enabled, target the item, reason), partial,
+ *   `triangle-alert`; else `skipped` above 0 is result.itemSkipped (reason), partial, `triangle-alert`; else a reason is result.itemNotChanged,
  *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
  * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
  *   place of result.allThrough; with failures or skips it has the bands above.
@@ -646,7 +647,10 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   return bandOf(key, slots, tone, icon, render);
 }
 
-/** The band of a suspend or resume (Story 23.2): see resultView. */
+/** The item setting that a suspend or resume changes, by its IRIS name (Fix.Kind.SuspendItem ENABLEDSETTING). */
+const ENABLED_SETTING = 'Enabled';
+
+/** The band of a suspend or resume (Story 23.2, DW-1373): see resultView. */
 function itemResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, production: string): ResultView | undefined {
   const item = textOf(request.item);
   const reason = textOf(result.reason);
@@ -666,6 +670,12 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
     icon = 'circle-check';
   } else if (reason === '') {
     return undefined;
+  } else if ((numberOf(result.unreached) ?? 0) > 0) {
+    if (item === '') {
+      return undefined;
+    }
+    key = 'result.settingSavedNotApplied';
+    slots = { setting: ENABLED_SETTING, target: item, reason };
   } else if ((numberOf(result.skipped) ?? 0) > 0) {
     if (item === '') {
       return undefined;

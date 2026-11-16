@@ -11,7 +11,8 @@
 ///   6. the role check (Story 25.5): Live.Payload.Approval Answerable asks the approval API's MayAnswer for the IRIS user of the session's
 ///      row (never a caller's) and the request's Ref. A refusal is not_allowed and Refusal is {"kind": <the kind that MayAnswer names, "" when it names none>}.
 /// A refusal at 5 or 6 sends nothing to AnswerOps and leaves the row as it was. After the send, a not_allowed answer to an approve of an email request
-/// (a fix request of the kind email) that passed rule 6 is Story 22.7's admin rule, refused in AnswerOps: Refusal is then {"kind": "email", "admin": true}.
+/// (a fix request of the kind email, or since DW-1415 a partner warning to Settings contacts; Fix.Kind.Email AdminRuled) that passed rule 6 is Story 22.7's admin rule, refused in AnswerOps: Refusal is then {"kind": "email", "admin": true},
+/// the same refusal and sentence for both.
 /// Refusal holds what the last OnProcessInput refused with, for Deliver to hand to the entry; the entries render the sentence with Live.Payload.Approval RefusalKey.
 /// The role rule also stays with Approval.Answer, under the row's lock: the row's RequiredRole is checked against the session's IRIS user. The answer handed
 /// over names the request's own Ref, as Ownership.Approval read it.
@@ -171,7 +172,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	}
 	Set pInput.Ref = row.Ref
 	Set ..%SessionId = "", ..%SuperSession = session.TraceRef
-	Set emailApprove = (pInput.Action = "approve") && (row.Kind = "fix") && (row.FixKind = ##class(OcuTalon.Fix.Kind.Email).#NAME)
+	Set emailApprove = (pInput.Action = "approve") && ##class(OcuTalon.Fix.Kind.Email).AdminRuled(row)
 	Set sc = ..Send(pInput, .response)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If '$IsObject($Get(response)) || 'response.%IsA("OcuTalon.Core.Msg.AnswerResult") Quit $SYSTEM.Status.Error(5001, "AnswerOps answered no AnswerResult")

@@ -204,7 +204,8 @@ describe('the ending of the card (Story 6.4)', () => {
 
   it('computes the closedness of the request list from the payload with stateOf, filters by drawnOnClosed only then, and passes the drawn Refs into the context', () => {
     assert.match(card.code, /import \{[^}]*\bdrawnOnClosed\b[^}]*\bstateOf\b[^}]*\} from '\.\/incident-view';/);
-    assert.match(card.code, /stateOf\(this\.incident\(\)\.state\)\?\.chip === 'closed' \? asked\.filter\(drawnOnClosed\) : asked/);
+    assert.match(card.code, /private readonly closed = computed\(\(\) => stateOf\(this\.incident\(\)\.state\)\?\.chip === 'closed'\);/);
+    assert.match(card.code, /return this\.closed\(\) \? asked\.filter\(drawnOnClosed\) : asked;/);
     const requests = /protected readonly requests = computed\(\(\) => \{[\s\S]*?\n  \}\);/.exec(card.code)?.[0] ?? '';
     assert.notEqual(requests, '');
     assert.doesNotMatch(requests, /view\(\)/, 'never from the drawn view, which would be circular');
@@ -218,6 +219,21 @@ describe('the ending of the card (Story 6.4)', () => {
     assert.match(view, /approval: Pick<ApprovalPayload, 'fixKind' \| 'state'>/);
   });
 
+  it('announces a closed card\'s undo once through the page\'s announcer when its request card leaves answered, and moves focus to the headline after the chat\'s focus rule', () => {
+    const left = /private noteDrawn\(refs: readonly string\[\], closed: boolean\): void \{[\s\S]*?\n  \}\n/.exec(card.code)?.[0] ?? '';
+    assert.notEqual(left, '', 'the card has one place that notes the drawn cards');
+    assert.match(card.code, /import \{ Announcer \} from '\.\.\/shared\/announcer';/);
+    assert.match(card.code, /private readonly announcer = inject\(Announcer\);/);
+    assert.match(card.code, /import \{ MAIN_REGION \} from '\.\.\/shared\/focus-rule';/, 'the main region is the shared rule\'s own');
+    assert.match(card.code, /effect\(\(\) => \{\s*const refs = this\.requests\(\)\.map\(\(request\) => request\.ref \?\? ''\);\s*const closed = this\.closed\(\);\s*untracked\(\(\) => this\.noteDrawn\(refs, closed\)\);\s*\}\);/, 'from the drawn requests and the payload\'s closedness');
+    assert.match(left, /const now = new Set\(refs\);\s*this\.drawnClosed = closed \? now : new Set\(\);/, 'only the cards drawn on a closed card are kept, and a card still drawn after the incident reopens has not left');
+    assert.match(left, /for \(const ref of before\) \{\s*const approval = now\.has\(ref\) \? undefined : this\.approvals\(\)\?\.\[ref\];\s*const status = approval === undefined \? undefined : approvalView\(approval, this\.approvalCtx\(\)\)\.status;/, 'a request that was drawn and is gone, with the status of the approval view');
+    assert.match(left, /this\.announcer\.announce\(text\);/, 'the status text is the card\'s own, announced');
+    assert.match(left, /afterNextRender\([\s\S]*?queueMicrotask\(\(\) => \{[\s\S]*?active\.matches\(MAIN_REGION\)[\s\S]*?querySelector<HTMLElement>\('\.headline'\)\?\.focus\(\{ preventScroll: true \}\)/, 'the headline takes focus after the focus rules, only when it was lost');
+    assert.match(left, /const focused = \[\.\.\.answered\.keys\(\)\]\.some\(\(ref\) => this\.holdsFocus\(ref\)\);[\s\S]*?if \(focused\) \{\s*afterNextRender/, 'and only when focus was inside the request card that left');
+    assert.match(cardTemplate, /<h3 class="headline" \[id\]="headingId" tabindex="-1">/, 'the headline can take focus and stays out of the tab order');
+  });
+
   it('gives each request card the payload\'s request of its own ref, so that one request\'s band never stands for another\'s', () => {
     assert.match(cardTemplate, /\[result\]="resultOf\(request\.ref\)"/);
     assert.match(card.code, /byRef\.set\(request\.ref, request\);/);
@@ -227,7 +243,8 @@ describe('the ending of the card (Story 6.4)', () => {
   it('offers Dismiss only for the view\'s dismissable card, to the last request card and, with none, in the actions row', () => {
     assert.match(card.code, /dismissTarget = computed<DismissTarget \| undefined>\(\(\) =>\s*this\.view\(\)\.dismissable \? \{ ref: this\.view\(\)\.ref, key: this\.view\(\)\.key \} : undefined,\s*\);/);
     assert.equal((cardTemplate.match(/<app-incident-dismiss/g) ?? []).length, 1, 'one Dismiss in the card; the request card has the others');
-    assert.doesNotMatch(card.code, /\.focus\(|\.announce\(|Announcer/, 'the card moves no focus and speaks nothing');
+    assert.equal((card.code.match(/\.announce\(/g) ?? []).length, 1, 'the card speaks in one place, the closed card\'s answered undo (the next case)');
+    assert.equal((card.code.match(/\.focus\(/g) ?? []).length, 1, 'and moves focus in one place, to the headline (the next case)');
   });
 
   it('is a ghost ServerButton that carries the part and the card\'s view key, and described by the notice while it shows', () => {
