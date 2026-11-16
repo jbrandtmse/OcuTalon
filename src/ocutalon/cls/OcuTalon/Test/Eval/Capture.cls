@@ -4,10 +4,10 @@ Include Ensemble
 /// run leaves them (a Decision row, the Request that carries its Ref, the Reply, and the request header and its response header, which are linked by CorrespondingMessageId), run the tool over
 /// them only (its refs), and remove every row, header, file and folder they made (OnAfterOneTest). They need the production's runner items and their ReplyClass settings, so they run on a stack, a
 /// warm one included, and no model is called.
-///   - TestOneReplyPerRule (AC 5): one diagnose reply for each of the 22 rules of the reply class and its parent, a triage reply with no confidence, a reply that passes, a reply that holds no text, a
-///     reply with an unknown field, a reply that is not JSON, an over-long elementAtFault and a mistyped reasons (import refusals, whose field is the JSON name of the compiled property), a reply with an
+///   - TestOneReplyPerRule (AC 5): one diagnose reply for each of the 21 rules that a diagnosis can meet, a diagnose reply with no confidence (it passes, DW-1421 C5), a triage reply with no confidence, a reply that passes, a reply that holds no text, a
+///     reply with an unknown field, a reply that is not JSON, an over-long elementAtFault (its own length tag) and a mistyped reasons (import refusals, whose field is the JSON name of the compiled property), a reply with an
 ///     over-long evidence element (cut by the import, so it passes the check),
-///     a reply that is valid until the filter blanks its cause, one with no reason left after the filter, a cut_off fallback whose reply would fail the check, a decision with no reply and a second attempt on DiagnosisAgentRetry give the summary's counts (each rule once, confidence-missing and cause-blank twice, "passes the check" three times) with the field of each rule,
+///     a reply that is valid until the filter blanks its cause, one with no reason left after the filter, a cut_off fallback whose reply would fail the check, a decision with no reply and a second attempt on DiagnosisAgentRetry give the summary's counts (each rule once, cause-blank twice, "passes the check" four times) with the field of each rule,
 ///     one file for each reply (and summary.json), and each file holds its text, attempt, runner, stage, rule and field;
 ///   - TestLinesHoldNoReplyText (AC 6): each seeded reply carries a distinct marker, and the CHK lines hold no marker and no 10-character part of one, while the files hold each;
 ///   - TestRecordsAndLogsNothing (AC 7): Run leaves the event log rows of its job, the Decision and Usage rows and the bridge's Ens message headers as they were, and the source of the tool names no logging, no AI call, no send, no
@@ -182,7 +182,7 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	While $ListNext(pairs, position, pair) {
 		Set tag = $Piece(pair, ":", 1)
 		Set field = $Piece(pair, ":", 2)
-		If (tag = "cause-blank") || (tag = "outcome-not-act") Continue
+		If (tag = "cause-blank") || (tag = "outcome-not-act") || (tag = "confidence-missing") Continue
 		Set marker = ..Marker()
 		Set reply = $ClassMethod(..#PAYLOAD, "RuleReply", tag)
 		Do reply.evidence.%Push(marker)
@@ -227,6 +227,14 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, usable.%ToJSON())
 	Set expected(ref, 1) = $ListBuild(usable.%ToJSON(), marker, ..#DIAGNOSIS, "passes the check", "", "")
 	Set count("passes the check") = 1
+	// A diagnose reply with no confidence: the parent's rule that a diagnosis never meets (DW-1421 C5), so it passes the check.
+	Set marker = ..Marker()
+	Set absent = $ClassMethod(..#PAYLOAD, "RuleReply", "confidence-missing")
+	Do absent.evidence.%Push(marker)
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, absent.%ToJSON())
+	Set expected(ref, 1) = $ListBuild(absent.%ToJSON(), marker, ..#DIAGNOSIS, "passes the check", "", "")
+	Set count("passes the check") = $Get(count("passes the check")) + 1
 	// A failure reply: no text, a failure text.
 	Set marker = ..Marker()
 	Set ref = ..SeedDecision("diagnose")
@@ -257,8 +265,8 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set long.elementAtFault = $Extract(marker_$Translate($Justify("", 129), " ", "e"), 1, 129)
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, long.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(long.%ToJSON(), marker, ..#DIAGNOSIS, "ElementAtFault: 129 > 128", "elementAtFault", "check")
-	Set count("ElementAtFault: 129 > 128") = 1
+	Set expected(ref, 1) = $ListBuild(long.%ToJSON(), marker, ..#DIAGNOSIS, "element-at-fault-too-long", "elementAtFault", "check")
+	Set count("element-at-fault-too-long") = 1
 	// An evidence element over the limit: cut by the import, so the reply passes the check now (element 2, after the pack's own).
 	Set marker = ..Marker()
 	Set cutReply = $ClassMethod(..#PAYLOAD, "Usable")
@@ -396,9 +404,9 @@ Method TestOneReplyPerRule()
 /// DW-1421 C1 (AC 8): RuleOf and FieldOf of the parts that a refusal gives.
 Method TestRuleNames()
 {
-	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2")
-	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2")
-	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "")
+	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "ERROR #7201 rule element-at-fault-too-long")
+	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "element-at-fault-too-long")
+	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "", "elementAtFault")
 	For i = 1:1:$ListLength(parts) {
 		Set rule = $ClassMethod(..#TOOL, "RuleOf", $List(parts, i))
 		Do $$$AssertEquals(rule, $List(rules, i), "the rule of "_$List(parts, i))

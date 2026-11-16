@@ -234,7 +234,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `DecisionRef` | The reference of the decision's record. |
 | `Outcome` | One of the outcomes below. |
 | `Reasons` | The reasons, one per line. |
-| `Confidence` | The model-reported confidence, 0 to 1. |
+| `Confidence` | The model-reported confidence, 0 to 1. A diagnosis may have none: it is then empty, never 0, and the incident card shows none. |
 | `Fallback` | 1 when the fallback route was taken. |
 | `FallbackReason` | One of the fallback reasons below, empty when `Fallback` is 0. |
 | `InputTokens` | Input tokens of the turn: prompt, cache-read and cache-write together. |
@@ -259,7 +259,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `Status` | `ok`, `denied` or `error`. |
 | `EstimatedTokens` | An estimate, from AI Hub's callback data, of the size of the step's model request in tokens. It is not the tokens used, which are counted per turn. |
 
-**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field, a field of the wrong type or a missing confidence is `invalid`.
+**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field or a field of the wrong type is `invalid`, and so is a reply without a confidence when its class requires one. The class parameter `CONFIDENCEREQUIRED` says whether it does: it is 1 on `OcuTalon.Bridge.Msg.DecisionPayload` and 0 on `OcuTalon.Watch.Msg.DiagnosisPayload`, so a diagnosis without a confidence is accepted and has none.
 
 The enumerations (`OcuTalon.Bridge.Msg.Enum`):
 
@@ -287,7 +287,7 @@ When the model cannot give a usable answer, `Decide` does not guess. When a seco
 - `refusal`: the model refused.
 - `cut_off`: the reply was cut off before it ended.
 - `empty`: the reply had no text.
-- `invalid`: the reply did not pass the `ReplyClass` check.
+- `invalid`: the reply did not pass the `ReplyClass` check. The warning that `Decide` logs for it names each refused rule by a fixed tag that the reply class lists, such as `<field>-too-long` or `confidence-out-of-range`, and carries no value of the reply.
 - `unusable`: the agent used up its iterations or its loop stalled, or the provider gave no finish reason.
 
 The example routes a fallback to `ExampleFallbackOut`, and it is in the decision's record and in Visual Trace with its reason.

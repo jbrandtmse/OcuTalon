@@ -9,7 +9,7 @@
 ///     values, never A's; and Begin for B after a Begin for A with no End between holds only B's;
 ///   - TestRefusalNamesTheLimitNotTheReply: a reply that fails its check on a length or a value (the first check, and the check after the reply filter) gives
 ///     the fallback invalid and one Type 3 warning of Decide.Conclude whose whole text is the fixed words, the reply class, the failing property, the element and the limit
-///     ("Note: 105 > 100", "Reasons element 2: 1005 > 1000", "Confidence: value > 1"), with at most five parts and "and <k> more", and none of the marker that the
+///     ("Note: 105 > 100", "Reasons element 2: 1005 > 1000", "Confidence: value > 1") (the probe lists no length or range tag), with at most five parts and "and <k> more", and none of the marker that the
 ///     failing value carries, not even a part of it;
 ///   - TestOtherRefusalsNameTheCode: a reply that is not JSON, one with an unknown field, one whose class check quotes a value, one of the wrong JSON type or shape (a string,
 ///     an object or an array where the property wants another, an object as a list element, a top-level array) and a check that throws give a warning of the error code,

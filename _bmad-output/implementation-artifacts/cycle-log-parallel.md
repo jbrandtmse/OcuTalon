@@ -4584,3 +4584,15 @@
 2026-11-16T22:29:29Z	Epic 28	merged	28.2 merge=1f8733c0e
 2026-11-16T22:40:04Z	Epic 21	ci_green_verified	DW-1421_r3 3e3627c5f runs=43928987062(att2;DW-306),43928987136 planner_control=cleared
 2026-11-16T22:40:04Z	Epic 21	merge_enqueued	DW-1421_r3 head=3e3627c5f (push after 1f8733c0e CI clean)
+2026-11-16T22:50:57Z	Epic 21	runner_reported	PART_READY DW-1421_r4 head=f70f5fa56 runs=43967104230,43967104199 (reply-unreadable,unexpected-field,CLOCKTIME) RULE_BREACH=lane_D_cancelled_started_self-hosted_runs(43965489398,43965489389) reported_to_planner; triage_confidence_report(no_default_retry->tellnow_fallback) relayed
+2026-11-16T22:51:13Z	Run	rule_breach	lane_D_2nd_DW-1335_breach: run 43919911468 cancelled ~18:53Z with shards-2 rerun live on ocutalon-ci-15; reported_to_planner
+2026-11-16T22:51:51Z	Epic 21	owner_decision	via=contest_planner DW-1335_hosts_clean round4=APPROVED triage_conf_L29_variant=APPROVED_for_A/B(branch_OCT-epic0-triage-conf,pin_test) A/B_rules=N5_alt,PASS=rule(i)+no_worse+missing<=half
+2026-11-16T23:08:52Z	Run	ci_red	feature 1f8733c0e(28.2_merge) ci=43970555894: shards-3=floor_P4_DW-349(ci-19,goto_interrupted) shards-5=heartbeat_HC8_new_DW-1457(ci-17) rerun_failed; round3_held
+2026-11-16T23:10:11Z	Epic 27	runner_reported	27.3 pushed=7d9df6092 checks_red=test-readme_guide(Slack_H2_not_linked) PUBLIC_TEXT=README_Slack_link catalog+21_listed viewer-link=DW-1284 relayed=contest_planner
+2026-11-16T23:10:25Z	Run	note	via=contest_planner runner-host_map(ci-b:3-8,ci-c:9-14,ci-d:15-20,ci-e:21-26,ci-f:27-32) ci-d_not_overcommitted; at~25_rows_if_ci-d>40%_drop_to_4 tally=.coordination/flake-tally-20261116.md
+2026-11-16T23:10:32Z	Epic 27	owner_decision	via=contest_planner 27.3:README_Slack_link=APPROVED catalog+21=confirmed viewer-link=DW-1284_same_as_Telegram(condition:viewer_Slack_turn=viewer_web_rights,pinned;else_blocker)
+2026-11-16T23:11:58Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_BLOCKER viewer_via_Slack_can_chat(SlackIn_no_role_check) fix_proposed=use-time_role_check(not_user_Ignored)+link-time_refusal+pins relayed=contest_planner
+2026-11-16T23:12:14Z	Epic 27	owner_decision	via=contest_planner 27.3_viewer_fix=APPROVED(+admin_pin,shared_predicate_with_Web/Api) DW-1284=Telegram+email_use-time_check_RAISED(after_triage_A/B,small_story)
+2026-11-16T23:20:41Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_Task0_STOP(GetUserRecursedRoleSet_needs_%Admin_Secure:USE_in_hook) options=a_production_job_check(rec),b_role_copy,c_grant(not_rec) relayed=contest_planner
+2026-11-16T23:20:55Z	Epic 27	owner_decision	via=contest_planner 27.3_viewer_fix=option_a(Conversation_production_job_check,slack_only;c_refused_forever) pins+README_same_push
+2026-11-16T23:48:10Z	Run	ci_green	feature 1f8733c0e ci=43970555894 att2 green (DW-349 ci-9, DW-1457 ci-4 reruns)

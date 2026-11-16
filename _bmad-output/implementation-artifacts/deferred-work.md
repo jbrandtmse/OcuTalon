@@ -2332,6 +2332,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T08:19:41Z occurrence=feature-97e062daf by=orchestrator note=run 43690544372 att1 iris(shards-6) Test.Web.GuideApi TestOnlyTheMarkerChanges (trace_opened and run_again): the after fingerprint gained the session's event rows 4-9 watch.progress (a real tick between the two fingerprints); one rerun of failed jobs when the run completes
 - 2026-11-15T08:57:34Z occurrence=feature-97e062daf by=orchestrator note=rerun of failed jobs, attempt 2 of 43690544372: shards-6 green
 - 2026-11-15T18:58:28Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-6) on ocutalon-ci-29: GuideApi TestOnlyTheMarkerChanges (trace_opened, run_again) and TestRunAgain (DW-453 sibling); superseded by 8c71bef6e, not rerun
+- 2026-11-16T23:08:52Z occurrence=1f8733c0e by=merge_gate note=feature ci 43970555894 iris (shards-3) live:floor on ocutalon-ci-19: focus.spec.ts:145 P4, this time page.goto interrupted by a chrome-error navigation (infrastructure-shaped); the merged 28.2 diff touches no web, floor or heartbeat code; one rerun of the failed job
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -8876,3 +8877,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43957453035 (854346fa1, the 27.1 merge) iris (shards-5) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: web/e2e/guide/guide.spec.ts
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+
+### DW-1437: No eval case covers self-watch (OcuTalon watching its own production), the one path by which a refusal tag can reach the diagnosis model (read_event_log of a failure that shares a session with a Decide refusal warning)
+- source: spec-0-dw-1421-r3-cut-floor-length-tags-and-an-absent-diagnosis-confidence.md; Contest Planner ruling ~18:45Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Decide.cls Conclude logs the refusal (LOGWARNING) in the decision session; Watch/Reader.cls reads every event-log row of a failed session (bySession); EvidencePack.EventLog is the read_event_log answer (Tools/Watch.cls); Reader.Productions leaves OcuTalon own production out only on the online demo
+- 2026-11-16T18:16:29Z status=wontfix-accepted owner=burndown by=orchestrator note=reopen_if=self-watch eval cases are ever added (then add one that pins what read_event_log gives after a refused reply); Planner ruling: accepted, no A/B
+
+### DW-1438: CLOCKTIME refuses a cause that quotes a field's own date-time value
+- source: DW-1421 round 3 report-only check (eval held-out case shipments-day-first-date, rule time-of-day-in-cause, the Planner verification capture at c573a86d0); Contest Planner ruling ~19:00Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: DiagnosisPayload.cls CLOCKTIME (?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9]) checked on cause and fixSummary; the case field ShippedAt holds 16/10/2026 09:30:00, so a cause that quotes the failed value matches at 09:30 and the diagnosis falls back invalid; reasoned from the case fixture and the rule, the reply text not read
+- 2026-11-16T18:18:51Z status=routed owner=burndown by=orchestrator note=narrowing: allow an h:mm directly after a date (d/m/y or y-m-d, then a space or T) or followed by :ss; fix only after a second occurrence, or in a burndown, with a test that 16/10/2026 09:30:00 in a cause is accepted and that a bare at 09:30 is still refused
+
+### DW-1457: flake candidate: live:sign-in-3 heartbeat-card.spec.ts:369 HC8, the heartbeat card's 'Today:' line was not found within 10 s ('three check-ins read in the plural')
+- source: feature ci 43970555894 (1f8733c0e, the 28.2 merge) iris (shards-5) on ocutalon-ci-17 | severity: low | fix-risk: low | footprint: web/e2e/heartbeat-card.spec.ts
+- evidence: the merged 28.2 diff touches no web or heartbeat code; the line was absent, not wrong; 22:47Z is outside DW-800's midnight window and DW-845's 00-09 UTC window
+- 2026-11-16T23:08:52Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
