@@ -91,3 +91,5 @@
 2026-11-16T08:51:45Z	Story 24.3a	spec_validated	gate=approved(Planner_~12:30Z_Q1_accepted_with_conditions:cause=card/Telegram_sentence_after_Redact.Text+cap,name=Settings,pin_no_item_text;Q2_merge_held_until_24.3b_green)
 2026-11-16T08:51:45Z	Story 24.3a	stage_spawned	stage=implement spawn_at=2026-11-16T08:51:45Z model=sonnet effort=high
 2026-11-16T08:52:00Z	DW-1426	merged	feature=be9ad9f3 ci=43829423163,43829423003(green)
+2026-11-16T10:46:47Z	Story 24.3a	implement_done	commit=8b689c92 build_status=done review_layers=4(32_findings:15_patched,18_rejected,1_deferred:Telegram_cause_unredacted(Lane_A)) followup_review_recommended=true web_test=2187 mutations=30+
+2026-11-16T10:46:47Z	Story 24.3a	stage_spawned	stage=code-review spawn_at=2026-11-16T10:46:47Z model=opus effort=high scope=99175c67..8b689c92
