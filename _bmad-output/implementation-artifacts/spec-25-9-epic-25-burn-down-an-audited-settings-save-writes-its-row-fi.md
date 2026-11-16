@@ -2,8 +2,8 @@
 title: "Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction"
 type: 'bugfix'
 created: '2026-11-15'
-status: 'ready-for-dev'
-baseline_revision: 'a12afb096d5a5b89872742239be946a23549116d'
+status: 'done'
+baseline_revision: '326853489a3c1c19eac21188bb0facdfb1b19f16'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -135,6 +135,24 @@ Line numbers are at `baseline_revision`.
 
 ## Review Triage Log
 
+### 2026-11-15 — Review pass
+- verdicts: 29 findings (blind 12, edge 10, verification-gap 7; the intent-alignment audit is descriptive and files none), grouped by root cause into the 13 rows below — high 0, medium 1, low 10, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Entries written before a refused one stay in the real log (SaveProduct, the keyed part of SaveEmail), blind 1 and edge 1, 8 and 9 — IRIS writes audit records outside the transaction, so no code can take one back; `Record`'s refusals depend on the command, not the entry, so in practice the first entry fails or none does. The Design Notes record this as wontfix-theoretical (it becomes real only if `Record` could refuse one entry of a save and accept another).
+  - `[low]` `[patch]` Email: outside entries written before a refused one stay beside the put-back (blind 2, edge 2, blind 3) — same root cause as the row above; the class comment "so that a value put back has no entry" overclaimed, so it now says that entries written before a refused one stand. No test: the case is wontfix-theoretical.
+  - `[false]` `[reject]` A failed outside-entry audit after `StartItem` leaves the production running the new values (edge 3) — `PutBackEmail` ends with `StartItem()`, so the items are restarted on the put-back values.
+  - `[false]` `[reject]` Per-process Setting cache holds a rolled-back value (edge 4) — `Data.Setting.Get` caches only public keys, which `Set` refuses to write, and `Set` clears its own entry; no key written here is cached.
+  - `[low]` `[reject]` `AuditCommit` with `$TLevel` at or under `level`, `CreateWebhook`'s `NameTaken` throwing, `WriteKeys` receiving a thrown audit write (edge 5, 6, 7; blind 5) — no reachable path: the callee that rolls back bare does not exist, `NameTaken` is an index read the old code also ran outside any `Try`, and a thrown audit write is rolled back by `AuditCommit` and rethrown as before (`TestThrown`, heartbeat).
+  - `[low]` `[reject]` Error logging twice and an unused `outcome` in `RecordOAuth` and `ForgetClient` (blind 4) — cosmetic; the existing log lines and outcomes stay as the spec requires.
+  - `[low]` `[reject]` Missing mutation for `SetWebhookSecret` and for on-call's own test, hard-coded `applyAt` counts, probe `SaveRow` doc (blind 6, 7, 11; verification-gap other) — Rule 19 asks one demonstrated mutation per AC; AC1 goes through `SaveProduct` and AC5 through `CreateWebhook`; the counts' comment names the write order, and the class header documents the answers.
+  - `[low]` `[reject]` `TestNameTakenAtSave` no longer models a committed competing row (blind 8) — the spec moves the `clash` hook into `SaveRow` on purpose; the name check before the rollback is recorded in the notes.
+  - `[low]` `[reject]` The old-wording grep now expects 1 (blind 9) — the AD-19 sentence has its own grep (expected 1); stale `Auto Run Result` status (blind 10) is closed by this finalize.
+  - `[medium]` `[patch]` `RecordOAuth` and `ForgetClient` have no refused-entry case (verification-gap 1) — added `TestOAuthOwnedAuditFails` and `TestForgetClientAuditFails` in `SettingsEmail`, each with a control, and demonstrated a mutation for each.
+  - `[low]` `[patch]` `StepRan()` is never asserted true (verification-gap 2) — the control save of `TestApplyFails` asserts the step ran; mutation recorded under AC4.
+  - `[low]` `[patch]` Two rollback-mutation reds in `SettingsWebhooks` are cascades (verification-gap other) — the record names them as such.
+  - `[low]` `[reject]` AC7 and AC8 without a pinning mutation, S4 outgoing and client-secret entry positions, the 20 ms mark wait (verification-gap other) — AC7's mutation is recorded; AC8 is "no new test" by the spec; the other positions run the same code path as the three exercised ones; no false-green path was found.
+  - `[low]` `[reject]` Intent-alignment: reading R1 implemented, no divergence of the surface (descriptive) — no action.
+
 ## Design Notes
 
 - **Governing ADs (Rule 6):**
@@ -185,7 +203,7 @@ Line numbers are at `baseline_revision`.
 
 **Commands:**
 - (loop) `OCUTALON_WARM=1 ci/iris.sh class OcuTalon.Test.Core.<C>`, one call per class, for C = `SettingsOps`, `SettingsPersona`, `SettingsHeartbeat`, `SettingsSave`, `SettingsOnCall`, `SettingsEmail`, `SettingsWebhooks` and `SettingsPartners`. Expected: each class passes, with no FAIL or SKIP.
-- (loop) `grep -c "An audited save writes its row and then its audit entry inside one transaction" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, and the same for the DW-1395 sentence and for `Story 25.9 (run by Lane A)`. Expected: 1 each. Also `grep -c "audit entry and then its row" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, expected 0.
+- (loop) `grep -c "An audited save writes its row and then its audit entry inside one transaction" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, and the same for the DW-1395 sentence and for `Story 25.9 (run by Lane A)`. Expected: 1 each. Also `grep -c "audit entry and then its row" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, expected 1: the only match is the `[AMENDED 2026-11-15, Story 25.9 ...]` marker of the Story 33.2 text, which quotes the old wording.
 - (once) Warm, one call each, for the neighbours that read the same saves: `OcuTalon.Test.Core.SettingsAudit`, `PersonaAnswers`, `Admin`, `CommandsHeartbeat`, `CommandsStep4`, `SettingsModels`, `OcuTalon.Test.Channel.EmailOAuth`, `EmailLive`, and `OcuTalon.Test.Web.PartnerSettingsApi`, `HookSettingsApi`, `PersonaApi`, `OnCallSettingsApi`, `SettingsApi`. Expected: all pass.
 - (once) `bash ci/checks.sh`. Expected: every check passes, `test-boundaries` included (no local path in this spec).
 - (once) Browser, fresh. Run `ci/iris.sh build` first. Then run the `live sign-in-2 --part k/n` parts that hold `web/e2e/settings/settings.spec.ts`, `webhooks.spec.ts`, `on-call.spec.ts`, `partner-contacts.spec.ts`, `email.spec.ts` and `roles.spec.ts`, one call each. Find k from the `e2e:sign-in-2` listing with `web/scripts/e2e-part.mjs`, writing the listing to a scratch folder outside the repo. Expected: every part green, so the UI saves are unchanged.
@@ -209,9 +227,53 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC7: delete the AD-19 sentence from the spine. Expected: the grep count is 0.
 - AC8: no new test. The Web API and browser specs that already exist are the check.
 
+**Mutation records (implement stage, warm throwaway on the lane-a lock folder under `.worktrees/.coordination/locks`; each applied, observed red, reverted byte-identical with `git status --short` and `git diff --stat` unchanged):**
+- mutation: AC1, `SaveProduct` writes each change's entry through `WriteAudit` before its `Apply` -> `SettingsSave` `TestAllOrNothingApply` (no audit write attempted and a real entry for the session, at all five positions) and `TestAllOrNothingAudit`, `TestThresholdsSaved`, `TestOnlyChangedValuesAreAudited`, `TestDigestSection` (a second entry per change)
+- mutation: AC2, `WritePartner` writes the entry before the row -> `SettingsPartners` `TestRowWriteFailureRollsBack` (an audit write attempted, a real entry for the session, and a second entry in the control), also `TestAddEditRemoveAudited` and `TestNothingChanged` (two entries per save)
+- mutation: AC3, `WriteKeys` writes the entry before `TSTART` -> `SettingsPersona` `TestKeyWriteFails` (no audit write attempted, real log empty, control finds its entry), `TestOutcomeApplies`, `TestOutcomeNotOurs`; `SettingsHeartbeat` `TestKeyWriteFails`, `TestAuditFailsAndWithoutText`, `TestAuditNamesChangedKeysOnly`
+- mutation: AC4, `SwitchDemo` writes an entry before its `WriteKeys` -> `SettingsOps` `TestApplyFails` (no audit write attempted, real log empty, control finds its one entry), also `TestAuditAccepted`, `TestAuditFails`, `TestSameMode`
+- mutation: AC5, `CreateWebhook` writes the entry before `SaveRow` -> `SettingsWebhooks` `TestCreateRowFailureWritesNoEntry`, `TestNameTakenAtSave`, `TestCreateAuditsAfterTheRow`
+- mutation: AC6, `SaveEmail` writes the outside entries before the outside writes (an `AuditAll` of the key `""` entries ahead of the credential and rows) -> `SettingsEmail` `TestAllOrNothing` (the five stages, with and without an earlier mailbox: an outside entry is in the real log; and audit writes 3 to 5 no longer put the values back)
+- mutation: AC6, `RecordOAuth` writes the `email.oauthOwned` entry before its key write -> `SettingsEmail` `TestOAuthOwnedRowFailureWritesNoEntry`, `TestProviderFirstSave`, `TestRemove`, `TestSignInStart`, `TestSignInStartFailsAfterEnable`
+- mutation: AC6, `ForgetClient` writes the removal entry before its key write -> `SettingsEmail` `TestForgetClientRowFailureWritesNoEntry` (both counts)
+- mutation: AC4, `SwitchDemo` runs `RunStep` after a failed write (review pass) -> `SettingsOps` `TestApplyFails`, `TestAuditAccepted`, `TestAuditFails` (the step did not run); the control save of `TestApplyFails` now asserts the step ran
+- mutation: AC6, `RecordOAuth` ignores the status of its `WriteKeys` (review pass) -> `SettingsEmail` `TestOAuthOwnedAuditFails`, `TestOAuthOwnedRowFailureWritesNoEntry`
+- mutation: AC6, `ForgetClient` writes the key with `Apply` and no entry (review pass) -> `SettingsEmail` `TestForgetClientAuditFails`, `TestForgetClientRowFailureWritesNoEntry`, `TestFailedReplaceShowsNotRegistered`
+- mutation: AC1-AC6 (rollback), the rollback in `AuditCommit` deleted -> red in all eight classes: `SettingsOps` `TestAuditAccepted`, `TestAuditFails`, `TestThrown`; `SettingsPersona` `TestAuditFails`, `TestKeyWriteFails`, `TestOutcomeWriteFails`; `SettingsHeartbeat` `TestAuditFailsAndWithoutText`, `TestKeyWriteFails`; `SettingsSave` `TestAllOrNothingAudit`; `SettingsOnCall` `TestSaveAuditsEachChangeWithItsValues`; `SettingsEmail` `TestAllOrNothing`; `SettingsWebhooks` `TestCreateAuditsAfterTheRow`, `TestNameTakenAtSave`, `TestRotateAuditFails` (`TestCreateRowFailureWritesNoEntry` and `TestRotateRowFailureWritesNoEntry` were red too, but their own failure paths roll back in `CreateWebhook` and `SetWebhookSecret`, so that red is a cascade of a transaction an earlier case left open, not their own pin); `SettingsPartners` `TestAddEditRemoveAudited`, `TestRowWriteFailureRollsBack`
+- mutation: AC7, the AD-19 bullet deleted from a scratch copy of the spine (the spine file itself was not edited) -> the grep count is 0 on the copy and 1 on the spine
+- AC8: no new test; no `Parameter MESSAGE*`, route, role, reply shape or Data class is in the diff.
+
+**Verification run (implement stage, the lead of this stage):** all on the final tree.
+- (loop) The eight Settings classes (`SettingsOps`, `SettingsPersona`, `SettingsHeartbeat`, `SettingsSave`, `SettingsOnCall`, `SettingsEmail`, `SettingsWebhooks`, `SettingsPartners`) pass warm, one per call; the spine greps give 1 for the AD-19 sentence, 1 for the Story 25.9 bullet, 1 for the DW-1395 sentence and 1 for the old wording (the marker, see the notes below).
+- (once) The neighbours pass warm, one per call: `Core.SettingsAudit`, `PersonaAnswers`, `Admin`, `CommandsHeartbeat`, `CommandsStep4`, `SettingsModels`, `Channel.EmailOAuth`, `EmailLive`, and `Web.PartnerSettingsApi`, `HookSettingsApi`, `PersonaApi`, `OnCallSettingsApi`, `SettingsApi`. `bash ci/checks.sh` passes (test-boundaries included).
+- (once) Browser, fresh, after `ci/iris.sh build`: `live sign-in-2 --part 3/4` (holds `settings/email.spec.ts`; 69 tests) and `--part 4/4` (holds `on-call`, `partner-contacts`, `roles`, `settings` and `webhooks`; 58 tests) pass.
+- (once) Fresh check (Rule 19): `shard lane-b@Core` in two parts forward and two parts with `--reverse`, each part 34 classes on its own fresh stack: all four pass (the only SKIPs are the existing production-dependent cases).
+
+**Implement-stage notes:**
+- Decided in-stage: the loop grep `grep -c "audit entry and then its row"` gives 1: the match is the `[AMENDED 2026-11-15, Story 25.9 ...]` marker of the Story 33.2 text, which quotes the old wording ("it read ..."). The expected count above is corrected to 1 and the spine is left as the plan wrote it.
+- `CreateWebhook` reads `NameTaken` before it rolls back, so a name taken by another process's committed row (or by the probe's `clash` row, stored inside the transaction) is `name_taken`; after the rollback the competing row of the probe is gone, which no test needs.
+- A test that reads a row back after a rolled-back save must not hold the row open (IRIS returns the same in-memory object for a row that is open, and a rollback does not reset it): the tests read each row fresh, in a scope of their own.
+- Two audit-write timestamps can fall in the same millisecond as a following `AuditLog.Now()` mark; the tests that take the mark right after a save of the same session wait 20 ms first.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planning only (Halt after planning). The plan also wrote the spine edits: the AD-19 reconcile of the Story 33.2 text and the new bullet, the AD-13 sub-bullet and the AD-33 Story 25.9 bullet.
+**Summary.** Every audited Settings save in `OcuTalon.Core.SettingsOps` now writes its rows first and its audit entries last, in one transaction: `AuditCommit` (the shared helper) writes the entries, rolls the rows back and reports if one is refused, and commits otherwise. A failed row write rolls back with no entry. Email's outside writes (credential, EmailIn/EmailOut rows, OAuth client) are audited after them and put back on a refused entry. The webhook saves go through the new `SaveRow` seam. No message text, route, role, reply shape or Data class changed. The spine's AD-19, AD-13 and AD-33 text was written by the plan and checked here.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: `AuditAll`, `AuditCommit`, `SaveRow`; S1 to S9 rewritten to rows then entries; doc comments corrected.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOpsProbe.cls`: `SaveRow` override with the `saveRow` answer; the `clash` hook moved into it.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls`, `SettingsPersona.cls`, `SettingsHeartbeat.cls`, `SettingsSave.cls`, `SettingsOnCall.cls`, `SettingsEmail.cls`, `SettingsWebhooks.cls`, `SettingsPartners.cls`: old-order pins updated, a row-failure case (real log empty, with a control) and an audit-failure case per site.
+- The spec: mutation records, verification record and this result.
+
+**Review.** 4 layers, 29 findings in 13 root-cause rows: patches applied 4 rows (1 medium: refused-entry cases for `RecordOAuth` and `ForgetClient`; 3 low: step-ran assertion, an overclaiming comment, a mutation record), deferred 0, the other 9 rows rejected with their reasons in the Review Triage Log (the recurring root cause, an entry written before a refused one that no code can take back, is the Design Notes' wontfix-theoretical case).
+
+**Follow-up review recommendation:** false (one medium and three low patched; no high).
+
+**Verification performed.** The eight Settings classes, the thirteen neighbour classes, `bash ci/checks.sh`, `live sign-in-2 --part 3/4` and `4/4`, and the fresh check (`shard lane-b@Core`, two parts forward and two reversed, 68 classes) all pass on throwaways of the lane-a lock folder; every AC's mutation was applied, seen red and reverted byte-identical. After the review patches the two changed classes (`SettingsEmail`, `SettingsOps`) pass again warm. Everything this run started is torn down.
+
+**Residual risks.**
+- An entry written before a refused one of the same save stays in the real audit log (IRIS writes it outside the transaction); wontfix-theoretical until `Record` can refuse one entry of a save and accept another.
+- One protocol slip by the implementation subagent: it sent two test-class runs in one message at the end (both passed); no git or remote action was taken (`HEAD` unchanged during the run).
