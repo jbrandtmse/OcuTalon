@@ -4576,3 +4576,5 @@
 2026-11-16T21:42:42Z	Epic 24	ci_green_verified	24.3a+24.3b f979de2d0 runs=43953760061,43953760250
 2026-11-16T21:42:42Z	Epic 24	merge_enqueued	24.3b head=f979de2d0
 2026-11-16T21:47:25Z	Epic 24	merged	24.3a+24.3b merge=82d76911f
+2026-11-16T21:47:53Z	Epic 28	ci_green_verified	28.2 d18c9a55c runs=43943159296(att2;att1=DW-1451_ci-27),43943159307
+2026-11-16T21:47:53Z	Epic 28	merge_enqueued	28.2 head=d18c9a55c
