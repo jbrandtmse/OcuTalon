@@ -4482,3 +4482,4 @@
 2026-11-16T08:51:23Z	Run	owner_decision	via=contest_planner A:23.15_texts_approved(DW-1423_fix"by_a_user_who_holds",DW-1425_verbatim,result.partnerMaySent;one_mapping_condition) B:24.3a_Q1_accepted(conds),Q2_hold_24.3a_until_24.3b C:DW-1421_C0+C1_approved(dev1,dev2;conds)
 2026-11-16T09:07:05Z	Epic 21	runner_reported	PLANNER_REPORT DW-1378_gate(e5de51ab7;IncidentRequest.After;AD-12_sub-bullet;fallback_reading) relayed=contest_planner
 2026-11-16T09:07:19Z	Epic 21	owner_decision	via=contest_planner DW-1378=APPROVED(AD-12_verbatim;fallback_confirmed;pins)+1.0.12_CUT_ITEM order=DW-1376,DW-1378,DW-1421,user-turn
+2026-11-16T12:46:16Z	Run	owner_decision	via=contest_planner RESULT=Experts_1st(108_vs_82),Community_3rd 1.0.12_includes_online_demo_update(Planner) merge_delegated_to_Planner(signal_REQUIRED_GREEN) hosts_stay epics_27,28=APPROVED_after_1.0.12(scope_hold_lifted;gates_to_Planner)
