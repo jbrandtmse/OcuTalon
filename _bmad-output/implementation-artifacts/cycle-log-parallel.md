@@ -4424,3 +4424,8 @@
 2026-11-16T00:22:09Z	Epic 21	owner_decision	via=contest_planner DW-1410=APPROVED(all;veto6_ok;Task0_hard_gate_SELECT_stop;push_cond_0/300,0/30,no_false_hold;Fix.Scale>10%->Planner;AD-16_replaced)
 2026-11-16T00:51:05Z	Epic 25	runner_reported	PART_READY story=25.8 head=999481ae9 runs=43778278255,43778278305(att1) closes=DW-1120,1121,1122,1386,1387 new=DW-1401(viewer_drop_by_design),DW-1407,DW-1408(burndown)
 2026-11-16T00:51:05Z	Epic 25	merge_enqueued	story=25.8 (1.0.12)
+2026-11-16T00:53:20Z	Epic 25	merged	story=25.8 merge=044b6c2e1 epics_md_hash=re-recorded
+2026-11-16T00:53:30Z	Epic 25	runner_resumed	lane=A story=25.9(DW-1392) planner_notified=25.8_merged,DW-1401_viewer_drop_question
+2026-11-16T00:53:42Z	Run	owner_decision	via=contest_planner DW-1401=routed_to_26.4(LOW;preventDefault_on_viewer_drop_Documents+chat;pins) DW-1407,1408=burndown
+2026-11-16T01:52:33Z	Epic 24	runner_reported	PART_READY story=24.4a(1.0.12_blocker) head=9e3eb3f0 runs=43785602645,43785602560(att1) B13=pass new=DW-1412(redactor_misses_URL_signatures;decision-pending),DW-1413(wontfix)
+2026-11-16T01:52:33Z	Epic 24	merge_enqueued	story=24.4a
