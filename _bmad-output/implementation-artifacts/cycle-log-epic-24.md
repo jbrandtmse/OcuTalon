@@ -61,3 +61,10 @@
 2026-11-16T02:08:53Z	Epic 24	epic_context_compiled	reason=planning_artifact_newer(24.4a_merge) model=opus(by_plan_stage)
 2026-11-16T02:08:53Z	Story 24.4b	story_created	spawn_at=2026-11-16T01:57:00Z model=opus build_status=ready-for-dev warnings=oversized
 2026-11-16T02:08:53Z	Story 24.4b	spec_validated	gate=lead(no_new_text;no_new_veto;V2+V3_ruled) decided_2=pending_undo_raised_before_close_also_drawn_on_closed_card(EXPERIENCE_says_after_the_close;no_close_time_field) contention=lane_B_23.13_incidentContext_and_two_web_scripts_tests(plain_union) implement_after=DW-1412 branch=OCT-epic24
+2026-11-16T01:57:19Z	DW-1412	story_created	by=lead(quick_gate;Planner_ruling_~03:45Z_Nov_16) path=_bmad-output/implementation-artifacts/spec-24-dw-1412-redact-url-signature-parameters.md branch=OCT-epic24-dw1412(from_cdd250d0) priority=1.0.12_blocker
+2026-11-16T01:57:19Z	DW-1412	stage_spawned	stage=implement spawn_at=2026-11-16T01:57:19Z model=sonnet effort=high
+2026-11-16T02:34:12Z	DW-1412	dev_complete	model=sonnet build_sha=49d268f1 files=3(Bridge/Redact.cls,Test/Bridge/Redact.cls,Test/Checks/Runs.cls) mutations=5(rule_dropped;name_guard;log_path;Lifetime_upper_bound;backslash) review_layers=4(22:1M_patched) decided=hash_does_not_end_a_value(reuse_key=_rule;over-redacts);escaped_quote_ends_unquoted_value(also_key=)
+2026-11-16T02:34:12Z	DW-1412	committed	sha=pushed_below base=feature_cdd250d0(current)
+2026-11-16T03:13:41Z	Epic 24	integrated_forward	feature=28ee30d1(DW-1412_merged;23.13_not_landed) conflicts_resolved=cycle-log-epic-24(union)
+2026-11-16T03:13:41Z	Story 24.4b	planner_rulings_applied	source=<coordination>/prompts/story-244-rulings-20261115.md#24.4b_closed-card_ruling every_pending_undo_whenever_raised pins=(a)(b1)(b2)(c) EXPERIENCE_reworded=(d) demo=(e)
+2026-11-16T03:13:41Z	Story 24.4b	stage_spawned	stage=implement spawn_at=2026-11-16T03:13:41Z model=sonnet effort=high branch=OCT-epic24

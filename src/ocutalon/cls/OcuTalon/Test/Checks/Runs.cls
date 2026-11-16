@@ -70,7 +70,8 @@
 ///   - TestOffPersonsRecordedResultIsPublishedWithTheirSettings (Story 39.7, QA; AC 1, AC 3): an off person's recorded decision is published with off, the interval, the hours, the cost
 ///     and the trace of the person's own settings and decision, and a later Tick publishes nothing for them;
 ///   - TestBeatPublishesWhatRunDueCommittedBeforeAnError (Story 39.7): the view of a beat that committed before RunDue answered an error status is published;
-///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it, and a
+///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it (the signature
+///     of a presigned URL included: its value goes and the other parameters stay, DW-1412), and a
 ///     SessionRef in the error text of a RunNow, in any case, is left out, whether RunNow answers it or throws it;
 ///   - TestBeatNowKeepsEachSession: two BeatNows of two sessions call RunNow twice, in order, each with its own SessionRef, and a repeated BeatNow is not collapsed;
 ///   - TestCheckNow (Story 5.15; matrix "Check now runs", "Empty NextDueAt"): a CheckNow runs only the owner's rows of the request's production, each once: its run
@@ -1723,6 +1724,16 @@ Method TestBeatLogsAreRedacted()
 	Do ..Tick(host, ..At(1))
 	Do $$$AssertEquals(..Beaten(marker, .text), 2, "a RunDue that answers an error status logs one more")
 	Do $$$AssertNotTrue(text [ "QaSecret", "without the secret: "_text)
+
+	// a presigned URL in the error text keeps its parameter names and loses the values of its signature parameters (DW-1412)
+	Set signature = "9f2c"_"41ab"_"07d3"_"QaSigValue"
+	Set marker = "zzchk"_..Number_" beat url refused"
+	Set host.BeatError = marker_" https://bkt.s3.example.test/o?X-Amz-Expires=900&X-Amz-Signature="_signature_"&X-Amz-SignedHeaders=host"
+	Do ..Tick(host, ..At(2))
+	Do $$$AssertEquals(..Beaten(marker, .text), 1, "a RunDue that answers an error status that holds a presigned URL logs one warning")
+	Do $$$AssertTrue(text [ "X-Amz-Expires=900&X-Amz-Signature=[redacted]&X-Amz-SignedHeaders=host", "with the signature replaced and the other parameters kept: "_text)
+	Do $$$AssertNotTrue(text [ "QaSigValue", "and not the signature: "_text)
+	Set host.BeatError = ""
 
 	// RunNow throws, and then answers an error status
 	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()

@@ -136,6 +136,30 @@ All web paths are under `web/`. IRIS paths are under `src/ocutalon/cls/OcuTalon/
 
 ## Spec Change Log
 
+- 2026-11-16 (lead). **24.4b closed-card ruling, Contest Planner ~04:30Z Nov 16 (BINDING)**, quoted in full:
+
+  > ## 24.4b closed-card ruling (Contest Planner, ~04:30Z Nov 16). BINDING.
+  > A closed card draws EVERY undo that is still pending, whenever it was raised. Lane D's proposal is APPROVED.
+  > V2 restricted the KIND of card, not when it was raised. A pending approval with no card anywhere is the worse failure.
+  > 
+  > CONDITIONS. Pin (a) to (c), each with a mutation:
+  > - (a) **What a closed card draws:**
+  >   - a request card only for an undo whose request is still pending;
+  >   - no other kind: no repair, no resend, no new rollback;
+  >   - nothing once the undo is answered or has expired.
+  > - (b) **Raised before or after the close:**
+  >   - Pin 1: an undo raised BEFORE the close, then the incident is closed. The card shows it, and approve and deny from that card work and are audited exactly as on an open card.
+  >   - Pin 2: an undo raised AFTER the close.
+  > - (c) **No reopening:** answering an undo from a closed card does not reopen the incident or change its status.
+  > - (d) **EXPERIENCE.md wording:** in the same story, reword "asked after the close" to match, for example "an undo that is still waiting for an answer, whether it was asked before or after the close". This is a wording change only: no new page strings.
+  > - (e) **Online demo:** unaffected, because it has no setting history.
+  > 
+  > After 24.4b, lane D runs 24.3's spec gate.
+  > 
+  > DW-1412 is verified, and the 1.0.12 cut blocker is cleared. Feature runs 43796568063 and 43796568152 need reporting only if they go red.
+
+  Applied by the lead: (d) EXPERIENCE.md's Incident card sentence reworded (marker and old text). Binding on the implement stage: pins (a) only a PENDING undo's card on a closed card, no other kind, nothing once answered or expired; (b) pin 1 an undo raised BEFORE the close, then the close: shown, approve and deny work and are audited as on an open card; pin 2 an undo raised AFTER the close; (c) answering from a closed card does not reopen the incident or change its status; each with a mutation; (e) online demo unaffected.
+
 - 2026-11-15 (plan). Story 24.4b carved from the parent 24.4 plan (pre-split) and 24.4a's "Moved to Story 24.4b" list, under the binding rulings below. Re-checked every Code Map line against HEAD f5bd8256, which merges 24.4a. Kept from the parent: AC1, AC2, AC4 (as AC3 and AC4 here), AC5's card part, F1 to F4, F6, `TestStepFiveRequests`, the four V3 files, and `AFTER_CLOSE_KINDS` with the implement stage's design note (compactness from the payload, `drawn` in the context).
   - F6 is split into F6 and F6b.
   - `fixtureSlots` was added for the rollback's phone notice.
