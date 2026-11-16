@@ -2095,6 +2095,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T16:47:08Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 - 2026-11-15T12:02:13Z occurrence=OCT-epic21-dw1347-30d487a32 by=epic-runner note=run 43703149281 job 132778446850 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''; DW-1347 touches neither WatchOps nor test-production; one rerun of the failed job
 - 2026-11-16T11:53:12Z status=open by=epic-runner note=occurrence:OCT-epic24_a92d5426_ci_43856258908_attempt1_job_133261171232_on_ocutalon-ci-20(row_21_got_'');one_rerun
+- 2026-11-16T13:27:46Z occurrence=feature-625900415 by=orchestrator note=run 43870851457 att1 iris(production) on ocutalon-ci-22: row 21 wanted CHK|start-fails|1|1 got empty; one rerun of failed jobs (1.0.12 REQUIRED GREEN candidate)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint

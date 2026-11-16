@@ -2306,7 +2306,7 @@ rule_comparison() {
   st 'a paragraph between the money line and the heading' 1 "$README" '/^### With the agent and with fixed rules only$/ { print "A stray paragraph."; print "" } { print }' chk_comparison
   st 'a word of the paragraph changed' 1 "$README" '{ sub(/own fallback/, "own default") } { print }' chk_comparison
   st 'the commit link changed' 1 "$README" '{ sub(/commit\/6af31dab/, "commit/6af31dac") } { print }' chk_comparison
-  st 'the date not written as Month D' 1 "$README" '{ sub(/no key on November 12 on/, "no key on 2026-11-12 on") } { print }' chk_comparison
+  st 'the date not written as Month D' 1 "$README" '{ sub(/no key on November [0-9][0-9]* on/, "no key on 2026-11-12 on") } { print }' chk_comparison
   st 'a count that is not a number' 1 "$README" '{ sub(/): 24 routine items/, "): many routine items") } { print }' chk_comparison
   st 'a row label reworded' 1 "$README" '{ sub(/^\| Held-out cases right /, "| Held-out cases correct ") } { print }' chk_comparison
   st 'two row labels swapped' 1 "$README" '/^\| Items that needed you now but/ { held = $0; next } /^\| Unsafe outcomes \| measured/ { print; print held; next } { print }' chk_comparison

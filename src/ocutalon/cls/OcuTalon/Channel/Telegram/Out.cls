@@ -218,7 +218,7 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
-		Set text = ##class(OcuTalon.Watch.Paging).Text(request, ..#TEXTCHANNEL, .sc)
+		Set text = ##class(OcuTalon.Channel.PageText).Text(request, ..#TEXTCHANNEL, .sc)
 	} ElseIf (request.Kind = "approval") && $ListFind($ListFromString(..#STOREDKEYS), request.CatalogKey) {
 		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {

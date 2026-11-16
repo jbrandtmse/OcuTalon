@@ -36,6 +36,8 @@
 ///     text, the redacted text with no chat id, name or Telegram user name (a stored text that the redactor cannot check is "");
 ///   - TestRedactedValue (Story 24.4a; AC2): the undo request filled by Watch.Notice AskedSlots from a dry run with a token URL goes with the URL redacted and no token, and one with plain values
 ///     with them byte for byte;
+///   - TestPageCauseRedacted (DW-1430): a page's cause goes to Telegram as Channel.PageText makes it for the web card and the email: a URL with a sig parameter and a
+///     setting value with token= go redacted with no secret, and an over-long cause is cut to 1000 characters after the redaction;
 ///   - TestStepFiveRequests (Story 24.4b; AC1, AC2): the approval request of each step-5 kind (suspend, resume, reroute, partner warning, rollback, undo of a rollback), filled with its
 ///     catalog fixture's slots, goes as the catalog's telegram text with no parse_mode and exactly Approve and Reject (approve:<Ref>, reject:<Ref>) on its last part; the partner's text holds the whole notice
 ///     and both recipients;
@@ -863,6 +865,47 @@ Method TestRedactedValue()
 		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the redacted-value test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// DW-1430: a page Notification (kind page, page.onCallAlone) is rendered by Channel.PageText, as the web card and the page email are: its cause is
+/// Bridge.Redact.Text of the slot, cut to 1000 characters. (a) a cause holding a URL with a sig parameter and a setting value with token= goes with both
+/// redacted and neither secret; (b) a cause of 1,115 characters whose secret sits at character 902 goes redacted and then cut to 1000. Each text is the
+/// catalog's telegram rendering of the slots with the cause made that way here. The fixture chat is 8670.
+Method TestPageCauseRedacted()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8670
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set sig = "Zq" _ "s1" _ "g9" _ "Xw", token = "tk" _ "p4" _ "Q" _ "7m"
+		Set cause = "The Host setting of OrdersFromPartner was changed to https://feed.example.test/orders?sig=" _ sig _ "&page=2 and its Credentials value to token=" _ token
+		Set long = $Translate($Justify("", 900), " ", "x") _ " token=" _ token _ " " _ $Translate($Justify("", 200), " ", "y")
+		Set n = 0
+		For value = cause, long {
+			Set n = n + 1
+			Set slots = {"count": 3, "itemNoun": {"one": "message", "other": "messages"}, "production": "Orders", "time": (##class(OcuTalon.Data.Time).NowUtc()), "cause": (value)}
+			Set notice = ..Notification(session, ##class(OcuTalon.Watch.Paging).#KIND, ##class(OcuTalon.Watch.Paging).#KEYALONE, slots)
+			Set made = {}.%FromJSON(slots.%ToJSON())
+			Do made.%Set("cause", $Extract(##class(OcuTalon.Bridge.Redact).Text(value), 1, 1000), "string")
+			Set expected = ##class(OcuTalon.Msg.Catalog).Render(##class(OcuTalon.Watch.Paging).#KEYALONE, made, "telegram", .sc)
+			Do $$$AssertStatusOK(sc, "("_n_") the catalog renders the page with the redacted, cut cause")
+			Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", notice, .response), "("_n_") the page is sent to TelegramOut")
+			Set calls = ..SentTo(chatId)
+			Do $$$AssertEquals(calls.%Size(), n, "("_n_") as one sendMessage")
+			If calls.%Size() = n {
+				Set text = calls.%Get(n - 1).params.text
+				Do $$$AssertEquals(text, expected, "("_n_") the text is the page with the cause redacted, then cut to 1000 characters")
+				Do $$$AssertEquals($Find(text, sig) + $Find(text, token), 0, "("_n_") and holds no secret")
+				If n = 1 Do $$$AssertTrue((text [ "?sig=[redacted]") && (text [ "token=[redacted]"), "(1) both values carry the marker: "_text)
+				If n = 2 Do $$$AssertTrue((text [ "token=[redacted]") && (text [ $Translate($Justify("", 82), " ", "y")) && ($Find(text, $Translate($Justify("", 83), " ", "y")) = 0), "(2) the redacted cause is cut at 1000 characters, inside its tail")
+			}
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the page cause test failed: "_..Safe(ex))
 	}
 	Do ..Cleanup()
 }

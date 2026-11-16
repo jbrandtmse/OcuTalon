@@ -1,7 +1,7 @@
-/// The text of a page for the web chat card and the page email (Story 24.3a; AD-14, AD-19, AD-32), so that both show the identical cause sentence. Text(notification, channel)
+/// The text of a page for the web chat card, the Telegram copy and the page email (Story 24.3a, DW-1430; AD-14, AD-19, AD-32), so that all show the identical cause sentence. Text(notification, channel)
 /// is OcuTalon.Watch.Paging.Text of a copy of the Notification whose Slots are the same except for a string slot cause, which is OcuTalon.Bridge.Redact.Text of it, then cut to
 /// MAXCAUSE characters (the limit of an incident's Cause). Every other slot is unchanged, and the Notification that was passed in is never changed. Slots that cannot be read
-/// are passed on as they are, for Paging.Text to refuse. Only the *Out operations that render a page for the web or for email call it: producers never render.
+/// are passed on as they are, for Paging.Text to refuse. Only the *Out operations that render a page for the web, Telegram or email call it: producers never render.
 Class OcuTalon.Channel.PageText [ Abstract ]
 {
 
