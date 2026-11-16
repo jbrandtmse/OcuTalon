@@ -241,6 +241,7 @@ Method TestCurrentSessionLosesNoRows()
 		Quit:signal=""
 		Do ..Rows(kept(signal))
 		Set keptAI(signal) = ..Linked(kept(signal))
+		Set before(signal) = ..OwnedRows(kept(signal))
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Retention).Purge(90), "Retention.Purge(90) is OK")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(gone), 0, "the idle session is gone")
@@ -251,7 +252,9 @@ Method TestCurrentSessionLosesNoRows()
 		Set signal = $Order(kept(signal))
 		Quit:signal=""
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(kept(signal)), 1, "the session with "_signal_" is kept")
-		Do $$$AssertEquals(..OwnedRows(kept(signal)), "1|1|"_$Select(signal = "a pending reminder": 3, 1: 2)_"|1|1", "and loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link ("_signal_")")
+		// DW-1449: the message carries the counts (GuideState|SimMessage|Reminder|BreakFeedRun|link) before and after the purge, and the session's Reminder rows after it
+		Set after = ..OwnedRows(kept(signal))
+		Do $$$AssertEquals(after, "1|1|"_$Select(signal = "a pending reminder": 3, 1: 2)_"|1|1", "and loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link ("_signal_"; before "_before(signal)_", after "_after_"; reminders after: "_..ReminderRows(kept(signal))_")")
 		Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(keptAI(signal))), 0, "its AI session stays linked ("_signal_")")
 	}
 }
@@ -506,6 +509,18 @@ ClassMethod MemoryCount(ref As %String) As %Integer
 ClassMethod OwnedRows(ref As %String) As %String
 {
 	Quit ..Count("SELECT COUNT(*) FROM OcuTalon_Data.GuideState WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Data.Reminder WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Data.BreakFeedRun WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ConversationLink WHERE OwnerRef = ?", ref)
+}
+
+/// The session's Reminder rows as "State/Kind/CreatedAt/DueAt" joined by ", " in ID order (DW-1449's diagnostics).
+ClassMethod ReminderRows(ref As %String) As %String
+{
+	Set text = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT State, Kind, CreatedAt, DueAt FROM OcuTalon_Data.Reminder WHERE SessionRef = ? ORDER BY ID", ref)
+	If result.%SQLCODE < 0 Quit "SQLCODE "_result.%SQLCODE
+	While result.%Next() {
+		Set text = text_$Select(text = "": "", 1: ", ")_result.%Get("State")_"/"_result.%Get("Kind")_"/"_result.%Get("CreatedAt")_"/"_result.%Get("DueAt")
+	}
+	Quit text
 }
 
 /// The first column of the one row that the query returns for the argument.
