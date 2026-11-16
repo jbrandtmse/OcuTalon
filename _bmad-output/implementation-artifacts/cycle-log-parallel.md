@@ -4544,3 +4544,5 @@
 2026-11-16T19:29:56Z	Epic 23	merged	s2314 merge=d996ffcde production=24min browser=31min
 2026-11-16T19:30:31Z	Epic 27	runner_reported	27.1 pushed=d57a6d753(CI_pending) R7_A/B_ready(4_notes_cases,10_runs) merge=held_for_A/B decisions=DW-1440,DW-1441,DW-1442 relayed=contest_planner
 2026-11-16T19:30:31Z	Epic 28	runner_reported	28.2 pushed=095439140(lane-a_green,ci_running) PLANNER_REPORT_28.3_gate(G1-G9,P1-P10,iris-mcp-server_identity_blocker,split_28.5_proposed) relayed=contest_planner
+2026-11-16T19:31:24Z	Epic 27	owner_decision	via=contest_planner 27.1:R7_A/B_running(merge_held) DW-1441=ratified DW-1442=27.3_spine_gate footprint+units=approved
+2026-11-16T19:31:24Z	Epic 28	owner_decision	via=contest_planner 28.3:G7_split=approved(28.5_not_dispatched) G3=try_application_roles_first(else_keep+reason) G1,2,4,5,6,9+R1-3=approved P1-P10_approved(P8_conditional) no_A/B
