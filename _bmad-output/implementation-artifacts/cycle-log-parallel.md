@@ -4469,3 +4469,6 @@
 2026-11-16T08:31:02Z	Epic 21	owner_decision	via=contest_planner DW-1421:C0+C1=APPROVED(after_DW-1376_push;C0_harness-only,raw_local_uncommitted;C1_fixed_tags) C2,C3=after_C0_evidence(C2_drop-only_narrowing_AD-8) C4=post-1.0.12_A/B not_cut_blocker
 2026-11-16T08:31:46Z	Epic 21	runner_reported	PLANNER_REPORT DW-1421_C0_key_question(a:laneC_reads_.env,b:Planner_key-holder_runs+laneC_harness;recommend_b) relayed=contest_planner
 2026-11-16T08:31:58Z	Epic 21	owner_decision	via=contest_planner DW-1421_C0=option_b(laneC_harness,no_.env,no_model,counts-only_stdout;Planner_key-holder_runs_5-run_set)
+2026-11-16T08:42:51Z	Run	host_shaped	run=43816599381(OCT-epic23_0c7434656) runners=ci-28,ci-30,ci-31,ci-32 shutdown_signal_06:50:33Z teardown_skipped(possible_leftover_stacks) planner_notified
+2026-11-16T08:42:51Z	Epic 23	runner_reported	EPIC_RUNNER_ENDED(parked_U-329) PART_READY DW-1415+DW-1416+shards-11_rebalance head=89b0eb50 runs=43823569610(att2;att1=DW-1428),43823569572 burndown_gate=23.14_chartered(local)
+2026-11-16T08:42:51Z	Epic 23	merge_enqueued	DW-1415,DW-1416,rebalance (1.0.12 cut items)
