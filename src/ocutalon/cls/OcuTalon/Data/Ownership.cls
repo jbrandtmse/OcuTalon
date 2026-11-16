@@ -40,7 +40,7 @@
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. PartnerNotices (Story 23.5) is the session's own count of the delay notices
 ///     it sent since a time (outgoing mailbox rows that carry an ApprovalRef), the other part of the email limit. RecentTurns leaves out a refused
-///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10) and the summary cards (Story 23.6).
+///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10), the summary cards (Story 23.6) and the page cards (Story 24.3a: a page row with a ChannelMessageId, not the bare row that an earlier release kept).
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
@@ -1318,7 +1318,7 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
-		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result', 'digest', 'summary') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result', 'digest', 'summary', 'page') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
 	}
 	If kind = "recentPhone" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"

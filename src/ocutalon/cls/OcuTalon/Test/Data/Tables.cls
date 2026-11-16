@@ -536,7 +536,10 @@ XData Contracts [ MimeType = application/json ]
    "CreatedAt": "%String(MAXLEN=20)",
    "TraceHeaderId": "%Integer",
    "IdempotencyKey": "%String(MAXLEN=128)",
-   "CancelKey": "%String(MAXLEN=128)"
+   "CancelKey": "%String(MAXLEN=128)",
+   "Kind": "%String(MAXLEN=32)",
+   "IncidentRef": "%String(MAXLEN=22)",
+   "PageRef": "%String(MAXLEN=22)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -726,6 +729,21 @@ XData Contracts [ MimeType = application/json ]
   "indexes": {
    "SessionRefIndex": "SessionRef unique"
   }
+ },
+ "OcuTalon.Data.SlackLink": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "TeamId": "%String(COLLATION=EXACT,MAXLEN=32)",
+   "MemberId": "%String(COLLATION=EXACT,MAXLEN=32)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "CreatedAt": "%String(MAXLEN=20)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique",
+   "MemberIndex": "TeamId,MemberId unique",
+   "SessionRefIndex": "SessionRef unique"
+  }
  }
 }
 }
@@ -912,6 +930,11 @@ XData Registry [ MimeType = application/json ]
   "short": "Page",
   "global": "^OcuTalonP.Page",
   "class": "OcuTalon.Data.Page"
+ },
+ {
+  "short": "SlackLink",
+  "global": "^OcuTalonP.SlackLink",
+  "class": "OcuTalon.Data.SlackLink"
  }
 ]
 }

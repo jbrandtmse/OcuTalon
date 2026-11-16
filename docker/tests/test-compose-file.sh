@@ -754,7 +754,9 @@ check "ci: config parses together with the judges' file and docker-compose.dev.y
 env_example_has_keys_without_values() {
   grep -qx 'ANTHROPIC_API_KEY=' .env.example \
     && grep -qx 'TELEGRAM_BOT_TOKEN=' .env.example \
-    && ! code .env.example | grep -v -x -e 'ANTHROPIC_API_KEY=' -e 'TELEGRAM_BOT_TOKEN=' | grep -q .
+    && grep -qx 'SLACK_BOT_TOKEN=' .env.example \
+    && grep -qx 'SLACK_SIGNING_SECRET=' .env.example \
+    && ! code .env.example | grep -v -x -e 'ANTHROPIC_API_KEY=' -e 'TELEGRAM_BOT_TOKEN=' -e 'SLACK_BOT_TOKEN=' -e 'SLACK_SIGNING_SECRET=' | grep -q .
 }
 
 # git check-ignore exits 0 when ignored, 1 when not ignored, 128 on error.
@@ -766,7 +768,7 @@ git_ignores() { git check-ignore -q "$1" && git check-ignore -v "$1" 2>/dev/null
 git_ignore_rule() { git check-ignore -q --no-index "$1" && git check-ignore -v --no-index "$1" 2>/dev/null | grep -q '^\.gitignore:[0-9]*:[^!]'; }
 git_does_not_ignore() { git check-ignore -q --no-index "$1"; [ $? -eq 1 ]; }
 
-check "env.example: both keys, no values, nothing else" env_example_has_keys_without_values
+check "env.example: the model key, the Telegram token and the two Slack values, no values, nothing else" env_example_has_keys_without_values
 check "git: .env is ignored" git_ignores .env
 check "git: .env.example is not ignored" git_does_not_ignore .env.example
 

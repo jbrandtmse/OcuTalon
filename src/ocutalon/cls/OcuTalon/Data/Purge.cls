@@ -9,6 +9,9 @@ Include %cspBuild
 ///     memory and no document, and is not current: never by age alone. Current means any one of: a live CSP session holding its Ref (signed in,
 ///     OcuTalon.Data.Ownership SESSIONKEY), a Telegram pairing, an approval request that is pending, approved or executing, a background check (a watch),
 ///     a webhook that it owns (Data.Webhook; a webhook has no removal, so its session is kept for good), or a pending reminder. The checks run again for each session right before it is deleted;
+///   - Escalations: the escalation Reminder rows (SessionRef instance, Kind escalation, AD-18) that are fired or cancelled and were created before the cutoff go,
+///     and only those rows: the pages and incidents they name are not touched by this part. A pending escalation row, a newer one and every session's
+///     Reminder row are kept;
 ///   - With a session go its GuideState, SimMessage, BreakFeedRun and finished (fired or cancelled) Reminder rows, and its conversation links
 ///     (OcuTalon.Bridge.Purge.DropLinks), so that the bridge's purge frees the AI sessions they named. When one of these deletes fails, the Session row
 ///     stays and a later run retries it. Memories and documents are never deleted by this class: a session that holds one is kept.
@@ -30,6 +33,7 @@ ClassMethod Run(daysToKeep As %Integer, now As %String = "", store As %String = 
 	If $$$ISERR(sc) || (cutoff = "") Quit sc
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteTurns(cutoff))
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteDeliveries(cutoff))
+	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteEscalations(cutoff))
 	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteSessions(cutoff, store))
 	Quit sc
 }
@@ -54,6 +58,20 @@ ClassMethod DeleteDeliveries(cutoff As %String) As %Status [ Private ]
 	Try {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE RecordedAt < ?", cutoff)
 		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old deliveries failed: "_result.%Message)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Deletes the finished (fired or cancelled) escalation rows created before the cutoff, and nothing else: not a pending escalation row, a newer one
+/// or a session's reminder row.
+ClassMethod DeleteEscalations(cutoff As %String) As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Reminder WHERE SessionRef = 'instance' AND Kind = 'escalation' AND State IN ('fired', 'cancelled') AND CreatedAt < ?", cutoff)
+		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old escalations failed: "_result.%Message)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}

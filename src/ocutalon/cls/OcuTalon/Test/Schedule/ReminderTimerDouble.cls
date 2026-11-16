@@ -35,8 +35,14 @@ Method SendRequestAsync(target As %String, request As %RegisteredObject, respons
 {
 	Set stored = ""
 	If ##class(OcuTalon.Data.Reminder).RefIndexExists(..Ref, .id) Set stored = ##class(OcuTalon.Data.Reminder).StateGetStored(id)
-	Do ..Sent.%Push({"target": (target), "kind": (request.Kind), "key": (request.CatalogKey), "slots": (request.Slots), "session": (request.SessionRef), "responseRequired": (+responseRequired), "storedState": (stored)})
+	Do ..Sent.%Push({"target": (target), "kind": (..Field(request, "Kind")), "key": (..Field(request, "CatalogKey")), "slots": (..Field(request, "Slots")), "session": (..Field(request, "SessionRef")), "responseRequired": (+responseRequired), "storedState": (stored)})
 	Quit ..SendStatus
+}
+
+/// The value of the request's property, or "" when the request's class has none (an Escalation has no Kind, CatalogKey, Slots or SessionRef).
+ClassMethod Field(request As %RegisteredObject, name As %String) As %String [ Private ]
+{
+	Quit $Select(##class(%Dictionary.CompiledProperty).%ExistsId($ClassName(request) _ "||" _ name): $Property(request, name), 1: "")
 }
 
 }

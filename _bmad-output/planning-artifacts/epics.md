@@ -8705,11 +8705,15 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** the submitted commands' fields, the audit entries and the stored contacts match, and both sections work by keyboard with every control labelled (NFR-25, UX-DR130)
 - DW-1254: partner contacts' names and addresses go through the same SecretHandoff as 36.4's on-call section (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri, the values reach only the IRIS audit entry, and a leak-scan test pins it (ledger; routed by merge_gate 2026-11-13, Contest Planner 36.4 ruling S1)
 
-### Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement
+**Story 24.3 was split into Stories 24.3a and 24.3b** [AMENDED 2026-11-16, Contest Planner split (24.3 rulings ~08:30Z Nov 16, P5); 24.3a (delivery and the web acknowledgement) merges after the 1.0.12 cut; 24.3b (the escalation timer, the On call line, DW-1384 and the GUIDE bullet) follows; every acceptance criterion of the old Story 24.3 is carried word for word by one of them; P1 Option A settles DW-1251 (a page always gets a web chat card, not counted as a channel; Telegram and email follow the chosen channels exactly; an email copy is never marked handled); P2: the undelivered report is a `not_paired` delivery row that Paging reads]
+
+### Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement
+
+[ADDED 2026-11-16, Contest Planner split of 24.3; merges after the 1.0.12 cut]
 
 As an admin,
-I want each page to reach the on-call person on their configured channel, and an acknowledgement from any channel it reached to stop escalation,
-So that the backup is woken only when the on-call person really didn't answer.
+I want each page to reach the on-call person on their configured channels, and an acknowledgement from the web page to reach the paging owner,
+So that a page is seen and handled wherever the person is.
 
 **Acceptance Criteria:**
 
@@ -8723,6 +8727,25 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** the acknowledgement reaches the paging owner once through `CommandsIn` with the command verb Story 36.2 (was 24.1) fixes, every copy of the page shows "Marked as handled at {time}", and a second acknowledgement changes nothing (FR-28, AD-1, UX-DR143)
 **And** **Got it** on Telegram, which submits the same command and edits the Telegram copy in place, is Lane A's Story 23.4 (FR-20, AD-29)
 
+**Given** automated tests in `OcuTalon.Test.Channel`, with a mock mail server, against the paging owner
+**When** pages and acknowledgements run
+**Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+
+### Story 24.3b: Escalate unanswered pages to the backup, and say so in Settings
+
+[ADDED 2026-11-16, Contest Planner split of 24.3]
+
+**Lane:** B. **Depends on:** Story 24.3a (story-level).
+
+As an admin,
+I want an unanswered page to escalate to the backup after the minutes I chose, and Settings to say plainly how paging works,
+So that the backup is woken only when the on-call person really didn't answer.
+
+**Acceptance Criteria:**
+
 **Given** the paging owner (Lane A's Story 23.4) asks `ReminderOps` for an escalation timer with origin `system`
 **When** it is created
 **Then** a `Reminder` row of the escalation kind and its `ReminderTimer` waiter exist; at the due time the waiter sends the escalation message to the paging owner instead of a notification, a cancellation from the paging owner removes it, and neither shows in any session's reminder list (FR-28, AD-5, AD-18)
@@ -8732,8 +8755,8 @@ So that the backup is woken only when the on-call person really didn't answer.
 **When** pages, acknowledgements and escalations run, with a restart in between
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
-- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+**And** the Settings On call line reads the Contest Planner's approved text (Option A, 2026-11-16), replacing DW-1400's line, pinned in `ux-strings`, `on-call-view` and the on-call spec; GUIDE.md gains the approved On-call pages bullet with its existing Settings separator; DW-1384's escalation-ask test lands (Contest Planner 24.3 rulings, P4 and new text 1)
+
 
 **Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
 
@@ -9166,7 +9189,7 @@ So that only the right people can approve each kind of change.
 
 Slack works as a channel through its webhook route, with replies as Slack messages and no socket mode.
 
-**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
+**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] [AMENDED 2026-11-16, owner decision relayed by the Contest Planner (standing rulings, "OWNER DECISION ~14:30Z Nov 16"): Epics 27 and 28 start now, Epic 27 first, in Lane B; each story's spec gate goes to the Planner before it is built, Slack is off on the online demo, and until the 1.0.12 merge-back the stories build and run CI on their own branch]
 
 ### Story 27.1: Receive Slack events by webhook
 
@@ -9178,10 +9201,10 @@ So that I can use it where my team already talks (step 7, Could).
 
 **Given** step 7 starts in Lane B
 **When** this story begins
-**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and the stored link of a Slack member to an OcuTalon user that `SlackIn` reads (AD-14, AD-19, AD-29, AD-33) [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): "how an admin links a Slack member to an OcuTalon user" moved verbatim to Story 27.3; this story reads the link, Story 27.3 writes it]
 **And** as the first story of Lane B's step 7 epic, it creates the `DraftTransform` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to Lane A's `IncidentManager`, under the name Lane A's Story 28.1 fixes, accepted from origin `tool` only for one of the session's own incidents (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: Story 28.1's chat path submits it]
 **And** the Slack signing secret and bot token come only from environment variables that `.env.example` lists by name, and never appear in IRIS, a setting, a log, a message, an agent step or an audit entry (NFR-11, AD-19)
-**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+**And** this story ships no user-facing text: it proposes the step 7 texts at its spec gate, and Story 27.3 ships them once the author accepts them [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): the texts criterion moved verbatim to Story 27.3]
 
 **Given** a request from Slack's Events API to the Slack route
 **When** it arrives
@@ -9228,6 +9251,21 @@ So that the conversation stays where I started it (step 7, Could).
 **Given** the README
 **When** Slack ships
 **Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24)
+
+### Story 27.3: Link Slack members in Settings
+
+As an admin,
+I want to see in Settings whether Slack is on and to link each person's Slack member to their OcuTalon user,
+So that only the people I choose can message OcuTalon from Slack (step 7, Could).
+
+[AMENDED 2026-11-16, split from Story 27.1 by an unattended ruling (doctrine U5, split 1 of 6; product default 6): the criteria below moved verbatim from Story 27.1. Order: 27.1, then 27.3, then 27.2, so that 27.2's README section on linking a member describes shipped behaviour. Scope named at the split: an admin-only link and unlink through SettingsOps with an audit entry, an admin REST route, retention of links with their session, Settings > Channels' Slack state and linking (a lazy chunk), the catalog keys, and the "via Slack" marker on web-chat turns.]
+
+**Acceptance Criteria:**
+
+**Given** Story 27.1's Slack route, `SlackIn` and its stored member link
+**When** this story begins
+**Then** the spine is updated in the same change with how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
 ## Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 

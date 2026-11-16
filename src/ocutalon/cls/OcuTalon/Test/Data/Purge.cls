@@ -16,6 +16,9 @@ Include %cspBuild
 ///   - TestCurrentSessionLosesNoRows (matrix 23, U-308): a session that is current through an open approval request, a watch or a pending reminder
 ///     keeps its Session row and all five kinds of rows (GuideState, SimMessage, Reminder, BreakFeedRun and the conversation link), and the AI
 ///     session of its link stays linked, in a run that purges an idle session beside them;
+///   - TestFinishedEscalationsGo (Story 24.3b; V1c, AD-18, AD-27): of the escalation Reminder rows (SessionRef instance, Kind escalation) only the fired and cancelled ones created before the
+///     cutoff go, one of them naming a closed incident; a pending one, a fired one created after the cutoff, a finished row of Kind "" owned by instance, a session's finished reminder and a
+///     finished row of Kind escalation that a session owns all stay, through Run and through Retention.Purge;
 ///   - TestOnlyOwnTablesAndAuditKept (matrix 7): the approval and action entries of the IRIS audit log that name a purged session are still there, and
 ///     the purge's source names no system namespace, no audit class and no table but the OcuTalon_Data and OcuTalon_Bridge_Data ones, and deletes
 ///     only from Turn, Delivery, GuideState, SimMessage, Reminder, BreakFeedRun and Session, plus the one DropLinks call;
@@ -238,6 +241,7 @@ Method TestCurrentSessionLosesNoRows()
 		Quit:signal=""
 		Do ..Rows(kept(signal))
 		Set keptAI(signal) = ..Linked(kept(signal))
+		Set before(signal) = ..OwnedRows(kept(signal))
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Retention).Purge(90), "Retention.Purge(90) is OK")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(gone), 0, "the idle session is gone")
@@ -248,9 +252,42 @@ Method TestCurrentSessionLosesNoRows()
 		Set signal = $Order(kept(signal))
 		Quit:signal=""
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(kept(signal)), 1, "the session with "_signal_" is kept")
-		Do $$$AssertEquals(..OwnedRows(kept(signal)), "1|1|"_$Select(signal = "a pending reminder": 3, 1: 2)_"|1|1", "and loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link ("_signal_")")
+		// DW-1449: the message carries the counts (GuideState|SimMessage|Reminder|BreakFeedRun|link) before and after the purge, and the session's Reminder rows after it
+		Set after = ..OwnedRows(kept(signal))
+		Do $$$AssertEquals(after, "1|1|"_$Select(signal = "a pending reminder": 3, 1: 2)_"|1|1", "and loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link ("_signal_"; before "_before(signal)_", after "_after_"; reminders after: "_..ReminderRows(kept(signal))_")")
 		Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(keptAI(signal))), 0, "its AI session stays linked ("_signal_")")
 	}
+}
+
+/// Story 24.3b (V1c, AD-27): the purge deletes only the escalation rows (SessionRef instance, Kind escalation) that are fired or cancelled and were created before the cutoff, and runs from Retention.Purge too.
+/// Kept: a pending escalation row of the same age, a fired one created after the cutoff, a finished row of Kind "" that instance owns, a session's finished reminder (Kind "" and Kind escalation) of a kept session.
+/// One of the deleted rows names a closed incident (its rows are finished before the incident closed).
+Method TestFinishedEscalationsGo()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set old = ..Ago(91 * ..#DAY), newer = ..Ago(89 * ..#DAY)
+	Set incident = ..Track($ClassMethod(fixture, "Incident", "instance", old, , , {"State": "closed"}))
+	Set escalation = {"Kind": "escalation", "IncidentRef": (incident), "PageRef": "zzpurgepage", "Text": "", "CreatedAt": (old)}
+	Set fired = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "fired", escalation))
+	Set cancelled = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "cancelled", escalation))
+	Set pending = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "pending", escalation))
+	Set newFired = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "fired", {"Kind": "escalation", "PageRef": "zzpurgepage", "Text": "", "CreatedAt": (newer)}))
+	Set plain = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "fired", {"CreatedAt": (old)}))
+	Set young = ..Session(1)
+	Set ownFired = ..Track($ClassMethod(fixture, "Reminder", young, "2030-01-01T10:00:00Z", "fired", {"CreatedAt": (old)}))
+	Set ownEscalation = ..Track($ClassMethod(fixture, "Reminder", young, "2030-01-01T10:00:00Z", "fired", {"Kind": "escalation", "CreatedAt": (old)}))
+	Set second = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "cancelled", escalation))
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Purge).Run(90, ..Now, ..#STORE), "the purge is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(fired) _ "|" _ ##class(OcuTalon.Data.Reminder).RefIndexExists(cancelled) _ "|" _ ##class(OcuTalon.Data.Reminder).RefIndexExists(second), "0|0|0", "the old fired and cancelled escalation rows are gone (one names a closed incident)")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(pending), 1, "a pending escalation row of the same age stays")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(newFired), 1, "a fired one created after the cutoff stays")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(plain), 1, "a finished row of Kind empty that instance owns stays")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(young), 1, "the young session is kept")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(ownFired) _ "|" _ ##class(OcuTalon.Data.Reminder).RefIndexExists(ownEscalation), "1|1", "and so are its finished reminders, whatever their Kind")
+	Set again = ..Track($ClassMethod(fixture, "Reminder", "instance", "2030-01-01T10:00:00Z", "fired", escalation))
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Retention).Purge(90), "Retention.Purge(90) is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(again), 0, "and purging the data deletes an old finished escalation row in the same run")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Reminder).RefIndexExists(pending), 1, "while the pending one still stays")
 }
 
 /// Matrix 7. The audit entries of a purged session stay; the purge touches only OcuTalon's own tables.
@@ -472,6 +509,18 @@ ClassMethod MemoryCount(ref As %String) As %Integer
 ClassMethod OwnedRows(ref As %String) As %String
 {
 	Quit ..Count("SELECT COUNT(*) FROM OcuTalon_Data.GuideState WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Data.Reminder WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Data.BreakFeedRun WHERE SessionRef = ?", ref) _ "|" _ ..Count("SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ConversationLink WHERE OwnerRef = ?", ref)
+}
+
+/// The session's Reminder rows as "State/Kind/CreatedAt/DueAt" joined by ", " in ID order (DW-1449's diagnostics).
+ClassMethod ReminderRows(ref As %String) As %String
+{
+	Set text = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT State, Kind, CreatedAt, DueAt FROM OcuTalon_Data.Reminder WHERE SessionRef = ? ORDER BY ID", ref)
+	If result.%SQLCODE < 0 Quit "SQLCODE "_result.%SQLCODE
+	While result.%Next() {
+		Set text = text_$Select(text = "": "", 1: ", ")_result.%Get("State")_"/"_result.%Get("Kind")_"/"_result.%Get("CreatedAt")_"/"_result.%Get("DueAt")
+	}
+	Quit text
 }
 
 /// The first column of the one row that the query returns for the argument.

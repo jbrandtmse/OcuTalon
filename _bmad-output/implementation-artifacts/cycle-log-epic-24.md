@@ -74,7 +74,45 @@
 2026-11-16T06:48:11Z	Story 24.4b	fresh_check	env=fresh_lane-D(e24s4bcr) tests=live_sign-in-2_part_12/20(10_pass),Test.Channel.TelegramOut result=pass torn_down=yes
 2026-11-16T06:53:58Z	Epic 24	integrated_forward	feature=dc9813a6(23.13_merged) conflicts_resolved=sprint-status(regenerated;24.4b_done),incident-card.ts+incident-view.ts(union:23.13_approvals+24.4b_drawn;incidentContext(...,approvals,drawn)),approval-sources+incident-sources_source_pins(union_call) checks=web_2184_pass,lint,build,live_sign-in-2_part_12/20_fresh_pass
 2026-11-16T06:53:58Z	Story 24.4b	committed	sha=pushed_below
+2026-11-16T07:09:57Z	Epic 24	epic_context_compiled	reason=planning_artifact_newer model=opus(by_plan_stage)
+2026-11-16T07:09:57Z	Story 24.3	story_created	spawn_at=2026-11-16T06:56:00Z model=opus build_status=ready-for-dev warnings=oversized,multiple-goals
+2026-11-16T07:09:57Z	Story 24.3	spec_validated	gate=planner_pending(NEW_public_text:On_call_line(replaces_DW-1400),GUIDE_bullet(P4);NEW_veto:V1_Reminder_columns+purge,V2_page_emails(outward),V3_got-it_route_accepts_page_copy,V4_AD-14/18/27,V5_Lane_A_Telegram/Out+PagingLive_test,V6_Lane_B_files_outside_footprint;choices:P1_DW-1251(A_rec),P2_not_paired_row(rec),P4_GUIDE,P5_split_24.3a/b(rec)) branch=OCT-epic24
+2026-11-16T07:30:06Z	Story 24.4b	ci_resolved	sha=0d4d1e67 result=success runs=43819955746(ci),43819955815(lane-a) flake_reruns=0
+2026-11-16T07:35:41Z	Epic 24	integrated_forward	feature=c5c4186c(24.4b_merged) conflicts=none
+2026-11-16T07:35:41Z	Story 24.3	planner_rulings_applied	source=<coordination>/prompts/story-243-rulings-20261116.md P5=split(24.3a_delivery+web_ack,after_1.0.12_cut;24.3b_escalation+On_call_line+DW-1384+GUIDE) P1=A P2=not_paired_row P4=GUIDE_bullet(existing_separator) V1-V6=approved_with_conditions epics=24.3_stub+24.3a+24.3b spec=renamed_to_24.3a,draft ledger=DW-1251->24.3a,DW-1384->24.3b
+2026-11-16T07:35:41Z	Story 24.3a	stage_spawned	stage=plan spawn_at=2026-11-16T07:35:41Z model=opus effort=high branch=OCT-epic24 note=re-plan_narrowed
+2026-11-16T07:47:19Z	Story 24.3a	story_created	spawn_at=2026-11-16T07:36:00Z model=opus build_status=ready-for-dev warnings=oversized cycle_iteration=2
+2026-11-16T07:47:19Z	Story 24.3a	spec_validated	gate=planner_pending(V2_body:approved_page_email_texts_carry_the_diagnosed_cause,escalation_minutes,a_name_and_no_link_vs_ruling_production/count/time/link;On_call_line_false_between_24.3a_and_24.3b_merges(no_cut_between)) branch=OCT-epic24
 2026-11-16T07:34:44Z	DW-1426	story_created	by=lead(quick_gate;Planner_~08:30Z_Nov_16) branch=OCT-epic24-dw1426(from_c5c4186c)
 2026-11-16T07:34:44Z	DW-1426	stage_spawned	stage=implement spawn_at=2026-11-16T07:34:44Z model=sonnet effort=high
 2026-11-16T08:12:40Z	DW-1426	implement_done	commit=6161836f build_status=done review_layers=4(3_patches) web_test=2185/0 lint=0 build=0 live_part12/20=11_passed mutations=4_red_reverted_cmp
 2026-11-16T08:12:40Z	DW-1426	pushed	branch=OCT-epic24-dw1426 base=c5c4186c
+2026-11-16T08:51:45Z	Epic 24	integrated_forward	feature=be9ad9f3(DW-1426_merged) conflicts=none
+2026-11-16T08:51:45Z	Story 24.3a	spec_validated	gate=approved(Planner_~12:30Z_Q1_accepted_with_conditions:cause=card/Telegram_sentence_after_Redact.Text+cap,name=Settings,pin_no_item_text;Q2_merge_held_until_24.3b_green)
+2026-11-16T08:51:45Z	Story 24.3a	stage_spawned	stage=implement spawn_at=2026-11-16T08:51:45Z model=sonnet effort=high
+2026-11-16T08:52:00Z	DW-1426	merged	feature=be9ad9f3 ci=43829423163,43829423003(green)
+2026-11-16T10:46:47Z	Story 24.3a	implement_done	commit=8b689c92 build_status=done review_layers=4(32_findings:15_patched,18_rejected,1_deferred:Telegram_cause_unredacted(Lane_A)) followup_review_recommended=true web_test=2187 mutations=30+
+2026-11-16T10:46:47Z	Story 24.3a	stage_spawned	stage=code-review spawn_at=2026-11-16T10:46:47Z model=opus effort=high scope=99175c67..8b689c92
+2026-11-16T11:16:01Z	Story 24.3a	review_done	findings=30(0H,6M,21L,3F) patched=10 deferred=DW-1430(Telegram_cause_unredacted,escalated) rejected=19 verdict=READY
+2026-11-16T11:16:01Z	Story 24.3a	spine_amended	AD-14(page_route,handled_copies,page_email_body/claim/demo,got-it)+API_row_got-it lint=12_before=12_after
+2026-11-16T11:17:59Z	Story 24.3a	pushed	sha=a92d5426 runs=43856258908(ci),43856258969(lane-a) merge=held_until_24.3b_green(Q2)
+2026-11-16T11:17:59Z	Story 24.3b	stage_spawned	stage=plan spawn_at=2026-11-16T11:17:59Z model=opus effort=high
+2026-11-16T11:32:42Z	Story 24.3b	story_created	spawn_at=2026-11-16T11:18:00Z model=opus build_status=ready-for-dev warnings=oversized
+2026-11-16T11:32:42Z	Story 24.3b	spec_validated	gate=lead(within_Planner_24.3_rulings;new_items_are_implementation_choices:restart_test=production_stop/start(test-production-restart.sh_already_pins_kill),test-readme.sh_new-since_entry,purge_same_daily_cutoff,PagingLive_leftover_rows_on_throwaway_stacks,nested_cancel_measured_in_Task_0)
+2026-11-16T11:32:42Z	Story 24.3b	stage_spawned	stage=implement spawn_at=2026-11-16T11:32:42Z model=sonnet effort=high
+2026-11-16T13:15:25Z	Story 24.3a	ci_resolved	sha=a92d5426 result=success runs=43856258908(ci),43856258969(lane-a) reruns=1(DW-306_row_21_on_ocutalon-ci-20;green_on_ocutalon-ci-28) runner_reds_21-56=none
+2026-11-16T13:15:25Z	Story 24.3b	implement_done	commit=472b5add build_status=done review=29(0H,3M,22L,4F)_8_patched,0_deferred followup_review_recommended=false mutations=all_red_reverted
+2026-11-16T13:15:25Z	Story 24.3b	spine_amended	AD-18(escalation_timers_as_built)+AD-27(purge_finished_escalations) lint=12_before=12_after
+2026-11-16T13:25:25Z	Epic 24	integrated_forward	feature=62590041(23.15,DW-1376/1378) conflicts=Channel/Email/Out.cls(PageClaimed_vs_Began:plain_union),sprint-status(regenerated) overlap_lane_B=GUIDE.md,docker/tests/test-readme.sh,Channel/Email/Out.cls,Test/Channel/EmailOut.cls,web/scripts/ux-strings.test.mjs checks=web_2199/0,test-readme,class-rules,ci-config,EmailOut(fresh),PageRoute(fresh)
+2026-11-16T13:25:25Z	Story 24.3b	pushed	branch=OCT-epic24
+2026-11-16T14:01:10Z	Story 24.3b	ci_resolved	sha=411a61e1 result=success runs=43875617563(ci),43875617565(lane-a) reruns=0 runner_reds=none
+2026-11-16T14:01:10Z	Story 24.3	merge_held	note=1.0.12_release_started_BASE_625900415;24.3a_and_24.3b_merge_back_to_back_after_Planner_MERGE-BACK_DONE;no_further_push
+2026-11-16T14:15:57Z	DW-1430	pushed	branch=OCT-epic23-dw1430 base=625900415 sha=aea51eb95 test=TelegramOut:TestPageCauseRedacted mutations=2_red(raw_Paging.Text;cut_before_redact)
+2026-11-16T14:15:57Z	Story 24.3b	planner_condition	at_rebase:no_demo_surface(card,chat,timeline,digest)_claims_an_email_was_sent_or_tried;pin_one_assertion;mirror_PageText_doc_line_from_DW-1430
+2026-11-16T15:22:37Z	DW-1430	ci_resolved	sha=aea51eb95 result=success runs=43883622144(ci),43883623069(lane-a) reruns=1(DW-28_another_production_on_ocutalon-ci-20;green_on_ocutalon-ci-21)
+2026-11-16T17:26:32Z	Epic 24	integrated_forward	feature=e404c59d(1.0.12_merge-back,DW-1430) conflicts=Channel/PageText.cls(add/add:DW-1430_version) auto=Channel/Telegram/Out.cls,docker/tests/test-readme.sh Tables.cls_27.1=not_landed
+2026-11-16T17:26:32Z	Story 24.3b	planner_condition_pinned	PageRoute:TestOnlineDemo_DemoClaims=0|0|0 mutation=PagePayload_demo_check_dropped->red checks=PageRoute,EmailOut,TelegramOut:TestPageCauseRedacted,Escalations(fresh,green) web=2199/0 test-readme,class-rules
+2026-11-16T18:56:57Z	Story 24.3b	ci_red_classified	run=43919911468 job=133484098787 ocutalon-ci-22 class=Test.Mcp.SourceRun:TestNoAnswerHash verdict=test_race(DW-1439,not_story_caused) fix=SourceRun_NewSecond+SecondStart_pin mutation=NewSecond_no-op->10_red(CI_signature) fresh=SourceRun_green rerun_cancelled
+2026-11-16T19:59:42Z	Story 24.3b	ci_red	run=43934206289 sha=c321d4680 iris(browser)_ci-11=DW-1448(T2_main.main_not_found_after_reload) iris(image)_ci-20=DW-1449?(Purge_TestCurrentSessionLosesNoRows_intermittent) shards-2=green(DW-1439_fixed) action=one_rerun
+2026-11-16T20:37:04Z	Story 24.3b	ci_resolved	sha=c321d4680 result=success runs=43934206289(ci),43934206417(lane-a) reruns=1(DW-1448_browser_ci-11->ci-5;DW-1449_image_ci-20->ci-30)
+2026-11-16T20:49:21Z	Story 24.3b	dw1449_diagnosed	commit=eae99e206 review=no_path_to_kept_rows loop=10/10_green(lane-b@Data_warm_e24lp) feature_integrated=d996ffcde

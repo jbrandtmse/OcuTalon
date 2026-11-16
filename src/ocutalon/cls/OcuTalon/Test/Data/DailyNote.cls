@@ -121,6 +121,20 @@ Method TestMessageLines()
 	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY), expected, "the five messages that were not refused, each with its opening")
 }
 
+/// A Slack turn (Story 27.1, R7 option a): the value slack is a channel of the notes block like web, phone and telegram, so a turn with Channel slack reads
+/// "message (slack)" and its decide decision "decision (slack)", with nothing in DailyNote mapping or refusing the value.
+Method TestSlackChannelLines()
+{
+	Set session = ..Session()
+	Set turn = ..Turn(session, "09:20:00", "Is the feed running?")
+	Do ..SetChannel(turn, "slack")
+	Do ..Decision(session, "09:20:01", "act", {"ItemId": (..TurnItem(turn))})
+	Set lf = $Char(10)
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY), "09:20 message (slack): Is the feed running?"_lf_"09:20 decision (slack): act", "a Slack turn reads (slack), and so does its decision")
+	Do ..SetChannel(turn, "telegram")
+	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build(session, ..#DAY), "09:20 message (telegram): Is the feed running?"_lf_"09:20 decision (telegram): act", "the same turn on Telegram reads (telegram), the other side of the R7 comparison")
+}
+
 /// DW-977: the note built for a turn's ItemId leaves out that turn, the later turns and their decide decisions; two arguments and an unknown ItemId give the whole day.
 Method TestLeavesOutCurrentTurn()
 {

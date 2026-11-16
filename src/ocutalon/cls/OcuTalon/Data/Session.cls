@@ -161,7 +161,8 @@ ClassMethod IsEval(ref As %String) As %Boolean
 }
 
 /// Deletes the evaluation session row of the Ref (ForEval's), and only such a row: a row that has an IrisUser (a person's, a visitor's), an unknown Ref and
-/// an empty Ref answer an error status and change nothing. Called only by Eval.In. Its memories are not touched: Eval.In drops them first (Memory.DropSession).
+/// an empty Ref answer an error status and change nothing. The Turn rows of the session (Data.Turn ForEval's, Story 27.1) are deleted first, and its Slack link, if a test
+/// made one, goes with the row (Data.SlackLink SessionFK). Called only by Eval.In. Its memories are not touched: Eval.In drops them first (Memory.DropSession).
 ClassMethod DropEval(ref As %String) As %Status
 {
 	If ref = "" Quit $SYSTEM.Status.Error(5001, "An evaluation session needs its Ref")
@@ -175,7 +176,12 @@ ClassMethod DropEval(ref As %String) As %Status
 		} Else {
 			Set id = row.%Id()
 			Set row = ""
-			Set sc = ..%DeleteId(id)
+			Set turns = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Turn WHERE SessionRef = ?", ref)
+			If turns.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The evaluation session's turns could not be deleted")
+			} Else {
+				Set sc = ..%DeleteId(id)
+			}
 		}
 	} Catch exception {
 		Set sc = exception.AsStatus()

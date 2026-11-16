@@ -198,6 +198,20 @@ Method TestOtherPaths()
 	}
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("HookProbe", "sent")), 0, "nothing is handed over")
 	Do $$$AssertEquals($Data(^OcuTalonP.WebhookC("r", ..Ref)) + $Data(^OcuTalonP.WebhookC("r", "?")), 0, "and no rejection is counted")
+	Kill ^OcuTalonP.WebhookC("r", "slack")
+	Set hadSecret = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_SIGNING_SECRET"), savedSecret = $SYSTEM.Util.GetEnviron("SLACK_SIGNING_SECRET")
+	Set hadToken = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_BOT_TOKEN"), savedToken = $SYSTEM.Util.GetEnviron("SLACK_BOT_TOKEN")
+	Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("SLACK_SIGNING_SECRET")
+	Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("SLACK_BOT_TOKEN")
+	Try {
+		Set written = ..Dispatch("/slack/events", "POST", .response)
+		Do $$$AssertEquals(response.Status_"|"_written, "404 Not Found|", "with Slack off POST /slack/events is 404 with no body, like any other unknown path")
+		Do $$$AssertEquals($Data(^OcuTalonP.WebhookC("r", "slack")), 0, "and is not counted")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the Slack route threw: "_exception.DisplayString())
+	}
+	If hadSecret Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", savedSecret)
+	If hadToken Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", savedToken)
 }
 
 Method TestRejectionAudit()
