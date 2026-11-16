@@ -10,7 +10,7 @@
 ///     HubRows(table, .rows) reads back rows(n) = the chunk's text and rows(n, "vector") = its vector, in the order of source and id.
 ///   - ToVector(value) / ToString(vector): the vector of a value that is a $VECTOR already or the text of one (a display value of a vector column), and the
 ///     comma-separated text of a vector's values.
-///   - Store(owner, ref, text, savedAt, origin, itemId) / Purge(prefix) (Story 19.3): a fixture Data.Memory row with the embedding of its text, embedded through the
+///   - Store(owner, ref, text, savedAt, origin, itemId, source, lastUsedAt, pinned) / Purge(prefix) (Story 19.3; lastUsedAt and pinned Story 28.2): a fixture Data.Memory row with the embedding of its text, embedded through the
 ///     product's endpoint, for the tests of the read side, and the removal of every row whose SessionRef starts with the prefix (the vectors and keyword entries go
 ///     with a deleted row). A product row is written by MemoryOps only (AD-33); these rows stand for ones that other origins or other times would have made.
 ///   - Matrix(n): the three texts of the identity checks (ASCII; an accented Latin letter and CJK characters, authored with $Char; over 256 word pieces).
@@ -109,9 +109,9 @@ ClassMethod DropTable(table As %String, suffix As %String)
 }
 
 /// Stores a fixture memory of the owner (a SessionRef string, which needs no Session row) with the Ref, the text, the SavedAt (UTC to the second), the Origin,
-/// the ItemId and the Source (empty for a row as saved before Story 41.8), and the vector that the product's endpoint gives for the text. The status of the
-/// embedding or of the save.
-ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As %String, origin As %String = "tool", itemId As %String = "zzmemitem", source As %String = "") As %Status
+/// the ItemId and the Source (empty for a row as saved before Story 41.8), the LastUsedAt (empty for a memory that was never used), whether it is pinned (with PinnedAt
+/// the SavedAt), and the vector that the product's endpoint gives for the text. The status of the embedding or of the save.
+ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As %String, origin As %String = "tool", itemId As %String = "zzmemitem", source As %String = "", lastUsedAt As %String = "", pinned As %Boolean = 0) As %Status
 {
 	Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
 	If $SYSTEM.Status.IsError(sc) Quit sc
@@ -123,8 +123,41 @@ ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As 
 	Set row.ItemId = itemId
 	Set row.Origin = origin
 	Set row.Source = source
+	Set row.LastUsedAt = lastUsedAt
+	If pinned {
+		Set row.Pinned = 1
+		Set row.PinnedAt = savedAt
+	}
 	Set row.Embedding = vector
 	Quit row.%Save()
+}
+
+/// Holds the product setting memory.fadeDays at days for a class whose fixtures carry fixed dates, so that the clock never fades them; ReleaseFade puts the setting back as it was.
+ClassMethod HoldFade(days As %Integer = 36500)
+{
+	Kill ^||OcuTalonTestMemoryFixtureFade
+	Set key = ##class(OcuTalon.Memory).#FADEKEY
+	If ##class(OcuTalon.Data.Setting).KeyIndexExists(key) Set ^||OcuTalonTestMemoryFixtureFade = $ListBuild(1, ##class(OcuTalon.Data.Setting).Fresh(key))
+	Do ##class(OcuTalon.Data.Setting).Set(key, days)
+}
+
+/// Puts memory.fadeDays as HoldFade found it.
+ClassMethod ReleaseFade()
+{
+	Do ..PutFade($Get(^||OcuTalonTestMemoryFixtureFade, ""))
+	Kill ^||OcuTalonTestMemoryFixtureFade
+}
+
+/// Puts the setting memory.fadeDays as it was (saved is "" for no row, else $ListBuild(1, value)).
+ClassMethod PutFade(saved As %List)
+{
+	Set key = ##class(OcuTalon.Memory).#FADEKEY
+	If saved = "" {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(key)
+		Kill ^||OcuTalon.Setting(key)
+	} Else {
+		Do ##class(OcuTalon.Data.Setting).Set(key, $List(saved, 2))
+	}
 }
 
 /// Deletes every Data.Memory row whose SessionRef starts with the prefix, one by one so that the HNSW and keyword entries go with them.

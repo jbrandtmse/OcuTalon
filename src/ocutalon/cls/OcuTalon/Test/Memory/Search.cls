@@ -36,6 +36,7 @@ Method OnBeforeAllTests() As %Status
 	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() {
 		Set sc = ##class(OcuTalon.Test.Memory.Fixture).Prepare(.state)
 		Merge ^||OcuTalonTestMemorySearch = state
+		Do ##class(OcuTalon.Test.Memory.Fixture).HoldFade()
 		Do ##class(OcuTalon.Test.Memory.Fixture).Purge(..#PREFIX)
 		Quit sc
 	}
@@ -45,6 +46,7 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do ##class(OcuTalon.Test.Memory.Fixture).ReleaseFade()
 		Do ##class(OcuTalon.Test.Memory.Fixture).Purge(..#PREFIX)
 		Merge state = ^||OcuTalonTestMemorySearch
 		Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)

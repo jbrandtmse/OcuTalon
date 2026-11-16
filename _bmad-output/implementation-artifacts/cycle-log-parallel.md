@@ -4578,3 +4578,6 @@
 2026-11-16T21:47:25Z	Epic 24	merged	24.3a+24.3b merge=82d76911f
 2026-11-16T21:47:53Z	Epic 28	ci_green_verified	28.2 d18c9a55c runs=43943159296(att2;att1=DW-1451_ci-27),43943159307
 2026-11-16T21:47:53Z	Epic 28	merge_enqueued	28.2 head=d18c9a55c
+2026-11-16T22:01:58Z	Epic 21	owner_decision	via=contest_planner control@c573a86d0=9/5_confidence-missing(model_behaviour) round3=CLEARED_TO_MERGE triage_confidence_fix=priority(report_text_first,A/B_N=5) round4+=#9404->unexpected-field
+2026-11-16T22:01:58Z	Run	ci_red	feature 854346fa1(27.1_merge) ci=43957453035: production=DW-306(ci-29) shards-5=guide_Q7_new_flake_DW-1452(ci-18) rerun_failed; 28.2_merge_held_until_green
+2026-11-16T22:29:27Z	Run	ci_green	feature 82d76911f ci+lane-a green (contains 854346fa1 code; DW-306/DW-1452 explained) via=contest_planner

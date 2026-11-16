@@ -1,4 +1,4 @@
-/// The Memory area's install step (AD-21, AD-23). Run() is idempotent and does four things, in order:
+/// The Memory area's install step (AD-19, AD-21, AD-23). Run() is idempotent and does five things, in order:
 ///   - the WorkMgr category OcuTalon.Memory.Embedder (created or set to the declared 2 active workers and 1 default worker; Config.WorkQueues lives
 ///     in %SYS), which must exist before anything queues an embedding;
 ///   - the WorkMgr category OcuTalon.Docs.Extractor (1 active worker and 1 default worker), which must exist before anything queues a file to read
@@ -7,7 +7,9 @@
 ///   - the model folder (OcuTalon.Memory.Embedder ModelFolder(), or the folder passed in): when it already holds the model nothing is downloaded,
 ///     which is always so on the image; when it does not, the model is downloaded once, in a worker, with the image build's snapshot_download call.
 ///     A download that cannot run (no network, or fastembed or huggingface_hub not installed, as on the FR-57 image) is a warning that carries the
-///     underlying error's own text, never a failure, so the install completes and a later install tries again.
+///     underlying error's own text, never a failure, so the install completes and a later install tries again;
+///   - the seed of the product setting memory.fadeDays (OcuTalon.Memory FADEKEY, FADEDAYS days), through OcuTalon.Install.Seeds: a key that exists keeps its value, so
+///     a value an admin changed survives a restart and an upgrade (Story 28.2).
 /// EnsureCategory is the pattern that other areas' worker categories reuse.
 Class OcuTalon.Install.Step.Memory Extends OcuTalon.Install.Step
 {
@@ -23,7 +25,9 @@ ClassMethod Run(folder As %String = "") As %Status
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	If folder = "" Set folder = ##class(OcuTalon.Memory.Embedder).ModelFolder()
 	Do ..EnsureModel(folder)
-	Quit $SYSTEM.Status.OK()
+	Set seeds = {}
+	Do seeds.%Set(##class(OcuTalon.Memory).#FADEKEY, ##class(OcuTalon.Memory).#FADEDAYS)
+	Quit ##class(OcuTalon.Install.Seeds).Defaults(seeds)
 }
 
 /// Creates the WorkMgr category, or sets an existing one to the declared values. Config.WorkQueues is in %SYS, so the work is done there and the
