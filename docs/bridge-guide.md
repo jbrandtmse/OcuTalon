@@ -259,7 +259,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `Status` | `ok`, `denied` or `error`. |
 | `EstimatedTokens` | An estimate, from AI Hub's callback data, of the size of the step's model request in tokens. It is not the tokens used, which are counted per turn. |
 
-**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field, a field of the wrong type or a missing confidence is `invalid`. The class parameter `CONFIDENCEREQUIRED` says whether a reply must carry a confidence: it is 1 on `OcuTalon.Bridge.Msg.DecisionPayload` and 0 on `OcuTalon.Watch.Msg.DiagnosisPayload`, so a diagnosis without one is accepted and has none.
+**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field or a field of the wrong type is `invalid`, and so is a reply without a confidence when its class requires one. The class parameter `CONFIDENCEREQUIRED` says whether it does: it is 1 on `OcuTalon.Bridge.Msg.DecisionPayload` and 0 on `OcuTalon.Watch.Msg.DiagnosisPayload`, so a diagnosis without a confidence is accepted and has none.
 
 The enumerations (`OcuTalon.Bridge.Msg.Enum`):
 

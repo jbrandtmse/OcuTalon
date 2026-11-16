@@ -1079,3 +1079,4 @@
 2026-11-16T18:15:14Z	DW-1421	ci_green	round=2 sha=c573a86d0 ci.yml=43914431337_success lane-a=43914431294_success at=18:15Z
 2026-11-16T18:16:39Z	DW-1421	ruling	Planner_~18:45Z: "refusal tags can reach the diagnosis model only via read_event_log when OcuTalon watches its own production; same exposure class as before; no A/B (no eval coverage); Planner ruling 2026-11-16" ledger=DW-1437(LOW) bridge-guide=3_changes_in_round3(PUBLIC_TEXT_gate_before_push)
 2026-11-16T18:16:39Z	DW-1421	public_text	bridge-guide.md 3 changes drafted; test-bridge-guide=all_pass; held for the Planner (no push)
+2026-11-16T18:18:59Z	DW-1421	public_text_approved	bridge-guide (a),(c) verbatim; (b) replaced by the Planner text; test-bridge-guide rule confidencetext pins the three lines (mutation red); ledger=DW-1438(LOW CLOCKTIME quotes a date-time)
