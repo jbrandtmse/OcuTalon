@@ -100,3 +100,6 @@
 2026-11-16T11:32:42Z	Story 24.3b	story_created	spawn_at=2026-11-16T11:18:00Z model=opus build_status=ready-for-dev warnings=oversized
 2026-11-16T11:32:42Z	Story 24.3b	spec_validated	gate=lead(within_Planner_24.3_rulings;new_items_are_implementation_choices:restart_test=production_stop/start(test-production-restart.sh_already_pins_kill),test-readme.sh_new-since_entry,purge_same_daily_cutoff,PagingLive_leftover_rows_on_throwaway_stacks,nested_cancel_measured_in_Task_0)
 2026-11-16T11:32:42Z	Story 24.3b	stage_spawned	stage=implement spawn_at=2026-11-16T11:32:42Z model=sonnet effort=high
+2026-11-16T13:15:25Z	Story 24.3a	ci_resolved	sha=a92d5426 result=success runs=43856258908(ci),43856258969(lane-a) reruns=1(DW-306_row_21_on_ocutalon-ci-20;green_on_ocutalon-ci-28) runner_reds_21-56=none
+2026-11-16T13:15:25Z	Story 24.3b	implement_done	commit=472b5add build_status=done review=29(0H,3M,22L,4F)_8_patched,0_deferred followup_review_recommended=false mutations=all_red_reverted
+2026-11-16T13:15:25Z	Story 24.3b	spine_amended	AD-18(escalation_timers_as_built)+AD-27(purge_finished_escalations) lint=12_before=12_after

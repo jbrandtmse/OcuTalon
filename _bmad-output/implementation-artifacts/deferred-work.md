@@ -2093,6 +2093,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got empty (runners backlogged); not rerun: d53500886 (26.2's code plus a test-only change) ci 43681313101 green and 2e6366b00 ci 43690296919 production green
 - 2026-11-15T16:47:08Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 - 2026-11-15T12:02:13Z occurrence=OCT-epic21-dw1347-30d487a32 by=epic-runner note=run 43703149281 job 132778446850 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''; DW-1347 touches neither WatchOps nor test-production; one rerun of the failed job
+- 2026-11-16T11:53:12Z status=open by=epic-runner note=occurrence:OCT-epic24_a92d5426_ci_43856258908_attempt1_job_133261171232_on_ocutalon-ci-20(row_21_got_'');one_rerun
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -7793,6 +7794,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Spine AD-14 'The page kind (step 5)' bullets (Story 36.2, ruled V6 text); 36.1 gives the page card a web Got it, so the likely reading is web chat always for a user plus the chosen channels, Telegram falling back to email.
 - 2026-11-13T04:03:56Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=cr note=24.3 plan fixes the reading (recommended: web chat always; email-only means no Telegram copy) and amends the bullet (Rule 5/20)
 - 2026-11-16T07:35:41Z status=routed owner=24-3a-deliver-pages-on-the-on-call-channels-and-take-the-web-ackno by=lead note=24.3_split(P5);P1_Option_A_settles_it_in_24.3a
+- 2026-11-16T13:15:25Z status=resolved-by:24-3a-deliver-pages-on-the-on-call-channels-and-take-the-web-ackno by=lead note=P1_Option_A;AD-14_amended(a92d5426)
 
 ### DW-1252: CommandsIn's Routes doc comment lists each step's verbs but not step 5's AckPage and SaveSqlWatch
 - source: spec-36-2-fix-lane-b-s-step-5-contracts-paging-escalation-and-the-sql.md | severity: low | fix-risk: low | footprint: in-story
@@ -8467,6 +8469,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T16:46:52Z status=routed owner=burndown by=harvest note=24.3 must update the pin when it builds the timer (cross-lane)
 - 2026-11-15T16:47:08Z status=routed owner=24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on by=harvest note=24.3_builds_the_escalation_timer_and_must_flip_this_pin
 - 2026-11-16T07:35:41Z status=routed owner=24-3b-escalate-unanswered-pages-to-the-backup-and-say-so-in-settin by=lead note=24.3_split(P5);DW-1384_in_24.3b
+- 2026-11-16T13:15:25Z status=resolved-by:24-3b-escalate-unanswered-pages-to-the-backup-and-say-so-in-settin by=lead note=TestEscalationAsk_asserts_the_escalation(472b5add)
 
 ### DW-1385: web/e2e/api/incident-page.spec.ts (AC11) has no demonstrated mutation
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: low | footprint: in-story
