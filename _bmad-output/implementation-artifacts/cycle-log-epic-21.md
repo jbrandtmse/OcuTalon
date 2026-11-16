@@ -508,3 +508,6 @@
 2026-11-16T04:20:50Z	DW-1410	ledger	DW-1410=resolved-by:dw-1410
 2026-11-16T04:43:47Z	DW-1410	integrated	feature=6e88ef29e merge=507a0d2b0; then feature=ecaf5ac9a(DW-1205_merged;no_src_delta) merge=b5de8d99c conflicts=none
 2026-11-16T04:43:47Z	DW-1410	fresh_check	env=507a0d2b0(src_identical_at_push_head) build154_lane-a@Fix_30/30,Watch.Evidence,Watch.Reader_pass bd,class-rules=pass lint=12_low torn_down
+2026-11-16T05:21:47Z	DW-1410	ci_resolved	sha=48f10354d result=success runs=43805853892,43805853876(attempt1)
+2026-11-16T05:21:47Z	DW-1410	part_ready	parts=DW-1410 code_head=48f10354d ci=success records=local
+2026-11-16T05:21:47Z	Epic 21	ledger	DW-1411=dropped(superseded-by:DW-609)

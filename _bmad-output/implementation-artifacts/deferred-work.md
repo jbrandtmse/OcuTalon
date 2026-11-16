@@ -8680,3 +8680,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: a model-call fallback on the mock's chat scenario (list_productions tool turn, ci/mock/scenarios/A/chat.json); list_productions reads Watch.Reader.Productions(), not the evidence branch DW-1205 changed; lane-a@Fix 29/29 on builds 154 and 109 at the same tree; no other recent ci.yml failure carries this signature; distinct from DW-609 (T7 120 s timeout)
 - 2026-11-16T00:25:15Z status=routed owner=burndown by=flake note=(inference) the mock call timed out or errored under runner load; one rerun of the failed job
 - 2026-11-16T00:47:54Z occurrence=OCT-epic21-dw1205-fded9d158 by=epic-runner note=attempt 2 of run 43777000338 passed iris(browser) (flake confirmed by the rerun)
+- 2026-11-16T05:21:47Z status=dropped by=epic-runner note=superseded-by:DW-609 (same test, telegram-page.spec.ts T7; coordinator ledgered the ci-14 occurrence there)
