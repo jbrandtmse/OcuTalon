@@ -110,3 +110,5 @@
 2026-11-16T14:15:57Z	DW-1430	pushed	branch=OCT-epic23-dw1430 base=625900415 sha=aea51eb95 test=TelegramOut:TestPageCauseRedacted mutations=2_red(raw_Paging.Text;cut_before_redact)
 2026-11-16T14:15:57Z	Story 24.3b	planner_condition	at_rebase:no_demo_surface(card,chat,timeline,digest)_claims_an_email_was_sent_or_tried;pin_one_assertion;mirror_PageText_doc_line_from_DW-1430
 2026-11-16T15:22:37Z	DW-1430	ci_resolved	sha=aea51eb95 result=success runs=43883622144(ci),43883623069(lane-a) reruns=1(DW-28_another_production_on_ocutalon-ci-20;green_on_ocutalon-ci-21)
+2026-11-16T17:26:32Z	Epic 24	integrated_forward	feature=e404c59d(1.0.12_merge-back,DW-1430) conflicts=Channel/PageText.cls(add/add:DW-1430_version) auto=Channel/Telegram/Out.cls,docker/tests/test-readme.sh Tables.cls_27.1=not_landed
+2026-11-16T17:26:32Z	Story 24.3b	planner_condition_pinned	PageRoute:TestOnlineDemo_DemoClaims=0|0|0 mutation=PagePayload_demo_check_dropped->red checks=PageRoute,EmailOut,TelegramOut:TestPageCauseRedacted,Escalations(fresh,green) web=2199/0 test-readme,class-rules

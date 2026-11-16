@@ -216,6 +216,8 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 
 ## Spec Change Log
 
+- 2026-11-16 (lead, after MERGE-BACK DONE). Merged feature e404c59d (1.0.12 merge-back with DW-1430) into OCT-epic24; `Channel/PageText.cls` add/add resolved to DW-1430's version (its class comment names the Telegram copy too). Contest Planner condition on the AD-14 amendment, relayed by the orchestrator: "on the online demo the page email answers OK while reading, writing and sending nothing. So NO demo surface (card, chat, timeline, digest) may claim that an email was sent or tried. Pin it with one assertion." Pinned in `Test.Channel.PageRoute:TestOnlineDemo` (helper `DemoClaims`: the incident payload's page part, the session's chat snapshot rows of the page, the email Delivery rows of the page of any owner, expected "0|0|0"). Mutation: `Watch.Paging.PagePayload` without its online-demo check -> only that assertion red; reverted `cmp`-identical.
+
 - 2026-11-16 (lead). Chartered by the Contest Planner's P5 split of Story 24.3. The BINDING rulings (24.3 gate ~08:30Z and 24.3a Q1/Q2 ~12:30Z, Nov 16), quoted in full from `<coordination>/prompts/story-243-rulings-20261116.md`:
 
   > # DW-1426 and Story 24.3 rulings (Contest Planner, ~08:30Z on 2026-11-16). BINDING.

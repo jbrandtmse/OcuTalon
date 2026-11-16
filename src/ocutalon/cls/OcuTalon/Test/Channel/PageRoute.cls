@@ -791,6 +791,7 @@ Method TestOnlineDemo()
 	Hang ..#QUIET + 2
 	Do $$$AssertEquals(..Rows(page.Ref, "web")_"|"_..Rows(page.Ref, "telegram")_"|"_..Rows(page.Ref, "email")_"|"_..Rows(page.Ref, "phone"), "0|0|0|0", "no Delivery row of any channel")
 	Do $$$AssertEquals(..Mails().%Size()_"|"_..Messages(chat).%Size(), "0|0", "no mail and no Telegram message")
+	Do $$$AssertEquals(..DemoClaims(session, incident, page.Ref), "0|0|0", "no online-demo surface claims that a page email was sent or tried: the incident card and timeline carry no page part, the chat snapshot holds no row of the page, and no email row of the page exists for the digest or anything else to read (Contest Planner condition on the AD-14 amendment)")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do $$$AssertEquals(..RouteOf(session, page.Ref), "send:WebChatOut,TelegramOut:;send:EmailOut:", "control: with the flag off the same page goes to the card, Telegram and EmailOut")
 	// positive control: EmailOut had taken the demo's message before the absence checks ran. A second page sent to it directly, with the flag off, is mailed, and its mail is the only one.
@@ -800,6 +801,25 @@ Method TestOnlineDemo()
 	Set mails = ..WaitMails(1)
 	Do $$$AssertEquals(mails.%Size(), 1, "positive control: a second page sent to EmailOut with the flag off is mailed, so the demo's message had been taken and dropped, and was no mail")
 	If mails.%Size() = 1 Do ..AssertMail(mails, 0, again, address, "the second page's email")
+}
+
+/// What an online-demo surface could read about a page, as "card|chat|email": 1 when the incident's live payload (its card and timeline) has a page part, the number of rows of the
+/// page in the session's chat snapshot (Ownership.RecentNotices, which the chat and its cards load), and the number of email Delivery rows of the page Ref of any owner and kind.
+Method DemoClaims(session As %String, incidentRef As %String, pageRef As %String) As %String [ Private ]
+{
+	Set card = 0
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incidentRef)
+	If $IsObject(row) Set card = $IsObject(##class(OcuTalon.Live.Payload.Incident).FromRow(row).Page)
+	Set chat = 0
+	Set notices = ##class(OcuTalon.Data.Ownership).RecentNotices(session, 100, .sc)
+	If $IsObject(notices) {
+		For i = 1:1:notices.Count() {
+			If notices.GetAt(i).DecisionRef = pageRef Set chat = chat + 1
+		}
+	}
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = 'email'", pageRef)
+	Do rs.%Next()
+	Quit card_"|"_chat_"|"_(+rs.%GetData(1))
 }
 
 /// The targets of Notify's rule for a page (or the kind) of the session with the DecisionRef, as the router's action list.
