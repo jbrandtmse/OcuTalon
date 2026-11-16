@@ -27,6 +27,9 @@
 ///   - TestCompoundKeys: a key whose name ends with a sensitive name (authToken, telegramChatId), the names secretKey and accessKey, and a
 ///     name whose words are split by a space or a dot ("api key", user.name, "chat id: ...") are sensitive, as JSON keys and in free text;
 ///   - TestUrlCredentials: the user and password of a URL are replaced, in free text and in JSON; a URL with no password is kept;
+///   - TestSettingValueShapes (Story 24.4a; AC1): the shapes of a setting's value, a URL with token=, access_token=, key= or user:password@,
+///     and the bare key= (any case, spaces around the =, a quoted value) are replaced and the rest of the URL is kept; monkey=, keyboard=,
+///     cacheKey=, "key: value" and a plain value are kept; each result is its own redaction;
 ///   - TestEscapedJson: JSON whose quotes are escaped inside a text (an error that quotes a body) has its sensitive values replaced, and a
 ///     quoted value with an escaped quote in it is replaced whole;
 ///   - TestJsonInStrings: JSON inside a string value of JSON has its sensitive keys replaced whatever the type of their values, and a string
@@ -227,6 +230,29 @@ Method TestPlainText()
 	Do $$$AssertEquals(..Text($Char(9) _ "x" _ $Char(10)), $Char(9) _ "x" _ $Char(10), "white space around a word")
 }
 
+/// The shapes of a setting's value (Story 24.4a; AC1): the secret is replaced, the rest of the text is kept, a second pass changes nothing.
+Method TestSettingValueShapes()
+{
+	Set mark = ..#MARK
+	Set secret = "tk" _ "-" _ "Q7x" _ "Zp2"
+	Set base = "https://feed.example.test/orders"
+	Do ..Check(base _ "?token=" _ secret _ "&format=x", base _ "?token=" _ mark _ "&format=x", "token= in a URL, the rest kept")
+	Do ..Check(base _ "?access_token=" _ secret, base _ "?access_token=" _ mark, "access_token= in a URL")
+	Do ..Check("https://svc:" _ secret _ "@feed.example.test/x", "https://" _ mark _ "@feed.example.test/x", "user:password@ in a URL")
+	Do ..Check(base _ "?key=" _ secret _ "&x=1", base _ "?key=" _ mark _ "&x=1", "the bare key= of a URL, the rest kept")
+	Do ..Check("key = " _ secret, "key = " _ mark, "key with spaces around the =")
+	Do ..Check("KEY=" _ secret, "KEY=" _ mark, "KEY in capitals")
+	Do ..Check("key=""a b""", "key=""" _ mark _ """", "a quoted value, its quotes kept")
+	Do ..Check("key='a b' end", "key='" _ mark _ "' end", "a single-quoted value, its quotes kept")
+	Do ..Check("a&key=" _ secret, "a&key=" _ mark, "key= after an ampersand")
+	Do ..Check("(key=" _ secret _ ")", "(key=" _ mark, "key= after a bracket (the value runs to a space, quote, comma, semicolon or ampersand, as the other key rules' do)")
+	For kept = "monkey=1", "keyboard=on", "cacheKey=1", "dedup-key=1", "dedup_key=1", "a.key=1", "key: value", "OrdersRouter", base _ "?format=x" {
+		Do ..Check(kept, kept, "'" _ kept _ "' is kept")
+	}
+	Do ..Check(base _ "?monkey=" _ secret, base _ "?monkey=" _ secret, "monkey= keeps its value (key is not a sensitive name)")
+	Do $$$AssertEquals(..Text({"key": "plain", "monkey": 1}.%ToJSON()), {"key": "plain", "monkey": 1}.%ToJSON(), "a JSON key named key keeps its value (a name and value pair aside)")
+}
+
 /// Text(Text(x)) is Text(x), for the texts of the other tests.
 Method TestIdempotent()
 {
@@ -243,7 +269,9 @@ Method TestIdempotent()
 		"pwd=x pwd=x pwd=x",
 		"""{\""password\"":\""x\""}""",
 		"""the card is locked: password=abc""",
-		"plain text, no secrets")
+		"plain text, no secrets",
+		"https://feed.example.test/orders?key=" _ "zq9" _ "&x=1",
+		"key = ab cd KEY=x key=""a b"" monkey=1")
 	Set position = 0
 	While $ListNext(texts, position, text) {
 		Set once = ..Text(text)

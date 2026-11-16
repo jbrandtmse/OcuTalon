@@ -969,11 +969,16 @@ Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Pri
 /// warning, and clears AskingSince. An error (a dry run or slots that cannot be used, a failed Raise, a request cancelled after a failed save, a thrown error
 /// before any raise) also puts the marks back (Unask with unmark 1), so the round's failures join the next round; a refused dry run, an empty Targets and an
 /// open incident keep them, and so does a request that was raised and could not be cancelled, which still holds the window.
+/// The dry run of a setting kind carries redacted values and a hand-off reference to the raw ones (Fix.Executor OfferValues). Proposed takes the reference once, on receipt, before any
+/// early exit (Received), so that every answer ends its entry; the raw values live in the local dry run only, never on the message. A take that finds no entry (expired, discarded or
+/// never put) is acted on only where the method would go on to raise: it takes the refusal route, as a Reason equal to the kind's NOSTART does (one Type 3 warning, the no-fix
+/// route or, for a later round, AskingSince cleared), and nothing is raised, so that a redacted value is never stored as the raw one.
 Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTalon.Fix.Msg.DryRunResult, later As %Boolean = 0) As %Status [ Private ]
 {
 	Set incident = ""
 	Set log = $Select(later: ..#LOGLATER, 1: ..#LOGPROPOSE)
 	Try {
+		Do ..Received(result, .dryRun, .taken)
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 		If $Select(later: '..Asking(incident), 1: '..Open(incident)) Quit
 		If result.Reason '= "" {
@@ -989,13 +994,12 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 			If later Do ..Unask(incident)
 			Quit
 		}
-		Set dryRun = ""
-		Try {
-			Set dryRun = {}.%FromJSON(result.DryRun)
-		} Catch {
-			Set dryRun = ""
+		If 'taken {
+			$$$LOGWARNING(log_ref_": the values of the dry run could not be taken: "_##class(OcuTalon.Bridge.Redact).Text(..NoStart(ask)))
+			Do ..Decline(incident, later, 0, ##class(OcuTalon.Watch.Notice).NoFixKey(..NoStart(ask)))
+			Quit
 		}
-		If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
+		If '$IsObject(dryRun) {
 			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": the dry run is not one JSON object")
 			If later Do ..Unask(incident, 1)
 			Quit
@@ -1164,7 +1168,9 @@ Method AskedDraft(incident As OcuTalon.Data.Incident, command As OcuTalon.Msg.Co
 /// The tail that every request the user asks for shares, for the kind and the parameters (a dynamic object): one dry run, asked of FixExecutor synchronously (AskDryRun), and,
 /// when it gives targets, the request raised (RaiseFix), its Ref appended to RequestRefs and Move to the state with one Notification of kind approval (Notice.AskedKey and
 /// AskedSlots). outcome is raised (detail is the request's Ref), refused (the dry run's reason is detail), nothing (the dry run has no target) or failed (a failed ask, an answer
-/// or slots that cannot be used, a failed raise or a failed save, each with one Type 3 warning (LOGASK); a request whose save failed is cancelled).
+/// or slots that cannot be used, a failed raise or a failed save, each with one Type 3 warning (LOGASK); a request whose save failed is cancelled). The answer's hand-off of a setting
+/// kind's raw values is taken on receipt (Received), before the Reason and Targets checks; a take that finds no entry is refused after them, with the kind's NOSTART as the detail
+/// and one Type 3 warning (LOGASK), and no request is raised.
 Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameters As %DynamicObject, to As %String, variant As %String, Output outcome As %String, Output detail As %String) [ Private ]
 {
 	Set outcome = "failed"
@@ -1181,6 +1187,7 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			Quit
 		}
+		Do ..Received(result, .dryRun, .taken)
 		If result.Reason '= "" {
 			Set outcome = "refused"
 			Set detail = result.Reason
@@ -1190,7 +1197,16 @@ Method RaiseAsked(incident As OcuTalon.Data.Incident, kind As %String, parameter
 			Set outcome = "nothing"
 			Quit
 		}
-		Set dryRun = {}.%FromJSON(result.DryRun)
+		If 'taken {
+			$$$LOGWARNING(..#LOGASK_incident.Ref_": the values of the dry run could not be taken: "_##class(OcuTalon.Bridge.Redact).Text(..NoStart(ask)))
+			Set outcome = "refused"
+			Set detail = ..NoStart(ask)
+			Quit
+		}
+		If '$IsObject(dryRun) {
+			$$$LOGWARNING(..#LOGASK_incident.Ref_": the dry run is not one JSON object")
+			Quit
+		}
 		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots(kind, dryRun, incident, .sc)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGASK_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -1340,6 +1356,33 @@ Method AlreadyAsked(incident As OcuTalon.Data.Incident, kind As %String, paramet
 Method AskDryRun(ask As OcuTalon.Fix.Msg.DryRun, Output result As OcuTalon.Fix.Msg.DryRunResult) As %Status [ Private ]
 {
 	Quit ..SendRequestSync(..#FIXEXECUTOR, ask, .result, ..#ASKSECONDS)
+}
+
+/// Takes, on receipt of a DryRunResult, the raw values of a setting kind's dry run (Fix.Executor TakeValues): the answer's DryRun is parsed once into dryRun (a local object, "" when the
+/// answer has none or it is not one JSON object) and the hand-off reference in it is taken and deleted. taken is 0 when the take found no entry; dryRun then holds redacted values and must
+/// not be stored. The raw values are never set on the message.
+Method Received(result As OcuTalon.Fix.Msg.DryRunResult, Output dryRun As %DynamicObject, Output taken As %Boolean) [ Private ]
+{
+	Set dryRun = ""
+	Set taken = 1
+	If result.DryRun = "" Quit
+	Try {
+		Set dryRun = {}.%FromJSON(result.DryRun)
+	} Catch {
+		Set dryRun = ""
+	}
+	If '$IsObject(dryRun) || 'dryRun.%IsA("%Library.DynamicObject") {
+		Set dryRun = ""
+		Quit
+	}
+	Set taken = $$$ISOK(##class(OcuTalon.Fix.Executor).TakeValues(dryRun))
+}
+
+/// The kind's plain reason for a run that could not start (NOSTART) of the kind that the dry run was asked for, "" when the kind is unknown.
+ClassMethod NoStart(ask As OcuTalon.Fix.Msg.DryRun) As %String [ Private ]
+{
+	Set class = $Select($IsObject($Get(ask)): ##class(OcuTalon.Fix.Kind).ForName(ask.FixKind), 1: "")
+	Quit $Select(class = "": "", 1: $Parameter(class, "NOSTART"))
 }
 
 /// The dry run as the request's row stores it: JSON of a copy with only the keys of ApprovalRequest DRYRUNKEYS, in their order (the kind's answer may hold other keys,

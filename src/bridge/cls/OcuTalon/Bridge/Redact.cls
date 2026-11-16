@@ -15,7 +15,8 @@
 ///     tokens (6 or more digits, a colon and 30 or more of A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub tokens (ghp_ and the
 ///     other gh*_ forms, github_pat_), AWS access key ids (AKIA) and the user and password of a URL. A key of SENSITIVEKEYS followed by = or :
 ///     and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is not JSON and in the string values of
-///     JSON that is.
+///     JSON that is. So is the bare key= shape (a URL's ?key=): a name that is exactly key, in any case and not preceded by an ASCII letter or digit,
+///     _, . or -, followed by = (never :) and a value; monkey=, cacheKey=, keyboard= and the prose "key: value" are kept.
 ///   - It is idempotent: Text(Text(x)) is Text(x).
 ///   - It never throws and never logs or stores its input. When it fails (for example when the redacted form of a text would
 ///     pass the limit of a string), it fails closed: it returns UNCHECKED and nothing of the text.
@@ -212,6 +213,12 @@ ClassMethod PatternList(kv As %Boolean) As %List [ Private ]
 			$ListBuild(keys _ """(?:[^""\\]|\\.)*""", "$1""" _ mark _ """"),
 			$ListBuild(keys _ "'[^']*'", "$1'" _ mark _ "'"),
 			$ListBuild(keys _ "(?!\\+"")(?:(?:Bearer|Basic|Digest|Negotiate)\s+)?[^\s""',;&]+", "$1" _ mark))
+		Set bare = ..BareKeyPattern()
+		Set patterns = patterns _ $ListBuild(
+			$ListBuild(bare _ "(\\+"")(?:(?!\2)[\s\S])*\2", "$1$2" _ mark _ "$2"),
+			$ListBuild(bare _ """(?:[^""\\]|\\.)*""", "$1""" _ mark _ """"),
+			$ListBuild(bare _ "'[^']*'", "$1'" _ mark _ "'"),
+			$ListBuild(bare _ "(?!\\+"")(?:(?:Bearer|Basic|Digest|Negotiate)\s+)?[^\s""',;&]+", "$1" _ mark))
 	}
 	Quit patterns
 }
@@ -235,6 +242,14 @@ ClassMethod KeyPattern() As %String [ Private ]
 		Set alternatives = alternatives _ $Select(alternatives = "": "", 1: "|") _ spaced
 	}
 	Quit "(?i)((?:" _ alternatives _ ")\\*[""']?\s*[=:]\s*)"
+}
+
+/// The start of the regular expression of the bare key= shape: group 1 is the name key and the =. The name is not preceded by an ASCII letter or digit, _, . or -
+/// (so monkey, cacheKey and dedupKey are not it), and only = separates it from its value, so that the prose "key: value" and the pairs of JSON keep their
+/// meaning. key is not a name of SENSITIVEKEYS, which a name ends with, and must not become one. The value follows as KeyPattern's does.
+ClassMethod BareKeyPattern() As %String [ Private ]
+{
+	Quit "(?i)((?<![A-Za-z0-9_.\-])key\s*=\s*)"
 }
 
 }

@@ -394,6 +394,50 @@ describe('the Show details panel', () => {
     ]);
   });
 
+  it('lists the setting change right after the cause: the change, the old and new values (mono), the time (Story 24.4a, V1)', () => {
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'TargetConfigName', oldValue: 'OrdersRouter', newValue: 'OrdersRouterNew', credential: false, detectedAt: '2026-10-22T14:08:00Z' };
+    const rows = view(full({ settingChange: change })).panel.rows;
+    assert.deepEqual(rows.map((row) => row.label), ['Cause', 'Setting change', 'Old value', 'New value', 'Detected', 'Sample failed message', 'Error', 'Failures by item'], 'the four rows follow the Cause row');
+    assert.deepEqual(rows.slice(1, 5), [
+      { label: 'Setting change', lines: ['TargetConfigName on OrdersFromPartner'], mono: true },
+      { label: 'Old value', lines: ['OrdersRouter'], mono: true },
+      { label: 'New value', lines: ['OrdersRouterNew'], mono: true },
+      { label: 'Detected', lines: ['16:08'], mono: false },
+    ]);
+    assert.deepEqual(
+      [INCIDENT_TEXTS.labelSettingChange, INCIDENT_TEXTS.settingOnItem, INCIDENT_TEXTS.labelOldValue, INCIDENT_TEXTS.labelNewValue, INCIDENT_TEXTS.labelDetected],
+      ['Setting change', '{setting} on {item}', 'Old value', 'New value', 'Detected'],
+      'the five strings of the Planner\'s V1 ruling, verbatim',
+    );
+    const dayBefore = view(full({ settingChange: { ...change, detectedAt: '2026-10-21T14:08:00Z' } })).panel.rows.find((row) => row.label === 'Detected');
+    assert.deepEqual(dayBefore.lines, ['Wednesday at 16:08'], 'a time of another day has its day, as the panel\'s other times');
+  });
+
+  it('leaves out the value rows of a credential and of an empty value, and every row of a change that names no setting or item', () => {
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'Password', oldValue: '', newValue: '', credential: true, detectedAt: '2026-10-22T14:08:00Z' };
+    const labels = (settingChange) => view(full({ settingChange })).panel.rows.map((row) => row.label);
+    const plain = ['Cause', 'Sample failed message', 'Error', 'Failures by item'];
+    assert.deepEqual(labels(change), ['Cause', 'Setting change', 'Detected', ...plain.slice(1)], 'a credential: the change and the time only');
+    assert.deepEqual(labels({ ...change, oldValue: 'x', newValue: 'y' }), ['Cause', 'Setting change', 'Detected', ...plain.slice(1)], 'its values are never shown, even when the payload holds some');
+    assert.deepEqual(labels({ ...change, credential: false, oldValue: '', newValue: 'y' }), ['Cause', 'Setting change', 'New value', 'Detected', ...plain.slice(1)], 'an empty old value (the setting was added): no Old value row');
+    assert.deepEqual(labels({ ...change, credential: false, oldValue: 'x', newValue: '' }), ['Cause', 'Setting change', 'Old value', 'Detected', ...plain.slice(1)], 'and an empty new value: no New value row');
+    assert.deepEqual(labels({ ...change, detectedAt: 'not a time' }), ['Cause', 'Setting change', ...plain.slice(1)], 'an unreadable time: no Detected row');
+    assert.deepEqual(labels(undefined), plain, 'no change named: the panel is as before');
+    assert.deepEqual(labels({ ...change, setting: '' }), plain, 'no setting: no row');
+    assert.deepEqual(labels({ ...change, item: '' }), plain, 'no item: no row');
+    assert.deepEqual(labels({}), plain, 'an empty change: no row');
+  });
+
+  it('shows a value that the server redacted as it was sent, and a plain value byte for byte; it redacts nothing itself', () => {
+    const url = 'https://feed.example.test/orders?token=[redacted]';
+    const change = { item: 'OrdersFromPartner', target: 'Host', setting: 'Host', oldValue: url, newValue: ' OrdersRouter ', credential: false, detectedAt: '2026-10-22T14:08:00Z' };
+    const rows = view(full({ settingChange: change })).panel.rows;
+    assert.deepEqual(rows.find((row) => row.label === 'Old value').lines, [url]);
+    assert.deepEqual(rows.find((row) => row.label === 'New value').lines, [' OrdersRouter ']);
+    const raw = view(full({ settingChange: { ...change, oldValue: 'https://feed.example.test/orders?token=abc123' } })).panel.rows;
+    assert.deepEqual(raw.find((row) => row.label === 'Old value').lines, ['https://feed.example.test/orders?token=abc123'], 'the page shows what the server sent: the redaction is the server\'s');
+  });
+
   it('writes one line per item: one failure with its one time, more with the first and last, times as page times with their day', () => {
     const items = [
       { itemName: 'Order transform', count: 1, firstAt: '2026-10-22T14:12:03Z', lastAt: '2026-10-22T14:12:03Z' },
@@ -555,6 +599,11 @@ describe('the fixed strings', () => {
         nounOther: 'messages',
         separator: ' \u00B7 ',
         labelCause: 'Cause',
+        labelSettingChange: 'Setting change',
+        settingOnItem: '{setting} on {item}',
+        labelOldValue: 'Old value',
+        labelNewValue: 'New value',
+        labelDetected: 'Detected',
         labelSample: 'Sample failed message',
         labelError: 'Error',
         labelItems: 'Failures by item',
