@@ -917,7 +917,46 @@ export async function answerHeaders(user: string): Promise<{ count: number; trac
   return { count, traceRef };
 }
 
-/** The answer that setApprovalState records with a state: the action (approve or reject), the channel and the person, and when (UTC), and the expiry when it changes. */
+/** The audit clock now (Test.Bridge.AuditLog.Now), the mark that approvalAudit reads from. */
+export async function auditClock(): Promise<string> {
+  const mark = chk(await irisScript('Write !,"CHK|now|",##class(OcuTalon.Test.Bridge.AuditLog).Now()'), 'now');
+  if (!mark) throw new Error('the audit clock could not be read');
+  return mark;
+}
+
+/** An Approval audit entry as Bridge.Approval writes it (Audited): the change, the states, the person, the channel and the kind. */
+export interface ApprovalAudit {
+  change: string;
+  from: string;
+  to: string;
+  irisUser: string;
+  channel: string;
+  kind: string;
+}
+
+/**
+ * The Approval audit entries of a request written at or after the mark (Test.Bridge.AuditLog.Wait, source OcuTalon, type Approval, the
+ * request's Ref as the marker), oldest first: waits up to `seconds` for `count` of them.
+ */
+export async function approvalAudit(mark: string, ref: string, count = 1, seconds = 30): Promise<ApprovalAudit[]> {
+  const lines = await irisScript(
+    [
+      `Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(${quoted(mark)},"OcuTalon","Approval","",${quoted(ref)},"",${count},${seconds})`,
+      'Write !,"CHK|n|",e.%Size()',
+      'For i=0:1:e.%Size()-1 { Set d=e.%Get(i).data Write !,"CHK|e"_i_"|",$Select($IsObject(d):d.change_"|"_d.from_"|"_d.to_"|"_d.irisUser_"|"_d.channel_"|"_d.kind,1:"") }',
+    ].join('\n'),
+  );
+  const found = Number(chk(lines, 'n'));
+  if (!Number.isInteger(found)) throw new Error(`the Approval audit entries could not be read (${lines.join(' ')})`);
+  const entries: ApprovalAudit[] = [];
+  for (let i = 0; i < found; i += 1) {
+    const [change = '', from = '', to = '', irisUser = '', channel = '', kind = ''] = (chk(lines, `e${i}`) ?? '').split('|');
+    entries.push({ change, from, to, irisUser, channel, kind });
+  }
+  return entries;
+}
+
+/** The answer that setApprovalState records with a state:the action (approve or reject), the channel and the person, and when (UTC), and the expiry when it changes. */
 export interface AnsweredFields {
   action?: string;
   channel?: string;

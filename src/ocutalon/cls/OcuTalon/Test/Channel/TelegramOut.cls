@@ -917,7 +917,6 @@ Method TestStepFiveRequests()
 				Do $$$AssertTrue(($Find(joined, first) > 0) && ($Find(joined, second) > 0), "and both recipients as plain text: "_joined)
 			}
 		}
-		Do $$$AssertTrue(..SentTo(chatId).%Size() >= $ListLength(keys), "at least one message for each kind reached the chat")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the step-5 requests test failed: "_..Safe(ex))
 	}

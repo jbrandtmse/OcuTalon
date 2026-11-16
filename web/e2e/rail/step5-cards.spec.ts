@@ -6,7 +6,9 @@ import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, MOST_STOPS, applied, composerOf, inMs, loadedAfter, mainOf, railOf } from '../support/floor';
 import {
   answerHeaders,
+  approvalAudit,
   askedSlots,
+  auditClock,
   chk,
   cleanFixtureRows,
   dropSettingChange,
@@ -23,15 +25,17 @@ import {
   setApprovalState,
   sinkEvent,
   type AnsweredFields,
+  type ApprovalAudit,
   type SeedDryRun,
 } from '../support/iris';
+import { removePrecedentsOf } from '../support/memory';
 import { plain, scrollListTo } from '../support/page';
 import { scanContrast, scanNames } from '../support/scan';
 
 /**
  * Story 24.4b, the step-5 requests on every surface (F1 to F4, F6 and F6b; 24.4a's F3b, F5, F5b and F7 are in step5-requests.spec.ts), in a
  * real browser against a real stack, as the rail fixture user (OCUTALON_RAIL_USER, whose session R1 to R19 of rail.spec.ts expect empty:
- * each case removes its rows, its setting changes and its phone messages in finally). The page's clock is fixed at 14:30 UTC on the run's
+ * each case removes its rows, the precedents its answers recorded, its setting changes and its phone messages in finally). The page's clock is fixed at 14:30 UTC on the run's
  * date.
  *
  * - F1 to F4: a pending suspend and resume (F1), reroute (F2), rollback and undo (F3) and partner warning with two recipients (F4) show
@@ -43,9 +47,10 @@ import { scanContrast, scanNames } from '../support/scan';
  * - F6b: a closed incident draws a request card for an undo of a rollback that is still PENDING (AFTER_CLOSE_KINDS mirrors
  *   Fix.Kind.AskedClosed), whether it was raised before or after the close, and for no other kind; once the undo is answered, rejected,
  *   expired or done it has no request card (a done one's band is one of the compact card's bands, shown once; a rejected or expired one
- *   has no band); "Show in the chat" focuses the pending undo's card; Tab reaches Approve, Reject and Show details in that order; and an
- *   answer pressed on that card is recorded as on an open card (the reply, the stored row and the trace header equal an open-card
- *   control) and neither reopens the incident nor changes its state.
+ *   has no band); "Show in the chat" focuses the pending undo's card; Tab reaches Approve, Reject and Show details in that order; and
+ *   Approve or Reject pressed on that card is recorded and audited as on an open card (the reply, the stored row, the trace header and
+ *   the Approval audit entry equal an open-card control), leaves focus on the main region, and neither reopens the incident nor changes
+ *   its state.
  */
 test.describe.configure({ timeout: 150_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -113,9 +118,10 @@ interface Held {
 
 const held = (): Held => ({ rows: [], changes: [], start: inMs(-2000) });
 
-/** Removes what a case made: its rows, its setting changes and its phone messages. */
+/** Removes what a case made: its rows, the precedents its answers recorded, its setting changes and its phone messages. */
 async function release(user: string, mine: Held): Promise<void> {
   await dropPhone(user, mine.start);
+  await removePrecedentsOf(mine.rows);
   await cleanFixtureRows(mine.rows);
   for (const change of mine.changes) await dropSettingChange(change);
 }
@@ -168,15 +174,14 @@ function slotsOf(kind: Kind, incident: string): Promise<Record<string, unknown>>
 /** The text of a message on the phone, with its whitespace collapsed. */
 const messageText = async (message: Locator): Promise<string> => plain(await message.innerText());
 
-/** Expects the phone message of a request to hold the server's stored text and the two buttons of the request's names; returns the stored text. */
-async function expectPhone(page: Page, user: string, request: string, title: string): Promise<string> {
+/** Expects the phone message of a request to hold the server's stored text and the two buttons of the request's names. */
+async function expectPhone(page: Page, user: string, request: string, title: string): Promise<void> {
   const { message } = await phoneShows(page, user, request);
   const stored = await phoneMessage(user, request);
   expect(stored?.text, 'the phone message holds the notice').toBeTruthy();
   expect(await messageText(message), 'the phone shows the server\'s text').toContain(plain(stored?.text ?? ''));
   await expect(message.getByRole('button', { name: `Approve: ${lowerFirst(title)}`, exact: true }), 'Approve is named for the action').toHaveCount(1);
   await expect(message.getByRole('button', { name: `Reject: ${lowerFirst(title)}`, exact: true }), 'and so is Reject').toHaveCount(1);
-  return stored?.text ?? '';
 }
 
 /**
@@ -345,7 +350,7 @@ test('F6: the new kinds show their answered, expired and done states, and an und
     );
     const card = incidentCard(page, incident);
     await expect(card.locator('[data-part="approval"]'), 'every request has a card').toHaveCount(5, { timeout: CARD_MS });
-    expect(await card.locator('[data-part="approval"]').evaluateAll((all) => all.map((one) => one.getAttribute('data-key'))), 'in the order raised: the rollback, then its undo').toEqual([suspend, reroute, resume, rollback, undo]);
+    expect(await card.locator('[data-part="approval"]').evaluateAll((all) => all.map((one) => one.getAttribute('data-key'))), 'in the order raised, the undo after its rollback').toEqual([suspend, reroute, resume, rollback, undo]);
 
     const suspended = requestCard(page, suspend);
     await expect(suspended.locator('p.status'), 'the done suspend says who answered').toHaveText('Approved from the web chat at 14:25');
@@ -419,7 +424,7 @@ async function closeRow(incident: string): Promise<void> {
 /** The Refs of the request cards in an incident card, in order. */
 const drawnIn = (card: Locator): Promise<Array<string | null>> => card.locator('[data-part="approval"]').evaluateAll((all) => all.map((one) => one.getAttribute('data-key')));
 
-/** What a closed incident case holds: the incident, its requests in the order raised and their Refs by name. */
+/** What a closed incident case holds: the incident, its card, the undo's Ref and the Refs of the other requests in the order raised. */
 interface Closed {
   incident: string;
   card: Locator;
@@ -428,8 +433,8 @@ interface Closed {
 }
 
 /**
- * A closed incident (its row and its card) whose store holds pending requests of the other kinds (a repair, a rollback, a suspend and a
- * partner warning) and, raised after the close, an undo: the base of F6b. The card is open on the page when it returns.
+ * A closed incident (its row and its card, closed at 14:20) whose store holds pending requests of the other kinds (a repair, a rollback, a
+ * suspend and a partner warning) and, raised after the close (14:22), an undo: the base of F6b. The card is open on the page when it returns.
  */
 async function closedWithUndo(page: Page, user: string, mine: Held): Promise<Closed> {
   const incident = await seedIncidentOf(user, mine, 'closed');
@@ -444,7 +449,7 @@ async function closedWithUndo(page: Page, user: string, mine: Held): Promise<Clo
     await raise(page, user, mine.rows, incident, none, { fixKind: 'suspend_item', dryRun: SUSPEND, raisedAt: today('14:15:00') }, false),
     await raise(page, user, mine.rows, incident, none, { fixKind: 'partner_warning', dryRun: PARTNER, raisedAt: today('14:16:00') }, false),
   ];
-  const undo = await raise(page, user, mine.rows, incident, none, { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:17:00') }, false);
+  const undo = await raise(page, user, mine.rows, incident, none, { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:22:00') }, false);
   return { incident, card, undo, others };
 }
 
@@ -530,15 +535,15 @@ test('F6b: a closed card draws the pending undo and no other request, the rail j
     await publishClosed(page, user, closed, [...othersOf(closed), { ref: undo, state: 'rejected', fixKind: 'undo_rollback', item: ITEM }]);
     await expect(undoCard, 'a rejected undo has no request card on the closed card').toHaveCount(0, { timeout: CARD_MS });
     expect(await drawnIn(card), 'and no request card is drawn at all').toEqual([]);
-    await expect(card.locator('[data-part="result"]'), 'a rejected request has no band').toHaveCount(0);
+    await expect(card.locator('[data-part="result"]'), 'fixture check: the payload gives the rejected undo no result, so no band').toHaveCount(0);
     await expect(card.getByRole('button', { name: 'Show details', exact: true }), 'the incident-level Show details row is back').toHaveCount(1);
 
-    // The undo expires: no request card of it is drawn either, and no band.
-    await settle(page, user, undo, 'expired', { expiresAt: today('14:26:00') }, 'approval.expired');
+    // The undo expires (an expired request carries no answer): no request card of it is drawn either.
+    await settle(page, user, undo, 'expired', { action: '', channel: '', by: '', at: '', expiresAt: today('14:26:00') }, 'approval.expired');
     await publishClosed(page, user, closed, [...othersOf(closed), { ref: undo, state: 'expired', fixKind: 'undo_rollback', item: ITEM }]);
     await expect(undoCard, 'an expired undo has no request card').toHaveCount(0);
     expect(await drawnIn(card), 'no request card is drawn').toEqual([]);
-    await expect(card.locator('[data-part="result"]'), 'an expired request has no band').toHaveCount(0);
+    await expect(card.locator('[data-part="result"]'), 'fixture check: the payload gives the expired undo no result, so no band').toHaveCount(0);
 
     // The undo is done with a result: no request card, and its band shows once, among the compact bands.
     await settle(page, user, undo, 'done', { action: 'approve', channel: 'web', by: user, at: today('14:27:00') }, 'approval.answered');
@@ -571,11 +576,12 @@ test('F6b: a closed card draws the pending undo and no other request, the rail j
   }
 });
 
-/** What an answer leaves: the answer route's reply (the approval it returns), the stored row, and the number of trace headers it made. */
+/** What an answer leaves: the answer route's reply (the approval it returns), the stored row, the number of trace headers it made, and its Approval audit entry. */
 interface Answered {
   reply: { state: string; action: string; channel: string; by: string };
   row: { state: string; action: string; channel: string; by: string };
   headers: number;
+  audit: ApprovalAudit[];
 }
 
 /** The reply's approval fields that an answer fixes. */
@@ -587,19 +593,24 @@ interface Reply {
 const ANSWER = '**/ocutalon/api/v1/approvals/*/answer';
 
 /**
- * Presses Approve or Reject on a request card and proves the answer from its reply (200, the approval it returns), from the stored row and
- * from the one AnswersIn to AnswerOps header it leaves. The reply is read through a route that fetches it from the test's side and hands it
+ * Presses Approve or Reject on a request card and proves the answer from its reply (200, the approval it returns), from the stored row,
+ * from the one AnswersIn to AnswerOps header it leaves and from the one Approval audit entry the answer wrote (Bridge.Approval Audited). The reply is read through a route that fetches it from the test's side and hands it
  * on: the card of an answered undo on a closed incident is not drawn any more, and the page drops the card's call with the card (the live
  * answer event can reach the page before the reply), so the page's own response event may never fire. On an open card the status shows too
  * (expectAnsweredStatus).
  */
 async function answerFromCard(page: Page, user: string, card: Locator, request: string, title: string, action: 'approve' | 'reject'): Promise<Answered> {
   const before = (await answerHeaders(user)).count;
+  const mark = await auditClock();
   const seen: Array<{ status: number; text: string }> = [];
   const through = async (route: Route): Promise<void> => {
-    const response = await route.fetch();
-    seen.push({ status: response.status(), text: await response.text() });
-    await route.fulfill({ response }).catch(() => undefined);
+    try {
+      const response = await route.fetch();
+      seen.push({ status: response.status(), text: await response.text() });
+      await route.fulfill({ response }).catch(() => undefined);
+    } catch (error) {
+      seen.push({ status: -1, text: String(error) });
+    }
   };
   await page.route(ANSWER, through);
   try {
@@ -608,7 +619,7 @@ async function answerFromCard(page: Page, user: string, card: Locator, request: 
   } finally {
     await page.unroute(ANSWER, through);
   }
-  expect(seen[0]?.status, 'the answer is 200').toBe(200);
+  expect(seen[0]?.status, `the answer is 200 (${seen[0]?.status === -1 ? seen[0].text : 'replied'})`).toBe(200);
   const body = JSON.parse(seen[0]?.text ?? '{}') as Reply;
   expect(body.approval?.ref, 'the reply is the request\'s approval').toBe(request);
   await expect.poll(async () => (await answerHeaders(user)).count - before, { message: 'the answer left one AnswersIn to AnswerOps header', timeout: CARD_MS }).toBe(1);
@@ -616,7 +627,8 @@ async function answerFromCard(page: Page, user: string, card: Locator, request: 
   return {
     reply: { state: body.approval?.state ?? '', action: body.approval?.answeredAction ?? '', channel: body.approval?.answeredChannel ?? '', by: body.approval?.answeredBy ?? '' },
     row: { state: row.state, action: row.action, channel: row.channel, by: row.by },
-    headers: 1,
+    headers: (await answerHeaders(user)).count - before,
+    audit: await approvalAudit(mark, request),
   };
 }
 
@@ -638,9 +650,22 @@ async function pendingInState(page: Page): Promise<string[]> {
   return (body.rail?.approvals ?? []).filter((one) => one.state === 'pending').map((one) => one.ref ?? '');
 }
 
-/** What an answered undo leaves on a closed card: no request card of it (nor of another kind), the incident's own Show details row, and the incident closed. */
+/** Where focus is: the main region, the body (focus lost), or the tag of the element that holds it. */
+const focusOf = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const active = document.activeElement;
+    if (active === null || active === document.body) return 'body';
+    return active.matches('main.main') ? 'main' : active.tagName.toLowerCase();
+  });
+
+/**
+ * What an undo answered from its card leaves on a closed card: no request card of it (nor of another kind), focus on the main region (the
+ * chat's focus rule: the pressed button's item is gone, so focus is never left on the body), the incident's own Show details row, and the
+ * incident closed.
+ */
 async function expectAnsweredAway(page: Page, closed: Closed, request: string): Promise<void> {
   await expect(requestCard(page, request), 'the answered undo is not drawn any more').toHaveCount(0, { timeout: CARD_MS });
+  await expect.poll(() => focusOf(page), { message: 'the pressed button left with its card: focus is on the main region, not the body' }).toBe('main');
   expect(await drawnIn(closed.card), 'no request card of any kind is drawn').toEqual([]);
   await expect(closed.card.getByRole('button', { name: 'Show details', exact: true }), 'the incident-level Show details row is back').toHaveCount(1);
   expect(await pendingInState(page), 'the state no longer lists the undo as pending').not.toContain(request);
@@ -648,52 +673,61 @@ async function expectAnsweredAway(page: Page, closed: Closed, request: string): 
 }
 
 /**
- * F6b (b1): an undo raised before the close, then the incident is closed (the request is raised and the open card published, then the row
- * and the card are closed): the closed card shows it, and Approve on it is recorded exactly as on an open incident's card (the same reply,
- * the same stored row, one trace header), does not reopen the incident, and the card is gone once the answer lands. The done result then has
- * its one band among the compact bands, with the audit line.
+ * F6b (b1), once with Approve and once with Reject: an undo raised before the close, then the incident is closed (the request is raised and
+ * the open card published, then the row and the card are closed): the closed card shows it, and the answer pressed on it is recorded exactly
+ * as the same answer on an open incident's card (the same reply, the same stored row, one trace header, the same Approval audit entry), does
+ * not reopen the incident, and the card is gone once the answer lands. An approved undo's done result then has its one band among the
+ * compact bands, with the audit line; a rejected one has no band.
  */
-test('F6b: an undo raised before the close is drawn on the closed card and is answered and audited as on an open card', async ({ page }) => {
-  const { user } = fixtureUser(KIND);
-  const mine = held();
-  try {
-    const incident = await seedIncidentOf(user, mine);
-    const control = await seedIncidentOf(user, mine);
-    await open(page);
-    const card = incidentCard(page, incident);
-    const undo = await raise(page, user, mine.rows, incident, [], { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:13:00') });
-    const undoCard = requestCard(page, undo);
-    await expect(undoCard, 'the undo has a card while the incident is open').toHaveCount(1, { timeout: CARD_MS });
-    await expect(card.locator('.chip')).toHaveText('Awaiting approval');
-    await closeRow(incident);
-    await applied(page, await publishIncident(user, payloadOf(incident, 'closed', [{ ref: undo, state: 'pending', fixKind: 'undo_rollback', item: ITEM }])));
-    await expect(card.locator('.chip'), 'the incident is closed after the undo was raised').toHaveText('Closed', { timeout: CARD_MS });
-    await expect(undoCard, 'the closed card still shows the pending undo').toHaveCount(1);
-    expect(await drawnIn(card)).toEqual([undo]);
-    await expect(undoCard.getByRole('button', { name: 'Show details', exact: true })).toHaveCount(1);
+for (const action of ['approve', 'reject'] as const) {
+  test(`F6b: an undo raised before the close is drawn on the closed card, and ${action === 'approve' ? 'Approve' : 'Reject'} on it is answered and audited as on an open card`, async ({ page }) => {
+    const { user } = fixtureUser(KIND);
+    const mine = held();
+    const state = action === 'approve' ? 'approved' : 'rejected';
+    try {
+      const incident = await seedIncidentOf(user, mine);
+      const control = await seedIncidentOf(user, mine);
+      await open(page);
+      const card = incidentCard(page, incident);
+      const undo = await raise(page, user, mine.rows, incident, [], { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:13:00') });
+      const undoCard = requestCard(page, undo);
+      await expect(undoCard, 'the undo has a card while the incident is open').toHaveCount(1, { timeout: CARD_MS });
+      await expect(card.locator('.chip')).toHaveText('Awaiting approval');
+      await closeRow(incident);
+      await applied(page, await publishIncident(user, payloadOf(incident, 'closed', [{ ref: undo, state: 'pending', fixKind: 'undo_rollback', item: ITEM }])));
+      await expect(card.locator('.chip'), 'the incident is closed after the undo was raised').toHaveText('Closed', { timeout: CARD_MS });
+      await expect(undoCard, 'the closed card still shows the pending undo').toHaveCount(1);
+      expect(await drawnIn(card)).toEqual([undo]);
+      await expect(undoCard.getByRole('button', { name: 'Show details', exact: true })).toHaveCount(1);
 
-    const onClosed = await answerFromCard(page, user, undoCard, undo, UNDO_KIND.title, 'approve');
-    await expectAnsweredAway(page, { incident, card, undo, others: [] }, undo);
+      const onClosed = await answerFromCard(page, user, undoCard, undo, UNDO_KIND.title, action);
+      await expectAnsweredAway(page, { incident, card, undo, others: [] }, undo);
 
-    const openUndo = await raise(page, user, mine.rows, control, [], { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:13:00') });
-    const openCard = requestCard(page, openUndo);
-    await expect(openCard).toHaveCount(1, { timeout: CARD_MS });
-    const onOpen = await answerFromCard(page, user, openCard, openUndo, UNDO_KIND.title, 'approve');
-    await expectAnsweredStatus(openCard, 'approve');
-    expect(onClosed, 'the answer from the closed card is recorded as the open card\'s').toEqual(onOpen);
-    expect(onClosed.row, 'approved from the web by the user').toEqual({ state: 'approved', action: 'approve', channel: 'web', by: user });
-    expect(onClosed.reply, 'and the reply says so').toEqual({ state: 'approved', action: 'approve', channel: 'web', by: user });
+      const openUndo = await raise(page, user, mine.rows, control, [], { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:13:00') });
+      const openCard = requestCard(page, openUndo);
+      await expect(openCard).toHaveCount(1, { timeout: CARD_MS });
+      const onOpen = await answerFromCard(page, user, openCard, openUndo, UNDO_KIND.title, action);
+      await expectAnsweredStatus(openCard, action);
+      expect(onClosed, 'the answer from the closed card is recorded and audited as the open card\'s').toEqual(onOpen);
+      expect(onClosed.row, `${state} from the web by the user`).toEqual({ state, action, channel: 'web', by: user });
+      expect(onClosed.reply, 'and the reply says so').toEqual({ state, action, channel: 'web', by: user });
+      expect(onClosed.audit, 'with one Approval audit entry of the answer').toEqual([{ change: 'answered', from: 'pending', to: state, irisUser: user, channel: 'web', kind: 'fix' }]);
 
-    await settle(page, user, undo, 'done', {}, 'approval.answered');
-    await applied(page, await publishIncident(user, payloadOf(incident, 'closed', [{ ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, result: DONE_ONE }])));
-    await expect(card.locator('[data-part="result"]'), 'the done undo has one band, among the compact bands').toHaveCount(1, { timeout: CARD_MS });
-    await expect(card.locator('p.audit'), 'with the audit line, as on an open card').toHaveText('Recorded in the IRIS audit log.');
-    await expect(undoCard, 'and no request card').toHaveCount(0);
-    await expectStillClosed(page, card, incident);
-  } finally {
-    await release(user, mine);
-  }
-});
+      if (action === 'approve') {
+        await settle(page, user, undo, 'done', {}, 'approval.answered');
+        await applied(page, await publishIncident(user, payloadOf(incident, 'closed', [{ ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, result: DONE_ONE }])));
+        await expect(card.locator('[data-part="result"]'), 'the done undo has one band, among the compact bands').toHaveCount(1, { timeout: CARD_MS });
+        await expect(card.locator('p.audit'), 'with the audit line, as on an open card').toHaveText('Recorded in the IRIS audit log.');
+      } else {
+        await expect(card.locator('[data-part="result"]'), 'fixture check: the payload gives the rejected undo no result, so no band').toHaveCount(0);
+      }
+      await expect(undoCard, 'and no request card').toHaveCount(0);
+      await expectStillClosed(page, card, incident);
+    } finally {
+      await release(user, mine);
+    }
+  });
+}
 
 /** F6b (c): Approve on the undo of a closed card leaves the incident closed. */
 test('F6b: approving an undo from a closed card does not reopen the incident or change its state', async ({ page }) => {
@@ -707,6 +741,7 @@ test('F6b: approving an undo from a closed card does not reopen the incident or 
     expect(await stateOfApi(page, closed.incident), 'the state lists the closed incident').toBe('closed');
     const answered = await answerFromCard(page, user, undoCard, closed.undo, UNDO_KIND.title, 'approve');
     expect(answered.row, 'the undo is approved').toEqual({ state: 'approved', action: 'approve', channel: 'web', by: user });
+    expect(answered.reply, 'and the reply says so').toEqual({ state: 'approved', action: 'approve', channel: 'web', by: user });
     await expectAnsweredAway(page, closed, closed.undo);
   } finally {
     await release(user, mine);
@@ -727,7 +762,7 @@ test('F6b: rejecting an undo from a closed card does not reopen the incident or 
     expect(answered.row, 'the undo is rejected').toEqual({ state: 'rejected', action: 'reject', channel: 'web', by: user });
     expect(answered.reply, 'and the reply says so').toEqual({ state: 'rejected', action: 'reject', channel: 'web', by: user });
     await expectAnsweredAway(page, closed, closed.undo);
-    await expect(closed.card.locator('[data-part="result"]'), 'a rejected request has no band').toHaveCount(0);
+    await expect(closed.card.locator('[data-part="result"]'), 'fixture check: the payload gives the rejected undo no result, so no band').toHaveCount(0);
   } finally {
     await release(user, mine);
   }

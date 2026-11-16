@@ -8625,3 +8625,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
+
+### DW-1426: Closed card gives no outcome after its undo is answered: the card leaves, nothing is announced, focus goes to the main region
+- source: spec-24-4b-show-the-new-fixes-partner-warnings-and-the-closed-card-undo.md (code-review) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Binding ruling: a closed card draws nothing once the undo is answered, so Approve or Reject removes the card at the reply. Measured on a fresh stack (F6b b1, c): no status, no announcement; focus lands on main.main by the chat focus rule (not the body). Options: announce answered.* (existing text) and focus the incident headline as Dismiss does; or keep the card while in flight; or accept.
+- 2026-11-16T06:44:02Z status=decision-pending owner=burndown by=cr note=Planner call: feedback after answering a closed card's undo; recommend announce status + focus incident headline

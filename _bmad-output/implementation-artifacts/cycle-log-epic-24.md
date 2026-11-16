@@ -70,3 +70,5 @@
 2026-11-16T03:13:41Z	Story 24.4b	stage_spawned	stage=implement spawn_at=2026-11-16T03:13:41Z model=sonnet effort=high branch=OCT-epic24
 2026-11-16T06:14:13Z	Story 24.4b	dev_complete	model=sonnet build_sha=8b096f1f baseline=6be77202 files=10 mutations=13(pins_a_kind,a_state,b1,b2,c(test-side),jump,band_once,kind_rule,F1-F4,BUTTONKINDS(reverted),AC3,AC5) web=2178_pass deferred=2(closed_card_silent_after_answer(ruling_consequence);pin_c_no_settle_step) B13=not_run note=spec_truncated_by_a_script_and_rebuilt_by_the_stage
 2026-11-16T06:14:13Z	Story 24.4b	stage_spawned	stage=code-review spawn_at=2026-11-16T06:14:13Z model=opus effort=high scope=6be77202..HEAD branch=OCT-epic24
+2026-11-16T06:48:11Z	Story 24.4b	cr_complete	model=opus patched=17(med3:reject_case_b1,audit_compared_with_open_card,precedent_rows_cleaned;low14) decision_pending=1(DW-1426:closed_card_silent_after_answer) closed=9 high=0 final=done focus_lands_on_main(pinned) B13=pass
+2026-11-16T06:48:11Z	Story 24.4b	fresh_check	env=fresh_lane-D(e24s4bcr) tests=live_sign-in-2_part_12/20(10_pass),Test.Channel.TelegramOut result=pass torn_down=yes

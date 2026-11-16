@@ -51,7 +51,7 @@ export function incidentContext(
  * (an h3), the "more since the notice" line, the cause, the evidence line, the proposed fix, the fixing line, the approval request
  * cards (Story 6.2: one for each approval payload of the store with this incident's ref, in the order raised, the first with Show
  * details at the right end of its row and the evidence panel below it), and the footer with the diagnosis decision's strip (or the
- * diagnosis trace link alone when the store holds no such decision). With no request card, and on a compact card, the card has its
+ * diagnosis trace link alone when the store holds no such decision). With no request card, a compact card included, the card has its
  * own actions row with Show details (aria-expanded) and the evidence panel directly below it. A 4px bar on the left follows the
  * state; a closed card keeps the chip row, the headline, the result band of each request of the payload that has no request card
  * (Story 6.4) and Show details, and draws the request card of an undo of a rollback only while that request is pending (incident-view.ts AFTER_CLOSE_KINDS and
