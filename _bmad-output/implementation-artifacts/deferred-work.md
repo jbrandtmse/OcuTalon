@@ -8628,11 +8628,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: MayApprove quits 1 for FixKind other than email (Fix/Kind/Email.cls:328); since 23.13 an approved partner_warning mails the Settings contacts from the email.owner mailbox through EmailOut; no ruling covers who may approve it
 - 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=for the Planner (veto: privileges): keep any asker as approver (admin-curated recipients) or require OcuTalonAdmin as for email
+- 2026-11-16T04:03:13Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-16_dw-1415-1416-rulings:1.0.12_cut_item;23.13_rework_1
 
 ### DW-1416: Summary.RunEvents reads summary.partnerNotSent ('the delay notice was not sent.') for a failed Settings-contact send even when EmailOut answered MESSAGEMAYHAVESENT or MESSAGEFAILED, so the timeline can deny an email that may have gone out
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Executor.SendPartner ends failed on any Ok 0 (incl. MESSAGEMAYHAVESENT 'it may have gone out') and on an exception after Submit; Summary.RunEvents then picks summary.partnerNotSent for Completed 0
 - 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling for the may-have-sent timeline line (public text, veto 5); the session and card read Out's own sentence
+- 2026-11-16T04:03:13Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-16_dw-1415-1416-rulings:1.0.12_cut_item;23.13_rework_1
 
 ### DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (Delivered and Claims verbatim; Send, Mailbox and Reset adapted), forced by the spec because the originals are private in a Lane B test class
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint

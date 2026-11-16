@@ -2,7 +2,7 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '3d5b7145dc24ed1f71de231d754c9da73d94189f'
 baseline_commit: '3d5b7145dc24ed1f71de231d754c9da73d94189f'
 review_loop_iteration: 0
@@ -203,7 +203,15 @@ Rejected:
 - (low) The earlier triage line "intent 1" cites an `id` member that `Test.Live.Payloads` does not have (verification-gap, other 2): `Live.Payload.Approval` reads only `name` and `address`; the fix would edit this spec's log.
 - (dup) The chat-announcement finding of verification-gap ("Other findings" 1) is the first patch above.
 
+
+**Rework iteration 1 (Contest Planner ruling ~05:15Z 2026-11-16, prompts/dw-1415-1416-rulings-20261116.md; 1.0.12 CUT items; BINDING). Three items, kept in SEPARATE FILES where possible so the lead can commit them separately; list under `## Auto Run Result` which files belong to which item:**
+- [ ] [Review] DW-1415 (CUT BLOCKER) -- REQUIRE OcuTalonAdmin to approve a partner warning, with the same rule and check as kind email: reuse or generalise `Fix.Kind.Email.MayApprove` (NO second copy; the self-approval rule stays exactly as it is for email). Enforce it server-side on every approval path (web, phone, Telegram). A non-admin's approve is refused with email's EXISTING refusal text (no new string), sends nothing, keeps no approved draft, and is audited with ids only. Deny is unchanged (open to whoever may deny today). Pins, each with a demonstrated mutation: a non-admin requester cannot approve their own warning, on each path (web, phone, Telegram); an admin can; a role revoked between the request and the approval is refused at approval time.
+- [ ] [Review] DW-1416 -- the incident timeline follows EmailOut's answer for a partner warning: Sent → the existing line; Failed → "not sent" ONLY if EmailOut's "failed" means the message was definitely not handed to the mail server (read `Channel/Email/Out.cls` MESSAGEFAILED / MESSAGEMAYHAVESENT semantics and say which); May-have-sent → a NEW line saying so and telling the user to check the connected mailbox's Sent folder before asking again (Planner's example: "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again."). If kind email ALREADY has a may-have-sent line, reuse its wording EXACTLY instead. The line holds no recipient, subject or text (ids only); may-have-sent never re-sends automatically. Pins and mutations for all three answers. Record the FINAL may-have-sent line verbatim (key and file) in Design Notes for the PART READY report.
+- [ ] [CI] shards-11 rebalance (tests only; do NOT raise any limit) -- shards-11 took 31m18s against its 32-minute limit on run 43794653657 (shard:lane-a@Fix + live:cards). Move `Test.Fix.PartnerMail` (or another Lane A class) out of shards-11 to a lighter shard (measured in that run: shards-3 21.4 min, shards-7 23.5 min; others 26.8-31.9 min) through `ci/units.sh`'s Lane A entries only, following its own area/shard rules and comments (update the planned-seconds comment if the file keeps one); `bash docker/tests/test-ci-config.sh` (or the file's own checks) must pass and `ci/iris.sh classes <shard>` must show the class in its new shard and not in shards-11.
+
 ## Spec Change Log
+
+- 2026-11-16 ~05:20Z (lead, rework iteration 1 of 3, trigger: Planner ruling DW-1415/DW-1416/shards-11, 1.0.12 cut items): re-opened.
 
 - 2026-11-16 ~00:35Z (lead): Planner approved the re-plan: lines 1 and 2 verbatim; D9 partner.emailSubject "Delay notice" with a pin that a real send never uses the Simulated subject; D6-D8, D10 accepted.
 
