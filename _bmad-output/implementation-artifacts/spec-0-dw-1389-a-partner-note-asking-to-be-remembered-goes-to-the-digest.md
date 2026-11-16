@@ -451,6 +451,27 @@ mutation: AC4 - none is changed; their own mutants are on record (0.37 spec, Ver
   - `[low]` `[reject]` intent-alignment: the pins cover only the first clause; "word for word" rests on the cmp in the spec, no test pins the whole sentence - same root cause as above; the AC1 checks hold it.
   - `[false]` `[reject]` intent-alignment: a move inside the digest bullet would not fail a pin - the intent's pin row is "lost or moved to another bullet"; AC1's hunk and cmp checks hold position.
 
+## QA Stage Results
+
+Branch `OCT-epic0-dw1389` at `77df738a1`; lane C; no model, no key; Triage.cls and the eval set untouched.
+
+**Pin gaps checked.**
+- Outcome set and order, and one bullet per outcome in order on consecutive lines: already pinned by 0.37's `TestTriageOutcomes`.
+- The sentence staying inside the digest bullet's line (not a new line or paragraph): already pinned (the bullet-follows-bullet check, plus the phrase check on the digest bullet). Shown, not added: with a line feed, or a line feed and a blank line, put before the sentence, `TestTriageOutcomes` goes red on "and it follows the bullet of the outcome before it, on the next line" and on the digest-bullet checks. The neighbour classes `TriageUserTurn`, `PersonaBlock` and `RenderMemory` pass on the final tree.
+- The guards over the new text: `held-out-names`, `main-set-texts` and `held-out-texts` pass on the final tree (the two mutants of the implement stage cover the last two).
+- Gap 1 (added): the refusal half, "that request is not carried out", was held by no test (only line 25's cmp). Pinned in `TestTriageOutcomes`: the digest bullet says it.
+- Gap 2 (added): the sentence's place at the end of the digest bullet, after "Keep it for that digest.", was held by no test. Pinned in `TestTriageOutcomes` by position (`$Find`), not by more wording.
+- Not added: the scope words ("arrived on a channel and gives such information") stay held by the AC1 cmp of line 25, as the Review Triage Log decided; a longer phrase pin is a wording question for the Planner's A/B.
+
+mutation: QA gap 1 - in Triage line 25 replaced ": that request is not carried out, and it never turns" with ": it never turns": FAIL TestTriageOutcomes on 'the digest bullet says 'that request is not carried out'' (every other test, TestTriage included, stayed green); restored from the saved copy, cmp identical.
+mutation: QA gap 2 - moved "Keep it for that digest." from before the added sentence to the end of the bullet: FAIL TestTriageOutcomes on 'and the DW-1389 sentence comes after 'Keep it for that digest.' in the digest bullet' only; restored, cmp identical.
+mutation: QA structure (existing pins) - a line feed, then a line feed and a blank line, before "An item that arrived": FAIL on 'and it follows the bullet of the outcome before it, on the next line' and the three digest-bullet checks; restored, cmp identical.
+
+**Runs.** `Test.Agent.Instructions`, `TriageUserTurn`, `PersonaBlock`, `RenderMemory` pass on a lane-C warm stack (tag e0dw1389qw, torn down: 1 project removed, 0 leftovers), one class per call, on the final tree.
+- Fresh shard, forward (tag e0dw1389qf): `ci/iris.sh shard lane-a@Agent` passed, 23 classes, 481 s.
+- Fresh shard, reverse (tag e0dw1389qr): failed, 7 of 23 classes. The first red was `Test.Agent.Models` `TestAppliedAtStart`: `<UNDEFINED>EnQueue+107^Ens.Queue.1 ^Ens.Queue("Ens.ScheduleHandler",0,"count")` while the Production step restarted the production; every later class that needs a running production then failed with the Rule 21 "does not run" refusals. This is the Ens.ScheduleHandler start/stop race family on record (DW-28 area; the 11.9 QA stage saw the same line once and its unmutated rerun was green). It is not related to the text of Triage. Rerun once with tag e0dw1389qs, same command: passed, 23 classes, 478 s.
+- `bash docker/tests/test-eval-set.sh` passed whole in one call (all rules PASS, 4 min 28 s).
+
 ## Auto Run Result
 
 Status: done
@@ -469,4 +490,4 @@ Blocking condition: none
 
 **Verification performed.** See Verification above: the four Agent classes on the lane-C warm stack, one class per call, all green; test-triage-heartbeat, test-boundaries, test-class-rules and all 25 rules of test-eval-set PASS; every Rule 19 mutation observed red and reverted byte for byte.
 
-**Residual risks.** Whether the real model now answers `digest` for the pair without moving the ignore-boundary cases or the user's own turns is shown only by the Planner's key-holder A/B (AC6) and CI on the pushed head (AC7). The fresh `lane-a@Agent` shard runs (forward and reverse) were not run in this stage. The pins hold the one phrase and its bullet; the sentence's scope words are held by the line-25 cmp, not by a test.
+**Residual risks.** Whether the real model now answers `digest` for the pair without moving the ignore-boundary cases or the user's own turns is shown only by the Planner's key-holder A/B (AC6) and CI on the pushed head (AC7). The fresh `lane-a@Agent` shard runs (forward and reverse) were not run in the implement stage; the QA stage ran both (see QA Stage Results). The pins hold the one phrase and its bullet; the sentence's scope words are held by the line-25 cmp, not by a test.

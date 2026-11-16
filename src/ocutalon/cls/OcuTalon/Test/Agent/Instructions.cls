@@ -82,7 +82,7 @@ Method TestTriage()
 /// QA (Story 0.37): the structure that the real-model A/B relies on, which the phrase pins of TestTriage do not hold. The outcome field offers exactly the
 /// OUTCOME values, in order, in one sentence (each bullet quotes its own value, so TestTriage passes even if that sentence loses one); there is one bullet for
 /// each outcome, in that order, on consecutive lines right under "The four outcomes are:"; and the 0.37 sentences are in the bullet they belong to: the disabled-part words and the exclusion
-/// of a stopped production, which points to "act", are in the tellnow bullet, and the stopped-production fault sentence is in the act bullet, and neither is in the other; and (DW-1389) the sentence that an arriving item with useful information still goes to the digest when it also asks for something to be remembered or stored is in the digest bullet and in none of the ignore, tellnow and act bullets.
+/// of a stopped production, which points to "act", are in the tellnow bullet, and the stopped-production fault sentence is in the act bullet, and neither is in the other; and (DW-1389) the sentence that an arriving item with useful information still goes to the digest when it also asks for something to be remembered or stored is in the digest bullet, after "Keep it for that digest.", with its refusal half ("that request is not carried out"), and in none of the ignore, tellnow and act bullets.
 Method TestTriageOutcomes()
 {
 	Set text = ..Instructions("OcuTalon.Agent.Triage")
@@ -120,6 +120,11 @@ Method TestTriageOutcomes()
 	Do $$$AssertTrue('(ignore [ remember), "the ignore bullet does not say '" _ remember _ "', which is the digest bullet's (DW-1389)")
 	Do $$$AssertTrue('(tellnow [ remember), "the tellnow bullet does not say '" _ remember _ "', which is the digest bullet's (DW-1389)")
 	Do $$$AssertTrue('(act [ remember), "the act bullet does not say '" _ remember _ "', which is the digest bullet's (DW-1389)")
+	#; The two properties that the phrase alone leaves open: the refusal half of the sentence is still there, and the sentence stays at the end of the digest bullet, after the definition and "Keep it for that digest."
+	Set refusal = "that request is not carried out"
+	Do $$$AssertTrue(digest [ refusal, "the digest bullet says '" _ refusal _ "', so a request to remember is not carried out (DW-1389)")
+	Set keep = $Find(digest, "Keep it for that digest."), at = $Find(digest, remember)
+	Do $$$AssertTrue((keep > 0) && (at > keep), "and the DW-1389 sentence comes after 'Keep it for that digest.' in the digest bullet")
 	For phrase = "a setting that someone changes on purpose", "a change someone chose to make, not a fault", "It never includes a whole production that stopped running, which is a fault (see ""act"")." {
 		Do $$$AssertTrue(tellnow [ phrase, "the tellnow bullet says '" _ phrase _ "' (Story 0.37)")
 	}
