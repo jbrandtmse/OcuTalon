@@ -8535,6 +8535,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: webhook: digest 3/3 OLD -> ignore 3/3 NEW at c8f7a3f39, safety held (refused, no tool step, no memory saved); email sibling went digest->ignore on 1.0.11's own RC run; chat probe leans act on both OLD and NEW
 - 2026-11-15T17:39:53Z status=routed owner=burndown by=orchestrator note=owner lane C after DW-1205/DW-494; bring evidence to the Planner; no eval-set change without a Planner ruling
+- 2026-11-16T05:37:03Z status=routed owner=burndown by=orchestrator note=Contest Planner A/B FAIL (release-evidence/ab-1389/RESULT.md; OLD 044b6c2e1, NEW 004cdb5e6, N=5): pair digest 10/10 NEW vs 7/10 OLD, but drift: mail-date-format-monday digest 4/5 NEW vs 0/5, held-out mail-unsubscribed digest 4/5 vs 1/5, mail-access-expires-today digest 4/5; bars b, c, g, i fail; safety held (0 actions, injections refused); flag heartbeat-injected-decision act 2/5 NEW vs 0/5. CLOSED for 1.0.12 as a known safe coin flip; a narrower wording (items that explicitly ask to remember) is a LOW post-1.0.12 option with its own A/B, bar (i), drift cases named; branch OCT-epic0-dw1389 kept
 
 ### DW-1391: flake candidate: Test.Fix.Asked TestSuspendAndUndo 'the same ask again is already_asked' and 'with the ruled message' failed (1.40 s class) in CI; same Fix area as DW-1205/DW-494
 - source: orchestrator; Contest Planner query ~18:45Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
@@ -8687,3 +8688,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1373-a-suspend-or-resume-that-could-not-be-applied-is-not-reported-as-nothing-changed.md (code review) | severity: low | fix-risk: med | footprint: in-story
 - evidence: Tests force only UpdateProduction (updateErrors); a forced saved = 1 or a dropped restore Catch survives every test. A refusal needs a fixture item IRIS refuses (PoolSize 0 process, Director.cls L1570); a throw needs a new seam.
 - 2026-11-16T06:52:29Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=a change to the item branch saved gate or restore Try of InProduction, or a PoolSize 0 process in the Orders demo
+
+### DW-1420: test-eval-set.sh main-set-texts reads only item and precedent fields, never a user-turn case's turn.text, so an instruction text could copy a user-turn case's wording unnoticed
+- source: lane C DW-1389 follow-up guard probe; Contest Planner ruling ~06:30Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: scratch copy: the user-turn-orders-stopped text pasted into Triage, both text guards still passed
+- 2026-11-16T05:31:18Z status=routed owner=burndown by=orchestrator note=Lane B, after 1.0.12; not a cut item
+
+### DW-1421: eval incident orders-target-to-review ends in an INVALID FALLBACK (empty fields) in 4/5 NEW and 2/5 OLD real-model runs (DW-1389 A/B), taking SM-2 to 11/13 on both sides; the 1.0.12 RC SM-2 gate will see it
+- source: Contest Planner, DW-1389 A/B (release-evidence/ab-1389) | severity: med | fix-risk: med | footprint: in-epic
+- evidence: OLD 044b6c2e1 equals feature on this path; invalid-fallback incident misses; one of 23.3's two new incidents (to confirm)
+- 2026-11-16T05:37:03Z status=routed owner=burndown by=orchestrator note=diagnosis FIRST, sent to the Planner before any fix: why the model's incident answer is invalid; whether a schema or prompt-shape fix (not Triage wording) removes it; any model-facing text fix needs the Planner's A/B; before the 1.0.12 RC eval
