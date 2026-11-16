@@ -1,7 +1,7 @@
 /// WebChatOut, the business operation that delivers a message to the web chat (AD-12, AD-14, AD-32, AD-33). Its message map
 /// takes the two messages that Notify routes here, and it acts only when the message's SessionRef is a session (Session.Recipients
 /// gives it back); for any other owner it logs a warning and records nothing.
-///   - Notification of a card kind (tellnow, reminder, allowance, page): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
+///   - Notification of a card kind (tellnow, reminder, allowance): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
 ///     web chat's copy of the card on a Delivery row: a new Ref as ChannelMessageId, the kind, the whole rendered text, the
 ///     DecisionRef, DueAt (the slot dueAt of a reminder) and FallbackReason (the value of the slot that the key's catalog entry
 ///     declares as type fallbackReason). After the save it publishes one notification event on the session's stream, with

@@ -71,6 +71,11 @@ describe('the digest card', () => {
     assert.match(template, /<app-got-it \[ref\]="notice\(\)\.decisionRef" channel="web" \/>/);
     assert.match(card.code, /renderPageText\('handled\.marked', \{ time: pageTimeBeside\(at, this\.instanceZone\(\)\) \}\)/);
   });
+
+  it('draws a page card (Story 24.3a) with the tell-now look and the bell-ring icon', () => {
+    assert.match(template, /\[class\.tell-now\]="notice\(\)\.kind === 'tellnow' \|\| notice\(\)\.kind === 'page'"/, 'the tell-now class');
+    assert.match(card.code, /return kind === 'tellnow' \|\| kind === 'page' \? 'bell-ring' :/, 'the bell-ring icon');
+  });
 });
 
 describe('the Got it control', () => {

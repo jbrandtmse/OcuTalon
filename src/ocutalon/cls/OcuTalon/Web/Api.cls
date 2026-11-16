@@ -936,7 +936,7 @@ ClassMethod GotIt(ref As %String) As %Status
 /// The AckPage command for a press on the session's own page (GotIt), or "" when the Ref is not that: the online demo and a session that does not hold its own web copy of the page
 /// (Ownership.DeliveryByRef, owner-exact) give "" with sc OK, so that the route answers them as a missing Ref. The copy is the page's card (kind page), or, once the page is acknowledged, the
 /// handled row that replaced it as the newest (kind handled), which counts only for a Ref whose page is marked (Data.Page Marked, so a handled row of any other notice is not a page). sc is an
-/// error only when the read fails. The route's one read of Data.Page is that class method, Marked(ref), which gives the time of the acknowledgement; it opens no Data.Page row (AD-13).
+/// error only when the read fails. The route's one read of Data.Page is that class method, Marked(ref), which gives the time of the acknowledgement (Marked opens the row by its Ref index; the route itself opens none, AD-13).
 ClassMethod PageCommand(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Msg.Command.AckPage [ Private ]
 {
 	Set sc = $SYSTEM.Status.OK()

@@ -240,8 +240,18 @@ Method TestPagePress()
 		Do $$$AssertEquals(events.%Get(0).payload.handledAt, "", "the first has no handledAt")
 		Do $$$AssertEquals(events.%Get(1).payload.handledAt_"|"_events.%Get(1).payload.decisionRef_"|"_events.%Get(1).payload.kind, handledAt_"|"_page_"|page", "the second carries handledAt and the page's Ref")
 	}
+	// the second press comes once WebChatOut has recorded the handled row, which is then the newest web row of the page (Matrix: second press)
+	Set end = $ZHorolog + 20
+	For {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = 'web' AND Kind = 'handled' AND OwnerRef = ?", page, session)
+		Do rs.%Next()
+		Set handledRows = +rs.%GetData(1)
+		If handledRows || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Do $$$AssertEquals(handledRows, 1, "WebChatOut recorded the handled row of the session's copy")
 	Set again = ..Call(session, page, .response)
-	Do $$$AssertEquals(response.Status_"|"_again, "200 OK|"_body, "a second press is 200 with the same handledAt")
+	Do $$$AssertEquals(response.Status_"|"_again, "200 OK|"_body, "a second press, with the handled row as the newest web row, is 200 with the same handledAt")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Page).Marked(page)_"|"_##class(OcuTalon.Data.Page).RefIndexOpen(page).AcknowledgedChannel, handledAt_"|web", "and changes nothing")
 	Hang 1
 	Do $$$AssertEquals(..EventsOf(session, "notification", card).%Size(), 2, "and publishes no new event")

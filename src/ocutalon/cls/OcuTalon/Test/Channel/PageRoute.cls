@@ -4,7 +4,7 @@
 /// and TelegramPageFixture.Start refuses a Bot API base that is not the mock's. The mailbox is connected by a real save (as Test.Channel.EmailLive does) and put back at the end,
 /// as the Telegram items and pairings are. Each test writes its own on-call keys, uses chats and addresses of its own, and a page row and an incident of its own; the rows are removed.
 ///   - TestUserBothChannels (Matrix row 1; AC1, AC2): a page of a paired user whose row names telegram and email makes one web card, one Telegram message with Got it and one mail to the on-call
-///     key's address, from email.address, with the subject of page.subject, the body Watch.Paging.Text(n, "email") and the header X-OcuTalon-Ref equal to the claim row's message id;
+///     key's address, from email.address, with the subject of page.subject, the body Channel.PageText.Text(n, "email") (Watch.Paging.Text with the cause redacted and capped) and the header X-OcuTalon-Ref equal to the claim row's message id;
 ///   - TestBackupMailsTheBackupsKey (V2): a backup page mails oncall.backup.email, never the on-call key or the row's Person;
 ///   - TestOneChannel (row 2): a row that names telegram alone gets the card and the Telegram message and no mail; one that names email alone gets the card and the mail and no Telegram message;
 ///   - TestTelegramChosenUnpaired (row 3; P2): an unpaired session gets the card, no message and one not_paired Delivery row that Ownership.DeliveryByRef returns;
@@ -17,12 +17,14 @@
 ///   - TestSamePageAgain (row 7; V2): the same page again, and with another SessionRef, sends no second mail and writes no second row;
 ///   - TestNoRowOrNotChosen (row 8): no page row, and a row that does not name email, send nothing and write nothing at EmailOut, with one warning;
 ///   - TestOnlineDemo (row 9; V2, AC3): with onlineDemo on, Notify routes the page nowhere, and EmailOut reached directly writes no row and sends no mail;
-///   - TestNotifyRoutesPageToEmailOut (V2, P1): with EmailOut running, Notify's rule adds EmailOut to a page exactly when the row names email, and never to a handled Notification;
+///   - TestEmailRenderFails (row 6; V2): a page whose text does not render marks the claim row failed with one count-only warning and sends no mail;
+///   - TestNotifyRoutesPageToEmailOut (V2, P1): with EmailOut running, Notify's rule adds EmailOut to a page exactly when the row names email (whatever the SessionRef and whether Telegram is
+///     included), and never to a handled Notification;
 ///   - TestWebPressEditsTheCopies (row 10; AC5): the press of Got it on the web card, through the route, acknowledges the page by the web, edits the Telegram copy to "Marked as handled at
 ///     {time}", republishes the card and sends no second mail;
 ///   - TestEmailBodyHoldsTheCardsCause (Q1): the body's cause is the web card's sentence, which is the cause after Bridge.Redact.Text and the cap of 1000 characters (a secret-shaped one is redacted
-///     in both and its raw value is in neither, an over-long one is cut alike in both, a plain one is unchanged), the name is the Settings name as the admin set it, and no item or message text
-///     reaches the body;
+///     in both and its raw value is in neither, an over-long one is cut alike in both, one whose secret crosses the cap is redacted before the cut so no part of the secret is in either, a plain
+///     one is unchanged), the name is the Settings name as the admin set it, and no item or message text reaches the body;
 ///   - TestNoIdentityInTheTrace (AC4, V2): after a user's page and an address-only person's page, no address, user name or chat id of the sends, no subject and no body is in any Ens message body or
 ///     header, any Ens.Util.Log line or any audit entry written since the sends began (the mock received them: the positive control).
 Class OcuTalon.Test.Channel.PageRoute Extends OcuTalon.Test.Core.InProduction [ DependsOn = (OcuTalon.Test.Channel.TelegramPageFixture, OcuTalon.Test.Channel.EmailLive, OcuTalon.Test.Watch.Paging) ]
@@ -411,7 +413,7 @@ ClassMethod CopyOf(ref As %String, channel As %String, owner As %String) As OcuT
 	Quit ##class(OcuTalon.Data.Ownership).DeliveryByRef(ref, channel, owner)
 }
 
-/// Asserts the mail at index n: from the saved address to the key's address only, the subject of page.subject, the body Watch.Paging.Text(notification, "email") line for line, one
+/// Asserts the mail at index n: from the saved address to the key's address only, the subject of page.subject, the body Channel.PageText.Text(notification, "email") line for line, one
 /// plain part, and the header X-OcuTalon-Ref equal to the claim row's message id.
 Method AssertMail(mails As %DynamicArray, n As %Integer, notification As OcuTalon.Msg.Notification, to As %String, label As %String) [ Private ]
 {
@@ -420,9 +422,9 @@ Method AssertMail(mails As %DynamicArray, n As %Integer, notification As OcuTalo
 	Do $$$AssertEquals(mail.from_"|"_mail.to.%Get(0)_"|"_mail.to.%Size(), from_"|"_to_"|1", label_": from email.address, to the on-call key's address alone")
 	Set slots = {}.%FromJSON(notification.Slots)
 	Do $$$AssertEquals(mail.subject, ##class(OcuTalon.Msg.Catalog).Render("page.subject", {"production": (slots.production)}, "email"), label_": with the subject of page.subject")
-	Set expected = ##class(OcuTalon.Watch.Paging).Text(notification, "email", .sc)
+	Set expected = ##class(OcuTalon.Channel.PageText).Text(notification, "email", .sc)
 	Do $$$AssertStatusOK(sc, label_": the page email text renders")
-	Do $$$AssertEquals($ZStrip(mail.text, ">WC"), $ZStrip(expected, ">WC"), label_": and the body is exactly Watch.Paging.Text for email")
+	Do $$$AssertEquals($ZStrip(mail.text, ">WC"), $ZStrip(expected, ">WC"), label_": and the body is exactly Channel.PageText for email")
 	Do $$$AssertEquals(mail.parts_"|"_mail.attachments, "1|0", label_": one plain part and no attachment")
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ChannelMessageId, FallbackReason, OwnerRef FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = 'email' AND Kind = 'page'", notification.DecisionRef)
 	Do rs.%Next()
@@ -432,7 +434,7 @@ Method AssertMail(mails As %DynamicArray, n As %Integer, notification As OcuTalo
 }
 
 /// --- Matrix row 1 ---
-/// A page for a distinctive other Person (an address, not the user) of a paired user's session, whose row names telegram and email: one web card of kind page with the text of Watch.Paging.Text for the web, one Telegram message with the text for Telegram and a Got it
+/// A page for a distinctive other Person (an address, not the user) of a paired user's session, whose row names telegram and email: one web card of kind page with the text of Channel.PageText for the web, one Telegram message with the text for Telegram and a Got it
 /// button of the page's Ref, and one mail to the on-call key's address (and to that address alone), as the class description says.
 Method TestUserBothChannels()
 {
@@ -455,7 +457,7 @@ Method TestUserBothChannels()
 	Set card = ..CopyOf(page.Ref, "web", session)
 	If $IsObject(card) {
 		Do $$$AssertEquals(card.Kind_"|"_card.DecisionRef, "page|"_page.Ref, "of kind page for the page's Ref")
-		Do $$$AssertEquals(card.Text, ##class(OcuTalon.Watch.Paging).Text(notification, "web"), "with the text of Watch.Paging.Text for the web")
+		Do $$$AssertEquals(card.Text, ##class(OcuTalon.Channel.PageText).Text(notification, "web"), "with the text of Channel.PageText for the web")
 		Do $$$AssertTrue(card.ChannelMessageId '= "", "and a message id (the card is a card, not a bare row)")
 	}
 	Set messages = ..WaitMessages(chat, 1)
@@ -599,7 +601,7 @@ Method TestEmailCannotGo()
 	Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ..ToEmailOut(..PageNotice(empty, "instance"))
 	Do $$$AssertEquals(..WaitRows(empty.Ref, "email", 1), 1, "an empty key: the claim row is written")
-	Do $$$AssertEquals(..FallbackOf(empty.Ref), "no_address", "and marked no_address")
+	Do $$$AssertEquals(..WaitMark(empty.Ref), "no_address", "and marked no_address")
 	Set text = ..Warnings("EmailOut", logMark, .count)
 	Do $$$AssertEquals(count, 1, "one count-only warning")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(text, $ListBuild(empty.Person, from, empty.Ref)), "", "that names no address and no page")
@@ -610,7 +612,7 @@ Method TestEmailCannotGo()
 	Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ..ToEmailOut(..PageNotice(bad, "instance"))
 	Do $$$AssertEquals(..WaitRows(bad.Ref, "email", 1), 1, "email.address that is no address: the claim row is written")
-	Do $$$AssertEquals(..FallbackOf(bad.Ref), "no_mailbox", "and marked no_mailbox")
+	Do $$$AssertEquals(..WaitMark(bad.Ref), "no_mailbox", "and marked no_mailbox")
 	Do $$$AssertEquals(..Warnings("EmailOut", logMark, .count)'= "", 1, "with a warning")
 	Do ##class(OcuTalon.Data.Setting).Set("email.address", from)
 	Hang ..#QUIET
@@ -628,6 +630,18 @@ ClassMethod FallbackOf(ref As %String) As %String [ Private ]
 	Quit $Select(rs.%Next(): rs.%Get("FallbackReason"), 1: "none")
 }
 
+/// Waits up to WAIT seconds for EmailOut to finish with the page's email claim (a row that is no longer pending); its FallbackReason, or "none" or "pending" when it did not.
+Method WaitMark(ref As %String) As %String [ Private ]
+{
+	Set end = $ZHorolog + ..#WAIT
+	For {
+		Set reason = ..FallbackOf(ref)
+		If ((reason '= "none") && (reason '= "pending")) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit reason
+}
+
 /// Matrix row 6 (V2): a send that the mail server rejects: no mail, the claim row marked failed (and not left pending), one count-only warning that names no address and no page; then the same
 /// page again, with the server accepting, sends nothing and writes no second row: each page email is tried once.
 Method TestEmailSendFails()
@@ -643,13 +657,7 @@ Method TestEmailSendFails()
 	Try {
 		Do $$$AssertEquals(##class(OcuTalon.Test.Channel.EmailLive).SmtpControl("failure", {"mode": "reject"}), 1, "the stub rejects recipients")
 		Do ..ToEmailOut(notification)
-		Set end = $ZHorolog + ..#WAIT
-		For {
-			Set reason = ..FallbackOf(page.Ref)
-			If (reason '= "none") && (reason '= "pending") || ($ZHorolog > end) Quit
-			Hang 0.25
-		}
-		Do $$$AssertEquals(reason, "failed", "the claim row is marked failed")
+		Do $$$AssertEquals(..WaitMark(page.Ref), "failed", "the claim row is marked failed")
 		Set text = ..Warnings("EmailOut", logMark, .count)
 		Do $$$AssertEquals(count, 1, "with one count-only warning")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(text, $ListBuild(address, person, page.Ref)), "", "that names no address and no page")
@@ -679,14 +687,29 @@ Method TestEmailRefusesAnOverlongSubject()
 	Set notification.Slots = slots.%ToJSON()
 	Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ..ToEmailOut(notification)
-	Set end = $ZHorolog + ..#WAIT
-	For {
-		Set reason = ..FallbackOf(page.Ref)
-		If (reason '= "none") && (reason '= "pending") || ($ZHorolog > end) Quit
-		Hang 0.25
-	}
-	Do $$$AssertEquals(reason, "failed", "the claim row is marked failed")
+	Do $$$AssertEquals(..WaitMark(page.Ref), "failed", "the claim row is marked failed")
 	Do $$$AssertEquals(..Warnings("EmailOut", logMark, .count) '= "", 1, "with a warning")
+	Hang ..#QUIET
+	Do $$$AssertEquals(..Mails().%Size()_"|"_..Rows(page.Ref, "email"), "0|1", "no mail, and one claim row")
+}
+
+/// Matrix row 6 (V2): a page whose text does not render (its CatalogKey is not one of the page texts, so Watch.Paging.Text refuses it) marks the claim failed, with one count-only warning, and
+/// sends nothing.
+Method TestEmailRenderFails()
+{
+	If '..Ready() Quit
+	Set n = ..Next()
+	Set address = "zzoncall"_..Number_"x"_n_"@example.test"
+	Do ..Keys(address)
+	Set page = ..PageRow(..Incident(), "oncall", "zzperson"_..Number_"x"_n_"@example.test", "email")
+	Set notification = ..PageNotice(page, "instance")
+	Set notification.CatalogKey = "page.causeUnknown"
+	Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ..ToEmailOut(notification)
+	Do $$$AssertEquals(..WaitMark(page.Ref), "failed", "the claim row is marked failed")
+	Set text = ..Warnings("EmailOut", logMark, .count)
+	Do $$$AssertEquals(count, 1, "with one count-only warning")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(text, $ListBuild(address, page.Person, page.Ref)), "", "that names no address and no page")
 	Hang ..#QUIET
 	Do $$$AssertEquals(..Mails().%Size()_"|"_..Rows(page.Ref, "email"), "0|1", "no mail, and one claim row")
 }
@@ -805,6 +828,10 @@ Method TestNotifyRoutesPageToEmailOut()
 	Do $$$AssertEquals(..RouteOf(session, telegram.Ref), "send:WebChatOut,TelegramOut:", "telegram alone: no EmailOut")
 	Do $$$AssertEquals(..RouteOf("instance", email.Ref), "send:EmailOut:", "an address-only person whose row names email: EmailOut alone")
 	Do $$$AssertEquals(..RouteOf("instance", telegram.Ref), "", "an address-only person whose row does not name email: nowhere")
+	Do $$$AssertEquals(..RouteOf("", email.Ref)_"|"_..RouteOf("zznosession"_..Number, email.Ref), "send:EmailOut:|send:EmailOut:", "an empty or unknown SessionRef with a row that names email: EmailOut alone (the email follows the row, not the session)")
+	Set ^OcuTalonTest("TelegramIncluded") = 0
+	Do $$$AssertEquals(..RouteOf(session, both.Ref), "send:WebChatOut:;send:EmailOut:", "telegram,email with Telegram not included: the card and EmailOut, with no Telegram")
+	Set ^OcuTalonTest("TelegramIncluded") = 1
 	Do $$$AssertEquals(..RouteOf(session, both.Ref, "handled") '[ "EmailOut", 1, "a handled Notification for the page never reaches EmailOut: "_..RouteOf(session, both.Ref, "handled"))
 	Do $$$AssertEquals(..RouteOf("instance", both.Ref, "handled") '[ "EmailOut", 1, "nor for an address-only person's")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
@@ -918,8 +945,10 @@ Method TestEmailBodyHoldsTheCardsCause()
 	Set plain = "The partner sent a plain date that OcuTalon could not read."
 	Set secret = "The key sk-live-ZZ9Q8W7E6R5T4Y3U2I1O0P9A8S7D6F5G was refused, password=hunter2 and token=FAKE-test-value-0000 were sent"
 	Set long = "The partner sent a date in an unknown format "_$Translate($Justify("", 3000), " ", "x")
+	// a key that starts at character 992, so the cap falls inside it: cut first, its first 9 characters would be too short for the redactor and would stay
+	Set across = $Extract("The partner sent a date in an unknown format "_$Translate($Justify("", 1000), " ", "x"), 1, 990)_" sk-live-ZZ9Q8W7E6R5T4Y3U2I1O0P9A8S7D6F5G was refused."
 	// each case: label, cause, the raw values that no part of the card or the body may hold
-	Set cases = $ListBuild($ListBuild("a plain cause", plain, ""), $ListBuild("a secret-shaped cause", secret, $ListBuild("sk-live-ZZ9Q8W7E6R5T4Y3U2I1O0P9A8S7D6F5G", "hunter2", "FAKE-test-value-0000")), $ListBuild("an over-long cause", long, ""))
+	Set cases = $ListBuild($ListBuild("a plain cause", plain, ""), $ListBuild("a secret-shaped cause", secret, $ListBuild("sk-live-ZZ9Q8W7E6R5T4Y3U2I1O0P9A8S7D6F5G", "hunter2", "FAKE-test-value-0000")), $ListBuild("an over-long cause", long, ""), $ListBuild("a secret across the cap", across, $ListBuild("sk-live-")))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set label = $List(case, 1)

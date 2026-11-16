@@ -29,7 +29,7 @@
 ///     no event;
 ///   - TestDigestCard also (Story 18.4): the Slots' rows are kept on the row as CheckRows (the rows JSON, "[]" for an empty rows) and the payload
 ///     carries them as checks;
-///   - TestPageCard (Story 24.3a): a page Notification is a card of kind page whose text is Watch.Paging.Text for the web, recorded with a new message id, the page's Ref as DecisionRef,
+///   - TestPageCard (Story 24.3a): a page Notification is a card of kind page whose text is Channel.PageText for the web, recorded with a new message id, the page's Ref as DecisionRef,
 ///     no due time, reason or approval, published as one notification event (text without the Why now line, whyNow, handledAt empty) and listed in RecentNotices; another session
 ///     gets nothing; on the online demo and for a text that cannot be rendered nothing is recorded;
 ///   - TestPageHandledRepublishesTheCard (Story 24.3a): a handled Notification for an acknowledged page publishes the page card again with its own ref and handledAt (Data.Page Marked),
@@ -504,7 +504,7 @@ Method PageNotification(session As %String, page As OcuTalon.Data.Page, cause As
 	Quit notification
 }
 
-/// Story 24.3a: a page Notification is a card of the web chat (kind page). Its text is Watch.Paging.Text for the web: with no backup set, the catalog text of page.onCallAlone with the
+/// Story 24.3a: a page Notification is a card of the web chat (kind page). Its text is Channel.PageText for the web (Watch.Paging.Text with the cause redacted and capped): with no backup set, the catalog text of page.onCallAlone with the
 /// Notification's slots, ending in its Why now line. The row keeps the page's Ref as DecisionRef and no due time, reason or approval; the one notification event carries the text
 /// without that last line, whyNow and an empty handledAt; the card is in RecentNotices. Another session gets nothing, the online demo records nothing (Watch.Paging refuses
 /// it), a page with no cause is rendered with the unknown-cause sentence and a page whose key is no page key is an error.
@@ -527,7 +527,7 @@ Method TestPageCard()
 		Do $$$AssertEquals($Extract(row.Text, 1, $Length(body)), body, "the text starts with the count, the noun and the production")
 		Do $$$AssertTrue(row.Text [ " The partner sent a bad date.", "and has the cause sentence")
 		Do $$$AssertEquals($Piece(row.Text, $Char(10), 2, *), "Why now: you're on call for OcuTalon. Press Got it to show you're on it.", "and ends in the page's Why now line (no backup is set)")
-		Do $$$AssertEquals(row.Text, ##class(OcuTalon.Watch.Paging).Text(notification, "web"), "the text is Watch.Paging.Text for the web")
+		Do $$$AssertEquals(row.Text, ##class(OcuTalon.Channel.PageText).Text(notification, "web"), "the text is Channel.PageText for the web")
 	}
 	Set events = ..Notifications(session)
 	Do $$$AssertEquals(events.%Size(), 1, "one notification event")

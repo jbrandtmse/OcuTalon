@@ -8733,3 +8733,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, DW-1389 A/B (release-evidence/ab-1389) | severity: med | fix-risk: med | footprint: in-epic
 - evidence: OLD 044b6c2e1 equals feature on this path; invalid-fallback incident misses; one of 23.3's two new incidents (to confirm)
 - 2026-11-16T05:37:03Z status=routed owner=burndown by=orchestrator note=diagnosis FIRST, sent to the Planner before any fix: why the model's incident answer is invalid; whether a schema or prompt-shape fix (not Triage wording) removes it; any model-facing text fix needs the Planner's A/B; before the 1.0.12 RC eval
+
+### DW-1430: Telegram's page copy renders the cause raw (no Bridge.Redact.Text, no 1000 cap), so Q1's 'email cause EXACTLY the card and Telegram sentence' fails for a secret-shaped or over-long cause
+- source: spec-24-3a-deliver-pages-on-the-on-call-channels-and-take-the-web-ackno.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Channel/Telegram/Out.cls OnNotification lines 220-221 render a page with Watch.Paging.Text directly; the web card and the email use Channel.PageText (redact, then cap). Lane A file, edit barred beyond V5's not_paired lines; PageRoute asserts Telegram for a plain cause only.
+- 2026-11-16T11:12:20Z status=escalated owner=burndown by=cr note=planner_ruling_needed:allow_1-line_Lane_A_change_Telegram/Out.cls:221_to_Channel.PageText,or_accept_gap(Q1_binding)

@@ -93,3 +93,5 @@
 2026-11-16T08:52:00Z	DW-1426	merged	feature=be9ad9f3 ci=43829423163,43829423003(green)
 2026-11-16T10:46:47Z	Story 24.3a	implement_done	commit=8b689c92 build_status=done review_layers=4(32_findings:15_patched,18_rejected,1_deferred:Telegram_cause_unredacted(Lane_A)) followup_review_recommended=true web_test=2187 mutations=30+
 2026-11-16T10:46:47Z	Story 24.3a	stage_spawned	stage=code-review spawn_at=2026-11-16T10:46:47Z model=opus effort=high scope=99175c67..8b689c92
+2026-11-16T11:16:01Z	Story 24.3a	review_done	findings=30(0H,6M,21L,3F) patched=10 deferred=DW-1430(Telegram_cause_unredacted,escalated) rejected=19 verdict=READY
+2026-11-16T11:16:01Z	Story 24.3a	spine_amended	AD-14(page_route,handled_copies,page_email_body/claim/demo,got-it)+API_row_got-it lint=12_before=12_after
