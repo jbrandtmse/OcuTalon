@@ -10,11 +10,13 @@
 /// fixKind, no fixParameters and no fixSummary), except that a data_format_change may carry no fix at all, when fixKind, fixParameters and fixSummary are all
 /// absent or blank (a diagnosis that cannot tell which way a date reads, DW-644): it then still names its elementAtFault, and any one of the three alone is
 /// refused. It also requires an itemNoun, when given, with neither form blank, and no clock time (h:mm, an hour of 0 to 23 and
-/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary. The fix kind is one that OcuTalon.Fix.Kind
+/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary (two rules, one for each). The fix kind is one that OcuTalon.Fix.Kind
 /// names (AD-16), and its check of the fix parameters is the last: the fields it is given are the keys of the sample body of the evidence pack that the
 /// request carried, read through OcuTalon.Bridge.ReplyCheck, which Decide begins before it checks a reply. With no check begun, or an input that is not a
-/// pack with a sample body, no fix is accepted (fail closed). A setting_change may name the kind that Fix.Kind DiagnosedFor lists for it (rollback_setting): with no
-/// fixParameters and no fixSummary, and an elementAtFault that names a setting in the pack's settingChanges (Listed); the kind's own check is then its dry run's. Lane A.
+/// pack with a sample body, no fix is accepted (fail closed); the check's refusal is wrapped in the rule fix-parameters-check, with its own reason embedded. A setting_change may name the kind that Fix.Kind DiagnosedFor lists for it (rollback_setting): with no
+/// fixParameters and no fixSummary, and an elementAtFault that names a setting in the pack's settingChanges (Listed); the kind's own check is then its dry run's.
+/// Each rule of %OnValidateObject, the parent's three and this class's nineteen, has a fixed tag as the second parameter of its error and the tag and its field are listed in
+/// REFUSALRULES: Decide's RefusalText shows "ERROR #5001 rule <tag>" for a listed tag and never a value of the reply (DW-1421). The tags are internal names, in no text a user reads. Lane A.
 Class OcuTalon.Watch.Msg.DiagnosisPayload Extends OcuTalon.Bridge.Msg.DecisionPayload
 {
 
@@ -30,6 +32,10 @@ Parameter FILTERED = "Cause,FixSummary,ElementAtFault,Evidence,ItemNoun.One,Item
 
 /// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit.
 Parameter CLOCKTIME = "(?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])";
+
+/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated: the parent's, then this class's own, in rule order
+/// (see the class description).
+Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-not-act:outcome,cause-category-unlisted:causeCategory,evidence-over-max:evidence,cause-blank:cause,format-no-fix-element-blank:elementAtFault,format-fix-kind-unlisted:fixKind,format-fix-element-blank:elementAtFault,format-fix-summary-blank:fixSummary,format-fix-field-blank:fixParameters.field,rollback-fix-parameters:fixParameters,rollback-fix-summary:fixSummary,rollback-element-unlisted:elementAtFault,fix-kind-not-for-category:fixKind,fix-parameters-not-for-category:fixParameters,fix-summary-not-for-category:fixSummary,item-noun-blank:itemNoun,time-of-day-in-cause:cause,time-of-day-in-fix-summary:fixSummary,fix-parameters-check:fixParameters";
 
 /// The most references in the evidence list.
 Parameter MAXEVIDENCE = 20;
@@ -63,36 +69,38 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 {
 	Set sc = ##super()
 	If $$$ISERR(sc) Quit sc
-	If ..Outcome '= "act" Quit $$$ERROR($$$GeneralError, "The outcome of a diagnosis is act, not '"_..Outcome_"'")
+	If ..Outcome '= "act" Quit $$$ERROR($$$GeneralError, "The outcome of a diagnosis is act, not '"_..Outcome_"'", "outcome-not-act")
 	If '$ListFind($ListFromString(..#CAUSECATEGORIES), ..CauseCategory) {
-		Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' is not one of "_..#CAUSECATEGORIES)
+		Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' is not one of "_..#CAUSECATEGORIES, "cause-category-unlisted")
 	}
-	If ..Evidence.Count() > ..#MAXEVIDENCE Quit $$$ERROR($$$GeneralError, "The evidence holds more than "_..#MAXEVIDENCE_" references")
-	If ..Blank(..Cause) Quit $$$ERROR($$$GeneralError, "The cause is blank")
+	If ..Evidence.Count() > ..#MAXEVIDENCE Quit $$$ERROR($$$GeneralError, "The evidence holds more than "_..#MAXEVIDENCE_" references", "evidence-over-max")
+	If ..Blank(..Cause) Quit $$$ERROR($$$GeneralError, "The cause is blank", "cause-blank")
 	If (..CauseCategory = ..#FIXCATEGORY) && (..FixKind = "") && '$IsObject(..FixParameters) && ..Blank(..FixSummary) {
-		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
+		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault", "format-no-fix-element-blank")
 	} ElseIf ..CauseCategory = ..#FIXCATEGORY {
-		If '$ListFind(##class(OcuTalon.Fix.Kind).DiagnosedFor(..#FIXCATEGORY), ..FixKind) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedFor(..#FIXCATEGORY), ","))
-		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
-		If ..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixSummary")
-		If '$IsObject(..FixParameters) || ..Blank(..FixParameters.Field) Quit $$$ERROR($$$GeneralError, "A data_format_change has fixParameters with a field")
+		If '$ListFind(##class(OcuTalon.Fix.Kind).DiagnosedFor(..#FIXCATEGORY), ..FixKind) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).DiagnosedFor(..#FIXCATEGORY), ","), "format-fix-kind-unlisted")
+		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault", "format-fix-element-blank")
+		If ..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixSummary", "format-fix-summary-blank")
+		If '$IsObject(..FixParameters) || ..Blank(..FixParameters.Field) Quit $$$ERROR($$$GeneralError, "A data_format_change has fixParameters with a field", "format-fix-field-blank")
 	} ElseIf (..FixKind '= "") && $ListFind(##class(OcuTalon.Fix.Kind).DiagnosedFor(..CauseCategory), ..FixKind) {
-		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' has no fixParameters")
-		If '..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' has no fixSummary")
-		If '..Listed(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' needs an elementAtFault that names a setting in the evidence pack's settingChanges")
+		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' has no fixParameters", "rollback-fix-parameters")
+		If '..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' has no fixSummary", "rollback-fix-summary")
+		If '..Listed(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "The fixKind '"_..FixKind_"' needs an elementAtFault that names a setting in the evidence pack's settingChanges", "rollback-element-unlisted")
 	} Else {
-		If ..FixKind '= "" Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixKind")
-		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixParameters")
-		If '..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixSummary")
+		If ..FixKind '= "" Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixKind", "fix-kind-not-for-category")
+		If $IsObject(..FixParameters) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixParameters", "fix-parameters-not-for-category")
+		If '..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "The causeCategory '"_..CauseCategory_"' has no fixSummary", "fix-summary-not-for-category")
 	}
 	If $IsObject(..ItemNoun) && (..Blank(..ItemNoun.One) || ..Blank(..ItemNoun.Other)) {
-		Quit $$$ERROR($$$GeneralError, "The itemNoun has a blank form")
+		Quit $$$ERROR($$$GeneralError, "The itemNoun has a blank form", "item-noun-blank")
 	}
-	If $Locate(..Cause, ..#CLOCKTIME) || $Locate(..FixSummary, ..#CLOCKTIME) {
-		Quit $$$ERROR($$$GeneralError, "The cause and the fixSummary hold no time of day")
-	}
+	If $Locate(..Cause, ..#CLOCKTIME) Quit $$$ERROR($$$GeneralError, "The cause and the fixSummary hold no time of day", "time-of-day-in-cause")
+	If $Locate(..FixSummary, ..#CLOCKTIME) Quit $$$ERROR($$$GeneralError, "The cause and the fixSummary hold no time of day", "time-of-day-in-fix-summary")
 	If (..FixKind '= "") && (##class(OcuTalon.Fix.Kind).ForName(..FixKind) '= "") && ($Parameter(##class(OcuTalon.Fix.Kind).ForName(..FixKind), "TARGETTYPE") = "setting") Quit $$$OK
-	If ..FixKind '= "" Quit ..CheckFix()
+	If ..FixKind '= "" {
+		Set sc = ..CheckFix()
+		If $$$ISERR(sc) Quit $SYSTEM.Status.EmbedStatus($$$ERROR($$$GeneralError, "The fix kind's check of the fixParameters failed", "fix-parameters-check"), sc)
+	}
 	Quit $$$OK
 }
 

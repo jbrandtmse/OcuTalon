@@ -2,8 +2,8 @@
 title: 'DW-1421 C0 + C1: diagnosis refusals name their rule, and a capture harness for the fallback replies of an eval run'
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: '1de31e808c501439a84e484cb4181bb4187cdb67'
+status: 'done'
+baseline_revision: '165547dd1193c68d8a845abed1e248a14806e0fb'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -332,6 +332,15 @@ It is an internal diagnostic name, not public text (Veto item 1).
 - **A file** `<n>-<ref>-<attempt>.json`: {decisionRef, kind, case, runRef, fallbackReason, runner, replyClass, attempt, finishReason, stage, rule, rules, field, problem, failureText, text}. `text` is the raw `Reply.Text`. `summary.json` holds the counts.
 - **What it cannot see:** a reply that never reached the store (a timer fallback has none; a late reply arrives after the Decision row and is still stored and found); text that a purge removed (none runs on a throwaway); more than 5 parts (RefusalText's cap).
 
+**Decisions taken at implementation (small ambiguities, lane C):**
+- A missing evidence folder is refused ("CAPTURE refused: ...", no session, return 0), as the Planner's condition (b) rules, so the spec's `mkdir -p` is not done; the key-holder makes the folder first (`mkdir -p "$E/<run folder>/capture"` before the command). The refusal of a folder inside the checkout also returns 0, so only a session that prints nothing gives the "CAPTURE failed" line.
+- `CaptureTool.Run` makes the container folder itself; the shell removes it after the copy. summary.json is written only when at least one decision was found (scenario 8: no file), and counts itself (files = replies + 1).
+- Review fixes: `CaptureTool.Parse` skips an empty part (and a part with an empty rule name), so a problem with no part keeps the rule `no check` and `Count` never gets an empty rule; `Run` returns an error status for a folder that normalises to "". `eval/capture-fallbacks.sh` counts the files named by `CHK|file|` and not copied (a failed `cat`, an empty copy, an unsafe name) and prints `CAPTURE copy failed: <n> file(s) were not copied` before the folder line, still returning 0. `TestOneReplyPerRule` seeds five more replies (an over-long evidence element, a mistyped reasons, the after-the-filter stage, no reason left after the filter, a cut_off fallback) and asserts `stage`, `rule` and `field` of each; `Test.Eval.Capture` removes its temp file. Rule `capture` pins the copy-failed line (stub variants RCF_CAPCAT fail and empty) and the session script's `CaptureTool).Print(` and `CHK|run|1`.
+- One more fixed rule name, `no check`, for a reply that the tool could not judge (no request body, no reply class or filter class, or Recheck threw). It does not occur in the measured run.
+- `TestRecordsAndLogsNothing` and `TestRecheckIsSilent` count the event-log rows of the test's own job and the headers of the bridge's messages and of no body, not the global max IDs: the production's background work writes rows in other jobs, and the first draft was seen to flake after a warm reload. The mutations above each change one of the counted things.
+- The code-rule pin for Recheck lives in `Test.Eval.Capture` (a footprint file) and scans the web, channel, core, tool, agent and MCP packages for any code line naming Recheck, and every non-test class but Decide for a line naming `Process.Decide` and Recheck together.
+- The direct-run usage line goes to stderr. The test rcf_session gained RCF_CAPTURE, RCF_CAPDIR, RCF_CAPMAKE and RCF_CAPEMPTY, and the stub gained a `CaptureTool` session branch (RCF_CAP, RCF_CAPMARK) and a cat of the capture folder (RCF_CAPTEXT).
+
 **AD:** no AD text changes (Veto item 4). AD-8's rule (spine "AD-8: The bridge alone decides when a reply is unusable") classifies a reply and does not specify the words of the reply-check warning. Every refused reply still falls back with `invalid`. If the Planner wants a record, the sentence to add after "Content that doesn't validate is unusable (AD-8)." (spine L271) would be: "The reply check's warning names each refused rule of a reply class's %OnValidateObject by a fixed tag that the class lists in REFUSALRULES, never by a value of the reply (DW-1421)."
 
 **Ledger inbox:** DW-1421 (C0, C1). Its status line is recorded per the run's DW process at merge, through `ledger.sh append`.
@@ -410,7 +419,104 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 
 **Shared surfaces:** the reply-check warning text (pinned in `Test.Watch.Payload`, `Test.Bridge.ReplyCheck`, `Test.Agent.RememberDecision` and `Test.Watch.Diagnose`), `eval/run.sh`'s rc sequence (pinned by rc-flow and rc-stack), and the eval-scripts and key-like rules over `eval/*.sh`.
 
+### Implementation record (lane C, 2026-11-16; Planner conditions (a) to (h) applied)
+
+**Task 0 (lane-C throwaway, mock only, no key):**
+1. Status mechanics, measured before any product edit (warm stack): `$$$ERROR($$$GeneralError, "t", "zz-tag")` gives `errors(1,"param")` 2, `errors(1,"param",1)` "t", `errors(1,"param",2)` "zz-tag", and `GetErrorText` "ERROR #5001: t". For a scratch `%JSON.Adaptor` class whose `%OnValidateObject` returns that error, `%ValidateObject` and `Decide.CheckReply` (its `cause`) keep param 2. `EmbedStatus(outer, inner)` of two 5001s: `DecomposeStatus` top-level count 1 (the outer, with its tag as param 2 and an `embeddedstatus`), and the inner text (60 parts, 1370 characters in all) is within the first 400 characters of `GetErrorText`. `AppendStatus` gives count 2. So param 2 survives and the embedded text is kept: `EmbedStatus` is used (no stop).
+2. A real fallback's store (mock `[[mock:invalid-reply]]` through `Test.Watch.Diagnose`'s `SendBatch` path, scratch subclass): the diagnose Decision row is Fallback 1, `invalid`. One `OcuTalon.Bridge.Msg.Request` body carries its DecisionRef; its header is Decide -> DiagnosisAgent with SessionId equal to the row's TraceSessionId; the response header found by `CorrespondingMessageId` has `MessageBodyClassName` `OcuTalon.Bridge.Msg.Reply`; `Reply.Text` is exactly the reply of `ci/mock/scenarios/A/invalid-reply.json` (`{"outcome":"maybe","reasons":"none","confidence":2}`, FinishReason end_turn). `DiagnosisAgentRetry` did not answer (one request only). The SQL is the one in `CaptureTool.Attempts` (request headers joined to `OcuTalon_Bridge_Msg.Request` by body id and DecisionRef, then the response header by `CorrespondingMessageId`).
+3. `Decide.ReplyClassOf` in an `iris session` in OCUTALON: DiagnosisAgent and DiagnosisAgentRetry `OcuTalon.Watch.Msg.DiagnosisPayload`, TriageAgent `OcuTalon.Bridge.Msg.DecisionPayload`; `Ext.Accessor.ClassFor("ReplyFilterClass", "", "Decide", .sc)` `OcuTalon.Checks.ReplyGuard` with sc OK.
+4. No side effects: around `CheckReply` + `ReplyGuard.Filter` the event-log max ID, the Decision and Usage counts and the Ens header max ID were unchanged (`log=125 dec=0 usage=0 hdr=11 hdrN=8` before and after), and so around `CaptureTool.Run` with item 2's Ref (`log=190 dec=1 usage=1 hdr=735 hdrN=98` before and after). `Run` wrote one reply file (text equals the scenario's) and summary.json, the rule `ERROR #9406 on Reasons`, field `reasons`, stage `check`, runner DiagnosisAgent, attempt 1.
+5. End to end, `OCUTALON_EVAL_CAPTURE_DIR=<folder outside the checkout> OCUTALON_RUN_TAG=e0dw1421ie bash eval/run.sh --release-candidate --on-mock` (lane C, run in the background with bounded polls): exit 0, `VERDICT blocked` ("the verdict is blocked (0 of 3 attempt(s) met every target)"), 236 s (a first run before a small summary fix: 285 s, same lines). The CAPTURE lines, before the REPORT line: `CAPTURE 43 fallback decision(s) (decide 12, diagnose 31), 43 reply(s), 44 file(s)`; `CAPTURE reason invalid: 43`; `CAPTURE rule fix-parameters-check field fixParameters: 31`; `CAPTURE rule ERROR #5035 field -: 12`; 17 `CAPTURE case <case> rule <rule>: <n>` lines (13 cases with fix-parameters-check, 1 to 3 each, and the four user-turn-* cases with `ERROR #5035`, 3 each); `CAPTURE folder <folder>`. 44 files in the folder (43 replies plus summary.json, which says files 44, replies 43). No file's text (its first 40 characters, for each of the 43) is in the run's output. As the spec expects, the mock's one diagnosis (repair_resend of OrderDate) fails the fix kind's check for the incidents whose sample lacks that field: all 31 diagnose fallbacks are `fix-parameters-check`; the 12 decide fallbacks are replies that are not JSON (the mock's default text), `ERROR #5035`. No fallback of this run is a `DiagnosisPayload` tolerance case: the real-model measurement is the key-holder's.
+
+**Tests and scripts (final tree):** warm: `Test.Watch.Payload` (TestRuleTags, TestEveryRuleTagged and the changed TestRefusalTrace included), `Test.Bridge.ReplyCheck` (row 9 and rows k, l, m), `Test.Agent.RememberDecision` (DEMOTAIL), `Test.Eval.Capture` (5 tests), `Test.Bridge.Decide`, `Test.Fix.Validation`, `Test.Fix.Kind`, `Test.Bridge.CodeRules` all pass. Fresh: `Test.Watch.Diagnose:TestDiagnosisVariants` passes (its warning still ends "ERROR #9406 on Reasons"); `ci/iris.sh shard lane-a@Eval` passes (24 classes, `Test.Eval.Capture` among them). `docker/tests/test-eval-set.sh` passes all rules (the new `capture` rule, `rc-flow`, `rc-stack run-guard rc-guard rules-flow`, `eval-scripts`, `key-like` and the rest, in four calls). `test-class-rules.sh` and `test-boundaries.sh` exit 0. The spine lint (`lint_spine.py`) still gives 12 findings, all low (the baseline). No workflow, compose file or class sets `OCUTALON_EVAL_CAPTURE_DIR` (grep of `.github/`, `ci/`, `docker/` finds it only in the rule `capture`'s own text). The footprint is the files of the intent contract; no added line holds a non-ASCII character or an absolute local path.
+
+**Pins for the Planner's conditions:** (a) `TestRefusalTextForms` rows k, l, m (a marker, a lower-case value with the form of a tag, a tag of another class, a class that does not exist and a `tag:field` pair as the second parameter all give the bare "ERROR #5001"). (b) rule `capture`: with the variable unset or empty, the output, the calls and the report folder are the same byte for byte (epoch, pid, durations and the random work folder masked) with and without `eval/capture-fallbacks.sh` in the tree; set, the report folder and the rest of the output are the same as unset, so the capture runs after the numbers are final; the folder inside the tree and a missing folder are each refused with no session and no file. (c) `Test.Eval.Capture` `TestRecheckIsSilent` (log rows of the job, Decision, Usage and bridge-header counts, four replies and a usable one) and `TestRecheckIsUnreachable` (no web, channel, core, tool, agent or MCP class names Recheck; no class but Decide names Recheck of Decide).
+
+**Mutations (Rule 19; each reverted with `cp` from a copy taken before it and checked with `cmp`, and `git status --short` and `git diff --stat` were the same as before each):**
+- mutation: RefusalText's tag branch removed (`Set part = part_" rule "_tag` -> `Set part = part`) -> Test.Watch.Payload TestRuleTags (all 22 rows) and TestRefusalTrace (key in a refused value, invalid after the filter) red.
+- mutation: the tags of `rollback-fix-summary` and `fix-summary-not-for-category` swapped -> Test.Watch.Payload TestRuleTags (both rows) red.
+- mutation: `time-of-day-in-fix-summary` given the cause's tag -> Test.Watch.Payload TestRuleTags and TestEveryRuleTagged red.
+- mutation: `confidence-missing` removed from DecisionPayload's rule -> Test.Watch.Payload TestRuleTags and TestEveryRuleTagged, and Test.Agent.RememberDecision TestProbeShapeIsTheDemoWarning (DEMOTAIL) red.
+- mutation: the fix-kind wrap removed (`Quit sc`) -> Test.Watch.Payload TestRuleTags and TestEveryRuleTagged red.
+- mutation: RefusalTag without the allowlist (`Quit value` after the form check) -> Test.Bridge.ReplyCheck TestRefusalTextForms rows l (a value that has the form of a tag, a lower-case value with a hyphen) and m (a tag of another class) red.
+- mutation: RefusalTag returns the value unchecked (form check and allowlist both gone) -> Test.Bridge.ReplyCheck TestRefusalTextForms rows l (the marker, the form of a tag), m red.
+- mutation: the tag argument dropped from `fix-parameters-not-for-category` -> Test.Watch.Payload TestEveryRuleTagged and TestRuleTags red.
+- mutation: Recheck made to call CheckReply alone -> Test.Watch.Payload TestRefusalTrace (no reason left after the filter, invalid after the filter, a usable reply) red.
+- mutation: CaptureTool's field lookup returns "" -> Test.Eval.Capture TestOneReplyPerRule (the field of each rule) red.
+- mutation: each file name in the summary given the first 20 characters of its text (`Lines` then holds them) -> Test.Eval.Capture TestLinesHoldNoReplyText red ("nor any 10 characters of it").
+- mutation: `$$$LOGINFO` added to CaptureTool.Run -> Test.Eval.Capture TestRecordsAndLogsNothing (the log count and the source scan) red.
+- mutation: `$$$LOGINFO` added to Decide.Recheck -> Test.Eval.Capture TestRecheckIsSilent red (the warning row cleaned up).
+- mutation: a Decision row saved in Decide.Recheck -> Test.Eval.Capture TestRecheckIsSilent red (row removed).
+- mutation: a Usage row saved in Decide.Recheck -> Test.Eval.Capture TestRecheckIsSilent red (row removed).
+- mutation: an Ens message header saved in Decide.Recheck -> Test.Eval.Capture TestRecheckIsSilent red (header removed).
+- mutation: a call of Decide.Recheck added to OcuTalon.Web.BodyLimit -> Test.Eval.Capture TestRecheckIsUnreachable red.
+- mutation: the shell's safe-character filter removed (`case "" in` in capture_value) -> rule capture red (the planted field is shown, not "(withheld)").
+- mutation: the in-checkout guard removed (capture_inside returns 1) -> rule capture red (a folder inside the checkout is not refused).
+- mutation: the `-n "$OCUTALON_EVAL_CAPTURE_DIR"` test inverted in eval/run.sh (the original line kept as a comment so that the bad samples still apply) -> rule capture red and rule rc-flow red (exit 1 for the unset variable).
+- mutation: CaptureTool's `FieldOf` given `Quit ""` after the tag branch (so the import-type refusals lose their field) -> Test.Eval.Capture TestOneReplyPerRule (the evidence element and the mistyped reasons rows, field `evidence` and `reasons`) red.
+- mutation: the `Parse` literal " refused the filtered payload: " changed -> Test.Eval.Capture TestOneReplyPerRule (cause-blank counted 2, the after-the-filter row's stage and rule) red.
+- mutation: the `reason '= "invalid"` branch of CaptureTool's `Reply` deleted -> Test.Eval.Capture TestOneReplyPerRule (the cut_off fallback's rule `passes the check`, counted 2) red.
+- mutation: the status of the capture `cat` ignored in eval/capture-fallbacks.sh (the emptiness check kept) -> rule capture red (the copy that fails after some text gives no `CAPTURE copy failed` line).
+- mutation: the emptiness check (`[ ! -s ... ]`) removed in eval/capture-fallbacks.sh (the status check kept) -> rule capture red (the empty copy gives no `CAPTURE copy failed` line).
+- mutation: the `Print(summary)` line deleted from the printf list of eval/capture-fallbacks.sh -> rule capture red (the capture session does not print the summary).
+- The rule's own bad samples are each the real script with one edit and each is flagged for its reason: no script, no run.sh, one code line naming `.env`, the key variable, curl, wget, /v1/, api., PointKeys, LIVE_SESSION_ENV or the container tool, no usage exit, unguarded folder, a missing folder made, no filter, no copy, a copy that prints the text, always capturing, inverted test, never capturing, a failed capture that fails the run, the capture before the result, the capture after the REPORT line, a capture that writes into the report folder.
+
+## Review Triage Log
+
+### 2026-11-16 - Review pass
+- verdicts: 30 findings - high 0, medium 9, low 19, false 2, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind 1: Parse can push an empty rule and Count then raises a null subscript, aborting the capture - patched: empty parts skipped, no usable part keeps `no check`.
+  - `[false]` `[reject]` Blind 2: a fallback that is not `invalid` is counted as `passes the check` - spec I/O row 13 says exactly this; the reason is counted separately in the summary.
+  - `[low]` `[reject]` Blind 3: the `fix-parameters-check` wrapper hides the inner reason - spec-bound (Design Notes: the kind's inner reason is embedded, not shown); the raw text is in each file for a re-check; closed by-design.
+  - `[medium]` `[patch]` Blind 4: Parse and the stage branches have no test - patched with five seeds and stage assertions in TestOneReplyPerRule, three mutations.
+  - `[low]` `[reject]` Blind 5: Snap counts global tables - the counts were scoped after one observed flake and the class was green repeatedly; wontfix-accepted, reopen_if=Test.Eval.Capture flakes on a stack with a running production.
+  - `[medium]` `[patch]` Blind 6: a failed copy in capture-fallbacks.sh is silent - patched: `CAPTURE copy failed: <n> file(s) were not copied`, pinned by rule capture with two mutations.
+  - `[low]` `[reject]` Blind 7: the evidence folder is not scanned for key-like text - no key exists in a lane or on a mock stack, and the folder is outside the checkout; wontfix-theoretical for the lane, the key-holder's own run keeps its existing scan of the report pair.
+  - `[low]` `[reject]` Blind 8: REFUSALRULES is repeated by hand in three places - the spec orders the repetition and AC 3 (TestEveryRuleTagged, TestRuleTags) pins both lists; no divergence is reachable without a test going red.
+  - `[low]` `[patch]` Blind 9: Run returns OK with no output for an empty folder - patched with the Parse fix (an error status).
+  - `[low]` `[reject]` Blind 10: attempt 2 (retry) is seeded only - recorded as a residual risk; the pairing uses the same SQL as attempt 1 and is exercised by the seeded second attempt.
+  - `[low]` `[reject]` Edge 1: the SQL status in Run, Attempts and CaseOf is not checked - the tables are the product's own; wontfix-theoretical.
+  - `[low]` `[reject]` Edge 2: an exception mid-loop aborts the run - needs a corrupt store row; wontfix-theoretical, the empty-rule trigger that was reachable is patched (Edge 7).
+  - `[low]` `[reject]` Edge 3: a failed Put counts the reply but writes no file - the shell's file count and copy-failed line expose a gap; wontfix-theoretical (a disk error).
+  - `[medium]` `[patch]` Edge 4: the shell copy loop ignores a failed cat - same root cause as Blind 6, patched.
+  - `[low]` `[reject]` Edge 5: the session's CHK|error code is discarded - the line only says "CAPTURE failed"; the key-holder can re-run; wontfix-accepted, reopen_if=a capture failure with no known cause.
+  - `[false]` `[reject]` Edge 6: a tagged error with an embedded 5802 gives "ERROR #5001 on X rule <tag>" - DecomposeStatus gives one top-level error for the EmbedStatus outer (Task 0 item 1), so RefusalPart has no property; TestRuleTags pins "ERROR #5001 rule fix-parameters-check" exactly.
+  - `[medium]` `[patch]` Edge 7: Parse with an empty part or no "accepts" segment gives an empty rule - same root cause as Blind 1, patched.
+  - `[low]` `[reject]` Edge 8: Recheck drops Interpret's sc - sc is an error only when a payload that passed cannot be exported, which a valid object does not do; wontfix-theoretical.
+  - `[low]` `[reject]` Edge 9: the Recheck-unreachable scan covers six packages plus a same-line pattern - the scope the Planner's condition (c) asks for (REST, Telegram, chat paths); by-design.
+  - `[low]` `[reject]` Edge 10: Snap counts only bridge and empty bodies - the bodies that Recheck and Run could send; accepted with Blind 5.
+  - `[low]` `[reject]` Edge 11: the CheckFix inner reason is not shown - same as Blind 3, by-design.
+  - `[low]` `[reject]` Edge 12: AC 7 says max IDs, the test counts the job's rows - recorded decision (a global max flaked after a warm reload); accepted with Blind 5.
+  - `[low]` `[reject]` Edge 13: a failed Put leaves replies counted without a file - same as Edge 3.
+  - `[medium]` `[patch]` Gap 1: FieldOf's property branch has no test - patched: evidence and mistyped-reasons seeds, mutation recorded.
+  - `[medium]` `[patch]` Gap 2: the filter-stage and non-invalid branches have no test - patched with the seeds of Blind 4, two mutations.
+  - `[medium]` `[patch]` Gap 3: the capture session text is not pinned - patched: rule capture requires `CaptureTool).Print(` then `CHK|run|1`, mutation recorded.
+  - `[medium]` `[patch]` Gap 4: a silent partial copy - same as Blind 6, patched.
+  - `[low]` `[reject]` Gap 5: global counts in the silence tests - same as Blind 5.
+  - `[low]` `[patch]` Gap 6: OnBeforeOneTest leaves a temp file - patched (removed in OnAfterOneTest); the class's documented dependence on the production's runner items stays, by the spec's own Task 0 item 3.
+  - `[low]` `[reject]` Gap 7: source-text tests (TestEveryRuleTagged, the Recheck scan) - AC 3 and the Planner's condition (c) ask for a code-rule test, and TestRuleTags pins the same tags by behaviour; by-design.
+  - Intent alignment audit: descriptive, no findings; it names the real-model measurement as the key-holder's.
+
 ## Auto Run Result
 
-Status: not started
+Status: done
 Blocking condition: none
+
+**Summary.** C1: the 22 `%OnValidateObject` rules (3 inherited, 19 own) carry a fixed tag as the status's second parameter, listed per reply class in the allowlist `REFUSALRULES`; `Decide.RefusalText` shows "ERROR #5001 rule <tag>" only for a listed tag, so a reply value never follows "rule". The time-of-day rule is two rules and the fix kind's check is wrapped in the tagged `fix-parameters-check`. C0: `OcuTalon.Test.Eval.CaptureTool`, `eval/capture-fallbacks.sh` and an opt-in step in `eval/run.sh` (only when `OCUTALON_EVAL_CAPTURE_DIR` is set, after the result and before the REPORT line) write one file per fallback reply and print counts and rule names only. `Decide.Recheck` is the public, silent form of Conclude's check.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Msg/DecisionPayload.cls`, `src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls`: tags and `REFUSALRULES`.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `RefusalText`, private `RefusalTag`, public `Recheck`.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/CaptureTool.cls`, `Test/Eval/Capture.cls` (new): the entry and its tests.
+- `eval/capture-fallbacks.sh` (new), `eval/run.sh`: the opt-in capture step.
+- `docker/tests/test-eval-set.sh`: the rule `capture`.
+- `Test/Watch/Payload.cls`, `Test/Bridge/ReplyCheck.cls`, `Test/Agent/RememberDecision.cls`: the tag pins and updated pins (row 9, DEMOTAIL).
+
+**Review.** 30 findings: high 0, medium 9, low 19, false 2. Patched (one bounded iteration): the empty-rule abort in `Parse` and an error status for an empty folder; the silent failed copy (`CAPTURE copy failed: <n> file(s) were not copied`); test seeds and assertions for the import-type field, the after-the-filter stage, `no reason left after the filter` and a non-invalid fallback; the pin of the session text; the temp file of the Capture test. Nothing deferred. Rejected with their reasons are in the Review Triage Log.
+
+**Follow-up review recommended:** false (no high was patched; 4 medium entries patched, 0 high).
+
+**Verification performed.** See `## Verification` (Task 0 results, 26 mutation lines, class runs, eval-set rules, class-rules, boundaries, spine lint at its 12 low baseline). After the review patches: `Test.Eval.Capture` warm, eval-set rules `capture`, `rc-flow`, `eval-scripts`, `key-like`, and `test-class-rules.sh` passed on the patched tree; `test-boundaries.sh` and the `capture` rule were re-run by the lead and passed. No stack is up, no `.env` was read, no model was called.
+
+**Residual risks.** The retry (attempt 2) pairing was measured only on seeded data (the mock's retry runner did not answer). A real-model run is the key-holder's measurement; the mock's 31 diagnose fallbacks are all `fix-parameters-check` because the mock's repair_resend names a field absent from most samples.

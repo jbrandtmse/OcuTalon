@@ -183,6 +183,16 @@
 #                 eval/run.sh with one edit each. Since Story 0.27 each release-candidate form runs the held-out set once after the attempts, outside the verdict
 #                 (held-out.json and .md in the report folder only), and a held-out run that does not save is a NOTE that changes neither the verdict nor the exit
 #                 code;
+#   capture       (DW-1421) eval/capture-fallbacks.sh and the opt-in step of eval/run.sh that sources it: no code line of the script names .env, the model
+#                 key's variable, curl, wget, /v1/, api., PointKeys, LIVE_SESSION_ENV or the container tool; run directly it prints its usage line and exits 2
+#                 with no call; from the copy tree and stub of rc-flow, --release-candidate --on-mock with OCUTALON_EVAL_CAPTURE_DIR unset (or empty) gives
+#                 the same output, calls and report folder byte for byte whether or not the copy tree has the script; with it set to an existing folder
+#                 outside the copy tree it runs exactly one capture session, after the last Gate.Result session and before the REPORT line, prints the
+#                 CAPTURE lines with counts and rule names and (withheld) for a field with a character outside [A-Za-z0-9 #:;<>.,()_-], never the text of
+#                 a reply (the folder holds it), leaves the report folder, the verdict and the exit code as they were, and says "CAPTURE failed" when the
+#                 session prints nothing, and "CAPTURE copy failed: <n> file(s) were not copied" (before the folder line, a count only) when a copy fails or comes out empty,
+#                 and a normal run does not; the session script prints the summary and ends with CHK|run|1; a folder inside the copy tree and a missing one are refused with no session and no file. The bad samples are the
+#                 repository's two scripts with one edit each;
 #   rules-flow    (Story 0.27) eval/run.sh --rules-only, --rules-only main and --rules-only held-out, from the same copy tree and stub as rc-flow (the stub answers
 #                 the rules-only session by what it calls: RestoreKeys and Keys.Status of the runners, the mock's request count, the rules-only runs): the keys are
 #                 restored with RestoreKeys (never PointKeys) and Keys.Status is read before any case is sent; each set is a rules-only run (rulesOnly 1) kept as
@@ -2325,6 +2335,51 @@ const rcFlowed = (edits = []) => edits.reduce((text, [from, to]) => {
 const RCF_MODELS = 'CHK|mockheader|0\nCHK|model-TriageAgent|claude-haiku-5-5\nCHK|model-DiagnosisAgent|claude-haiku-5-5\nCHK|model-ChatAgent|claude-haiku-5-5"';
 const RCF_KEYS = 'CHK|keys-TriageAgent|1\nCHK|keys-DiagnosisAgent|1\nCHK|keys-ChatAgent|1\n';
 const RCF_MOCKEXIT = '  if [ "$onmock" -eq 1 ]; then\n    scan_pair "$result_name" "$report_dir/$result_name.json" "$report_dir/$result_name.md" || exit 4\n    echo "VERDICT $verdict"\n    echo "eval/run: all checks passed"\n    exit 0\n  fi\n';
+// The rule capture runs the repository's own eval/run.sh and eval/capture-fallbacks.sh from the copy tree of rc-flow: the good sample is the two scripts, and each bad
+// sample is one of them with one edit (the edits throw when their text is missing, so a bad sample never silently equals the good one).
+const CAPSH = fs.readFileSync(path.join(process.cwd(), 'eval/capture-fallbacks.sh'), 'utf8');
+const edited = (text, what, edits) => edits.reduce((t, [from, to]) => {
+  if (!t.includes(from)) throw new Error(`capture: ${what} has no text ${JSON.stringify(from)} to edit`);
+  return t.replace(from, to);
+}, text);
+const capVariant = (name, expect, runEdits, capEdits) => variant('capture', name, expect, (f) => {
+  f['eval/run.sh'] = edited(RUNSH, 'eval/run.sh', runEdits || []);
+  f['eval/capture-fallbacks.sh'] = edited(CAPSH, 'eval/capture-fallbacks.sh', capEdits || []);
+});
+const CAPBLOCK = RUNSH.match(/  # DW-1421: the opt-in capture[\s\S]*?\n  fi\n(?=  echo "REPORT )/);
+if (!CAPBLOCK) throw new Error('capture: eval/run.sh has no capture block before its REPORT line');
+variant('capture', 'good', '', (f) => { f['eval/run.sh'] = RUNSH; f['eval/capture-fallbacks.sh'] = CAPSH; });
+variant('capture', 'good-comment-names', '', (f) => { f['eval/run.sh'] = RUNSH; f['eval/capture-fallbacks.sh'] = `${CAPSH}\n# This comment names .env, ANTHROPIC, curl, wget, /v1/, api., PointKeys, LIVE_SESSION_ENV and ${D}, and is not code.\n`; });
+variant('capture', 'bad-no-script', 'eval/capture-fallbacks.sh: the script is missing', (f) => { f['eval/run.sh'] = RUNSH; });
+variant('capture', 'bad-no-run', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; f['eval/capture-fallbacks.sh'] = CAPSH; });
+for (const [name, word, reason] of [
+  ['bad-names-env', 'cat .env', 'a code line names .env'],
+  ['bad-names-key', 'echo "$ANTHROPIC_API_KEY"', 'a code line names the key variable'],
+  ['bad-names-curl', 'curl http://localhost', 'a code line names curl or wget'],
+  ['bad-names-wget', 'wget http://localhost', 'a code line names curl or wget'],
+  ['bad-names-v1', 'echo /v1/messages', 'a code line names /v1/'],
+  ['bad-names-api', 'echo api.example', 'a code line names api.'],
+  ['bad-names-pointkeys', 'echo PointKeys', 'a code line names PointKeys'],
+  ['bad-names-session-env', 'echo LIVE_SESSION_ENV', 'a code line names LIVE_SESSION_ENV'],
+  ['bad-names-container-tool', `${D} ps`, 'a code line names the container tool'],
+]) variant('capture', name, reason, (f) => { f['eval/run.sh'] = RUNSH; f['eval/capture-fallbacks.sh'] = `${CAPSH}\n${word}\n`; });
+capVariant('bad-no-usage-exit', 'run directly it does not print its usage line and exit 2', [], [['  exit 2\nfi', '  exit 0\nfi']]);
+capVariant('bad-unguarded', 'a capture folder inside the checkout is not refused', [], [['  if capture_inside "$resolved"; then', '  if false; then']]);
+capVariant('bad-missing-made', 'a missing capture folder is not refused', [], [['  if [ -z "$given" ] || [ ! -d "$given" ]; then', '  if [ ! -d "$given" ]; then mkdir -p "$given"; fi\n  if false; then']]);
+capVariant('bad-no-filter', 'the output of the capture shows the text of a reply or a field with an unsafe character', [], [['      *[!A-Za-z0-9\\ \\#:\\;\\<\\>.,\\(\\)_-]*) printf \'(withheld)\' ;;\n', '']]);
+const CAPCOPY = 'if ! dc exec -T iris cat "$CAPTURE_CONTAINER_DIR/$name" < /dev/null > "$resolved/$name" 2> /dev/null || [ ! -s "$resolved/$name" ]; then';
+capVariant('bad-no-copy', 'the capture does not copy the files of the container into the folder', [], [[CAPCOPY, 'if false; then']]);
+capVariant('bad-copy-status-ignored', 'a failed or empty copy of a capture file is not counted in one CAPTURE copy failed line', [], [[CAPCOPY, 'dc exec -T iris cat "$CAPTURE_CONTAINER_DIR/$name" < /dev/null > "$resolved/$name" 2> /dev/null\n            if [ ! -s "$resolved/$name" ]; then']]);
+capVariant('bad-copy-empty-ignored', 'a failed or empty copy of a capture file is not counted in one CAPTURE copy failed line', [], [[CAPCOPY, 'if ! dc exec -T iris cat "$CAPTURE_CONTAINER_DIR/$name" < /dev/null > "$resolved/$name" 2> /dev/null; then']]);
+capVariant('bad-copy-count-after-folder', 'a failed or empty copy of a capture file is not counted in one CAPTURE copy failed line', [], [['  echo "CAPTURE folder $given"\n', '  echo "CAPTURE folder $given"\n  if [ "$failed" -gt 0 ]; then echo "CAPTURE copy failed: $failed file(s) were not copied"; fi\n'], ['  if [ "$failed" -gt 0 ]; then\n    echo "CAPTURE copy failed: $failed file(s) were not copied"\n  fi\n', '']]);
+capVariant('bad-prints-text', 'the output of the capture shows the text of a reply or a field with an unsafe character', [], [['      file)\n        name=$a\n', '      file)\n        name=$a\n        dc exec -T iris cat "$CAPTURE_CONTAINER_DIR/$name" < /dev/null\n']]);
+capVariant('bad-always', 'without the capture variable does not end with VERDICT blocked and exit 0', [['  if [ -n "${OCUTALON_EVAL_CAPTURE_DIR:-}" ]; then', '  if [ -z "${OCUTALON_EVAL_CAPTURE_DIR:-}" ] || true; then']], []);
+capVariant('bad-inverted', 'without the capture variable does not end with VERDICT blocked and exit 0', [['  if [ -n "${OCUTALON_EVAL_CAPTURE_DIR:-}" ]; then', '  if [ -z "${OCUTALON_EVAL_CAPTURE_DIR:-}" ]; then']], []);
+capVariant('bad-never', 'runs the capture session 0 time(s), not once', [['  if [ -n "${OCUTALON_EVAL_CAPTURE_DIR:-}" ]; then', '  if false; then']], []);
+capVariant('bad-fails-the-run', 'does not give one CAPTURE failed line and leave the verdict and the exit code', [['      echo "CAPTURE failed: the fallback replies were not captured"', '      echo "CAPTURE failed: the fallback replies were not captured"\n      exit 1']], []);
+capVariant('bad-before-result', 'does not run after the Gate.Result session', [[CAPBLOCK[0], ''], ['  verdict=\n  if [ "$fails" -eq 0 ]; then\n    verdict_run', `${CAPBLOCK[0]}  verdict=\n  if [ "$fails" -eq 0 ]; then\n    verdict_run`]], []);
+capVariant('bad-after-report', 'the CAPTURE lines are not before the REPORT line', [[CAPBLOCK[0], ''], ['  echo "REPORT $report_dir"\n\n  if [ "$fails" -ne 0 ]; then\n    echo "eval/run: $fails check(s) failed (project $P)"\n    exit 1\n  fi\n  if [ "$keypath" -eq 1 ]; then', '  echo "REPORT $report_dir"\n' + CAPBLOCK[0] + '\n  if [ "$fails" -ne 0 ]; then\n    echo "eval/run: $fails check(s) failed (project $P)"\n    exit 1\n  fi\n  if [ "$keypath" -eq 1 ]; then']], []);
+capVariant('bad-writes-report', 'the capture changes the report folder or the rest of the output', [['    if ! capture_fallbacks "$OCUTALON_EVAL_CAPTURE_DIR"; then', '    echo extra > "$report_dir/capture-note.txt"\n    if ! capture_fallbacks "$OCUTALON_EVAL_CAPTURE_DIR"; then']], []);
 variant('rc-flow', 'good', '', (f) => { f['eval/run.sh'] = rcFlowed(); });
 variant('rc-flow', 'bad-no-script', 'eval/run.sh: the script is missing', (f) => { delete f['eval/run.sh']; });
 variant('rc-flow', 'bad-blocked-exit-0', 'does not end with VERDICT blocked and exit 3', (f) => { f['eval/run.sh'] = rcFlowed([['  exit 3\nfi\n', '  exit 0\nfi\n']]); });
@@ -3550,6 +3605,18 @@ case "$*" in
     script=$(cat)
     printf '%s\n' "$script" >> "$RCF_CALLS"
     case $script in
+      *CaptureTool*)
+        # the capture session of eval/capture-fallbacks.sh (RCF_CAP: none prints no line, empty gives no decision; RCF_CAPMARK plants a field)
+        case ${RCF_CAP:-} in
+          none) ;;
+          empty) printf 'CHK|started|1\nCHK|decisions|0|0|0|0|0\nCHK|run|1\n' ;;
+          *)
+            printf 'CHK|started|1\nCHK|decisions|3|1|2|3|4\nCHK|reason|invalid|3\nCHK|rule|fix-summary-not-for-category|fixSummary|2\nCHK|rule|confidence-missing|confidence|1\n'
+            if [ -n "${RCF_CAPMARK:-}" ]; then printf 'CHK|rule|zz-planted|%s|1\n' "$RCF_CAPMARK"; fi
+            printf 'CHK|case|zz-case|fix-summary-not-for-category|2\nCHK|file|1-aaa-1.json\nCHK|file|2-bbb-1.json\nCHK|file|3-ccc-1.json\nCHK|file|summary.json\nCHK|run|1\n'
+            ;;
+        esac
+        ;;
       *RunningReason*)
         model=claude-haiku-5-5 key=1
         if [ "$RCF_READY" = model ]; then model=claude-sonnet-5-5; fi
@@ -3632,8 +3699,18 @@ case "$*" in
     ;;
   *"exec -T iris cat "*)
     for f in "$@"; do last=$f; done
+    # RCF_CAPCAT: fail gives some text and exit 1 for a capture file, empty gives no text and exit 0
+    case $last in
+      /tmp/ocutalon-capture/*)
+        case ${RCF_CAPCAT:-} in
+          fail) printf 'partial\n'; exit 1 ;;
+          empty) exit 0 ;;
+        esac
+        ;;
+    esac
     printf 'stub %s\n' "$last"
     case $last in
+      /tmp/ocutalon-capture/*) printf '%s\n' "${RCF_CAPTEXT:-stub-capture-text}" ;;
       */release-candidate.md | */release-candidate-on-mock.md)
         if [ -n "${RCF_PLANT:-}" ]; then printf '%s\n' "$RCF_PLANT"; fi
         if [ "${RCF_KP:-}" = run-plant ]; then printf 'leak %s\n' "$ANTHROPIC_API_KEY"; fi
@@ -3717,16 +3794,21 @@ rcf_session() {
     chmod 000 "$f"
   fi
   cp "$script" "$dir/t/eval/run.sh"
+  if [ -n "${RCF_CAPTURE:-}" ]; then cp "$RCF_CAPTURE" "$dir/t/eval/capture-fallbacks.sh"; fi
+  if [ -n "${RCF_CAPDIR:-}" ] && [ "${RCF_CAPMAKE:-1}" = 1 ]; then mkdir -p "$RCF_CAPDIR"; fi
   : > "$dir/calls"
   # the step summary is off unless RCF_SUMMARY names a file for it
   local summary=(-u GITHUB_STEP_SUMMARY)
   if [ -n "${RCF_SUMMARY:-}" ]; then summary=("GITHUB_STEP_SUMMARY=$RCF_SUMMARY"); fi
+  # the capture folder is unset unless RCF_CAPDIR names one (or RCF_CAPEMPTY is 1, which sets it to the empty string)
+  local capset=()
+  if [ -n "${RCF_CAPDIR:-}" ] || [ "${RCF_CAPEMPTY:-}" = 1 ]; then capset=("OCUTALON_EVAL_CAPTURE_DIR=${RCF_CAPDIR:-}"); fi
   if [ "$key" = unset ]; then
-    (cd "$dir" && env -u RUNNER_TEMP -u OCUTALON_EVAL_WAIT -u ANTHROPIC_API_KEY "${summary[@]}" RCF_CALLS="$dir/calls" RCF_MET="$met" RCF_VERDICT="$verdict" RCF_READY="$ready" \
+    (cd "$dir" && env -u RUNNER_TEMP -u OCUTALON_EVAL_WAIT -u OCUTALON_EVAL_CAPTURE_DIR -u ANTHROPIC_API_KEY "${summary[@]}" ${capset[@]+"${capset[@]}"} RCF_CALLS="$dir/calls" RCF_MET="$met" RCF_VERDICT="$verdict" RCF_READY="$ready" \
       OCUTALON_LOCK_DIR="$dir/no-locks" OCUTALON_EVAL_REPORT_DIR="$dir/reports" PATH="$tmp/stub-rcf:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-flow-check \
       bash t/eval/run.sh "$@" > "$dir/out.log" 2>&1) || rc=$?
   else
-    (cd "$dir" && env -u RUNNER_TEMP -u OCUTALON_EVAL_WAIT "${summary[@]}" ANTHROPIC_API_KEY="$key" RCF_CALLS="$dir/calls" RCF_MET="$met" RCF_VERDICT="$verdict" RCF_READY="$ready" \
+    (cd "$dir" && env -u RUNNER_TEMP -u OCUTALON_EVAL_WAIT -u OCUTALON_EVAL_CAPTURE_DIR "${summary[@]}" ${capset[@]+"${capset[@]}"} ANTHROPIC_API_KEY="$key" RCF_CALLS="$dir/calls" RCF_MET="$met" RCF_VERDICT="$verdict" RCF_READY="$ready" \
       OCUTALON_LOCK_DIR="$dir/no-locks" OCUTALON_EVAL_REPORT_DIR="$dir/reports" PATH="$tmp/stub-rcf:$PATH" TMPDIR="$dir" OCUTALON_RUN_TAG=eval-flow-check \
       bash t/eval/run.sh "$@" > "$dir/out.log" 2>&1) || rc=$?
   fi
@@ -4049,6 +4131,143 @@ check_key_like() {
     echo "docker/tests/lib-keys.sh: the library is missing"
   elif ! grep -q '^KEY_LIKE_ERE=' "$base/docker/tests/lib-keys.sh"; then
     echo "docker/tests/lib-keys.sh: defines no KEY_LIKE_ERE"
+  fi
+}
+
+# cap_snap <name>: the output, the calls and the report folder of the last rcf_session, in $tmp/cap-<name>, with the run's epoch and pid (they differ from one run to the next) masked.
+cap_snap() {
+  rm -rf "$tmp/cap-$1"
+  mkdir -p "$tmp/cap-$1"
+  sed -E -e 's/[0-9]{10}-[0-9]+/EPOCH-PID/g' -e 's/ ([0-9]+)s( |$)/ Ns\2/g' "$tmp/flow-cap/out.log" > "$tmp/cap-$1/out.log"
+  sed -E -e 's/[0-9]{10}-[0-9]+/EPOCH-PID/g' -e 's/ocutalon-live\.[A-Za-z0-9]+/ocutalon-live.RAND/g' "$tmp/flow-cap/calls" > "$tmp/cap-$1/calls"
+  cp -R "$tmp/flow-cap/reports" "$tmp/cap-$1/reports"
+}
+
+# check_capture <root>: the violations of eval/capture-fallbacks.sh and of the opt-in step of eval/run.sh that sources it (DW-1421). Static: no code line of the
+# script names .env, the model key's variable, curl, wget, /v1/, api., PointKeys, LIVE_SESSION_ENV or the container tool, and it has no key-like text of its own. Run directly it
+# exits 2 with its usage line and makes no call. Dynamic, from the copy tree and stub of rc-flow with the script added to the tree (RCF_CAPTURE):
+# --release-candidate --on-mock with the variable unset or empty is the same, byte for byte (the output, the calls and the report folder), with and without the script in the tree; with
+# the variable set to an existing folder outside the tree it runs exactly one capture session, after the last Gate.Result session and before the REPORT line, prints the CAPTURE lines
+# (counts and rule names, a field with an unsafe character as (withheld)), writes the files into the folder, and leaves the report folder, the verdict and the exit code as they were;
+# a folder inside the tree, a missing folder, a session that prints nothing, one with no decision and a copy that fails or comes out empty each behave as the header says.
+check_capture() {
+  local base=$1 cap="$1/eval/capture-fallbacks.sh" script="$1/eval/run.sh" dir="$tmp/flow-cap" needle="sk-""ant-""[" rc_a rc line
+  local marker planted evidence="$tmp/flow-cap/evidence" last_result capture_at last_capture report_at n
+  if [ ! -f "$cap" ]; then
+    echo "eval/capture-fallbacks.sh: the script is missing"
+    return 0
+  fi
+  if [ ! -f "$script" ]; then
+    echo "eval/run.sh: the script is missing"
+    return 0
+  fi
+  awk -v f="eval/capture-fallbacks.sh" '
+    /^[[:space:]]*#/ { next }
+    $0 ~ /\.env/ { print f ":" FNR ": a code line names .env" }
+    $0 ~ /ANTHROPIC/ { print f ":" FNR ": a code line names the key variable" }
+    $0 ~ /curl|wget/ { print f ":" FNR ": a code line names curl or wget" }
+    $0 ~ /\/v1\// { print f ":" FNR ": a code line names /v1/" }
+    $0 ~ /api\./ { print f ":" FNR ": a code line names api." }
+    $0 ~ /PointKeys/ { print f ":" FNR ": a code line names PointKeys" }
+    $0 ~ /LIVE_SESSION_ENV/ { print f ":" FNR ": a code line names LIVE_SESSION_ENV" }
+    tolower($0) ~ /docker/ { print f ":" FNR ": a code line names the container tool" }
+  ' "$cap"
+  if grep -qF -- "$needle" "$cap"; then echo "eval/capture-fallbacks.sh: holds a key-like pattern of its own"; fi
+  rcf_stub
+  # run directly: the usage line, exit 2, no call
+  mkdir -p "$tmp/stub-cap"
+  rm -f "$tmp/stub-cap/calls"
+  rc=0
+  line=$(cd "$tmp/stub-cap" && PATH="$tmp/stub-rcf:$PATH" RCF_CALLS="$tmp/stub-cap/calls" bash "$cap" 2>&1) || rc=$?
+  if [ "$rc" -ne 2 ] || [ "${line#usage: OCUTALON_EVAL_CAPTURE_DIR=}" = "$line" ] || [ -s "$tmp/stub-cap/calls" ]; then
+    echo "eval/capture-fallbacks.sh: run directly it does not print its usage line and exit 2 with no call (exit $rc)"
+  fi
+  # the variable unset: with the script in the tree, and without it
+  rc_a=$(RCF_CAPTURE="$cap" rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  cap_snap a
+  if [ "$rc_a" -ne 0 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log"; then
+    echo "eval/run.sh: --release-candidate --on-mock without the capture variable does not end with VERDICT blocked and exit 0 (exit $rc_a)"
+    return 0
+  fi
+  if grep -qF 'CaptureTool' "$dir/calls" || grep -q 'CAPTURE' "$dir/out.log"; then
+    echo "eval/run.sh: --release-candidate with OCUTALON_EVAL_CAPTURE_DIR unset runs a capture or prints a CAPTURE line"
+  fi
+  rc=$(rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  cap_snap b
+  if [ "$rc" -ne "$rc_a" ] || ! cmp -s "$tmp/cap-a/out.log" "$tmp/cap-b/out.log" || ! cmp -s "$tmp/cap-a/calls" "$tmp/cap-b/calls" || ! diff -r "$tmp/cap-a/reports" "$tmp/cap-b/reports" > /dev/null; then
+    echo "eval/run.sh: with the capture variable unset, the run is not the same, byte for byte, whether or not the tree has eval/capture-fallbacks.sh"
+  fi
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPEMPTY=1 rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  cap_snap e
+  if [ "$rc" -ne "$rc_a" ] || ! cmp -s "$tmp/cap-a/out.log" "$tmp/cap-e/out.log" || ! cmp -s "$tmp/cap-a/calls" "$tmp/cap-e/calls" || ! diff -r "$tmp/cap-a/reports" "$tmp/cap-e/reports" > /dev/null; then
+    echo "eval/run.sh: with the capture variable empty, the run is not the same, byte for byte, as with it unset"
+  fi
+  # the variable set to an existing folder outside the tree
+  marker="zz-mark-$RANDOM$RANDOM"
+  planted="zz!mark-$RANDOM$RANDOM"
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAPMARK="$planted" RCF_CAPTEXT="$marker" rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  if [ "$rc" -ne "$rc_a" ] || ! grep -qx 'VERDICT blocked' "$dir/out.log"; then echo "eval/run.sh: the capture changes the verdict or the exit code of the run (exit $rc)"; fi
+  if ! grep -qF 'CaptureTool).Print(' "$dir/calls" || ! grep -F -A2 'CaptureTool).Print(' "$dir/calls" | grep -qF 'CHK|run|1'; then
+    echo "eval/run.sh: the capture session does not print the summary and end with its CHK|run|1 line (the real run would copy nothing)"
+  fi
+  n=$(grep -cF 'CaptureTool).Run(' "$dir/calls")
+  if [ "$n" -ne 1 ]; then
+    echo "eval/run.sh: OCUTALON_EVAL_CAPTURE_DIR set runs the capture session $n time(s), not once"
+  else
+    capture_at=$(grep -nF 'CaptureTool).Run(' "$dir/calls" | head -n 1 | cut -d: -f1)
+    last_result=$(grep -nF 'Eval.Gate).Result(' "$dir/calls" | tail -n 1 | cut -d: -f1)
+    if [ -z "$last_result" ] || [ "$capture_at" -lt "$last_result" ]; then echo "eval/run.sh: the capture session does not run after the Gate.Result session"; fi
+  fi
+  report_at=$(grep -n '^REPORT ' "$dir/out.log" | head -n 1 | cut -d: -f1)
+  last_capture=$(grep -n '^CAPTURE ' "$dir/out.log" | tail -n 1 | cut -d: -f1)
+  if [ -z "$report_at" ] || [ -z "$last_capture" ] || [ "$last_capture" -gt "$report_at" ]; then
+    echo "eval/run.sh: the CAPTURE lines are not before the REPORT line"
+  fi
+  if ! grep -qx 'CAPTURE 3 fallback decision(s) (decide 1, diagnose 2), 3 reply(s), 4 file(s)' "$dir/out.log" ||
+    ! grep -qx 'CAPTURE reason invalid: 3' "$dir/out.log" ||
+    ! grep -qx 'CAPTURE rule fix-summary-not-for-category field fixSummary: 2' "$dir/out.log" ||
+    ! grep -qx 'CAPTURE rule zz-planted field (withheld): 1' "$dir/out.log" ||
+    ! grep -qx 'CAPTURE case zz-case rule fix-summary-not-for-category: 2' "$dir/out.log" ||
+    ! grep -qx "CAPTURE folder $evidence" "$dir/out.log"; then
+    echo "eval/run.sh: the CAPTURE lines are not the counts, the rule names, (withheld) for an unsafe field and the folder"
+  fi
+  if grep -qF -- "$marker" "$dir/out.log" "$dir/calls" || grep -qF -- "$planted" "$dir/out.log"; then
+    echo "eval/run.sh: the output of the capture shows the text of a reply or a field with an unsafe character"
+  fi
+  if [ "$(find "$evidence" -type f | wc -l | tr -d ' ')" -ne 4 ] || ! grep -qF -- "$marker" "$evidence/1-aaa-1.json" "$evidence/summary.json"; then
+    echo "eval/run.sh: the capture does not copy the files of the container into the folder"
+  fi
+  if grep -q '^CAPTURE copy failed' "$dir/out.log"; then echo "eval/run.sh: a capture whose files were all copied prints a CAPTURE copy failed line"; fi
+  cap_snap c
+  if ! diff -r "$tmp/cap-a/reports" "$tmp/cap-c/reports" > /dev/null || ! diff <(grep -v '^CAPTURE ' "$tmp/cap-c/out.log") "$tmp/cap-a/out.log" > /dev/null; then
+    echo "eval/run.sh: the capture changes the report folder or the rest of the output"
+  fi
+  # a copy that fails (a cat that fails after some text) or gives an empty file: one count line of the files not copied, before the folder line, the same verdict and exit code
+  for mode in fail empty; do
+    rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAPCAT=$mode rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+    if [ "$rc" -ne "$rc_a" ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || [ "$(grep -c '^CAPTURE copy failed' "$dir/out.log")" -ne 1 ] || ! grep -qx 'CAPTURE copy failed: 4 file(s) were not copied' "$dir/out.log" ||
+      [ "$(grep -n '^CAPTURE copy failed' "$dir/out.log" | cut -d: -f1)" -ge "$(grep -n '^CAPTURE folder ' "$dir/out.log" | cut -d: -f1)" ]; then
+      echo "eval/run.sh: a failed or empty copy of a capture file is not counted in one CAPTURE copy failed line, with the count, before the CAPTURE folder line, with the verdict and the exit code as they were (copy $mode, exit $rc)"
+    fi
+  done
+  # a folder inside the tree, and a missing one: refused, no session, no file
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$dir/t/zz-evidence" rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  if ! grep -q '^CAPTURE refused: ' "$dir/out.log" || grep -qF 'CaptureTool' "$dir/calls" || [ -n "$(find "$dir/t/zz-evidence" -type f 2> /dev/null)" ] || [ "$rc" -ne "$rc_a" ]; then
+    echo "eval/run.sh: a capture folder inside the checkout is not refused with no session and no file (exit $rc)"
+  fi
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$dir/zz-missing" RCF_CAPMAKE=0 rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  if ! grep -q '^CAPTURE refused: ' "$dir/out.log" || grep -qF 'CaptureTool' "$dir/calls" || [ -e "$dir/zz-missing" ] || [ "$rc" -ne "$rc_a" ]; then
+    echo "eval/run.sh: a missing capture folder is not refused with no session and no folder made (exit $rc)"
+  fi
+  # a session that prints nothing: one CAPTURE failed line, the same verdict and exit code
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAP=none rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  if [ "$rc" -ne "$rc_a" ] || ! grep -qx 'VERDICT blocked' "$dir/out.log" || [ "$(grep -c '^CAPTURE failed: ' "$dir/out.log")" -ne 1 ] || ! grep -q '^REPORT ' "$dir/out.log"; then
+    echo "eval/run.sh: a capture session that prints nothing does not give one CAPTURE failed line and leave the verdict and the exit code as they were (exit $rc)"
+  fi
+  # no decision: the count line and no file
+  rc=$(RCF_CAPTURE="$cap" RCF_CAPDIR="$evidence" RCF_CAP=empty rcf_session "$script" "$dir" unset 0 blocked ok --release-candidate --on-mock)
+  if ! grep -q '^CAPTURE 0 fallback decision(s) ' "$dir/out.log" || [ -n "$(find "$evidence" -type f 2> /dev/null)" ] || [ "$rc" -ne "$rc_a" ]; then
+    echo "eval/run.sh: a capture of no decision does not print the count line and write no file"
   fi
 }
 
@@ -4429,6 +4648,7 @@ rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate withou
 rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
 rule rules-flow "eval/run.sh --rules-only (both sets, main alone, held-out alone), on a stub of a healthy stack, restores the runners' keys with RestoreKeys (never PointKeys), waits for their key records, checks Keys.Status of each before it sends a case, runs each set as a rules-only run, keeps the caller's key out of every call, passes with the mock's request count unchanged and the key and fails with exit 1 on a runner with a key, keys that cannot be restored or read, runners that record no key state, a production that is not ready, a mock that was reached, a problem or a run that acted; and the push run holds the held-out run, the rules-only half and eval/compare.mjs in that order, then the check of the committed eval/results/, before its reports" check_rules_flow
 rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; runs the thinking-history smoke test once after the attempts and gives the result its figure, records a failed one without changing the verdict or the exit code, and never runs it with --on-mock or in the push run; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the nine key proof lines and the counts line, and fails on a hit, a failed control or an unreadable place in each of the nine scans, including a key in the web bundle, in the report folder or below eval/" check_rc_flow
+rule capture "eval/capture-fallbacks.sh names no key, environment file, model call or container tool, prints its usage and exits 2 when run directly, and eval/run.sh sources it only when OCUTALON_EVAL_CAPTURE_DIR is set: unset, the run is the same byte for byte; set, one capture session runs after Gate.Result and before the REPORT line, prints counts and rule names only, refuses a folder inside the checkout or a missing one, and changes neither the report, the verdict nor the exit code" check_capture
 rule key-proof "eval/key-proof.sh exits 2 without OCUTALON_RUN_TAG before eval/run.sh runs, gives the run a fake key of 66 characters in the shape of a real one, never shows it, and flags a run that prints it, writes it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line or leaves a volume or container, reports counts other than its contract, lets an inherited key through, or runs against a model endpoint that is not the CI mock, and passes one that does none of these" check_key_proof
 rule key-like "eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh, the one definition of the key-like patterns, and hold none of their own" check_key_like
 rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, refuses a key-like reason, reports key-like text in the result with exit 4, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override

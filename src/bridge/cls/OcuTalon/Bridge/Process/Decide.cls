@@ -1044,6 +1044,8 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 ///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
 ///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
 ///   - a field that replyClass does not have (#9404) is "ERROR #9404: an unexpected property": the field's name came from the reply, so it is never given;
+///   - a #5001 whose second parameter is a tag that REFUSALRULES of replyClass lists (the fixed name of a rule of the class's %OnValidateObject, DW-1421) is
+///     "ERROR #5001 rule <tag>"; with no second parameter, or one that the class does not list (a value of the reply included), it is the bare "ERROR #5001";
 ///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code of the form "<Domain>Name", else "ERROR"), and " on <Property>[ element <n>]" when a
 ///     property is known.
 /// At most 5 parts are given, then "; and <k> more". With no part, or if anything throws, the text is "an error". text is the reply text that CheckReply checked.
@@ -1072,7 +1074,10 @@ ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String
 				If code = 9406 {
 					Do ..RefusalImport(replyClass, $Get(errors(i, "param", 1)), text, .parts, .count)
 				} Else {
-					Do ..RefusalAdd(..RefusalPart(code, $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position), .parts, .count)
+					Set part = ..RefusalPart(code, $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position)
+					Set tag = $Select(code = 5001: ..RefusalTag(replyClass, $Get(errors(i, "param", 2))), 1: "")
+					If tag '= "" Set part = part_" rule "_tag
+					Do ..RefusalAdd(part, .parts, .count)
 				}
 			}
 		}
@@ -1093,6 +1098,14 @@ Parameter CHECKFAILED = "The reply check failed: the reply is not one JSON objec
 
 /// The most parts that RefusalText names before "and <k> more".
 Parameter MAXREFUSALPARTS = 5;
+
+/// The value when it is a tag of the REFUSALRULES parameter of replyClass (tag:field pairs, comma-separated), else "": a value of the reply can never be one.
+ClassMethod RefusalTag(replyClass As %String, value As %String) As %String [ Private ]
+{
+	If (value '? 1L.(1L,1N,1"-")) || '##class(%Dictionary.CompiledClass).%ExistsId(replyClass) Quit ""
+	Set rules = ","_$Parameter(replyClass, "REFUSALRULES")
+	Quit $Select(rules [ (","_value_":"): value, 1: "")
+}
 
 /// Adds the part to parts(1..count) unless it is there already.
 ClassMethod RefusalAdd(part As %String, ByRef parts, ByRef count) [ Private ]
@@ -1620,7 +1633,7 @@ ClassMethod StillApproved(ref As %String) As %Boolean [ Private ]
 /// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
 /// problem is "" unless the result is 0; then it says why, in words that quote no content of the reply (RefusalText): "The reply check failed: the reply is not one JSON object that <replyClass> accepts: " and what the first check refused, "No reason is left once the reply filter has run", or "After the reply filter ran: <replyClass> refused the filtered payload: " and what the second check refused. Conclude logs it, redacted, as a warning in the decision's trace session when the fallback is invalid.
 /// Both checks run with OcuTalon.Bridge.ReplyCheck begun from the request, so a reply class's %OnValidateObject can read what the request carried; it is ended on every
-/// exit, an exception included, and an exception is thrown on.
+/// exit, an exception included, and an exception is thrown on. Recheck is the public form of this check, for a tool that re-checks a stored reply.
 ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
@@ -1638,6 +1651,13 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 	}
 	Do ##class(OcuTalon.Bridge.ReplyCheck).End()
 	Quit valid
+}
+
+/// The reply check that Conclude makes, for a tool that re-checks a stored reply: 1 when the reply passes the check, the filter and the check again. It records no
+/// row, logs no event and sends no message; problem is as Interpret's ("" when the reply passes). request is the request that carried the reply, for its input.
+ClassMethod Recheck(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output problem As %String) As %Boolean
+{
+	Quit ..Interpret(request, text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)
 }
 
 /// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results. A check

@@ -16,7 +16,12 @@
 ///     gives the fallback invalid, with no reasons and no payload on the row and the response, and one Type 3 warning of Decide.Conclude that starts with REFUSED and the
 ///     decision's Ref and is exactly the words of what failed, never the reply: "The reply check failed: the reply is not one JSON object that <class> accepts: Evidence
 ///     element 2: 129 > 128" (a list element over its limit); "... ERROR #5001" for a key in a refused value (the class's own check), with neither the key nor [redacted];
-///     "No reason is left once the reply filter has run"; "After the reply filter ran: <class> refused the filtered payload: ERROR #5001";
+///     "No reason is left once the reply filter has run"; "After the reply filter ran: <class> refused the filtered payload: ERROR #5001 rule cause-blank". The class's own rules are named
+///     by their tag (DW-1421): "... ERROR #5001 rule cause-category-unlisted" for the key in a refused value, again with neither the key nor [redacted]. Decide.Recheck, run with the same request, class and
+///     filter, returns 0 with the problem that the warning holds (and 1 with no problem for a usable reply);
+///   - TestRuleTags (DW-1421, AC 1): a reply that breaks exactly one rule is refused with RefusalText "ERROR #5001 rule <tag>" for each of the 22 rules of the class and its parent, and the tag's field in REFUSALRULES is the rule's;
+///   - TestEveryRuleTagged (DW-1421, AC 3): each REFUSALRULES lists distinct tag:field pairs of the tag form, the class's list starts with its parent's, and the %OnValidateObject of each class has exactly one $$$ERROR for each of
+///     its own tags, each tag written once;
 ///   - TestOtherFallbacksLogNothing (row Other fallbacks): a cut_off and a refusal whose text fails the check, and a turn that the filter empties (invalid with no check error),
 ///     are fallbacks of their own reason and log no warning of the reply check (Story 5.12, QA);
 ///   - TestFilteredParameter: the parameter FILTERED names every text of the model that the payload holds, which Decide filters (AD-31);
@@ -334,15 +339,20 @@ Method TestRefusalTrace()
 		If label = "over the limit" {
 			Set expected = first_"Evidence element 2: 129 > 128"
 		} ElseIf label = "key in a refused value" {
-			Set expected = first_"ERROR #5001"
+			Set expected = first_"ERROR #5001 rule cause-category-unlisted"
 		} ElseIf label = "no reason left after the filter" {
 			Set expected = start_"No reason is left once the reply filter has run"
 		} Else {
-			Set expected = start_"After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #5001"
+			Set expected = start_"After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #5001 rule cause-blank"
 		}
 		Do $$$AssertEquals(text, expected, label_": the warning names what failed")
+		Set valid = $ClassMethod(..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard", .problem)
+		Do $$$AssertEquals(valid, 0, label_": Recheck refuses the reply too")
+		Do $$$AssertEquals(..#REFUSED_ref_": "_problem, text, label_": and its problem is the warning's words")
 		Do $$$AssertTrue((text '[ secret) && (text '[ "[redacted]"), label_": and holds neither the key nor [redacted]")
 	}
+	Set valid = $ClassMethod(..#DECIDE, "Recheck", ..NewRequest(), ..Usable().%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard", .problem)
+	Do $$$AssertEquals(valid_"|"_problem, "1|", "Recheck passes a usable reply, with no problem")
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Conclude", ..#REFUSED)
 	Set ..Mark = ""
 }
@@ -363,6 +373,136 @@ Method TestOtherFallbacksLogNothing()
 	}
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Conclude", ..#REFUSED)
 	Set ..Mark = ""
+}
+
+/// Ends the check that OnBeforeOneTest began and begins one over RollbackPack().
+Method BeginRollbackPack() [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.ReplyCheck).End()
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "diagnose"
+	Set request.ItemId = "zzpayload"
+	Set request.OwnerRef = "instance"
+	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(..RollbackPack())
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ReplyCheck).Begin(request), "a check begins over a pack that lists a setting change")
+}
+
+/// Asserts that a reply that breaks one rule gives RefusalText "ERROR #5001 rule <tag>", and that the tag's field in REFUSALRULES is the given one.
+Method AssertRule(tag As %String, field As %String, reply As %DynamicObject) [ Private ]
+{
+	Set text = reply.%ToJSON()
+	Set checked = $ClassMethod(..#DECIDE, "CheckReply", text, ..#CLASS, .payload, .cause)
+	Do $$$AssertStatusNotOK(checked, tag_": the reply is refused")
+	Do $$$AssertEquals($ClassMethod(..#DECIDE, "RefusalText", cause, ..#CLASS, text), "ERROR #5001 rule "_tag, tag_": the refusal names the rule")
+	Set pairs = ","_$Parameter(..#CLASS, "REFUSALRULES")
+	Do $$$AssertEquals($Piece($Piece(pairs, ","_tag_":", 2), ",", 1), field, tag_": the field of the tag is "_field)
+}
+
+/// The 22 rules of the class and its parent, in rule order, each as "tag:field" (the pairs of REFUSALRULES that the test pins).
+ClassMethod RuleTags() As %String
+{
+	Quit "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-not-act:outcome,cause-category-unlisted:causeCategory,evidence-over-max:evidence,cause-blank:cause,format-no-fix-element-blank:elementAtFault,format-fix-kind-unlisted:fixKind,format-fix-element-blank:elementAtFault,format-fix-summary-blank:fixSummary,format-fix-field-blank:fixParameters.field,rollback-fix-parameters:fixParameters,rollback-fix-summary:fixSummary,rollback-element-unlisted:elementAtFault,fix-kind-not-for-category:fixKind,fix-parameters-not-for-category:fixParameters,fix-summary-not-for-category:fixSummary,item-noun-blank:itemNoun,time-of-day-in-cause:cause,time-of-day-in-fix-summary:fixSummary,fix-parameters-check:fixParameters"
+}
+
+/// A diagnose reply that breaks exactly the rule of the tag (checked against RollbackPack's pack, or a pack with the sample of Pack()).
+ClassMethod RuleReply(tag As %String) As %DynamicObject
+{
+	Set reply = $Case(tag, "outcome-unlisted": ..Usable(), "reasons-blank": ..Usable(), "confidence-missing": ..Usable(), "outcome-not-act": ..Usable(), "cause-category-unlisted": ..Usable(), "evidence-over-max": ..Usable(), "cause-blank": ..Usable(), "format-no-fix-element-blank": ..Usable(), "format-fix-kind-unlisted": ..Usable(), "format-fix-element-blank": ..Usable(), "format-fix-summary-blank": ..Usable(), "format-fix-field-blank": ..Usable(), "rollback-fix-parameters": ..Rollback(), "rollback-fix-summary": ..Rollback(), "rollback-element-unlisted": ..Rollback(), "fix-kind-not-for-category": ..Outage(), "fix-parameters-not-for-category": ..Outage(), "fix-summary-not-for-category": ..Outage(), "item-noun-blank": ..Usable(), "time-of-day-in-cause": ..Usable(), "time-of-day-in-fix-summary": ..Usable(), "fix-parameters-check": ..Usable(), : {})
+	If tag = "outcome-unlisted" Set reply.outcome = "zz"
+	If tag = "reasons-blank" Set reply.reasons = []
+	If tag = "confidence-missing" Do reply.%Remove("confidence")
+	If tag = "outcome-not-act" Set reply.outcome = "tellnow"
+	If tag = "cause-category-unlisted" Set reply.causeCategory = "weather"
+	If tag = "evidence-over-max" For i = 1:1:21 Do reply.evidence.%Push("h"_i)
+	If tag = "cause-blank" Set reply.cause = "  "
+	If tag = "format-no-fix-element-blank" For name = "fixKind", "fixParameters", "fixSummary", "elementAtFault" Do reply.%Remove(name)
+	If tag = "format-fix-kind-unlisted" Set reply.fixKind = "zz_kind"
+	If tag = "format-fix-element-blank" Do reply.%Remove("elementAtFault")
+	If tag = "format-fix-summary-blank" Do reply.%Remove("fixSummary")
+	If tag = "format-fix-field-blank" Set reply.fixParameters.field = ""
+	If tag = "rollback-fix-parameters" Set reply.fixParameters = {"field": "TargetConfigName"}
+	If tag = "rollback-fix-summary" Set reply.fixSummary = "put the setting back"
+	If tag = "rollback-element-unlisted" Set reply.elementAtFault = "Unlisted"
+	If tag = "fix-kind-not-for-category" Set reply.fixKind = "repair_resend"
+	If tag = "fix-parameters-not-for-category" Set reply.fixParameters = {"field": "OrderDate"}
+	If tag = "fix-summary-not-for-category" Set reply.fixSummary = "retry the orders later"
+	If tag = "item-noun-blank" Set reply.itemNoun.other = ""
+	If tag = "time-of-day-in-cause" Set reply.cause = "The orders failed since 14:12."
+	If tag = "time-of-day-in-fix-summary" Set reply.fixSummary = "resend them at 9:05"
+	If tag = "fix-parameters-check" Set reply.fixParameters.field = "NoSuchField"
+	Quit reply
+}
+
+/// The evidence pack that the rules of the rollback kind need: Pack() with the setting change of TestRollbackFix.
+ClassMethod RollbackPack() As %DynamicObject
+{
+	Set pack = ..Pack()
+	Set pack.settingChanges = [{"item": "OrdersFromPartner", "target": "Host", "setting": "TargetConfigName", "oldValue": "OrdersToWarehouse", "newValue": "OrdersToWarehous", "source": "production", "credential": false, "detectedAt": "2026-11-10T11:56:00Z"}]
+	Quit pack
+}
+
+/// DW-1421 (AC 1): one reply for each of the 22 rules (the parent's three and the class's nineteen); the rule that fails is the one named.
+Method TestRuleTags()
+{
+	Do ..BeginRollbackPack()
+	Set pairs = $ListFromString(..RuleTags(), ",")
+	Set position = 0
+	While $ListNext(pairs, position, pair) {
+		Do ..AssertRule($Piece(pair, ":", 1), $Piece(pair, ":", 2), ..RuleReply($Piece(pair, ":", 1)))
+	}
+	Do $$$AssertEquals($Length($Parameter(..#CLASS, "REFUSALRULES"), ","), 22, "the list holds 22 rules")
+	Do $$$AssertEquals(..RuleTags(), $Piece($Parameter(..#CLASS, "REFUSALRULES"), ",", 1, 22), "and they are the class's list, in order")
+}
+
+/// DW-1421 (AC 3): the tag lists, and one tag literal for each $$$ERROR of each class's own %OnValidateObject.
+Method TestEveryRuleTagged()
+{
+	Set parent = "OcuTalon.Bridge.Msg.DecisionPayload"
+	Set parentPairs = $ListFromString($Parameter(parent, "REFUSALRULES"), ",")
+	Set pairs = $ListFromString($Parameter(..#CLASS, "REFUSALRULES"), ",")
+	Do $$$AssertEquals($ListLength(parentPairs), 3, "the parent lists its three rules")
+	Do $$$AssertEquals($ListToString($List(pairs, 1, 3), ","), $ListToString(parentPairs, ","), "the class's list starts with its parent's")
+	For class = parent, ..#CLASS {
+		Set list = $Select(class = parent: parentPairs, 1: $List(pairs, 4, $ListLength(pairs)))
+		Kill seen
+		Set position = 0
+		While $ListNext($Select(class = parent: parentPairs, 1: pairs), position, pair) {
+			Set tag = $Piece(pair, ":", 1)
+			Do $$$AssertTrue(tag ? 1L.(1L,1N,1"-"), tag_": a tag is lower-case letters, digits and hyphens")
+			Do $$$AssertTrue($Piece(pair, ":", 2) '= "", tag_": the pair names a field")
+			Do $$$AssertTrue('$Data(seen(tag)), tag_": and the tag is listed once")
+			Set seen(tag) = ""
+		}
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), class_" has source")
+		Set body = ..ValidateBody(text)
+		Do $$$AssertTrue(body '= "", class_": its %OnValidateObject is found")
+		Set errors = $Length(body, "$$$ERROR(") - 1
+		Do $$$AssertEquals(errors, $ListLength(list), class_": one $$$ERROR for each of its own rules")
+		Set position = 0
+		While $ListNext(list, position, pair) {
+			Set tag = $Piece(pair, ":", 1)
+			Do $$$AssertEquals($Length(body, ", """_tag_""")") - 1, 1, class_": the tag "_tag_" is written once")
+		}
+	}
+}
+
+/// The code lines of the class's %OnValidateObject, from its Method line to its closing brace.
+ClassMethod ValidateBody(text As %String) As %String [ Private ]
+{
+	Set inside = 0
+	Set body = ""
+	For i = 1:1:$Length(text, $Char(10)) {
+		Set line = $Piece(text, $Char(10), i)
+		If 'inside {
+			If $Extract(line, 1, 26) = "Method %OnValidateObject()" Set inside = 1
+			Continue
+		}
+		If line = "}" Quit
+		Set start = $Extract($ZStrip(line, "<W"), 1, 2)
+		If (start = "//") || ($Extract(start, 1) = ";") || (start = "#;") Continue
+		Set body = body _ line _ $Char(10)
+	}
+	Quit body
 }
 
 Method TestFilteredParameter()
