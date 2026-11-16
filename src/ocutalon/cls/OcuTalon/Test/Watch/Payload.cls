@@ -914,10 +914,12 @@ Method AssertStored(label As %String, reply As %DynamicObject, confidence As %St
 	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "0|", label_": no fallback")
 	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")
 	Do $$$AssertTrue($IsObject(row) && (row.Payload '= ""), label_": the row holds a payload")
-	If '$IsObject(row) || '$IsObject(response) Quit
+	If '$IsObject(row) || '$IsObject(response) || (row.Payload = "") Quit
 	Set type = $Select(confidence = "": "unassigned", 1: "number")
 	Do $$$AssertEquals($Length(row.Confidence)_"|"_row.Confidence, $Length(confidence)_"|"_confidence, label_": the row's confidence is "_$Select(confidence = "": "empty", 1: confidence))
-	Do $$$AssertEquals({}.%FromJSON(row.Payload).%GetTypeOf("confidence"), type, label_": the payload's confidence is "_type)
+	Set stored = {}.%FromJSON(row.Payload)
+	Do $$$AssertEquals(stored.%GetTypeOf("confidence"), type, label_": the payload's confidence is "_type)
+	If confidence '= "" Do $$$AssertEquals(stored.confidence, confidence, label_": and the payload's confidence is "_confidence)
 	Do $$$AssertEquals($Length(response.Confidence)_"|"_response.Confidence, $Length(confidence)_"|"_confidence, label_": the answer's confidence is the row's")
 	Set live = ##class(OcuTalon.Live.Payload.Decision).FromRow(row)
 	Do live.%JSONExportToString(.json)
@@ -929,6 +931,7 @@ Method AssertStored(label As %String, reply As %DynamicObject, confidence As %St
 /// DW-1421 C5 (AC 6, AC 7): a diagnosis with no confidence is accepted, stored with none (never 0) and shown with none; the triage class still refuses one.
 Method TestConfidenceAbsent()
 {
+	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Msg.DecisionPayload", "CONFIDENCEREQUIRED"), 1, "DecisionPayload requires a confidence")
 	Do $$$AssertEquals($Parameter(..#CLASS, "CONFIDENCEREQUIRED"), 0, "DiagnosisPayload does not")
 	Do $$$AssertEquals($Parameter("OcuTalon.Test.Bridge.ProbeReplyCheck", "CONFIDENCEREQUIRED"), 1, "and the test probe does")
@@ -946,9 +949,12 @@ Method TestConfidenceAbsent()
 	Do nulled.%Set("confidence", "", "null")
 	Do $$$AssertStatusOK(..Check(nulled, .payload), "C3: a null confidence is accepted")
 	If $IsObject(payload) Do $$$AssertEquals($Length(payload.Confidence), 0, "C3: and it is absent")
+	// C6 (a check too)
+	Do ..AssertTag("OcuTalon.Bridge.Msg.DecisionPayload", {"outcome": "ignore", "reasons": ["r"]}.%ToJSON(), "confidence-missing", "confidence", "C6, a decide reply with no confidence", 5001)
 	// C2
 	Do ..AssertStored("C2, a usable diagnosis", usable, "")
 	Do ..AssertStored("C2, an outage", outage, "")
+	Do ..AssertStored("C3, a null confidence", nulled, "")
 	// C4
 	Set zero = ..Usable()
 	Set zero.confidence = 0
@@ -956,8 +962,6 @@ Method TestConfidenceAbsent()
 	Set kept = ..Usable()
 	Set kept.confidence = 0.94
 	Do ..AssertStored("a confidence of 0.94", kept, 0.94)
-	// C6
-	Do ..AssertTag("OcuTalon.Bridge.Msg.DecisionPayload", {"outcome": "ignore", "reasons": ["r"]}.%ToJSON(), "confidence-missing", "confidence", "C6, a decide reply with no confidence", 5001)
 }
 
 Method TestFilteredParameter()

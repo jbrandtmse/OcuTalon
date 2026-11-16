@@ -2,7 +2,7 @@
 title: "DW-1421 round 3: the evidence cut keeps at least 64 characters at a word boundary, every length refusal has a fixed tag with no number, and a diagnosis may leave its confidence out (none stored, none shown)"
 type: 'feature'
 created: '2026-11-16'
-status: 'in-review'
+status: 'done'
 baseline_revision: '0575abeba6c9d0fe40021576914260d8486421b9'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -414,6 +414,9 @@ Mutations (each reverted byte for byte, cmp identical):
 - mutation: stripMeta without `confidence !== undefined` -> decision-view.test.mjs (stripMeta) and incident-view.test.mjs (the diagnosis strip) red
 - mutation: decision-strip.ts `meta` back to an inline body -> the source assertion of decision-view.test.mjs red
 All planned mutations were run.
+Review mutations (QA + code review round 3, lane-C warm throwaway tag e1421r3q; each reverted byte for byte, cmp identical, `git status --short` and `git diff --stat` as before):
+- mutation: Judge `Set confidence = $Select(+payload.Confidence: $Number(payload.Confidence, 2), 1: "")` (a confidence of 0 taken for absent) -> TestConfidenceAbsent red (C4: the row's and the answer's confidence, the live payload's type and value)
+- mutation: `confidence-out-of-range:confidence` removed from DecisionPayload.REFUSALRULES only -> TestEveryRuleTagged (the parent's one range tag) and TestRangeTag (both decide rows) red
 
 Model-prompt check (Planner's one check): NO. A refusal or rule string reaches only the event-log warning (`Decide.cls` Conclude logs the problem with `$$$LOGWARNING`, redacted) and the `problem` that `Decide.Recheck` returns; nothing outside `Decide.cls` and the test classes (the capture harness `Test.Eval.CaptureTool`) calls `Recheck` or `RefusalText`. The second-model retry (`TryRetry`) sends a clone of the request, never the problem text, and no agent, tool or retry turn reads RefusalText.
 
@@ -434,3 +437,48 @@ Blocking condition: none
 - Verification: see `## Verification`, "Results".
 - Follow-up review recommendation: false.
 - Deviations: none from the spec.
+
+## Review (QA + code review, round 3)
+
+Combined QA and code-review stage over `f783b3829..09670b2a0`: four review layers (Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor) and a QA pass against AC 1 to AC 8. Every binding point checked holds:
+- DecisionPayload lists 6 pairs and DiagnosisPayload 31; no tag holds a digit; all eight limited fields are tagged "<field>-too-long"; the range tag applies only to a class that lists it; ProbeReplyCheck keeps the generic forms.
+- The floor (EVIDENCEFLOOR 64) is measured after the trailing strip, and the surrogate guard is unchanged. Rows F1 to F4 match the matrix.
+- C5 reads `$Parameter($this, ...)`. A diagnosis without a confidence stores "", with no key in the payload or the live payload, and decide still refuses one. `stripMeta` keeps the strip's behaviour.
+- The spine L271 amendment and its marker match "Spine text" verbatim.
+- Decide changed only in LengthTag's suffix, RefusalPart's range branch and one doc line.
+
+Rule 3: the server half runs on IRIS (the stored row, the payload and `Live.Payload.Decision`'s serializer). The strip's wiring is pinned in a browser by `web/e2e/chat/decision.spec.ts` (confidence shown, none on a fallback). The web change is a pure extraction pinned by node.
+
+### Review Findings
+
+- [x] [Review][Patch] MED: TestConfidenceAbsent ran a check (C6) after Decide.Conclude had ended the test's ReplyCheck, against the class's own contract, and set no `..Mark`, so a red run left Conclude's warnings behind. Fix: C6 moved before the conclusions, and `..Mark` set first [src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls TestConfidenceAbsent]
+- [x] [Review][Patch] LOW: the class doc says a null confidence is "stored with none", but the test only checked it. Fix: `AssertStored("C3, a null confidence", nulled, "")` [Payload.cls TestConfidenceAbsent]
+- [x] [Review][Patch] LOW: C4 checked only the type of the stored payload's confidence. Fix: AssertStored also checks the stored value [Payload.cls AssertStored]
+- [x] [Review][Patch] LOW: `{}.%FromJSON(row.Payload)` threw on an empty payload after the assertion failed. Fix: the guard also quits on an empty payload [Payload.cls AssertStored]
+- [x] [Review][Patch] LOW: the DecisionPayload REFUSALRULES doc did not state Option R's range-tag rule. Fix: "A tag that ends in -out-of-range is the range tag of a field with a MINVAL or MAXVAL, which no rule raises." [src/bridge/cls/OcuTalon/Bridge/Msg/DecisionPayload.cls REFUSALRULES doc]
+- [x] [Review][Patch] LOW: the decision-strip docs did not name a decision without a confidence or `stripMeta`. Fix: comments only [web/src/app/chat/decision-strip.ts class doc, `meta`]
+- [x] [Review][Patch] LOW (Rule 19): C4 and the DecisionPayload range pair had no `mutation:` line. Both were run and recorded under Verification.
+- [ ] [Review][Needs ruling] MED, escalated to the Planner, out of footprint: the model-prompt check is a conditional, indirect YES, not NO.
+  - Decide.Conclude logs the refusal as a Type 3 warning in its session (`Decide.cls` L1516).
+  - Watch.Reader reads every Ens_Util.Log row of a failed message's session, text included (`Watch/Reader.cls` L919, L966-991).
+  - The diagnosis tool `read_event_log` returns those rows' text to the model, redacted only for secrets (`Watch/EvidencePack.cls` L373-397, L214-217; `Tools/Watch.cls` L15). `PushMessages` falls back to event-log rows when a snapshot has no failures (L364-368).
+  - `Reader.Productions` (L119-138) leaves out OcuTalon's own production only on the online demo.
+  - So when OcuTalon watches its own production and a failure shares a session with a refused reply, the rule string ("ERROR #7201 rule <tag>", or a numeric form for a class with no tag) can reach the Diagnosis agent in a tool result.
+  - The rule strings hold no reply value. The path is the same before and after this round. Per the Planner's ruling, the merge waits for a Planner ruling on this YES. Nothing is patched: the fix would be outside the footprint (Watch or EvidencePack).
+- [ ] [Review][Needs ruling] LOW, optional public text: `docs/bridge-guide.md` names neither CONFIDENCEREQUIRED nor the REFUSALRULES tag forms. Its DecisionResponse table says Confidence is "0 to 1", with no note that an accepted diagnose response may have none. The bridge default (CONFIDENCEREQUIRED 1) keeps the guide true for a bridge user's class. Docs are public text outside the footprint.
+
+Rejected:
+- The spec text still describes the plan before Option R (matrix row C5, Veto item 6 (vi), the audit row, Size, "Deviations: none"). The fix would edit the spec under review. The Planner's ruling (Task "Option R") supersedes row C5, which now expects "ERROR #7203 rule confidence-out-of-range". The implementation follows the ruling.
+- Decide's RefusalTag and LengthTag patterns still allow a digit: by-design, per Design Notes "No digits" (they are filters against reply values; the lists are pinned).
+- LengthTag now also resolves range tags under its old name: by-design (Task "Option R": "LengthTag takes a suffix argument").
+- Nested limited fields (fixParameters.*, itemNoun.*) carry no tag: by-design (the number audit, "not among the seven").
+- `confidenceText(undefined)` gives "Confidence 0.00": wontfix-theoretical. Every caller guards it. It would become real with a new caller that skips the guard (Design Notes C5).
+- The limited-field check skips a property with no `%JSONFIELDNAME`: wontfix-theoretical. Every property of both classes declares one. It would become real with a limited property that has none.
+- `notice-card.ts` and the server property docs ("0 to 1") do not mention an absent confidence: `notice-card.ts` is a never-change file, and the property docs stay true (fallback rows were already empty).
+- Capture L229 keeps `= 1`, and the new seed adds `+ 1`: equivalent, since the count is 4 either way.
+- Weak assertions that are redundant but harmless: AssertTag's digit check after an exact equality; the fixture checks in `incident-view.test.mjs`; the `kind: 'diagnose'` that `decisionOf` ignores; the source assertion (structural, as AC 8 asks).
+
+Reruns (warm, tag e1421r3q, all passed; methods/asserts): `Test.Watch.Payload` 16/786; `Test.Eval.Capture` 12/589; `Test.Bridge.ReplyCheck` 7/191; `Test.Bridge.Decide` 76/3055. Node: `npm test` 2202/2202; `npm run lint` passes. `test-boundaries.sh`: all rules passed. Spine lint: 13 low (the baseline). The warm stack is torn down.
+
+Status: done. No open HIGH or MED in the code. The escalated model-prompt YES holds the merge, as the Planner's ruling says.
+

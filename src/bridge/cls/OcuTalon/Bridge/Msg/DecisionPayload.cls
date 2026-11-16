@@ -11,7 +11,7 @@ Class OcuTalon.Bridge.Msg.DecisionPayload Extends (%RegisteredObject, %JSON.Adap
 Parameter CONFIDENCEREQUIRED = 1;
 
 /// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated, then the length tag of each limited field (field-too-long) and the range tag
-/// of a field with a MINVAL or MAXVAL (field-out-of-range, here confidence-out-of-range), which no rule raises; a subclass lists these first, then its own.
+/// (confidence-out-of-range), which no rule raises; a subclass lists these first, then its own. A tag that ends in -out-of-range is the range tag of a field with a MINVAL or MAXVAL, which no rule raises.
 /// A tag is lower-case letters and hyphens, with no digit. Decide shows a tag in a refusal only when the reply class lists it here, and never a value of the reply.
 Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-too-long:outcome,reasons-too-long:reasons,confidence-out-of-range:confidence";
 
