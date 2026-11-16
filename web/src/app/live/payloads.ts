@@ -99,6 +99,7 @@ export interface IncidentRequest {
   fixKind?: string;
   item?: string;
   count?: number;
+  after?: string;
   result?: IncidentRequestResult;
 }
 
@@ -111,6 +112,7 @@ export interface IncidentRequestResult {
   interrupted?: number;
   unreached?: number;
   reason?: string;
+  outcome?: string;
 }
 
 export interface IncidentTraceTargets {

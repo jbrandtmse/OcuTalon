@@ -82,7 +82,8 @@ Property TraceTargets As OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFI
 ///     last two in the watched namespace; each is left out when its id is empty;
 ///   - requests: one {ref, state, result} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result is the stored
 ///     result of the request's run (Data.FixRun OfRequest: total, resent, completed, failedAgain, skipped, unreached (absent unless the resend stopped partway), interrupted and reason) once that run has ended
-///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended;
+///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended; for a partner_warning to Settings contacts it also holds outcome (sent, maysent, notsent or kept), the one decision of
+///     Fix.Kind.PartnerWarning SendOutcome that the card's bands follow (Story 23.15);
 ///   - page (Story 23.4): {state, pagedAt, acknowledgedAt, channel} from the incident's Page rows (Data.Page OfIncident), absent when it has none and on the online demo.
 /// A row without any of them gives a payload without the five fields.
 ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Incident
@@ -202,19 +203,20 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 			Set part.Result.Interrupted = run.Interrupted
 			Set part.Result.Unreached = run.Unreached
 			Set part.Result.Reason = run.Reason
+			If request.FixKind = "partner_warning" Set part.Result.Outcome = ##class(OcuTalon.Fix.Kind.PartnerWarning).ResultOutcome(request, run, row.Production)
 		}
 		Do payload.Requests.Insert(part)
 	}
 }
 
-/// Fills the item and the count of a request part for the fix kinds the user asks for in the chat: the item of a suspend or resume, the target item of a reroute and the
-/// count of its dry run, and the item of a setting kind's dry run (Story 23.3). Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
+/// Fills the item, the count and the after of a request part for the fix kinds the user asks for in the chat and the setting kinds: the item of a suspend or resume, the target item of a reroute and the count of its dry run, and the item and the after of a setting kind's dry run (Story 23.3; the after as Watch.SettingCause ShownAfter gives it, the value of the result notice's {after}, DW-1378). Any other kind, and a request whose parameters or dry run can't be read, leave them empty.
 ClassMethod Chosen(part As OcuTalon.Live.Payload.Part.IncidentRequest, request As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 {
 	If '$ListFind($ListBuild("suspend_item", "resume_item", "reroute", "rollback_setting", "undo_rollback"), request.FixKind) Quit
 	Try {
 		If (request.FixKind = "rollback_setting") || (request.FixKind = "undo_rollback") {
 			Set part.Item = {}.%FromJSON(request.DryRun).%Get("item")
+			Set part.After = ##class(OcuTalon.Watch.SettingCause).ShownAfter(request.DryRun)
 			Quit
 		}
 		Set parameters = {}.%FromJSON(request.FixParameters)

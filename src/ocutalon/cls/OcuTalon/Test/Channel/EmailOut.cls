@@ -63,6 +63,14 @@ Include Ensemble
 ///     another owner session of the mailbox count, the rows of an earlier day and of other kinds do not; the count is taken against the rows already there;
 ///   - TestDigestLock: while another process holds the lock of the mailbox's digest emails nothing is sent;
 ///   - TestDigestNoPersonalDataInTheLog: after digests and failures the log holds no address, subject, text, key or server words;
+///   - TestNoDoubleSend (Story 23.15, Task 2): a failed send of an approval that may still have reached the server (a timeout or a connection lost during DATA once the message data began) or an error after the message was handed
+///     over answers MESSAGEMAYHAVESENT and marks the claim maysent, as a keyed tool send does; a send that never reached the server answers MESSAGEUNREACHABLE with the claim marked failed; the claim shows
+///     whether a send began (Began);
+///   - TestMayHaveSentNeedsTheDataBegan, TestOutReadsTheAdaptersDataBegan, TestNoDoubleSend, TestToolKeyFailureClasses (DW-1429): a timeout or a lost connection is may-have-sent only once the message data began (Sender.MayHaveSent with the adapter's
+///     DataBegan): at the greeting, EHLO or DATA before the 354 an approval's or a keyed tool send answers MESSAGEUNREACHABLE (claim failed, or none for the key), after the data began MESSAGEMAYHAVESENT; the adapter
+///     resets the flag at every send, and Out reads the flag of the adapter it holds (none: not begun);
+///   - TestAccepted, TestQuitStageIsSent (DW-1422): a status whose errors are all about QUIT (Sender.Accepted) is a sent email on every path, with its Delivery row and its claim marked sent, while a QUIT error
+///     after an earlier error is a failed send;
 ///   - TestSenderInit, TestSenderTransport, TestSenderTlsSettings, TestSenderNoConnection, TestClassify (ruling c, Sender): OnInit forces the identity check on and ContinueAfterBadSend off
 ///     whatever the settings say; the transport is plain only with the switch on and the host mock, TLS only for OcuTalonClient and OcuTalonClient*, and
 ///     nothing otherwise; %Net.SMTP is given STARTTLS only for the star, the TLS configuration with the identity checked, and no partial send; a send with an empty or foreign SSLConfig, or with no credential, fails at once, before any connection; Classify tells
@@ -820,22 +828,37 @@ Method TestNoDoubleSend()
 	Set thrown = ..Approval("zzemailoutap0052", ..#ADDRESS)
 	Set ^||OcuTalonEmailOutProbe("answer") = "throw"
 	Set three = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", thrown)
-	Do $$$AssertEquals(three.Ok_"|"_three.Outcome, "0|failed", "an error after the claim answers failed")
+	Do $$$AssertEquals(three.Ok_"|"_three.Outcome_"|"_three.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "an error after the message was handed over answers failed with MESSAGEMAYHAVESENT")
 	Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(thrown))
-	Do $$$AssertEquals(row.FallbackReason, "failed", "and marks the claim failed")
+	Do $$$AssertEquals(row.FallbackReason, "maysent", "and marks the claim maysent")
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set four = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", thrown)
-	Do $$$AssertEquals(four.Ok_"|"_four.Outcome, "0|failed", "the same approval again answers failed, never that the email was sent")
+	Do $$$AssertEquals(four.Ok_"|"_four.Outcome_"|"_four.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "the same approval again answers the same sentence, never that the email was sent")
+	// Story 23.15, Task 2: a failed send of an approval that may still have reached the server (a timeout, a connection lost during DATA) answers MESSAGEMAYHAVESENT, as a keyed tool send does,
+	// and marks its claim maysent, so that the same approval again says the same; a send that never reached the server (a connect or EHLO failure) still answers MESSAGEUNREACHABLE, claim failed.
 	For answer = "timeout", "dropped" {
 		Set mayHave = ..Approval($Case(answer, "timeout": "zzemailoutap0054", : "zzemailoutap0055"), ..#ADDRESS)
 		Set ^||OcuTalonEmailOutProbe("answer") = answer
 		Set six = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", mayHave)
 		Kill ^||OcuTalonEmailOutProbe("answer")
-		Do $$$AssertEquals(six.Ok_"|"_six.Outcome_"|"_six.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": a system send that may have reached the server keeps its class sentence")
+		Do $$$AssertEquals(six.Ok_"|"_six.Outcome_"|"_six.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), answer_": an approval send that may have reached the server answers MESSAGEMAYHAVESENT")
 		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(mayHave))
-		Do $$$AssertEquals(row.FallbackReason, "failed", answer_": and its claim is marked failed, not maysent")
+		Do $$$AssertEquals(row.FallbackReason, "maysent", answer_": and its claim is marked maysent")
+		Do $$$AssertEquals($ClassMethod(..#PROBE, "Began", mayHave), 1, answer_": and the claim shows that the send began")
+		Set calls = ..Delivered()
 		Set seven = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", mayHave)
-		Do $$$AssertEquals(seven.Ok_"|"_seven.Outcome_"|"_seven.Message, "0|failed|"_$Parameter("OcuTalon.Core.CommandsIn", "MESSAGEFAILED"), answer_": the same approval again answers failed")
+		Do $$$AssertEquals(seven.Ok_"|"_seven.Outcome_"|"_seven.Message_"|"_(..Delivered() - calls), "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT")_"|0", answer_": the same approval again answers the same and delivers nothing")
+	}
+	// DW-1429: a timeout at the greeting or EHLO, or a connection lost at DATA before the server's 354, is a send whose message data never began: MESSAGEUNREACHABLE, claim failed, not may-have-sent.
+	For answer = "unreachable", "lost", "timeoutearly", "droppedearly" {
+		Set never = ..Approval($Case(answer, "unreachable": "zzemailoutap0056", "lost": "zzemailoutap0057", "timeoutearly": "zzemailoutap0058", : "zzemailoutap0059"), ..#ADDRESS)
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set eight = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", never)
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Do $$$AssertEquals(eight.Ok_"|"_eight.Outcome_"|"_eight.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": a send that never reached the server answers MESSAGEUNREACHABLE")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(never)).FallbackReason_"|"_$ClassMethod(..#PROBE, "Began", never), "failed|0", answer_": its claim is marked failed and the send had not begun")
+		Set nine = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", never)
+		Do $$$AssertEquals(nine.Ok_"|"_nine.Outcome_"|"_nine.Message, "0|failed|"_$Parameter("OcuTalon.Core.CommandsIn", "MESSAGEFAILED"), answer_": the same approval again answers MESSAGEFAILED, which says that nothing was handed over")
 	}
 	Set pending = ..Approval("zzemailoutap0053", ..#ADDRESS)
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutpending", pending, "", "", "", "", "pending"), "the claim of a send that never finished (its job stopped during the send) is made")
@@ -893,12 +916,12 @@ Method TestToolKeySendsOnce()
 	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
 	Set ^||OcuTalonEmailOutProbe("answer") = "throw"
 	Set thrown = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-7")
-	Do $$$AssertEquals(thrown.Ok_"|"_thrown.Outcome_"|"_thrown.Message, "0|failed|"_failed, "an error after the claim answers failed")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, ..Hash("zzkey-7"))).FallbackReason, "failed", "and marks the claim failed")
+	Do $$$AssertEquals(thrown.Ok_"|"_thrown.Outcome_"|"_thrown.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "an error after the message was handed over answers MESSAGEMAYHAVESENT")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, ..Hash("zzkey-7"))).FallbackReason, "maysent", "and marks the claim maysent")
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set calls = ..Delivered()
 	Set repeated = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-7")
-	Do $$$AssertEquals(repeated.Ok_"|"_repeated.Outcome_"|"_repeated.Message, "0|failed|"_failed, "the same key again answers failed, never that the email was sent")
+	Do $$$AssertEquals(repeated.Ok_"|"_repeated.Outcome_"|"_repeated.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "the same key again answers the same, never that the email was sent")
 	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
 	Set approval = ..Approval("zzemailoutap0060", ..#ADDRESS)
 	Set viaTool = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", approval, "zzkey-8")
@@ -968,7 +991,7 @@ Method TestToolKeyIsLocked()
 Method TestToolKeyFailureClasses()
 {
 	Do ..Mailbox()
-	For answer = "unreachable", "lost", "refused", "rejected" {
+	For answer = "unreachable", "lost", "refused", "rejected", "timeoutearly", "droppedearly" {
 		Set expected = $Case(answer, "refused": $Parameter(..#PROBE, "MESSAGEREFUSEDLOGIN"), "rejected": $Parameter(..#PROBE, "MESSAGEREJECTED"), : $Parameter(..#PROBE, "MESSAGEUNREACHABLE"))
 		Set key = "zzkey-class-"_answer
 		Set hash = ..Hash(key)
@@ -1180,6 +1203,7 @@ Method TestSenderInit()
 	Set adapter.SSLCheckServerIdentity = 0, adapter.ContinueAfterBadSend = 1
 	Set sc = adapter.OnInit()
 	Do $$$AssertStatusOK(sc, "OnInit is OK")
+	Do $$$AssertEquals(adapter.SMTP.%ClassName(1), "OcuTalon.Channel.Email.SMTP", "the SMTP client is the one that knows when the message data began (DW-1429)")
 	Do $$$AssertEquals(adapter.SSLCheckServerIdentity_"|"_adapter.SMTP.SSLCheckServerIdentity, "1|1", "the identity check is on, in the setting and in %Net.SMTP")
 	Do $$$AssertEquals(adapter.ContinueAfterBadSend_"|"_adapter.SMTP.ContinueAfterBadSend, "0|0", "ContinueAfterBadSend is off, in the setting and in %Net.SMTP")
 	Set timeouts = adapter.SMTP
@@ -1339,6 +1363,144 @@ Method TestClassify()
 		Do $$$AssertEquals($ClassMethod(class, "Classify", $SYSTEM.Status.Error(code, "a", "b")), "unreachable", code_" is unreachable")
 	}
 	Do $$$AssertEquals($ClassMethod(class, "Classify", $SYSTEM.Status.Error(6156, "a", "b")), "unreachable", "6156 (the server name does not match the certificate) is unreachable")
+}
+
+/// DW-1429, Sender.MayHaveSent: a timeout or a lost connection is may-have-sent only once the message data began (the adapter's DataBegan). The decision for each status with the flag on and off, and the
+/// flag of the adapter: a send whose SMTP object stalls before the data leaves it 0, one that stalls after the data began leaves it 1, and a send that fails before it reaches the SMTP object (no
+/// credential) does not keep the 1 of the send before it.
+Method TestMayHaveSentNeedsTheDataBegan()
+{
+	Set class = "OcuTalon.Channel.Email.Sender"
+	Set timeout = $$$ERROR($$$SMTPTimeout)
+	Set lostData = $$$ERROR($$$SMTPConnectionFailed, "DATA", "<READ>")
+	Set lostEarly = $$$ERROR($$$SMTPConnectionFailed, "init", "<READ>")
+	Set answered = $$$ERROR($$$SMTPResponse, "message headers", "554 no")
+	Set cases = $ListBuild($ListBuild("a timeout", timeout, 1), $ListBuild("a connection lost during DATA", lostData, 1), $ListBuild("a connection lost before the greeting", lostEarly, 0), $ListBuild("an error answer", answered, 0), $ListBuild("a refused login", $$$ERROR($$$SMTPAUTHFailed), 0), $ListBuild("a connection that cannot be opened", $$$ERROR($$$SMTPOpen), 0))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do $$$AssertEquals($ClassMethod(class, "MayHaveSent", $List(case, 2), 1), $List(case, 3), $List(case, 1)_", with the message data begun, is "_$Select($List(case, 3): "may-have-sent", 1: "not"))
+		Do $$$AssertEquals($ClassMethod(class, "MayHaveSent", $List(case, 2), 0), 0, $List(case, 1)_", before the message data began, is never may-have-sent")
+	}
+	Do $$$AssertEquals($ClassMethod(class, "MayHaveSent", timeout), 0, "with no flag given a timeout is not may-have-sent")
+	Do $$$AssertEquals($ClassMethod(class, "MayHaveSent", $$$OK, 1), 0, "an OK status is never may-have-sent")
+	Kill ^||OcuTalonEmailOutSender
+	Set ^||OcuTalonEmailOutSender("switch") = 0
+	Set ^||OcuTalonEmailOutSender("user") = "zzuser"
+	Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+	Set adapter.SMTP = ##class(OcuTalon.Test.Channel.EmailOutSmtp).%New()
+	Set adapter.SMTPServer = "smtp.example.com", adapter.SSLConfig = "OcuTalonClient", adapter.Credentials = "ZzNoSuchCredential"
+	Set ^||OcuTalonEmailOutSender("status") = timeout
+	For began = 0, 1 {
+		Set ^||OcuTalonEmailOutSender("databegan") = began
+		Set sc = adapter.SendMail(..Message())
+		Do $$$AssertEquals($$$StatusEquals(sc, $$$SMTPTimeout), 1, "the send fails with the timeout of the SMTP object")
+		Do $$$AssertEquals(adapter.DataBegan(), began, "the adapter's flag is the SMTP object's ("_began_")")
+		Do $$$AssertEquals($ClassMethod(class, "MayHaveSent", sc, adapter.DataBegan()), began, "so a timeout is may-have-sent only if the data began ("_began_")")
+	}
+	Kill ^||OcuTalonEmailOutSender("user"), ^||OcuTalonEmailOutSender("status")
+	Set sc = adapter.SendMail(..Message())
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 6167, "a send with no credential fails before the SMTP object is used")
+	Do $$$AssertEquals(adapter.DataBegan(), 0, "and does not keep the flag of the send before it")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).%New().DataBegan(), 0, "an adapter with no SMTP object has no data begun")
+	Kill ^||OcuTalonEmailOutSender
+}
+
+/// DW-1429, Out.DataBegan: Out takes the flag of the send from the adapter it holds (the host's Adapter), so a timeout is may-have-sent (MESSAGEMAYHAVESENT, claim maysent) exactly when that adapter's
+/// SMTP object says that the message data began, and MESSAGEUNREACHABLE (claim failed) when it does not. The probe answers Out's own DataBegan here (realflag), not its stand-in.
+Method TestOutReadsTheAdaptersDataBegan()
+{
+	Do ..Mailbox()
+	Set ^||OcuTalonEmailOutProbe("realflag") = 1
+	Set ^||OcuTalonEmailOutProbe("answer") = "timeout"
+	For began = 1, 0 {
+		Set adapter = ##class(OcuTalon.Test.Channel.EmailOutSender).%New()
+		Set adapter.SMTP = ##class(OcuTalon.Test.Channel.EmailOutSmtp).%New()
+		Set adapter.SMTP.DataBegan = began
+		Set ref = ..Approval("zzemailoutap008"_began, ..#ADDRESS)
+		Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+		Do $$$AssertStatusOK(sc, "the probe is made")
+		Set probe.Adapter = adapter
+		Set sc = probe.OnSendEmail(..Command("system", ..#OWNER, ..#ADDRESS, "fix", "text", ref, ""), .response)
+		Do $$$AssertStatusOK(sc, "the status is OK")
+		Set expected = $Parameter(..#PROBE, $Select(began: "MESSAGEMAYHAVESENT", 1: "MESSAGEUNREACHABLE"))
+		Do $$$AssertEquals(response.Ok_"|"_response.Message, "0|"_expected, "a timeout with the adapter's data begun "_began_" answers "_$Select(began: "MESSAGEMAYHAVESENT", 1: "MESSAGEUNREACHABLE"))
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(ref)).FallbackReason, $Select(began: "maysent", 1: "failed"), "and its claim is marked "_$Select(began: "maysent", 1: "failed"))
+	}
+	Kill ^||OcuTalonEmailOutProbe("realflag"), ^||OcuTalonEmailOutProbe("answer")
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Set ^||OcuTalonEmailOutProbe("realflag") = 1
+	Set ^||OcuTalonEmailOutProbe("answer") = "timeout"
+	Set probe.Adapter = $$$NULLOREF
+	Set ref = ..Approval("zzemailoutap0082", ..#ADDRESS)
+	Set sc = probe.OnSendEmail(..Command("system", ..#OWNER, ..#ADDRESS, "fix", "text", ref, ""), .response)
+	Do $$$AssertEquals(response.Message, $Parameter(..#PROBE, "MESSAGEUNREACHABLE"), "a host with no adapter has no data begun: a timeout answers MESSAGEUNREACHABLE")
+	Kill ^||OcuTalonEmailOutProbe("realflag"), ^||OcuTalonEmailOutProbe("answer")
+}
+
+/// DW-1422, Sender.Accepted: a failed status whose errors are all about QUIT means that the server took the message; any other error in the status, or an OK status, gives 0.
+Method TestAccepted()
+{
+	Set class = "OcuTalon.Channel.Email.Sender"
+	Set quitResponse = $$$ERROR($$$SMTPResponse, "QUIT", "421 closing")
+	Set quitLost = $$$ERROR($$$SMTPConnectionFailed, "QUIT", "<WRITE>")
+	Set earlier = $$$ERROR($$$SMTPResponse, "RCPT TO", "550 no")
+	Set both = $$$ADDSC(earlier, quitResponse)
+	Set bothQuit = $$$ADDSC(quitResponse, quitLost)
+	Set lostEarlier = $$$ERROR($$$SMTPConnectionFailed, "DATA", "<READ>")
+	Set lostThenQuit = $$$ADDSC(lostEarlier, quitResponse)
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", quitResponse), 1, "an answer to QUIT that is not 2xx, alone, is accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", quitLost), 1, "a connection that fails on QUIT, alone, is accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", bothQuit), 1, "two QUIT-stage errors are accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", both), 0, "the answer to QUIT after an error of an earlier command is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", lostThenQuit), 0, "a connection lost during DATA, then the answer to QUIT, is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", 0), 0, "a failed status with no error behind it is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", lostEarlier), 0, "a connection lost during DATA alone is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", earlier), 0, "the answer to RCPT TO alone is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", $$$ERROR($$$SMTPTimeout)), 0, "a timeout is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", $$$OK), 0, "an OK status needs no decision")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", ""), 0, "nor does an empty one")
+	Do $$$AssertEquals($ClassMethod(class, "Classify", quitResponse), "rejected", "Classify still says rejected for the QUIT answer: only Out's use of Accepted turns it into a sent email")
+}
+
+/// DW-1422, every kind of email: a send whose only failure is the answer to QUIT (the server took the message) answers sent and records the delivery, for a tool send, a keyed tool send, an
+/// approved system send and the digest, and the claim of the approval and of the key is marked sent. A QUIT error after an earlier error is still a failed send.
+Method TestQuitStageIsSent()
+{
+	Do ..Mailbox()
+	Set sent = $Parameter(..#PROBE, "MESSAGESENT")
+	For answer = "quit", "quitlost" {
+		Kill ^||OcuTalonEmailOutProbe("sent"), ^||OcuTalonEmailOutProbe("calls")
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set before = ..Deliveries(..#OWNER)
+		Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_sent, answer_": a tool send is sent")
+		Do $$$AssertEquals(..Deliveries(..#OWNER), before + 1, answer_": and its Delivery row is recorded")
+		Set key = "zzkey-quit-"_answer
+		Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_sent, answer_": a keyed tool send is sent")
+		Set id = ..KeyRowId(..#OWNER, ..Hash(key))
+		Do $$$AssertEquals($Select(id = "": "<none>", 1: "["_##class(OcuTalon.Data.Delivery).%OpenId(id).FallbackReason_"]"), "[]", answer_": and its claim is marked sent")
+		Set list = "zza@example.com,zzb@example.com"
+		Set approval = ..Approval("zzemailoutquit"_$Case(answer, "quit": "1", : "2"), list)
+		Set result = ..Send("system", "", list, "fix", "text", approval)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_sent, answer_": an approved email is sent")
+		Set claim = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(approval))
+		Do $$$AssertEquals(..Claims(approval)_"|["_claim.FallbackReason_"]", "1|[]", answer_": with one claim, marked sent")
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Set again = ..Send("system", "", list, "fix", "text", approval)
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|already_sent", answer_": the same approval again is already sent and delivers nothing more")
+		Set calls = ..Delivered()
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set slots = ..DigestSlots(5)
+		Do ..Notify("digest", ..#OWNER, slots, "ZzQuit"_answer)
+		Do $$$AssertEquals(..Delivered(), calls + 1, answer_": a digest is delivered")
+		Do ..Notify("digest", ..#OWNER, slots, "ZzQuit"_answer)
+		Do $$$AssertEquals(..Delivered(), calls + 1, answer_": and is recorded as sent, so the same digest is not sent again")
+	}
+	Kill ^||OcuTalonEmailOutProbe("answer")
+	Set ^||OcuTalonEmailOutProbe("answer") = "quitafter"
+	Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEREJECTED"), "a QUIT error after an earlier error is a failed send, rejected")
 }
 
 /// --- helpers ---

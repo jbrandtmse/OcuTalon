@@ -12,6 +12,9 @@
 ///     Approval.Answer, the real FixExecutor sends exactly that email once through the real CommandsIn and EmailOut (origin system, the request's Ref: one Delivery row of the approval), the request is
 ///     done, its FixRun has no incident and counts one, one Action entry names the Ref and the IRIS user who approved it (AD-17); a second outcome, an Execute and a second answer send nothing more;
 ///   - TestSeededApprovedRowSendsOnce (Task 0, item 1): a seeded approved row of two recipients, handed to the real FixExecutor as an approved outcome, is sent once to both with origin system;
+///   - TestQuitFailureAfterTheMailIsSent (DW-1422): a stub that keeps the mail and answers QUIT with an error ends the approved email done, with one mail, one claim marked sent and a FixRun that counts one sent;
+///   - TestSmtpKnowsWhenTheDataBegan (DW-1429): the real SMTP client of the adapter (Channel.Email.SMTP) against the stub's stall modes: a server that never sends its greeting, and one that answers DATA with an error, leave DataBegan at 0, so a timeout there is
+///     not may-have-sent; one that never answers the end of the message leaves it at 1, so that timeout is may-have-sent (Sender.MayHaveSent); a normal send ends OK with it at 1;
 ///   - TestRejectedAndExpiredSendNothing: a rejected request (its outcome sent by the hold) and an expired one (Approval.Expire moves the row only, so the test hands FixExecutor the expired
 ///     outcome that the hold's timer would send) send nothing and change nothing more, once FixExecutor has logged its one info line for the outcome;
 ///   - TestNotApprovedSendsNothing (AD-16's one test per kind, matrix row Not approved): an Execute and an approved ApprovalOutcome for a pending, rejected, expired or cancelled row, for a row of another
@@ -624,6 +627,57 @@ Method TestSeededApprovedRowSendsOnce()
 	If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Total_"|"_run.Resent_"|"_run.Reason, "|1|1|", "the FixRun counts one, sent, with no incident")
 }
 
+/// DW-1422, over the wire: the stub keeps the mail and answers QUIT with a 421, so %Net.SMTP's only error is the answer to QUIT: the approved email ends done, sent, with one claim marked sent and one mail in the stub.
+Method TestQuitFailureAfterTheMailIsSent()
+{
+	If '..Setup() Quit
+	Do $$$AssertEquals(..SmtpControl("failure", {"mode": "quit"}), 1, "the stub answers QUIT with an error after it has taken the mail")
+	Set ref = ..Seed(..Owner, "approved")
+	Do $$$AssertStatusOK(..SendOutcome(ref), "the approved outcome is handled")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref).State, "done", "the request is done")
+	Set state = ..SmtpState()
+	Do $$$AssertEquals(state.messages.%Size()_"|"_state.connections_"|"_state.commands.QUIT, "1|1|1", "the stub holds the mail and counted one connection and one QUIT: one try")
+	Do $$$AssertEquals(..EmailDeliveries(..Owner, ref), 1, "the claim of the approval is one Delivery row")
+	Set claim = ##class(%SQL.Statement).%ExecDirect(, "SELECT FallbackReason FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", ref)
+	Do claim.%Next()
+	Do $$$AssertEquals("["_claim.%Get("FallbackReason")_"]", "[]", "marked sent, not failed")
+	Set run = ..WaitEmailRun(ref)
+	If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Total_"|"_run.Resent_"|"_run.Reason, "|1|1|", "the FixRun counts one, sent, with no reason")
+	Do ..SmtpControl("reset", {})
+}
+
+/// DW-1429, over the wire: the adapter's own SMTP client (Channel.Email.SMTP, with short timeouts) sets DataBegan only once the stub has answered DATA with its 354. A stub that never sends its greeting (the stand-in of an implicit-TLS port
+/// used without TLS) times the send out with DataBegan 0, so Sender.MayHaveSent says no; one that answers DATA with an error fails the send with DataBegan 0; one that never answers the end of the message times the send out with DataBegan 1, which
+/// is may-have-sent; and a normal send is OK.
+Method TestSmtpKnowsWhenTheDataBegan()
+{
+	If '..Setup() Quit
+	// mode | does the send end OK | the timeout's status expected | DataBegan | MayHaveSent
+	Set cases = $ListBuild($ListBuild("none", 1, 0, 1, 0), $ListBuild("stall-greeting", 0, 1, 0, 0), $ListBuild("stall-data", 0, 1, 1, 1), $ListBuild("error", 0, 0, 0, 0))
+	// One SMTP object for every mode, so that a send that stops early after one whose data began shows that Send starts with DataBegan at 0.
+	Set smtp = ##class(OcuTalon.Channel.Email.SMTP).%New()
+	Set smtp.smtpserver = ..#STUBHOST, smtp.port = ..#SMTPPORT
+	For command = "EHLO", "HELO", "MAIL", "RCPT", "AUTH", "STARTTLS", "RSET", "QUIT", "DATA", ##class(%Net.SMTP).#TimeoutKeyInitial, ##class(%Net.SMTP).#TimeoutKeyDataTermination {
+		Set smtp.Timeouts(command) = 2
+	}
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set mode = $List(case, 1)
+		Do $$$AssertEquals(..SmtpControl("failure", {"mode": (mode)}), 1, mode_": the stub is set to the mode")
+		Set message = ##class(%Net.MailMessage).%New("UTF-8")
+		Set message.From = "zzsmtp@example.test"
+		Set message.Subject = "zz"
+		Do message.To.Insert("zzsmtpto@example.test")
+		Do message.TextData.Write("zz")
+		Set sc = smtp.Send(message)
+		Do $$$AssertEquals($$$ISOK(sc), $List(case, 2), mode_": the send "_$Select($List(case, 2): "is OK", 1: "fails"))
+		Do $$$AssertEquals($$$StatusEquals(sc, $$$SMTPTimeout), $List(case, 3), mode_": "_$Select($List(case, 3): "it is a timeout", 1: "it is not a timeout"))
+		Do $$$AssertEquals(smtp.DataBegan, $List(case, 4), mode_": DataBegan is "_$List(case, 4))
+		Do $$$AssertEquals(##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc, smtp.DataBegan), $List(case, 5), mode_": MayHaveSent is "_$List(case, 5))
+	}
+	Do ..SmtpControl("reset", {})
+}
+
 /// A rejected request and an expired one send nothing and change nothing more (matrix row Rejected / expired).
 Method TestRejectedAndExpiredSendNothing()
 {
@@ -762,6 +816,60 @@ Method TestCommandsInGivesNoAnswerEndsFailed()
 		Set entries = ..EmailEntries(since)
 		Do $$$AssertEquals(entries.%Size(), 1, mode_": one Action entry of the action email")
 		If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.result_"|"_entries.%Get(0).data.approvalRef, "failed|"_ref, mode_": it says failed and names the request")
+	}
+	Kill ^OcuTalonTest("CommandsDouble")
+	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")
+}
+
+/// A CommandsIn that gives no usable answer for an approved email whose EmailOut claim already exists (the send began): the run ends failed with MESSAGEMAYHAVESENT, not MESSAGEFAILED; a claim
+/// marked failed (nothing was handed over) keeps MESSAGEFAILED.
+Method TestCommandsInGivesNoAnswerAfterTheSendBegan()
+{
+	If '..Setup() Quit
+	If '..UseDouble() Quit
+	Set maySent = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEMAYHAVESENT")
+	Set failed = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	For mode = "fail", "empty" {
+		For mark = "pending", "failed" {
+			Kill ^OcuTalonTest("CommandsDouble")
+			Set ^OcuTalonTest("CommandsDouble", mode) = 1
+			Set ref = ..Seed(..Owner, "approved")
+			Set claim = ""
+			Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..Owner, "email", ##class(OcuTalon.Bridge.Ids).NewRef(), ref, "", "", "", "", mark, .claim, ""), mode_"/"_mark_": the claim of the approval is written")
+			Do $$$AssertStatusOK(..SendOutcome(ref), mode_"/"_mark_": an approved outcome is handled")
+			Do $$$AssertEquals(..WaitState(ref, "failed"), "failed", mode_"/"_mark_": the request ends failed")
+			Set run = ..WaitEmailRun(ref)
+			Do $$$AssertTrue($IsObject(run), mode_"/"_mark_": it has a FixRun")
+			If $IsObject(run) Do $$$AssertEquals(run.Reason, $Select(mark = "pending": maySent, 1: failed), mode_"/"_mark_": the reason is MESSAGEMAYHAVESENT for a claim that began and MESSAGEFAILED for one marked failed")
+		}
+	}
+	Kill ^OcuTalonTest("CommandsDouble")
+	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")
+}
+
+/// An answer that comes back Ok 0 (Story 23.15, Fix.Kind.Email SubmitApproved): MESSAGEFAILED with the approval's claim pending (the send began, as for a repeat of a send that a stop cut
+/// off) ends the run failed with MESSAGEMAYHAVESENT; with the claim marked failed it stays MESSAGEFAILED; and any other sentence of EmailOut is kept as it is, claim or not.
+Method TestAnsweredFailureAfterTheSendBegan()
+{
+	If '..Setup() Quit
+	If '..UseDouble() Quit
+	Set maySent = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEMAYHAVESENT")
+	Set failed = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	Set rejected = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEREJECTED")
+	For answer = "failed", "rejected" {
+		For mark = "pending", "failed" {
+			Kill ^OcuTalonTest("CommandsDouble")
+			Set ^OcuTalonTest("CommandsDouble", "refuse", "SendEmail") = $Select(answer = "failed": failed, 1: rejected)
+			Set ref = ..Seed(..Owner, "approved")
+			Set claim = ""
+			Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..Owner, "email", ##class(OcuTalon.Bridge.Ids).NewRef(), ref, "", "", "", "", mark, .claim, ""), answer_"/"_mark_": the claim of the approval is written")
+			Do $$$AssertStatusOK(..SendOutcome(ref), answer_"/"_mark_": an approved outcome is handled")
+			Do $$$AssertEquals(..WaitState(ref, "failed"), "failed", answer_"/"_mark_": the request ends failed")
+			Set run = ..WaitEmailRun(ref)
+			Do $$$AssertTrue($IsObject(run), answer_"/"_mark_": it has a FixRun")
+			Set expected = $Select(answer = "rejected": rejected, mark = "pending": maySent, 1: failed)
+			If $IsObject(run) Do $$$AssertEquals(run.Reason, expected, answer_"/"_mark_": the reason is MESSAGEMAYHAVESENT only for MESSAGEFAILED with a claim that began")
+		}
 	}
 	Kill ^OcuTalonTest("CommandsDouble")
 	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")

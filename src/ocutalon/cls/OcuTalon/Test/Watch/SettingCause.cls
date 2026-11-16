@@ -17,6 +17,8 @@
 ///   - TestShownRedacted (Story 24.4a, AC2): a setting's value that holds a token (a URL) is shown redacted, a plain value as it is, in the incident payload, the approval payload of the
 ///     rollback and the undo, and the slots of the four notice keys (and the phone text rendered from them); the SettingChange row and the stored dry run stay raw; a 1,000-character
 ///     value exports;
+///   - TestRequestAfter (DW-1378): the incident payload's request part of a setting kind carries the after of its dry run, redacted as the result notice's {after}, and the band's slots render to the chat's result line, the DW-1366 case included; a dry run with no after, and another kind, carry none;
+///   - TestRequestAfterStates (DW-1378): a pending, approved, executing, not-applied and done setting request all carry the dry run's after, trimmed as the chat trims it, and only an ended run has a result;
 ///   - TestValuesHandoff (AC6): Fix.Executor OfferValues gives a dry run with redacted values and a reference, TakeValues puts the raw values back byte for byte and deletes the entry, an
 ///     entry that is not taken expires, a dry run with no reference is left as it is and a reference that is gone is an error that leaves no raw value;
 ///   - TestValuesExpireDefault (AC6, the Planner's V6): the default lifetime is 60 seconds, and an entry that nobody takes is gone after it, and still held before;
@@ -489,6 +491,137 @@ Method TestShownRedacted()
 	Set sc = payload.%JSONExportToString(.json)
 	Do $$$AssertStatusOK(sc, "the payload of a 1,000-character token value exports")
 	Do $$$AssertTrue($Find($Get(json), mark) > 0, "and holds the marker")
+}
+
+/// A setting kind's request of the fixture incident, done with a done run: kind, the dry run (an object) and the change it names. Gives the request's Ref.
+ClassMethod DoneRequest(kind As %String, dry As %DynamicObject, change As %String) As %String
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ref = $ClassMethod(fixture, "Approval", "zzowner", ..#INCIDENT, "done", , {"FixKind": (kind), "FixParameters": ({"change": (change)}.%ToJSON()), "DryRun": (dry.%ToJSON())})
+	Do $ClassMethod(fixture, "FixRun", ..#INCIDENT, ref, {"Total": 1, "Completed": 1})
+	Quit ref
+}
+
+/// DW-1378: the request part of a setting kind carries the after of its stored dry run, as Shown gives it, and the band's slots (the incident's setting and item, the part's after)
+/// render to the result line that the chat sends for the same run (IncidentManager ResultExtra and ResultSlots, the dry run's after through Shown): for a rollback, for an
+/// undo whose after is the recorded new value, for the DW-1366 undo whose after is the default that moved (the recorded new value would contradict the chat), and for a value with
+/// a token. A dry run with no after gives no part after and no chat line; a suspend's dry run has an after that never reaches its part. mutation: the part's after from the change's
+/// recorded new value; ShownAfter without Shown; the Set of the part's after above the kind test of Chosen.
+Method TestRequestAfter()
+{
+	Set token = ..Token()
+	Do ..Snapshot("2026-11-01T00:00:00Z")
+	Set change = ..Change("2026-11-10T11:56:00Z", "Fails", "PoolSize", "1", "7")
+	Set incident = ..Incident("Fails", change)
+	Set base = {"item": "Fails", "field": "PoolSize"}
+	Set rollback = ..DryOf(base, "7", "1")
+	Set refs = ..DoneRequest("rollback_setting", rollback, change)
+	Set dries(1) = rollback
+	Set undo = ..DryOf(base, "1", "7")
+	Set refs = refs_","_..DoneRequest("undo_rollback", undo, change)
+	Set dries(2) = undo
+	Set moved = ..DryOf(base, "1", "9")
+	Set refs = refs_","_..DoneRequest("undo_rollback", moved, change)
+	Set dries(3) = moved
+	Set tokened = ..DryOf(base, "1", ..TokenUrl())
+	Set refs = refs_","_..DoneRequest("undo_rollback", tokened, change)
+	Set dries(4) = tokened
+	Set none = {"item": "Fails", "field": "PoolSize", "before": "1"}
+	Set refs = refs_","_..DoneRequest("undo_rollback", none, change)
+	Set suspend = ##class(OcuTalon.Test.Data.Fixture).Approval("zzowner", ..#INCIDENT, "done", , {"FixKind": "suspend_item", "FixParameters": ({"item": "Fails"}.%ToJSON()), "DryRun": ({"item": "Fails", "before": "enabled", "after": "disabled"}.%ToJSON())})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(..#INCIDENT, suspend, {"Total": 1, "Completed": 1})
+	Set refs = refs_","_suspend
+	Set incident.RequestRefs = refs
+	Do $$$AssertStatusOK(incident.%Save(), "the incident lists the six requests")
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident)
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Size(), 6, "six request parts")
+	If object.requests.%Size() '= 6 Quit
+	Set shown = "https://feed.example.test/orders?token=[redacted]"
+	Set afters = ""
+	For i = 0:1:5 Set afters = afters_$Select(i: ",", 1: "")_$Select(object.requests.%Get(i).%IsDefined("after"): object.requests.%Get(i).after, 1: "-")
+	Do $$$AssertEquals(afters, "1,7,9,"_shown_",-,-", "each setting request carries its dry run's after; a dry run with none, and another kind's request, carry none")
+	Do $$$AssertEquals($Find(json, token), 0, "the payload holds no token")
+	Do $$$AssertEquals($Find(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen($Piece(refs, ",", 4)).DryRun, token) > 0, 1, "and the request row's dry run still holds it")
+	// the CONDITION: the band names what the chat names
+	Set changeRow = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(change)
+	Set band = payload.SettingChange
+	For i = 1:1:4 {
+		Set kind = $Select(i = 1: "rollback_setting", 1: "undo_rollback")
+		Set key = $Select(i = 1: "result.settingRestored", 1: "result.rollbackUndone")
+		Set dry = dries(i)
+		Set part = object.requests.%Get(i - 1)
+		Set extra = {"setting": (changeRow.Setting), "target": (changeRow.Item), "after": (dry.after)}
+		Set slots = ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc)
+		Do $$$AssertStatusOK(sc, kind_" "_i_": the chat's result slots are made")
+		If '$IsObject(slots) Continue
+		Set chat = ##class(OcuTalon.Msg.Catalog).Render(key, slots.%ToJSON(), "web", .sc)
+		Set bandSlots = {"setting": (band.Setting), "target": (band.Item), "after": (part.after)}
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(key, bandSlots.%ToJSON(), "web", .sc)
+		Do $$$AssertEquals(text, chat, kind_" "_i_": the band names what the chat names: "_chat)
+		Do $$$AssertTrue($$$ISOK(sc) && (text '= "") && (text [ part.after), kind_" "_i_": and that text is rendered, with the part's after in it: "_text)
+		If i = 3 {
+			Do $$$AssertTrue(text [ "is back to 9.", "the DW-1366 band says 9: "_text)
+			Set recorded = {"setting": (band.Setting), "target": (band.Item), "after": (band.NewValue)}
+			Set stale = ##class(OcuTalon.Msg.Catalog).Render(key, recorded.%ToJSON(), "web", .sc)
+			Do $$$AssertTrue((stale [ "is back to 7.") && (stale '= chat), "the recorded new value would contradict the chat: "_stale)
+		}
+	}
+	Set slots = ##class(OcuTalon.Watch.SettingCause).ResultSlots("result.rollbackUndone", {"setting": "PoolSize", "target": "Fails", "after": ""}, .sc)
+	Do $$$AssertTrue($$$ISERR(sc), "with no after the chat has no result line either")
+	Set direct = ##class(OcuTalon.Watch.SettingCause).ShownAfter("not json")_"|"_##class(OcuTalon.Watch.SettingCause).ShownAfter("")_"|"_##class(OcuTalon.Watch.SettingCause).ShownAfter("{""after"": ""  ""}")_"|"_##class(OcuTalon.Watch.SettingCause).ShownAfter("{""after"": "" 7 ""}")
+	Do $$$AssertEquals(direct, "|||7", "ShownAfter gives empty for a dry run that can't be read, one with no after and a blank one, and the trimmed value otherwise")
+}
+
+/// DW-1378, the request part before and beside a result: a setting request that is pending, approved or executing carries the after of its dry run (the value the approval payload's
+/// dry run shows) and no result, so the card has nothing to show as a result; a run that ended without changing the setting (not applied, changed since) carries it too, and the
+/// page's not-applied and changed-since bands never read it; a dry run value with spaces at either end is trimmed, so that the band names the chat's result line. mutation: the Set of the
+/// part's after only for a done request.
+Method TestRequestAfterStates()
+{
+	Do ..Snapshot("2026-11-01T00:00:00Z")
+	Set change = ..Change("2026-11-10T11:56:00Z", "Fails", "PoolSize", "1", "7")
+	Set incident = ..Incident("Fails", change)
+	Set base = {"item": "Fails", "field": "PoolSize"}
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set parameters = ({"change": (change)}.%ToJSON())
+	Set refs = $ClassMethod(fixture, "Approval", "zzowner", ..#INCIDENT, "pending", , {"FixKind": "rollback_setting", "FixParameters": (parameters), "DryRun": (..DryOf(base, "7", "1").%ToJSON())})
+	Set refs = refs_","_$ClassMethod(fixture, "Approval", "zzowner", ..#INCIDENT, "approved", , {"FixKind": "undo_rollback", "FixParameters": (parameters), "DryRun": (..DryOf(base, "1", "7").%ToJSON())})
+	Set refs = refs_","_$ClassMethod(fixture, "Approval", "zzowner", ..#INCIDENT, "executing", , {"FixKind": "undo_rollback", "FixParameters": (parameters), "DryRun": (..DryOf(base, "1", " 9 ").%ToJSON())})
+	Set failed = $ClassMethod(fixture, "Approval", "zzowner", ..#INCIDENT, "failed", , {"FixKind": "undo_rollback", "FixParameters": (parameters), "DryRun": (..DryOf(base, "1", "7").%ToJSON())})
+	Do $ClassMethod(fixture, "FixRun", ..#INCIDENT, failed, {"Total": 1, "Completed": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set refs = refs_","_failed
+	Set padded = ..DryOf(base, "1", "  9  ")
+	Set refs = refs_","_..DoneRequest("undo_rollback", padded, change)
+	Set incident.RequestRefs = refs
+	Do $$$AssertStatusOK(incident.%Save(), "the incident lists the five requests")
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(incident)
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set object = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Size(), 5, "five request parts")
+	If object.requests.%Size() '= 5 Quit
+	Set states = ""
+	For i = 0:1:4 {
+		Set part = object.requests.%Get(i)
+		Set states = states_$Select(i: ",", 1: "")_part.state_"="_$Select(part.%IsDefined("after"): part.after, 1: "-")_"/"_part.%IsDefined("result")
+	}
+	Do $$$AssertEquals(states, "pending=1/0,approved=7/0,executing=9/0,failed=7/1,done=9/1", "every state of a setting request carries its dry run's after, trimmed, and only an ended run has a result")
+	Set changeRow = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(change)
+	Set slots = ##class(OcuTalon.Watch.SettingCause).ResultSlots("result.rollbackUndone", {"setting": (changeRow.Setting), "target": (changeRow.Item), "after": (padded.after)}, .sc)
+	Do $$$AssertStatusOK(sc, "the chat's result slots of the padded value are made")
+	If '$IsObject(slots) Quit
+	Set chat = ##class(OcuTalon.Msg.Catalog).Render("result.rollbackUndone", slots.%ToJSON(), "web", .sc)
+	Set bandSlots = {"setting": (payload.SettingChange.Setting), "target": (payload.SettingChange.Item), "after": (object.requests.%Get(4).after)}
+	Set text = ##class(OcuTalon.Msg.Catalog).Render("result.rollbackUndone", bandSlots.%ToJSON(), "web", .sc)
+	Do $$$AssertEquals(text, chat, "the band of a padded value names what the chat names: "_chat)
+	Do $$$AssertTrue(text [ "is back to 9.", "and it is trimmed: "_text)
+}
+
+/// The dry run of a setting kind on the item and setting of base, with the values before and after.
+ClassMethod DryOf(base As %DynamicObject, before As %String, after As %String) As %DynamicObject
+{
+	Quit {"item": (base.item), "field": (base.field), "before": (before), "after": (after)}
 }
 
 /// 1 when the hand-off entry that the reference names still exists (its event resource is defined): taken and discarded entries are deleted, not only emptied.

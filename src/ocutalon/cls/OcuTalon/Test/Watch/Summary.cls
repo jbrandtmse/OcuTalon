@@ -37,8 +37,10 @@
 ///   - TestKindLines (Story 23.2, AC14): the requested and ended lines of the suspend, resume and reroute requests, with no message counts for the item runs;
 ///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, with no "the fix started" line, the message counts unchanged and "No fix ran" kept.
 ///   - TestSettingLines (Story 23.3): the requested line of a rollback_setting and of an undo_rollback, the restored, undone and not changed lines of their runs, and message counts that the setting runs leave alone.
-///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365): a rollback_setting run that saved the setting and could not apply it has no ended line.
-///   - TestItemSavedNotAppliedLine (DW-1373): a suspend_item run that stored the flag and could not apply it has no ended line.
+///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365; DW-1376): a rollback_setting run and an undo_rollback run that saved the setting and could not apply it end with summary.settingSavedNotApplied.
+///   - TestItemSavedNotAppliedLine (DW-1373; DW-1376): a suspend_item run and a resume_item run that stored the flag and could not apply it end with summary.settingSavedNotApplied (setting Enabled, target the item).
+///   - TestSavedNotAppliedLineEdges (DW-1376, QA): the not-applied line is only for a run that ended, was not interrupted, completed nothing and has Unreached above 0: the could-not-start, skipped, done, interrupted and message-kind runs keep their own lines, and a setting request without names has none.
+///   - TestSavedNotAppliedLineOrderAndChannels (DW-1376, QA): the line sits at its run's end among the other lines, with the slots of its own run, and renders once for each run on the web, the phone and Telegram.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -810,10 +812,11 @@ Method TestSettingsContactLines()
 	Do $$$AssertEquals($Find(text, "Simulated mailbox"), 0, "and says nothing of the Simulated mailbox")
 }
 
-/// Story 23.13 rework (DW-1416): the timeline of a Settings contact's notice follows EmailOut's answer. A sent run ends with summary.fixEnded; a failed run whose reason is a sentence that says the mail server never
-/// took the email (refused before the send, refused login or sign-in, rejected by the server, email unavailable) ends with the existing summary.partnerNotSent; a failed run whose reason is a sentence that does not say so
-/// (MESSAGEMAYHAVESENT, MESSAGEUNREACHABLE and MESSAGEFAILED: the claim of an approval is marked failed whatever the failure) ends with the new summary.partnerMaySent, which holds only the time: no recipient, subject, text or reason,
-/// and so does a run that a restart cut short (an interrupted request). The line chosen for each answer is asserted in the order of the runs, so each reason is pinned to its own line.
+/// Story 23.15 (DW-1416): the final mapping table of a Settings contact's notice, row by row. Each row is one request of one incident with its run (and, for a restart that cut the run short, the claim row that
+/// EmailOut writes when a send begins), and the three surfaces take the outcome from the one decision, Fix.Kind.PartnerWarning SendOutcome: the timeline's end line (Watch.Summary), the chat's result key
+/// (Watch.Notice ResultKey) and the card's outcome (Live.Payload.Incident, the result's outcome member, from which the card's band follows). Each row's three must agree: sent ends with summary.fixEnded and
+/// fix.emailSent (or result.partnerSkipped when some were skipped), maysent with summary.partnerMaySent, result.partnerMaySent and the outcome maysent, notsent with summary.partnerNotSent, kept with summary.partnerKept.
+/// The line of each row is asserted in the order of the runs, so each answer is pinned to its own line. The summary line holds only the time: no recipient, subject, text or reason.
 /// A failed run of the demo's simulated contact is never "may have been sent": nothing left the Simulated mailbox.
 Method TestSettingsContactMayHaveSent()
 {
@@ -824,41 +827,72 @@ Method TestSettingsContactMayHaveSent()
 	Set parameters = "{""text"":""A notice."",""to"":""7,8""}"
 	Set dryRun = "{""notice"":""A notice."",""recipients"":[7,8],""simulated"":0}"
 	Set out = "OcuTalon.Channel.Email.Out"
+	Do ..DropClaims()
+	// label | request state | completed | skipped | interrupted | reason | the claim's mark ("none" for no claim) | outcome | timeline line | chat key
+	Set rows = $ListBuild(
+		$ListBuild("sent", "done", 2, 0, 0, "", "none", "sent", "summary.fixEnded", "fix.emailSent"),
+		$ListBuild("sent to some, skipped one", "done", 1, 1, 0, "", "none", "sent", "summary.fixEnded", "result.partnerSkipped"),
+		$ListBuild("every recipient skipped", "done", 0, 2, 0, "", "none", "notsent", "summary.partnerNotSent", "result.partnerSkipped"),
+		$ListBuild("kept as a draft", "failed", 0, 0, 0, $Parameter("OcuTalon.Fix.Kind.PartnerWarning", "NOTSETUP"), "none", "kept", "summary.partnerKept", "result.partnerKept"),
+		$ListBuild("MESSAGEMAYHAVESENT", "failed", 0, 0, 0, $Parameter(out, "MESSAGEMAYHAVESENT"), "maysent", "maysent", "summary.partnerMaySent", "result.partnerMaySent"),
+		$ListBuild("cut short after the send began (claim pending)", "failed", 0, 0, 2, "", "pending", "maysent", "summary.partnerMaySent", "result.partnerMaySent"),
+		$ListBuild("cut short after the send began (claim maysent)", "failed", 0, 0, 2, "", "maysent", "maysent", "summary.partnerMaySent", "result.partnerMaySent"),
+		$ListBuild("cut short before the send began (no claim)", "failed", 0, 0, 2, "", "none", "notsent", "summary.partnerNotSent", "result.interrupted"),
+		$ListBuild("cut short, the claim marked failed", "failed", 0, 0, 2, "", "failed", "notsent", "summary.partnerNotSent", "result.interrupted"),
+		$ListBuild("MESSAGEUNREACHABLE (never reached)", "failed", 0, 0, 0, $Parameter(out, "MESSAGEUNREACHABLE"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEFAILED (before the hand-over)", "failed", 0, 0, 0, $Parameter(out, "MESSAGEFAILED"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEREFUSED", "failed", 0, 0, 0, $Parameter(out, "MESSAGEREFUSED"), "none", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGENOTCONNECTED", "failed", 0, 0, 0, $Parameter(out, "MESSAGENOTCONNECTED"), "none", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEREJECTED", "failed", 0, 0, 0, $Parameter(out, "MESSAGEREJECTED"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEREFUSEDLOGIN", "failed", 0, 0, 0, $Parameter(out, "MESSAGEREFUSEDLOGIN"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGESIGNIN", "failed", 0, 0, 0, $Parameter(out, "MESSAGESIGNIN"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEUNAVAILABLE", "failed", 0, 0, 0, $Parameter(out, "MESSAGEUNAVAILABLE"), "none", "notsent", "summary.partnerNotSent", "fix.emailNotSent"))
 	Set refs = ""
-	Set sent = ..Request(owner, incident, "done", ..T(-6000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, sent, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 2, "Resent": 0, "Completed": 2, "FailedAgain": 0, "Skipped": 0})
-	Set refs = sent
-	Set names = "MESSAGEREFUSED,MESSAGENOTCONNECTED,MESSAGEREJECTED,MESSAGEREFUSEDLOGIN,MESSAGESIGNIN,MESSAGEUNAVAILABLE,MESSAGEMAYHAVESENT,MESSAGEUNREACHABLE,MESSAGEFAILED"
-	For i = 1:1:$Length(names, ",") {
-		Set reason = $Parameter(out, $Piece(names, ",", i))
-		Set request = ..Request(owner, incident, "failed", ..T(-5000 + (i * 100)), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900 + (i * 100)))})
-		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"StartedAt": (..T(-4800 + (i * 100))), "EndedAt": (..T(-4700 + (i * 100))), "Total": 2, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Reason": (reason)})
-		Set refs = refs_","_request
+	Set expectedLines = ""
+	For i = 1:1:$ListLength(rows) {
+		Set row = $List(rows, i)
+		Set request = ..Request(owner, incident, $List(row, 2), ..T(-5000 + (i * 100)), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900 + (i * 100)))})
+		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"StartedAt": (..T(-4800 + (i * 100))), "EndedAt": (..T(-4700 + (i * 100))), "Total": 2, "Resent": 0, "Completed": ($List(row, 3)), "FailedAgain": 0, "Skipped": ($List(row, 4)), "Interrupted": ($List(row, 5)), "Reason": ($List(row, 6))})
+		If $List(row, 7) '= "none" Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record("zzsumclaimowner", "email", ##class(OcuTalon.Bridge.Ids).NewRef(), request, "", "", "", "", $Select($List(row, 7) = "sent": "", 1: $List(row, 7)), .claim, "", ""), $List(row, 1)_": the claim is written")
+		Set refs = refs_$Select(refs = "": "", 1: ",")_request
+		Set expectedLines = expectedLines_$ListBuild($List(row, 9))
 	}
-	Set cut = ..Request(owner, incident, "interrupted", ..T(-3000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-2900))})
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, cut, {"StartedAt": (..T(-2800)), "EndedAt": (..T(-2700)), "Total": 2, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Interrupted": 2})
-	Set refs = refs_","_cut
 	Do ..Link(incident, refs)
 	Set result = ..Command(host, "dismiss", incident, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
-	Set keys = ..Keys(row)
-	Do $$$AssertEquals($Length(keys, "summary.fixEnded") - 1, 1, "the sent notice ends with summary.fixEnded: "_keys)
-	Do $$$AssertEquals($Length(keys, "summary.partnerNotSent") - 1, 6, "the six failures that say nothing reached the mail server end with summary.partnerNotSent")
-	Do $$$AssertEquals($Length(keys, "summary.partnerMaySent") - 1, 4, "the three that do not say so and the run that a restart cut short end with summary.partnerMaySent")
+	Set summary = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(summary)
 	Set ends = ""
 	For i = 1:1:$Length(keys, ",") {
 		Set key = $Piece(keys, ",", i)
-		If (key = "summary.fixEnded") || (key = "summary.partnerNotSent") || (key = "summary.partnerMaySent") Set ends = ends_$Piece(key, ".", 2)_" "
+		If (key = "summary.fixEnded") || (key = "summary.partnerNotSent") || (key = "summary.partnerMaySent") || (key = "summary.partnerKept") || (key = "summary.partnerSent") Set ends = ends_$ListBuild(key)
 	}
-	Do $$$AssertEquals(ends, "fixEnded partnerNotSent partnerNotSent partnerNotSent partnerNotSent partnerNotSent partnerNotSent partnerMaySent partnerMaySent partnerMaySent partnerMaySent ", "each answer, in the order of the runs (sent, the six, the three, the cut short), has its own line")
-	Set slots = ..Slots(row, "summary.partnerMaySent")
+	Do $$$AssertEquals($ListToString(ends), $ListToString(expectedLines), "the end line of each run, in the order of the runs, is the line of its row of the table: "_keys)
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(summary)
+	Do $$$AssertEquals(payload.Requests.Count(), $ListLength(rows), "the card's payload has every request")
+	For i = 1:1:$ListLength(rows) {
+		Set row = $List(rows, i)
+		Set label = $List(row, 1)
+		Set part = payload.Requests.GetAt(i)
+		Do $$$AssertEquals($Select($IsObject(part) && $IsObject(part.Result): part.Result.Outcome, 1: "<none>"), $List(row, 8), label_": the card's outcome is "_$List(row, 8))
+		Set fixResult = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set fixResult.ApprovalRef = $Piece(refs, ",", i)
+		Set fixResult.Final = 1
+		Set fixResult.Total = 2
+		Set fixResult.Completed = $List(row, 3)
+		Set fixResult.Skipped = $List(row, 4)
+		Set fixResult.Interrupted = ($List(row, 5) > 0)
+		Set fixResult.Reason = $List(row, 6)
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey($List(row, 2), fixResult, "partner_warning", 0), $List(row, 10), label_": the chat reads "_$List(row, 10))
+	}
+	Set slots = ..Slots(summary, "summary.partnerMaySent")
 	Do $$$AssertTrue($IsObject(slots), "the may-have-sent line has slots")
 	If $IsObject(slots) Do $$$AssertEquals(slots.%ToJSON(), "{""time"":"""_slots.time_"""}", "the may-have-sent line holds only the time: no recipient, subject, text or reason")
 	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
 	Do $$$AssertStatusOK(sc, "the summary renders")
-	Do $$$AssertEquals(($Length(text, ": the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.") - 1)_"|"_($Length(text, ": the delay notice was not sent.") - 1), "4|6", "the lines read as ruled")
+	Do $$$AssertEquals(($Length(text, ": the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.") - 1)_"|"_($Length(text, ": the delay notice was not sent.") - 1), "3|11", "the lines read as ruled")
 	Do $$$AssertEquals($Find(text, "Simulated mailbox")_"|"_$Find(text, "7,8"), "0|0", "and name neither the Simulated mailbox nor a contact id")
+	Do ..DropClaims()
 	// The demo's simulated contact: a failed run, and a run that a restart cut short, are never "may have been sent".
 	Set demo = ..Incident(owner, "resolved", , "OcuTalon.Demo.Orders.Production")
 	Set fixtureParameters = "{""text"":""A notice."",""to"":""1""}"
@@ -872,6 +906,17 @@ Method TestSettingsContactMayHaveSent()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident of the demo's production")
 	Set keys = ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(demo))
 	Do $$$AssertEquals(($Length(keys, "summary.partnerMaySent") - 1)_"|"_($Length(keys, "summary.partnerNotSent") - 1), "0|2", "a failed run and a cut-short run of the simulated contact end with summary.partnerNotSent: "_keys)
+	Set demoPayload = ##class(OcuTalon.Live.Payload.Incident).FromRow(##class(OcuTalon.Data.Incident).RefIndexOpen(demo))
+	Do $$$AssertEquals(demoPayload.Requests.Count(), 2, "the card's payload of the demo's incident has both requests")
+	Do $$$AssertStatusOK(demoPayload.%JSONExportToString(.demoJson), "it exports")
+	Do $$$AssertTrue($Find(demoJson, """result""") > 0, "the export holds the requests' results")
+	Do $$$AssertEquals($Find(demoJson, """outcome"""), 0, "and no outcome member: the simulated notice keeps the 23.5 bands")
+}
+
+/// Removes the claim rows of TestSettingsContactMayHaveSent.
+ClassMethod DropClaims()
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = 'zzsumclaimowner'")
 }
 
 /// Story 23.3 (AC13 of the summary): an incident that ran a done rollback_setting, a done undo_rollback and a rollback_setting that changed nothing has the requested line of
@@ -921,49 +966,199 @@ Method TestSettingLines()
 	Do $$$AssertTrue(text [ ": ZzFixtureNote on OrdersFromPartner was not changed.", "and the not changed line")
 }
 
-/// Story 23.3 (DW-1365, Planner pre-push ruling): a rollback_setting run that saved the setting and could not apply it (Completed 0, Unreached 1, Skipped 0) has its requested line and
-/// its started line, and no ended line: summary.settingNotChanged would say "was not changed" of a setting that was changed, and the summary has no text for this end.
-/// mutation: Watch.SettingCause SummaryRunKey without its Unreached test.
+/// Story 23.3 (DW-1365, Planner pre-push ruling) and DW-1376: a rollback_setting run and an undo_rollback run that saved the setting and could not apply it (Completed 0, Unreached 1,
+/// Skipped 0), for a rollback and an undo, ends with summary.settingSavedNotApplied, which names the setting and the item, and with no summary.settingNotChanged, settingRestored or
+/// rollbackUndone. mutation: SummaryRunKey's not-applied line made Quit "" (no line), or taken out (summary.settingNotChanged).
 Method TestSettingSavedNotAppliedLine()
 {
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set owner = ..Owner("settingsaved")
 	Set incident = ..Incident(owner, "resolved")
+	Set ended = ..T(-5700)
 	Set dryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"
+	Set undoDryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""alpha"",""after"":""beta""}"
 	Set rollback = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
-	Do ..Link(incident, rollback)
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set undo = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "undo_rollback", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (undoDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Do ..Link(incident, rollback_","_undo)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (ended), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, undo, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
 	Set result = ..Command(host, "dismiss", incident, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Set keys = ..Keys(row)
 	Do $$$AssertEquals($Length(keys, "summary.requestedRollback") - 1, 1, "the request has summary.requestedRollback: "_keys)
-	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 2, "each run has its fix started line")
 	Do $$$AssertEquals($Length(keys, "summary.settingNotChanged") - 1, 0, "and no summary.settingNotChanged")
 	Do $$$AssertEquals($Length(keys, "summary.settingRestored") - 1, 0, "and no summary.settingRestored")
+	Do $$$AssertEquals($Length(keys, "summary.settingSavedNotApplied") - 1, 2, "each run that saved the setting and could not apply it ends with summary.settingSavedNotApplied")
+	Do $$$AssertTrue(keys [ "summary.fixStarted,summary.settingSavedNotApplied", "the rollback's line follows its started line")
+	Do $$$AssertEquals($Length(keys, "summary.rollbackUndone") - 1, 0, "and the undo is not reported as undone")
+	Set slots = ..Slots(row, "summary.settingSavedNotApplied")
+	Do $$$AssertEquals($Select($IsObject(slots): slots.time_"|"_slots.setting_"|"_slots.target, 1: ""), ended_"|ZzFixtureNote|OrdersFromPartner", "the line names the setting and the item, at the run's end")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": ZzFixtureNote on OrdersFromPartner was changed, but the production couldn't apply it.", "and reads as ruled")
 }
 
-/// DW-1373: a suspend_item run that stored the item's flag and could not apply it (Completed 0, Unreached 1, Skipped 0) has its requested line and its started line, and no ended line:
-/// summary.itemNotChanged would say that the item was not changed, and the summary has no text for this end. mutation: the Unreached test of Watch.Summary RunEvents' item branch taken out.
+/// DW-1373, DW-1376: a suspend_item run and a resume_item run that stored the item's flag and could not apply it (Completed 0, Unreached 1, Skipped 0) have their requested and started lines
+/// and end with summary.settingSavedNotApplied (the setting Enabled, the item as the target), not summary.itemNotChanged, summary.itemSuspended or summary.itemResumed.
+/// mutation: the item branch's new block made Quit (no line), or taken out (summary.itemNotChanged).
 Method TestItemSavedNotAppliedLine()
 {
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set owner = ..Owner("itemsaved")
 	Set incident = ..Incident(owner, "resolved")
+	Set ended = ..T(-5700)
 	Set dryRun = "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"
+	Set resumeDryRun = "{""item"":""OrdersForReview"",""before"":""disabled"",""after"":""enabled""}"
 	Set suspend = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "suspend_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
-	Do ..Link(incident, suspend)
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set resume = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "resume_item", "FixParameters": ("{""item"":""OrdersForReview""}"), "FixTargets": "6", "DryRun": (resumeDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Do ..Link(incident, suspend_","_resume)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-5800)), "EndedAt": (ended), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, resume, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
 	Set result = ..Command(host, "dismiss", incident, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Set keys = ..Keys(row)
 	Do $$$AssertEquals($Length(keys, "summary.requestedSuspend") - 1, 1, "the request has summary.requestedSuspend: "_keys)
-	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 2, "each run has its fix started line")
 	Do $$$AssertEquals($Length(keys, "summary.itemNotChanged") - 1, 0, "and no summary.itemNotChanged")
 	Do $$$AssertEquals($Length(keys, "summary.itemSuspended") - 1, 0, "and no summary.itemSuspended")
+	Do $$$AssertEquals($Length(keys, "summary.itemResumed") - 1, 0, "and no summary.itemResumed")
+	Do $$$AssertEquals($Length(keys, "summary.settingSavedNotApplied") - 1, 2, "each run ends with summary.settingSavedNotApplied")
+	Do $$$AssertTrue(keys [ "summary.fixStarted,summary.settingSavedNotApplied", "the suspend's line follows its started line")
+	Set slots = ..Slots(row, "summary.settingSavedNotApplied")
+	Do $$$AssertEquals($Select($IsObject(slots): slots.time_"|"_slots.setting_"|"_slots.target, 1: ""), ended_"|Enabled|OrdersToWarehouse", "the item's setting is Enabled and the target is the item, at the run's end")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": Enabled on OrdersToWarehouse was changed, but the production couldn't apply it.", "the suspend reads as ruled")
+	Do $$$AssertTrue(text [ ": Enabled on OrdersForReview was changed, but the production couldn't apply it.", "and so does the resume")
+}
+
+/// DW-1376 (QA), the edges of the not-applied line: only a run that ended, was not interrupted and has Completed 0 with Unreached above 0 gets summary.settingSavedNotApplied. For a
+/// rollback_setting run and a suspend_item run, a run whose restore worked (the run could not start: Completed 0, Skipped 0, Unreached 0) and a run with one skipped keep
+/// summary.settingNotChanged or summary.itemNotChanged, a run with something completed keeps its done line whatever its Unreached (Completed decides, as the spec's condition reads), and an
+/// interrupted run reads summary.fixInterrupted; a rollback_setting request whose dry run names no setting has no ended line; and a reroute (a message kind) with Unreached above 0 ends
+/// with summary.fixEnded and its counts. mutation: SummaryRunKey's condition widened to Completed 0 alone (the not-changed setting runs get the new line); the item branch's condition
+/// widened to Completed 0 alone; the same two conditions made Unreached above 0 alone (the mixed run); the Quit of the interrupted block of Watch.Summary RunEvents taken out; the Names
+/// test of the setting branch taken out; the item branch's TARGETTYPE test made '= "contact".
+Method TestSavedNotAppliedLineEdges()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("savededges")
+	Set new = "summary.settingSavedNotApplied"
+	Set settingDry = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"
+	Set settingParameters = "{""change"":""zzchange0000000000001""}"
+	Set itemDry = "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"
+	Set itemParameters = "{""item"":""OrdersToWarehouse""}"
+	For kind = "rollback_setting", "suspend_item" {
+		Set setting = (kind = "rollback_setting")
+		Set parameters = $Select(setting: settingParameters, 1: itemParameters)
+		Set dryRun = $Select(setting: settingDry, 1: itemDry)
+		Set notChanged = $Select(setting: "summary.settingNotChanged", 1: "summary.itemNotChanged")
+		Set done = $Select(setting: "summary.settingRestored", 1: "summary.itemSuspended")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Unreached": 0})
+		Do $$$AssertEquals(..AfterStarted(keys), notChanged, kind_": a run whose restore worked (could not start, Unreached 0) keeps "_notChanged_": "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Skipped": 1, "Unreached": 0})
+		Do $$$AssertEquals(..AfterStarted(keys), notChanged, kind_": a skipped run keeps "_notChanged_": "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Total": 2, "Completed": 1, "Unreached": 1})
+		Do $$$AssertEquals(..AfterStarted(keys), done, kind_": a run with one completed and one unreached ends with "_done_": "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Interrupted": 1, "Unreached": 1, "Reason": "The update timed out"})
+		Do $$$AssertEquals(..AfterStarted(keys), "summary.fixInterrupted", kind_": an interrupted run with Unreached 1 reads as interrupted: "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 0, kind_": and has no not-applied line")
+		Set keys = ..RunKeys(host, owner, kind, parameters, dryRun, {"Unreached": 1, "Reason": "The update timed out"})
+		Do $$$AssertEquals(..AfterStarted(keys), new, kind_": the run that was saved and not applied ends with the not-applied line (the control of the cases above): "_keys)
+		Do $$$AssertEquals($Length(keys, new) - 1, 1, kind_": exactly once")
+	}
+	Set keys = ..RunKeys(host, owner, "rollback_setting", settingParameters, "{}", {"Unreached": 1, "Reason": "The update timed out"})
+	Do $$$AssertEquals(..AfterStarted(keys), "summary.closedDismiss", "a setting request whose dry run names no setting has no ended line: "_keys)
+	Set keys = ..RunKeys(host, owner, "reroute", "{""target"":""OrdersForReview""}", "{""affected"":3,""resend"":3,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1""}", {"Total": 3, "Skipped": 3, "Unreached": 3, "Reason": "The production is not running"})
+	Do $$$AssertEquals(..AfterStarted(keys), "summary.fixEnded", "a message kind's run with Unreached above 0 ends with the counts: "_keys)
+	Do $$$AssertEquals($Length(keys, new) - 1, 0, "and has no not-applied line")
+}
+
+/// DW-1376 (QA), the line sits at the run's EndedAt and renders on every channel that the summary goes to (the web, the Simulated phone and Telegram; Watch.Summary Text is the only
+/// reader and email has none): a rollback_setting run that is started first and ended last, and a suspend_item run that starts and ends between those two, are ordered by their ends, each line
+/// has the slots of its own run, and each channel renders both lines once, with their slots filled and each time shown as a time (never the stored UTC stamp).
+/// mutation: the setting branch's Event keyed by run.StartedAt instead of run.EndedAt (the line moves before the other request's lines); the catalog entry's time slot declared "text" (the
+/// stored UTC stamp is shown).
+Method TestSavedNotAppliedLineOrderAndChannels()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("savedchannels")
+	Set incident = ..Incident(owner, "resolved")
+	Set settingEnded = ..T(-4600)
+	Set itemEnded = ..T(-4700)
+	Set rollback = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": ("{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Set suspend = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "suspend_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "6", "DryRun": ("{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Do ..Link(incident, rollback_","_suspend)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (settingEnded), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-4800)), "EndedAt": (itemEnded), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(row)
+	Do $$$AssertTrue(keys [ "summary.requestedRollback,summary.approved,summary.fixStarted,summary.requestedSuspend,summary.approved,summary.fixStarted,summary.settingSavedNotApplied,summary.settingSavedNotApplied,summary.closedDismiss", "each line is at its run's end, after the other request's lines that fall between its start and its end: "_keys)
+	Set parts = ..Parts(row, "summary.settingSavedNotApplied")
+	Do $$$AssertEquals(parts.%Size(), 2, "one line for each run")
+	If parts.%Size() = 2 {
+		Do $$$AssertEquals(parts.%Get(0).time_"|"_parts.%Get(0).setting_"|"_parts.%Get(0).target, itemEnded_"|Enabled|OrdersToWarehouse", "the first line is the suspend's, with its own end and slots")
+		Do $$$AssertEquals(parts.%Get(1).time_"|"_parts.%Get(1).setting_"|"_parts.%Get(1).target, settingEnded_"|ZzFixtureNote|OrdersFromPartner", "the second is the rollback's")
+	}
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary renders")
+		Set tail = " was changed, but the production couldn't apply it."
+		Do $$$AssertEquals($Length(text, tail) - 1, 2, render_": the line is in the text once for each run")
+		Do $$$AssertTrue(text [ (": Enabled on OrdersToWarehouse"_tail), render_": the suspend's line has its slots filled")
+		Do $$$AssertTrue(text [ (": ZzFixtureNote on OrdersFromPartner"_tail), render_": and so has the rollback's")
+		Do $$$AssertEquals($Find(text, settingEnded)_"|"_$Find(text, itemEnded), "0|0", render_": each time is shown as a time, not as the stored UTC stamp")
+	}
+}
+
+/// The keys of the stored summary of a new incident of the owner with one request of the kind (failed, answered on the web) and its FixRun, which has the fields after
+/// these defaults: started 5800 seconds ago and ended 5700 seconds ago, Total 1, nothing else counted. The incident is dismissed through the probe; the keys of its summary's parts.
+Method RunKeys(host As OcuTalon.Test.Watch.IncidentProbe, owner As %String, kind As %String, parameters As %String, dryRun As %String, run As %DynamicObject) As %String
+{
+	Set incident = ..Incident(owner, "resolved")
+	Set request = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": (kind), "FixParameters": (parameters), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
+	Do ..Link(incident, request)
+	Set fields = {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0}
+	Set iterator = run.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		Do fields.%Set(name, value)
+	}
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, fields)
+	Set result = ..Command(host, "dismiss", incident, owner)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", kind_": the Dismiss closes the incident")
+	Quit ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+}
+
+/// The key that follows the first summary.fixStarted in the comma-separated keys, "" when there is none.
+ClassMethod AfterStarted(keys As %String) As %String
+{
+	Set list = $ListFromString(keys)
+	Set at = $ListFind(list, "summary.fixStarted")
+	Quit $Select(at = 0: "", 1: $ListGet(list, at + 1))
+}
+
+/// The slots of every part with the key, in order, as an array.
+ClassMethod Parts(row As OcuTalon.Data.Incident, key As %String) As %DynamicArray
+{
+	Set found = []
+	If row.Summary = "" Quit found
+	Set iterator = {}.%FromJSON(row.Summary).parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		If part.key = key Do found.%Push(part.slots)
+	}
+	Quit found
 }
 
 /// A shadow instance of the probe.

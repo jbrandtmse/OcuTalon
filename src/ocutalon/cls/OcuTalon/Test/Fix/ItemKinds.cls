@@ -14,13 +14,17 @@
 ///   - TestItemThatCannotBeChanged (AC3, AC8): through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a change that Ens.Director.EnableConfigItem refuses ends the request
 ///     failed with the kind's NOSTART and the session reads result.itemNotChanged, and items that can't be read end it failed with the kind's NOREAD;
 ///   - TestSettingNotApplied (Story 23.3, DW-1365): through the same handler, a setting kind's entry that was refused and written back reads result.itemNotChanged, and one that was saved
-///     and could not be applied ends failed with its reason and reads result.settingSavedNotApplied;
+///     and could not be applied ends failed with its reason and reads result.settingSavedNotApplied, and the incident summary, built from the stored run, ends it with
+///     summary.settingSavedNotApplied (DW-1376);
 ///   - TestItemUpdateFailureRestores, TestItemUpdateFailureNotApplied and TestItemUpdateFailureRestoresDefault (DW-1373, live; Fix.Executor.InProduction called in this process, with the
 ///     test-only updateErrors of the entry): when the production's update fails after the flag was stored, the earlier flag is stored again through Ens.Director.EnableConfigItem, in the item
 ///     definition or in the System Default Setting row that overrides it, and the production is updated once more (the entry is refused); when that update fails too, the entry is
 ///     notapplied with the first error as its reason;
 ///   - TestItemNotApplied (DW-1373): through the same handler as TestSettingNotApplied, an item kind's entry that was stored and could not be applied ends failed with its reason,
-///     Unreached 1 and one Action entry, and the session reads result.settingSavedNotApplied with the setting Enabled and the item as the target;
+///     Unreached 1 and one Action entry, and the session reads result.settingSavedNotApplied with the setting Enabled and the item as the target, and the incident summary, built from the
+///     stored run, ends it with summary.settingSavedNotApplied (DW-1376);
+///   - TestRestoredRunSummary (DW-1376 QA): through the same handler, a setting kind and an item kind whose refused change was written back could not start, and the incident summary, built from
+///     the stored run, ends each with its not-changed line and has no summary.settingSavedNotApplied;
 ///   - TestItemUpdateFailureNotAppliedDefault (DW-1373 QA): the same restore that fails too, with a System Default Setting Enabled that overrides the item, for a suspend and a resume: the
 ///     row is written back, the definition is left alone, and the entry is notapplied;
 ///   - TestItemAlreadyInTheWantedState and TestItemGone (DW-1373 QA; Fix.Executor.InProduction called in this process): an item whose effective Enabled (System Default Setting
@@ -445,8 +449,9 @@ Method TestItemThatCannotBeChanged()
 /// DW-1365 (Planner pre-push ruling 2026-11-15), the run of a setting kind through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a setting that the
 /// production refused and that was written back (the entry unreached as refused) ends as could not start, with the kind's NOSTART, and the session reads result.itemNotChanged; a setting
 /// that was saved and could not be applied (the entry unreached as notapplied, with the production's error as its reason) ends the request failed through Finish with that reason, Unreached 1
-/// and one Action entry, and the session reads result.settingSavedNotApplied, rendered as ruled. mutation: the notapplied branch of Fix.Executor Run taken out (the run reads
-/// result.itemNotChanged with the kind's NOSTART).
+/// and one Action entry, and the session reads result.settingSavedNotApplied, rendered as ruled, and the incident summary, built from the stored run, ends it with
+/// summary.settingSavedNotApplied (DW-1376). mutation: the notapplied branch of Fix.Executor Run taken out (the run reads
+/// result.itemNotChanged with the kind's NOSTART); Watch.SettingCause SummaryRunKey's not-applied line made Quit "".
 Method TestSettingNotApplied()
 {
 	Set a = ..Session("settingsaved")
@@ -512,6 +517,7 @@ Method TestSettingNotApplied()
 	Set audits = $Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0)
 	Do $$$AssertEquals(audits - before, 1, "one Action entry is written for the run")
 	If audits - before = 1 Do $$$AssertEquals(host.Audits.%Get(audits - 1).action_"|"_host.Audits.%Get(audits - 1).result, kind_"|failed", "it is the kind's, with the result failed")
+	Do $$$AssertEquals($Piece(..SavedNotAppliedLine(incident, ref), ": ", 2, *), "ZzFixtureNote on OrdersFromPartner was changed, but the production couldn't apply it.", "the summary ends the run with summary.settingSavedNotApplied, as ruled")
 }
 
 /// DW-1373, the restore works: Ens.Director.UpdateProduction fails once after the flag was stored (the test-only updateErrors 1), so InProduction stores the earlier flag again through
@@ -673,8 +679,10 @@ Method TestItemGone()
 
 /// DW-1373, the run of an item kind through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: an item whose flag was stored and whose update failed, with
 /// no earlier flag back (the entry unreached as notapplied, with the production's error as its reason), ends the request failed through Finish with that reason, Unreached 1 and one
-/// Action entry, and the session reads result.settingSavedNotApplied with the setting Enabled and the item as the target, for a suspend and a resume. mutation: the Unreached line of
-/// Watch.Notice ResultKey's item branch taken out (the key is result.itemNotChanged); the item mapping of Watch.Notice ResultSlots taken out.
+/// Action entry, and the session reads result.settingSavedNotApplied with the setting Enabled and the item as the target, for a suspend and a resume, and the incident summary, built from the
+/// stored run, ends it with summary.settingSavedNotApplied (DW-1376). mutation: the Unreached line of
+/// Watch.Notice ResultKey's item branch taken out (the key is result.itemNotChanged); the item mapping of Watch.Notice ResultSlots taken out; the new block of Watch.Summary RunEvents'
+/// item branch made Quit.
 Method TestItemNotApplied()
 {
 	Set a = ..Session("itemsaved")
@@ -718,6 +726,75 @@ Method TestItemNotApplied()
 	Set audits = $Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0)
 	Do $$$AssertEquals(audits - before, 1, "one Action entry is written for the run")
 	If audits - before = 1 Do $$$AssertEquals(host.Audits.%Get(audits - 1).action_"|"_host.Audits.%Get(audits - 1).result, "suspend_item|failed", "it is the kind's, with the result failed")
+	Do $$$AssertEquals($Piece(..SavedNotAppliedLine(incident, ref), ": ", 2, *), "Enabled on "_..#ITEM_" was changed, but the production couldn't apply it.", "the summary ends the run with summary.settingSavedNotApplied, as ruled")
+}
+
+/// DW-1376 (QA), the other end of the restore-failed path, through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: a setting and an item that the production
+/// refused and whose earlier value was written back (the entry unreached as refused, so the run could not start, with Unreached 0, as TestSettingNotApplied and TestItemThatCannotBeChanged
+/// assert): the incident summary, built from the stored run, ends each with summary.settingNotChanged or summary.itemNotChanged and has no summary.settingSavedNotApplied.
+/// mutation: Watch.SettingCause SummaryRunKey's condition widened to Completed 0 alone; the item branch of Watch.Summary RunEvents widened to Completed 0 alone.
+Method TestRestoredRunSummary()
+{
+	Set a = ..Session("restored")
+	Do ..SetOnlineDemo(0)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Fix.ExecutorProbe", .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the executor probe is made")
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set host.StateIs = "running"
+	Set host.CheckIs = "{""passed"":""7"",""skipped"":[]}"
+	Set host.CarryIs = "{""copies"":[],""skipped"":[],""unreached"":[{""id"":7,""code"":""refused""}]}"
+	For kind = "rollback_setting", "suspend_item" {
+		Set setting = (kind = "rollback_setting")
+		Set parameters = $Select(setting: {"change": "zzchange0000000000001"}.%ToJSON(), 1: {"item": (..#ITEM)}.%ToJSON())
+		Set dryRun = $Select(setting: {"item": "OrdersFromPartner", "field": "ZzFixtureNote", "before": "beta", "after": "alpha"}.%ToJSON(), 1: {"item": (..#ITEM), "before": "enabled", "after": "disabled"}.%ToJSON())
+		Set row = ..Fixture(a, "1", "ZZNS", "Zz.ItemKinds", "h", {"State": "fixing", "OpenVariant": ""})
+		Set incident = row.Ref
+		Kill row
+		Set ref = ..Request(a, incident, kind, parameters, "7", dryRun)
+		Do $$$AssertStatusOK(..Handle(host, ref), kind_": the Execute of the restored change is handled")
+		Set keys = ..SummaryKeys(incident, ref)
+		Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Summary).AfterStarted(keys), $Select(setting: "summary.settingNotChanged", 1: "summary.itemNotChanged"), kind_": the summary ends the run that could not start with its not-changed line: "_keys)
+		Do $$$AssertEquals($Length(keys, "summary.settingSavedNotApplied") - 1, 0, kind_": and has no not-applied line")
+	}
+}
+
+/// The incident's summary as Watch.Summary builds it from the stored rows with the request as the incident's only request (the incident is saved with RequestRefs the request).
+/// "" when it cannot be built.
+Method StoredSummary(incident As %String, ref As %String) As %DynamicObject [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = ref
+	Do $$$AssertStatusOK(row.%Save(), "the incident names the request")
+	Set summary = ##class(OcuTalon.Watch.Summary).Build(row, "dismiss", ##class(OcuTalon.Data.Time).NowUtc(), 0, .sc)
+	Do $$$AssertStatusOK(sc, "the summary is built from the stored run")
+	Quit $Select($IsObject(summary): summary, 1: "")
+}
+
+/// The keys of the parts of the incident's StoredSummary, comma-separated. "" when it cannot be built.
+Method SummaryKeys(incident As %String, ref As %String) As %String [ Private ]
+{
+	Set summary = ..StoredSummary(incident, ref)
+	If '$IsObject(summary) Quit ""
+	Set keys = ""
+	Set iterator = summary.parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_part.key
+	}
+	Quit keys
+}
+
+/// The summary.settingSavedNotApplied line of the incident's StoredSummary, rendered for the phone. "" when the summary has no such part.
+Method SavedNotAppliedLine(incident As %String, ref As %String) As %String [ Private ]
+{
+	Set summary = ..StoredSummary(incident, ref)
+	If '$IsObject(summary) Quit ""
+	Set line = ""
+	Set iterator = summary.parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		If part.key = ##class(OcuTalon.Watch.SettingCause).#KEYSUMMARYSAVEDNOTAPPLIED Set line = ##class(OcuTalon.Msg.Catalog).Render(part.key, part.slots.%ToJSON(), "phone", .sc)
+	}
+	Quit line
 }
 
 /// A plan entry of an item change for Fix.Executor.InProduction: the action (disable or enable) of the item of the Orders production, with the test-only count of forced update failures.

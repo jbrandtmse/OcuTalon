@@ -10,10 +10,10 @@
 ///     body and sit in the pack after the line that calls the pack data, never instructions.
 ///   - Named is the newest row of the window whose setting is the element of the diagnosis, on a failing item first. GapMinutes is whole minutes, rounded half up. CauseSlot is
 ///     the structured cause of incident.settingChangeCause, rendered by the catalog.
-///   - IsSetting, RollbackSlots, UndoSlots, ResultKey, ResultSlots, Names and the summary keys are the notice and summary texts of the two setting kinds (Fix.Kind.RollbackSetting and
+///   - IsSetting, RollbackSlots, UndoSlots, ResultKey, ResultSlots, ShownAfter, Names and the summary keys are the notice and summary texts of the two setting kinds (Fix.Kind.RollbackSetting and
 ///     UndoRollback), which Notice and Summary call, so that the kinds' texts live here and the two classes only delegate. The slots of a setting's value (before and after) hold
 ///     it as Shown gives it, redacted by Bridge.Redact (the one redactor, on the server), so that a token in a URL reaches no person, message body or log; the stored dry run
-///     and the value a run writes stay raw.
+///     and the value a run writes stay raw. ShownAfter gives the incident payload's request part the same {after} as the result texts.
 Class OcuTalon.Watch.SettingCause
 {
 
@@ -55,6 +55,8 @@ Parameter KEYSUMMARYRESTORED = "summary.settingRestored";
 Parameter KEYSUMMARYUNDONE = "summary.rollbackUndone";
 
 Parameter KEYSUMMARYNOTCHANGED = "summary.settingNotChanged";
+
+Parameter KEYSUMMARYSAVEDNOTAPPLIED = "summary.settingSavedNotApplied";
 
 /// The TakenAt of the oldest snapshot of the production in the namespace, "" when it has none.
 ClassMethod Oldest(namespace As %String, production As %String) As %String
@@ -351,6 +353,21 @@ ClassMethod ResultSlots(key As %String, extra As %DynamicObject, Output sc As %S
 	Quit slots
 }
 
+/// The value that a setting kind's request gives the setting after its run, as a person sees it: Shown of the after of its stored dry run (dryRun, the JSON text), "" when the
+/// dry run can't be read or has no after. The result texts' {after} (ResultSlots, from IncidentManager ResultExtra) and the request part of the incident payload
+/// (Live.Payload.Incident) both show this value, so the card names what the chat names. It reads nothing else (AD-13: /state runs it with no SQL grant).
+ClassMethod ShownAfter(dryRun As %String) As %String
+{
+	Set after = ""
+	Try {
+		Set after = ..Text({}.%FromJSON(dryRun).%Get("after"))
+	} Catch {
+		Set after = ""
+	}
+	If after = "" Quit ""
+	Quit ..Shown(after)
+}
+
 /// The setting and the item of a setting kind's request, from its stored dry run (field and item), in setting and target; 1 when both are there.
 ClassMethod Names(request As OcuTalon.Bridge.Data.ApprovalRequest, Output setting As %String, Output target As %String) As %Boolean
 {
@@ -373,10 +390,10 @@ ClassMethod SummaryRequestKey(kind As %String) As %String
 	Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYSUMMARYUNDO, 1: ..#KEYSUMMARYROLLBACK)
 }
 
-/// The key of the line for the end of a setting kind's run, and "" (no line) for a run whose setting was saved but could not be applied, which the summary has no text for.
+/// The key of the line for the end of a setting kind's run: summary.settingSavedNotApplied when the setting was saved and the production could not apply it and the earlier value could not be put back (Completed 0, Unreached above 0), summary.settingNotChanged when the run changed nothing else, and the restore or the undo when it changed the setting. Watch.Summary gives an item kind's run of the same end the same key (setting Enabled, target the item).
 ClassMethod SummaryRunKey(kind As %String, run As OcuTalon.Data.FixRun) As %String
 {
-	If (+run.Completed = 0) && (+run.Unreached > 0) Quit ""
+	If (+run.Completed = 0) && (+run.Unreached > 0) Quit ..#KEYSUMMARYSAVEDNOTAPPLIED
 	If +run.Completed = 0 Quit ..#KEYSUMMARYNOTCHANGED
 	Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYSUMMARYUNDONE, 1: ..#KEYSUMMARYRESTORED)
 }

@@ -4477,3 +4477,14 @@
 2026-11-16T08:47:53Z	Run	owner_decision	via=contest_planner 23.14_rescoped(DW-1050,1117,1417,1422_remainder) cut_items_added=DW-1423(text),DW-1425(text),card/chat_may-have-sent,DW-1422(accepted=sent),shards-2_rebalance;DW-1358_via_variant_F;Telegram_refusal_text_LOW_post-cut;DW-1032_split_post-cut owner=lane_B(resumed)
 2026-11-16T08:48:50Z	Epic 24	runner_reported	PART_READY DW-1426 head=98e376f5b runs=43829423163,43829423003(att1) + PLANNER_REPORT 24.3a(Q1_page_email_body_vs_V2,Q2_no_release_between_24.3a_and_24.3b)
 2026-11-16T08:48:50Z	Epic 24	merge_enqueued	DW-1426 (1.0.12_if_in_time)
+2026-11-16T08:50:22Z	Epic 24	merged	DW-1426 merge=be9ad9f3b
+2026-11-16T08:50:41Z	Run	planner_notified	batch:laneB_23.15_texts(DW-1423,DW-1425,result.partnerMaySent);laneD_24.3a_Q1,Q2(hold_24.3a_until_24.3b);laneC_DW-1421_C0/C1_gate(dev1,dev2)
+2026-11-16T08:51:23Z	Run	owner_decision	via=contest_planner A:23.15_texts_approved(DW-1423_fix"by_a_user_who_holds",DW-1425_verbatim,result.partnerMaySent;one_mapping_condition) B:24.3a_Q1_accepted(conds),Q2_hold_24.3a_until_24.3b C:DW-1421_C0+C1_approved(dev1,dev2;conds)
+2026-11-16T09:07:05Z	Epic 21	runner_reported	PLANNER_REPORT DW-1378_gate(e5de51ab7;IncidentRequest.After;AD-12_sub-bullet;fallback_reading) relayed=contest_planner
+2026-11-16T09:07:19Z	Epic 21	owner_decision	via=contest_planner DW-1378=APPROVED(AD-12_verbatim;fallback_confirmed;pins)+1.0.12_CUT_ITEM order=DW-1376,DW-1378,DW-1421,user-turn
+2026-11-16T12:46:16Z	Run	owner_decision	via=contest_planner RESULT=Experts_1st(108_vs_82),Community_3rd 1.0.12_includes_online_demo_update(Planner) merge_delegated_to_Planner(signal_REQUIRED_GREEN) hosts_stay epics_27,28=APPROVED_after_1.0.12(scope_hold_lifted;gates_to_Planner)
+2026-11-16T12:47:23Z	Epic 21	ci_green_verified	DW-1376 head=5f9b7e3c7 runs=43832095522,43832095431; DW-1378 head=d1cc64e0e(contains_DW-1376) runs=43848746962,43848747032 note=reports_not_received;verified_by_gate+Planner_live_check
+2026-11-16T12:47:23Z	Epic 21	merge_enqueued	DW-1376+DW-1378 (1.0.12 cut items) via OCT-epic21-dw1378
+2026-11-16T12:49:58Z	Epic 21	merged	DW-1376+DW-1378 merge=87fce253a
+2026-11-16T12:50:05Z	Epic 23	runner_reported	PART_READY 23.15(cut_story) head=55c5223fe runs=43864772409,43864772546(att1) DW-1429(self-ruled_rework:DataBegan) mapping_table=in_spec shards:2=27.9,3=28.6,production=33.7
+2026-11-16T12:50:05Z	Epic 23	merge_enqueued	23.15 (1.0.12 cut)

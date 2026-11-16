@@ -29,9 +29,12 @@
 ///   - a system send is claimed first (SendClaimed): under a lock on its ApprovalRef, a Data.Delivery row of channel email with that ApprovalRef means the
 ///     approval was sent already, so the answer is already_sent (Ok 1, MESSAGESENT) and nothing is sent; a row marked failed (a send that did not go
 ///     through) or still pending (a send that never finished, such as one whose job was stopped during it) answers failed (Ok 0, MESSAGEFAILED) and sends
-///     nothing; otherwise the claim row is written, with FallbackReason pending (CLAIMPENDING), and the send follows. A sent email clears the mark; a
-///     failed send, or an error after the claim, keeps the claim with FallbackReason failed, so no approval is ever sent twice and only an email that
-///     was sent ever answers already_sent;
+///     nothing; otherwise the claim row is written, with FallbackReason pending (CLAIMPENDING), and the send follows. A sent email clears the mark. A failed send that may still have
+///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA, once the message data began), and an error after the message was handed to Deliver (SendBegan), mark the claim maysent
+///     (CLAIMMAYSENT) and answer failed with MESSAGEMAYHAVESENT, an approval's claim as a keyed tool send's; a repeat of the approval answers the same. Any other failed send (the server
+///     could not be reached, a timeout or a lost connection before the message data began (the greeting, EHLO, STARTTLS, AUTH, MAIL FROM, RCPT TO or DATA), refused the login or answered with an error: nothing was handed over), and an error before the hand-over, keep the claim marked failed. So no approval is ever sent
+///     twice and only an email that was sent ever answers already_sent. MESSAGEFAILED of a system send says that this call handed nothing over; the claim row is the record of whether a send
+///     began (Began: a pending, maysent or sent claim), which the executor's wrappers read when the answer did not come back from here (Fix.Kind.Email FailedMessage);
 ///   - a tool send with an IdempotencyKey is claimed the same way (SendClaimed), by its session and the key, and only the key decides: the subject, the
 ///     text and the recipients of a repeat are not compared. The claim row has the owner of the command's SessionRef, an empty ApprovalRef (even when the
 ///     command names an approval) and, in DigestKey, ToolKeyOf: 22 characters of the hash of the key, never equal to a digest's key. Under a lock on the
@@ -39,13 +42,15 @@
 ///     marked failed, or a lock that cannot be taken in CLAIMWAIT, answers failed (Ok 0, MESSAGEFAILED) and sends nothing; otherwise the claim is written
 ///     pending and the send follows. A sent email clears the mark. A failed send that the server did not take (one of Sender.Classify's classes) deletes
 ///     the claim, so that the key can be sent again and leaves no row, and answers failed with the message of its class. A failed send that may still have
-///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA) marks the claim maysent (CLAIMMAYSENT) and answers failed with
+///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA, once the message data began) marks the claim maysent (CLAIMMAYSENT) and answers failed with
 ///     MESSAGEMAYHAVESENT, which does not say that the email was not sent; the same key again answers the same message and sends nothing, so that the key
-///     never sends twice. An error after the claim marks it failed. A tool send with no key is sent every time;
-///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
+///     never sends twice. An error after the claim marks it failed, or maysent when it came after the message was handed over. A tool send with no key is sent every time;
+///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. A send whose only failure is the answer to QUIT (Sender.Accepted: the server took the message
+///     and then failed the QUIT) is a success, for every kind of email and for the digest. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
-///     MESSAGEREFUSEDLOGIN or MESSAGEREJECTED, and records nothing for a tool send. With a provider sign-in (the adapter's OAuth2ApplicationName is set,
+///     MESSAGEREFUSEDLOGIN or MESSAGEREJECTED, and records nothing for a tool send; for a claimed send (an approval, a keyed tool send) a failure that Sender.MayHaveSent says may have reached the
+///     server (the message data began, DW-1429) answers MESSAGEMAYHAVESENT instead, so MESSAGEUNREACHABLE of a claimed send means that the message data never began, however the server failed (a send with no claim, a tool send with no key, keeps its class's message). With a provider sign-in (the adapter's OAuth2ApplicationName is set,
 ///     Story 21.8) the refused class means that the sign-in cannot be used, so its message is MESSAGESIGNIN instead of MESSAGEREFUSEDLOGIN; a failed send
 ///     of the digest path is logged by its class, as a refused one, and nothing is recorded.
 /// The third path is the daily digest (OnNotification): an OcuTalon.Msg.Notification of Kind digest that Notify routes here (rule DigestEmail). It
@@ -83,6 +88,9 @@ Class OcuTalon.Channel.Email.Out Extends OcuTalon.Channel.Operation
 Parameter ADAPTER = "OcuTalon.Channel.Email.Sender";
 
 Property Adapter As OcuTalon.Channel.Email.Sender;
+
+/// 1 from the moment Transmit hands the message to Deliver until the claimed send that made it ends: an error after that may have come after the server took the email. SendClaimed clears it.
+Property SendBegan As %Boolean [ InitialExpression = 0, Private, Transient ];
 
 /// The channel of the Delivery rows: one of Msg.Enum CHANNEL.
 Parameter CHANNEL = "email";
@@ -163,7 +171,7 @@ Parameter MESSAGEUNAVAILABLE = "Email can't be connected on the online demo. Not
 
 Parameter MESSAGEFAILED = "Something went wrong inside OcuTalon, so the command may not have finished.";
 
-/// The Message of a keyed tool send whose failure may still have reached the server (Sender.MayHaveSent), and of the same key again (Planner ruling K).
+/// The Message of a claimed send (an approval's, a keyed tool send's) whose failure may still have reached the server (Sender.MayHaveSent, or an error after the message was handed over), and of the same claim again (Planner ruling K).
 Parameter MESSAGEMAYHAVESENT = "The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again.";
 
 XData MessageMap
@@ -225,6 +233,7 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 	If '$Test Quit ..Result(0, "failed", ..#MESSAGEFAILED)
 	Set result = ""
 	Set claim = ""
+	Set ..SendBegan = 0
 	Try {
 		Set claimed = ..Claimed(approval, owner, key)
 		If claimed = ..#CLAIMFAILED {
@@ -239,20 +248,22 @@ Method SendClaimed(request As OcuTalon.Msg.Command.SendEmail, from As %String, B
 		}
 	} Catch exception {
 		$$$LOGERROR("EmailOut failed: "_exception.Name)
-		Set result = ..Result(0, "failed", ..#MESSAGEFAILED)
+		Set began = ..SendBegan
+		Set result = $Select(began: ..Result(0, "failed", ..#MESSAGEMAYHAVESENT), 1: ..Result(0, "failed", ..#MESSAGEFAILED))
 		If $IsObject(claim) {
-			Set claim.FallbackReason = "failed"
+			Set claim.FallbackReason = $Select(began: ..#CLAIMMAYSENT, 1: "failed")
 			Do claim.%Save()
 		}
 	}
+	Set ..SendBegan = 0
 	Lock -@lockName
 	Quit result
 }
 
 /// Builds the message from the subject and the text (Approved), delivers it once and answers; claim is the claim row of a claimed send, "" for an unclaimed tool send. The Ref of the header is the claim
-/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send keeps the claim of an approval, marked failed. It deletes
-/// the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again, unless the email may still have reached the server
-/// (Sender.MayHaveSent); that claim is kept, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message.
+/// row's, or a new one that the Delivery row of a sent unclaimed tool email keeps. A failed send that may still have reached the server (Sender.MayHaveSent) keeps the claim, an approval's
+/// as a keyed tool send's, marked maysent, and the answer is MESSAGEMAYHAVESENT instead of the class's message (Story 23.15). Any other failed send keeps the claim of an approval, marked
+/// failed, and deletes the claim of a keyed tool send (it has no ApprovalRef), so that the same key can be sent again.
 Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef recipients, owner As %String, claim As OcuTalon.Data.Delivery, subject As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set ref = $Select($IsObject(claim): claim.ChannelMessageId, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
@@ -272,13 +283,11 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	Set errorMessage = $Select(class = ##class(OcuTalon.Channel.Email.Sender).#REFUSED: $Select(..OAuth2Mode(): ..#MESSAGESIGNIN, 1: ..#MESSAGEREFUSEDLOGIN), class = ##class(OcuTalon.Channel.Email.Sender).#REJECTED: ..#MESSAGEREJECTED, 1: ..#MESSAGEUNREACHABLE)
 	If $IsObject(claim) {
 		Set mark = "failed"
-		If claim.ApprovalRef = "" {
-			If ##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc) {
-				Set mark = ..#CLAIMMAYSENT
-				Set errorMessage = ..#MESSAGEMAYHAVESENT
-			} Else {
-				Set mark = ""
-			}
+		If ##class(OcuTalon.Channel.Email.Sender).MayHaveSent(sc, ..DataBegan()) {
+			Set mark = ..#CLAIMMAYSENT
+			Set errorMessage = ..#MESSAGEMAYHAVESENT
+		} ElseIf claim.ApprovalRef = "" {
+			Set mark = ""
 		}
 		If mark = "" {
 			Set deleted = ##class(OcuTalon.Data.Delivery).%DeleteId(claim.%Id())
@@ -293,6 +302,13 @@ Method Send(request As OcuTalon.Msg.Command.SendEmail, from As %String, ByRef re
 	Quit ..Result(0, "failed", errorMessage)
 }
 
+/// 1 when the message data began in the send that Deliver just made (Sender DataBegan: the server had answered DATA with its 354), which Sender.MayHaveSent needs to tell a failure
+/// that may have reached the server from one that never did. A test subclass overrides it to stand in for the adapter.
+Method DataBegan() As %Boolean [ Private ]
+{
+	Quit $IsObject(..Adapter) && ..Adapter.DataBegan()
+}
+
 /// 1 when the adapter signs in with OAuth2 (its OAuth2ApplicationName is set). A test subclass overrides it to stand in for the adapter.
 Method OAuth2Mode() As %Boolean [ Private ]
 {
@@ -300,7 +316,8 @@ Method OAuth2Mode() As %Boolean [ Private ]
 }
 
 /// The one message of every path: from, the recipients (recipients(1..n)), the subject and the text as one text/plain UTF-8 part, with the header
-/// X-OcuTalon-Ref set to ref, delivered once. The status is Deliver's.
+/// X-OcuTalon-Ref set to ref, delivered once. The status is Deliver's, except that a failed status that Sender.Accepted says the server accepted (only the answer to QUIT failed, after the server
+/// had taken the message) is OK: the email was sent, so every path records it as sent, whatever the kind of email.
 Method Transmit(from As %String, ByRef recipients, subject As %String, text As %String, ref As %String) As %Status [ Private ]
 {
 	Set message = ##class(%Net.MailMessage).%New("UTF-8")
@@ -309,7 +326,10 @@ Method Transmit(from As %String, ByRef recipients, subject As %String, text As %
 	For i = 1:1:recipients Do message.To.Insert(recipients(i))
 	Do message.Headers.SetAt(ref, ..#REFHEADER)
 	Do message.TextData.Write(text)
-	Quit ..Deliver(message)
+	Set ..SendBegan = 1
+	Set sc = ..Deliver(message)
+	If ##class(OcuTalon.Channel.Email.Sender).Accepted(sc) Quit $$$OK
+	Quit sc
 }
 
 /// A Notification of Kind digest or page: the digest email or the page email of the class description. Any other Kind gets one warning (nothing at all on the online demo).
@@ -689,6 +709,26 @@ ClassMethod PageClaimed(decisionRef As %String) As %Integer [ Private ]
 		If found = 1 Quit
 	}
 	Quit found
+}
+
+/// 1 when the send of the approval began: a Data.Delivery row of channel email with the approval's Ref exists and is not marked failed (a claim that is pending, marked maysent or sent). A send
+/// that failed before the message was handed over leaves its claim marked failed, and no claim row means that nothing began. Where the row cannot be read the answer is 1 (the safe one: the
+/// send may have begun). The executor's wrappers read it to tell a MESSAGEFAILED that came after the send began from one that came before it.
+ClassMethod Began(approval As %String) As %Boolean
+{
+	If $Get(approval) = "" Quit 0
+	Set began = 1
+	Try {
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT FallbackReason FROM OcuTalon_Data.Delivery WHERE Channel = ? AND ApprovalRef = ?", ..#CHANNEL, approval)
+		If rows.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(rows.%SQLCODE, rows.%Message)
+		Set began = 0
+		While rows.%Next() {
+			If rows.%Get("FallbackReason") '= "failed" Set began = 1
+		}
+	} Catch {
+		Set began = 1
+	}
+	Quit began
 }
 
 /// A refused answer naming the fields.
