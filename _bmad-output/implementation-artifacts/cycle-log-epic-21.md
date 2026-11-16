@@ -530,3 +530,5 @@
 2026-11-16T07:58:08Z	DW-1373	part_ready	parts=DW-1373 code_head=d7e7e925a ci=success records=local(on_OCT-epic21-dw1376) note=Lane_B_web_edits(approval-view.ts+test)
 2026-11-16T07:58:08Z	DW-1376	dev_complete	build_sha=f4b52a8c2 text=byte-identical(approved) task0=Build_ok_on_Case.Fixture;this_merges_before_OCT-epic23(145->146) mutations=9 review=13(high0,med0,low7(1_patched),false6) warm=Catalog,Summary,Lifecycle,SettingValues,ItemKinds_pass fresh_lane-a@Fix=30/30 node=2174 lint=12 deviation=two_test_calls_one_message(recorded)
 2026-11-16T07:58:08Z	DW-1376	stage_spawned	stage=qa spawn_at=2026-11-16T07:58:08Z model=sonnet effort=high agent_name=dw-1376-qa-1 cycle_iteration=1
+2026-11-16T08:07:34Z	DW-1376	qa_complete	model=sonnet commit=e5f7fb440 tests=TestSavedNotAppliedLineEdges,TestSavedNotAppliedLineOrderAndChannels(web,phone,Telegram),TestRestoredRunSummary mutations=8 findings=none_product(mixed_run_cannot_occur_today:single-target_kinds)
+2026-11-16T08:07:34Z	DW-1376	stage_spawned	stage=code-review spawn_at=2026-11-16T08:07:34Z model=opus effort=high agent_name=dw-1376-code-review-1 cycle_iteration=1
