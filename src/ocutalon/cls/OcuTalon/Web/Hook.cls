@@ -1,8 +1,8 @@
-/// The dispatch class of the application /ocutalon/hook (AD-13, AD-14, AD-17, AD-19, AD-24; Story 35.3): the one address through which another system sends
+/// The dispatch class of the application /ocutalon/hook (AD-13, AD-14, AD-17, AD-19, AD-24; Stories 35.3 and 27.1): the addresses through which another system sends
 /// OcuTalon an event. The application is unauthenticated (UseSession 0, no sign-in) and holds only the role OcuTalonWebhook; it exists on a local install only
-/// (the online demo has no hook application and this class answers 404 there too). One route, POST /<ref> with the webhook's Ref (Data.Webhook); every other
-/// method and path is 404, and an Allow header is never sent (an OPTIONS request, which the web server dispatches before the role applies, is answered by the
-/// public base class OcuTalon.Web.Public.HookBase). Every refusal is a status line with no body. In order:
+/// (the online demo has no hook application and this class answers 404 there too). Two routes, POST /<ref> with the webhook's Ref (Data.Webhook) and POST /slack/events
+/// (Slack, see Slack below); every other method and path is 404, and an Allow header is never sent (an OPTIONS request, which the web server dispatches before the role
+/// applies, is answered by the public base class OcuTalon.Web.Public.HookBase). Every refusal is a status line with no body. For POST /<ref>, in order:
 ///   - 401: an unknown or malformed Ref, a missing or wrong secret (the header X-OcuTalon-Webhook-Secret), or a Ref whose owning session has no row. The secret is
 ///     checked as a salted hash in constant time (Data.Webhook Matches), and an unknown Ref is compared against Data.Webhook DUMMYHASH, so all of them take the same time;
 ///   - 413: a body of more than Data.Webhook BODYMAX bytes, by the size alone, before the body is read or parsed;
@@ -17,6 +17,19 @@
 /// that fails is logged without any request data and changes no answer. No log line or audit entry holds a header, the body, the secret or the caller's address.
 /// The answer carries no header of the production's: the SuperSession header that WebhookIn's hand-over sets on the response is deleted, so no answer shows the
 /// owning session's trace identifier. The class reads tables with object access only; its one write is the counters global (AD-1).
+/// POST /slack/events (Story 27.1; the address is two segments, so it never matches /<ref>, whose Ref is 22 characters) is Slack's Events API address. It answers
+/// like an unknown path (404, no body) unless Slack is on (SlackIn On: both SLACK_SIGNING_SECRET and SLACK_BOT_TOKEN are set and the online demo is off). In order:
+///   - 413: a body of more than Data.Webhook BODYMAX bytes, by the size alone, before the body is read;
+///   - 400: a form content type, whose bytes the web server does not keep, so that no signature could be checked (Slack's events are JSON);
+///   - 401: Slack's v0 signature (Channel.Slack.Signature Check) over the body bytes exactly as received is missing, wrong or stale (a timestamp more than 300 s from now,
+///     in either direction). The check comes before the body is parsed or any challenge is answered, and a request that fails it stores nothing from its body;
+///   - 400: a body that is not a JSON object;
+///   - 200 with the challenge as text/plain: a url_verification envelope (and nothing is handed over);
+///   - 503: SlackIn is not available or the hand-over fails (nothing was kept of the event: the event id's claim is given back);
+///   - 200, with no body: SlackIn has the event (a linked member's direct message becomes a turn; any other event leaves one Ignored record in Visual Trace; a retry of an
+///     event id already seen does nothing). The answer never waits for a decision.
+/// A 401, 413 or 400 of this route is a rejection counted in the slot slack, with at most one audit entry per Data.Webhook AUDITSECONDS (a 404 and a 503 are not counted).
+/// No log line, audit entry or trace holds a header, the body, the secret, the bot token or a Slack id. SLACK_SIGNING_SECRET is read only at the moment of use.
 Class OcuTalon.Web.Hook Extends OcuTalon.Web.Public.HookBase
 {
 
@@ -36,6 +49,17 @@ Parameter HTTP503SERVICEUNAVAILABLE = "503 Service Unavailable";
 /// The name of the business service that takes the event.
 Parameter SERVICE = "WebhookIn";
 
+/// The name of the business service that takes a Slack event.
+Parameter SLACKSERVICE = "SlackIn";
+
+/// The rejection slot of the Slack route.
+Parameter SLACKSLOT = "slack";
+
+/// The request headers of Slack's signature, as the CGI variables hold them.
+Parameter SLACKTIMESTAMP = "HTTP_X_SLACK_REQUEST_TIMESTAMP";
+
+Parameter SLACKSIGNATURE = "HTTP_X_SLACK_SIGNATURE";
+
 /// The response header that a business service created in a CSP process sets from its SuperSession.
 Parameter SUPERSESSIONHEADER = "VND.InterSystems.Ensemble.SuperSession";
 
@@ -45,6 +69,7 @@ Parameter LOGSTATUSMAX = 200;
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
 <Routes>
+<Route Url="/slack/events" Method="POST" Call="Slack"/>
 <Route Url="/:ref" Method="POST" Call="Receive"/>
 </Routes>
 }
@@ -99,6 +124,97 @@ ClassMethod Receive(ref As %String) As %Status
 		Quit ..ReportHttpStatusCode(..#HTTP503SERVICEUNAVAILABLE)
 	}
 	Quit ..ReportHttpStatusCode(..#HTTP202ACCEPTED)
+}
+
+/// POST /slack/events: see the class description.
+ClassMethod Slack() As %Status
+{
+	If '..SlackOn() Quit ..ReportHttpStatusCode(..#HTTP404NOTFOUND)
+	Set now = ..Now()
+	Set slot = ..#SLACKSLOT
+	If ..BodySize() > ##class(OcuTalon.Data.Webhook).#BODYMAX Quit ..Rejected(slot, now, ..#HTTP413CONTENTTOOLARGE)
+	If ..IsForm() Quit ..Rejected(slot, now, ..#HTTP400BADREQUEST)
+	Set raw = ..RawBody()
+	Set epoch = ##class(OcuTalon.Data.Time).Seconds(now) - ##class(OcuTalon.Data.Time).Seconds("1970-01-01T00:00:00Z")
+	If ##class(OcuTalon.Channel.Slack.Signature).Check(..SlackSecret(), ..SlackHeader(..#SLACKTIMESTAMP), ..SlackHeader(..#SLACKSIGNATURE), raw, epoch) '= "" {
+		Quit ..Rejected(slot, now, ..#HTTP401UNAUTHORIZED)
+	}
+	If '..SlackJson(raw, .envelope) Quit ..Rejected(slot, now, ..#HTTP400BADREQUEST)
+	If envelope.%Get("type") = "url_verification" {
+		If envelope.%GetTypeOf("challenge") '= "string" Quit ..Rejected(slot, now, ..#HTTP400BADREQUEST)
+		Set %response.ContentType = "text/plain"
+		Set sc = ..ReportHttpStatusCode(..#HTTP200OK)
+		Write envelope.%Get("challenge")
+		Quit sc
+	}
+	Set event = ##class(OcuTalon.Channel.Slack.Event).FromJson(envelope)
+	Try {
+		Set sc = ..SlackHand(event)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Do %response.DeleteHeader(..#SUPERSESSIONHEADER)
+	If $SYSTEM.Status.IsError(sc) {
+		Do ..Log("OcuTalon.Web.Hook: "_..#SLACKSERVICE_" unavailable, status code "_$Extract($Translate($SYSTEM.Status.GetErrorCodes(sc), $Char(13, 10), "  "), 1, ..#LOGSTATUSMAX))
+		Quit ..ReportHttpStatusCode(..#HTTP503SERVICEUNAVAILABLE)
+	}
+	Quit ..ReportHttpStatusCode(..#HTTP200OK)
+}
+
+/// 1 when Slack is on (SlackIn On, with the online-demo flag of OnlineDemo). A test subclass overrides it.
+ClassMethod SlackOn() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Channel.Slack.In).On(..OnlineDemo())
+}
+
+/// The signing secret, read from the environment at the moment of use and never kept. A test subclass overrides it.
+ClassMethod SlackSecret() As %String [ Private ]
+{
+	Quit $SYSTEM.Util.GetEnviron(##class(OcuTalon.Channel.Slack.In).#SECRETVARIABLE)
+}
+
+/// A request header of Slack, by the name of its CGI variable. A test subclass overrides it.
+ClassMethod SlackHeader(variable As %String) As %String [ Private ]
+{
+	Quit %request.GetCgiEnv(variable)
+}
+
+/// The body as the bytes that were received: never decoded, so that a signature over them can be checked. "" when the request has no body stream.
+ClassMethod RawBody() As %String [ Private ]
+{
+	Set content = %request.Content
+	If '$IsObject(content) Quit ""
+	Do content.Rewind()
+	Set raw = ""
+	While 'content.AtEnd {
+		Set raw = raw_content.Read(32000)
+	}
+	If content.IsCharacter() Quit $ZConvert(raw, "O", "UTF8")
+	Quit raw
+}
+
+/// 1 when the bytes are the UTF-8 text of a JSON object, with envelope that object; 0 for anything else (an array, a scalar, text, an empty body). The bytes are
+/// decoded only here, after the signature has passed.
+ClassMethod SlackJson(raw As %String, Output envelope As %DynamicObject) As %Boolean [ Private ]
+{
+	Set envelope = ""
+	Try {
+		Set parsed = ##class(%DynamicAbstractObject).%FromJSON($ZConvert(raw, "I", "UTF8"))
+		Set valid = $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject")
+		If valid Set envelope = parsed
+	} Catch {
+		Set valid = 0
+	}
+	Quit valid
+}
+
+/// Hands the event to SlackIn: the service is created in this process and takes the event with ProcessInput, so that what it sends enters the production through its
+/// business service (AD-1). An error status means that the event did not reach the production. A test subclass overrides it.
+ClassMethod SlackHand(event As OcuTalon.Channel.Slack.Event) As %Status [ Private ]
+{
+	Set sc = ##class(Ens.Director).CreateBusinessService(..#SLACKSERVICE, .service)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit service.ProcessInput(event, .output)
 }
 
 /// 1 when the row exists, its owning session has a row and the secret is the one that its hash was made from. The hash of an unknown Ref is DUMMYHASH, so the
@@ -173,18 +289,10 @@ ClassMethod IsForm() As %Boolean [ Private ]
 	Quit (type = "application/x-www-form-urlencoded") || ($Extract(type, 1, 10) = "multipart/")
 }
 
-/// The body decoded from UTF-8 to text. It is called only for a body of at most BODYMAX bytes.
+/// The body decoded from UTF-8 to text (RawBody's bytes). It is called only for a body of at most BODYMAX bytes.
 ClassMethod BodyText() As %String [ Private ]
 {
-	Set content = %request.Content
-	If '$IsObject(content) Quit ""
-	Do content.Rewind()
-	Set raw = ""
-	While 'content.AtEnd {
-		Set raw = raw_content.Read(32000)
-	}
-	If content.IsCharacter() Quit raw
-	Quit $ZConvert(raw, "I", "UTF8")
+	Quit $ZConvert(..RawBody(), "I", "UTF8")
 }
 
 /// Hands the event to WebhookIn: the service is created in this process and takes the event with ProcessInput, so that the Item enters the production through its

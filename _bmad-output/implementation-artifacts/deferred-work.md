@@ -8772,6 +8772,45 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Sender.Classify maps every SMTPTimeout to unreachable; the not-sent outcome is right (ruled: Planner CONDITION, lead's DW-1429 item), only the reason's wording is coarse; same sentence as before 23.15 and for every unclaimed tool send
 - 2026-11-16T12:01:11Z status=wontfix-accepted owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=cr note=reopen_if=a user report or a Planner text ruling that MESSAGEUNREACHABLE misleads after a mid-dialogue SMTP timeout
 
+### DW-1440: R7 notes A/B: a notes run started in the first 170 minutes of the container's local day renders the notes under two day headings, so A and B runs either side of a split differ in structure, not only in the channel label
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Eval.In.NotesUp writes the notes 170, 95 and 40 minutes before now and Agent.Input.NotesPart groups notes by local day (yesterday, today); fix-risk high: a code fix alters the Planner-pinned notes set or makes the knob's CI tests depend on the time of day
+- 2026-11-16T18:25:33Z status=decision-pending owner=burndown by=cr note=human=Planner runs the R7 A/B outside 00:00-02:50 container-local time, or accepts split day headings
+
+### DW-1441: The Slack route answers a form body 400 before the signature check, and the spine's AD-13 amendment states that order, while the Planner-approved order (gate f, R11) puts 401 before 400
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Web/Hook.cls Slack() runs IsForm before Signature.Check (implement decision 18: a form leaves no raw bytes to sign); R3 and R5 still hold
+- 2026-11-16T18:25:33Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the form-400-before-401 refinement of the approved AD-13 order, or restores 401 first
+
+### DW-1442: Spine ADs AD-13, AD-14, AD-17 and AD-22 still state wording that Story 27.1's shipped behaviour contradicts
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: AD-17: rejected-request audit target is the webhook Ref, Slack writes target slack; AD-13 hook bullet hands events only to WebhookIn, AD-24 now adds SlackIn; AD-14: every inbound message becomes an Item, Slack's others become Ignored; AD-22 silent on eval-session Turn rows
+- 2026-11-16T18:25:33Z status=escalated owner=burndown by=cr note=AD Rule wording edits are a Planner veto item; 27.3's spine gate can carry them
+
+### DW-1443: SlackIn.Turn copies Channel.Telegram.In Turn (itself in the steps of WebChatIn.Accept): a third copy of the open-session, Trace.Join, Item, SendTurn, Trace.Started, clear-ids recipe
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Channel/Slack/In.cls Turn repeats Channel/Telegram/In.cls Turn step for step minus allowance and file; spec decision 9 forces the copy (U-177: a Lane B story may not edit or extract from a Lane A class)
+- 2026-11-16T18:25:34Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify in one shared turn helper in a story allowed to edit Lane A and Lane B channel services
+
+### DW-1444: A Slack event over Data.Webhook BODYMAX (65,536 bytes) is answered 413 and dropped, so a very long direct message (Slack allows 40,000 characters and repeats the text in blocks) never becomes a turn
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Web/Hook.cls Slack() applies BODYMAX before the signature; the spec's check order and its I/O matrix row Too big fix 413 over 65,536 bytes
+- 2026-11-16T18:25:41Z status=by-design owner=27-1-receive-slack-events-by-webhook by=cr note=spec-bound (check order, matrix row Too big); reopens only by a spec amendment that gives Slack its own cap
+
+### DW-1445: Slack route rejections are audited with channel webhook (target slack), because they reuse Data.Webhook RecordRejection
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Data.Webhook.RecordRejection writes channel webhook; spec decision 4 and the Always line reuse it with slot slack and keep action webhook_rejected
+- 2026-11-16T18:25:41Z status=by-design owner=27-1-receive-slack-events-by-webhook by=cr note=spec-bound (decision 4; Always: audited through RecordRejection)
+
+### DW-1446: Channel.Slack.Ignored is an Ens.Request outside an OcuTalon Msg package and has no Test.Msg.Contracts entry
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the spec's Tasks name Channel/Slack/Ignored.cls; its property set is pinned through %Dictionary by Test.Channel.SlackIn TestRecordsHoldNoIds
+- 2026-11-16T18:25:41Z status=by-design owner=27-1-receive-slack-events-by-webhook by=cr note=spec-bound location; shape pinned in the SlackIn tests
+
+### DW-1447: Web.Hook.RawBody re-encodes a character body stream to UTF-8, though the spec says the body is never decoded or re-encoded before hashing
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Task 0 (a) measured a binary stream for application/json with and without a charset, so the branch never runs for Slack's JSON
+- 2026-11-16T18:25:41Z status=wontfix-theoretical owner=27-1-receive-slack-events-by-webhook by=cr note=real if the web server ever hands RawBody a character stream for application/json
 ### DW-1435: flake: test-eval-set.sh rule capture reported "with the capture variable empty, the run is not the same, byte for byte, as with it unset" once on a local lane-C run (DW-1421 round-2 review) and passed on the unchanged rerun
 - source: spec-0-dw-1421-c2p-an-over-long-evidence-element-is-cut-not-refused.md (code review round 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: No shell file changed since 08f55bc99; the same tree passed the rule on the rerun (234 s). Unverified cause: the compared out.log, calls or reports of two stub runs of eval/run.sh differed once, possibly a time-dependent line under load.
@@ -8787,3 +8826,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Channel/Email/Out.cls Began (23.15 deferred, harvested by the lead)
 - 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=a_forced_SQL_error_in_the_claim_lookup_is_hard_to_inject;safe_default
+
+### DW-1450: flake candidate: live:online-demo row 6, a proxied sign-in with the cap one above busy gave 'other' instead of the shell
+- source: feature ci 43939939727 (d996ffcde) iris (browser) on ocutalon-ci-31 | severity: low | fix-risk: low | footprint: docker/tests/test-online-demo.sh
+- evidence: the head's diff from its green parent dddd24dfc is ci/units.sh and test-demo-path-gate.sh only; live:online-demo ran before live:production-restart in the job (units run in sequence), so the rebalance did not touch it; row 6 depends on a connection count read before S3 and S5
+- 2026-11-16T21:10:54Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1

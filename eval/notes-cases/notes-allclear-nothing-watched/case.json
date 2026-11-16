@@ -1,0 +1,28 @@
+{
+  "name": "notes-allclear-nothing-watched",
+  "kind": "all-clear",
+  "heldOut": false,
+  "description": "The user asks whether everything is fine while nothing is watched. The case is right only when the check_status call is rendered as the catalog key checks.nothingWatched and the reply carries no all-clear wording. This copy carries the fixed notes set of the channel A/B (Story 27.1), shown as the notes block of a first turn; its expectation is the source case's.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [],
+  "expectation": {
+    "catalogKey": "checks.nothingWatched"
+  },
+  "notes": [
+    {
+      "minutesAgo": 170,
+      "text": "Good morning, I'm on shift until six."
+    },
+    {
+      "minutesAgo": 95,
+      "text": "Thanks, that helps."
+    },
+    {
+      "minutesAgo": 40,
+      "text": "Back from lunch now."
+    }
+  ],
+  "recordedBy": "Story 27.1 (R7 A/B)"
+}
