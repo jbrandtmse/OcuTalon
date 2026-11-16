@@ -8759,6 +8759,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-24-3a-deliver-pages-on-the-on-call-channels-and-take-the-web-ackno.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Channel/Telegram/Out.cls OnNotification lines 220-221 render a page with Watch.Paging.Text directly; the web card and the email use Channel.PageText (redact, then cap). Lane A file, edit barred beyond V5's not_paired lines; PageRoute asserts Telegram for a plain cause only.
 - 2026-11-16T11:12:20Z status=escalated owner=burndown by=cr note=planner_ruling_needed:allow_1-line_Lane_A_change_Telegram/Out.cls:221_to_Channel.PageText,or_accept_gap(Q1_binding)
+- 2026-11-16T14:16:01Z status=routed owner=burndown by=lead note=Planner_ruling:fixed_on_OCT-epic23-dw1430_off_BASE_625900415(aea51eb95);Telegram_page_path_uses_Channel.PageText;merges_after_MERGE-BACK_DONE_ahead_of_24.3
 ### DW-1428: flake candidate: Test.Schedule.Reminders TestTwoWaitersFireOnce 'the session has one web card' and 'and one phone message' fail although exactly one Notify left ReminderTimer and WebChatOut and SimPhoneOut handled it (shard:lane-b@rest)
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: OCT-epic23 89b0eb50 run 43823569610 iris(shards-6) on ocutalon-ci-25; no Schedule/Notify/Ownership change in dbc68f1d..89b0eb50; same class green on 0c743465 (run 43816599381 shards-6)
