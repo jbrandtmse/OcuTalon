@@ -4483,3 +4483,5 @@
 2026-11-16T09:07:05Z	Epic 21	runner_reported	PLANNER_REPORT DW-1378_gate(e5de51ab7;IncidentRequest.After;AD-12_sub-bullet;fallback_reading) relayed=contest_planner
 2026-11-16T09:07:19Z	Epic 21	owner_decision	via=contest_planner DW-1378=APPROVED(AD-12_verbatim;fallback_confirmed;pins)+1.0.12_CUT_ITEM order=DW-1376,DW-1378,DW-1421,user-turn
 2026-11-16T12:46:16Z	Run	owner_decision	via=contest_planner RESULT=Experts_1st(108_vs_82),Community_3rd 1.0.12_includes_online_demo_update(Planner) merge_delegated_to_Planner(signal_REQUIRED_GREEN) hosts_stay epics_27,28=APPROVED_after_1.0.12(scope_hold_lifted;gates_to_Planner)
+2026-11-16T12:47:23Z	Epic 21	ci_green_verified	DW-1376 head=5f9b7e3c7 runs=43832095522,43832095431; DW-1378 head=d1cc64e0e(contains_DW-1376) runs=43848746962,43848747032 note=reports_not_received;verified_by_gate+Planner_live_check
+2026-11-16T12:47:23Z	Epic 21	merge_enqueued	DW-1376+DW-1378 (1.0.12 cut items) via OCT-epic21-dw1378
