@@ -60,7 +60,7 @@
 #                  else; "Two things to look at in the demo" is nowhere in the README
 #   new-since      the README's "### New since 1.0.0" sits under "What's interesting", after its image line, and holds only the ruled
 #                  pointer; the guide's "## New since 1.0.0" holds its intro line, then the three #### headings in order and, under them,
-#                  the 19 bullets by bold name, each once, in the ruled order
+#                  the 20 bullets by bold name, each once, in the ruled order
 #   teaser         the full-video line is there once, word for word, two lines below the opening paragraph and the teaser line once,
 #                  word for word, two lines below it, each with an empty line between and above the first H2 section; in the README and
 #                  the guide no HTML media tag, no image inside a link, and no image that is not an
@@ -1058,10 +1058,12 @@ chk_path() {
 }
 
 # new-since: the README's H3 "New since 1.0.0" under "What's interesting", after its image line, with only the ruled pointer; and the guide's
-# section "New since 1.0.0": its intro line, the three H4 groups and the 19 bullets (by bold name), in the ruled order.
+# section "New since 1.0.0": its intro line, the three H4 groups and the 20 bullets (by bold name), in the ruled order.
+# NS_ONCALL (Story 24.3b, the Contest Planner's P4 ruling of 2026-11-16: approved as written, no More-to-try item, with GUIDE's existing "Settings > ..." separator) is the On-call pages bullet word for word.
 # NS_T7 (Story 21.5's Public text T7, Contest Planner ruling D of 2026-11-12 with its two conditions met: a saved source is in the digest's coverage
 # list, Test.Mcp.SourceSet TestCoverageReadsTheSource; an unchanged result is skipped, Test.Mcp.SourceRun TestSeenBefore) is that bullet word for word.
 NS_T7='- **MCP tools as sources.** On your own install, an admin sets a Read-only MCP tool up as a source in Settings > Tools and MCP servers, with its arguments and how often to check it. OcuTalon calls it on that schedule and makes an attention decision on each new result, and the source joins the digest'\''s coverage list. Sources are off on the online demo.'
+NS_ONCALL='- **On-call pages.** On your own install, choose an on-call person and a backup in Settings > On call. When OcuTalon finds failures in a production it watches, it pages the on-call person in their OcuTalon chat and by Telegram or email, and pages the backup if nobody presses Got it in time. The online demo never pages anyone.'
 NS_INTRO='Each item says where to try it. Visual Trace on the online demo is shared, so save and add nothing personal.'
 NS_G1='Your integrations'
 NS_G2='Your documents and memory'
@@ -1077,6 +1079,7 @@ B Webhooks
 B Your own mailbox
 B MCP servers in Settings
 B MCP tools as sources
+B On-call pages
 B A History page
 B A Usage page
 H $NS_G2
@@ -1134,6 +1137,7 @@ chk_new_since() {
     echo "new-since: the group headings and bullets are not in the ruled order"
   fi
   if ! grep -qxF -- "$NS_T7" "$tmp/sec.ns.guide"; then echo "new-since: the 'MCP tools as sources' bullet is not the approved text (T7)"; fi
+  if [ "$(grep -c -x -F -- "$NS_ONCALL" "$tmp/sec.ns.guide")" -ne 1 ]; then echo "new-since: the guide does not hold the approved bullet 'On-call pages' once, word for word"; fi
 }
 
 # outcomes: chk_outcomes <readme> <chat-view.ts>
@@ -1755,12 +1759,15 @@ chk_docs() {
 }
 
 # telegram-demo (U-228 condition 2): sentence by sentence, outside code fences, in the README and the guide: chk_telegram_demo <readme> <guide>.
+# The one line that is the approved On-call pages bullet (NS_ONCALL, Story 24.3b) is not read sentence by sentence: it opens with "On your own install", and
+# its sentence "The online demo never pages anyone." names no channel. A bullet that differs from the approved line in any way is read as every other line.
 chk_telegram_demo() {
-  awk '
+  awk -v oncall="$NS_ONCALL" '
     FNR == 1 { fence = 0; sec = 0 }
     /^```/ { fence = !fence; next }
     fence { next }
     /^## / { sec = ($0 == "## Telegram"); next }
+    $0 == oncall { next }
     {
       line = $0; gsub(/\. /, ".\n", line); n = split(line, parts, "\n")
       for (i = 1; i <= n; i++) {
@@ -2529,7 +2536,7 @@ rule_new_since() {
   st 'a bullet under the pointer' 1 "$README" '{ print } /^The guide lists what is new since release 1.0.0/ { print ""; print "- **Memory.** Text." }' chk_new_since
   st 'the intro line back under the heading' 1 "$README" '{ print } /^The guide lists what is new since release 1.0.0/ { print ""; print "Each item says where to try it." }' chk_new_since
   st 'the image line removed from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_new_since
-  # The guide's section holds the intro line, the three groups and the 19 bullets.
+  # The guide's section holds the intro line, the three groups and the 20 bullets.
   st 'the guide heading removed' 2 "$GUIDE" '!/^## New since 1.0.0$/' chk_new_since
   st 'the guide heading renamed' 2 "$GUIDE" '/^## New since 1.0.0$/ { print "## Since 1.0.0"; next } { print }' chk_new_since
   st 'the intro line reworded' 2 "$GUIDE" '/^Each item says where/ { sub(/Visual Trace on the online demo/, "Visual Trace here") } { print }' chk_new_since
@@ -2565,8 +2572,11 @@ rule_new_since() {
   st 'the T7 bullet says each result' 2 "$GUIDE" 'index($0, "- **MCP tools as sources.**") == 1 { sub(/each new result/, "each result") } { print }' chk_new_since
   st 'the T7 bullet without its coverage clause' 2 "$GUIDE" 'index($0, "- **MCP tools as sources.**") == 1 { sub(/, and the source joins the digest.s coverage list/, "") } { print }' chk_new_since
   st 'the T7 bullet without its online-demo sentence' 2 "$GUIDE" 'index($0, "- **MCP tools as sources.**") == 1 { sub(/ Sources are off on the online demo\./, "") } { print }' chk_new_since
+  st 'the On-call pages bullet with the other separator' 2 "$GUIDE" 'index($0, "- **On-call pages.**") == 1 { sub(/Settings > On call/, "Settings \342\200\272 On call") } { print }' chk_new_since
+  st 'the On-call pages bullet with one word changed' 2 "$GUIDE" 'index($0, "- **On-call pages.**") == 1 { sub(/in time/, "in good time") } { print }' chk_new_since
+  st 'the On-call pages bullet twice' 2 "$GUIDE" '{ print } index($0, "- **On-call pages.**") == 1 { print }' chk_new_since
   st 'a bullet above the first group heading' 2 "$GUIDE" '/^Each item says where/ { print; print ""; print "- **A new thing.** Text."; next } { print }' chk_new_since
-  finish new-since 'the README holds the ruled pointer under its H3 New since 1.0.0, and the guide holds the section with its intro line, the three group headings in order and the 19 bullets, each once, in the ruled order' chk_new_since
+  finish new-since 'the README holds the ruled pointer under its H3 New since 1.0.0, and the guide holds the section with its intro line, the three group headings in order and the 20 bullets, each once, in the ruled order' chk_new_since
 }
 
 rule_teaser() {
@@ -3048,6 +3058,7 @@ rule_telegram_demo() {
   st 'the use case without your own install' 2 "$GUIDE" '/^- \*\*The partner feed/ { sub(/On your own install you/, "You") } { print }' chk_telegram_demo
   st 'a sentence about the online demo that mentions Telegram, in the guide' 2 "$GUIDE" '{ print } END { print ""; print "The online demo also sends Telegram notices." }' chk_telegram_demo
   st 'a Telegram sentence in the guide outside the section that does not say your own install' 2 "$GUIDE" '{ print } END { print ""; print "You can approve it in Telegram too." }' chk_telegram_demo
+  st 'the On-call pages bullet with a changed last sentence is read sentence by sentence' 2 "$GUIDE" 'index($0, "- **On-call pages.**") == 1 { sub(/never pages anyone/, "never pages anybody") } { print }' chk_telegram_demo
   finish telegram-demo 'no sentence of the README or the guide about the online demo mentions Telegram, and the other mentions say your own install' chk_telegram_demo
 }
 

@@ -25,6 +25,10 @@
 ///   - TestEmailBodyHoldsTheCardsCause (Q1): the body's cause is the web card's sentence, which is the cause after Bridge.Redact.Text and the cap of 1000 characters (a secret-shaped one is redacted
 ///     in both and its raw value is in neither, an over-long one is cut alike in both, one whose secret crosses the cap is redacted before the cut so no part of the secret is in either, a plain
 ///     one is unchanged), the name is the Settings name as the admin set it, and no item or message text reaches the body;
+///   - TestEscalationMailsTheBackup (Story 24.3b; AC3, AC5): an escalation asked from system for an unacknowledged address-only on-call page, due in 3 seconds, reaches the real IncidentManager through
+///     ReminderTimer, which records exactly one backup page row, and Notify and EmailOut send exactly one mail to oncall.backup.email (the SMTP stub), with no second row and no second mail after the quiet
+///     time; the SetReminder, ReminderStart and Escalation bodies and every other message body since the ask, the Reminder row and the Ens.Util.Log lines hold no address or user name of the sends (the
+///     mock received the mail: the positive control);
 ///   - TestNoIdentityInTheTrace (AC4, V2): after a user's page and an address-only person's page, no address, user name or chat id of the sends, no subject and no body is in any Ens message body or
 ///     header, any Ens.Util.Log line or any audit entry written since the sends began (the mock received them: the positive control).
 Class OcuTalon.Test.Channel.PageRoute Extends OcuTalon.Test.Core.InProduction [ DependsOn = (OcuTalon.Test.Channel.TelegramPageFixture, OcuTalon.Test.Channel.EmailLive, OcuTalon.Test.Watch.Paging) ]
@@ -1000,6 +1004,77 @@ Method TestEmailBodyHoldsTheCardsCause()
 		Do $$$AssertEquals($ZStrip(mails.%Get(0).subject, "*C") [ ("zzitemmarker"_..Number), 0, label_": nor of the subject")
 		Do $$$AssertTrue(row.SampleError [ ("zzitemmarker"_..Number), label_": (positive control: the incident's item text holds the marker)")
 	}
+}
+
+/// Story 24.3b (AC3, AC5; Integration, Rule 1): an unacknowledged address-only on-call page of an open incident, the backup's address set, and an escalation asked from system with a delay of 3 seconds. After it
+/// falls due, ReminderTimer's Escalation reaches the real IncidentManager, which records exactly one backup page row, and Notify and EmailOut send exactly one mail to the backup key's address (AssertMail). After the
+/// quiet time there is still one row and one mail. The ids-only check: no message body since the ask (the SetReminder, ReminderStart and Escalation bodies among them), no Reminder row and no Ens.Util.Log line holds an
+/// address or the on-call person (the positive control is that the mock received the mail, and that the bodies hold the page's Ref).
+Method TestEscalationMailsTheBackup()
+{
+	If '..Ready() Quit
+	Set n = ..Next()
+	Set primary = "zzoncall"_..Number_"x"_n_"@example.test"
+	Set person = "zzperson"_..Number_"x"_n_"@example.test"
+	Set backup = "zzbackup"_..Number_"x"_n_"@example.test"
+	Do ..Keys(primary, "", backup)
+	Set names = $ListBuild(primary, person, backup, "zzpagefrom"_..Number)
+	Set incident = ..Incident()
+	Set first = ..PageRow(incident, "oncall", person, "email")
+	Do ##class(OcuTalon.Test.Channel.EmailLive).SmtpControl("reset", {})
+	Set headerMark = ##class(OcuTalon.Test.Channel.LiveCase).HeaderMark()
+	Set logMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
+	Set command.Kind = "escalation"
+	Set command.IncidentRef = incident
+	Set command.PageRef = first.Ref
+	Set command.DelaySeconds = 3
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .result)
+	Do $$$AssertEquals($$$ISOK(sc)_"|"_$IsObject($Get(result)), "1|1", "the escalation ask is submitted and answered")
+	If $$$ISERR(sc) || '$IsObject($Get(result)) Quit
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|set", "the escalation is set")
+	Set ref = result.Ref
+	Set bodyId = command.%Id()
+	Set mails = ..WaitMails(1)
+	Do $$$AssertEquals(mails.%Size(), 1, "positive control: the SMTP stub holds one mail after the escalation fell due")
+	Set end = $ZHorolog + ..#WAIT
+	For {
+		Set backupPage = ##class(OcuTalon.Data.Page).IncidentRoleIndexOpen(incident, "backup")
+		If $IsObject(backupPage) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Do $$$AssertTrue($IsObject(backupPage), "IncidentManager recorded the backup's page row")
+	If $IsObject(backupPage) {
+		Set ..PageRefs = ..PageRefs_","_backupPage.Ref
+		If mails.%Size() = 1 Do ..AssertMail(mails, 0, ..PageNotice(backupPage, "instance"), backup, "the backup's page email")
+		Do $$$AssertEquals(..WaitRows(backupPage.Ref, "email", 1), 1, "one email claim row for the backup's page")
+	}
+	Hang ..#QUIET
+	Set pages = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Page WHERE IncidentRef = ? AND PageRole = 'backup'", incident)
+	Do pages.%Next()
+	Do $$$AssertEquals(+pages.%GetData(1), 1, "exactly one backup page row of the incident after the quiet time")
+	Do $$$AssertEquals(..Mails().%Size(), 1, "and exactly one mail, to the backup key's address")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "the escalation row exists")
+	If $IsObject(row) Do $$$AssertEquals(row.State_"|"_row.SessionRef, "fired|instance", "the escalation row is fired and owned by instance")
+	Set row = ""
+	Set bodies = ##class(OcuTalon.Test.Channel.LiveCase).Bodies(headerMark)
+	Set headers = ##class(OcuTalon.Test.Channel.LiveCase).RowsText("SELECT SourceConfigName, TargetConfigName, Description, SessionId, SuperSession FROM Ens.MessageHeader WHERE ID > ?", headerMark)
+	Set logs = ##class(OcuTalon.Test.Channel.LiveCase).RowsText("SELECT Text FROM Ens_Util.Log WHERE ID > ?", logMark)
+	Set rows = ""
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionRef, Text, Kind, IncidentRef, PageRef, IdempotencyKey, CancelKey FROM OcuTalon_Data.Reminder WHERE Ref = ?", ref)
+	While rs.%Next() {
+		For column = 1:1:rs.%ResultColumnCount {
+			Set rows = rows_rs.%GetData(column)_$Char(10)
+		}
+	}
+	Do $$$AssertTrue((bodies [ incident) && (bodies [ first.Ref), "positive control: the trace holds the SetReminder and Escalation bodies, which name the incident and the page")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(bodies, names), "", "no Ens message body since the ask holds an address of the sends")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(headers, names), "", "no Ens message header does")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(logs, names), "", "no Ens.Util.Log line since the ask does (ReminderOps, ReminderTimer and IncidentManager included)")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Watch.Paging).Holds(rows, names), "", "and the escalation's Reminder row does not")
+	Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(ref)
+	Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveTraces($ListBuild(bodyId))
 }
 
 /// AC4 and V2: the distinctive addresses, user names and chat ids that this test and the tests that ran before it sent to the mock, and the mails' subjects and bodies, are in no Ens message body or

@@ -11,11 +11,15 @@ Include Ensemble
 ///     woke more than LATESECONDS after DueAt) and saves it, sends one Notification of kind reminder to Notify (reminder.due, or
 ///     reminder.late when Late), releases the lock and publishes the reminder event (fired). A failed send is logged with the Ref and not
 ///     retried, so that a reminder never fires twice. The open waits for the lock up to the process's lock timeout ($$$LockTimeout);
-///     a row whose lock is still busy then is tried again a second later;
+///     a row whose lock is still busy then is tried again a second later. A row of Kind escalation (AD-18) is marked fired in the same
+///     way (Late included), and then, holding the lock, Wake sends one OcuTalon.Msg.Escalation (IncidentRef, PageRef) asynchronously to
+///     IncidentManager instead of a Notification, and publishes nothing; a failed send is logged with the Ref and not retried, and a
+///     row that is not pending sends nothing, so two waiters of one escalation send one;
 ///   - Reconcile is the Schedule area's pass at every start (AD-5, AD-23): for each pending row with no live waiter it starts a new one
-///     (Rearm), armed from the row's DueAt. It writes no row, publishes no event and holds no row lock across a start. Rearm enters the
+///     (Rearm), armed from the row's DueAt, an escalation row owned by instance included (it has no session; it is re-armed exactly once, because a
+///     row with a live waiter is left alone). It writes no row, publishes no event and holds no row lock across a start. Rearm enters the
 ///     production through HeartbeatIn (AD-1), which makes the start with StartFrom: a ReminderStart to ReminderTimer in a new trace
-///     session under the TraceRef of the row's session (AD-26). Two waiters of one row are harmless: the later one finds the row not
+///     session under the TraceRef of the row's session (AD-26; none for an instance row). Two waiters of one row are harmless: the later one finds the row not
 ///     pending and sends nothing (Wake). A caller that is a production job must save and restore its job session ids around Rearm.
 /// Times go only through OcuTalon.Data.Time, and no text is rendered here: the Notification carries a catalog key and its slots.
 Class OcuTalon.Schedule.Reminder
@@ -32,6 +36,15 @@ Parameter NOTIFYITEM = "Notify";
 
 /// The business service that the re-arm enters the production through (AD-1).
 Parameter STARTITEM = "HeartbeatIn";
+
+/// The owner of an escalation row: never a session.
+Parameter OWNER = "instance";
+
+/// The Kind of an escalation timer (AD-18).
+Parameter ESCALATION = "escalation";
+
+/// The item that an escalation that fell due is sent to.
+Parameter ESCALATIONITEM = "IncidentManager";
 
 /// The due-form rule of a SetReminder, pure: "" with dueAt set to the UTC due time (YYYY-MM-DDThh:mm:ssZ), or one refusal code, the
 /// first of these that holds, in this order:
@@ -144,6 +157,7 @@ ClassMethod Wake(timer As OcuTalon.Schedule.ReminderTimer, completionKey As %Str
 	Set row.Late = late
 	Set sc = row.%Save()
 	If $$$ISERR(sc) Quit sc
+	If row.Kind = ..#ESCALATION Quit ..Escalate(timer, row)
 	Set notification = ..Notification(row, late)
 	Set payload = ##class(OcuTalon.Live.Payload.Reminder).FromRow(row)
 	Set session = row.SessionRef
@@ -155,6 +169,23 @@ ClassMethod Wake(timer As OcuTalon.Schedule.ReminderTimer, completionKey As %Str
 	Set published = ##class(OcuTalon.Live.Publish).Publish(session, "reminder", payload, .seq)
 	If $$$ISERR(published) {
 		$$$LOGWARNING("OcuTalon.Schedule.Reminder: the reminder event (fired) of " _ ref _ " was not published: " _ $SYSTEM.Status.GetErrorText(published))
+	}
+	Quit $$$OK
+}
+
+/// The firing of the escalation row, which Wake holds open under its exclusive lock and has marked fired and saved: one Msg.Escalation
+/// (IncidentRef, PageRef) goes asynchronously to IncidentManager. No Notification and no event. A failed send is logged with the Ref and
+/// is not retried. The lock is Wake's, and it is released when Wake lets the row go.
+ClassMethod Escalate(timer As OcuTalon.Schedule.ReminderTimer, row As OcuTalon.Data.Reminder) As %Status [ Private ]
+{
+	Set ref = row.Ref
+	Set escalation = ##class(OcuTalon.Msg.Escalation).%New()
+	Set escalation.IncidentRef = row.IncidentRef
+	Set escalation.PageRef = row.PageRef
+	Set row = ""
+	Set sent = timer.SendRequestAsync(..#ESCALATIONITEM, escalation, 0)
+	If $$$ISERR(sent) {
+		$$$LOGERROR("OcuTalon.Schedule.Reminder: the escalation of " _ ref _ " was not sent to " _ ..#ESCALATIONITEM _ ": " _ $SYSTEM.Status.GetErrorText(sent))
 	}
 	Quit $$$OK
 }
@@ -187,7 +218,7 @@ ClassMethod Rearm(ref As %String) As %Status
 }
 
 /// The start that HeartbeatIn makes for a ReminderStart (AD-26): the waiter's trace session begins at its start header and its SuperSession
-/// is the TraceRef of the row's Session. An error status naming the Ref when the row has no session, or when ReminderTimer gives no
+/// is the TraceRef of the row's Session (empty for an escalation row owned by instance). An error status naming the Ref when the row has no session, or when ReminderTimer gives no
 /// answer within ReminderOps.#STARTSECONDS.
 ClassMethod StartFrom(service As Ens.BusinessService, start As OcuTalon.Schedule.ReminderStart, Output output As %Persistent) As %Status [ Internal ]
 {
@@ -196,10 +227,7 @@ ClassMethod StartFrom(service As Ens.BusinessService, start As OcuTalon.Schedule
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionRef FROM OcuTalon_Data.Reminder WHERE Ref = ?", ref)
 	Set sessionRef = $Select(result.%Next(): result.%Get("SessionRef"), 1: "")
 	Set result = ""
-	Set session = $Select(sessionRef '= "": ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef), 1: "")
-	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, "OcuTalon.Schedule.Reminder: there is no session for the reminder " _ ref)
-	Set superSession = session.TraceRef
-	Set session = ""
+	If '..SuperSessionOf(sessionRef, .superSession) Quit $SYSTEM.Status.Error(5001, "OcuTalon.Schedule.Reminder: there is no session for the reminder " _ ref)
 	Set service.%SessionId = ""
 	Set service.%SuperSession = superSession
 	Set sc = service.SendRequestSync(##class(OcuTalon.Schedule.ReminderOps).#TIMERITEM, start, .output, ##class(OcuTalon.Schedule.ReminderOps).#STARTSECONDS)
@@ -209,17 +237,30 @@ ClassMethod StartFrom(service As Ens.BusinessService, start As OcuTalon.Schedule
 	Quit sc
 }
 
+/// 1 when the row's owner can be traced: superSession is the TraceRef of the Session row that sessionRef names, or "" for the owner
+/// instance (an escalation row has no session, AD-26). 0, with superSession "", for an empty ref and for a ref that names no Session row.
+ClassMethod SuperSessionOf(sessionRef As %String, Output superSession As %String) As %Boolean
+{
+	Set superSession = ""
+	If $Get(sessionRef) = "" Quit 0
+	If sessionRef = ..#OWNER Quit 1
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+	If '$IsObject(session) Quit 0
+	Set superSession = session.TraceRef
+	Quit 1
+}
+
 /// The pass of the class description, idempotent: with no production running it answers OK and does nothing. It reads the pending rows by
 /// one SQL statement (earliest due first) and opens none with a lock. only, a comma-separated list of Refs, limits the pass to those rows.
 /// A row with a live waiter (LiveWaiter) is skipped. A row whose SessionRef names no Session row is skipped, and its Ref is added to skipped
-/// (a list). Every other row is re-armed through Rearm. Every row is tried; the failures combine into the returned status, each naming
+/// (a list); a pending escalation row owned by instance has no session and is not skipped. Every other row is re-armed through Rearm. Every row is tried; the failures combine into the returned status, each naming
 /// its Ref.
 ClassMethod Reconcile(only As %String = "", Output skipped As %List) As %Status
 {
 	Set skipped = ""
 	If '##class(Ens.Director).IsProductionRunning() Quit $$$OK
 	Set sc = $$$OK
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, SessionRef FROM OcuTalon_Data.Reminder WHERE State = 'pending' ORDER BY DueAt, ID")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, SessionRef, Kind FROM OcuTalon_Data.Reminder WHERE State = 'pending' ORDER BY DueAt, ID")
 	If result.%SQLCODE < 0 {
 		Quit ..Combine(sc, "the pending reminders cannot be read: SQLCODE " _ result.%SQLCODE _ " " _ result.%Message)
 	}
@@ -228,14 +269,14 @@ ClassMethod Reconcile(only As %String = "", Output skipped As %List) As %Status
 	While result.%Next() {
 		Set ref = result.%Get("Ref")
 		If (only '= "") && '$ListFind(only, ref) Continue
-		Set pending = pending _ $ListBuild($ListBuild(ref, result.%Get("SessionRef")))
+		Set pending = pending _ $ListBuild($ListBuild(ref, result.%Get("SessionRef"), result.%Get("Kind")))
 	}
 	Set result = ""
 	Set position = 0
 	While $ListNext(pending, position, entry) {
 		Set ref = $List(entry, 1)
 		If ..LiveWaiter(ref) '= "" Continue
-		If '##class(OcuTalon.Data.Session).RefIndexExists($List(entry, 2)) {
+		If '..Armable($List(entry, 2), $List(entry, 3)) {
 			Set skipped = skipped _ $ListBuild(ref)
 			Continue
 		}
@@ -243,6 +284,13 @@ ClassMethod Reconcile(only As %String = "", Output skipped As %List) As %Status
 		If $$$ISERR(one) Set sc = ..Combine(sc, "the waiter of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
 	}
 	Quit sc
+}
+
+/// 1 when a pending row can be re-armed: its SessionRef names a Session row, or it is an escalation row owned by instance.
+ClassMethod Armable(sessionRef As %String, kind As %String) As %Boolean [ Private ]
+{
+	If (sessionRef = ..#OWNER) && (kind = ..#ESCALATION) Quit 1
+	Quit ##class(OcuTalon.Data.Session).RefIndexExists(sessionRef)
 }
 
 /// The status plus one more failure, with the text as its error.

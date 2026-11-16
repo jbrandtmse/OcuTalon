@@ -5,7 +5,7 @@ Include Ensemble
 ///   - TestManagedAlerts (Task 0 a): an Ens.Alert item (Ens.Alerting.AlertManager) and AlertOnError 1 on OrdersFromPartner, added to the saved Orders definition and applied; three orders
 ///     are broken; the Ens_Alerting.ManagedAlert rows and their timing are printed; removing both leaves the definition and the job list as they were;
 ///   - TestPageReachesTelegram (Task 0 b): a real incident's notice, through IncidentManager, Notify and TelegramOut, reaches the mock for the paired session's chat;
-///   - TestEscalationAsk (Task 0 c): Core.Commands.Submit of a SetReminder of Kind escalation, origin system, answers not_built, and how long it takes;
+///   - TestEscalationAsk (Task 0 c; Story 24.3b, DW-1384): Core.Commands.Submit of a SetReminder of Kind escalation, origin system, answers Ok 1 set with a Ref and a DueAt, makes one pending instance row of Kind escalation with the two Refs and one live waiter, and how long it takes;
 ///   - TestHandledCopies (Task 0 d): the log lines that WebChatOut and SimPhoneOut write for a page copy that has a bare Delivery row, when a handled notification follows;
 ///   - TestRealBreakPagesTelegram (AC6, AC12, AC13): a real break of OCUORDERS pages the on-call user's paired Telegram chat through the real IncidentManager,
 ///     Notify and TelegramOut; a fixture Escalation pages the backup once; Got it pressed from another chat, then from the paired chat (the page is acknowledged on telegram and the message is
@@ -323,7 +323,8 @@ Method TestPageReachesTelegram()
 	If texts.%Size() Do ..Timing("Task 0 (b): the chat's first text: "_$Extract(texts.%Get(texts.%Size() - 1), 1, 80))
 }
 
-/// Task 0 (c): Commands.Submit of an escalation SetReminder from origin system answers not_built, with no deadlock. The in-job ask is made by TestRealBreakPagesTelegram in the real run.
+/// Task 0 (c): Commands.Submit of an escalation SetReminder from origin system answers Ok 1 set with a Ref and a DueAt, with no deadlock (Story 24.3b, DW-1384): one pending Reminder row owned by instance, of Kind escalation, with the two
+/// Refs, and one live ReminderTimer waiter. The row is removed through ReminderFixture.Remove, which cancels it from system. The in-job ask is made by TestRealBreakPagesTelegram in the real run.
 Method TestEscalationAsk()
 {
 	If '..Ready() Quit
@@ -339,8 +340,16 @@ Method TestEscalationAsk()
 	Do $$$AssertStatusOK(sc, "the command reached CommandsIn")
 	If $$$ISERR(sc) || '$IsObject(result) Quit
 	Do ..Timing("Task 0 (c): Ok "_result.Ok_", outcome "_result.Outcome_", ref '"_result.Ref_"'")
-	Do $$$AssertEquals(result.Outcome, "not_built", "the escalation kind is not built in ReminderOps")
-	Do $$$AssertEquals(result.Ok, 0, "and it answers Ok 0")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|set", "the escalation is set")
+	Do $$$AssertTrue((result.Ref '= "") && (result.DueAt '= ""), "and the answer carries its Ref and DueAt")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(result.Ref)
+	Do $$$AssertTrue($IsObject(row), "the row exists")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.SessionRef_"|"_row.Kind_"|"_row.IncidentRef_"|"_row.PageRef_"|"_row.State, "instance|escalation|zzpagelive-incident|zzpagelive-page|pending", "one pending instance row of Kind escalation with the two Refs")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(result.Ref), 1, "and one live waiter")
+	}
+	Set row = ""
+	Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(result.Ref)
 }
 
 /// Task 0 (d): what WebChatOut and SimPhoneOut log for a page copy, when a handled notification for its Ref follows. Since Story 24.3a a user's page (a Data.Page row, which Notify routes by) is the web card

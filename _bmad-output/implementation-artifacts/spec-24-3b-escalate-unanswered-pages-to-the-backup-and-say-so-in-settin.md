@@ -2,7 +2,8 @@
 title: 'Story 24.3b: Escalate unanswered pages to the backup, and say so in Settings'
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3fbccd77377f87d4c0d7efbfa0a418fc0e31a891'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -165,19 +166,19 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure first; record under Design Notes › Measured, and label anything unmeasured "(inference)"). On a fresh lane-D throwaway, after the ReminderOps change:
+- [x] Task 0 (measure first; record under Design Notes › Measured, and label anything unmeasured "(inference)"). On a fresh lane-D throwaway, after the ReminderOps change:
   - (a) the real `IncidentManager` `Arm` chain with the waiter start (IM → `Commands.Submit` → ReminderOps → ReminderTimer): its time, and that nothing deadlocks;
   - (b) the nested cancel: an `AckPage` from `web_user` → IncidentManager `Followed` → `CancelReminder` from `system` → ReminderOps. Measure that it completes, and its time;
   - (c) whether a live ReminderTimer waiter survives `Ens.Director.StopProduction` and `StartProduction`, and how long the stop, the start and ReconcileIn's reconcile take.
-- [ ] `Data/Reminder.cls` -- append `Kind` (`%String(MAXLEN = 32)`), `IncidentRef` and `PageRef` (`%String(MAXLEN = 22)`), with docs. Append storage values 12-14 in the committed block. No index. -- AD-5, AD-18, V1.
-- [ ] `Schedule/ReminderOps.cls` -- the escalation path in `Set`, before the session check, as Boundaries › The escalation ask. Repeat detection is a `SELECT` by PageRef on its own table (Kind `escalation`). `Cancel`'s system branch is as Boundaries › Cancel. `StartWaiter` and `EndWaiter` use an empty SuperSession for an `instance` row. Rewrite the class doc. -- AD-1, AD-5, AD-18.
-- [ ] `Schedule/Reminder.cls` -- `Wake`'s escalation branch (as Boundaries › Due). `StartFrom` starts an `instance` escalation row with an empty SuperSession. `Reconcile` selects `Kind` and re-arms `instance` escalation rows instead of skipping them. Update the class doc. -- AD-5, AD-26.
-- [ ] `Data/Purge.cls` -- the new part `DeleteEscalations(cutoff)`, called from `Run` after `DeleteDeliveries`. Update the class doc's part list (the tables are unchanged). -- AD-27, V1.
-- [ ] `Msg/Command/SetReminder.cls` -- `Kind`'s doc states the contract as built (escalation from `system` only). Doc only; the storage is unchanged.
-- [ ] `web/src/app/settings/settings-view.ts` -- replace `telegramOnly` with `pages`, holding new text 1 verbatim.
-- [ ] `web/src/app/settings/on-call-section.ts` -- the template shows `texts.pages` with id `oncall-pages` while `pagesBuilt`. Update the doc at 43-44. `notYet` and `byEmailHelp` are unchanged.
-- [ ] `GUIDE.md` -- insert the approved P4 bullet verbatim in `#### Your integrations`, right after `**MCP tools as sources.**`.
-- [ ] Tests (each pinned with the mutation under Verification):
+- [x] `Data/Reminder.cls` -- append `Kind` (`%String(MAXLEN = 32)`), `IncidentRef` and `PageRef` (`%String(MAXLEN = 22)`), with docs. Append storage values 12-14 in the committed block. No index. -- AD-5, AD-18, V1.
+- [x] `Schedule/ReminderOps.cls` -- the escalation path in `Set`, before the session check, as Boundaries › The escalation ask. Repeat detection is a `SELECT` by PageRef on its own table (Kind `escalation`). `Cancel`'s system branch is as Boundaries › Cancel. `StartWaiter` and `EndWaiter` use an empty SuperSession for an `instance` row. Rewrite the class doc. -- AD-1, AD-5, AD-18.
+- [x] `Schedule/Reminder.cls` -- `Wake`'s escalation branch (as Boundaries › Due). `StartFrom` starts an `instance` escalation row with an empty SuperSession. `Reconcile` selects `Kind` and re-arms `instance` escalation rows instead of skipping them. Update the class doc. -- AD-5, AD-26.
+- [x] `Data/Purge.cls` -- the new part `DeleteEscalations(cutoff)`, called from `Run` after `DeleteDeliveries`. Update the class doc's part list (the tables are unchanged). -- AD-27, V1.
+- [x] `Msg/Command/SetReminder.cls` -- `Kind`'s doc states the contract as built (escalation from `system` only). Doc only; the storage is unchanged.
+- [x] `web/src/app/settings/settings-view.ts` -- replace `telegramOnly` with `pages`, holding new text 1 verbatim.
+- [x] `web/src/app/settings/on-call-section.ts` -- the template shows `texts.pages` with id `oncall-pages` while `pagesBuilt`. Update the doc at 43-44. `notYet` and `byEmailHelp` are unchanged.
+- [x] `GUIDE.md` -- insert the approved P4 bullet verbatim in `#### Your integrations`, right after `**MCP tools as sources.**`.
+- [x] Tests (each pinned with the mutation under Verification):
   - `Test/Schedule/Escalations.cls` (NEW; extends `Test.Core.InProduction`; throwaways and CI only). It covers Matrix rows Ask to Acknowledged first:
     - `TestAskMakesOneInstanceRow`;
     - `TestAskAgainSameRow`;
@@ -293,6 +294,34 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 
 ## Review Triage Log
 
+### 2026-11-16 - Review pass
+- verdicts: 29 findings - high 0, medium 3, low 22, false 4, maybe-false 0 (Intent Alignment Auditor: descriptive, no finding; it found no divergence from the intent)
+- findings:
+  - `[medium]` `patch` Blind (untested failure paths), Verification-gap (start failure; send failure and busy lock): the failed waiter start, the failed escalation send and the busy-lock cancel have no escalation test - the three added to `ReminderLogic` (`TestEscalationStartFailureKeepsNothing`, `TestWakeEscalationSendFails`, `TestCancelEscalationBusyRowFails`; `ReminderTimerDouble` reads a request's properties through `Field`, since an Escalation has no Kind), each with a mutation observed red.
+  - `[medium]` `patch` (members of the entry above) Verification-gap: start failure of `Escalate` unpinned; send failure and lock-busy cancel unpinned - same fix.
+  - `[medium]` `patch` (members of the entry above) Blind: the failure paths of the escalation documented in the class docs are not exercised - same fix.
+  - `[low]` `patch` Blind, Edge: Purge's class doc says the escalation rows go "with the pages and incidents they name" - reworded: only the Reminder rows go.
+  - `[low]` `patch` Edge: `ReminderOps.Escalate`'s repeat lookup does not check `%SQLCODE`, so a failed read could add a second row - answers `failed` when the read fails.
+  - `[low]` `patch` Edge: `Reminder.Escalate`'s doc says the row is let go before it returns while Wake still holds its lock - reworded: the lock is Wake's.
+  - `[low]` `patch` Blind, Edge, Verification-gap: `TestEscalationMailsTheBackup` opens the Reminder row without an `$IsObject` check - guarded; an early `Quit` before the ask leaves no escalation row, and the base class removes the page rows.
+  - `[low]` `patch` Verification-gap: `TestDueSendsOneEscalation`'s body check is conditional - it now asserts that exactly one Escalation body was read.
+  - `[low]` `patch` Verification-gap: `TestCancelFromSystem`'s fired-row cancel asserts only `refused` - it also compares the no_reminder Message.
+  - `[low]` `patch` Verification-gap: AC3's acknowledged-first half has no recorded mutation - recorded and observed red (`CancelEscalation` answers no_reminder without cancelling -> `TestBackupPagedOnceUnlessAcknowledged` case B).
+  - `[low]` `reject` Blind, Edge: a repeated CancelReminder from system with the same key answers no_reminder - Boundaries > Cancel says a non-pending row is no_reminder, the row is cancelled either way, and a replay branch adds code for a retry that IncidentManager does not make.
+  - `[false]` `reject` Blind, Edge, Verification-gap: "at most one row per page" has no unique index and a SELECT then INSERT race - `ReminderOps` runs with pool size 1 (Code Map), so asks are serialized; the spec forbids a new index; `IncidentRoleIndex` is the second guard.
+  - `[low]` `reject` Blind: a failed or lost send drops the backup page - spec-bound: Boundaries > Due says a failed send is logged and not retried, so that a restart never pages twice (V1c).
+  - `[low]` `reject` Blind: `Wake` keys on Kind alone, `Armable` and `IsEscalation` also on the owner - no code path makes a session-owned escalation row (`Escalate` forces `instance`); only the purge test's fixture does.
+  - `[low]` `reject` Blind: the `telegram-demo` mutation test's name - a test label; the mutation is red and the exemption is pinned to the exact line.
+  - `[low]` `reject` Blind: the removed `Reminders` tests dropped two small controls - Kind `other` from system stays pinned in `TestOnlySystemMayAsk`, and an explicit Kind `reminder` takes the unchanged reminder path that every `Reminders` test covers.
+  - `[low]` `reject` Blind: doc comments read as run-on sentences - cosmetic.
+  - `[low]` `reject` Verification-gap: `TestNotInAnyList` `/state` check has no positive control - the pinning assertion is the session's `ListReminders` and the three readers, with a recorded mutation; the `/state` check is a further guard.
+  - `[low]` `reject` Verification-gap: `TestAskAgainSameRow`'s waiter and header assertions after each state flip restate the first one - harmless repetition.
+  - `[low]` `reject` Verification-gap: `TestRestartRearmsOnce`'s final check includes the fired row A - B and C carry it.
+  - `[low]` `reject` Verification-gap: `PagingLive.TestEscalationAsk` uses fixed Refs and removes its row only at the end - the Refs and the edit are fixed by V5 (DW-1384); the row is removed on the success path and the stack is a throwaway.
+  - `[low]` `reject` Verification-gap (other): no test pins `Armable`'s Kind half for a pending instance row of Kind empty - no code makes such a row.
+  - `[false]` `reject` Verification-gap (other): no index on the Reminder lookup - the same finding as the unique-index one; the purge bounds the rows (Decided 3).
+  - `[false]` `reject` Verification-gap (other): `COUNT(*)` readers in `Test.Tools.Reminders` and `Test.Demo.GuidePrompts` may meet leftover escalation rows - both compare a before and an after count of the same run, and both passed.
+
 ## Design Notes
 
 ### Rulings applied (24.3 gate and 24.3a Q1/Q2, BINDING)
@@ -323,6 +352,20 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 7. `TestEscalationMailsTheBackup` lives in `PageRoute`, reusing its SMTP set-up (Rule 2), so the AC's "`OcuTalon.Test.Channel`, with a mock mail server" holds for the escalation's page.
 8. Other paging tests in `PagingLive` (Lane A) now leave one pending escalation row per real page, due after 15 minutes, in their throwaway stack. No test asserts on it, it is torn down with the stack, and when it fires `Paging.Escalate` finds a backup already paged or the incident closed or gone. It is not cleaned, because the V5 edit is `TestEscalationAsk` only. Flagged.
 9. Stale Lane A doc text is left as is: `IncidentManager.Arm`'s "(as ReminderOps gives until Story 24.3)" and the epic-24 context's "Until 24.3". Lane A owns it, and the lead re-prewarms the context.
+10. **`test-readme.sh` rule `telegram-demo` exempts the one approved bullet line.** The approved On-call pages bullet is used verbatim (P4), and its sentence "When OcuTalon finds failures ... by Telegram or email, ..." mentions Telegram without the words "your own install" in that sentence (the bullet's first sentence says them). `chk_telegram_demo` skips only the line that equals `NS_ONCALL` exactly, so a changed bullet is read sentence by sentence again (a new self-test pins it). It is a shared surface that the plan did not list.
+11. **A `DelaySeconds` that is not a number answers `failed`, not `bad_time`.** The command's own integer property fails its validation when the message is saved, so it never reaches ReminderOps; `TestBadFieldsRefused` pins `failed` with nothing stored. An empty, 0 and negative delay reach it and are `bad_time`.
+12. **The purge part names `instance` and `escalation` as SQL literals**, not through `Schedule.Reminder`'s parameters, so that `TestOnlyOwnTablesAndAuditKept`'s scan (it allows no class call but five) still holds and needs no change.
+13. **`ReminderFixture.RemoveTraces`** is the former private `Reminders.RemoveTraces`, made public with the command class as a parameter, because `Escalations`, `PageRoute` and `ReminderFixture.Remove` need it (Rule 2). `Remove` skips the Delivery and SimMessage clean-up for an instance row.
+14. A repeat ask is found by `%EXACT(PageRef)`, so two Refs that differ only in case are two pages.
+15. A `CancelReminder` from system for an escalation row that is not pending is `no_reminder` whatever its key (no repeat answer), as the Matrix says.
+16. `Schedule.Reminder` gains the parameters `OWNER` (`instance`), `ESCALATION` and `ESCALATIONITEM` (`IncidentManager`), `SuperSessionOf` (shared by `StartWaiter`, `EndWaiter` and `StartFrom`), `Armable` and `Escalate`; `ReminderOps` gains `Escalate`, `CancelEscalation` and `IsEscalation`.
+17. `Escalations` sets `onlineDemo` to "" before each test and restores the saved value after it; its live-event checks compare counts with the count at the start, because a mutated run leaves events on the instance stream of a warm stack.
+
+### Measured (Task 0; lane-D stacks; anything not measured is labelled "(inference)")
+- (a) The real `IncidentManager` `Arm` chain (IM -> `Commands.Submit` -> ReminderOps -> ReminderTimer, with the waiter start) does not deadlock. `PagingLive` `TestRealBreakPagesTelegram` (warm, 34 s, passes) made two real asks from `system`; their CommandsIn -> ReminderOps request headers (the request that holds the waiter start) were created and processed 2 ms and 3 ms apart. From the test process, `Commands.Submit` of the ask answers in 0.002 to 0.003 s warm and 0.054 s on the first call of a fresh stack (`PagingLive` `TestEscalationAsk`).
+- (b) The nested cancel completes: `AckPage` from `web_user` -> IncidentManager `Followed` -> `CancelReminder` from `system` -> ReminderOps answered handled and cancelled the row, and ended the waiter, in 0.053 s warm and 0.086 s fresh (`TestBackupPagedOnceUnlessAcknowledged`).
+- (c) A live ReminderTimer waiter survives `StopProduction` and `StartProduction`: C (set through the product) kept its one start header and its one waiter and fired once at its due time. `StopProduction(10, 0)` returned in under 0.1 s, `StartProduction` in 0.1 s, and ReconcileIn's Info row came 5.1 to 5.6 s after the start call (`TestRestartRearmsOnce`). The test's delay for C is 45 s so that it falls due after the start (its whole run is 45 s warm, 86 s for the class on a fresh stack).
+- The warm stack's production jobs keep the class they loaded at their start, so each mutation of `ReminderOps` or `Reminder` was followed by `Reminders:TestReconcileWithoutProductionDoesNothing` (a stop and start) before its target test.
 
 ### Spine updates (V4; Rule 20; the lead applies them and reports OLD and NEW at merge; this stage does not edit the spine)
 `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`.
@@ -486,7 +529,58 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - AC7: restore DW-1400's line in `settings-view.ts` → `on-call-view.test.mjs` and `ux-strings.test.mjs` red, and O1 red.
 - AC8: write the bullet with `Settings › On call` → `test-readme.sh` `new-since` (`NS_ONCALL`). Removing the bullet → "missing 'B On-call pages'".
 
+**Mutations run (Rule 19; implement stage; each applied on the warm lane-D stack (after a production restart where a production job runs the changed class), observed red, reverted from a copy saved before it, `cmp` identical, `git status --short` and `git diff --stat` identical to before):**
+- mutation: AC1 (waiter), the escalation `Set` saves the row but does not start the waiter -> `Escalations` `TestAskMakesOneInstanceRow` red (no header id, no ReminderTimer, no start header).
+- mutation: AC1 / DW-1384, `Set`'s `not_built` guard restored for `escalation` -> `PagingLive` `TestEscalationAsk` red (Ok 0 not_built, no row).
+- mutation: AC1 (origin), the `system` origin check dropped -> `Escalations` `TestOnlySystemMayAsk` red (web_user, web_admin, telegram, timer and tool are set).
+- mutation: V2 (one escalation per page), the PageRef lookup dropped -> `TestAskAgainSameRow` red (a second row and waiter).
+- mutation: V1c (nothing on the demo), the online-demo check dropped -> `TestOnlineDemoWritesNothing` red (a row, a ReminderStart and a ReminderTimer exist).
+- mutation: AC2 (an Escalation, not a Notification), `Wake`'s escalation branch removed so the reminder Notification goes -> `TestDueSendsOneEscalation` red (no Escalation header, a Notify request, an event).
+- mutation: V1c (never pages twice), `Wake`'s pending check skipped for escalation rows -> `TestDueSendsOneEscalation` red (two Escalations from two waiters).
+- mutation: AC2 (cancel), the system branch of `Cancel` removed -> `TestCancelFromSystem` red (no_session, the row stays pending, the waiter keeps waiting).
+- mutation: AC2 (the waiter ends at once), the system branch skips `EndWaiter` -> `TestCancelFromSystem` red (the waiter still waits).
+- mutation: AC3 (Integration), `ESCALATIONITEM` is `Notify` instead of `IncidentManager` -> `TestBackupPagedOnceUnlessAcknowledged` red (no backup page row) and `PageRoute` `TestEscalationMailsTheBackup` red (no backup page row, no mail).
+- mutation: AC4 / V1c (survives a restart), `Armable` no longer accepts instance rows (they are skipped as sessionless) -> `TestRestartRearmsOnce` red (A never fires, B never waits).
+- mutation: V1c (re-armed exactly once), `Reconcile`'s `LiveWaiter` skip dropped -> `TestRestartRearmsOnce` red (the second Reconcile adds a start header, C has two waiters).
+- mutation: AC5 (no list), the command's SessionRef stored on the row when given -> `TestNotInAnyList` red (the row is in the session's list and readers).
+- mutation: AC5 (ids only), `Escalate` logs the page's Person (`Data.Page`) in an Info line -> `PageRoute` `TestEscalationMailsTheBackup` red (the address is in the log; the mock's mail is the positive control).
+- mutation: AC6 / V1c (finished only), the `State IN ('fired','cancelled')` filter dropped -> `Test.Data.Purge` `TestFinishedEscalationsGo` red (the pending row is gone).
+- mutation: AC6 / V1c, `SessionRef = 'instance'` dropped -> `TestFinishedEscalationsGo` red (the kept session's finished row of Kind escalation is gone).
+- mutation: AC6 / V1c, `Kind = 'escalation'` dropped -> `TestFinishedEscalationsGo` red (the finished row of Kind empty that instance owns is gone).
+- mutation: AC6 / V1c (purging removes them), `DeleteEscalations` not called from `Run` -> `TestFinishedEscalationsGo` red (old finished rows stay, also through `Retention.Purge`).
+- mutation: AC7 / the On call line, `settings-view.ts` restored to DW-1400's line -> `on-call-view.test.mjs` ("are shown byte for byte") red, `ux-strings.test.mjs` red (two entries: "has an entry for every inventory string" and "has no entry that matches no inventory string"), and `live sign-in-2 --part 10/12` O1 red (the pages line is not visible); on the unmutated tree the same part passes 16 of 16.
+- mutation: AC8 / the GUIDE bullet (owner-pinned), `Settings > On call` written as `Settings` U+203A `On call` -> `test-readme.sh` `new-since` red ("the guide does not hold the approved bullet 'On-call pages' once, word for word"; `telegram-demo` red too, because the changed line is no longer the exempt one).
+- mutation: AC8, the bullet removed -> `new-since` red ("missing 'B On-call pages'").
+- mutation: AC1 (a failed start), the `%DeleteId` of `ReminderOps.Escalate`'s failed-start branch removed -> `ReminderLogic` `TestEscalationStartFailureKeepsNothing` red ("no row names the page").
+- mutation: AC2 (a failed send is logged), the `$$$LOGERROR` of `Reminder.Escalate` removed -> `ReminderLogic` `TestWakeEscalationSendFails` red ("one error is logged with the Ref").
+- mutation: AC2 (a busy lock), the lock-failed branch of `CancelEscalation` disabled -> `ReminderLogic` `TestCancelEscalationBusyRowFails` red (the cancel does not answer failed, no warning).
+- mutation: AC3 (acknowledged first), `CancelEscalation` answers no_reminder without cancelling -> `Escalations` `TestBackupPagedOnceUnlessAcknowledged` red (case B: the row is not cancelled, the waiter does not end, an Escalation was sent).
+
+**Verified (implement stage, lane D):**
+- Warm (`e24s3biw`): `Test.Data.Tables`, `Test.Data.Purge`, `Test.Schedule.Reminders` (83 s), each `Escalations` method one by one, `PageRoute:TestEscalationMailsTheBackup`, `PagingLive:TestEscalationAsk` and `:TestRealBreakPagesTelegram`, and the shared surfaces `Test.Data.Ownership`, `Test.Install.Registry`, `Test.Tools.Reminders`, `Test.Demo.GuidePrompts`, `Test.Schedule.ReminderLogic`, `Test.Schedule.ReminderChat` and `Test.Bridge.CodeRules` passed.
+- Fresh (`e24s3bi`): `Test.Schedule.Escalations` (86 s of tests, 217 s with the stack), `PageRoute:TestEscalationMailsTheBackup` (23 s), `PagingLive:TestEscalationAsk` and `Test.Schedule.Reminders` (84 s) passed; `ci/iris.sh build`, then `live sign-in-2 --part 10/12` (`settings/on-call.spec.ts`, O1 to O16) passed 16 of 16 in 12 s of tests.
+- `npm --prefix web test` (2188 pass), `npm --prefix web run lint`, `npm --prefix web run build` (the one existing `demo-guide.ts` style budget warning, no error), `bash docker/tests/test-readme.sh`, `test-class-rules.sh`, `test-storage.sh` and `test-ci-config.sh` pass. Both stacks were torn down.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** An unanswered page now reaches the backup. `ReminderOps` takes the paging owner's escalation ask (origin `system`, never on the online demo, one row per page, owner `instance`, empty SuperSession waiter), `Reminder.Wake` marks the row fired under its lock and sends one `Msg.Escalation` to `IncidentManager` (no Notification, no event), `CancelReminder` from `system` cancels it and ends its waiter, `Reconcile` re-arms a lost waiter exactly once, `Data.Purge` deletes only finished `instance` escalation rows, Settings shows the approved On call line, GUIDE has the approved bullet, and DW-1384's `TestEscalationAsk` asserts the real ask.
+
+**Files changed.**
+- Lane B source: `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls`, `Schedule/Reminder.cls` (escalation path, due, cancel, re-arm), `Data/Reminder.cls` (Kind, IncidentRef, PageRef; storage 12-14), `Data/Purge.cls` (`DeleteEscalations`), `Msg/Command/SetReminder.cls` (doc), `web/src/app/settings/settings-view.ts` and `on-call-section.ts` (the `pages` line, id `oncall-pages`), `GUIDE.md` (the On-call pages bullet).
+- Lane B tests: `Test/Schedule/Escalations.cls` (new), `ReminderFixture.cls`, `Reminders.cls`, `ReminderLogic.cls`, `ReminderTimerDouble.cls`, `Test/Channel/PageRoute.cls`, `Test/Data/Tables.cls`, `Test/Data/Purge.cls`, `web/scripts/on-call-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/e2e/settings/on-call.spec.ts`, `docker/tests/test-readme.sh`.
+- Lane A (V5, DW-1384): `src/ocutalon/cls/OcuTalon/Test/Watch/PagingLive.cls`, `TestEscalationAsk` and its doc lines only.
+
+**Review findings.** 29 findings, 0 high. Patched: 1 medium entry (untested failure paths: three `ReminderLogic` tests) and 7 low (Purge doc, `%SQLCODE` guard, Escalate doc, `$IsObject` guard, a conditional assertion, a refusal Message, the acknowledged-first mutation). Deferred: none. Rejected with their reasons: see the Review Triage Log.
+
+**Follow-up review recommended:** false (no high patched; one medium entry patched).
+
+**Verification.** `npm --prefix web test` 2188 pass; web lint and build pass; `test-readme.sh`, `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh` pass. On lane D: warm `ReminderLogic` passed (with its three new tests) and fresh `ReminderLogic` passed; fresh `Escalations` passed (86 s of tests); fresh `PageRoute:TestEscalationMailsTheBackup` passed; the implement stage's runs of `Tables`, `Purge`, `Reminders`, `PagingLive:TestEscalationAsk` and `live sign-in-2` (O1 to O16) passed. Every mutation line under Verification was observed red and reverted `cmp`-identical, the four added in review included.
+
+**Residual risks.**
+- Other `PagingLive` tests leave one pending escalation row per real page in their throwaway stack (Decided 8).
+- A crash between marking the row fired and sending the Escalation loses that page's backup page (spec-bound: never twice).
+- The spine's AD-18 and AD-27 text is amended by the lead at merge (Design Notes > Spine updates); `ARCHITECTURE-SPINE.md` is unchanged here.
+- `_bmad-output/implementation-artifacts/deferred-work.md` was modified in the worktree by the epic runner during this run (one ledger trailer line, not this story's); it is not part of this story's commit.

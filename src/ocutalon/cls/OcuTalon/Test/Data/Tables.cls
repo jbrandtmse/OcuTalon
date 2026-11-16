@@ -536,7 +536,10 @@ XData Contracts [ MimeType = application/json ]
    "CreatedAt": "%String(MAXLEN=20)",
    "TraceHeaderId": "%Integer",
    "IdempotencyKey": "%String(MAXLEN=128)",
-   "CancelKey": "%String(MAXLEN=128)"
+   "CancelKey": "%String(MAXLEN=128)",
+   "Kind": "%String(MAXLEN=32)",
+   "IncidentRef": "%String(MAXLEN=22)",
+   "PageRef": "%String(MAXLEN=22)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
