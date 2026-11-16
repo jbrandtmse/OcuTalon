@@ -4502,3 +4502,6 @@
 2026-11-16T14:21:07Z	Run	owner_decision	via=contest_planner Epics_27,28_START_NOW(on_freed_slots;order:in-flight_first,then_27,28.1,28.2,28.3_ahead_of_LOW/23.14;gates_to_Planner;Slack_off_on_demo;own_branches_until_MERGE-BACK)
 2026-11-16T14:21:59Z	Epic 27	provisioned	worktree=.worktrees/epic-27 branch=OCT-epic27(from_feature_b86741bda,records-only_over_BASE) note=provision_push_triggered_runs_43884842828,43884842832;cancelled(no_self-hosted_job_started;code=BASE,already_green;frees_runners_for_release)
 2026-11-16T14:22:29Z	Epic 27	dispatched	lane=B(throwaways_until_slot_B_free) runner=a847bb1757d647aa8 stories=27.1,27.2 start=spec_gates_to_Planner prompt=prompts/dispatch-epic-27-20261116.md
+2026-11-16T14:31:49Z	Epic 21	ci_green_verified	DW-1421_C0+C1 head=71e204715 runs=43877321885,43877321910 state=held(MERGE-BACK) planner_notified=sha+command(key-holder_run_after_RC_eval)
+2026-11-16T14:33:08Z	Epic 28	provisioned	worktree=.worktrees/epic-28 branch=OCT-epic28 note=provision_push_runs_43886827214,43886827025_cancelled(only_GitHub-hosted_checks/web_started;code=feature_records-only)
+2026-11-16T14:33:32Z	Epic 28	dispatched	lane=C(throwaways_until_slot_C_free) runner=a06aa8f2f1869a0ed order=28.2,28.3,28.1(after_Epic27) prompt=prompts/dispatch-epic-28-20261116.md
