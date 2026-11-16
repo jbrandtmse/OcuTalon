@@ -1056,3 +1056,5 @@
 2026-11-16T13:35:22Z	DW-1421	cr_complete	model=opus findings=30(high0,med3_patched,low25(14_patched),false2) folder_guard=all_git_worktrees_refused security=no_web_reachable_path;allowlist;Recheck_silent warm=Capture(10),Payload,ReplyCheck,Decide fresh_lane-a@Eval=24 eval-set=pass wrapper=all_stack_calls final_status=done
 2026-11-16T13:35:33Z	DW-1421	integrated	feature=625900415(no_overlap_with_DW-1421_files) merge=4eb66001e conflicts=none
 2026-11-16T13:35:33Z	DW-1421	fresh_check	env=CR_fresh_lane-a@Eval_24+warm_Capture,Payload,ReplyCheck,Decide+test-eval-set_all+QA_mock_A/B_byte-identical;merge_adds_no_relevant_src
+2026-11-16T14:27:07Z	DW-1421	ci_resolved	sha=71e204715 result=success runs=43877321885,43877321910(attempt1)
+2026-11-16T14:27:07Z	DW-1421	part_ready	parts=DW-1421_C0+C1 code_head=71e204715 ci=success records=local note=key-holder_runs_capture_after_1.0.12_RC_eval;C2/C3_from_counts
