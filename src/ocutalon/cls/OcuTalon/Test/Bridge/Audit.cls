@@ -20,6 +20,8 @@
 ///   - TestMcpCallShape (Story 22.3, AD-17; the Contest Planner's condition (d)): an MCP entry whose change is called or refused has the members of SHAPEMCPCALL (change, server,
 ///     tool, outcome, then the common three) and no other, and Shape(MCP, change) says so; added and removed keep the members of SHAPEMCP. A call entry with an argument, a result,
 ///     a missing tool or outcome, or an outcome that is not one lower-case word is refused naming the member and not the value, and a shape of the other kind is refused.
+///   - TestServedCall (Story 28.3, AD-17): an MCP entry of change served has the same call shape, and the channel mcp (MCPCHANNEL) is accepted for the type MCP and for no other type; the
+///     shared channel list of Msg.Enum does not hold it.
 Class OcuTalon.Test.Bridge.Audit Extends %UnitTest.TestCase
 {
 
@@ -75,7 +77,8 @@ Method TestMcpCallShape()
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "added"), ","), "change,server,irisUser,sessionRef,channel", "an added entry keeps the old shape")
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP"), ","), "change,server,irisUser,sessionRef,channel", "so does Shape with no change")
 	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "Tool", "called"), ","), "source,tool,classification,readOnly,irisUser,sessionRef,channel", "and the change selects a shape for the type MCP only")
-	For change = "called", "refused", "source_set", "source_removed" {
+	Do $$$AssertEquals($ListToString($ClassMethod(audit, "Shape", "MCP", "served"), ","), "change,server,tool,outcome,irisUser,sessionRef,channel", "and of a served one (Story 28.3)")
+	For change = "called", "refused", "source_set", "source_removed", "served" {
 		For outcome = "ok", "cut", "changed", "timeout", "unreachable" {
 			Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
 			Set data = ..ValidCall(change, outcome, marker)
@@ -124,6 +127,35 @@ Method TestMcpCallShape()
 	Set data = ..ValidCall("called", "ok", ##class(OcuTalon.Bridge.Ids).NewRef())
 	Do data.%Set("change", "updated", "string")
 	Do $$$AssertStatusNotOK($ClassMethod(audit, "Record", "MCP", data), "and a change that is neither of the two kinds is refused whatever the members")
+}
+
+/// Story 28.3: the channel mcp belongs to the MCP entries of the server that OcuTalon offers (change served) and to no other type; the shared channel list does not hold it.
+Method TestServedCall()
+{
+	Set audit = "OcuTalon.Bridge.Audit"
+	Do $$$AssertEquals($Parameter(audit, "MCPCHANNEL"), "mcp", "the MCP channel is mcp")
+	Do $$$AssertTrue('$ListFind($ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#CHANNEL), "mcp"), "and the shared channel list does not hold it")
+	Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set data = ..ValidCall("served", "ok", marker)
+	Do data.%Set("channel", "mcp", "string")
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertStatusOK($ClassMethod(audit, "Record", "MCP", data), "a served MCP entry with channel mcp is written")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", marker)
+	Do $$$AssertEquals(entries.%Size(), 1, "one entry carries the marker")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change_"|"_entries.%Get(0).data.channel, "served|mcp", "it is a served entry with channel mcp")
+	Set data = ..Valid("MCP", ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do data.%Set("channel", "mcp", "string")
+	Do $$$AssertStatusOK($ClassMethod(audit, "Record", "MCP", data), "an MCP entry of any change may carry channel mcp")
+	Set types = $ListFromString($Parameter(audit, "TYPES"))
+	Set position = 0
+	While $ListNext(types, position, type) {
+		If type = "MCP" Continue
+		Set data = ..Valid(type, ##class(OcuTalon.Bridge.Ids).NewRef())
+		Do data.%Set("channel", "mcp", "string")
+		Set sc = $ClassMethod(audit, "Record", type, data)
+		Do $$$AssertStatusNotOK(sc, type_": an entry with channel mcp is refused")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "'channel'", type_": and the error names the channel member")
+	}
 }
 
 /// A valid called or refused MCP entry for the outcome, the marker in the server.

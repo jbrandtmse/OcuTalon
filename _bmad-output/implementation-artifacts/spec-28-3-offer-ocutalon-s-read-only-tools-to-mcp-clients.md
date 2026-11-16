@@ -2,14 +2,29 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '088dbf0c4d59a4dec6d1a898e34b309e19646a9b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-28-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/28-3-task0-mcp-service.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      OnAuthenticate's refusal (online demo, widened specification) and the real $Username and application role are not exercised through the dispatcher or iris-mcp-server.
+    evidence: |-
+      The direct web path answers 502 GATEWAY_REQUIRED before OnAuthenticate; Task 0 measured that iris-mcp-server 2.0.0 lists no tool of any %AI.MCP.Service subclass on build 154. Settled by Story 28.5's gateway tests.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Mcp/Service.cls OnAuthenticate; src/ocutalon/cls/OcuTalon/Test/Mcp/ServiceHttp.cls
+    severity: medium (unverified)
+  - summary: >-
+      No test inspects a stack installed with the online demo on to see that /mcp/ocutalon, OcuTalon_MCPServer, OcuTalonMCPApp and OcuTalonMCPClient are absent.
+    evidence: |-
+      TestDemoRemoves flips the flag on an ordinary stack and runs the step, and TestStepOrder pins Public before Mcp; a row in docker/tests/test-online-demo.sh (next to the Web step's rows) run on an online-demo stack would settle it.
+    location: >-
+      docker/tests/test-online-demo.sh
+    severity: low (unverified)
 ---
 
 <intent-contract>
@@ -111,6 +126,39 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-16 - Review pass
+- verdicts: 29 findings - high 0, medium 5, low 22, false 0, maybe-false 2; the intent-alignment layer is descriptive and filed no finding (it reports that the diff implements the IRIS-side reading, which is the G7 split, and that `OnAuthenticate`, the real `$Username` and the application role through `MatchRoles` are not reached on the gateway path until Story 28.5)
+- findings:
+  - `[low]` `[reject]` Blind: security-overview.md line 177 sentence "written only by the features ..." is stale - the new server is one of those features and a bare install writes no MCP entry, so the sentence stays true; changing hand-written public text beyond P9 would need the Planner.
+  - `[low]` `[reject]` Blind: `ServiceApp` does not clear `Resource`/`Recurse`, `CSPZENEnabled` 1 unexplained - an admin-added Resource only narrows access; CSPZENEnabled is the spec's own property list.
+  - `[low]` `[reject]` Blind: `OnAuthenticate` runs `ReadOnlyProblem` on every request - per-request cost is small and caching would trade the fail-closed check for speed.
+  - `[low]` `[reject]` Blind: OnAuthenticate refusal reads as 401 - the platform's own contract (`OnAuthenticate` error = 401, spec Code Map); not changeable here.
+  - `[low]` `[reject]` Blind: `MCPCHANNEL` is accepted for any MCP change, not only `served` - exactly what the spec says ("accepted as channel for type MCP only"); the doc wording is close enough.
+  - `[low]` `[reject]` Blind: duplicated `OnlineDemo`, `DEMOOFF` and the toolset walk - the spec records `OnlineDemo` as the installer's seam copied on purpose and pins the texts equal by test; no caller will diverge unnoticed.
+  - `[low]` `[patch]` Blind: `Kill @run` with run "" after a probe timeout in `Test.Mcp.ServiceRoles` - patched: `If run '= "" Kill @run` in all four places (shared with the edge finding).
+  - `[low]` `[reject]` Blind: `TestFreshInstallRefusesNoStep` reads the start log - the spec requires the fresh-install log pin (`STEP Mcp OK`); it is a fresh-stack test by design.
+  - `[low]` `[reject]` Blind: no admin docs for granting the role - the spec rules no README line and puts the connect guide in Story 28.5.
+  - `[maybe-false]` `[defer]` Blind: no HTTP-level case for the demo or widened-specification 401 - unreachable on the direct web path (502 comes first); settled only by a gateway call in Story 28.5 (same as the verification-gap finding on `OnAuthenticate`).
+  - `[low]` `[patch]` Edge: `Kill @run` with "" in `ServiceRoles` - patched with the Blind one above.
+  - `[medium]` `[patch]` Edge: a read that throws skips `Finish`, so the call writes no audit entry and the client gets a raw tool error - patched: each tool's read and build is in a Try that answers its not-read text with outcome `notread`; `TestUnreadable` gained the two throwing cases.
+  - `[low]` `[patch]` Edge: `Service.CHANNEL` expression has no `DependsOn` for `Bridge.Audit` - patched: `DependsOn` gains `OcuTalon.Bridge.Audit` (fresh `ServiceInstall` compiles it).
+  - `[low]` `[reject]` Edge: app/role drift in properties the step never passes (Resource, Recurse, SQL privileges) - an added restriction does not weaken the posture, and an admin-added SQL privilege is the admin's decision; the step rewrites everything the spec lists.
+  - `[low]` `[reject]` Edge: empty `$Username` answers NOTAUDITED instead of NOSESSION - unreachable for an authenticated request and fails closed.
+  - `[low]` `[reject]` Edge: `Return` may truncate a long answer to a string - the same behaviour as the chat tools through the same method; the answers are bounded (5 incidents).
+  - `[low]` `[reject]` Edge (claim): the Integration AC text still says four grants - superseded by the Task 0b design; the fix would edit the spec.
+  - `[medium]` `[patch]` Edge (claim): an exception before `Finish` writes no entry - the same defect as the throwing-read finding above; patched together.
+  - `[medium]` `[patch]` Verification gap: the "classified or held by its arguments" branch of `ToolProblem` is never reached by a test (R-28.3-1 (b)) - patched: fixture `Test.Mcp.ZzHookedTools` (safe, read-only, Classify and Hold hooks), `ZzLooseService` takes package `OcuTalon.`, `TestEachKindOfProblem` asserts the exact refusal for both; mutation line recorded.
+  - `[medium]` `[patch]` Verification gap: a failing session lookup (`OwnerOf`) is untested - patched: a private `ServiceRead.Lookup` seam (the probe fails it), `TestUnreadable` case `session` (outcome notread, no session Ref); mutation line recorded.
+  - `[maybe-false]` `[defer]` Verification gap: no real online-demo stack check that the application, resource and roles are absent - `TestDemoRemoves` and `TestStepOrder` pin the step and the order; a `test-online-demo.sh` row could not be validated here without an online-demo stack.
+  - `[low]` `[defer]` Verification gap: `OnAuthenticate` is only called directly, never through the dispatcher - needs a gateway request; Story 28.5.
+  - `[low]` `[reject]` Verification gap: the final `ran = 0` assertion in `ServiceHttp` cannot fail independently - it is a control that no served entry exists after refusals; the status assertions are the pins.
+  - `[low]` `[reject]` Verification gap: `zz_none` assertion proves nothing about "declares no classification" - it is a named control for a missing tool; the pins are the other cases.
+  - `[medium]` `[patch]` Verification gap (Rule 19): sub-pins without a mutation line (real `Caller`, fail-closed `Finish`, password-only application) - patched: three mutation lines added and observed red (see Verification); the R-28.3-1 (c)/(d) pins are covered by the existing `ServiceRoles` and `ServiceTools` mutations.
+  - `[low]` `[patch]` Verification gap (hermeticity): `ServiceRoles` cleans inline and does not restore `onlineDemo` after an exception - patched only the `Kill` guard; `RunProbe` cannot throw (its asserts and Job do not), so the inline restore stays (rejected beyond the guard).
+  - `[low]` `[reject]` Verification gap: `Auto Run Result` still read ready-for-dev - written at finalize.
+  - `[low]` `[reject]` Verification gap: the spec body still holds superseded wording - the fix is to edit the spec; the Design Notes name the supersession.
+  - `[low]` `[reject]` Verification gap: `AssertAudit` matches the caller by a text marker - the match is on the entry's own `irisUser` member and the assertions then read that member.
+
 ## Design Notes
 
 **Planner gate rulings (2026-11-16, `prompts/story-283-rulings-20261116.md`, binding):** G7 split APPROVED (Story 28.5 "Connect an MCP client through iris-mcp-server" inserted in epics.md, backlog, not dispatched); G8 follows. G3 NOT approved as is: Task 0b (above, under Execution) first tries application roles so `OcuTalonMCPClient` holds only U on the resource; use them if they work on the testable path (and rewrite P8 as PUBLIC TEXT), otherwise record the measured reason and keep G3/P8 as written; either way no SQL privilege, no write, granted to no one. G1 (changes only if application roles are used), G2, G4, G5 (fails closed), G6, G9 APPROVED. R-28.3-1/2/3 APPROVED, including the `ZzWideService` refusal pin and the demo-removal pin. PUBLIC TEXT P1, P2, P3, P4, P5a, P5c, P6, P7, P9, P10 APPROVED verbatim; P5b APPROVED as described (its verbatim text below); P8 approved only if G3 stays as proposed. No README line. Model-facing: NO A/B (chat `recent_activity` byte-identical; P5a-P5c read only by a developer's own client's model).
@@ -126,6 +174,10 @@ deferred: []
 - **Two more pins (Planner ruling, binding):** (1) outside the application, a user holding only `OcuTalonMCPClient` gets `<PROTECT>` on ALL THREE databases (`%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE`), each asserted (e.g. a job logged in with `$SYSTEM.Security.Login`); (2) a FRESH install refuses no installer step: the Mcp step creates `OcuTalonMCPApp` first, then `/mcp/ocutalon` (no ERROR #879), proven on a fresh throwaway install (`Test.Mcp.ServiceInstall` fresh, and the install log shows `STEP Mcp OK`).
 - **P8 (APPROVED by the Planner with one edit, 2026-11-16; put exactly this in `SecurityOverview` `MCPSERVERSTATEMENT`):** "OcuTalon's MCP server, `OcuTalon.Mcp.Service` at `/mcp/ocutalon` (password sign-in), offers only the read-only tools above. A user needs the role `OcuTalonMCPClient`, which holds only U on `OcuTalon_MCPServer`. While a request runs in `/mcp/ocutalon`, IRIS adds the application role `OcuTalonMCPApp`, which no user holds and which gives R on OcuTalon's code, data and private databases, with no write and no SQL privilege. Outside that application, `OcuTalonMCPClient` reads none of OcuTalon's databases. Each tool runs as that user, reads only that user's own OcuTalon session and writes an `MCP` audit entry. On the online demo the application, the resource and the roles don't exist."
 - Spine: the lead wrote the 28.3 share with this design (AD-21, AD-24, AD-17, AD-10, AD-23, AD-33).
+
+**Code Map drift (implement stage, 2026-11-16, checked against the tree after the integrate-forward):** every reference matched at its line or within a line or two, except: `Install/Step/Web.cls` `RemoveHook` is at 372 (the map ends at 370); `Tools/CommandCall.cls` `Session()` is the method at 66 with its doc at 62-65 (the map says 56-66); `docs/install-ipm.md` has `STEP Public OK 0.0s` at lines 203 and 314 (the map: 204 and 315); `ci/units.sh` line 156 is now a comment, the `shards-2` entry is at 166 (line 20, the lane-a areas, is unchanged); `docker/tests/lib-live.sh` `expected_run` is at 886 and `Test/Install/Registry.cls` `TestOrder` at 123 (within one line of the map). Two facts the map does not carry: `docker/tests/test-class-rules.sh` has an allow-list of the only unchecked `%Prepare` calls (`ALLOW_UNCHECKED`), so `Mcp.Service:OwnerOf` is added to it (and to the rule's one-line name); and `Install.Step.Roles.Run` on a demo-mode stack rewrites the service role and drops the grants that only the Demo step gives, so no test of this story runs it (`Test.Mcp.ServiceInstall` composes instead, and puts the Mcp step's objects back itself).
+
+**Decided in-stage (implement, 2026-11-16):** the sentences that `Service.ReadOnlyProblem` puts in the `OnAuthenticate` error ("The tool X is not read-only. No tool is offered.", "A toolset of the specification could not be read.") and the IRIS descriptions "OcuTalon MCP server access" and "OcuTalon MCP server application role" are developer or admin diagnostics, not shipped product text, and are flagged for the Planner; `Mcp.Service:OwnerOf` joined the unchecked-prepare allow-list of `docker/tests/test-class-rules.sh`; `ApplyService` also closes the resource's public permission at every start; test-only fixture users hold `OcuTalonMCPClient` transiently and `ServiceRoles` uses the copy role `ZzMcpInside` so the real `OcuTalonMCPApp` is held by no one; `OcuTalonMCPApp` and `/mcp/ocutalon` are not rows of the overview's Roles and Application tables (P8 covers them in prose).
 
 **Governing ADs (Rule 6):** AD-1 (state changes only as production messages; served tools submit none), AD-4 (owner from the caller; ownership API reads), AD-10 (classification by the gate's readers; see G6), AD-13 (web applications), AD-17 (one audit writer; `served`), AD-21 (MCP server bullets), AD-23 (installer order), AD-24 (roles; the MCP server bullet), AD-25 (no MCP endpoint on the demo), AD-29/AD-33 (lanes; Lane A files only). No AC contradicts an AD's Rule; AD-10 needs one clarifying sentence (G6) and AD-23's order gains `Mcp` (G4).
 
@@ -202,9 +254,28 @@ Lane-C throwaways only (slot C busy). Fresh tag `e28s3i`, warm tag `e28s3iw`. Pr
 
 **Mutations (Rule 19, one per AC; the implement stage applies each, observes red, reverts byte-identical and records `mutation: ... -> ...`):** installer: `ApplyService` sets `MatchRoles` ":%DB_OCUTALON_DATA" -> `ServiceInstall` red; demo: `Grants()` without its demo check -> `ServiceInstall` red; HTTP: `RESOURCE` "" in `Service` -> the no-Use fixture gets 502, `ServiceHttp` red; read-only: `check_status` replaced by `save_memory` in `ServiceTools` -> `ServiceReadOnly` red; isolation: `OwnerOf` without `WHERE IrisUser = ?` -> `ServiceTools` red; audit: `Served` not called -> `ServiceTools` red; overview: the MCP server rows dropped -> `Test.Install.SecurityOverview` red; chat: `Activity` called with P6 from the chat method -> `Test.Tools.RecentActivity` red.
 
+**Mutations recorded (implement stage, 2026-11-16; each applied on the warm lane-C stack, red observed, file restored byte-identical):**
+- AC 1 (installer) and Planner pin 2: mutation: `Install.Step.Mcp.ServiceApp` sets MatchRoles ":%DB_OCUTALON_DATA" -> `Test.Mcp.ServiceInstall` red (`TestFreshInstallRefusesNoStep`, `TestInstalledObjects`); mutation: `ApplyService` makes the application before the application role -> `ServiceInstall` red (`TestFreshInstallRefusesNoStep`: ERROR #879 Target role ... does not exist).
+- AC 2 (online demo): mutation: `Mcp.Grants()` with its demo check replaced by `If 0` -> `ServiceInstall` red (`TestGrants`, `TestDemoRemoves`); mutation: `Mcp.Run` ignores the demo flag -> `ServiceInstall` red (`TestDemoRemoves`: the application, resource and both roles remain); mutation: `ServiceRead.Owner` without its demo check -> `Test.Mcp.ServiceTools` red (`TestOnlineDemo`).
+- AC 3 (HTTP): mutation: `Service` `RESOURCE` "" -> `Test.Mcp.ServiceHttp` red (`TestRefusals`: the two no-Use fixtures get 502 instead of 403).
+- Planner pin 1 (outside the application): mutation: `OcuTalonMCPClient` given `%DB_OCUTALON_PRIVATE:R` -> `Test.Mcp.ServiceRoles` red (`TestOutsideTheApplication`: the private database assertion).
+- AC 4 (read-only): mutation: `check_status` replaced by `save_memory` in `ServiceTools` -> `Test.Mcp.ServiceReadOnly` red (`TestShippedSpecification`, `TestNoUnsafeToolIsOffered`, `TestWidenedSpecificationIsRefused`); mutation: `Service.ReadOnlyProblem` returns "" -> `ServiceReadOnly` red (`TestWidenedSpecificationIsRefused`).
+- AC 5 (isolation): mutation: `Service.OwnerOf` without `WHERE IrisUser = ?` -> `ServiceTools` red (`TestOwnRecordsOnly`, `TestNoSession`, `TestAuditEntries`, `TestUnreadable`).
+- AC 6 (audit): mutation: `ServiceRead.Finish` does not call `Service.Served` -> `ServiceTools` red (`TestAuditEntries`, `TestNoSession`, `TestOnlineDemo`, `TestAuditFailsClosed`); mutation: `Audit.MemberProblem` accepts channel mcp for any type -> `Test.Bridge.Audit` red (`TestServedCall`).
+- Review patches (red observed on the warm lane-C stack, file restored byte-identical): mutation: `Service.ToolProblem` without its HookFor disjunct -> `Test.Mcp.ServiceReadOnly` red (`TestEachKindOfProblem`: the Classify-hook and Hold-hook fixtures `Test.Mcp.ZzHookedTools`); mutation: `ServiceRead.Owner` ignores a failed session lookup -> `ServiceTools` red (`TestUnreadable`, case session); mutation: `ServiceRead.RecentActivity` rethrows a throwing read instead of answering notread -> `ServiceTools` red (`TestUnreadable`, case incidents-throw); mutation: `ServiceRead.Finish` ignores a failed audit write -> `ServiceTools` red (`TestAuditFailsClosed`); mutation: `Install.Step.Mcp.ServiceApp` AutheEnabled 32 -> 96 -> `ServiceInstall` red (`TestInstalledObjects`: password only); mutation: `ServiceRead.Caller` returns a fixed other user instead of `$Username` -> `Test.Mcp.ServiceRoles` red (`TestInsideTheRoles`).
+- Integration AC (overview): mutation: `SecurityOverview.McpServerRows` reads an empty specification -> `Test.Install.SecurityOverview` red (`TestMcpServerSection`).
+- AC 8 (chat unchanged): mutation: `Tools.RecentActivity.RecentActivity` calls `Activity` with the served tool's empty-list text -> `Test.Tools.RecentActivity` red (`TestNothing`).
+
 **Shared surfaces:** the installer step order (`Test.Install.Registry` `TestOrder`, `lib-live.sh` `expected_run`, `docs/install-ipm.md` samples via `test-cpf.sh`); the role, resource and web-application rosters (`Test.Install.SecurityOverview` `TestPrivilegesMatchSecurityRecords` and `TestRoleRowsDeclaredBy`; `test-online-demo.sh` rows, which list none of these); the security overview's generated sections (`test-security-overview.sh`); `Bridge.Audit` `MCPCHANGES`/`CALLCHANGES` (`Test.Bridge.Audit`); `Install.Step.Mcp.Grants()` (`Test.Mcp.*`, `Test.Install.SecurityOverview`). The tool inventory (`Test.Agent.Runners` `TestToolInventory`, the overview's Built-in tools table) is unchanged: the new toolset is outside `OcuTalon.Tools.`. Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+- Summary: `OcuTalon.Mcp.Service` (`/mcp/ocutalon`, resource `OcuTalon_MCPServer`), `ServiceTools` and `ServiceRead` (`check_status`, `recent_activity`, read-only by construction, owner from `$Username`, one `served` audit entry per call, fail closed); the Mcp installer step (`OcuTalonMCPApp` first, then the application with `MatchRoles` `:OcuTalonMCPApp`, then the resource; none of them on the online demo, any present deleted); `Grants()` declares only `OcuTalonMCPClient` = `OcuTalon_MCPServer:U`; `Mcp` between `Public` and `Roles`; audit `served` and channel `mcp`; the security overview's MCP server table and the approved P8; `RecentActivity.Activity` extracted for sharing.
+- Files changed: see the commit; code under `src/ocutalon/cls/OcuTalon/Mcp/`, `Install/Step/Mcp.cls`, `Install/Registry.cls`, `Install/SecurityOverview.cls`, `Tools/RecentActivity.cls`, `src/bridge/cls/OcuTalon/Bridge/Audit.cls`; tests under `Test/Mcp/` plus `Test/Bridge/Audit`, `Test/Install/{Registry,SecurityOverview,RolesAssign}`; `docker/tests/{lib-live,test-class-rules}.sh`; `docs/install-ipm.md`, `docs/security-overview.md`.
+- Review: 29 findings; patched 9 rows (5 medium rows of 4 root causes: the throwing read (two rows), the Classify/Hold branch, the failing session lookup and the Rule 19 mutation lines; plus the `Kill` guard (two rows), the `DependsOn` and the hermeticity guard); deferred 3 rows as 2 ledger items (gateway-path refusal to Story 28.5, demo-stack row); the rest rejected with the reasons in the triage log.
+- Follow-up review recommended: true (4 medium entries patched). Unverified risk: the patched `ServiceRead` Try blocks, the `Lookup` seam and the `DependsOn` change were verified by their tests and mutations but not re-read by an independent layer.
+- Verification: new classes `Test.Mcp.ServiceReadOnly`, `ServiceTools`, `ServiceRoles`, `ServiceInstall`, `ServiceHttp` pass (fresh: `ServiceInstall` and `ServiceHttp`; warm: the others); `Test.Bridge.Audit`, `Test.Install.Registry`, `Test.Install.SecurityOverview`, `Test.Tools.RecentActivity` pass; `live security-overview` PASS; `test-cpf`, `test-class-rules`, `test-ci-config` exit 0. Not run here: `live:install-start`, `live:install-upgrade` and the rest of the suite (CI's), the reverse-order run.
+- Residual risks: a call through `iris-mcp-server` getting the same `$Roles` is an INFERENCE until Story 28.5; `OnAuthenticate` is not reached on the direct web path.

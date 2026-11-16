@@ -2,7 +2,7 @@
 /// model against the security records of the instance, the splice of the generated sections and the fixed statement. Nothing here changes a
 /// security record or a grant. TestToolsMatchRunners sends a ToolInventory request to every enabled agent runner, so it needs the production of
 /// the CI throwaway running (it fails, never skips, when it does not), and it points the runners at the mock's key for the request and puts them back
-/// after the test (OnAfterOneTest).
+/// after the test (OnAfterOneTest). TestMcpServerSection (Story 28.3) pins the MCP server table and sentence of the privileges section and the client role's row.
 Class OcuTalon.Test.Install.SecurityOverview Extends %UnitTest.TestCase
 {
 
@@ -340,7 +340,7 @@ Method TestFixKindRows()
 }
 
 /// Story 22.6: the privileges section holds the sentence about the resource of each MCP server (MCPSTATEMENT) once, word for word, as a line of its own after the Roles table and before
-/// "### With demo mode on", and the names in it are the installer's (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE).
+/// the MCP server section (Story 28.3), and the names in it are the installer's (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE).
 Method TestMcpResourceStatement()
 {
 	Set lf = $Char(10)
@@ -357,7 +357,32 @@ Method TestMcpResourceStatement()
 	Set after = $Extract(text, start + $Length(sentence), *)
 	Do $$$AssertTrue($Find(before, lf _ "### Roles" _ lf) > 0, "after the Roles heading")
 	Do $$$AssertEquals($Extract(before, $Length(before) - 2, *), "|" _ lf _ lf, "right after the last row of the Roles table")
-	Do $$$AssertEquals($Extract(after, 1, $Length(lf _ lf _ "### With demo mode on" _ lf)), lf _ lf _ "### With demo mode on" _ lf, "and right before the demo mode section")
+	Do $$$AssertEquals($Extract(after, 1, $Length(lf _ lf _ "### MCP server" _ lf)), lf _ lf _ "### MCP server" _ lf, "and right before the MCP server section")
+}
+
+/// Story 28.3 (Integration AC; AD-21, AD-24): the privileges section holds the MCP server section between the MCPSTATEMENT sentence and "### With demo mode on": a table with exactly the
+/// tools of OcuTalon.Mcp.Service's specification (check_status and recent_activity of OcuTalon.Mcp.ServiceRead, safe, read-only), then the Contest Planner's sentence
+/// (MCPSERVERSTATEMENT), word for word, with the names the Mcp step creates. The Roles table lists OcuTalonMCPClient with its one grant, declared by Mcp.
+Method TestMcpServerSection()
+{
+	Set lf = $Char(10)
+	Set sentence = "OcuTalon's MCP server, `OcuTalon.Mcp.Service` at `/mcp/ocutalon` (password sign-in), offers only the read-only tools above. A user needs the role `OcuTalonMCPClient`, which holds only U on `OcuTalon_MCPServer`. While a request runs in `/mcp/ocutalon`, IRIS adds the application role `OcuTalonMCPApp`, which no user holds and which gives R on OcuTalon's code, data and private databases, with no write and no SQL privilege. Outside that application, `OcuTalonMCPClient` reads none of OcuTalon's databases. Each tool runs as that user, reads only that user's own OcuTalon session and writes an `MCP` audit entry. On the online demo the application, the resource and the roles don't exist."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "MCPSERVERSTATEMENT"), sentence, "the MCP server sentence is the ruled one, word for word")
+	Set model = $ClassMethod(..#GENERATOR, "Model")
+	Set names = ""
+	Set iterator = model.mcpServer.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set names = names _ $Select(names = "": "", 1: ",") _ tool.name
+		Do $$$AssertEquals(tool.source _ "|" _ tool.classification _ "|" _ tool.readOnly, "OcuTalon.Mcp.ServiceRead|safe|1", tool.name _ " is a safe read-only method of ServiceRead")
+	}
+	Do $$$AssertEquals(names, "check_status,recent_activity", "the rows are exactly the tools of the service's specification")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set text = sections("privileges")
+	Set heading = lf _ "### MCP server" _ lf _ lf _ "| Tool | Class | Classification | Read-only |" _ lf _ "| --- | --- | --- | --- |" _ lf
+	Set rows = "| `check_status` | `OcuTalon.Mcp.ServiceRead` | safe | yes |" _ lf _ "| `recent_activity` | `OcuTalon.Mcp.ServiceRead` | safe | yes |" _ lf
+	Do $$$AssertEquals($Length(text, heading _ rows _ lf _ sentence _ lf _ lf _ "### With demo mode on" _ lf) - 1, 1, "the section is the table of those two rows, the sentence and then the demo mode section, once")
+	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonMCPClient` | `OcuTalon_MCPServer` | U | `Mcp` |"), "the Roles table lists OcuTalonMCPClient's one grant, declared by Mcp")
+	Do $$$AssertTrue('$Find(text, "`OcuTalonMCPClient` | `%DB_"), "and no database grant for it")
 }
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
