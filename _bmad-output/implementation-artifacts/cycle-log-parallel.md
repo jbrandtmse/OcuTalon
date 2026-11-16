@@ -4517,3 +4517,4 @@
 2026-11-16T15:20:39Z	Epic 23	runner_ended	lane_B_batch: items1-2_model-facing(ledgered_DW-1431,DW-1432_for_bundled_A/B) item3_DW-1429_check=pass item4_production_rebalance=pushed(38c20571,CI_queued) slot_B=released_to_Epic27 planner_notified
 2026-11-16T15:22:36Z	Run	owner_decision	via=contest_planner CI_queue: records_pushes_[skip_ci]+hourly_batch; branch_pushes_check_runners,hold_while_release_queued; Planner_cancelled_4_unstarted_runs(rerun_43889525115_after_main_green)
 2026-11-16T15:23:02Z	Epic 24	runner_reported	PART_READY DW-1430 head=aea51eb95(off_BASE) runs=43883622144(att2;att1=DW-28_ci-20),43883623069 state=held(MERGE-BACK;merges_first) note=ci-20_two_production_flakes_today
+2026-11-16T17:05:00Z	Epic 21	runner_reported	DW-1421_C2prime+C1_pushed=c573a86d0(CI_pending) C5_report(confidence=display_only;absent_default_recommended) open=cut_min_length,other_7_field_tags relayed=contest_planner
