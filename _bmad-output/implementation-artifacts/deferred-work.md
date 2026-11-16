@@ -8786,3 +8786,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-16T18:21:43Z status=open owner=burndown by=epic-runner note=one rerun
 - 2026-11-16T18:35:34Z occurrence=OCT-epic24-600b5f7ca by=epic-runner note=one_rerun_of_job_133484098787_started
 - 2026-11-16T18:56:56Z status=resolved-by:24-3b-escalate-unanswered-pages-to-the-backup-and-say-so-in-settin by=lead note=root_cause:test_race(not_a_regression):RecordSource_runAt=NowUtc_whole_seconds;BackgroundCheck_trigger_writes_CheckRun_only_when_LastRunAt_changes;baseline_and_the_10_bad_forms_in_one_second_write_no_rows,RunOf_reads_the_baseline_row(passed,Reason_'');fix:NewSecond_before_each_run+SecondStart_pin;mutation_NewSecond_no-op_reproduces_all_10_CI_failures;Lane_D_test(Story_22.11/DW-1347)
+
+### DW-1448: flake: web/e2e/demo-path/telegram-page.spec.ts:196 T2 (Story 12.8): after a reload with a routed snapshot, main.main was not found within 10 s, in CI iris (browser) live:demo-path
+- source: epic-runner; OCT-epic24 c321d4680 ci 43934206289 attempt 1 job 133534373721 on ocutalon-ci-11 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: loaded() at telegram-page.spec.ts:107 (called from :220 after page.reload()) timed out: 'element(s) not found' for main.main; the test routes the snapshot itself (changeSnapshot) and reloads four times; a SLOW irisScript of 14 s came just before it; 27 other demo-path tests and the floor's other 14 passed; Epic 24 changes no demo-path, Telegram card or rail code
+- 2026-11-16T19:52:47Z status=open owner=burndown by=epic-runner note=one rerun
+- 2026-11-16T20:37:03Z occurrence=OCT-epic24-c321d4680 by=epic-runner note=rerun_green_on_ocutalon-ci-5
+
+### DW-1449: flake (cause not found): Test.Data.Purge TestCurrentSessionLosesNoRows: the three kept sessions' row counts differed from 1|1|2(3)|1|1 after Retention.Purge(90), in CI shard lane-b@Contract,Core,Data,Live
+- source: epic-runner; OCT-epic24 c321d4680 ci 43934206289 attempt 1 job 133534373343 iris (image) on ocutalon-ci-20 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: only the 'loses none of its ... rows' assertion failed, for all three kept sessions; the idle session's assertions passed; the same Purge code and test passed the image job at 411a61e11 (ocutalon-ci-32) and 600b5f7ca (ocutalon-ci-30), and c321d4680 changes only Test/Mcp/SourceRun.cls since; the class passes alone on a fresh lane-D stack at c321d4680 (e24tr5); the assertion prints no actual value, so the count that differed is unknown: next step is to print OwnedRows in the message and look for another writer or deleter of Reminder rows during Retention.Purge (24.3b added DeleteEscalations, which touches only SessionRef instance rows)
+- 2026-11-16T19:59:41Z status=open owner=burndown by=epic-runner note=one rerun
+- 2026-11-16T20:05:22Z occurrence=local by=epic-runner note=lane-b@Data_shard_in_order(25_classes)_green_on_a_fresh_lane-D_stack_at_c321d4680(e24tr6)
+- 2026-11-16T20:37:03Z occurrence=OCT-epic24-c321d4680 by=epic-runner note=rerun_green_on_ocutalon-ci-30
