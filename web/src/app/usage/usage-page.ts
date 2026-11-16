@@ -36,7 +36,9 @@ const CHART_WIDTH = 640;
  * The page asks GET /v1/usage?days= when it opens, on a range change and on Retry; a grouping change regroups the buckets it holds, with no request. It shows
  * nothing before the first answer, "No model use in this period." for an answer with no bucket (and no chart or table), and "Couldn't load your usage." with
  * Retry for a failed read, announced through the page's live region; the failed text and Retry stay until the next answer, so a Retry that fails again
- * keeps focus on Retry. A range change shows nothing until its answer, so a table never sits under another range's name.
+ * keeps focus on Retry. An answer that follows withdraws that announcement when it still waits or was spoken alone (Announcer.retract). The failed block
+ * counts the failures in a row in `data-failures`, a test anchor and never text. A range change shows nothing until its answer, so a table never sits under
+ * another range's name.
  *
  * The "Tokens and cost" region is a figure and a table. The figure is an inline SVG hidden from assistive technology: one bar for each row's tokens (input plus
  * output) on the token scale and one point on the cost line, on its own scale, in the usage chart tokens, with a gridline each quarter and the series named
@@ -76,7 +78,7 @@ const CHART_WIDTH = 640;
         </fieldset>
       </div>
       @if (failed()) {
-        <div class="failed" data-part="usage-failed">
+        <div class="failed" data-part="usage-failed" [attr.data-failures]="failures()">
           <p class="failed-text">{{ texts.error }}</p>
           <button type="button" class="button button-secondary" (click)="load()">{{ texts.retry }}</button>
         </div>
@@ -417,6 +419,9 @@ export class UsagePage {
   /** True when the last read failed. */
   protected readonly failed = signal(false);
 
+  /** The failed reads since the last answer; the failed block carries it as `data-failures`. */
+  protected readonly failures = signal(0);
+
   /** The width the chart is drawn at. */
   private readonly width = signal(CHART_WIDTH);
   private asked = 0;
@@ -453,7 +458,7 @@ export class UsagePage {
 
   /**
    * Reads the usage of the current range; an answer that arrives after a later read is dropped. A failed read stays on screen until the next
-   * answer, so Retry keeps focus while it reads again, and every failure is announced.
+   * answer, so Retry keeps focus while it reads again, and every failure is announced; the answer that follows withdraws that announcement.
    */
   protected load(): void {
     const ask = (this.asked += 1);
@@ -464,13 +469,18 @@ export class UsagePage {
       .subscribe({
         next: (answer) => {
           if (ask === this.asked) {
-            this.failed.set(false);
+            if (this.failed()) {
+              this.failed.set(false);
+              this.failures.set(0);
+              this.announcer.retract(USAGE_TEXTS.error);
+            }
             this.answer.set(answer);
           }
         },
         error: () => {
           if (ask === this.asked) {
             this.failed.set(true);
+            this.failures.update((count) => count + 1);
             this.announcer.announce(USAGE_TEXTS.error);
           }
         },
