@@ -4477,3 +4477,5 @@
 2026-11-16T08:47:53Z	Run	owner_decision	via=contest_planner 23.14_rescoped(DW-1050,1117,1417,1422_remainder) cut_items_added=DW-1423(text),DW-1425(text),card/chat_may-have-sent,DW-1422(accepted=sent),shards-2_rebalance;DW-1358_via_variant_F;Telegram_refusal_text_LOW_post-cut;DW-1032_split_post-cut owner=lane_B(resumed)
 2026-11-16T08:48:50Z	Epic 24	runner_reported	PART_READY DW-1426 head=98e376f5b runs=43829423163,43829423003(att1) + PLANNER_REPORT 24.3a(Q1_page_email_body_vs_V2,Q2_no_release_between_24.3a_and_24.3b)
 2026-11-16T08:48:50Z	Epic 24	merge_enqueued	DW-1426 (1.0.12_if_in_time)
+2026-11-16T08:50:22Z	Epic 24	merged	DW-1426 merge=be9ad9f3b
+2026-11-16T08:50:41Z	Run	planner_notified	batch:laneB_23.15_texts(DW-1423,DW-1425,result.partnerMaySent);laneD_24.3a_Q1,Q2(hold_24.3a_until_24.3b);laneC_DW-1421_C0/C1_gate(dev1,dev2)
