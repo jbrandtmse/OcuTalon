@@ -24,14 +24,21 @@ let lastId = 0;
  * from the instance's, and the panel's item times are page times with their day. A request's result band is the catalog's text
  * (approval-view.ts resultView with renderPageText), and a fallback reason is the catalog's reason text.
  */
-export function incidentContext(decisions: readonly DecisionPayload[], nowMs: number, instanceZone: string, onlineDemo: boolean): IncidentContext {
+export function incidentContext(
+  decisions: readonly DecisionPayload[],
+  nowMs: number,
+  instanceZone: string,
+  onlineDemo: boolean,
+  approvals?: Readonly<Record<string, ApprovalPayload>>,
+): IncidentContext {
   return {
     decisions,
     nowMs,
     messageTime: (iso, now) => messageTime(iso, now, instanceZone, onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, instanceZone),
     itemTime: (iso, now) => pageWhen(iso, now),
-    result: (request, itemNoun, production, change) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change),
+    result: (request, itemNoun, production, change, simulated) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change, simulated ?? null),
+    approvals,
     render: (key, slots) => renderPageText(key, slots),
     reasonText: fallbackReasonText,
   };
@@ -305,7 +312,7 @@ export class IncidentCard {
   protected readonly open = signal(false);
 
   protected readonly view = computed(() =>
-    incidentView(this.incident(), incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo())),
+    incidentView(this.incident(), incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), this.approvals())),
   );
 
   /** The incident's approval requests in the order raised; a compact (closed) card shows none. */

@@ -8,7 +8,7 @@
 ///     request is approved on the channel telegram by the session's IRIS user; the audit entry names the channel and holds neither the chat id
 ///     nor the chat's name; no Turn is made and no chat message is sent;
 ///   - TestApproveKinds (Story 23.2): the Approve of a suspend, a resume and a reroute is answered "Approved. Suspending {item}.", "Approved. Resuming {item}." and
-///     "Approved. Rerouting {count} {itemNoun} to {to}."; Story 23.5: that of a partner delay notice is answered "Approved. Sending the delay notice to the Simulated mailbox.";
+///     "Approved. Rerouting {count} {itemNoun} to {to}."; Story 23.5: that of a partner delay notice is answered "Approved. Sending the delay notice to the Simulated mailbox."; Story 23.13: that of a Settings contact's notice (not simulated) is answered "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email." with no mailbox connected and with no text with one;
 ///     Story 23.3: that of a rollback_setting and of an undo_rollback is answered "Approved. Putting {setting} on {item} back." and "Approved. Undoing the rollback of {setting} on {item}.", and with no text when the dry run names no setting;
 ///   - TestReject: reject:<Ref> is answered "Rejected. Nothing was changed." and the request is rejected;
 ///   - TestLate: a press after another channel answered is an alert "Already answered: approved from the web chat at <time>." (the winner's
@@ -415,12 +415,16 @@ Method TestApproveKinds()
 			$ListBuild("resume_item", "{""item"":""OrdersToWarehouse"",""before"":""disabled"",""after"":""enabled""}", "Approved. Resuming OrdersToWarehouse."),
 			$ListBuild("reroute", "{""affected"":50,""resend"":50,""leftOut"":0,""itemNoun"":{""one"":""order"",""other"":""orders""},""from"":""OrdersFromPartner"",""to"":""OrdersForReview"",""example"":""1234""}", "Approved. Rerouting 50 orders to OrdersForReview."),
 			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""name"":""Results Partner IT"",""address"":""it@results-partner.example""}],""simulated"":1}", "Approved. Sending the delay notice to the Simulated mailbox."),
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""id"":7,""name"":""Zz Partner"",""address"":""zz@results-partner.example""}],""simulated"":0}", "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email.", 0),
+			$ListBuild("partner_warning", "{""notice"":""Orders failed."",""recipients"":[{""id"":7,""name"":""Zz Partner"",""address"":""zz@results-partner.example""}],""simulated"":0}", "", 1),
 			$ListBuild("rollback_setting", "{""item"":""OrdersFromPartner"",""field"":""TargetConfigName"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", "Approved. Putting TargetConfigName on OrdersFromPartner back."),
 			$ListBuild("undo_rollback", "{""item"":""OrdersFromPartner"",""field"":""TargetConfigName"",""before"":""OrdersToWarehouse"",""after"":""OrdersToWarehous""}", "Approved. Undoing the rollback of TargetConfigName on OrdersFromPartner."),
 			$ListBuild("rollback_setting", "{""item"":""OrdersFromPartner"",""before"":""OrdersToWarehous"",""after"":""OrdersToWarehouse""}", ""),
 			$ListBuild("undo_rollback", "", ""))
 		Set position = 0
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).SaveMailbox()
 		While $ListNext(cases, position, case) {
+			Do ##class(OcuTalon.Test.Fix.PartnerSupport).Mailbox(+$ListGet(case, 4))
 			Set request = ..Request(session, {"FixKind": ($List(case, 1)), "DryRun": ($List(case, 2))})
 			Set answers = ..CallsOf("answerCallbackQuery").%Size()
 			Do ..Press(chatId, "Zqkinds", "approve:"_request)
@@ -429,7 +433,9 @@ Method TestApproveKinds()
 			If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), $List(case, 3), 0, $List(case, 1))
 			Do $$$AssertEquals(..Facts(request), "approved|approve|telegram", $List(case, 1)_": the request is approved on the channel telegram")
 		}
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
 	} Catch ex {
+		Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
 		Do $$$AssertTrue(0, "the kinds test failed: "_..Safe(ex))
 	}
 }

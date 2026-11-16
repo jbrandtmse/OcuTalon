@@ -63,14 +63,18 @@ Include (EnsConstants, EnsErrors)
 ///     updates again. If that works, the run ends as could not start with the kind's NOSTART (nothing was changed). If it fails too (code notapplied), the run ends failed through Finish
 ///     with Total the number of targets, Skipped 0, Unreached the targets not done and the redacted Reason holding the production's error text, one Action entry is written, and the
 ///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey).
-///   - A kind whose targets are contacts (TARGETTYPE contact, Story 23.5: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
-///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: demo mode is off, so the approved notice is kept as the row's DryRun
+///   - A kind whose targets are contacts (TARGETTYPE contact, Stories 23.5 and 23.13: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
+///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: no mailbox is connected, or demo mode is off for the demo's production, so the approved notice is kept as the row's DryRun
 ///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
-///     sends nothing (AsApproved). Otherwise Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
+///     sends nothing (AsApproved). A request of a production that is not the fixture's (a Settings contact) is then sent by SendPartner and never delivered to the Simulated mailbox: the row is read again
+///     and the kind's mail method (Fix.Kind Mailed) gives the addresses that may still be sent to (a row that is not as approved could not start with NOSTART; with no address left the run is done with
+///     every target skipped and nothing sent); otherwise the seam MailApproved submits the approved email (Fix.Kind.Email SubmitApproved: a SendEmail command with origin system and the request's Ref only, no
+///     address, subject or text), and the run ends done when it was sent (Completed the addresses, Skipped the others, the first reason of the lowest skipped target) and failed with the CommandResult's message
+///     when it was not. For the fixture's production Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
 ///     SimMailboxOut (a Fix.Msg.PartnerNotice, synchronously) once for each delivery and each session of the incident's recipients; a recipient counts as sent when at least one
 ///     copy was saved. The run ends done through Finish with Total the number of targets, Resent 0, Completed the recipients sent, FailedAgain 0 and Skipped the rest (the first reason
 ///     is the lowest skipped target's), and as could not start with the kind's NOSTART when nothing was sent and a send erred. The Action entry's target is "<n> partner contacts
-///     (<their ids>) of <production> (simulated)": the ids, never the addresses.
+///     (<their ids>) of <production>", with " (simulated)" for the fixture's production: the ids, never the addresses.
 ///   - A waiter that stops (the job should quiesce or terminate, or its item is stopped) leaves its runs, with a ResentAt and no EndedAt, to Sweep (DW-395): a run whose copies
 ///     were all done inside its WAITSECONDS ends there, with the waiter's own counts and result, only later.
 ///   - One waiter (DW-381): Wait takes the lock WAITLOCK without waiting; the job that holds it makes a pass every WAITPAUSE seconds over every waiting run (Waiting:
@@ -505,6 +509,7 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	Set skipped = []
 	Set notRunning = 0
 	Set unready = ""
+	Set mailing = 0
 	Set sent = 0
 	Set unreached = 0
 	Set first = ""
@@ -526,7 +531,8 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		} Else {
 			Set notRunning = ..NotRunning(incident)
 		}
-		If 'notRunning && (unready = "") {
+		Set mailing = (targetType = "contact") && (unready = "") && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production)
+		If 'notRunning && (unready = "") && 'mailing {
 			$$$ThrowOnError(..Check(class, incident, parameters, row.FixTargets, .passed, .skipped))
 			If passed '= "" {
 				$$$ThrowOnError(..Carry(class, incident, parameters, passed, .result, run))
@@ -554,6 +560,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	}
 	If (unready '= "") && (failed = "") {
 		Do ..CouldNotStart(row, total, unready, 1)
+		Quit
+	}
+	If mailing && (failed = "") {
+		Do ..SendPartner(row, class, run, total)
 		Quit
 	}
 	Set copies = $Select($IsObject(run): run.Copies.Count(), 1: 0)
@@ -598,6 +608,47 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Quit
 	}
 	Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+}
+
+/// Sends the approved notice of a request of a Settings contact (see the class description), in a run that has started: the row is read again (it is executing now), and the kind's mail method
+/// gives the addresses that may be sent to and those skipped. A row that is not as approved could not start (the kind's NOSTART); with no address left nothing is sent and the run ends done with
+/// every target skipped; otherwise MailApproved sends once. An exception of the send ends the run failed with EmailOut's MESSAGEFAILED.
+Method SendPartner(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String, run As OcuTalon.Data.FixRun, total As %Integer) [ Private ]
+{
+	Set recipients = []
+	Set skipped = []
+	Set mailed = 0
+	Try {
+		Set mailed = $$$ISOK(row.%Reload()) && ##class(OcuTalon.Fix.Kind).Mailed(row, .recipients, , , .skipped)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		Set mailed = 0
+	}
+	If 'mailed {
+		Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), $IsObject(run) && (run.%Id() '= ""))
+		Quit
+	}
+	If recipients.%Size() = 0 {
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+		Quit
+	}
+	Set outcome = {"sent": 0, "outcome": "failed", "message": ($Parameter($Parameter("OcuTalon.Fix.Kind.Email", "OUT"), "MESSAGEFAILED"))}
+	Try {
+		Set outcome = ..MailApproved(row)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	If +outcome.sent {
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": (recipients.%Size()), "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (..FirstReason(skipped)), "outcome": (outcome.outcome)})
+	} Else {
+		Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (outcome.message), "outcome": (outcome.outcome)})
+	}
+}
+
+/// Submits the approved email of the row and answers {"sent", "outcome", "message"} (Fix.Kind.Email SubmitApproved; a seam for the tests).
+Method MailApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
+{
+	Quit ##class(OcuTalon.Fix.Kind.Email).SubmitApproved(row)
 }
 
 /// Delivers the approved notice of a request whose kind's targets are contacts (TARGETTYPE contact): for each delivery the kind's Execute gave, one PartnerNotice to
@@ -909,7 +960,7 @@ ClassMethod ActionTarget(row As OcuTalon.Bridge.Data.ApprovalRequest, incident A
 		Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(parameters.%Get("change"))
 		Quit $Select($IsObject(change): change.Setting_" on "_change.Item_" in "_target, 1: target)
 	}
-	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_" (simulated)"
+	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_$Select(##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production): " (simulated)", 1: "")
 	If parameters.%Get("target") '= "" Quit target_" to "_parameters.%Get("target")
 	Quit target
 }
