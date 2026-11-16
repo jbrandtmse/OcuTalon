@@ -4436,3 +4436,4 @@
 2026-11-16T03:10:00Z	Epic 24	merge_enqueued	story=DW-1412
 2026-11-16T03:10:37Z	Epic 24	merged	story=DW-1412 merge=28ee30d1d (security_cut_blocker_closed)
 2026-11-16T03:10:46Z	Epic 24	runner_ended	reason=clarification 24.4b_spec=gated(f26b4e3c);question=draw_pending_undo_raised_before_close relayed=contest_planner
+2026-11-16T03:13:20Z	Epic 24	owner_decision	via=contest_planner 24.4b=closed_card_draws_every_pending_undo(conds_a-e;pins) DW-1412=verified,cut_blocker_cleared
