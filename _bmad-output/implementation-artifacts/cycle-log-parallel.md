@@ -4596,3 +4596,4 @@
 2026-11-16T23:20:41Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_Task0_STOP(GetUserRecursedRoleSet_needs_%Admin_Secure:USE_in_hook) options=a_production_job_check(rec),b_role_copy,c_grant(not_rec) relayed=contest_planner
 2026-11-16T23:20:55Z	Epic 27	owner_decision	via=contest_planner 27.3_viewer_fix=option_a(Conversation_production_job_check,slack_only;c_refused_forever) pins+README_same_push
 2026-11-16T23:48:10Z	Run	ci_green	feature 1f8733c0e ci=43970555894 att2 green (DW-349 ci-9, DW-1457 ci-4 reruns)
+2026-11-16T23:48:13Z	Epic 21	merged	DW-1421_r3 merge=b2768afeb
