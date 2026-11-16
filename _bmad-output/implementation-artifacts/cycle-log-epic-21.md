@@ -534,3 +534,5 @@
 2026-11-16T08:07:34Z	DW-1376	stage_spawned	stage=code-review spawn_at=2026-11-16T08:07:34Z model=opus effort=high agent_name=dw-1376-code-review-1 cycle_iteration=1
 2026-11-16T08:26:49Z	DW-1376	cr_complete	model=opus findings=14(med1_patched:StoredSummary_helper;low4_patched;9_rejected) high=0 tests_only text_unchanged fresh=Summary,Catalog,ItemKinds_pass catalog.mjs--check=0 final_status=done
 2026-11-16T08:26:49Z	DW-1376	ledger	DW-1376=resolved-by:dw-1376
+2026-11-16T08:32:34Z	DW-1376	integrated	feature=c5c4186ca(24.4b) merge=a818d056a; then feature=404037853(DW-1373_merged;no_src_delta) merge=a31344401 conflicts=none
+2026-11-16T08:32:34Z	DW-1376	fresh_check	env=a818d056a(src_identical_at_push_head) npm_ci,node_2185/0,web_lint,bd,class-rules,build=pass live_cards=32/32 CR_fresh=Summary,Catalog,ItemKinds torn_down
