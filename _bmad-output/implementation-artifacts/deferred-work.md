@@ -8817,3 +8817,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-dw-1421-c2p-an-over-long-evidence-element-is-cut-not-refused.md (code review round 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: No shell file changed since 08f55bc99; the same tree passed the rule on the rerun (234 s). Unverified cause: the compared out.log, calls or reports of two stub runs of eval/run.sh differed once, possibly a time-dependent line under load.
 - 2026-11-16T16:37:43Z status=routed owner=burndown by=cr note=unverified; settle by printing the diff of cap-a and cap-e when the comparison fails
+
+### DW-1454: A signed event from a second Slack workspace overwrites the noted workspace, so the admin's next link is saved under that team (one workspace per install)
+- source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Data.SlackLink NoteWorkspace; ruled by the Contest Planner (one workspace per install); pinned by TestNotesWorkspace and the second-team criterion
+- 2026-11-16T22:08:03Z status=by-design owner=27-3-link-slack-members-in-settings by=harvest note=Contest_Planner_ruling_2026-11-16_one_workspace_per_install
+
+### DW-1455: The reversing audit entry of an unlink whose row removal fails is untested
+- source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SettingsOps UnlinkSlack; no probe seam can make %DeleteId fail; link side covered by TestFailedAfterAudit
+- 2026-11-16T22:08:03Z status=wontfix-accepted owner=27-3-link-slack-members-in-settings by=harvest note=reopen_if=an_Unlink_%DeleteId_failure_is_observed_or_a_seam_for_it_is_added
