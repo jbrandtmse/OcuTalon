@@ -78,3 +78,6 @@
 2026-11-16T07:09:57Z	Story 24.3	story_created	spawn_at=2026-11-16T06:56:00Z model=opus build_status=ready-for-dev warnings=oversized,multiple-goals
 2026-11-16T07:09:57Z	Story 24.3	spec_validated	gate=planner_pending(NEW_public_text:On_call_line(replaces_DW-1400),GUIDE_bullet(P4);NEW_veto:V1_Reminder_columns+purge,V2_page_emails(outward),V3_got-it_route_accepts_page_copy,V4_AD-14/18/27,V5_Lane_A_Telegram/Out+PagingLive_test,V6_Lane_B_files_outside_footprint;choices:P1_DW-1251(A_rec),P2_not_paired_row(rec),P4_GUIDE,P5_split_24.3a/b(rec)) branch=OCT-epic24
 2026-11-16T07:30:06Z	Story 24.4b	ci_resolved	sha=0d4d1e67 result=success runs=43819955746(ci),43819955815(lane-a) flake_reruns=0
+2026-11-16T07:35:41Z	Epic 24	integrated_forward	feature=c5c4186c(24.4b_merged) conflicts=none
+2026-11-16T07:35:41Z	Story 24.3	planner_rulings_applied	source=<coordination>/prompts/story-243-rulings-20261116.md P5=split(24.3a_delivery+web_ack,after_1.0.12_cut;24.3b_escalation+On_call_line+DW-1384+GUIDE) P1=A P2=not_paired_row P4=GUIDE_bullet(existing_separator) V1-V6=approved_with_conditions epics=24.3_stub+24.3a+24.3b spec=renamed_to_24.3a,draft ledger=DW-1251->24.3a,DW-1384->24.3b
+2026-11-16T07:35:41Z	Story 24.3a	stage_spawned	stage=plan spawn_at=2026-11-16T07:35:41Z model=opus effort=high branch=OCT-epic24 note=re-plan_narrowed

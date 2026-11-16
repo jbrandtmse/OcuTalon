@@ -8641,11 +8641,15 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** the submitted commands' fields, the audit entries and the stored contacts match, and both sections work by keyboard with every control labelled (NFR-25, UX-DR130)
 - DW-1254: partner contacts' names and addresses go through the same SecretHandoff as 36.4's on-call section (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri, the values reach only the IRIS audit entry, and a leak-scan test pins it (ledger; routed by merge_gate 2026-11-13, Contest Planner 36.4 ruling S1)
 
-### Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement
+**Story 24.3 was split into Stories 24.3a and 24.3b** [AMENDED 2026-11-16, Contest Planner split (24.3 rulings ~08:30Z Nov 16, P5); 24.3a (delivery and the web acknowledgement) merges after the 1.0.12 cut; 24.3b (the escalation timer, the On call line, DW-1384 and the GUIDE bullet) follows; every acceptance criterion of the old Story 24.3 is carried word for word by one of them; P1 Option A settles DW-1251 (a page always gets a web chat card, not counted as a channel; Telegram and email follow the chosen channels exactly; an email copy is never marked handled); P2: the undelivered report is a `not_paired` delivery row that Paging reads]
+
+### Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement
+
+[ADDED 2026-11-16, Contest Planner split of 24.3; merges after the 1.0.12 cut]
 
 As an admin,
-I want each page to reach the on-call person on their configured channel, and an acknowledgement from any channel it reached to stop escalation,
-So that the backup is woken only when the on-call person really didn't answer.
+I want each page to reach the on-call person on their configured channels, and an acknowledgement from the web page to reach the paging owner,
+So that a page is seen and handled wherever the person is.
 
 **Acceptance Criteria:**
 
@@ -8659,6 +8663,25 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** the acknowledgement reaches the paging owner once through `CommandsIn` with the command verb Story 36.2 (was 24.1) fixes, every copy of the page shows "Marked as handled at {time}", and a second acknowledgement changes nothing (FR-28, AD-1, UX-DR143)
 **And** **Got it** on Telegram, which submits the same command and edits the Telegram copy in place, is Lane A's Story 23.4 (FR-20, AD-29)
 
+**Given** automated tests in `OcuTalon.Test.Channel`, with a mock mail server, against the paging owner
+**When** pages and acknowledgements run
+**Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+
+### Story 24.3b: Escalate unanswered pages to the backup, and say so in Settings
+
+[ADDED 2026-11-16, Contest Planner split of 24.3]
+
+**Lane:** B. **Depends on:** Story 24.3a (story-level).
+
+As an admin,
+I want an unanswered page to escalate to the backup after the minutes I chose, and Settings to say plainly how paging works,
+So that the backup is woken only when the on-call person really didn't answer.
+
+**Acceptance Criteria:**
+
 **Given** the paging owner (Lane A's Story 23.4) asks `ReminderOps` for an escalation timer with origin `system`
 **When** it is created
 **Then** a `Reminder` row of the escalation kind and its `ReminderTimer` waiter exist; at the due time the waiter sends the escalation message to the paging owner instead of a notification, a cancellation from the paging owner removes it, and neither shows in any session's reminder list (FR-28, AD-5, AD-18)
@@ -8668,8 +8691,8 @@ So that the backup is woken only when the on-call person really didn't answer.
 **When** pages, acknowledgements and escalations run, with a restart in between
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
-- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+**And** the Settings On call line reads the Contest Planner's approved text (Option A, 2026-11-16), replacing DW-1400's line, pinned in `ux-strings`, `on-call-view` and the on-call spec; GUIDE.md gains the approved On-call pages bullet with its existing Settings separator; DW-1384's escalation-ask test lands (Contest Planner 24.3 rulings, P4 and new text 1)
+
 
 **Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
 

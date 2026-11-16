@@ -1,8 +1,8 @@
 ---
-title: 'Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement'
+title: 'Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement'
 type: 'feature'
 created: '2026-11-15'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -270,6 +270,63 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with a top-le
 - AC8: Given every test above, when it runs with a distinctive fixture name and address, then no message, log line, trace, audit entry or payload holds a chat id, a display name, `oncall.*.user` or `oncall.*.email`. Each surface is checked against a distinctive fixture name or address, with a positive control.
 
 ## Spec Change Log
+
+- 2026-11-16 (lead). **24.3 gate rulings, Contest Planner ~08:30Z Nov 16 (BINDING)**, quoted in full:
+
+  > ## 24.3: NOT in 1.0.12
+  > Merge 24.3a only AFTER the 1.0.12 cut. The gate is approved as follows.
+  > 
+  > ### P5: the split is APPROVED
+  > - 24.3a: delivery and the web acknowledgement.
+  > - 24.3b: the escalation timer, the On call line, DW-1384 and the GUIDE bullet.
+  > - The On call line ships with 24.3b. Until then, DW-1400's line stands.
+  > 
+  > ### P1: Option A is APPROVED
+  > - A page always gets a web chat card, and that card is not counted as a channel.
+  > - Telegram and email follow the person's chosen channels exactly, with no fallback.
+  > - A person given only as an address gets email only.
+  > - An email copy is never marked handled.
+  > 
+  > Option B is refused.
+  > 
+  > ### P2: APPROVED
+  > A not_paired delivery row that Paging reads.
+  > 
+  > ### P4: the GUIDE bullet is APPROVED as written
+  > - No More-to-try item.
+  > - Use the Settings separator GUIDE already uses elsewhere (› or >). Do not introduce a new one.
+  > 
+  > ### New text 1, the On call line: APPROVED verbatim (Option A version)
+  > Keep its pins in ux-strings, on-call-view and O1.
+  > 
+  > ### Vetoes V1 to V6: APPROVED, with conditions
+  > Pin each condition with a mutation.
+  > 
+  > - (a) V2, page email:
+  >   - It goes ONLY to an address an admin set in Settings › On call. Never take an address from an item, the model or a message.
+  >   - The body is built only from the fixed page keys: production, failure count, time and the OcuTalon link. No untrusted item or message text goes in verbatim.
+  >   - At most one email per page row, and at most one escalation to the backup per page.
+  >   - Trace, logs and audit carry ids only.
+  >   - It is refused on the online demo in BOTH Notify and EmailOut.
+  > - (b) V3, got-it:
+  >   - It accepts only the session's OWN page copy.
+  >   - Another user's page ref answers 404, exactly like a missing ref, so nothing reveals that it exists.
+  >   - It answers 404 on the online demo.
+  > - (c) V1, escalation timers:
+  >   - They survive a restart and are re-armed exactly once, so a restart never pages twice.
+  >   - The Data.Purge part removes only finished escalation rows, and purging the data removes them with it.
+  >   - Nothing is written on the online demo.
+  > - (d) V4: at merge, send the AD-14, AD-18 and AD-27 amendments as old text and new text.
+  > - (e) V5 and V6: the orchestrator coordinates the Lane A and Lane B file overlaps.
+  > 
+  > ## Lane D order
+  > 1. DW-1426 (small; can make 1.0.12).
+  > 2. 24.3a: push it, but it merges after the cut.
+  > 3. 24.3b.
+  > 
+  > Any 1.0.12 cut item that is still open comes first.
+
+  Applied by the lead: `epics.md` replaces Story 24.3 with a split note and charters **24.3a** (this spec, renamed from `spec-24-3-...`; delivery and the web acknowledgement; merges after the 1.0.12 cut) and **24.3b** (the escalation timer, the On call line, DW-1384 and the GUIDE bullet). Status reset to `draft` for a re-plan narrowed to 24.3a with the V1-V3 conditions pinned.
 
 ## Review Triage Log
 
