@@ -2,8 +2,8 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'in-progress'
-baseline_revision: 'dbc68f1d4a7fbd46a547558c66f290808a9b93ce'
+status: 'done'
+baseline_revision: 'd688f07d098cb74f52efcdcd55015120b82ba937'
 baseline_commit: 'dbc68f1d4a7fbd46a547558c66f290808a9b93ce'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -235,7 +235,7 @@ Rejected (rework re-review):
 
 
 **Rework iteration 2 (CI red on 0c743465, ci run 43816599381, story class):**
-- [ ] [CI] iris(production) job 133129955974, `shard:lane-a@Channel`: `OcuTalon.Test.Channel.TelegramApproval` `TestApproveKinds` fails for `partner_warning` ("the text of the answer"; "the request is approved on the channel telegram" x2) since DW-1415 made a non-simulated partner warning admin-only. Update the test on this shared surface so it stays true to the ruling: the Telegram approve of a non-simulated partner warning by a non-admin is refused with email's refusal text and stays pending, and an admin's (or a simulated demo-contact warning's) Telegram approve still approves — whichever the test's fixture is meant to cover; never weaken the DW-1415 rule. Grep the other test classes on shared surfaces (approve paths: `Test.Channel.*`, `Test.Core.Answer*`, `Test.Web.*Approval*`, web e2e approval specs) for the same assumption that a non-admin can approve a partner warning, and fix any found. Run each touched class on a lane-B warm stack.
+- [x] [CI] iris(production) job 133129955974, `shard:lane-a@Channel`: `OcuTalon.Test.Channel.TelegramApproval` `TestApproveKinds` fails for `partner_warning` ("the text of the answer"; "the request is approved on the channel telegram" x2) since DW-1415 made a non-simulated partner warning admin-only. Update the test on this shared surface so it stays true to the ruling: the Telegram approve of a non-simulated partner warning by a non-admin is refused with email's refusal text and stays pending, and an admin's (or a simulated demo-contact warning's) Telegram approve still approves — whichever the test's fixture is meant to cover; never weaken the DW-1415 rule. Grep the other test classes on shared surfaces (approve paths: `Test.Channel.*`, `Test.Core.Answer*`, `Test.Web.*Approval*`, web e2e approval specs) for the same assumption that a non-admin can approve a partner warning, and fix any found. Run each touched class on a lane-B warm stack.
 
 ## Spec Change Log
 
@@ -318,6 +318,22 @@ Rejected (rework re-review):
   - `[low]` `[reject]` verification-gap 4: a refused Telegram press shows the user no text — the same as email today (`Telegram.In` `not_allowed`); the ruling reuses email's behaviour.
   - `[low]` `[reject]` verification-gap 5: same as blind 2.
 - intent-alignment: descriptive report only, no findings; its divergences are the items above (the gate applies to the kept-draft approval too, as ruled).
+
+### 2026-11-16 — Review pass (rework iteration 2: CI red on TelegramApproval)
+- verdicts: 17 findings — high 0, medium 0, low 15, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind 1, edge 1, verification-gap 1: chat ids 84017734151 and 84017734152 are also in `Test.Core.PersonaAnswers`' `CHATS` — the classes run one after the other on a stack and each one's `BeginPairing` drops its chats first (`LiveCase.BeginPairing`); the overlap on 84017734150 was already there before this pass; a concurrent run needs two classes on one stack at once, which the project does not do.
+  - `[low]` `[reject]` blind 2, verification-gap 3: `$ListLength(case) > 3` picks the admin chat — every case with a mailbox element is a partner case, and a new case would have to pass the same list; no defect today, a flag would add a parameter to a test helper.
+  - `[low]` `[reject]` blind 3, edge 3: no sweep of leftover `zztgapp` users before the run — the class runs in throwaway stacks only, and the names come from a counter, so a leftover user cannot collide; the same as the other fixture users of the Channel tests.
+  - `[low]` `[reject]` blind 4, edge 2: `MakeUser` goes on after a failed create — the failed `$$$AssertStatusOK` is the first failure the run prints, so the cause is not hidden.
+  - `[low]` `[reject]` blind 5: the refusal test checks "nothing sent" only by the pending state — a request that stays pending is never run, so nothing is sent or kept; a second warning count after the direct `FromTelegram` call would add nothing to that.
+  - `[low]` `[reject]` blind 6, edge 6: the log lists fewer classes than the grep found — the reviewers read the rest and found none that approves as a non-admin; the fix edits this build's spec.
+  - `[false]` `[reject]` blind 7: `review_loop_iteration` is 0 and the log is dated 2026-11-16 — the counter counts bad_spec loopbacks, not reworks, and the date is the date of the pass.
+  - `[low]` `[reject]` edge 4: the simulated press runs only with the mailbox connected — `PressText` ignores the mailbox for a simulated warning (`TestApproveKinds` covers the no-mailbox text); a second press adds no case.
+  - `[false]` `[reject]` edge 5: the refusal text does not reach the Telegram user — as the ruled behaviour: `Telegram.In` answers `not_allowed` with no text and one warning, the same as email; the test pins that and email's refusal code and slots.
+  - `[low]` `[patch]` verification-gap 2: the simulated half of `TestApprovePartnerNeedsAnAdmin` had no demonstrated mutation — fixed: `AdminRuled` made to ask a simulated warning too (`Quit 1`) turned the test red (the answer text and the approved state); mutation line written, file restored from the backup, the method green again.
+  - `[low]` `[reject]` verification-gap 4: `TestApproveKinds` makes the admin user for all cases — one user per test, dropped after it; a cost, not a defect.
+- intent-alignment: descriptive report only, no findings; it names the Telegram press path as the surface of the pass and finds the diff on it.
 
 ## Design Notes
 
@@ -558,10 +574,28 @@ Code review stage, rework iteration 1 (2026-11-16; warm stack `e23b13cr2w`, fres
 - mutation: `Email.AdminRuled` gives 0 for a partner_warning (`If 1 Quit 0`; DW-1415, the web refusal over real HTTP) -> `web/e2e/api/approver.spec.ts` AP6 red (200 instead of 403; live sign-in part 2/30, fresh stack).
 - Runs, all passed: warm `Test.Partner.PartnerApprove` (31.9 s), `Test.Watch.Summary` (6.9 s), `Test.Fix.PartnerWarning` (4.0 s), `Test.Fix.Email` (34.5 s), `Test.Core.AnswerPrecedentsProduction` (26.7 s); fresh `ci/iris.sh live sign-in --part 2/30` (`api/approver.spec.ts`, AP1 to AP6, 6 passed); `bash docker/tests/test-ci-config.sh` all rules passed; `npm --prefix web test` 2173 passed. `ci/iris.sh classes lane-a@Docs,Partner` lists the three `Test.Partner` classes and `lane-a@Fix` none of them.
 
+Rework iteration 2 (2026-11-16; CI red on `Test.Channel.TelegramApproval:TestApproveKinds`; warm stack `e23b13r2w`; each change reverted from a backup in the scratch folder, `git diff --stat` of `Fix/Kind/Email.cls` empty afterwards, the class green again). `TestApproveKinds` now presses the non-simulated partner cases from the chat of a fixture admin's session (a user with OcuTalonUser and OcuTalonAdmin, deleted after the test) and the demo's simulated case from this process's user; the new `TestApprovePartnerNeedsAnAdmin` presses as a fixture user with OcuTalonUser only. No product code changed; the DW-1415 rule is as ruled.
+- mutation: `Email.AdminRuled` gives 0 for a partner_warning (DW-1415, a non-admin's Telegram press is refused, with and without a mailbox) -> `Test.Channel.TelegramApproval:TestApprovePartnerNeedsAnAdmin` red (the press answered with text, no warning, the request approved, and `FromTelegram` not `not_allowed`).
+- mutation: `Email.AdminRuled` asks a simulated partner warning too (`Quit 'simulated` -> `Quit 1`; DW-1415, a non-admin still approves the demo's simulated warning) -> `Test.Channel.TelegramApproval:TestApprovePartnerNeedsAnAdmin` red (the simulated warning's answer text and its approved state); restored from the backup, the method green again (warm stack `e23b13r2v`).
+- mutation: `Email.MayApprove` gives 0 after the `AdminRuled` line (DW-1415, an admin's Telegram approve of a warning to Settings contacts still approves) -> `Test.Channel.TelegramApproval:TestApproveKinds` red (the partner_warning press text and "the request is approved on the channel telegram" for both Settings-contact cases).
+- Runs, all passed: warm `Test.Channel.TelegramApproval` (125.6 s), before and after the mutations. The other test classes that touch a partner_warning's approve (`Test.Partner.PartnerApprove`, `Test.Partner.PartnerTurns`, `Test.Fix.PartnerWarning`, `Test.Fix.PartnerDraft`, `Test.Demo.Guide`, `web/e2e/api/approver.spec.ts` AP6, `web/e2e/cards/approval-card.spec.ts` A13) were read and found true to the rule: they use an admin, the simulated demo warning, a reject, or `Approval.Answer` below the approver check.
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
+
+Rework iteration 2 (2026-11-16), from baseline d688f07d0: the one `[CI]` item (`Test.Channel.TelegramApproval:TestApproveKinds` for `partner_warning` after DW-1415), ticked under Tasks & Acceptance. This pass covers only that item.
+
+**Summary (rework 2).** Test-only change; no product code changed and the DW-1415 rule is as ruled. `TestApproveKinds` presses the two non-simulated partner cases (no mailbox, mailbox connected) from the paired chat of a fixture admin's session (`MakeUser`), and the demo's simulated case from this process's user. The new `TestApprovePartnerNeedsAnAdmin` presses as a fixture user with OcuTalonUser only: no answer text and no alert, one warning, the request stays pending, `AnswersIn.FromTelegram` gives `not_allowed {"kind":"email","admin":true}`, with and without a mailbox, and the same user approves the simulated warning. The other approve-path classes and e2e specs were read for the same assumption and need no change.
+
+**Files changed (rework 2).** `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramApproval.cls` (the user helpers, the optional user of `WebSession` and `Paired`, the chat list, the two tests); this spec.
+
+**Review (rework 2).** 17 findings: 1 low patched (the simulated half's mutation line, with the mutation demonstrated), 16 rejected with reasons in the Review Triage Log (2 false, 14 low). Nothing deferred. Follow-up review recommended: false (no high patched).
+
+**Verification (rework 2).** Warm stack `e23b13r2v` (lane B, no slot): `Test.Channel.TelegramApproval` passed (125.5 s); three mutations of `Fix.Kind.Email` (`AdminRuled`, `MayApprove`, and the simulated exemption) each turned a test red and were restored from backups (`git diff --stat` of the file empty); `TestApprovePartnerNeedsAnAdmin` green again after the restore; `bash docker/tests/test-boundaries.sh` all rules passed; the warm stack was taken down.
+
+**Residual risks (rework 2).** CI has to confirm the `shard:lane-a@Channel` unit; the new test needs a stack where a test may create IRIS users in %SYS, as `Test.Partner.PartnerApprove` already does.
 
 Rework iteration 1 (2026-11-16), from baseline dbc68f1d4: DW-1415, DW-1416 and the shards-11 rebalance, each ticked under Tasks & Acceptance. This pass covers only those three items.
 
