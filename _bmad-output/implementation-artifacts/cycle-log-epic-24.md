@@ -56,3 +56,5 @@
 2026-11-16T01:19:29Z	Story 24.4a	fresh_check	env=fresh_lane-D_stack_e24s4fc(merged_tree) tests=Test.Watch.SettingCause result=pass torn_down=yes
 2026-11-16T01:19:29Z	Story 24.4a	committed	sha=pushed_below
 2026-11-16T01:52:03Z	Story 24.4a	ci_resolved	sha=9e3eb3f0 result=success runs=43785602645(ci),43785602560(lane-a) flake_reruns=0 B13=green
+2026-11-16T01:56:00Z	Epic 24	integrated_forward	feature=cdd250d0(24.4a_merged) conflicts=none
+2026-11-16T01:56:00Z	Story 24.4b	stage_spawned	stage=plan spawn_at=2026-11-16T01:56:00Z model=opus agent_name=24-4b-show-the-new-fixes-partner-warnings-and-the-closed-card-undo-plan-1 effort=high branch=OCT-epic24 note=carved_from_the_parent_24.4_plan(V2+cross-surface_pins)
