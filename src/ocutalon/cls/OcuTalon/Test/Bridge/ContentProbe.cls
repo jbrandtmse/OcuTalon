@@ -1,11 +1,14 @@
+Include Ensemble
+
 /// The ContentClass of the content tests (Story 26.3; AD-6, AD-31): a helper that extends the bridge's Ext.Content and answers a fixed PNG for the ItemId that
 /// ^OcuTalonTest("ContentProbe", "item") names. THE PRODUCTION'S JOBS CALL IT, so its state is in globals and not in the process: the runner's job calls Part and the job of
 /// Decide calls Accepted.
 ///   - Part notes each call in ^OcuTalonTest("ContentProbe", "part", n) as the kind, provenance and ItemId of the request, answers the error text of the node "partError" when it is set,
 ///     and otherwise answers the PNG (media type image/png) for the ItemId of the node "item", and no content for any other;
-///   - Accepted notes each call in ^OcuTalonTest("ContentProbe", "accepted", n) as the ItemId and the text, and in ^OcuTalonTest("ContentProbe", "row", n) whether the Decision row of the
+///   - Accepted notes each call in ^OcuTalonTest("ContentProbe", "accepted", n) as the ItemId and the text, in ^OcuTalonTest("ContentProbe", "replyHostData", n) as the replyHostData it got, and in ^OcuTalonTest("ContentProbe", "row", n) whether the Decision row of the
 ///     request's ItemId and kind exists at that moment, then by the node "mode": "" or "members" gives {"probe": {"text": <the text>}}, "none" gives no member, and "error" (an error status)
-///     and "throw" (an exception) first put that member in hostData, so that a Decide that merged it anyway would show it.
+///     and "throw" (an exception) first put that member in hostData, so that a Decide that merged it anyway would show it; "ids" kills the job's session id and current header id
+///     (as the ProcessInput of a business service run in Decide's job leaves them) and then answers an error status (Story 28.2).
 /// ImageBytes and ImageBase64 are the PNG: a 4 by 4 red square.
 Class OcuTalon.Test.Bridge.ContentProbe Extends OcuTalon.Bridge.Ext.Content
 {
@@ -25,17 +28,22 @@ ClassMethod Part(request As OcuTalon.Bridge.Msg.Request, Output mediaType As %St
 	Quit $$$OK
 }
 
-ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject) As %Status
+ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject, replyHostData As %String = "") As %Status
 {
 	Set hostData = {}
 	Set n = $Increment(^OcuTalonTest("ContentProbe", "accepted"))
 	Set ^OcuTalonTest("ContentProbe", "accepted", n) = $ListBuild(request.ItemId, text)
+	Set ^OcuTalonTest("ContentProbe", "replyHostData", n) = replyHostData
 	Set ^OcuTalonTest("ContentProbe", "row", n) = ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind)
 	Set mode = $Get(^OcuTalonTest("ContentProbe", "mode"))
 	If mode = "none" Quit $$$OK
 	Set hostData.probe = {"text": (text)}
 	If mode = "error" Quit $$$ERROR($$$GeneralError, "The probe refuses to accept")
 	If mode = "throw" $$$ThrowStatus($$$ERROR($$$GeneralError, "The probe throws"))
+	If mode = "ids" {
+		Kill $$$JobSessionId, $$$JobCurrentHeaderId
+		Quit $$$ERROR($$$GeneralError, "The probe refuses after it cleared the job's ids")
+	}
 	Quit $$$OK
 }
 

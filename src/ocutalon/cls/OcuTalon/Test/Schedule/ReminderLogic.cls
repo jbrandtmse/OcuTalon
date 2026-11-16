@@ -574,6 +574,97 @@ Method TestStartFailureKeepsNothing()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text %STARTSWITH ?", mark, "OcuTalon.Schedule.ReminderOps: the waiter of ")
 }
 
+/// A pending escalation row of the paging owner (SessionRef instance, no waiter) that was due that many seconds ago (a negative number for
+/// one due later); its Ref is kept for the clean-up.
+Method DueEscalation(secondsAgo As %Integer) As %String [ Private ]
+{
+	Set n = $Increment(^OcuTalonTest("ReminderLogic", "n"))
+	Set dueAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Reminder("instance", dueAt, "pending", {"Kind": "escalation", "IncidentRef": ("zzlogicinc" _ n), "PageRef": ("zzlogicpg" _ n)})
+	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ ref
+	Quit ref
+}
+
+/// An escalation ask from the paging owner whose waiter does not start: the row is deleted, nothing stays for the page, and the answer is
+/// failed with the plain-English failure text, with one error in the log.
+Method TestEscalationStartFailureKeepsNothing()
+{
+	Set n = $Increment(^OcuTalonTest("ReminderLogic", "n"))
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||" _ ..#PROBE, .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	If '$IsObject(probe) Quit
+	Set command = ##class(OcuTalon.Msg.Command.SetReminder).%New()
+	Set command.Origin = "system"
+	Set command.Kind = "escalation"
+	Set command.IncidentRef = "zzlogicinc" _ n
+	Set command.PageRef = "zzlogicpg" _ n
+	Set command.DelaySeconds = 600
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set response = ""
+	Set sc = probe.OnMessage(command, .response)
+	Do $$$AssertStatusOK(sc, "the status is OK")
+	If '$IsObject(response) {
+		Do $$$AssertTrue(0, "a CommandResult comes back")
+		Quit
+	}
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Message, "0|failed|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "the answer is failed, with the failure text")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Reminder WHERE %EXACT(PageRef) = ?", command.PageRef)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "no row names the page")
+	Set start = "OcuTalon.Schedule.ReminderOps: the waiter of "
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text %STARTSWITH ?", mark, start)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "one error is logged")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text %STARTSWITH ?", mark, start)
+}
+
+/// A send of the escalation that fails is logged with the Ref only and not retried: the row stays fired, the one request went to
+/// IncidentManager (none to Notify) and no timer is set again.
+Method TestWakeEscalationSendFails()
+{
+	Set ref = ..DueEscalation(3)
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set timer = ..Wake(ref, $SYSTEM.Status.Error(5001, "zz the send failed"))
+	Do $$$AssertEquals(timer.Sent.%Size(), 1, "the send was tried once")
+	If timer.Sent.%Size() = 1 Do $$$AssertEquals(timer.Sent.%Get(0).target, "IncidentManager", "to IncidentManager")
+	Do $$$AssertEquals(timer.Timers.%Size(), 0, "and not tried again")
+	Set start = "OcuTalon.Schedule.Reminder: the escalation of " _ ref _ " was not sent"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text %STARTSWITH ?", mark, start)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "one error is logged with the Ref")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND Text %STARTSWITH ?", mark, start)
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.State, "fired", "the row stays fired")
+	Set row = ""
+}
+
+/// An escalation row whose lock stays busy past the process lock timeout: the paging owner's cancel answers failed, logs one warning that
+/// names the Ref and changes nothing. It needs a process lock timeout under HOLDSECONDS (the default is 10 seconds).
+Method TestCancelEscalationBusyRowFails()
+{
+	Set ref = ..DueEscalation(-600)
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Schedule.ReminderOpsSendProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	If '$IsObject(probe) Quit
+	If '..HoldRow(ref, ..#HOLDSECONDS) Quit
+	Set command = ..CancelCommand("", ref, "zzescbusykey")
+	Set command.Origin = "system"
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set response = ""
+	Set sc = probe.OnMessage(command, .response)
+	Do $$$AssertStatusOK(sc, "the status is OK")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Message, "0|failed|"_##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "the cancel answers failed")
+	Set start = "OcuTalon.Schedule.ReminderOps: the row of " _ ref _ " is locked"
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", mark, start)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "one warning is logged with the Ref")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ?", mark, start)
+	Do ..LetGo(ref)
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.State_"|"_row.CancelKey, "pending|", "the row stays pending, with no CancelKey")
+	Set row = ""
+}
+
 /// A pending fixture reminder of the session that was due that many seconds ago (a negative number for one due later); its Ref is kept
 /// for the clean-up.
 Method DueReminder(session As %String, secondsAgo As %Integer, state As %String = "pending") As %String [ Private ]

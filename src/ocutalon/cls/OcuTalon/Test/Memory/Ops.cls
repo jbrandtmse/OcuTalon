@@ -55,6 +55,7 @@ Method OnBeforeAllTests() As %Status
 	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() {
 		Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Test.Memory.Fixture).Prepare(.state))
 		Merge ^||OcuTalonTestMemoryOps = state
+		Do ##class(OcuTalon.Test.Memory.Fixture).HoldFade()
 		Do ##class(OcuTalon.Memory.Embedding).Embed("warm the embedder", .vector)
 	}
 	Quit sc
@@ -75,6 +76,7 @@ Method OnAfterAllTests() As %Status
 {
 	Do ..DropRows()
 	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do ##class(OcuTalon.Test.Memory.Fixture).ReleaseFade()
 		Merge state = ^||OcuTalonTestMemoryOps
 		Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)
 	}

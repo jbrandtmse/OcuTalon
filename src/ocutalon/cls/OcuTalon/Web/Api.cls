@@ -33,7 +33,9 @@
 ///     POST /v1/decisions/:ref/got-it (Story 18.4; AD-1, AD-14) marks the session's own tell-now notice as handled: the body {"channel":"phone"}
 ///     (exactly) is the Simulated phone's press, any other body is the web chat's; it submits a GotIt command through Commands.Submit (origin web_user)
 ///     and answers 200 {"result":"done","handledAt"} (a second press too, with the first handledAt), 404 not_found for a Decision the session
-///     can't see or that is not tell-now (nothing is submitted), 501 not_built and 500 server_error.
+///     can't see or that is not tell-now (nothing is submitted), 501 not_built and 500 server_error. The same route takes the session's own page (Story 24.3a): its Ref, when the
+///     session holds its own web copy of the page, submits an AckPage (channel web, origin web_user) and answers the same 200 {"result":"done","handledAt"}; another session's page, an
+///     unknown Ref and every page Ref on the online demo answer the same 404 not_found as a missing Ref, with nothing submitted.
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in the user's live roles (IsAdmin), never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
 ///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
@@ -887,13 +889,16 @@ ClassMethod DismissIncident(ref As %String) As %Status
 	Quit ..Fail(409, "not_dismissible", $Select(result.Message '= "": result.Message, 1: ..#MESSAGENOTDISMISSIBLE))
 }
 
-/// POST /v1/decisions/:ref/got-it (Story 18.4; AD-1, AD-4, AD-14): the press of Got it on a tell-now notice, which the route submits and
-/// never decides (SessionOps does: the first press wins). The notice's Ref is its Decision's Ref. In order:
-///   - the session (Ownership.SessionRef) and the Decision (Ownership.Decision) of that session, which must be tell-now: a failed read is 500
-///     server_error, and any other Decision is 404 not_found, before anything is submitted;
-///   - the channel: phone for the exact body {"channel":"phone"}, else web (an unreadable body too);
-///   - Commands.Submit of an OcuTalon.Msg.Command.GotIt (the Ref, the channel) with origin web_user, for the session; an error status is 500 server_error;
-///   - the answer: handled and already_handled are 200 {"result":"done","handledAt"} with Handled.Marked of the Ref; not_found is 404; not_built is
+/// POST /v1/decisions/:ref/got-it (Story 18.4, 24.3a; AD-1, AD-4, AD-14): the press of Got it on a tell-now notice, or on the session's own page card, which the route submits and
+/// never decides (SessionOps does for a notice, Watch.Paging for a page: the first press wins). The notice's Ref is its Decision's Ref; a page's Ref is its Data.Page row's. In order:
+///   - the session (Ownership.SessionRef) and the Decision (Ownership.Decision) of that session: a failed read is 500 server_error;
+///   - a Decision that is not tell-now (or no Decision) may be the Ref of the session's own page, which PageCommand decides: the session holds its own web copy of the page (Ownership.DeliveryByRef
+///     of the Ref, channel web and the session: a row of kind page, or of kind handled when Data.Page Marked gives a time for the Ref), and the online demo never does. Any other
+///     Ref (another session's page, an unknown one, a page on the online demo) is 404 not_found, the same answer as for a missing Ref, before anything is submitted;
+///   - the channel: phone for the exact body {"channel":"phone"}, else web (an unreadable body too) for a notice; a page is always web;
+///   - Commands.Submit of an OcuTalon.Msg.Command.GotIt (the Ref, the channel) for a notice, or of an OcuTalon.Msg.Command.AckPage (the Ref, the session, channel web) for a page, with origin web_user,
+///     for the session; an error status is 500 server_error;
+///   - the answer: handled and already_handled are 200 {"result":"done","handledAt"} with Handled.Marked of the Ref (Data.Page Marked for a page); not_found is 404; not_built is
 ///     501 not_built; any other outcome is 500 server_error.
 ClassMethod GotIt(ref As %String) As %Status
 {
@@ -901,24 +906,49 @@ ClassMethod GotIt(ref As %String) As %Status
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set decision = ##class(OcuTalon.Data.Ownership).Decision(ref, sessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	If '$IsObject(decision) || (decision.Outcome '= "tellnow") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
-	Set command.Ref = decision.Ref
-	Set command.SessionRef = sessionRef
-	Set command.Channel = ..GotItChannel()
+	Set page = 0
+	If '$IsObject(decision) || (decision.Outcome '= "tellnow") {
+		Set command = ..PageCommand(ref, sessionRef, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		If '$IsObject(command) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+		Set page = 1
+	} Else {
+		Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
+		Set command.Ref = decision.Ref
+		Set command.SessionRef = sessionRef
+		Set command.Channel = ..GotItChannel()
+	}
 	Kill decision
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
 	If result.Ok {
 		Set %response.ContentType = ..#CONTENTTYPE
-		Write {"result": "done", "handledAt": (##class(OcuTalon.Data.Handled).Marked(command.Ref))}.%ToJSON()
+		Write {"result": "done", "handledAt": ($Select(page: ##class(OcuTalon.Data.Page).Marked(command.Ref), 1: ##class(OcuTalon.Data.Handled).Marked(command.Ref)))}.%ToJSON()
 		Quit $SYSTEM.Status.OK()
 	}
 	Set outcome = result.Outcome
 	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The Got it was answered "_outcome))
+}
+
+/// The AckPage command for a press on the session's own page (GotIt), or "" when the Ref is not that: the online demo and a session that does not hold its own web copy of the page
+/// (Ownership.DeliveryByRef, owner-exact) give "" with sc OK, so that the route answers them as a missing Ref. The copy is the page's card (kind page), or, once the page is acknowledged, the
+/// handled row that replaced it as the newest (kind handled), which counts only for a Ref whose page is marked (Data.Page Marked, so a handled row of any other notice is not a page). sc is an
+/// error only when the read fails. The route's one read of Data.Page is that class method, Marked(ref), which gives the time of the acknowledgement (Marked opens the row by its Ref index; the route itself opens none, AD-13).
+ClassMethod PageCommand(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Msg.Command.AckPage [ Private ]
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1 Quit ""
+	Set copy = ##class(OcuTalon.Data.Ownership).DeliveryByRef(ref, "web", sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) || '$IsObject(copy) Quit ""
+	If (copy.Kind '= ##class(OcuTalon.Watch.Paging).#KIND) && ((copy.Kind '= "handled") || (##class(OcuTalon.Data.Page).Marked(ref) = "")) Quit ""
+	Set command = ##class(OcuTalon.Msg.Command.AckPage).%New()
+	Set command.Ref = ref
+	Set command.SessionRef = sessionRef
+	Set command.Channel = "web"
+	Quit command
 }
 
 /// The channel of a Got it press: phone when the body is exactly the object {"channel":"phone"}, else web.

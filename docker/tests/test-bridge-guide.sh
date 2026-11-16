@@ -705,7 +705,7 @@ fi
 content_lines() {
   cat << 'EOF'
 | `ContentClass` | `OcuTalon.Bridge.Ext.Content` | The class that gives an untrusted chat turn one image to send with its text, and receives each accepted chat reply. See "The extension classes". |
-- `OcuTalon.Bridge.Ext.Content` (`ContentClass`): `Part(request, mediaType, data)` returns one image, a JPEG or PNG stream and its media type, to send with an untrusted chat turn; the runner sends the turn's text and the image together in that turn's throwaway session, and the image never enters a message body, an agent step or the event log. `Accepted(request, text, hostData)` is called once after `Decide` accepts a usable chat reply, with the filtered reply text, and the members it returns in `hostData` are added to the reply's `HostData`. Both do nothing by default.
+- `OcuTalon.Bridge.Ext.Content` (`ContentClass`): `Part(request, mediaType, data)` returns one image, a JPEG or PNG stream and its media type, to send with an untrusted chat turn; the runner sends the turn's text and the image together in that turn's throwaway session, and the image never enters a message body, an agent step or the event log. `Accepted(request, text, hostData, replyHostData)` is called once after `Decide` accepts a usable chat reply, with the filtered reply text and the reply's `HostData` as JSON text, and the members it returns in `hostData` are added to the reply's `HostData`. Both do nothing by default.
 EOF
 }
 

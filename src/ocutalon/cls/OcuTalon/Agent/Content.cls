@@ -11,6 +11,10 @@ Include Ensemble
 ///     pinned, with the IdempotencyKey ItemId:caption, and with the source learned (Memory.Ops). It answers {"caption": {memoryRef, text}}, built by code from
 ///     the saved row. Only a turn request of provenance untrusted is captioned (the gate of Part): any other request, a turn with no photo, the online demo and
 ///     SENDSPHOTOS 0 save nothing and answer {}; a refused or failed save is an error status, which Decide logs and never raises.
+///   - Accepted also records which memories the reply used (Story 28.2; AD-21, AD-31), before and whatever the turn's provenance: for a turn request with an OwnerRef, the Refs in the
+///     memories member of the reply's HostData (replyHostData, at most MAXUSED of them) are sent once, as an OcuTalon.Memory.Msg.Used with the owner and the time of now, through the adapterless
+///     service MemoryIn, which has MemoryOps set their LastUsedAt. A reply with no such member sends nothing. The send is asynchronous, and a failure to make it is one warning with no memory
+///     text: it never stops the caption and adds no member to hostData.
 ///   - Readable is the check that Agent.Input.ReadFile makes of a photo file.
 /// The photo's bytes go no further than the runner's model call: no message body, agent step or log holds them.
 Class OcuTalon.Agent.Content Extends OcuTalon.Bridge.Ext.Content
@@ -24,6 +28,13 @@ Parameter SENDSPHOTOS = 1;
 
 /// The most characters of a caption memory.
 Parameter CAPTIONMAX = 2000;
+
+/// The most memories one reply marks as used: OcuTalon.Tools.MemoryTools SEARCHLIMIT, the most that a reply's HostData.memories holds, so that every memory a
+/// reply shows is marked; the two change together (Test.Memory.LastUsed TestAcceptedUsed holds them equal).
+Parameter MAXUSED = 5;
+
+/// The business service that takes the Used message.
+Parameter MEMORYIN = "MemoryIn";
 
 /// 1 when the media type is one of PHOTOTYPES.
 ClassMethod IsPhotoType(mediaType As %String) As %Boolean
@@ -48,10 +59,11 @@ ClassMethod Part(request As OcuTalon.Bridge.Msg.Request, Output mediaType As %St
 	Quit $$$OK
 }
 
-/// Saves the caption of a photo turn (see the class description).
-ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject) As %Status
+/// Records the memories the reply used, then saves the caption of a photo turn (see the class description).
+ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject, replyHostData As %String = "") As %Status
 {
 	Set hostData = {}
+	Do ..Used(request, replyHostData)
 	If (request.Kind '= "turn") || (request.Provenance '= "untrusted") Quit $$$OK
 	Set file = ..Photo(request.OwnerRef, request.ItemId, .sc)
 	If $$$ISERR(sc) Quit sc
@@ -69,6 +81,38 @@ ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Ou
 	}
 	Set hostData = {"caption": {"memoryRef": (result.Ref), "text": (caption)}}
 	Quit $$$OK
+}
+
+/// Sends MemoryIn one Used for the memories in the memories member of the reply's HostData (see the class description). Never throws and never fails the caller:
+/// a failure is one warning that holds the redacted status text and no memory text.
+ClassMethod Used(request As OcuTalon.Bridge.Msg.Request, replyHostData As %String) [ Private ]
+{
+	If (request.Kind '= "turn") || (request.OwnerRef = "") || ($Get(replyHostData) = "") Quit
+	Try {
+		Set memories = {}.%FromJSON(replyHostData).memories
+		If '$IsObject(memories) || 'memories.%IsA("%Library.DynamicArray") Quit
+		Set refs = []
+		Set iterator = memories.%GetIterator()
+		While iterator.%GetNext(, .memory) && (refs.%Size() < ..#MAXUSED) {
+			If $IsObject(memory) && (memory.%GetTypeOf("memoryRef") = "string") && (memory.memoryRef '= "") Do refs.%Push(memory.memoryRef)
+		}
+		If 'refs.%Size() Quit
+		Set used = ##class(OcuTalon.Memory.Msg.Used).%New()
+		Set used.SessionRef = request.OwnerRef
+		Set used.MemoryRefs = refs.%ToJSON()
+		Set used.UsedAt = ##class(OcuTalon.Data.Time).NowUtc()
+		Set sc = ##class(Ens.Director).CreateBusinessService(..#MEMORYIN, .service)
+		If $$$ISOK(sc) Set sc = service.ProcessInput(used)
+		If $$$ISERR(sc) Do ..UsedFailed($SYSTEM.Status.GetErrorText(sc))
+	} Catch exception {
+		Do ..UsedFailed(exception.DisplayString())
+	}
+}
+
+/// The one warning of a use that could not be sent.
+ClassMethod UsedFailed(reason As %String) [ Private ]
+{
+	Do ##class(Ens.Util.Log).LogWarning($ClassName(), "Used", "The memories that the reply used could not be recorded: "_##class(OcuTalon.Bridge.Redact).Text($Extract(reason, 1, 300)))
 }
 
 /// The Describe object {ref, name, mediaType, size} of the photo that the turn with the ItemId carries for the session, or "" when there is no such turn, it

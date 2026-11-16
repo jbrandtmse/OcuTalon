@@ -4,7 +4,7 @@
 /// EmbeddingIdx (an HNSW index, cosine) finds the nearest memories of an owner and TextIdx (an %iFind index, exact words) finds its keyword hits;
 /// both keep all of their globals under ^OcuTalonP.MemoryI (TextIdx with IFINDSHAREDDATALOCATION INDEX, so that its word dictionary is not in ^IRIS.IF.*), so
 /// every index global is in OCUTALON_PRIVATE, and deleting a row removes its entries.
-/// Source, Pinned and PinnedAt are appended columns (AD-5, AD-21): a row saved before them holds them empty, which readers take as told, 0 and unpinned.
+/// Source, Pinned, PinnedAt and LastUsedAt are appended columns (AD-5, AD-21): a row saved before them holds them empty, which readers take as told, 0, unpinned and never used.
 Class OcuTalon.Data.Memory Extends %Persistent
 {
 
@@ -41,6 +41,10 @@ Property Pinned As %Boolean [ InitialExpression = 0 ];
 
 /// When the memory was pinned, UTC to the second; empty while it is not pinned.
 Property PinnedAt As %String(MAXLEN = 20);
+
+/// When the memory was last used in an answer (it was in the memories of a usable turn reply that Decide accepted), UTC to the second. Written by
+/// OcuTalon.Memory.Ops only, and never earlier than the value it replaces. Empty while the memory has not been used, which readers take as SavedAt.
+Property LastUsedAt As %String(MAXLEN = 20);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -87,6 +91,9 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>PinnedAt</Value>
+</Value>
+<Value name="12">
+<Value>LastUsedAt</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.MemoryD</DataLocation>

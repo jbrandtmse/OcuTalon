@@ -16,8 +16,12 @@
 ///     a turn whose runner already put a member of its own (the scenario photo-recall: search_memories finds a stored memory of the owner and puts HostData.memories) carries both that
 ///     member and the one of Accepted;
 ///   - TestAcceptedGetsFilteredText: with a reply filter that changes the text, Accepted gets the filtered text and its member holds the reply's text;
+///   - TestAcceptedGetsReplyHostData (Story 28.2; AD-31): Accepted gets the reply's HostData as JSON text in replyHostData, before its own members are added: empty for a reply that has none,
+///     and, on OcuTalon's image, for a turn whose runner put the member memories (the scenario photo-recall), exactly that member and not the probe's;
 ///   - TestAcceptedFailureKeepsTheReply: an error status and an exception from Accepted leave the reply unchanged (text, no fallback, the same Decision row), add no member (the probe
 ///     puts one in hostData before it fails) and log one warning of Decide's Accept;
+///   - TestAcceptedKeepsTheJobSession (Story 28.2; AD-26): an Accepted that leaves the job's session id and current header id cleared, as a business service run in Decide's job does
+///     (Agent.Content's Used through MemoryIn), does not take them from Decide: the warning that Decide's Accept then logs is in the turn's trace session, at a header of Decide;
 ///   - TestBaseSendsNothing: the base class gives no content and no member, and with the base named in the setting an untrusted turn is sent as text only and its HostData is unchanged
 ///     (the bridge alone, FR-5);
 ///   - TestMerge: HostData.Merge returns the JSON with each member set, replaces a member of the same name, keeps the others, takes a non-object or empty json as an empty object, keeps types,
@@ -291,6 +295,40 @@ Method TestAcceptedGetsFilteredText()
 	Do $$$AssertEquals($Select($IsObject(member): member.text, 1: ""), answer.Text, "and its member holds the reply's text")
 }
 
+/// Accepted gets the reply's HostData as JSON text, as the runner left it and before the members of Accepted are added.
+Method TestAcceptedGetsReplyHostData()
+{
+	If '..Prepare() Quit
+	Do ..Use(..#PROBE)
+	Set request = ..NewTurn("untrusted", "Describe the photo. [[mock:photo-caption]]", .ref)
+	Set sc = ..Ask(request, .answer, .entries)
+	Do $$$AssertStatusOK(sc, "Decide answers a turn whose reply has no HostData")
+	If ..Answered(answer) Do $$$AssertEquals($Get(^OcuTalonTest("ContentProbe", "replyHostData", 1)), "", "Accepted got an empty replyHostData")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("ContentProbe", "accepted")), 1, "and was called once")
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: the runner's own member needs a stored memory, embedded by a worker")
+		Quit
+	}
+	Kill ^OcuTalonTest("ContentProbe")
+	Set request = ..NewTurn("untrusted", "What was in the photo I sent? [[mock:photo-recall]]", .ref)
+	Set ..Owners = request.OwnerRef
+	Set memoryRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set text = "The photo shows a small red square on a white background."
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(request.OwnerRef, memoryRef, text, ##class(OcuTalon.Data.Time).NowUtc()), "a memory of the owner is stored")
+	Set ^OcuTalonTest("ContentProbe", "item") = request.ItemId
+	Set sc = ..Ask(request, .answer, .entries)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn whose runner puts the member memories")
+	If '..Answered(answer) Quit
+	Set got = $Get(^OcuTalonTest("ContentProbe", "replyHostData", 1))
+	Do $$$AssertTrue(got '= "", "Accepted got a replyHostData")
+	If got = "" Quit
+	Set parsed = {}.%FromJSON(got)
+	Do $$$AssertEquals(parsed.%Size(), 1, "it holds one member: the runner's")
+	Do $$$AssertEquals($IsObject(parsed.memories) && (parsed.memories.%Size() = 1) && (parsed.memories.%Get(0).memoryRef = memoryRef) && (parsed.memories.%Get(0).text = text), 1, "the member memories that names the stored memory")
+	Do $$$AssertEquals(got '[ "probe", 1, "and none of the members that Accepted adds")
+	Do $$$AssertEquals({}.%FromJSON(answer.HostData).%Size(), 2, "which the reply's HostData holds afterwards, beside the runner's")
+}
+
 /// An error status and an exception from Accepted leave the reply as it is, and Decide logs a warning.
 Method TestAcceptedFailureKeepsTheReply()
 {
@@ -309,6 +347,26 @@ Method TestAcceptedFailureKeepsTheReply()
 		Set row = $ClassMethod(..#FIXTURE, "DecisionOf", ref, "turn")
 		Do $$$AssertTrue($IsObject(row) && (row.Fallback = 0) && (row.Ref = answer.DecisionRef), mode_": the Decision row stands")
 	}
+}
+
+/// The job's session id and current header id are Decide's again after Accepted, whatever Accepted did to them.
+Method TestAcceptedKeepsTheJobSession()
+{
+	If '..Prepare() Quit
+	Do ..Use(..#PROBE)
+	Set request = ..NewTurn("untrusted", "Describe the photo. [[mock:photo-caption]]", .ref)
+	Set ^OcuTalonTest("ContentProbe", "mode") = "ids"
+	Set mark = $ClassMethod(..#FIXTURE, "EventMark")
+	Set sc = ..Ask(request, .answer, .entries)
+	Do $$$AssertStatusOK(sc, "Decide answers the turn")
+	If '..Answered(answer) Quit
+	Do $$$AssertEquals(answer.Text_"|"_answer.Fallback, ..#CAPTION_"|0", "the reply is unchanged and not a fallback")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT SessionId, MessageId FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = 'OcuTalon.Bridge.Process.Decide' AND SourceMethod = 'Accept' AND Text [ ?", mark, answer.DecisionRef)
+	Do $$$AssertTrue(rs.%Next(), "Decide's Accept logs one warning that names the decision")
+	Set sessionId = rs.%Get("SessionId")
+	Set header = ##class(Ens.MessageHeader).%OpenId(rs.%Get("MessageId"))
+	Do $$$AssertTrue(sessionId '= "", "the warning is in a trace session, not in none: '"_sessionId_"'")
+	Do $$$AssertTrue($IsObject(header) && (header.SessionId = sessionId) && ((header.TargetConfigName = "Decide") || (header.SourceConfigName = "Decide")), "at a header of Decide in that session, as before Accepted ran")
 }
 
 /// The bridge alone: the base gives no content and no member, and a turn is then sent as text only.

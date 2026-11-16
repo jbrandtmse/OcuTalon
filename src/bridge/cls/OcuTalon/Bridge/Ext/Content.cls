@@ -9,7 +9,7 @@
 ///     from outside, so the turn that sends it is tainted (the reply's Tainted is 1). It never goes into a message body, an agent step or the event log. It must give the same answer when called again, because a resend or a retry runs the
 ///     request again. An error status ends the request with that status before any model call.
 ///   - Accepted runs in the job of Decide, once, after Decide has accepted a usable reply of a turn and saved the turn's decision row, and gets the
-///     filtered reply text. The members that it puts in hostData are added to the reply's HostData, and a member replaces one of the same name.
+///     filtered reply text and the reply's HostData as JSON text (replyHostData, empty when the reply has none). The members that it puts in hostData are added to the reply's HostData, and a member replaces one of the same name.
 ///     An error status or an exception from it is logged as a warning and never fails the reply.
 Class OcuTalon.Bridge.Ext.Content
 {
@@ -23,8 +23,9 @@ ClassMethod Part(request As OcuTalon.Bridge.Msg.Request, Output mediaType As %St
 	Quit $$$OK
 }
 
-/// The members to add to the HostData of the reply of an accepted turn, given its filtered text. Gives none by default.
-ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject) As %Status
+/// The members to add to the HostData of the reply of an accepted turn, given its filtered text and the reply's HostData as JSON text (replyHostData, before the members
+/// that this call returns are added). Gives none by default.
+ClassMethod Accepted(request As OcuTalon.Bridge.Msg.Request, text As %String, Output hostData As %DynamicObject, replyHostData As %String = "") As %Status
 {
 	Set hostData = {}
 	Quit $$$OK
