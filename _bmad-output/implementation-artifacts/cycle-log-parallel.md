@@ -4510,3 +4510,4 @@
 2026-11-16T14:57:38Z	Epic 27	runner_reported	PLANNER_REPORT 27.1_R7:DailyNote_lines_carry_channel_to_model(DailyNote.cls:32,38;Input.cls:67,133) options=a_slack_value+A/B(recommended),b_reuse_label ask=build_in_parallel_with_merge_gated relayed=contest_planner
 2026-11-16T14:57:57Z	Epic 27	owner_decision	via=contest_planner 27.1_R7=option_a(slack_label;build_now;merge_gated_on_separate_A/B;knob+pinned_cases;N=5;rule_i)
 2026-11-16T15:01:56Z	Epic 28	runner_reported	PLANNER_REPORT 28.2_gate(8ab341798;G1-G8;AD-31,AD-1_amendments;G7_trace;P1_bridge-guide;P2_later;R-28.2-1/2) relayed=contest_planner
+2026-11-16T15:02:31Z	Epic 28	owner_decision	via=contest_planner 28.2=APPROVED(G1-G8;purge_merge_records_pin;G7_texts_out_of_trace_AC_amend;R-28.2-3_precision_Task0_gate;P1_verbatim;no_A/B_but_equivalence+behaviour_pins;split_pre-approved) file=prompts/story-282-rulings-20261116.md
