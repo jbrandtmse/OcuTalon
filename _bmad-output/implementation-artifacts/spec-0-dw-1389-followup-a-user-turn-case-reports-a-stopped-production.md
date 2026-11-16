@@ -124,6 +124,34 @@ The case is eval-only and report-only. It no longer waits for DW-1389. The stale
 - AC 5: Given `eval/results`, when `node eval/compare.mjs --column eval/results` runs, then its output is byte-identical to the baseline's (`date|November 12`, 24, 11, 6 of 24, 0 of 11, 2 of 12, 0, 0, none, none).
 - AC 6: Given CI on this story's head, when it finishes, then every workflow is green (lead).
 
+### Review Findings
+
+Code review 2026-11-16, full mode (Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor), diff `a0add4f4a..39080fbdc` without bookkeeping. 19 raw findings: 0 high, 0 med; 1 patch, 1 ledgered (`wontfix-accepted`), 17 rejected. The Acceptance Auditor found no AC violation; the reviewer re-checked the focus items: hash `7df8056a...a9fcc`; the six sibling user-turn entries unchanged; removing the three new entries and setting `userTurns.total` back to 6 gives the `a0add4f4a` file byte for byte; `compare.mjs --column` byte-identical; README, `rules-only-held-out.json` and `Triage.cls` untouched; the only other "6 user-turn" text is `Report.cls:2161`, a synthetic fixture (Code Map).
+
+- [x] [Review][Patch] The per-case message "it asks the chip's exact text" was wrong for three of seven cases (remember, forget, orders-stopped) after the method doc became "its exact text" [src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls:301] - now "it asks its exact text, and nothing else". mutation: `lunchtime` to `noon` -> red: `Cases.TestUserTurnCases` (`user-turn-orders-stopped: it asks its exact text, and nothing else` and `its case.json is the approved draft byte for byte`); reverted byte for byte, green again on the same warm stack.
+- [x] [Review][Defer] No committed check ties the user-turn entries and `scores.userTurns.total` of `eval/results/rules-only.json` to the user-turn folders (frontmatter `deferred`; VerGap, Blind, Edge) [docker/tests/test-eval-set.sh rule cases] - ledgered DW-1434 `wontfix-accepted` owner=`0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla`, reopen_if the committed `userTurns.total` differs from the user-turn folder count. Pre-existing for the six siblings; its natural guard is outside the ruled footprint, and the score is report-only.
+
+Rejected:
+- (low) The new SHA-256 assertion fails on a CRLF checkout, since `.gitattributes` has no `eol=lf` for `eval/**` (Edge, VerGap, Auditor, Blind): no CRLF checkout runs these tests (macOS stacks, Linux CI), `test-eval-set.sh held-out-frozen` already byte-hashes `eval/held-out/*/case.json` the same way, and the fix (`.gitattributes`) grows the footprint.
+- (low) QA's hash pin and private `Sha256` helper go beyond the ruled Cases.cls edit list and "No helper is added" (Auditor, Blind): QA was authorized to add gap tests in `Test.Eval.Cases`; the helper is private to the test class, no shared hex SHA-256 helper exists to reuse (`Core/SecretHandoff.cls` inlines the same 3-line loop), and the QA block records it. Planner may overrule.
+- (false) The Auto Run Result's "Files changed" omits QA's helper and assertion (Blind, VerGap): the Auto Run Result covers the implement pass only (Rule 14); the QA block records QA's change.
+- (low) The earlier triage line VerGap 3 says "siblings are pinned the same way" (Blind, Edge): a spec-record correction of a prior pass; the QA block states what is byte-pinned now (this case only).
+- (low) The 23.3 drift of the committed report (11 vs 13 incidents) is not ledgered (Blind): it is DW-1358 (decision-pending), and `eval/run.sh` L1292-1304 documents the release fork's re-run.
+- (low) Only two of the fresh run's column lines are recorded (Blind): Verification L228 records `scores.incidents` and `builtAt` when a main-only run has no held-out report, which is what was recorded.
+- (false) `status: done` while AC 6 is open (Blind): AC 6 and the fresh check are the lead's by the spec.
+- (false) The Auto Run mutation "the hash check" is ambiguous (Blind): it names the AC 1 `shasum` check of the spec's mutation list.
+- (low) AC 2's `TestRecordedCases` clause has no per-case mutation, and `turns >= 8` cannot fail from this case (VerGap): Rule 19 scopes to one pinning test per AC, and AC 2's pin has seven recorded mutations; the floor is not claimed as a pin.
+- (low) AC 1's ASCII half and AC 2's `[["user"]]` and field-shape clauses have no mutation of their own (VerGap): one per AC, and the hash pin now catches any byte change.
+- (false) `SHAHashStream`'s signature was not verified (VerGap): `%SYSTEM.Encryption.SHAHashStream(bitlength, input, ByRef sc)` exists, and the pin was observed green and red.
+- (low) `run`/`builtAt` still name the Nov 12 run for spliced entries (Edge): option (iii), by design; recorded in Residual risks.
+- (low) The three entries are only claimed measured (Auditor): `fresh ok` recorded; measured and cloned give the same bytes.
+- (low) Verification commands use `8fa1e285b` while the baseline is `a0add4f4a` (Auditor): the two are identical for `eval/` and Cases.cls.
+- (false) The Auto Run file list omits `cycle-log-epic-0.md` (Auditor): bookkeeping, excluded by design.
+- (low) The hex loop duplicates existing code (Blind): there is no shared helper to call; see the helper item above.
+- (low) The spliced values could be edited without a committed test failing (Edge): same root cause as DW-1434.
+
+Runs after the patch (lane-C wrapper, warm `e0utqw`, torn down): `OcuTalon.Test.Eval.Cases` passed; `test-eval-set.sh` part 1 (14 rules) PASS (part 2 PASS on the QA commit; the patch touches no file it reads); `test-boundaries.sh` and `test-class-rules.sh` passed. Follow-up review: not recommended (no high or med; one message-text patch).
+
 ## Design Notes
 
 **The approved case (verbatim; `eval/user-turn-orders-stopped/case.json`):**

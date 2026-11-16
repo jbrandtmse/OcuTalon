@@ -298,7 +298,7 @@ Method TestUserTurnCases()
 		Set case = ..Read(folder, name)
 		If '$IsObject(case) Do $$$AssertTrue(0, name_": the user-turn case is in eval/") Continue
 		Do $$$AssertEquals(case.name_"|"_case.kind_"|"_case.heldOut, name_"|user-turn|0", name_": it is a user-turn case, named for its folder, and not held out")
-		Do $$$AssertEquals(case.turn.%ToJSON(), {"text": ($List(entry, 2))}.%ToJSON(), name_": it asks the chip's exact text, and nothing else")
+		Do $$$AssertEquals(case.turn.%ToJSON(), {"text": ($List(entry, 2))}.%ToJSON(), name_": it asks its exact text, and nothing else")
 		Do $$$AssertEquals(..Keys(case.expectation), "absentPhrases,keyPhrases", name_": its expectation holds keyPhrases and absentPhrases only")
 		Do $$$AssertEquals(case.expectation.keyPhrases.%ToJSON(), [["user"]].%ToJSON(), name_": its reasons must name the user")
 		Set absent = case.expectation.absentPhrases

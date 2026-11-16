@@ -8766,3 +8766,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Sender.Classify maps every SMTPTimeout to unreachable; the not-sent outcome is right (ruled: Planner CONDITION, lead's DW-1429 item), only the reason's wording is coarse; same sentence as before 23.15 and for every unclaimed tool send
 - 2026-11-16T12:01:11Z status=wontfix-accepted owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=cr note=reopen_if=a user report or a Planner text ruling that MESSAGEUNREACHABLE misleads after a mid-dialogue SMTP timeout
+
+### DW-1434: No committed check ties the user-turn entries and scores.userTurns.total of eval/results/rules-only.json to the eval/ user-turn case folders
+- source: spec-0-dw-1389-followup-a-user-turn-case-reports-a-stopped-production.md (code review) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: test-eval-set.sh rule cases and compare.mjs --column never read scores.userTurns or the per-case user-turn entries, so a total left at 6 or a dropped fallbacks entry passes every committed test (the AC 4 mutations went red only in the spec one-time node check). Pre-existing for the six siblings; the report is report-only and its natural guard (test-eval-set.sh) is outside the ruled footprint.
+- 2026-11-16T14:27:08Z status=wontfix-accepted owner=0-27-a-measured-comparison-of-the-agent-and-the-fixed-rules-repla by=cr note=reopen_if=eval/results/rules-only.json userTurns.total != user-turn folder count; the release fork rewrites the file
