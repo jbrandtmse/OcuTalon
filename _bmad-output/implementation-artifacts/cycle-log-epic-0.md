@@ -1082,3 +1082,5 @@
 2026-11-16T18:18:59Z	DW-1421	public_text_approved	bridge-guide (a),(c) verbatim; (b) replaced by the Planner text; test-bridge-guide rule confidencetext pins the three lines (mutation red); ledger=DW-1438(LOW CLOCKTIME quotes a date-time)
 2026-11-16T18:27:19Z	DW-1421	fresh_check	round=3 env=bb8e4da08(+docs/records/guide-test) shard_lane-a@Eval_fwd=24/24(413s) rev=24/24(312s) test-bridge-guide=all_pass boundaries=pass torn_down
 2026-11-16T18:27:19Z	DW-1421	pushed	round=3 runners=8_free main_ci=none_queued release_pr=none
+2026-11-16T19:14:41Z	DW-1421	ci_flake	round=3 sha=3e3627c5f run=43928987062 job=iris(production) runner=ocutalon-ci-3 DW-306_row21 rerun_failed=1
+2026-11-16T19:48:15Z	DW-1421	ci_green	round=3 sha=3e3627c5f ci.yml=43928987062_attempt2_success(att1_DW-306_row21_ocutalon-ci-3) lane-a=43928987136_success at=19:48Z part_ready=sent
