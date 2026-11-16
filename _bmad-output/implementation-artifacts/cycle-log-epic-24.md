@@ -55,3 +55,5 @@
 2026-11-16T01:19:29Z	Story 24.4a	smoke_complete	method=other(CR:fresh_live_sign-in-2_part_17/26_F3b,F5,F5b,F7;fresh_Rollback:TestTakeMissingNoRequest;QA:fresh_Rollback:TestUndoRequestTokenRedacted) result=pass
 2026-11-16T01:19:29Z	Story 24.4a	fresh_check	env=fresh_lane-D_stack_e24s4fc(merged_tree) tests=Test.Watch.SettingCause result=pass torn_down=yes
 2026-11-16T01:19:29Z	Story 24.4a	committed	sha=pushed_below
+2026-11-16T01:57:19Z	DW-1412	story_created	by=lead(quick_gate;Planner_ruling_~03:45Z_Nov_16) path=_bmad-output/implementation-artifacts/spec-24-dw-1412-redact-url-signature-parameters.md branch=OCT-epic24-dw1412(from_cdd250d0) priority=1.0.12_blocker
+2026-11-16T01:57:19Z	DW-1412	stage_spawned	stage=implement spawn_at=2026-11-16T01:57:19Z model=sonnet effort=high
