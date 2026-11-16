@@ -812,6 +812,13 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 24.4a Planner Gate ruling V1 2026-11-15 (the Contest Planner under the owner\'s delegation, story-244-rulings-20261115.md: the five evidence-panel strings approved verbatim; the values go through the server\'s redactor, Bridge.Redact, by the redactor ruling of the same day)': [
+      'Setting change',
+      '{setting} on {item}',
+      'Old value',
+      'New value',
+      'Detected',
+    ],
     'Story 25.6 Planner Gate ruling P1 2026-11-15 (the Contest Planner under the owner\'s delegation, story-256-rulings-20261115.md: both new texts approved verbatim)': [
       'Added to your documents.',
       "Couldn't add it to your documents. Nothing was changed.",

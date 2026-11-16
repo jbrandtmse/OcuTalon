@@ -8671,10 +8671,37 @@ So that the backup is woken only when the on-call person really didn't answer.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 - DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
-### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
+**Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
+
+### Story 24.4a: Show setting values redacted everywhere, and the setting change in the evidence panel
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; the 1.0.12 blocker]
+
+**Lane:** B (the redaction edits in Lane A files are granted by the Contest Planner's redactor and re-plan rulings of 2026-11-15).
 
 As a user,
-I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and a setting-change cause,
+I want every setting value OcuTalon shows me to have its secrets redacted, and the incident card's evidence to list the setting change,
+So that a token in a setting never reaches a card, a phone, Telegram or the trace, and I can see what changed.
+
+**Acceptance Criteria:**
+
+**Given** a setting change whose before, after, old or new value holds a secret-shaped string (for example a URL with a token)
+**When** it is shown on the web approval card (rollback and undo Before and After), the incident card's evidence panel, the phone page, Telegram or a notice
+**Then** every shown value has passed through `OcuTalon.Bridge.Redact.Text` on the server and shows "[redacted]" for the secret, a plain value shows unchanged, and no web redactor exists; `Redact.Text` gains the bare `key=` shape (Contest Planner redactor ruling, V4)
+**And** the Ens trace bodies for the run (`DryRunResult`, `Notification`) carry the redacted values and a `SecretHandoff` reference, never the raw token; the handoff entry is deleted when taken and an untaken one expires within SecretHandoff's limit; the stored `DryRun` and the value the rollback writes stay raw, so a rollback (and the undo of a System Default) restores the token-bearing value byte for byte (V5)
+
+**Given** an incident whose cause is a setting change
+**When** its card shows
+**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
+
+### Story 24.4b: Show the new fixes, partner warnings and the closed-card undo on the cards
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; follows 24.4a]
+
+**Lane:** B. **Depends on:** Story 24.4a (story-level).
+
+As a user,
+I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and an undo even on a closed incident,
 So that I know exactly what I'm approving, whichever fix is proposed.
 
 **Acceptance Criteria:**
@@ -8688,10 +8715,6 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** it shows on any channel
 **Then** its exact text and every recipient appear in full before **Approve** and **Reject**, as plain text in Telegram and on the phone (FR-29, UX-DR136, UX-DR146)
 
-**Given** an incident whose cause is a setting change
-**When** its card shows
-**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
-
 **Given** requests of the new kinds that are answered, expire, run or are offered for undo
 **When** each happens
 **Then** the answered statuses and results follow the UX's rules ("Approved from {channel} at {time}", "Rejected from {channel} at {time}. Nothing was changed.", "Expired at {time}. Nothing was changed.", and "Recorded in the IRIS audit log." after every result), every copy updates within 5 seconds, and an undo arrives as its own approval request card in the same incident (FR-8, FR-26, UX-DR74, UX-DR76, UX-DR79, NFR-9)
@@ -8699,6 +8722,8 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **Given** the payload fields Lane A's Story 36.1 (was 23.1) names for `incident` and that Lane B's Story 36.2 (was 24.1) names for `approval`
 **When** the web app builds
 **Then** its TypeScript interfaces match the `OcuTalon.Live.Payload` classes, a string test checks every new fixed text, and the cards meet the keyboard, focus and contrast rules in both themes (AD-12, UX-DR8, UX-DR33, UX-DR117, NFR-25)
+
+**And** a closed incident card draws only a rollback's undo request card, never another request kind, and the rail's "Show in the chat" jumps to that card (Contest Planner ruling V2, 2026-11-15)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
@@ -8930,6 +8955,43 @@ So that one cancel doesn't fail every later browser unit on that runner.
 **Then** the planted leftover is removed and the job proceeds, and the stack on the other port survives; with the cleanup skipped, the test fails (a demonstrated mutation)
 **And** nothing changes in the product, and there is no new public text (test and CI only)
 - DW-1335: infra: a cancelled job's stack holds the runner's fixed web port, and every later browser unit on that runner fails at live_web_port (ledger; routed by the orchestrator 2026-11-14, Contest Planner ruling ~13:25Z)
+
+### Story 25.8: Epic 25 burn-down: the web gap-fill (Usage withdraws its stale error, and a viewer gets no file-reply add or Documents drop)
+
+[ADDED 2026-11-15, Contest Planner A2 from Epic 25's retro] (Lane A runs it under an AD-33 exception for the Lane B web files its spec names; the ownership tables don't change)
+
+As a user of the page, including a viewer and a screen-reader user,
+I want the Usage page to withdraw its failed-read announcement once an answer arrives, and the page to offer a viewer no file control that the server would refuse,
+So that I never hear a stale error and never press a control that can only fail.
+
+**Acceptance Criteria:**
+
+**Given** the Usage page announced its failed read (`USAGE_TEXTS.error`)
+**When** a later read answers
+**Then** the page withdraws that announcement through `Announcer.retract`, as the History page does since Story 25.2's rework 2, and a browser test on a frozen page clock fails when the retract is removed (a demonstrated mutation)
+
+**Given** `Announcer.retract`'s guard that leaves the live region alone when a different text was spoken last
+**When** a test speaks one text and retracts another
+**Then** the region keeps the spoken text; the test is behavioural (not a source regex) and fails when the guard is removed (a demonstrated mutation)
+
+**Given** History's H15, which presses Retry a second time
+**When** the second read is refused
+**Then** the test waits on a page-side signal that the refused read was handled before it asserts, so a reversed order cannot pass without exercising the queued case (a demonstrated mutation)
+
+**Given** a viewer (the snapshot's `viewer`, Story 25.4's model, which Story 26.4 keeps) and an older file reply whose read is `addable`
+**When** the reply renders
+**Then** it shows no **Add to documents** button (the Saved to memory chip stays), and `chat/file-reply.ts` is on the `GUARDED` list of `web/scripts/viewer-sources.test.mjs`
+
+**Given** a viewer on the Documents page
+**When** files are dragged over it or dropped on it
+**Then** the page takes no drop and shows no drag outline (`[active]` is false for a viewer), pinned by a test
+
+**And** no new public text, no change to any route, IRIS class or role, and the initial web bundle stays at or under 921 kB
+- DW-1120: UsagePage announces its failed read and never withdraws it, so a stale error can be spoken after a successful Retry (ledger; Contest Planner A2, 2026-11-15)
+- DW-1121: Announcer.retract's lastSpoken guard, which keeps it from emptying another page's announcement, has only a source-regex pin (ledger; Contest Planner A2, 2026-11-15)
+- DW-1122: H15 presses Retry a second time with no page-side signal that the second failure was handled (ledger; Contest Planner A2, 2026-11-15)
+- DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line (ledger; Contest Planner A2, 2026-11-15)
+- DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (ledger; Contest Planner A2, 2026-11-15)
 
 ## Epic 26: Approver roles and reading files (step 6)
 

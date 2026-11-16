@@ -138,3 +138,15 @@ async function requestsEnded(page: Page, known: number): Promise<void> {
 export async function freeze(page: Page): Promise<void> {
   await page.clock.pauseAt(await page.evaluate((ahead) => Date.now() + ahead, FREEZE_AHEAD_MS));
 }
+
+/**
+ * Runs the page's stopped clock (freeze) on in 20 ms steps until the check holds, and returns how far it ran. The page renders and its timers fire only on
+ * these steps, so what a check waits for takes the same time of the page's clock on any host.
+ */
+export async function stepUntil(page: Page, check: () => Promise<boolean>, most: number, what: string): Promise<number> {
+  for (let ran = 0; ran <= most; ran += 20) {
+    if (await check()) return ran;
+    await page.clock.runFor(20);
+  }
+  throw new Error(`${what}: not within ${most} ms of the page's clock`);
+}

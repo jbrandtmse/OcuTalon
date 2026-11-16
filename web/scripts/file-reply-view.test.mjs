@@ -38,20 +38,27 @@ describe('the fixed strings', () => {
 
 describe('controlsOf', () => {
   it('shows the button for a document that was read and can be added', () => {
-    assert.deepEqual(controlsOf({ read: 1, addable: 1 }, undefined), { add: true, saved: false });
+    assert.deepEqual(controlsOf({ read: 1, addable: 1 }, undefined, false), { add: true, saved: false });
   });
 
   it('shows the chip for a photo whose caption was saved, and no button', () => {
-    assert.deepEqual(controlsOf({ read: 1, addable: 0 }, { memoryRef: 'm', text: 't' }), { add: false, saved: true });
-    assert.deepEqual(controlsOf(undefined, { memoryRef: 'm', text: 't' }), { add: false, saved: true });
+    assert.deepEqual(controlsOf({ read: 1, addable: 0 }, { memoryRef: 'm', text: 't' }, false), { add: false, saved: true });
+    assert.deepEqual(controlsOf(undefined, { memoryRef: 'm', text: 't' }, false), { add: false, saved: true });
   });
 
   it('shows nothing for a failed read, a photo with no caption, a turn with neither and a document that is not addable', () => {
-    assert.deepEqual(controlsOf({ read: 0, addable: 0 }, undefined), { add: false, saved: false });
-    assert.deepEqual(controlsOf({ read: 1, addable: 0 }, undefined), { add: false, saved: false });
-    assert.deepEqual(controlsOf({ read: 0, addable: 1 }, undefined), { add: false, saved: false });
-    assert.deepEqual(controlsOf(undefined, undefined), { add: false, saved: false });
-    assert.deepEqual(controlsOf({}, undefined), { add: false, saved: false });
+    assert.deepEqual(controlsOf({ read: 0, addable: 0 }, undefined, false), { add: false, saved: false });
+    assert.deepEqual(controlsOf({ read: 1, addable: 0 }, undefined, false), { add: false, saved: false });
+    assert.deepEqual(controlsOf({ read: 0, addable: 1 }, undefined, false), { add: false, saved: false });
+    assert.deepEqual(controlsOf(undefined, undefined, false), { add: false, saved: false });
+    assert.deepEqual(controlsOf({}, undefined, false), { add: false, saved: false });
+  });
+
+  it('shows a viewer no button, for a document that was read and can be added, and keeps the chip', () => {
+    assert.deepEqual(controlsOf({ read: 1, addable: 1 }, undefined, true), { add: false, saved: false });
+    assert.deepEqual(controlsOf({ read: 1, addable: 1 }, { memoryRef: 'm', text: 't' }, true), { add: false, saved: true });
+    assert.deepEqual(controlsOf({ read: 1, addable: 0 }, { memoryRef: 'm', text: 't' }, true), { add: false, saved: true });
+    assert.deepEqual(controlsOf(undefined, undefined, true), { add: false, saved: false });
   });
 });
 

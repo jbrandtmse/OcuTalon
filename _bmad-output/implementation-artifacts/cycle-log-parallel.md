@@ -4407,3 +4407,25 @@
 2026-11-15T22:39:21Z	Epic 23	owner_decision	via=contest_planner 23.13_EmailOut=option_i(cross-lane_Out.cls;AD-14_amended) security=approved-address_rule(send_only_if_contact_exists_and_address_equals_approved;skip+report;pins) texts=reuse_fix.emailSent/NotSent;new_lines_to_Planner_first
 2026-11-15T22:46:54Z	Epic 23	ci_green_verified	story=DW-1400(+23.8_parked_records,23.13_charter) head=69d17499b runs=43768251126,43768251118(att1)
 2026-11-15T22:46:54Z	Epic 23	merge_enqueued	story=DW-1400
+2026-11-15T22:50:42Z	Epic 23	merged	story=DW-1400 merge=c97aa4f22 tracker=23.8_backlog(parked) epics_md_hash=re-recorded
+2026-11-15T22:56:38Z	Epic 23	runner_reported	PUBLIC_TEXT 23.13(8418ec9d1) new=partnerRequestMailbox,partnerSkipped D9=partner.emailSubject("Delay notice") D6-D8,D10 relayed=contest_planner
+2026-11-15T22:56:50Z	Epic 23	owner_decision	via=contest_planner 23.13_replan=APPROVED(lines_1,2_verbatim;D9_partner.emailSubject="Delay notice"+pin;D6-D8,D10_accepted)
+2026-11-15T23:09:35Z	Epic 21	ci_green_verified	story=DW-1391 head=b5725aded runs=43754668144,43754668190 note=report_not_received;verified_by_gate
+2026-11-15T23:09:35Z	Epic 21	merge_enqueued	story=DW-1391(test-only)
+2026-11-15T23:12:06Z	Epic 21	merged	story=DW-1391 merge=2129230b3
+2026-11-15T23:12:21Z	Epic 21	runner_reported	PLANNER_REPORT DW-1410(HIGH,pre-existing,reply-wait_BP_copy_miscounted;25/100,10/10) recommend=ship_DW-1205+494_with_follow-up DW-1205_status=probe_0/300,cond3_running relayed=contest_planner
+2026-11-15T23:12:37Z	Epic 21	owner_decision	via=contest_planner DW-1205+494=SHIP(cond3_first;release_note_plain) DW-1410=HIGH_follow-up(triage_demo_path_first;session-level_hint)
+2026-11-15T23:12:47Z	Run	note	DW-1410_ledger_entry_lives_in_lane_C_branch(OCT-epic21-dw1205);routing_trailer_to_be_added_after_DW-1205_merges
+2026-11-15T23:17:17Z	Epic 21	runner_reported	DW-1410_triage=NO(demo_and_guide_paths_not_reply-waiting) order=DW-1205_push,DW-1389,DW-1410 suggest=MED relayed=contest_planner
+2026-11-15T23:17:30Z	Epic 21	owner_decision	via=contest_planner DW-1410=HIGH(order:DW-1205,DW-1389,DW-1410;lead_BP-instance_check;session_signal_comparison_only;time_limit_bound_pin)
+2026-11-16T00:04:51Z	Epic 21	runner_reported	PLANNER_REPORT DW-1389(e99b7bedb;option_A_Triage_sentence+A/B_bars_a-i;RESULT.md_2_errors;side_question_tellnow) DW-1205+494_pushed=fded9d158(cond3_pass_109+154;CI_43777000338,43777000352) laneC=DW-1410_plan_read-only relayed=contest_planner
+2026-11-16T00:05:11Z	Epic 21	owner_decision	via=contest_planner DW-1389=option_A(verbatim+pins;A/B_bars_a-i,N=5;after_owner_reset;held_merge) bar_i=standing_A/B_rule side_question=LOW_follow-up(eval_case_text_to_Planner_first)
+2026-11-16T00:21:52Z	Epic 21	runner_reported	PLANNER_REPORT DW-1410_gate(d02f74a54;BP-instance+veto6_reply-in-hand;AD-16_replacement;Task0_SQL_privilege_stop) DW-1205_CI=browser_red_ci-14(pending_classification) relayed=contest_planner
+2026-11-16T00:22:09Z	Epic 21	owner_decision	via=contest_planner DW-1410=APPROVED(all;veto6_ok;Task0_hard_gate_SELECT_stop;push_cond_0/300,0/30,no_false_hold;Fix.Scale>10%->Planner;AD-16_replaced)
+2026-11-16T00:51:05Z	Epic 25	runner_reported	PART_READY story=25.8 head=999481ae9 runs=43778278255,43778278305(att1) closes=DW-1120,1121,1122,1386,1387 new=DW-1401(viewer_drop_by_design),DW-1407,DW-1408(burndown)
+2026-11-16T00:51:05Z	Epic 25	merge_enqueued	story=25.8 (1.0.12)
+2026-11-16T00:53:20Z	Epic 25	merged	story=25.8 merge=044b6c2e1 epics_md_hash=re-recorded
+2026-11-16T00:53:30Z	Epic 25	runner_resumed	lane=A story=25.9(DW-1392) planner_notified=25.8_merged,DW-1401_viewer_drop_question
+2026-11-16T00:53:42Z	Run	owner_decision	via=contest_planner DW-1401=routed_to_26.4(LOW;preventDefault_on_viewer_drop_Documents+chat;pins) DW-1407,1408=burndown
+2026-11-16T01:52:33Z	Epic 24	runner_reported	PART_READY story=24.4a(1.0.12_blocker) head=9e3eb3f0 runs=43785602645,43785602560(att1) B13=pass new=DW-1412(redactor_misses_URL_signatures;decision-pending),DW-1413(wontfix)
+2026-11-16T01:52:33Z	Epic 24	merge_enqueued	story=24.4a

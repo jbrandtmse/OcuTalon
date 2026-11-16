@@ -144,7 +144,7 @@ interface IncidentLine {
             }
           </div>
           @if (failed()) {
-            <div class="failed" data-part="history-failed">
+            <div class="failed" data-part="history-failed" [attr.data-failures]="failures()">
               <p class="failed-text">{{ texts.error }}</p>
               <button type="button" class="button button-secondary" (click)="retry()">{{ texts.retry }}</button>
             </div>
@@ -178,7 +178,7 @@ interface IncidentLine {
         <h2 class="visually-hidden">{{ texts.tabIncidents }}</h2>
         @if (state().tab === 'incidents') {
           @if (failed()) {
-            <div class="failed" data-part="history-failed">
+            <div class="failed" data-part="history-failed" [attr.data-failures]="failures()">
               <p class="failed-text">{{ texts.error }}</p>
               <button type="button" class="button button-secondary" (click)="retry()">{{ texts.retry }}</button>
             </div>
@@ -424,6 +424,9 @@ export class HistoryPage {
   /** True when the last read failed. */
   protected readonly failed = signal(false);
 
+  /** The failed reads since the last answer; each failed block carries it as `data-failures`, a test anchor and never text. */
+  protected readonly failures = signal(0);
+
   /** When the shown answer arrived, in ms: the time the rows are read against. */
   private readonly loadedAt = signal(Date.now());
   private asked = 0;
@@ -545,6 +548,7 @@ export class HistoryPage {
     }
     if (this.failed()) {
       this.failed.set(false);
+      this.failures.set(0);
       this.announcer.retract(HISTORY_TEXTS.error);
     }
     if (count === 0 && state.page > Math.max(1, pages)) {
@@ -558,6 +562,7 @@ export class HistoryPage {
   private refused(ask: number): void {
     if (ask === this.asked) {
       this.failed.set(true);
+      this.failures.update((count) => count + 1);
       this.announcer.announce(HISTORY_TEXTS.error);
     }
   }

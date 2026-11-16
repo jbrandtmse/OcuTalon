@@ -24,6 +24,7 @@
 ///     as they were; approved sends the Execute at once, the others none; on a closed incident (the incident stays closed, nothing is carried out) an approved request is told as result.partnerNotSent with the kind's NOSTART as the reason, a final result (not sent, or sent) is told as it came, and a progress result, a rejection and an expiry are refused; and such a request is left out of the table's facts, while a repair request still counts;
 ///   - TestNoticeKeys (AC2): Notice.AskedKey and AskedSlots for the kind, and the result notice's slots;
 ///   - TestDraftRequestCarriesOutcome (AC3, AC6, Story 23.11): the request to Decide for a resolved incident with a reroute run holds the Outcome line of Count messages and no target name, with the instruction SYSTEMNOTE, a constant; one with no run holds no Outcome line.
+/// The fixture incidents' last failure is now: a quiet one (more than IncidentManager QUIETSECONDS old) would be closed by a heartbeat Tick's closeQuiet while a test runs.
 Class OcuTalon.Test.Fix.PartnerDraft Extends %UnitTest.TestCase
 {
 
@@ -615,10 +616,10 @@ ClassMethod T(seconds As %Integer) As %String
 	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), seconds)
 }
 
-/// A fixture incident of the owner in the state (noticed unless fields say otherwise) on the Orders production, with a failure group of 3 orders at OrdersFromPartner; its Ref.
+/// A fixture incident of the owner in the state (noticed unless fields say otherwise) on the Orders production, with a failure group of 3 orders at OrdersFromPartner, whose last failure is now, so that the quiet sweep of the heartbeat never closes it under the test; its Ref.
 Method Incident(owner As %String, state As %String, fields As %DynamicObject = "") As %String
 {
-	Set all = {"State": (state), "OpenVariant": "", "FirstAt": (..T(-7200)), "LastAt": (..T(-3600)), "Count": 3, "NoticeCount": 3, "ItemNoun": (..#NOUN), "Cause": "The partner changed the date format."}
+	Set all = {"State": (state), "OpenVariant": "", "FirstAt": (..T(-7200)), "LastAt": (..T(0)), "Count": 3, "NoticeCount": 3, "ItemNoun": (..#NOUN), "Cause": "The partner changed the date format."}
 	If $IsObject(fields) {
 		Set iterator = fields.%GetIterator()
 		While iterator.%GetNext(.name, .value) {
@@ -642,8 +643,10 @@ Method Incident(owner As %String, state As %String, fields As %DynamicObject = "
 	Set group.Count = 3
 	Set group.NoticeCount = 3
 	Set group.FirstAt = ..T(-7200)
-	Set group.LastAt = ..T(-3600)
+	Set group.LastAt = ..T(0)
 	$$$ThrowOnError(group.%Save())
+	Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Settle).Quiet(stored.LastAt, ##class(OcuTalon.Data.Time).NowUtc(), ##class(OcuTalon.Watch.IncidentManager).#QUIETSECONDS), 0, "the fixture incident is not quiet, so no heartbeat closes it under the test")
 	Quit ref
 }
 

@@ -34,6 +34,8 @@
 ///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
 ///     goes in parts of at most 3,840 units with the buttons on the last part only; the Delivery row records the Ref and the last part's
 ///     text, the redacted text with no chat id, name or Telegram user name (a stored text that the redactor cannot check is "");
+///   - TestRedactedValue (Story 24.4a; AC2): the undo request filled by Watch.Notice AskedSlots from a dry run with a token URL goes with the URL redacted and no token, and one with plain values
+///     with them byte for byte;
 ///   - TestEmailRequestRendersTheStoredDryRun (Story 21.11): a standalone email request (kind approval, fix.emailRequest, empty Slots) is sent as the text of
 ///     Core.BridgeSink.RequestText, the stored dry run of its row: one sendMessage with the lines to, subject and text (the line break and the tab as \uXXXX, the spaces
 ///     kept) and Approve and Reject on its last part; a 9,000-character text is split whole at 3,840 units with the buttons on the last part only and no cut line; a row
@@ -814,6 +816,52 @@ ClassMethod Request(session As %String, approvalRef As %String, kind As %String 
 ClassMethod Answered(session As %String, approvalRef As %String, key As %String, slots As %DynamicObject, incidentRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
 {
 	Quit ..Notification(session, "answered", key, slots, approvalRef, incidentRef)
+}
+
+/// Story 24.4a, AC2: the undo request that the server fills from a dry run (Watch.Notice AskedSlots) is sent with a token URL redacted and no token, and the same notice for plain values with
+/// them byte for byte. The fixture chat is 8650.
+Method TestRedactedValue()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8650
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set token = "tk" _ "z9" _ "Q" _ "w3"
+		Set url = "https://feed.example.test/orders?token=" _ token
+		Set incident = ##class(OcuTalon.Data.Incident).%New()
+		Set incident.Ref = "zzredacted24a000001"
+		Set secretRef = ..NewRef(), plainRef = ..NewRef()
+
+		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots("undo_rollback", {"item": "OrdersFromPartner", "field": "Host", "before": (url), "after": "OrdersRouterNew"}, incident, .sc)
+		Do $$$AssertStatusOK(sc, "the server fills the slots of the undo request")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Notification(session, "approval", "incident.undoRollbackRequest", slots, secretRef), .response), "(a) the request with a token URL is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "as one sendMessage")
+		If calls.%Size() = 1 {
+			Set text = calls.%Get(0).params.text
+			Do $$$AssertTrue(text [ "https://feed.example.test/orders?token=[redacted]", "the text holds the URL with the marker in place of the token: "_text)
+			Do $$$AssertEquals($Find(text, token), 0, "and no token")
+		}
+
+		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots("undo_rollback", {"item": "OrdersFromPartner", "field": "Host", "before": "LegacyRouter", "after": "OrdersRouterNew"}, incident, .sc)
+		Do $$$AssertStatusOK(sc, "the slots of the plain undo request")
+		Set notice = ..Notification(session, "approval", "incident.undoRollbackRequest", slots, plainRef)
+		Set expected = ##class(OcuTalon.Msg.Catalog).Render("incident.undoRollbackRequest", notice.Slots, "telegram")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "(b) the request with plain values is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 2, "as one more sendMessage")
+		If calls.%Size() = 2 {
+			Set text = calls.%Get(1).params.text
+			Do $$$AssertEquals(text, expected, "with the catalog text")
+			Do $$$AssertTrue((text [ "LegacyRouter") && (text [ "OrdersRouterNew") && ($Find(text, "[redacted]") = 0), "holding both values byte for byte and no marker: "_text)
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the redacted-value test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
 }
 
 /// AC1, U-218: the buttons go on the last part of a request notice, and its Delivery row keeps the Ref and the redacted last part.
