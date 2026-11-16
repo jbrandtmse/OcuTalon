@@ -4488,3 +4488,5 @@
 2026-11-16T12:49:58Z	Epic 21	merged	DW-1376+DW-1378 merge=87fce253a
 2026-11-16T12:50:05Z	Epic 23	runner_reported	PART_READY 23.15(cut_story) head=55c5223fe runs=43864772409,43864772546(att1) DW-1429(self-ruled_rework:DataBegan) mapping_table=in_spec shards:2=27.9,3=28.6,production=33.7
 2026-11-16T12:50:05Z	Epic 23	merge_enqueued	23.15 (1.0.12 cut)
+2026-11-16T12:54:47Z	Epic 23	merged	23.15 merge=625900415 conflicts=Summary_doc(union),Catalog_count_148(verified_Test.Msg.Catalog_fresh)
+2026-11-16T12:55:09Z	Run	cut_items_merged	all_1.0.12_cut_items_in feature=625900415 awaiting_feature_CI_for_REQUIRED_GREEN planner_notified
