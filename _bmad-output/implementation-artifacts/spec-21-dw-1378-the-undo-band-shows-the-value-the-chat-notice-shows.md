@@ -2,8 +2,8 @@
 title: 'DW-1378: The result band of a setting rollback or undo names the value that the chat result line names'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: 'cb69bbeb13d1cc24df29ab29f34460d77dcda0a4'
+status: 'done'
+baseline_revision: 'd355ebdd7f5e435f116c5aa5f19957f70649df54'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -405,6 +405,16 @@ None new. Read for consistency, unchanged:
 - Order: implement now, ahead of DW-1421.
 - Note for implement: the branch merged feature (DW-1416's summary.partnerMaySent); the Watch catalog count is now 147 (both keys); re-run Test.Msg.Catalog and Test.Watch.Summary.
 
+## Implement-stage overrides (Contest Planner, Nov 16, BINDING; pre-answered)
+
+- **The change** is exactly this spec's (`Watch.SettingCause.ShownAfter`; `IncidentRequest.After`; `Incident.Chosen`, setting kinds only; the regenerated `payloads.ts`; `settingResultView` reading `request.after` and never the `settingChange` values; the AD-12 sub-bullet VERBATIM as Veto item 4 gives it). No new public text.
+- **Pin A (a done run means the setting equals the dry run's After).** Add a test and a `mutation:` line: make the undo's run-time re-check (`Fix/Kind/UndoRollback.cls`, `Plan`, about L132) pass when the value moved, so the run succeeds despite a moved value, and show a test goes red because the band and the chat would claim a value the item does not have. The pin is in the Rollback tests (a done undo whose default moved after the dry run does not report done with the old After: `TestUndoDefaultMovesAfterDryRun` or a new method beside it). The production edit is for the mutation only and is reverted byte for byte.
+- **Pin B (no `after`).** A request with no `after` shows NO band and NO error. Cover it in `approval-view.test.mjs` and `incident-view.test.mjs`.
+- **Pin C (the CONDITION).** The band never contradicts the chat: the three layers of Design Notes, each with its mutation.
+- **Rule 19.** Every pin has a `mutation:` line in `## Verification`, shown red and then reverted byte for byte (`cmp` against a copy taken before).
+- **Runs.** Warm: `Test.Watch.SettingCause`, `Test.Watch.Rollback` (after a production restart), `Test.Live.Payloads`, and any `Test.Web.*` state API class. Node: `cd web && npm ci && npm test`, `web/scripts/initial-bundle.test.mjs`, `npm run lint`, and the payloads `--check`. Browser: `ci/iris.sh build`, then `ci/iris.sh live cards`, and the project or part that holds `web/e2e/rail/step5-cards.spec.ts` (find it with `web/scripts/e2e-part.mjs` or the playwright config). A fresh `lane-a@Fix` shard is not required unless a `Fix/*` file is touched (the Pin A mutation is reverted, so none stays touched). Also `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh` and the spine lint (baseline 12 low; add none).
+- **Merge resolution check (done at entry, by the lead).** The branch merged feature at `80a3cf02c`. Warm `Test.Msg.Catalog` (Watch count 147) and `Test.Watch.Summary` both pass on the entry tree: no fix to the union was needed.
+
 ## Verification
 
 Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=21 stage=<stage>'`.
@@ -439,8 +449,100 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - Revert each byte for byte (`cmp` against a copy taken before it), and check that `git status --short` and `git diff --stat` are as before.
 - A15's mutation runs on the browser stack once. If a second `ci/iris.sh build` does not fit the run, record the node and IRIS mutations of AC 1 and AC 7 as covering the same line, and say so.
 
-**Task 0 records:** (to be filled)
+**Task 0 records** (lane C warm throwaway, tag e21dw1378iw, started by the lead; scratch class `ZzScratch.Dw1378` extending `Test.Watch.Rollback`, loaded into the throwaway only, deleted from it, never in the tree):
+1. Baseline, no stack: `git rev-parse HEAD` d355ebdd7f5e435f116c5aa5f19957f70649df54. `node web/scripts/payloads.mjs --check` exit 0 ("generated files are current"). `node --test web/scripts/approval-view.test.mjs web/scripts/incident-view.test.mjs web/scripts/payloads.test.mjs`: 189 tests, 189 pass. `node --test web/scripts/initial-bundle.test.mjs`: 2 pass (the run prints no total).
+2. Baseline classes, warm, one call each: `OcuTalon.Test.Watch.SettingCause` passed (63.4 s); `OcuTalon.Test.Live.Payloads` passed (0.7 s).
+3. The defect through the real DW-1366 run (the scratch method runs `TestUndoSystemDefaultChanged`'s steps, on the production as it was at the baseline, which holds no changed code):
+   - (a) `WaitResultNotices(incident, 2)`: 2 notices. The rollback's is `result.settingRestored`, slots `{"setting":"RetryInterval","target":"OrdersFromPartner","after":"5"}`. The undo's is `result.rollbackUndone`, slots `{"setting":"RetryInterval","target":"OrdersFromPartner","after":"9"}`.
+   - (b) The fixture incident's `SettingChangeRef` is "" (as expected); its `RequestRefs` lists the two requests.
+   - (c) With `SettingChangeRef` set to the change and saved: `FromRow(row)`: `SettingChange.NewValue` 7 and `OldValue` 5 (as expected). The undo part's JSON is `{"ref":...,"state":"done","fixKind":"undo_rollback","item":"OrdersFromPartner","result":{...}}`: no `after` key (the defect: the part cannot carry the chat's value).
+   - (d) The chat line (the notice's slots): "The rollback is undone: RetryInterval on OrdersFromPartner is back to 9." Today's band (`{setting, target}` of the payload's `SettingChange` and `after` = `NewValue`): "The rollback is undone: RetryInterval on OrdersFromPartner is back to 7." The two differ, as the spec reads. Nothing to adjust in AC 3's test setup (the setting of the fixture is RetryInterval, the change's NewValue 7, not PoolSize as TestRequestAfter's own fixture names it).
+
+**Mutations** (Rule 19; each applied, the named test run warm and shown red, then reverted from a copy taken before it and checked with `cmp`; the class or script green again after the revert):
+- mutation (AC 1): the `Set part.After = ...` line of `Chosen` removed -> `Test.Watch.SettingCause:TestRequestAfter` red ("each setting request carries its dry run's after", and the band-names-what-the-chat-names asserts of all four rows).
+- mutation (AC 2): the `Set part.After = ...` line moved above the kind test of `Chosen` -> `TestRequestAfter` red ("each setting request carries its dry run's after; a dry run with none, and another kind's request, carry none": the suspend of row f) and `Test.Live.Payloads:TestFromRowRequestKinds` red ("the suspend names its item and gives no count, and no after", and "the repair request names no item and gives no count, and no after").
+- mutation (AC 3): `Chosen` sets `part.After` from the change row's `NewValue` through `Bridge.Redact.Text` -> `Test.Watch.Rollback:TestUndoSystemDefaultChanged` red ("the request part names the value the item has, and the recorded new value is stale", and "the band's text is the chat's result line (the CONDITION)", which read "back to 7") and `TestRequestAfter` red (row c: "the DW-1366 band says 9").
+- mutation (AC 4): `ShownAfter` returns `after` without `..Shown` -> `TestRequestAfter` red ("the payload holds no token") and `Test.Watch.Rollback:TestTokenValueRestoredRaw` red ("and its request part shows the after redacted (DW-1378)", "the result notice's {after} is the request part's after", and "no live event payload holds the token": the unredacted part leaked the token into the live event).
+- mutation (AC 5): `settingResultView` takes `textOf(request.after) || textOf(request.fixKind === 'undo_rollback' ? change?.newValue : change?.oldValue)` -> `approval-view.test.mjs` red ("gives a done run with no after no band and no error"), and `incident-view.test.mjs` red (the no-after half of the DW-1378 closed-card test).
+- mutation (AC 6): the property `After` taken out of `IncidentRequest.cls` -> `Test.Live.Payloads:TestContracts` red ("property After is missing").
+- mutation (AC 6): the generated `after?: string;` line taken out of `payloads.ts` -> `node web/scripts/payloads.mjs --check` exits 1 ("payloads.ts is stale"), and `payloads.test.mjs` red ("has a current payloads.ts", "the copy of the real tree is current").
+- mutation (AC 7): `settingResultView`'s line put back to `textOf(request.fixKind === 'undo_rollback' ? change?.newValue : change?.oldValue)` -> `approval-view.test.mjs` red ("names the request's after, the value the chat's result line names, and never the incident's recorded values": the DW-1366 row says "back to 7"; and the no-after test) and `incident-view.test.mjs` red (UN9's compact band and announcement).
+- mutation (Planner's Pin A, a done run means the setting equals the dry run's After): `Fix/Kind/UndoRollback.cls` `Plan`'s comparison `(after '= ..Approved(run))` made `0`, so that the run succeeds although the default moved to 11 after the dry run (the production restarted so that FixExecutor held it) -> `Test.Watch.Rollback:TestUndoDefaultMovesAfterDryRun` red ("no run that changed the setting names a value that the item does not have": the undo ran, the part's After was 9 and the item had 11; also "Skipped 1, nothing changed", "nothing was written", "the undo's is result.settingChangedSince" and "Completed 0, Skipped 1"). Reverted from a copy (`cmp` identical, no `Fix/` file in `git status`), the production restarted, the method green again.
+- mutation (AC 8): the `Set part.After = ...` line of `Chosen` removed, compiled into a fresh lane C browser stack (`ci/iris.sh live cards`, tag e21dw1378ib) -> `approval-card.spec.ts` A15 red (the state has no `after`; 1 failed, 32 passed). Reverted from a copy (`cmp` identical, `git diff --stat` as before); `live cards` was green before the mutation (33 passed, A15, A11, A12 and A14 among them).
+
+**Command results** (warm tag e21dw1378iw, lane C, one call each; the production restarted before the Rollback runs):
+- `TestRequestAfter` passed; `Test.Live.Payloads` passed; `Test.Watch.SettingCause` passed (whole, 63 s); `Test.Web.Api` passed.
+- After a production restart: `Test.Watch.Rollback:TestUndoSystemDefaultChanged`, `:TestTokenValueRestoredRaw`, `:TestUndoDefaultMovesAfterDryRun`, `:TestUndoDefaultGone`, `:TestUndoRequestTokenRedacted` and `:TestUpdateFailureNotApplied` passed; the whole class `Test.Watch.Rollback` passed (104 s), after the Pin A mutation was reverted and the production restarted again.
+- Spec gate note: `Test.Msg.Catalog` passed (Watch count 147) and `Test.Watch.Summary` passed, on the implemented tree.
+- `cd web && npm ci && npm test`: 2190 tests, 2190 pass. `npm run lint` passed. `node web/scripts/payloads.mjs --check` exit 0. `node --test web/scripts/initial-bundle.test.mjs`: 2 pass (the 921 kB cap).
+- `web/scripts/playwright-projects.test.mjs` pins the cards project at 32 cases and A2 to A14; A15 made it fail, so its pin is now 33 cases and A2 to A15 (a footprint file the spec did not list; the pin follows the new case and no assertion is removed).
+- The diff holds no added non-ASCII character and no absolute local path. The spine sub-bullet is Veto item 4 word for word.
+
+- mutation (review patch, the done band's setting and item guard): `settingResultView`'s `if (setting === '' || target === '' || after === '')` cut to `if (after === '')` -> `approval-view.test.mjs` red ("gives a done run that has an after but no setting or no item in the incident's change no band"). Reverted from a copy (`cmp` identical); the node files green again (174 passed).
+- mutation (review patch, `ShownAfter` on a dry run that can't be read): the Catch branch of `ShownAfter` setting `after` to "x" -> `Test.Watch.SettingCause:TestRequestAfter` red ("ShownAfter gives empty for a dry run that can't be read, one with no after and a blank one, and the trimmed value otherwise"). Reverted from a copy (`cmp` identical); `TestRequestAfter` green again, then the warm stack was torn down.
+- After the review patches: `Test.Watch.SettingCause` (whole class) passed warm on a rebuilt warm stack; `npm test` 2191 of 2191; `npm run lint` and `payloads.mjs --check` pass; `test-class-rules.sh` exit 0.
+
+**Lead's runs (lane C, fresh stacks, tag e21dw1378ib):**
+- `ci/iris.sh build` ok; `ci/iris.sh live cards`: 33 passed (A15 new; A11, A12 and A14 pass). `step5-cards.spec.ts` is in the `sign-in-2` project, part 3/5 of `web/scripts/e2e-part.mjs` (57 tests, 8 spec files): `ci/iris.sh live sign-in-2 --part 3/5` passed (57 passed; F6 and every F6b case pass).
+- `bash docker/tests/test-boundaries.sh` exit 0; `bash docker/tests/test-class-rules.sh` exit 0.
+- Spine lint (`lint_spine.py --workspace`): 13 low against the baseline's 12. The one new finding is the slot name `{after}` inside the AD-12 sub-bullet. Veto item 4 and the Planner's gate ruling approve that text word for word, so it cannot change; the check is a false positive on a catalog slot name in a code span, and it lists `{time}`, `{cause}` and others in the spine's existing text.
+- Merge resolution check (Planner's override d): warm `Test.Msg.Catalog` (Watch count 147) and `Test.Watch.Summary` pass on the entry tree and on the implemented tree.
+
+## Review Triage Log
+
+### 2026-11-16 — Review pass
+- verdicts: 27 findings — high 0, medium 2, low 20, false 5, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the card's After and the chat's {after} come from two code paths (`ResultExtra` raw, `ShownAfter` own) — the spec forbids changing `IncidentManager`; both end in `Shown` of the same dry run's after, and `TestRequestAfter`, `TestUndoSystemDefaultChanged` and `TestTokenValueRestoredRaw` pin the equality.
+  - `[low]` `[reject]` Blind: `TestRequestAfter`'s chat side is built from the dry run, not a real notice — by the spec's three layers; the real notices are compared in the Rollback tests.
+  - `[low]` `[reject]` Blind: the Pin A `claimed` assertion is conditional and vacuous on the green path — it went red under the Pin A mutation, and the unconditional counts assertion (Completed 0, Skipped 1) carries the green path; grouped with the Verification-gap row on the same line.
+  - `[false]` `[reject]` Blind: `RequestPart` reads an undefined `i` with no requests — ObjectScript's `For i = 1:1:0` sets `i` to 1 before the loop and the caller asserts `$IsObject(part)` first.
+  - `[low]` `[reject]` Blind: the spine lint is 13 against a baseline of 12 although the override says add none — the new finding is the slot name `{after}` in the verbatim AD-12 sub-bullet that Veto item 4 and the gate approve word for word; no code fix exists, reported to the Planner.
+  - `[false]` `[reject]` Blind: band and chat can disagree when the change row is missing — matrix row 9: no setting band, and the chat line is not contradicted.
+  - `[low]` `[reject]` Blind: `ShownAfter` swallows a parse error silently and `Shown` sits outside its Try — an unreadable dry run means no band, as no chat line; `Redact.Text` does not throw; the Catch is now pinned by a direct assertion (see the patch below).
+  - `[low]` `[reject]` Blind: a blank after has no server-side test — `Text` trims it to empty; the direct `ShownAfter` assertion added in the patch below covers it.
+  - `[false]` `[reject]` Blind: a pending request publishes `After` — matrix row 10 says so.
+  - `[low]` `[reject]` Blind: the AD-12 sub-bullet is silent on a missing `SettingChange` — the text is approved verbatim; the code's guard and the new test cover it.
+  - `[false]` `[reject]` Blind: `Chosen`'s doc is one long line — the spec gives that text word for word.
+  - `[low]` `[reject]` Blind: comment wording differs across three class docs — cosmetic.
+  - `[low]` `[reject]` Blind: the case count of `playwright-projects.test.mjs` is hand-bumped — a pre-existing pattern; the file follows the new case.
+  - `[low]` `[reject]` Edge: setting and target come from the incident's change, not the request's — Design Notes "Setting and target": the same row; a field for it would widen the part.
+  - `[low]` `[reject]` Edge: `part.Result` may not be an object in the Pin A loop — the test would fail loudly, not hide a defect; the fixture run is ended.
+  - `[low]` `[reject]` Edge: events published before the change give no done band until the next event or reload — Veto item 3, approved, no migration.
+  - `[false]` `[reject]` Edge: `Plan`'s comparison applies to System Default undos only — a production-source undo writes its own After, so the item equals it; Pin A covers the branch that can differ.
+  - `[medium]` `[patch]` Verification gap: no test reaches the setting/item guard with an `after` present — patched: a node test for no change, no setting and no item, for both kinds, with its mutation line.
+  - `[low]` `[patch]` Verification gap: `assert.ok(!bandOf('rollback_setting', POOL, '1')?.text.includes('back to 7'))` cannot fail — patched: the line is deleted (it was this run's own addition).
+  - `[low]` `[reject]` Verification gap: rows 1 and 2 of the table are green under the old code — the spec's rows; rows 3 and 4 discriminate.
+  - `[medium]` `[patch]` Verification gap: `TestRequestAfter` compares two renders that could both be empty — patched: each row asserts the Render status, a non-empty text and the part's after in it.
+  - `[low]` `[reject]` Verification gap: the Pin A `claimed` check is conditional — same row as the Blind finding above.
+  - `[low]` `[patch]` Verification gap: the Catch branch of `ShownAfter` has no assertion — patched: a direct assertion on an unreadable, empty, blank and padded dry run, with its mutation line.
+  - `[low]` `[reject]` Verification gap: no mutation line for AC 5's server half or AC 9 — AC 5 has its line on the pinning node test; AC 9 restates existing suites.
+  - `[low]` `[reject]` Verification gap, other: the lint finding — same row as the Blind finding above.
+  - `[low]` `[reject]` Verification gap, other: `playwright-projects.test.mjs` is outside the listed footprint — recorded; the file follows the new case and no assertion is removed.
+  - `[low]` `[reject]` Intent alignment (descriptive): readings R1 to R5; the diff implements R1 with "no band" for a missing after; the layers are the spec's own three; no divergence from the intent.
 
 ## Auto Run Result
 
-(Filled at the end of the run.)
+Status: done
+Blocking condition: none
+
+**Summary.** The request part of a setting kind's `incident` payload (and `/api/v1/state`) carries `after`, the stored dry run's after through `Watch.SettingCause.ShownAfter` (`Shown`, the value of the chat's `{after}`). The done setting band names `request.after`, never the incident's recorded values, so the card says what the chat's result line says (the DW-1366 case says 9). A done run with no `after` has no band and no error.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Watch/SettingCause.cls`: new `ShownAfter` and the class doc.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Part/IncidentRequest.cls`: new `After` property.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls`: `Chosen` fills `After` for the two setting kinds.
+- `web/src/app/live/payloads.ts`: regenerated (`after?: string`).
+- `web/src/app/approvals/approval-view.ts`: `settingResultView` reads `request.after`.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the AD-12 sub-bullet, word for word.
+- Tests: `Test/Watch/SettingCause.cls` (`TestRequestAfter`), `Test/Watch/Rollback.cls` (DW-1366 and token checks, Pin A), `Test/Live/Payloads.cls`, `web/scripts/approval-view.test.mjs`, `web/scripts/incident-view.test.mjs`, `web/e2e/cards/approval-card.spec.ts` (A15), `web/e2e/rail/step5-cards.spec.ts` (fixtures), `web/scripts/playwright-projects.test.mjs` (the cards case count, an unlisted file that follows A15).
+- This spec.
+
+**Review.** 27 findings: high 0, medium 2, low 20, false 5. Patched: 2 medium and 2 low (the done-band guard test, the unfalsifiable render comparison, a vacuous assertion removed, a direct `ShownAfter` assertion). Deferred: none. Every rejected finding and its reason is in the triage log. Follow-up review recommended: false (no high was patched, per the run's Rule 14 override; two medium test gaps were patched and each has a red-shown mutation).
+
+**Verification.** See `## Verification`: warm classes (`SettingCause`, `Live.Payloads`, `Watch.Rollback` whole and per method after a production restart, `Web.Api`, `Msg.Catalog` 147 and `Watch.Summary`), `npm test` 2191 of 2191 with the bundle cap, lint, payloads `--check`, `live cards` 33 passed (A15 new), `sign-in-2` part 3/5 (F6, F6b) 57 passed, the two docker scripts exit 0, every mutation red then reverted with `cmp`.
+
+**Residual risks.**
+- The spine lint shows 13 low against the baseline's 12: the slot name `{after}` in the verbatim AD-12 sub-bullet (a false positive; the text is approved word for word).
+- Events published before this change carry no `after`, so a done setting band is absent for them until the next `incident` event or state load (Veto item 3).
+- `Test.Watch.Rollback` needs the production to hold the new code (a production restart on a warm stack).

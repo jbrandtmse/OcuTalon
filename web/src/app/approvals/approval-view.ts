@@ -568,10 +568,10 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
- * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting, item and value of the incident's settingChange): `completed` above 0 is
+ * - a rollback or an undo of a setting (fixKind rollback_setting, undo_rollback, Story 23.3; setting and item of the incident's settingChange, and the request's `after`, the value that the chat's result line names, DW-1378): `completed` above 0 is
  *   result.settingRestored or result.rollbackUndone (after), success, `circle-check`; else, with a reason, `unreached` above 0 is result.settingSavedNotApplied (reason), partial,
  *   `triangle-alert`; a skip whose reason ends as the kind's CHANGEDAGAIN is result.settingChangedSince, partial; any other reason is result.itemNotChanged, partial. A run still
- *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band.
+ *   going or interrupted, and a result that lacks the setting, item or value its text names, has no band; the band never names the settingChange's recorded values.
  * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
@@ -692,7 +692,7 @@ function itemResultView(request: IncidentRequest, result: IncidentRequestResult,
 /** The end of the reason of a setting request that was skipped because the setting changed again (Fix.Kind.RollbackSetting CHANGEDAGAIN). */
 const SETTING_CHANGED_AGAIN = ' changed again since then';
 
-/** The band of a rollback or an undo of a setting (Story 23.3): see resultView. The setting, its item and the value it has again are the incident's settingChange (the old value after a rollback, the new one after an undo). */
+/** The band of a rollback or an undo of a setting (Story 23.3): see resultView. The setting and its item are the incident's settingChange; the value it has again is the request's `after`, the After of its approved dry run that the chat's result line names (DW-1378), never the settingChange's recorded old or new value. */
 function settingResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, change: SettingChange | undefined): ResultView | undefined {
   const reason = textOf(result.reason);
   const setting = textOf(change?.setting);
@@ -700,7 +700,7 @@ function settingResultView(request: IncidentRequest, result: IncidentRequestResu
   if (request.state === 'executing' || (numberOf(result.interrupted) ?? 0) > 0) {
     return undefined;
   } else if ((numberOf(result.completed) ?? 0) > 0) {
-    const after = textOf(request.fixKind === 'undo_rollback' ? change?.newValue : change?.oldValue);
+    const after = textOf(request.after);
     if (setting === '' || target === '' || after === '') {
       return undefined;
     }

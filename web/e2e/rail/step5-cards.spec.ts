@@ -300,6 +300,8 @@ interface Entry {
   fixKind: string;
   item?: string;
   count?: number;
+  /** The value that a done setting request's dry run gives the setting (DW-1378): the band names it. */
+  after?: string;
   result?: Record<string, unknown>;
 }
 
@@ -345,7 +347,7 @@ test('F6: the new kinds show their answered, expired and done states, and an und
           { ref: suspend, state: 'done', fixKind: 'suspend_item', item: WAREHOUSE, result: DONE_ONE },
           { ref: reroute, state: 'expired', fixKind: 'reroute', item: REVIEW, count: 50 },
           { ref: resume, state: 'pending', fixKind: 'resume_item', item: WAREHOUSE },
-          { ref: rollback, state: 'done', fixKind: 'rollback_setting', item: ITEM, result: DONE_ONE },
+          { ref: rollback, state: 'done', fixKind: 'rollback_setting', item: ITEM, after: OLD, result: DONE_ONE },
           { ref: undo, state: 'pending', fixKind: 'undo_rollback', item: ITEM },
         ]),
       ),
@@ -527,7 +529,7 @@ test('F6b: a closed card draws the pending undo and no other request, the rail j
     expect(stops, 'Tab reaches Approve, Reject and Show details in that order').toEqual([`Approve: ${lowerFirst(UNDO_KIND.title)}`, `Reject: ${lowerFirst(UNDO_KIND.title)}`, 'Show details']);
 
     // The incident's payload gives the still pending undo a result (the two arrive apart): its band is on its card only, never also among the compact bands.
-    await publishClosed(page, user, closed, [...othersOf(closed), { ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, result: DONE_ONE }]);
+    await publishClosed(page, user, closed, [...othersOf(closed), { ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, after: NEW, result: DONE_ONE }]);
     await expect(undoCard.locator('[data-part="result"]'), 'a drawn undo\'s band is on its own card').toHaveCount(1, { timeout: CARD_MS });
     await expect(card.locator('[data-part="result"]'), 'and shows once in the incident card').toHaveCount(1);
     expect(await drawnIn(card), 'the pending undo is still the only request card').toEqual([undo]);
@@ -549,7 +551,7 @@ test('F6b: a closed card draws the pending undo and no other request, the rail j
 
     // The undo is done with a result: no request card, and its band shows once, among the compact bands.
     await settle(page, user, undo, 'done', { action: 'approve', channel: 'web', by: user, at: today('14:27:00') }, 'approval.answered');
-    await publishClosed(page, user, closed, [...othersOf(closed), { ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, result: DONE_ONE }]);
+    await publishClosed(page, user, closed, [...othersOf(closed), { ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, after: NEW, result: DONE_ONE }]);
     await expect(card.locator('[data-part="result"]'), 'the done undo\'s band shows once in the incident card').toHaveCount(1, { timeout: CARD_MS });
     await expect(card.locator('[data-part="result"] .text'), 'with the catalog\'s text').toHaveText(`The rollback is undone: ${SETTING} on ${ITEM} is back to ${NEW}.`);
     await expect(card.locator('p.audit'), 'and its audit line').toHaveText('Recorded in the IRIS audit log.');
@@ -561,8 +563,8 @@ test('F6b: a closed card draws the pending undo and no other request, the rail j
     const second = await raise(page, user, mine.rows, closed.incident, [], { fixKind: 'undo_rollback', dryRun: UNDO, raisedAt: today('14:28:00') }, false);
     await publishClosed(page, user, closed, [
       ...othersOf(closed),
-      { ref: done, state: 'done', fixKind: 'rollback_setting', item: ITEM, result: DONE_ONE },
-      { ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, result: DONE_ONE },
+      { ref: done, state: 'done', fixKind: 'rollback_setting', item: ITEM, after: OLD, result: DONE_ONE },
+      { ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, after: NEW, result: DONE_ONE },
       { ref: second, state: 'pending', fixKind: 'undo_rollback', item: ITEM },
     ]);
     await expect(requestCard(page, second), 'the pending undo has its card').toHaveCount(1, { timeout: CARD_MS });
@@ -728,7 +730,7 @@ for (const action of ['approve', 'reject'] as const) {
 
       if (action === 'approve') {
         await settle(page, user, undo, 'done', {}, 'approval.answered');
-        await applied(page, await publishIncident(user, payloadOf(incident, 'closed', [{ ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, result: DONE_ONE }])));
+        await applied(page, await publishIncident(user, payloadOf(incident, 'closed', [{ ref: undo, state: 'done', fixKind: 'undo_rollback', item: ITEM, after: NEW, result: DONE_ONE }])));
         await expect(card.locator('[data-part="result"]'), 'the done undo has one band, among the compact bands').toHaveCount(1, { timeout: CARD_MS });
         await expect(card.locator('p.audit'), 'with the audit line, as on an open card').toHaveText('Recorded in the IRIS audit log.');
       } else {

@@ -5,7 +5,7 @@
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
 /// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
-/// read from the request's FixRun, the kind, item and count that it lists for a chat-asked suspend, resume or reroute request (Story 23.2), and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// read from the request's FixRun, the kind, item and count that it lists for a chat-asked suspend, resume or reroute request (Story 23.2) and the after of a setting kind's request (DW-1378; Test.Watch.SettingCause TestRequestAfter), and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -358,11 +358,11 @@ Method TestFromRowRequestKinds()
 	Do $$$AssertEquals(object.requests.%Size(), 3, "three requests")
 	If object.requests.%Size() = 3 {
 		Set one = object.requests.%Get(0)
-		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.count_"|"_one.%GetTypeOf("count"), reroute_"|reroute|OrdersForReview|7|number", "the reroute names its target and counts its affected messages")
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.count_"|"_one.%GetTypeOf("count")_"|"_one.%IsDefined("after"), reroute_"|reroute|OrdersForReview|7|number|0", "the reroute names its target and counts its affected messages, and has no after")
 		Set one = object.requests.%Get(1)
-		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.%IsDefined("count"), suspend_"|suspend_item|OrdersToWarehouse|0", "the suspend names its item and gives no count")
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.item_"|"_one.%IsDefined("count")_"|"_one.%IsDefined("after"), suspend_"|suspend_item|OrdersToWarehouse|0|0", "the suspend names its item and gives no count, and no after: its dry run's after (disabled) does not reach the part")
 		Set one = object.requests.%Get(2)
-		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count"), repair_"|repair_resend|0|0", "the repair request names no item and gives no count")
+		Do $$$AssertEquals(one.ref_"|"_one.fixKind_"|"_one.%IsDefined("item")_"|"_one.%IsDefined("count")_"|"_one.%IsDefined("after"), repair_"|repair_resend|0|0|0", "the repair request names no item and gives no count, and no after")
 	}
 	Do $ClassMethod(fixture, "Clean", reroute_","_suspend_","_repair_","_row.Ref)
 }
@@ -1649,6 +1649,7 @@ XData Contracts [ MimeType = application/json ]
    "FixKind": "%String(%JSONFIELDNAME=fixKind,MAXLEN=64)",
    "Item": "%String(%JSONFIELDNAME=item,MAXLEN=128)",
    "Count": "%Integer(%JSONFIELDNAME=count)",
+   "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
    "Result": "OcuTalon.Live.Payload.Part.IncidentRequestResult(%JSONFIELDNAME=result)"
   }
  },

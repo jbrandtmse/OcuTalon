@@ -4,7 +4,7 @@
 // footer's decision, the Show details panel (its rows, the held note, the served links), the parts that a snapshot payload lacks, and
 // the announcement table; Story 6.4: the fallback and no-fix notices with their failure groups (a dated time included), the unknown
 // cause's own sentence, Dismiss for exactly the resolved and open states, the compact card's result bands and each request's band text for
-// the announcements. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
+// the announcements; DW-1378: a done setting band names the request's after. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable
 // syntax and imports only types. The times come from the real page-time.ts with named zones.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -193,7 +193,7 @@ describe('the same ref again: count and fixing', () => {
     assert.equal(view(named({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'rollback_setting', item: 'OrdersFromPartner' }] })).fixingLine, 'Putting TargetConfigName on OrdersFromPartner back\u2026');
     assert.equal(view(named({ state: 'fixing', requests: [{ state: 'executing', fixKind: 'undo_rollback', item: 'OrdersFromPartner' }] })).fixingLine, 'Undoing the rollback of TargetConfigName on OrdersFromPartner\u2026');
     assert.equal(view(named({ settingChange: undefined })).fixSentence, 'I can repair and resend all 50.', 'with no change to name, the sentence is the diagnosis\'s');
-    const closed = view(named({ state: 'closed', requests: [{ ref: 'A', state: 'done', fixKind: 'rollback_setting', item: 'OrdersFromPartner', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } }] }), { result: (request, itemNoun, production, one) => resultView(request, itemNoun, renderPageText, production, one) });
+    const closed = view(named({ state: 'closed', requests: [{ ref: 'A', state: 'done', fixKind: 'rollback_setting', item: 'OrdersFromPartner', after: 'OrdersToWarehouse', result: { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' } }] }), { result: (request, itemNoun, production, one) => resultView(request, itemNoun, renderPageText, production, one) });
     assert.equal(closed.results[0].key, 'result.settingRestored', 'a closed card carries the result band of the rollback');
     assert.equal(closed.results[0].text, 'TargetConfigName on OrdersFromPartner is back to OrdersToWarehouse. To undo it, ask me to undo the rollback.');
   });
@@ -818,8 +818,8 @@ describe('the requests a closed card draws itself (Story 24.4b; Fix.Kind.AskedCl
   const done = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
   const change = { item: 'OrdersToWarehouse', target: 'OrdersToWarehouse', setting: 'PoolSize', oldValue: '4', newValue: '8', credential: false, detectedAt: '2026-10-22T14:00:00Z' };
   const asked = [
-    { ref: 'RB1', state: 'done', fixKind: 'rollback_setting', item: 'OrdersToWarehouse', result: done },
-    { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done },
+    { ref: 'RB1', state: 'done', fixKind: 'rollback_setting', item: 'OrdersToWarehouse', after: '4', result: done },
+    { ref: 'UN1', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', after: '8', result: done },
     { ref: 'SU1', state: 'done', fixKind: 'suspend_item', item: 'OrdersToWarehouse', result: done },
   ];
   const closed = (over = {}) => full({ state: 'closed', production: 'OcuTalon.Demo.Orders.Production', settingChange: change, requests: asked, ...over });
@@ -900,6 +900,17 @@ describe('the requests a closed card draws itself (Story 24.4b; Fix.Kind.AskedCl
     const open = full({ state: 'resolved', requests: asked });
     assert.deepEqual(view(open, { drawn: new Set(['UN1']) }), view(open));
     assert.equal(view(open, { drawn: new Set(['UN1']) }).compact, false);
+  });
+
+  it("names the request's after in a done undo's compact band and in the chat's announcement, not the recorded new value (DW-1378)", () => {
+    const text = 'The rollback is undone: PoolSize on OrdersToWarehouse is back to 9.';
+    const card = closed({ requests: [{ ref: 'UN9', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', after: '9', result: done }] });
+    assert.equal(change.newValue, '8', 'the recorded new value is not the value the item has');
+    assert.equal(seen(card).results[0].text, text);
+    assert.equal(bandTexts(card, context(withChange)).UN9, text);
+    const noAfter = closed({ requests: [{ ref: 'UN9', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done }] });
+    assert.deepEqual(seen(noAfter).results, [], 'a done undo whose request has no after has no band');
+    assert.equal('UN9' in bandTexts(noAfter, context(withChange)), false, 'and the chat announces none');
   });
 
   it('keeps every band in bandTexts, so the chat announces each result once', () => {

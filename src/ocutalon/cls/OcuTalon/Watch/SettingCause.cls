@@ -10,10 +10,10 @@
 ///     body and sit in the pack after the line that calls the pack data, never instructions.
 ///   - Named is the newest row of the window whose setting is the element of the diagnosis, on a failing item first. GapMinutes is whole minutes, rounded half up. CauseSlot is
 ///     the structured cause of incident.settingChangeCause, rendered by the catalog.
-///   - IsSetting, RollbackSlots, UndoSlots, ResultKey, ResultSlots, Names and the summary keys are the notice and summary texts of the two setting kinds (Fix.Kind.RollbackSetting and
+///   - IsSetting, RollbackSlots, UndoSlots, ResultKey, ResultSlots, ShownAfter, Names and the summary keys are the notice and summary texts of the two setting kinds (Fix.Kind.RollbackSetting and
 ///     UndoRollback), which Notice and Summary call, so that the kinds' texts live here and the two classes only delegate. The slots of a setting's value (before and after) hold
 ///     it as Shown gives it, redacted by Bridge.Redact (the one redactor, on the server), so that a token in a URL reaches no person, message body or log; the stored dry run
-///     and the value a run writes stay raw.
+///     and the value a run writes stay raw. ShownAfter gives the incident payload's request part the same {after} as the result texts.
 Class OcuTalon.Watch.SettingCause
 {
 
@@ -351,6 +351,21 @@ ClassMethod ResultSlots(key As %String, extra As %DynamicObject, Output sc As %S
 	If 'plain Do slots.%Set("after", ..Shown(after), "string")
 	If key = ..#KEYSAVEDNOTAPPLIED Do slots.%Set("reason", reason, "string")
 	Quit slots
+}
+
+/// The value that a setting kind's request gives the setting after its run, as a person sees it: Shown of the after of its stored dry run (dryRun, the JSON text), "" when the
+/// dry run can't be read or has no after. The result texts' {after} (ResultSlots, from IncidentManager ResultExtra) and the request part of the incident payload
+/// (Live.Payload.Incident) both show this value, so the card names what the chat names. It reads nothing else (AD-13: /state runs it with no SQL grant).
+ClassMethod ShownAfter(dryRun As %String) As %String
+{
+	Set after = ""
+	Try {
+		Set after = ..Text({}.%FromJSON(dryRun).%Get("after"))
+	} Catch {
+		Set after = ""
+	}
+	If after = "" Quit ""
+	Quit ..Shown(after)
 }
 
 /// The setting and the item of a setting kind's request, from its stored dry run (field and item), in setting and target; 1 when both are there.
