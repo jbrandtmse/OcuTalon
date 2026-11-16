@@ -4566,3 +4566,4 @@
 2026-11-16T21:12:08Z	Epic 28	note	via=contest_planner 28.2_MC3_leads(sync_Used_on_read,LastUsedAt_lock,fading_in_read) pin=read_returns_while_Used_held relayed=lane_C
 2026-11-16T21:18:07Z	Epic 21	note	DW-1421_r3_recapture=MIXED(target_met;confidence-missing_12/5_runs;#5035_untagged;r2_BLOCKED_demo_gate_variance) planner_control@c573a86d0_running orchestrator_code_check=no_model-facing_change(properties_identical,no_schema_gen) #5035=GeneralException(JSONImport)_->propose_tag_reply-unreadable round3=HELD
 2026-11-16T21:18:22Z	Epic 21	owner_decision	via=contest_planner DW-1421_round4_followup=#5035->reply-unreadable(no_exception_data,malformed_row,mutation)+DW-1438_CLOCKTIME_fix(2nd_occurrence) route_after_control_verdict
+2026-11-16T21:22:09Z	Epic 28	ci_red_classified	28.2_MC3=flake_DW-1451(Playwright-fulfilled_500_route;34/34_fresh_repro_pass;leads_disproved) rerun=43943159296_att2
