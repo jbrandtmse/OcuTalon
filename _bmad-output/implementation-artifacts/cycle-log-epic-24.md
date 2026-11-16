@@ -51,3 +51,7 @@
 2026-11-16T00:46:28Z	Story 24.4a	stage_spawned	stage=code-review spawn_at=2026-11-16T00:46:28Z model=opus agent_name=24-4a-show-setting-values-redacted-everywhere-and-the-setting-chan-code-review-1 effort=high scope=c42de191..worktree branch=OCT-epic24
 2026-11-16T01:15:04Z	Story 24.4a	cr_complete	model=opus resolved=5 escalated=1(DW-1412:Redact.Text_misses_sig=/signature=/X-Amz-Signature=/auth=;decision-pending) closed=17(DW-1413_wontfix:job-start_cap_is_Community_8_connections_for_licensed_callers;FixExecutor_jobs_unlicensed) high=0 med=2 low=19 final=done security=no_raw_value_on_any_surface_trace_event_log
 2026-11-16T01:15:04Z	Story 24.4a	spine_updated	ad=AD-19(setting_dry-run_handoff_record),Redaction_convention(server_display_paths;bare_key=) by=lead lint=5 footprint_note=Test/Watch/SettingValues.cls(QA,new_Lane_A_test_class_under_the_grant)
+2026-11-16T01:19:29Z	Epic 24	integrated_forward	feature=044b6c2e conflicts_resolved=sprint-status(feature_side,regenerated;24.4a_done) auto_merged=ux-strings.test.mjs overlapping_hunks=none(lane_B/C_code_files_untouched_on_feature_since_92937a03) checks=web_2168_pass,test-class-rules,test-boundaries
+2026-11-16T01:19:29Z	Story 24.4a	smoke_complete	method=other(CR:fresh_live_sign-in-2_part_17/26_F3b,F5,F5b,F7;fresh_Rollback:TestTakeMissingNoRequest;QA:fresh_Rollback:TestUndoRequestTokenRedacted) result=pass
+2026-11-16T01:19:29Z	Story 24.4a	fresh_check	env=fresh_lane-D_stack_e24s4fc(merged_tree) tests=Test.Watch.SettingCause result=pass torn_down=yes
+2026-11-16T01:19:29Z	Story 24.4a	committed	sha=pushed_below
