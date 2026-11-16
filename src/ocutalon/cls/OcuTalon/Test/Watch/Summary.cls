@@ -37,8 +37,8 @@
 ///   - TestKindLines (Story 23.2, AC14): the requested and ended lines of the suspend, resume and reroute requests, with no message counts for the item runs;
 ///   - TestPartnerLines (Story 23.5, AC13): the requested line (with the number of recipients) and the sent, kept or not sent line of each delay notice, with no "the fix started" line, the message counts unchanged and "No fix ran" kept.
 ///   - TestSettingLines (Story 23.3): the requested line of a rollback_setting and of an undo_rollback, the restored, undone and not changed lines of their runs, and message counts that the setting runs leave alone.
-///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365): a rollback_setting run that saved the setting and could not apply it has no ended line.
-///   - TestItemSavedNotAppliedLine (DW-1373): a suspend_item run that stored the flag and could not apply it has no ended line.
+///   - TestSettingSavedNotAppliedLine (Story 23.3, DW-1365; DW-1376): a rollback_setting run and an undo_rollback run that saved the setting and could not apply it end with summary.settingSavedNotApplied.
+///   - TestItemSavedNotAppliedLine (DW-1373; DW-1376): a suspend_item run and a resume_item run that stored the flag and could not apply it end with summary.settingSavedNotApplied (setting Enabled, target the item).
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
 {
@@ -857,49 +857,75 @@ Method TestSettingLines()
 	Do $$$AssertTrue(text [ ": ZzFixtureNote on OrdersFromPartner was not changed.", "and the not changed line")
 }
 
-/// Story 23.3 (DW-1365, Planner pre-push ruling): a rollback_setting run that saved the setting and could not apply it (Completed 0, Unreached 1, Skipped 0) has its requested line and
-/// its started line, and no ended line: summary.settingNotChanged would say "was not changed" of a setting that was changed, and the summary has no text for this end.
-/// mutation: Watch.SettingCause SummaryRunKey without its Unreached test.
+/// Story 23.3 (DW-1365, Planner pre-push ruling) and DW-1376: a rollback_setting run and an undo_rollback run that saved the setting and could not apply it (Completed 0, Unreached 1,
+/// Skipped 0), for a rollback and an undo, ends with summary.settingSavedNotApplied, which names the setting and the item, and with no summary.settingNotChanged, settingRestored or
+/// rollbackUndone. mutation: SummaryRunKey's not-applied line made Quit "" (no line), or taken out (summary.settingNotChanged).
 Method TestSettingSavedNotAppliedLine()
 {
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set owner = ..Owner("settingsaved")
 	Set incident = ..Incident(owner, "resolved")
+	Set ended = ..T(-5700)
 	Set dryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""beta"",""after"":""alpha""}"
+	Set undoDryRun = "{""item"":""OrdersFromPartner"",""field"":""ZzFixtureNote"",""before"":""alpha"",""after"":""beta""}"
 	Set rollback = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "rollback_setting", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
-	Do ..Link(incident, rollback)
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set undo = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "undo_rollback", "FixParameters": ("{""change"":""zzchange0000000000001""}"), "FixTargets": "5", "DryRun": (undoDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Do ..Link(incident, rollback_","_undo)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, rollback, {"StartedAt": (..T(-5800)), "EndedAt": (ended), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, undo, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
 	Set result = ..Command(host, "dismiss", incident, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Set keys = ..Keys(row)
 	Do $$$AssertEquals($Length(keys, "summary.requestedRollback") - 1, 1, "the request has summary.requestedRollback: "_keys)
-	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 2, "each run has its fix started line")
 	Do $$$AssertEquals($Length(keys, "summary.settingNotChanged") - 1, 0, "and no summary.settingNotChanged")
 	Do $$$AssertEquals($Length(keys, "summary.settingRestored") - 1, 0, "and no summary.settingRestored")
+	Do $$$AssertEquals($Length(keys, "summary.settingSavedNotApplied") - 1, 2, "each run that saved the setting and could not apply it ends with summary.settingSavedNotApplied")
+	Do $$$AssertTrue(keys [ "summary.fixStarted,summary.settingSavedNotApplied", "the rollback's line follows its started line")
+	Do $$$AssertEquals($Length(keys, "summary.rollbackUndone") - 1, 0, "and the undo is not reported as undone")
+	Set slots = ..Slots(row, "summary.settingSavedNotApplied")
+	Do $$$AssertEquals($Select($IsObject(slots): slots.time_"|"_slots.setting_"|"_slots.target, 1: ""), ended_"|ZzFixtureNote|OrdersFromPartner", "the line names the setting and the item, at the run's end")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": ZzFixtureNote on OrdersFromPartner was changed, but the production couldn't apply it.", "and reads as ruled")
 }
 
-/// DW-1373: a suspend_item run that stored the item's flag and could not apply it (Completed 0, Unreached 1, Skipped 0) has its requested line and its started line, and no ended line:
-/// summary.itemNotChanged would say that the item was not changed, and the summary has no text for this end. mutation: the Unreached test of Watch.Summary RunEvents' item branch taken out.
+/// DW-1373, DW-1376: a suspend_item run and a resume_item run that stored the item's flag and could not apply it (Completed 0, Unreached 1, Skipped 0) have their requested and started lines
+/// and end with summary.settingSavedNotApplied (the setting Enabled, the item as the target), not summary.itemNotChanged, summary.itemSuspended or summary.itemResumed.
+/// mutation: the item branch's new block made Quit (no line), or taken out (summary.itemNotChanged).
 Method TestItemSavedNotAppliedLine()
 {
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set owner = ..Owner("itemsaved")
 	Set incident = ..Incident(owner, "resolved")
+	Set ended = ..T(-5700)
 	Set dryRun = "{""item"":""OrdersToWarehouse"",""before"":""enabled"",""after"":""disabled""}"
+	Set resumeDryRun = "{""item"":""OrdersForReview"",""before"":""disabled"",""after"":""enabled""}"
 	Set suspend = ..Request(owner, incident, "failed", ..T(-6000), {"FixKind": "suspend_item", "FixParameters": ("{""item"":""OrdersToWarehouse""}"), "FixTargets": "5", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
-	Do ..Link(incident, suspend)
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Set resume = ..Request(owner, incident, "failed", ..T(-5000), {"FixKind": "resume_item", "FixParameters": ("{""item"":""OrdersForReview""}"), "FixTargets": "6", "DryRun": (resumeDryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900))})
+	Do ..Link(incident, suspend_","_resume)
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, suspend, {"StartedAt": (..T(-5800)), "EndedAt": (ended), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
+	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, resume, {"StartedAt": (..T(-4800)), "EndedAt": (..T(-4700)), "Total": 1, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Unreached": 1, "Reason": "The update timed out"})
 	Set result = ..Command(host, "dismiss", incident, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Set keys = ..Keys(row)
 	Do $$$AssertEquals($Length(keys, "summary.requestedSuspend") - 1, 1, "the request has summary.requestedSuspend: "_keys)
-	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 1, "the run has its fix started line")
+	Do $$$AssertEquals($Length(keys, "summary.fixStarted") - 1, 2, "each run has its fix started line")
 	Do $$$AssertEquals($Length(keys, "summary.itemNotChanged") - 1, 0, "and no summary.itemNotChanged")
 	Do $$$AssertEquals($Length(keys, "summary.itemSuspended") - 1, 0, "and no summary.itemSuspended")
+	Do $$$AssertEquals($Length(keys, "summary.itemResumed") - 1, 0, "and no summary.itemResumed")
+	Do $$$AssertEquals($Length(keys, "summary.settingSavedNotApplied") - 1, 2, "each run ends with summary.settingSavedNotApplied")
+	Do $$$AssertTrue(keys [ "summary.fixStarted,summary.settingSavedNotApplied", "the suspend's line follows its started line")
+	Set slots = ..Slots(row, "summary.settingSavedNotApplied")
+	Do $$$AssertEquals($Select($IsObject(slots): slots.time_"|"_slots.setting_"|"_slots.target, 1: ""), ended_"|Enabled|OrdersToWarehouse", "the item's setting is Enabled and the target is the item, at the run's end")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ": Enabled on OrdersToWarehouse was changed, but the production couldn't apply it.", "the suspend reads as ruled")
+	Do $$$AssertTrue(text [ ": Enabled on OrdersForReview was changed, but the production couldn't apply it.", "and so does the resume")
 }
 
 /// A shadow instance of the probe.

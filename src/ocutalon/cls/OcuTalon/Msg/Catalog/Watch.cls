@@ -1265,6 +1265,15 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Story 23.3 Name the setting change behind an incident and offer its rollback, Public Text approved by the Contest Planner 2026-11-15"
  },
+ "summary.settingSavedNotApplied": {
+  "text": "{time}: {setting} on {target} was changed, but the production couldn't apply it.",
+  "slots": {
+   "time": "time",
+   "setting": "text",
+   "target": "text"
+  },
+  "source": "DW-1376 (Story 23.3 and DW-1373 follow-up), Public Text approved by the Contest Planner 2026-11-15 (23.3 follow-ups ruling)"
+ },
  "result.settingSavedNotApplied": {
   "text": "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
   "slots": {

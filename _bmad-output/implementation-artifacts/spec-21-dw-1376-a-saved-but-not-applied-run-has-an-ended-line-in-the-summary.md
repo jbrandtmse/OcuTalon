@@ -2,8 +2,8 @@
 title: 'DW-1376: A run that was saved but not applied has an ended line in the incident summary'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: '40f087aa11598fcd7607cb9b4be563955273e0b7'
+status: 'done'
+baseline_revision: '5a0038e161575f69b4155c55b45f7147500db11e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -283,14 +283,71 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - Write one `mutation:` line per mutation under AC 1 to 4, as `mutation: <change> -> <test that went red>`.
 - Revert each byte for byte (`cmp` against a copy taken before it), and check that `git status --short` and `git diff --stat` are as before.
 
-**Task 0 records:** (to be filled by the implement stage)
+**Task 0 records** (lane C warm throwaway, tag e21dw1376iw; scratch class `ZzScratch.Dw1376` extending `Test.Fix.ItemKinds`, loaded into the throwaway only and deleted from it, never in the tree):
+1. Baseline, warm, one call each, before any product edit: `OcuTalon.Test.Watch.Summary:TestSettingSavedNotAppliedLine` passed, `:TestItemSavedNotAppliedLine` passed, `OcuTalon.Test.Msg.Catalog` passed.
+2. The stored run and the summary today, through the real handler and `Finish` with the canned Check and Carry of `TestItemNotApplied` and `TestSettingNotApplied`'s not-applied half, with the incident's `RequestRefs` set to the request:
+   - `Case.Runs(incident)`: one FixRun, `total` 1, `resent` 0, `completed` 0, `skipped` 0, `interrupted` 0, `unreached` 1, `reason` "The update timed out", `endedAt` a UTC time (as expected), for `suspend_item` and for `rollback_setting`.
+   - `Watch.Summary.Build(row, "dismiss", NowUtc, 0, .sc)` on the `Case.Fixture` incident: status OK for both (no fallback to `Fixture`'s `fields` and no dropped half of AC 3 was needed). Item keys: `summary.title,summary.firstFailure,summary.requestedSuspend,summary.fixStarted,summary.closedDismiss,summary.approved,summary.messages,summary.cost`. Setting keys: the same with `summary.requestedRollback`. Neither has an ended line (the defect).
+3. The Watch count at implement time: after `git fetch -q origin`, `git log origin/feature/OCT_OcuTalon_MVP..origin/OCT-epic23 -- src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` lists `7d7df9521` (fix(23.13): the incident timeline follows EmailOut's answer for a partner warning, DW-1416), so OCT-epic23's `summary.partnerMaySent` is NOT on feature or on this branch (`partnerMaySent` has no hit in `Msg/Catalog/Watch.cls` here). This branch is first to merge, so the count goes 145 to 146 here, as the tasks say. Recorded, not acted on: OCT-epic23 resolves its integrate-forward to 147 (Design Notes, "Merge with OCT-epic23").
+
+**Mutations** (Rule 19; each applied, the named test run warm and shown red, then reverted from a copy taken before it and checked with `cmp`; the class green again after the revert; `git diff --stat` as before after each):
+- mutation: `SummaryRunKey`'s not-applied line made `Quit ""` -> `Test.Watch.Summary:TestSettingSavedNotAppliedLine` red ("each run that saved the setting and could not apply it ends with summary.settingSavedNotApplied", and the follows-started, slots and "reads as ruled" asserts) and `Test.Fix.ItemKinds:TestSettingNotApplied` red ("the summary ends the run with summary.settingSavedNotApplied, as ruled").
+- mutation: `SummaryRunKey`'s not-applied line taken out -> `Test.Watch.Summary:TestSettingSavedNotAppliedLine` red ("and no summary.settingNotChanged", and the ended-line asserts).
+- mutation: the item branch's new block made `If (+run.Completed = 0) && (+run.Unreached > 0) Quit` -> `Test.Watch.Summary:TestItemSavedNotAppliedLine` red (the ended line, the slots and the two texts) and `Test.Fix.ItemKinds:TestItemNotApplied` red ("the summary ends the run with summary.settingSavedNotApplied, as ruled").
+- mutation: the item branch's new block taken out -> `Test.Watch.Summary:TestItemSavedNotAppliedLine` red ("and no summary.itemNotChanged", and the ended-line asserts).
+- mutation: `$Parameter(class, "ENABLEDSETTING")` and `item` swapped in the slots (`"setting": (item), "target": ($Parameter(class, "ENABLEDSETTING"))`) -> `Test.Watch.Summary:TestItemSavedNotAppliedLine` red ("the item's setting is Enabled and the target is the item, at the run's end", and both texts).
+- mutation: the new catalog entry taken out -> `Test.Msg.Catalog` red ("Watch holds exactly its 146 keys", "the fixtures cover exactly the 254 keys of the catalog", and the fixture coverage of `TestEveryKeyOnEveryChannel` on every channel).
+- mutation: the entry's "but " taken out of its text -> `Test.Msg.Catalog:TestEveryKeyOnEveryChannel` red ("summary.settingSavedNotApplied on phone is the fixture's text", and on the other channels) and `Test.Watch.Summary:TestSettingSavedNotAppliedLine` red ("and reads as ruled").
+
+- mutation (AC 5, added in review, warm, `cmp` identical after each revert and `git diff --stat` as before, the class green again): `SummaryRunKey`'s not-applied condition widened to `If (+run.Completed = 0) Quit ..#KEYSUMMARYSAVEDNOTAPPLIED` -> `Test.Watch.Summary:TestSettingLines` red ("the rollback that changed nothing ends with summary.settingNotChanged", and two more).
+- mutation (AC 5, added in review, same checks): the item branch's condition widened to `If (+run.Completed = 0) {` -> `Test.Watch.Summary:TestKindLines` red ("the resume that changed nothing ends with summary.itemNotChanged").
+
+**Command results** (warm tag e21dw1376iw, lane C, one call each unless noted):
+- `OcuTalon.Test.Watch.Summary:TestSettingSavedNotAppliedLine` and `:TestItemSavedNotAppliedLine` passed after the change; whole `OcuTalon.Test.Watch.Summary` passed (after the last revert); `OcuTalon.Test.Msg.Catalog` passed (146 keys, after the last revert); `OcuTalon.Test.Watch.Lifecycle` passed; `OcuTalon.Test.Watch.SettingValues` passed.
+- After a production restart (`Ens.Director.RestartProduction` on the throwaway's OcuTalon.Production): `OcuTalon.Test.Fix.ItemKinds:TestItemNotApplied` and `:TestSettingNotApplied` passed (the two were run in one message, against the rule; both passed), and the whole `OcuTalon.Test.Fix.ItemKinds` passed (after a second restart, after the mutations were reverted).
+- Run by the build stage after the handoff: fresh `ci/iris.sh shard lane-a@Fix` (tag e21dw1376if): passed, 30 classes, 1073 s, `Test.Fix.ItemKinds` passed on the fresh stack (9.80 s); `cd web && npm test`: 2174 tests, 2174 pass, 0 fail; `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh`: all rules passed; the spine lint: 12 findings, all low (the baseline of 12 low).
+- The diff holds only the footprint files, no added non-ASCII character, no absolute local path; the catalog text is byte-identical to the approved text, with an ASCII apostrophe.
+- The warm stack was removed with `ci/warm.sh down` at the end.
+
+## Review Triage Log
+
+### 2026-11-15 — Review pass
+- verdicts: 13 findings — high 0, medium 0, low 7, false 6, maybe-false 0 (one finding, AC 5's missing mutation line, is low and was closed in the pass)
+- findings:
+  - `[low]` `[reject]` Blind 1: the `(key '= "")` guard in `RunEvents`' setting branch is dead now, and the not-applied condition is written in `SummaryRunKey` and in the item branch — the guard is a defensive check on a public method's contract and the spec forbids changing that branch (it "needs no change"); the spec says "the same condition in both places"; no caller can diverge, the two tests pin both.
+  - `[false]` `[reject]` Blind 2: an item run with an empty item stores an empty slot and the catalog refuses it — the branch's other lines (summary.itemSuspended, summary.itemResumed) take the same `item`, `SuspendItem.CheckParameters` requires it, and a stored request without it does not exist; no new exposure (Design Notes, "What the slots are").
+  - `[low]` `[reject]` Blind 3: the second run of each doubled test (undo, resume) is pinned by count, adjacency of the first pair and text, not by its own slots — both runs go through the same code and `run.EndedAt`; a per-run slot check adds no mutation that the count of 2 and the texts do not already catch.
+  - `[low]` `[reject]` Blind 4: `SavedNotAppliedLine` overwrites `RequestRefs`, ignores Render's status and splits on ": " — the spec's own helper design (the request is the incident's only request; a render failure gives "" and the equality fails; the time of the same day has no ": ").
+  - `[false]` `[reject]` Blind 5: the summary text omits the reason and direction — the text is approved verbatim by the Contest Planner and may not be reworded; the reason is in the FixRun and the session line.
+  - `[low]` `[reject]` Blind 6: the `Watch.Summary` class header lists the setting ends incompletely and the `SummaryRunKey` doc is one long line — the header was incomplete before this change, and the doc text is the spec's.
+  - `[false]` `[reject]` Edge 1: the empty item slot of an item run — same as Blind 2.
+  - `[false]` `[reject]` Edge 2: a saved-not-applied setting run whose dry run lacks field or item still has no line — matrix row 7 pins "no ended line, as for every end of such a request today"; the dry run of a rollback always carries them.
+  - `[low]` `[patch]` Gap 1: AC 5 has no `mutation:` line — closed in the pass: two mutations (the setting condition widened, the item condition widened) applied warm, `TestSettingLines` and `TestKindLines` red, reverted with `cmp` identical, `Test.Watch.Summary` green again; both lines are in `## Verification`.
+  - `[low]` `[reject]` Gap 2: the second run in each doubled Summary test is only partly pinned — same as Blind 3.
+  - `[low]` `[reject]` Gap 3: the `(key '= "")` guard is dead — same as Blind 1.
+  - `[false]` `[reject]` Gap 4 (Rule 19 check): no unfalsifiable assertion, no unconstructed subject, no state left over — the reviewer's own statement that nothing is wrong; logged as the layer's clean result.
+  - `[false]` `[reject]` Intent: the pin sits on the handler with the Check and Carry seams, not on the live restore failure (`InProduction`) — the layer reports it descriptively; the spec's Design Notes ("Why the ItemKinds join") chain DW-1373's and 23.3's live restore-failure tests to this one, so the whole path is pinned.
 
 ## Auto Run Result
 
-Status: not run (plan stage; spec ready for dev)
+Status: done
 Blocking condition: none
 
-**Size.** Small.
-- Product: the catalog entry (9 lines), one parameter, one changed line in `SummaryRunKey`, and a 4-line block in `RunEvents`, plus doc sentences.
-- Tests: two `Test.Watch.Summary` methods extended (about 30 lines), one ItemKinds helper and two asserts (about 20 lines), and four lines of `Test.Msg.Catalog`.
-- Runtime: Task 0 is about 10 minutes on a warm stack, and the fresh runs are three calls.
+**Summary.** A fix run that saved a setting or an item's flag and could not apply it, with the restore failed (Completed 0, Unreached above 0), now ends in the incident summary with `summary.settingSavedNotApplied`, the Planner's approved text verbatim: "{time}: {setting} on {target} was changed, but the production couldn't apply it." A setting run takes its setting and target from the dry run; an item run takes `Enabled` (the kind's `ENABLEDSETTING`) and the item. No other end changed.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`: the new entry.
+- `src/ocutalon/cls/OcuTalon/Watch/SettingCause.cls`: `KEYSUMMARYSAVEDNOTAPPLIED`, and `SummaryRunKey` returns it for Completed 0 with Unreached above 0.
+- `src/ocutalon/cls/OcuTalon/Watch/Summary.cls`: the item branch of `RunEvents` writes the line, and the docs.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls`: the Watch count 145 to 146, the key and the fixture.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls`: the two saved-not-applied methods extended (rollback and undo, suspend and resume).
+- `src/ocutalon/cls/OcuTalon/Test/Fix/ItemKinds.cls`: the helper `SavedNotAppliedLine` and the asserts of `TestItemNotApplied` and `TestSettingNotApplied`.
+- This spec.
+
+**Review.** 13 findings from four layers: patches applied 1 (low: the AC 5 mutation lines, a verification record, no code), deferred 0, rejected 12 with their reasons in the triage log. No high or medium.
+
+**Follow-up review recommended:** false (no high patched; patched counts: high 0, medium 0, low 1).
+
+**Verification.** See `## Verification`: Task 0, the nine mutation lines, the warm classes (`Test.Msg.Catalog`, `Test.Watch.Summary`, `Test.Watch.Lifecycle`, `Test.Watch.SettingValues`, `Test.Fix.ItemKinds` after a production restart), the fresh `lane-a@Fix` shard (30 classes), `npm test` (2174 pass), the class-rules and boundaries scripts, and the spine lint (12 low, the baseline).
+
+**Residual risks.** The count goes 145 to 146 here; OCT-epic23 (DW-1416, `summary.partnerMaySent`) merges second and takes it to 147 at its integrate-forward (Design Notes). The implement handoff ran two ItemKinds methods in one message once (both passed).

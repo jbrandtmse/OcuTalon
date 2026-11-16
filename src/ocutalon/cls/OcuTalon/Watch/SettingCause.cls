@@ -56,6 +56,8 @@ Parameter KEYSUMMARYUNDONE = "summary.rollbackUndone";
 
 Parameter KEYSUMMARYNOTCHANGED = "summary.settingNotChanged";
 
+Parameter KEYSUMMARYSAVEDNOTAPPLIED = "summary.settingSavedNotApplied";
+
 /// The TakenAt of the oldest snapshot of the production in the namespace, "" when it has none.
 ClassMethod Oldest(namespace As %String, production As %String) As %String
 {
@@ -373,10 +375,10 @@ ClassMethod SummaryRequestKey(kind As %String) As %String
 	Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYSUMMARYUNDO, 1: ..#KEYSUMMARYROLLBACK)
 }
 
-/// The key of the line for the end of a setting kind's run, and "" (no line) for a run whose setting was saved but could not be applied, which the summary has no text for.
+/// The key of the line for the end of a setting kind's run: summary.settingSavedNotApplied when the setting was saved and the production could not apply it and the earlier value could not be put back (Completed 0, Unreached above 0), summary.settingNotChanged when the run changed nothing else, and the restore or the undo when it changed the setting. Watch.Summary gives an item kind's run of the same end the same key (setting Enabled, target the item).
 ClassMethod SummaryRunKey(kind As %String, run As OcuTalon.Data.FixRun) As %String
 {
-	If (+run.Completed = 0) && (+run.Unreached > 0) Quit ""
+	If (+run.Completed = 0) && (+run.Unreached > 0) Quit ..#KEYSUMMARYSAVEDNOTAPPLIED
 	If +run.Completed = 0 Quit ..#KEYSUMMARYNOTCHANGED
 	Quit $Select(kind = ##class(OcuTalon.Fix.Kind.UndoRollback).#NAME: ..#KEYSUMMARYUNDONE, 1: ..#KEYSUMMARYRESTORED)
 }

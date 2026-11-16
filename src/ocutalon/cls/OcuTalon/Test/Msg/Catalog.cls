@@ -97,9 +97,10 @@ Method TestEntries()
 	// Story 23.3 (Contest Planner pre-push ruling 2026-11-15, DW-1365): result.settingSavedNotApplied takes the Watch count to 133.
 	// Story 23.4 (Contest Planner ruling 2026-11-15, Public Text): the eight page.* keys (onCall, onCallEmail, backup, backupEmail, subject, onCallAlone, onCallEmailAlone, causeUnknown) take the Watch count to 141.
 	// Story 23.13 (Contest Planner rulings 2026-11-15 "23.13 GATE" and 2026-11-16 "23.13 re-plan"): incident.partnerRequestKept, incident.partnerRequestMailbox, result.partnerSkipped and partner.emailSubject take the Watch count to 145.
-	Do $$$AssertEquals(keys.watch.%Size(), 145, "the expected Watch list has 145 keys")
+	// DW-1376 (Contest Planner ruling 2026-11-15, "23.3 follow-ups"): summary.settingSavedNotApplied takes the Watch count to 146.
+	Do $$$AssertEquals(keys.watch.%Size(), 146, "the expected Watch list has 146 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 161 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 145 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 146 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1414,6 +1415,7 @@ XData Keys [ MimeType = application/json ]
   "summary.settingRestored",
   "summary.rollbackUndone",
   "summary.settingNotChanged",
+  "summary.settingSavedNotApplied",
   "result.settingSavedNotApplied",
   "page.onCall",
   "page.onCallEmail",
@@ -1921,6 +1923,7 @@ XData Fixtures [ MimeType = application/json ]
  "summary.settingRestored": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was put back to its earlier value."},
  "summary.rollbackUndone": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: the rollback of TargetConfigName on OrdersFromPartner was undone."},
  "summary.settingNotChanged": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was not changed."},
+ "summary.settingSavedNotApplied": {"slots": {"time": "2026-10-16T18:12:00Z", "setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "14:12 ET: TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it."},
  "result.settingSavedNotApplied": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner", "reason": "The update timed out"}, "text": "TargetConfigName on OrdersFromPartner was changed, but the production couldn't apply it: The update timed out. Ask me to check the item before you try again."},
  "settings.emailHeading": {"slots": {}, "text": "Email"},
  "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
