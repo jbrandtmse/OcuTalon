@@ -46,8 +46,9 @@ Make Slack a working OcuTalon channel without socket mode, because the platform'
   - Four setup steps, reordered by the Planner so the secrets (step 2) come before the request-URL check (step 3); step 4 is linking in Settings › Channels › Slack.
   - No story ships a text the author hasn't accepted.
 - **Ledger items:**
-  - DW-1442 (escalated) goes into 27.3's spine gate. The Rule wording of AD-13 (the hook bullet names only `WebhookIn`), AD-14 (every inbound message becomes an Item), AD-17 (the rejection audit target is a webhook Ref) and AD-22 (eval-session Turn rows) contradicts 27.1's behaviour. Rewording an AD Rule is a Planner veto item.
-  - Still open with the Planner: DW-1440 (the time window for the R7 A/B runs) and DW-1441 (ratify that a form body gets 400 before the signature check).
+  - DW-1442, routed by the Planner to 27.3 and now one of its acceptance criteria: 27.3's spine gate carries the wording fix. The Rule wording of AD-13 (the hook bullet names only `WebhookIn`), AD-14 (every inbound message becomes an Item), AD-17 (the rejection audit target is a webhook Ref) and AD-22 (eval-session Turn rows) contradicts 27.1's behaviour. Rewording an AD Rule is a Planner veto item.
+  - DW-1441 ratified: the Slack route answers a form body 400 before the signature check. Keep it; revisit only if interactivity or slash commands are ever added.
+  - DW-1440 moot: the R7 A/B is already running.
 - **Residual from 27.1:** Slack's `&amp;`/`&lt;`/`&gt;` escapes and `<@U…>` mention markup reach the turn text unchanged. Story 27.2 or 27.3 may decide whether to decode them.
 
 ## Technical Decisions
@@ -98,7 +99,7 @@ Make Slack a working OcuTalon channel without socket mode, because the platform'
   - 27.3 calls `SlackLink.Link`/`Unlink` and reads `SlackIn.On()`.
   - 27.2's README linking section describes what 27.3 ships.
   - 27.2's `SlackOut` replies to `SlackIn`'s turns. R1's `bot_id` guard already ignores its echoes.
-- **R7 A/B gate:** 27.1 is committed on `OCT-epic27`. Its merge into the feature branch waits on the Planner's A/B (`eval/run.sh --release-candidate --notes telegram|slack`, N = 5). Later stories build on the epic branch meanwhile.
+- **R7 A/B gate:** 27.1 is committed on `OCT-epic27`. Its merge into the feature branch is held for the verdict of the Planner's A/B (`eval/run.sh --release-candidate --notes telegram|slack`, N = 5), running from `d57a6d753`. Later stories build on the epic branch meanwhile.
 - **Epic 28:** Story 28.1 (Lane A) writes the handler for 27.1's `DraftTransform` verb, which `IncidentManager` answers `failed` until then.
 - **Shared Notify:** 27.2 edits `Core.Rule.Notify`, contended with Story 24.3's `page` routing. Do the two one after the other.
 - **Demo host:** its proxy blocks the webhook path. The Contest Planner's demo-host checks cover that.
