@@ -12,7 +12,7 @@ Include Ensemble
 ///   - TestOneSendPerApproval (AC5): a second send of the same approval answers already_sent after a sent one and failed after a failed one: nothing is sent again, and there is one Delivery row;
 ///   - TestTamperedRowIsRefused (AC5): a row whose to is an address, whose ids are not its targets or whose text is not the stored notice has no mail method: EmailOut refuses it;
 ///   - TestLogHoldsNoContact (AC3): after sends, skips and a failure the event log holds no contact's name or address.
-Class OcuTalon.Test.Fix.PartnerMail Extends %UnitTest.TestCase
+Class OcuTalon.Test.Partner.PartnerMail Extends %UnitTest.TestCase
 {
 
 /// The operation under test: EmailOut with its delivery replaced.

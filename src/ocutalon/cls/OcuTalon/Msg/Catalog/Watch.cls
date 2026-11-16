@@ -1036,6 +1036,13 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Story 23.5 Draft partner delay notices that are sent only after approval, Public Text approved by the Contest Planner 2026-11-09"
  },
+ "summary.partnerMaySent": {
+  "text": "{time}: the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.13 rework DW-1416, Public Text ruled by the Contest Planner 2026-11-16 (prompts/dw-1415-1416-rulings-20261116.md)"
+ },
  "partner.subject": {
   "text": "Simulated delay notice to {recipient}",
   "slots": {
