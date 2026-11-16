@@ -547,3 +547,5 @@
 2026-11-16T10:03:51Z	DW-1378	stage_spawned	stage=qa spawn_at=2026-11-16T10:03:51Z model=sonnet effort=high agent_name=dw-1378-qa-1 cycle_iteration=1
 2026-11-16T10:11:16Z	DW-1378	qa_complete	model=sonnet commit=2d4fcd397 tests=TestRequestAfterStates(IRIS),approval-view(pending_no_result;item_band_unchanged),incident-view(pre-change_event_live_path) mutations=6 node=2195 findings=none_product
 2026-11-16T10:11:16Z	DW-1378	stage_spawned	stage=code-review spawn_at=2026-11-16T10:11:16Z model=opus effort=high agent_name=dw-1378-code-review-1 cycle_iteration=1
+2026-11-16T10:25:15Z	DW-1378	cr_complete	model=opus findings=17(high0,med0,low7_patched_tests/docs,10_rejected) condition=no_contradicting_path(verified) AD-12=byte-identical merge_resolution=correct(147) warm=SettingCause,Rollback,Payloads node=2195 final_status=done
+2026-11-16T10:25:15Z	DW-1378	ledger	DW-1378=resolved-by:dw-1378

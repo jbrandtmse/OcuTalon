@@ -8374,6 +8374,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/src/app/approvals/approval-view.ts settingResultView takes after = change?.newValue for undo_rollback; IncidentRequest (web/src/app/live/payloads.ts) carries no dry-run after, while IncidentManager.ResultExtra uses the dry run's after for the chat notice
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:follow-up_for_1.0.12_with_new_/api/v1/state_field;CONDITION_band_must_not_contradict_chat_result_line;else_show_catalog_result_text
+- 2026-11-16T10:25:15Z status=resolved-by:dw-1378 by=epic-runner note=incident request part carries after (SettingCause.ShownAfter, redacted as the chat); the done setting band names it, never the SettingChange values; DW-1366 card says back to 9 like the chat (d67e8cda8); AD-12 sub-bullet verbatim
 
 ### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint

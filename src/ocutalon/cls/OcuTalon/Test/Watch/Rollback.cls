@@ -812,14 +812,14 @@ Method TestUndoSystemDefaultChanged()
 ClassMethod RequestPart(payload As OcuTalon.Live.Payload.Incident, kind As %String) As OcuTalon.Live.Payload.Part.IncidentRequest [ Private ]
 {
 	For i = 1:1:payload.Requests.Count() {
-		If payload.Requests.GetAt(i).FixKind = kind Quit
+		If payload.Requests.GetAt(i).FixKind = kind Return payload.Requests.GetAt(i)
 	}
-	Quit $Select(i '> payload.Requests.Count(): payload.Requests.GetAt(i), 1: "")
+	Quit ""
 }
 
 /// DW-1366: the System Default Setting moves again (to 11) after the undo's dry run (After 9) was approved: the run re-reads the value that the removal would leave, finds that it is
-/// not the After that was approved, writes nothing and reports result.settingChangedSince. A done run means the setting equals the dry run's After (DW-1378): the undo changed nothing, and no
-/// request part of a run that changed the setting names a value that the item does not have, so the band and the chat never claim one. mutation: Plan's comparison with the approved After made to
+/// not the After that was approved, writes nothing and reports result.settingChangedSince. A done run means the setting equals the dry run's After (DW-1378): the undo changed nothing, and the
+/// undo's request part, had its run changed the setting, would name the value that the item has, so the band and the chat never claim one that it does not have. mutation: Plan's comparison with the approved After made to
 /// pass when the value moved (the run then succeeds with the default at 11, and the part's After 9 is not the item's value).
 Method TestUndoDefaultMovesAfterDryRun()
 {
@@ -851,7 +851,7 @@ Method TestUndoDefaultMovesAfterDryRun()
 	Set notes = ..WaitResultNotices(incident, 2)
 	Do $$$AssertEquals(notes.%Size(), 2, "the session has the rollback's and the undo's result Notifications")
 	If notes.%Size() = 2 Do $$$AssertEquals(notes.%Get(1).catalogKey, "result.settingChangedSince", "the undo's is result.settingChangedSince")
-	// DW-1378, Pin A: a done run means the setting equals the dry run's After, so the card and the chat never claim a value that the item does not have
+	// DW-1378: a done run means the setting equals the dry run's After, so the card and the chat never claim a value that the item does not have
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
 	Set row.SettingChangeRef = change
 	Do $$$AssertStatusOK(row.%Save(), "the incident names the change")

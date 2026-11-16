@@ -340,6 +340,30 @@ Line numbers are at the baseline `cb69bbeb1` (DW-1376's head `5f9b7e3c7`, which 
    - `npm --prefix web test`, the 921 kB initial-bundle test included;
    - A14, A11 and A12 of `approval-card.spec.ts`, and F6 and F6b of `step5-cards.spec.ts`.
 
+### Review Findings
+
+Code review (stage, 2026-11-16; diff `d355ebdd7`..tree at `35c153fbd`, bookkeeping and this spec excluded; four layers: blind, edge, verification gap, acceptance). 0 decision-needed, 7 patch (all applied), 0 defer, 10 rejected. No HIGH, no MED. The CONDITION holds: the band's `{after}` and the chat's `{after}` are both `Shown` (trim, then `Bridge.Redact.Text`) of the same stored `ApprovalRequest.DryRun`'s `after`, and the setting and item come from the same `SettingChange` row (the incident's `SettingChangeRef` is set once, in `IncidentManager.Answered` before the notice, and is the diagnosed rollback's `change`; an undo's `change` is that rollback's, `Fix.Run.RolledBack`; `rollback_setting` is DIAGNOSED only, never ASKED). The AD-12 sub-bullet is byte for byte Veto item 4's. The merge resolution (`80a3cf02c`: Watch count 147 with both keys; `Watch/Summary.cls` doc union) is correct.
+
+- [x] [Review][Patch] `RequestPart` returned the last part, not "", when no part has the kind (a finished `For i = 1:1:n` leaves `i` at n; checked on the stack: `after3=3`), so a missing undo part read as a misleading value mismatch [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls:812]
+- [x] [Review][Patch] Pin A's method doc said "no request part of a run that changed the setting" but the loop checks the undo's part only; the doc now says what the loop checks, and its comment no longer names the review label "Pin A" (Rule 14) [src/ocutalon/cls/OcuTalon/Test/Watch/Rollback.cls:820]
+- [x] [Review][Patch] The not-ended band test's second assertion (`completed: 0`, empty reason) returned undefined through the reason branch whatever the state; it now gives an executing request a done-shaped result (no band) beside the same result done (a band) [web/scripts/approval-view.test.mjs:257]
+- [x] [Review][Patch] The UN9 test asserted a constant of its own fixture (`change.newValue === '8'`); it now asserts on the band's text that it does not name the recorded new value [web/scripts/incident-view.test.mjs:909]
+- [x] [Review][Patch] AC 9's new pin, "keeps the not-applied, changed-since and not-changed bands whatever the after", had no `mutation:` line; written under `## Verification` after the mutation went red [this spec]
+- [x] [Review][Patch] The `Entry.after` doc said "a done setting request" though the server sends `after` in every state [web/e2e/rail/step5-cards.spec.ts:303]
+- [x] [Review][Patch] A15's title lacked the "(DW-1378)" that this spec names [web/e2e/cards/approval-card.spec.ts:518]
+
+Rejected:
+- `false` Edge: setting and target come from the incident's `SettingChangeRef`, the chat's from the request's `change`, so they may differ — they are the same row on every path (see above); with the row gone, both have nothing (`ResultExtra` opens the same ref).
+- `false` Edge + Blind: `After` MAXLEN 1000 is below the `SettingChange` values' 2000, so a long redacted value would be rejected — `%JSON.Adaptor` checks MAXLEN on import only and the part is export-only (Design Notes "MAXLEN"), as `Part.DryRun.After` (also 1000) is today; the contract XData pins 1000.
+- `false` Verification gap: the reroute row's `|0` for `after` in `TestFromRowRequestKinds` cannot fail — it can (a mutation that sets `After` for every kind turns it red); AC 2's pins are the suspend and repair rows, which discriminate, as its mutation line says.
+- `false` Edge: `part.Result.Completed` in Pin A's loop could hit INVALID OREF — the test would error loudly, not pass falsely; the fixture run has ended.
+- `false` Blind: `step5-cards.spec.ts` pending setting fixtures lack `after` — no page code reads `request.after` except `settingResultView`, which needs a result with `completed` above 0, so a pending fixture without `after` exercises the same path (no realistic failure).
+- `low` Acceptance: Pin A's `claimed` check is vacuous on the green path — the unconditional "Completed 0, Skipped 1" assertion carries it and the recorded Pin A mutation turned it red; the doc now says what it checks (patch above).
+- `low` Acceptance: `playwright-projects.test.mjs` is outside the listed footprint — already recorded; the pin follows A15 and no assertion is removed.
+- `low` Acceptance: the spine lint shows 13 low against 12 — the `{after}` slot name in the VERBATIM AD-12 sub-bullet; no change is possible; already reported to the coordinator.
+- `low` Acceptance (info): tests beyond the spec (`TestRequestAfterStates`, helpers, QA node tests) — each matches matrix rows 6 to 11 or Veto item 3 and carries a mutation line.
+- `low` Acceptance (merge): `Fix/Kind/Email.cls`, `PartnerWarning.cls` and `Msg/Catalog/Watch.cls` differ from the pre-merge base — they come from the merged DW-1415/DW-1416, not this item.
+
 ## Design Notes
 
 **Which value is "the actual value".** The ruling's fallback sentence reads: "If the band can't show the actual value, it shows the catalog result text instead". This spec reads it as follows:
@@ -481,6 +505,9 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - mutation (review patch, the done band's setting and item guard): `settingResultView`'s `if (setting === '' || target === '' || after === '')` cut to `if (after === '')` -> `approval-view.test.mjs` red ("gives a done run that has an after but no setting or no item in the incident's change no band"). Reverted from a copy (`cmp` identical); the node files green again (174 passed).
 - mutation (review patch, `ShownAfter` on a dry run that can't be read): the Catch branch of `ShownAfter` setting `after` to "x" -> `Test.Watch.SettingCause:TestRequestAfter` red ("ShownAfter gives empty for a dry run that can't be read, one with no after and a blank one, and the trimmed value otherwise"). Reverted from a copy (`cmp` identical); `TestRequestAfter` green again, then the warm stack was torn down.
 - After the review patches: `Test.Watch.SettingCause` (whole class) passed warm on a rebuilt warm stack; `npm test` 2191 of 2191; `npm run lint` and `payloads.mjs --check` pass; `test-class-rules.sh` exit 0.
+- mutation (AC 9, code review): `settingResultView` returns undefined first when the request has no `after` (the guard hoisted above every branch) -> `approval-view.test.mjs` red ("keeps the not-applied, changed-since and not-changed bands whatever the after"). Reverted from a copy (`cmp` identical, `git status --short` and `git diff --stat` as before).
+- mutation (code review, the not-ended band test): `settingResultView`'s `request.state === 'executing' ||` taken out -> `approval-view.test.mjs` red ("gives a setting request that has not ended no band, ...: an executing one's result is not one yet", and the Story 23.3 "claims nothing for a run that is still going"). Reverted from a copy (`cmp` identical); 91 of 91 green again.
+- Code review runs (lane C, warm tag e21dw1378cw, torn down): `Test.Watch.SettingCause` passed (63.8 s, before the review patches, which touch no class it runs); after a production restart, `Test.Watch.Rollback` (whole class, with the patched `RequestPart` and docs) passed (104 s); `Test.Live.Payloads` passed. `cd web && npm test`: 2195 of 2195; `npm run lint` passed; `payloads.mjs --check` exit 0; `test-class-rules.sh` exit 0. The patches touch no product or bundle code (tests, test docs and an e2e title), so no `ci/iris.sh build` or browser run was repeated; the lead's `live cards` (33 passed) stands. No added non-ASCII character or absolute local path.
 
 **Lead's runs (lane C, fresh stacks, tag e21dw1378ib):**
 - `ci/iris.sh build` ok; `ci/iris.sh live cards`: 33 passed (A15 new; A11, A12 and A14 pass). `step5-cards.spec.ts` is in the `sign-in-2` project, part 3/5 of `web/scripts/e2e-part.mjs` (57 tests, 8 spec files): `ci/iris.sh live sign-in-2 --part 3/5` passed (57 passed; F6 and every F6b case pass).

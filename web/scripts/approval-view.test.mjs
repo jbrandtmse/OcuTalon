@@ -254,13 +254,15 @@ describe('the value that the band of a done setting run names (DW-1378)', () => 
     }
   });
 
-  it('gives a setting request that has not ended no band, whatever its after: a pending, approved or executing request is not a result', () => {
+  it('gives a setting request that has not ended no band, whatever its after: a pending, approved or executing request is not a result, and an executing one\'s result is not one yet', () => {
     for (const fixKind of ['rollback_setting', 'undo_rollback']) {
       for (const state of ['pending', 'approved', 'executing']) {
         const request = { ref: 'A', state, fixKind, item: CHANGE.item, after: '9' };
         assert.equal(resultView(request, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, ${state}, no result`);
-        assert.equal(resultView({ ...request, result: ran({ completed: 0 }) }, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, ${state}, a result with nothing done`);
       }
+      const executing = { ref: 'A', state: 'executing', fixKind, item: CHANGE.item, after: '9', result: ran() };
+      assert.equal(resultView(executing, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}, executing, a done-shaped result while the run goes on`);
+      assert.notEqual(resultView({ ...executing, state: 'done' }, undefined, renderPageText, 'Orders', CHANGE), undefined, `${fixKind}: the same result, done, is a band`);
     }
   });
 

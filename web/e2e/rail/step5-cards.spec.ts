@@ -300,7 +300,7 @@ interface Entry {
   fixKind: string;
   item?: string;
   count?: number;
-  /** The value that a done setting request's dry run gives the setting (DW-1378): the band names it. */
+  /** The value that a setting request's dry run gives the setting (DW-1378), sent in every state: the band of a done run names it. */
   after?: string;
   result?: Record<string, unknown>;
 }

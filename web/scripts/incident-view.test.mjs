@@ -906,8 +906,8 @@ describe('the requests a closed card draws itself (Story 24.4b; Fix.Kind.AskedCl
   it("names the request's after in a done undo's compact band and in the chat's announcement, not the recorded new value (DW-1378)", () => {
     const text = 'The rollback is undone: PoolSize on OrdersToWarehouse is back to 9.';
     const card = closed({ requests: [{ ref: 'UN9', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', after: '9', result: done }] });
-    assert.equal(change.newValue, '8', 'the recorded new value is not the value the item has');
     assert.equal(seen(card).results[0].text, text);
+    assert.ok(!seen(card).results[0].text.includes(`back to ${change.newValue}`), 'and not the recorded new value');
     assert.equal(bandTexts(card, context(withChange)).UN9, text);
     const noAfter = closed({ requests: [{ ref: 'UN9', state: 'done', fixKind: 'undo_rollback', item: 'OrdersToWarehouse', result: done }] });
     assert.deepEqual(seen(noAfter).results, [], 'a done undo whose request has no after has no band');

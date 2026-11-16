@@ -515,7 +515,7 @@ test('A14: a setting rollback carries its change, gap and dry run over real HTTP
  * is 7, and its undo request has a done run whose dry run's after is 9 (the System Default Setting moved while the item's own value hid it). GET /api/v1/state lists the request with its `after` 9
  * beside the incident's `settingChange.newValue` 7, and in the page the closed card's band names the request's after, as the chat's result line does: "back to 9", never "back to 7".
  */
-test('A15: a done undo carries its dry run\'s after over real HTTP, and the closed card\'s band names it, not the recorded new value', async ({ page, request: http }) => {
+test('A15: a done undo carries its dry run\'s after over real HTTP, and the closed card\'s band names it, not the recorded new value (DW-1378)', async ({ page, request: http }) => {
   const { user, password } = fixtureUser(KIND);
   const rows: string[] = [];
   let change = '';
