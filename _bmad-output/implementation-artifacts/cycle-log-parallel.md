@@ -4538,3 +4538,4 @@
 2026-11-16T18:35:57Z	Run	owner_decision	via=contest_planner queue_moves_past_24.3b(s2314,DW-1421r2_first);24.3b_back_when_green+classified leads=ReminderOps_AD-18,Notify_routing,EmailOut_union relayed=lane_D
 2026-11-16T18:36:07Z	Epic 21	ci_green_verified	DW-1421_r2 c573a86d0 runs=43914431337,43914431294 planner_verify=PASS
 2026-11-16T18:36:07Z	Epic 21	merge_enqueued	DW-1421_r2 head=c573a86d0
+2026-11-16T18:58:11Z	Epic 21	merged	DW-1421_r2 merge=dddd24dfc
