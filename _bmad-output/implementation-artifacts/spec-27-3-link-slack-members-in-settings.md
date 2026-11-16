@@ -2,7 +2,7 @@
 title: 'Story 27.3: Link Slack members in Settings'
 type: 'feature'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '7d5735b40e7b17dcad8269aa17ddbf9e8cc7f7b7'
 baseline_commit: '7d5735b40e7b17dcad8269aa17ddbf9e8cc7f7b7'
 review_loop_iteration: 0
@@ -210,7 +210,17 @@ Code review 2026-11-16 (stage code-review, 4 layers: blind-hunter, edge-case-hun
 - `low` Auditor 4: some `SettingsOps` results carry existing message texts -- constant texts with no name or id; the route renders its own.
 - `low` Auditor 6: the AD-17 sentence sits before the earlier tags -- the words match gate (f).
 
+**Rework iteration 1 (lead re-open, 2026-11-16; Contest Planner rulings in prompts/story-273-rulings-20261116.md, last sections; these are the ONLY items of this iteration):**
+- [ ] [CI] ci 43974389224 job `checks`: `docker/tests/test-readme.sh` rule `guide` fails ("the H2 sections of GUIDE.md are not exactly ..." and "the More paragraph does not link the guide's section 'Slack'") — https://github.com/jbrandtmse/OcuTalon/actions/runs/43974389224 — fix: in `README.md`'s "More" paragraph insert, VERBATIM (Planner-approved), `, [Slack on your own install](https://github.com/jbrandtmse/OcuTalon/blob/main/GUIDE.md#slack)` between the "Gmail and Microsoft 365" link and the "Stop, start and update" link; in `docker/tests/test-readme.sh` add `Slack` to `GUIDE_H2` after `Gmail and Microsoft 365` and the same link (with `$GUIDE_URL`) to the `MORE` pin; keep `GUIDE.md`'s `## Slack`. `bash docker/tests/test-readme.sh` must pass.
+- [ ] [Planner] Viewer blocker — ONE shared predicate for "may this IRIS user chat", mirroring web chat's EXACT rule: today `Web/Api.cls` (L66-69, L360-361) answers 401 for a user holding neither `OcuTalonUser` nor `OcuTalonViewer` and 403 `read_only` for every non-GET of a viewer-only user (`OcuTalon.Web.Public.Shell.ViewerOnly(roles)`). FIRST confirm from code whether an `OcuTalonAdmin` WITHOUT `OcuTalonUser` can chat on the web, record the finding under Design Notes, and define the predicate to match web chat exactly (e.g. `OcuTalon.Web.Public.Shell.MayChat(roles)` beside `ViewerOnly`, built so Telegram and email can call it later with a roles string); make `Web/Api.cls`'s read_only/sign-out decision use it too ONLY if that is a behaviour-neutral refactor (else leave Web/Api alone and state why). Easy to call from other channels (a follow-up story adds Telegram and email).
+- [ ] [Planner] Task 0 (hard gate): on a lane-B throwaway, prove `$SYSTEM.Security.GetUserRecursedRoleSet(<the linked session's IrisUser>, .roles)` works in the hook process under `OcuTalonWebhook`'s EXISTING grants (as `Bridge/Approval.cls:412` does in production). If any new grant, role or resource would be needed: STOP, HALT `blocked` with `intent gap: R10 new grant needed`.
+- [ ] [Planner] Use-time check in `SlackIn`: before a linked member's direct message becomes a turn, read the linked session's IRIS user's roles and apply the predicate; a sender who does not qualify leaves one content-free `Ignored` with new reason `not_user` (no Turn, no reply, no text, no member/team id or user name in any record or log; an error reading roles counts as not qualifying).
+- [ ] [Planner] Link-time refusal: `ListSlackLinks`' linkable-user list holds only users who qualify; `LinkSlackMember` refuses any other user with the existing `settings.slackUnknownUser` text (reason `user_unknown`). No new public text.
+- [ ] [Planner] Pins, in the unit classes AND in `live:slack-hook`: (1) a linked viewer-only user's DM creates no Turn and leaves one `Ignored` (`not_user`); (2) linking a viewer-only user is refused (`slackUnknownUser`); (3) a user whose qualifying role is removed after linking: the next DM is ignored (`not_user`); (4) an ADMIN who also holds `OcuTalonUser` still gets turns (the check never over-refuses). Each with a demonstrated mutation (Rule 19).
+
 ## Spec Change Log
+
+- 2026-11-16 ~23:45Z, lead: rework iteration 1 opened (trigger ci + Planner viewer blocker ruling): items listed under Tasks & Acceptance › Rework iteration 1. Status `done` -> `in-progress`. Scope is ONLY those items.
 
 - 2026-11-16 ~20:40Z, lead: Contest Planner gate rulings (prompts/story-273-rulings-20261116.md, outside the repo) applied. APPROVED: the two new texts (`settings.slackNoWorkspace`, `settings.slackUnknownUser`) and the GUIDE `## Slack` heading verbatim; all veto items; the linking design; Task 0's grant check (STOP if a new grant would be needed); proceed NOW on the contended `SettingsOps` Carry lines and the chat-view / ux-strings inserts (whichever branch lands second re-runs its web tests after the merge); the spine edits exactly as in Design Notes › Planner gate items (f), including DW-1442's AD-13/14/17/22 and AD-33 fixes and the linking additions. Two additions: (1) Design Notes records the one-workspace-per-install limit; (2) a new acceptance criterion pins that an event from a second team creates or changes no link. At PART READY the lead reports the catalog key count (161 + R12's + 2) with the list of added keys.
 
