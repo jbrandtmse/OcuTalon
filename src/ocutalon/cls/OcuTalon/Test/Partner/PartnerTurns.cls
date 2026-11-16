@@ -24,7 +24,7 @@ Include Ensemble
 ///   - TestSettingsContactsSentOnce (AC3, AC5; fresh only: a mailbox is connected through Test.Fix.Email and the CI mock's SMTP stub): the same request is approved: the stub holds exactly one email from the mailbox to the two addresses with the notice byte for byte,
 ///     there is one Delivery row, the session reads fix.emailSent and the same scan finds the same globals;
 ///   - TestSecondSessionAsks (AC8, AC11): a session that has no incident of its own is told that there is no open incident to warn about, and nothing is drafted or raised for the first session's incident.
-Class OcuTalon.Test.Fix.PartnerTurns Extends OcuTalon.Test.Watch.Case
+Class OcuTalon.Test.Partner.PartnerTurns Extends OcuTalon.Test.Watch.Case
 {
 
 Parameter MOCK = "OcuTalon.Test.Contract.Mock";

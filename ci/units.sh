@@ -17,7 +17,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs Mcp" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs Mcp Partner" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
@@ -133,6 +133,11 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # minutes and the then 40-minute timeout, and possibly above Story 0.20's 1,687 s a group (inference until a run measures it). Locally, on a loaded ARM developer machine, the unit did 521 s of work (a first start of 276 s, restart 1 26 s to
 # ready, the first tick 62 s after ready, restart 2 44 s), so the CI figure is the one to confirm. The unit reads no web bundle, but it is not added to NO_WEB_BUNDLE_UNITS: shards holds units that read
 # it, so listing it would change no skip (list it if it ever moves to a group whose other units read no bundle). No group is added, renamed or given a longer deadline.
+# The CI rebalance of 2026-11-16 (the Contest Planner's ruling on shards-11, tests only, no limit raised): shards-11 took 31 min 18 s against its 32 minutes on run 43794653657 (shard:lane-a@Fix
+# 1,377 s with the stack's start, live:cards 459 s; the largest classes of the area were Waits 122 s and PartnerTurns 158 s, and PartnerMail only 1 s). The partner classes of Story 23.13, PartnerTurns
+# (158 s) and PartnerMail (1 s) moved from the area Fix, and the new PartnerApprove (DW-1415, 31 s on a warm stack) joined them, in the new lane-a area Partner (OcuTalon.Test.Partner.*), which runs with the area Docs in one piece,
+# shard:lane-a@Docs,Partner, in shards-7: one stack, so the group gains only the classes' seconds (shards-7 took 23.5 min on that run, shards-3 21.4 min, the others 26.8 to 31.9). Planned: shards-11
+# about 28.7 min (31.3 minus 158 s and PartnerMail's 1 s), shards-7 about 26.7 min (23.5 plus 190 s) (inference until a run measures both). No group is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo-path" ;;
@@ -146,7 +151,7 @@ group_units() {
     shards-4) echo "live:sign-in-2 live:memory-offline" ;;
     shards-5) echo "live:sign-in-3 live:security-overview live:audit" ;;
     shards-6) echo "live:documents shard:lane-b@rest live:bundle-folder" ;;
-    shards-7) echo "shard:lane-a@Docs live:answers" ;;
+    shards-7) echo "shard:lane-a@Docs,Partner live:answers" ;;
     shards-8) echo "shard:lane-a@Watch shard:lane-a@Agent" ;;
     shards-9) echo "shard:lane-a@Bridge live:online-session" ;;
     shards-10) echo "live:sign-in live:reminder-restart" ;;
