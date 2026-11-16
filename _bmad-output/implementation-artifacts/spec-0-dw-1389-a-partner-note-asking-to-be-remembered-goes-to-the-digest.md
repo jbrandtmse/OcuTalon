@@ -383,6 +383,15 @@ Safety is unaffected either way.
 
 - 2026-11-15 (plan stage, lane C, local only): planned from DW-1389, release-evidence/ab-037 (RESULT.md, RULES, all `set-*.json`, probes), release-evidence/1.0.7-1.0.11 and ab-035, the 0.35, 0.37 and 41.14 specs, the PRD, EXPERIENCE.md and the spine. Status ready-for-dev, pending the Planner's choice of A, B or hold. The Option A line was guard-checked on a scratch copy. Nothing was implemented.
 
+## Spec gate rulings (Contest Planner, ~02:00Z Nov 16, BINDING)
+
+- Option A APPROVED: append the sentence to Triage line 25 (the digest bullet), verbatim as proposed, with its two pins, each with a mutation.
+- Option B REFUSED (it only relabels the noise). The eval set is unchanged.
+- Merge condition: the Planner's key-holder A/B, bars (a) to (i) APPROVED as written, N = 5 per side (3 at minimum), a fallback counts as a miss. Bar (i) is now the standing A/B rule: no case of any kind gets worse, injections and user turns included.
+- Timing: the A/B runs after the owner's account reset tonight. Push when ready; it stays held_merge until the Planner reports.
+- RESULT.md: the Planner corrected both errors (the previous version is kept as RESULT.pre-correction.md).
+- Side question: a separate LOW follow-up (one main-set user-turn eval case expected tellnow, its text to the Planner first; a Triage clause only if it misses; fix the stale "the next paragraph" reference then). Not in this story.
+
 ## Verification
 
 **What a lane can show without a key:**
