@@ -9277,14 +9277,11 @@ So that recall stays relevant as memory grows (step 7, Could).
 **When** recall ranks its results
 **Then** they rank below equally matching memories used more recently, and still come back when nothing else matches; a forgotten memory never comes back (FR-43, FR-41)
 
-**Given** the nightly consolidation task
-**When** it runs
-**Then** it enters through the production, finds duplicate memories within each owner by vector similarity and keyword match above a set threshold, keeps one memory per duplicate set carrying every source of the set, marks it as from untrusted content if any merged memory was, records each merge (the kept memory, the merged ones with their texts and sources, and the time) where Visual Trace shows it, and calls no model (FR-43, AD-1, AD-10, NFR-20)
-**And** memories of different sessions are never merged (AD-4)
+- The nightly merge of duplicate memories moved to Story 28.4. [SPLIT 2026-11-16 to Story 28.4, under the Contest Planner's pre-approved split (story-282 gate rulings, R-28.2-3): Task 0 found no cosine and keyword threshold with zero false merges and a useful true-merge rate (3 of 30 true, 0 of 42 false; evidence/28-2-task0-duplicate-thresholds.md)]
 
 **Given** automated tests in `OcuTalon.Test.Memory`
-**When** duplicate and distinct memories are stored and the task runs twice
-**Then** only the duplicates merge, every source is kept, the second run merges nothing new, and a faded memory ranks below a recent one with the same match (FR-43)
+**When** recent and faded memories with the same match are stored
+**Then** a faded memory ranks below a recent one with the same match (FR-43) [AMENDED 2026-11-16: the merge clauses ("only the duplicates merge, every source is kept, the second run merges nothing new") moved to Story 28.4 with the merge; it read "**When** duplicate and distinct memories are stored and the task runs twice **Then** only the duplicates merge, every source is kept, the second run merges nothing new, and a faded memory ranks below a recent one with the same match"]
 
 ### Story 28.3: Offer OcuTalon's read-only tools to MCP clients
 
@@ -9318,6 +9315,27 @@ So that I can check status and history from my own tools without opening a new w
 **Then** the results match, and the security overview lists the service's tools from its specification and the `OcuTalonMCPClient` role (FR-51, FR-61)
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 7 stories that were built have merged **When** step 7's release is prepared **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)"]
+
+### Story 28.4: Merge duplicate memories nightly
+
+As a user,
+I want duplicate memories merged without losing where they came from,
+So that recall stays relevant as memory grows (step 7, Could).
+
+[SPLIT 2026-11-16 to Story 28.4, under the Contest Planner's pre-approved split (story-282 gate rulings, R-28.2-3): Task 0 found no cosine and keyword threshold with zero false merges and a useful true-merge rate (3 of 30 true, 0 of 42 false; evidence/28-2-task0-duplicate-thresholds.md)] The merge rule must first meet R-28.2-3 (zero merges on a labelled set of distinct-but-similar pairs, with a useful true-merge rate); the Contest Planner decides the rule at this story's spec gate (Task 0's proposal: merge only when the in-order, lower-cased word lists match, ignoring punctuation: 9 of 30 true, 0 of 42 false).
+
+**Acceptance Criteria:**
+
+**Given** the nightly consolidation task
+**When** it runs
+**Then** it enters through the production, finds duplicate memories within each owner by the rule the Contest Planner approved under R-28.2-3, keeps one memory per duplicate set carrying every source of the set, marks it as from untrusted content if any merged memory was, records each merge (the kept memory, the merged ones with their texts and sources, and the time) in an owned merge record, with Visual Trace showing refs, sources, counts and time only, and calls no model (FR-43, AD-1, AD-10, NFR-20)
+**And** memories of different sessions are never merged (AD-4)
+**And** pinned memories are never merged, a set holding a `told` memory keeps a `told` one, and every merged memory's text and source are kept in the merge record (R-28.2-1, R-28.2-2)
+**And** the user and session data purge (sign-out, the eval drop, forgetting the kept memory) deletes its merge records
+
+**Given** automated tests in `OcuTalon.Test.Memory`
+**When** duplicate and distinct memories are stored and the task runs twice
+**Then** only the duplicates merge, every source is kept, the second run merges nothing new, no distinct pair of Story 28.2's Task 0 set merges, and the task is off on the online demo (FR-43)
 
 ## Epic 29: The online demo's platform side
 
