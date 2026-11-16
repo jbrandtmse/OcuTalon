@@ -4,71 +4,101 @@
 
 ## Goal
 
-Make Slack a working OcuTalon channel without socket mode. Slack's Events API posts to a Slack route under the existing `/ocutalon/hook` application. A direct message from a Slack member that an admin linked to an OcuTalon user becomes a normal user turn: it gets an attention decision, shows in the web chat and is traced end to end. The reply goes back as a Slack message through `chat.postMessage`. Socket mode is ruled out: the platform's WebSocket client fails right after opening. Per the owner (2026-11-16), Epics 27 and 28 start now, Epic 27 first, in Lane B's files. Each story's spec gate goes to the Contest Planner before it is built. Slack stays off on the online demo. Until the 1.0.12 merge-back, the stories build and run CI on their own branch. Story 27.1 was split on 2026-11-16: 27.1 receives events and reads the stored member link, 27.3 writes the link and ships the Settings texts and UI, 27.2 is the reply path. Order: 27.1, 27.3, 27.2.
+Make Slack a working OcuTalon channel without socket mode, because the platform's WebSocket client fails right after opening. Slack's Events API posts to a Slack route under the existing `/ocutalon/hook` application. A direct message from a linked Slack member becomes a normal user turn: it gets an attention decision, shows in the web chat and is traced end to end. The reply goes back through `chat.postMessage`. Epics 27 and 28 start now (owner, 2026-11-16), Epic 27 first, in Lane B's files. Each story's spec gate goes to the Contest Planner before it is built. Slack stays off on the online demo. Until the 1.0.12 merge-back, stories build and run CI on `OCT-epic27`. Story 27.1 is delivered: the route, `SlackIn` and the stored member link. Next is 27.3 (linking and the Settings texts), then 27.2 (replies).
 
 ## Stories
 
-- Story 27.1: Receive Slack events by webhook
+- Story 27.1: Receive Slack events by webhook (done)
 - Story 27.3: Link Slack members in Settings
 - Story 27.2: Reply as Slack messages, with no socket mode
 
 ## Requirements & Constraints
 
-- **Inbound security (27.1):**
-  - Verify Slack's signature over the timestamp and raw body in constant time; a missing or wrong signature or stale timestamp gets 401, recorded at a capped rate.
-  - Answer the URL-verification challenge. Acknowledge each valid event within 3 seconds and decide afterwards. A retried event is processed once, keyed by its event id.
-- **What becomes a turn (27.1):** only a direct message to the bot from a Slack member with a stored link to an OcuTalon user. It becomes a turn in that user's session with provenance `user` and channel `slack`, joined to the session's daily thread. 27.1 defines and reads the stored link; it adds no way to write one.
-- **Everything else is trace-only.** Another member, a channel message or an unhandled event type is recorded in Visual Trace only: no decision, no reply, nothing about any session.
-- **Off switch:** with no Slack token set, or on the online demo, Slack is off, nothing Slack-related runs and every other feature still works.
-- **Secrets:** the signing secret and the bot token come only from environment variables, listed by name in `.env.example`. Neither ever appears in IRIS, a setting, a log, a message, an agent step or an audit entry, and `SlackOut` never logs the token.
-- **Linking (27.3):** scope named at the split:
-  - admin-only link and unlink through `SettingsOps`, each with an audit entry, behind an admin REST route;
-  - links kept and purged with their session (AD-27's `Data.Purge`);
-  - Settings > Channels shows Slack's state (on or off) and the linking, as a lazy chunk;
-  - the catalog keys, and the "via Slack" marker on web-chat turns.
+- **Binding Planner rulings from 27.1 that later stories must keep:**
+  - R1: only a plain direct message to the bot from a linked member becomes a turn: `channel_type` `im`, no `subtype`, no `bot_id`. Bot messages, including our own replies once 27.2 lands, and edits each leave one content-free `Ignored` record.
+  - R2: a link matches only when both `team_id` and the member id match.
+  - R3: the signature is checked before `url_verification`.
+  - R4: the route answers within 3 s and a retry is deduped by event id.
+  - R5: a rejected request stores nothing from its body. R6: nothing typed in Slack can answer an approval request.
+  - R7: a Slack turn's session-start notes read `(slack)`.
+  - R8: member ids and team ids are personal identifiers. No trace, log, audit entry or message carries them, and links go with their session.
+  - R9: dummy `SLACK_*` values exist only in a unit's own throwaway, through a `$tmp` compose override. `ci/compose.ci.yml` stays untouched, and a default throwaway answers 404.
+  - R10: no new role, resource or grant.
+  - R11 and R12: the approved veto items, AD amendments and public texts.
+- **Off switch:** Slack is on only when both `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` are non-empty and the online-demo flag is off. `OcuTalon.Channel.Slack.In.On(demo = "")` is the single source of that answer, read at call time. When Slack is off, the route answers 404 like an unknown path. Settings must show Slack's state from `On()`, never from its own check.
+- **Secrets:** environment only, read with `$SYSTEM.Util.GetEnviron` at use. They are never stored, put in a setting, logged, audited, traced or shown. `.env.example` already lists both names, empty. Slack has no `Data.Setting` key, and none may be added.
+- **Linking (27.3):**
+  - Only admins can link and unlink, through `SettingsOps` commands. Each writes an audit entry, behind an admin REST route.
+  - Settings > Channels shows Slack's state and the linking, as a lazy chunk.
+  - Ships the catalog keys and the "via Slack" marker.
+  - Decides whether a Slack-linked session is kept by the purge's `Keeps`.
+  - Carries the spine edit on how an admin links a member.
 - **Outbound (27.2):**
-  - A reply to a Slack turn goes to Slack and to the web chat. It is the same plain text Telegram gets, and it records a `Delivery` row.
-  - Notifications and approval requests never go to Slack. They stay on the web chat, the simulated phone and the paired Telegram chat.
-  - When Slack rate-limits a post, wait the time Slack gives before retrying. Any failure is recorded in Visual Trace with a plain reason.
-- **Texts:** 27.1 ships no user-facing text; it proposes the step 7 texts (Slack's state and member linking in Settings, and the setup steps) at its spec gate. 27.3 proposes them to the author as additions to `EXPERIENCE.md` (Message Catalog and Later Steps), puts their keys in `OcuTalon.Msg.Catalog.Core` and ships them. No story ships a text the author hasn't accepted.
-- **Tests:**
-  - IRIS tests in `OcuTalon.Test.Channel` post signed fixtures (valid, unsigned, stale, retried, unlinked); only the valid linked direct message becomes a turn, exactly once.
-  - Slack API tests run against a Slack mock in CI's mock service, with scenarios under `ci/mock/scenarios/B/`, never against real Slack. CI must show that no Slack code opens a WebSocket or uses socket mode.
-- **README (27.2):** a plain-English developer section on creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member. It claims nothing the release doesn't ship, which is why 27.3 comes first.
+  - A reply to a Slack turn goes to Slack and to the web chat, as the same plain text Telegram gets, and records a `Delivery` row.
+  - Notifications and approval requests never go to Slack.
+  - On a rate limit, wait the time Slack gives before retrying. Failures go to Visual Trace with a plain reason, and the token is never logged.
+  - No WebSocket or socket mode, which CI proves. Tests run against a Slack mock under `ci/mock/scenarios/B/`.
+  - 27.2 adds `chat:write` to setup step 1 in the same commit as the reply code, and raises `Msg/Catalog.cls` `CHANNELS` to include `slack` at its gate. Today the catalog refuses to render for a `slack` channel.
+  - README: a plain-English developer section. It claims nothing the release doesn't ship.
+- **Approved texts (R12), shipped by 27.3** with keys in `OcuTalon.Msg.Catalog.Core` and added to `EXPERIENCE.md` (Message Catalog, Later Steps). Copy them verbatim from 27.1's spec under "Planner gate items" (a):
+  - Settings keys: `settings.slackHeading`, `slackNotSetUp`, `slackHowTo`, `slackOn`, `slackAddress` (`{address}`), `slackOffOnDemo`, `slackMembersHeading`, `slackMembersHelp`, `slackMemberId`, `slackMemberUser`, `slackLink`, `slackUnlink`, `slackNoMembers`, `slackBadMemberId`, `slackMemberTaken`, `slackUserTaken` (`{user}`), `slackLinked`, `slackUnlinked`.
+  - Chat marker: `chat.viaSlack`.
+  - Four setup steps, reordered by the Planner so the secrets (step 2) come before the request-URL check (step 3); step 4 is linking in Settings › Channels › Slack.
+  - No story ships a text the author hasn't accepted.
+- **Ledger items:**
+  - DW-1442 (escalated) goes into 27.3's spine gate. The Rule wording of AD-13 (the hook bullet names only `WebhookIn`), AD-14 (every inbound message becomes an Item), AD-17 (the rejection audit target is a webhook Ref) and AD-22 (eval-session Turn rows) contradicts 27.1's behaviour. Rewording an AD Rule is a Planner veto item.
+  - Still open with the Planner: DW-1440 (the time window for the R7 A/B runs) and DW-1441 (ratify that a form body gets 400 before the signature check).
+- **Residual from 27.1:** Slack's `&amp;`/`&lt;`/`&gt;` escapes and `<@U…>` mention markup reach the turn text unchanged. Story 27.2 or 27.3 may decide whether to decode them.
 
 ## Technical Decisions
 
-- **Spine updates in each story's own change** (same-change rule; `ARCHITECTURE-SPINE.md` is large, so read it by section). Today the spine only calls Slack "one more channel pair"; the `Channel` enumeration already holds `slack`.
-  - 27.1 adds `SlackIn` and `SlackOut` to the production-item table (Lane B), the Slack route under `/ocutalon/hook`, the Slack setting keys, the Slack API endpoint override for CI, and the stored member link that `SlackIn` reads.
-  - 27.3 adds how an admin links a Slack member to an OcuTalon user.
-- **Channel pattern:**
-  - The pair is an inbound service plus an outbound operation, named `<Channel>In` and `<Channel>Out`. Every inbound message becomes an `OcuTalon.Msg.Item`. User-written text has provenance `user`; anything else is `untrusted`. Only business operations send outbound traffic.
-  - Telegram (`OcuTalon.Channel.Telegram.In`, `.Out`, `.Api`, Lane A's) is the sibling to copy, not edit. It builds calls with `%Net.HttpRequest`, keeps the API base URL as an override, records state through `StatusMark` and keeps chat ids out of logs and audit.
-- **Hook application** (Story 35.3; dispatch class `OcuTalon.Web.Hook`):
-  - Unauthenticated, no session, minimal `OcuTalonWebhook` role; not created on an online-demo install. Its one route is `POST /<ref>` (else 404); the Slack route must not collide with it.
-  - A valid event goes through an adapterless service (`CreateBusinessService` and `ProcessInput` in the request's process), which sends asynchronously and returns before any decision. Slack's 3-second acknowledgement follows the same shape.
-  - `Data.Webhook.HashSecret`/`Matches` are named as available to the Slack route.
+- **Same-change spine rule.** `ARCHITECTURE-SPINE.md` is about 1,900 lines, so read it by line range. Tag each AD Rule amendment, run `memlog.py append` and `lint_spine.py`. Lint's 13 low `placeholder` findings were already there before 27.1; add none. 27.1 has already written:
+  - the production-item row `SlackIn`, plus `SlackOut` for 27.2;
+  - `SlackLink` in the Tables paragraph and the ER diagram (`Session ||--o| SlackLink`);
+  - the REST row `POST /ocutalon/hook/slack/events`;
+  - AD-19's Slack variables and `OCUTALON_SLACK_API_BASE`, read only by `SlackOut`;
+  - the amendments to AD-1 (`DraftTransform`), AD-13 (the second route and its check order), AD-24 (`OcuTalonWebhook` serves `SlackIn` with no new grant) and AD-26 (`Ignored` gets a trace session of its own), plus AD-29 and Deferred (step 7 runs now).
+- **`OcuTalon.Data.SlackLink`** (Lane B, `^OcuTalonP.SlackLink`):
+  - Fields: `Ref`, `TeamId`, `MemberId` (each `EXACT`, at most 32 letters and digits), `SessionRef` and `CreatedAt`.
+  - Indexes are unique on `(TeamId, MemberId)` and on `SessionRef`: one member per session and one session per member.
+  - `ForeignKey SessionFK` cascades on `Data.Session(RefIndex)`. The purge's `%DeleteId`, `DropEval` and SQL deletes all remove the link, with no `Purge.cls` code. A link to a missing session cannot be saved.
+  - `SessionFor(teamId, memberId)` returns "" unless both ids match and the session row exists.
+  - `Link(teamId, memberId, sessionRef, .sc)` returns the link's Ref. `Unlink(sessionRef)` succeeds whether or not a link exists. Neither has a product caller yet: 27.3's `SettingsOps` command is the first.
+  - `Link` returns one combined error for "member or session already linked". Its status text never holds an id.
+- **Open points for 27.3's plan:**
+  - `Link` targets a session, but the UI says "OcuTalon user". `Data.Session` has `IrisUser`, which is not unique. The plan must say which session a user's link goes to.
+  - The UI asks only for a member ID, but `Link` needs a `team_id`. The plan must say where that comes from without an outward call.
+  - Telling `slackMemberTaken` from `slackUserTaken` needs a check before `Link`, or a change to `Link`.
 - **Commands (AD-1):**
-  - 27.1 creates the verb `OcuTalon.Msg.Command.DraftTransform`, carrying the incident's `IncidentRef`, under the name Lane A's Story 28.1 fixes. `CommandsIn` routes it to Lane A's `IncidentManager`, from origin `tool` only and only for one of the session's own incidents, so AD-1's tool-origin list gains it. It is submitted only through `Core.Commands.Submit`.
-  - 27.3's link and unlink follow the admin-settings precedent (`CreateWebhook`): verbs from origin `web_admin` only, routed to `SettingsOps`, no tool verb. A Slack sender is never an origin for governance commands.
-- **Admin reads and personal data (AD-24):** the web process never reads product storage directly (CI rule `web-global-reads`). A read beyond the caller's own rows, such as the list of OcuTalon users to link, goes through a read verb to `SettingsOps`, and a list that names IRIS users comes back through `SecretHandoff`, never in a traced message. Admin routes sit under `/api/v1/settings/channels/`, forwarded from `Web.Api`; Settings sections ship as lazy chunks (Settings > Roles is the precedent).
-- **Outbound routing (AD-14, AD-32):** `Conversation` sends the reply (`OcuTalon.Msg.Outbound` with `OriginChannel`) to `OcuTalon.Core.Rule.Notify`, which routes on `Kind` and the session's channels to the turn's channel plus the web chat. Producers never render text. `SlackOut` records delivery through `OcuTalon.Data.Delivery.Record(ownerRef, channel, channelMessageId, approvalRef)`.
-- **Secrets and config (AD-19):** tokens come only from the environment (`@{env:VAR}` or `$SYSTEM.Util.GetEnviron`). Endpoint overrides are fixed optional environment variables set only by CI and the demo deployment (today `OCUTALON_MODEL_BASE_URL`, `OCUTALON_EXTRA_CA_FILE`, `OCUTALON_TELEGRAM_API_BASE`); Slack's joins them.
-- **Audit (AD-17):** `OcuTalon.Bridge.Audit` is the only writer. Capped rejections: one `Action` entry per 60 s per target, with no secret, header, body or caller address.
-- **Visual Trace (AD-26):** a turn joins the session's daily thread through `Core.Trace.Join`, called only by channel services at a turn's start; the service sets `%SessionId` and `%SuperSession` in `OnProcessInput` before its first send. An ignored event still needs its own trace record.
-- **CI mock (AD-22):** Node standard library in `ci/compose.ci.yml`, reached through the endpoint override. Telegram's side (queued replies per method, recorded calls, token logged by length only) is the model for Slack's. `OcuTalon.Test.Channel` runs in the `lane-a` shard.
-- **Ownership (AD-29, AD-33):** Slack's items, tables and texts are Lane B's; new items or tables go into the ownership tables in the same change.
+  - 27.3's link and unlink follow the `CreateWebhook` precedent: verbs from origin `web_admin` only, routed to `SettingsOps` (`Core/SettingsOps.cls`), each with a Settings audit entry, and no tool verb. A Slack sender is never an origin for any governance command.
+- **Admin reads and personal data (AD-24):**
+  - The web process never reads product storage (CI rule `web-global-reads`). Listing links or users goes through a read verb to `SettingsOps`. A list that names IRIS users comes back through `SecretHandoff`, never in a traced message.
+  - Routes sit under `/api/v1/settings/channels/`, forwarded from `Web/Api.cls`. `Web/HookSettings.cls` and the webhooks routes are the precedent.
+- **Inbound path (shipped):** `SlackIn` (adapterless, PoolSize 0) either turns an event into a `slack`/`user` Item for `Conversation` or sends `Intake` an `Ignored` record (kind, reason and event id only), which `Intake` drops silently.
+- **Outbound (27.2):**
+  - `Conversation` sends the reply (`Msg.Outbound` with `OriginChannel`) to `Core.Rule.Notify`, which routes it to the turn's channel plus the web chat.
+  - `SlackOut` builds calls with `%Net.HttpRequest`, uses `OCUTALON_SLACK_API_BASE` as its endpoint override, and records each send through `Data.Delivery.Record`.
+  - Copy Telegram's classes (Lane A); never edit or extract from them (U-177).
+  - The CI mock is modelled on Telegram's in `ci/compose.ci.yml` (Node standard library, token logged by length only).
+- **Ownership (AD-29, AD-33):** Slack's items, tables and texts are Lane B's. New items or tables go into the ownership tables in the same change. Contended files take only approved appends.
 
 ## UX & Interaction Patterns
 
-- **Web chat:** every turn shows there, and turns from another channel carry a marker ("via Telegram" today). 27.3 adds "via Slack".
-- **Settings:** admins only; non-admins don't see the link. Settings > Channels already groups Email and Webhooks; Slack's group, state line and linking texts are not yet specified, so propose them.
-- **Plain text only:** no Markdown; Slack replies use the text Telegram gets.
+- **Settings > Channels** already groups Email and Webhooks (`web/src/app/settings/channels-section.ts`, `webhooks-section.ts`). Slack's group is admin-only and lazily loaded:
+  - with Slack off, the not-set-up line and "How to set it up";
+  - on the demo, the off-on-demo line;
+  - with Slack on, the state line and the address to subscribe to;
+  - the linked-members list with link and unlink.
+- **Web chat:** turns from another channel carry a marker. "via Telegram" lives in `CHAT_TEXTS` in `web/src/app/chat/chat-view.ts`, checked by `web/scripts/ux-strings.test.mjs`. "via Slack" joins it (`web/src/app/chat/**` is contended).
+- **Plain text only:** no Markdown.
 
 ## Cross-Story Dependencies
 
-- **27.1 → 27.3 → 27.2:** 27.3 needs 27.1's route, `SlackIn` and the stored link; 27.2 needs the channel, settings keys and spine rows from 27.1, and its README's linking section describes 27.3's shipped behaviour. 27.1 ships before any admin writer exists, so its tests must set up links themselves.
-- **Epic 35 (Lane B, merged):** provides the `/ocutalon/hook` application, `Web.Hook`, `Web.HookSettings`, `Data.Webhook` and `Core.SecretHandoff`.
-- **Epic 28:** Story 28.1 (Lane A) fixes the `DraftTransform` name and waits on Epic 27 for its chat path. 28.1's spine update and 27.1's verb must agree on name, payload, origin and routing.
-- **Shared Notify:** 27.2 edits `Core.Rule.Notify`, contended with Story 24.3's `page` routing, which is held in another lane; serialize the two.
-- **Demo host:** its proxy blocks the webhook path; the Contest Planner's demo-host checks cover that.
+- **27.1 → 27.3 → 27.2:**
+  - 27.3 calls `SlackLink.Link`/`Unlink` and reads `SlackIn.On()`.
+  - 27.2's README linking section describes what 27.3 ships.
+  - 27.2's `SlackOut` replies to `SlackIn`'s turns. R1's `bot_id` guard already ignores its echoes.
+- **R7 A/B gate:** 27.1 is committed on `OCT-epic27`. Its merge into the feature branch waits on the Planner's A/B (`eval/run.sh --release-candidate --notes telegram|slack`, N = 5). Later stories build on the epic branch meanwhile.
+- **Epic 28:** Story 28.1 (Lane A) writes the handler for 27.1's `DraftTransform` verb, which `IncidentManager` answers `failed` until then.
+- **Shared Notify:** 27.2 edits `Core.Rule.Notify`, contended with Story 24.3's `page` routing. Do the two one after the other.
+- **Demo host:** its proxy blocks the webhook path. The Contest Planner's demo-host checks cover that.
