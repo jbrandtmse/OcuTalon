@@ -315,7 +315,7 @@ describe('the incident card', () => {
     assert.match(incident.code, /incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.approvals\(\), new Set\(this\.requests\(\)\.map\(\(request\) => request\.ref \?\? ''\)\)\)/, 'the compact card reads the stored approvals, which tell its result band whether the notice was simulated (Story 23.13)');
     assert.match(incident.code, /result: \(request, itemNoun, production, change, simulated\) => [^\n]*\n\s*approvals,\n\s*render:/, 'and the context carries them to the incident view');
     assert.match(incident.code, /production = computed\(\(\) => productionOf\(this\.incident\(\)\)\);/);
-    assert.match(incident.code, /requests = computed\(\(\) => \{\s*const asked = requestsOf\(this\.incident\(\), this\.approvals\(\)\);\s*return stateOf\(this\.incident\(\)\.state\)\?\.chip === 'closed' \? asked\.filter\(drawnOnClosed\) : asked;\s*\}\);/);
+    assert.match(incident.code, /requests = computed\(\(\) => \{\s*const asked = requestsOf\(this\.incident\(\), this\.approvals\(\)\);\s*return this\.closed\(\) \? asked\.filter\(drawnOnClosed\) : asked;\s*\}\);/);
     assert.ok(incidentTemplate.indexOf('{{ view().fixingLine }}') < incidentTemplate.indexOf('<app-approval-request-card'), 'the request cards follow the fixing line');
     assert.ok(incidentTemplate.indexOf('<app-approval-request-card') < incidentTemplate.indexOf('class="footer"'), 'and come before the footer');
   });
