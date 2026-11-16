@@ -1048,3 +1048,5 @@
 2026-11-16T14:07:45Z	DW-1389-followup	dev_complete	build_sha=cf7b345f0 case_hash=7df8056a(verbatim) splice=fresh_ok,spliced,entries_ok,column_identical userTurns=0/7 fresh_run_incidents=0/13(23.3_drift_noted) mutations=11 review=15(high0,med0,low11(1_deferred),false2,maybe2) warm=Cases,Report eval-set=pass wrapper=all
 2026-11-16T14:07:45Z	DW-1389-followup	stage_spawned	stage=qa+code-review spawn_at=2026-11-16T14:07:45Z model=opus effort=high agent_name=userturn-qa-cr-1 cycle_iteration=1
 2026-11-16T14:31:11Z	DW-1389-followup	qa_cr_complete	qa_commit=39080fbdc(hash_pin+mutation) cr=19(high0,med0,low1_patched_message,DW-1434_wontfix-accepted(owner_0-27),17_rejected) runs=Cases_warm,test-eval-set_25_rules,bd,class-rules wrapper=all
+2026-11-16T14:42:48Z	DW-1389-followup	integrated	feature=c9c7e4407 merge=748400a33; then feature=b1aec85e9(records_only) merge=68e3bc008
+2026-11-16T14:42:48Z	DW-1389-followup	fresh_check	env=748400a33(src_identical_at_push) shard_lane-a@Eval=fwd_23/23(347s),reverse_23/23(308s) wrapper=lanec.sh torn_down
