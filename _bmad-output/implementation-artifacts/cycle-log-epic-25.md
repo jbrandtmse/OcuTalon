@@ -255,3 +255,5 @@
 2026-11-15T23:54:26Z	Story 25.8	fresh_check	changed_specs_on_fresh_stacks:U16,H15,V4,V5,files.spec(implement_e25s8v,review_e25s8r);node_announce-queue/file-reply-view/viewer-sources_in_npm_test result=pass
 2026-11-16T00:05:09Z	Story 25.8	integrated	onto=2129230b3 conflicts=sprint-status_last_updated(scalar,later_kept) overlap=announce-focus-sources.test.mjs(24.2,auto),spine,epics,deferred-work local=build_894.83kB,node_2165,lint,test-readme,boundaries_pass smoke_after=sign-in-2_7/8(partner-contacts+on-call+roles,28)
 2026-11-16T00:50:39Z	Story 25.8	ci_green	head=999481ae9 runs=43778278255,43778278305 attempt=1 part_ready=sent
+2026-11-16T00:53:59Z	Epic 25	burndown_story_chartered	story=25.9 key=25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi entries=2(DW-1392,DW-1395) branch=OCT-epic25-s259(from_feature_044b6c2e1+bba5df894) worktree=.worktrees/epic-25-s259 source=prompts/dw-1392-rulings-20261115.md marker=ADDED_2026-11-15_Contest_Planner_DW-1392 target=1.0.12_if_ready
+2026-11-16T00:53:59Z	Epic 25	ledger_routed_planned	story=25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi entries=2 excess=0 by=merge_gate

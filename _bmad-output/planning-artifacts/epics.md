@@ -8968,6 +8968,34 @@ So that I never hear a stale error and never press a control that can only fail.
 - DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line (ledger; Contest Planner A2, 2026-11-15)
 - DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (ledger; Contest Planner A2, 2026-11-15)
 
+### Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction
+
+[ADDED 2026-11-15, Contest Planner, DW-1392] (targets 1.0.12 if ready in time; the AD-19 amendment and the DW-1395 AD-13 clarification below are written into the spine verbatim)
+
+As an admin,
+I want every audited Settings save to leave an audit entry only for a change that happened, and never a change without its audit entry,
+So that the audit log stays a true record of what changed.
+
+**Acceptance Criteria:**
+
+**Given** every audited Settings save (Story 24.2's partner contact save, `SaveProduct` from Stories 33.2 and 36.4, and every other audited write of the same audit-then-row pattern that a grep finds, each listed in the spec)
+**When** it saves
+**Then** inside one transaction it writes the row FIRST, then the audit entry; if the audit write fails it rolls the row back (TROLLBACK) and reports the failure; only then does it commit (TCOMMIT)
+
+**Given** a test that forces the row write to fail
+**When** the save runs
+**Then** no audit entry is written, and the failure is reported
+
+**Given** a test that forces the audit write to fail
+**When** the save runs
+**Then** the row is unchanged and the failure is reported (each test fails when the ordering or the rollback is removed: a demonstrated mutation)
+
+**And** the spine's AD-19 gains, verbatim: "An audited save writes its row and then its audit entry inside one transaction, and rolls the row back if the audit write fails; IRIS writes audit records outside the transaction, so a commit that fails after the audit write is the one case that can leave an entry for a change that didn't happen. [ADDED 2026-11-15, DW-1392, Contest Planner ruling]"
+**And** the spine's AD-13 gains, verbatim: "The web process may read Settings tables directly, as SettingsOps.Values reads Data.Setting; every write goes through the production. [ADDED 2026-11-15, DW-1395, Contest Planner ruling]"
+**And** no new public text, and no change to any route, role or reply shape
+- DW-1392: Settings audit-first transactions cannot roll back the IRIS audit entry: a row write that fails after the audit leaves an entry for a change that never happened (ledger; Contest Planner ruling 2026-11-15)
+- DW-1395: AD-13 L484 is ambiguous for unowned config tables (ledger; Contest Planner ruling 2026-11-15: the AD-13 clarification above)
+
 ## Epic 26: Approver roles and reading files (step 6)
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.
