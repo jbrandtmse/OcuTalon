@@ -9178,10 +9178,10 @@ So that I can use it where my team already talks (step 7, Could).
 
 **Given** step 7 starts in Lane B
 **When** this story begins
-**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and the stored link of a Slack member to an OcuTalon user that `SlackIn` reads (AD-14, AD-19, AD-29, AD-33) [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): "how an admin links a Slack member to an OcuTalon user" moved verbatim to Story 27.3; this story reads the link, Story 27.3 writes it]
 **And** as the first story of Lane B's step 7 epic, it creates the `DraftTransform` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to Lane A's `IncidentManager`, under the name Lane A's Story 28.1 fixes, accepted from origin `tool` only for one of the session's own incidents (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: Story 28.1's chat path submits it]
 **And** the Slack signing secret and bot token come only from environment variables that `.env.example` lists by name, and never appear in IRIS, a setting, a log, a message, an agent step or an audit entry (NFR-11, AD-19)
-**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+**And** this story ships no user-facing text: it proposes the step 7 texts at its spec gate, and Story 27.3 ships them once the author accepts them [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): the texts criterion moved verbatim to Story 27.3]
 
 **Given** a request from Slack's Events API to the Slack route
 **When** it arrives
@@ -9228,6 +9228,21 @@ So that the conversation stays where I started it (step 7, Could).
 **Given** the README
 **When** Slack ships
 **Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24)
+
+### Story 27.3: Link Slack members in Settings
+
+As an admin,
+I want to see in Settings whether Slack is on and to link each person's Slack member to their OcuTalon user,
+So that only the people I choose can message OcuTalon from Slack (step 7, Could).
+
+[AMENDED 2026-11-16, split from Story 27.1 by an unattended ruling (doctrine U5, split 1 of 6; product default 6): the criteria below moved verbatim from Story 27.1. Order: 27.1, then 27.3, then 27.2, so that 27.2's README section on linking a member describes shipped behaviour. Scope named at the split: an admin-only link and unlink through SettingsOps with an audit entry, an admin REST route, retention of links with their session, Settings > Channels' Slack state and linking (a lazy chunk), the catalog keys, and the "via Slack" marker on web-chat turns.]
+
+**Acceptance Criteria:**
+
+**Given** Story 27.1's Slack route, `SlackIn` and its stored member link
+**When** this story begins
+**Then** the spine is updated in the same change with how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
 ## Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 
