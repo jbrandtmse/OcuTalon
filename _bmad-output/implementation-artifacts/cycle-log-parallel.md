@@ -4441,3 +4441,5 @@
 2026-11-16T03:57:25Z	Epic 23	merge_enqueued	story=23.13 (1.0.12)
 2026-11-16T04:00:49Z	Epic 23	merged	story=23.13 merge=6e88ef29e tracker=23.8_backlog
 2026-11-16T04:01:01Z	Epic 23	runner_resumed	lane=B task=reload_slot_B,Epic23_burndown_gate,end_parked(U-329) planner_notified=DW-1415,DW-1416
+2026-11-16T04:01:36Z	Epic 23	owner_decision	via=contest_planner DW-1415=require_OcuTalonAdmin(CUT_BLOCKER;reuse_MayApprove;all_paths;pins) DW-1416=new_may-have-sent_line(CUT;follow_EmailOut_answer) shards-11=rebalance(CUT;no_limit_raise) DW-1417=burndown_post-1.0.12 laneB_order=1415,1416,rebalance,burndown_gate,park file=prompts/dw-1415-1416-rulings-20261116.md
+2026-11-16T04:01:36Z	Run	protocol_slip	lane_B_subagent_compiled_23.13_into_slot_B(no_tests);reload_before_use;subagents_reminded_own_slot_only
