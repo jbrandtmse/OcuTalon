@@ -2,7 +2,7 @@
 title: 'Story 27.1: Receive Slack events by webhook'
 type: 'feature'
 created: '2026-11-16'
-status: 'draft'
+status: 'blocked'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -202,6 +202,23 @@ Planned whole, it is about 18 tasks across five contended paths. Recommended spl
   - Scope: an admin-only link/unlink command through SettingsOps (audit `Pairing`, user names via `SecretHandoff` per AD-24), an admin REST class forwarded from `Web/Api.cls`, `Data/Purge.cls` `Keeps` for a linked session plus a purge of orphan links, Settings › Channels Slack state and linking UI (lazy), catalog keys, the "via Slack" marker, and the GUIDE setup section.
 - 27.2 is unchanged. If the lead rules for no split, re-dispatch this spec as `draft`; the investigation above still applies.
 
+**R7 model-facing check (plan stage, 2026-11-16; result: model-facing channel text FOUND, so the plan HALTs before re-deriving the rest):**
+- Searched from the worktree root, in `src/ocutalon/cls/OcuTalon/`:
+  - `grep -niE "telegram|webchat|web_chat|web chat|slack|channel" Agent/*.cls`
+  - `grep -rniE "telegram|webchat|web_chat|slack|\bemail\b|channel" Tools/ Memory/ Memory.cls Data/DailyNote.cls Digest/ Mcp/ Docs.cls Docs/ Fix/ Watch/EvidencePack.cls Watch/Summary.cls Agent/` (non-comment lines, then the `///` lines of `Tools/`, which are tool descriptions)
+  - `grep -rniE "telegram|slack" Core/Conversation.cls Core/Intake.cls Msg/Catalog.cls Msg/Catalog/ Agent/Chat.cls`
+- Findings (the first one is decisive):
+  1. `Data/DailyNote.cls:38` `LINEMESSAGE = "{time} message ({channel}): {text}"`, filled with `Turn.Channel` at `:150`, and `:32` `LINEDECISION = "{time} decision ({channel}): {outcome}"`, filled with the turn's channel at `:168`. `Agent/Input.cls:67` adds `NotesPart` (`:133`, opening `NOTESOPENING` `:329`) to every user-provenance turn that starts a session (`Core/Conversation.cls:513`). A Slack turn is a `Turn` row with Channel `slack`, so from the next session start of that session, in any channel, the model reads lines such as `09:14 message (slack): ...`. The value `slack` therefore becomes model-facing. Today it reads `(web)` and `(telegram)` there.
+  2. `Agent/Triage.cls:37` (INSTRUCTIONS XData): the triage instruction keys on channels: "A message that does not say which channel it arrived on and is not quoted is the user's own chat message". `:39` names the channel `heartbeat`. A Slack user turn renders with no channel label (`Agent/Input.cls:61-67`), so it takes this branch exactly as a web or Telegram turn does. Even so, it is an instruction that mentions channels.
+  3. `Agent/Input.cls:75`: the code-written label "The message below arrived on the channel <channel>" goes on every non-user item. In 27.1 it cannot reach `slack`, because a Slack item is always `user`, and `Ignored` never reaches `Render`.
+  4. Unreachable for `slack` under R6, because Slack never answers an approval:
+     - `Watch/Summary.cls:36` `CHANNELNAMES` (a telegram branch in the `incident_summary` tool output, keyed on `AnsweredChannel`);
+     - `Tools/RecentActivity.cls:65` (tool description "channel: where it was answered") and `:196-200`;
+     - the precedent lines at `Agent/Input.cls:173-180`.
+  5. No tool description, agent INSTRUCTIONS block or model-read catalog text names `telegram`, `webchat` or `slack`. `Tools/DigestTools.cls:23` says "digest channels" generically.
+- For 27.1/27.2 (not part of R7): `Msg/Catalog.cls:46` `CHANNELS` refuses `slack` ("refused until their step adds them", `:32`, `:108`). Every user-facing render keyed on a Slack origin therefore fails until a story adds `slack` there. In 27.1, Notify sends a `slack` origin to the web chat only, so this is Story 27.2's.
+- Recommended amendment for the Planner's key-holder A/B: approve `slack` as a new channel value in the notes block (finding 1). Measure it with an A/B of session-start turns whose notes hold `(slack)` lines against the same notes with `(telegram)` lines, on the default model, with the triage instruction unchanged. Otherwise, rule how a Slack turn's channel must read in `DailyNote`. The plan does not pick between these, because R7 says to halt rather than plan around it. After the ruling, the re-plan resumes from this spec: the remaining derivation (the split recorded as decided, R1-R12 in Tasks and in the matrix with their pinning tests, the R8 mechanism, the R9 CI line, the spine-edit tasks) has not been done in this pass.
+
 ### Planner gate items
 
 - (a) PUBLIC TEXT, proposed verbatim for EXPERIENCE.md. They ship in 27.3, keys in `Msg.Catalog.Core`:
@@ -298,4 +315,4 @@ Every test added or changed passes on a fresh environment, in either order.
 ## Auto Run Result
 
 Status: blocked
-Blocking condition: intent gap: Story 27.1 is oversized (about 18 tasks, five contended paths, and Settings texts the author has not accepted). Proposed split: 27.1 narrowed to the inbound route, SlackIn, the link table read side, dedupe, the off switch, secrets, spine and DraftTransform; new sibling 27.3 "Link Slack members in Settings" (admin link/unlink, REST, Purge, Settings UI, catalog texts, "via Slack"), planned before 27.2; the moved criteria are quoted under Design Notes › Proposed split. Lead to rule.
+Blocking condition: intent gap: R7 model-facing channel text found at src/ocutalon/cls/OcuTalon/Data/DailyNote.cls:38 (LINEMESSAGE "{time} message ({channel}): {text}", also :32 LINEDECISION). Agent/Input.cls:67/:133 renders it into every session-start user turn, so a Slack turn's channel value `slack` becomes model-facing. Also src/ocutalon/cls/OcuTalon/Agent/Triage.cls:37, a triage instruction keyed on whether a message names its channel. Evidence and the recommended key-holder A/B are under Design Notes › R7 model-facing check.
