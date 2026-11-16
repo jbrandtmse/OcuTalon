@@ -4465,3 +4465,4 @@
 2026-11-16T08:27:37Z	Epic 21	merge_enqueued	story=DW-1373 (1.0.12)
 2026-11-16T08:29:47Z	Epic 21	merged	story=DW-1373 merge=404037853
 2026-11-16T08:29:52Z	Epic 21	runner_resumed	lane=C next=DW-1376_push,then_DW-1421_diagnosis,then_DW-1378
+2026-11-16T08:30:30Z	Epic 21	runner_reported	PLANNER_REPORT DW-1421_diagnosis(74dc6ce39;DiagnosisPayload_rejects;23.3_new_incidents;C0-C4) note=first_send_lost relayed=contest_planner
