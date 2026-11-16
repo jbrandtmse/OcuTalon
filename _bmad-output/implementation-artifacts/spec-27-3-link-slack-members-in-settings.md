@@ -153,7 +153,11 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B (AD-29) unless marked.
 - Given a link, list or unlink, when it completes or is refused, then no member id or team id is in any traced message, result, log or audit entry, and no user name other than the admin's is in a traced message (R8, AD-24; `SettingsSlack.TestNoIdsInRecords`, the e2e and live leak scans).
 - Given a Turn of channel `slack` in the web chat, when it renders, then its caption is "via Slack" (`chat-view.test.mjs`, `web/e2e/chat/via-slack.spec.ts`).
 
+- Given a workspace already noted in `^OcuTalonP.SlackW` and a link in it, when a signed event arrives from a SECOND team (a direct message from the same member id, and one from an unlinked member id), then no `Data.SlackLink` row is created or changed (row count, every row's TeamId/MemberId/SessionRef unchanged), and the event is Ignored under R2 (Contest Planner ruling 2026-11-16, PIN; e.g. `SlackIn.TestSecondTeamChangesNoLink` plus a live phase-3 check).
+
 ## Spec Change Log
+
+- 2026-11-16 ~20:40Z, lead: Contest Planner gate rulings (prompts/story-273-rulings-20261116.md, outside the repo) applied. APPROVED: the two new texts (`settings.slackNoWorkspace`, `settings.slackUnknownUser`) and the GUIDE `## Slack` heading verbatim; all veto items; the linking design; Task 0's grant check (STOP if a new grant would be needed); proceed NOW on the contended `SettingsOps` Carry lines and the chat-view / ux-strings inserts (whichever branch lands second re-runs its web tests after the merge); the spine edits exactly as in Design Notes › Planner gate items (f), including DW-1442's AD-13/14/17/22 and AD-33 fixes and the linking additions. Two additions: (1) Design Notes records the one-workspace-per-install limit; (2) a new acceptance criterion pins that an event from a second team creates or changes no link. At PART READY the lead reports the catalog key count (161 + R12's + 2) with the list of added keys.
 
 ## Review Triage Log
 
@@ -183,11 +187,13 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B (AD-29) unless marked.
 - Integration AC: `SlackIn` reads the link the admin route wrote and produces a Turn (AC 3, `live:slack-hook`, real production); the Slack group reads `GET /api/v1/settings/channels/slack` and renders the state and list (AC 5, `web/e2e/settings/slack.spec.ts`).
 - Consumed-by: Story 27.2 (its README linking section describes this UI; `SlackOut` replies to linked members' turns).
 
+**Limit (Contest Planner ruling 2026-11-16): ONE WORKSPACE PER INSTALL.** `^OcuTalonP.SlackW` holds one team id. If it changes (the install's Slack app is moved to another workspace), every earlier link stops matching under R2 (team id AND member id), by design; links are not migrated or rewritten.
+
 **Model-facing check:** none. The new texts are web-only (Settings, the chat caption); `^OcuTalonP.SlackW` is read only by `SettingsOps`; no prompt, tool description, INSTRUCTIONS block or notes line changes (R7 untouched).
 
 **Ledger inbox:** DW-1442 is addressed by the spine task and AC 1, with the exact wording in gate item (f).
 
-### Planner gate items
+### Planner gate items: ruled 2026-11-16 (all approved; prompts/story-273-rulings-20261116.md)
 
 - (a) PUBLIC TEXT.
   - Approved R12, shipped verbatim: `settings.slackHeading`, `slackNotSetUp`, `slackHowTo`, `slackOn`, `slackAddress`, `slackOffOnDemo`, `slackMembersHeading`, `slackMembersHelp`, `slackMemberId`, `slackMemberUser`, `slackLink`, `slackUnlink`, `slackNoMembers`, `slackBadMemberId`, `slackMemberTaken`, `slackUserTaken`, `slackLinked`, `slackUnlinked`, `chat.viaSlack`, and the four reordered setup steps (27.1 spec, gate a).
