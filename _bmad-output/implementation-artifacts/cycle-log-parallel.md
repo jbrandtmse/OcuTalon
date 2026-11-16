@@ -4565,3 +4565,4 @@
 2026-11-16T21:11:48Z	Epic 28	ci_red	28.2@d18c9a55c ci=43943159296 shards-5 runner=ocutalon-ci-27 live:sign-in-3 memory-card_MC3_timeout(read_never_finished) in_28.2_area->lane_C_classifying
 2026-11-16T21:12:08Z	Epic 28	note	via=contest_planner 28.2_MC3_leads(sync_Used_on_read,LastUsedAt_lock,fading_in_read) pin=read_returns_while_Used_held relayed=lane_C
 2026-11-16T21:18:07Z	Epic 21	note	DW-1421_r3_recapture=MIXED(target_met;confidence-missing_12/5_runs;#5035_untagged;r2_BLOCKED_demo_gate_variance) planner_control@c573a86d0_running orchestrator_code_check=no_model-facing_change(properties_identical,no_schema_gen) #5035=GeneralException(JSONImport)_->propose_tag_reply-unreadable round3=HELD
+2026-11-16T21:18:22Z	Epic 21	owner_decision	via=contest_planner DW-1421_round4_followup=#5035->reply-unreadable(no_exception_data,malformed_row,mutation)+DW-1438_CLOCKTIME_fix(2nd_occurrence) route_after_control_verdict
