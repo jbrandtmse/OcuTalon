@@ -76,7 +76,7 @@ const ANSWERED_KEYS = [
   'answered.notAdmin',
 ];
 
-/** The thirteen result texts and the audit line that the page renders (Story 6.4; the last five are Story 23.2's fixes the user asks for in the chat), in the generator's order. */
+/** The result texts and the audit line that the page renders (Story 6.4; Story 23.2's fixes the user asks for in the chat; Story 23.13's result.partnerSkipped, Story 23.15's result.partnerMaySent and the email's two results), in the generator's order. */
 const RESULT_KEYS = [
   'result.allThrough',
   'result.failedAgain',
@@ -95,6 +95,10 @@ const RESULT_KEYS = [
   'result.settingChangedSince',
   'result.rollbackUndone',
   'result.settingSavedNotApplied',
+  'result.partnerSkipped',
+  'result.partnerMaySent',
+  'fix.emailSent',
+  'fix.emailNotSent',
   'incident.settingChangeCause',
   'audit.recorded',
 ];
@@ -125,20 +129,20 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the nineteen result keys, the either-way line and the two Got it keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the 19 answered keys (answered.canceled is Story 21.10\'s; the last nine are the refusal sentences of Story 25.5), the 23 result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 75);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 79);
   });
 
-  it('holds the 16 banner and action keys, the 19 answered keys and the nineteen result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 16 banner and action keys, the 19 answered keys and the 23 result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 19);
-    assert.equal(RESULT_KEYS.length, 19);
+    assert.equal(RESULT_KEYS.length, 23);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, LEARNED_KEY]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
@@ -186,6 +190,10 @@ describe('the real tree', () => {
       'result.settingChangedSince': { setting: 'text', target: 'text' },
       'result.rollbackUndone': { setting: 'text', target: 'text', after: 'text' },
       'result.settingSavedNotApplied': { setting: 'text', target: 'text', reason: 'sentence' },
+      'result.partnerSkipped': { sent: 'count', skipped: 'count', total: 'count' },
+      'result.partnerMaySent': {},
+      'fix.emailSent': {},
+      'fix.emailNotSent': { reason: 'text' },
       'incident.settingChangeCause': { minutes: 'minutes', setting: 'text', target: 'text', time: 'time' },
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
       'handled.marked': { time: 'time' },
@@ -598,6 +606,10 @@ const RESULTS = {
   'result.settingChangedSince': { text: '{setting} on {target} changed again.', slots: { setting: 'text', target: 'text' }, source: 'fixture' },
   'result.rollbackUndone': { text: 'Undone: {setting} on {target} is back to {after}.', slots: { setting: 'text', target: 'text', after: 'text' }, source: 'fixture' },
   'result.settingSavedNotApplied': { text: '{setting} on {target} was saved, not applied: {reason}.', slots: { setting: 'text', target: 'text', reason: 'sentence' }, source: 'fixture' },
+  'result.partnerSkipped': { text: 'Sent to {sent} of {total}; not sent to {skipped}.', slots: { sent: 'count', skipped: 'count', total: 'count' }, source: 'fixture' },
+  'result.partnerMaySent': { text: 'The notice may have been sent.', slots: {}, source: 'fixture' },
+  'fix.emailSent': { text: 'The email was sent.', slots: {}, source: 'fixture' },
+  'fix.emailNotSent': { text: '{reason}', slots: { reason: 'text' }, source: 'fixture' },
   'incident.settingChangeCause': { text: 'The feed broke {minutes} after {setting} on {target} changed, at {time}.', slots: { minutes: 'minutes', setting: 'text', target: 'text', time: 'time' }, source: 'fixture' },
   'audit.recorded': { text: 'Logged.', slots: {}, source: 'fixture' },
 };
@@ -845,6 +857,7 @@ describe('the generator on a fixture', () => {
       'result.settingChangedSince',
       'result.rollbackUndone',
       'result.settingSavedNotApplied',
+      'fix.emailNotSent',
       'incident.settingChangeCause',
       LINE_KEY,
       LEARNED_KEY,

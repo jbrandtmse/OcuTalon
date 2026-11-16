@@ -2093,6 +2093,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(production) live:production row 21 wanted CHK|start-fails|1|1 got empty (runners backlogged); not rerun: d53500886 (26.2's code plus a test-only change) ci 43681313101 green and 2e6366b00 ci 43690296919 production green
 - 2026-11-15T16:47:08Z occurrence=23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol
 - 2026-11-15T12:02:13Z occurrence=OCT-epic21-dw1347-30d487a32 by=epic-runner note=run 43703149281 job 132778446850 iris(production) live:production row 21 'fails naming WatchOps while it cannot start': wanted CHK|start-fails|1|1, got ''; DW-1347 touches neither WatchOps nor test-production; one rerun of the failed job
+- 2026-11-16T13:27:46Z occurrence=feature-625900415 by=orchestrator note=run 43870851457 att1 iris(production) on ocutalon-ci-22: row 21 wanted CHK|start-fails|1|1 got empty; one rerun of failed jobs (1.0.12 REQUIRED GREEN candidate)
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2960,6 +2961,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625133 iris(shards) live:online-allowance D1 daily-cap banner (ci-13); OCT-epic25 4af29b25; rerun of failed jobs
 - 2026-11-12T06:04:38Z occurrence=35-3-send-events-to-ocutalon-through-a-webhook by=cr note=ci run 43156101436 iris(shards) live:online-allowance D1 S1 banner on c27ff301; head superseded by the next integrate-forward, so not rerun
 - 2026-11-12T17:12:43Z occurrence=0-30 by=runner note=run_43260265319_job_131329318810_iris(shards)_on_ocutalon-ci-10_live:online-allowance_D1_'S1:_the_daily_cap_banner_shows'_not_found_60s(L147);L134_the_card's_GUIDE_install_link_passed;OCT-epic0_05e29461;one_rerun_of_failed_jobs
+- 2026-11-16T18:48:10Z occurrence=38c205712 by=merge_gate note=run 43889525115 attempt 2 live:online-allowance D1 S1 daily-cap banner, runner ocutalon-ci-17 (OCT-epic23-s2314)
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3165,6 +3167,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T07:56:42Z occurrence=feature-afd4ff35a by=orchestrator note=local fresh throwaways: Test.Fix.Partial passed at afd4ff35a (48.6 s) and 97e062daf (48.6 s), TestCopiesFailAgain passed 2/2 more at each; not reproduced, load-shaped
 - 2026-11-15T18:03:45Z occurrence=OCT-epic0-faa67c276 by=investigation note=run 43156190518 job 130976566572 iris(shards-11) on ocutalon-ci-12, Test.Fix.Partial TestSomeFailAgainAndSomeHadChanged (68.3 s; was missing from the ledger)
 - 2026-11-15T18:03:45Z status=routed owner=burndown by=investigation note=NOT A FLAKE: same product race as DW-1205 (Ens sets an erroring copy Completed just before Error; Fix.Executor Tally :1031 counts it finished, so the run ends early with Completed 1 / FailedAgain 2); every red has only the count-derived asserts failing and +20 s from WaitResultOf waiting out WAITHOLD; reds span shards-2 and shards-11 with different predecessors, so not test order; 10 occurrences, all on runners ci-3..ci-20. PROPOSED FIX: the single DW-1205 change (Reader inFlight flag from ^Ens.ActiveMessage + status re-read; Executor Read/Tally count in-flight as running); touches Fix/Executor.cls, after 23.3.
+- 2026-11-15T21:44:27Z note=load probe (lane C warm throwaway, build 154, 300 trials each, loaded = one yes per core): the current code counted a copy wrong in 12 of 300 unloaded and 21 of 300 under load; with the fix (Reader inFlight + Tally) 0 of 300 unloaded and 0 of 300 under load; with the second status read dropped 2 of 300 under load, so the second read is needed. Test.Fix.* (lane-a@Fix shard, 29 of 29) and Test.Watch.Evidence pass on build 154 and on build 109. Test.Fix.Scale 21.50 s before, 22.14 s after.
+- 2026-11-16T00:47:54Z status=resolved-by:dw-1205 by=epic-runner note=same fix as DW-1205 (fded9d158); Partial and Reroute 10/10 fresh under load
 
 ### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3787,6 +3791,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
 - 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
 - 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+- 2026-11-16T04:25:32Z occurrence=OCT-epic21-dw1205-fded9d158 by=orchestrator note=ci 43777000338 att1 iris(browser) on ocutalon-ci-14: demo-path telegram-page.spec.ts:977 T7 'the reply part with the same key shows the mock's reply' not found; DW-1205 touches no web code; attempt 2 green
 
 ### DW-614: TelegramPageFixture.Notify and the upgrade harness's pairing readings (Move, session, replies, notify) run only in the release harness's live phases, never in CI
 - source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: med | footprint: in-story
@@ -3952,6 +3957,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 125791394066 attempt 1: FAIL the load phase; attempt 2 green
 - 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
+- 2026-11-16T03:33:16Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
 ### DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/)
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 10.5 plan: overlap found by the planner; 31.3 is backlog (Epic 31's README pass, after Epic 10)
@@ -4013,6 +4019,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T02:44:24Z occurrence=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=ci note=run_42541696724_attempt1_iris(shards)_Test.Watch.Reader_'suspended'_at_c7c6e5fb;green_on_one_rerun_of_the_failed_job(attempt2);Reader_does_not_read_Install.Step.Production(own_Case.SetItemEnabled)
 - 2026-11-10T22:52:54Z occurrence=23-2 by=orchestrator note=run 42897677403 job 130115017670 iris(shards-8) lane-a@Watch Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart (stopped, disabled items suspended|[PartnerOrdersIn,OrdersToWarehouse]); same 23.2 code passed shards-8 on c5fec14f (42865281502); code added since = 41.13 memory + 0.22 web, no Watch change; rerun of failed jobs
 - 2026-11-10T07:54:01Z occurrence=23-6-write-an-incident-summary-when-an-incident-closes note=OCT-epic23_b99d6529_run_42768243726_shards-8_lane-a@Watch;one_rerun
+- 2026-11-16T04:18:53Z occurrence=dw-1410 by=cr note=lane-C fresh stacks e21dw1410qr1 (HEAD) and qr2 (Reader.cls at 89fa33d6a) plus 2 implement runs: red 4 of 4, same text (stopped->suspended); not a one-off flake locally
 
 ### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
@@ -6175,6 +6182,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: lane-D smoke 2026-11-08 23:20Z: L2 visitor readings 1/1,3/2 2/2,5/2 1/1,7/2; rerun 23:28Z 1/1 for all three
 - 2026-11-08T23:29:15Z status=routed owner=burndown by=lead note=flake, priority; the three load visitors overlap at sign-in (inference)
 - 2026-11-09T00:38:50Z by=burndown note=Epic_18_burn-down:flake_with_priority(Story_29.8's_load_check);kept_owner=burndown
+- 2026-11-15T18:50:52Z occurrence=24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings by=lead note=lane_D;run_43747033320_job_132912512676_iris(install-fresh)_runner_ocutalon-ci-24_live:online-demo-path_L2_readings_1/1,4/3_1/1,5/2_1/1,7/2(visitor_1_one_extra_connection_after_its_pages);other_L2_checks_pass;24.2_changes_no_trace_or_licence_path;one_rerun
 ### DW-978: Install/Step/Production.cls NotRunning() names an item whose System Default Enabled row is 0 as not running (checks only the runtime flag); Runners() in the same file honours the row. The install's Production check can show a false 'not running' for a disabled-by-default item (TelegramIn)
 - source: Story 32.7 investigation G2 (DW-639 cause) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 32.7 PLANNER REPORT: every DW-639 red is 'TelegramIn row 0, runtime flag 1, jobs none'; Ens takes effective Enabled from the System Default row (Ens.Director getProductionItems ~1084, EnableConfigItem 1572-1580); NotRunning() lines 154-177
@@ -6496,6 +6504,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: single-area units over 900 s on runs 42634825529/42633085173/42603815732/42583599821: Bridge 981-1,167 s, Fix about 1,012-1,123 s, Docs about 814-1,006 s
 - 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09; trigger early only if any single area's measured unit time passes 1,400 s, and then report it with PLANNER REPORT and do not split
 - 2026-11-09T18:00:26Z occurrence=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
+- 2026-11-16T06:12:20Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
+- 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=23.13 rework 1 (shards-11): shard:lane-a@Docs,Partner is a two-area unit planned at about 1,246 s, above Story 0.20's 900 s for two or more areas; a Partner piece of its own would take shards-7 to about 33.7 min or shards-3 to about 31.6 min; recorded in ci/units.sh; below the 1,400 s trigger
 
 ### DW-1033: after voting: the 278-423 s stack start and teardown each shard unit pays is a large share of the ~25,700 s of IRIS unit time; could units share a stack without losing isolation?
 - source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -6547,6 +6557,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Summary.Shown repeats Catalog.Clean's invisible-character list byte for byte (Catalog.cls ~276) and Summary.Lookup is Catalog.Lookup (~285); both are Private in Msg/Catalog.cls, outside the AD-33 exception, and the builder may not render (spec Always).
 - 2026-11-09T21:01:22Z status=routed owner=burndown by=cr note=unify by a public Catalog predicate for what a slot would show; same pattern as DW-383
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1051: Story 23.6's browser and harness ACs (AC10 K25, AC16 K26, AC17 live:install-upgrade) carry mutation lines never observed red: the units run only in CI and exceed the stage's 150 s call budget
 - source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: low | fix-risk: low | footprint: in-story
@@ -6730,6 +6741,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T11:23:19Z occurrence=0-28 by=runner note=run_43202138313_job_131127976608_iris(shards-9)_on_ocutalon-ci-5_unit_shard:lane-a@Bridge_stack_start:'Telegram_park:_TelegramOut_still_has_an_Ens.Job_entry_(Alive,dequeuing)_32_s_after_it_was_disabled';OCT-epic0_2a6cfc67(README+test-readme_over_feature_eb289caf);one_rerun_of_failed_jobs
 - 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-4) Telegram park 32 s, first start not ready in 510 s; same code green on 81b65a6a (43445650699); not rerun (superseded)
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(shards-8) lane-a@Agent: same lib-live.sh:630 Telegram park message (TelegramOut Ens.Job Alive, dequeuing, 32 s after disabled), now in a shard run, not reminder-restart; not rerun: d53500886 ci green, 2e6366b00 shards-8 green
+- 2026-11-16T03:33:17Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
@@ -6919,6 +6931,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-5 code review (rework iteration 2) | severity: med | fix-risk: med | footprint: in-story
 - evidence: IncidentManager.Closed tells result.partnerNotSent but ends nothing (no Execute, no FinishExecution, no audit entry), so the row keeps State approved. Data.Purge.Keeps keeps every session with an approved request, and Outcome accepts a repeated approved outcome while the row still shows it. Residual of DW-1108; ruling 2(a) asked only for the telling.
 - 2026-11-11T04:45:12Z status=routed owner=burndown by=cr note=residual of DW-1108: ending the row needs a mechanism (FinishExecution failed plus audit, or an Execute the executor refuses)
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 ### DW-1118: post-contest: an approve-then-close partner notice shows 'OcuTalon couldn't read the approved fix', an existing text that fits a partner notice weakly
 - source: Contest Planner ruling on Story 23.5 (DW-1108 side effect), 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 23.5 head 52db267d: IncidentManager.Aside now surfaces the result that arrives after the close; the executor's existing reason text is reused
@@ -7605,6 +7618,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-12T16:31:02Z status=routed owner=burndown by=orchestrator note=Planner rule: a logic red is not a load flake by default; investigate ordering/state the copies counter depends on; a second red on any head = real
 - 2026-11-15T18:03:37Z status=routed owner=burndown by=investigation note=CAUSE (product race, shared with DW-494): Ens marks an erroring copy Completed (9) just before Error (8) (irislib Ens/Actor.cls:452 then :483; Ens/BusinessOperation.cls:384 then :412) while the header is still in ^Ens.ActiveMessage; Fix.Executor Tally (:1031) counts that Completed as a finished copy and Look ends the run (:1010/:1014), so a run whose copies all failed again ends 3/3/1/2/0 (wrong counts, FixResult, notice, Action, /state); Fix.Run Sweep (:258/:293) has the same exposure. Reproduced with the product's own Reader.Evidence + Executor.Tally in a throwaway-only probe: 7/300 (2.3%) unloaded, 14/300 (4.7%) under load; test-level 0/75 locally (copies settle in ~2 ms). No second Reroute red found in ci.yml since Nov 12 (the other shards-11 reds of this shape are Partial = DW-494). PROPOSED FIX (one product change for DW-1205 and DW-494): Watch/Reader.cls Current evidence branch sets inFlight=1 when the header id is in some ^Ens.ActiveMessage(job) or a status re-read differs; Fix/Executor.cls Read carries inFlight and Tally counts an in-flight copy as running (+ class doc); emulated probe 0/300 wrong under load. Touches Fix/Executor.cls: implement only after 23.3 merges. Tests: Test.Fix.Executor probe (Completed+inFlight then Error -> two reads, 3/3/0/3/0; mutation drops the Tally check -> red) and a live Reader inFlight test.
 - 2026-11-15T15:40:49Z occurrence=25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th by=epic-runner-25 note=ci_43728223291_OCT-epic25-s256_ff3078ed7_iris(shards-11)_job_132854720236_runner_ocutalon-ci-16_same_assert('it holds 3/3/0/3/0: the copies failed again');second_red_on_a_head=real_per_Planner_rule;25.6_touches_no_Fix_code;reported_to_orchestrator;rerun_of_failed_jobs
+- 2026-11-15T21:44:27Z note=load probe (lane C warm throwaway, build 154, 300 trials each, loaded = one yes per core): the current code counted a copy wrong in 12 of 300 unloaded and 21 of 300 under load; with the fix (Reader inFlight + Tally) 0 of 300 unloaded and 0 of 300 under load; with the second status read dropped 2 of 300 under load, so the second read is needed. Test.Fix.* (lane-a@Fix shard, 29 of 29) and Test.Watch.Evidence pass on build 154 and on build 109. Test.Fix.Scale 21.50 s before, 22.14 s after.
+- 2026-11-16T00:47:54Z status=resolved-by:dw-1205 by=epic-runner note=Reader inFlight (8233 + status re-read, data-only seam) + Executor Read/Tally; probe 0/300 loaded (old 12 and 21); lane-a@Fix 29/29 on builds 154 and 109; pushed fded9d158, CI green; reply-waiting BP case is DW-1410
+- 2026-11-16T00:48:11Z note=correction to the 00:47:54Z line: "8233" is a shell expansion; read it as the $$$EnsActiveMessage macro by=epic-runner
 
 ### DW-1207: test: one check that fails when any file outside README.md (docs/*.md included) links a README anchor README.md doesn't have
 - source: Contest Planner 0.30 DW-1199 sweep, 2026-11-12 | severity: low | fix-risk: low | footprint: in-epic
@@ -7937,6 +7953,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
 - 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
 - 2026-11-13T18:26:09Z note=occurrence 1 resolved by rerun: ci 43457520830 attempt 2 green on 4af1db03 (18:24Z)
+- 2026-11-16T20:30:01Z occurrence=dddd24dfc by=merge_gate note=occurrence 2: feature ci 43934381486 shards-9 lane-a@Bridge on ocutalon-ci-8, same assertion; the merged diff touches no agent, model or restart code (only Test/Agent/RememberDecision.cls); the same code passed shards-9 on branch runs 43914431337 (ci-20) and 43928987062 (ci-5); one rerun of the failed job
 
 ### DW-1285: An MCP entry already saved with a query string (by manual Config Store configuration) is not refused at runtime: the ?/# refusal is on McpOps' add path and the Settings route only
 - source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (Contest Planner B2 re-ruling ~20:25Z) | severity: low | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
@@ -8342,12 +8359,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Fix/Kind suspend_item/resume_item save-then-update (23.2), same as DW-1365
 - 2026-11-15T10:04:07Z status=routed owner=burndown by=planner note=Planner pre-push ruling 2026-11-15: own DW for 1.0.12, not in 23.3
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T07:10:26Z status=resolved-by:dw-1373 by=epic-runner note=item branch stores with EnableConfigItem(...,0), updates through the seam, restores the earlier flag on a failed update (refused) or ends notapplied with result.settingSavedNotApplied (97b0615f7); lock 40 s refused, 75 s notapplied
+- 2026-11-16T08:48:36Z status=resolved-by:dw-1373 by=burndown_gate note=restores_lane_C's_07:10Z_resolution(97b0615f7);my_08:41Z_23.14_routing_was_made_before_the_feature_merge_and_is_void;orchestrator_rescope_11:00Z
 
 ### DW-1376: A setting run saved but not applied (result.settingSavedNotApplied) has no ended line in the incident summary: no approved summary key for changed-but-not-applied
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.SettingCause SummaryRunKey returns empty for Completed 0 with Unreached>0 (c968df2b)
 - 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:approved_for_1.0.12_new_text_summary.settingSavedNotApplied='{time}: {setting} on {target} was changed, but the production couldn't apply it.'_pin_on_restore-failed_path;not_a_23.3_re-push
+- 2026-11-16T08:26:49Z status=resolved-by:dw-1376 by=epic-runner note=summary.settingSavedNotApplied (approved text verbatim) ends a saved-but-not-applied setting or item run (f4b52a8c2); restore-OK runs keep was-not-changed; web, phone and Telegram render it
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T08:48:36Z status=routed owner=burndown by=burndown_gate note=rescoped_out_of_23.14(orchestrator,Planner_cut_story_~11:00Z_Nov16):stays_with_lane_C
 
 ### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
@@ -8360,6 +8383,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/src/app/approvals/approval-view.ts settingResultView takes after = change?.newValue for undo_rollback; IncidentRequest (web/src/app/live/payloads.ts) carries no dry-run after, while IncidentManager.ResultExtra uses the dry run's after for the chat notice
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:follow-up_for_1.0.12_with_new_/api/v1/state_field;CONDITION_band_must_not_contradict_chat_result_line;else_show_catalog_result_text
+- 2026-11-16T10:25:15Z status=resolved-by:dw-1378 by=epic-runner note=incident request part carries after (SettingCause.ShownAfter, redacted as the chat); the done setting band names it, never the SettingChange values; DW-1366 card says back to 9 like the chat (d67e8cda8); AD-12 sub-bullet verbatim
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T08:48:36Z status=routed owner=burndown by=burndown_gate note=rescoped_out_of_23.14(orchestrator,Planner_cut_story_~11:00Z_Nov16):stays_with_lane_C
 
 ### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -8485,12 +8511,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 24.2's matrix accepts duplicates (no approved refusal text); ForProduction returns one {id,name,address} per row, so two contacts with one address both naming a production give it twice once Story 23.13 switches 23.5's reader to the table.
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13 (Lane A reader): de-duplicate recipients by address; key 23-13 is not in this worktree's tracker
 - 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
+- 2026-11-16T02:17:24Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=13da5d2c:recipients_de-duplicated_by_lower-cased_trimmed_address(lowest_id_kept);pinned_in_PartnerWarning/PartnerMail
 
 ### DW-1394: The TABLE = 1 state of Settings > Partner contacts is only simulated in 24.2: the real switch class and both halves of partnersHelp are unpinned until 23.13
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: PartnersShown's default class and Values' call are not falsifiable while Fix.PartnerContacts has no TABLE (both sides 0); partner-view.test.mjs pins partnersHelp's halves as text only (EXPERIENCE.md L1059 condition), and 'only after you approve each one' rests on 23.5 (inference).
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13: at the real TABLE = 1, pin the section shows, warnings go only to listed contacts and only after approval
 - 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
+- 2026-11-16T02:17:24Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=13da5d2c:real_TABLE=1;e2e_P1_section_shown+both_halves_of_partnersHelp;warnings_only_to_listed_contacts_after_approval(PartnerTurns,PartnerMail);TABLE-removed_mutation_red
 
 ### DW-1395: AD-13 L484 is ambiguous for unowned config tables: GET /v1/settings lists every PartnerContact row in the web process through PartnerContact.List()
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8526,6 +8554,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner 0.37 A/B (release-evidence/ab-037/RESULT.md), ~18:30Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: webhook: digest 3/3 OLD -> ignore 3/3 NEW at c8f7a3f39, safety held (refused, no tool step, no memory saved); email sibling went digest->ignore on 1.0.11's own RC run; chat probe leans act on both OLD and NEW
 - 2026-11-15T17:39:53Z status=routed owner=burndown by=orchestrator note=owner lane C after DW-1205/DW-494; bring evidence to the Planner; no eval-set change without a Planner ruling
+- 2026-11-16T05:37:03Z status=routed owner=burndown by=orchestrator note=Contest Planner A/B FAIL (release-evidence/ab-1389/RESULT.md; OLD 044b6c2e1, NEW 004cdb5e6, N=5): pair digest 10/10 NEW vs 7/10 OLD, but drift: mail-date-format-monday digest 4/5 NEW vs 0/5, held-out mail-unsubscribed digest 4/5 vs 1/5, mail-access-expires-today digest 4/5; bars b, c, g, i fail; safety held (0 actions, injections refused); flag heartbeat-injected-decision act 2/5 NEW vs 0/5. CLOSED for 1.0.12 as a known safe coin flip; a narrower wording (items that explicitly ask to remember) is a LOW post-1.0.12 option with its own A/B, bar (i), drift cases named; branch OCT-epic0-dw1389 kept
 
 ### DW-1391: flake candidate: Test.Fix.Asked TestSuspendAndUndo 'the same ask again is already_asked' and 'with the ruled message' failed (1.40 s class) in CI; same Fix area as DW-1205/DW-494
 - source: orchestrator; Contest Planner query ~18:45Z Nov 15 | severity: med | fix-risk: low | footprint: in-epic
@@ -8558,6 +8587,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: documents-page.ts binds appFileDrop [active]="!viewer()"; with no handler, Chrome's default drop opens the PDF in the tab. The spec's Never list leaves the drop to the browser, as the chat does for a viewer.
 - 2026-11-15T20:15:51Z status=by-design owner=25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale by=cr note=spec-bound (Never: drop left to the browser's own handling, chat precedent); reopens only via spec amendment
+- 2026-11-16T00:53:42Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=orchestrator note=Contest Planner ~03:00Z Nov 16: NOT by-design; on the Documents page AND in the chat a viewer's drop is prevented (preventDefault on dragover and drop) and does nothing, no text, no navigation; LOW; pin both surfaces in 26.4
 
 ### DW-1402: documents.spec.ts:178 still builds its PDF DataTransfer inline instead of support/files.ts fileTransfer
 - source: spec-25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8600,6 +8630,31 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
 - 2026-11-15T19:03:01Z status=routed owner=burndown by=orchestrator note=fix in DW-1391's commit if it is the same one-line LastAt change and the hammer covers it; otherwise its own fix
 
+### DW-1410: A copy resent to a business process that waits for a reply reads Completed and not held for the whole wait, so Tally counts it done even with the DW-1205 fix
+- source: _bmad-output/implementation-artifacts/spec-21-dw-1205-a-copy-that-errors-is-not-counted-as-done-while-ens-still-holds-it.md (code review) | severity: high | fix-risk: high | footprint: in-story
+- evidence: Ens.Actor sets the BP's own request header Completed on every pass (Actor.cls:452, before the IsCompleted test), also while it waits for a reply, and the job's active-message entry then holds the reply header, not the copy, so neither the entry check nor the second read sees it. Scratch probe on the lane-C throwaway (BP calls a BO with a reply, OnResponse errors), fixed code: 25/100 trials wrong with a ~1 ms reply, 10/10 wrong with a 1 s reply (each copy read Completed unheld for 1-3 s, then Error). Pre-existing: the old code counts it the same way.
+- 2026-11-15T22:44:51Z status=escalated owner=burndown by=cr note=pre-existing; fix needs a held signal beyond the gate (the BP instance) and an AD-16 change: Planner decision
+- 2026-11-15T23:16:48Z note=triage (read-only): NOT in the demo: Break the feed RepairResend -> OrdersFromPartner (Demo.Orders.Translator BP) sends SendRequestAsync(...,0), no reply, completes 1st pass (Translator.cls:21, irislib Ens/BusinessProcess.cls:214-234/463-479); guide Reroute -> OrdersForReview (Review BO). Fixtures use the same production; the CR probe's BP awaited a BO reply. Hits only user-production BPs that await replies. Session-level signal is cheap (SessionId at Reader.cls:749, MessageHeader.cls:24 index, gap-free with Status IN(2,3,6)+held) but gives false still-running from downstream/fan-out legs in the original's session; BP-instance check (%PrimaryRequestHeader=copy, %IsCompleted=0; saved Actor.cls:221) is tighter, needs a probe. Triage suggests severity medium, post-demo (Planner to decide). by=triage
+- 2026-11-16T03:08:44Z by=implement note=fix measured lane C: 0 wrong/300 at 1ms (unloaded, loaded; was 83,131), 0/30 at 1s (was 30), fan-out 0 false holds
+- 2026-11-16T03:08:44Z by=implement note=instance-only: 11/20 retry, 10/300 wrong; session signal 66/300 wrong, 30/30 false hold on fan-out; Scale 22.3s to 18.7s
+- 2026-11-16T04:20:50Z status=resolved-by:dw-1410 by=epic-runner note=BP-instance check + reply-in-hand check in Watch.Reader (d19e70a5b); fixed code 0 wrong (1 ms 300 unloaded and loaded, 1 s 30, retry, sync, BPL), no false fan-out hold; lane-a@Fix 29/29 on builds 154 and 109
+
+### DW-1412: Redact.Text misses common URL signature parameters (sig=, signature=, X-Amz-Signature=, X-Amz-Credential=, auth=): an Azure SAS or S3 presigned URL setting value is shown raw on card, panel, phone and Telegram
+- source: spec-24-4a code review | severity: med | fix-risk: med | footprint: in-story
+- evidence: SENSITIVEKEYS has no signature, sig or auth and the bare rule covers only key=; the redactor ruling listed user:password, token=, key= and Bearer; widening the shared redactor (logs everywhere) is a security-posture call
+- 2026-11-16T01:11:57Z status=decision-pending owner=burndown by=cr note=owner: approve more shapes in Redact.Text (sig=, a signature suffix, auth=) with pins, or keep the ruled list
+- 2026-11-16T03:10:05Z status=resolved-by:burndown by=merge_gate note=Redact.Text redacts sig, signature, X-Amz-Signature, X-Amz-Credential, X-Amz-Security-Token and auth values (name kept); branch OCT-epic24-dw1412 a6280a77, ci 43792972706+43792972612 green
+
+### DW-1413: Each setting-kind dry run holds a detached Expire process for VALUESSECONDS (60 s) even after the take; from a licensed process (a test, a terminal) the 8th concurrent JOB fails on IRIS Community (8 connections)
+- source: spec-24-4a code review | severity: low | fix-risk: low | footprint: in-story
+- evidence: measured on lane-D warm: 7 Expire jobs from an iris session, then JOB :5 gives Test=0; FixExecutor's own jobs run as _Ensemble with no LicenseUserId and InstanceConnections stays 1; a failed JOB discards the entry and the dry run is refused
+- 2026-11-16T01:11:57Z status=wontfix-accepted owner=24-4a-show-setting-values-redacted-everywhere-and-the-setting-chan by=cr note=V6 option (a) ruled; reopen_if=a setting-kind DryRunResult with the internal-error Reason or a failed Expire JOB in a running production
+### DW-1410: A copy resent to a business process that waits for a reply reads Completed and not held for the whole wait, so Tally counts it done even with the DW-1205 fix
+- source: _bmad-output/implementation-artifacts/spec-21-dw-1205-a-copy-that-errors-is-not-counted-as-done-while-ens-still-holds-it.md (code review) | severity: high | fix-risk: high | footprint: in-story
+- evidence: Ens.Actor sets the BP's own request header Completed on every pass (Actor.cls:452, before the IsCompleted test), also while it waits for a reply, and the job's active-message entry then holds the reply header, not the copy, so neither the entry check nor the second read sees it. Scratch probe on the lane-C throwaway (BP calls a BO with a reply, OnResponse errors), fixed code: 25/100 trials wrong with a ~1 ms reply, 10/10 wrong with a 1 s reply (each copy read Completed unheld for 1-3 s, then Error). Pre-existing: the old code counts it the same way.
+- 2026-11-15T22:44:51Z status=escalated owner=burndown by=cr note=pre-existing; fix needs a held signal beyond the gate (the BP instance) and an AD-16 change: Planner decision
+- 2026-11-15T23:16:48Z note=triage (read-only): NOT in the demo: Break the feed RepairResend -> OrdersFromPartner (Demo.Orders.Translator BP) sends SendRequestAsync(...,0), no reply, completes 1st pass (Translator.cls:21, irislib Ens/BusinessProcess.cls:214-234/463-479); guide Reroute -> OrdersForReview (Review BO). Fixtures use the same production; the CR probe's BP awaited a BO reply. Hits only user-production BPs that await replies. Session-level signal is cheap (SessionId at Reader.cls:749, MessageHeader.cls:24 index, gap-free with Status IN(2,3,6)+held) but gives false still-running from downstream/fan-out legs in the original's session; BP-instance check (%PrimaryRequestHeader=copy, %IsCompleted=0; saved Actor.cls:221) is tighter, needs a probe. Triage suggests severity medium, post-demo (Planner to decide). by=triage
+
 ### DW-1406: flake candidate: web/e2e/heartbeat-card.spec.ts:305 HC6 (dailyCap and noModelKey hold Run) failed at :333 toHaveAccessibleDescription: element not found, waiting for the Status region's app-heartbeat-card button 'Run the heartbeat now'
 - source: orchestrator; feature ci | severity: low | fix-risk: low | footprint: in-epic
 - evidence: feature 3242f9657 (DW-1388 merge, test-only, no heartbeat change) ci 43754264003 att1 iris(shards-5) on ocutalon-ci-54; HC6 green on every earlier feature run; superseded by 92937a03e
@@ -8609,9 +8664,172 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: FailurePoller.Scope (Lane D Watch/**) owner fallback; 23.4 re-review 2
 - 2026-11-15T22:14:50Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a page row exists for an incident whose first failure carried a session trace tag, or for a production with no watch at notice time
+
+### DW-1415: A Settings-contact partner_warning sends a real email to outside addresses, but Fix.Kind.Email.MayApprove (the DW-1262 admin-only approver rule) passes every kind but email, so any user who asked for the warning can approve it
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: MayApprove quits 1 for FixKind other than email (Fix/Kind/Email.cls:328); since 23.13 an approved partner_warning mails the Settings contacts from the email.owner mailbox through EmailOut; no ruling covers who may approve it
+- 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=for the Planner (veto: privileges): keep any asker as approver (admin-curated recipients) or require OcuTalonAdmin as for email
+- 2026-11-16T04:03:13Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-16_dw-1415-1416-rulings:1.0.12_cut_item;23.13_rework_1
+- 2026-11-16T06:14:11Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=5b40e533+AP6:MayApprove_admin_rule_for_partner_warnings_on_web/phone/Telegram;real-HTTP_AP6;mutations
+
+### DW-1416: Summary.RunEvents reads summary.partnerNotSent ('the delay notice was not sent.') for a failed Settings-contact send even when EmailOut answered MESSAGEMAYHAVESENT or MESSAGEFAILED, so the timeline can deny an email that may have gone out
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Executor.SendPartner ends failed on any Ok 0 (incl. MESSAGEMAYHAVESENT 'it may have gone out') and on an exception after Submit; Summary.RunEvents then picks summary.partnerNotSent for Completed 0
+- 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling for the may-have-sent timeline line (public text, veto 5); the session and card read Out's own sentence
+- 2026-11-16T04:03:13Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=Planner_2026-11-16_dw-1415-1416-rulings:1.0.12_cut_item;23.13_rework_1
+- 2026-11-16T06:14:11Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=7d7df952:summary.partnerMaySent;not_sent_only_when_definitely_not_handed_over;pins_for_all_three_answers
+
+### DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (Delivered and Claims verbatim; Send, Mailbox and Reset adapted), forced by the spec because the originals are private in a Lane B test class
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: PartnerMail.cls 255-311 vs Test/Channel/EmailOut.cls 1372-1505; the spec's Task names the copy and its reason (Rule 2: a spec-forced copy is routed to the story that unifies it)
+- 2026-11-16T02:15:05Z status=routed owner=burndown by=cr note=unify into a shared EmailOut test helper class after the contest, as DW-603 for ToolCallNotices
+- 2026-11-16T06:12:21Z note=the class Test.Fix.PartnerMail moved to Test.Partner.PartnerMail in 23.13 rework 1 (shards-11, commit b39c8121); its helper lines are unchanged
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+
+### DW-1418: Core/CommandsIn.cls's class description still calls a system SendEmail FixExecutor's approved email fix; since 23.13 the executor also sends approved partner warnings that way
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CommandsIn class doc (Lane B file, not in 23.13's footprint); Out, Executor, Kind, Notice, Summary and IncidentManager docs were updated
+- 2026-11-16T02:15:05Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=a reader or reviewer acts on the stale CommandsIn description, or a later story edits CommandsIn's system-send paragraph
+
+### DW-1419: The web glue that passes a partner request's simulated to its band (incidentContext's simulated ?? null, the request card's shown().dryRun?.simulated) is pinned only by source regexes; no executed test drives store -> card -> band
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: approval-sources.test.mjs 315-316 and 339 are source pins (mutation recorded red); approval-view/incident-view tests execute the band logic with their own contexts; e2e A13 checks the open card with simulated true only
+- 2026-11-16T02:15:06Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the lead's smoke or a live run shows a partner band missing or wrong on the open or compact card (sent, skipped or demo)
 - 2026-11-15T19:36:41Z note=measured by DW-1391 QA: Summary.cls -3600 at Incident L878, Group L929, Resolved lastOffset L936/L943; closeQuiet hammer (2 jobs) turned Test.Watch.Summary red 5/11 (TestClosingLines 3, TestRunEdges 2, TestFixedDismissed 1), green without it. Not a one-line change (TestClosingLines L163 builds a quiet incident on purpose), so not folded into DW-1391. FIX path: LastAt=now in the helpers + Settle.Quiet guard, and build TestClosingLines' quiet case as Test/Watch/Lifecycle.cls does (LastAt=now, probe QuietNowIs (IncidentProbe.cls L58) = now+960 s). Margin notes (not this race): Checks/Heartbeat TestQuietClose 60 s margin; Tools/RecentActivity TestDemoPath 240 s margin. by=qa
 
 ### DW-1399: DW-1391: the closeQuiet hammer behind AC 1 lives only in scratch, so no repo or CI run repeats the race measurement
 - source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
+
+### DW-1426: Closed card gives no outcome after its undo is answered: the card leaves, nothing is announced, focus goes to the main region
+- source: spec-24-4b-show-the-new-fixes-partner-warnings-and-the-closed-card-undo.md (code-review) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Binding ruling: a closed card draws nothing once the undo is answered, so Approve or Reject removes the card at the reply. Measured on a fresh stack (F6b b1, c): no status, no announcement; focus lands on main.main by the chat focus rule (not the body). Options: announce answered.* (existing text) and focus the incident headline as Dismiss does; or keep the card while in flight; or accept.
+- 2026-11-16T06:44:02Z status=decision-pending owner=burndown by=cr note=Planner call: feedback after answering a closed card's undo; recommend announce status + focus incident headline
+### DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage (after the server accepted the message with 250) to REJECTED, so EmailOut answers MESSAGEREJECTED ('so it wasn't sent') for an email that was delivered, and a partner warning's timeline reads summary.partnerNotSent instead of summary.partnerMaySent
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: irislib %Net.SMTP Send: after the data terminator's 2xx it sends QUIT and calls UnexpectedResponse('QUIT', response) on a non-2xx or empty (timed-out) read; Sender.cls:151 maps SMTPResponse to REJECTED; Out.cls:245; PartnerWarning MAYHAVESENTSENTENCES keeps MESSAGEREJECTED as not sent
+- 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=fix in Sender.Classify (a QUIT-stage SMTPResponse is a send, or at least may-have-sent); it corrects email's own result sentence and DW-1416's timeline line together; rare (a server that does not answer QUIT)
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
+- 2026-11-16T08:49:47Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut:QUIT-after-250_counts_as_SENT_for_every_email_kind;remainder_stays_with_23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha
+- 2026-11-16T11:11:26Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=cr note=remainder:a_connection_lost_on_QUIT_reads_SMTPConnectionFailed(DATA)_in_this_%Net.SMTP_so_it_is_maysent_not_sent;23.15_did_the_QUIT_answer
+
+### DW-1423: docs/security-overview.md does not say that a partner warning to Settings contacts can be approved only by an OcuTalonAdmin (DW-1415), and its Action audit line does not list the refused approve that AnswerOps.AuditRefused writes
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: security-overview.md:151 'Who may answer' names the admin rule for an email only; :159 Action lists a fix run, a resend, a replayed tool call or Break the feed
+- 2026-11-16T06:12:20Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the Planner rules the security-overview text for DW-1415 (draft: 'a partner warning to Settings contacts can be approved only if its user holds OcuTalonAdmin;' and 'Action: ... or a refused approve of a partner warning'); ruled public text (DW-1315)
+- 2026-11-16T08:49:46Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut_story(prompts/dw-1415-1416-rulings-20261116.md_last_section);text_to_Planner_first
+- 2026-11-16T12:04:04Z status=resolved-by:23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=0ebf5bb2:approved_lines_verbatim
+
+### DW-1424: Test.Partner.PartnerApprove repeats the IRIS user and role helpers of other test classes (HeldRole verbatim from Test.Core.AnswersInProduction; MakeUser, CreateUser, SetRoles, DropUsers and PairedChat as in Test.Fix.Email and Test.Fix.EmailCard)
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the same helpers are already copied across about nine test classes (Test.Fix.Email, EmailCard, EmailRoute, Core.AnswersInProduction, AnswersInWebRoles, AnswerPrecedentsProduction, AnswersTelegramProduction, Channel.TelegramApproval, Bridge.WebStatus): an existing project pattern, Rule 2 weak reason
+- 2026-11-16T06:12:21Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=DW-1417's unification of the shared test helpers is scheduled (fold the user and role helpers in), or a helper copy diverges and a test goes red for it
+
+### DW-1425: GUIDE.md line 12 says without demo mode there are no partner contacts yet, so no notice is drafted; since 23.13 a notice to Settings contacts is drafted and sent (admin approval) or kept
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: GUIDE.md:12 vs 23.13 (merged) partner-warning behaviour
+- 2026-11-16T06:14:10Z status=decision-pending owner=burndown by=cr note=human=Planner_public_text:a ruled GUIDE.md wording for partner warnings to Settings contacts
+- 2026-11-16T08:49:47Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=planner note=1.0.12_cut_story(prompts/dw-1415-1416-rulings-20261116.md_last_section);text_to_Planner_first
+- 2026-11-16T12:04:04Z status=resolved-by:23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=4a2a8c93:approved_sentence_verbatim_with_>
+### DW-1411: flake: web/e2e/demo-path/telegram-page.spec.ts:977 T7 (Story 12.6): the chat turn's reply part read 'I couldn't answer that: the model returned an error. Nothing was changed.' instead of the CI mock's 'The CI mock looked at the productions.' (60 s expect), in CI iris (browser) live:demo-path
+- source: epic-runner; OCT-epic21-dw1205 fded9d158 ci 43777000338 attempt 1 job 133005443930 on ocutalon-ci-14 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: a model-call fallback on the mock's chat scenario (list_productions tool turn, ci/mock/scenarios/A/chat.json); list_productions reads Watch.Reader.Productions(), not the evidence branch DW-1205 changed; lane-a@Fix 29/29 on builds 154 and 109 at the same tree; no other recent ci.yml failure carries this signature; distinct from DW-609 (T7 120 s timeout)
+- 2026-11-16T00:25:15Z status=routed owner=burndown by=flake note=(inference) the mock call timed out or errored under runner load; one rerun of the failed job
+- 2026-11-16T00:47:54Z occurrence=OCT-epic21-dw1205-fded9d158 by=epic-runner note=attempt 2 of run 43777000338 passed iris(browser) (flake confirmed by the rerun)
+- 2026-11-16T05:21:47Z status=dropped by=epic-runner note=superseded-by:DW-609 (same test, telegram-page.spec.ts T7; coordinator ledgered the ci-14 occurrence there)
+
+### DW-1427: DW-1373 item branch: an EnableConfigItem refusal (the forward store or the restore store) and a restore throw are never run live
+- source: spec-21-dw-1373-a-suspend-or-resume-that-could-not-be-applied-is-not-reported-as-nothing-changed.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: Tests force only UpdateProduction (updateErrors); a forced saved = 1 or a dropped restore Catch survives every test. A refusal needs a fixture item IRIS refuses (PoolSize 0 process, Director.cls L1570); a throw needs a new seam.
+- 2026-11-16T06:52:29Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=a change to the item branch saved gate or restore Try of InProduction, or a PoolSize 0 process in the Orders demo
+
+### DW-1420: test-eval-set.sh main-set-texts reads only item and precedent fields, never a user-turn case's turn.text, so an instruction text could copy a user-turn case's wording unnoticed
+- source: lane C DW-1389 follow-up guard probe; Contest Planner ruling ~06:30Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: scratch copy: the user-turn-orders-stopped text pasted into Triage, both text guards still passed
+- 2026-11-16T05:31:18Z status=routed owner=burndown by=orchestrator note=Lane B, after 1.0.12; not a cut item
+
+### DW-1421: eval incident orders-target-to-review ends in an INVALID FALLBACK (empty fields) in 4/5 NEW and 2/5 OLD real-model runs (DW-1389 A/B), taking SM-2 to 11/13 on both sides; the 1.0.12 RC SM-2 gate will see it
+- source: Contest Planner, DW-1389 A/B (release-evidence/ab-1389) | severity: med | fix-risk: med | footprint: in-epic
+- evidence: OLD 044b6c2e1 equals feature on this path; invalid-fallback incident misses; one of 23.3's two new incidents (to confirm)
+- 2026-11-16T05:37:03Z status=routed owner=burndown by=orchestrator note=diagnosis FIRST, sent to the Planner before any fix: why the model's incident answer is invalid; whether a schema or prompt-shape fix (not Triage wording) removes it; any model-facing text fix needs the Planner's A/B; before the 1.0.12 RC eval
+- 2026-11-16T05:43:45Z note=diagnosis (read-only): "invalid" is a DiagnosisPayload reply-check refusal, not a cut-off or refusal (one ~$0.001 call, same cost as valid replies); confined to 23.3 setting_change pair (to-review 6/10, renamed 3/10 across OLD+NEW; other incidents <=1/10); onset 8f6d2e2a1 (23.3, merged 8c71bef6e after 0.37), not DW-1389; exact rule unrecorded (RefusalText reduces every %OnValidateObject rule to ERROR #5001; no raw reply kept). Leading inference: fixSummary/fixKind/fixParameters on a setting_change that should carry no fix (DiagnosisPayload.cls:79-86), because Diagnosis.cls:45 failing-item rule is a model judgment that RollbackSetting.cls:127 already enforces in code. Next: C0 capture Reply bodies, C1 rule-tagged refusals, then C2/C3 code-side tolerance (not model-facing); C4 onFailingItem in the pack only with an A/B. by=diagnosis
+- 2026-11-16T13:35:22Z note=C0 capture harness (eval/capture-fallbacks.sh via eval/run.sh, opt-in OCUTALON_EVAL_CAPTURE_DIR) and C1 rule tags (REFUSALRULES allowlist, 22 tags) implemented on OCT-epic0-dw1421 (d54eb7a0d + QA + CR); next: the Planner key-holder runs a 5-run set with capture and reports per-rule counts; C2/C3 proposed from those numbers by=epic-runner
+
+### DW-1428: flake candidate: Test.Schedule.Reminders TestTwoWaitersFireOnce 'the session has one web card' and 'and one phone message' fail although exactly one Notify left ReminderTimer and WebChatOut and SimPhoneOut handled it (shard:lane-b@rest)
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: OCT-epic23 89b0eb50 run 43823569610 iris(shards-6) on ocutalon-ci-25; no Schedule/Notify/Ownership change in dbc68f1d..89b0eb50; same class green on 0c743465 (run 43816599381 shards-6)
+- 2026-11-16T08:09:24Z status=routed owner=burndown by=ci note=flake:reminders_two_waiters_ownership_counts;one_rerun_of_the_failed_jobs
+- 2026-11-16T08:14:49Z occurrence=epic23-89b0eb50 by=runner note=run_43823569610_att1_iris(shards-6)_on_ocutalon-ci-25_lane-b@rest;all_other_jobs_green;failed_jobs_rerun_once
+
+### DW-1429: Since 23.15 an approval or partner-warning send whose SMTP greeting, EHLO, MAIL FROM or RCPT TO times out answers MESSAGEMAYHAVESENT (claim maysent; card and chat read result.partnerMaySent), although the server never received the message: Sender.MayHaveSent counts every SMTPTimeout, which names no step
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: irislib %Net.SMTP GetResponse sets SMTPTimeout with no step; Sender.MayHaveSent quits 1 on any SMTPTimeout; Out.Send now applies it to approval claims (before 23.15 they answered MESSAGEUNREACHABLE, claim failed). Likeliest trigger: an implicit-TLS port (465) set without TLS, where the client waits for a greeting; no connect-time check of the mailbox exists. Errs safe: never a false not-sent, never a re-send
+- 2026-11-16T11:11:26Z status=decision-pending owner=burndown by=cr note=Planner text/product call with the deferred MESSAGEMAYHAVESENT internal-exception wording: accept the safe answer, reword, or a step-aware SMTP in 23.14
+- 2026-11-16T11:14:55Z status=routed owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=lead_ruling:rework_1_of_23.15(step-aware_may-have-sent;Planner_CONDITION_binding)
+- 2026-11-16T12:04:04Z status=resolved-by:23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=adjudication note=5250d600:Channel.Email.SMTP.DataBegan;may-have-sent_only_after_354
+
+### DW-1431: After DW-1429 a claimed send whose server greeted and then timed out at EHLO, AUTH, MAIL FROM, RCPT TO or DATA (before the 354) reads MESSAGEUNREACHABLE 'OcuTalon couldn't reach the mail server', which is imprecise: the server was reached
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Sender.Classify maps every SMTPTimeout to unreachable; the not-sent outcome is right (ruled: Planner CONDITION, lead's DW-1429 item), only the reason's wording is coarse; same sentence as before 23.15 and for every unclaimed tool send
+- 2026-11-16T12:01:11Z status=wontfix-accepted owner=23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say by=cr note=reopen_if=a user report or a Planner text ruling that MESSAGEUNREACHABLE misleads after a mid-dialogue SMTP timeout
+
+### DW-1440: R7 notes A/B: a notes run started in the first 170 minutes of the container's local day renders the notes under two day headings, so A and B runs either side of a split differ in structure, not only in the channel label
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Eval.In.NotesUp writes the notes 170, 95 and 40 minutes before now and Agent.Input.NotesPart groups notes by local day (yesterday, today); fix-risk high: a code fix alters the Planner-pinned notes set or makes the knob's CI tests depend on the time of day
+- 2026-11-16T18:25:33Z status=decision-pending owner=burndown by=cr note=human=Planner runs the R7 A/B outside 00:00-02:50 container-local time, or accepts split day headings
+
+### DW-1441: The Slack route answers a form body 400 before the signature check, and the spine's AD-13 amendment states that order, while the Planner-approved order (gate f, R11) puts 401 before 400
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Web/Hook.cls Slack() runs IsForm before Signature.Check (implement decision 18: a form leaves no raw bytes to sign); R3 and R5 still hold
+- 2026-11-16T18:25:33Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the form-400-before-401 refinement of the approved AD-13 order, or restores 401 first
+
+### DW-1442: Spine ADs AD-13, AD-14, AD-17 and AD-22 still state wording that Story 27.1's shipped behaviour contradicts
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: AD-17: rejected-request audit target is the webhook Ref, Slack writes target slack; AD-13 hook bullet hands events only to WebhookIn, AD-24 now adds SlackIn; AD-14: every inbound message becomes an Item, Slack's others become Ignored; AD-22 silent on eval-session Turn rows
+- 2026-11-16T18:25:33Z status=escalated owner=burndown by=cr note=AD Rule wording edits are a Planner veto item; 27.3's spine gate can carry them
+
+### DW-1443: SlackIn.Turn copies Channel.Telegram.In Turn (itself in the steps of WebChatIn.Accept): a third copy of the open-session, Trace.Join, Item, SendTurn, Trace.Started, clear-ids recipe
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Channel/Slack/In.cls Turn repeats Channel/Telegram/In.cls Turn step for step minus allowance and file; spec decision 9 forces the copy (U-177: a Lane B story may not edit or extract from a Lane A class)
+- 2026-11-16T18:25:34Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify in one shared turn helper in a story allowed to edit Lane A and Lane B channel services
+
+### DW-1444: A Slack event over Data.Webhook BODYMAX (65,536 bytes) is answered 413 and dropped, so a very long direct message (Slack allows 40,000 characters and repeats the text in blocks) never becomes a turn
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Web/Hook.cls Slack() applies BODYMAX before the signature; the spec's check order and its I/O matrix row Too big fix 413 over 65,536 bytes
+- 2026-11-16T18:25:41Z status=by-design owner=27-1-receive-slack-events-by-webhook by=cr note=spec-bound (check order, matrix row Too big); reopens only by a spec amendment that gives Slack its own cap
+
+### DW-1445: Slack route rejections are audited with channel webhook (target slack), because they reuse Data.Webhook RecordRejection
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Data.Webhook.RecordRejection writes channel webhook; spec decision 4 and the Always line reuse it with slot slack and keep action webhook_rejected
+- 2026-11-16T18:25:41Z status=by-design owner=27-1-receive-slack-events-by-webhook by=cr note=spec-bound (decision 4; Always: audited through RecordRejection)
+
+### DW-1446: Channel.Slack.Ignored is an Ens.Request outside an OcuTalon Msg package and has no Test.Msg.Contracts entry
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the spec's Tasks name Channel/Slack/Ignored.cls; its property set is pinned through %Dictionary by Test.Channel.SlackIn TestRecordsHoldNoIds
+- 2026-11-16T18:25:41Z status=by-design owner=27-1-receive-slack-events-by-webhook by=cr note=spec-bound location; shape pinned in the SlackIn tests
+
+### DW-1447: Web.Hook.RawBody re-encodes a character body stream to UTF-8, though the spec says the body is never decoded or re-encoded before hashing
+- source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Task 0 (a) measured a binary stream for application/json with and without a charset, so the branch never runs for Slack's JSON
+- 2026-11-16T18:25:41Z status=wontfix-theoretical owner=27-1-receive-slack-events-by-webhook by=cr note=real if the web server ever hands RawBody a character stream for application/json
+### DW-1435: flake: test-eval-set.sh rule capture reported "with the capture variable empty, the run is not the same, byte for byte, as with it unset" once on a local lane-C run (DW-1421 round-2 review) and passed on the unchanged rerun
+- source: spec-0-dw-1421-c2p-an-over-long-evidence-element-is-cut-not-refused.md (code review round 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: No shell file changed since 08f55bc99; the same tree passed the rule on the rerun (234 s). Unverified cause: the compared out.log, calls or reports of two stub runs of eval/run.sh differed once, possibly a time-dependent line under load.
+- 2026-11-16T16:37:43Z status=routed owner=burndown by=cr note=unverified; settle by printing the diff of cap-a and cap-e when the comparison fails
+- 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=Planner_after-cut_ruling:verbatim:'The mail server couldn't be reached or didn't answer in time, so the email wasn't sent.'(EmailOut_only;Adapter_REASONUNREACHABLE_unchanged);MODEL-FACING(send_email tool answer.message);NOT_LANDED;joins_post-cut_bundled_A/B_with_DW-1389
+
+### DW-1432: MESSAGEMAYHAVESENT ('The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again.') is also answered for an internal exception after the hand-over and for a MESSAGEFAILED the executor wrappers turn because the claim shows the send began, where the server did not stop answering
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.cls MESSAGEMAYHAVESENT; Out.SendClaimed catch; Fix.Kind.Email Unfinished/FailedMessage (23.15 deferred, harvested by the lead)
+- 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=Planner_after-cut_ruling(~15:30Z):one_sentence_verbatim:'Sending stopped after the mail server had started receiving the email, so it may have gone out. OcuTalon won't send it again.';MODEL-FACING(send_email tool answer.message=Out's sentence, Tools/EmailTools.cls SendEmail);NOT_LANDED;joins_post-cut_bundled_A/B_with_DW-1389
+
+### DW-1433: Out.Began's read-error branch (answers 1, the safe default, when the claim row cannot be read) has no test and no mutation
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Channel/Email/Out.cls Began (23.15 deferred, harvested by the lead)
+- 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=a_forced_SQL_error_in_the_claim_lookup_is_hard_to_inject;safe_default
+
+### DW-1450: flake candidate: live:online-demo row 6, a proxied sign-in with the cap one above busy gave 'other' instead of the shell
+- source: feature ci 43939939727 (d996ffcde) iris (browser) on ocutalon-ci-31 | severity: low | fix-risk: low | footprint: docker/tests/test-online-demo.sh
+- evidence: the head's diff from its green parent dddd24dfc is ci/units.sh and test-demo-path-gate.sh only; live:online-demo ran before live:production-restart in the job (units run in sequence), so the rebalance did not touch it; row 6 depends on a connection count read before S3 and S5
+- 2026-11-16T21:10:54Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1

@@ -8610,6 +8610,70 @@ So that the people who hear about a delay are the ones I chose.
 - DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
 - DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
 
+### Story 23.14: Epic 23 burn-down: results, summaries and partner mail say what really happened
+
+[ADDED 2026-11-16, chartered by Lane B's runner as Epic 23's burn-down story (Rule 17 (3), the burn-down gate; the gate needs no human). Its input is the routed MED entries Epic 23's reviews filed to the burn-down; flakes (DW-1083, DW-1428) and decision-pending entries (DW-1358, DW-1423, DW-1425) are not in it. It does not depend on Story 23.8 or inbox U-329. No public claim and no release-note line unless a ruling adds one.]
+[AMENDED 2026-11-16, orchestrator relay of the Contest Planner's 1.0.12 cut story (prompts/dw-1415-1416-rulings-20261116.md, last section, ~11:00Z): rescoped to DW-1050, DW-1117, DW-1417 and DW-1422's remainder; DW-1373, DW-1376 and DW-1378 stay with lane C; DW-1422's QUIT-after-250 case is fixed in the 1.0.12 cut story, not here; 23.14 runs after the cut]
+
+As an OcuTalon operator,
+I want every result line, summary line and partner email outcome to match what really happened,
+So that I never act on a record that says more, or less, than OcuTalon did.
+
+**Acceptance Criteria:**
+
+**Given** a partner request approved after its incident closed
+**When** the close tells `result.partnerNotSent`
+**Then** the request is ended and audited (ids only) so its session can be purged, and a repeated approved outcome is not told again (DW-1117)
+
+**Given** whatever of DW-1422 the 1.0.12 cut story leaves open (its QUIT-after-250 fix counts such an email as sent for every email kind)
+**When** EmailOut classifies an SMTP answer it can't place before or after the server accepted the message
+**Then** a partner warning's timeline never reads "not sent" for an email the server may have accepted, and each such case has a test (DW-1422, remainder)
+
+**Given** `Watch.Summary` and `Msg.Catalog`
+**When** a summary is stored or rendered
+**Then** both use one shared clean-character list and lookup (no private copy in `Watch.Summary`) (DW-1050), and `Test.Partner.PartnerMail` uses shared EmailOut test helpers instead of its copies of `Test.Channel.EmailOut`'s private ones (DW-1417)
+
+- DW-1050: Watch.Summary copies Msg.Catalog's private Clean character list and Lookup (ledger)
+- DW-1117: A partner request approved after its incident was closed stays approved for good (ledger)
+- DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (ledger)
+- DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage to REJECTED (ledger; remainder after the 1.0.12 cut story)
+
+
+### Story 23.15: 1.0.12 cut: partner mail says what happened, and the docs say who approves
+
+[ADDED 2026-11-16, Contest Planner's 1.0.12 CUT STORY for lane B (prompts/dw-1415-1416-rulings-20261116.md, last section, ~11:00Z; relayed by the orchestrator). BINDING. One branch from feature 0cdee2b76 or later, one commit per item. Public texts (DW-1423, DW-1425 and any card variant without {time}) land only after the Planner approves them.]
+
+As an OcuTalon admin,
+I want the card, the chat and the docs to say exactly what happened to a partner warning and who may approve one,
+So that nobody re-sends a notice that already went out, and nobody is surprised by who can approve outward email.
+
+**Acceptance Criteria:**
+
+**Given** `docs/security-overview.md`
+**When** it lists who may answer and what the `Action` audit records
+**Then** it states the admin-only approval rule for a partner warning to Settings contacts and the refused approve, in the Planner-approved words, and `test-security-overview.sh` stays green (DW-1423)
+
+**Given** `GUIDE.md`'s Partner delay notices bullet
+**When** it describes an install without demo mode
+**Then** its stale "without demo mode there are no partner contacts yet, so no notice is drafted" is replaced by the Planner-approved sentence (DW-1425)
+
+**Given** a partner warning whose send may have reached the mail server (EmailOut's may-have-sent answers, or a run interrupted by a restart)
+**When** the approval card and the chat show its result
+**Then** neither reads "Not sent: …" or "was not sent"; both use summary.partnerMaySent's wording (a variant without {time} only as the Planner approves it), and a test with a demonstrated mutation pins it
+
+**Given** an email of any kind that the mail server accepted (250 after DATA)
+**When** the QUIT that follows fails or gets no answer
+**Then** EmailOut counts the email as sent, for every email kind, and a test with a demonstrated mutation pins it (DW-1422; anything left over stays in Story 23.14)
+
+**Given** CI's shards-2 at 31.9 of its 32 minutes
+**When** a class moves to a lighter shard
+**Then** shards-2 has headroom, no limit is raised, only test placement changes, and the measured shard times are reported
+
+- DW-1423: docs/security-overview.md does not state the admin rule for partner warnings (ledger)
+- DW-1425: GUIDE.md line 12 is stale since 23.13 (ledger)
+- DW-1422: QUIT-stage SMTP answer after 250 classified as REJECTED (ledger; the QUIT-after-250 case)
+
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
@@ -8671,10 +8735,37 @@ So that the backup is woken only when the on-call person really didn't answer.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 - DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
-### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
+**Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
+
+### Story 24.4a: Show setting values redacted everywhere, and the setting change in the evidence panel
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; the 1.0.12 blocker]
+
+**Lane:** B (the redaction edits in Lane A files are granted by the Contest Planner's redactor and re-plan rulings of 2026-11-15).
 
 As a user,
-I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and a setting-change cause,
+I want every setting value OcuTalon shows me to have its secrets redacted, and the incident card's evidence to list the setting change,
+So that a token in a setting never reaches a card, a phone, Telegram or the trace, and I can see what changed.
+
+**Acceptance Criteria:**
+
+**Given** a setting change whose before, after, old or new value holds a secret-shaped string (for example a URL with a token)
+**When** it is shown on the web approval card (rollback and undo Before and After), the incident card's evidence panel, the phone page, Telegram or a notice
+**Then** every shown value has passed through `OcuTalon.Bridge.Redact.Text` on the server and shows "[redacted]" for the secret, a plain value shows unchanged, and no web redactor exists; `Redact.Text` gains the bare `key=` shape (Contest Planner redactor ruling, V4)
+**And** the Ens trace bodies for the run (`DryRunResult`, `Notification`) carry the redacted values and a `SecretHandoff` reference, never the raw token; the handoff entry is deleted when taken and an untaken one expires within SecretHandoff's limit; the stored `DryRun` and the value the rollback writes stay raw, so a rollback (and the undo of a System Default) restores the token-bearing value byte for byte (V5)
+
+**Given** an incident whose cause is a setting change
+**When** its card shows
+**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
+
+### Story 24.4b: Show the new fixes, partner warnings and the closed-card undo on the cards
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; follows 24.4a]
+
+**Lane:** B. **Depends on:** Story 24.4a (story-level).
+
+As a user,
+I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and an undo even on a closed incident,
 So that I know exactly what I'm approving, whichever fix is proposed.
 
 **Acceptance Criteria:**
@@ -8688,10 +8779,6 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** it shows on any channel
 **Then** its exact text and every recipient appear in full before **Approve** and **Reject**, as plain text in Telegram and on the phone (FR-29, UX-DR136, UX-DR146)
 
-**Given** an incident whose cause is a setting change
-**When** its card shows
-**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
-
 **Given** requests of the new kinds that are answered, expire, run or are offered for undo
 **When** each happens
 **Then** the answered statuses and results follow the UX's rules ("Approved from {channel} at {time}", "Rejected from {channel} at {time}. Nothing was changed.", "Expired at {time}. Nothing was changed.", and "Recorded in the IRIS audit log." after every result), every copy updates within 5 seconds, and an undo arrives as its own approval request card in the same incident (FR-8, FR-26, UX-DR74, UX-DR76, UX-DR79, NFR-9)
@@ -8699,6 +8786,8 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **Given** the payload fields Lane A's Story 36.1 (was 23.1) names for `incident` and that Lane B's Story 36.2 (was 24.1) names for `approval`
 **When** the web app builds
 **Then** its TypeScript interfaces match the `OcuTalon.Live.Payload` classes, a string test checks every new fixed text, and the cards meet the keyboard, focus and contrast rules in both themes (AD-12, UX-DR8, UX-DR33, UX-DR117, NFR-25)
+
+**And** a closed incident card draws only a rollback's undo request card, never another request kind, and the rail's "Show in the chat" jumps to that card (Contest Planner ruling V2, 2026-11-15)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
@@ -9105,7 +9194,7 @@ So that only the right people can approve each kind of change.
 
 Slack works as a channel through its webhook route, with replies as Slack messages and no socket mode.
 
-**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
+**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] [AMENDED 2026-11-16, owner decision relayed by the Contest Planner (standing rulings, "OWNER DECISION ~14:30Z Nov 16"): Epics 27 and 28 start now, Epic 27 first, in Lane B; each story's spec gate goes to the Planner before it is built, Slack is off on the online demo, and until the 1.0.12 merge-back the stories build and run CI on their own branch]
 
 ### Story 27.1: Receive Slack events by webhook
 
@@ -9117,10 +9206,10 @@ So that I can use it where my team already talks (step 7, Could).
 
 **Given** step 7 starts in Lane B
 **When** this story begins
-**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and the stored link of a Slack member to an OcuTalon user that `SlackIn` reads (AD-14, AD-19, AD-29, AD-33) [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): "how an admin links a Slack member to an OcuTalon user" moved verbatim to Story 27.3; this story reads the link, Story 27.3 writes it]
 **And** as the first story of Lane B's step 7 epic, it creates the `DraftTransform` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to Lane A's `IncidentManager`, under the name Lane A's Story 28.1 fixes, accepted from origin `tool` only for one of the session's own incidents (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: Story 28.1's chat path submits it]
 **And** the Slack signing secret and bot token come only from environment variables that `.env.example` lists by name, and never appear in IRIS, a setting, a log, a message, an agent step or an audit entry (NFR-11, AD-19)
-**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+**And** this story ships no user-facing text: it proposes the step 7 texts at its spec gate, and Story 27.3 ships them once the author accepts them [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): the texts criterion moved verbatim to Story 27.3]
 
 **Given** a request from Slack's Events API to the Slack route
 **When** it arrives
@@ -9167,6 +9256,21 @@ So that the conversation stays where I started it (step 7, Could).
 **Given** the README
 **When** Slack ships
 **Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24)
+
+### Story 27.3: Link Slack members in Settings
+
+As an admin,
+I want to see in Settings whether Slack is on and to link each person's Slack member to their OcuTalon user,
+So that only the people I choose can message OcuTalon from Slack (step 7, Could).
+
+[AMENDED 2026-11-16, split from Story 27.1 by an unattended ruling (doctrine U5, split 1 of 6; product default 6): the criteria below moved verbatim from Story 27.1. Order: 27.1, then 27.3, then 27.2, so that 27.2's README section on linking a member describes shipped behaviour. Scope named at the split: an admin-only link and unlink through SettingsOps with an audit entry, an admin REST route, retention of links with their session, Settings > Channels' Slack state and linking (a lazy chunk), the catalog keys, and the "via Slack" marker on web-chat turns.]
+
+**Acceptance Criteria:**
+
+**Given** Story 27.1's Slack route, `SlackIn` and its stored member link
+**When** this story begins
+**Then** the spine is updated in the same change with how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
 ## Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 

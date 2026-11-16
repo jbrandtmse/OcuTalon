@@ -311,9 +311,11 @@ describe('the incident card', () => {
       incidentTemplate,
       /@for \(request of requests\(\); track request\.ref; let first = \$first; let last = \$last\) \{\s*<app-approval-request-card\s+\[approval\]="request"\s+\[ctx\]="approvalCtx\(\)"\s+\[details\]="first \? view\(\)\.panel : undefined"\s+\[detailsId\]="panelId"\s+\[detailsOpen\]="open\(\)"\s+\[result\]="resultOf\(request\.ref\)"\s+\[itemNoun\]="incident\(\)\.itemNoun"\s+\[production\]="production\(\)"\s+\[settingChange\]="incident\(\)\.settingChange"\s+\[dismiss\]="last \? dismissTarget\(\) : undefined"\s+\(toggleDetails\)="open\.set\(!open\(\)\)"\s+\/>\s*\}\s*@if \(requests\(\)\.length === 0\) \{\s*@if \(view\(\)\.panel \|\| dismissTarget\(\)\) \{\s*<div class="actions">/,
     );
-    assert.match(incident.code, /result: \(request, itemNoun, production, change\) => resultView\(request, itemNoun, \(key, slots\) => renderPageText\(key, slots\), production, change\),/, 'the compact card\'s bands name the production and the setting change (Story 23.3)');
+    assert.match(incident.code, /result: \(request, itemNoun, production, change, simulated\) => resultView\(request, itemNoun, \(key, slots\) => renderPageText\(key, slots\), production, change, simulated \?\? null\),/, 'the compact card\'s bands name the production and the setting change (Story 23.3)');
+    assert.match(incident.code, /incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.approvals\(\), new Set\(this\.requests\(\)\.map\(\(request\) => request\.ref \?\? ''\)\)\)/, 'the compact card reads the stored approvals, which tell its result band whether the notice was simulated (Story 23.13)');
+    assert.match(incident.code, /result: \(request, itemNoun, production, change, simulated\) => [^\n]*\n\s*approvals,\n\s*render:/, 'and the context carries them to the incident view');
     assert.match(incident.code, /production = computed\(\(\) => productionOf\(this\.incident\(\)\)\);/);
-    assert.match(incident.code, /requests = computed\(\(\) => \(this\.view\(\)\.compact \? \[\] : requestsOf\(this\.incident\(\), this\.approvals\(\)\)\)\)/);
+    assert.match(incident.code, /requests = computed\(\(\) => \{\s*const asked = requestsOf\(this\.incident\(\), this\.approvals\(\)\);\s*return this\.closed\(\) \? asked\.filter\(drawnOnClosed\) : asked;\s*\}\);/);
     assert.ok(incidentTemplate.indexOf('{{ view().fixingLine }}') < incidentTemplate.indexOf('<app-approval-request-card'), 'the request cards follow the fixing line');
     assert.ok(incidentTemplate.indexOf('<app-approval-request-card') < incidentTemplate.indexOf('class="footer"'), 'and come before the footer');
   });
@@ -322,7 +324,7 @@ describe('the incident card', () => {
 describe('the result band and Dismiss on the request card (Story 6.4)', () => {
   it('draws the band between the answer row and the expiry, from the incident payload\'s request, and shows Dismiss at the row\'s end only when there is no band', () => {
     assert.match(template, /<\/button>\s*\}\s*@if \(!band\(\) && dismiss\(\); as target\) \{\s*<app-incident-dismiss \[target\]="target" \/>\s*\}\s*<\/span>\s*\}\s*<\/div>\s*@if \(band\(\); as result\) \{\s*<app-result-band \[result\]="result" \[dismiss\]="dismiss\(\)" \/>\s*\}\s*@if \(view\(\)\.expiry\) \{/);
-    assert.match(card.code, /band = computed\(\(\) => \{\s*const request = this\.result\(\);\s*const ctx = this\.ctx\(\);\s*return request === undefined \? undefined : resultView\(request, this\.itemNoun\(\), \(key, slots\) => ctx\.render\(key, slots\), this\.production\(\), this\.settingChange\(\)\);/, 'the open card\'s band names the incident\'s setting change (Story 23.3)');
+    assert.match(card.code, /band = computed\(\(\) => \{\s*const request = this\.result\(\);\s*const ctx = this\.ctx\(\);\s*return request === undefined \? undefined : resultView\(request, this\.itemNoun\(\), \(key, slots\) => ctx\.render\(key, slots\), this\.production\(\), this\.settingChange\(\), this\.shown\(\)\.dryRun\?\.simulated \?\? null\);/, 'the open card\'s band names the incident\'s setting change (Story 23.3)');
     assert.match(card.code, /readonly result = input<IncidentRequest \| undefined>\(undefined\);/);
     assert.match(card.code, /readonly production = input\(''\);/, 'and names the incident\'s production for the band of a suspend or resume');
     assert.match(card.code, /readonly settingChange = input<SettingChange \| undefined>\(undefined\);/, 'and takes the incident\'s setting change for the band of a setting rollback or its undo');
@@ -384,6 +386,10 @@ describe('a tool call\'s request in the chat panel (Story 31.6)', () => {
 
   it('asks the store for the payload: only a notice entry, and only through liveRequest on the live store\'s approvals', () => {
     assert.match(panel.code, /requestOf\(entry: ChatEntryView\): ApprovalPayload \| undefined \{\s*return entry\.entry === 'notice' \? liveRequest\(entry, this\.live\.store\(\)\?\.approvals \?\? \{\}\) : undefined;\s*\}/);
+  });
+
+  it('announces the result bands with the live store\'s approvals, so a partner notice\'s sent band is still announced (Story 23.13)', () => {
+    assert.match(panel.code, /const context = incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.live\.store\(\)\?\.approvals\);\s*const format: ChatAnnounceFormat = \{[\s\S]*?bandTexts: \(incident\) => bandTexts\(incident, context\),/);
   });
 
   it('reads the clock of the card\'s context again at every change of the live store, so a card raised later is not timed at page load', () => {

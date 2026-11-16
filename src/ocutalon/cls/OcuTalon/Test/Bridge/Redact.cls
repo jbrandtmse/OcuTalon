@@ -27,6 +27,12 @@
 ///   - TestCompoundKeys: a key whose name ends with a sensitive name (authToken, telegramChatId), the names secretKey and accessKey, and a
 ///     name whose words are split by a space or a dot ("api key", user.name, "chat id: ...") are sensitive, as JSON keys and in free text;
 ///   - TestUrlCredentials: the user and password of a URL are replaced, in free text and in JSON; a URL with no password is kept;
+///   - TestSettingValueShapes (Story 24.4a; AC1): the shapes of a setting's value, a URL with token=, access_token=, key= or user:password@,
+///     and the bare key= (any case, spaces around the =, a quoted value) are replaced and the rest of the URL is kept; monkey=, keyboard=,
+///     cacheKey=, "key: value" and a plain value are kept; each result is its own redaction;
+///   - TestUrlSignatureParameters (DW-1412): the signature parameters of a URL's query (sig=, signature=, X-Amz-Signature=, X-Amz-Credential=,
+///     X-Amz-Security-Token=, auth=; any case) have their value replaced and keep their name, in an Azure SAS URL, an S3 presigned URL, JSON and escaped
+///     JSON, and every other parameter is kept; a plain URL, designature=, mysig= and oauth= are kept;
 ///   - TestEscapedJson: JSON whose quotes are escaped inside a text (an error that quotes a body) has its sensitive values replaced, and a
 ///     quoted value with an escaped quote in it is replaced whole;
 ///   - TestJsonInStrings: JSON inside a string value of JSON has its sensitive keys replaced whatever the type of their values, and a string
@@ -227,6 +233,66 @@ Method TestPlainText()
 	Do $$$AssertEquals(..Text($Char(9) _ "x" _ $Char(10)), $Char(9) _ "x" _ $Char(10), "white space around a word")
 }
 
+/// The shapes of a setting's value (Story 24.4a; AC1): the secret is replaced, the rest of the text is kept, a second pass changes nothing.
+Method TestSettingValueShapes()
+{
+	Set mark = ..#MARK
+	Set secret = "tk" _ "-" _ "Q7x" _ "Zp2"
+	Set base = "https://feed.example.test/orders"
+	Do ..Check(base _ "?token=" _ secret _ "&format=x", base _ "?token=" _ mark _ "&format=x", "token= in a URL, the rest kept")
+	Do ..Check(base _ "?access_token=" _ secret, base _ "?access_token=" _ mark, "access_token= in a URL")
+	Do ..Check("https://svc:" _ secret _ "@feed.example.test/x", "https://" _ mark _ "@feed.example.test/x", "user:password@ in a URL")
+	Do ..Check(base _ "?key=" _ secret _ "&x=1", base _ "?key=" _ mark _ "&x=1", "the bare key= of a URL, the rest kept")
+	Do ..Check("key = " _ secret, "key = " _ mark, "key with spaces around the =")
+	Do ..Check("KEY=" _ secret, "KEY=" _ mark, "KEY in capitals")
+	Do ..Check("key=""a b""", "key=""" _ mark _ """", "a quoted value, its quotes kept")
+	Do ..Check("key='a b' end", "key='" _ mark _ "' end", "a single-quoted value, its quotes kept")
+	Do ..Check("{\""q\"":\""key=\\\""a b\\\""\""}", "{\""q\"":\""key=\\\""" _ mark _ "\\\""\""}", "a value in escaped quotes (JSON quoted in a text), its quotes kept")
+	Do ..Check("a&key=" _ secret, "a&key=" _ mark, "key= after an ampersand")
+	Do ..Check("(key=" _ secret _ ")", "(key=" _ mark, "key= after a bracket (the value runs to a space, quote, comma, semicolon or ampersand, as the other key rules' do)")
+	For kept = "monkey=1", "keyboard=on", "cacheKey=1", "dedup-key=1", "dedup_key=1", "a.key=1", "key: value", "OrdersRouter", base _ "?format=x" {
+		Do ..Check(kept, kept, "'" _ kept _ "' is kept")
+	}
+	Do ..Check(base _ "?monkey=" _ secret, base _ "?monkey=" _ secret, "monkey= keeps its value (key is not a sensitive name)")
+	Do $$$AssertEquals(..Text({"key": "plain", "monkey": 1}.%ToJSON()), {"key": "plain", "monkey": 1}.%ToJSON(), "a JSON key named key keeps its value (a name and value pair aside)")
+}
+
+/// The signature parameters of a URL's query (DW-1412): the value is replaced, the name and every other parameter are kept; a second pass changes nothing.
+Method TestUrlSignatureParameters()
+{
+	Set mark = ..#MARK
+	Set secret = "Zk9" _ "x%2B" _ "Qw7" _ "pL%3D"
+	Set hex = "9f2c" _ "41ab" _ "07d3" _ "55e8"
+	Set sas = "https://acct.blob.core.windows.net/c/b?sv=2022-11-02&ss=b&sp=r&se=2026-12-01T00:00:00Z&sig="
+	Do ..Check(sas _ secret, sas _ mark, "an Azure SAS URL: only the value of sig is replaced")
+	Do ..Check(sas _ secret _ "&spr=https", sas _ mark _ "&spr=https", "and the parameters after it are kept")
+	Set s3 = "https://bkt.s3.example.test/o?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential="
+	Set rest = "&X-Amz-Date=20261101T000000Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature="
+	Set credential = "zzcred01%2F20261101%2Fus-east-1%2Fs3%2Faws4_request"
+	Set token = "IQo" _ "Jb3" _ "JpZ2" _ "luX2"
+	Do ..Check(s3 _ credential _ rest _ hex _ "&X-Amz-Security-Token=" _ token, s3 _ mark _ rest _ mark _ "&X-Amz-Security-Token=" _ mark, "an S3 presigned URL: the credential, the signature and the security token are replaced, the other parameters kept")
+	Do ..Check(s3 _ "zzcred01/20261101/us-east-1/s3/aws4_request" _ rest _ hex, s3 _ mark _ rest _ mark, "also with the credential's slashes not encoded")
+	Do ..Check("a?SIG=" _ secret _ "&b=1", "a?SIG=" _ mark _ "&b=1", "SIG in capitals")
+	Do ..Check("a?Signature=" _ secret _ "&b=1", "a?Signature=" _ mark _ "&b=1", "Signature")
+	Do ..Check("a?signature=" _ secret, "a?signature=" _ mark, "signature")
+	Do ..Check("a?b=1&Auth=" _ secret, "a?b=1&Auth=" _ mark, "Auth after an ampersand")
+	Do ..Check("a?auth=" _ secret _ "&b=1", "a?auth=" _ mark _ "&b=1", "auth")
+	Do ..Check("a?x-amz-signature=" _ hex _ "&X-AMZ-CREDENTIAL=" _ credential _ "&x-amz-security-token=" _ token, "a?x-amz-signature=" _ mark _ "&X-AMZ-CREDENTIAL=" _ mark _ "&x-amz-security-token=" _ mark, "the Amazon names in lower and upper case")
+	Do ..Check("sig=" _ secret, "sig=" _ mark, "a name at the start of the text")
+	Do ..Check("(sig=" _ secret _ ")", "(sig=" _ mark, "a name after a bracket; a closing bracket is part of the value, which fails closed")
+	Do ..Check("a?sig=ab\cd9Z&b=1", "a?sig=" _ mark _ "&b=1", "a backslash inside a value is part of the value")
+	Do ..Check("sig=" _ secret _ " and more", "sig=" _ mark _ " and more", "a value ends at whitespace")
+	Do ..Check("a?sig=&b=1", "a?sig=&b=1", "an empty value is kept")
+	Do ..Check("{\""u\"":\""https://x.test/p?key=" _ secret _ "\""}", "{\""u\"":\""https://x.test/p?key=" _ mark _ "\""}", "key= in escaped JSON: the value goes, the escaped quote stays")
+	Do ..Check("{\""u\"":\""" _ s3 _ credential _ "&X-Amz-Security-Token=" _ token _ rest _ hex _ "\""}", "{\""u\"":\""" _ s3 _ mark _ "&X-Amz-Security-Token=" _ mark _ rest _ mark _ "\""}", "an S3 URL with a security token in escaped JSON")
+	Do ..Check({"url": (sas _ secret _ "&spr=https")}.%ToJSON(), {"url": (sas _ mark _ "&spr=https")}.%ToJSON(), "a URL in a string of JSON")
+	Do ..Check("{\""u\"":\""" _ sas _ secret _ "\""}", "{\""u\"":\""" _ sas _ mark _ "\""}", "a URL in escaped JSON (a body quoted in a text): the value goes, the escaped quote stays")
+	Do ..Check("{\""u\"":\""" _ s3 _ credential _ rest _ hex _ "\"",\""n\"":1}", "{\""u\"":\""" _ s3 _ mark _ rest _ mark _ "\"",\""n\"":1}", "an S3 URL in escaped JSON, with another member after it")
+	For kept = "https://example.test/orders?page=2&sort=asc", "designature=1", "mysig=1", "oauth=1", "a?my-sig=1", "a.sig=1", "a_auth=1", "author=1", "sigma=1", "signatures=1", "sig: 1", "a?x-amz-date=1" {
+		Do ..Check(kept, kept, "'" _ kept _ "' is kept")
+	}
+}
+
 /// Text(Text(x)) is Text(x), for the texts of the other tests.
 Method TestIdempotent()
 {
@@ -243,7 +309,9 @@ Method TestIdempotent()
 		"pwd=x pwd=x pwd=x",
 		"""{\""password\"":\""x\""}""",
 		"""the card is locked: password=abc""",
-		"plain text, no secrets")
+		"plain text, no secrets",
+		"https://feed.example.test/orders?key=" _ "zq9" _ "&x=1",
+		"key = ab cd KEY=x key=""a b"" monkey=1")
 	Set position = 0
 	While $ListNext(texts, position, text) {
 		Set once = ..Text(text)

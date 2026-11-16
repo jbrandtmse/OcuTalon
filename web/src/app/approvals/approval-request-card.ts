@@ -531,7 +531,7 @@ export class ApprovalRequestCard {
   protected readonly band = computed(() => {
     const request = this.result();
     const ctx = this.ctx();
-    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots), this.production(), this.settingChange());
+    return request === undefined ? undefined : resultView(request, this.itemNoun(), (key, slots) => ctx.render(key, slots), this.production(), this.settingChange(), this.shown().dryRun?.simulated ?? null);
   });
 
   /** True while a press is out: both buttons are busy. */

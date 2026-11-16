@@ -76,7 +76,8 @@ test_global() {
   ' "$@"
 }
 
-# Product class text that names Data.Session's ForEval or DropEval outside Eval/In.cls, other than their own definition lines in Data/Session.cls. The OcuTalon/Test
+# Product class text that names Data.Session's ForEval or DropEval outside Eval/In.cls, other than their own definition lines in Data/Session.cls and the definition line of the
+# evaluation turn writer Data.Turn ForEval (Story 27.1, the R7 channel A/B), which only Eval/In.cls calls. The OcuTalon/Test
 # classes are the tests and are skipped, and so is a comment line; only class, routine and include files are read.
 eval_session_callers() {
   awk '
@@ -84,7 +85,7 @@ eval_session_callers() {
     /^[ \t]*(\/\/|;|#;)/ { next }
     {
       line = $0
-      if (FILENAME ~ /OcuTalon\/Data\/Session\.cls$/ && line ~ /^ClassMethod (ForEval|DropEval)\(/) next
+      if (FILENAME ~ /OcuTalon\/Data\/(Session|Turn)\.cls$/ && line ~ /^ClassMethod (ForEval|DropEval)\(/) next
       if (line ~ /(^|[^A-Za-z0-9_])(ForEval|DropEval)([^A-Za-z0-9_]|$)/) print FILENAME ":" FNR
     }
   ' "$@"

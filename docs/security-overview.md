@@ -149,6 +149,7 @@ Who may answer:
 
 - a holder of the role named in the bridge's approval-role setting, which OcuTalon seeds with `OcuTalonUser`;
 - an email to anyone but the connected mailbox's own address can be answered only by the session that asked for it, and can be approved only if its user holds `OcuTalonAdmin`;
+- a partner warning to Settings contacts can be approved only by a user who holds `OcuTalonAdmin`;
 - on the online demo, only the session that owns the request;
 - never a tool's own job.
 
@@ -156,7 +157,7 @@ No person is a Workflow user: the Workflow role `OcuTalonApprovals` has one memb
 
 The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types and what each records:
 
-- `Action`: a fix run, a resend, a replayed tool call or Break the feed;
+- `Action`: a fix run, a resend, a replayed tool call, Break the feed or a refused approve of a partner warning;
 - `Approval`: answered, expired, cancelled, started or finished;
 - `Pairing`: a chat paired, unpaired or refused;
 - `Settings`: setting, from, to;

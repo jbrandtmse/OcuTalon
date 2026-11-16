@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { signIn, signInOverHttp } from '../sign-in/helpers';
-import { STATE, changeSnapshot, post } from '../support/api';
+import { EVENTS, STATE, changeSnapshot, post } from '../support/api';
 import { CARD_MS, HEADER, applied, composerOf, mainOf, unique, loadedAfter } from '../support/floor';
 import {
   answerHeaders,
@@ -18,6 +18,7 @@ import {
   quoted,
   readApproval,
   seedApproval,
+  seedFixRun,
   seedIncident,
   seedOtherSession,
   seedSettingChange,
@@ -37,7 +38,7 @@ import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../suppo
  * A2 is an Approve, A3 two requests and a Reject, A4 the busy rule (one request however often pressed, the notice after 10 s and the late
  * answer), A5 the press that lost the race to the phone, A6 the 1280x600 layout and A7 another session's request (signed in over HTTP,
  * with no page load), A8 the replies that are not an answer, A9 a closed incident, A10 the headline cap letting go once the reader scrolls
- * on and A11 the result band of a run that stopped partway (Story 31.2); A12 (Story 23.2, AC15) a reroute request over real HTTP and A13 (Story 23.5, AC14) a partner delay notice over real HTTP.
+ * on and A11 the result band of a run that stopped partway (Story 31.2); A12 (Story 23.2, AC15) a reroute request over real HTTP, A13 (Story 23.5, AC14) a partner delay notice over real HTTP and A15 (DW-1378) the after of a done undo over real HTTP, named by the closed card's band.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -510,6 +511,54 @@ test('A14: a setting rollback carries its change, gap and dry run over real HTTP
 });
 
 /**
+ * A15 (DW-1378, AC8): a done undo over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http). A seeded closed incident names a setting change whose recorded new value
+ * is 7, and its undo request has a done run whose dry run's after is 9 (the System Default Setting moved while the item's own value hid it). GET /api/v1/state lists the request with its `after` 9
+ * beside the incident's `settingChange.newValue` 7, and in the page the closed card's band names the request's after, as the chat's result line does: "back to 9", never "back to 7".
+ */
+test('A15: a done undo carries its dry run\'s after over real HTTP, and the closed card\'s band names it, not the recorded new value (DW-1378)', async ({ page, request: http }) => {
+  const { user, password } = fixtureUser(KIND);
+  const rows: string[] = [];
+  let change = '';
+  try {
+    await signInOverHttp(http, user, password);
+    expect((await http.get(STATE)).status(), 'signed in').toBe(200);
+    change = await seedSettingChange({ item: 'OrdersFromPartner', setting: 'PoolSize', oldValue: '1', newValue: '7', detectedAt: today('14:08:00') });
+    const undo = refOf('A15u');
+    const incident = await seedIncident(user, { state: 'closed', closedAt: today('14:20:00'), firstAt: today('14:12:00'), settingChangeRef: change, requestRefs: undo });
+    rows.push(incident);
+    rows.push(
+      await seedApproval(user, {
+        ref: undo,
+        fixKind: 'undo_rollback',
+        state: 'done',
+        incidentRef: incident,
+        requiredRole: 'OcuTalonUser',
+        dryRun: { item: 'OrdersFromPartner', field: 'PoolSize', before: '1', after: '9' },
+        answeredAction: 'approve',
+        answeredChannel: 'web',
+        answeredBy: user,
+        answeredAt: today('14:18:00'),
+      }),
+    );
+    await seedFixRun(incident, undo, { total: 1, resent: 0, completed: 1 });
+    const state = (await (await http.get(STATE)).json()) as {
+      chat: Array<{ type: string; payload: { ref?: string; requests?: Array<Record<string, unknown>>; settingChange?: { newValue?: string } } }>;
+    };
+    const named = state.chat.find((item) => item.type === 'incident' && item.payload.ref === incident);
+    expect(named?.payload.requests, 'the state lists the done undo with the after of its dry run').toMatchObject([{ ref: undo, state: 'done', fixKind: 'undo_rollback', item: 'OrdersFromPartner', after: '9' }]);
+    expect(named?.payload.settingChange?.newValue, 'beside the recorded new value, which is not the value the item has').toBe('7');
+
+    await open(page);
+    const band = incidentCard(page, incident).locator('[data-part="result"] .text');
+    await expect(band, 'the closed card\'s band names the request\'s after').toHaveText('The rollback is undone: PoolSize on OrdersFromPartner is back to 9.', { timeout: CARD_MS });
+    await expect(band, 'and never the recorded new value').not.toContainText('back to 7');
+  } finally {
+    await cleanFixtureRows(rows);
+    if (change !== '') await dropSettingChange(change);
+  }
+});
+
+/**
  * A13 (Story 23.5, AC14): a partner delay notice over real HTTP, as the unprivileged cards user (OcuTalonUser only) through the `request` fixture (http). GET /api/v1/state lists the request in the rail with its fixKind and
  * the dry run's notice, recipients and simulated; a reject over the answer route answers 200 with the same fixKind, notice, recipients and simulated; and a second session's partner request is in neither this user's state nor its
  * answer route, whose answer is 404 and leaves it pending; the sent mail of this session's notice is in this user's mailbox and the second session's is not. Then, in the page, the card of a second request shows the To line with the Simulated label, the exact notice and the note, the buttons are named "send a delay notice", and,
@@ -573,11 +622,22 @@ test('A13: a partner delay notice carries its notice and recipients over real HT
     const kept = await raise(page, user, rows, incident, requests, { fixKind: 'partner_warning', dryRun });
     const sentResult = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
     const keptResult = { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: "email delivery isn't set up yet" };
+    // Story 23.15: a Settings contact's notice that may have been sent (the server's outcome maysent) reads the may-have-sent band, never a "Not sent" one.
+    const maySent = await raise(page, user, rows, incident, requests, { fixKind: 'partner_warning', dryRun: { ...dryRun, simulated: false } });
+    const maySentResult = { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: 'The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won\'t send it again.', outcome: 'maysent' };
     const finished = [
       { ref: request, state: 'done', fixKind: 'partner_warning', result: sentResult },
       { ref: kept, state: 'failed', fixKind: 'partner_warning', result: keptResult },
+      { ref: maySent, state: 'failed', fixKind: 'partner_warning', result: maySentResult },
     ];
-    await applied(page, await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', requests: finished }));
+    const finishedSeq = await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', requests: finished });
+    await applied(page, finishedSeq);
+    // The published incident is served by GET /api/v1/events (the state route holds no incident payload): its request result carries the additive outcome member.
+    type Served = { seq: number; type: string; payload: { requests?: Array<{ ref: string; result?: { outcome?: string } }> } };
+    const served = ((await (await http.get(`${EVENTS}?after=${finishedSeq - 1}&afterInstance=0`)).json()) as { events: Served[] }).events.find((one) => one.seq === finishedSeq && one.type === 'incident');
+    expect(served?.payload.requests?.find((one) => one.ref === maySent)?.result?.outcome, 'the incident event over real HTTP carries the outcome of the request\'s result').toBe('maysent');
+    expect(served?.payload.requests?.find((one) => one.ref === request)?.result?.outcome, 'and a request whose result has no outcome carries none').toBeUndefined();
+    await expect(requestCard(page, maySent).locator('[data-part="result"] .text'), 'the may-have-sent band is the catalog\'s text').toHaveText("The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.", { timeout: CARD_MS });
     await expect(card.locator('[data-part="result"] .text'), 'the sent band names the Simulated mailbox').toHaveText('Sent to the Simulated mailbox.', { timeout: CARD_MS });
     await expect(requestCard(page, kept).locator('[data-part="result"] .text'), 'the kept band says that it is a draft').toHaveText("Approved and kept as a draft: email delivery isn't set up yet.", { timeout: CARD_MS });
   } finally {

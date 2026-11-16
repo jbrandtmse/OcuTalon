@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 
 import { approvalContext, ApprovalRequestCard } from '../approvals/approval-request-card';
-import { requestsOf, resultView } from '../approvals/approval-view';
+import { approvalView, requestsOf, resultView } from '../approvals/approval-view';
 import { ResultBand } from '../approvals/result-band';
 import { DecisionStrip, fallbackReasonText } from '../chat/decision-strip';
 import { FallbackFlag } from '../chat/fallback-flag';
@@ -9,11 +9,13 @@ import { messageTime, pageWhen, pageWhenBeside } from '../chat/page-time';
 import { Icon } from '../icon/icon';
 import type { ApprovalPayload, DecisionPayload, IncidentPayload, IncidentRequest } from '../live/payloads';
 import { renderPageText } from '../msg/catalog';
+import { Announcer } from '../shared/announcer';
+import { MAIN_REGION } from '../shared/focus-rule';
 import { TraceLink } from '../shared/trace-link';
 import { EvidencePanel } from './evidence-panel';
 import { IncidentDismiss, type DismissTarget } from './incident-dismiss';
 import { IncidentStateChip } from './incident-state-chip';
-import { INCIDENT_TEXTS, incidentView, productionOf, type IncidentContext } from './incident-view';
+import { INCIDENT_TEXTS, drawnOnClosed, incidentView, productionOf, stateOf, type IncidentContext } from './incident-view';
 
 /** The last id handed to a card, for the ids of its headline and its panel. */
 let lastId = 0;
@@ -22,18 +24,28 @@ let lastId = 0;
  * The context the incident view reads, with the page's real time formats: the headline's time is a message time (instance time,
  * " ET" on the online demo), the top time is the page's time with its day and the browser zone's name when its offset differs
  * from the instance's, and the panel's item times are page times with their day. A request's result band is the catalog's text
- * (approval-view.ts resultView with renderPageText), and a fallback reason is the catalog's reason text.
+ * (approval-view.ts resultView with renderPageText), and a fallback reason is the catalog's reason text. `drawn` holds the Refs of
+ * the requests the card draws as request cards, whose bands a compact card leaves out of its own.
  */
-export function incidentContext(decisions: readonly DecisionPayload[], nowMs: number, instanceZone: string, onlineDemo: boolean): IncidentContext {
+export function incidentContext(
+  decisions: readonly DecisionPayload[],
+  nowMs: number,
+  instanceZone: string,
+  onlineDemo: boolean,
+  approvals?: Readonly<Record<string, ApprovalPayload>>,
+  drawn?: ReadonlySet<string>,
+): IncidentContext {
   return {
     decisions,
     nowMs,
     messageTime: (iso, now) => messageTime(iso, now, instanceZone, onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, instanceZone),
     itemTime: (iso, now) => pageWhen(iso, now),
-    result: (request, itemNoun, production, change) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change),
+    result: (request, itemNoun, production, change, simulated) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change, simulated ?? null),
+    approvals,
     render: (key, slots) => renderPageText(key, slots),
     reasonText: fallbackReasonText,
+    drawn,
   };
 }
 
@@ -43,17 +55,24 @@ export function incidentContext(decisions: readonly DecisionPayload[], nowMs: nu
  * (an h3), the "more since the notice" line, the cause, the evidence line, the proposed fix, the fixing line, the approval request
  * cards (Story 6.2: one for each approval payload of the store with this incident's ref, in the order raised, the first with Show
  * details at the right end of its row and the evidence panel below it), and the footer with the diagnosis decision's strip (or the
- * diagnosis trace link alone when the store holds no such decision). With no request card, and on a compact card, the card has its
+ * diagnosis trace link alone when the store holds no such decision). With no request card, a compact card included, the card has its
  * own actions row with Show details (aria-expanded) and the evidence panel directly below it. A 4px bar on the left follows the
- * state; a closed card keeps the chip row, the headline, the result band of each request of the payload (Story 6.4) and Show
- * details. A part with no data is left out.
+ * state; a closed card keeps the chip row, the headline, the result band of each request of the payload that has no request card
+ * (Story 6.4) and Show details, and draws the request card of an undo of a rollback only while that request is pending (incident-view.ts AFTER_CLOSE_KINDS and
+ * drawnOnClosed), with Show details at the end of its row; an answered or expired undo has no card.
+ * A part with no data is left out.
  * Story 6.4: a fallback or no-fix card shows its notice sentence and, under "Failures:", one line per group, in the place of the fix. Each
  * request card gets its request's result band from the payload's `requests`; Dismiss (incident-dismiss.ts) is offered while the state
  * is resolved or open: on the last request card (at the right end of its band, or of its answer row), and, with no request card, in
  * this card's actions row after Show details. A Dismiss that answers 200 makes the chat show the card as closed (Dismissals). Every text is bound by
  * interpolation, never as markup.
  * The card is an article that the chat's focus rule and the New messages button can focus (tabindex -1); it announces nothing
- * (the chat does, chat-announcements.ts) and moves no focus itself. The panel stays open while the card updates in place.
+ * (the chat does, chat-announcements.ts) and moves no focus itself, with one exception: a closed card's undo request card leaves the
+ * moment its answer lands (the page's own press or an answer from elsewhere), so the card announces that request's answered status
+ * (approval-view.ts statusOf, the text its card would show) once through the page's polite announcer, and, when focus was inside the
+ * request card that left, moves focus to its own headline after the chat's focus rule has put it on the main region. A request that
+ * was never drawn on this card, and an open card (whose request card shows and announces its own status), are not announced here.
+ * The panel stays open while the card updates in place.
  */
 @Component({
   selector: 'app-incident-card',
@@ -305,11 +324,23 @@ export class IncidentCard {
   protected readonly open = signal(false);
 
   protected readonly view = computed(() =>
-    incidentView(this.incident(), incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo())),
+    incidentView(
+      this.incident(),
+      incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), this.approvals(), new Set(this.requests().map((request) => request.ref ?? ''))),
+    ),
   );
 
-  /** The incident's approval requests in the order raised; a compact (closed) card shows none. */
-  protected readonly requests = computed(() => (this.view().compact ? [] : requestsOf(this.incident(), this.approvals())));
+  /** True while the payload's state is closed; read from the payload, never from the drawn view, which would be circular. */
+  private readonly closed = computed(() => stateOf(this.incident().state)?.chip === 'closed');
+
+  /**
+   * The incident's approval requests in the order raised. A closed incident (read from the payload's state, never from the drawn
+   * view) shows only the pending requests of the kinds that may be asked after the close (`drawnOnClosed`), whenever each was raised.
+   */
+  protected readonly requests = computed(() => {
+    const asked = requestsOf(this.incident(), this.approvals());
+    return this.closed() ? asked.filter(drawnOnClosed) : asked;
+  });
 
   /** The incident's production, which the band of a suspend or resume names the item in; empty when the payload names none. */
   protected readonly production = computed(() => productionOf(this.incident()));
@@ -337,4 +368,66 @@ export class IncidentCard {
 
   /** What the request cards read: the card's own clock, zone and online-demo flag, and the signed-in user. */
   protected readonly approvalCtx = computed(() => approvalContext(Date.now(), this.instanceZone(), this.onlineDemo(), this.user()));
+
+  private readonly announcer = inject(Announcer);
+  private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /** The Refs of the request cards that the last look drew on a closed card; empty after a look at an open one. */
+  private drawnClosed: ReadonlySet<string> = new Set();
+
+  constructor() {
+    effect(() => {
+      const refs = this.requests().map((request) => request.ref ?? '');
+      const closed = this.closed();
+      untracked(() => this.noteDrawn(refs, closed));
+    });
+  }
+
+  /**
+   * The request cards drawn on this closed card changed (this runs before the card renders, so the DOM still holds the cards that
+   * leave). A request that was drawn on the last look and is gone now, and that the store holds as answered, expired or the like (a
+   * status of its own), has its status announced once, from the payload the card read; if focus was inside its request card, focus
+   * goes to the headline once the render and the chat's focus rule are done.
+   */
+  private noteDrawn(refs: readonly string[], closed: boolean): void {
+    const before = this.drawnClosed;
+    const now = new Set(refs);
+    this.drawnClosed = closed ? now : new Set();
+    const answered = new Map<string, string>();
+    for (const ref of before) {
+      const approval = now.has(ref) ? undefined : this.approvals()?.[ref];
+      const status = approval === undefined ? undefined : approvalView(approval, this.approvalCtx()).status;
+      if (status !== undefined) {
+        answered.set(ref, status.text);
+      }
+    }
+    if (answered.size === 0) {
+      return;
+    }
+    const focused = [...answered.keys()].some((ref) => this.holdsFocus(ref));
+    for (const text of answered.values()) {
+      this.announcer.announce(text);
+    }
+    if (focused) {
+      afterNextRender(
+        () => {
+          // The chat's focus rule puts a lost focus on the main region in this same render pass; the headline takes it after that.
+          queueMicrotask(() => {
+            const active = document.activeElement;
+            if (active === null || active === document.body || active.matches(MAIN_REGION)) {
+              this.host.nativeElement.querySelector<HTMLElement>('.headline')?.focus({ preventScroll: true });
+            }
+          });
+        },
+        { injector: this.injector },
+      );
+    }
+  }
+
+  /** True when focus is inside this card's request card of the Ref. */
+  private holdsFocus(ref: string): boolean {
+    const active = document.activeElement;
+    return active instanceof Element && this.host.nativeElement.contains(active) && active.closest('[data-part="approval"][data-key]')?.getAttribute('data-key') === ref;
+  }
 }

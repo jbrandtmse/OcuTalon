@@ -370,6 +370,31 @@ Method TestRefusedItems()
 	Do ..RemoveWarnings(mark)
 }
 
+/// A Slack Ignored record (Story 27.1; AD-26) is dropped silently: OnRequest answers OK with no response, sends nothing, logs no warning, makes no trace join (the
+/// instance's %SuperSession stays empty) and asks for no decision, for every kind and reason of the record and with an empty event id.
+Method TestIgnoredIsSilent()
+{
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set kinds = $ListFromString(##class(OcuTalon.Channel.Slack.Ignored).#KINDS)
+	Set reasons = $ListFromString(##class(OcuTalon.Channel.Slack.Ignored).#REASONS)
+	Set position = 0
+	While $ListNext(kinds, position, kind) {
+		Set ignored = ##class(OcuTalon.Channel.Slack.Ignored).%New()
+		Set ignored.Kind = kind
+		Set ignored.Reason = $List(reasons, 1 + (position # $ListLength(reasons)))
+		Set ignored.EventId = $Select(position = 1: "", 1: "Ev0IGNORED"_position)
+		Set probe = ..NewProbe()
+		Set probe.%SuperSession = ""
+		Do $$$AssertStatusOK(probe.OnRequest(ignored, .response), kind_": the status is OK")
+		Do $$$AssertEquals(response, "", kind_": there is no response")
+		Do $$$AssertEquals(probe.%SuperSession, "", kind_": and no trace join was made")
+	}
+	Do $$$AssertEquals(..Calls(), 0, "nothing is sent")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND Text %STARTSWITH ?", mark, "Intake refused")
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "and no warning that an item was refused is logged")
+}
+
 /// Intake never sends to Conversation or Notify, writes no Turn row and publishes no live event, for any owner and outcome, and
 /// its source never calls SendRequestSync (AD-6), renders through the catalog (AD-32), publishes (Live.Publish) or names the Turn
 /// row; the scan is only trusted if it finds the asynchronous send.
