@@ -846,7 +846,7 @@ Method TestRedactedValue()
 			Do $$$AssertEquals($Find(text, token), 0, "and no token")
 		}
 
-		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots("undo_rollback", {"item": "OrdersFromPartner", "field": "Host", "before": "OrdersRouter", "after": "OrdersRouterNew"}, incident, .sc)
+		Set slots = ##class(OcuTalon.Watch.Notice).AskedSlots("undo_rollback", {"item": "OrdersFromPartner", "field": "Host", "before": "LegacyRouter", "after": "OrdersRouterNew"}, incident, .sc)
 		Do $$$AssertStatusOK(sc, "the slots of the plain undo request")
 		Set notice = ..Notification(session, "approval", "incident.undoRollbackRequest", slots, plainRef)
 		Set expected = ##class(OcuTalon.Msg.Catalog).Render("incident.undoRollbackRequest", notice.Slots, "telegram")
@@ -856,7 +856,7 @@ Method TestRedactedValue()
 		If calls.%Size() = 2 {
 			Set text = calls.%Get(1).params.text
 			Do $$$AssertEquals(text, expected, "with the catalog text")
-			Do $$$AssertTrue((text [ "OrdersRouter") && (text [ "OrdersRouterNew") && ($Find(text, "[redacted]") = 0), "holding both values byte for byte and no marker: "_text)
+			Do $$$AssertTrue((text [ "LegacyRouter") && (text [ "OrdersRouterNew") && ($Find(text, "[redacted]") = 0), "holding both values byte for byte and no marker: "_text)
 		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the redacted-value test failed: "_..Safe(ex))

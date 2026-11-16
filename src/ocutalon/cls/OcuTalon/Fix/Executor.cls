@@ -254,12 +254,13 @@ ClassMethod OfferValues(dryRun As %DynamicObject, seconds As %Integer = {..#VALU
 	Quit $$$OK
 }
 
-/// The lifetime that DryRun gives an offer: VALUESSECONDS, or the whole number of seconds in ^IRIS.Temp.OcuTalon.Fix("valuesSeconds") when a test sets it (0 is an entry that has already
-/// expired when IncidentManager takes it: the test of the missing-entry rule). Nothing sets it in the product.
-ClassMethod Lifetime() As %Integer [ Private ]
+/// The lifetime that DryRun gives an offer: VALUESSECONDS, or the whole number of seconds from 0 to VALUESSECONDS in ^IRIS.Temp.OcuTalon.Fix("valuesSeconds") when a test sets it (0 is an
+/// entry that has already expired when IncidentManager takes it: the test of the missing-entry rule). Any other value gives VALUESSECONDS, so the global can shorten the lifetime and never
+/// lengthen it. Nothing sets it in the product.
+ClassMethod Lifetime() As %Integer [ Internal ]
 {
-	Set seconds = $Get(^IRIS.Temp.OcuTalon.Fix("valuesSeconds"), ..#VALUESSECONDS)
-	Quit $Select(seconds = +seconds && (seconds '< 0): seconds, 1: ..#VALUESSECONDS)
+	Set seconds = $Number($Get(^IRIS.Temp.OcuTalon.Fix("valuesSeconds"), ..#VALUESSECONDS), "I", 0, ..#VALUESSECONDS)
+	Quit $Select(seconds = "": ..#VALUESSECONDS, 1: seconds)
 }
 
 /// The detached job of OfferValues: waits seconds, then discards the entry that uri names (no error when it was taken). It logs nothing and holds no value.

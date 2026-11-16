@@ -192,10 +192,10 @@ test('F7: the undo request on the phone page shows a token URL as [redacted]', a
     change = await seedSettingChange({ item: ITEM, setting: 'Host', oldValue: TOKEN_URL, newValue: 'OrdersRouterNew', detectedAt: today('14:08:00') });
     const incident = await seedIncident(user, { state: 'awaiting_approval', firstAt: today('14:12:00'), settingChangeRef: change });
     rows.push(incident);
-    const dryRun = { item: ITEM, field: 'Host', before: 'OrdersRouterNew', after: TOKEN_URL };
+    const dryRun = { item: ITEM, field: 'Host', before: TOKEN_URL, after: 'OrdersRouterNew' };
     const request = await seedApproval(user, { fixKind: 'undo_rollback', incidentRef: incident, requiredRole: 'OcuTalonUser', dryRun });
     rows.push(request);
-    const slots = await askedSlots('undo_rollback', { item: ITEM, field: 'Host', before: TOKEN_URL, after: 'OrdersRouterNew' }, incident);
+    const slots = await askedSlots('undo_rollback', dryRun, incident);
     await openLive(page);
     await sendNotification(user, { kind: 'approval', catalogKey: 'incident.undoRollbackRequest', slots, approvalRef: request, incidentRef: incident });
     const { message } = await phoneShows(page, user, request);

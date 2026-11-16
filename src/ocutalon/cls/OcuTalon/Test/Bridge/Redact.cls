@@ -244,6 +244,7 @@ Method TestSettingValueShapes()
 	Do ..Check("KEY=" _ secret, "KEY=" _ mark, "KEY in capitals")
 	Do ..Check("key=""a b""", "key=""" _ mark _ """", "a quoted value, its quotes kept")
 	Do ..Check("key='a b' end", "key='" _ mark _ "' end", "a single-quoted value, its quotes kept")
+	Do ..Check("{\""q\"":\""key=\\\""a b\\\""\""}", "{\""q\"":\""key=\\\""" _ mark _ "\\\""\""}", "a value in escaped quotes (JSON quoted in a text), its quotes kept")
 	Do ..Check("a&key=" _ secret, "a&key=" _ mark, "key= after an ampersand")
 	Do ..Check("(key=" _ secret _ ")", "(key=" _ mark, "key= after a bracket (the value runs to a space, quote, comma, semicolon or ampersand, as the other key rules' do)")
 	For kept = "monkey=1", "keyboard=on", "cacheKey=1", "dedup-key=1", "dedup_key=1", "a.key=1", "key: value", "OrdersRouter", base _ "?format=x" {

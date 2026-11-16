@@ -20,6 +20,7 @@
 ///   - TestValuesHandoff (AC6): Fix.Executor OfferValues gives a dry run with redacted values and a reference, TakeValues puts the raw values back byte for byte and deletes the entry, an
 ///     entry that is not taken expires, a dry run with no reference is left as it is and a reference that is gone is an error that leaves no raw value;
 ///   - TestValuesExpireDefault (AC6, the Planner's V6): the default lifetime is 60 seconds, and an entry that nobody takes is gone after it, and still held before;
+///   - TestValuesLifetime (AC6, V6): a real dry run's offer lives 60 seconds, and the test global of the missing-entry pin can shorten that and never lengthen it;
 ///   - TestAskedTakeOnReceipt (AC4, the Planner's V6 on the chat ask): IncidentManager's RaiseAsked takes the entry on receipt, stores the raw values and sends redacted slots, and an
 ///     answer whose entry is gone raises no request, sends nothing and is refused with the kind's NOSTART.
 Class OcuTalon.Test.Watch.SettingCause Extends %UnitTest.TestCase
@@ -585,6 +586,24 @@ Method TestValuesExpireDefault()
 	Do $$$AssertTrue((elapsed '< 59) && (elapsed < 75), "the entry went after about 60 seconds, not before 59 and not after 75")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Core.SecretHandoff).Take(uri, , 0), "and the entry is gone")
 	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+}
+
+/// AC6, V6: the lifetime that a real dry run's offer gets (Fix.Executor Lifetime) is 60 seconds; the test global can only shorten it to a whole number of seconds from 0, and any other
+/// value of it (above 60, negative, a fraction, a word) gives 60.
+Method TestValuesLifetime()
+{
+	Set global = $Name(^IRIS.Temp.OcuTalon.Fix("valuesSeconds"))
+	Kill @global
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).Lifetime(), 60, "with no test global the lifetime is 60 seconds")
+	For value = 0, 5, 60 {
+		Set @global = value
+		Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).Lifetime(), value, "the test global "_value_" gives "_value)
+	}
+	For value = 600, 61, -1, 1.5, "soon" {
+		Set @global = value
+		Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).Lifetime(), 60, "the test global "_value_" gives 60: it never lengthens the lifetime")
+	}
+	Kill @global
 }
 
 /// Waits up to seconds for the hand-off entry to be deleted.

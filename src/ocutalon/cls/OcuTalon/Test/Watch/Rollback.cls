@@ -965,7 +965,7 @@ Method TestUndoDefaultGone()
 
 /// The first-round rollback of the token change through the real raise (the mock diagnosis rollback), up to the raised request: the incident's Ref in incident, the request's row in request ("" when
 /// none was raised). Returns 0 when a step failed (the failure is asserted).
-Method RaiseTokenRollback(a As %String, change As %String, Output incident As %String, Output request As %DynamicObject) As %Boolean [ Private ]
+Method RaiseTokenRollback(a As %String, Output incident As %String, Output request As %DynamicObject) As %Boolean [ Private ]
 {
 	Set incident = ""
 	Set request = ""
@@ -984,7 +984,7 @@ Method RaiseTokenRollback(a As %String, change As %String, Output incident As %S
 	Quit 1
 }
 
-/// The first node of the message-body global that holds the text, as "<node> => <data>" cut to 300 characters, "" when none does (for the message of a failed leak check).
+/// The first node of the message-body global that holds the text, as "<node> => <data>" cut to 400 characters, "" when none does (for the message of a failed leak check).
 ClassMethod FirstHit(text As %String) As %String [ Private ]
 {
 	Set node = "^Ens.MessageBodyD"
@@ -1003,7 +1003,7 @@ ClassMethod FirstHit(text As %String) As %String [ Private ]
 	Quit clean
 }
 
-/// The marker, a token that the dry run's hand-off carries, the plain value and the redacted URL of the token fixtures.
+/// The token URL of the token fixtures as every view shows it: redacted.
 ClassMethod Shown() As %String [ Private ]
 {
 	Quit "https://feed.example.test/orders?token=[redacted]"
@@ -1026,7 +1026,7 @@ Method TestTokenValueRestoredRaw()
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set change = ..Change(a, "Host", url, plain, .unused, 0)
 	If change = "" Quit
-	If '..RaiseTokenRollback(a, change, .incident, .request) Quit
+	If '..RaiseTokenRollback(a, .incident, .request) Quit
 	Do $$$AssertTrue($IsObject(request), "one request is raised")
 	If '$IsObject(request) Quit
 	Set dry = {}.%FromJSON(request.dryRun)
@@ -1103,7 +1103,7 @@ Method TestTakeMissingNoRequest()
 	Set stored = ..Stored(..#FAILING)
 	Set ^IRIS.Temp.OcuTalon.Fix("valuesSeconds") = 0
 	Try {
-		If '..RaiseTokenRollback(a, change, .incident, .request) Quit
+		If '..RaiseTokenRollback(a, .incident, .request) Quit
 		Do $$$AssertEquals($IsObject(request), 0, "no request is raised")
 		Do $$$AssertEquals(..Requests(incident).%Size(), 0, "and no ApprovalRequest row names the incident")
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef = ? AND DryRun [ ?", incident, "[redacted]")
@@ -1195,7 +1195,7 @@ Method TestUndoRequestTokenRedacted()
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set change = ..Change(a, "Host", url, plain, .unused, 0)
 	If change = "" Quit
-	If '..RaiseTokenRollback(a, change, .incident, .rollback) Quit
+	If '..RaiseTokenRollback(a, .incident, .rollback) Quit
 	Do $$$AssertTrue($IsObject(rollback), "the rollback request is raised")
 	If '$IsObject(rollback) Quit
 	// the rollback request on the phone page: the token URL is the After

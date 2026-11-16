@@ -8529,3 +8529,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: lane C DW-1391 investigation; Contest Planner ruling ~19:40Z Nov 15 | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-21-dw-1391-the-asked-fixture-is-not-quiet-so-the-sweep-cannot-close-it.md names it as a candidate outside its footprint
 - 2026-11-15T19:03:01Z status=routed owner=burndown by=orchestrator note=fix in DW-1391's commit if it is the same one-line LastAt change and the hammer covers it; otherwise its own fix
+
+### DW-1412: Redact.Text misses common URL signature parameters (sig=, signature=, X-Amz-Signature=, X-Amz-Credential=, auth=): an Azure SAS or S3 presigned URL setting value is shown raw on card, panel, phone and Telegram
+- source: spec-24-4a code review | severity: med | fix-risk: med | footprint: in-story
+- evidence: SENSITIVEKEYS has no signature, sig or auth and the bare rule covers only key=; the redactor ruling listed user:password, token=, key= and Bearer; widening the shared redactor (logs everywhere) is a security-posture call
+- 2026-11-16T01:11:57Z status=decision-pending owner=burndown by=cr note=owner: approve more shapes in Redact.Text (sig=, a signature suffix, auth=) with pins, or keep the ruled list
+
+### DW-1413: Each setting-kind dry run holds a detached Expire process for VALUESSECONDS (60 s) even after the take; from a licensed process (a test, a terminal) the 8th concurrent JOB fails on IRIS Community (8 connections)
+- source: spec-24-4a code review | severity: low | fix-risk: low | footprint: in-story
+- evidence: measured on lane-D warm: 7 Expire jobs from an iris session, then JOB :5 gives Test=0; FixExecutor's own jobs run as _Ensemble with no LicenseUserId and InstanceConnections stays 1; a failed JOB discards the entry and the dry run is refused
+- 2026-11-16T01:11:57Z status=wontfix-accepted owner=24-4a-show-setting-values-redacted-everywhere-and-the-setting-chan by=cr note=V6 option (a) ruled; reopen_if=a setting-kind DryRunResult with the internal-error Reason or a failed Expire JOB in a running production
