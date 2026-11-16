@@ -31,6 +31,20 @@ deferred: []
 - An event id is processed once: the first claim within 2 hours wins, and a repeat (Slack's retry, `X-Slack-Retry-Num`) does nothing and still answers 200.
 - The trace, the audit, the console log and the `Ignored` record carry no message text, Slack member id, team id, channel id, name or email. They carry only fixed kinds, reasons and the event id.
 
+**Contest Planner gate rulings, 2026-11-16 ~16:30Z (BINDING; full text `.worktrees/.coordination/prompts/story-271-rulings-20261116.md` outside the repo; every item is pinned by a test):**
+- R1 Loop and noise guard: only a plain message becomes a user turn: `channel_type` `im`, NO `subtype`, NO `bot_id`, from a LINKED member. Bot messages (our own replies once 27.2 lands included), edits, deletes, joins and file-share subtypes each leave one content-free `Ignored` record. Pinned with a `bot_id` event and a `message_changed` event.
+- R2 The link match includes the team: an event counts only when BOTH its `team_id` and its member id match a `Data.SlackLink` row; the same member id from another workspace is Ignored. Pinned.
+- R3 The signature is checked BEFORE `url_verification`: an unsigned challenge gets 401. Pinned.
+- R4 Answer fast: turn processing is asynchronous, so the 200 returns within Slack's 3-second window; Slack's retries (`X-Slack-Retry-Num`) are deduped by `event_id`. Pinned.
+- R5 A 401 or stale request stores nothing from the body: only the count and the once-a-minute audit. Pinned.
+- R6 Nothing typed in Slack can approve, reject or answer an approval request: a Slack turn has the same rights as a typed web-chat turn and no approval surface. Pinned: a typed "approve" over Slack approves nothing.
+- R7 Model-facing check: confirm FROM CODE that no agent instruction text keys on the channel name, and record the evidence (file:line search) under Design Notes. If any instruction mentions channels (for example a telegram branch), HALT with `intent gap` naming it, BEFORE implementation: a new channel value would then be model-facing and needs the Planner's key-holder A/B.
+- R8 Link retention: the AD-27 purge, or the removal of the session, deletes a removed user's link rows. Pinned. Member ids and team ids are personal identifiers: no trace, log or audit line carries them.
+- R9 CI dummy SLACK_* values are NOT global: they are set ONLY for the `live:slack-hook` unit's throwaway, through a per-unit compose override or env. Every other throwaway keeps Slack OFF, as a default install does, and one assertion pins that a default throwaway answers 404 on `/ocutalon/hook/slack/events`.
+- R10 Privileges: no new grant. If Task 0 shows the `OcuTalonWebhook` grants are not enough, STOP (HALT `intent gap`) for the Planner.
+- R11 Approved: the route, `Data.SlackLink`, `^OcuTalonP.SlackE`, the `SlackIn` item, `Intake` dropping `Ignored`, env-only secrets, no new dependencies; the AD amendments AD-13 (second route, its check order, the 200), AD-24 (`OcuTalonWebhook` serves `SlackIn`, no new grant), AD-26 (`Ignored` in its own trace session), AD-1 (`DraftTransform` from origin tool, answers `failed` until 28.1). Contended appends approved: Production.cls lane B region (sequence within lane B), `Test/Data/Tables.cls` append only, `live:slack-hook` in `shards-3` (~28.7 min).
+- R12 Public text: the catalog keys and `.env.example` lines are approved verbatim (27.1 ships only `.env.example`); the setup steps are REORDERED (secrets before the URL check) and step 1 is reworded; 27.2 adds `chat:write` to step 1 in the same commit as the reply code.
+
 **Never:**
 - No call to slack.com or any Slack API, no `SlackOut`, no reply in Slack, no WebSocket and no socket mode. The reply path is Story 27.2's.
 - No Settings UI, no admin link/unlink command or REST route, and no shipped user-facing text. These move to the proposed sibling (Story 27.3). The texts are only proposed here.
@@ -113,6 +127,8 @@ All classes are under `src/ocutalon/cls/OcuTalon/`.
 - Given Slack off (either variable empty, or the online demo), when any request reaches the route, then it is 404 with nothing counted or handed over, `SlackIn` refuses input, and every other hook and test stays green (AD-25).
 
 ## Spec Change Log
+
+- 2026-11-16 ~16:35Z, lead: Contest Planner gate rulings R1-R12 applied (Boundaries & Constraints, binding block; setup steps reordered under Planner gate items). Changes the plan must carry: R2 team_id in the link match; R3 signature before url_verification; R5 nothing stored from a rejected body; R6 approve-proof pin; R7 model-facing evidence (HALT if any agent instruction keys on the channel); R8 link rows deleted with the session/purge, pinned, in THIS story (prefer a mechanism inside the new `Data.SlackLink` class, e.g. an SQL foreign key with cascade or the session's own removal path; `Data/Purge.cls` is lane D's contended file: only a self-contained appended block, reported, if unavoidable); R9 dummy Slack env only for `live:slack-hook`'s throwaway + a default-throwaway 404 assertion (no global `ci/compose.ci.yml` env); R10 Task 0 hard gate on grants. Status stays `draft` for the re-plan (cycle_iteration 2).
 
 - 2026-11-16, lead (epic-27 runner), unattended ruling on the plan's split proposal (doctrine U5: a split into a sibling planned next in this epic, 1 of 6, category decide): ACCEPTED as proposed. Story 27.1 is the narrowed scope in this spec and keeps `DraftTransform` (no 27.4: moving it would change Epic 28's dependency text, owner-only). New Story 27.3 "Link Slack members in Settings" takes, verbatim, "how an admin links a Slack member to an OcuTalon user" and the texts criterion; order 27.1, 27.3, 27.2. `epics.md` amended (27.1's first and fourth criteria, Story 27.3 inserted before Epic 28); tracker key `27-3-link-slack-members-in-settings` added. Status reset to `draft`: the re-plan runs after the Contest Planner rules this spec's gate items (public text, veto items, contended appends, spine edits and the AD-1/AD-13/AD-24/AD-26 amendments); the rulings will be recorded here and under Design Notes.
 
@@ -208,10 +224,10 @@ Planned whole, it is about 18 tasks across five contended paths. Recommended spl
   - `settings.slackLinked` "Linked. Their direct messages to the bot now reach OcuTalon. Recorded in the audit log."
   - `settings.slackUnlinked` "Unlinked. Their messages no longer reach OcuTalon. Recorded in the audit log."
   - `chat.viaSlack` "via Slack"
-  - Setup steps (Later Steps and the GUIDE's Slack section):
-    1. "Create a Slack app for your workspace at api.slack.com/apps, turn on the Messages tab in App Home, give its bot the im:history scope, and install it to the workspace."
-    2. "Under Event Subscriptions, set the request URL to https://<your public address>/ocutalon/hook/slack/events and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once."
-    3. "Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon."
+  - Setup steps (Later Steps and the GUIDE's Slack section), as APPROVED and REORDERED by the Planner (R12):
+    1. "Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history scope, and install it to the workspace."
+    2. "Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon."
+    3. "Under Event Subscriptions, set the request URL to https://<your public address>/ocutalon/hook/slack/events and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once."
     4. "As an admin, open Settings › Channels › Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon."
   - `.env.example` lines (this story):
     - "# Slack (optional): set both to turn Slack on. Leave empty to keep it off."
