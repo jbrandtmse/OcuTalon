@@ -4467,3 +4467,4 @@
 2026-11-16T08:29:52Z	Epic 21	runner_resumed	lane=C next=DW-1376_push,then_DW-1421_diagnosis,then_DW-1378
 2026-11-16T08:30:30Z	Epic 21	runner_reported	PLANNER_REPORT DW-1421_diagnosis(74dc6ce39;DiagnosisPayload_rejects;23.3_new_incidents;C0-C4) note=first_send_lost relayed=contest_planner
 2026-11-16T08:31:02Z	Epic 21	owner_decision	via=contest_planner DW-1421:C0+C1=APPROVED(after_DW-1376_push;C0_harness-only,raw_local_uncommitted;C1_fixed_tags) C2,C3=after_C0_evidence(C2_drop-only_narrowing_AD-8) C4=post-1.0.12_A/B not_cut_blocker
+2026-11-16T08:31:46Z	Epic 21	runner_reported	PLANNER_REPORT DW-1421_C0_key_question(a:laneC_reads_.env,b:Planner_key-holder_runs+laneC_harness;recommend_b) relayed=contest_planner
