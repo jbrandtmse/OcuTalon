@@ -517,3 +517,5 @@
 2026-11-16T05:41:43Z	DW-1373	stage_spawned	stage=implement spawn_at=2026-11-16T05:41:43Z model=sonnet effort=high agent_name=dw-1373-implement-1 cycle_iteration=1 branch=OCT-epic21-dw1373
 2026-11-16T06:30:24Z	DW-1373	dev_complete	build_sha=97b0615f7 task0=defect_reproduced(lock_40s:old_call_errors_after_save);restore_40s=refused(Enabled_back_1);75s=notapplied;SDS_path_ok mutations=8 review=20(high0,med0,low13(1_deferred),false7) shard_lane-a@Fix_fresh=30/30 node=2174 bundle=ok cards=32/32 lint=12_low residual=red_test_may_leave_OrdersForReview_disabled
 2026-11-16T06:30:24Z	DW-1373	stage_spawned	stage=qa spawn_at=2026-11-16T06:30:24Z model=sonnet effort=high agent_name=dw-1373-qa-1 cycle_iteration=1
+2026-11-16T06:41:31Z	DW-1373	qa_complete	model=sonnet commit=9fbd4aa13 hygiene=OnBefore/OnAfterOneTest_restore(proved_with_forced_red) tests=resume_notapplied,TestItemAlreadyInTheWantedState,TestItemGone,TestItemUpdateFailureNotAppliedDefault(6_mutations) fresh_ItemKinds=pass findings=none_product
+2026-11-16T06:41:31Z	DW-1373	stage_spawned	stage=code-review spawn_at=2026-11-16T06:41:31Z model=opus effort=high agent_name=dw-1373-code-review-1 cycle_iteration=1
