@@ -8568,3 +8568,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-21-dw-1391 code-review | severity: low | fix-risk: med | footprint: in-story
 - evidence: Planner Ruling (b) keeps the ZzScratch hammers out of the repo; the build-time Settle.Quiet guard in Asked/PartnerDraft.Incident is the standing check, and covers only the helper route.
 - 2026-11-15T19:42:12Z status=wontfix-accepted owner=23-2-suspend-resume-and-reroute-with-a-dry-run by=cr note=reopen_if=Test.Fix.Asked or PartnerDraft red in CI at an already_asked/state pin with the quiet guard green
+
+### DW-1414: flake: OcuTalon.Test.Agent.Models TestAppliedAtStart hit <UNDEFINED>EnQueue+107^Ens.Queue.1 ^Ens.Queue("Ens.ScheduleHandler",0,"count") while the production restarted; the classes after it that need a running production then failed with the Rule 21 does-not-run refusal (7 of 23)
+- source: epic-runner; DW-1389 QA, local lane-C fresh shard lane-a@Agent --reverse (tag e0dw1389qr) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: an Ens.ScheduleHandler queue node read during a production start/stop; the same line was seen once by the 11.9 QA stage; the unchanged rerun (tag e0dw1389qs) passed 23/23; DW-1389 changes only Triage.cls line 25 and Instructions pins
+- 2026-11-16T01:16:16Z status=routed owner=burndown by=flake note=(inference) an Ens queue race at production restart in the reverse class order; one rerun
