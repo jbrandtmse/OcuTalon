@@ -55,3 +55,4 @@
 2026-11-16T01:19:29Z	Story 24.4a	smoke_complete	method=other(CR:fresh_live_sign-in-2_part_17/26_F3b,F5,F5b,F7;fresh_Rollback:TestTakeMissingNoRequest;QA:fresh_Rollback:TestUndoRequestTokenRedacted) result=pass
 2026-11-16T01:19:29Z	Story 24.4a	fresh_check	env=fresh_lane-D_stack_e24s4fc(merged_tree) tests=Test.Watch.SettingCause result=pass torn_down=yes
 2026-11-16T01:19:29Z	Story 24.4a	committed	sha=pushed_below
+2026-11-16T01:52:03Z	Story 24.4a	ci_resolved	sha=9e3eb3f0 result=success runs=43785602645(ci),43785602560(lane-a) flake_reruns=0 B13=green
