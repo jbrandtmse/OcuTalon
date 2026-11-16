@@ -124,8 +124,13 @@ export interface IncidentContext {
   topTime(iso: string, nowMs: number): string;
   /** A time of a panel row: the page's time with the day when it is not today (pageWhen). */
   itemTime(iso: string, nowMs: number): string;
-  /** The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result. */
-  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string, change?: SettingChange): ResultView | undefined;
+  /**
+   * The band of a request's result with the incident's item noun and production (approval-view.ts resultView with the catalog's renderer), or undefined for a request with no result.
+   * simulated is the stored dry run's `simulated` of a partner request (undefined when the context has no payload for it, which a partner band that says something was sent reads as unknown).
+   */
+  result(request: IncidentRequest, itemNoun: ItemNoun | undefined, production: string, change?: SettingChange, simulated?: boolean): ResultView | undefined;
+  /** The live store's approval payloads by Ref, from which a partner request's `simulated` is read (absent in a context that has no store). */
+  approvals?: Readonly<Record<string, ApprovalPayload>>;
   /** The text of a catalog key the page renders, with its slots (renderPageText); the setting-cause line is incident.settingChangeCause. Absent in a context that has no catalog. */
   render?(key: string, slots: Record<string, unknown>): string;
   /** The text of a fallback reason value, as the catalog words it (the generic reason's for a value it does not know). */
@@ -509,7 +514,7 @@ export function productionOf(payload: IncidentPayload): string {
 function bandsOf(payload: IncidentPayload, ctx: IncidentContext): { ref: string; band: ResultView }[] {
   const bands: { ref: string; band: ResultView }[] = [];
   for (const request of listOf(payload.requests)) {
-    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload), payload.settingChange) : undefined;
+    const band = request !== null && typeof request === 'object' ? ctx.result(request, payload.itemNoun, productionOf(payload), payload.settingChange, ctx.approvals?.[request.ref ?? '']?.dryRun?.simulated) : undefined;
     if (band !== undefined) {
       bands.push({ ref: request.ref ?? '', band });
     }

@@ -446,7 +446,7 @@ export class ChatPanel {
 
   /** Announces what the entries show that the last look did not (chat-announcements.ts); the first look only records them. */
   private announce(entries: readonly ChatEntryView[]): void {
-    const context = incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo());
+    const context = incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), this.live.store()?.approvals);
     const format: ChatAnnounceFormat = {
       ...ANNOUNCE_FORMAT,
       incidentText: (previousState, incident) => announcementOf(previousState, incident, incidentView(incident, context).headline),

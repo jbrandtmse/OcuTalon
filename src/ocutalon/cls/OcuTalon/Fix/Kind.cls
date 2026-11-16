@@ -27,6 +27,11 @@
 ///   - CATEGORY is the cause category whose diagnosis may name the kind (DiagnosedFor; "" for a kind the diagnosis never names). ASKEDSTATES is the incident states in which the
 ///     chat may ask for the kind, comma-separated; AskedParameters(incident, .parameters) lets a kind fill its own parameters from the incident when it is asked for (OK and
 ///     unchanged by default, an error status that says why when it can't).
+///   - ForApprover(incident, dryRun) gives the dry run as the approver is shown it (unchanged by default); Shown(kind, incident, dryRun) dispatches to the kind's. IncidentManager calls it in
+///     the production job before it raises a request: its answer is stored in the approval row, and is never part of a traced message (Story 23.13, DW-1254).
+///   - MAILS is 1 for a kind whose approved request EmailOut sends (AD-14, amended 2026-11-15). Mail(row, .recipients, .subject, .text, .skipped) gives the recipients (a dynamic array of
+///     addresses), the subject, the text and the skipped entries ({"id", "code", "reason"}) of the executing row, and is 1 when it holds something to send; Mailed(row, ...) is the one entry
+///     point and gives 0 unless the row is of Kind fix, in State executing and of a registered kind with MAILS 1. Out and the executor both read a row through it.
 ///   - The result of Execute for a kind whose targets are items is {"changed": the items changed, "skipped": [{"id", "reason"}], "unreached": [{"id", "code"}]}; for a kind
 ///     whose targets are contacts it is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]}, and the executor does the delivering.
 /// Targets are header ids, comma-separated and ascending (Item ids for TARGETTYPE item, contact ids for TARGETTYPE contact). Lane A.
@@ -76,6 +81,9 @@ Parameter MOVES = 1;
 
 /// The plain reason of a run that can't start because the kind can't deliver yet (Ready); empty for a kind that always can.
 Parameter NOTSETUP;
+
+/// 1 when EmailOut sends the approved request of the kind, through Mail (AD-14); 0 for a kind it never sends.
+Parameter MAILS = 0;
 
 /// The status text of a message that failed, as Reader.Evidence gives it.
 Parameter ERRORSTATUS = "Error";
@@ -262,6 +270,55 @@ ClassMethod Ready(incident As OcuTalon.Data.Incident, Output reason As %String) 
 {
 	Set reason = ""
 	Quit 1
+}
+
+/// The dry run as the approver is shown it, for the incident: the base leaves it as it is. A kind that names people by id in its traced dry run resolves them here, in the production
+/// job; the answer is stored in the approval row and never traced.
+ClassMethod ForApprover(incident As OcuTalon.Data.Incident, dryRun As %DynamicObject) As %DynamicObject
+{
+	Quit dryRun
+}
+
+/// ForApprover of the kind with the name; the dry run as it is for an unknown kind.
+ClassMethod Shown(kind As %String, incident As OcuTalon.Data.Incident, dryRun As %DynamicObject) As %DynamicObject
+{
+	Set class = ..ForName($Get(kind))
+	If class = "" Quit dryRun
+	Quit $ClassMethod(class, "ForApprover", incident, dryRun)
+}
+
+/// What EmailOut sends for the executing row of the kind (see the class description): 0 with empty outputs here, so that a kind that does not mail sends nothing.
+ClassMethod Mail(row As OcuTalon.Bridge.Data.ApprovalRequest, Output recipients As %DynamicArray, Output subject As %String, Output text As %String, Output skipped As %DynamicArray) As %Boolean
+{
+	Set recipients = []
+	Set subject = ""
+	Set text = ""
+	Set skipped = []
+	Quit 0
+}
+
+/// Mail of the kind of the row, for a row of Kind fix in State executing whose FixKind is a registered kind with MAILS 1; 0 with empty outputs for any other row and for anything
+/// that cannot be read.
+ClassMethod Mailed(row As OcuTalon.Bridge.Data.ApprovalRequest, Output recipients As %DynamicArray, Output subject As %String, Output text As %String, Output skipped As %DynamicArray) As %Boolean
+{
+	Set recipients = []
+	Set subject = ""
+	Set text = ""
+	Set skipped = []
+	Set mailed = 0
+	Try {
+		If '$IsObject(row) || (row.Kind '= "fix") || (row.State '= "executing") Quit
+		Set class = ..ForName(row.FixKind)
+		If (class = "") || '$Parameter(class, "MAILS") Quit
+		Set mailed = $ClassMethod(class, "Mail", row, .recipients, .subject, .text, .skipped)
+	} Catch {
+		Set mailed = 0
+		Set recipients = []
+		Set subject = ""
+		Set text = ""
+		Set skipped = []
+	}
+	Quit mailed
 }
 
 /// The display name of the incident's production (Reader.Admits), else its class name (also when the production list can't be read): the name the kinds' reasons give.

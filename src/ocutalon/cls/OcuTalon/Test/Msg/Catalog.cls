@@ -84,7 +84,8 @@ Method TestEntries()
 	// Story 21.10 (Contest Planner ruling 2026-11-13, PUBLIC TEXT V9): toolCall.inputsTooLong, and Story 25.5 (Contest Planner ruling 2026-11-13, PUBLIC TEXT 1 to 9): the nine answered.notApprover* and answered.notAdmin keys, take the Core count to 155.
 		// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): press.approvedRollback and press.approvedUndoRollback take the Core count to 157 on their own.
 	// Story 21.11 (Contest Planner ruling 2026-11-15, PUBLIC TEXT N1 to N3): fix.emailRequest, fix.emailSent and fix.emailNotSent take it to 160 with 23.3's two.
-	Do $$$AssertEquals(keys.core.%Size(), 160, "the expected Core list has 160 keys")
+	// Story 23.13 (Contest Planner ruling 2026-11-15, 23.13 GATE): press.approvedPartnerKept takes the Core count to 161.
+	Do $$$AssertEquals(keys.core.%Size(), 161, "the expected Core list has 161 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -95,9 +96,10 @@ Method TestEntries()
 	// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): the 11 keys of the setting rollback and its undo (incident.rollbackRequest, undoRollbackRequest, settingChangeCause; result.settingRestored, settingChangedSince, rollbackUndone; summary.requestedRollback, requestedUndoRollback, settingRestored, rollbackUndone, settingNotChanged) take the Watch count to 132.
 	// Story 23.3 (Contest Planner pre-push ruling 2026-11-15, DW-1365): result.settingSavedNotApplied takes the Watch count to 133.
 	// Story 23.4 (Contest Planner ruling 2026-11-15, Public Text): the eight page.* keys (onCall, onCallEmail, backup, backupEmail, subject, onCallAlone, onCallEmailAlone, causeUnknown) take the Watch count to 141.
-	Do $$$AssertEquals(keys.watch.%Size(), 141, "the expected Watch list has 141 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 160 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 141 keys")
+	// Story 23.13 (Contest Planner rulings 2026-11-15 "23.13 GATE" and 2026-11-16 "23.13 re-plan"): incident.partnerRequestKept, incident.partnerRequestMailbox, result.partnerSkipped and partner.emailSubject take the Watch count to 145.
+	Do $$$AssertEquals(keys.watch.%Size(), 145, "the expected Watch list has 145 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 161 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 145 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -503,9 +505,12 @@ Method TestWebWording()
 			If 'entry.%IsDefined("web") Continue
 			Set inCatalog(key) = ""
 			If key [ "incident." {
-				Set ask = $Select(key = "incident.partnerRequest": " Approve sending it?", 1: " Approve?")
+				Set ask = $Select((key = "incident.partnerRequest") || (key = "incident.partnerRequestMailbox"): " Approve sending it?", 1: " Approve?")
 				Do $$$AssertEquals($Length(entry.text, ask), 2, key_" asks to approve once")
-				Do $$$AssertEquals(entry.web, $Replace(entry.text, ask, ""), key_" web wording is the text without '"_ask_"'")
+				Set plain = $Replace(entry.text, ask, "")
+				If key = "incident.partnerRequestKept" Set plain = $Replace(plain, " The recipients are on the approval card on your OcuTalon page.", "")
+				If key = "incident.partnerRequestMailbox" Set plain = $Replace(plain, "approval card on your OcuTalon page.", "approval card.")
+				Do $$$AssertEquals(entry.web, plain, key_" web wording is the text without '"_ask_"'"_$Select(key [ "partnerRequest" && (key '= "incident.partnerRequest"): " and its phone-only pointer to the approval card", 1: ""))
 				If entry.%IsDefined("one") {
 					Do $$$AssertEquals($Length(entry.one.text, ask), 2, key_" one form asks to approve once")
 					Do $$$AssertEquals(entry.one.web, $Replace(entry.one.text, ask, ""), key_" one form web wording is its text without '"_ask_"'")
@@ -520,9 +525,9 @@ Method TestWebWording()
 	While iterator.%GetNext(.key, .fixture) {
 		If fixture.%IsDefined("web") Set inFixtures(key) = ""
 	}
-	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.laterRequestChecked,incident.laterRequestEitherWay,incident.laterRequestEitherWayChecked,incident.partnerRequest,incident.rerouteRequest,incident.resumeRequest,incident.rollbackRequest,incident.suspendRequest,incident.undoRollbackRequest,incident.withFix,incident.withFixChecked,incident.withFixEitherWay,incident.withFixEitherWayChecked"
-	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly sixteen catalog entries have a web wording")
-	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly sixteen fixtures have a web text")
+	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.laterRequestChecked,incident.laterRequestEitherWay,incident.laterRequestEitherWayChecked,incident.partnerRequest,incident.partnerRequestKept,incident.partnerRequestMailbox,incident.rerouteRequest,incident.resumeRequest,incident.rollbackRequest,incident.suspendRequest,incident.undoRollbackRequest,incident.withFix,incident.withFixChecked,incident.withFixEitherWay,incident.withFixEitherWayChecked"
+	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly eighteen catalog entries have a web wording")
+	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly eighteen fixtures have a web text")
 }
 
 /// AC16 (Story 23.5): none of the partner delay notice's texts says or implies that a real email was sent. Each result that says the notice went somewhere names the Simulated mailbox or the
@@ -1127,6 +1132,7 @@ XData Keys [ MimeType = application/json ]
   "press.approvedResume",
   "press.approvedReroute",
   "press.approvedPartner",
+  "press.approvedPartnerKept",
   "press.approvedRollback",
   "press.approvedUndoRollback",
   "email.digestSubject",
@@ -1383,6 +1389,10 @@ XData Keys [ MimeType = application/json ]
   "summary.partnerKept",
   "summary.partnerNotSent",
   "partner.subject",
+  "incident.partnerRequestKept",
+  "incident.partnerRequestMailbox",
+  "result.partnerSkipped",
+  "partner.emailSubject",
   "mcp.serverUnavailable",
   "mcp.toolShadowsBuiltIn",
   "mcp.toolChanged",
@@ -1665,6 +1675,7 @@ XData Fixtures [ MimeType = application/json ]
  "press.approvedResume": {"slots": {"item": "OrdersToWarehouse"}, "text": "Approved. Resuming OrdersToWarehouse."},
  "press.approvedReroute": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "to": "OrdersForReview"}, "text": "Approved. Rerouting 50 orders to OrdersForReview."},
  "press.approvedPartner": {"slots": {}, "text": "Approved. Sending the delay notice to the Simulated mailbox."},
+ "press.approvedPartnerKept": {"slots": {}, "text": "Approved. The delay notice is kept as a draft: no mailbox is connected in Settings > Channels > Email."},
  "press.approvedRollback": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "Approved. Putting TargetConfigName on OrdersFromPartner back."},
  "press.approvedUndoRollback": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "Approved. Undoing the rollback of TargetConfigName on OrdersFromPartner."},
  "email.digestSubject": {"slots": {}, "text": "Your OcuTalon digest"},
@@ -1885,6 +1896,10 @@ XData Fixtures [ MimeType = application/json ]
  "summary.partnerKept": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice was approved and kept as a draft."},
  "summary.partnerNotSent": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice was not sent."},
  "partner.subject": {"slots": {"recipient": "Results Partner IT <it@results-partner.example>"}, "text": "Simulated delay notice to Results Partner IT <it@results-partner.example>"},
+ "incident.partnerRequestKept": {"slots": {"production": "Orders", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for the partner contacts set for Orders. Approve?\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent. The recipients are on the approval card on your OcuTalon page.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for the partner contacts set for Orders.\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
+ "incident.partnerRequestMailbox": {"slots": {"production": "Orders", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for the partner contacts set for Orders. Approve sending it?\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card on your OcuTalon page.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for the partner contacts set for Orders.\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
+ "result.partnerSkipped": {"slots": {"sent": 1, "skipped": 1, "total": 2}, "text": "The delay notice was sent to 1 of 2 partner contacts. Not sent to 1: they were removed from Settings > Partner contacts, or their address changed, since this request was made."},
+ "partner.emailSubject": {"slots": {}, "text": "Delay notice"},
  "mcp.serverUnavailable": {"slots": {"server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "I couldn't connect to the MCP server Tickets at 14:15 ET, so I can't use its tools."},
  "mcp.toolShadowsBuiltIn": {"slots": {"server": "Tickets", "tool": "lookup"}, "text": "The MCP server Tickets offers a tool called 'lookup', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed."},
  "mcp.toolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval."},

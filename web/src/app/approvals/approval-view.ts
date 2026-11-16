@@ -29,8 +29,11 @@
  *   resend row "{count} copies to {to}; the originals stay unchanged." (one copy: "1 copy to {to}; the original stays unchanged.").
  * - A partner delay notice (Story 23.5; fixKind partner_warning) has no dry run block and no fixed-targets line. Its `partner` holds "To: {recipients}" (the payload's dry run
  *   recipients, each "Name <address>", with the Simulated label beside it when `simulated` is true), the notice as the payload gives it (shown with its line breaks) and, while pending only,
- *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox.". Its result bands are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
- *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent.
+ *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox." (no note for a request that is not simulated: its recipients are real contacts, and the chat's request
+ *   text says whether a mailbox is connected). Its result bands for a simulated request are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
+ *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent. For a request that is not simulated (Story 23.13) they are the catalog's texts:
+ *   fix.emailSent (`completed` equal to `total` and above 0), result.partnerSkipped (a done run with `skipped` above 0), the kept draft's, fix.emailNotSent for a reason that ends with a full stop (one of EmailOut's sentences) and the not-sent text for any other reason; a caller that cannot tell whether the request is
+ *   simulated passes null, and a band that says anything was sent is then not shown.
  * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
  *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
  *   `setting` holds the three lines "Now: {old}", "Proposed: {new}" (the payload's dry run before and after) and, while pending only,
@@ -370,7 +373,7 @@ function partnerView(approval: ApprovalPayload, pending: boolean): PartnerView |
     to: fill(APPROVAL_TEXTS.partnerTo, { recipients: recipients.join(', ') }),
     notice,
     simulated: dry.simulated === true,
-    note: pending ? APPROVAL_TEXTS.partnerNote : '',
+    note: pending && dry.simulated === true ? APPROVAL_TEXTS.partnerNote : '',
   };
 }
 
@@ -572,7 +575,7 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
  */
-export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = '', change?: SettingChange): ResultView | undefined {
+export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender, production = '', change?: SettingChange, simulated: boolean | null = true): ResultView | undefined {
   const result = request.result;
   if (result === null || typeof result !== 'object' || Array.isArray(result)) {
     return undefined;
@@ -584,7 +587,7 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
     return settingResultView(request, result, render, change);
   }
   if (request.fixKind === 'partner_warning') {
-    return partnerResultView(request, result, render);
+    return partnerResultView(request, result, render, simulated);
   }
   const total = numberOf(result.total) ?? 0;
   const resent = numberOf(result.resent) ?? 0;
@@ -705,17 +708,22 @@ function settingResultView(request: IncidentRequest, result: IncidentRequestResu
 /** The reason of a partner request that is kept as a draft: the kind's NOTSETUP (Fix.Kind.PartnerWarning). */
 export const PARTNER_NOT_SET_UP = "email delivery isn't set up yet";
 
-/** The band of a partner delay notice (Story 23.5): see resultView. */
-function partnerResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender): ResultView | undefined {
+/** The band of a partner delay notice (Stories 23.5 and 23.13): see resultView. simulated is null when the caller cannot tell. */
+function partnerResultView(request: IncidentRequest, result: IncidentRequestResult, render: PageRender, simulated: boolean | null): ResultView | undefined {
   const total = numberOf(result.total) ?? 0;
   const completed = numberOf(result.completed) ?? 0;
-  const reason = textOf(result.reason).replace(/\.$/, '');
+  const raw = textOf(result.reason);
+  const reason = raw.replace(/\.$/, '');
   let key: string;
   let text: string;
   let tone: ResultView['tone'] = 'partial';
   let icon: ResultView['icon'] = 'triangle-alert';
-  if (request.state === 'executing') {
+  if (request.state === 'executing' || (simulated === null && completed > 0)) {
     return undefined;
+  } else if (simulated === false && completed > 0 && completed >= total) {
+    return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
+  } else if (simulated === false && request.state === 'done' && (numberOf(result.skipped) ?? 0) > 0) {
+    return bandOf('result.partnerSkipped', { sent: String(completed), skipped: String(numberOf(result.skipped) ?? 0), total: String(total) }, 'partial', 'triangle-alert', render);
   } else if (completed > 0 && completed >= total) {
     key = 'result.partnerSent';
     text = APPROVAL_TEXTS.partnerSent;
@@ -729,6 +737,8 @@ function partnerResultView(request: IncidentRequest, result: IncidentRequestResu
     text = APPROVAL_TEXTS.partnerKept;
   } else if (reason === '') {
     return undefined;
+  } else if (simulated === false && raw.endsWith('.')) {
+    return bandOf('fix.emailNotSent', { reason: raw }, 'partial', 'triangle-alert', render);
   } else {
     key = 'result.partnerNotSent';
     text = fill(APPROVAL_TEXTS.partnerNotSent, { reason });

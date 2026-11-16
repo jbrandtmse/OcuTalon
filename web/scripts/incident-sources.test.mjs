@@ -208,7 +208,7 @@ describe('the ending of the card (Story 6.4)', () => {
     const requests = /protected readonly requests = computed\(\(\) => \{[\s\S]*?\n  \}\);/.exec(card.code)?.[0] ?? '';
     assert.notEqual(requests, '');
     assert.doesNotMatch(requests, /view\(\)/, 'never from the drawn view, which would be circular');
-    assert.match(card.code, /incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), new Set\(this\.requests\(\)\.map\(\(request\) => request\.ref \?\? ''\)\)\)/);
+    assert.match(card.code, /incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.approvals\(\), new Set\(this\.requests\(\)\.map\(\(request\) => request\.ref \?\? ''\)\)\)/);
     assert.match(card.code, /reasonText: fallbackReasonText,\s*drawn,\s*\};/);
   });
 

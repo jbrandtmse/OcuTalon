@@ -42,8 +42,9 @@ Include (EnsConstants, EnsErrors)
 ///       - A run that resent nothing (every target was skipped) closes the request done: Total and Skipped the number of targets, Resent, Completed and
 ///         FailedAgain 0, and the plain Reason of the lowest skipped target.
 ///       - A run that resent copies (also one that erred after its first copy) saves ResentAt on its FixRun and waits for its copies (Wait), up to WAITSECONDS from
-///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy is completed when its status is Completed and failed again
-///         when it is Error, Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
+///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy that the read gives as in flight (IRIS still holds its header, or a business process still handles it;
+///         Reader.Evidence inFlight) is still running, whatever its status. Otherwise a copy is completed when its status is Completed and failed again when it is Error,
+///         Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
 ///         every copy is completed or failed again the run ends done: Total the number of targets, Resent the number of copies, Completed and FailedAgain their
 ///         counts, Skipped the targets without a copy (Unreached, the targets the resend never reached, is part of it), Interrupted 0, and, for copies that failed again, the
 ///         Reason of the failed copy with the lowest id (FailReason). A run whose copies are not all done when the time is up is not waited for any more: one Type 3 warning
@@ -63,14 +64,18 @@ Include (EnsConstants, EnsErrors)
 ///     updates again. If that works, the run ends as could not start with the kind's NOSTART (nothing was changed). If it fails too (code notapplied), the run ends failed through Finish
 ///     with Total the number of targets, Skipped 0, Unreached the targets not done and the redacted Reason holding the production's error text, one Action entry is written, and the
 ///     session reads result.settingSavedNotApplied (Watch.SettingCause ResultKey).
-///   - A kind whose targets are contacts (TARGETTYPE contact, Story 23.5: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
-///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: demo mode is off, so the approved notice is kept as the row's DryRun
+///   - A kind whose targets are contacts (TARGETTYPE contact, Stories 23.5 and 23.13: partner_warning) takes its own branch of the run. The production's running state is not read; the kind's Ready is
+///     asked first, and a kind that is not ready ends the run as could not start with the kind's reason (NOTSETUP: no mailbox is connected, or demo mode is off for the demo's production, so the approved notice is kept as the row's DryRun
 ///     text and nothing is sent). A row whose FixParameters text is not its DryRun's notice (the text the approver was shown) also could not start, with the kind's NOSTART, and
-///     sends nothing (AsApproved). Otherwise Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
+///     sends nothing (AsApproved). A request of a production that is not the fixture's (a Settings contact) is then sent by SendPartner and never delivered to the Simulated mailbox: the row is read again
+///     and the kind's mail method (Fix.Kind Mailed) gives the addresses that may still be sent to (a row that is not as approved could not start with NOSTART; with no address left the run is done with
+///     every target skipped and nothing sent); otherwise the seam MailApproved submits the approved email (Fix.Kind.Email SubmitApproved: a SendEmail command with origin system and the request's Ref only, no
+///     address, subject or text), and the run ends done when it was sent (Completed the addresses, Skipped the others, the first reason of the lowest skipped target) and failed with the CommandResult's message
+///     when it was not. For the fixture's production Recheck and Execute run as for any kind, and Deliver then sends the approved text, from the row's FixParameters byte for byte, to
 ///     SimMailboxOut (a Fix.Msg.PartnerNotice, synchronously) once for each delivery and each session of the incident's recipients; a recipient counts as sent when at least one
 ///     copy was saved. The run ends done through Finish with Total the number of targets, Resent 0, Completed the recipients sent, FailedAgain 0 and Skipped the rest (the first reason
 ///     is the lowest skipped target's), and as could not start with the kind's NOSTART when nothing was sent and a send erred. The Action entry's target is "<n> partner contacts
-///     (<their ids>) of <production> (simulated)": the ids, never the addresses.
+///     (<their ids>) of <production>", with " (simulated)" for the fixture's production: the ids, never the addresses.
 ///   - A waiter that stops (the job should quiesce or terminate, or its item is stopped) leaves its runs, with a ResentAt and no EndedAt, to Sweep (DW-395): a run whose copies
 ///     were all done inside its WAITSECONDS ends there, with the waiter's own counts and result, only later.
 ///   - One waiter (DW-381): Wait takes the lock WAITLOCK without waiting; the job that holds it makes a pass every WAITPAUSE seconds over every waiting run (Waiting:
@@ -505,6 +510,7 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	Set skipped = []
 	Set notRunning = 0
 	Set unready = ""
+	Set mailing = 0
 	Set sent = 0
 	Set unreached = 0
 	Set first = ""
@@ -526,7 +532,8 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		} Else {
 			Set notRunning = ..NotRunning(incident)
 		}
-		If 'notRunning && (unready = "") {
+		Set mailing = (targetType = "contact") && (unready = "") && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production)
+		If 'notRunning && (unready = "") && 'mailing {
 			$$$ThrowOnError(..Check(class, incident, parameters, row.FixTargets, .passed, .skipped))
 			If passed '= "" {
 				$$$ThrowOnError(..Carry(class, incident, parameters, passed, .result, run))
@@ -554,6 +561,10 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 	}
 	If (unready '= "") && (failed = "") {
 		Do ..CouldNotStart(row, total, unready, 1)
+		Quit
+	}
+	If mailing && (failed = "") {
+		Do ..SendPartner(row, class, run, total)
 		Quit
 	}
 	Set copies = $Select($IsObject(run): run.Copies.Count(), 1: 0)
@@ -598,6 +609,47 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 		Quit
 	}
 	Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+}
+
+/// Sends the approved notice of a request of a Settings contact (see the class description), in a run that has started: the row is read again (it is executing now), and the kind's mail method
+/// gives the addresses that may be sent to and those skipped. A row that is not as approved could not start (the kind's NOSTART); with no address left nothing is sent and the run ends done with
+/// every target skipped; otherwise MailApproved sends once. An exception of the send ends the run failed with EmailOut's MESSAGEFAILED.
+Method SendPartner(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String, run As OcuTalon.Data.FixRun, total As %Integer) [ Private ]
+{
+	Set recipients = []
+	Set skipped = []
+	Set mailed = 0
+	Try {
+		Set mailed = $$$ISOK(row.%Reload()) && ##class(OcuTalon.Fix.Kind).Mailed(row, .recipients, , , .skipped)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		Set mailed = 0
+	}
+	If 'mailed {
+		Do ..CouldNotStart(row, total, ..KindReason(class, "NOSTART", ..#NOSTART), $IsObject(run) && (run.%Id() '= ""))
+		Quit
+	}
+	If recipients.%Size() = 0 {
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (total), "reason": (..FirstReason(skipped))})
+		Quit
+	}
+	Set outcome = {"sent": 0, "outcome": "failed", "message": ($Parameter($Parameter("OcuTalon.Fix.Kind.Email", "OUT"), "MESSAGEFAILED"))}
+	Try {
+		Set outcome = ..MailApproved(row)
+	} Catch exception {
+		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	If +outcome.sent {
+		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": (recipients.%Size()), "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (..FirstReason(skipped)), "outcome": (outcome.outcome)})
+	} Else {
+		Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (outcome.message), "outcome": (outcome.outcome)})
+	}
+}
+
+/// Submits the approved email of the row and answers {"sent", "outcome", "message"} (Fix.Kind.Email SubmitApproved; a seam for the tests).
+Method MailApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
+{
+	Quit ##class(OcuTalon.Fix.Kind.Email).SubmitApproved(row)
 }
 
 /// Delivers the approved notice of a request whose kind's targets are contacts (TARGETTYPE contact): for each delivery the kind's Execute gave, one PartnerNotice to
@@ -909,7 +961,7 @@ ClassMethod ActionTarget(row As OcuTalon.Bridge.Data.ApprovalRequest, incident A
 		Set change = ##class(OcuTalon.Data.SettingChange).RefIndexOpen(parameters.%Get("change"))
 		Quit $Select($IsObject(change): change.Setting_" on "_change.Item_" in "_target, 1: target)
 	}
-	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_" (simulated)"
+	If $Parameter(class, "TARGETTYPE") = "contact" Quit $Length(row.FixTargets, ",")_" partner contact"_$Select($Length(row.FixTargets, ",") = 1: "", 1: "s")_" ("_row.FixTargets_") of "_incident.Production_$Select(##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production): " (simulated)", 1: "")
 	If parameters.%Get("target") '= "" Quit target_" to "_parameters.%Get("target")
 	Quit target
 }
@@ -1118,8 +1170,9 @@ Method Look(id As %String, Output tally As %DynamicObject) As %Integer [ Private
 	Quit ""
 }
 
-/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE), failedAgain (one of COPYFAILED),
-/// running (any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of the failed copy with the lowest id, "" when none).
+/// Counts the copies of a run from a read (outcome and statuses as Read gives them), as a dynamic object: completed (their status is COPYDONE and they are not in flight), failedAgain (one of COPYFAILED, not in flight),
+/// running (a copy the read gives as in flight, whatever its status; any other status, a header the read lacks, and every copy when the outcome is not read) and failed (the id of
+/// the failed copy with the lowest id, "" when none). An entry without inFlight is not in flight.
 ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %DynamicObject) As %DynamicObject
 {
 	Set completed = 0
@@ -1131,7 +1184,9 @@ ClassMethod Tally(run As OcuTalon.Data.FixRun, outcome As %String, statuses As %
 		Set copy = run.Copies.GetAt(i)
 		Set entry = $Select((outcome = "read") && $IsObject($Get(statuses)): statuses.%Get(copy), 1: "")
 		Set status = $Select($IsObject(entry): entry.status, 1: "")
-		If status = ..#COPYDONE {
+		If $IsObject(entry) && entry.inFlight {
+			Set running = running + 1
+		} ElseIf status = ..#COPYDONE {
 			Set completed = completed + 1
 		} ElseIf $ListFind(failedStatuses, status) {
 			Set failedAgain = failedAgain + 1
@@ -1151,7 +1206,7 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 
 /// The outcome of the read ("read" when statuses holds the copies) and the status of each copy of the run, for every job that counts a run's copies: statuses is a dynamic object
 /// by the copy's header id of {"status" (as Reader.Evidence gives it), "error" (the raw error text), "target" (the copy's TargetConfigName), "at" (the header's timeProcessed, the time
-/// of its last status change, a UTC stamp)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
+/// of its last status change, a UTC stamp), "inFlight" (Reader.Evidence's: 1 while IRIS still holds or still handles the copy)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
 /// that the one reader reads the production (AD-3). A header the read lacks is not in statuses.
 ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String
 {
@@ -1165,7 +1220,9 @@ ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun
 	If outcome '= "read" Quit outcome
 	For i = 0:1:snapshot.failures.%Size() - 1 {
 		Set failure = snapshot.failures.%Get(i)
-		Do statuses.%Set(failure.headerId, {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)})
+		Set entry = {"status": (failure.status), "error": (failure.error), "target": (failure.targetConfigName), "at": (failure.timeProcessed)}
+		Do entry.%Set("inFlight", +failure.inFlight, "boolean")
+		Do statuses.%Set(failure.headerId, entry)
 	}
 	Quit outcome
 }

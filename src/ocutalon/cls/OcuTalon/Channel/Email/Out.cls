@@ -11,21 +11,21 @@
 ///   - the recipients to check are those of the command (Listed): Recipients as given, except for the two commands that OcuTalon's own producers send
 ///     without an address (DW-1255). A tool send whose Recipients is the marker SendEmail OWNADDRESS (the whole list, ignoring case and spaces) means the
 ///     mailbox's own address, email.address. A system send whose Recipients is empty and that names its approval means the recipients of that approval's row,
-///     FixParameters member recipients in order, taken only from a row of Kind fix, in State executing, with FixKind FIXKIND (any other row gives an empty
-///     list, which Check refuses). No other command is changed by this;
+///     recipients that the row's kind mails to (the mail method, Fix.Kind Mailed: Fix.Kind.Email for an email fix, Fix.Kind.PartnerWarning for a partner warning), taken only from a row of
+///     Kind fix, in State executing, whose kind declares MAILS 1 (any other row gives an empty list, which Check refuses). No other command is changed by this;
 ///   - a system send that names its approval also takes its subject and text from that row (Approved, DW-1255 rule 4, P4 (a)): FixExecutor's command carries only the ApprovalRef, so that
 ///     the recipient, the subject and the text of an approved email are only in the approval's record and never in the trace. For each of the two, when the row (Kind fix, State executing,
-///     FixKind FIXKIND) holds it as a string in FixParameters: a command that leaves it empty is sent with the row's value, a command that carries one equal to the row's is sent as it is,
-///     and a command that carries another value is refused (refused, naming subject or text) and sends nothing. A row that does not hold the member (a row that no email fix of OcuTalon
-///     makes) leaves the command's own value as it is. The recipients of a command that carries them are compared with the row's by Authorised, as before;
+///     a kind that declares MAILS 1) holds it through its mail method: a command that leaves it empty is sent with the row's value, a command that carries one equal to the row's is sent as it is,
+///     and a command that carries another value is refused (refused, naming subject or text) and sends nothing. A row whose mail method gives no subject or no text (a row that no mailing fix of
+///     OcuTalon makes) leaves the command's own value as it is. The recipients of a command that carries them are compared with the row's by Authorised, as before;
 ///   - the values are checked (Check): 1 to MAXRECIPIENTS recipients, each one address (SettingsOps.IsAddress); a subject of 1 to SUBJECTMAX
 ///     characters; a text of 1 to TEXTMAX characters; no control character in a recipient or the subject, none in the text but a tab, a line feed
 ///     or a carriage return. A refusal answers refused (Ok 0, MESSAGEREFUSED) with Data {"fields": [...]} naming recipients, subject or text;
 ///   - the recipients are enforced here too, whatever CommandsIn did (Authorised): origin tool must name exactly one recipient, equal ignoring case to
 ///     email.address, and its SessionRef must be the product key email.owner; origin system must name its approval (ApprovalRef): the row of
-///     Bridge.Data.ApprovalRequest must be of Kind fix, in State executing, with FixKind FIXKIND, and its FixParameters member recipients (an array
-///     of addresses) must equal the command's recipients as a set of lower-cased addresses. Any other origin, a missing row or any mismatch answers
-///     refused, naming recipients, and sends nothing;
+///     Bridge.Data.ApprovalRequest must be of Kind fix, in State executing, of a kind with MAILS 1, and the recipients of its mail method (for an email fix its FixParameters member
+///     recipients, an array of addresses; for a partner warning the approved addresses that still belong to a listed contact) must equal the command's recipients as a set of lower-cased
+///     addresses. Any other origin, a missing row or any mismatch answers refused, naming recipients, and sends nothing;
 ///   - a system send is claimed first (SendClaimed): under a lock on its ApprovalRef, a Data.Delivery row of channel email with that ApprovalRef means the
 ///     approval was sent already, so the answer is already_sent (Ok 1, MESSAGESENT) and nothing is sent; a row marked failed (a send that did not go
 ///     through) or still pending (a send that never finished, such as one whose job was stopped during it) answers failed (Ok 0, MESSAGEFAILED) and sends
@@ -70,7 +70,8 @@ Property Adapter As OcuTalon.Channel.Email.Sender;
 /// The channel of the Delivery rows: one of Msg.Enum CHANNEL.
 Parameter CHANNEL = "email";
 
-/// The FixKind of the approval request of an email fix (the contract of Story 22.7's fix kind), and the FixParameters member that lists its recipients.
+/// The FixKind of the approval request of Story 22.7's email fix, and the FixParameters member that lists its recipients. EmailOut reads neither since Story 23.13: the recipients, subject
+/// and text of a system send come from the row's kind through Fix.Kind Mailed (Fix.Kind.Email Mail reads that member).
 Parameter FIXKIND = "email";
 
 Parameter FIXRECIPIENTS = "recipients";
@@ -389,7 +390,7 @@ Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
 
 /// The comma-separated recipients that Check works on (see the class description): the command's Recipients, except for a tool send of the marker (from, the
 /// mailbox's own address) and for a system send with no Recipients that names its approval (the recipients of that approval's row, "" when it is not an executing
-/// email fix).
+/// row of a kind that mails).
 Method Listed(request As OcuTalon.Msg.Command.SendEmail, from As %String) As %String [ Private ]
 {
 	Set raw = request.Recipients
@@ -399,8 +400,8 @@ Method Listed(request As OcuTalon.Msg.Command.SendEmail, from As %String) As %St
 }
 
 /// The subject and the text to check and to send (see the class description): those of the command, except that a system send that names its approval takes them from the approval's row
-/// (FixParameters members subject and text of a row of Kind fix, State executing and FixKind FIXKIND, when the member is a string). subject and text come back as the command's own
-/// when the row does not hold the member or is not such a row, and as the row's when the command leaves the value empty. The answer names, in a dynamic array, each of the two that the command
+/// (the subject and text of the mail method of a row of Kind fix, State executing, of a kind with MAILS 1, when it gives one). subject and text come back as the command's own
+/// when the row does not hold the value or is not such a row, and as the row's when the command leaves the value empty. The answer names, in a dynamic array, each of the two that the command
 /// carries and that is not exactly the row's (subject, text), for Handle to refuse. Anything unreadable is a row that holds nothing.
 Method Approved(request As OcuTalon.Msg.Command.SendEmail, Output subject As %String, Output text As %String) As %DynamicArray [ Private ]
 {
@@ -411,19 +412,18 @@ Method Approved(request As OcuTalon.Msg.Command.SendEmail, Output subject As %St
 	Try {
 		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ApprovalRef)
 		If '$IsObject(row) || $$$ISERR(row.%Reload()) Quit
-		If (row.Kind '= "fix") || (row.State '= "executing") || (row.FixKind '= ..#FIXKIND) Quit
-		Set parameters = {}.%FromJSON(row.FixParameters)
-		If parameters.%GetTypeOf("subject") = "string" {
+		If '##class(OcuTalon.Fix.Kind).Mailed(row, , .rowSubject, .rowText) Quit
+		If rowSubject '= "" {
 			If subject = "" {
-				Set subject = parameters.%Get("subject")
-			} ElseIf subject '= parameters.%Get("subject") {
+				Set subject = rowSubject
+			} ElseIf subject '= rowSubject {
 				Do mismatch.%Push("subject")
 			}
 		}
-		If parameters.%GetTypeOf("text") = "string" {
+		If rowText '= "" {
 			If text = "" {
-				Set text = parameters.%Get("text")
-			} ElseIf text '= parameters.%Get("text") {
+				Set text = rowText
+			} ElseIf text '= rowText {
 				Do mismatch.%Push("text")
 			}
 		}
@@ -435,24 +435,19 @@ Method Approved(request As OcuTalon.Msg.Command.SendEmail, Output subject As %St
 	Quit mismatch
 }
 
-/// The recipients of the approval's row joined by commas, in order: FixParameters member recipients of a row of Kind fix, State executing and FixKind FIXKIND, when
-/// every entry is a string. "" for any other row, a row that is not there and anything unreadable.
+/// The recipients of the approval's row joined by commas, in order: those of its kind's mail method (Fix.Kind Mailed) for a row of Kind fix, State executing, whose kind declares
+/// MAILS 1. "" for any other row, a row that is not there and anything unreadable.
 ClassMethod ApprovedRecipients(approval As %String) As %String [ Private ]
 {
 	Set joined = ""
 	Try {
 		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(approval)
 		If '$IsObject(row) || $$$ISERR(row.%Reload()) Quit
-		If (row.Kind '= "fix") || (row.State '= "executing") || (row.FixKind '= ..#FIXKIND) Quit
-		Set list = {}.%FromJSON(row.FixParameters).%Get(..#FIXRECIPIENTS)
-		If '$IsObject(list) || 'list.%IsA("%Library.DynamicArray") Quit
+		If '##class(OcuTalon.Fix.Kind).Mailed(row, .list) Quit
 		Set iterator = list.%GetIterator()
-		Set clean = 1
-		While iterator.%GetNext(, .address, .type) {
-			If type '= "string" Set clean = 0
+		While iterator.%GetNext(, .address) {
 			Set joined = joined _ $Select(joined = "": "", 1: ",") _ address
 		}
-		If 'clean Set joined = ""
 	} Catch {
 		Set joined = ""
 	}
@@ -511,12 +506,10 @@ Method Authorised(request As OcuTalon.Msg.Command.SendEmail, from As %String, By
 	If request.ApprovalRef = "" Quit 0
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ApprovalRef)
 	If '$IsObject(row) || $$$ISERR(row.%Reload()) Quit 0
-	If (row.Kind '= "fix") || (row.State '= "executing") || (row.FixKind '= ..#FIXKIND) Quit 0
 	Kill allowed, asked
 	Try {
-		Set parameters = {}.%FromJSON(row.FixParameters)
-		Set list = parameters.%Get(..#FIXRECIPIENTS)
-		If '$IsObject(list) || (list.%Size() = 0) Quit
+		If '##class(OcuTalon.Fix.Kind).Mailed(row, .list) Quit
+		If list.%Size() = 0 Quit
 		Set iterator = list.%GetIterator()
 		While iterator.%GetNext(, .address) {
 			Set allowed($ZConvert($ZStrip(address, "<>W"), "L")) = ""

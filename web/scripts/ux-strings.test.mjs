@@ -188,6 +188,7 @@ const SOURCES = {
     'Outcome',
     'Date',
     'No decisions match these filters.',
+    'The email was sent.',
     'Look back at past decisions',
     'On the History page, filter the Decisions tab by outcome, channel, date or fallback, and open a decision to read its reasons, with a link to its trace. The Incidents tab lists your incidents with their state and, once an incident has closed, its summary. If it reads "No decisions yet.", run the guide first.',
     'Open the History page',
@@ -1051,6 +1052,10 @@ const SOURCES = {
       '{setting} on {target} was not changed: it changed again after the dry run. It needs a new approval.',
       'The rollback is undone: {setting} on {target} is back to {after}.',
       'The feed broke {minutes} after this setting changed: {setting} on {target}, at {time}.',
+    ],
+    'Story 23.13 rulings (Contest Planner, 23.13 re-plan 2026-11-16: result.partnerSkipped, approved verbatim; fix.emailNotSent, Story 21.11\'s approved email result, which the card and the incident card now render for a Settings contact\'s notice; fix.emailSent\'s text is in EXPERIENCE.md)': [
+      'The delay notice was sent to {sent} of {total} partner contacts. Not sent to {skipped}: they were removed from Settings > Partner contacts, or their address changed, since this request was made.',
+      '{reason}',
     ],
     'Story 23.3 pre-push ruling (Contest Planner, 2026-11-15, DW-1365: the result text of a setting that was saved and that the production could not apply, approved verbatim)': [
       "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",

@@ -72,3 +72,5 @@
 2026-11-16T06:14:13Z	Story 24.4b	stage_spawned	stage=code-review spawn_at=2026-11-16T06:14:13Z model=opus effort=high scope=6be77202..HEAD branch=OCT-epic24
 2026-11-16T06:48:11Z	Story 24.4b	cr_complete	model=opus patched=17(med3:reject_case_b1,audit_compared_with_open_card,precedent_rows_cleaned;low14) decision_pending=1(DW-1426:closed_card_silent_after_answer) closed=9 high=0 final=done focus_lands_on_main(pinned) B13=pass
 2026-11-16T06:48:11Z	Story 24.4b	fresh_check	env=fresh_lane-D(e24s4bcr) tests=live_sign-in-2_part_12/20(10_pass),Test.Channel.TelegramOut result=pass torn_down=yes
+2026-11-16T06:53:58Z	Epic 24	integrated_forward	feature=dc9813a6(23.13_merged) conflicts_resolved=sprint-status(regenerated;24.4b_done),incident-card.ts+incident-view.ts(union:23.13_approvals+24.4b_drawn;incidentContext(...,approvals,drawn)),approval-sources+incident-sources_source_pins(union_call) checks=web_2184_pass,lint,build,live_sign-in-2_part_12/20_fresh_pass
+2026-11-16T06:53:58Z	Story 24.4b	committed	sha=pushed_below

@@ -30,6 +30,7 @@ export function incidentContext(
   nowMs: number,
   instanceZone: string,
   onlineDemo: boolean,
+  approvals?: Readonly<Record<string, ApprovalPayload>>,
   drawn?: ReadonlySet<string>,
 ): IncidentContext {
   return {
@@ -38,7 +39,8 @@ export function incidentContext(
     messageTime: (iso, now) => messageTime(iso, now, instanceZone, onlineDemo),
     topTime: (iso, now) => pageWhenBeside(iso, now, instanceZone),
     itemTime: (iso, now) => pageWhen(iso, now),
-    result: (request, itemNoun, production, change) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change),
+    result: (request, itemNoun, production, change, simulated) => resultView(request, itemNoun, (key, slots) => renderPageText(key, slots), production, change, simulated ?? null),
+    approvals,
     render: (key, slots) => renderPageText(key, slots),
     reasonText: fallbackReasonText,
     drawn,
@@ -317,7 +319,7 @@ export class IncidentCard {
   protected readonly view = computed(() =>
     incidentView(
       this.incident(),
-      incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), new Set(this.requests().map((request) => request.ref ?? ''))),
+      incidentContext(this.decisions(), Date.now(), this.instanceZone(), this.onlineDemo(), this.approvals(), new Set(this.requests().map((request) => request.ref ?? ''))),
     ),
   );
 

@@ -11,6 +11,9 @@
 ///     no incident and ResultTarget FixExecutor through Approval.Raise.
 ///   - Execute submits the approved email as a SendEmail command with origin system, the request's ApprovalRef and the owner's session and nothing else: no recipients, no subject and no text
 ///     (EmailOut reads all three from the request's row, so that none of them is in the command or in the trace), and answers {sent, outcome, message} from the CommandResult; it sends nothing itself. FixExecutor calls it after StartExecution, so one approval sends once; Out claims the approval as the second guard.
+///   - Mail is the kind's mail method (AD-14, MAILS 1): the recipients, subject and text of the executing row's FixParameters, as EmailOut reads them. The recipients are the member recipients when
+///     every entry is a string (else none); the subject and the text are the member when it is a string (else ""); nothing is skipped. SubmitApproved is the submit of Execute, which the executor's
+///     other mailing kinds use too.
 ///   - MayApprove is the interim approver rule of an email request (DW-1262): an approval of an email to anyone but the owner's own address is answered only by a holder of the role
 ///     OcuTalonAdmin. AnswerOps asks it before every approve.
 ///   - Audit writes the one Action entry of a send (tool or approved): the action email, the target EmailOut, the outcome, the number of recipients sent to and, for an approved send, the IRIS user who approved it (AD-17). It holds no address, subject or text.
@@ -25,6 +28,8 @@ Parameter PARAMETERS = "recipients,subject,text";
 Parameter RESOURCES;
 
 Parameter TARGETTYPE = "recipient";
+
+Parameter MAILS = 1;
 
 Parameter DIAGNOSED = 0;
 
@@ -196,17 +201,55 @@ ClassMethod AsApproved(dryRun As %DynamicObject, parameters As %DynamicObject) A
 /// approved content that FixExecutor has already checked against the row. result is {"sent": 1 or 0, "outcome", "message"} from the CommandResult. A command that never reached CommandsIn is not sent, with Out's MESSAGEFAILED.
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
-	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
 	Set row = $Select($IsObject(run): ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(run.ApprovalRef), 1: "")
-	If '$IsObject(row) Quit $$$OK
+	Set result = ..SubmitApproved(row)
+	Quit $$$OK
+}
+
+/// The submit of Execute, for the row of an approved request (the request's Ref and owner are all that the command carries): {"sent": 1 or 0, "outcome", "message"} from the CommandResult.
+/// A row that is not there, and a command that never reached CommandsIn, are not sent, with Out's MESSAGEFAILED.
+ClassMethod SubmitApproved(row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject
+{
+	Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter(..#OUT, "MESSAGEFAILED"))}
+	If '$IsObject(row) Quit result
 	Set command = ##class(OcuTalon.Msg.Command.SendEmail).%New()
 	Set command.SessionRef = row.OwnerRef
 	Set command.ApprovalRef = row.Ref
 	Set answered = ""
 	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "system", .answered)
-	If $$$ISERR(sc) || '$IsObject(answered) Quit $$$OK
-	Set result = {"sent": (+answered.Ok), "outcome": (answered.Outcome), "message": (answered.Message)}
-	Quit $$$OK
+	If $$$ISERR(sc) || '$IsObject(answered) Quit result
+	Quit {"sent": (+answered.Ok), "outcome": (answered.Outcome), "message": (answered.Message)}
+}
+
+/// The mail method of an executing email row (see the class description): today's reading of its FixParameters. 0 for parameters that are not one JSON object.
+ClassMethod Mail(row As OcuTalon.Bridge.Data.ApprovalRequest, Output recipients As %DynamicArray, Output subject As %String, Output text As %String, Output skipped As %DynamicArray) As %Boolean
+{
+	Set recipients = []
+	Set subject = ""
+	Set text = ""
+	Set skipped = []
+	Try {
+		Set parameters = {}.%FromJSON(row.FixParameters)
+		If '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") Quit
+		Set list = parameters.%Get("recipients")
+		If $IsObject(list) && list.%IsA("%Library.DynamicArray") {
+			Set clean = 1
+			Set iterator = list.%GetIterator()
+			While iterator.%GetNext(, , .type) {
+				If type '= "string" Set clean = 0
+			}
+			If clean Set recipients = list
+		}
+		If parameters.%GetTypeOf("subject") = "string" Set subject = parameters.%Get("subject")
+		If parameters.%GetTypeOf("text") = "string" Set text = parameters.%Get("text")
+		Set mailed = 1
+	} Catch {
+		Set recipients = []
+		Set subject = ""
+		Set text = ""
+		Set mailed = 0
+	}
+	Quit +$Get(mailed)
 }
 
 /// The recipients of an approved email as the Recipients of its SendEmail command: the entries as they are, joined by commas.
