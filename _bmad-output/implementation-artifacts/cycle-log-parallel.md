@@ -4459,3 +4459,7 @@
 2026-11-16T05:37:03Z	Epic 0	owner_decision	via=contest_planner DW-1389_A/B=FAIL(drift;bars_b,c,g,i) DW-1389=closed_for_1.0.12(narrower_LOW_post-1.0.12;branch_kept) stale_ref=held_post-1.0.12_bundled_A/B user-turn_case=lands_when_ready new=DW-1421(MED,orders-target-to-review_invalid_fallback;diagnose_before_RC)
 2026-11-16T07:30:40Z	Epic 24	runner_reported	PART_READY story=24.4b head=0d4d1e67 runs=43819955746,43819955815(att1) DW-1426(closed-card_post-answer_status) + PLANNER_REPORT 24.3_gate(P1,P2,P4,P5;V1-V6;2_texts)
 2026-11-16T07:30:40Z	Epic 24	merge_enqueued	story=24.4b (1.0.12)
+2026-11-16T07:33:11Z	Epic 24	merged	story=24.4b merge=c5c4186ca
+2026-11-16T07:34:06Z	Epic 24	owner_decision	via=contest_planner DW-1426=approved_follow-up(announce_existing_text+focus_headline) 24.3=NOT_in_1.0.12(split_a/b;P1_A;P2;P4;line_verbatim;V1-V6_conditions;24.3a_merges_after_cut) file=prompts/story-243-rulings-20261116.md
+2026-11-16T08:27:37Z	Epic 21	ci_green_verified	story=DW-1373 head=d7e7e925a runs=43821999043,43821998992 note=report_not_received;verified_by_gate
+2026-11-16T08:27:37Z	Epic 21	merge_enqueued	story=DW-1373 (1.0.12)
