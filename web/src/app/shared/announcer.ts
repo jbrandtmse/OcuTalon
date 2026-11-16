@@ -16,16 +16,12 @@ import { AnnounceQueue } from './announce-queue';
 @Injectable({ providedIn: 'root' })
 export class Announcer {
   private readonly live = inject(LiveAnnouncer);
-  /** The text last handed to the live region, which holds it from 100 ms after the hand-over until the next text replaces it. */
-  private lastSpoken = '';
   private readonly queue = new AnnounceQueue({
     setTimeout: (handler, ms) => globalThis.setTimeout(handler, ms),
     clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
     now: () => performance.now(),
-    speak: (text) => {
-      this.lastSpoken = text;
-      void this.live.announce(text, 'polite');
-    },
+    speak: (text) => void this.live.announce(text, 'polite'),
+    clear: () => void this.live.announce('', 'polite'),
   });
 
   constructor() {
@@ -42,11 +38,6 @@ export class Announcer {
    * others) the live region is emptied, also when the region has not received it yet.
    */
   retract(message: string): void {
-    const text = message.trim();
-    this.queue.retract(text);
-    if (text !== '' && this.lastSpoken === text) {
-      this.lastSpoken = '';
-      void this.live.announce('', 'polite');
-    }
+    this.queue.retract(message);
   }
 }

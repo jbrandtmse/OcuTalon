@@ -14,6 +14,8 @@
  *     spoken text, and flushes again; whatever arrives meanwhile joins that flush.
  * - Every pushed message is spoken once, alone, joined or counted: nothing is spoken twice and nothing is dropped, except a message that
  *   retract() withdraws while it still waits.
+ * - retract() also empties the speaker (clear) when the text it withdraws is the last text spoken, spoken alone: not joined with other messages,
+ *   not a count, and not empty. A text that was spoken joined or as a count is never recalled.
  * - dispose() clears the timer and the waiting list; a push after it does nothing.
  */
 
@@ -39,6 +41,8 @@ export interface AnnounceQueueOptions {
   now: () => number;
   /** Speaks one text: the page's polite live region. */
   speak: (text: string) => void;
+  /** Empties what speak() last set: the page's live region. */
+  clear: () => void;
 }
 
 /** A text that was spoken: when, and how many messages it carried. */
@@ -57,6 +61,8 @@ export class AnnounceQueue {
   private spoken: Spoken[] = [];
   private timer: unknown = undefined;
   private ended = false;
+  /** The last text spoken when it carried one message, and an empty string when it was joined, counted, recalled or none was spoken. */
+  private lastText = '';
 
   constructor(options: AnnounceQueueOptions) {
     this.options = options;
@@ -74,13 +80,20 @@ export class AnnounceQueue {
     }
   }
 
-  /** Withdraws the waiting messages that equal this one (after trimming), so that an answer that arrived since is not contradicted; a message already spoken is not recalled. */
+  /**
+   * Withdraws the waiting messages that equal this one (after trimming), so that an answer that arrived since is not contradicted. When this
+   * message is also the last text spoken, spoken alone, the speaker is emptied once; any other spoken text stays.
+   */
   retract(message: string): void {
     const text = message.trim();
     for (let index = this.waiting.length - 1; index >= 0; index -= 1) {
       if (this.waiting[index] === text) {
         this.waiting.splice(index, 1);
       }
+    }
+    if (text !== '' && this.lastText === text) {
+      this.lastText = '';
+      this.options.clear();
     }
   }
 
@@ -124,6 +137,7 @@ export class AnnounceQueue {
   private say(text: string, messages: number, now: number): void {
     this.waiting.length = 0;
     this.spoken.push({ at: now, messages });
+    this.lastText = messages === 1 ? text : '';
     this.options.speak(text);
   }
 }

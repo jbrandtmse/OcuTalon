@@ -4,8 +4,9 @@
  * file-reply component, a lazy chunk (DW-1282); the reply itself reaches it through a dynamic import.
  *
  * - FILE_REPLY_TEXTS is every fixed string of the controls. "I couldn't read that file: {reason}." is the server's reply text and is not here.
- * - controlsOf(fileRead, savedCaption) says which controls a turn shows: the button for a document that was read and can be added (read 1 and addable 1), and the
- *   chip for a photo whose caption was saved as a memory. A turn with neither shows nothing.
+ * - controlsOf(fileRead, savedCaption, viewer) says which controls a turn shows: the button for a document that was read and can be added (read 1 and addable 1)
+ *   when the user is not a viewer (the server refuses a viewer's add with 403 read_only), and the chip for a photo whose caption was saved as a memory, for a viewer too.
+ *   A turn with neither shows nothing.
  */
 
 /** Every fixed string of the controls under a file's reply. */
@@ -28,7 +29,7 @@ export interface FileReplyControls {
   saved: boolean;
 }
 
-/** Which controls the turn shows, from its chat.message's fileRead and caption (an object, or absent). */
-export function controlsOf(fileRead: FileReadLike | undefined, savedCaption: object | undefined): FileReplyControls {
-  return { add: fileRead !== undefined && fileRead.read === 1 && fileRead.addable === 1, saved: savedCaption !== undefined };
+/** Which controls the turn shows, from its chat.message's fileRead and caption (an object, or absent) and whether the user is a viewer. */
+export function controlsOf(fileRead: FileReadLike | undefined, savedCaption: object | undefined, viewer: boolean): FileReplyControls {
+  return { add: !viewer && fileRead !== undefined && fileRead.read === 1 && fileRead.addable === 1, saved: savedCaption !== undefined };
 }
