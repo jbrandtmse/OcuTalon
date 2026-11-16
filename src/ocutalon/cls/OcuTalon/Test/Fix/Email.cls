@@ -12,6 +12,7 @@
 ///     Approval.Answer, the real FixExecutor sends exactly that email once through the real CommandsIn and EmailOut (origin system, the request's Ref: one Delivery row of the approval), the request is
 ///     done, its FixRun has no incident and counts one, one Action entry names the Ref and the IRIS user who approved it (AD-17); a second outcome, an Execute and a second answer send nothing more;
 ///   - TestSeededApprovedRowSendsOnce (Task 0, item 1): a seeded approved row of two recipients, handed to the real FixExecutor as an approved outcome, is sent once to both with origin system;
+///   - TestQuitFailureAfterTheMailIsSent (DW-1422): a stub that keeps the mail and answers QUIT with an error ends the approved email done, with one mail, one claim marked sent and a FixRun that counts one sent;
 ///   - TestRejectedAndExpiredSendNothing: a rejected request (its outcome sent by the hold) and an expired one (Approval.Expire moves the row only, so the test hands FixExecutor the expired
 ///     outcome that the hold's timer would send) send nothing and change nothing more, once FixExecutor has logged its one info line for the outcome;
 ///   - TestNotApprovedSendsNothing (AD-16's one test per kind, matrix row Not approved): an Execute and an approved ApprovalOutcome for a pending, rejected, expired or cancelled row, for a row of another
@@ -622,6 +623,25 @@ Method TestSeededApprovedRowSendsOnce()
 	Do $$$AssertEquals(..EmailDeliveries(..Owner, ref), 1, "the claim of the approval is one Delivery row: only a send with origin system and the request's Ref makes one")
 	Set run = ..WaitEmailRun(ref)
 	If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Total_"|"_run.Resent_"|"_run.Reason, "|1|1|", "the FixRun counts one, sent, with no incident")
+}
+
+/// DW-1422, over the wire: the stub keeps the mail and answers QUIT with a 421, so %Net.SMTP's only error is the answer to QUIT: the approved email ends done, sent, with one claim marked sent and one mail in the stub.
+Method TestQuitFailureAfterTheMailIsSent()
+{
+	If '..Setup() Quit
+	Do $$$AssertEquals(..SmtpControl("failure", {"mode": "quit"}), 1, "the stub answers QUIT with an error after it has taken the mail")
+	Set ref = ..Seed(..Owner, "approved")
+	Do $$$AssertStatusOK(..SendOutcome(ref), "the approved outcome is handled")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref).State, "done", "the request is done")
+	Set state = ..SmtpState()
+	Do $$$AssertEquals(state.messages.%Size()_"|"_state.connections_"|"_state.commands.QUIT, "1|1|1", "the stub holds the mail and counted one connection and one QUIT: one try")
+	Do $$$AssertEquals(..EmailDeliveries(..Owner, ref), 1, "the claim of the approval is one Delivery row")
+	Set claim = ##class(%SQL.Statement).%ExecDirect(, "SELECT FallbackReason FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", ref)
+	Do claim.%Next()
+	Do $$$AssertEquals("["_claim.%Get("FallbackReason")_"]", "[]", "marked sent, not failed")
+	Set run = ..WaitEmailRun(ref)
+	If $IsObject(run) Do $$$AssertEquals(run.IncidentRef_"|"_run.Total_"|"_run.Resent_"|"_run.Reason, "|1|1|", "the FixRun counts one, sent, with no reason")
+	Do ..SmtpControl("reset", {})
 }
 
 /// A rejected request and an expired one send nothing and change nothing more (matrix row Rejected / expired).

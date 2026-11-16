@@ -252,6 +252,19 @@ test('the failure modes: refuse closes with no greeting, auth answers 535, rejec
   });
 });
 
+test('failure mode quit keeps the mail and answers QUIT with a 421', async () => {
+  await withStub(async ({ control, port }) => {
+    await control('failure', { mode: 'quit' });
+    const { c } = await hello(port);
+    await mail(c, { head: ['Subject: x'], body: 'text' });
+    assert.match((await c.send('QUIT'))[0], /^421/);
+    const state = (await control('state', undefined, 'GET')).json;
+    assert.equal(state.failure, 'quit');
+    assert.equal(state.messages.length, 1);
+    assert.equal(state.commands.QUIT, 1);
+  });
+});
+
 test('reset empties the mail, the failure and every count; a bad control body is a 400 and an unknown route a 404', async () => {
   await withStub(async ({ control, port }) => {
     const { c } = await hello(port);

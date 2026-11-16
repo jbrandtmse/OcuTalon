@@ -42,7 +42,8 @@
 ///     reached the server (Sender.MayHaveSent: a timeout or a connection lost during DATA) marks the claim maysent (CLAIMMAYSENT) and answers failed with
 ///     MESSAGEMAYHAVESENT, which does not say that the email was not sent; the same key again answers the same message and sends nothing, so that the key
 ///     never sends twice. An error after the claim marks it failed. A tool send with no key is sent every time;
-///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. Success records a Data.Delivery row (owner: the
+///   - the message is one text/plain part in UTF-8 with no attachment, sent once through Deliver. A send whose only failure is the answer to QUIT (Sender.Accepted: the server took the message
+///     and then failed the QUIT) is a success, for every kind of email and for the digest. Success records a Data.Delivery row (owner: the
 ///     command's SessionRef, or instance when it has none; channel email; the Ref of the header as the message id; the approval's Ref for a system send) and
 ///     answers sent (Ok 1, MESSAGESENT). A failure answers failed (Ok 0) with the message of Sender.Classify's class: MESSAGEUNREACHABLE,
 ///     MESSAGEREFUSEDLOGIN or MESSAGEREJECTED, and records nothing for a tool send. With a provider sign-in (the adapter's OAuth2ApplicationName is set,
@@ -273,7 +274,8 @@ Method OAuth2Mode() As %Boolean [ Private ]
 }
 
 /// The one message of every path: from, the recipients (recipients(1..n)), the subject and the text as one text/plain UTF-8 part, with the header
-/// X-OcuTalon-Ref set to ref, delivered once. The status is Deliver's.
+/// X-OcuTalon-Ref set to ref, delivered once. The status is Deliver's, except that a failed status that Sender.Accepted says the server accepted (only the answer to QUIT failed, after the server
+/// had taken the message) is OK: the email was sent, so every path records it as sent, whatever the kind of email.
 Method Transmit(from As %String, ByRef recipients, subject As %String, text As %String, ref As %String) As %Status [ Private ]
 {
 	Set message = ##class(%Net.MailMessage).%New("UTF-8")
@@ -282,7 +284,9 @@ Method Transmit(from As %String, ByRef recipients, subject As %String, text As %
 	For i = 1:1:recipients Do message.To.Insert(recipients(i))
 	Do message.Headers.SetAt(ref, ..#REFHEADER)
 	Do message.TextData.Write(text)
-	Quit ..Deliver(message)
+	Set sc = ..Deliver(message)
+	If ##class(OcuTalon.Channel.Email.Sender).Accepted(sc) Quit $$$OK
+	Quit sc
 }
 
 /// A Notification of Kind digest: the digest email of the class description. Always OK, and no response.

@@ -6,6 +6,7 @@ Include Ensemble
 ///   - TestSameAddressIsSent (AC5): both contacts are as approved: one email from the mailbox to exactly the two stored addresses, the approved notice byte for byte, the subject Delay notice (never the Simulated one) and one Delivery row;
 ///   - TestRemovedContactIsSkipped (AC7): a contact that was removed, or that no longer lists the production, is skipped with the code removed and gets nothing;
 ///   - TestChangedAddressIsSkipped (AC7): a contact whose address was changed is skipped with the code changed; neither its old nor its new address ever appears in a send;
+///   - TestQuitStageIsSent (DW-1422): a send that failed only on the answer to QUIT is sent, with its claim marked sent;
 ///   - TestAllSkippedSendsNothing (AC7): with every contact gone the mail method has no recipient and EmailOut refuses the send: nothing is delivered and no claim is made;
 ///   - TestOnlineDemoRefusesPartnerWarning (AC8): with the online-demo flag on EmailOut answers not_available first: nothing is delivered, no claim row;
 ///   - TestFixtureIsNeverMailed (AC8): an executing row of the demo's Orders production, whose contact is fictional, gets no mail method: EmailOut refuses it and sends nothing;
@@ -183,6 +184,23 @@ Method TestOneSendPerApproval()
 	Do $$$AssertEquals(..Delivered()_"|"_..Claims(approval2), "2|1", "the second approval was handed to the server once only, and has one Delivery row")
 }
 
+/// DW-1422: a partner send whose only failure is the answer to QUIT (the server took the message) is sent: the answer is sent, the claim is marked sent and the same approval again answers already_sent.
+Method TestQuitStageIsSent()
+{
+	Do ..Mailbox()
+	Set approval = ..Approval(.owner, .a, .b, .addressA, .addressB)
+	Set ^||OcuTalonEmailOutProbe("answer") = "quit"
+	Set result = ..Send(approval, owner)
+	Kill ^||OcuTalonEmailOutProbe("answer")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_$Parameter(..#PROBE, "MESSAGESENT"), "a partner send that failed only on QUIT is sent")
+	Do $$$AssertEquals(..Delivered()_"|"_..Claims(approval), "1|1", "it was handed over once and has one Delivery row")
+	Set claim = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(approval))
+	Do $$$AssertEquals("["_claim.FallbackReason_"]", "[]", "whose claim is marked sent")
+	Set again = ..Send(approval, owner)
+	Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|already_sent", "the same approval again is already sent")
+	Do $$$AssertEquals(..Delivered(), 1, "and nothing more is delivered")
+}
+
 Method TestTamperedRowIsRefused()
 {
 	Do ..Mailbox()
@@ -286,6 +304,14 @@ Method Mailed(approval As %String, Output recipients, Output subject, Output tex
 ClassMethod Delivered() As %Integer [ Private ]
 {
 	Quit +$Get(^||OcuTalonEmailOutProbe("calls"))
+}
+
+/// The id of the Delivery row of channel email with the approval's Ref.
+ClassMethod ClaimId(approval As %String) As %String
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND ApprovalRef = ?", approval)
+	Do result.%Next()
+	Quit result.%GetData(1)
 }
 
 /// The number of Delivery rows of channel email with the approval's Ref.

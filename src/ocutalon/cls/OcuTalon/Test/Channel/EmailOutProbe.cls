@@ -5,7 +5,8 @@ Include Ensemble
 /// parts, attachments, the value of the header X-OcuTalon-Ref) and counts the calls in ^||OcuTalonEmailOutProbe("calls"), and, when a Delivery row of channel
 /// email has exactly that Ref as its ChannelMessageId at the time of the call (the claim of a claimed send), its FallbackReason under
 /// ^||OcuTalonEmailOutProbe("claim", n). It answers by ^||OcuTalonEmailOutProbe("answer"): "" for OK, unreachable (SMTPOpen), timeout (SMTPTimeout),
-/// dropped (SMTPConnectionFailed during DATA), lost (SMTPConnectionFailed before the greeting), refused (SMTPAUTHFailed), rejected (SMTPResponse, whose text holds SERVER-WORDS and an address) or throw. OAuth2Mode answers ^||OcuTalonEmailOutProbe("oauth") (1 stands in for an adapter
+/// dropped (SMTPConnectionFailed during DATA), lost (SMTPConnectionFailed before the greeting), quit (SMTPResponse to QUIT only: the server took the message), quitlost (SMTPConnectionFailed on QUIT only),
+/// quitafter (the answer to QUIT and an error of an earlier command), refused (SMTPAUTHFailed), rejected (SMTPResponse, whose text holds SERVER-WORDS and an address) or throw. OAuth2Mode answers ^||OcuTalonEmailOutProbe("oauth") (1 stands in for an adapter
 /// with OAuth2ApplicationName set, Story 21.8). The product never refers to it.
 Class OcuTalon.Test.Channel.EmailOutProbe Extends OcuTalon.Channel.Email.Out
 {
@@ -46,6 +47,13 @@ Method Deliver(message As %Net.MailMessage) As %Status [ Private ]
 	If answer = "timeout" Quit $$$ERROR($$$SMTPTimeout)
 	If answer = "dropped" Quit $$$ERROR($$$SMTPConnectionFailed, "DATA", "<READ>")
 	If answer = "lost" Quit $$$ERROR($$$SMTPConnectionFailed, "init", "<READ>")
+	If answer = "quit" Quit $$$ERROR($$$SMTPResponse, "QUIT", "421 closing")
+	If answer = "quitlost" Quit $$$ERROR($$$SMTPConnectionFailed, "QUIT", "<WRITE>")
+	If answer = "quitafter" {
+		Set first = $$$ERROR($$$SMTPResponse, "RCPT TO", "550 no")
+		Set second = $$$ERROR($$$SMTPResponse, "QUIT", "421 closing")
+		Quit $$$ADDSC(first, second)
+	}
 	If answer = "refused" Quit $$$ERROR($$$SMTPAUTHFailed)
 	If answer = "rejected" Quit $$$ERROR($$$SMTPResponse, "RCPT TO", "550 SERVER-WORDS zzrejected@example.com")
 	Quit $$$OK

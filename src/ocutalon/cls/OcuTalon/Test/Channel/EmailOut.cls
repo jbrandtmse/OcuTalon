@@ -63,6 +63,8 @@ Include Ensemble
 ///     another owner session of the mailbox count, the rows of an earlier day and of other kinds do not; the count is taken against the rows already there;
 ///   - TestDigestLock: while another process holds the lock of the mailbox's digest emails nothing is sent;
 ///   - TestDigestNoPersonalDataInTheLog: after digests and failures the log holds no address, subject, text, key or server words;
+///   - TestAccepted, TestQuitStageIsSent (DW-1422): a status whose errors are all about QUIT (Sender.Accepted) is a sent email on every path, with its Delivery row and its claim marked sent, while a QUIT error
+///     after an earlier error is a failed send;
 ///   - TestSenderInit, TestSenderTransport, TestSenderTlsSettings, TestSenderNoConnection, TestClassify (ruling c, Sender): OnInit forces the identity check on and ContinueAfterBadSend off
 ///     whatever the settings say; the transport is plain only with the switch on and the host mock, TLS only for OcuTalonClient and OcuTalonClient*, and
 ///     nothing otherwise; %Net.SMTP is given STARTTLS only for the star, the TLS configuration with the identity checked, and no partial send; a send with an empty or foreign SSLConfig, or with no credential, fails at once, before any connection; Classify tells
@@ -1339,6 +1341,72 @@ Method TestClassify()
 		Do $$$AssertEquals($ClassMethod(class, "Classify", $SYSTEM.Status.Error(code, "a", "b")), "unreachable", code_" is unreachable")
 	}
 	Do $$$AssertEquals($ClassMethod(class, "Classify", $SYSTEM.Status.Error(6156, "a", "b")), "unreachable", "6156 (the server name does not match the certificate) is unreachable")
+}
+
+/// DW-1422, Sender.Accepted: a failed status whose errors are all about QUIT means that the server took the message; any other error in the status, or an OK status, gives 0.
+Method TestAccepted()
+{
+	Set class = "OcuTalon.Channel.Email.Sender"
+	Set quitResponse = $$$ERROR($$$SMTPResponse, "QUIT", "421 closing")
+	Set quitLost = $$$ERROR($$$SMTPConnectionFailed, "QUIT", "<WRITE>")
+	Set earlier = $$$ERROR($$$SMTPResponse, "RCPT TO", "550 no")
+	Set both = $$$ADDSC(earlier, quitResponse)
+	Set bothQuit = $$$ADDSC(quitResponse, quitLost)
+	Set lostEarlier = $$$ERROR($$$SMTPConnectionFailed, "DATA", "<READ>")
+	Set lostThenQuit = $$$ADDSC(lostEarlier, quitResponse)
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", quitResponse), 1, "an answer to QUIT that is not 2xx, alone, is accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", quitLost), 1, "a connection that fails on QUIT, alone, is accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", bothQuit), 1, "two QUIT-stage errors are accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", both), 0, "the answer to QUIT after an error of an earlier command is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", lostThenQuit), 0, "a connection lost during DATA, then the answer to QUIT, is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", 0), 0, "a failed status with no error behind it is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", lostEarlier), 0, "a connection lost during DATA alone is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", earlier), 0, "the answer to RCPT TO alone is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", $$$ERROR($$$SMTPTimeout)), 0, "a timeout is not accepted")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", $$$OK), 0, "an OK status needs no decision")
+	Do $$$AssertEquals($ClassMethod(class, "Accepted", ""), 0, "nor does an empty one")
+	Do $$$AssertEquals($ClassMethod(class, "Classify", quitResponse), "rejected", "Classify still says rejected for the QUIT answer: only Out's use of Accepted turns it into a sent email")
+}
+
+/// DW-1422, every kind of email: a send whose only failure is the answer to QUIT (the server took the message) answers sent and records the delivery, for a tool send, a keyed tool send, an
+/// approved system send and the digest, and the claim of the approval and of the key is marked sent. A QUIT error after an earlier error is still a failed send.
+Method TestQuitStageIsSent()
+{
+	Do ..Mailbox()
+	Set sent = $Parameter(..#PROBE, "MESSAGESENT")
+	For answer = "quit", "quitlost" {
+		Kill ^||OcuTalonEmailOutProbe("sent"), ^||OcuTalonEmailOutProbe("calls")
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set before = ..Deliveries(..#OWNER)
+		Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_sent, answer_": a tool send is sent")
+		Do $$$AssertEquals(..Deliveries(..#OWNER), before + 1, answer_": and its Delivery row is recorded")
+		Set key = "zzkey-quit-"_answer
+		Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", key)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_sent, answer_": a keyed tool send is sent")
+		Set id = ..KeyRowId(..#OWNER, ..Hash(key))
+		Do $$$AssertEquals($Select(id = "": "<none>", 1: "["_##class(OcuTalon.Data.Delivery).%OpenId(id).FallbackReason_"]"), "[]", answer_": and its claim is marked sent")
+		Set list = "zza@example.com,zzb@example.com"
+		Set approval = ..Approval("zzemailoutquit"_$Case(answer, "quit": "1", : "2"), list)
+		Set result = ..Send("system", "", list, "fix", "text", approval)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "1|sent|"_sent, answer_": an approved email is sent")
+		Set claim = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(approval))
+		Do $$$AssertEquals(..Claims(approval)_"|["_claim.FallbackReason_"]", "1|[]", answer_": with one claim, marked sent")
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Set again = ..Send("system", "", list, "fix", "text", approval)
+		Do $$$AssertEquals(again.Ok_"|"_again.Outcome, "1|already_sent", answer_": the same approval again is already sent and delivers nothing more")
+		Set calls = ..Delivered()
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set slots = ..DigestSlots(5)
+		Do ..Notify("digest", ..#OWNER, slots, "ZzQuit"_answer)
+		Do $$$AssertEquals(..Delivered(), calls + 1, answer_": a digest is delivered")
+		Do ..Notify("digest", ..#OWNER, slots, "ZzQuit"_answer)
+		Do $$$AssertEquals(..Delivered(), calls + 1, answer_": and is recorded as sent, so the same digest is not sent again")
+	}
+	Kill ^||OcuTalonEmailOutProbe("answer")
+	Set ^||OcuTalonEmailOutProbe("answer") = "quitafter"
+	Set result = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEREJECTED"), "a QUIT error after an earlier error is a failed send, rejected")
 }
 
 /// --- helpers ---

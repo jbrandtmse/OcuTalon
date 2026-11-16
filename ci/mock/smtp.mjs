@@ -10,9 +10,9 @@
 // logged or echoed. A mail is never relayed: it is parsed and kept in the
 // state, up to MAX_MESSAGES (the oldest go first).
 // The control side is served by the mock's HTTP port (server.mjs routes /_mock/smtp/ here):
-//   POST /_mock/smtp/failure  {"mode":"none"|"refuse"|"auth"|"reject"|"error"}
+//   POST /_mock/smtp/failure  {"mode":"none"|"refuse"|"auth"|"reject"|"error"|"quit"}
 //        refuse: the connection is closed at once, with no greeting; auth: AUTH is answered 535; reject: RCPT is answered 550;
-//        error: DATA is answered 554
+//        error: DATA is answered 554; quit: the mail is accepted and kept (250 after the data), then QUIT is answered 421 and the connection is closed
 //   POST /_mock/smtp/reset    no mail, no failure, every count 0
 //   GET  /_mock/smtp/state    {"messages":[{"from","to":[...],"subject","text","headerFrom","headerTo","contentType","parts","attachments","xOcutalonRef"}],
 //                              "connections":n,"logins":n,"xoauth2":n,"xoauth2Refused":n,"user":"<last user>","failure":"<mode>","commands":{"RCPT":n,...}}
@@ -27,7 +27,7 @@
 import net from 'node:net';
 import { parseXoauth2 } from './oauth.mjs';
 
-export const FAILURES = ['none', 'refuse', 'auth', 'reject', 'error'];
+export const FAILURES = ['none', 'refuse', 'auth', 'reject', 'error', 'quit'];
 export const MAX_MESSAGES = 100;
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -191,7 +191,7 @@ export function createSmtp({ checkAccessToken = () => false } = {}) {
       const arg = space === -1 ? '' : line.slice(space + 1);
       counts.commands[verb] = (counts.commands[verb] ?? 0) + 1;
       if (verb === 'QUIT') {
-        send('221 bye');
+        send(failure === 'quit' ? '421 4.3.2 shutting down' : '221 bye');
         socket.end();
       } else if (verb === 'EHLO') {
         send('250-stub.example hello');

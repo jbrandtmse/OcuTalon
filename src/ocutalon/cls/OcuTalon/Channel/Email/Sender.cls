@@ -21,6 +21,9 @@ Include Ensemble
 /// SendMail answers the status of %Net.SMTP, and Classify says what a status means for the person: unreachable (the server could not be reached or
 /// used: connection, TLS, STARTTLS, a first answer that is not a greeting, a timeout), refused (the user name or password was refused or there was
 /// none, or in OAuth2 mode the token could not be had or was refused), or rejected (the server answered the sender, a recipient or the message with an error).
+/// Accepted says when a failed status still means that the server took the message: %Net.SMTP sends QUIT only after the server's 2xx answer to the end of the message
+/// (and it does not look at the answer to QUIT when an earlier error is set), so a status whose errors are all about QUIT (a QUIT answer that is not 2xx, or a connection
+/// that fails while QUIT is written or read) is a sent email, whatever the kind of email. MayHaveSent says when a failed status may still have reached the server.
 Class OcuTalon.Channel.Email.Sender Extends EnsLib.EMail.OutboundAdapter
 {
 
@@ -150,6 +153,24 @@ ClassMethod Classify(sc As %Status) As %String
 	If $$$StatusEquals(sc, $$$SMTPAUTHFailed) Quit ..#REFUSED
 	If $$$StatusEquals(sc, $$$SMTPResponse) || $$$StatusEquals(sc, $$$SMTPNoSend) Quit ..#REJECTED
 	Quit ..#UNREACHABLE
+}
+
+/// 1 when a failed status is only about QUIT: every error of it is the server's answer to QUIT (SMTPResponse, first parameter QUIT) or a connection that failed while QUIT was
+/// written or read (SMTPConnectionFailed, first parameter QUIT). %Net.SMTP sends QUIT only when no error came first and the server had answered the end of the message with a 2xx,
+/// and it does not check the answer to QUIT when an earlier error is set, so such a status means that the server accepted the message: the email was sent. A status that holds
+/// any other error as well, and an OK status, give 0 (an OK status needs no decision).
+ClassMethod Accepted(sc As %Status) As %Boolean
+{
+	Set sc = $Get(sc)
+	If (sc = "") || $$$ISOK(sc) Quit 0
+	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
+	Set count = +$Get(errors)
+	Set onlyQuit = (count > 0)
+	For i = 1:1:count {
+		Set code = $Get(errors(i, "code"))
+		If '(((code = $$$SMTPResponse) || (code = $$$SMTPConnectionFailed)) && ($Get(errors(i, "param", 1)) = "QUIT")) Set onlyQuit = 0
+	}
+	Quit onlyQuit
 }
 
 /// 1 when a failed send may still have reached the server: a timeout waiting for an answer (SMTPTimeout, which does not say which answer, so any, the
