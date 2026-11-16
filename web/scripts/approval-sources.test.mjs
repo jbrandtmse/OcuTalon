@@ -388,6 +388,10 @@ describe('a tool call\'s request in the chat panel (Story 31.6)', () => {
     assert.match(panel.code, /requestOf\(entry: ChatEntryView\): ApprovalPayload \| undefined \{\s*return entry\.entry === 'notice' \? liveRequest\(entry, this\.live\.store\(\)\?\.approvals \?\? \{\}\) : undefined;\s*\}/);
   });
 
+  it('announces the result bands with the live store\'s approvals, so a partner notice\'s sent band is still announced (Story 23.13)', () => {
+    assert.match(panel.code, /const context = incidentContext\(this\.decisions\(\), Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.live\.store\(\)\?\.approvals\);\s*const format: ChatAnnounceFormat = \{[\s\S]*?bandTexts: \(incident\) => bandTexts\(incident, context\),/);
+  });
+
   it('reads the clock of the card\'s context again at every change of the live store, so a card raised later is not timed at page load', () => {
     assert.match(panel.code, /approvalCtx = computed\(\(\) => \{\s*this\.live\.store\(\);\s*return approvalContext\(Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.user\(\)\);\s*\}\);/);
   });

@@ -153,6 +153,7 @@ Method TestFixtureIsNeverMailed()
 	Set owner = ##class(OcuTalon.Test.Data.Fixture).Session("zzpmailfix"_..Number)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_owner
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ##class(OcuTalon.Data.Time).NowUtc(), "ZZNS", "OcuTalon.Demo.Orders.Production")
+	Set ..Refs = ..Refs_","_incident
 	Set fields = {"FixKind": "partner_warning", "FixTargets": "1", "ResultTarget": "IncidentManager", "AnsweredChannel": "web", "AnsweredAt": "2030-01-01T10:00:00Z"}
 	Do fields.%Set("FixParameters", {"text": (..#NOTICE), "to": "1"}.%ToJSON())
 	Do fields.%Set("DryRun", {"notice": (..#NOTICE), "recipients": [{"id": 1, "name": "Orders Partner IT", "address": "it@orders-partner.example"}], "simulated": 1}.%ToJSON())
@@ -242,6 +243,7 @@ Method Approval(Output owner As %String, Output a As %Integer, Output b As %Inte
 	Set b = ##class(OcuTalon.Test.Fix.PartnerSupport).Contact("zzpc"_tag_" B", addressB)
 	Set ..Contacts = ..Contacts_$Select(..Contacts = "": "", 1: ",")_a_","_b
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ##class(OcuTalon.Data.Time).NowUtc(), "ZZNS", "ZZPROD")
+	Set ..Refs = ..Refs_","_incident
 	Set fields = {"FixKind": "partner_warning", "ResultTarget": "IncidentManager", "AnsweredChannel": "web", "AnsweredAt": "2030-01-01T10:00:00Z"}
 	Do fields.%Set("FixTargets", a_","_b)
 	Do fields.%Set("FixParameters", {"text": (..#NOTICE), "to": (a_","_b)}.%ToJSON())

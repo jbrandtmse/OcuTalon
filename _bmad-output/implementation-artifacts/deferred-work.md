@@ -8470,12 +8470,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 24.2's matrix accepts duplicates (no approved refusal text); ForProduction returns one {id,name,address} per row, so two contacts with one address both naming a production give it twice once Story 23.13 switches 23.5's reader to the table.
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13 (Lane A reader): de-duplicate recipients by address; key 23-13 is not in this worktree's tracker
 - 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
+- 2026-11-16T02:17:24Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=13da5d2c:recipients_de-duplicated_by_lower-cased_trimmed_address(lowest_id_kept);pinned_in_PartnerWarning/PartnerMail
 
 ### DW-1394: The TABLE = 1 state of Settings > Partner contacts is only simulated in 24.2: the real switch class and both halves of partnersHelp are unpinned until 23.13
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: PartnersShown's default class and Values' call are not falsifiable while Fix.PartnerContacts has no TABLE (both sides 0); partner-view.test.mjs pins partnersHelp's halves as text only (EXPERIENCE.md L1059 condition), and 'only after you approve each one' rests on 23.5 (inference).
 - 2026-11-15T17:44:12Z status=routed owner=burndown by=cr note=for Story 23.13: at the real TABLE = 1, pin the section shows, warnings go only to listed contacts and only after approval
 - 2026-11-15T21:42:41Z status=routed owner=23-13-partner-warnings-go-to-the-settings-contacts by=planner note=orchestrator_2026-11-15:DW-1393/DW-1394_are_23.13's
+- 2026-11-16T02:17:24Z status=resolved-by:23-13-partner-warnings-go-to-the-settings-contacts by=adjudication note=13da5d2c:real_TABLE=1;e2e_P1_section_shown+both_halves_of_partnersHelp;warnings_only_to_listed_contacts_after_approval(PartnerTurns,PartnerMail);TABLE-removed_mutation_red
 
 ### DW-1395: AD-13 L484 is ambiguous for unowned config tables: GET /v1/settings lists every PartnerContact row in the web process through PartnerContact.List()
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8551,3 +8553,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: FailurePoller.Scope (Lane D Watch/**) owner fallback; 23.4 re-review 2
 - 2026-11-15T22:14:50Z status=wontfix-accepted owner=23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate by=cr note=reopen_if=a page row exists for an incident whose first failure carried a session trace tag, or for a production with no watch at notice time
+
+### DW-1415: A Settings-contact partner_warning sends a real email to outside addresses, but Fix.Kind.Email.MayApprove (the DW-1262 admin-only approver rule) passes every kind but email, so any user who asked for the warning can approve it
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: MayApprove quits 1 for FixKind other than email (Fix/Kind/Email.cls:328); since 23.13 an approved partner_warning mails the Settings contacts from the email.owner mailbox through EmailOut; no ruling covers who may approve it
+- 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=for the Planner (veto: privileges): keep any asker as approver (admin-curated recipients) or require OcuTalonAdmin as for email
+
+### DW-1416: Summary.RunEvents reads summary.partnerNotSent ('the delay notice was not sent.') for a failed Settings-contact send even when EmailOut answered MESSAGEMAYHAVESENT or MESSAGEFAILED, so the timeline can deny an email that may have gone out
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Executor.SendPartner ends failed on any Ok 0 (incl. MESSAGEMAYHAVESENT 'it may have gone out') and on an exception after Submit; Summary.RunEvents then picks summary.partnerNotSent for Completed 0
+- 2026-11-16T02:15:05Z status=decision-pending owner=burndown by=cr note=needs a Planner text ruling for the may-have-sent timeline line (public text, veto 5); the session and card read Out's own sentence
+
+### DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (Delivered and Claims verbatim; Send, Mailbox and Reset adapted), forced by the spec because the originals are private in a Lane B test class
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: PartnerMail.cls 255-311 vs Test/Channel/EmailOut.cls 1372-1505; the spec's Task names the copy and its reason (Rule 2: a spec-forced copy is routed to the story that unifies it)
+- 2026-11-16T02:15:05Z status=routed owner=burndown by=cr note=unify into a shared EmailOut test helper class after the contest, as DW-603 for ToolCallNotices
+
+### DW-1418: Core/CommandsIn.cls's class description still calls a system SendEmail FixExecutor's approved email fix; since 23.13 the executor also sends approved partner warnings that way
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CommandsIn class doc (Lane B file, not in 23.13's footprint); Out, Executor, Kind, Notice, Summary and IncidentManager docs were updated
+- 2026-11-16T02:15:05Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=a reader or reviewer acts on the stale CommandsIn description, or a later story edits CommandsIn's system-send paragraph
+
+### DW-1419: The web glue that passes a partner request's simulated to its band (incidentContext's simulated ?? null, the request card's shown().dryRun?.simulated) is pinned only by source regexes; no executed test drives store -> card -> band
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: approval-sources.test.mjs 315-316 and 339 are source pins (mutation recorded red); approval-view/incident-view tests execute the band logic with their own contexts; e2e A13 checks the open card with simulated true only
+- 2026-11-16T02:15:06Z status=wontfix-accepted owner=23-13-partner-warnings-go-to-the-settings-contacts by=cr note=reopen_if=the lead's smoke or a live run shows a partner band missing or wrong on the open or compact card (sent, skipped or demo)

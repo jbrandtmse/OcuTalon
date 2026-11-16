@@ -552,7 +552,7 @@ Method SendPartner(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String
 	If +outcome.sent {
 		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": (recipients.%Size()), "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (..FirstReason(skipped)), "outcome": (outcome.outcome)})
 	} Else {
-		Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": 0, "reason": (outcome.message), "outcome": (outcome.outcome)})
+		Do ..Finish(row, run, "failed", {"total": (total), "resent": 0, "completed": 0, "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (outcome.message), "outcome": (outcome.outcome)})
 	}
 }
 

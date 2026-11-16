@@ -82,6 +82,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Do ..Mailer.OnAfterOneTest(testname)
 		Do ..Mailer.OnAfterAllTests()
 		Set ..Mailer = ""
+		Set ..Pointed = 0
 	}
 	Do ##class(OcuTalon.Test.Fix.PartnerSupport).RestoreMailbox()
 	Quit sc

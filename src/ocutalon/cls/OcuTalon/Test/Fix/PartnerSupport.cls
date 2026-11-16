@@ -1,6 +1,6 @@
 /// Helper of the partner-warning tests (Story 23.13; not a test case): a Settings partner contact row of a test, and its removal, and the mailbox keys that decide whether a warning is sent or kept. A test makes
 /// its contacts with names that begin zzpc and removes them in its OnAfterOneTest (Remove), so that no test leaves a contact or depends on another's; it saves the mailbox keys and the online-demo flag
-/// before it changes them (SaveMailbox) and puts them back after it (RestoreMailbox).
+/// before it changes them (SaveMailbox, which also starts the test clean: the online-demo flag off and no zzpc contact that a stopped run left behind) and puts them back after it (RestoreMailbox).
 Class OcuTalon.Test.Fix.PartnerSupport [ Abstract ]
 {
 
@@ -40,7 +40,7 @@ ClassMethod Remove(ids As %String)
 	}
 }
 
-/// Saves the product keys email.address and email.owner and the public flag onlineDemo, for RestoreMailbox.
+/// Saves the product keys email.address and email.owner and the public flag onlineDemo, for RestoreMailbox; then turns the flag off and removes every contact whose name begins zzpc (Sweep).
 ClassMethod SaveMailbox()
 {
 	Kill ^||OcuTalonPartnerSupport
@@ -49,6 +49,19 @@ ClassMethod SaveMailbox()
 		If $IsObject(row) Set ^||OcuTalonPartnerSupport("saved", key) = $ListBuild(row.Value, row.UpdatedAt)
 	}
 	Set ^||OcuTalonPartnerSupport("online") = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	Do ..Sweep()
+}
+
+/// Removes every contact whose name begins zzpc: the test contacts of a run that was stopped before its OnAfterOneTest.
+ClassMethod Sweep()
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.PartnerContact WHERE Name %STARTSWITH 'zzpc'")
+	Set ids = ""
+	While rs.%Next() {
+		Set ids = ids_$Select(ids = "": "", 1: ",")_rs.%Get("ID")
+	}
+	Do ..Remove(ids)
 }
 
 /// Connects a mailbox (on 1: email.address holds the address) or removes both keys (on 0).

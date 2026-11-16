@@ -70,8 +70,8 @@ Property Adapter As OcuTalon.Channel.Email.Sender;
 /// The channel of the Delivery rows: one of Msg.Enum CHANNEL.
 Parameter CHANNEL = "email";
 
-/// The FixKind of the approval request of Story 22.7's email fix, and the FixParameters member that lists its recipients (other code reads both; the recipients, subject and text of a
-/// system send come from the row's kind through Fix.Kind Mailed).
+/// The FixKind of the approval request of Story 22.7's email fix, and the FixParameters member that lists its recipients. EmailOut reads neither since Story 23.13: the recipients, subject
+/// and text of a system send come from the row's kind through Fix.Kind Mailed (Fix.Kind.Email Mail reads that member).
 Parameter FIXKIND = "email";
 
 Parameter FIXRECIPIENTS = "recipients";

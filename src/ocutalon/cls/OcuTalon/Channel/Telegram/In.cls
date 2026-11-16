@@ -513,7 +513,8 @@ Method PressText(code As %String, slots As %DynamicObject, Output alert As %Bool
 			If (slots.%GetTypeOf("count") '= "number") || (slots.%Get("to") = "") Quit ""
 			Set key = "press.approvedReroute", use = {"count": (slots.count), "itemNoun": (slots.itemNoun), "to": (slots.to)}
 		} ElseIf kind = "partner_warning" {
-			If (slots.%GetTypeOf("simulated") = "number") && 'slots.simulated {
+			If slots.%GetTypeOf("simulated") '= "number" Quit ""
+			If 'slots.simulated {
 				If ##class(OcuTalon.Fix.Kind.PartnerWarning).MailboxConnected() Quit ""
 				Set key = "press.approvedPartnerKept"
 			} Else {

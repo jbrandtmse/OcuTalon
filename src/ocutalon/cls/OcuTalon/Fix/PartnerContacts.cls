@@ -9,7 +9,7 @@
 ///     production with demo mode off and on the online demo for any other production.
 ///   - Named(production, id, namespace) gives the one contact of that source with that id, as a dynamic object, or "" for any other id.
 ///   - Simulated(production) is 1 when the fixture names the production, whatever the mode: the source follows the production, never the mode.
-///   - Ids, Addresses and Names list a contact array's ids, addresses and names, comma-separated, in order.
+///   - Ids lists a contact array's ids, comma-separated, in order.
 /// Lane A.
 Class OcuTalon.Fix.PartnerContacts [ Abstract ]
 {
@@ -76,18 +76,6 @@ ClassMethod Named(production As %String, id As %String, namespace As %String = "
 ClassMethod Ids(contacts As %DynamicArray) As %String
 {
 	Quit ..Joined(contacts, "id", ",")
-}
-
-/// The addresses of a contact array, comma-separated, in the array's order.
-ClassMethod Addresses(contacts As %DynamicArray) As %String
-{
-	Quit ..Joined(contacts, "address", ",")
-}
-
-/// The names of a contact array, comma-separated, in the array's order.
-ClassMethod Names(contacts As %DynamicArray) As %String
-{
-	Quit ..Joined(contacts, "name", ",")
 }
 
 /// The field of each contact of the array, joined with the separator.

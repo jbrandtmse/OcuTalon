@@ -231,7 +231,7 @@ Method TestNoContacts()
 	While rs.%Next() {
 		Set names = names_$Select(names = "": "", 1: ",")_rs.%Get("Name")
 	}
-	Do $$$AssertEquals(names, "Addresses,All,For,Ids,Joined,Named,Names,Simulated", "its only methods read the XData block and the table's reader, so nothing can change a contact")
+	Do $$$AssertEquals(names, "All,For,Ids,Joined,Named,Simulated", "its only methods read the XData block and the table's reader, so nothing can change a contact")
 	Do $$$AssertEquals(##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Fix.PartnerContacts").Abstract, 1, "and no row: the class is abstract")
 }
 
