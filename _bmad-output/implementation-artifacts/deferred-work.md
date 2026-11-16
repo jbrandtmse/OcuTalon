@@ -6555,6 +6555,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Summary.Shown repeats Catalog.Clean's invisible-character list byte for byte (Catalog.cls ~276) and Summary.Lookup is Catalog.Lookup (~285); both are Private in Msg/Catalog.cls, outside the AD-33 exception, and the builder may not render (spec Always).
 - 2026-11-09T21:01:22Z status=routed owner=burndown by=cr note=unify by a public Catalog predicate for what a slot would show; same pattern as DW-383
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1051: Story 23.6's browser and harness ACs (AC10 K25, AC16 K26, AC17 live:install-upgrade) carry mutation lines never observed red: the units run only in CI and exceed the stage's 150 s call budget
 - source: spec-23-6-write-an-incident-summary-when-an-incident-closes.md | severity: low | fix-risk: low | footprint: in-story
@@ -6928,6 +6929,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-5 code review (rework iteration 2) | severity: med | fix-risk: med | footprint: in-story
 - evidence: IncidentManager.Closed tells result.partnerNotSent but ends nothing (no Execute, no FinishExecution, no audit entry), so the row keeps State approved. Data.Purge.Keeps keeps every session with an approved request, and Outcome accepts a repeated approved outcome while the row still shows it. Residual of DW-1108; ruling 2(a) asked only for the telling.
 - 2026-11-11T04:45:12Z status=routed owner=burndown by=cr note=residual of DW-1108: ending the row needs a mechanism (FinishExecution failed plus audit, or an Execute the executor refuses)
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 ### DW-1118: post-contest: an approve-then-close partner notice shows 'OcuTalon couldn't read the approved fix', an existing text that fits a partner notice weakly
 - source: Contest Planner ruling on Story 23.5 (DW-1108 side effect), 2026-11-11 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 23.5 head 52db267d: IncidentManager.Aside now surfaces the result that arrives after the close; the executor's existing reason text is reused
@@ -8354,12 +8356,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Fix/Kind suspend_item/resume_item save-then-update (23.2), same as DW-1365
 - 2026-11-15T10:04:07Z status=routed owner=burndown by=planner note=Planner pre-push ruling 2026-11-15: own DW for 1.0.12, not in 23.3
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1376: A setting run saved but not applied (result.settingSavedNotApplied) has no ended line in the incident summary: no approved summary key for changed-but-not-applied
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch.SettingCause SummaryRunKey returns empty for Completed 0 with Unreached>0 (c968df2b)
 - 2026-11-15T11:23:43Z status=decision-pending owner=burndown by=harvest note=public text needed from the Planner (a summary key), else the summary stays silent for that run
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:approved_for_1.0.12_new_text_summary.settingSavedNotApplied='{time}: {setting} on {target} was changed, but the production couldn't apply it.'_pin_on_restore-failed_path;not_a_23.3_re-push
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1377: A throw from Ens.Director.UpdateProduction after the definition's %Save skips the DW-1365 restore (only an error status restores) and reads as could-not-start
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: med | fix-risk: low | footprint: in-story
@@ -8372,6 +8376,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/src/app/approvals/approval-view.ts settingResultView takes after = change?.newValue for undo_rollback; IncidentRequest (web/src/app/live/payloads.ts) carries no dry-run after, while IncidentManager.ResultExtra uses the dry run's after for the chat notice
 - 2026-11-15T11:44:24Z status=escalated owner=burndown by=cr note=smallest fix: carry the dry run's after on the request part of /api/v1/state (Live/Payload, payloads.mjs regen, approval-card real-HTTP pin) and read it in settingResultView; a new /api/v1/state field, so not a review patch
 - 2026-11-15T14:11:08Z status=routed owner=burndown by=planner note=Planner_2026-11-15:follow-up_for_1.0.12_with_new_/api/v1/state_field;CONDITION_band_must_not_contradict_chat_result_line;else_show_catalog_result_text
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1379: Test.Watch.Case SaveRoles/PutRolesBack repeat Test.Mcp.Ops OcuTalonRoles/Restore (snapshot and put back every OcuTalon role); the Ops copy restores resources only
 - source: spec-23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -8668,6 +8673,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: PartnerMail.cls 255-311 vs Test/Channel/EmailOut.cls 1372-1505; the spec's Task names the copy and its reason (Rule 2: a spec-forced copy is routed to the story that unifies it)
 - 2026-11-16T02:15:05Z status=routed owner=burndown by=cr note=unify into a shared EmailOut test helper class after the contest, as DW-603 for ToolCallNotices
 - 2026-11-16T06:12:21Z note=the class Test.Fix.PartnerMail moved to Test.Partner.PartnerMail in 23.13 rework 1 (shards-11, commit b39c8121); its helper lines are unchanged
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1418: Core/CommandsIn.cls's class description still calls a system SendEmail FixExecutor's approved email fix; since 23.13 the executor also sends approved partner warnings that way
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8689,6 +8695,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: irislib %Net.SMTP Send: after the data terminator's 2xx it sends QUIT and calls UnexpectedResponse('QUIT', response) on a non-2xx or empty (timed-out) read; Sender.cls:151 maps SMTPResponse to REJECTED; Out.cls:245; PartnerWarning MAYHAVESENTSENTENCES keeps MESSAGEREJECTED as not sent
 - 2026-11-16T06:12:20Z status=routed owner=burndown by=cr note=fix in Sender.Classify (a QUIT-stage SMTPResponse is a send, or at least may-have-sent); it corrects email's own result sentence and DW-1416's timeline line together; rare (a server that does not answer QUIT)
+- 2026-11-16T08:41:38Z status=routed owner=23-14-epic-23-burn-down-results-summaries-and-partner-mail-say-wha by=burndown_gate note=epic23_burn-down_story_23.14(chartered;not_run;Planner_sequences)
 
 ### DW-1423: docs/security-overview.md does not say that a partner warning to Settings contacts can be approved only by an OcuTalonAdmin (DW-1415), and its Action audit line does not list the refused approve that AnswerOps.AuditRefused writes
 - source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: in-story
@@ -8719,3 +8726,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner, DW-1389 A/B (release-evidence/ab-1389) | severity: med | fix-risk: med | footprint: in-epic
 - evidence: OLD 044b6c2e1 equals feature on this path; invalid-fallback incident misses; one of 23.3's two new incidents (to confirm)
 - 2026-11-16T05:37:03Z status=routed owner=burndown by=orchestrator note=diagnosis FIRST, sent to the Planner before any fix: why the model's incident answer is invalid; whether a schema or prompt-shape fix (not Triage wording) removes it; any model-facing text fix needs the Planner's A/B; before the 1.0.12 RC eval
+
+### DW-1428: flake candidate: Test.Schedule.Reminders TestTwoWaitersFireOnce 'the session has one web card' and 'and one phone message' fail although exactly one Notify left ReminderTimer and WebChatOut and SimPhoneOut handled it (shard:lane-b@rest)
+- source: spec-23-13-partner-warnings-go-to-the-settings-contacts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: OCT-epic23 89b0eb50 run 43823569610 iris(shards-6) on ocutalon-ci-25; no Schedule/Notify/Ownership change in dbc68f1d..89b0eb50; same class green on 0c743465 (run 43816599381 shards-6)
+- 2026-11-16T08:09:24Z status=routed owner=burndown by=ci note=flake:reminders_two_waiters_ownership_counts;one_rerun_of_the_failed_jobs
+- 2026-11-16T08:14:49Z occurrence=epic23-89b0eb50 by=runner note=run_43823569610_att1_iris(shards-6)_on_ocutalon-ci-25_lane-b@rest;all_other_jobs_green;failed_jobs_rerun_once

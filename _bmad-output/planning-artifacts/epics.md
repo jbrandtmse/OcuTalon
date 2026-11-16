@@ -8610,6 +8610,49 @@ So that the people who hear about a delay are the ones I chose.
 - DW-1393: partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader: de-duplicate recipients by address (ledger; routed by planner 2026-11-15)
 - DW-1394: at the real TABLE = 1, pin that the Settings > Partner contacts section shows, both halves of partnersHelp, and that warnings go only to listed contacts and only after approval (ledger; routed by planner 2026-11-15)
 
+### Story 23.14: Epic 23 burn-down: results, summaries and partner mail say what really happened
+
+[ADDED 2026-11-16, chartered by Lane B's runner as Epic 23's burn-down story (Rule 17 (3), the burn-down gate; the gate needs no human). Its input is the routed MED entries Epic 23's reviews filed to the burn-down; flakes (DW-1083, DW-1428) and decision-pending entries (DW-1358, DW-1423, DW-1425) are not in it. It does not depend on Story 23.8 or inbox U-329; the Contest Planner sequences it. No public claim and no release-note line unless a ruling adds one.]
+
+As an OcuTalon operator,
+I want every result line, summary line and partner email outcome to match what really happened,
+So that I never act on a record that says more, or less, than OcuTalon did.
+
+**Acceptance Criteria:**
+
+**Given** a suspend or resume run (Story 23.2) whose `Ens.Director.UpdateProduction` fails after the item definition was saved
+**When** the run ends
+**Then** it reports the same honest saved-but-not-applied outcome that DW-1365 gave setting runs, never "Nothing was changed" (DW-1373)
+
+**Given** a setting run that saved the change but could not apply it (`result.settingSavedNotApplied`)
+**When** the incident closes
+**Then** the incident summary has an ended line for that run, from an approved catalog key (DW-1376)
+
+**Given** a done `undo_rollback` whose System Default moved while the rollback hid it (DW-1366)
+**When** the web card shows the result band
+**Then** the band's "after" value is the approved dry run's After, the same value the item and the chat notice show (DW-1378)
+
+**Given** a partner request approved after its incident closed
+**When** the close tells `result.partnerNotSent`
+**Then** the request is ended and audited (ids only) so its session can be purged, and a repeated approved outcome is not told again (DW-1117)
+
+**Given** EmailOut's sender gets a non-2xx or empty answer to QUIT after the server accepted the message with 250
+**When** it classifies the result
+**Then** it does not answer MESSAGEREJECTED ("so it wasn't sent"); the partner timeline reads the may-have-sent line (`summary.partnerMaySent`), and a real rejection before the 250 still reads "not sent" (DW-1422)
+
+**Given** `Watch.Summary` and `Msg.Catalog`
+**When** a summary is stored or rendered
+**Then** both use one shared clean-character list and lookup (no private copy in `Watch.Summary`) (DW-1050), and `Test.Partner.PartnerMail` uses shared EmailOut test helpers instead of its copies of `Test.Channel.EmailOut`'s private ones (DW-1417)
+
+- DW-1050: Watch.Summary copies Msg.Catalog's private Clean character list and Lookup (ledger)
+- DW-1117: A partner request approved after its incident was closed stays approved for good (ledger)
+- DW-1373: 23.2's suspend/resume path has DW-1365's shape (ledger)
+- DW-1376: A setting run saved but not applied has no ended line in the incident summary (ledger)
+- DW-1378: Web result band of a done undo_rollback reads its after from settingChange.newValue (ledger)
+- DW-1417: Test.Fix.PartnerMail copies Lane B's private Test.Channel.EmailOut helpers (ledger)
+- DW-1422: Channel.Email.Sender.Classify maps an SMTPResponse at the QUIT stage to REJECTED (ledger)
+
+
 ## Epic 24: On-call, partner and check settings (step 5)
 
 An admin configures the on-call person and backup with their channels, partner contacts, and saved SQL query watches in the settings page.
