@@ -152,6 +152,12 @@ Line numbers are at the baseline `0575abeba`.
 - `ProbeReplyCheck` keeps its own list (no length or range tag), so `Test.Bridge.ReplyCheck` row 3 and form j keep pinning the generic "Confidence: value > 1" form.
 - Tests: in `TestLengthTags` (or a sibling `TestRangeTag`), one row each for DecisionPayload (`"confidence": 85`, decide) and DiagnosisPayload (`"confidence": 85`, diagnose) and one for a negative confidence: `RefusalText` is exactly "ERROR #7203 rule confidence-out-of-range" (or #7204 for the negative), with no digit after the code; `CaptureTool.RuleOf` is the tag and `FieldOf` is `confidence`. A mutation (drop the RefusalPart branch) must fail them. `TestEveryRuleTagged`: every `-out-of-range` pair names a top-level field with a numeric MINVAL or MAXVAL, none is written in a `%OnValidateObject`, no tag holds a digit, and each class has exactly one range tag for `confidence`. `TestRuleTags`: the list without its `-too-long` and `-out-of-range` pairs equals `RuleTags()`; the class list holds 31 pairs. Any seed or count in `Test.Eval.Capture` that this moves is a changed pin, recorded.
 
+## Planner rulings after the review (Contest Planner, ~18:45Z Nov 16; BINDING)
+
+- Model-prompt check: an indirect YES (the self-watch path, see the review). Ruling, verbatim: "refusal tags can reach the diagnosis model only via read_event_log when OcuTalon watches its own production; same exposure class as before; no A/B (no eval coverage); Planner ruling 2026-11-16". Ledgered as DW-1437 (LOW, a future self-watch eval case).
+- Bridge guide, in round 3, exactly three changes to `docs/bridge-guide.md` (PUBLIC TEXT: the exact old and new text goes to the Planner before it lands): (a) the DecisionResponse table's Confidence row: a diagnosis may have none, and the card then shows none; (b) one sentence on `CONFIDENCEREQUIRED` (1 on DecisionPayload, 0 on DiagnosisPayload); (c) one sentence that refusal rules are fixed tags such as `<field>-too-long` and `confidence-out-of-range`, with no values. `docker/tests/test-bridge-guide.sh` stays green.
+- Round 3 merges on green CI plus the Planner's round-3 verification re-capture.
+
 ## Tasks & Acceptance
 
 **Task 0 (measure first, lane-C warm throwaway, no model, no key; record under `## Verification`):**

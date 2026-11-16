@@ -1074,3 +1074,8 @@
 2026-11-16T17:26:52Z	DW-1421	stage_spawned	stage=implement(round3) spawn_at=2026-11-16T17:26:52Z model=sonnet effort=high agent_name=dw-1421-impl-3 base=f783b3829
 2026-11-16T18:01:06Z	DW-1421	implemented	round=3 commit=09670b2a0 tests=Payload16/777,Capture12/589,ReplyCheck7/191,Decide76/3055,+guards;fresh_Payload+shard_lane-a@Eval24;node2202 mutations=all_red;spine_lint=13low;boundaries=pass;torn_down
 2026-11-16T18:01:06Z	DW-1421	stage_spawned	stage=qa+review(round3) spawn_at=2026-11-16T18:01:06Z model=opus effort=high agent_name=dw-1421-qacr-3 base=09670b2a0
+2026-11-16T18:14:40Z	DW-1421	reviewed	round=3 commit=fc2af32ad findings=MED_fixed(TestConfidenceAbsent_hermetic);LOWs_fixed;MED_escalated(model-prompt_check=indirect_YES_via_read_event_log_self-watch);LOW_needs_ruling(bridge-guide.md_CONFIDENCEREQUIRED/tags) spec=done
+2026-11-16T18:14:40Z	DW-1421	integrated	round=3 feature=e404c59d3 merge=bb8e4da08 conflicts=none
+2026-11-16T18:15:14Z	DW-1421	ci_green	round=2 sha=c573a86d0 ci.yml=43914431337_success lane-a=43914431294_success at=18:15Z
+2026-11-16T18:16:39Z	DW-1421	ruling	Planner_~18:45Z: "refusal tags can reach the diagnosis model only via read_event_log when OcuTalon watches its own production; same exposure class as before; no A/B (no eval coverage); Planner ruling 2026-11-16" ledger=DW-1437(LOW) bridge-guide=3_changes_in_round3(PUBLIC_TEXT_gate_before_push)
+2026-11-16T18:16:39Z	DW-1421	public_text	bridge-guide.md 3 changes drafted; test-bridge-guide=all_pass; held for the Planner (no push)
