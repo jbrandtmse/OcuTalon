@@ -6741,6 +6741,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T15:39:38Z occurrence=feature-7865c322 by=orchestrator note=run 43432696788 iris(shards-4) Telegram park 32 s, first start not ready in 510 s; same code green on 81b65a6a (43445650699); not rerun (superseded)
 - 2026-11-15T07:37:20Z occurrence=feature-6730eda7e by=orchestrator note=run 43674521971 att1 iris(shards-8) lane-a@Agent: same lib-live.sh:630 Telegram park message (TelegramOut Ens.Job Alive, dequeuing, 32 s after disabled), now in a shard run, not reminder-restart; not rerun: d53500886 ci green, 2e6366b00 shards-8 green
 - 2026-11-16T03:33:17Z occurrence=23-13-partner-warnings-go-to-the-settings-contacts
+- 2026-11-16T19:47:52Z occurrence=28-2-fade-unused-memories-and-merge-duplicates-nightly by=ci note=live heartbeat-restart in iris (shards), run 43931418371 on head 095439140 - Telegram park 32 s, then the first start not ready in 510 s (host load)
 ### DW-1058: No executed test covers the 'Showing the newest {shown} of {total}. Search to find the others.' line on the Memory card with more than 20 memories; only the pure listMore unit test pins it
 - source: spec-41-13-the-memory-card-pinned-and-learned-memories.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: web/e2e/memory-card.spec.ts seeds at most a few memories; listMore unit test only
