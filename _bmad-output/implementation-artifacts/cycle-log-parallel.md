@@ -4515,3 +4515,4 @@
 2026-11-16T15:19:37Z	Epic 28	runner_reported	PLANNER_REPORT 28.2_Task0=merge_not_viable(0_false_only_at_10%_true) split_applied(pre-approved):28.2=fading-only,28.4=nightly_merge proposal_28.4=exact-word-order_rule(9/30,0/42) laneC=implementing_28.2 relayed=contest_planner
 2026-11-16T15:19:51Z	Epic 28	owner_decision	via=contest_planner 28.4=HELD(owner_decision:a_exact_text,b_suggest+confirm,c_model;Planner_recommends_a+b) 72_pairs_fixture_kept next=28.3,then_LOW_items
 2026-11-16T15:20:39Z	Epic 23	runner_ended	lane_B_batch: items1-2_model-facing(ledgered_DW-1431,DW-1432_for_bundled_A/B) item3_DW-1429_check=pass item4_production_rebalance=pushed(38c20571,CI_queued) slot_B=released_to_Epic27 planner_notified
+2026-11-16T15:22:36Z	Run	owner_decision	via=contest_planner CI_queue: records_pushes_[skip_ci]+hourly_batch; branch_pushes_check_runners,hold_while_release_queued; Planner_cancelled_4_unstarted_runs(rerun_43889525115_after_main_green)
