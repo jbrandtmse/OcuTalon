@@ -511,3 +511,5 @@
 2026-11-16T05:21:47Z	DW-1410	ci_resolved	sha=48f10354d result=success runs=43805853892,43805853876(attempt1)
 2026-11-16T05:21:47Z	DW-1410	part_ready	parts=DW-1410 code_head=48f10354d ci=success records=local
 2026-11-16T05:21:47Z	Epic 21	ledger	DW-1411=dropped(superseded-by:DW-609)
+2026-11-16T05:31:03Z	DW-1410	merged	feature=7958e46ee
+2026-11-16T05:31:03Z	DW-1373	stage_spawned	stage=plan spawn_at=2026-11-16T05:31:03Z model=opus effort=high agent_name=dw-1373-plan-1 cycle_iteration=1 branch=OCT-epic21-dw1373 worktree=.worktrees/epic-21-dw1347(reused) base=7958e46ee(+DW-1410_records_c5a67225d) ruling=same_rule_as_DW-1365(restore+retry;itemNotChanged_only_if_restore_ok;else_settingSavedNotApplied_or_suspend_equivalent;new_text_to_Planner;pin_both_paths)
