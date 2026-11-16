@@ -97,3 +97,6 @@
 2026-11-16T11:16:01Z	Story 24.3a	spine_amended	AD-14(page_route,handled_copies,page_email_body/claim/demo,got-it)+API_row_got-it lint=12_before=12_after
 2026-11-16T11:17:59Z	Story 24.3a	pushed	sha=a92d5426 runs=43856258908(ci),43856258969(lane-a) merge=held_until_24.3b_green(Q2)
 2026-11-16T11:17:59Z	Story 24.3b	stage_spawned	stage=plan spawn_at=2026-11-16T11:17:59Z model=opus effort=high
+2026-11-16T11:32:42Z	Story 24.3b	story_created	spawn_at=2026-11-16T11:18:00Z model=opus build_status=ready-for-dev warnings=oversized
+2026-11-16T11:32:42Z	Story 24.3b	spec_validated	gate=lead(within_Planner_24.3_rulings;new_items_are_implementation_choices:restart_test=production_stop/start(test-production-restart.sh_already_pins_kill),test-readme.sh_new-since_entry,purge_same_daily_cutoff,PagingLive_leftover_rows_on_throwaway_stacks,nested_cancel_measured_in_Task_0)
+2026-11-16T11:32:42Z	Story 24.3b	stage_spawned	stage=implement spawn_at=2026-11-16T11:32:42Z model=sonnet effort=high
