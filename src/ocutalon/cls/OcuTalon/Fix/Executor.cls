@@ -42,7 +42,7 @@ Include (EnsConstants, EnsErrors)
 ///       - A run that resent nothing (every target was skipped) closes the request done: Total and Skipped the number of targets, Resent, Completed and
 ///         FailedAgain 0, and the plain Reason of the lowest skipped target.
 ///       - A run that resent copies (also one that erred after its first copy) saves ResentAt on its FixRun and waits for its copies (Wait), up to WAITSECONDS from
-///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy that the read gives as in flight (IRIS still holds its header;
+///         ResentAt. Each pass reads the copies through Watch.Reader.Evidence (the Statuses seam). A copy that the read gives as in flight (IRIS still holds its header, or a business process still handles it;
 ///         Reader.Evidence inFlight) is still running, whatever its status. Otherwise a copy is completed when its status is Completed and failed again when it is Error,
 ///         Aborted, Discarded or Suspended; any other status, a header the read lacks and a read that does not give read are still running. When
 ///         every copy is completed or failed again the run ends done: Total the number of targets, Resent the number of copies, Completed and FailedAgain their
@@ -1206,7 +1206,7 @@ Method Statuses(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun,
 
 /// The outcome of the read ("read" when statuses holds the copies) and the status of each copy of the run, for every job that counts a run's copies: statuses is a dynamic object
 /// by the copy's header id of {"status" (as Reader.Evidence gives it), "error" (the raw error text), "target" (the copy's TargetConfigName), "at" (the header's timeProcessed, the time
-/// of its last status change, a UTC stamp), "inFlight" (Reader.Evidence's: 1 while IRIS still holds the copy's header)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
+/// of its last status change, a UTC stamp), "inFlight" (Reader.Evidence's: 1 while IRIS still holds or still handles the copy)}. The read is Reader.Evidence over the keys h<copy id>, in the incident's namespace and production, with the first group's ItemName, so
 /// that the one reader reads the production (AD-3). A header the read lacks is not in statuses.
 ClassMethod Read(incident As OcuTalon.Data.Incident, run As OcuTalon.Data.FixRun, Output statuses As %DynamicObject) As %String
 {

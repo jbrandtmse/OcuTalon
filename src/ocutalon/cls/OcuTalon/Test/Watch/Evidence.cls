@@ -32,7 +32,22 @@
 ///     failed again 1, running 1); once the entry is killed the copy is completed (completed 1, failed again 1, running 0);
 ///   - TestInFlightEntryReadFails (DW-1205, DW-494; condition 2): when the read of the active-message entries fails (the reader's test seam ^||OcuTalonFlightSeam, a status number that
 ///     stands for the first read's status), the second read of the status decides: a seeded Error (8) against a Completed row is in flight, and Executor Read and Tally count the copy
-///     as running, not completed; a seeded status equal to the row's is not in flight; a Completed header that nothing holds is not in flight.
+///     as running, not completed; a seeded status equal to the row's is not in flight; a Completed header that nothing holds is not in flight;
+///   - TestBusinessProcessHoldsACopy (DW-1410; AC 1): a Completed header whose business process instance is not complete (an Ens.BusinessProcess row of its session whose
+///     %PrimaryRequestHeader it is and whose %IsCompleted is 0) is given with inFlight 1, a JSON boolean; an Error header is final whatever its instance; Fix.Executor Read carries
+///     it and Tally counts the copy as running; a Completed copy whose session is another header's (a resent copy keeps its original's) is held by its own unfinished instance;
+///     once the instance is complete, or gone, it is completed, and another header's unfinished instance in the session does not hold it;
+///   - TestReplyInHandHoldsACopy (DW-1410; AC 2): a Completed header with no instance is in flight while a (fake) job's active message is a response (Type 2) of its session addressed
+///     to its target, and is not while that message is a reply of another session, a reply of its session addressed to another target, a request of its session, or none;
+///   - TestBusinessProcessReadFails (DW-1410; AC 3): when the read of the instances or of the replies fails (the reader's test seam ^||OcuTalonFlightSeam("process")), Evidence still
+///     reads and the Completed header is in flight, and Executor Read and Tally count it as running, never completed;
+///   - TestBusinessProcessOfAnyKindHoldsACopy (DW-1410, QA; the extent is shared): an unfinished instance of a BPL business process (Ens.BusinessProcessBPL) and one of a
+///     hand-coded subclass (EnsLib.MsgRouter.RoutingEngine) hold a Completed header as a bare Ens.BusinessProcess row does, and a completed one does not;
+///   - TestReadOrderStatusInstanceReplyEntry (DW-1410, QA; AC 5): the data-only seams show the order of the reads: the block of the instances and the replies runs only for a header
+///     whose first read is Completed, and before the entry check, which runs only when that block did not hold the header (a held header leaves the status seam unread);
+///   - TestReplyInHandJudgesEachCopy (DW-1410, QA; matrix 10): in one read of four Completed copies, several jobs' replies and an entry that names no header, the copies of the session
+///     whose reply is in hand are held (a sibling copy of the same session and target too: the approved one-pass false hold), the others are not, and the hold ends when the job
+///     lets go of the reply; an entry whose header cannot be read holds nothing.
 Class OcuTalon.Test.Watch.Evidence Extends OcuTalon.Test.Watch.Case [ DependsOn = OcuTalon.Test.Watch.OrdersDefinition ]
 {
 
@@ -51,15 +66,23 @@ Parameter FIXTUREVALUE = "fixture-value-9d31";
 /// 1 while the fixture settings may be in the definition of the Orders production in OCUORDERS; OnAfterOneTest takes them out.
 Property SettingsAdded As %Boolean [ InitialExpression = 0 ];
 
-/// The key of the fake active-message entry in OCUORDERS that TestInFlightHeader sets; "" when there is none. OnAfterOneTest kills it.
+/// The key of the fake active-message entry in OCUORDERS that TestInFlightHeader sets; "" when there is none. A test that needs several entries adds ":1" to ":4" to it.
+/// OnAfterOneTest kills them all.
 Property EntryKey As %String;
+
+/// The ids, comma separated, of the Ens.BusinessProcess rows that FixtureProcess made in OCUORDERS and that are still there. OnAfterOneTest deletes them.
+Property Processes As %String;
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
 	Kill ^||OcuTalonFlightSeam
+	If ..Processes '= "" {
+		Do ..DropProcesses(..Processes)
+		Set ..Processes = ""
+	}
 	If ..EntryKey '= "" {
-		Do ..KillEntry(..EntryKey)
+		For n = 0:1:4 Do ..KillEntry(..EntryKey_$Select(n: ":"_n, 1: ""))
 		Set ..EntryKey = ""
 	}
 	If ..SettingsAdded {
@@ -77,12 +100,73 @@ ClassMethod SetEntry(key As %String, id As %Integer) [ Private ]
 	Set $$$EnsActiveMessage(key) = id
 }
 
+/// Gives the fixture header another TargetConfigName, in OCUORDERS.
+Method Retarget(id As %Integer, target As %String) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE Ens.MessageHeader SET TargetConfigName = ? WHERE ID = ?", target, id)
+	Do $$$AssertEquals(result.%SQLCODE, 0, "the header "_id_" is addressed to "_target)
+}
+
 /// Kills the active-message entry of the key, in OCUORDERS.
 ClassMethod KillEntry(key As %String) [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
 	Kill $$$EnsActiveMessage(key)
+}
+
+/// Saves a bare row of Ens.BusinessProcess (or of the subclass named, which shares its extent) in OCUORDERS for the header (its %PrimaryRequestHeader) in the session, with %IsCompleted as given, and remembers its id for
+/// OnAfterOneTest. Its id is given back, "" when it could not be saved.
+Method FixtureProcess(header As %Integer, session As %Integer, completed As %Boolean = 0, class As %String = "Ens.BusinessProcess") As %String [ Private ]
+{
+	Set id = ..MakeProcess(header, session, completed, class)
+	If id '= "" Set ..Processes = ..Processes_$Select(..Processes = "": "", 1: ",")_id
+	Quit id
+}
+
+ClassMethod MakeProcess(header As %Integer, session As %Integer, completed As %Boolean, class As %String = "Ens.BusinessProcess") As %String [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set process = $ClassMethod(class, "%New", "zzPollerTarget")
+	If '$IsObject(process) Quit ""
+	Do process.%PrimaryRequestHeaderSetObjectId(header)
+	Set process.%SessionId = session
+	Set process.%IsCompleted = completed
+	Quit $Select($$$ISOK(process.%Save()): process.%Id(), 1: "")
+}
+
+/// Sets %IsCompleted of the business process row in OCUORDERS to 1.
+ClassMethod CompleteProcess(id As %String) As %Boolean [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE Ens.BusinessProcess SET %IsCompleted = 1 WHERE ID = ?", id)
+	Quit result.%SQLCODE = 0
+}
+
+/// Deletes the business process row from OCUORDERS (the ids that are not there are skipped).
+ClassMethod DropProcess(id As %String) [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens.BusinessProcess WHERE ID = ?", id)
+}
+
+/// Deletes the business process rows of the comma-separated ids.
+ClassMethod DropProcesses(ids As %String) [ Private ]
+{
+	For i = 1:1:$Length(ids, ",") Do ..DropProcess($Piece(ids, ",", i))
+}
+
+/// What Reader.Evidence gives for the header, as status|inFlight, or "none" when the read gives no failure for it.
+Method ReadOf(id As %Integer) As %String [ Private ]
+{
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", "h"_id, .snapshot)
+	Set failure = ..FailureOf(snapshot, id)
+	Quit $Select((outcome = "read") && $IsObject(failure): failure.status_"|"_failure.inFlight, 1: "none")
 }
 
 /// The failure of the header in a reader snapshot, "" when there is none.
@@ -473,6 +557,227 @@ Method TestInFlightEntryReadFails()
 	Do $$$AssertEquals($Select($IsObject(entry): entry.status_"|"_entry.inFlight, 1: "none"), "Completed|1", "Read carries the copy as Completed and in flight")
 	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, $Get(statuses))
 	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "0|0|1", "Tally counts the copy as running, not completed")
+}
+
+Method TestBusinessProcessHoldsACopy()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("bpheld")
+	Set held = ..FixtureHeader({"Status": 9})
+	Set sibling = ..FixtureHeader({"Status": 9, "SessionId": (held)})
+	Set failed = ..FixtureHeader({"Status": 8, "IsError": 1, "ErrorStatus": (..#ORDERDATETEXT)})
+	Do $$$AssertTrue((held '= "") && (sibling '= "") && (failed '= ""), "two Completed headers (one in the session of the first) and an Error header are made")
+	If (held = "") || (sibling = "") || (failed = "") Quit
+	Set heldProcess = ..FixtureProcess(held, held)
+	Set siblingProcess = ..FixtureProcess(sibling, held)
+	Set failedProcess = ..FixtureProcess(failed, failed)
+	Do $$$AssertTrue((heldProcess '= "") && (siblingProcess '= "") && (failedProcess '= ""), "an unfinished business process instance is made for each: the header's, the sibling's in the header's session, and the Error header's")
+	If (heldProcess = "") || (siblingProcess = "") || (failedProcess = "") Quit
+
+	Set keys = "h"_held_",h"_failed
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", keys, .snapshot)
+	Do $$$AssertEquals(outcome, "read", "Evidence reads the two headers")
+	Set heldFailure = ..FailureOf(snapshot, held)
+	Set failedFailure = ..FailureOf(snapshot, failed)
+	Do $$$AssertTrue($IsObject(heldFailure) && $IsObject(failedFailure), "each header has its failure")
+	If '$IsObject(heldFailure) || '$IsObject(failedFailure) Quit
+	Do $$$AssertEquals(heldFailure.status_"|"_heldFailure.inFlight, "Completed|1", "a Completed header whose business process is not complete is in flight")
+	Do $$$AssertEquals(heldFailure.%GetTypeOf("inFlight"), "boolean", "inFlight is a JSON boolean")
+	Do $$$AssertEquals(failedFailure.status_"|"_failedFailure.inFlight, "Error|0", "an Error header is final, whatever its instance")
+	Do $$$AssertEquals(..ReadOf(sibling), "Completed|1", "a Completed copy in another header's session (a resent copy keeps its original's) is held by its own unfinished instance")
+
+	Set incident = ..Fixture(owner, held_","_failed)
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Do run.Copies.Insert(held)
+	Do run.Copies.Insert(failed)
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Do $$$AssertEquals(read, "read", "Executor Read reads the copies")
+	Do $$$AssertTrue($IsObject(statuses.%Get(held)) && $IsObject(statuses.%Get(failed)), "Read gives both copies")
+	If '$IsObject(statuses.%Get(held)) || '$IsObject(statuses.%Get(failed)) Quit
+	Do $$$AssertEquals(statuses.%Get(held).inFlight_"|"_statuses.%Get(failed).inFlight, "1|0", "Read carries inFlight")
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, statuses)
+	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "0|1|1", "Tally gives completed 0, failed again 1, running 1")
+
+	Do $$$AssertTrue(..CompleteProcess(heldProcess), "the header's instance is completed")
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "a completed instance does not hold it")
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, $Get(statuses))
+	Do $$$AssertEquals(tally.completed_"|"_tally.failedAgain_"|"_tally.running, "1|1|0", "Tally gives completed 1, failed again 1, running 0")
+
+	Do ..DropProcess(heldProcess)
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "another header's unfinished instance in its session does not hold it")
+}
+
+Method TestReplyInHandHoldsACopy()
+{
+	If '..Ready() Quit
+	Set held = ..FixtureHeader({"Status": 9})
+	Do $$$AssertTrue(held '= "", "a Completed header with no business process instance is made")
+	If held = "" Quit
+	Set reply = ..FixtureHeader({"Type": 2, "Status": 3, "SessionId": (held)})
+	Set otherReply = ..FixtureHeader({"Type": 2, "Status": 3})
+	Set request = ..FixtureHeader({"Type": 1, "Status": 3, "SessionId": (held)})
+	Set elsewhere = ..FixtureHeader({"Type": 2, "Status": 3, "SessionId": (held)})
+	Do $$$AssertTrue((reply '= "") && (otherReply '= "") && (request '= "") && (elsewhere '= ""), "a reply of its session, a reply of a session of its own, a request of its session and a reply of its session to another target are made")
+	If (reply = "") || (otherReply = "") || (request = "") || (elsewhere = "") Quit
+	Do ..Retarget(elsewhere, "zzElsewhereTarget")
+	Set ..EntryKey = "zzOcuTalonTest:"_$Job
+
+	Do ..SetEntry(..EntryKey, reply)
+	Do $$$AssertEquals(..ReadOf(held), "Completed|1", "a job that handles a reply of its session to its target holds it")
+	Do ..SetEntry(..EntryKey, otherReply)
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "a reply of another session does not")
+	Do ..SetEntry(..EntryKey, request)
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "a request of its session is not a reply in hand")
+	Do ..SetEntry(..EntryKey, elsewhere)
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "a reply of its session addressed to another target does not")
+	Do ..SetEntry(..EntryKey, reply)
+	Do ..KillEntry(..EntryKey)
+	Set ..EntryKey = ""
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "once the job lets go of the reply, it is completed")
+}
+
+Method TestBusinessProcessReadFails()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("bpfails")
+	Set held = ..FixtureHeader({"Status": 9})
+	Do $$$AssertTrue(held '= "", "a Completed header with no instance and nothing held is made")
+	If held = "" Quit
+
+	Set ^||OcuTalonFlightSeam("process") = 1
+	Do $$$AssertEquals(..ReadOf(held), "Completed|1", "a failed read of the business process instances never makes it done: it is in flight")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam("process")), 0, "the seam ran once")
+
+	Set incident = ..Fixture(owner, held)
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	Do run.Copies.Insert(held)
+	Set ^||OcuTalonFlightSeam("process") = 1
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Do $$$AssertEquals(read, "read", "Executor Read reads the copy with the seam set")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam("process")), 0, "the seam ran in Read")
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, $Get(statuses))
+	Do $$$AssertEquals(tally.running_"|"_tally.completed, "1|0", "Tally counts the copy as running, never completed")
+
+	Do $$$AssertEquals(..ReadOf(held), "Completed|0", "without the seam it is completed")
+}
+
+/// What Reader.Evidence gives for the headers (ids, comma separated), as status|inFlight for each, comma separated ("none" for one that gives no failure).
+Method ReadsOf(ids As %String) As %String [ Private ]
+{
+	Set keys = ""
+	For i = 1:1:$Length(ids, ",") Set keys = keys_$Select(keys = "": "", 1: ",")_"h"_$Piece(ids, ",", i)
+	Set outcome = ##class(OcuTalon.Watch.Reader).Evidence(..#ORDERS, ..#ORDERSPRODUCTION, "zzPollerTarget", keys, .snapshot)
+	Set out = ""
+	For i = 1:1:$Length(ids, ",") {
+		Set failure = ..FailureOf(snapshot, $Piece(ids, ",", i))
+		Set out = out_$Select(out = "": "", 1: ",")_$Select((outcome = "read") && $IsObject(failure): failure.status_"|"_failure.inFlight, 1: "none")
+	}
+	Quit out
+}
+
+Method TestBusinessProcessOfAnyKindHoldsACopy()
+{
+	If '..Ready() Quit
+	Set bpl = ..FixtureHeader({"Status": 9})
+	Set routed = ..FixtureHeader({"Status": 9})
+	Set bare = ..FixtureHeader({"Status": 9})
+	Do $$$AssertTrue((bpl '= "") && (routed '= "") && (bare '= ""), "three Completed headers are made")
+	If (bpl = "") || (routed = "") || (bare = "") Quit
+	Set bplProcess = ..FixtureProcess(bpl, bpl, 0, "Ens.BusinessProcessBPL")
+	Set routedProcess = ..FixtureProcess(routed, routed, 0, "EnsLib.MsgRouter.RoutingEngine")
+	Do $$$AssertTrue((bplProcess '= "") && (routedProcess '= ""), "an unfinished instance of a BPL business process and one of a hand-coded subclass are made")
+	If (bplProcess = "") || (routedProcess = "") Quit
+	Do $$$AssertEquals(..ReadsOf(bpl_","_routed_","_bare), "Completed|1,Completed|1,Completed|0", "an unfinished instance of a BPL process holds its header, and so does one of a subclass of the extent; a header with no instance is not held")
+	Do $$$AssertTrue(..CompleteProcess(bplProcess) && ..CompleteProcess(routedProcess), "both instances are completed")
+	Do $$$AssertEquals(..ReadsOf(bpl_","_routed), "Completed|0,Completed|0", "completed instances of either kind do not hold their headers")
+}
+
+Method TestReadOrderStatusInstanceReplyEntry()
+{
+	If '..Ready() Quit
+	Set viaProcess = ..FixtureHeader({"Status": 9})
+	Set viaReply = ..FixtureHeader({"Status": 9})
+	Set quiet = ..FixtureHeader({"Status": 9})
+	Set failed = ..FixtureHeader({"Status": 8, "IsError": 1, "ErrorStatus": (..#ORDERDATETEXT)})
+	Do $$$AssertTrue((viaProcess '= "") && (viaReply '= "") && (quiet '= "") && (failed '= ""), "three Completed headers and an Error header are made")
+	If (viaProcess = "") || (viaReply = "") || (quiet = "") || (failed = "") Quit
+	Set reply = ..FixtureHeader({"Type": 2, "Status": 3, "SessionId": (viaReply)})
+	Do $$$AssertTrue(reply '= "", "a reply of the second header's session is made")
+	If reply = "" Quit
+	Set viaProcessInstance = ..FixtureProcess(viaProcess, viaProcess)
+	Set failedInstance = ..FixtureProcess(failed, failed)
+	Do $$$AssertTrue((viaProcessInstance '= "") && (failedInstance '= ""), "an unfinished instance of the first header and one of the Error header are made")
+	If (viaProcessInstance = "") || (failedInstance = "") Quit
+
+	// the entry check runs after the instance: a header that an instance holds is never read for its entry, so the status seam of the entry check stays unread
+	Set ^||OcuTalonFlightSeam = 8
+	Do $$$AssertEquals(..ReadOf(viaProcess), "Completed|1", "an unfinished instance holds the Completed header")
+	Do $$$AssertEquals($Get(^||OcuTalonFlightSeam), 8, "the entry check did not run for a header that the instance held")
+
+	// and after the reply in hand: a header that a reply holds is not read for its entry either
+	Set ..EntryKey = "zzOcuTalonTest:"_$Job
+	Do ..SetEntry(..EntryKey, reply)
+	Do $$$AssertEquals(..ReadOf(viaReply), "Completed|1", "a reply in hand holds the Completed header")
+	Do $$$AssertEquals($Get(^||OcuTalonFlightSeam), 8, "the entry check did not run for a header that the reply in hand held")
+	Do ..KillEntry(..EntryKey)
+	Set ..EntryKey = ""
+
+	// a header that nothing holds does reach the entry check, which takes the seam
+	Do $$$AssertEquals(..ReadOf(quiet), "Completed|1", "with nothing holding it, the entry check runs: the seam stands for another first status, so the second read finds it changed")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam), 0, "the entry check took the seam")
+
+	// a failed read of the instances holds the header before the entry check, and the whole seam global is killed only by the entry check
+	Set ^||OcuTalonFlightSeam = 8
+	Set ^||OcuTalonFlightSeam("process") = 1
+	Do $$$AssertEquals(..ReadOf(quiet), "Completed|1", "a failed read of the instances holds the header")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam("process")), 0, "the instance read took its own seam")
+	Do $$$AssertEquals($Get(^||OcuTalonFlightSeam), 8, "and the entry check did not run after it")
+	Kill ^||OcuTalonFlightSeam
+
+	// the block runs only for a first read of Completed: an Error header with an instance never reads, so its seam stays
+	Set ^||OcuTalonFlightSeam("process") = 1
+	Do $$$AssertEquals(..ReadOf(failed), "Error|0", "an Error header is not held by its instance")
+	Do $$$AssertEquals($Data(^||OcuTalonFlightSeam("process")), 1, "the block of the instances did not run for it")
+}
+
+Method TestReplyInHandJudgesEachCopy()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("bpreplies")
+	Set copyA = ..FixtureHeader({"Status": 9})
+	Set siblingA = ..FixtureHeader({"Status": 9, "SessionId": (copyA)})
+	Set copyC = ..FixtureHeader({"Status": 9})
+	Set copyD = ..FixtureHeader({"Status": 9})
+	Do $$$AssertTrue((copyA '= "") && (siblingA '= "") && (copyC '= "") && (copyD '= ""), "four Completed copies are made: two of one session, and one each of two more")
+	If (copyA = "") || (siblingA = "") || (copyC = "") || (copyD = "") Quit
+	Set replyA = ..FixtureHeader({"Type": 2, "Status": 3, "SessionId": (copyA)})
+	Set replyC = ..FixtureHeader({"Type": 2, "Status": 3, "SessionId": (copyC)})
+	Do $$$AssertTrue((replyA '= "") && (replyC '= ""), "a reply of the first session and a reply of the third are made")
+	If (replyA = "") || (replyC = "") Quit
+	Set ..EntryKey = "zzOcuTalonTest:"_$Job
+	Do ..SetEntry(..EntryKey_":1", replyA)
+	Do ..SetEntry(..EntryKey_":2", replyC)
+	Do ..SetEntry(..EntryKey_":3", 2000000000)
+	Do ..SetEntry(..EntryKey_":4", "no-such-header")
+	Set ids = copyA_","_siblingA_","_copyC_","_copyD
+	Do $$$AssertEquals(..ReadsOf(ids), "Completed|1,Completed|1,Completed|1,Completed|0", "each copy is judged by its own session: the copy and its sibling are held by the reply of their session, the third by its own, the fourth by none; an entry whose header cannot be read holds nothing")
+
+	Set incident = ..Fixture(owner, ids)
+	Set run = ##class(OcuTalon.Data.FixRun).%New()
+	For i = 1:1:$Length(ids, ",") Do run.Copies.Insert($Piece(ids, ",", i))
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, $Get(statuses))
+	Do $$$AssertEquals(read_"|"_tally.completed_"|"_tally.failedAgain_"|"_tally.running, "read|1|0|3", "Tally counts the three held copies as running and the fourth as completed")
+
+	// the first job lets go of its reply: the hold of the copy and of its sibling ends with it, one pass later at most, and the other job's reply still holds its copy
+	Do ..KillEntry(..EntryKey_":1")
+	Do $$$AssertEquals(..ReadsOf(ids), "Completed|0,Completed|0,Completed|1,Completed|0", "once the job lets go of the reply, the copy and its sibling are not held, and the other reply still holds its copy")
+	Do ..KillEntry(..EntryKey_":2")
+	Do $$$AssertEquals(..ReadsOf(ids), "Completed|0,Completed|0,Completed|0,Completed|0", "with no reply in hand, no copy is held")
+	Set read = ##class(OcuTalon.Fix.Executor).Read(incident, run, .statuses)
+	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, read, $Get(statuses))
+	Do $$$AssertEquals(read_"|"_tally.completed_"|"_tally.failedAgain_"|"_tally.running, "read|4|0|0", "Tally counts the four as completed")
 }
 
 Method TestToolsReadTheIncident()

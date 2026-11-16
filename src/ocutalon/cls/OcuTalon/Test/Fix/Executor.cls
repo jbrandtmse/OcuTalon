@@ -119,6 +119,9 @@ Include Ensemble
 ///   - TestInFlightCopyIsStillRunning (DW-1205, DW-494; AC 1, AC 2): a copy that the read gives as in flight (Reader.Evidence inFlight) is still running whatever its status: 3 copies that all
 ///     fail again, one read Completed while in flight at the first pass, end 3/3/0/3/0 with the reason after a second read, and 3 copies that all completed, one in flight at the first pass, end
 ///     3/3/3/0/0 after a second read; an entry with no inFlight is not in flight;
+///   - TestHeldCopyStopsAtTheWait (DW-1410; AC 4): 3 copies that the read gives as Completed and in flight on every pass for longer than the wait never end the run and never count as done: the wait
+///     stops at its limit (the probe's WAITSECONDS) and reads no further, the request stays executing, one progress FixResult (Final 0, still resending 0 of 3) and one LOGWAIT warning come,
+///     no Action entry is written, and a later wait sends and warns nothing more;
 ///   - TestSweepLeavesAnInFlightCopy (DW-1205, DW-494; AC 3): an unmarked run past its wait with a copy that is Completed and in flight is left (no result, no EndedAt, no entry), and the next
 ///     Sweep, with no copy in flight, ends it 3/3/0/3/0 with the reason of the failed copy;
 ///   - TestSweepCutsOffAnInFlightCopyOfAMarkedRun (DW-1205, DW-494; QA, Matrix 7): a marked run (a restart) with copies that are Completed and in flight counts them as cut off, not as completed: 3 targets,
@@ -1884,6 +1887,56 @@ Method TestInFlightCopyIsStillRunning()
 	Do $$$AssertStatusOK(..Send(host, ref), "B: a run whose copies all completed, one still in flight, is handled")
 	Do $$$AssertEquals(host.Reads, 2, "B: a completed copy that is still in flight is still running: the wait read twice")
 	Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|3|3|0|0", "", "B: the second read", "All 3 orders went through.")
+	Set host.StatusThen = ""
+	Set host.ThenAfter = 0
+}
+
+Method TestHeldCopyStopsAtTheWait()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("heldwait")
+	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
+	Set incident = ..Incident(owner)
+	Do ..Group(incident, "OrdersFromPartner", ..#ORDERDATETEXT)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set host.CarryIs = ..CarryJSON(9801, 3)
+
+	// every pass of the wait reads the three copies Completed and held; they settle (Error) only at a read that the wait never makes
+	Set held = ..Canned(9801, 3, "Completed")
+	For id = 9801:1:9803 Do held.%Set(id_"", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "inFlight": true})
+	Set host.StatusIs = held.%ToJSON()
+	Set settled = ..Canned(9801, 3, "Error")
+	For id = 9801:1:9803 Do settled.%Set(id_"", {"status": "Error", "error": (own), "target": "OrdersFromPartner"})
+	Set host.StatusThen = settled.%ToJSON()
+	Set host.ThenAfter = 150
+	Set host.Reads = 0
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose three copies stay held is handled")
+	Do $$$AssertTrue((host.Reads > 1) && (host.Reads '> 150), "the wait stopped at its limit and never read past it: "_host.Reads_" reads")
+	Do $$$AssertEquals(..Row(ref), "executing||", "the request stays executing, with no Result and no FinishedAt")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertTrue($IsObject(run), "the request has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals((run.resentAt '= "")_"|"_run.endedAt_"|"_run.total_run.resent_run.completed_run.failedAgain_run.skipped_run.reason, "1||", "which has a ResentAt and no EndedAt and no counts")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 1, "one FixResult is sent: the progress report")
+	Set last = ..LastResult(host)
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.approvalRef_"|"_last.final_"|"_last.interrupted_"|"_last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped_"|"_last.unreached_"|"_last.reason, ref_"|0|0|3|3|0|0|0|0|", "which is not final, not interrupted and holds 3|3|0|0|0, Unreached 0 and no reason")
+		Do $$$AssertEquals(..Render(last, "executing"), "Still resending: 0 of 3 orders have gone through so far. I'll tell you when it's done.", "and reads still resending")
+	}
+	Do $$$AssertEquals($Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0), 0, "and no Action entry is written")
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Pass", $Parameter(..#PROBE, "LOGWAIT")_ref)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
+	Do $$$AssertTrue($Find(text, "3 of 3 copies") > 0, "and says that 3 of 3 copies were still running")
+
+	// the run is not waited for any more: another wait neither warns again nor sends anything
+	Do host.WaitNow()
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Pass", $Parameter(..#PROBE, "LOGWAIT")_ref), 1, "a later Wait logs no second warning")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 1, "and sends no result: the progress report was the only one")
+	Do $$$AssertEquals(..Row(ref), "executing||", "the request is still executing")
 	Set host.StatusThen = ""
 	Set host.ThenAfter = 0
 }
