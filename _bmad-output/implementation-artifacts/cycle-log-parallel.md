@@ -4479,3 +4479,4 @@
 2026-11-16T08:48:50Z	Epic 24	merge_enqueued	DW-1426 (1.0.12_if_in_time)
 2026-11-16T08:50:22Z	Epic 24	merged	DW-1426 merge=be9ad9f3b
 2026-11-16T08:50:41Z	Run	planner_notified	batch:laneB_23.15_texts(DW-1423,DW-1425,result.partnerMaySent);laneD_24.3a_Q1,Q2(hold_24.3a_until_24.3b);laneC_DW-1421_C0/C1_gate(dev1,dev2)
+2026-11-16T08:51:23Z	Run	owner_decision	via=contest_planner A:23.15_texts_approved(DW-1423_fix"by_a_user_who_holds",DW-1425_verbatim,result.partnerMaySent;one_mapping_condition) B:24.3a_Q1_accepted(conds),Q2_hold_24.3a_until_24.3b C:DW-1421_C0+C1_approved(dev1,dev2;conds)
