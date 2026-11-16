@@ -8880,3 +8880,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43957453035 (854346fa1, the 27.1 merge) iris (shards-5) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: web/e2e/guide/guide.spec.ts
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+
+### DW-1459: 28.3: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role are not exercised through the dispatcher or iris-mcp-server
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: direct web path answers 502 GATEWAY_REQUIRED before OnAuthenticate; iris-mcp-server 2.0.0 lists no tool on build 154 (Task 0)
+- 2026-11-16T23:51:34Z status=routed owner=28-5-connect-an-mcp-client-through-iris-mcp-server by=harvest note=settled by Story 28.5's gateway tests
+
+### DW-1460: 28.3: no test inspects an online-demo install for the absence of /mcp/ocutalon, OcuTalon_MCPServer, OcuTalonMCPApp and OcuTalonMCPClient
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestDemoRemoves flips the flag on an ordinary stack; a row in docker/tests/test-online-demo.sh run on an online-demo stack settles it
+- 2026-11-16T23:51:34Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=harvest note=QA adds the row
