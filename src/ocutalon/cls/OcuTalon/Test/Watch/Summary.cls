@@ -812,10 +812,11 @@ Method TestSettingsContactLines()
 	Do $$$AssertEquals($Find(text, "Simulated mailbox"), 0, "and says nothing of the Simulated mailbox")
 }
 
-/// Story 23.13 rework (DW-1416): the timeline of a Settings contact's notice follows EmailOut's answer. A sent run ends with summary.fixEnded; a failed run whose reason is a sentence that says the mail server never
-/// took the email (refused before the send, refused login or sign-in, rejected by the server, email unavailable) ends with the existing summary.partnerNotSent; a failed run whose reason is a sentence that does not say so
-/// (MESSAGEMAYHAVESENT, MESSAGEUNREACHABLE and MESSAGEFAILED: the claim of an approval is marked failed whatever the failure) ends with the new summary.partnerMaySent, which holds only the time: no recipient, subject, text or reason,
-/// and so does a run that a restart cut short (an interrupted request). The line chosen for each answer is asserted in the order of the runs, so each reason is pinned to its own line.
+/// Story 23.15 (DW-1416): the final mapping table of a Settings contact's notice, row by row. Each row is one request of one incident with its run (and, for a restart that cut the run short, the claim row that
+/// EmailOut writes when a send begins), and the three surfaces take the outcome from the one decision, Fix.Kind.PartnerWarning SendOutcome: the timeline's end line (Watch.Summary), the chat's result key
+/// (Watch.Notice ResultKey) and the card's outcome (Live.Payload.Incident, the result's outcome member, from which the card's band follows). Each row's three must agree: sent ends with summary.fixEnded and
+/// fix.emailSent (or result.partnerSkipped when some were skipped), maysent with summary.partnerMaySent, result.partnerMaySent and the outcome maysent, notsent with summary.partnerNotSent, kept with summary.partnerKept.
+/// The line of each row is asserted in the order of the runs, so each answer is pinned to its own line. The summary line holds only the time: no recipient, subject, text or reason.
 /// A failed run of the demo's simulated contact is never "may have been sent": nothing left the Simulated mailbox.
 Method TestSettingsContactMayHaveSent()
 {
@@ -826,41 +827,72 @@ Method TestSettingsContactMayHaveSent()
 	Set parameters = "{""text"":""A notice."",""to"":""7,8""}"
 	Set dryRun = "{""notice"":""A notice."",""recipients"":[7,8],""simulated"":0}"
 	Set out = "OcuTalon.Channel.Email.Out"
+	Do ..DropClaims()
+	// label | request state | completed | skipped | interrupted | reason | the claim's mark ("none" for no claim) | outcome | timeline line | chat key
+	Set rows = $ListBuild(
+		$ListBuild("sent", "done", 2, 0, 0, "", "none", "sent", "summary.fixEnded", "fix.emailSent"),
+		$ListBuild("sent to some, skipped one", "done", 1, 1, 0, "", "none", "sent", "summary.fixEnded", "result.partnerSkipped"),
+		$ListBuild("every recipient skipped", "done", 0, 2, 0, "", "none", "notsent", "summary.partnerNotSent", "result.partnerSkipped"),
+		$ListBuild("kept as a draft", "failed", 0, 0, 0, $Parameter("OcuTalon.Fix.Kind.PartnerWarning", "NOTSETUP"), "none", "kept", "summary.partnerKept", "result.partnerKept"),
+		$ListBuild("MESSAGEMAYHAVESENT", "failed", 0, 0, 0, $Parameter(out, "MESSAGEMAYHAVESENT"), "maysent", "maysent", "summary.partnerMaySent", "result.partnerMaySent"),
+		$ListBuild("cut short after the send began (claim pending)", "failed", 0, 0, 2, "", "pending", "maysent", "summary.partnerMaySent", "result.partnerMaySent"),
+		$ListBuild("cut short after the send began (claim maysent)", "failed", 0, 0, 2, "", "maysent", "maysent", "summary.partnerMaySent", "result.partnerMaySent"),
+		$ListBuild("cut short before the send began (no claim)", "failed", 0, 0, 2, "", "none", "notsent", "summary.partnerNotSent", "result.interrupted"),
+		$ListBuild("cut short, the claim marked failed", "failed", 0, 0, 2, "", "failed", "notsent", "summary.partnerNotSent", "result.interrupted"),
+		$ListBuild("MESSAGEUNREACHABLE (never reached)", "failed", 0, 0, 0, $Parameter(out, "MESSAGEUNREACHABLE"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEFAILED (before the hand-over)", "failed", 0, 0, 0, $Parameter(out, "MESSAGEFAILED"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEREFUSED", "failed", 0, 0, 0, $Parameter(out, "MESSAGEREFUSED"), "none", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGENOTCONNECTED", "failed", 0, 0, 0, $Parameter(out, "MESSAGENOTCONNECTED"), "none", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEREJECTED", "failed", 0, 0, 0, $Parameter(out, "MESSAGEREJECTED"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEREFUSEDLOGIN", "failed", 0, 0, 0, $Parameter(out, "MESSAGEREFUSEDLOGIN"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGESIGNIN", "failed", 0, 0, 0, $Parameter(out, "MESSAGESIGNIN"), "failed", "notsent", "summary.partnerNotSent", "fix.emailNotSent"),
+		$ListBuild("MESSAGEUNAVAILABLE", "failed", 0, 0, 0, $Parameter(out, "MESSAGEUNAVAILABLE"), "none", "notsent", "summary.partnerNotSent", "fix.emailNotSent"))
 	Set refs = ""
-	Set sent = ..Request(owner, incident, "done", ..T(-6000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-5900))})
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, sent, {"StartedAt": (..T(-5800)), "EndedAt": (..T(-5700)), "Total": 2, "Resent": 0, "Completed": 2, "FailedAgain": 0, "Skipped": 0})
-	Set refs = sent
-	Set names = "MESSAGEREFUSED,MESSAGENOTCONNECTED,MESSAGEREJECTED,MESSAGEREFUSEDLOGIN,MESSAGESIGNIN,MESSAGEUNAVAILABLE,MESSAGEMAYHAVESENT,MESSAGEUNREACHABLE,MESSAGEFAILED"
-	For i = 1:1:$Length(names, ",") {
-		Set reason = $Parameter(out, $Piece(names, ",", i))
-		Set request = ..Request(owner, incident, "failed", ..T(-5000 + (i * 100)), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900 + (i * 100)))})
-		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"StartedAt": (..T(-4800 + (i * 100))), "EndedAt": (..T(-4700 + (i * 100))), "Total": 2, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Reason": (reason)})
-		Set refs = refs_","_request
+	Set expectedLines = ""
+	For i = 1:1:$ListLength(rows) {
+		Set row = $List(rows, i)
+		Set request = ..Request(owner, incident, $List(row, 2), ..T(-5000 + (i * 100)), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-4900 + (i * 100)))})
+		Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, request, {"StartedAt": (..T(-4800 + (i * 100))), "EndedAt": (..T(-4700 + (i * 100))), "Total": 2, "Resent": 0, "Completed": ($List(row, 3)), "FailedAgain": 0, "Skipped": ($List(row, 4)), "Interrupted": ($List(row, 5)), "Reason": ($List(row, 6))})
+		If $List(row, 7) '= "none" Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record("zzsumclaimowner", "email", ##class(OcuTalon.Bridge.Ids).NewRef(), request, "", "", "", "", $Select($List(row, 7) = "sent": "", 1: $List(row, 7)), .claim, "", ""), $List(row, 1)_": the claim is written")
+		Set refs = refs_$Select(refs = "": "", 1: ",")_request
+		Set expectedLines = expectedLines_$ListBuild($List(row, 9))
 	}
-	Set cut = ..Request(owner, incident, "interrupted", ..T(-3000), {"FixKind": "partner_warning", "FixParameters": (parameters), "FixTargets": "7,8", "DryRun": (dryRun), "AnsweredChannel": "web", "AnsweredAt": (..T(-2900))})
-	Do ##class(OcuTalon.Test.Data.Fixture).FixRun(incident, cut, {"StartedAt": (..T(-2800)), "EndedAt": (..T(-2700)), "Total": 2, "Resent": 0, "Completed": 0, "FailedAgain": 0, "Skipped": 0, "Interrupted": 2})
-	Set refs = refs_","_cut
 	Do ..Link(incident, refs)
 	Set result = ..Command(host, "dismiss", incident, owner)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident")
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
-	Set keys = ..Keys(row)
-	Do $$$AssertEquals($Length(keys, "summary.fixEnded") - 1, 1, "the sent notice ends with summary.fixEnded: "_keys)
-	Do $$$AssertEquals($Length(keys, "summary.partnerNotSent") - 1, 6, "the six failures that say nothing reached the mail server end with summary.partnerNotSent")
-	Do $$$AssertEquals($Length(keys, "summary.partnerMaySent") - 1, 4, "the three that do not say so and the run that a restart cut short end with summary.partnerMaySent")
+	Set summary = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set keys = ..Keys(summary)
 	Set ends = ""
 	For i = 1:1:$Length(keys, ",") {
 		Set key = $Piece(keys, ",", i)
-		If (key = "summary.fixEnded") || (key = "summary.partnerNotSent") || (key = "summary.partnerMaySent") Set ends = ends_$Piece(key, ".", 2)_" "
+		If (key = "summary.fixEnded") || (key = "summary.partnerNotSent") || (key = "summary.partnerMaySent") || (key = "summary.partnerKept") || (key = "summary.partnerSent") Set ends = ends_$ListBuild(key)
 	}
-	Do $$$AssertEquals(ends, "fixEnded partnerNotSent partnerNotSent partnerNotSent partnerNotSent partnerNotSent partnerNotSent partnerMaySent partnerMaySent partnerMaySent partnerMaySent ", "each answer, in the order of the runs (sent, the six, the three, the cut short), has its own line")
-	Set slots = ..Slots(row, "summary.partnerMaySent")
+	Do $$$AssertEquals($ListToString(ends), $ListToString(expectedLines), "the end line of each run, in the order of the runs, is the line of its row of the table: "_keys)
+	Set payload = ##class(OcuTalon.Live.Payload.Incident).FromRow(summary)
+	Do $$$AssertEquals(payload.Requests.Count(), $ListLength(rows), "the card's payload has every request")
+	For i = 1:1:$ListLength(rows) {
+		Set row = $List(rows, i)
+		Set label = $List(row, 1)
+		Set part = payload.Requests.GetAt(i)
+		Do $$$AssertEquals($Select($IsObject(part) && $IsObject(part.Result): part.Result.Outcome, 1: "<none>"), $List(row, 8), label_": the card's outcome is "_$List(row, 8))
+		Set fixResult = ##class(OcuTalon.Fix.Msg.FixResult).%New()
+		Set fixResult.ApprovalRef = $Piece(refs, ",", i)
+		Set fixResult.Final = 1
+		Set fixResult.Total = 2
+		Set fixResult.Completed = $List(row, 3)
+		Set fixResult.Skipped = $List(row, 4)
+		Set fixResult.Interrupted = ($List(row, 5) > 0)
+		Set fixResult.Reason = $List(row, 6)
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).ResultKey($List(row, 2), fixResult, "partner_warning", 0), $List(row, 10), label_": the chat reads "_$List(row, 10))
+	}
+	Set slots = ..Slots(summary, "summary.partnerMaySent")
 	Do $$$AssertTrue($IsObject(slots), "the may-have-sent line has slots")
 	If $IsObject(slots) Do $$$AssertEquals(slots.%ToJSON(), "{""time"":"""_slots.time_"""}", "the may-have-sent line holds only the time: no recipient, subject, text or reason")
 	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
 	Do $$$AssertStatusOK(sc, "the summary renders")
-	Do $$$AssertEquals(($Length(text, ": the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.") - 1)_"|"_($Length(text, ": the delay notice was not sent.") - 1), "4|6", "the lines read as ruled")
+	Do $$$AssertEquals(($Length(text, ": the delay notice may have been sent. Check the mailbox's Sent folder before sending it again.") - 1)_"|"_($Length(text, ": the delay notice was not sent.") - 1), "3|11", "the lines read as ruled")
 	Do $$$AssertEquals($Find(text, "Simulated mailbox")_"|"_$Find(text, "7,8"), "0|0", "and name neither the Simulated mailbox nor a contact id")
+	Do ..DropClaims()
 	// The demo's simulated contact: a failed run, and a run that a restart cut short, are never "may have been sent".
 	Set demo = ..Incident(owner, "resolved", , "OcuTalon.Demo.Orders.Production")
 	Set fixtureParameters = "{""text"":""A notice."",""to"":""1""}"
@@ -874,6 +906,17 @@ Method TestSettingsContactMayHaveSent()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|closed", "the Dismiss closes the incident of the demo's production")
 	Set keys = ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(demo))
 	Do $$$AssertEquals(($Length(keys, "summary.partnerMaySent") - 1)_"|"_($Length(keys, "summary.partnerNotSent") - 1), "0|2", "a failed run and a cut-short run of the simulated contact end with summary.partnerNotSent: "_keys)
+	Set demoPayload = ##class(OcuTalon.Live.Payload.Incident).FromRow(##class(OcuTalon.Data.Incident).RefIndexOpen(demo))
+	Do $$$AssertEquals(demoPayload.Requests.Count(), 2, "the card's payload of the demo's incident has both requests")
+	Do $$$AssertStatusOK(demoPayload.%JSONExportToString(.demoJson), "it exports")
+	Do $$$AssertTrue($Find(demoJson, """result""") > 0, "the export holds the requests' results")
+	Do $$$AssertEquals($Find(demoJson, """outcome"""), 0, "and no outcome member: the simulated notice keeps the 23.5 bands")
+}
+
+/// Removes the claim rows of TestSettingsContactMayHaveSent.
+ClassMethod DropClaims()
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE Channel = 'email' AND OwnerRef = 'zzsumclaimowner'")
 }
 
 /// Story 23.3 (AC13 of the summary): an incident that ran a done rollback_setting, a done undo_rollback and a rollback_setting that changed nothing has the requested line of

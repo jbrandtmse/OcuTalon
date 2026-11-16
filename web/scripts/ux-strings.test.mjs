@@ -1057,6 +1057,9 @@ const SOURCES = {
       'The delay notice was sent to {sent} of {total} partner contacts. Not sent to {skipped}: they were removed from Settings > Partner contacts, or their address changed, since this request was made.',
       '{reason}',
     ],
+    'Story 23.15 text rulings (Contest Planner, 2026-11-16, prompts/dw-1415-1416-rulings-20261116.md: result.partnerMaySent, approved verbatim; the card renders it for a notice that may have been sent)': [
+      "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+    ],
     'Story 23.3 pre-push ruling (Contest Planner, 2026-11-15, DW-1365: the result text of a setting that was saved and that the production could not apply, approved verbatim)': [
       "{setting} on {target} was changed, but the production couldn't apply it: {reason}. Ask me to check the item before you try again.",
     ],

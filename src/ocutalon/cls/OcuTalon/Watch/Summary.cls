@@ -10,7 +10,7 @@
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
 ///         request) and, for its FixRun (but a delay notice's, which has its end line only), summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
 ///         the resent count; a run of a kind whose targets are items ends with summary.itemSuspended, summary.itemResumed or summary.itemNotChanged instead of summary.fixEnded (summary.settingSavedNotApplied, with the setting Enabled and the item as the target, for a run that stored the flag and could not apply it), and a
-///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13, and a Settings-contact run that failed with an EmailOut sentence that does not say the email was never handed to the mail server (the kind's MayHaveSent), or that a restart cut short, ends with summary.partnerMaySent, DW-1416; none of these lines holds a recipient, subject or text); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
+///         run of a kind whose targets are contacts with summary.partnerSent, summary.partnerKept (the run failed with the kind's NOTSETUP reason) or summary.partnerNotSent, except that a run of a Settings-contact request that sent to anyone ends with summary.fixEnded and its counts, Story 23.13, and a Settings-contact run that may have sent the email ends with summary.partnerMaySent, DW-1416, Story 23.15; the line is chosen by the kind's one decision, PartnerWarning SendOutcome (sent, maysent, notsent or kept), which the chat and the card read as well; none of these lines holds a recipient, subject or text); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
 ///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
 ///         which the catalog would drop before its own period and then refuse as empty)
 ///       summary.evidence (the first evidence line of the diagnosis payload that is more than a period; omitted when there is none), summary.sampleError (the first sentence of the sample
@@ -188,14 +188,13 @@ ClassMethod RunEvents(run As OcuTalon.Data.FixRun, request As OcuTalon.Bridge.Da
 	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
 		If run.EndedAt = "" Quit
 		Set incident = ##class(OcuTalon.Data.Incident).RefIndexOpen(request.IncidentRef)
-		If (+run.Completed > 0) && $IsObject(incident) && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production) {
+		Set real = $IsObject(incident) && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production)
+		Set outcome = ##class(OcuTalon.Fix.Kind.PartnerWarning).SendOutcome(request.Ref, request.State, run.Completed, run.Skipped, run.Interrupted, run.Reason, 'real)
+		If (outcome = "sent") && real {
 			Do ..Event(.timeline, .seq, run.EndedAt, "summary.fixEnded", ..EndedSlots(run))
 			Quit
 		}
-		Set key = $Select(+run.Completed > 0: "summary.partnerSent", (request.State = "failed") && (run.Reason = $Parameter(class, "NOTSETUP")): "summary.partnerKept", 1: "summary.partnerNotSent")
-		If (key = "summary.partnerNotSent") && $IsObject(incident) && '##class(OcuTalon.Fix.PartnerContacts).Simulated(incident.Production) {
-			If (+run.Interrupted > 0) || ((request.State = "failed") && $ClassMethod(class, "MayHaveSent", run.Reason)) Set key = "summary.partnerMaySent"
-		}
+		Set key = $Case(outcome, "sent": "summary.partnerSent", "kept": "summary.partnerKept", "maysent": "summary.partnerMaySent", : "summary.partnerNotSent")
 		Do ..Event(.timeline, .seq, run.EndedAt, key, {"time": (run.EndedAt)})
 		Quit
 	}

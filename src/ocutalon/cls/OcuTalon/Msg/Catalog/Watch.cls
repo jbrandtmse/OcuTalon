@@ -1077,6 +1077,11 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Story 23.13 Partner warnings go to the Settings contacts, Public Text approved by the Contest Planner 2026-11-15 and 2026-11-16"
  },
+ "result.partnerMaySent": {
+  "text": "The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.",
+  "slots": {},
+  "source": "Story 23.15, Public Text ruled by the Contest Planner 2026-11-16 (prompts/dw-1415-1416-rulings-20261116.md, 23.15 text rulings)"
+ },
  "partner.emailSubject": {
   "text": "Delay notice",
   "slots": {},

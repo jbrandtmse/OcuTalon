@@ -52,8 +52,8 @@
 ///     recipient is named. ResultKey, given the kind's name, gives for a kind whose targets are contacts and a simulated request result.partnerKept (the run failed with the
 ///     kind's NOTSETUP reason), result.partnerSent (every recipient was sent), result.partnerSentSome (some were) or result.partnerNotSent (none was); ResultSlots gives count
 ///     (Completed), or completed, total and reason (the Reason), or reason, by the key. For a request that is not simulated it gives result.partnerKept (the NOTSETUP reason), fix.emailSent (every
-///     recipient was sent), result.partnerSkipped (the run is done and some recipients were skipped: sent, skipped and total counts), fix.emailNotSent (the run failed with one of EmailOut's
-///     sentences: reason) or result.partnerNotSent. result.partnerNotDrafted, the result of a draft that failed, is IncidentManager's and has no slots.
+///     recipient was sent), result.partnerSkipped (the run is done and some recipients were skipped: sent, skipped and total counts), result.partnerMaySent (the notice may have been sent: no slots, Story 23.15), fix.emailNotSent (the run failed with one of EmailOut's
+///     sentences: reason) or result.partnerNotSent. Which of these a notice reads is decided by the one method Fix.Kind.PartnerWarning SendOutcome (sent, maysent, notsent or kept), which the timeline and the card read too. result.partnerNotDrafted, the result of a draft that failed, is IncidentManager's and has no slots.
 ///   - The good-message refusal (DW-823): NoFixKey gives incident.goodChanged, in place of incident.noFix, for the reason of a repair dry run that the good-message check refused
 ///     (Fix.Kind.RepairResend GOODCHANGED); its slots are those of incident.noFix and noun, the plural item noun.
 /// Slots, WithFixSlots and ResultSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
@@ -164,6 +164,9 @@ Parameter KEYPARTNERMAILREQUEST = "incident.partnerRequestMailbox";
 Parameter KEYPARTNERKEPTREQUEST = "incident.partnerRequestKept";
 
 Parameter KEYPARTNERSKIPPED = "result.partnerSkipped";
+
+/// The result of a Settings-contact notice that may have been sent (Story 23.15): PartnerWarning SendOutcome maysent.
+Parameter KEYPARTNERMAYSENT = "result.partnerMaySent";
 
 Parameter KEYEMAILSENT = "fix.emailSent";
 
@@ -427,17 +430,21 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 	Quit slots
 }
 
-/// The catalog key of the notice of a FixResult, for the state of the request's row (see the class description). Pure.
+/// The catalog key of the notice of a FixResult, for the state of the request's row (see the class description). For a kind whose targets are contacts the key follows the one decision of
+/// Fix.Kind.PartnerWarning SendOutcome (kept, maysent, sent or notsent); that decision reads EmailOut's claim of the approval for a run that a restart cut short, so this method is otherwise pure.
 ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult, kind As %String = "", simulated As %Boolean = 1) As %String
 {
 	If ($Get(state) = ..#EXECUTING) || ('result.Final && 'result.Interrupted) Quit ..#KEYSTILL
-	If result.Interrupted Quit ..#KEYINTERRUPTED
 	Set class = ##class(OcuTalon.Fix.Kind).ForName(kind)
-	If (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact") {
-		If ($Get(state) = "failed") && ($Parameter(class, "NOTSETUP") '= "") && (result.Reason = $Parameter(class, "NOTSETUP")) Quit ..#KEYPARTNERKEPT
+	Set contact = (class '= "") && ($Parameter(class, "TARGETTYPE") = "contact")
+	Set outcome = $Select(contact: ##class(OcuTalon.Fix.Kind.PartnerWarning).SendOutcome(result.ApprovalRef, $Get(state), result.Completed, result.Skipped, result.Interrupted, result.Reason, simulated), 1: "")
+	If result.Interrupted Quit $Select(outcome = "maysent": ..#KEYPARTNERMAYSENT, 1: ..#KEYINTERRUPTED)
+	If contact {
+		If outcome = "kept" Quit ..#KEYPARTNERKEPT
 		If 'simulated {
-			If (+result.Completed > 0) && (+result.Completed = +result.Total) Quit ..#KEYEMAILSENT
+			If outcome = "maysent" Quit ..#KEYPARTNERMAYSENT
 			If ($Get(state) = "done") && (+result.Skipped > 0) Quit ..#KEYPARTNERSKIPPED
+			If outcome = "sent" Quit ..#KEYEMAILSENT
 			If ($Get(state) = "failed") && $ClassMethod(class, "OutReason", result.Reason) Quit ..#KEYEMAILNOTSENT
 			Quit ..#KEYPARTNERNOTSENT
 		}
@@ -481,7 +488,7 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 		Set extra = {"setting": (##class(OcuTalon.Fix.Kind.SuspendItem).#ENABLEDSETTING), "target": (..Text(extra.%Get("item")))}
 	}
 	If ##class(OcuTalon.Watch.SettingCause).IsResultKey(key) Quit ##class(OcuTalon.Watch.SettingCause).ResultSlots(key, extra, .sc, reason)
-	If key = ..#KEYEMAILSENT Quit {}
+	If (key = ..#KEYEMAILSENT) || (key = ..#KEYPARTNERMAYSENT) Quit {}
 	If key = ..#KEYPARTNERSKIPPED Quit {"sent": (+result.Completed), "skipped": (+result.Skipped), "total": (+result.Total)}
 	If key = ..#KEYEMAILNOTSENT {
 		If reason = "" {
