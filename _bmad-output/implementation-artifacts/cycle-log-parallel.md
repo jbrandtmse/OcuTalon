@@ -4556,3 +4556,4 @@
 2026-11-16T20:15:26Z	Epic 27	owner_decision	via=contest_planner 27.1_R7_A/B=PASS(4_cases_5/5_both_sides,0_fallbacks) 27.1=cleared_to_merge_on_green_CI
 2026-11-16T20:30:01Z	Run	ci_red	feature dddd24dfc ci=43934381486 shards-9 runner=ocutalon-ci-8 Test.Bridge.ModelChange:TestSetModelEveryAgent=DW-1280(occurrence_2) classified=flake rerun_failed_job feature_merges_held_until_green
 2026-11-16T20:37:31Z	Epic 24	runner_reported	PART_READY 24.3a+24.3b head=c321d4680 runs=43934206289,43934206417(1_rerun) SourceRun_red=DW-1439_test_bug(same-second_CheckRun),fixed new_flakes=DW-1448(browser_ci-11),DW-1449(Purge_image_ci-20,cause_unknown) state=held(feature_red_DW-1280_rerun)
+2026-11-16T20:38:01Z	Epic 24	owner_decision	via=contest_planner 24.3b:DW-1439+demo_pin_accepted DW-1449=not_merged_as-is(counts_diag,purge_review,10x_loop) order=27.1,28.2_before_24.3b
