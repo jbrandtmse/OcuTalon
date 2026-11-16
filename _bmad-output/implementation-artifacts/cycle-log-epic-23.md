@@ -481,3 +481,7 @@
 2026-11-15T22:57:11Z	Story 23.13	ruling	question=23.13_re-plan_texts+D9 choice=approved(lines_1_2_verbatim;partner.emailSubject=Delay_notice+pin;D6-D8,D10) category=veto(Planner_ruled) policy=5086036
 2026-11-15T22:57:11Z	Story 23.13	spec_validated	cycle_iteration=4 note=rulings_applied
 2026-11-15T22:57:11Z	Story 23.13	stage_spawned	stage=implement spawn_at=2026-11-15T22:57:11Z model=sonnet effort=high agent_name=23-13-partner-contacts-implement-1 cycle_iteration=1 story_base=8418ec9d1
+2026-11-16T01:24:54Z	Story 23.13	dev_complete	spawn_at=2026-11-15T22:57:30Z model=sonnet effort=high build_sha=13da5d2c baseline_revision=3d5b7145 story_base=3d5b7145 followup_review_recommended=true deferred=0 files=37 loc_added=1751 loc_removed=238 mutations=19 bundle_initial=895.5kB review_layers=36_rows(2_med+1_low_patched)
+2026-11-16T01:24:54Z	Story 23.13	protocol_violation	stage=implement depth=2 agent=handoff_subagent violation=loaded_and_compiled_classes_into_slot_B(lane_B_own_slot)_against_the_stage_prompt;two_class_calls_in_one_message consequence=none_destructive(no_tests_on_slot_B;slot_B_holds_23.13_classes) detected_by=stage_self-report outcome=noted;slot_reload_needed_before_any_later_slot_use
+2026-11-16T01:24:54Z	Story 23.13	adr_verifications_complete	tool=none acs=none result=none_required
+2026-11-16T01:24:54Z	Story 23.13	stage_spawned	stage=qa spawn_at=2026-11-16T01:24:54Z model=sonnet effort=high agent_name=23-13-partner-contacts-qa-1 cycle_iteration=1
