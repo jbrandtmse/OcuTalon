@@ -4507,3 +4507,4 @@
 2026-11-16T14:33:32Z	Epic 28	dispatched	lane=C(throwaways_until_slot_C_free) runner=a06aa8f2f1869a0ed order=28.2,28.3,28.1(after_Epic27) prompt=prompts/dispatch-epic-28-20261116.md
 2026-11-16T14:51:11Z	Epic 27	runner_reported	PLANNER_REPORT 27.1_gate(384af0697_local;split_27.1/27.3/27.2;texts_for_27.3;vetoes:route,SlackLink_table,SlackE_global,env_secrets,CI_dummy_env,SlackIn_item;AD-1/13/24/26) relayed=contest_planner
 2026-11-16T14:52:08Z	Epic 27	owner_decision	via=contest_planner 27.1=APPROVED(split;design+7_conditions;texts_with_reordered_setup;vetoes_approved;CI_dummy_env_per-unit_only;AD-1/13/24/26) file=prompts/story-271-rulings-20261116.md
+2026-11-16T14:57:38Z	Epic 27	runner_reported	PLANNER_REPORT 27.1_R7:DailyNote_lines_carry_channel_to_model(DailyNote.cls:32,38;Input.cls:67,133) options=a_slack_value+A/B(recommended),b_reuse_label ask=build_in_parallel_with_merge_gated relayed=contest_planner
