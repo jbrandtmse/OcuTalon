@@ -7953,6 +7953,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: one failure on a head whose diff touches no bridge, model or agent code (21.14: settings handoff and test leak scans); class ran 137 s
 - 2026-11-13T17:35:59Z status=open owner=burndown by=epic-21-runner note=flake rule: one rerun of the failed job; occurrence 1
 - 2026-11-13T18:26:09Z note=occurrence 1 resolved by rerun: ci 43457520830 attempt 2 green on 4af1db03 (18:24Z)
+- 2026-11-16T20:30:01Z occurrence=dddd24dfc by=merge_gate note=occurrence 2: feature ci 43934381486 shards-9 lane-a@Bridge on ocutalon-ci-8, same assertion; the merged diff touches no agent, model or restart code (only Test/Agent/RememberDecision.cls); the same code passed shards-9 on branch runs 43914431337 (ci-20) and 43928987062 (ci-5); one rerun of the failed job
 
 ### DW-1285: An MCP entry already saved with a query string (by manual Config Store configuration) is not refused at runtime: the ?/# refusal is on McpOps' add path and the Settings route only
 - source: spec-21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings.md (Contest Planner B2 re-ruling ~20:25Z) | severity: low | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Mcp/Ops.cls
