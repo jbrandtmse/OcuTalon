@@ -97,9 +97,10 @@ Method TestEntries()
 	// Story 23.3 (Contest Planner pre-push ruling 2026-11-15, DW-1365): result.settingSavedNotApplied takes the Watch count to 133.
 	// Story 23.4 (Contest Planner ruling 2026-11-15, Public Text): the eight page.* keys (onCall, onCallEmail, backup, backupEmail, subject, onCallAlone, onCallEmailAlone, causeUnknown) take the Watch count to 141.
 	// Story 23.13 (Contest Planner rulings 2026-11-15 "23.13 GATE" and 2026-11-16 "23.13 re-plan"): incident.partnerRequestKept, incident.partnerRequestMailbox, result.partnerSkipped and partner.emailSubject take the Watch count to 145.
-	Do $$$AssertEquals(keys.watch.%Size(), 145, "the expected Watch list has 145 keys")
+	// Story 23.13 rework (Contest Planner ruling 2026-11-16, DW-1416): summary.partnerMaySent takes the Watch count to 146.
+	Do $$$AssertEquals(keys.watch.%Size(), 146, "the expected Watch list has 146 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 161 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 145 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 146 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1388,6 +1389,7 @@ XData Keys [ MimeType = application/json ]
   "summary.partnerSent",
   "summary.partnerKept",
   "summary.partnerNotSent",
+  "summary.partnerMaySent",
   "partner.subject",
   "incident.partnerRequestKept",
   "incident.partnerRequestMailbox",
@@ -1895,6 +1897,7 @@ XData Fixtures [ MimeType = application/json ]
  "summary.partnerSent": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice went to the Simulated mailbox."},
  "summary.partnerKept": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice was approved and kept as a draft."},
  "summary.partnerNotSent": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice was not sent."},
+ "summary.partnerMaySent": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET: the delay notice may have been sent. Check the mailbox's Sent folder before sending it again."},
  "partner.subject": {"slots": {"recipient": "Results Partner IT <it@results-partner.example>"}, "text": "Simulated delay notice to Results Partner IT <it@results-partner.example>"},
  "incident.partnerRequestKept": {"slots": {"production": "Orders", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for the partner contacts set for Orders. Approve?\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent. The recipients are on the approval card on your OcuTalon page.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for the partner contacts set for Orders.\n\nDry run: no mailbox is connected in Settings > Channels > Email, so if you approve, the notice is kept as an approved draft and nothing is sent.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
  "incident.partnerRequestMailbox": {"slots": {"production": "Orders", "notice": "Orders from your feed failed between 14:12 and 14:15. We are looking into it."}, "text": "I drafted a delay notice about this incident for the partner contacts set for Orders. Approve sending it?\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card on your OcuTalon page.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page.", "web": "I drafted a delay notice about this incident for the partner contacts set for Orders.\n\nDry run: if you approve, the notice below is sent once by email from the mailbox connected in Settings > Channels > Email, only to the recipients on the approval card.\n\nOrders from your feed failed between 14:12 and 14:15. We are looking into it.\n\nNothing has been sent yet.\n\nDetails and trace: on your OcuTalon page."},
