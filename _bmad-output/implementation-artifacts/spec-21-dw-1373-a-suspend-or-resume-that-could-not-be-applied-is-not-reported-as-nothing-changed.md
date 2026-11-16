@@ -363,6 +363,31 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
 - The spine lint (`.claude/skills/bmad-architecture/scripts/lint_spine.py --workspace` the spine folder; the spine is not edited): 12 findings, all low, as at the baseline.
 - The diff holds only the footprint files; no added line holds a non-ASCII character or an absolute local path.
 
+## QA Records
+
+QA stage (lane C warm throwaway, tag e21dw1373qw; fresh tag e21dw1373qf; both removed; no product file changed; `Test/Fix/ItemKinds.cls` only).
+
+**Test hygiene.** `Test.Fix.ItemKinds` now records `ItemStates()` in `OnBeforeOneTest` (property `Original`) and its `OnAfterOneTest` puts the Orders production back whether the test passed or failed: it removes the System Default Setting row of `SetItemDefault`, switches back each item whose stored `Enabled` differs from `Original` (`SwitchItem`, which updates), updates the running production if `ProductionNeedsUpdate`, and clears `DisabledItems` before `##super` (so a passing run has nothing to enable and no "already enabled" error). A test that changed nothing makes no IRIS call.
+- Before (the old tests): mutation `If saved {` made `If 0 {` plus a forced `<DIVIDE>` after the first `InProduction` call of `TestItemUpdateFailureRestores` -> the test errs and the stored state after the run was `OrdersForReview=0`, `ProductionNeedsUpdate` 1 ("Job needs to be terminated").
+- After (the new `OnAfterOneTest`): the same two mutations -> the test errs and the stored state after the run was `OrdersForReview=1`, `ProductionNeedsUpdate` 0; the next run of the class started with it enabled and passed. Both mutations reverted byte for byte (`cmp`).
+
+**Gaps checked against the ACs and the I/O matrix.**
+- Resume and suspend on the restore-OK path: already pinned (`TestItemUpdateFailureRestores` runs both). On the restore-fails path only the suspend was: added the resume half to `TestItemUpdateFailureNotApplied`.
+- Matrix 6 (already in the wanted state): new `TestItemAlreadyInTheWantedState` (resume of an enabled item, suspend of a disabled one, suspend of an item that a System Default Setting of 0 disables; skipped as `changed`, no item changed, no event-log line).
+- Matrix 5 (item gone): new `TestItemGone` (no such id, another item's id, another production; skipped as `gone`, nothing changed, no event-log line).
+- Matrix 7 on the restore-fails path (`Enabled` override row): new `TestItemUpdateFailureNotAppliedDefault` (suspend with the row at 1, resume with the row at 0; `notapplied`, the row written back, the definition untouched).
+- Not added: the restore's `EnableConfigItem` erring or throwing (matrix 3 and 10), which needs a new seam (spec `deferred`, unchanged); the card (`web/` untouched, implement's 32/32 `cards` run stands).
+
+**Mutations** (each applied, the named test run warm and shown red, then reverted from a copy and checked with `cmp`; `git diff --stat` as before after each):
+- mutation: `Executor.InProduction`'s state test `If (''enabled) = enable {` made `If 0 {` -> `TestItemAlreadyInTheWantedState` red ("a resume of an enabled item is skipped", "the log of OCUORDERS gained no line").
+- mutation: the line that reads the System Default Setting (`%GetSetting(...) Set enabled = override`) taken out -> `TestItemAlreadyInTheWantedState` red ("a suspend of an item that the row disables is skipped").
+- mutation: the item branch's `Set code = "gone"` made `Set code = "changed"` -> `TestItemGone` red (all three cases: "as gone, with the reason that names the item").
+- mutation: ` || (item.Name '= entry.item)` taken out of the item branch's gone test -> `TestItemGone` red ("another item's id: the entry is skipped"; the mutated code really disabled `OrdersForReview`, and `OnAfterOneTest` put it back).
+- mutation: the restore's `EnableConfigItem(..., 'enable, 0)` replaced by `Set item.Enabled = 'enable Set sc = item.Production.%Save()` -> `TestItemUpdateFailureNotAppliedDefault` red ("the restore wrote the System Default Setting it changed", "the restore wrote the row back to 0").
+- mutation: the restore's `'enable` made `1` -> `TestItemUpdateFailureNotApplied` red ("the restore's store worked: the item is disabled as it was": the resume half).
+
+**Runs.** Warm: each new or changed method passed, then `OcuTalon.Test.Fix.ItemKinds` whole (passed, 10 s) before and after the last edit; fresh (tag e21dw1373qf, 144 s): `OcuTalon.Test.Fix.ItemKinds` passed; `bash docker/tests/test-class-rules.sh` all rules passed. The `cards` browser project was not re-run: nothing under `web/` changed.
+
 ## Review Triage Log
 
 ### 2026-11-15 - Review pass

@@ -21,12 +21,61 @@
 ///     notapplied with the first error as its reason;
 ///   - TestItemNotApplied (DW-1373): through the same handler as TestSettingNotApplied, an item kind's entry that was stored and could not be applied ends failed with its reason,
 ///     Unreached 1 and one Action entry, and the session reads result.settingSavedNotApplied with the setting Enabled and the item as the target;
+///   - TestItemUpdateFailureNotAppliedDefault (DW-1373 QA): the same restore that fails too, with a System Default Setting Enabled that overrides the item, for a suspend and a resume: the
+///     row is written back, the definition is left alone, and the entry is notapplied;
+///   - TestItemAlreadyInTheWantedState and TestItemGone (DW-1373 QA; Fix.Executor.InProduction called in this process): an item whose effective Enabled (System Default Setting
+///     first) already is the action's is skipped as "changed", and an id that no longer names the item of the production is skipped as "gone"; neither calls Ens.Director.EnableConfigItem
+///     or updates the production (the event log gains no line) and neither changes an item;
+///   - OnBeforeOneTest and OnAfterOneTest (DW-1373 QA): every test puts the Orders production back as it was at its start, also after a failure: the items whose stored Enabled differs
+///     are switched back, the System Default Setting row of SetItemDefault is removed, and the running production is updated; a passing test changes nothing at its end;
 ///   - TestNoApprovedRow (AC8): a pending request is not carried out.
 Class OcuTalon.Test.Fix.ItemKinds Extends OcuTalon.Test.Watch.Case
 {
 
 /// The item of the Orders production that the live tests change.
 Parameter ITEM = "OrdersForReview";
+
+/// The items of the Orders production as ItemStates gave them at the start of the test ("<outcome>" when they could not be read): OnAfterOneTest puts the production back as that.
+Property Original As %String;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set sc = ##super(testname)
+	Set ..Original = ..ItemStates()
+	Quit sc
+}
+
+/// Puts the Orders production of OCUORDERS back as it was when the test began, whether the test passed or failed (so that a red test never leaves OrdersForReview disabled until the
+/// next update): the System Default Setting row of SetItemDefault is removed, each item whose stored Enabled differs from its Original is switched back (EnableConfigItem, which
+/// updates the production), and the running production is updated if it still needs it. A test that left everything as it was gets no call at all, and the Case's list of disabled
+/// items is cleared first, so that a passing run has nothing to enable again and no "already enabled" error.
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	Set sc = $$$OK
+	If (..Original '= "") && ($Extract(..Original, 1) '= "<") {
+		If ..ItemDefaultSet Do ..SetItemDefault("")
+		Set now = ..ItemStates()
+		If now '= ..Original {
+			For position = 1:1:$Length(..Original, ",") {
+				Set pair = $Piece(..Original, ",", position)
+				Set name = $Piece(pair, "=", 1)
+				If '$Find(","_now_",", ","_pair_",") Set sc = $SYSTEM.Status.AppendStatus(sc, ..SwitchItem(name, +$Piece(pair, "=", 2)))
+			}
+		}
+		Set sc = $SYSTEM.Status.AppendStatus(sc, ..UpdateOrders())
+		Set ..DisabledItems = ""
+	}
+	Quit $SYSTEM.Status.AppendStatus(sc, ##super(testname))
+}
+
+/// Updates the running Orders production in OCUORDERS if it needs it (a System Default Setting that was removed or an item that was switched back with no update), OK when it does not.
+ClassMethod UpdateOrders() As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	If '##class(Ens.Director).IsProductionRunning() || '##class(Ens.Director).ProductionNeedsUpdate() Quit $$$OK
+	Quit ##class(Ens.Director).UpdateProduction(##class(Ens.Director).GetRunningProductionUpdateTimeout())
+}
 
 Method TestKindParameters()
 {
@@ -496,7 +545,8 @@ Method TestItemUpdateFailureRestores()
 
 /// DW-1373, the restore fails too: Ens.Director.UpdateProduction fails twice (updateErrors 2), so the earlier flag is stored again but the production cannot apply it: the entry is
 /// unreached as notapplied with the production's error as its reason, without the "ERROR <Ens>Name: " prefix, and the items are as they were. Without the test-only member the same
-/// entry is done. mutation: the line that sets the code notapplied taken out.
+/// entry is done; a resume (an enable) that fails twice is notapplied too (DW-1373 QA). mutation: the line that sets the code notapplied taken out; the restore's 'enable made 1 (the resume's restore
+/// finds the item enabled).
 Method TestItemUpdateFailureNotApplied()
 {
 	If '..Ready() Quit
@@ -510,6 +560,12 @@ Method TestItemUpdateFailureNotApplied()
 	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("disable", ..#ITEM, 0))], "", .done, .skipped, .unreached)
 	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "1|0|0", "with no forced failure the entry is done")
 	Do $$$AssertEquals(..ItemStates() [ (..#ITEM_"=0"), 1, "and the item is disabled")
+	// a resume whose restore fails too is notapplied in the same way, and the item stays disabled
+	Set before = ..ItemStates()
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("enable", ..#ITEM, 2))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "the resume did nothing and skipped nothing, and its entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(0).reason, ..ItemId(..#ITEM)_"|notapplied|the update was refused by the test", "as notapplied, with the production's error")
+	Do $$$AssertEquals(..ItemStates(), before, "the restore's store worked: the item is disabled as it was")
 }
 
 /// DW-1373, the restore of a System Default Setting: a row Enabled 1 overrides the item OrdersToWarehouse (written where Ens.Config.DefaultSettings reads it, as Case.SetItemDefault does).
@@ -528,6 +584,91 @@ Method TestItemUpdateFailureRestoresDefault()
 	Do $$$AssertEquals(..DefaultEnabled(name), 1, "the restore wrote the System Default Setting it changed")
 	Do $$$AssertEquals(..DefinitionEnabled(name), stored, "and left the definition alone")
 	Do $$$AssertEquals(..ItemStates(), before, "the items are as they were")
+}
+
+/// DW-1373 QA, the restore that fails too, with a System Default Setting: a row Enabled 1 overrides the item OrdersToWarehouse. A disable whose update fails twice is stored in that row and
+/// put back there (the restore's store worked, only its update was refused), so the entry is notapplied, the row is 1 again and the item definition's Enabled is as it was read; with the row
+/// at 0 a resume is the same. mutation: the restore's EnableConfigItem replaced by setting the item definition's Enabled and saving the production (the row stays as the forward store left it).
+Method TestItemUpdateFailureNotAppliedDefault()
+{
+	If '..Ready() Quit
+	Set name = ..#ITEMNAME
+	Do $$$AssertTrue(..SetItemDefault(1), "the System Default Setting Enabled of "_name_" is 1")
+	Set stored = ..DefinitionEnabled(name)
+	Set before = ..ItemStates()
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("disable", name, 2))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "nothing was done and nothing skipped, and the entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(0).reason, ..ItemId(name)_"|notapplied|the update was refused by the test", "as notapplied, with the production's error")
+	Do $$$AssertEquals(..DefaultEnabled(name), 1, "the restore wrote the System Default Setting it changed")
+	Do $$$AssertEquals(..DefinitionEnabled(name), stored, "and left the definition alone")
+	Do $$$AssertEquals(..ItemStates(), before, "the items are as they were")
+	// a resume with the row at 0
+	Do $$$AssertTrue(..SetItemDefault(0), "the System Default Setting Enabled of "_name_" is 0")
+	Set before = ..ItemStates()
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("enable", name, 2))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|0|1", "the resume did nothing and skipped nothing, and its entry is unreached")
+	If unreached.%Size() = 1 Do $$$AssertEquals(unreached.%Get(0).code, "notapplied", "as notapplied")
+	Do $$$AssertEquals(..DefaultEnabled(name), 0, "the restore wrote the row back to 0")
+	Do $$$AssertEquals(..DefinitionEnabled(name), stored, "and left the definition alone")
+	Do $$$AssertEquals(..ItemStates(), before, "the items are as they were")
+}
+
+/// DW-1373 QA, matrix row 6: an item whose effective Enabled (the System Default Setting first, else the definition) already is the action's is skipped as "changed", with the reason that
+/// names the item, and is not changed: EnableConfigItem is not called (the event log of OCUORDERS gains no line) and the production is not updated, for a resume of an enabled item, a
+/// suspend of a disabled one and a suspend of an item that a System Default Setting of 0 disables. mutation: the state test "If (''enabled) = enable {" made "If 0 {"; the line that reads
+/// the System Default Setting taken out.
+Method TestItemAlreadyInTheWantedState()
+{
+	If '..Ready() Quit
+	Set floor = ..Top("Ens_Util.Log", ..#ORDERS)
+	Set before = ..ItemStates()
+	Do $$$AssertTrue(before [ (..#ITEM_"=1"), "OrdersForReview is enabled: "_before)
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("enable", ..#ITEM, 0))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|1|0", "a resume of an enabled item is skipped")
+	If skipped.%Size() = 1 Do $$$AssertEquals(skipped.%Get(0).id_"|"_skipped.%Get(0).reason, ..ItemId(..#ITEM)_"|"_..#ITEM_" changed since the dry run", "with the reason that names the item")
+	Do $$$AssertEquals(..ItemStates(), before, "and no item is changed")
+	Do $$$AssertEquals(..LogSince(floor), "", "the log of OCUORDERS gained no line: EnableConfigItem was not called")
+	// a suspend of a disabled item
+	Do $$$AssertStatusOK(..SetItemEnabled(0, ..#ITEM), "the item is disabled")
+	Set before = ..ItemStates()
+	Set floor2 = ..Top("Ens_Util.Log", ..#ORDERS)
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("disable", ..#ITEM, 0))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|1|0", "a suspend of a disabled item is skipped")
+	If skipped.%Size() = 1 Do $$$AssertEquals(skipped.%Get(0).reason, ..#ITEM_" changed since the dry run", "with the same reason")
+	Do $$$AssertEquals(..ItemStates(), before, "and no item is changed")
+	Do $$$AssertEquals(..LogSince(floor2), "", "the log of OCUORDERS gained no line: EnableConfigItem was not called")
+	// a System Default Setting of 0 decides before the definition
+	Set name = ..#ITEMNAME
+	Do $$$AssertTrue(..SetItemDefault(0), "the System Default Setting Enabled of "_name_" is 0")
+	Set stored = ..DefinitionEnabled(name)
+	Set before = ..ItemStates()
+	Set floor3 = ..Top("Ens_Util.Log", ..#ORDERS)
+	Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(..ActionEntry("disable", name, 0))], "", .done, .skipped, .unreached)
+	Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|1|0", "a suspend of an item that the row disables is skipped, though its definition is "_stored)
+	If skipped.%Size() = 1 Do $$$AssertEquals(skipped.%Get(0).reason, name_" changed since the dry run", "with the reason that names the item")
+	Do $$$AssertEquals(..DefaultEnabled(name)_"|"_..DefinitionEnabled(name)_"|"_..ItemStates(), "0|"_stored_"|"_before, "the row, the definition and the items are as they were")
+	Do $$$AssertEquals(..LogSince(floor3), "", "and the log gained no line")
+}
+
+/// DW-1373 QA, matrix row 5: an id that no longer names the item of the production (no such id, the id of another item, or the id of the item in another production) is skipped as "gone"
+/// with the reason "<item> is no longer in the production"; nothing is changed, EnableConfigItem is not called and the production is not updated. mutation: the item branch's
+/// Set code = "gone" made Set code = "changed" (the reason is the other skip's).
+Method TestItemGone()
+{
+	If '..Ready() Quit
+	Set before = ..ItemStates()
+	Set floor = ..Top("Ens_Util.Log", ..#ORDERS)
+	For case = "no such id", "another item's id", "another production" {
+		Set entry = ..ActionEntry("disable", ..#ITEM, 0)
+		If case = "no such id" Do entry.%Set("id", "999999999")
+		If case = "another item's id" Do entry.%Set("id", ..ItemId(..#ITEMNAME))
+		If case = "another production" Do entry.%Set("production", "Zz.NoSuchProduction")
+		Do ##class(OcuTalon.Fix.Executor).InProduction(..#ORDERS, [(entry)], "", .done, .skipped, .unreached)
+		Do $$$AssertEquals(done_"|"_skipped.%Size()_"|"_unreached.%Size(), "0|1|0", case_": the entry is skipped")
+		If skipped.%Size() = 1 Do $$$AssertEquals(skipped.%Get(0).id_"|"_skipped.%Get(0).reason, entry.id_"|"_..#ITEM_" is no longer in the production", case_": as gone, with the reason that names the item")
+		Do $$$AssertEquals(..ItemStates(), before, case_": no item is changed")
+	}
+	Do $$$AssertEquals(..LogSince(floor), "", "the log of OCUORDERS gained no line: EnableConfigItem was not called and nothing was updated")
 }
 
 /// DW-1373, the run of an item kind through FixExecutor's handler with the Check and Carry seams of Test.Fix.ExecutorProbe: an item whose flag was stored and whose update failed, with
