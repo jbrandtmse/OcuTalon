@@ -8775,3 +8775,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-dw-1421-c2p-an-over-long-evidence-element-is-cut-not-refused.md (code review round 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: No shell file changed since 08f55bc99; the same tree passed the rule on the rerun (234 s). Unverified cause: the compared out.log, calls or reports of two stub runs of eval/run.sh differed once, possibly a time-dependent line under load.
 - 2026-11-16T16:37:43Z status=routed owner=burndown by=cr note=unverified; settle by printing the diff of cap-a and cap-e when the comparison fails
+- 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=Planner_after-cut_ruling:verbatim:'The mail server couldn't be reached or didn't answer in time, so the email wasn't sent.'(EmailOut_only;Adapter_REASONUNREACHABLE_unchanged);MODEL-FACING(send_email tool answer.message);NOT_LANDED;joins_post-cut_bundled_A/B_with_DW-1389
+
+### DW-1432: MESSAGEMAYHAVESENT ('The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again.') is also answered for an internal exception after the hand-over and for a MESSAGEFAILED the executor wrappers turn because the claim shows the send began, where the server did not stop answering
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Out.cls MESSAGEMAYHAVESENT; Out.SendClaimed catch; Fix.Kind.Email Unfinished/FailedMessage (23.15 deferred, harvested by the lead)
+- 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=Planner_after-cut_ruling(~15:30Z):one_sentence_verbatim:'Sending stopped after the mail server had started receiving the email, so it may have gone out. OcuTalon won't send it again.';MODEL-FACING(send_email tool answer.message=Out's sentence, Tools/EmailTools.cls SendEmail);NOT_LANDED;joins_post-cut_bundled_A/B_with_DW-1389
+
+### DW-1433: Out.Began's read-error branch (answers 1, the safe default, when the claim row cannot be read) has no test and no mutation
+- source: spec-23-15-1-0-12-cut-partner-mail-says-what-happened-and-the-docs-say.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Channel/Email/Out.cls Began (23.15 deferred, harvested by the lead)
+- 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=a_forced_SQL_error_in_the_claim_lookup_is_hard_to_inject;safe_default
