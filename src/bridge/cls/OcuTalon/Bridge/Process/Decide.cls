@@ -1046,6 +1046,8 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 ///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
 ///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
 ///   - a field that replyClass does not have (#9404) is "ERROR #9404: an unexpected property": the field's name came from the reply, so it is never given;
+///   - a #5035 (a general exception: the import of a reply that is not JSON, or a check that throws) is "ERROR #5035 rule reply-unreadable" (UNREADABLETAG), with no
+///     exception Name, Code or Data: the Data can carry text of the reply (DW-1421 round 4);
 ///   - a #5001 whose second parameter is a tag that REFUSALRULES of replyClass lists (the fixed name of a rule of the class's %OnValidateObject, DW-1421) is
 ///     "ERROR #5001 rule <tag>"; with no second parameter, or one that the class does not list (a value of the reply included), it is the bare "ERROR #5001";
 ///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code of the form "<Domain>Name", else "ERROR"), and " on <Property>[ element <n>]" when a
@@ -1097,6 +1099,9 @@ ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String
 
 /// The words that begin the message of a failed reply check, before the reply class: CheckReply's error and Judge's problem share them.
 Parameter CHECKFAILED = "The reply check failed: the reply is not one JSON object that ";
+
+/// The fixed tag of a #5035 (a general exception) in RefusalText: a reply that could not be read, whatever the exception said.
+Parameter UNREADABLETAG = "reply-unreadable";
 
 /// The most parts that RefusalText names before "and <k> more".
 Parameter MAXREFUSALPARTS = 5;
@@ -1169,6 +1174,7 @@ ClassMethod LengthTag(replyClass As %String, property As %String, suffix As %Str
 /// The words of one error: see RefusalText.
 ClassMethod RefusalPart(code As %String, value As %String, limit As %String, property As %String, position As %String, replyClass As %String = "") As %String [ Private ]
 {
+	If code = 5035 Quit "ERROR #5035 rule "_..#UNREADABLETAG
 	If (code = 7201) && (property '= "") {
 		Set tag = ..LengthTag(replyClass, property)
 		If tag '= "" Quit "ERROR #7201 rule "_tag

@@ -13,7 +13,7 @@
 ///     failing value carries, not even a part of it;
 ///   - TestOtherRefusalsNameTheCode: a reply that is not JSON, one with an unknown field, one whose class check quotes a value, one of the wrong JSON type or shape (a string,
 ///     an object or an array where the property wants another, an object as a list element, a top-level array) and a check that throws give a warning of the error code,
-///     with the property and the element when they are known ("ERROR #5035", "ERROR #9404: an unexpected property" (never the field's name), "ERROR #5001 rule outcome-unlisted" (the class's own check, named by its tag), "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
+///     with the property and the element when they are known ("ERROR #5035 rule reply-unreadable" (never the exception's Name, Code or Data, DW-1421 round 4, also for a malformed reply), "ERROR #9404: an unexpected property" (never the field's name), "ERROR #5001 rule outcome-unlisted" (the class's own check, named by its tag), "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
 ///     "ERROR #9406 on Reasons element 1"), with no marker and no IRIS message text;
 ///   - TestRefusalTextForms: Decide.RefusalText for statuses built with the forms of IRIS's own (the length and value forms, the position, a property that the class lacks, a limit that
 ///     is not a number, a code that is not a number, a repeated error, the cap of five, and no error), and the tag form (DW-1421): a #5001 whose second parameter is a tag that REFUSALRULES of the
@@ -329,7 +329,12 @@ Method TestRefusalNamesTheLimitNotTheReply()
 Method TestOtherRefusalsNameTheCode()
 {
 	Set marker = ..Marker()
-	Do ..Refuse("row 7: not JSON", marker_" is not JSON", "ERROR #5035", marker)
+	Do ..Refuse("row 7: not JSON", marker_" is not JSON", "ERROR #5035 rule reply-unreadable", marker)
+	// DW-1421 round 4: a malformed reply (a JSON object cut short) is unreadable, and nothing of the exception (its Name, Code or Data, which can carry the reply's text) is given
+	Set cut = ..Usable()
+	Set cut.note = marker
+	Set cut = $Extract(cut.%ToJSON(), 1, $Length(cut.%ToJSON()) - 3)
+	Do ..Refuse("row 7b: a malformed reply", cut, "ERROR #5035 rule reply-unreadable", marker)
 
 	Set reply = ..Usable()
 	Do reply.%Set(marker, 1)
@@ -370,7 +375,7 @@ Method TestOtherRefusalsNameTheCode()
 	Set ref = ..Conclude(request, replyMsg, .response, .sc)
 	Do $$$AssertStatusOK(sc, "row 11: the reply is concluded")
 	Do $$$AssertEquals(..Warning(ref, .warning), 1, "row 11: one warning names the decision")
-	Do $$$AssertEquals(warning, ..W1(ref, "ERROR #5035"), "row 11: a check that throws gives its code")
+	Do $$$AssertEquals(warning, ..W1(ref, "ERROR #5035 rule reply-unreadable"), "row 11: a check that throws gives its code and the fixed tag")
 	Do $$$AssertTrue(warning '[ "The probe check throws", "row 11: and not the exception's text")
 }
 

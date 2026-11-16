@@ -253,8 +253,8 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set marker = ..Marker()
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, marker_" is not JSON")
-	Set expected(ref, 1) = $ListBuild(marker_" is not JSON", marker, ..#DIAGNOSIS, "ERROR #5035", "", "check")
-	Set count("ERROR #5035") = 1
+	Set expected(ref, 1) = $ListBuild(marker_" is not JSON", marker, ..#DIAGNOSIS, "reply-unreadable", "", "check")
+	Set count("reply-unreadable") = 1
 	// A decision that has no reply in the store.
 	Set ref = ..SeedDecision("diagnose", "timer")
 	Set expected(ref, 0) = ""
@@ -475,7 +475,7 @@ Method TestUncheckableReplyIsCounted()
 		Set found(entry.rule) = entry.count
 	}
 	Do $$$AssertEquals($Get(found("no check")), 1, "the reply of a runner with no reply class is counted under no check")
-	Do $$$AssertEquals($Get(found("ERROR #5035")), 1, "and the other reply of the run is judged")
+	Do $$$AssertEquals($Get(found("reply-unreadable")), 1, "and the other reply of the run is judged")
 	Do $$$AssertEquals(summary.replies_"|"_summary.files, "2|3", "each reply has its file, and summary.json is written")
 }
 
@@ -745,7 +745,7 @@ Method TestHostileRepliesStayOffStdout()
 	Set triage = {"outcome": (short), "reasons": [(hostile)], "confidence": 0.5}
 	Set texts = ""
 	Set expected = ""
-	For one = $ListBuild(whole, "ERROR #5035", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "ERROR #9404: an unexpected property", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "ERROR #5035", ..#DIAGNOSIS, "diagnose") {
+	For one = $ListBuild(whole, "reply-unreadable", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "ERROR #9404: an unexpected property", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "reply-unreadable", ..#DIAGNOSIS, "diagnose") {
 		Set ref = ..SeedDecision($List(one, 4))
 		Do ..SeedReply(ref, $List(one, 4), $List(one, 3), $List(one, 1))
 		Set texts = texts _ $ListBuild($List(one, 1))
