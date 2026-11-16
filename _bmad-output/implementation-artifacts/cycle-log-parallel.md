@@ -4439,3 +4439,5 @@
 2026-11-16T03:13:20Z	Epic 24	owner_decision	via=contest_planner 24.4b=closed_card_draws_every_pending_undo(conds_a-e;pins) DW-1412=verified,cut_blocker_cleared
 2026-11-16T03:57:25Z	Epic 23	runner_reported	PART_READY story=23.13 head=c508cb368 runs=43794653657(att2;att1=DW-620_ci-24,DW-1083_ci-9),43794653535 decisions=DW-1415(approver_role),DW-1416(timeline_text) note=slot_B_holds_23.13_classes(protocol_slip;reload_before_use)
 2026-11-16T03:57:25Z	Epic 23	merge_enqueued	story=23.13 (1.0.12)
+2026-11-16T04:00:49Z	Epic 23	merged	story=23.13 merge=6e88ef29e tracker=23.8_backlog
+2026-11-16T04:01:01Z	Epic 23	runner_resumed	lane=B task=reload_slot_B,Epic23_burndown_gate,end_parked(U-329) planner_notified=DW-1415,DW-1416
