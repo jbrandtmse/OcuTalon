@@ -6,7 +6,10 @@ Include (EnsConstants, EnsErrors)
 ///   - A Fix.Msg.DryRun is answered with a Fix.Msg.DryRunResult (DryRun): the incident is opened by its Ref, the kind by its name, and the kind's DryRun works out
 ///     the targets and the dry run's JSON. It changes nothing and calls no model. A dry run that cannot be worked out (an unknown or closed incident, an unknown kind, parameters
 ///     that are not a JSON object or that the kind refuses, a production that cannot be read) is still answered with OK: Reason holds one plain sentence (redacted),
-///     and Targets and DryRun are empty.
+///     and Targets and DryRun are empty. The dry run of a setting kind (TARGETTYPE setting) holds the values of a production setting, which may hold a secret (a URL with a
+///     token): its before and after in the answer are redacted (Bridge.Redact), and the transient key values holds a SecretHandoff reference to the raw ones (OfferValues). The one
+///     that receives the answer takes them once (TakeValues) and stores the raw values; an entry that is never taken is discarded VALUESSECONDS after the offer (Expire), so that
+///     a raw value never stays in memory and never enters a message, a trace or a log.
 ///   - A Fix.Msg.Execute (IncidentManager sends it, asynchronously, when an approved request may run) carries only the Ref of the approval request; everything else
 ///     is read from the request's row (AD-11): the kind, its parameters and the targets (FixKind, FixParameters, FixTargets). It is handled in this order, and
 ///     the handler's answer is always OK (nothing is wanted back):
@@ -166,6 +169,12 @@ Parameter EXECUTING = "executing";
 
 Parameter KINDFIX = "fix";
 
+/// The longest an entry of the hand-off of a setting kind's values lives when nobody takes it, in seconds (twice the longest a synchronous ask waits).
+Parameter VALUESSECONDS = 60;
+
+/// The longest TakeValues waits for the entry, in seconds: the entry is queued before the answer is sent, so this is a bound, not a wait.
+Parameter TAKESECONDS = 1;
+
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {
 	Set pResponse = ""
@@ -188,6 +197,10 @@ Method DryRun(request As OcuTalon.Fix.Msg.DryRun, Output response As OcuTalon.Fi
 		If $$$ISERR(sc) {
 			Set reason = $SYSTEM.Status.GetOneErrorText(sc)
 		} Else {
+			If $IsObject(dryRun) && (..IsSettingKind(request.FixKind)) {
+				Set sc = ..OfferValues(dryRun, ..Lifetime())
+				If $$$ISERR(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+			}
 			Set response.Targets = targets
 			Set response.DryRun = $Select($IsObject(dryRun): dryRun.%ToJSON(), 1: "")
 		}
@@ -201,6 +214,82 @@ Method DryRun(request As OcuTalon.Fix.Msg.DryRun, Output response As OcuTalon.Fi
 		Set response.Reason = $Extract(##class(OcuTalon.Bridge.Redact).Text(reason), 1, 1000)
 	}
 	Quit $$$OK
+}
+
+/// 1 when the fix kind acts on a setting (TARGETTYPE setting): its dry run holds the values of a production setting.
+ClassMethod IsSettingKind(kind As %String) As %Boolean [ Private ]
+{
+	Set class = ##class(OcuTalon.Fix.Kind).ForName($Get(kind))
+	Quit (class '= "") && ($Parameter(class, "TARGETTYPE") = "setting")
+}
+
+/// Offers the raw before and after of a setting kind's dry run (a %DynamicObject) through SecretHandoff, and makes the object safe to send: the raw values are queued as the JSON
+/// {"before", "after"} (with their JSON types), a detached job (Expire) discards the entry after seconds (a lifetime under 1 second is an entry that is already gone), before and after become their Bridge.Redact form (a value that needs no
+/// change is not touched), and the transient key values holds the reference. A failed offer or job discards what was offered and is an error, and the object is left as it was.
+ClassMethod OfferValues(dryRun As %DynamicObject, seconds As %Integer = {..#VALUESSECONDS}) As %Status
+{
+	If '$IsObject($Get(dryRun)) Quit $SYSTEM.Status.Error(5001, "The dry run is not an object")
+	Set raw = {}
+	For name = "before", "after" {
+		If dryRun.%IsDefined(name) Do raw.%Set(name, dryRun.%Get(name), dryRun.%GetTypeOf(name))
+	}
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(raw.%ToJSON(), .uri)
+	If $$$ISERR(sc) Quit sc
+	If +seconds < 1 {
+		Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+	} Else {
+		Job ##class(OcuTalon.Fix.Executor).Expire(uri, +seconds):($Namespace):5
+		If '$Test {
+			Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+			Quit $SYSTEM.Status.Error(5001, "The hand-off of the values could not be started")
+		}
+	}
+	For name = "before", "after" {
+		If dryRun.%IsDefined(name) {
+			Set shown = ##class(OcuTalon.Bridge.Redact).Text(dryRun.%Get(name))
+			If shown '= dryRun.%Get(name) Do dryRun.%Set(name, shown, "string")
+		}
+	}
+	Do dryRun.%Set("values", uri, "string")
+	Quit $$$OK
+}
+
+/// The lifetime that DryRun gives an offer: VALUESSECONDS, or the whole number of seconds from 0 to VALUESSECONDS in ^IRIS.Temp.OcuTalon.Fix("valuesSeconds") when a test sets it (0 is an
+/// entry that has already expired when IncidentManager takes it: the test of the missing-entry rule). Any other value gives VALUESSECONDS, so the global can shorten the lifetime and never
+/// lengthen it. Nothing sets it in the product.
+ClassMethod Lifetime() As %Integer [ Internal ]
+{
+	Set seconds = $Number($Get(^IRIS.Temp.OcuTalon.Fix("valuesSeconds"), ..#VALUESSECONDS), "I", 0, ..#VALUESSECONDS)
+	Quit $Select(seconds = "": ..#VALUESSECONDS, 1: seconds)
+}
+
+/// The detached job of OfferValues: waits seconds, then discards the entry that uri names (no error when it was taken). It logs nothing and holds no value.
+ClassMethod Expire(uri As %String, seconds As %Integer) [ Internal ]
+{
+	Hang +seconds
+	Do ##class(OcuTalon.Core.SecretHandoff).Discard(uri)
+}
+
+/// Takes the raw values that OfferValues offered, on the dry run (a %DynamicObject) of the answer: removes values, takes the reference once (the entry is deleted by the take) and
+/// puts the raw before and after back, with their types. A dry run without values is left as it is and is OK (a kind that offers none, a test double). A failed take (the entry is gone:
+/// expired, discarded or never put) is an error: before and after stay redacted, and the caller must not store them as the raw values.
+ClassMethod TakeValues(dryRun As %DynamicObject) As %Status
+{
+	If '$IsObject($Get(dryRun)) || 'dryRun.%IsDefined("values") Quit $$$OK
+	Set uri = dryRun.%Get("values")
+	Do dryRun.%Remove("values")
+	Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(uri, .raw, ..#TAKESECONDS)
+	If $$$ISERR(sc) Quit sc
+	Set sc = $$$OK
+	Try {
+		Set values = {}.%FromJSON(raw)
+		For name = "before", "after" {
+			If values.%IsDefined(name) Do dryRun.%Set(name, values.%Get(name), values.%GetTypeOf(name))
+		}
+	} Catch {
+		Set sc = $SYSTEM.Status.Error(5001, "The values of the dry run could not be read")
+	}
+	Quit sc
 }
 
 /// The targets and the dry run of the request, or an error status that says why not.

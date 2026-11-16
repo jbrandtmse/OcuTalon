@@ -8671,10 +8671,37 @@ So that the backup is woken only when the on-call person really didn't answer.
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 - DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
 
-### Story 24.4: Show the new fixes, partner warnings and setting changes on the cards
+**Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
+
+### Story 24.4a: Show setting values redacted everywhere, and the setting change in the evidence panel
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; the 1.0.12 blocker]
+
+**Lane:** B (the redaction edits in Lane A files are granted by the Contest Planner's redactor and re-plan rulings of 2026-11-15).
 
 As a user,
-I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and a setting-change cause,
+I want every setting value OcuTalon shows me to have its secrets redacted, and the incident card's evidence to list the setting change,
+So that a token in a setting never reaches a card, a phone, Telegram or the trace, and I can see what changed.
+
+**Acceptance Criteria:**
+
+**Given** a setting change whose before, after, old or new value holds a secret-shaped string (for example a URL with a token)
+**When** it is shown on the web approval card (rollback and undo Before and After), the incident card's evidence panel, the phone page, Telegram or a notice
+**Then** every shown value has passed through `OcuTalon.Bridge.Redact.Text` on the server and shows "[redacted]" for the secret, a plain value shows unchanged, and no web redactor exists; `Redact.Text` gains the bare `key=` shape (Contest Planner redactor ruling, V4)
+**And** the Ens trace bodies for the run (`DryRunResult`, `Notification`) carry the redacted values and a `SecretHandoff` reference, never the raw token; the handoff entry is deleted when taken and an untaken one expires within SecretHandoff's limit; the stored `DryRun` and the value the rollback writes stay raw, so a rollback (and the undo of a System Default) restores the token-bearing value byte for byte (V5)
+
+**Given** an incident whose cause is a setting change
+**When** its card shows
+**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
+
+### Story 24.4b: Show the new fixes, partner warnings and the closed-card undo on the cards
+
+[ADDED 2026-11-15, Contest Planner split of 24.4; follows 24.4a]
+
+**Lane:** B. **Depends on:** Story 24.4a (story-level).
+
+As a user,
+I want the incident card, the approval request card, the simulated phone and Telegram to show each step-5 fix with its own dry run, a partner warning's exact text and recipients, and an undo even on a closed incident,
 So that I know exactly what I'm approving, whichever fix is proposed.
 
 **Acceptance Criteria:**
@@ -8688,10 +8715,6 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **When** it shows on any channel
 **Then** its exact text and every recipient appear in full before **Approve** and **Reject**, as plain text in Telegram and on the phone (FR-29, UX-DR136, UX-DR146)
 
-**Given** an incident whose cause is a setting change
-**When** its card shows
-**Then** the cause line adds the UX's sentence with the live gap (fixture "The feed broke four minutes after this setting changed."), and the evidence panel lists the change's item, setting, old and new values and time (FR-27, UX-DR78, UX-DR146)
-
 **Given** requests of the new kinds that are answered, expire, run or are offered for undo
 **When** each happens
 **Then** the answered statuses and results follow the UX's rules ("Approved from {channel} at {time}", "Rejected from {channel} at {time}. Nothing was changed.", "Expired at {time}. Nothing was changed.", and "Recorded in the IRIS audit log." after every result), every copy updates within 5 seconds, and an undo arrives as its own approval request card in the same incident (FR-8, FR-26, UX-DR74, UX-DR76, UX-DR79, NFR-9)
@@ -8699,6 +8722,8 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **Given** the payload fields Lane A's Story 36.1 (was 23.1) names for `incident` and that Lane B's Story 36.2 (was 24.1) names for `approval`
 **When** the web app builds
 **Then** its TypeScript interfaces match the `OcuTalon.Live.Payload` classes, a string test checks every new fixed text, and the cards meet the keyboard, focus and contrast rules in both themes (AD-12, UX-DR8, UX-DR33, UX-DR117, NFR-25)
+
+**And** a closed incident card draws only a rollback's undo request card, never another request kind, and the rail's "Show in the chat" jumps to that card (Contest Planner ruling V2, 2026-11-15)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
