@@ -15,6 +15,7 @@
 ///     holds the fields of its kind and nothing else;
 ///   - TestUserTurnCases (Story 30.5, DW-500; DW-908; DW-1389 follow-up): the user-turn cases are exactly the seven named ones, one for each "Try it yourself" chip, one remember case (Story 30.9, DW-890), one forget case (Story 9.11, DW-902) and one in which the user reports that the Orders production has stopped (DW-1389 follow-up), each with the exact
 ///     text, the key phrase "user", the absent phrases of a reason that describes production state or tool limits, its own recordedBy, and the fields of its kind and nothing else;
+///     the stopped-production case's case.json is the approved draft byte for byte (its SHA-256);
 ///   - (QA) TestCommandPhrasesAreSentence (Story 9.7): each key phrase of the command case (one of its alternatives) is part of the catalog sentence
 ///     agent.noCommands, which the INSTRUCTIONS of the Chat agent hold (Test.Agent.Instructions), so the case cannot expect words that the product never says;
 ///   - TestNewsletterCase: eval/mail-newsletter is the item case of Task 5: kind item, not held out, recorded id mail-newsletter,
@@ -269,7 +270,8 @@ Method TestTurnCases()
 
 /// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, one remember case (Story 30.9, DW-890), one forget case (Story 9.11, DW-902) and one in which the user reports that the Orders production has stopped (DW-1389 follow-up), with its exact text,
 /// kind user-turn, not held out, the key phrase "user" and a list of absent phrases (the words of a reason that describes production state, tool
-/// limits or an all-clear), and the fields of its kind and nothing else.
+/// limits or an all-clear), and the fields of its kind and nothing else. The stopped-production case was approved verbatim, so its case.json must
+/// hash to the approved draft's SHA-256: any edit to it, its description and layout included, needs a new approval and a new hash here.
 Method TestUserTurnCases()
 {
 	Set folder = ..Folder()
@@ -314,6 +316,8 @@ Method TestUserTurnCases()
 		Do ..AssertTurnShape(name, case)
 		Do $$$AssertEquals(case.recordedBy, $List(entry, 3), name_": it says which story wrote it")
 	}
+	Set file = ##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, "user-turn-orders-stopped"))
+	Do $$$AssertEquals(..Sha256(file), "7df8056a73b085670892302fd263426f5e2e51e851232db263b73b82212a9fcc", "user-turn-orders-stopped: its case.json is the approved draft byte for byte")
 }
 
 /// The learned-save cases (Stories 41.8 and 41.14, DW-1015, DW-1016): memory-learned-save is a command-kind turn case with a session of its own, whose turn states a
@@ -983,6 +987,20 @@ ClassMethod Read(folder As %String, name As %String) As %DynamicObject
 	Set file = ##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name))
 	If '##class(%File).Exists(file) Quit ""
 	Quit ##class(%DynamicAbstractObject).%FromJSONFile(file)
+}
+
+/// The SHA-256 of the file's bytes, in lower-case hex, or "" when the file cannot be read.
+ClassMethod Sha256(file As %String) As %String [ Private ]
+{
+	Set stream = ##class(%Stream.FileBinary).%New()
+	If '##class(%File).Exists(file) || $$$ISERR(stream.LinkToFile(file)) Quit ""
+	Set digest = $SYSTEM.Encryption.SHAHashStream(256, stream, .sc)
+	If $$$ISERR(sc) Quit ""
+	Set hex = ""
+	For i = 1:1:$Length(digest) {
+		Set hex = hex_$ZConvert($Extract("0"_$ZHex($Ascii(digest, i)), *-1, *), "L")
+	}
+	Quit hex
 }
 
 /// 1 when every byte of the file is ASCII.

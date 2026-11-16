@@ -259,6 +259,12 @@ Lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/iris.s
 - AC 5: in a scratch copy of `eval/results`, copy the fresh run's `rules-only.json` whole. Expected: `cmp` differs, and `readme-column` FAILs on the date. This is why the story splices.
 - AC 6: lead (CI evidence).
 
+**QA (2026-11-16, gaps only).** One gap found and closed; nothing else about the case, its pin or the splice can change unnoticed by a committed test except the deferred LOW in the frontmatter (left to code review's disposition).
+- Gap: AC 1's verbatim pin was a one-time shell command, so an edit to the case's `description` (which `AssertTurnShape` checks only for non-blank) or to its layout passed every committed test. Closed in `Test.Eval.Cases.TestUserTurnCases`: the case's `case.json` must hash to `7df8056a...a9fcc` (new private helper `Sha256`), with the header bullet and method doc updated.
+- mutation: `description` "asks OcuTalon for nothing" to "asks OcuTalon for nothing at all" -> red: `Cases.TestUserTurnCases` (`user-turn-orders-stopped: its case.json is the approved draft byte for byte`), the only failing assertion, so no other committed test caught it; reverted byte for byte (hash `7df8056a...a9fcc` again, `git status --short` and `git diff --stat` unchanged), then green.
+- Runs (tags `e0utq*`, lane-C wrapper): warm `e0utqw` `OcuTalon.Test.Eval.Cases` passed; `test-eval-set.sh` parts 1 and 2 all 25 rules PASS; `test-boundaries.sh` and `test-class-rules.sh` all passed.
+- `tests/test-summary.md` is not touched: the record is here, and a shared append would only add a cross-lane merge point.
+
 ## Review Triage Log
 
 ### 2026-11-16 - Review pass
