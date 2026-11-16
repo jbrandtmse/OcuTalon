@@ -2,7 +2,7 @@
 title: 'Story 23.13: Partner warnings go to the Settings contacts'
 type: 'feature'
 created: '2026-11-15'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'dbc68f1d4a7fbd46a547558c66f290808a9b93ce'
 baseline_commit: 'dbc68f1d4a7fbd46a547558c66f290808a9b93ce'
 review_loop_iteration: 0
@@ -233,7 +233,13 @@ Rejected (rework re-review):
 - (low) GUIDE.md's partner bullet still says no notice is drafted without demo mode (blind 2): outside this rework's diff and not HIGH; noted for the Planner in the stage's closing summary.
 - (dup) The shards change has no mutation line (verification-gap Rule 19); the route legs use the test process's user (verification-gap 3a, now also covered by AP6); the namespace-wide task-warning clean-up (3b); `MayHaveSent` lists may-have-sent reasons instead of not-sent ones (acceptance 3); "simulated" read from the dry run, not the production (acceptance 4): adjudicated in the rework's own review pass (verification-gap 1, 3a, 3b; edge 2; blind 5). Re-checked for the "simulated warning is not asked" call: a partner row's `DryRun` has one writer, `IncidentManager.RaiseFix` (`StoredDryRun`), from the kind's own `DryRun`, whose `simulated` is `PartnerContacts.Simulated(incident.Production)`, the same predicate the executor and `Mail` use to decide never to mail; an unreadable or missing flag counts as not simulated, so a row of a real production cannot read as simulated.
 
+
+**Rework iteration 2 (CI red on 0c743465, ci run 43816599381, story class):**
+- [ ] [CI] iris(production) job 133129955974, `shard:lane-a@Channel`: `OcuTalon.Test.Channel.TelegramApproval` `TestApproveKinds` fails for `partner_warning` ("the text of the answer"; "the request is approved on the channel telegram" x2) since DW-1415 made a non-simulated partner warning admin-only. Update the test on this shared surface so it stays true to the ruling: the Telegram approve of a non-simulated partner warning by a non-admin is refused with email's refusal text and stays pending, and an admin's (or a simulated demo-contact warning's) Telegram approve still approves — whichever the test's fixture is meant to cover; never weaken the DW-1415 rule. Grep the other test classes on shared surfaces (approve paths: `Test.Channel.*`, `Test.Core.Answer*`, `Test.Web.*Approval*`, web e2e approval specs) for the same assumption that a non-admin can approve a partner warning, and fix any found. Run each touched class on a lane-B warm stack.
+
 ## Spec Change Log
+
+- 2026-11-16 ~07:00Z (lead, rework iteration 2 of 3, trigger: CI story red on 0c743465): TelegramApproval TestApproveKinds partner_warning after DW-1415.
 
 - 2026-11-16 ~05:20Z (lead, rework iteration 1 of 3, trigger: Planner ruling DW-1415/DW-1416/shards-11, 1.0.12 cut items): re-opened.
 
