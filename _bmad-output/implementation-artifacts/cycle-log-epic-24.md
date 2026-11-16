@@ -74,3 +74,6 @@
 2026-11-16T06:48:11Z	Story 24.4b	fresh_check	env=fresh_lane-D(e24s4bcr) tests=live_sign-in-2_part_12/20(10_pass),Test.Channel.TelegramOut result=pass torn_down=yes
 2026-11-16T06:53:58Z	Epic 24	integrated_forward	feature=dc9813a6(23.13_merged) conflicts_resolved=sprint-status(regenerated;24.4b_done),incident-card.ts+incident-view.ts(union:23.13_approvals+24.4b_drawn;incidentContext(...,approvals,drawn)),approval-sources+incident-sources_source_pins(union_call) checks=web_2184_pass,lint,build,live_sign-in-2_part_12/20_fresh_pass
 2026-11-16T06:53:58Z	Story 24.4b	committed	sha=pushed_below
+2026-11-16T07:09:57Z	Epic 24	epic_context_compiled	reason=planning_artifact_newer model=opus(by_plan_stage)
+2026-11-16T07:09:57Z	Story 24.3	story_created	spawn_at=2026-11-16T06:56:00Z model=opus build_status=ready-for-dev warnings=oversized,multiple-goals
+2026-11-16T07:09:57Z	Story 24.3	spec_validated	gate=planner_pending(NEW_public_text:On_call_line(replaces_DW-1400),GUIDE_bullet(P4);NEW_veto:V1_Reminder_columns+purge,V2_page_emails(outward),V3_got-it_route_accepts_page_copy,V4_AD-14/18/27,V5_Lane_A_Telegram/Out+PagingLive_test,V6_Lane_B_files_outside_footprint;choices:P1_DW-1251(A_rec),P2_not_paired_row(rec),P4_GUIDE,P5_split_24.3a/b(rec)) branch=OCT-epic24
