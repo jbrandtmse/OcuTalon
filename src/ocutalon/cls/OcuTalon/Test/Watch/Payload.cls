@@ -7,21 +7,29 @@
 ///     data-format diagnosis with no fix at all (no fixKind, fixParameters or fixSummary, or those empty: a reply that cannot tell which way a date reads, Story 7.7);
 ///   - TestPayloadRefused (row Payload check): outcome tellnow, an unlisted category, a fixKind on partner_outage, a data-format change without fixKind,
 ///     fixSummary, fixParameters.field or elementAtFault, a blank cause, a noun with a blank form, an unknown field, a confidence of 2, no reasons, more than 20
-///     evidence references, a fixSummary on partner_outage and a cause that holds "since 14:12" (or a fixSummary that holds a time) are refused, each with an
+///     evidence references, an elementAtFault of 129 characters, a fixSummary on partner_outage and a cause that holds "since 14:12" (or a fixSummary that holds a time) are refused, each with an
 ///     error that names the reply check; so is a fix-less data-format diagnosis without its elementAtFault, and one with only one of the three fix fields;
 ///   - TestHostReplies (rows Host reply 11:45:50Z and 12:01:54Z): the two recorded replies of the online demo host, whose evidence references are longer than 32
 ///     characters (42 and 33), go through Decide.Conclude with DiagnosisPayload and the production's filter ReplyGuard and give no fallback, and the answer's payload holds
 ///     the evidence, cause, category, element, fix kind, fix parameters, fix summary and noun of the reply;
 ///   - TestRefusalTrace (rows Over the limit and Key in a refused value): a diagnose reply that fails its check, or that the filter leaves with no reason or makes invalid,
 ///     gives the fallback invalid, with no reasons and no payload on the row and the response, and one Type 3 warning of Decide.Conclude that starts with REFUSED and the
-///     decision's Ref and is exactly the words of what failed, never the reply: "The reply check failed: the reply is not one JSON object that <class> accepts: Evidence
-///     element 2: 129 > 128" (a list element over its limit); "... ERROR #5001" for a key in a refused value (the class's own check), with neither the key nor [redacted];
+///     decision's Ref and is exactly the words of what failed, never the reply: "The reply check failed: the reply is not one JSON object that <class> accepts: ElementAtFault:
+///     129 > 128" (a text over its limit); "... ERROR #5001" for a key in a refused value (the class's own check), with neither the key nor [redacted];
 ///     "No reason is left once the reply filter has run"; "After the reply filter ran: <class> refused the filtered payload: ERROR #5001 rule cause-blank". The class's own rules are named
 ///     by their tag (DW-1421): "... ERROR #5001 rule cause-category-unlisted" for the key in a refused value, again with neither the key nor [redacted]. Decide.Recheck, run with the same request, class and
 ///     filter, returns 0 with the problem that the warning holds (and 1 with no problem for a usable reply);
 ///   - TestRuleTags (DW-1421, AC 1): a reply that breaks exactly one rule is refused with RefusalText "ERROR #5001 rule <tag>" for each of the 22 rules of the class and its parent, and the tag's field in REFUSALRULES is the rule's;
+///     the class's list holds 23 pairs, the 23rd the length tag evidence-too-long:evidence;
 ///   - TestEveryRuleTagged (DW-1421, AC 3): each REFUSALRULES lists distinct tag:field pairs of the tag form whose field (its first part) is the JSON name of a property of the class, the class's list
-///     starts with its parent's, and the %OnValidateObject of each class has exactly one $$$ERROR (or $SYSTEM.Status.Error) for each of its own tags, each tag written once;
+///     starts with its parent's, and the %OnValidateObject of each class has exactly one $$$ERROR (or $SYSTEM.Status.Error) for each of its own tags that does not end in -too-long, each tag written once;
+///     each -too-long pair names the JSON field of a property with a numeric MAXLEN, is the only one of its field, and is written in no %OnValidateObject;
+///   - TestEvidenceCut (DW-1421 C2'): an evidence reference over 128 characters is cut (at most 128 characters, ending in U+2026, at the last word boundary), never refused, and a reference of 128 or fewer is
+///     unchanged; each row of the cut (the limit, a space at 128, no boundary, a blank head, a surrogate pair, several, the count cap, a reference that is not a string, a reply that names evidenceCut, a dynamic
+///     object as input, text that is not JSON) is pinned, and no other field is cut;
+///   - TestEvidenceCutRecorded (DW-1421 C2'): Decide.Conclude of a reply with cut references gives no fallback and a payload whose evidenceCut is the number of cuts, and no text of a reference and no log row of the
+///     import is left anywhere; with no cut, the payload has no evidenceCut;
+///   - TestEvidenceTooLongTag (DW-1421 C1): an Evidence reference over 128 characters that is still there at validation (a filter that lengthens one) is "ERROR #7201 rule evidence-too-long", with no number;
 ///   - TestOtherFallbacksLogNothing (row Other fallbacks): a cut_off and a refusal whose text fails the check, and a turn that the filter empties (invalid with no check error),
 ///     are fallbacks of their own reason and log no warning of the reply check (Story 5.12, QA);
 ///   - TestFilteredParameter: the parameter FILTERED names every text of the model that the payload holds, which Decide filters (AD-31);
@@ -217,8 +225,8 @@ Method TestPayloadRefused()
 	For i = 1:1:21 Do reply.evidence.%Push("h"_i)
 	Do ..AssertRefused(reply, "21 evidence references")
 	Set reply = ..Usable()
-	Do reply.evidence.%Push($Translate($Justify("", 129), " ", "e"))
-	Do ..AssertRefused(reply, "an evidence reference of 129 characters")
+	Set reply.elementAtFault = $Translate($Justify("", 129), " ", "e")
+	Do ..AssertRefused(reply, "an elementAtFault of 129 characters")
 	Set reply = ..Usable()
 	Set reply.cause = "The orders failed since 14:12."
 	Do ..AssertRefused(reply, "a cause that holds a time")
@@ -316,7 +324,7 @@ Method TestRefusalTrace()
 	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set secret = "sk-ant-"_$Translate($Justify("", 17), " ", "x")
 	Set long = ..Usable()
-	Do long.evidence.%Push($Translate($Justify("", 129), " ", "e"))
+	Set long.elementAtFault = $Translate($Justify("", 129), " ", "e")
 	Set keyed = ..Usable()
 	Set keyed.causeCategory = secret
 	Set emptied = ..Usable()
@@ -337,7 +345,7 @@ Method TestRefusalTrace()
 		Set start = ..#REFUSED_ref_": "
 		Set first = start_"The reply check failed: the reply is not one JSON object that "_..#CLASS_" accepts: "
 		If label = "over the limit" {
-			Set expected = first_"Evidence element 2: 129 > 128"
+			Set expected = first_"ElementAtFault: 129 > 128"
 		} ElseIf label = "key in a refused value" {
 			Set expected = first_"ERROR #5001 rule cause-category-unlisted"
 		} ElseIf label = "no reason left after the filter" {
@@ -450,8 +458,9 @@ Method TestRuleTags()
 	While $ListNext(pairs, position, pair) {
 		Do ..AssertRule($Piece(pair, ":", 1), $Piece(pair, ":", 2), ..RuleReply($Piece(pair, ":", 1)))
 	}
-	Do $$$AssertEquals($Length($Parameter(..#CLASS, "REFUSALRULES"), ","), 22, "the list holds 22 rules")
-	Do $$$AssertEquals(..RuleTags(), $Piece($Parameter(..#CLASS, "REFUSALRULES"), ",", 1, 22), "and they are the class's list, in order")
+	Do $$$AssertEquals($Length($Parameter(..#CLASS, "REFUSALRULES"), ","), 23, "the list holds 22 rules and the length tag")
+	Do $$$AssertEquals(..RuleTags(), $Piece($Parameter(..#CLASS, "REFUSALRULES"), ",", 1, 22), "and the rules are the class's list, in order")
+	Do $$$AssertEquals($Piece($Parameter(..#CLASS, "REFUSALRULES"), ",", 23), "evidence-too-long:evidence", "the 23rd pair is the length tag of the evidence")
 }
 
 /// DW-1421 (AC 3): the tag lists, and one tag literal for each $$$ERROR of each class's own %OnValidateObject.
@@ -463,28 +472,57 @@ Method TestEveryRuleTagged()
 	Do $$$AssertEquals($ListLength(parentPairs), 3, "the parent lists its three rules")
 	Do $$$AssertEquals($ListToString($List(pairs, 1, 3), ","), $ListToString(parentPairs, ","), "the class's list starts with its parent's")
 	For class = parent, ..#CLASS {
-		Set list = $Select(class = parent: parentPairs, 1: $List(pairs, 4, $ListLength(pairs)))
-		Kill seen
+		Set list = ""
+		Set lengthTags = ""
+		Kill seen, lengthFields
+		Set index = 0
 		Set position = 0
 		While $ListNext($Select(class = parent: parentPairs, 1: pairs), position, pair) {
+			Set index = index + 1
 			Set tag = $Piece(pair, ":", 1)
 			Do $$$AssertTrue(tag ? 1L.(1L,1N,1"-"), tag_": a tag is lower-case letters, digits and hyphens")
 			Do $$$AssertTrue($Piece(pair, ":", 2) '= "", tag_": the pair names a field")
 			Do $$$AssertTrue(..JsonField(class, $Piece($Piece(pair, ":", 2), ".", 1)), tag_": and its field is the JSON name of a property of the class")
 			Do $$$AssertTrue('$Data(seen(tag)), tag_": and the tag is listed once")
 			Set seen(tag) = ""
+			If $Length(tag) > 9 && ($Extract(tag, *-8, *) = "-too-long") {
+				Set lengthTags = lengthTags _ $ListBuild(pair)
+				Do $$$AssertTrue(..MaxLen(class, $Piece(pair, ":", 2)) ? 1.N, tag_": a length tag names the JSON field of a property with a numeric MAXLEN")
+				Do $$$AssertTrue('$Data(lengthFields($Piece(pair, ":", 2))), tag_": and is the only length tag of its field")
+				Set lengthFields($Piece(pair, ":", 2)) = ""
+			} ElseIf (class = parent) || (index > 3) {
+				Set list = list _ $ListBuild(pair)
+			}
 		}
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(class, .text), class_" has source")
 		Set body = ..ValidateBody(text)
 		Do $$$AssertTrue(body '= "", class_": its %OnValidateObject is found")
 		Set errors = ($Length(body, "$$$ERROR(") - 1) + ($Length(body, "$SYSTEM.Status.Error(") - 1)
-		Do $$$AssertEquals(errors, $ListLength(list), class_": one $$$ERROR for each of its own rules")
+		Do $$$AssertEquals(errors, $ListLength(list), class_": one $$$ERROR for each of its own rules that is not a length tag")
 		Set position = 0
 		While $ListNext(list, position, pair) {
 			Set tag = $Piece(pair, ":", 1)
 			Do $$$AssertEquals($Length(body, ", """_tag_""")") - 1, 1, class_": the tag "_tag_" is written once")
 		}
+		Set position = 0
+		While $ListNext(lengthTags, position, pair) {
+			Do $$$AssertTrue(body '[ $Piece(pair, ":", 1), class_": the length tag "_$Piece(pair, ":", 1)_" is written in no %OnValidateObject")
+		}
 	}
+	Do $$$AssertEquals($ListLength($ListFromString($Parameter(parent, "REFUSALRULES"), ",")), 3, "the parent lists no length tag")
+}
+
+/// The MAXLEN of the compiled property of the class whose JSON field name is the field, or "".
+ClassMethod MaxLen(class As %String, field As %String) As %String [ Private ]
+{
+	Set property = ""
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ?", class)
+	While rows.%Next() {
+		Set property = ##class(%Dictionary.CompiledProperty).%OpenId(class_"||"_rows.%Get("Name"))
+		If $IsObject(property) && (property.Parameters.GetAt("%JSONFIELDNAME") = field) Quit
+		Set property = ""
+	}
+	Quit $Select($IsObject(property): property.Parameters.GetAt("MAXLEN"), 1: "")
 }
 
 /// 1 when a compiled property of the class has the JSON field name.
@@ -515,6 +553,174 @@ ClassMethod ValidateBody(text As %String) As %String [ Private ]
 		Set body = body _ line _ $Char(10)
 	}
 	Quit body
+}
+
+/// An Outage() reply whose evidence list is the elements, one array element each.
+ClassMethod EvidenceReply(elements As %DynamicArray) As %DynamicObject [ Private ]
+{
+	Set reply = ..Outage()
+	Set reply.evidence = elements
+	Quit reply
+}
+
+/// Asserts that a reply whose only evidence element is the input is accepted with the element as expected, at most 128 characters, and EvidenceCut as given ("" for no cut).
+Method AssertCut(label As %String, input As %String, expected As %String, cuts As %String = "") [ Private ]
+{
+	Set sc = ..Check(..EvidenceReply([(input)]), .payload)
+	Do $$$AssertStatusOK(sc, label_": the reply is accepted")
+	If '$IsObject(payload) Quit
+	Do $$$AssertEquals(payload.Evidence.Count(), 1, label_": it keeps its one reference")
+	Set element = payload.Evidence.GetAt(1)
+	Do $$$AssertEquals(element, expected, label_": the reference is as expected")
+	Do $$$AssertTrue($Length(element) '> 128, label_": and holds at most 128 characters")
+	Do $$$AssertEquals(payload.EvidenceCut, cuts, label_": EvidenceCut is "_$Select(cuts = "": "empty", 1: cuts))
+	If cuts '= "" Do $$$AssertEquals($Extract(element, $Length(element)), $Char(8230), label_": a cut reference ends in U+2026")
+}
+
+/// DW-1421 C2' (rows 1 to 15): an evidence reference over 128 characters is cut, never refused.
+Method TestEvidenceCut()
+{
+	Do $$$AssertEquals($Parameter(..#CLASS, "EVIDENCEMAX"), ##class(%Dictionary.CompiledProperty).%OpenId(..#CLASS_"||Evidence").Parameters.GetAt("MAXLEN"), "the limit of the cut is the MAXLEN of Evidence")
+	Set ellipsis = $Char(8230)
+	Set e128 = $Translate($Justify("", 128), " ", "e")
+	Do ..AssertCut("row 1, 128 characters", e128, e128)
+	Do ..AssertCut("row 2, 129 characters", e128_"e", $Extract(e128, 1, 127)_ellipsis, 1)
+	Set letters = $Translate($Justify("", 127), " ", "e")
+	Do ..AssertCut("row 3, a space at 128", letters_" e", letters_ellipsis, 1)
+	Set spaced = "ab cd"_$Extract(e128, 1, 122)
+	Do ..AssertCut("row 3, a space at 128 after an earlier one", spaced_" e", spaced_ellipsis, 1)
+	Set words = ""
+	For i = 1:1:30 Set words = words_"abcdefghi "
+	Do $$$AssertEquals($Length(words), 300, "row 4: the text holds 300 characters")
+	Do $$$AssertEquals($Extract(words, 120), " ", "row 4: and the next character after the cut is a space")
+	Do ..AssertCut("row 4, 300 characters of words", words, $Extract(words, 1, 119)_ellipsis, 1)
+	Set double = ""
+	For i = 1:1:30 Set double = double_"abcdefghi  "
+	Do ..AssertCut("row 4, a boundary after two spaces", double, $Extract(double, 1, 119)_ellipsis, 1)
+	Set e300 = $Translate($Justify("", 300), " ", "e")
+	Do ..AssertCut("row 5, one word of 300 characters", e300, $Extract(e300, 1, 127)_ellipsis, 1)
+	Set blank = "   "_$Extract(e300, 1, 200)
+	Do ..AssertCut("row 6, a blank head", blank, $Extract(blank, 1, 127)_ellipsis, 1)
+	Set pair = $Char(55357, 56832)
+	Set split = $Extract(e300, 1, 126)_pair_$Extract(e300, 1, 20)
+	Do $$$AssertEquals($Length(pair), 2, "row 7: a surrogate pair counts 2 characters")
+	Do ..AssertCut("row 7, a surrogate pair at 127 and 128", split, $Extract(e300, 1, 126)_ellipsis, 1)
+	// row 8, several
+	Set long1 = $Extract(e300, 1, 129)
+	Set long3 = $Extract(e300, 1, 200)
+	Set sc = ..Check(..EvidenceReply([(long1), "h3", (long3)]), .payload)
+	Do $$$AssertStatusOK(sc, "row 8: three references, two of them long, are accepted")
+	If $IsObject(payload) {
+		Do $$$AssertEquals(payload.Evidence.Count()_"|"_payload.Evidence.GetAt(1)_"|"_payload.Evidence.GetAt(2)_"|"_payload.Evidence.GetAt(3)_"|"_payload.EvidenceCut, "3|"_$Extract(e300, 1, 127)_ellipsis_"|h3|"_$Extract(e300, 1, 127)_ellipsis_"|2", "row 8: the long ones are cut, h3 is not, in order, and two were cut")
+		Do payload.%JSONExportToString(.json)
+		Do $$$AssertTrue(json [ """evidenceCut"":2", "row 8: the payload exports evidenceCut 2: "_json)
+	}
+	// row 9, the other fields
+	Set reply = ..Outage()
+	Set reply.elementAtFault = $Extract(e300, 1, 129)
+	Do ..AssertRefusal(reply, "ElementAtFault: 129 > 128", "row 9, an elementAtFault of 129")
+	Set reply = ..Outage()
+	Set reply.reasons = [($Extract(e300, 1, 100)_$Translate($Justify("", 901), " ", "r"))]
+	Do ..AssertRefusal(reply, "Reasons element 1: 1001 > 1000", "row 9, a reason of 1001")
+	// rows 10 and 11, the count cap
+	Set elements = []
+	For i = 1:1:20 Do elements.%Push("h"_i)
+	Do elements.%Set(4, e300)
+	Set sc = ..Check(..EvidenceReply(elements), .payload)
+	Do $$$AssertStatusOK(sc, "row 11: 20 references, one of them long, are accepted")
+	If $IsObject(payload) Do $$$AssertEquals(payload.Evidence.Count()_"|"_payload.EvidenceCut, "20|1", "row 11: and one was cut")
+	Do elements.%Push("h21")
+	Do ..AssertRefusal(..EvidenceReply(elements), "ERROR #5001 rule evidence-over-max", "row 10, 21 references, one of them long")
+	// row 12, an element that is not a string
+	Do ..AssertRefusal(..EvidenceReply([12345]), "ERROR #9406 on Evidence", "row 12, a number")
+	Do ..AssertRefusal(..EvidenceReply([{"a": 1}]), "ERROR #9406 on Evidence element 1", "row 12, an object")
+	Set digits = $Translate($Justify("", 129), " ", "7")
+	Set text = $Replace(..EvidenceReply(["x"]).%ToJSON(), """evidence"":[""x""]", """evidence"":["_digits_"]")
+	Do ..AssertRefusal("", "ERROR #7201 rule evidence-too-long", "row 12, a number of 129 digits", text)
+	// row 13, the model sends the count
+	Set reply = ..Outage()
+	Set reply.evidenceCut = 3
+	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut")
+	// row 14, a dynamic object as input is not changed
+	Set reply = ..EvidenceReply([(e300)])
+	Set object = $ClassMethod(..#CLASS, "%New")
+	Do $$$AssertStatusOK(object.%JSONImport(reply), "row 14: a dynamic object is imported")
+	Do $$$AssertEquals(object.Evidence.GetAt(1)_"|"_object.EvidenceCut, $Extract(e300, 1, 127)_ellipsis_"|1", "row 14: the payload is cut")
+	Do $$$AssertEquals(reply.evidence.%Get(0), e300, "row 14: and the caller's object is not")
+	// row 15, text that is not JSON gives the inherited status
+	Set parent = $ClassMethod("OcuTalon.Bridge.Msg.DecisionPayload", "%New")
+	Set own = $ClassMethod(..#CLASS, "%New")
+	For text = "this is not JSON", "[1,2]", "{" {
+		Set expected = parent.%JSONImport(text)
+		Set actual = own.%JSONImport(text)
+		Do $$$AssertStatusNotOK(actual, "row 15: "_text_" is not imported")
+		Do $$$AssertEquals($SYSTEM.Status.GetErrorText(actual), $SYSTEM.Status.GetErrorText(expected), "row 15: with the status of the inherited import")
+	}
+}
+
+/// Asserts that the reply is refused and RefusalText of the cause is the text.
+Method AssertRefusal(reply As %DynamicObject, expected As %String, label As %String, text As %String = "") [ Private ]
+{
+	If text = "" Set text = reply.%ToJSON()
+	Set checked = $ClassMethod(..#DECIDE, "CheckReply", text, ..#CLASS, .payload, .cause)
+	Do $$$AssertStatusNotOK(checked, label_": the reply is refused")
+	Do $$$AssertEquals($ClassMethod(..#DECIDE, "RefusalText", cause, ..#CLASS, text), expected, label_": the refusal is "_expected)
+	Do $$$AssertEquals(payload, "", label_": and gives no payload")
+}
+
+/// DW-1421 C2' (AC 5): the cut is counted in the stored payload and nowhere else.
+Method TestEvidenceCutRecorded()
+{
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set markerA = "zzmarka"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set markerB = "zzmarkb"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set filler = $Translate($Justify("", 130), " ", "e")
+	Set request = ..NewRequest()
+	Do ..Conclude(request, ..EvidenceReply([(filler_markerA), "h3", (filler_markerB)]).%ToJSON(), .response, .sc)
+	Do $$$AssertStatusOK(sc, "a reply with two long references is concluded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason, 1: "none"), "0|", "it gives no fallback")
+	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")
+	Do $$$AssertTrue($IsObject(row) && (row.Payload '= ""), "the Decision row holds a payload")
+	If '$IsObject(row) || (row.Payload = "") Quit
+	Set answer = {}.%FromJSON(row.Payload)
+	Set cut = $Extract(filler, 1, 127)_$Char(8230)
+	Do $$$AssertEquals(answer.evidenceCut, 2, "its evidenceCut is the number of references cut")
+	Do $$$AssertEquals(answer.evidence.%Get(0)_"|"_answer.evidence.%Get(1)_"|"_answer.evidence.%Get(2), cut_"|h3|"_cut, "and its evidence holds the cut references")
+	Set all = row.Payload_"|"_row.Reasons_"|"_response.Payload_"|"_response.Reasons
+	Do $$$AssertTrue((all '[ markerA) && (all '[ markerB), "no text beyond the cut is in the row or the response")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND (Text [ ? OR Text [ ? OR SourceMethod = '%JSONImport')", mark, markerA, markerB)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "no event log row holds a marker or comes from the import")
+	Set request = ..NewRequest()
+	Do ..Conclude(request, ..Outage().%ToJSON(), .response, .sc)
+	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")
+	Do $$$AssertTrue($IsObject(row) && (row.Payload '= "") && (row.Payload '[ "evidenceCut"), "a reply with no long reference has no evidenceCut in its payload")
+	Do $$$AssertEquals($ClassMethod(..#CLASS, "%New").EvidenceCut, "", "and a new payload has no count")
+}
+
+/// DW-1421 C1 (AC 6): the length refusal of an Evidence reference has a fixed tag.
+Method TestEvidenceTooLongTag()
+{
+	Set payload = $ClassMethod(..#CLASS, "%New")
+	Set payload.Outcome = "act"
+	Set payload.CauseCategory = "partner_outage"
+	Set payload.Cause = "The partner did not answer."
+	Do payload.Reasons.Insert("The failures show no data problem.")
+	Set payload.Confidence = 0.7
+	Do payload.Evidence.Insert($Translate($Justify("", 129), " ", "e"))
+	Set sc = payload.%ValidateObject()
+	Do $$$AssertStatusNotOK(sc, "an Evidence reference of 129 characters inserted directly is refused")
+	Set text = $ClassMethod(..#DECIDE, "RefusalText", sc, ..#CLASS)
+	Do $$$AssertEquals(text, "ERROR #7201 rule evidence-too-long", "its refusal is the length tag")
+	Do $$$AssertEquals($Translate($Piece(text, " rule ", 2), "0123456789"), $Piece(text, " rule ", 2), "and holds no digit after rule")
+	Set reply = ..Outage()
+	Set reply.elementAtFault = $Translate($Justify("", 129), " ", "e")
+	Do ..AssertRefusal(reply, "ElementAtFault: 129 > 128", "an elementAtFault of 129 keeps its length form")
+	Set reply = ..EvidenceReply([($Translate($Justify("", 128), " ", "e"))])
+	Set valid = $ClassMethod(..#DECIDE, "Recheck", ..NewRequest(), reply.%ToJSON(), ..#CLASS, "OcuTalon.Test.Bridge.ProbeFilter", .problem)
+	Kill ^||ZzProbeFilter
+	Do $$$AssertEquals(valid, 0, "a reference of 128 characters that the filter lengthens is refused")
+	Do $$$AssertEquals(problem, "After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #7201 rule evidence-too-long", "with the length tag in the words of the check")
 }
 
 Method TestFilteredParameter()

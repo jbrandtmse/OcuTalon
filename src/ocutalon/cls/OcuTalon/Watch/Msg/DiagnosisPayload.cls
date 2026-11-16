@@ -1,7 +1,7 @@
 /// The checked payload that the Diagnosis agent answers with (AD-6, AD-7, AD-8, AD-31). It extends OcuTalon.Bridge.Msg.DecisionPayload, so Decide
 /// checks a diagnose reply with it as the ReplyClass of DiagnosisAgent: outcome, reasons and confidence are the parent's, and the JSON adds
 ///   - causeCategory, one of CAUSECATEGORIES, and elementAtFault;
-///   - evidence, a list of at most MAXEVIDENCE references, each at most 128 characters;
+///   - evidence, a list of at most MAXEVIDENCE references, each at most 128 characters: %JSONImport cuts a longer one (Cut) and counts the cuts in evidenceCut;
 ///   - fixKind, repair_resend or empty, and fixParameters {field, sourceFormat, targetFormat};
 ///   - cause and fixSummary, and itemNoun {one, other}.
 /// Decide filters every text of the model that the payload holds (FILTERED, AD-31). Import refuses a field that is not declared here.
@@ -16,7 +16,10 @@
 /// pack with a sample body, no fix is accepted (fail closed); the check's refusal is wrapped in the rule fix-parameters-check, with its own reason embedded. A setting_change may name the kind that Fix.Kind DiagnosedFor lists for it (rollback_setting): with no
 /// fixParameters and no fixSummary, and an elementAtFault that names a setting in the pack's settingChanges (Listed); the kind's own check is then its dry run's.
 /// Each rule of %OnValidateObject, the parent's three and this class's nineteen, has a fixed tag as the second parameter of its error and the tag and its field are listed in
-/// REFUSALRULES: Decide's RefusalText shows "ERROR #5001 rule <tag>" for a listed tag and never a value of the reply (DW-1421). The tags are internal names, in no text a user reads. Lane A.
+/// REFUSALRULES: Decide's RefusalText shows "ERROR #5001 rule <tag>" for a listed tag and never a value of the reply (DW-1421). The tags are internal names, in no text a user reads.
+/// A tag that ends in -too-long is a length tag: Decide's RefusalText shows "ERROR #7201 rule <tag>" for a text over the limit of that field, with no position, length or limit. evidence-too-long is the one
+/// for an Evidence reference over 128 characters that is still there when the payload is validated (after a reply filter that lengthens a text). A reply that carries evidenceCut is refused, as an
+/// unexpected property. Lane A.
 Class OcuTalon.Watch.Msg.DiagnosisPayload Extends OcuTalon.Bridge.Msg.DecisionPayload
 {
 
@@ -33,12 +36,15 @@ Parameter FILTERED = "Cause,FixSummary,ElementAtFault,Evidence,ItemNoun.One,Item
 /// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit.
 Parameter CLOCKTIME = "(?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])";
 
-/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated: the parent's, then this class's own, in rule order
-/// (see the class description).
-Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-not-act:outcome,cause-category-unlisted:causeCategory,evidence-over-max:evidence,cause-blank:cause,format-no-fix-element-blank:elementAtFault,format-fix-kind-unlisted:fixKind,format-fix-element-blank:elementAtFault,format-fix-summary-blank:fixSummary,format-fix-field-blank:fixParameters.field,rollback-fix-parameters:fixParameters,rollback-fix-summary:fixSummary,rollback-element-unlisted:elementAtFault,fix-kind-not-for-category:fixKind,fix-parameters-not-for-category:fixParameters,fix-summary-not-for-category:fixSummary,item-noun-blank:itemNoun,time-of-day-in-cause:cause,time-of-day-in-fix-summary:fixSummary,fix-parameters-check:fixParameters";
+/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated: the parent's, then this class's own, in rule order,
+/// then the length tags, which no %OnValidateObject rule raises (see the class description).
+Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-not-act:outcome,cause-category-unlisted:causeCategory,evidence-over-max:evidence,cause-blank:cause,format-no-fix-element-blank:elementAtFault,format-fix-kind-unlisted:fixKind,format-fix-element-blank:elementAtFault,format-fix-summary-blank:fixSummary,format-fix-field-blank:fixParameters.field,rollback-fix-parameters:fixParameters,rollback-fix-summary:fixSummary,rollback-element-unlisted:elementAtFault,fix-kind-not-for-category:fixKind,fix-parameters-not-for-category:fixParameters,fix-summary-not-for-category:fixSummary,item-noun-blank:itemNoun,time-of-day-in-cause:cause,time-of-day-in-fix-summary:fixSummary,fix-parameters-check:fixParameters,evidence-too-long:evidence";
 
 /// The most references in the evidence list.
 Parameter MAXEVIDENCE = 20;
+
+/// The most characters of an evidence reference after the cut: the MAXLEN of Evidence.
+Parameter EVIDENCEMAX = 128;
 
 /// One of CAUSECATEGORIES.
 Property CauseCategory As %String(%JSONFIELDNAME = "causeCategory", MAXLEN = 32);
@@ -46,7 +52,7 @@ Property CauseCategory As %String(%JSONFIELDNAME = "causeCategory", MAXLEN = 32)
 /// The element of the production that failed: a message field, an item or a setting.
 Property ElementAtFault As %String(%JSONFIELDNAME = "elementAtFault", MAXLEN = 128);
 
-/// References to what the diagnosis rests on, each at most 128 characters.
+/// References to what the diagnosis rests on, each at most 128 characters (%JSONImport cuts a longer one, see the class description).
 Property Evidence As list Of %String(%JSONFIELDNAME = "evidence", MAXLEN = 128);
 
 /// The NAME of a kind of OcuTalon.Fix.Kind (repair_resend), or empty.
@@ -63,6 +69,60 @@ Property FixSummary As %String(%JSONFIELDNAME = "fixSummary", MAXLEN = 1000);
 
 /// The singular and plural noun of the failed items.
 Property ItemNoun As OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME = "itemNoun");
+
+/// The number of evidence references that %JSONImport cut to 128 characters (see the class description); empty when none was cut. Code-written, never model text; exported, never imported.
+Property EvidenceCut As %Integer(%JSONFIELDNAME = "evidenceCut", %JSONINCLUDE = "OUTPUTONLY", MINVAL = 1);
+
+/// The import of the inherited method, after every string reference of the evidence list that is over EVIDENCEMAX characters is cut (Cut); the number of cuts is EvidenceCut, set when the import
+/// succeeds and more than 0 were cut. Nothing else of the reply is changed, the caller's input is never changed, and the text of a reference is never logged. The reply may not name evidenceCut: the
+/// field is refused as an unexpected property, as an input field of the class that is not declared. An input that does not parse, or is not a JSON object, gives the inherited status.
+Method %JSONImport(input, %mappingName As %String = "") As %Status [ ServerOnly = 1 ]
+{
+	Set ..EvidenceCut = ""
+	Try {
+		If $IsObject(input) && input.%IsA("%Library.DynamicAbstractObject") {
+			Set object = ##class(%Library.DynamicAbstractObject).%FromJSON(input.%ToJSON())
+		} Else {
+			Set object = ##class(%Library.DynamicAbstractObject).%FromJSON(input)
+		}
+	} Catch {
+		Return ##super(input, %mappingName)
+	}
+	If '$IsObject(object) || 'object.%IsA("%Library.DynamicObject") Return ##super(input, %mappingName)
+	If object.%GetTypeOf("evidenceCut") '= "unassigned" Return $$$ERROR($$$JSONImportBadField, "evidenceCut", $Select(%mappingName = "": "class base", 1: %mappingName))
+	Set cut = 0
+	If object.%GetTypeOf("evidence") = "array" {
+		Set evidence = object.evidence
+		For i = 0:1:evidence.%Size() - 1 {
+			If (evidence.%GetTypeOf(i) = "string") && ($Length(evidence.%Get(i)) > ..#EVIDENCEMAX) {
+				Do evidence.%Set(i, ..Cut(evidence.%Get(i)))
+				Set cut = cut + 1
+			}
+		}
+	}
+	Set sc = ##super(object, %mappingName)
+	If $$$ISOK(sc) && (cut > 0) Set ..EvidenceCut = cut
+	Quit sc
+}
+
+/// The text of an evidence reference over EVIDENCEMAX characters, cut: at most EVIDENCEMAX characters, ending in U+2026. The head is the text before the last space at a position of 2 to EVIDENCEMAX, with
+/// trailing white space removed; with no such space, or a blank head, it is the first EVIDENCEMAX - 1 characters (less one, when the cut would end on the first half of a surrogate pair).
+ClassMethod Cut(text As %String) As %String [ Private ]
+{
+	Set head = ""
+	For position = ..#EVIDENCEMAX:-1:2 {
+		If $Extract(text, position) = " " {
+			Set head = $ZStrip($Extract(text, 1, position - 1), ">W")
+			Quit
+		}
+	}
+	If $ZStrip(head, "*W") = "" {
+		Set head = $Extract(text, 1, ..#EVIDENCEMAX - 1)
+		Set last = $Ascii(head, ..#EVIDENCEMAX - 1)
+		If (last >= 55296) && (last <= 56319) Set head = $Extract(head, 1, ..#EVIDENCEMAX - 2)
+	}
+	Quit head_$Char(8230)
+}
 
 /// The checks that the property definitions do not make (see the class description).
 Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]

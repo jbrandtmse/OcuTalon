@@ -1036,6 +1036,7 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 /// The words of the errors of a failed reply check (cause, from CheckReply, or the status of the second check), for the warning that Conclude logs. Each part is
 /// made only of fixed words, an error code, the name of a compiled property of replyClass, an element position, a numeric limit and a computed length: never a
 /// value of the reply, an IRIS message text or a field name taken from the reply. The parts, in DecomposeStatus order and without repeats:
+///   - a #7201 on a property whose JSON field REFUSALRULES of replyClass lists with a tag that ends in -too-long (LengthTag) is "ERROR #7201 rule <tag>", with no position, length or limit;
 ///   - a text over or under its limit (#7201, #7202) and a value outside its limits (#7203, #7204), with a property and a numeric limit, give
 ///     "<Property>[ element <n>]: <length> > <limit>" (the length of the value, never the value) and "<Property>[ element <n>]: value > <limit>"; the property and
 ///     the position come from the embedded #5802 (or a #5659) as "<class>:<Property>[(<n>)]", and only a name that replyClass compiles is used;
@@ -1074,7 +1075,7 @@ ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String
 				If code = 9406 {
 					Do ..RefusalImport(replyClass, $Get(errors(i, "param", 1)), text, .parts, .count)
 				} Else {
-					Set part = ..RefusalPart(code, $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position)
+					Set part = ..RefusalPart(code, $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position, replyClass)
 					Set tag = $Select(code = 5001: ..RefusalTag(replyClass, $Get(errors(i, "param", 2))), 1: "")
 					If tag '= "" Set part = part_" rule "_tag
 					Do ..RefusalAdd(part, .parts, .count)
@@ -1143,9 +1144,34 @@ ClassMethod RefusalNumber(value As %String) As %Boolean [ Private ]
 	Quit value ? .1"-"1.N.1(1".".N)
 }
 
-/// The words of one error: see RefusalText.
-ClassMethod RefusalPart(code As %String, value As %String, limit As %String, property As %String, position As %String) As %String [ Private ]
+/// The length tag of the property: a tag that REFUSALRULES of replyClass lists for the property's JSON field and that ends in -too-long; never a value of the reply. "" when there is none.
+ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ Private ]
 {
+	If '##class(%Dictionary.CompiledProperty).%ExistsId(replyClass_"||"_property) Quit ""
+	Set compiled = ##class(%Dictionary.CompiledProperty).%OpenId(replyClass_"||"_property)
+	If '$IsObject(compiled) Quit ""
+	Set field = compiled.Parameters.GetAt("%JSONFIELDNAME")
+	If field = "" Set field = property
+	Set tag = ""
+	Set pairs = $ListFromString($Parameter(replyClass, "REFUSALRULES"), ",")
+	Set position = 0
+	While $ListNext(pairs, position, pair) {
+		Set candidate = $Piece(pair, ":", 1)
+		If ($Piece(pair, ":", 2) = field) && ($Length(candidate) > 9) && ($Extract(candidate, *-8, *) = "-too-long") && (candidate ? 1L.(1L,1N,1"-")) {
+			Set tag = candidate
+			Quit
+		}
+	}
+	Quit tag
+}
+
+/// The words of one error: see RefusalText.
+ClassMethod RefusalPart(code As %String, value As %String, limit As %String, property As %String, position As %String, replyClass As %String = "") As %String [ Private ]
+{
+	If (code = 7201) && (property '= "") {
+		Set tag = ..LengthTag(replyClass, property)
+		If tag '= "" Quit "ERROR #7201 rule "_tag
+	}
 	Set label = property
 	If (label '= "") && (position '= "") Set label = label_" element "_position
 	If (label '= "") && ..RefusalNumber(limit) {
@@ -1223,7 +1249,7 @@ ClassMethod RefusalCheck(replyClass As %String, property As %String, value As %S
 	If $$$ISOK(sc) Quit 0
 	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
 	For i = 1:1:+$Get(errors) {
-		Do ..RefusalAdd(..RefusalPart($Get(errors(i, "code")), $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position), .parts, .count)
+		Do ..RefusalAdd(..RefusalPart($Get(errors(i, "code")), $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position, replyClass), .parts, .count)
 	}
 	Quit +$Get(errors)
 }

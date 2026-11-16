@@ -6,7 +6,7 @@
 ///     body of the response header whose CorrespondingMessageId is that request header. The runner is the TargetConfigName of the request header, and its reply class is Decide.ReplyClassOf.
 ///     Each reply of a decision whose reason is invalid is checked again, whatever ended its own attempt; its file keeps the attempt's finishReason, which tells a cut-off one apart.
 ///   - The rule and the field of a reply. The problem of Recheck says the stage (the check, the check after the filter, or no reason left after the filter) and the parts
-///     that the check refused, in words that quote nothing of the reply (Decide RefusalText). The rule is the first part: the tag of "ERROR #5001 rule <tag>", else the part as it is.
+///     that the check refused, in words that quote nothing of the reply (Decide RefusalText). The rule is the first part: the tag of "ERROR #<code> rule <tag>", else the part as it is.
 ///     The field is the tag's field in REFUSALRULES of the reply class, else the JSON field name of a compiled property that the part names, else empty. The fixed rule names are
 ///     "no reply" (a decision with no reply in the store), "no reply text" (a reply with no text, a failure reply), "passes the check" (a reply that passes now, or a fallback whose reason is not invalid)
 ///     and "no reason left after the filter".
@@ -257,16 +257,16 @@ ClassMethod Parse(problem As %String, replyClass As %String, Output stage As %St
 	}
 }
 
-/// The rule of one part: the tag of "ERROR #5001 rule <tag>", else the part.
-ClassMethod RuleOf(part As %String) As %String [ Private ]
+/// The rule of one part: the tag of "ERROR #<code> rule <tag>" (a tag is lower-case letters, digits and hyphens), else the part. Reads no store and writes nothing.
+ClassMethod RuleOf(part As %String) As %String [ Internal ]
 {
-	If $Extract(part, 1, 17) = "ERROR #5001 rule " Quit $Extract(part, 18, *)
+	If part ? 1"ERROR #"1.N1" rule "1L.(1L,1N,1"-") Quit $Piece(part, " rule ", 2)
 	Quit part
 }
 
 /// The field of a part: the field of the tag in REFUSALRULES of the reply class, else the JSON field name of the compiled property that the part names ("<Property>[ element n]: ..."
-/// or "... on <Property>[ element n]"), else "".
-ClassMethod FieldOf(part As %String, rule As %String, replyClass As %String) As %String [ Private ]
+/// or "... on <Property>[ element n]"), else "". Reads no store and writes nothing.
+ClassMethod FieldOf(part As %String, rule As %String, replyClass As %String) As %String [ Internal ]
 {
 	If rule '= part {
 		Set rules = ","_$Parameter(replyClass, "REFUSALRULES")

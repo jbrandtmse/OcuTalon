@@ -2,8 +2,8 @@
 title: "DW-1421 C2' + C1 fix: an over-long evidence element is cut, not refused, and its remaining length refusal has a fixed tag (with the C5 confidence report)"
 type: 'feature'
 created: '2026-11-16'
-status: 'ready-for-dev'
-baseline_revision: 'ea44750964de4ca417749d559ac2d4cf969fa557'
+status: 'done'
+baseline_revision: '08f55bc99a2736acdbe5febb3ea180b215b4aaa0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -286,7 +286,49 @@ Use a lane C throwaway only (Rule 21), never a dev slot. Set these on every `ci/
   - a pair `reasons-too-long:reasonz` added to DiagnosisPayload's `REFUSALRULES` -> `TestEveryRuleTagged` red;
   - `RuleOf` back to the #5001 prefix only -> `Test.Eval.Capture` `TestRuleNames` red.
 
-**Shared surfaces:** the reply-check warning text (pinned in `Test.Watch.Payload`, `Test.Bridge.ReplyCheck`, `Test.Agent.RememberDecision`, `Test.Watch.Diagnose`), the capture harness's rule names (pinned in `Test.Eval.Capture` and rule `capture`), and the stored diagnosis Payload (read by IncidentManager, Eval.Sink and Watch.Summary).
+**Results (lane C warm throwaway, tag e0dw1421r2w, no model, no key; run by Lane C round 2).**
+
+Task 0 (before any product edit; probes in a scratch class loaded into the warm container only, never in the tree):
+- Item 1: a scratch subclass of DiagnosisPayload with the output-only `%Integer` `EvidenceCut` (`%JSONINCLUDE = "OUTPUTONLY"`, `MINVAL = 1`, no `%JSONNULL`): `%JSONExportToString` writes NO key when it is "" and writes `"evidenceCut":2` when it is 2, so the stop rule does not fire. `%JSONImport` of a text with `"evidenceCut": 3` succeeds (status OK) and ignores it (`EvidenceCut` stays ""), so the guard of row 13 is needed.
+- Item 2: `$Length($Char(128512))` is 0 on this build (`$Char` of a code above 65535 gives the empty string, `$Ascii` -1), so the spec's probe character cannot be built that way. A surrogate pair built as `$Char(55357, 56832)` has `$Length` 2, and after `%ToJSON`/`%FromJSON` it is still 2 (first unit 55357); a JSON text with the escaped pair `\ud83d\ude00` also reads as 2 characters. Per the rule (2 = the guard is built): the surrogate guard and row 7 are built, and row 7 builds the pair as `$Char(55357, 56832)`.
+- Item 3: `%ValidateObject` of a DiagnosisPayload (partner_outage, valid otherwise) with one 129-character Evidence element inserted directly: top code 7201, param 2 is 128, and the embedded status is #5802 with param 1 `OcuTalon.Watch.Msg.DiagnosisPayload:Evidence(1)`, as expected.
+
+Runs (warm, one class per call), after the edits and again after the review patches: `OcuTalon.Test.Watch.Payload`, `OcuTalon.Test.Eval.Capture`, `OcuTalon.Test.Bridge.ReplyCheck`, `OcuTalon.Test.Bridge.Decide`, `OcuTalon.Test.Watch.Diagnose`, `OcuTalon.Test.Agent.RememberDecision` and `OcuTalon.Test.Agent.Instructions` passed; `OcuTalon.Test.Fix.Validation` and `OcuTalon.Test.Bridge.CodeRules` passed after the edits. Fresh (tag e0dw1421r2f, `ci/iris.sh shard lane-a@Eval`): passed, 24 classes, 316 s; torn down. `bash docker/tests/test-eval-set.sh`, split with `EVAL_SET_ONLY` into six calls that together name every rule (the `capture` rule alone in a call of its own): all rules passed. `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-class-rules.sh`: all rules passed (also after the patches). The spine lint reports only its baseline findings (the spine is not changed). No added line of any src file holds a non-ASCII character or an absolute local path. Every `ci/` and `eval/` command went through the lane-C wrapper; the warm and fresh stacks are down.
+
+Test changes beyond the spec's list: `Test.Eval.Capture` `TestLinesHoldNoReplyText` pins the count line "CHK|decisions|33|1|32|33|34" (it follows the seed counts); `TestEvidenceCut` has two rows more than the matrix (row 3 with an earlier space before the space at 128, row 4 with a boundary after two spaces) so that the boundary range and the trailing-white-space strip can be killed; `TestEvidenceCutRecorded` also asserts that a new payload has no count (kills an `InitialExpression`).
+
+Mutations (each applied to the one file, the class run red, the file restored byte for byte, `cmp` identical, the class green again on the same warm stack; `git diff --stat` unchanged after each):
+- mutation: threshold `> 128` made `> 127` (cut applied to a 128 element) -> Test.Watch.Payload `TestEvidenceCut` row 1 (element and EvidenceCut) red
+- mutation: threshold `> 128` made `> 129` -> `TestEvidenceCut` rows 2, 3 (both) and 8 red (refused, #9406 on evidence)
+- mutation: threshold `> 128` made `> 299` (300-character texts cut only) -> `TestEvidenceCut` rows 2, 3, 6, 7, 8 and `TestEvidenceCutRecorded` red
+- mutation: the cut call removed from `%JSONImport` (import as before) -> `TestEvidenceCut` rows 2-8, 10, 11, 14 and `TestEvidenceCutRecorded` red
+- mutation: the ellipsis outside the limit (hard cut of 128, then U+2026) -> `TestEvidenceCut` rows 2, 5, 6, 8, 11, 14 red (refused, 129 > 128)
+- mutation: the word boundary ignored (`" "` compared with `"~"`, always the hard cut) -> `TestEvidenceCut` row 4 (both: words, and after two spaces) red. Row 3 as the matrix words it (127 letters, no earlier space) gives the same text either way, so it is not red here
+- mutation: the boundary searched in 1..L-1 only -> `TestEvidenceCut` row 3 "a space at 128 after an earlier one" red (the matrix's row 3 alone cannot tell, see above)
+- mutation: the blank-head fallback removed (a head that starts with a space is kept blank) -> `TestEvidenceCut` row 6 red
+- mutation: trailing white space of the head not removed -> `TestEvidenceCut` row 4 "a boundary after two spaces" red
+- mutation: the surrogate guard removed (`If 0 Set head = ...`) -> `TestEvidenceCut` row 7 red
+- mutation: the cut applied to `reasons` too (a reason over 1000 cut to 1000) -> `TestEvidenceCut` row 9 (the reason of 1001: accepted, not refused) red
+- mutation: the cut dropping the elements after the 20th (`%Pop` while over 20) -> `TestEvidenceCut` row 10 and `TestPayloadRefused` "21 evidence references" red
+- mutation: the copy of a dynamic-object input removed (`input` itself is cut) -> `TestEvidenceCut` row 14 (the caller's object is not changed) red
+- mutation: `EvidenceCut` never set (`If 0 Set ..EvidenceCut = cut`) -> `TestEvidenceCut` rows 2-8, 11, 14 (EvidenceCut) and `TestEvidenceCutRecorded` red
+- mutation: `EvidenceCut` set to 1 per reply -> `TestEvidenceCut` row 8 (count and export) and `TestEvidenceCutRecorded` red
+- mutation: `EvidenceCut` given `[ InitialExpression = 0 ]` -> `TestEvidenceCutRecorded` ("a new payload has no count") and `TestEvidenceTooLongTag` red. The spec's "no key without a cut" is held by the import's reset to "", so the new-payload assertion is what catches it
+- mutation: the `evidenceCut` input guard removed (`If 0 Return ...`) -> `TestEvidenceCut` row 13 red
+- mutation: a `Ens.Util.Log` LogInfo of the count added to `%JSONImport` -> Test.Eval.Capture `TestRecheckIsSilent` ("an evidence element cut") and `TestRecordsAndLogsNothing`, and Test.Watch.Payload `TestEvidenceCutRecorded` (no log row from the import) red
+- mutation: the same LogInfo with the element's text (in the cut loop) -> Test.Eval.Capture `TestRecheckIsSilent` and `TestRecordsAndLogsNothing`, and Test.Watch.Payload `TestEvidenceCutRecorded` (the marker and the import rows) red
+- mutation: `LengthTag` returns "" -> `TestEvidenceTooLongTag` red (the length form with numbers; the 128 element after the filter)
+- mutation: the `-too-long` suffix test removed from `LengthTag` -> `TestEvidenceTooLongTag`, `TestEvidenceCut` row 9 and `TestRefusalTrace` red (the first pair of the field wins: "rule evidence-over-max", "rule reasons-blank")
+- mutation: the field test removed from `LengthTag` -> `TestEvidenceCut` row 9, `TestEvidenceTooLongTag` (elementAtFault) and `TestRefusalTrace` red (ElementAtFault shown as evidence-too-long)
+- mutation: `evidence-too-long:evidence` removed from `REFUSALRULES` -> `TestEvidenceTooLongTag` and `TestRuleTags` (23) red
+- mutation: a pair `reasons-too-long:reasonz` added to DiagnosisPayload's `REFUSALRULES` -> `TestEveryRuleTagged` (the field is no JSON name, no numeric MAXLEN) and `TestRuleTags` (24) red
+- mutation: `RuleOf` back to the #5001 prefix only -> Test.Eval.Capture `TestRuleNames` red
+- mutation: a reply value after "rule" (the #7201 length form quotes `value` instead of the tag) -> `TestEvidenceTooLongTag` red
+- mutation (review patch): `, replyClass` dropped from the `RefusalCheck` call of `RefusalPart` -> `TestEvidenceCut` row 12, a number of 129 digits ("the refusal is ERROR #7201 rule evidence-too-long") red
+- mutation (review patch): the `%GetTypeOf(i) = "string"` test removed from the cut condition -> `TestEvidenceCut` row 12, a number of 129 digits (accepted instead of refused) red
+  Both were restored byte for byte (`cmp` identical) and the class was green again on the same warm stack.
+
+**Shared surfaces:** the reply-check warning text (pinned in `Test.Watch.Payload`, `Test.Bridge.ReplyCheck`, `Test.Agent.RememberDecision`, `Test.Watch.Diagnose`), the capture harness's rule names (pinned in `Test.Eval.Capture` and rule `capture`), and the stored diagnosis Payload (read by IncidentManager, Eval.Sink and Watch.Summary). Run here: Payload, Capture, ReplyCheck (warm, green); `Test.Agent.RememberDecision`, `Test.Watch.Diagnose` and the `capture` rule of `test-eval-set.sh` are not run here.
 
 **Size:** medium. Product: DiagnosisPayload (+45 lines: override, `Cut`, property, parameter, doc), Decide (+20: `LengthTag`, one branch, two call sites, doc), CaptureTool (+5). Tests: Payload (+130: three new tests, four changed pins), Capture (+30: one new test, three changed pins). One implementation pass, no shell change, no model run; the Planner's 5-run capture verifies.
 
@@ -345,7 +387,39 @@ Notes on the last two rows:
 
 Recommendation: if the Planner rules a server-side default, make it "absent" (not 0, 0.5 or 1). Apply it to diagnose always. For decide, apply it only together with the floor; otherwise keep decide's refusal and leave triage's missing confidence to the instruction change, which is model-facing and rides the post-cut Triage A/B. C0 saw the missing confidence only on decide (2 of 5), never on diagnose.
 
+## Review Triage Log
+
+### 2026-11-16 — Review pass
+- verdicts: 19 findings — high 0, medium 5, low 9, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: `TestNothingIsWrittenAnywhere` lost its refused-by-import row — the row's reply is now cut, so a refused Recheck is no longer pinned to write nothing; patched: a label "over the limit" with an elementAtFault of 129 is back beside "an evidence element cut"
+  - `[low]` `[patch]` Blind: the REFUSALRULES comment says "in rule order" but the 23rd pair is a length tag — patched: the comment now says the length tags follow the rules
+  - `[low]` `[reject]` Blind: a stream input is not rewound before the `##super` fallback — `CheckReply` passes a string; no caller passes a stream; the fix adds a branch for an unreachable input
+  - `[low]` `[reject]` Blind: the Size paragraph and the list of test changes lag the diff — the fix edits this build's spec
+  - `[low]` `[reject]` Blind: `epics.md` story 5.12's example of a length failure names an evidence element — another story's planning block (Rule 11), and the text is an example, not a requirement
+  - `[low]` `[reject]` Blind: only the space is a word boundary in `Cut` — by design (matrix rows 3 and 4 say "space"; `Watch.ErrorText.Summary` is the precedent); a model reference with newlines for spaces is cut hard, which is still valid
+  - `[false]` `[reject]` Blind: `RememberDecision`, `Diagnose` and the `capture` rule were not run — they were run afterwards and passed (Verification)
+  - `[low]` `[reject]` Edge: stream input after a failed parse (same as the third row)
+  - `[low]` `[reject]` Edge: a white-space-only over-long reference is accepted as spaces and U+2026 — a model reference of only white space is not realistic and the fix adds a branch; the reference was refused before only because of its length
+  - `[false]` `[reject]` Edge: a stored Payload that holds `evidenceCut` is refused if it is re-imported — no code re-imports a stored Payload (grep: `Decide.CheckReply` is the only caller of `%JSONImport`), and the field is output-only by the spec
+  - `[medium]` `[patch]` Edge: the refused row of `TestNothingIsWrittenAnywhere` was dropped (same root cause as the first row; patched with it)
+  - `[medium]` `[patch]` Verification-gap: the `RefusalCheck` call site of `RefusalPart` is pinned by no test — patched: `TestEvidenceCut` row 12 now sends a number of 129 digits and expects "ERROR #7201 rule evidence-too-long"; mutation recorded
+  - `[medium]` `[patch]` Verification-gap: the string-only guard of the cut is pinned by no test (row 12's numbers are short) — patched with the same row; mutation recorded
+  - `[medium]` `[patch]` Verification-gap: `TestNothingIsWrittenAnywhere` lost its refused row (same root cause as the first row; patched with it)
+  - `[low]` `[reject]` Verification-gap: no mutation line for the `%mappingName` pass-through, the non-JSON branches, the reset of `EvidenceCut` and two AC 7 sub-assertions — the reset is held by the new-payload assertion of `TestEvidenceCutRecorded` and the non-JSON branches by row 15; the rest is not met in everyday use and each fix is more than a correction
+  - `[false]` `[reject]` Verification-gap: the shared-surface classes were not run — they were run afterwards and passed
+  - `[false]` `[reject]` Verification-gap: `test-eval-set.sh` reads `DiagnosisPayload.cls` and was not run — it was run and passed (all rules)
+  - `[low]` `[reject]` Verification-gap: only the space is a word boundary (same as the sixth row)
+  - `[false]` `[reject]` Intent-alignment: the 5-run live capture is not part of the diff — the intent assigns it to the Planner; no defect in the change
+
 ## Auto Run Result
 
-Status: not run (ready-for-dev; awaiting the spec gate)
+Status: done
 Blocking condition: none
+
+- Summary: `DiagnosisPayload.%JSONImport` cuts an evidence element over 128 characters at the last word boundary (ending in U+2026, inside the 128) and counts the cuts in the output-only `EvidenceCut`, with nothing logged; a reply naming `evidenceCut` is refused as before. `REFUSALRULES` gains `evidence-too-long:evidence`; Decide shows "ERROR #7201 rule evidence-too-long" through `RefusalPart` and `LengthTag`; the capture harness's `RuleOf` takes any "ERROR #<code> rule <tag>" and `RuleOf`/`FieldOf` are public `[ Internal ]`. C5 is a report only; nothing is built for confidence.
+- Files: `src/ocutalon/cls/OcuTalon/Watch/Msg/DiagnosisPayload.cls` (override, `Cut`, `EvidenceCut`, `EVIDENCEMAX`, the pair, docs); `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (`RefusalPart`, `LengthTag`, call sites, doc); `src/ocutalon/cls/OcuTalon/Test/Eval/CaptureTool.cls` (`RuleOf`, `FieldOf`); `src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls` and `src/ocutalon/cls/OcuTalon/Test/Eval/Capture.cls` (new tests and the changed pins); this spec.
+- Review: 19 findings (high 0, medium 5, low 9, false 5); patches applied: the refused row of `TestNothingIsWrittenAnywhere` restored, the REFUSALRULES comment corrected, and a 129-digit number row in `TestEvidenceCut` (pins the `RefusalCheck` call site and the string-only guard); nothing deferred; every rejected finding has its reason in the triage log.
+- Follow-up review recommendation: false (per the run's ruling, true only if a high was patched; none was).
+- Verification: see `## Verification` (Task 0, 28 mutations, warm classes, the fresh `lane-a@Eval` shard, the eval-set script, boundaries, class rules, lint baseline).
+- Residual risks: the Planner's 5-run capture is the live check that the 3 of 5 `orders-target-to-review` fallbacks become diagnoses; a cut evidence line shows in the closed-incident summary ("Evidence: ..." ending in U+2026) as Veto item 1 says; only the space is a word boundary.

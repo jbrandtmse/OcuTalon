@@ -5,13 +5,15 @@ Include Ensemble
 /// them only (its refs), and remove every row, header, file and folder they made (OnAfterOneTest). They need the production's runner items and their ReplyClass settings, so they run on a stack, a
 /// warm one included, and no model is called.
 ///   - TestOneReplyPerRule (AC 5): one diagnose reply for each of the 22 rules of the reply class and its parent, a triage reply with no confidence, a reply that passes, a reply that holds no text, a
-///     reply with an unknown field, a reply that is not JSON, an over-long evidence element and a mistyped reasons (import refusals, whose field is the JSON name of the compiled property),
-///     a reply that is valid until the filter blanks its cause, one with no reason left after the filter, a cut_off fallback whose reply would fail the check, a decision with no reply and a second attempt on DiagnosisAgentRetry give the summary's counts (each rule once, confidence-missing, cause-blank and "passes the check" twice) with the field of each rule,
+///     reply with an unknown field, a reply that is not JSON, an over-long elementAtFault and a mistyped reasons (import refusals, whose field is the JSON name of the compiled property), a reply with an
+///     over-long evidence element (cut by the import, so it passes the check),
+///     a reply that is valid until the filter blanks its cause, one with no reason left after the filter, a cut_off fallback whose reply would fail the check, a decision with no reply and a second attempt on DiagnosisAgentRetry give the summary's counts (each rule once, confidence-missing, cause-blank twice, "passes the check" three times) with the field of each rule,
 ///     one file for each reply (and summary.json), and each file holds its text, attempt, runner, stage, rule and field;
 ///   - TestLinesHoldNoReplyText (AC 6): each seeded reply carries a distinct marker, and the CHK lines hold no marker and no 10-character part of one, while the files hold each;
 ///   - TestRecordsAndLogsNothing (AC 7): Run leaves the event log rows of its job, the Decision and Usage rows and the bridge's Ens message headers as they were, and the source of the tool names no logging, no AI call, no send, no
 ///     Conclude and no runner item;
-///   - TestRecheckIsSilent (DW-1421): Decide.Recheck, for a refused reply, a usable one, one that the filter leaves with no reason and one that the filter makes invalid, changes none of those counts;
+///   - TestRecheckIsSilent (DW-1421): Decide.Recheck, for a refused reply, a usable one, one whose evidence elements are cut, one that the filter leaves with no reason and one that the filter makes invalid, changes none of those counts;
+///   - TestRuleNames (DW-1421 C1): RuleOf and FieldOf give the rule and the field of a part, the form "ERROR #<code> rule <tag>" included;
 ///   - TestNothingIsWrittenAnywhere (DW-1421): Run and Recheck add or remove no row of any persistent table of the product and no non-OcuTalon message header (an alert), and write no audit entry;
 ///   - TestAttemptsAreNumberedByRequest (DW-1421): the attempts of a decision are numbered by their request headers, whether or not each has an answer in the store, and not by the order of the answers;
 ///   - TestHostileRepliesStayOffStdout (DW-1421): replies, a case name and a fallback reason that carry line ends, quotes, bars, a fake CHK line, non-ASCII characters and a rule name never put anything but the known CHK lines on stdout, and the files hold each reply byte for byte;
@@ -247,14 +249,22 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set ref = ..SeedDecision("diagnose", "timer")
 	Set expected(ref, 0) = ""
 	Set count("no reply") = 1
-	// An evidence element over the limit: an import-type refusal, whose field is the JSON name of the compiled property that the part names (element 2, after the pack's own).
+	// An elementAtFault over the limit: an import-type refusal, whose field is the JSON name of the compiled property that the part names.
 	Set marker = ..Marker()
 	Set long = $ClassMethod(..#PAYLOAD, "Usable")
-	Do long.evidence.%Push($Extract(marker_$Translate($Justify("", 129), " ", "e"), 1, 129))
+	Set long.elementAtFault = $Extract(marker_$Translate($Justify("", 129), " ", "e"), 1, 129)
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, long.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(long.%ToJSON(), marker, ..#DIAGNOSIS, "Evidence element 2: 129 > 128", "evidence", "check")
-	Set count("Evidence element 2: 129 > 128") = 1
+	Set expected(ref, 1) = $ListBuild(long.%ToJSON(), marker, ..#DIAGNOSIS, "ElementAtFault: 129 > 128", "elementAtFault", "check")
+	Set count("ElementAtFault: 129 > 128") = 1
+	// An evidence element over the limit: cut by the import, so the reply passes the check now (element 2, after the pack's own).
+	Set marker = ..Marker()
+	Set cutReply = $ClassMethod(..#PAYLOAD, "Usable")
+	Do cutReply.evidence.%Push($Extract(marker_$Translate($Justify("", 129), " ", "e"), 1, 129))
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, cutReply.%ToJSON())
+	Set expected(ref, 1) = $ListBuild(cutReply.%ToJSON(), marker, ..#DIAGNOSIS, "passes the check", "", "")
+	Set count("passes the check") = $Get(count("passes the check")) + 1
 	// A wrongly typed reasons: an import error that names the property, with no length.
 	Set marker = ..Marker()
 	Set typed = $ClassMethod(..#PAYLOAD, "Usable")
@@ -317,8 +327,8 @@ Method TestOneReplyPerRule()
 	Do ..SeedAll(.expected, .count)
 	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
 	Do $$$AssertStatusOK(sc, "the capture runs")
-	Do $$$AssertEquals(summary.decisions_"|"_summary.decide_"|"_summary.diagnose_"|"_summary.replies_"|"_summary.noReply, "32|1|31|32|1", "32 decisions (1 decide, 31 diagnose), 32 replies and one decision with no reply")
-	Do $$$AssertEquals(summary.reasons.%Get("invalid")_"|"_summary.reasons.%Get("timer")_"|"_summary.reasons.%Get("cut_off"), "30|1|1", "the fallback reasons are counted")
+	Do $$$AssertEquals(summary.decisions_"|"_summary.decide_"|"_summary.diagnose_"|"_summary.replies_"|"_summary.noReply, "33|1|32|33|1", "33 decisions (1 decide, 32 diagnose), 33 replies and one decision with no reply")
+	Do $$$AssertEquals(summary.reasons.%Get("invalid")_"|"_summary.reasons.%Get("timer")_"|"_summary.reasons.%Get("cut_off"), "31|1|1", "the fallback reasons are counted")
 	Set found = ""
 	Set iterator = summary.rules.%GetIterator()
 	While iterator.%GetNext(, .entry) {
@@ -343,8 +353,8 @@ Method TestOneReplyPerRule()
 	}
 	Do $$$AssertEquals($ListToString(cases, ";"), "zz-capture-case/cause-blank/1;zz-capture-case/outcome-not-act/1", "the case of the second-attempt decision is counted for each of its rules")
 	Set names = ..Files(..Folder)
-	Do $$$AssertEquals($ListLength(names), 33, "33 files: one for each reply and summary.json")
-	Do $$$AssertEquals(summary.files, 33, "and the summary says so")
+	Do $$$AssertEquals($ListLength(names), 34, "34 files: one for each reply and summary.json")
+	Do $$$AssertEquals(summary.files, 34, "and the summary says so")
 	Set ref = ""
 	For {
 		Set ref = $Order(expected(ref))
@@ -369,7 +379,7 @@ Method TestOneReplyPerRule()
 	}
 	Do $$$AssertTrue($ListFind(names, "summary.json") > 0, "summary.json is written")
 	Set written = {}.%FromJSON(..FileText(..Folder_"summary.json"))
-	Do $$$AssertEquals(written.files_"|"_written.replies_"|"_written.decisions, "33|32|32", "and it holds the counts of the folder, itself among its files")
+	Do $$$AssertEquals(written.files_"|"_written.replies_"|"_written.decisions, "34|33|33", "and it holds the counts of the folder, itself among its files")
 	Set stream = ##class(%Stream.FileCharacter).%New()
 	Set stream.Filename = ..Folder_"zz-notes.json"
 	Do stream.Write("{}")
@@ -379,6 +389,19 @@ Method TestOneReplyPerRule()
 	Set names = ..Files(..Folder)
 	Do $$$AssertEquals($ListLength(names), 3, "it replaces the files of the first run (its one reply and summary.json are left) and keeps the file of another name")
 	Do $$$AssertTrue($ListFind(names, "zz-notes.json") > 0, "the file of another name is kept")
+}
+
+/// DW-1421 C1 (AC 8): RuleOf and FieldOf of the parts that a refusal gives.
+Method TestRuleNames()
+{
+	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2")
+	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2")
+	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "")
+	For i = 1:1:$ListLength(parts) {
+		Set rule = $ClassMethod(..#TOOL, "RuleOf", $List(parts, i))
+		Do $$$AssertEquals(rule, $List(rules, i), "the rule of "_$List(parts, i))
+		Do $$$AssertEquals($ClassMethod(..#TOOL, "FieldOf", $List(parts, i), rule, ..#CLASS), $List(fields, i), "and its field is "_$Select($List(fields, i) = "": "none", 1: $List(fields, i)))
+	}
 }
 
 Method TestNoFallbackWritesNoFile()
@@ -429,7 +452,7 @@ Method TestLinesHoldNoReplyText()
 	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
 	Do $$$AssertStatusOK(sc, "the capture runs")
 	Set lines = $ClassMethod(..#TOOL, "Lines", summary)
-	Do $$$AssertTrue(lines [ "CHK|decisions|32|1|31|32|33", "the lines hold the counts")
+	Do $$$AssertTrue(lines [ "CHK|decisions|33|1|32|33|34", "the lines hold the counts")
 	Set files = ""
 	Set names = ..Files(..Folder)
 	Set position = 0
@@ -527,7 +550,11 @@ Method TestRecheckIsSilent()
 {
 	Set request = ..NewRequest("diagnose", "")
 	Set long = $ClassMethod(..#PAYLOAD, "Usable")
-	Do long.evidence.%Push($Translate($Justify("", 129), " ", "e"))
+	Set long.elementAtFault = $Translate($Justify("", 129), " ", "e")
+	Set cut = $ClassMethod(..#PAYLOAD, "Usable")
+	Do cut.evidence.%Push($Translate($Justify("", 129), " ", "e"))
+	Do cut.evidence.%Push("h3")
+	Do cut.evidence.%Push($Translate($Justify("", 200), " ", "e"))
 	Set emptied = $ClassMethod(..#PAYLOAD, "Usable")
 	Do emptied.reasons.%Set(0, "No issues.")
 	Set blanked = $ClassMethod(..#PAYLOAD, "Usable")
@@ -535,10 +562,10 @@ Method TestRecheckIsSilent()
 	Set usable = $ClassMethod(..#PAYLOAD, "Usable")
 	Set odd = $ClassMethod(..#PAYLOAD, "Usable")
 	Do odd.%Set("zzextra", 1)
-	For label = "over the limit", "no reason left", "invalid after the filter", "an unknown field", "a usable reply" {
-		Set reply = $Case(label, "over the limit": long, "no reason left": emptied, "invalid after the filter": blanked, "an unknown field": odd, : usable)
+	For label = "over the limit", "an evidence element cut", "no reason left", "invalid after the filter", "an unknown field", "a usable reply" {
+		Set reply = $Case(label, "over the limit": long, "an evidence element cut": cut, "no reason left": emptied, "invalid after the filter": blanked, "an unknown field": odd, : usable)
 		Set valid = $ClassMethod(..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard", .problem)
-		Do $$$AssertEquals(valid, $Case(label, "a usable reply": 1, : 0), label_": the verdict")
+		Do $$$AssertEquals(valid, $Case(label, "a usable reply": 1, "an evidence element cut": 1, : 0), label_": the verdict")
 		Do $$$AssertEquals($Select(valid: problem = "", 1: problem '= ""), 1, label_": and the problem")
 		Do $$$AssertEquals(..Writes("Snap", ..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard"), "", label_": no event is logged, no Decision or Usage row is saved and no message is sent")
 	}
@@ -784,13 +811,15 @@ Method TestNothingIsWrittenAnywhere()
 	Set request = ..NewRequest("diagnose", "")
 	Set long = $ClassMethod(..#PAYLOAD, "Usable")
 	Do long.evidence.%Push($Translate($Justify("", 129), " ", "e"))
+	Set refused = $ClassMethod(..#PAYLOAD, "Usable")
+	Set refused.elementAtFault = $Translate($Justify("", 129), " ", "e")
 	Set emptied = $ClassMethod(..#PAYLOAD, "Usable")
 	Do emptied.reasons.%Set(0, "No issues.")
 	Set blanked = $ClassMethod(..#PAYLOAD, "Usable")
 	Set blanked.cause = "No problems."
 	Set usable = $ClassMethod(..#PAYLOAD, "Usable")
-	For label = "over the limit", "no reason left", "invalid after the filter", "a usable reply" {
-		Set reply = $Case(label, "over the limit": long, "no reason left": emptied, "invalid after the filter": blanked, : usable)
+	For label = "over the limit", "an evidence element cut", "no reason left", "invalid after the filter", "a usable reply" {
+		Set reply = $Case(label, "over the limit": refused, "an evidence element cut": long, "no reason left": emptied, "invalid after the filter": blanked, : usable)
 		Do $$$AssertEquals(..Writes("Rows", ..#DECIDE, "Recheck", request, reply.%ToJSON(), ..#CLASS, "OcuTalon.Checks.ReplyGuard"), "", "Recheck of "_label_": no table of the product has a row more or fewer, and no header of another body is made")
 		Do $$$AssertEquals(..AuditCount(mark), 0, "Recheck of "_label_": no audit entry is written")
 	}
