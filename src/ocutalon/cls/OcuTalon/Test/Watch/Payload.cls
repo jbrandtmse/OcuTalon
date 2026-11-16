@@ -28,7 +28,7 @@
 ///     unchanged; each row of the cut (the limit, a space at 128, no boundary, a blank head, a surrogate pair, several, the count cap, a reference that is not a string, a reply that names evidenceCut, a dynamic
 ///     object as input, text that is not JSON) is pinned, and no other field is cut;
 ///   - TestEvidenceCutRecorded (DW-1421 C2'): Decide.Conclude of a reply with cut references gives no fallback and a payload whose evidenceCut is the number of cuts, and no text of a reference and no log row of the
-///     import is left anywhere; with no cut, the payload has no evidenceCut;
+///     import is left anywhere, and the conclusion writes no event log or trace row of its job; with no cut, the payload has no evidenceCut;
 ///   - TestEvidenceTooLongTag (DW-1421 C1): an Evidence reference over 128 characters that is still there at validation (a filter that lengthens one) is "ERROR #7201 rule evidence-too-long", with no number;
 ///   - TestOtherFallbacksLogNothing (row Other fallbacks): a cut_off and a refusal whose text fails the check, and a turn that the filter empties (invalid with no check error),
 ///     are fallbacks of their own reason and log no warning of the reply check (Story 5.12, QA);
@@ -691,6 +691,10 @@ Method TestEvidenceCutRecorded()
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND (Text [ ? OR Text [ ? OR SourceMethod = '%JSONImport')", mark, markerA, markerB)
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 0, "no event log row holds a marker or comes from the import")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Job = ?", mark, $Job)
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "and the conclusion writes no event log or trace row at all: the count is in the payload only")
+	Do $$$AssertEquals(($Length(row.Payload, "evidenceCut") - 1)_"|"_(row.Reasons [ "evidenceCut")_"|"_(response.Reasons [ "evidenceCut"), "1|0|0", "the count is named once, in the payload, and in no reason")
 	Set request = ..NewRequest()
 	Do ..Conclude(request, ..Outage().%ToJSON(), .response, .sc)
 	Set row = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(request.ItemId, "diagnose")

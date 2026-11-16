@@ -423,3 +423,27 @@ Blocking condition: none
 - Follow-up review recommendation: false (per the run's ruling, true only if a high was patched; none was).
 - Verification: see `## Verification` (Task 0, 28 mutations, warm classes, the fresh `lane-a@Eval` shard, the eval-set script, boundaries, class rules, lint baseline).
 - Residual risks: the Planner's 5-run capture is the live check that the 3 of 5 `orders-target-to-review` fallbacks become diagnoses; a cut evidence line shows in the closed-incident summary ("Evidence: ..." ending in U+2026) as Veto item 1 says; only the space is a word boundary.
+
+## QA Record (lane C, 2026-11-16; stage qa round 2, warm tag e0dw1421q2w)
+
+No model, no key, no `.env` read; every `ci/` command went through the lane-C wrapper. Product code is unchanged; only test files and this record changed.
+
+**Checked and already pinned (no test added).**
+- The cut against the I/O matrix: 128 (row 1), 129 (row 2), a space at 128 (row 3, two forms), 300 of words (row 4, two forms), no boundary (row 5), a blank head (row 6), a surrogate pair at 127-128 (row 7), several (row 8), the other fields (row 9), 21 against 20 elements (rows 10, 11), non-strings including a 129-digit number (row 12), the model's `evidenceCut` (row 13), a dynamic object (row 14) and text that is not JSON (row 15), all in `Test.Watch.Payload` `TestEvidenceCut` with the implement stage's mutations.
+- A reply naming `evidenceCut` is refused with "ERROR #9404: an unexpected property" before any cut (row 13; the guard mutation is recorded). `null` as its value is also refused (the guard tests "unassigned").
+- The cut through `Recheck` writes nothing (`Test.Eval.Capture` `TestRecheckIsSilent`, `TestNothingIsWrittenAnywhere`) and no marker reaches the capture's CHK lines (`TestLinesHoldNoReplyText`, the cut seed of `SeedAll`).
+- The catalog renders a `summary.evidence` value ending in U+2026 with no full stop on the three channels (`Test.Msg.Catalog` `TestSummaryFixFullStop`).
+
+**Gaps closed.**
+1. The closed-incident summary had no test that carried a cut reference from the payload to the rendered line. Each part was pinned on its own: the export, `Watch.Summary.Evidence`, and the catalog with a literal value. New `Test.Watch.Summary` `TestCutEvidence` covers the whole path. A partner_outage reply with "abcdefghi " x 30 goes through `DiagnosisPayload.%JSONImport` and `%JSONExportToString`, and the export is stored as the diagnosis Decision's Payload; the incident is dismissed. The stored slot is the cut (119 characters + U+2026). On the web, the phone and Telegram the line is exactly "Evidence: <cut>", and no full stop follows the cut anywhere.
+   - mutation: `Msg/Catalog.cls` `SlotText` without `|| (last = $Char(8230))` -> Test.Watch.Summary TestCutEvidence red (web, phone, telegram: the line and the no-full-stop assertions).
+2. The count could be logged by the conclusion and no test would see it. `TestEvidenceCutRecorded` looked only for log rows that held a marker or came from `%JSONImport`, and `Recheck`'s silence pins do not run `Conclude`. `TestEvidenceCutRecorded` now also asserts that the conclusion of the cut reply writes no `Ens_Util.Log` row of the test's job (event log or trace), and that the Decision row names `evidenceCut` once, in the Payload, and in neither the row's nor the response's Reasons.
+   - mutation: `Decide.Conclude` logs `"evidence references cut: "_<the payload's evidenceCut>` through `Ens.Util.Log.LogInfo` (source `Conclude`) after setting `row.Payload` -> Test.Watch.Payload TestEvidenceCutRecorded red (the new assertion only; every pre-existing assertion stayed green).
+3. The capture harness's count of `evidence-too-long` was pinned only through `RuleOf`/`FieldOf` called directly (`TestRuleNames`). Nothing pinned it through `Run`: the Recheck problem, `Parse`, the summary's rule counts and the reply's file. New `Test.Eval.Capture` `TestLengthTagCounted` seeds one invalid diagnose decision whose reply's second evidence element is a JSON number of 129 digits. The cut leaves it, since it is not a string, and the import refuses it for its length. `Run` gives exactly one rule entry, "evidence-too-long", field `evidence`, count 1. The file holds stage `check`, that rule and field, and the problem "The reply check failed: ... accepts: ERROR #7201 rule evidence-too-long". The CHK lines hold neither the marker nor the digits, and they name the rule.
+   - mutation: `CaptureTool.RuleOf` back to the #5001 prefix only -> Test.Eval.Capture TestLengthTagCounted (the summary and the file) and TestRuleNames red.
+
+Each mutation was applied to one file and run red on the warm stack. The file was then restored with `cp` from a copy taken before, and `cmp` showed it identical. `git status --short` and `git diff --stat` were the same as before each mutation.
+
+**Runs (warm, final QA tree).** `OcuTalon.Test.Watch.Payload`, `OcuTalon.Test.Watch.Summary`, `OcuTalon.Test.Eval.Capture`, `OcuTalon.Test.Bridge.ReplyCheck` and `OcuTalon.Test.Bridge.Decide` passed. No added line holds a non-ASCII character or an absolute local path.
+
+**Decision.** The record is kept here, as round 1's QA did, and not in `tests/test-summary.md`.

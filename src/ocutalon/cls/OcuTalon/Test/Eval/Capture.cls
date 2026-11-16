@@ -14,6 +14,8 @@ Include Ensemble
 ///     Conclude and no runner item;
 ///   - TestRecheckIsSilent (DW-1421): Decide.Recheck, for a refused reply, a usable one, one whose evidence elements are cut, one that the filter leaves with no reason and one that the filter makes invalid, changes none of those counts;
 ///   - TestRuleNames (DW-1421 C1): RuleOf and FieldOf give the rule and the field of a part, the form "ERROR #<code> rule <tag>" included;
+///   - TestLengthTagCounted (DW-1421 C1, QA): Run counts a reply refused with "ERROR #7201 rule evidence-too-long" under that rule and the field evidence, in the summary and the
+///     reply's file, with no reply text in the CHK lines;
 ///   - TestNothingIsWrittenAnywhere (DW-1421): Run and Recheck add or remove no row of any persistent table of the product and no non-OcuTalon message header (an alert), and write no audit entry;
 ///   - TestAttemptsAreNumberedByRequest (DW-1421): the attempts of a decision are numbered by their request headers, whether or not each has an answer in the store, and not by the order of the answers;
 ///   - TestHostileRepliesStayOffStdout (DW-1421): replies, a case name and a fallback reason that carry line ends, quotes, bars, a fake CHK line, non-ASCII characters and a rule name never put anything but the known CHK lines on stdout, and the files hold each reply byte for byte;
@@ -402,6 +404,42 @@ Method TestRuleNames()
 		Do $$$AssertEquals(rule, $List(rules, i), "the rule of "_$List(parts, i))
 		Do $$$AssertEquals($ClassMethod(..#TOOL, "FieldOf", $List(parts, i), rule, ..#CLASS), $List(fields, i), "and its field is "_$Select($List(fields, i) = "": "none", 1: $List(fields, i)))
 	}
+}
+
+/// DW-1421 C1 (QA): Run counts a reply whose Evidence refusal is the length tag under the rule evidence-too-long and the field evidence, in the summary and in the reply's file,
+/// and its CHK lines hold no text of the reply. The reply's second evidence element is a JSON number of 129 digits, which the cut leaves (it is not a string) and the import
+/// refuses for its length.
+Method TestLengthTagCounted()
+{
+	Set marker = ..Marker()
+	Set digits = $Translate($Justify("", 129), " ", "7")
+	Set reply = $ClassMethod(..#PAYLOAD, "Usable")
+	Set reply.evidence = [(marker), "x"]
+	Set text = $Replace(reply.%ToJSON(), """"_marker_""",""x""", """"_marker_""","_digits)
+	Do $$$AssertTrue(text [ digits, "the reply holds the number of 129 digits")
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, text)
+	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
+	Do $$$AssertStatusOK(sc, "the capture runs")
+	Set found = ""
+	Set iterator = summary.rules.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set found = found_$Select(found = "": "", 1: ";")_entry.rule_"|"_entry.field_"|"_entry.count
+	}
+	Do $$$AssertEquals(found, "evidence-too-long|evidence|1", "the summary counts the reply once under evidence-too-long, field evidence")
+	Set names = ..Files(..Folder)
+	Set name = ""
+	Set position = 0
+	While $ListNext(names, position, one) {
+		If one '= "summary.json" Set name = one
+	}
+	Do $$$AssertTrue(name '= "", "the reply has its file")
+	If name = "" Quit
+	Set file = {}.%FromJSON(..FileText(..Folder_name))
+	Do $$$AssertEquals(file.stage_"|"_file.rule_"|"_file.field_"|"_file.problem, "check|evidence-too-long|evidence|The reply check failed: the reply is not one JSON object that "_..#CLASS_" accepts: ERROR #7201 rule evidence-too-long", "the file names the stage, the rule, the field and the problem")
+	Set lines = $ClassMethod(..#TOOL, "Lines", summary)
+	Do $$$AssertTrue((lines '[ marker) && (lines '[ $Extract(digits, 1, 10)), "the CHK lines hold no text of the reply")
+	Do $$$AssertTrue(lines [ "evidence-too-long", "and name the rule")
 }
 
 Method TestNoFallbackWritesNoFile()
