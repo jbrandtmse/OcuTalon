@@ -1458,6 +1458,26 @@ Method TestEmailSendThatFailsInsideEndsFailedOnce()
 	}
 }
 
+/// An approved email whose send throws after EmailOut's claim of the approval exists (the send began) ends failed with MESSAGEMAYHAVESENT, not MESSAGEFAILED.
+Method TestEmailSendThatFailsAfterTheClaimEndsMayHaveSent()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.CarryIs = "throw"
+	Set owner = ..Owner("emailclaim")
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..EmailRequest(owner)
+	Set claim = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(owner, "email", ##class(OcuTalon.Bridge.Ids).NewRef(), ref, "", "", "", "", "pending", .claim, ""), "the claim of the approval is written")
+	Do $$$AssertStatusOK(..SendOutcome(host, ref), "an approved outcome whose send throws is handled")
+	Do $$$AssertEquals(..Row(ref), "failed|failed|finished", "the request is closed failed")
+	Set run = ##class(OcuTalon.Data.FixRun).OfRequest(ref)
+	Do $$$AssertTrue($IsObject(run), "it has a FixRun")
+	If $IsObject(run) Do $$$AssertEquals(run.Reason, $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEMAYHAVESENT"), "the reason is Out's MESSAGEMAYHAVESENT, because the claim shows that the send began")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "SendEmail", $Parameter(..#PROBE, "LOGEMAIL")_ref)
+	If $IsObject(claim) Do ##class(OcuTalon.Data.Delivery).%DeleteId(claim.%Id())
+}
+
 Method TestEmailNeverSubmittedIsNotSent()
 {
 	Set sentence = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")

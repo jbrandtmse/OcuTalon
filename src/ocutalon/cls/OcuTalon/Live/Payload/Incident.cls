@@ -82,7 +82,8 @@ Property TraceTargets As OcuTalon.Live.Payload.Part.IncidentTraceTargets(%JSONFI
 ///     last two in the watched namespace; each is left out when its id is empty;
 ///   - requests: one {ref, state, result} for each Ref of the row's RequestRefs whose ApprovalRequest exists and names this incident; result is the stored
 ///     result of the request's run (Data.FixRun OfRequest: total, resent, completed, failedAgain, skipped, unreached (absent unless the resend stopped partway), interrupted and reason) once that run has ended
-///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended;
+///     (EndedAt set), and stays empty for a request with no run and for a run that has not ended; for a partner_warning to Settings contacts it also holds outcome (sent, maysent, notsent or kept), the one decision of
+///     Fix.Kind.PartnerWarning SendOutcome that the card's bands follow (Story 23.15);
 ///   - page (Story 23.4): {state, pagedAt, acknowledgedAt, channel} from the incident's Page rows (Data.Page OfIncident), absent when it has none and on the online demo.
 /// A row without any of them gives a payload without the five fields.
 ClassMethod FromRow(row As OcuTalon.Data.Incident) As OcuTalon.Live.Payload.Incident
@@ -202,6 +203,7 @@ ClassMethod Details(payload As OcuTalon.Live.Payload.Incident, row As OcuTalon.D
 			Set part.Result.Interrupted = run.Interrupted
 			Set part.Result.Unreached = run.Unreached
 			Set part.Result.Reason = run.Reason
+			If request.FixKind = "partner_warning" Set part.Result.Outcome = ##class(OcuTalon.Fix.Kind.PartnerWarning).ResultOutcome(request, run, row.Production)
 		}
 		Do payload.Requests.Insert(part)
 	}

@@ -333,6 +333,7 @@ Method TestFromRowRequestResult()
 		If $IsObject(result) {
 			Do $$$AssertEquals(result.total_"|"_result.resent_"|"_result.completed_"|"_result.failedAgain_"|"_result.skipped_"|"_result.interrupted_"|"_result.reason, "50|48|45|3|2|1|the order date still wasn't accepted", "with its seven fields")
 			Do $$$AssertEquals(result.%GetTypeOf("total")_"|"_result.%GetTypeOf("interrupted")_"|"_result.%GetTypeOf("reason"), "number|number|string", "the counts are numbers")
+			Do $$$AssertEquals(result.%IsDefined("outcome"), 0, "and no outcome: only a partner warning's result has one (Story 23.15)")
 		}
 		Do $$$AssertEquals(object.requests.%Get(1).%IsDefined("result"), 0, "a request whose run has not ended has no result, whatever the run stores")
 		Do $$$AssertEquals(object.requests.%Get(2).%IsDefined("result"), 0, "and neither has a request that has no run of its own")
@@ -1662,7 +1663,8 @@ XData Contracts [ MimeType = application/json ]
    "Skipped": "%Integer(%JSONFIELDNAME=skipped)",
    "Interrupted": "%Integer(%JSONFIELDNAME=interrupted)",
    "Unreached": "%Integer(%JSONFIELDNAME=unreached)",
-   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)"
+   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)",
+   "Outcome": "%String(%JSONFIELDNAME=outcome,MAXLEN=16)"
   }
  },
  "OcuTalon.Live.Payload.Part.IncidentTraceTargets": {

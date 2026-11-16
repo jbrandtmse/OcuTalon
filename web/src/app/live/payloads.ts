@@ -111,6 +111,7 @@ export interface IncidentRequestResult {
   interrupted?: number;
   unreached?: number;
   reason?: string;
+  outcome?: string;
 }
 
 export interface IncidentTraceTargets {

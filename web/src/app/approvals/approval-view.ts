@@ -32,7 +32,7 @@
  *   "Nothing is sent unless you approve. It goes to the Simulated mailbox, not to a real inbox." (no note for a request that is not simulated: its recipients are real contacts, and the chat's request
  *   text says whether a mailbox is connected). Its result bands for a simulated request are the texts of APPROVAL_TEXTS: partnerSent, partnerSentSome,
  *   partnerKept and partnerNotSent; each names the Simulated mailbox or the draft, and none says that an email was sent. For a request that is not simulated (Story 23.13) they are the catalog's texts:
- *   fix.emailSent (`completed` equal to `total` and above 0), result.partnerSkipped (a done run with `skipped` above 0), the kept draft's, fix.emailNotSent for a reason that ends with a full stop (one of EmailOut's sentences) and the not-sent text for any other reason; a caller that cannot tell whether the request is
+ *   result.partnerMaySent (the result's `outcome` is maysent, the server's one decision, Story 23.15: the card never works that out from the reason), fix.emailSent (`completed` equal to `total` and above 0), result.partnerSkipped (a done run with `skipped` above 0), the kept draft's, fix.emailNotSent for a reason that ends with a full stop (one of EmailOut's sentences) and the not-sent text for any other reason; a caller that cannot tell whether the request is
  *   simulated passes null, and a band that says anything was sent is then not shown.
  * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
  *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
@@ -564,7 +564,7 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  *   partial, `triangle-alert`. A run still going or interrupted, and a result that lacks the item, production or reason its text names, has no band (nothing is claimed);
  * - a reroute (fixKind reroute; `item` of the request is the target) whose copies all completed is result.rerouted (count = `total`, to), success, `circle-check`, in
  *   place of result.allThrough; with failures or skips it has the bands above.
- * - a partner delay notice (fixKind partner_warning, Story 23.5): `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
+ * - a partner delay notice (fixKind partner_warning, Story 23.5): a result whose `outcome` is maysent (Story 23.15; only a Settings-contact notice has one) is result.partnerMaySent, partial, `triangle-alert`, whatever the reason; otherwise `completed` equal to `total` and above 0 is "Sent to the Simulated mailbox.", success, `circle-check`; `completed`
  *   above 0 but below `total` is "Sent to the Simulated mailbox for {completed} of {total} contacts.", partial; a failed request whose reason is the kind's NOTSETUP reason is
  *   "Approved and kept as a draft: email delivery isn't set up yet.", partial; any other reason is "Not sent: {reason}.", partial; a request still executing, and one with no
  *   reason to give, has no band. The key of each is its catalog key, but the text is the card's own (APPROVAL_TEXTS).
@@ -730,6 +730,8 @@ function partnerResultView(request: IncidentRequest, result: IncidentRequestResu
   let icon: ResultView['icon'] = 'triangle-alert';
   if (request.state === 'executing' || (simulated === null && completed > 0)) {
     return undefined;
+  } else if (result.outcome === 'maysent') {
+    return bandOf('result.partnerMaySent', {}, 'partial', 'triangle-alert', render);
   } else if (simulated === false && completed > 0 && completed >= total) {
     return bandOf('fix.emailSent', {}, 'success', 'circle-check', render);
   } else if (simulated === false && request.state === 'done' && (numberOf(result.skipped) ?? 0) > 0) {

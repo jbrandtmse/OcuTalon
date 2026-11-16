@@ -573,11 +573,17 @@ test('A13: a partner delay notice carries its notice and recipients over real HT
     const kept = await raise(page, user, rows, incident, requests, { fixKind: 'partner_warning', dryRun });
     const sentResult = { total: 1, resent: 0, completed: 1, failedAgain: 0, skipped: 0, interrupted: 0, reason: '' };
     const keptResult = { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: "email delivery isn't set up yet" };
+    // Story 23.15: a Settings contact's notice that may have been sent (the server's outcome maysent) reads the may-have-sent band, never a "Not sent" one.
+    const maySent = await raise(page, user, rows, incident, requests, { fixKind: 'partner_warning', dryRun: { ...dryRun, simulated: false } });
+    const maySentResult = { total: 1, resent: 0, completed: 0, failedAgain: 0, skipped: 0, interrupted: 0, reason: 'The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won\'t send it again.', outcome: 'maysent' };
     const finished = [
       { ref: request, state: 'done', fixKind: 'partner_warning', result: sentResult },
       { ref: kept, state: 'failed', fixKind: 'partner_warning', result: keptResult },
+      { ref: maySent, state: 'failed', fixKind: 'partner_warning', result: maySentResult },
     ];
     await applied(page, await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', requests: finished }));
+    expect(JSON.stringify(await (await http.get(STATE)).json()), 'the state carries the outcome of the request\'s result').toContain('"outcome":"maysent"');
+    await expect(requestCard(page, maySent).locator('[data-part="result"] .text'), 'the may-have-sent band is the catalog\'s text').toHaveText("The delay notice may have been sent. Check the mailbox's Sent folder before sending it again.", { timeout: CARD_MS });
     await expect(card.locator('[data-part="result"] .text'), 'the sent band names the Simulated mailbox').toHaveText('Sent to the Simulated mailbox.', { timeout: CARD_MS });
     await expect(requestCard(page, kept).locator('[data-part="result"] .text'), 'the kept band says that it is a draft').toHaveText("Approved and kept as a draft: email delivery isn't set up yet.", { timeout: CARD_MS });
   } finally {

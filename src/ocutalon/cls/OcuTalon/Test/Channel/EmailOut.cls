@@ -63,6 +63,9 @@ Include Ensemble
 ///     another owner session of the mailbox count, the rows of an earlier day and of other kinds do not; the count is taken against the rows already there;
 ///   - TestDigestLock: while another process holds the lock of the mailbox's digest emails nothing is sent;
 ///   - TestDigestNoPersonalDataInTheLog: after digests and failures the log holds no address, subject, text, key or server words;
+///   - TestNoDoubleSend (Story 23.15, Task 2): a failed send of an approval that may still have reached the server (a timeout, a connection lost during DATA) or an error after the message was handed
+///     over answers MESSAGEMAYHAVESENT and marks the claim maysent, as a keyed tool send does; a send that never reached the server answers MESSAGEUNREACHABLE with the claim marked failed; the claim shows
+///     whether a send began (Began);
 ///   - TestAccepted, TestQuitStageIsSent (DW-1422): a status whose errors are all about QUIT (Sender.Accepted) is a sent email on every path, with its Delivery row and its claim marked sent, while a QUIT error
 ///     after an earlier error is a failed send;
 ///   - TestSenderInit, TestSenderTransport, TestSenderTlsSettings, TestSenderNoConnection, TestClassify (ruling c, Sender): OnInit forces the identity check on and ContinueAfterBadSend off
@@ -822,22 +825,36 @@ Method TestNoDoubleSend()
 	Set thrown = ..Approval("zzemailoutap0052", ..#ADDRESS)
 	Set ^||OcuTalonEmailOutProbe("answer") = "throw"
 	Set three = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", thrown)
-	Do $$$AssertEquals(three.Ok_"|"_three.Outcome, "0|failed", "an error after the claim answers failed")
+	Do $$$AssertEquals(three.Ok_"|"_three.Outcome_"|"_three.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "an error after the message was handed over answers failed with MESSAGEMAYHAVESENT")
 	Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(thrown))
-	Do $$$AssertEquals(row.FallbackReason, "failed", "and marks the claim failed")
+	Do $$$AssertEquals(row.FallbackReason, "maysent", "and marks the claim maysent")
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set four = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", thrown)
-	Do $$$AssertEquals(four.Ok_"|"_four.Outcome, "0|failed", "the same approval again answers failed, never that the email was sent")
+	Do $$$AssertEquals(four.Ok_"|"_four.Outcome_"|"_four.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "the same approval again answers the same sentence, never that the email was sent")
+	// Story 23.15, Task 2: a failed send of an approval that may still have reached the server (a timeout, a connection lost during DATA) answers MESSAGEMAYHAVESENT, as a keyed tool send does,
+	// and marks its claim maysent, so that the same approval again says the same; a send that never reached the server (a connect or EHLO failure) still answers MESSAGEUNREACHABLE, claim failed.
 	For answer = "timeout", "dropped" {
 		Set mayHave = ..Approval($Case(answer, "timeout": "zzemailoutap0054", : "zzemailoutap0055"), ..#ADDRESS)
 		Set ^||OcuTalonEmailOutProbe("answer") = answer
 		Set six = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", mayHave)
 		Kill ^||OcuTalonEmailOutProbe("answer")
-		Do $$$AssertEquals(six.Ok_"|"_six.Outcome_"|"_six.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": a system send that may have reached the server keeps its class sentence")
+		Do $$$AssertEquals(six.Ok_"|"_six.Outcome_"|"_six.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), answer_": an approval send that may have reached the server answers MESSAGEMAYHAVESENT")
 		Set row = ##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(mayHave))
-		Do $$$AssertEquals(row.FallbackReason, "failed", answer_": and its claim is marked failed, not maysent")
+		Do $$$AssertEquals(row.FallbackReason, "maysent", answer_": and its claim is marked maysent")
+		Do $$$AssertEquals($ClassMethod(..#PROBE, "Began", mayHave), 1, answer_": and the claim shows that the send began")
+		Set calls = ..Delivered()
 		Set seven = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", mayHave)
-		Do $$$AssertEquals(seven.Ok_"|"_seven.Outcome_"|"_seven.Message, "0|failed|"_$Parameter("OcuTalon.Core.CommandsIn", "MESSAGEFAILED"), answer_": the same approval again answers failed")
+		Do $$$AssertEquals(seven.Ok_"|"_seven.Outcome_"|"_seven.Message_"|"_(..Delivered() - calls), "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT")_"|0", answer_": the same approval again answers the same and delivers nothing")
+	}
+	For answer = "unreachable", "lost" {
+		Set never = ..Approval($Case(answer, "unreachable": "zzemailoutap0056", : "zzemailoutap0057"), ..#ADDRESS)
+		Set ^||OcuTalonEmailOutProbe("answer") = answer
+		Set eight = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", never)
+		Kill ^||OcuTalonEmailOutProbe("answer")
+		Do $$$AssertEquals(eight.Ok_"|"_eight.Outcome_"|"_eight.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEUNREACHABLE"), answer_": a send that never reached the server answers MESSAGEUNREACHABLE")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..ClaimId(never)).FallbackReason_"|"_$ClassMethod(..#PROBE, "Began", never), "failed|0", answer_": its claim is marked failed and the send had not begun")
+		Set nine = ..Send("system", ..#OWNER, ..#ADDRESS, "fix", "text", never)
+		Do $$$AssertEquals(nine.Ok_"|"_nine.Outcome_"|"_nine.Message, "0|failed|"_$Parameter("OcuTalon.Core.CommandsIn", "MESSAGEFAILED"), answer_": the same approval again answers MESSAGEFAILED, which says that nothing was handed over")
 	}
 	Set pending = ..Approval("zzemailoutap0053", ..#ADDRESS)
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..#OWNER, "email", "zzemailoutpending", pending, "", "", "", "", "pending"), "the claim of a send that never finished (its job stopped during the send) is made")
@@ -895,12 +912,12 @@ Method TestToolKeySendsOnce()
 	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
 	Set ^||OcuTalonEmailOutProbe("answer") = "throw"
 	Set thrown = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-7")
-	Do $$$AssertEquals(thrown.Ok_"|"_thrown.Outcome_"|"_thrown.Message, "0|failed|"_failed, "an error after the claim answers failed")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, ..Hash("zzkey-7"))).FallbackReason, "failed", "and marks the claim failed")
+	Do $$$AssertEquals(thrown.Ok_"|"_thrown.Outcome_"|"_thrown.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "an error after the message was handed over answers MESSAGEMAYHAVESENT")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).%OpenId(..KeyRowId(..#OWNER, ..Hash("zzkey-7"))).FallbackReason, "maysent", "and marks the claim maysent")
 	Kill ^||OcuTalonEmailOutProbe("answer")
 	Set calls = ..Delivered()
 	Set repeated = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", "", "zzkey-7")
-	Do $$$AssertEquals(repeated.Ok_"|"_repeated.Outcome_"|"_repeated.Message, "0|failed|"_failed, "the same key again answers failed, never that the email was sent")
+	Do $$$AssertEquals(repeated.Ok_"|"_repeated.Outcome_"|"_repeated.Message, "0|failed|"_$Parameter(..#PROBE, "MESSAGEMAYHAVESENT"), "the same key again answers the same, never that the email was sent")
 	Do $$$AssertEquals(..Delivered(), calls, "and nothing is delivered")
 	Set approval = ..Approval("zzemailoutap0060", ..#ADDRESS)
 	Set viaTool = ..Send("tool", ..#OWNER, ..#ADDRESS, "one", "text", approval, "zzkey-8")

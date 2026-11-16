@@ -26,4 +26,7 @@ Property Unreached As %Integer(%JSONFIELDNAME = "unreached");
 /// Why the run ended early, when it did.
 Property Reason As %String(%JSONFIELDNAME = "reason", MAXLEN = 1000);
 
+/// What became of the notice of a Settings-contact partner warning (sent, maysent, notsent or kept), as the one decision Fix.Kind.PartnerWarning SendOutcome gives (Story 23.15); absent for any other request and for the simulated notice.
+Property Outcome As %String(%JSONFIELDNAME = "outcome", MAXLEN = 16);
+
 }

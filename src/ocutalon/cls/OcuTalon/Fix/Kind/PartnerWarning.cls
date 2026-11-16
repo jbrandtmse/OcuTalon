@@ -16,8 +16,13 @@
 ///     addresses stored in the row's dry run for the ids of to, for each id whose contact still is one of the production with exactly that address. Any other id is skipped, with the code removed
 ///     (the contact is gone, no longer lists the production, or the row holds no address for it) or changed (its address is not the approved one) and the reason NOSTART, and nothing ever goes to a
 ///     new address. It gives 0 for the fixture's production (a fictional contact is never mailed), for a row whose text is not the stored notice and for a to that is not the row's targets.
-///   - MayHaveSent says whether the reason of a failed send is an EmailOut sentence that does not say that the mail server never took the email (MAYHAVESENTSENTENCES), which the incident's
-///     timeline reads as "may have been sent" (DW-1416).
+///   - SendOutcome is the one decision of what became of an approved notice: sent, maysent, notsent or kept. The incident's timeline (Watch.Summary), the chat's result (Watch.Notice ResultKey) and the
+///     approval card (the request's result member outcome, Live.Payload.Incident) all take it from here, and none decides it again (Story 23.15). The run ended failed with the NOTSETUP reason: kept.
+///     Any recipient completed: sent. For a Settings contact (not simulated): a run that a restart cut short is maysent when EmailOut's claim shows that the send had begun (Channel.Email.Out Began)
+///     and notsent when it had not; a failed run is maysent when its reason is MESSAGEMAYHAVESENT (MayHaveSent), which EmailOut and the executor's wrappers answer for every failure that may have
+///     come after the message was handed over, and notsent for any other reason: MESSAGEUNREACHABLE (the server was never reached), MESSAGEFAILED (an error before the hand-over, or none that
+///     began a send), MESSAGEREFUSED, MESSAGENOTCONNECTED, MESSAGEREJECTED, MESSAGEREFUSEDLOGIN, MESSAGESIGNIN, MESSAGEUNAVAILABLE and the kind's own reasons. A simulated notice never is maysent.
+///   - MayHaveSent says whether the reason of a failed send is the EmailOut sentence that says that the email may have gone out (MAYHAVESENTSENTENCES).
 ///   - Recheck and Execute read each target against the source again. For the fixture's production a target passes only if the id still is a contact of the production at its position in to; else
 ///     it is skipped with a plain reason (RECHECK naming the contact, or NOSTART). Execute sends nothing: its result is {"deliveries": [{"id", "name", "address"}], "skipped": [{"id", "reason"}]},
 ///     and the executor delivers the approved text from the row, to the Simulated mailbox. A Settings contact is never delivered that way: every target is skipped with NOSTART, and the executor sends
@@ -70,10 +75,10 @@ Parameter KEYEMAILSUBJECT = "partner.emailSubject";
 
 Parameter OUTSENTENCES = "MESSAGEREFUSED,MESSAGENOTCONNECTED,MESSAGEREJECTED,MESSAGEUNREACHABLE,MESSAGEREFUSEDLOGIN,MESSAGESIGNIN,MESSAGEUNAVAILABLE,MESSAGEFAILED,MESSAGEMAYHAVESENT";
 
-/// The names of the Channel.Email.Out sentences that a failed send of an approved row gives without saying that the mail server never took the email (DW-1416): the claim of an approval is marked
-/// failed whatever the failure was, so a timeout or a lost connection during DATA reads MESSAGEUNREACHABLE, an error after the claim reads MESSAGEFAILED, and a repeat of a keyed send reads
-/// MESSAGEMAYHAVESENT. Every other OUTSENTENCES word means that nothing was handed to the server (refused before the send, refused login or sign-in, or rejected by the server).
-Parameter MAYHAVESENTSENTENCES = "MESSAGEMAYHAVESENT,MESSAGEUNREACHABLE,MESSAGEFAILED";
+/// The names of the Channel.Email.Out sentences (MESSAGE parameters, read with $Parameter) that say that the email may have gone out: MESSAGEMAYHAVESENT, which EmailOut answers for every claimed
+/// send that failed in a way that may have come after the server took the message (a timeout, a connection lost during DATA, an error after the hand-over) and the executor's wrappers answer when the
+/// approval's claim shows that the send had begun. Every other OUTSENTENCES word says that nothing was handed to the server: MESSAGEUNREACHABLE means that it was never reached.
+Parameter MAYHAVESENTSENTENCES = "MESSAGEMAYHAVESENT";
 
 /// The reason of a run that failed before anything was sent (the executor's NOREAD for this kind): the same words as NOSTART.
 Parameter NOREAD = "OcuTalon couldn't deliver the delay notice";
@@ -289,8 +294,8 @@ ClassMethod OutReason(reason As %String) As %Boolean
 	Quit found
 }
 
-/// 1 when the reason of a failed send is one of the sentences of Channel.Email.Out that do not say that the email was not handed to the mail server (MAYHAVESENTSENTENCES, read from the class), so that the
-/// timeline says that the notice may have been sent. Any other reason, a sentence of OUTSENTENCES that says nothing was sent included, gives 0.
+/// 1 when the reason of a failed send is one of the sentences of Channel.Email.Out that say that the email may have gone out (MAYHAVESENTSENTENCES, read from the class). Any other reason gives 0.
+/// SendOutcome is the decision that the surfaces use; this is its reading of a failed run's reason.
 ClassMethod MayHaveSent(reason As %String) As %Boolean
 {
 	If $Get(reason) = "" Quit 0
@@ -299,6 +304,27 @@ ClassMethod MayHaveSent(reason As %String) As %Boolean
 		If $Parameter("OcuTalon.Channel.Email.Out", $Piece(..#MAYHAVESENTSENTENCES, ",", i)) = reason Set found = 1
 	}
 	Quit found
+}
+
+/// What became of the approved notice of a run (see the class description): "kept", "sent", "maysent" or "notsent". ref is the request's Ref, state the request's state (done or failed),
+/// completed, skipped and interrupted the run's counts, reason the run's Reason and simulated 1 for the fixture's production, whose notice goes to the Simulated mailbox. The one decision that
+/// the timeline, the chat and the card read: no surface decides it again.
+ClassMethod SendOutcome(ref As %String, state As %String, completed As %Integer, skipped As %Integer, interrupted As %Integer, reason As %String, simulated As %Boolean = 0) As %String
+{
+	If ($Get(state) = "failed") && (..#NOTSETUP '= "") && ($Get(reason) = ..#NOTSETUP) Quit "kept"
+	If +$Get(completed) > 0 Quit "sent"
+	If $Get(simulated) Quit "notsent"
+	If +$Get(interrupted) > 0 Quit $Select($ClassMethod("OcuTalon.Channel.Email.Out", "Began", $Get(ref)): "maysent", 1: "notsent")
+	If ($Get(state) = "failed") && ..MayHaveSent($Get(reason)) Quit "maysent"
+	Quit "notsent"
+}
+
+/// The outcome that the approval card reads (the result member outcome of the incident's request): SendOutcome for the request and its ended run, or "" for the simulated notice of the fixture's production,
+/// whose bands the card keeps as they were.
+ClassMethod ResultOutcome(request As OcuTalon.Bridge.Data.ApprovalRequest, run As OcuTalon.Data.FixRun, production As %String) As %String
+{
+	If ##class(OcuTalon.Fix.PartnerContacts).Simulated(production) Quit ""
+	Quit ..SendOutcome(request.Ref, request.State, run.Completed, run.Skipped, run.Interrupted, run.Reason, 0)
 }
 
 /// The mail method (see the class description). Gives 1 with the recipients, the subject, the approved text and the skipped entries {"id", "code", "reason"} for a row that is as approved, even

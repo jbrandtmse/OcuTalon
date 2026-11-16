@@ -787,6 +787,32 @@ Method TestCommandsInGivesNoAnswerEndsFailed()
 	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")
 }
 
+/// A CommandsIn that gives no usable answer for an approved email whose EmailOut claim already exists (the send began): the run ends failed with MESSAGEMAYHAVESENT, not MESSAGEFAILED; a claim
+/// marked failed (nothing was handed over) keeps MESSAGEFAILED.
+Method TestCommandsInGivesNoAnswerAfterTheSendBegan()
+{
+	If '..Setup() Quit
+	If '..UseDouble() Quit
+	Set maySent = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEMAYHAVESENT")
+	Set failed = $Parameter("OcuTalon.Channel.Email.Out", "MESSAGEFAILED")
+	For mode = "fail", "empty" {
+		For mark = "pending", "failed" {
+			Kill ^OcuTalonTest("CommandsDouble")
+			Set ^OcuTalonTest("CommandsDouble", mode) = 1
+			Set ref = ..Seed(..Owner, "approved")
+			Set claim = ""
+			Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(..Owner, "email", ##class(OcuTalon.Bridge.Ids).NewRef(), ref, "", "", "", "", mark, .claim, ""), mode_"/"_mark_": the claim of the approval is written")
+			Do $$$AssertStatusOK(..SendOutcome(ref), mode_"/"_mark_": an approved outcome is handled")
+			Do $$$AssertEquals(..WaitState(ref, "failed"), "failed", mode_"/"_mark_": the request ends failed")
+			Set run = ..WaitEmailRun(ref)
+			Do $$$AssertTrue($IsObject(run), mode_"/"_mark_": it has a FixRun")
+			If $IsObject(run) Do $$$AssertEquals(run.Reason, $Select(mark = "pending": maySent, 1: failed), mode_"/"_mark_": the reason is MESSAGEMAYHAVESENT for a claim that began and MESSAGEFAILED for one marked failed")
+		}
+	}
+	Kill ^OcuTalonTest("CommandsDouble")
+	Do $$$AssertTrue(..UseReal(), "the real CommandsIn is behind the item again")
+}
+
 /// The commands that the CommandsIn double recorded, in order, as a dynamic array of {class, origin, sessionRef, key, fields}.
 ClassMethod DoubleCalls() As %DynamicArray [ Private ]
 {

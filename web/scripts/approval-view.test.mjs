@@ -362,6 +362,24 @@ describe('a partner delay notice (Story 23.5)', () => {
     assert.equal(band({ state: 'executing', result: result() }), undefined, 'a run still going has no band');
   });
 
+  it('reads the may-have-sent band from the server\'s outcome, with the text of result.partnerMaySent and no "Not sent" (Story 23.15)', () => {
+    const request = (fields) => ({ ref: 'A', state: 'failed', fixKind: 'partner_warning', ...fields });
+    const maySent = 'The delay notice may have been sent. Check the mailbox\'s Sent folder before sending it again.';
+    const band = resultView(request({ result: result({ total: 2, completed: 0, outcome: 'maysent', reason: 'The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won\'t send it again.' }) }), undefined, render, '', undefined, false);
+    assert.deepEqual({ key: band.key, text: band.text, tone: band.tone, icon: band.icon }, { key: 'result.partnerMaySent', text: maySent, tone: 'partial', icon: 'triangle-alert' });
+    assert.equal(band.text, render('result.partnerMaySent', {}), 'the card\'s text is the catalog\'s');
+    assert.doesNotMatch(band.text, /Not sent/i);
+    assert.doesNotMatch(band.text, /new approval/i);
+    const cut = resultView(request({ result: result({ total: 2, completed: 0, interrupted: 2, outcome: 'maysent', reason: '' }) }), undefined, render, '', undefined, false);
+    assert.equal(cut.key, 'result.partnerMaySent', 'a run cut short after the send began reads the same');
+    const reasonOnly = resultView(request({ result: result({ total: 2, completed: 0, reason: 'The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won\'t send it again.' }) }), undefined, render, '', undefined, false);
+    assert.equal(reasonOnly.key, 'fix.emailNotSent', 'without the server\'s outcome the card does not work it out from the reason');
+    const notSent = resultView(request({ result: result({ total: 2, completed: 0, outcome: 'notsent', reason: "OcuTalon couldn't reach the mail server." }) }), undefined, render, '', undefined, false);
+    assert.equal(notSent.key, 'fix.emailNotSent', 'a not-sent outcome keeps the email result');
+    assert.equal(resultView(request({ state: 'executing', result: result({ outcome: 'maysent' }) }), undefined, render, '', undefined, false), undefined, 'a run still going has no band');
+    assert.equal(resultView(request({ result: result({ total: 2, completed: 0, interrupted: 2, outcome: 'notsent', reason: '' }) }), undefined, render, '', undefined, false), undefined, 'a run cut short before the send began has no band, as before');
+  });
+
   it('keeps today\'s bands for a simulated request or one that says nothing, and shows no sent band when it cannot tell (Story 23.13)', () => {
     const request = (fields) => ({ ref: 'A', state: 'done', fixKind: 'partner_warning', ...fields });
     const sentResult = result({ total: 2, completed: 2 });

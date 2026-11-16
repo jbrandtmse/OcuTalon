@@ -376,7 +376,7 @@ Method Outcome(request As OcuTalon.Bridge.Msg.ApprovalOutcome) As %Status [ Priv
 }
 
 /// The run of an approved email (see the class description): the parameters and the stored dry run are checked as approved and the request is not past its expiry (else it ends failed
-/// with EMAILNOSTART, sending nothing), then StartExecution, the FixRun, the kind's Execute and Finish. An exception of the send ends the run failed with Out's MESSAGEFAILED.
+/// with EMAILNOSTART, sending nothing), then StartExecution, the FixRun, the kind's Execute and Finish. An exception of the send ends the run failed with Out's MESSAGEFAILED, or with MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (Fix.Kind.Email Unfinished).
 Method SendEmail(row As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 {
 	Set class = "OcuTalon.Fix.Kind.Email"
@@ -417,7 +417,7 @@ Method SendEmail(row As OcuTalon.Bridge.Data.ApprovalRequest) [ Private ]
 		$$$ThrowOnError(..Carry(class, "", parameters, row.FixTargets, .result, run))
 	} Catch exception {
 		$$$LOGWARNING(..#LOGEMAIL_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
-		Set result = {"sent": 0, "outcome": "failed", "message": ($Parameter($Parameter(class, "OUT"), "MESSAGEFAILED"))}
+		Set result = $ClassMethod(class, "Unfinished", row)
 	}
 	Set sent = +result.sent
 	Do ..Finish(row, run, $Select(sent: "done", 1: "failed"), {"total": 1, "resent": (sent), "completed": 0, "failedAgain": 0, "skipped": 0, "reason": ($Select(sent: "", 1: result.message)), "outcome": (result.outcome)})
@@ -613,7 +613,7 @@ Method Run(row As OcuTalon.Bridge.Data.ApprovalRequest, incident As OcuTalon.Dat
 
 /// Sends the approved notice of a request of a Settings contact (see the class description), in a run that has started: the row is read again (it is executing now), and the kind's mail method
 /// gives the addresses that may be sent to and those skipped. A row that is not as approved could not start (the kind's NOSTART); with no address left nothing is sent and the run ends done with
-/// every target skipped; otherwise MailApproved sends once. An exception of the send ends the run failed with EmailOut's MESSAGEFAILED.
+/// every target skipped; otherwise MailApproved sends once. An exception of the send ends the run failed with EmailOut's MESSAGEFAILED, or with MESSAGEMAYHAVESENT when the approval's claim shows that the send had begun (Fix.Kind.Email Unfinished).
 Method SendPartner(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String, run As OcuTalon.Data.FixRun, total As %Integer) [ Private ]
 {
 	Set recipients = []
@@ -638,6 +638,7 @@ Method SendPartner(row As OcuTalon.Bridge.Data.ApprovalRequest, class As %String
 		Set outcome = ..MailApproved(row)
 	} Catch exception {
 		$$$LOGWARNING(..#LOGDELIVER_row.Ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+		Set outcome = ##class(OcuTalon.Fix.Kind.Email).Unfinished(row)
 	}
 	If +outcome.sent {
 		Do ..Finish(row, run, "done", {"total": (total), "resent": 0, "completed": (recipients.%Size()), "failedAgain": 0, "skipped": (skipped.%Size()), "reason": (..FirstReason(skipped)), "outcome": (outcome.outcome)})
