@@ -161,6 +161,33 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B unless marked.
 - Given the guide, when it is read, then `GUIDE.md` › Slack's four steps (linked from the README's More paragraph) explain creating the app with the ruled step 1 (`chat:write`), subscribing events on a public HTTPS address, the environment variables and linking a member, word for word with `EXPERIENCE.md` (`slack-setup-steps.test.mjs`), and `test-readme.sh` passes (FR-58, NFR-24).
 - Given the change, when it lands, then the spine carries gate item (f) and `lint_spine.py` reports `"ok": true`.
 
+### Review Findings
+
+Code review 2026-11-17 (follow-up review; baseline af5d40d6c; HEAD b1d2874a2 plus QA's uncommitted SlackOut tests). Tier 1 on this spec, `review_mode` full. Layers: Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor, each a subagent with no model override (`_bmad/custom/model-overrides.yaml` absent). Result: 0 decision-needed, 6 patch (all applied), 0 defer, 14 rejected. The `WriteRawMode` patch was checked against `irislib/%Net/HttpRequest.cls` 1286-1300 (table RAW, so the UTF-8 bytes go out once under the `charset=utf-8` header) and is correct. The header pin compares the token's length, which the mock logs; see the rejected row on that.
+
+- [x] [Review][Patch] (medium) `TestOnlyOutboundMapped`'s dispatch half could not fail: it called `OnMessage`, the default handler that always refuses, so a Notification map item inherited from a superclass stayed green. It now calls `MessageHandler`, with an Outbound through the same dispatcher as a control [src/ocutalon/cls/OcuTalon/Test/Channel/SlackOut.cls TestOnlyOutboundMapped]
+- [x] [Review][Patch] (low) A Retry-After equal to `MAXWAIT` was not pinned as taken (`>` changed to `>=` stayed green). `SlackOutProbe` now has `MAXWAIT` 2, and `TestRetryAfterFloorAndCeiling` checks that 2 is waited and taken and 3 is refused after one call [src/ocutalon/cls/OcuTalon/Test/Channel/SlackOutProbe.cls; Test/Channel/SlackOut.cls TestRetryAfterFloorAndCeiling]
+- [x] [Review][Patch] (low) `TestNoMember`'s not-a-session half could not tell the `IsSession` drop from the no-link path. It now asserts the `LOGNOTASESSION` warning (one) and no `LOGNOMEMBER` warning [src/ocutalon/cls/OcuTalon/Test/Channel/SlackOut.cls TestNoMember]
+- [x] [Review][Patch] (low) SlackOut's class doc claimed every error and warning text is its own fixed text. Two are not: the inherited `IsSession` warning ends with the owner's Ref, and a catalog render error passes `Msg.Catalog`'s own text through `Safe`, as TelegramOut does. Neither can hold a Slack id, message text or a token, so the gate (1) condition on the 8 ruled texts holds, and the doc now states both exceptions [src/ocutalon/cls/OcuTalon/Channel/Slack/Out.cls:24]
+- [x] [Review][Patch] (low) `Test.Core.Routing` `SaveSlackEnvironment`'s doc said "three" Slack variables, but it saves the two these tests set [src/ocutalon/cls/OcuTalon/Test/Core/Routing.cls SaveSlackEnvironment]
+- [x] [Review][Patch] (low) Rule 19: AC 3's mock-log clause (no token, member id or text in the mock's stdout or `requests.jsonl`) had no `mutation:` line. Recorded under `## Verification` [ci/mock/mock.mjs handleSlack; ci/mock/test/slack.test.mjs]
+
+Rejected:
+- (low) AC 9's `lint_spine.py` `"ok": false` comes from the 13 placeholder findings that were already there. Already ledgered as DW-1478 (wontfix-accepted), so it is not a new finding.
+- (low, by-design) The 4,000 limit applies before escaping (Decided 5; `TestSplit`). Slack shows each entity as one character, so a displayed part is never more than 4,000 characters.
+- (low, wontfix-theoretical) A Retry-After of 10 or more digits, or an HTTP-date, waits 1 s and is retried instead of being refused. Slack sends whole seconds, and the fix would add branches and a numeric-overflow guard. It becomes real if Slack is seen sending such a value.
+- (low) The `EXPERIENCE.md` intro line carries a short note next to its `[AMENDED ...]` tag. It is a planning artifact's amendment marker, not product text, and step 1 itself is verbatim.
+- (low) The mock answers a non-POST `/api/chat.postMessage`. This is mock-only: SlackOut always POSTs, and the fix adds a guard for a case nobody meets.
+- (low, by-design) A reply in many parts that is rate-limited on every try holds the job for up to 4 x 30 s per part (Decided 6: TRIES per part, MAXWAIT 30).
+- (low) The mock takes a Bearer token of only spaces. This is mock-only: SlackOut sends no blank token (`Token()` "" is ERROROFF).
+- (low, wontfix-theoretical) `<!subteam^S...|@S...>`, a handle written as the group's own id, would keep the id. Slack handles are lower-case names and `IDPATTERN` is upper case. It becomes real if a label of "@" plus an id is seen.
+- (low) The Authorization pin compares only the token's length. The realistic wrong value (the signing secret) has a different length, and its mutation is red in the unit and live runs. The mock never logs the value, by design.
+- (low, wontfix-theoretical) Nothing stops a future Slack test from omitting `OCUTALON_SLACK_API_BASE` and reaching slack.com. Every Slack test sets it in `OnBeforeOneTest`. It becomes real if a Slack test class runs without that setting.
+- (low, by-design) `ERRORWAIT` hard-codes "30": that is the gate-ruled text, verbatim.
+- (low) The records say "two more channels" where the Catalog loop gained one (`slack`). The fix would edit this spec's records, and DW-1477's summary ("grew with slack") is right.
+- (low) The triage-log counts in the earlier pass do not add up. The fix would edit this spec's records. The `Routing` doc half of the same finding is patched above.
+- (medium, already ledgered) `docs/security-overview.md` does not name Slack among the places data leaves the instance. This is DW-1476 (escalated, for the Planner), and an occurrence line has been appended.
+
 ## Spec Change Log
 
 - 2026-11-17, lead: the first implement pass was stopped at the quota hold during its review-patch phase (its last action: "apply patch 1 (decoded-blank guard) and test"); its tree is in WIP commits ac2b64c08 and f430a1c20 on OCT-epic27. Re-dispatched at `status: in-review` with `baseline_revision` af5d40d6c (the story's pre-implement head) so the review covers the whole story code. Re-verify patch 1 (an inbound Slack text that is empty after `Markup.Plain` decoding must be Ignored as blank, never become an empty turn) and finish any partial edit; the earlier review findings are not recorded here, so the review layers run again.
@@ -323,6 +350,27 @@ Mutations (Rule 19; each applied, red observed, reverted byte-identical with `cm
 - mutation: `Core/Conversation.cls` MayChat answers 1 (a refused account becomes a turn) with the bad Authorization header, one fresh `live:slack-hook` run -> 25 FAIL lines, among them phase 7 "the mock lists 5 chat.postMessage call(s) after a refused message, wanted 4" (AC 5) and phase 3b's token pin; `Conversation.cls` restored byte-identical, `git status` shows it untouched
 
 **Commands of the review stage:** `bash docker/tests/test-mock.sh` 209 pass; `node --test web/scripts/slack-setup-steps.test.mjs` 9 pass; `bash docker/tests/test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh` all rules passed; warm `ci/iris.sh class` (tag e27s2jw, run on the tree before the last two doc edits and again for SlackOut and ReplyText after them) passed for SlackOut (with TestNonAscii and the token pin), ReplyText, SlackMarkup, SlackIn, Routing, Msg.Catalog (65 s), Data.SlackLink, Install.Production, Contract.Mock; fresh `OCUTALON_RUN_TAG=e27s2i ci/iris.sh live slack-hook` on the final tree: 127 PASS, 0 FAIL, then `ci/iris.sh teardown`; `ci/warm.sh down`; `lint_spine.py` `"ok": false` with the same 13 placeholder findings (none in a line this story added).
+
+**QA stage (2026-11-17; gaps only; each mutation applied on `Channel/Slack/Out.cls`, red observed on the warm stack, restored byte-identical with `cmp`; tests added to the existing `src/ocutalon/cls/OcuTalon/Test/Channel/SlackOut.cls`, no new file) (QA):**
+- Test files changed (QA): `src/ocutalon/cls/OcuTalon/Test/Channel/SlackOut.cls` gains `TestSplitBoundary`, `TestRetryAfterFloorAndCeiling`, `TestStrictAnswer`, `TestBlankTextPostsNothing`, `TestRecordFailureIsAWarning`, `TestCheckWarning` (default suite, `shard:lane-a@Channel`, unit `shards-3`).
+- mutation: `LIMIT` 4000 -> 4096 -> TestSplitBoundary (4,001 units and the surrogate pair no longer split) (QA)
+- mutation: Retry-After floor `>= 1` -> `>= 0` (a header of 0 waits none) -> TestRetryAfterFloorAndCeiling (QA)
+- mutation: `MAXWAIT` 30 -> 60 -> TestRetryAfterFloorAndCeiling (31 s waited, not refused) (QA)
+- mutation: `TSPATTERN` check dropped (any string ts kept in `ChannelMessageId`) -> TestStrictAnswer (row held `<ref>:text <@U...> 1.2`) (QA)
+- mutation: `ok` must be a JSON boolean dropped -> TestStrictAnswer (ok 1 taken) (QA)
+- mutation: `Recorded`'s failure returned as the status -> TestRecordFailureIsAWarning (QA)
+- mutation: LOGCHECK warning dropped -> TestCheckWarning (QA)
+- mutation: `'sent` guard removed (row kept for nothing sent) -> TestBlankTextPostsNothing (QA)
+- Checked, no gap: the 8 fixed texts (ERROROFF, LOGNOMEMBER, ERRORBASE, ERRORREACH, ERRORREFUSED, ERRORWAIT, LOGRECORD, LOGCHECK) each have a pin now; `chat.postMessage` once per part, `&<>` escaping, 5 tries, no resend, Notify and SlackOut refusals on the demo, every Notification kind (all 14) never `SlackOut`, the decode table, `CHANNELS`, step 1 and the zero-post pin were already pinned with observed red (implement and review records above).
+- Runs: warm `ci/iris.sh class OcuTalon.Test.Channel.SlackOut` (tag e27s2qw) passed twice after the last edit; `bash docker/tests/test-class-rules.sh` passed; `ci/warm.sh down` done.
+- Observation (not a test, no source change): `Out.cls` `Post` takes a Retry-After of more than 9 digits as "not a number" (wait 1 s) instead of refusing it as over 30 s; harmless (at most 5 tries in 5 s) and outside the matrix.
+
+**Code review, follow-up (2026-11-17). Each mutation was applied, red observed, and the file restored byte-identical (`cmp`). Unit runs used the lane-B warm throwaway, tag e27s2crw, one class or method per call:**
+- mutation: a `Msg.Notification` map item (to a method that answers OK) added to the superclass `Channel/Operation.cls` -> Test.Channel.SlackOut TestOnlyOutboundMapped ("a Notification handed to the operation's dispatcher ... is refused"; the XData text check stayed green, which is why the dispatch half was changed)
+- mutation: `Out.cls` Post `If wait > ..#MAXWAIT` -> `>=` -> Test.Channel.SlackOut TestRetryAfterFloorAndCeiling (the probe's Retry-After 2 = MAXWAIT refused: three asserts red)
+- mutation: `Out.cls` OnOutbound `If '..IsSession(request.SessionRef) Quit $$$OK` removed -> Test.Channel.SlackOut TestNoMember (the dropped-owner warning missing, and the no-link warning logged instead)
+- mutation: `ci/mock/mock.mjs` handleSlack log summary keeps `params` (`{ slackMethod, paramNames, params }`) -> `node --test ci/mock/test/slack.test.mjs` "over a real server process, the token, the member id and the text appear in neither stdout nor requests.jsonl" (8 pass, 1 fail; restored: 9 pass) (AC 3, mock log)
+- Runs on the final tree: warm `ci/iris.sh class OcuTalon.Test.Channel.SlackOut` passed (13.4 s) and `OcuTalon.Test.Core.Routing` passed; `bash docker/tests/test-class-rules.sh` and `test-boundaries.sh` passed; `ci/warm.sh down` done. `live:slack-hook` was not re-run, because the reply path's code is unchanged (`Out.cls` changed only in its class doc).
 
 ## Auto Run Result
 

@@ -21,7 +21,9 @@ Include Ensemble
 ///   - when the reply was sent whole, one Delivery row of channel slack (Delivery.Record) holds "<link Ref>:<ts>", the link's Ref and the ts that Slack answered for the
 ///     last part (empty after the colon when it is not of the form seconds.digits); it holds no text and no Slack id. A failed Record is one warning, LOGRECORD, and the
 ///     status stays OK, because the reply is never sent again. A check sentence that could not be built is left out, with one warning, LOGCHECK.
-/// The text of every error and warning is fixed: a slot of it holds only an HTTP status, a whole number of seconds, Slack's error code or a fixed reason word.
+/// The text of every error and warning of this class is fixed: a slot of it holds only an HTTP status, a whole number of seconds, Slack's error code or a fixed reason word.
+/// Two texts are not this class's own: the warning of Channel.Operation IsSession for an owner that is not a session ends with that owner's Ref, and a reply whose catalog
+/// text cannot be rendered fails with Msg.Catalog's own error text (as TelegramOut's does), through Safe.
 Class OcuTalon.Channel.Slack.Out Extends OcuTalon.Channel.Operation
 {
 

@@ -8959,6 +8959,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: docs/** is Epic 28's path and the sentence is public text the Planner has not worded; scope frozen for 1.0.13
 - 2026-11-17T07:39:18Z status=escalated owner=burndown by=harvest note=for_the_Planner:word_one_security-overview_line_for_Slack_or_accept_the_gap_for_1.0.13
+- 2026-11-17T08:11:25Z occurrence=27-2-reply-as-slack-messages-with-no-socket-mode
 
 ### DW-1477: shards-3 CI group time after Test.Msg.Catalog TestEveryKeyOnEveryChannel grew with slack (unverified against the 32-minute line)
 - source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: in-epic

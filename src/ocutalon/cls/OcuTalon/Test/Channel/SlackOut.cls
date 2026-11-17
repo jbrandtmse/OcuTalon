@@ -15,10 +15,18 @@ Include Ensemble
 ///   - TestSlackError: an ok false, an HTTP 500, an error code that is no code and a base that does not parse each give their fixed text and no row, and an ok with no ts is taken;
 ///   - TestUnreachable: a server that does not answer in time gives the fixed text ERRORREACH and no row;
 ///   - TestTokenNeverLogged: the token is in no status text, no event-log row, no row and no call of the mock, also when Slack's error code is the token;
-///   - TestNoMember: a session with no link sends nothing, with one warning and an OK status;
+///   - TestNoMember: a session with no link sends nothing, with one warning and an OK status, and an owner that is not a session is dropped with its own warning;
 ///   - TestOffAndOnlineDemo: with either variable empty, or on the online demo, the status is the error ERROROFF and nothing is sent;
-///   - TestOnlyOutboundMapped: the compiled message map names OcuTalon.Msg.Outbound and nothing else, and a Notification handed to the operation is refused and posts nothing;
+///   - TestOnlyOutboundMapped: the compiled message map names OcuTalon.Msg.Outbound and nothing else, and a Notification handed to the operation's dispatcher
+///     (MessageHandler, the superclasses' maps included) is refused and posts nothing, where an Outbound is posted;
 ///   - TestRecordHoldsNoIds: the Delivery row and the event log hold neither the member id, nor the text, nor the token.
+///   - TestSplitBoundary (QA): a text of exactly 4,000 units is one post, one of 4,001 is two, and a surrogate pair is never cut;
+///   - TestRetryAfterFloorAndCeiling (QA): a Retry-After of 0 or one that is not a number waits 1 s, not none, and 31 s is refused at once, 30 s being the most; on
+///     Test.Channel.SlackOutProbe (MAXWAIT 2) a Retry-After equal to MAXWAIT is waited and taken and one over it is refused;
+///   - TestStrictAnswer (QA): an ok that is not a JSON boolean (the number 1) is not taken, and a ts that is not seconds.digits is dropped from the Delivery row, never kept as text;
+///   - TestBlankTextPostsNothing (QA): a reply of white space only posts nothing, records no row and is an OK status;
+///   - TestRecordFailureIsAWarning (QA): a Delivery row that cannot be saved after the reply was sent is one warning with its fixed reason and an OK status;
+///   - TestCheckWarning (QA): a check key that gives no sentence sends the reply alone, with one warning with its fixed reason, and still records the row.
 /// The run's number is n from ^OcuTalonTest("SlackOut","n").
 Class OcuTalon.Test.Channel.SlackOut Extends %UnitTest.TestCase
 {
@@ -318,9 +326,12 @@ Method TestNoMember()
 	Do $$$AssertEquals(count, 1, "with one warning")
 	Do $$$AssertEquals(text, "SlackOut found no linked Slack member for this session, so the reply went only to the web chat.", "its fixed text")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), 0, "and no row")
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set sc = ..Out().OnOutbound(..Outbound("zznosession"_..Number, "zz not a session"), .response)
 	Do $$$AssertStatusOK(sc, "an owner that is not a session is dropped with an OK status")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 0, "and nothing is sent")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "IsSession", "SlackOut dropped a message: its owner is not a session: "), 1, "with the one warning of a dropped owner")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "OnOutbound", "SlackOut found no linked Slack member"), 0, "and not the warning of a session with no link")
 }
 
 Method TestOffAndOnlineDemo()
@@ -362,9 +373,12 @@ Method TestOnlyOutboundMapped()
 	Set notification.SessionRef = session
 	Set notification.Kind = "tellnow"
 	Set notification.CatalogKey = "digest.cost"
-	Set sc = ..Out().OnMessage(notification, .response)
-	Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "a Notification handed to the operation is refused")
+	Set sc = ..Out().MessageHandler(notification, .response)
+	Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "a Notification handed to the operation's dispatcher (its whole message map, the superclasses' included) is refused")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 0, "and posts nothing")
+	Set sc = ..Out().MessageHandler(..Outbound(session, "zz through the dispatcher"), .response)
+	Do $$$AssertStatusOK(sc, "control: an Outbound handed to the same dispatcher is handled")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 1, "and posted once")
 }
 
 Method TestRecordHoldsNoIds()
@@ -385,6 +399,140 @@ Method TestRecordHoldsNoIds()
 	Do ..AssertLogHolds(mark, marker, 0, "the text")
 	Do ..AssertLogHolds(mark, ..#MEMBER, 0, "the member id")
 	Do ..AssertLogHolds(mark, "D0MOCK", 0, "Slack's channel id")
+}
+
+/// (QA) The cut of the 4,000-unit limit: a text of exactly 4,000 units is one post, one of 4,001 units is two (4,000 and 1), and a surrogate pair at the cut goes whole in the second.
+Method TestSplitBoundary()
+{
+	Set session = ..LinkedSession("boundary")
+	If '..MockReady() Quit
+	Set sc = ..Out().OnOutbound(..Outbound(session, $Translate($Justify("", 4000), " ", "A")), .response)
+	Do $$$AssertStatusOK(sc, "a text of exactly 4,000 units is handled")
+	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
+	Do $$$AssertEquals(calls.%Size(), 1, "it is one post")
+	If calls.%Size() = 1 Do $$$AssertEquals($Length(calls.%Get(0).params.text), 4000, "of all 4,000 units")
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
+	Set sc = ..Out().OnOutbound(..Outbound(session, $Translate($Justify("", 4001), " ", "A")), .response)
+	Do $$$AssertStatusOK(sc, "a text of 4,001 units is handled")
+	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
+	Do $$$AssertEquals(calls.%Size(), 2, "it is two posts")
+	If calls.%Size() = 2 Do $$$AssertEquals($Length(calls.%Get(0).params.text)_"|"_$Length(calls.%Get(1).params.text), "4000|1", "of 4,000 units and 1")
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
+	Set pair = $Char(55357, 56832)
+	Set sc = ..Out().OnOutbound(..Outbound(session, $Translate($Justify("", 3999), " ", "A")_pair), .response)
+	Do $$$AssertStatusOK(sc, "a pair that starts at the 4,000th unit is handled")
+	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
+	Do $$$AssertEquals(calls.%Size(), 2, "it is two posts")
+	If calls.%Size() = 2 Do $$$AssertEquals($Length(calls.%Get(0).params.text)_"|"_calls.%Get(1).params.text, "3999|"_pair, "the pair is not cut: it is whole in the second")
+}
+
+/// (QA) The bounds of Retry-After: 0 and text are not a wait of none but 1 s, and 31 s is over the 30 that is taken, so it is refused with one call.
+Method TestRetryAfterFloorAndCeiling()
+{
+	Set session = ..LinkedSession("bounds")
+	If '..MockReady() Quit
+	For value = "0", "soon" {
+		Do ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
+		Do ##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "chat.postMessage", "replies": [{"status": 429, "headers": {"Retry-After": (value)}, "body": {"ok": false, "error": "ratelimited"}}]}, "slack")
+		Set start = $ZHorolog
+		Set sc = ..Out().OnOutbound(..Outbound(session, "zz retry after "_value), .response)
+		Set elapsed = $ZHorolog - start
+		Do $$$AssertStatusOK(sc, "a 429 with Retry-After "_value_" is retried and taken")
+		Do $$$AssertTrue((elapsed >= 0.95) && (elapsed < 5), "after 1 s, as 'missing, not a number or below 1' is 1 ("_elapsed_" s)")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 2, "with two calls")
+	}
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "chat.postMessage", "replies": [{"status": 429, "headers": {"Retry-After": "31"}, "body": {"ok": false, "error": "ratelimited"}}]}, "slack")
+	Set start = $ZHorolog
+	Set sc = ..Out().OnOutbound(..Outbound(session, "zz thirty-one"), .response)
+	Do $$$AssertTrue($ZHorolog - start < 5, "31 s is not waited")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Slack asked OcuTalon to wait 31 seconds, longer than the 30 it waits", "it is refused with the fixed reason: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 1, "after one call")
+	Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Channel.SlackOutProbe", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe (MAXWAIT 2) is made")
+	For value = "2", "3" {
+		Do ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
+		Do ##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "chat.postMessage", "replies": [{"status": 429, "headers": {"Retry-After": (value)}, "body": {"ok": false, "error": "ratelimited"}}]}, "slack")
+		Set start = $ZHorolog
+		Set sc = probe.OnOutbound(..Outbound(session, "zz probe retry after "_value), .response)
+		Set elapsed = $ZHorolog - start
+		If value = 2 {
+			Do $$$AssertStatusOK(sc, "a Retry-After equal to MAXWAIT is taken")
+			Do $$$AssertTrue(elapsed >= 1.95, "after the whole wait ("_elapsed_" s)")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 2, "with two calls")
+		} Else {
+			Do $$$AssertTrue($SYSTEM.Status.IsError(sc) && (elapsed < 1.5), "one over MAXWAIT is refused at once ("_elapsed_" s)")
+			Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 1, "after one call")
+		}
+	}
+}
+
+/// (QA) What counts as taken: an ok that is the number 1 is not a JSON boolean and fails, and a ts that is not seconds.digits is dropped (nothing after the colon), so that a row
+/// never holds text that Slack's answer carried.
+Method TestStrictAnswer()
+{
+	Set session = ..LinkedSession("strict")
+	If '..MockReady() Quit
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "chat.postMessage", "replies": [{"status": 200, "body": {"ok": 1, "ts": "1700000000.000100"}}, {"status": 200, "body": {"ok": true, "ts": "text <@U0SLACKOUT> 1.2"}}]}, "slack")
+	Set sc = ..Out().OnOutbound(..Outbound(session, "zz ok as number"), .response)
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Slack did not take the reply (HTTP 200, error none)", "an ok that is the number 1, not the boolean true, is not taken: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), 0, "and it makes no row")
+	Set sc = ..Out().OnOutbound(..Outbound(session, "zz odd ts"), .response)
+	Do $$$AssertStatusOK(sc, "an ok true with a ts that is not seconds.digits is taken")
+	Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(rows.Count(), 1, "and records one row")
+	If rows.Count() = 1 {
+		Set id = rows.GetAt(1).ChannelMessageId
+		Do $$$AssertEquals($Piece(id, ":", 2, *), "", "with nothing after the colon: "_id)
+		Do $$$AssertTrue((id '[ "U0SLACKOUT") && (id '[ "text"), "and none of the answer's text in it")
+	}
+}
+
+/// (QA) A reply that has no printable text has no part: nothing is posted, no row is kept and the status is OK (Telegram's way, Api.Split drops a blank part).
+Method TestBlankTextPostsNothing()
+{
+	Set session = ..LinkedSession("blank")
+	If '..MockReady() Quit
+	Set sc = ..Out().OnOutbound(..Outbound(session, "   "_$Char(10)_"  "), .response)
+	Do $$$AssertStatusOK(sc, "a reply of white space only is handled with an OK status")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 0, "nothing is posted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), 0, "and no row is kept: nothing was sent")
+}
+
+/// (QA) The reply was sent but its Delivery row cannot be saved (a DecisionRef longer than the column): one warning with its fixed reason, the status stays OK so that the reply is never
+/// sent again, and the warning holds no id and no text.
+Method TestRecordFailureIsAWarning()
+{
+	Set session = ..LinkedSession("recfail")
+	If '..MockReady() Quit
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set message = ..Outbound(session, "zz record fails")
+	Set message.DecisionRef = $Translate($Justify("", 40), " ", "D")
+	Set sc = ..Out().OnOutbound(message, .response)
+	Do $$$AssertStatusOK(sc, "the reply is handled with an OK status: it was sent and is not sent again")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 1, "it was posted once")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), 0, "no row was saved")
+	Do ..AssertWarning(mark, "SlackOut sent the reply but could not record its delivery: ", "SlackOut sent the reply but could not record its delivery: the row was not saved")
+	Do ..AssertLogHolds(mark, ..#MEMBER, 0, "the member id")
+	Do ..AssertLogHolds(mark, "zz record fails", 0, "the text")
+}
+
+/// (QA) A check key that gives no sentence: the reply goes alone, with one warning with its fixed reason (the reason of Telegram's, not the check's own text), and its row is recorded.
+Method TestCheckWarning()
+{
+	Set session = ..LinkedSession("checkwarn")
+	If '..MockReady() Quit
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set message = ..Outbound(session, "zz reply alone")
+	Set message.CheckKey = "checks.nope"
+	Set message.CheckRows = [{"result": "failed", "entry": "Gamma", "finding": "Stopped", "checkedAt": ""}].%ToJSON()
+	Set sc = ..Out().OnOutbound(message, .response)
+	Do $$$AssertStatusOK(sc, "the reply is handled")
+	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
+	Do $$$AssertEquals(calls.%Size(), 1, "one post")
+	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).params.text, "zz reply alone", "with the reply alone")
+	Do ..AssertWarning(mark, "SlackOut sent the reply without its check sentence: ", "SlackOut sent the reply without its check sentence: the sentence could not be built")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).DeliveryCount(session), 1, "and the row is recorded")
 }
 
 /// --- helpers ---
@@ -472,6 +620,20 @@ ClassMethod Keys(object As %DynamicObject) As %String [ Private ]
 		Set out = out_$Select(out = "": "", 1: ",")_key
 	}
 	Quit out
+}
+
+/// (QA) Asserts that exactly one warning after the mark starts with the text, and that the newest one is exactly the fixed text.
+Method AssertWarning(mark As %Integer, start As %String, fixed As %String) [ Private ]
+{
+	Set count = 0
+	Set text = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND Text %STARTSWITH ? ORDER BY ID", mark, start)
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Do $$$AssertEquals(count, 1, "one warning starts '"_start_"'")
+	Do $$$AssertEquals(text, fixed, "and it is the fixed text")
 }
 
 /// Asserts that the event-log rows after the mark hold the value (count 1) or none do (count 0).

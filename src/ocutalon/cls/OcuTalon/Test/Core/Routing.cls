@@ -687,7 +687,7 @@ Method AssertSlackLinked(functions As %String, session As %String) [ Private ]
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 }
 
-/// The three Slack variables of the process as $ListBuild(name, was set, value) for each.
+/// The two Slack variables of the process that these tests set, as $ListBuild(name, was set, value) for each.
 Method SaveSlackEnvironment() As %List [ Private ]
 {
 	Set saved = ""
