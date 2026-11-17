@@ -16,6 +16,9 @@
 ///     list here is derived from whether EmailOut has a job on the stack (its cases with a job are also those of OcuTalon.Test.Channel.PageRoute);
 ///   - TestNotifyDigestEmail (Story 21.7): the rule DigestEmail adds no target to a digest while EmailOut has no alive job (the production here does not run it),
 ///     whatever digest.channels, email.owner, email.address and the demo flag say; with a job it is the job of OcuTalon.Test.Channel.EmailLive;
+///   - TestNotifySlackTargets (Story 27.2): a reply of a Slack turn goes to WebChatOut and SlackOut only while Slack is on (both variables set, not the online demo) and the session
+///     has a Data.SlackLink row, and to WebChatOut alone otherwise; a reply of any other channel never goes to SlackOut; and no kind of Notification goes to SlackOut, whatever
+///     Slack and the link say;
 ///   - TestFunctions: the functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
 ///   - TestRuleTargetsAreProductionItems: the two router items use these rules, and every target and transform that a rule
 ///     names exists in the production.
@@ -30,6 +33,9 @@ Parameter OUTCOMERULE = "OcuTalon.Core.Rule.Outcome";
 
 /// The rule of the Notify item.
 Parameter NOTIFYRULE = "OcuTalon.Core.Rule.Notify";
+
+/// The workspace of the Slack fixture links.
+Parameter SLACKTEAM = "T0ROUTING";
 
 /// The setting that a digest follows.
 Parameter CHANNELSKEY = "digest.channels";
@@ -85,6 +91,7 @@ Method OnAfterAllTests() As %Status
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE IncidentRef LIKE ?", "zzroute"_..Number_"p%")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SlackLink WHERE TeamId = ?", ..#SLACKTEAM)
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -491,6 +498,7 @@ Method TestFunctions()
 		Do $$$AssertEquals($ClassMethod(functions, "TelegramPaired", ""), 0, "TelegramPaired: an empty Ref")
 		Do $$$AssertEquals($ClassMethod(functions, "TelegramPaired", "instance"), 0, "TelegramPaired: the owner instance")
 	}
+	Do ..AssertSlackLinked(functions, session)
 	Do ..PutChannels("", 0)
 	For channel = "web", "phone", "telegram" {
 		Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", channel), 1, "DigestNamed: "_channel_" is named when the setting has no row")
@@ -521,7 +529,7 @@ Method TestFunctions()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do $$$AssertEquals($ClassMethod(functions, "PageWeb", both, session)_$ClassMethod(functions, "PageChannel", both, "telegram")_$ClassMethod(functions, "PageChannel", both, "email")_$ClassMethod(functions, "PageEmail", both), "0000", "PageWeb, PageChannel and PageEmail are 0 on the online demo")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
-	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed", "DigestEmail", "DigestChannels", "PageWeb", "PageChannel", "PageEmail" {
+	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "SlackLinked", "DigestNamed", "DigestEmail", "DigestChannels", "PageWeb", "PageChannel", "PageEmail" {
 		Kill class
 		Set sc = ##class(Ens.Rule.Utilities).ResolveFunction(name, .class, .method)
 		Do $$$AssertStatusOK(sc, name_" resolves as a rule function")
@@ -534,6 +542,55 @@ Method TestFunctions()
 		}
 		Do $$$AssertEquals(count, 1, "exactly one function set declares "_name)
 	}
+}
+
+/// Story 27.2: a reply of a Slack turn goes to SlackOut as well as WebChatOut exactly when Slack is on and the session has a link; nothing else ever goes to SlackOut.
+Method TestNotifySlackTargets()
+{
+	Set linked = ..Session("slacklinked")
+	Set unlinked = ..Session("slackunlinked")
+	Do ##class(OcuTalon.Data.SlackLink).Link(..#SLACKTEAM, "U0ROUTING"_..Number, linked, .sc)
+	Do $$$AssertStatusOK(sc, "a member is linked to the first session")
+	Set ^OcuTalonTest("TelegramIncluded") = 0
+	Set kinds = $ListFromString("tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,handled,page,digest,summary")
+	Set saved = ..SaveSlackEnvironment()
+	Try {
+		For on = 0, 1 {
+			For demo = 0, 1 {
+				Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", demo)
+				Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", "zz-routing-secret")
+				Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", $Select(on: "zz-routing-token", 1: ""))
+				For isLinked = 0, 1 {
+					Set session = $Select(isLinked: linked, 1: unlinked)
+					Set where = "Slack "_$Select(on: "on", 1: "off")_", online demo "_$Select(demo: "on", 1: "off")_", "_$Select(isLinked: "linked", 1: "not linked")
+					For origin = "slack", "web", "telegram", "phone", "email" {
+						Set outbound = ##class(OcuTalon.Msg.Outbound).%New()
+						Set outbound.SessionRef = session
+						Set outbound.OriginChannel = origin
+						Set expected = "send:WebChatOut"_$Select((origin = "slack") && on && 'demo && isLinked: ",SlackOut", 1: "")_":"
+						Do $$$AssertEquals(..Route(..#NOTIFYRULE, outbound), expected, "a reply from "_origin_", "_where_": ["_expected_"]")
+					}
+					Set position = 0
+					While $ListNext(kinds, position, kind) {
+						Set notification = ##class(OcuTalon.Msg.Notification).%New()
+						Set notification.SessionRef = session
+						Set notification.Kind = kind
+						Set routed = ..Route(..#NOTIFYRULE, notification)
+						Do $$$AssertTrue(routed '[ "SlackOut", "a Notification of kind "_kind_" never goes to SlackOut, "_where_": ["_routed_"]")
+					}
+				}
+			}
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the Slack routing test failed: "_exception.DisplayString())
+	}
+	Do ..RestoreSlackEnvironment(saved)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SlackLink WHERE TeamId = ?", ..#SLACKTEAM)
+	Set outbound = ##class(OcuTalon.Msg.Outbound).%New()
+	Set outbound.SessionRef = linked
+	Set outbound.OriginChannel = "slack"
+	Do $$$AssertEquals(..Route(..#NOTIFYRULE, outbound), "send:WebChatOut:", "control: with the link removed (and Slack as the environment has it) the reply goes to WebChatOut alone")
 }
 
 /// The wiring of the two rules to the production (AD-30): the router items OutcomeRouter and Notify use the rule classes under
@@ -561,7 +618,7 @@ Method TestRuleTargetsAreProductionItems()
 		Do $$$AssertEquals(found, rule, router_" is routed by "_rule)
 	}
 	Set expected("OcuTalon.Core.Rule.Outcome") = "DigestStore,Notify"
-	Set expected("OcuTalon.Core.Rule.Notify") = "EmailOut,SimPhoneOut,TelegramOut,WebChatOut"
+	Set expected("OcuTalon.Core.Rule.Notify") = "EmailOut,SimPhoneOut,SlackOut,TelegramOut,WebChatOut"
 	Set rule = ""
 	For {
 		Set rule = $Order(expected(rule))
@@ -595,6 +652,61 @@ Method TestRuleTargetsAreProductionItems()
 }
 
 /// --- helpers ---
+/// SlackLinked, in TestFunctions: 1 only with both variables set, the online demo off and a link row; 0 for an empty Ref, an unlinked session and a link that was removed.
+Method AssertSlackLinked(functions As %String, session As %String) [ Private ]
+{
+	Set linked = ..Session("functionsslack")
+	Do ##class(OcuTalon.Data.SlackLink).Link(..#SLACKTEAM, "U0FUNCTION"_..Number, linked, .sc)
+	Do $$$AssertStatusOK(sc, "SlackLinked: a member is linked to a session")
+	Set saved = ..SaveSlackEnvironment()
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", "zz-routing-secret")
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", "zz-routing-token")
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", linked), 1, "SlackLinked: a linked session with Slack on")
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", session), 0, "SlackLinked: a session with no link")
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", "")_$ClassMethod(functions, "SlackLinked", "instance")_$ClassMethod(functions, "SlackLinked", "ZzNoSuchSession"), "000", "SlackLinked: an empty Ref, the owner instance and an unknown Ref")
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", "")
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", linked), 0, "SlackLinked: 0 with no token")
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_BOT_TOKEN", "zz-routing-token")
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", "")
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", linked), 0, "SlackLinked: 0 with no signing secret")
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("SLACK_SIGNING_SECRET", "zz-routing-secret")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", linked), 0, "SlackLinked: 0 on the online demo")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Do ##class(OcuTalon.Data.SlackLink).Unlink(linked)
+		Do $$$AssertEquals($ClassMethod(functions, "SlackLinked", linked), 0, "SlackLinked: 0 once the link is removed")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the SlackLinked test failed: "_exception.DisplayString())
+	}
+	Do ..RestoreSlackEnvironment(saved)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+}
+
+/// The three Slack variables of the process as $ListBuild(name, was set, value) for each.
+Method SaveSlackEnvironment() As %List [ Private ]
+{
+	Set saved = ""
+	For name = "SLACK_SIGNING_SECRET", "SLACK_BOT_TOKEN" {
+		Set saved = saved_$ListBuild($ListBuild(name, ##class(OcuTalon.Test.Agent.KeyScan).HasEnv(name), $SYSTEM.Util.GetEnviron(name)))
+	}
+	Quit saved
+}
+
+/// Puts the variables back as SaveSlackEnvironment found them.
+Method RestoreSlackEnvironment(saved As %List) [ Private ]
+{
+	Set position = 0
+	While $ListNext(saved, position, one) {
+		If $List(one, 2) {
+			Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv($List(one, 1), $List(one, 3))
+		} Else {
+			Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv($List(one, 1))
+		}
+	}
+}
+
 /// The values of the attribute in the XML text, comma-separated values split, as the subscripts of values.
 ClassMethod Attribute(xml As %String, attribute As %String, Output values) [ Private ]
 {

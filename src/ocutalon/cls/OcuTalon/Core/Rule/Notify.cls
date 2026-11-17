@@ -2,7 +2,8 @@
 /// routes on the message class, Kind, OriginChannel, ChatRef and the session's channels (Functions.DemoOn, TelegramOn and
 /// TelegramPaired); within a rule the first condition that holds wins:
 ///   - OcuTalon.Msg.Outbound (a reply): WebChatOut, and TelegramOut as well when OriginChannel is telegram and the session
-///     is paired;
+///     is paired, or SlackOut as well when OriginChannel is slack and Slack is on and the session has a link (Functions.SlackLinked; Story 27.2). A
+///     Notification never goes to SlackOut;
 ///   - OcuTalon.Msg.Notification of Kind pairing: TelegramOut alone when ChatRef is set and Telegram is included, otherwise
 ///     nothing;
 ///   - Kind allowance: WebChatOut, and TelegramOut as well when the session is paired;
@@ -30,6 +31,9 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 <ruleSet name="" effectiveBegin="" effectiveEnd="">
 <rule name="Outbound">
 <constraint name="msgClass" value="OcuTalon.Msg.Outbound"></constraint>
+<when condition="Document.OriginChannel=&quot;slack&quot; &amp;&amp; SlackLinked(Document.SessionRef)">
+<send transform="" target="WebChatOut,SlackOut"></send>
+</when>
 <when condition="Document.OriginChannel=&quot;telegram&quot; &amp;&amp; TelegramPaired(Document.SessionRef)">
 <send transform="" target="WebChatOut,TelegramOut"></send>
 </when>

@@ -1,0 +1,12 @@
+{
+  "name": "slack-not-found",
+  "match": {
+    "slack": "chat.postMessage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": { "ok": false, "error": "channel_not_found" }
+    }
+  ]
+}

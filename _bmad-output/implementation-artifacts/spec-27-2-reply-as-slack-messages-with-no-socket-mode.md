@@ -2,7 +2,8 @@
 title: 'Story 27.2: Reply as Slack messages, with no socket mode'
 type: 'feature'
 created: '2026-11-17'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: 'af5d40d6c7383b351d45bc2a35e662a10d136699'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:

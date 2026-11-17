@@ -474,23 +474,24 @@ ClassMethod BotCall(token As %String, method As %String, body As %String) As %Dy
 	Quit {}.%FromJSON(request.HttpResponse.Data)
 }
 
-/// A control call of the mock's Bot API side (/_mock/telegram/<route>) with an optional JSON value as the body; 1 when it answered 200.
-ClassMethod Control(route As %String, body As %DynamicAbstractObject = "") As %Boolean
+/// A control call of the mock's Bot API side (/_mock/telegram/<route>), or of its Slack side (side "slack": /_mock/slack/<route>), with an optional JSON value as the body; 1 when it
+/// answered 200.
+ClassMethod Control(route As %String, body As %DynamicAbstractObject = "", side As %String = "telegram") As %Boolean
 {
 	Set request = ..NewRequest()
 	If $IsObject(body) {
 		Set request.ContentType = "application/json"
 		Do request.EntityBody.Write(body.%ToJSON())
 	}
-	Set status = request.Post("/_mock/telegram/"_route)
+	Set status = request.Post("/_mock/"_side_"/"_route)
 	Quit $$$ISOK(status) && (request.HttpResponse.StatusCode = 200)
 }
 
-/// The calls that the mock lists, as a dynamic array of {seq, ts, method, params}.
-ClassMethod Calls() As %DynamicArray
+/// The calls that the mock lists for its Bot API side (side "slack": its Slack side), as a dynamic array of {seq, ts, method, params}.
+ClassMethod Calls(side As %String = "telegram") As %DynamicArray
 {
 	Set request = ..NewRequest()
-	Set status = request.Get("/_mock/telegram/calls")
+	Set status = request.Get("/_mock/"_side_"/calls")
 	If $$$ISERR(status) || (request.HttpResponse.StatusCode '= 200) Quit []
 	Quit {}.%FromJSON(request.HttpResponse.Data).calls
 }

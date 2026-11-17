@@ -6,6 +6,7 @@ Include Ensemble
 /// environment of the process and restored.
 ///   - TestLinkedDm: a linked member's direct message is one Item (channel slack, provenance user, FromGuide 0, only the text) to Conversation, in the session's thread, and
 ///     nothing goes to Intake;
+///   - TestMarkupDecoded: (Story 27.2) the Item's text is the message text decoded by Channel.Slack.Markup (entities, a mention, a link);
 ///   - TestRetryOnce: R4, the same event id again is OK and sends nothing more, for a turn and for an ignored event;
 ///   - TestUnlinkedIgnored, TestOtherTeamIgnored (R2), TestBotIdIgnored and TestMessageChangedIgnored (R1), TestOtherEventsIgnored, TestBlankAndNoSender: each leaves one
 ///     Ignored record with its fixed kind and reason and no Item, in no trace session;
@@ -120,6 +121,17 @@ Method TestLinkedDm()
 	Do $$$AssertEquals(..Call(1, "superSession"), trace, "sent under the session's TraceRef")
 	Do $$$AssertEquals(probe.%SessionId_"|"_probe.%SuperSession, "|", "the service's %SessionId and %SuperSession are empty again")
 	Do $$$AssertEquals($Get($$$JobSessionId), "", "and the job's session id is cleared")
+}
+
+/// Story 27.2: the turn's text is the message text decoded to plain text (Channel.Slack.Markup), with no member id in it.
+Method TestMarkupDecoded()
+{
+	Set session = ..LinkedSession("markup")
+	Set probe = ..NewProbe()
+	Do $$$AssertStatusOK(probe.OnProcessInput(..Event("Ev0MARKUP", ..#TEAM, ..#MEMBER, "a &amp; b &lt;3 <@U0X> <https://e.x|e.x>"), .out), "the event is taken")
+	Do $$$AssertEquals(..Targets(), "Conversation", "it is a turn")
+	Do $$$AssertEquals(..Call(1, "text"), "a & b <3 @someone e.x (https://e.x)", "its text is the decoded plain text")
+	Do $$$AssertEquals(..Call(1, "sessionRef"), session, "for the member's session")
 }
 
 Method TestRetryOnce()

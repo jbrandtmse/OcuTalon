@@ -27,6 +27,12 @@
 //           object; text, toolUse and stopReason are model replies and are refused.
 // A telegram scenario is never selected by a model request: a test queues it for its method through POST /_mock/telegram/replies.
 // checkTelegramReplies(replies, where) applies the telegram reply rules to a list and returns the problems.
+// The match type slack serves the Slack Web API side of the mock (Story 27.2):
+//   {"name": "<kebab-case, the file's name>", "match": {"slack": "<method>"}, "replies": [<slack reply>, ...]}
+//   method: one of SLACK_METHODS (chat.postMessage), in A/ or B/;
+//   slack reply: the fields of a telegram reply, with the same rules: {"status", "headers" (Retry-After, say), "delayMs", "body": {...}}.
+// A slack scenario is never selected by a model request: a test queues it for its method through POST /_mock/slack/replies.
+// checkSlackReplies(replies, where) applies the slack reply rules to a list and returns the problems.
 // This module reads files and holds no state.
 
 import fs from 'node:fs';
@@ -34,13 +40,15 @@ import http from 'node:http';
 import path from 'node:path';
 
 export const FOLDERS = ['A', 'B'];
-export const MATCH_TYPES = ['marker', 'prompt', 'mockkey', 'telegram'];
+export const MATCH_TYPES = ['marker', 'prompt', 'mockkey', 'telegram', 'slack'];
 export const SCENARIO_FIELDS = ['name', 'match', 'replies'];
 export const REPLY_FIELDS = ['status', 'headers', 'delayMs', 'stopReason', 'text', 'toolUse', 'body'];
 export const REPLY_BODY_FIELDS = ['text', 'toolUse', 'body'];
 export const TELEGRAM_REPLY_FIELDS = ['status', 'headers', 'delayMs', 'body'];
 // The Bot API methods that the mock serves (Story 10.3; getFile, Story 25.3).
 export const BOT_METHODS = ['getMe', 'getUpdates', 'sendMessage', 'editMessageText', 'answerCallbackQuery', 'getFile'];
+// The Slack Web API methods that the mock serves (Story 27.2).
+export const SLACK_METHODS = ['chat.postMessage'];
 export const STOP_REASONS = ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'refusal'];
 // The grammar of a scenario name and of a marker's test key, as regular expression source; every pattern below is built
 // from these two.
@@ -111,9 +119,10 @@ function checkToolUse(use, where, bad) {
   }
 }
 
-// checkReply(reply, where, bad, telegram): the rules of a reply. A telegram reply (a Bot API reply) holds status, headers, delayMs and a
-// body that is a JSON object, and nothing else; any other reply is a model reply.
-function checkReply(reply, where, bad, telegram = false) {
+// checkReply(reply, where, bad, side): the rules of a reply. A telegram reply (a Bot API reply) or a slack reply (a Web API reply; side is
+// 'telegram' or 'slack') holds status, headers, delayMs and a body that is a JSON object, and nothing else; any other reply is a model reply.
+function checkReply(reply, where, bad, side = null) {
+  const telegram = side !== null;
   if (!isObject(reply)) {
     bad(`${where}: a reply is not an object`);
     return;
@@ -126,7 +135,7 @@ function checkReply(reply, where, bad, telegram = false) {
     bad(`${where}: status must be an integer from ${MIN_STATUS} to ${MAX_STATUS}`);
   }
   if (telegram) {
-    if (!isObject(reply.body)) bad(`${where}: a telegram reply needs a body that is a JSON object`);
+    if (!isObject(reply.body)) bad(`${where}: a ${side} reply needs a body that is a JSON object`);
   } else {
     const present = REPLY_BODY_FIELDS.filter((k) => Object.hasOwn(reply, k));
     if (present.length !== 1) bad(`${where}: a reply must hold exactly one of text, toolUse and body, found ${present.length}`);
@@ -170,7 +179,16 @@ export function checkTelegramReplies(replies, where) {
   const problems = [];
   const bad = (msg) => problems.push(msg);
   if (!Array.isArray(replies) || replies.length === 0) bad(`${where}: replies must be a non-empty list`);
-  else replies.forEach((reply, i) => checkReply(reply, `${where} reply ${i + 1}`, bad, true));
+  else replies.forEach((reply, i) => checkReply(reply, `${where} reply ${i + 1}`, bad, 'telegram'));
+  return problems;
+}
+
+// checkSlackReplies(replies, where): the problems of a list of slack replies, one line each, each starting with where.
+export function checkSlackReplies(replies, where) {
+  const problems = [];
+  const bad = (msg) => problems.push(msg);
+  if (!Array.isArray(replies) || replies.length === 0) bad(`${where}: replies must be a non-empty list`);
+  else replies.forEach((reply, i) => checkReply(reply, `${where} reply ${i + 1}`, bad, 'slack'));
   return problems;
 }
 
@@ -211,6 +229,8 @@ function checkScenario(rel, folder, base, data, bad) {
       bad(`${rel}: match ${type} is not a non-empty string`);
     } else if (type === 'telegram' && !BOT_METHODS.includes(value)) {
       bad(`${rel}: match telegram must be one of ${BOT_METHODS.join(', ')}`);
+    } else if (type === 'slack' && !SLACK_METHODS.includes(value)) {
+      bad(`${rel}: match slack must be one of ${SLACK_METHODS.join(', ')}`);
     } else if (type === 'marker' && value !== data.name) {
       bad(`${rel}: marker "${value}" differs from name "${data.name}"`);
     } else if (type === 'prompt' && folder !== 'B') {
@@ -222,8 +242,8 @@ function checkScenario(rel, folder, base, data, bad) {
   if (!Array.isArray(data.replies) || data.replies.length === 0) {
     bad(`${rel}: replies must be a non-empty list`);
   } else {
-    const telegram = isObject(match) && keys.length === 1 && Object.hasOwn(match, 'telegram');
-    data.replies.forEach((reply, i) => checkReply(reply, `${rel} reply ${i + 1}`, bad, telegram));
+    const side = isObject(match) && keys.length === 1 ? ['telegram', 'slack'].find((k) => Object.hasOwn(match, k)) ?? null : null;
+    data.replies.forEach((reply, i) => checkReply(reply, `${rel} reply ${i + 1}`, bad, side));
   }
 }
 

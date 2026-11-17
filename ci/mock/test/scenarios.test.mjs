@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { BOT_METHODS, checkTelegramReplies, findMarkers, KEY_PATTERN, loadScenarios, MATCH_TYPES, NAME_PATTERN, parseLabel, REPLY_FIELDS, STOP_REASONS, TELEGRAM_REPLY_FIELDS } from '../scenarios.mjs';
+import { BOT_METHODS, checkSlackReplies, checkTelegramReplies, findMarkers, KEY_PATTERN, loadScenarios, MATCH_TYPES, NAME_PATTERN, parseLabel, REPLY_FIELDS, SLACK_METHODS, STOP_REASONS, TELEGRAM_REPLY_FIELDS } from '../scenarios.mjs';
 import { spawnServer } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +63,13 @@ const DEFECTS = [
   ['a telegram reply with text', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, text: 'x' }] } }, ['A/good.json', 'a reply has the unknown field "text"']],
   ['a telegram reply with toolUse', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, toolUse: { name: 'a' } }] } }, ['A/good.json', 'a reply has the unknown field "toolUse"']],
   ['a telegram reply with a stopReason', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, stopReason: 'end_turn' }] } }, ['A/good.json', 'a reply has the unknown field "stopReason"']],
+  ['a slack match with a model reply', { 'B/good.json': { ...GOOD, match: { slack: 'chat.postMessage' } } }, ['B/good.json', 'a reply has the unknown field "text"']],
+  ['a slack match with a method the mock does not serve', { 'B/good.json': { ...GOOD, match: { slack: 'apps.connections.open' }, replies: [TG_REPLY] } }, ['B/good.json', 'match slack must be one of chat.postMessage']],
+  ['a slack match that is not a string', { 'B/good.json': { ...GOOD, match: { slack: 5 }, replies: [TG_REPLY] } }, ['B/good.json', 'match slack is not a non-empty string']],
+  ['a slack reply with no body', { 'B/good.json': { ...GOOD, match: { slack: 'chat.postMessage' }, replies: [{ status: 200 }] } }, ['B/good.json', 'a slack reply needs a body that is a JSON object']],
+  ['a slack reply with a body that is a list', { 'B/good.json': { ...GOOD, match: { slack: 'chat.postMessage' }, replies: [{ status: 200, body: [1] }] } }, ['B/good.json', 'a slack reply needs a body that is a JSON object']],
+  ['a slack reply with a stopReason', { 'B/good.json': { ...GOOD, match: { slack: 'chat.postMessage' }, replies: [{ status: 200, body: {}, stopReason: 'end_turn' }] } }, ['B/good.json', 'a reply has the unknown field "stopReason"']],
+  ['a slack reply with a Transfer-Encoding header', { 'B/good.json': { ...GOOD, match: { slack: 'chat.postMessage' }, replies: [{ status: 200, body: {}, headers: { 'Transfer-Encoding': 'chunked' } }] } }, ['B/good.json', 'is set by the mock, never by a scenario']],
   ['a telegram reply with a status of 99', { 'B/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 99, body: {} }] } }, ['B/good.json', 'status must be an integer from 100 to 599']],
   ['a telegram reply with a Content-Length header', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, headers: { 'Content-Length': '5' } }] } }, ['A/good.json', 'is set by the mock, never by a scenario']],
   ['a telegram reply with a delayMs above 600000', { 'A/good.json': { ...GOOD, match: { telegram: 'getMe' }, replies: [{ status: 200, body: {}, delayMs: 600001 }] } }, ['A/good.json', 'delayMs must be an integer from 0 to 600000']],
@@ -265,8 +272,26 @@ test('row 15 (Story 10.3): telegram scenarios load in either folder, several may
   assert.equal(checkTelegramReplies([{ status: 200 }, { status: 200, body: {}, text: 'x' }], 'replies').length, 2);
 });
 
+test('row 15 (Story 27.2): slack scenarios load in either folder, several may name one method, and none is a mock key or a guide prompt', () => {
+  const files = {
+    'B/post-one.json': { name: 'post-one', match: { slack: 'chat.postMessage' }, replies: [{ status: 200, body: { ok: true } }] },
+    'A/post-two.json': { name: 'post-two', match: { slack: 'chat.postMessage' }, replies: [{ status: 429, headers: { 'Retry-After': '2' }, delayMs: 5, body: { ok: false, error: 'ratelimited' } }] },
+    'A/good.json': GOOD,
+  };
+  withTree(files, (dir) => {
+    const { scenarios, problems } = loadScenarios(dir);
+    assert.deepEqual(problems, []);
+    assert.equal(scenarios.all.filter((s) => s.match.slack === 'chat.postMessage').length, 2);
+    assert.equal(scenarios.byMockKey.size + scenarios.prompts.length, 0);
+  });
+  assert.deepEqual(SLACK_METHODS, ['chat.postMessage']);
+  assert.deepEqual(checkSlackReplies([TG_REPLY, { status: 429, body: {}, headers: { 'Retry-After': '1' } }], 'replies'), []);
+  assert.equal(checkSlackReplies([], 'replies').length, 1);
+  assert.equal(checkSlackReplies([{ status: 200 }, { status: 200, body: {}, text: 'x' }], 'replies').length, 2);
+});
+
 test('row 15: the format constants and the marker grammar', () => {
-  assert.deepEqual(MATCH_TYPES, ['marker', 'prompt', 'mockkey', 'telegram']);
+  assert.deepEqual(MATCH_TYPES, ['marker', 'prompt', 'mockkey', 'telegram', 'slack']);
   assert.deepEqual(REPLY_FIELDS, ['status', 'headers', 'delayMs', 'stopReason', 'text', 'toolUse', 'body']);
   assert.deepEqual(STOP_REASONS, ['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'refusal']);
   for (const ok of ['a', 'refusal', 'long-retry-after', 'a1-b2']) assert.ok(NAME_PATTERN.test(ok), ok);
