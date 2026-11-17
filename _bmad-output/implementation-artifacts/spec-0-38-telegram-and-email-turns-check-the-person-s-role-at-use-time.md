@@ -6,7 +6,7 @@ status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
-warnings: ['oversized', 'depends-on-27.3']
+warnings: ['oversized', 'depends-on-27.3', 'release-blocker-for-any-epic-27-release']
 deferred: []
 ---
 
@@ -89,6 +89,27 @@ On this base:
 - Given CI on this story's head, when it finishes, then every workflow is green.
 
 ## Spec Change Log
+
+- 2026-11-17 (lead). **RELEASE BLOCKER and scope additions, Contest Planner ~02:05Z Nov 17 (BINDING)**, quoted in full; applied at the re-plan after 27.3 merges (27.3 is accepted with MayChat in Core.Conversation and Web.Public.Shell, and Bridge.Approval.RolesOf new):
+
+  > ## Additions from the 27.3 rework (Contest Planner, ~02:05Z Nov 17). BINDING.
+  > 
+  > ### 1. DW-1465 is in 0.38's scope
+  > - Extend MayChat to refuse a DISABLED account and one PAST ITS EXPIRY. Read Enabled and the expiry in the production job.
+  > - Pin it for each channel, including live:slack-hook.
+  > 
+  > **RELEASE BLOCKER:** 0.38 blocks the next release that contains ANY Epic 27 story. No release ships Slack without it. Record this on the tracker and in 0.38's spec.
+  > 
+  > **Release note**, stating it plainly as a fix: "a disabled or expired IRIS account, or a user without the chat role, could still start conversations through Telegram or email; now refused."
+  > 
+  > ### 2. DW-1466: MOVE the predicate into Core
+  > - Do NOT add a Core-to-Web edge.
+  > - Move it into Core, for example Core.Access.MayChat(roles) plus MayChat(irisUser).
+  > - Web.Public.Shell then calls Core. Web depending on Core is the existing direction.
+  > - Keep the agreement test against Web/Api that covers 10 role sets.
+  > 
+  > ### 3. Channel.Refused
+  > It moves in 0.38, as already ruled. 27.3 still writes not_user into Slack.Ignored.
 
 - 2026-11-17 (lead). **Story 0.38 spec-gate rulings and the item-4 text, Contest Planner ~01:10Z Nov 17 (BINDING)**, quoted in full; to be applied in the build after 27.3 merges and feature is green:
 

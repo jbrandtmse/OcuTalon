@@ -1999,6 +1999,8 @@ So that a fault gets a check and a choice gets a notice.
 
 [ADDED 2026-11-17, Contest Planner, DW-1284 raised after 27.3's viewer finding] (story-273-rulings-20261116.md, the 26.4 / DW-1284 section and the 27.3 Task 0 ruling (a); merges after the Triage confidence A/B). The release note states it plainly as a fix: a viewer, or a person whose OcuTalonUser role was removed, could start turns through a paired Telegram chat or the connected mailbox that web chat refuses.
 
+**RELEASE BLOCKER** [AMENDED 2026-11-17, Contest Planner, additions from the 27.3 rework ~02:05Z]: Story 0.38 blocks the next release that contains ANY Epic 27 story; no release ships Slack without it. Its scope also takes DW-1465 (MayChat refuses a disabled account and one past its expiry, read in the production job, pinned per channel including live:slack-hook), DW-1466 (the predicate moves into Core, for example Core.Access MayChat(roles) and MayChat(irisUser), and Web.Public.Shell calls Core; the 10-role-set agreement test against Web/Api stays) and the move of Slack's not_user onto Channel.Refused. Release note: "a disabled or expired IRIS account, or a user without the chat role, could still start conversations through Telegram or email; now refused."
+
 As an admin who assigns roles,
 I want a message that arrives on Telegram or by email to start a turn only when its sender may chat by web chat's rule at that moment,
 So that removing a role, or making someone a viewer, closes every channel at once.

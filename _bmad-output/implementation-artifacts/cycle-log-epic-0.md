@@ -1088,3 +1088,4 @@
 2026-11-17T00:40:12Z	Story 0.38	spec_validated	gate=planner_pending(email_check_in_Channel.Email.In_not_Conversation(AC1_wording);not_user_record_reuses_Channel.Slack.Ignored;pair-time_not_user_outcome_answers_existing_pairing.badCode;email_has_no_per-person_link;depends_on_27.3_MayChat)
 2026-11-17T00:41:29Z	Story 0.38	spec_gate_ruled	source=<coordination>/prompts/story-038-dw1284-rulings-20261117.md approved(build_after_27.3) items=AC1_corrected,Channel.Refused_neutral_class,pair_badCode,mailbox_save_refusal(PUBLIC_TEXT_to_Planner),telegram_file_checked_before_download
 2026-11-17T00:42:13Z	Story 0.38	public_text_approved	item4=mailbox_save_not_user(verbatim_in_spec) status=draft(re-plan_after_27.3_merges_and_feature_green)
+2026-11-17T01:36:30Z	Story 0.38	scope_added	source=rulings_~02:05Z(DW-1465_disabled/expired_in_MayChat,DW-1466_predicate_to_Core.Access,Channel.Refused_move) release_blocker=any_release_with_an_Epic_27_story(epics.md+spec)
