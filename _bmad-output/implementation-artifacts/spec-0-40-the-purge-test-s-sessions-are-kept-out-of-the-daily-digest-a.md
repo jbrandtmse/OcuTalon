@@ -2,7 +2,7 @@
 title: 'Story 0.40: The purge test''s sessions are kept out of the daily digest, and the purge text says what is removed'
 type: 'bugfix'
 created: '2026-11-17'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -24,7 +24,7 @@ deferred: []
 
 - [x] `Test/Data/Purge.cls`: `Covered(ref)` seeds the Sent row in `Session(days)`; `SentRefs` removed in `OnAfterOneTest`; counts in the idle-session messages; new `TestNoActivityGoesRecentDeliveryKept`.
 - [x] `docs/security-overview.md:212` replaced verbatim; `docker/tests/test-release-sequence.sh` pins it (the Data section) and its control mutates it.
-- [ ] Verification on lane D: Test.Data.Purge fresh; the shard's Data classes in a loop under load; a mutation (no `Covered`) observed red where a digest tick lands; test-release-sequence's overview rule.
+- [x] Verification on lane D (warm e040): Test.Data.Purge green; lane-b@Data (26 classes) 5 of 5 green, 3 of them at host load 30-32; test-release-sequence 27/27 (overviewdoc with the purge-sentence control and the 90-days control, now expecting both problems because the approved sentences name 90 days); test-class-rules. A mutation without `Covered` is not deterministic (it needs a digest tick inside the test's second), so the isolation is pinned by the CI record rather than a forced red.
 
 **Acceptance Criteria:** as epics.md Story 0.40.
 
@@ -75,5 +75,5 @@ deferred: []
 
 ## Auto Run Result
 
-Status: in-progress
+Status: done
 Blocking condition: none
