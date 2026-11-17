@@ -8817,6 +8817,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Channel/Slack/In.cls Turn repeats Channel/Telegram/In.cls Turn step for step minus allowance and file; spec decision 9 forces the copy (U-177: a Lane B story may not edit or extract from a Lane A class)
 - 2026-11-16T18:25:34Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify in one shared turn helper in a story allowed to edit Lane A and Lane B channel services
+- 2026-11-17T09:19:12Z status=wontfix-accepted owner=27-1-receive-slack-events-by-webhook by=burndown note=scope_frozen_1.0.13(owner);reopen_if=a_Lane_A_story_touches_Channel/Telegram/In.cls_Turn_or_WebChatIn.Accept(then_extract_one_shared_turn_helper)
 
 ### DW-1444: A Slack event over Data.Webhook BODYMAX (65,536 bytes) is answered 413 and dropped, so a very long direct message (Slack allows 40,000 characters and repeats the text in blocks) never becomes a turn
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: in-story
@@ -8918,12 +8919,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-17T00:56:23Z status=escalated owner=burndown by=harvest note=for_the_Planner:extend_MayChat(irisUser)_with_account_state_(Enabled,expiry)_in_27.3_or_in_0.38?
 - 2026-11-17T01:12:02Z occurrence=27-3-link-slack-members-in-settings note=measured(throwaway):role_set_reads_OK_with_OcuTalonUser_for_a_disabled_and_an_expired_account;so_MayChat_answers_1
 - 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38(DW-1284)_extend_MayChat(irisUser)_with_account_state;key_not_yet_in_tracker
+- 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 
 ### DW-1466: The spine's dependency direction lists no Core-to-Web reference, yet Core.Conversation.MayChat calls OcuTalon.Web.Public.Shell.MayChat (ruled in amended AD-14), so the diagram and AD-14 disagree
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/Conversation.cls MayChat references Web.Public.Shell; ARCHITECTURE-SPINE Dependency direction (mermaid + prose) has no Core->Web arrow and says the rest is checked in review; precedent Core.Files->Web.Documents is also unlisted
 - 2026-11-17T01:12:02Z status=escalated owner=burndown by=cr note=for_the_Planner:record_the_ruled_Core->Web.Public.Shell.MayChat_edge_in_the_dependency_diagram(or_move_the_predicate)
 - 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38_move_the_predicate_into_Core;key_not_yet_in_tracker
+- 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 ### DW-1459: 28.3: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role are not exercised through the dispatcher or iris-mcp-server
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: direct web path answers 502 GATEWAY_REQUIRED before OnAuthenticate; iris-mcp-server 2.0.0 lists no tool on build 154 (Task 0)
@@ -8999,6 +9002,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: settle from the feature CI run's shards-3 time after the 27.2 merge
 - 2026-11-17T07:39:18Z status=routed owner=burndown by=harvest note=check_shards-3_duration_on_the_27.2_branch_CI_and_feature_merge_run
+- 2026-11-17T09:19:12Z status=escalated owner=burndown by=burndown note=MEASURED_shards-3_job:37.8min_on_27.2_head_ea0736ead(ci_44047367644);prior_heads_33.7(81265443f),34.9(05915a781),38.8(1f8733c0e),40.2(14940d399):already_over_the_32-min_line_since_27.1's_live:slack-hook;for_the_Planner's_CI-budget_audit
 
 ### DW-1478: lint_spine.py reports ok:false from 13 pre-existing LOW placeholder findings (none in lines Epic 27 added)
 - source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
