@@ -125,6 +125,25 @@ Method SeedDecision(kind As %String, reason As %String = "invalid") As %String [
 	Quit ref
 }
 
+/// Seeds a decide decision that was accepted (no fallback) with the outcome and no confidence, the attention floor of the triage-accept ruling; its Ref joins Refs.
+Method SeedAccepted(outcome As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row = ##class(OcuTalon.Bridge.Data.Decision).%New()
+	Set row.Ref = ref
+	Set row.Kind = "decide"
+	Set row.ItemId = ref
+	Set row.OwnerRef = "eval"
+	Set row.Outcome = outcome
+	Set row.Fallback = 0
+	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set sc = row.%Save()
+	Do $$$AssertStatusOK(sc, "an accepted decision without a confidence is seeded")
+	Set ..Made = ..Made _ $ListBuild("decision|"_row.%Id())
+	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ ref
+	Quit ref
+}
+
 /// Seeds the request of one attempt of the decision: the Request body and its header (to the runner). Gives the header's id, which the answer links to.
 Method SeedRequest(ref As %String, kind As %String, runner As %String, retryOf As %String = "") As %String
 {
@@ -212,13 +231,13 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set case.State = "decided"
 	$$$ThrowOnError(case.%Save())
 	Set ..Made = ..Made _ $ListBuild("case|"_case.%Id())
-	// A triage reply refused by the parent's own rule, against the triage runner's own reply class (a triage reply with no confidence passes since the triage-accept ruling).
+	// A triage reply to ignore with no confidence: the parent's rule, against the triage runner's own reply class (below the attention floor, so still refused).
 	Set marker = ..Marker()
-	Set triage = {"outcome": "maybe", "reasons": [("Checked "_marker)], "confidence": 0.5}
+	Set triage = {"outcome": "ignore", "reasons": [("Checked "_marker)]}
 	Set ref = ..SeedDecision("decide")
 	Do ..SeedReply(ref, "decide", ..#TRIAGE, triage.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(triage.%ToJSON(), marker, ..#TRIAGE, "outcome-unlisted", "outcome", "check")
-	Set count("outcome-unlisted") = $Get(count("outcome-unlisted")) + 1
+	Set expected(ref, 1) = $ListBuild(triage.%ToJSON(), marker, ..#TRIAGE, "confidence-missing", "confidence", "check")
+	Set count("confidence-missing") = $Get(count("confidence-missing")) + 1
 	// A reply that passes the check now.
 	Set marker = ..Marker()
 	Set usable = $ClassMethod(..#PAYLOAD, "Usable")
@@ -335,8 +354,14 @@ ClassMethod Files(folder As %String) As %List [ Private ]
 Method TestOneReplyPerRule()
 {
 	Do ..SeedAll(.expected, .count)
+	// the attention floor (the triage-accept ruling): two accepted decide decisions without a confidence, tellnow and act, are counted by outcome and never as fallbacks
+	Do ..SeedAccepted("tellnow")
+	Do ..SeedAccepted("act")
 	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
 	Do $$$AssertStatusOK(sc, "the capture runs")
+	Do $$$AssertEquals(summary.accepted.%Get("tellnow")_"|"_summary.accepted.%Get("act")_"|"_summary.accepted.%Size(), "1|1|2", "the accepted decisions without a confidence are counted by outcome")
+	Set lines = $ClassMethod(..#TOOL, "Lines", summary)
+	Do $$$AssertTrue((lines [ ("CHK|accepted|tellnow|1")) && (lines [ ("CHK|accepted|act|1")), "and their CHK lines name the outcome and the count only")
 	Do $$$AssertEquals(summary.decisions_"|"_summary.decide_"|"_summary.diagnose_"|"_summary.replies_"|"_summary.noReply, "33|1|32|33|1", "33 decisions (1 decide, 32 diagnose), 33 replies and one decision with no reply")
 	Do $$$AssertEquals(summary.reasons.%Get("invalid")_"|"_summary.reasons.%Get("timer")_"|"_summary.reasons.%Get("cut_off"), "31|1|1", "the fallback reasons are counted")
 	Set found = ""
@@ -354,8 +379,6 @@ Method TestOneReplyPerRule()
 	Set pairs = $ListFromString($ClassMethod(..#PAYLOAD, "RuleTags"), ",")
 	Set position = 0
 	While $ListNext(pairs, position, pair) {
-		// confidence-missing is met by neither reply class since the triage-accept ruling (CONFIDENCEREQUIRED 0 on both), so no reply gives it
-		If $Piece(pair, ":", 1) = "confidence-missing" Continue
 		Do $$$AssertEquals($Piece($Get(found($Piece(pair, ":", 1))), "|", 2), $Piece(pair, ":", 2), $Piece(pair, ":", 1)_": the field is "_$Piece(pair, ":", 2))
 	}
 	Set cases = ""
