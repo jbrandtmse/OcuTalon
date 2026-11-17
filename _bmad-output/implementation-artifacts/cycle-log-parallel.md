@@ -4607,3 +4607,7 @@
 2026-11-17T00:41:09Z	Epic 0	owner_decision	via=contest_planner 0.38_gate=APPROVED(email_in_EmailIn,Channel.Refused_neutral_class,badCode_ok,mailbox_save_refusal_needs_text,Telegram_file_check_before_download)
 2026-11-17T00:42:00Z	Epic 0	owner_decision	via=contest_planner 0.38_item4_text=APPROVED(Option2+who_can_connect)
 2026-11-17T00:46:18Z	Epic 25	runner_reported	PART_READY 25.9 head=7a346a994 runs=43978832236(att2;DW-555_ci-18),43978832285 fresh_fwd=919s,rev=967s state=held(feature_regression) review=implement-stage_4-layer
+2026-11-17T00:46:49Z	Epic 25	owner_decision	via=contest_planner 25.9=ACCEPTED(implement_review) merges_after_feature_green_ahead_of_r4
+2026-11-17T00:46:49Z	Epic 0	dispatched	lane_A flake_burndown(browser-timing_family) branch=OCT-epic0-flakes_from_1f8733c0e conditions=cause_fixes,no_blanket_timeouts,10x_under_load,spec_gate_first
+2026-11-17T00:47:09Z	Run	note	b2768afeb_diagnosis: local demo-path at b2768afeb PASSED step3 (decision act/0.9, no fallback); code analysis finds no path; rerun of browser job 43982398541 started (ci-25 suspect)
+2026-11-17T00:47:53Z	Run	owner_decision	via=contest_planner b2768afeb_root=UTC_day_rollover(turn_error_00:00:06Z) NO_REVERT =MED_product_bug_candidate->flake_burndown_lane
