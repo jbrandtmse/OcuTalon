@@ -8886,3 +8886,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 42406393504 (OCT-epic11 882b6d4b) live:demo-path 07-failure-paths:60 interrupted by navigation to ?signedOut=1, then 08 cascaded; local e03ca809 07 the same; split out of DW-555 by the 0.39 plan
 - 2026-11-17T01:17:55Z status=open owner=burndown by=lead note=one rerun per the flake rule; a repeat makes it a cause-and-fix item
+
+### DW-1468: follow-on: about 45 more bare page.reload() sites (chat 5, notice 5, answers 3, floor/keyboard 4, rail 2, phone 2, demo-switch 4, sources 2, and more) follow the reload with a plain 10 s wait instead of loadedAfter/reloadSettled; convert them once Story 0.39 proves out
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 0.39 gate 2; the same blank-page-after-reload cause as DW-1448/1458/1452/1457
+- 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (prompts/story-039-flakes-rulings-20261117.md item 2): a follow-on story, LOW, after 0.39 proves out
+
+### DW-1469: follow-on: run Chromium in its own network namespace in CI, so the CI host's interface changes (sibling jobs' compose networks) never reach the browser (the net::ERR_NETWORK_CHANGED root of DW-415, DW-555 and the reload blank pages)
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 0.39 investigation: 7 of 7 chrome-error sightings and the reload blank pages trace to a network change seen by Chromium on the CI host (inference, unmeasured)
+- 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (rulings item 1): ledgered LOW, a CI infrastructure follow-on, not Story 0.39

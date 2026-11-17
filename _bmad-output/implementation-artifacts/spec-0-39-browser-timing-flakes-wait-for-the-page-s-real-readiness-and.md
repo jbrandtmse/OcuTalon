@@ -165,6 +165,7 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
      - the NAV line names the first error.
    - Move the NAV-line pins with their text. Re-check the `bounded-waits.test.mjs` pins.
 3. `web/e2e/support/floor.ts`: extract the shared `/state` wait from `loadedAfter` (Rule 2: extend, don't copy). `loadedAfter` stays the same, observably and in its labels. Export `reloadSettled(page)` (R1, non-main routes) with its own RETRY step label. Move the `floor.ts` source pins with their text.
+3b. **Pin: a site that needs the retry twice in one run fails** (Planner ruling 1, 2026-11-17). In the shared retry path that `loadedAfter` and `reloadSettled` use (`withOneReload` / `reportRetry`, `web/e2e/support/bounds.ts` or `floor.ts`), before a reload retry: if the unit's retry log (`OCUTALON_E2E_RETRY_LOG`, the file `ci/iris.sh` counts) already holds a `RETRY` line for the same `<spec>:<line>` site, do NOT retry. Fail with a named error: `<spec>:<line> needed its one logged retry a second time in this run; a second retry is a failure (Story 0.39)`, and still append the RETRY and DIAG lines so `ci/iris.sh` reports them. With no retry log set (a local run without `ci/iris.sh`), keep a per-process record of retried sites instead. `ci/iris.sh` is not changed (decided in-stage: the counter's file is the record; the failure is raised where the retry is decided). Pin it in `web/scripts/retry-bounds.test.mjs` (or the helper's existing node test): first retry at a site proceeds, a second at the same site throws the named error, a retry at another site proceeds.
 4. `web/e2e/demo-path/telegram-page.spec.ts` (DW-1448): replace `await page.reload(); await loaded(page);` with `await loadedAfter(page, () => page.reload());` at the six sites. Delete the local `loaded()`. Confirm that T1's and T5's code-request counts still hold.
 5. `web/e2e/history/history.spec.ts` (DW-1458): `await reloadSettled(page);` replaces the bare reload at L174, L218 and L361. The assertions are unchanged.
 6. `web/e2e/guide/guide.spec.ts` (DW-1452): `reopen()` becomes `loadedAfter(page, () => page.reload())`.
@@ -202,6 +203,7 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
   - the fixed test is green with exactly one `RETRY <spec>:<line> ...` line, and the unit's RETRIES count is 1.
   
   mutation: the repro on the old site → red. Then `reloadSettled` with its retry removed → H7 red under the repro.
+- AC2b (Planner ruling 1): Given a site that already logged its one RETRY in this run's retry log, when the same site needs a retry again, then the helper fails with the named "a second time in this run" error instead of reloading, and the RETRY/DIAG lines are still written. mutation: drop the check → the node row "second retry at the same site throws" goes red.
 - AC3 (DW-1457): Given the heartbeat GET answers 500 once after HC8's reload, when HC8 runs, then it fails with the message naming the heartbeat GET and status 500. mutation: that injection → red with the named message.
 - AC4 (DW-1451): Given MC3's 500 phase with the yesterday read's body held after its headers and today answered 500 after yesterday's response event (scratch repro: a local server continued to by `route.continue`), when MC3 runs, then the old `handled` times out at 45 s at L119 and the new one is green, well inside its bound. mutation: the repro on the old `handled` → red.
 - AC5 (DW-1450): Given a scratch hold before S5 (a background `iris session` that holds a connection for 5 s, started after `set_cap "$cap_free"`, with a wait until the status reads busy), when row 6 runs, then:
@@ -214,6 +216,8 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
 - AC8: Given CI on this story's head, when it finishes, then every workflow is green.
 
 ## Spec Change Log
+
+- 2026-11-17, lead, Planner spec-gate ruling (`prompts/story-039-flakes-rulings-20261117.md`, APPROVED): gate 1 adopted (one logged, CI-counted retry plus the named-diagnosis wait) with a NEW pin, Task 3b / AC2b (a second retry at one site in one run is a failure); gate 2 follow-on ledgered LOW (DW-1468), and Chromium's own network namespace ledgered LOW (DW-1469); gate 3 no traces; gate 4 lane crossing approved for this spec's files only (mock.mjs, history.spec.ts, test-online-demo.sh, Test.Contract.Mock) and the AD-22 sentence written verbatim into the spine; Task 0 (c) for group 5 must READ THE EXACT MOCK ERROR TEXT from the repro before the mock fix lands. DW-1450's stop condition stands. DW-1464 drops to LOW once fixed. Implement runs in two saveable passes: pass A = Tasks 0 (a) and the group 1-2 parts of 0 (b)/(c), 1, 2, 3, 3b, 4, 5, 6, 7; pass B = Tasks 8-12 and their Task 0 parts.
 
 ## Review Triage Log
 
@@ -259,6 +263,8 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
      - The lead adds the tie-break to AD-22's "How a request picks its scenario" in the bookkeeping commit (Rule 20; veto item 9). Suggested text: "two guide prompts that both match are told apart by ignoring lines that start with `> ` (quoted context); one remaining match is selected, else 500".
    - Alternative: a Lane B story makes the mock change. DW-1464 then stays open, and any demo-path run that crosses midnight after an earlier guide prompt stays red.
    - Not a product change (product code is unchanged). A real model is not keyed by prompt text, so real users are not affected.
+
+**Planner ruling, 2026-11-17 (binding):** APPROVED. 1: adopt 32.6's one logged, CI-counted retry with the named-diagnosis wait, and pin that needing it more than once per run at one site is a failure (Task 3b). 2: the ~45 other bare reloads are a LOW follow-on story (DW-1468); Chromium's own network namespace is a LOW follow-on (DW-1469). 3: no traces; if a fixed site still fails in CI, the Planner pulls its trace. 4: the lane crossing is approved for THIS spec's files only (`ci/mock/mock.mjs`, `web/e2e/history/history.spec.ts`, `docker/tests/test-online-demo.sh`, `Test.Contract.Mock`); AD-22 carries the approved sentence verbatim (spine, [AMENDED 2026-11-17, Story 0.39]); read the exact mock error text in the repro before the mock fix lands. DW-1450's stop condition stands. Keep counting hosts through this story's CI.
 
 **Governing ADs:**
 - AD-22: testing, CI and the mock's selection. Group 5 amends it through gate 4. No AC contradicts its Rule.
