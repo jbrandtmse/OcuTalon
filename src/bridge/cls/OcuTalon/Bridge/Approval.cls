@@ -402,19 +402,31 @@ ClassMethod AnswerLocked(ref As %String, action As %String, channel As %String, 
 	Quit "done"
 }
 
-/// 1 when the IRIS user holds the role: it is in the user's recursed role set, the names compared without case, as IRIS names roles. An empty
-/// user or role, an unknown user and an error from the role set (reading another user's set needs %Admin_Secure:USE) hold nobody.
+/// 1 when the IRIS user holds the role: it is in the user's recursed role set (RolesOf), the names compared without case, as IRIS names roles. An empty
+/// user or role, an unknown user and an error from the role set hold nobody.
 ClassMethod HoldsRole(irisUser As %String, role As %String) As %Boolean [ Private ]
 {
 	If (irisUser = "") || (role = "") Quit 0
-	Set holds = 0
+	If '..RolesOf(irisUser, .roles) Quit 0
+	Quit ''$ListFind($ListFromString($ZConvert(roles, "L")), $ZConvert(role, "L"))
+}
+
+/// The one read of another user's roles (Core.Access MayChat and HoldsRole call it): 1 when the IRIS user's recursed role set was read, with roles the comma list that
+/// IRIS answers, as it names them. An empty user, an unknown user and an error (reading another user's set needs %Admin_Secure:USE, which production jobs have, and the hook
+/// application's role does not) answer 0 with roles empty. It never throws.
+ClassMethod RolesOf(irisUser As %String, Output roles As %String) As %Boolean
+{
+	Set roles = ""
+	If $Get(irisUser) = "" Quit 0
+	Set read = 0
 	Try {
-		Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(irisUser, .roles)
-		Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString($ZConvert(roles, "L")), $ZConvert(role, "L"))
+		Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(irisUser, .set)
+		If $$$ISOK(sc) Set roles = $Get(set), read = 1
 	} Catch exception {
-		Set holds = 0
+		Set roles = ""
+		Set read = 0
 	}
-	Quit holds
+	Quit read
 }
 
 /// 1 when the IRIS user may answer the request, 0 when not (AD-11, step 6): the role check that Lane B makes before Answer. The row is read without

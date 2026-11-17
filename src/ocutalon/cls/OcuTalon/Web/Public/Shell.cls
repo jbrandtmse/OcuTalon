@@ -144,7 +144,8 @@ ClassMethod Serve(path As %String) As %Status
 	Quit ##class(%CSP.StreamServer).OnPage()
 }
 
-/// 1 when the roles (the signed-in user's by default, a comma list) hold the OcuTalon user role or the viewer role, each by its whole name.
+/// 1 when the roles (the signed-in user's by default, a comma list) hold the OcuTalon user role or the viewer role, each by its whole name. With ViewerOnly it is web chat's gate
+/// (Web.Api OnPreDispatch); Core.Access RolesMayChat is the same rule for a channel that has no web session, and Test.Web.ViewerApi keeps the two equal.
 ClassMethod HasRole(roles As %String = {$Roles}) As %Boolean
 {
 	Quit ((","_roles_",") [ (","_..#ROLE_",")) || ((","_roles_",") [ (","_..#VIEWERROLE_","))

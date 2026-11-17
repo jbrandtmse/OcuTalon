@@ -9,7 +9,10 @@
 #     docker/tests/) except in the one read of ^OcuTalonTest("TelegramIncluded") in Channel/Telegram/In.cls, so the
 #     judges' install never has it set (AD-29, Story 0.4);
 #   - Data.Session's ForEval and DropEval, the evaluation session rows, are called in the product only by Eval/In.cls (EvalIn) and named in
-#     Data/Session.cls only where they are defined (AD-4, AD-33; the Contest Planner's condition (i) of Story 41.14).
+#     Data/Session.cls only where they are defined (AD-4, AD-33; the Contest Planner's condition (i) of Story 41.14);
+#   - no socket mode for Slack (Story 27.2; the Contest Planner's ruling): no code line of the Slack channel's classes (Channel/Slack/), their tests (Test/Channel/Slack*) or the
+#     CI mock's modules (ci/mock/*.mjs) names a WebSocket, the method that opens a socket-mode connection, socket mode itself or an app-level token, and no code line anywhere in
+#     src/ (outside the built page) uses the %Net.WebSocket client or that method. The live-events WebSocket server (%CSP.WebSocket) is no such use.
 # And in every file that git tracks or has not ignored (the pipeline's folders and the agent files included, a binary skipped,
 # .env and .env.<x> other than .env.example never read), CON-5:
 #   - no local machine path: a home or volume folder with a name below it, a /private/tmp, /private/var or /private/etc path,
@@ -76,7 +79,8 @@ test_global() {
   ' "$@"
 }
 
-# Product class text that names Data.Session's ForEval or DropEval outside Eval/In.cls, other than their own definition lines in Data/Session.cls. The OcuTalon/Test
+# Product class text that names Data.Session's ForEval or DropEval outside Eval/In.cls, other than their own definition lines in Data/Session.cls and the definition line of the
+# evaluation turn writer Data.Turn ForEval (Story 27.1, the R7 channel A/B), which only Eval/In.cls calls. The OcuTalon/Test
 # classes are the tests and are skipped, and so is a comment line; only class, routine and include files are read.
 eval_session_callers() {
   awk '
@@ -84,9 +88,28 @@ eval_session_callers() {
     /^[ \t]*(\/\/|;|#;)/ { next }
     {
       line = $0
-      if (FILENAME ~ /OcuTalon\/Data\/Session\.cls$/ && line ~ /^ClassMethod (ForEval|DropEval)\(/) next
+      if (FILENAME ~ /OcuTalon\/Data\/(Session|Turn)\.cls$/ && line ~ /^ClassMethod (ForEval|DropEval)\(/) next
       if (line ~ /(^|[^A-Za-z0-9_])(ForEval|DropEval)([^A-Za-z0-9_]|$)/) print FILENAME ":" FNR
     }
+  ' "$@"
+}
+
+# A code line (not a comment: //, ///, ;, #; or ##;) of the files that names socket mode, case-insensitively: a WebSocket, the method apps.connections.open, socket_mode or
+# socket mode itself, or an app-level token (xapp-).
+slack_socket() {
+  awk '
+    /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    { line = tolower($0) }
+    line ~ /websocket|apps\.connections|socket[_ ]?mode|xapp-/ { print FILENAME ":" FNR }
+  ' "$@"
+}
+
+# A code line of src/ that uses the %Net.WebSocket client or the method that opens a socket-mode connection.
+net_socket() {
+  awk '
+    /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    { line = tolower($0) }
+    line ~ /%net\.websocket|apps\.connections/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -325,6 +348,59 @@ done
 if [ "$controls_ok" -eq 1 ]; then
   scan_rule "docker calls: no push, save, export or sign-in, no --cache-to, config only with --quiet, inspect only with --format" \
     risky_docker_calls "$tmp/docker.bad1" "$tmp/docker.good" "$files"
+fi
+
+# No socket mode for Slack: the scanners flag each shape, and the Slack code, its tests, the mock's modules and all of src/ keep the rule.
+printf 'Set ws = ##class(%%Net.WebSocket).%%New()\n' > "$tmp/sock.bad1"
+printf 'Set status = request.Post(prefix_"/apps.connections.open")\n' > "$tmp/sock.bad2"
+printf 'Set mode = "socket_mode"\n' > "$tmp/sock.bad3"
+printf 'const mode = "Socket Mode";\n' > "$tmp/sock.bad4"
+printf 'Set token = "%s%s"\n' "xapp" "-1-A0B" > "$tmp/sock.bad5"
+printf 'const WS = new WebSocket(url);\n' > "$tmp/sock.bad6"
+printf 'Set sc = ##class(%%CSP.WebSocket).%%New()\n' > "$tmp/sock.bad7"
+{
+  printf '/// No socket mode and no WebSocket here: apps.connections.open is never called, and no xapp- token.\n'
+  printf '// a WebSocket would be socket mode\n'
+  printf '; apps.connections.open in a comment\n'
+  printf 'Set text = "chat.postMessage"\n'
+  printf 'Set socketCount = 1\n'
+} > "$tmp/sock.good"
+printf 'Class OcuTalon.Web.Live Extends %%CSP.WebSocket\n{\n}\n' > "$tmp/sock2.good"
+sock_ok=1
+for n in 1 2 3 4 5 6 7; do
+  if [ -z "$(slack_socket "$tmp/sock.bad$n")" ]; then
+    echo "FAIL slack socket mode: the scanner does not flag sample $n"
+    fails=$((fails + 1))
+    sock_ok=0
+  fi
+done
+for n in 1 2; do
+  if [ -z "$(net_socket "$tmp/sock.bad$n")" ]; then
+    echo "FAIL slack socket mode: the %Net.WebSocket scanner does not flag sample $n"
+    fails=$((fails + 1))
+    sock_ok=0
+  fi
+done
+if [ -n "$(net_socket "$tmp/sock2.good")" ]; then
+  echo "FAIL slack socket mode: the %Net.WebSocket scanner flags the live-events WebSocket server"
+  fails=$((fails + 1))
+  sock_ok=0
+fi
+slack_files=$(grep -E '^src/.*/Channel/Slack/|^src/.*/Test/Channel/Slack[^/]*$|^ci/mock/[^/]+\.mjs$' <<< "$files")
+src_files=$(grep -E '^src/' <<< "$files" | grep -v '^src/ocutalon/csp/')
+if [ "$sock_ok" -eq 1 ]; then
+  scan_rule "slack-no-socket-mode: no WebSocket, apps.connections, socket mode or app-level token in the Slack code, its tests and the mock" slack_socket "$tmp/sock.bad1" "$tmp/sock.good" "$slack_files"
+  scan_rule "slack-no-socket-mode: nothing in src/ uses %Net.WebSocket or apps.connections" net_socket "$tmp/sock.bad1" "$tmp/sock2.good" "$src_files"
+  for f in src/ocutalon/cls/OcuTalon/Channel/Slack/In.cls src/ocutalon/cls/OcuTalon/Channel/Slack/Out.cls src/ocutalon/cls/OcuTalon/Test/Channel/SlackIn.cls ci/mock/mock.mjs ci/mock/scenarios.mjs; do
+    if ! grep -qxF -- "$f" <<< "$slack_files"; then
+      echo "FAIL slack-no-socket-mode: $f is not scanned"
+      fails=$((fails + 1))
+    fi
+  done
+  if ! grep -qxF -- "src/ocutalon/cls/OcuTalon/Web/Live.cls" <<< "$src_files"; then
+    echo "FAIL slack-no-socket-mode: the live-events WebSocket server is not among the files of src/ that stay clean"
+    fails=$((fails + 1))
+  fi
 fi
 
 if [ "$fails" -ne 0 ]; then

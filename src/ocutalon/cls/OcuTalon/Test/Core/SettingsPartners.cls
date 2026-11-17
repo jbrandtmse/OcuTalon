@@ -2,8 +2,8 @@
 /// instance of OcuTalon.Test.Core.SettingsOpsProbe, whose audit write is a recording seam and whose productions are a scripted list, with the body in a real SecretHandoff, as the
 /// route offers it. Safe on a slot: no production runs. The class declares TABLE = 1 so that PartnersShown can be shown to read the parameter of the class it is given. The
 /// contacts that the tests make (names that begin zzpc), the online-demo flag and the fixture sessions are put back after each test.
-///   - TestAddEditRemoveAudited: an add, an edit and a remove each write one Settings audit entry, partnerContact.<Ref>, whose from and to name the changed fields and never a
-///     value, with the admin, the session and the web channel; an entry that cannot be written, or a write that throws, changes nothing;
+///   - TestAddEditRemoveAudited: an add, an edit and a remove each write the row and then one Settings audit entry, partnerContact.<Ref>, whose from and to name the changed
+///     fields and never a value, with the admin, the session and the web channel; an entry that cannot be written, or a write that throws, rolls the row back, read from storage;
 ///   - TestRefusalsNameFieldsOnly: a bad name, address or production list is refused with its field named, a body of the wrong shape with no field, and nothing is written or
 ///     audited; no refusal holds a value;
 ///   - TestNothingChanged: the stored values again, in another spelling or order, write no audit entry and leave the row untouched;
@@ -20,8 +20,8 @@
 ///     of Watch.Reader as the same three fields, not_available on the online demo, and failed when the reader throws;
 ///   - TestProductionsRosterFailureIsEmpty: a submit that fails, throws or is busy, and an answer that is not a list of productions, each give productions [];
 ///   - TestTextOffOnDemo: the off-on-demo text is the accepted one, verbatim.
-///   - TestRowWriteFailureRollsBack (QA): a row write that fails after the audit write succeeded (productions over the 4000-character MAXLEN of the row) is failed, leaves no
-///     open transaction, no audit record (the probe's record sits inside the transaction) and the row as it was, for an add and for an edit.
+///   - TestRowWriteFailureRollsBack (QA): a row write that fails (productions over the 4000-character MAXLEN of the row) is failed, leaves no open transaction, attempts no
+///     audit write, leaves no entry for its session in the real audit log (a control add of the same session wrote one) and leaves the row as it was, for an add and for an edit.
 Class OcuTalon.Test.Core.SettingsPartners Extends %UnitTest.TestCase
 {
 
@@ -105,6 +105,7 @@ Method TestAddEditRemoveAudited()
 	Do $$$AssertEquals(row.Email_"|"_row.Name, email2_"|"_name, "the row holds the new address and the same name")
 	Do $$$AssertTrue(row.UpdatedAt '= "zz-before", "UpdatedAt is set")
 	Do $$$AssertTrue((data.%ToJSON() '[ email) && (data.%ToJSON() '[ email2), "neither address is in the entry")
+	Kill row
 	Do ..Reset()
 	Set name2 = ..Name("B")
 	Set result = ..Save(ref, name2, email2, [(a), (b)])
@@ -113,9 +114,13 @@ Method TestAddEditRemoveAudited()
 	Do $$$AssertEquals(..Audits()_"|"_data.from_"|"_data.to, "1|name,productions|name,productions", "one entry that names the two changed fields, in order, on both sides")
 	Do ..Reset()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "error"
+	Set added = ..Name("C")
+	Set result = ..Save("", added, ..Email("c"), [(a)])
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "an audit entry that cannot be written stops an add")
+	Do $$$AssertEquals(..Find(added), "", "and the row it wrote is rolled back")
 	Set result = ..Save(ref, name2, ..Email("a3"), [(a), (b)])
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "an audit entry that cannot be written stops the edit")
-	Do $$$AssertEquals(##class(OcuTalon.Data.PartnerContact).RefOpen(ref).Email, email2, "and the row is as it was")
+	Do $$$AssertEquals(##class(OcuTalon.Data.PartnerContact).RefOpen(ref).Email, email2, "and the row is as it was, read from storage")
 	Set result = ..Remove(ref)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "and stops a removal")
 	Do $$$AssertTrue($IsObject(##class(OcuTalon.Data.PartnerContact).RefOpen(ref)), "which leaves the row")
@@ -440,10 +445,9 @@ Method TestTextOffOnDemo()
 	Do $$$AssertEquals($Parameter("OcuTalon.Core.SettingsOps", "MESSAGEPARTNERSOFF"), "Partner contacts are off on the online demo, where partner warnings go to simulated contacts. They work on your own install.", "the off-on-demo text is the accepted one")
 }
 
-/// QA (the deferred item of Story 24.2's review): the audit write comes first and the row write after it, in one transaction. A row write that fails once the audit write
-/// has succeeded must roll the audit write back, leave no transaction open and leave the row as it was. The failure is real: productions whose JSON is over the 4000-character
-/// MAXLEN of the row make %Save fail. The probe's audit record (^OcuTalonTest("SettingsOpsProbe", "calls")) is a global in the same database as the row, so it is inside the
-/// transaction, and its private counter (Audits) shows that the audit write was reached.
+/// QA (the deferred item of Story 24.2's review; DW-1392): the row write comes first and the audit write after it, in one transaction. A row write that fails must write no
+/// audit entry at all, leave no transaction open and leave the row as it was. The failure is real: productions whose JSON is over the 4000-character MAXLEN of the row make
+/// %Save fail. The real audit log is read back for the test's own session, and a control add of the same session shows that the query does find an entry when there is one.
 Method TestRowWriteFailureRollsBack()
 {
 	Set a = ..Entry(1)
@@ -459,35 +463,45 @@ Method TestRowWriteFailureRollsBack()
 	Set ^OcuTalonTest("SettingsOpsProbe", "rows") = rows.%ToJSON()
 	Do $$$AssertTrue($Length(big.%ToJSON()) > 4000, "the scripted productions are over the 4000 characters of the row's Productions")
 	Do $$$AssertEquals($TLevel, 0, "no transaction is open before")
+	Set session = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set name = ..Name("T"), email = ..Email("t")
-	Set result = ..Save("", name, email, [(a)])
+	Set result = ..Save("", name, email, [(a)], session)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "control: an add that fits is done")
 	Do $$$AssertEquals(..Audits(), 1, "control: and its audit write was recorded")
-	Do $$$AssertEquals(..AuditData(1).setting, "partnerContact."_..Find(name).ref, "control: the record of a committed write stays")
 	Set ref = ..Find(name).ref
+	Do $$$AssertEquals(..AuditData(1).setting, "partnerContact."_ref, "control: the record of a committed write stays")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session)
+	Do $$$AssertEquals(entries.%Size()_"|"_entries.%Get(0).data.setting, "1|partnerContact."_ref, "control: the real audit log has its one entry")
+	Hang 0.02
 	Do ..Reset()
-	Set result = ..Save("", ..Name("U"), ..Email("u"), big)
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save("", ..Name("U"), ..Email("u"), big, session)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an add whose row write fails is failed")
 	Do $$$AssertEquals(result.Message, ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED, "with the generic failed text")
-	Do $$$AssertEquals(..Audits(), 1, "the audit write was reached: the failure came after it")
+	Do $$$AssertEquals(..Audits(), 0, "no audit write was attempted: the failure came first")
 	Do $$$AssertEquals($TLevel, 0, "the transaction is closed")
 	If $TLevel > 0 TROLLBACK
-	Do $$$AssertEquals($Order(^OcuTalonTest("SettingsOpsProbe", "calls", "")), "", "the audit entry was rolled back with it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 0, "and the real audit log has no entry for the session")
 	Do $$$AssertEquals(..Count(), 1, "no row was added: the one contact is the control's")
 	Do $$$AssertEquals(..Find(..Name("U")), "", "the failed contact is not in the list")
 	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Set before = ##class(OcuTalon.Data.PartnerContact).RefOpen(ref)
 	Set row = before.Name_"|"_before.Email_"|"_before.Productions_"|"_before.UpdatedAt
 	Kill before
-	Set result = ..Save(ref, name, email, big)
+	Set result = ..Save(ref, name, email, big, session)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an edit whose row write fails is failed")
-	Do $$$AssertEquals(..Audits(), 1, "the audit write was reached")
+	Do $$$AssertEquals(..Audits(), 0, "no audit write was attempted")
 	Do $$$AssertEquals($TLevel, 0, "the transaction is closed")
 	If $TLevel > 0 TROLLBACK
-	Do $$$AssertEquals($Order(^OcuTalonTest("SettingsOpsProbe", "calls", "")), "", "the audit entry of the edit was rolled back")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 0, "the real audit log has no entry of the edit")
 	Set after = ##class(OcuTalon.Data.PartnerContact).RefOpen(ref)
 	Do $$$AssertEquals(after.Productions, [(a)].%ToJSON(), "and the row is as it was, read afresh: the productions are the stored ones")
 	Do $$$AssertEquals(after.Name_"|"_after.Email_"|"_after.Productions_"|"_after.UpdatedAt, row, "and the row is as it was")
+	Kill after
 	Do ..Reset()
 	Set result = ..Save(ref, name, ..Email("t2"), [(a)])
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_..Audits(), "1|done|1", "after the failures a save that fits is done and audited once")
@@ -555,21 +569,21 @@ Method Handoff(body As %DynamicObject) As %String [ Private ]
 }
 
 /// A SaveSettings of the partner-contacts section with the text as its Changes, from web_admin for zzadmin.
-Method Command(changes As %String) As OcuTalon.Msg.Command.SaveSettings [ Private ]
+Method Command(changes As %String, session As %String = {..#REF}) As OcuTalon.Msg.Command.SaveSettings [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 	Set command.Slug = "partner-contacts"
 	Set command.Changes = changes
 	Set command.ActingUser = "zzadmin"
-	Set command.SessionRef = ..#REF
+	Set command.SessionRef = session
 	Set command.Origin = "web_admin"
 	Quit command
 }
 
-/// Saves a contact as the route does: through a handoff, with {"handoff": uri} as the command's Changes.
-Method Save(ref As %String, name As %String, email As %String, productions As %DynamicArray) As OcuTalon.Msg.CommandResult [ Private ]
+/// Saves a contact as the route does: through a handoff, with {"handoff": uri} as the command's Changes, for the session (REF by default).
+Method Save(ref As %String, name As %String, email As %String, productions As %DynamicArray, session As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Quit ..SaveText(..Body("save", ref, name, email, productions).%ToJSON())
+	Quit ..SaveText(..Body("save", ref, name, email, productions).%ToJSON(), session)
 }
 
 /// Removes a contact the same way.
@@ -579,10 +593,10 @@ Method Remove(ref As %String) As OcuTalon.Msg.CommandResult [ Private ]
 }
 
 /// Saves the text as the body of the handoff.
-Method SaveText(text As %String) As OcuTalon.Msg.CommandResult [ Private ]
+Method SaveText(text As %String, session As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SecretHandoff).Put(text, .uri), "the text is put into a handoff")
-	Quit ..Carry(..Command({"handoff": (uri)}.%ToJSON()))
+	Quit ..Carry(..Command({"handoff": (uri)}.%ToJSON(), session))
 }
 
 Method Carry(command As OcuTalon.Msg.Command) As OcuTalon.Msg.CommandResult [ Private ]

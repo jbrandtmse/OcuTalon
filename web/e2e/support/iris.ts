@@ -1122,6 +1122,8 @@ export interface IncidentFields {
   noticedAt?: string;
   /** The incident's trace session, which its approval request's trace link opens (AD-26). */
   traceHeaderId?: number;
+  /** The incident's diagnosed cause (the fixture's default unless given), which a page of the incident (seedPage) shows. */
+  cause?: string;
   /** The incident's state (open unless given) and its open variant (fix unless given). */
   state?: string;
   openVariant?: string;
@@ -1145,6 +1147,7 @@ export interface IncidentFields {
 export async function seedIncident(owner: string | { sessionRef: string }, fields: IncidentFields = {}): Promise<string> {
   const row = properties({
     TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId'),
+    Cause: fields.cause,
     State: fields.state,
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
@@ -1169,6 +1172,66 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
   const ref = chk(lines, 'incident');
   if (!ref) throw new Error(`the incident could not be seeded (${lines.join(' ')})`);
   return ref;
+}
+
+/** What seedPage makes: the incident, the page row and the session that the page goes to. */
+export interface SeededPage {
+  incident: string;
+  page: string;
+  session: string;
+}
+
+/**
+ * Makes the page of the user's own session (Story 24.3a): an incident of the instance, a Data.Page row (role oncall) whose Person is the user and whose Channels are the given list (the web
+ * card alone by default), and the page Notification, which the real Notify routes and the real WebChatOut makes into the card. The slots are Watch.Paging.Slots' of the incident. It asserts that
+ * Watch.Paging.SessionOf(user) is the session that the page goes to, which is the signed-in session, so that Got it is accepted. dropPage and cleanFixtureRows([incident]) remove what it made.
+ */
+export async function seedPage(user: string, fields: { cause?: string; channels?: string } = {}): Promise<SeededPage> {
+  const incident = await seedIncident('instance', { cause: fields.cause });
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Set p=##class(OcuTalon.Data.Page).%New()',
+      'Set p.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
+      `Set p.IncidentRef=${quoted(incident)}`,
+      'Set p.Role="oncall"',
+      `Set p.Person=${quoted(user)}`,
+      `Set p.Channels=${quoted(fields.channels ?? '')}`,
+      'Set p.SentAt=##class(OcuTalon.Data.Time).NowUtc()',
+      'Set saved=$System.Status.IsOK(p.%Save())',
+      `Set i=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(incident)})`,
+      'Write !,"CHK|page|",$Select(saved:p.Ref,1:"")',
+      'Write !,"CHK|session|",s.Ref',
+      'Write !,"CHK|sessionof|",##class(OcuTalon.Watch.Paging).SessionOf(p.Person)',
+      'Write !,"CHK|slots|",##class(OcuTalon.Watch.Paging).Slots(i).%ToJSON()',
+    ].join('\n'),
+  );
+  const page = chk(lines, 'page');
+  const session = chk(lines, 'session');
+  const slots = chk(lines, 'slots');
+  if (!page || !session || !slots) {
+    await cleanFixtureRows([incident]);
+    throw new Error(`the page could not be seeded (${lines.join(' ')})`);
+  }
+  if (chk(lines, 'sessionof') !== session) {
+    await dropPage(page);
+    await cleanFixtureRows([incident]);
+    throw new Error('Watch.Paging.SessionOf(the user) is not the session of the signed-in user, so Got it would be refused');
+  }
+  await sendNotification(user, { kind: 'page', catalogKey: 'page.onCall', slots: JSON.parse(slots) as Record<string, unknown>, decisionRef: page, incidentRef: incident });
+  return { incident, page, session };
+}
+
+/** Deletes the page row with this Ref and every Delivery row of the page (its card, and the handled row of its acknowledgement). */
+export async function dropPage(page: string): Promise<void> {
+  if (!/^[A-Za-z0-9_-]+$/.test(page)) throw new Error('a page Ref is letters, digits, hyphen and underscore only');
+  await irisScript(
+    [
+      `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.Delivery WHERE DecisionRef = ?","${page}")`,
+      `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.Page WHERE Ref = ?","${page}")`,
+      'Write !,"CHK|drop|1"',
+    ].join('\n'),
+  );
 }
 
 /** A setting change of a production (Story 23.3): the item, the setting, the two values and when it was detected (UTC). */

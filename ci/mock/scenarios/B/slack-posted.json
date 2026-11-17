@@ -1,0 +1,12 @@
+{
+  "name": "slack-posted",
+  "match": {
+    "slack": "chat.postMessage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": { "ok": true, "channel": "D0MOCKSCN", "ts": "1700000000.000100" }
+    }
+  ]
+}

@@ -18,7 +18,9 @@
 ///     of SendRequestSync or of Live.Publish in Intake's source;
 ///   - TestCallbackFailureSendsTheFallback: a failure inside the class, in OnRequest or in an answer, still sends the one
 ///     ItemDecision, a second answer sends no second one, and an error that the framework hands OnError with no completion key
-///     stays an error.
+///     stays an error;
+///   - TestIgnoredIsSilent, TestRefusedIsDropped (Story 0.38): a Channel.Slack.Ignored record and a Channel.Refused record of each channel (slack, telegram, email) are answered OK at once
+///     with no response, no send, no warning and no trace join; Channel.Refused has exactly the properties Channel and Reason.
 /// The fixture sessions come from Test.Data.Fixture, and the Decision rows that the double records are removed with them. The
 /// run's number is n from ^OcuTalonTest("Intake","n") (never reset); the probe records the calls of the run under
 /// ^OcuTalonTest("IntakeProbe", n), and the double's scripts and records are removed for each owner, and so are the lines that
@@ -368,6 +370,62 @@ Method TestRefusedItems()
 	Do $$$AssertEquals(..Calls(), 2, "each sends its decide request")
 	Do $$$AssertEquals(..Warnings(mark), total, "and neither logs a warning")
 	Do ..RemoveWarnings(mark)
+}
+
+/// A Channel.Refused record of each channel (Story 0.38; AD-26) is dropped as silently as an Ignored record: OnRequest answers OK at once with no response, sends nothing, logs no
+/// warning, makes no decision and no trace join, and the class holds exactly the properties Channel and Reason (a record that held more could carry content).
+Method TestRefusedIsDropped()
+{
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set channels = $ListFromString(##class(OcuTalon.Channel.Refused).#CHANNELS)
+	Do $$$AssertEquals($ListToString(channels), "slack,telegram,email", "the record is the not_user record of Slack, Telegram and email")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Refused).#REASONS, "not_user", "its one reason is not_user")
+	Set position = 0
+	While $ListNext(channels, position, channel) {
+		Set refused = ##class(OcuTalon.Channel.Refused).%New()
+		Set refused.Channel = channel
+		Set refused.Reason = "not_user"
+		Set probe = ..NewProbe()
+		Set probe.%SuperSession = ""
+		Do $$$AssertStatusOK(probe.OnRequest(refused, .response), channel_": the status is OK")
+		Do $$$AssertEquals(response, "", channel_": there is no response")
+		Do $$$AssertEquals(probe.%SuperSession, "", channel_": and no trace join was made")
+	}
+	Do $$$AssertEquals(..Calls(), 0, "nothing is sent: no join, decision or reply")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND Text %STARTSWITH ?", mark, "Intake refused")
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "and no warning that an item was refused is logged")
+	Set definition = ##class(%Dictionary.ClassDefinition).%OpenId("OcuTalon.Channel.Refused")
+	Set properties = ""
+	For i = 1:1:definition.Properties.Count() {
+		Set properties = properties_$Select(properties = "": "", 1: ",")_definition.Properties.GetAt(i).Name
+	}
+	Do $$$AssertEquals(properties, "Channel,Reason", "the class declares exactly the properties Channel and Reason")
+}
+
+/// A Slack Ignored record (Story 27.1; AD-26) is dropped silently: OnRequest answers OK with no response, sends nothing, logs no warning, makes no trace join (the
+/// instance's %SuperSession stays empty) and asks for no decision, for every kind and reason of the record and with an empty event id.
+Method TestIgnoredIsSilent()
+{
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set kinds = $ListFromString(##class(OcuTalon.Channel.Slack.Ignored).#KINDS)
+	Set reasons = $ListFromString(##class(OcuTalon.Channel.Slack.Ignored).#REASONS)
+	Set position = 0
+	While $ListNext(kinds, position, kind) {
+		Set ignored = ##class(OcuTalon.Channel.Slack.Ignored).%New()
+		Set ignored.Kind = kind
+		Set ignored.Reason = $List(reasons, 1 + (position # $ListLength(reasons)))
+		Set ignored.EventId = $Select(position = 1: "", 1: "Ev0IGNORED"_position)
+		Set probe = ..NewProbe()
+		Set probe.%SuperSession = ""
+		Do $$$AssertStatusOK(probe.OnRequest(ignored, .response), kind_": the status is OK")
+		Do $$$AssertEquals(response, "", kind_": there is no response")
+		Do $$$AssertEquals(probe.%SuperSession, "", kind_": and no trace join was made")
+	}
+	Do $$$AssertEquals(..Calls(), 0, "nothing is sent")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 3) AND Text %STARTSWITH ?", mark, "Intake refused")
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 0, "and no warning that an item was refused is logged")
 }
 
 /// Intake never sends to Conversation or Notify, writes no Turn row and publishes no live event, for any owner and outcome, and

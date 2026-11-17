@@ -115,6 +115,49 @@ Index ItemIdIndex On ItemId [ Unique ];
 
 Index ClientIdIndex On (SessionRef, ClientId);
 
+/// An evaluation turn (Story 27.1, R7 knob; AD-22): one Turn row of an evaluation session in the state done, in the channel and with the creation time and text given, so that
+/// the notes block of the session's next start lists it (Data.DailyNote). Made only while OCUTALON_EVAL is the text 1, for a session that Data.Session IsEval says is an evaluation
+/// session, and in a channel of Msg.Enum CHANNEL; otherwise nothing is saved, sc is an error status and the result is "". Eval.In is the only caller: no product request path reaches
+/// it. Data.Session DropEval deletes the rows again. The result is the row's Ref.
+ClassMethod ForEval(sessionRef As %String, channel As %String, createdAt As %String, text As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $SYSTEM.Util.GetEnviron("OCUTALON_EVAL") '= "1" {
+		Set sc = $SYSTEM.Status.Error(5001, "An evaluation turn needs OCUTALON_EVAL=1")
+		Quit ""
+	}
+	If '##class(OcuTalon.Data.Session).IsEval($Get(sessionRef)) {
+		Set sc = $SYSTEM.Status.Error(5001, "An evaluation turn belongs to an evaluation session")
+		Quit ""
+	}
+	If '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#CHANNEL), $Get(channel)) {
+		Set sc = $SYSTEM.Status.Error(5001, "An evaluation turn needs a channel of Msg.Enum CHANNEL")
+		Quit ""
+	}
+	If ##class(OcuTalon.Data.Time).Seconds($Get(createdAt)) = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "An evaluation turn needs a UTC creation time")
+		Quit ""
+	}
+	Set ref = ""
+	Try {
+		Set row = ..%New()
+		Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set row.SessionRef = sessionRef
+		Set row.State = "done"
+		Set row.Channel = channel
+		Set row.FromGuide = 0
+		Set row.CreatedAt = createdAt
+		Set row.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set row.Text = $Get(text)
+		Set sc = row.%Save()
+		If $SYSTEM.Status.IsOK(sc) Set ref = row.Ref
+	} Catch exception {
+		Set sc = exception.AsStatus()
+		Set ref = ""
+	}
+	Quit ref
+}
+
 Storage Default
 {
 <Data name="TurnDefaultData">

@@ -32,6 +32,8 @@ let lastId = 0;
  *   With check rows it adds a button "What I checked ({n})" with aria-expanded and aria-controls, over the check rows (app-check-rows, no
  *   sentence: the text already holds it), inline: it starts open when any row did not pass (digestOpen) and a press toggles it. With no rows
  *   there is no button.
+ * - A page card (Story 24.3a: the on-call page of the user's own session) looks as a tell-now card does (accent bar, bell-ring icon, the text and the "Why now:" line) with no decision strip and no
+ *   "This was noise" control, and ends in the same way: Got it (channel web, the page's Ref) until the page is acknowledged, then the line "Marked as handled at {time}", also after a reload.
  * - A tell-now card with a decision Ref (Story 18.4) ends with Got it (app-got-it, channel web) until the notice is marked handled, then with
  *   the line "Marked as handled at {time}" (the catalog text, the time in the browser's zone), also after a reload.
  * - A tool call's notice (Story 31.6; kinds approval and result) has the info accent bar and the info icon, and its text keeps its
@@ -45,7 +47,7 @@ let lastId = 0;
   imports: [CheckRows, DecisionStrip, GotIt, Icon, NoiseControl],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" [class.request]="notice().kind === 'approval'" [class.digest]="notice().kind === 'digest'" [class.summary]="notice().kind === 'summary'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
+    <div class="notice" [class.tell-now]="notice().kind === 'tellnow' || notice().kind === 'page'" [class.allowance]="notice().kind === 'allowance'" [class.request]="notice().kind === 'approval'" [class.digest]="notice().kind === 'digest'" [class.summary]="notice().kind === 'summary'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
       <app-icon class="bell" [name]="icon()" [size]="16" />
       <div class="body">
         <p class="text">{{ notice().text }}</p>
@@ -73,7 +75,7 @@ let lastId = 0;
             <app-check-rows [checks]="notice().checks" />
           </div>
         }
-        @if (notice().kind === 'tellnow' && notice().decisionRef) {
+        @if ((notice().kind === 'tellnow' || notice().kind === 'page') && notice().decisionRef) {
           @if (handled(); as line) {
             <p class="handled" data-part="handled">{{ line }}</p>
           } @else {
@@ -208,7 +210,7 @@ export class NoticeCard {
     if (kind === 'digest') {
       return 'inbox';
     }
-    return kind === 'tellnow' ? 'bell-ring' : kind === 'allowance' ? 'circle-alert' : 'bell';
+    return kind === 'tellnow' || kind === 'page' ? 'bell-ring' : kind === 'allowance' ? 'circle-alert' : 'bell';
   });
 
   /** "Due 14:12 \u00B7 arrived 14:12" for a reminder with a due time; "" for any other card. */

@@ -30,6 +30,9 @@ const DIGEST_TEXT = 'Good morning.\nI checked the Chat agent (all running, no er
 const digest = (ref, over = {}) => notice(ref, { kind: 'digest', text: DIGEST_TEXT, ...over });
 const SUMMARY_TEXT = 'Incident summary: 50 orders failed in Orders.\nCause: The partner sent <b>x</b> and *y* in the date.\nMessages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped.';
 const summary = (ref, over = {}) => notice(ref, { kind: 'summary', text: SUMMARY_TEXT, ...over });
+const PAGE_TEXT = '3 messages failed in the Orders production since 14:00. The partner sent a bad date.';
+const PAGE_WHY = "Why now: you're on call for OcuTalon. Press Got it to show you're on it.";
+const page = (ref, over = {}) => notice(ref, { kind: 'page', text: PAGE_TEXT, whyNow: PAGE_WHY, decisionRef: 'PG1', handledAt: '', ...over });
 /** A message of the page's outbox. */
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
@@ -175,6 +178,11 @@ describe('what a turn shows', () => {
     assert.deepEqual([web.caption, telegram.caption, guide.caption, both.caption], ['', 'via Telegram', 'From the demo guide', 'via Telegram']);
     assert.equal(chatView([], [local('g', 'sent', { fromGuide: true })], NO_RUNNING, NOW)[0].caption, 'From the demo guide');
     assert.equal(chatView([], [local('p', 'sent')], NO_RUNNING, NOW)[0].caption, '');
+  });
+
+  it('captions a Slack turn "via Slack", also over the guide marker', () => {
+    const [slack, both] = chatView([turn('S', { channel: 'slack' }), turn('B', { channel: 'slack', fromGuide: true })], [], NO_RUNNING, NOW);
+    assert.deepEqual([slack.caption, both.caption], ['via Slack', 'via Slack']);
   });
 });
 
@@ -444,6 +452,15 @@ describe('the notice cards', () => {
     assert.deepEqual(keys(chatView([turn('T1'), summary('S'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:S', 'notification:N'], 'it stands among the other entries as a card');
   });
 
+  it('shows an on-call page (Story 24.3a) as a card with its text, its Why now line and the page\'s Ref for Got it, and no strip', () => {
+    const card = view(page('P', { createdAt: '2026-10-22T14:11:09Z' }));
+    assert.deepEqual([card.entry, card.kind, card.key, card.text, card.whyNow, card.time, card.dueAt, card.strip, card.decisionRef, card.handledAt], ['notice', 'page', 'notification:P', PAGE_TEXT, PAGE_WHY, '2026-10-22T14:11:09Z', '', false, 'PG1', '']);
+    assert.equal(view(page('Q', { decision: decision(), fallbackReason: 'refusal' })).strip, false, 'whatever the payload carries, a page card has no strip');
+    assert.equal(view(page('H', { handledAt: '2026-10-22T14:20:00Z' })).handledAt, '2026-10-22T14:20:00Z', 'an acknowledged page carries its handled time, which the card shows in place of Got it');
+    assert.equal(noticeOf(page('N')).kind, 'page', 'noticeOf takes the kind');
+    assert.deepEqual(keys(chatView([turn('T1'), page('P'), tellNow('N')], [], NO_RUNNING, NOW)).filter((key) => key.startsWith('notification:')), ['notification:P', 'notification:N'], 'it stands among the other entries as a card');
+  });
+
   it('carries the text, the Why now line, the times and the decision of its payload', () => {
     const card = view(tellNow('A', { decision: decision(), createdAt: '2026-10-22T14:11:09Z' }));
     assert.deepEqual([card.text, card.whyNow, card.time, card.dueAt], ['zz Dana: Invoice', 'Why now: zz first.', '2026-10-22T14:11:09Z', '']);
@@ -556,6 +573,7 @@ describe('the fixed strings', () => {
         newMessages: 'New messages',
         name: 'OcuTalon',
         viaTelegram: 'via Telegram',
+        viaSlack: 'via Slack',
         fromGuide: 'From the demo guide',
         separator: ' \u00B7 ',
         opensInNewTab: '(opens in a new tab)',

@@ -8,8 +8,9 @@
 ///      a production the session watches; with onlineDemo 1 only the session's own request. A failed read is an error status;
 ///   4. an Action other than approve or reject, or a Channel other than web, phone or telegram, is bad_answer;
 ///   5. a SessionRef with no Session row is not_found;
-///   6. the role check (Story 25.5): Live.Payload.Approval Answerable asks the approval API's MayAnswer for the IRIS user of the session's
-///      row (never a caller's) and the request's Ref. A refusal is not_allowed and Refusal is {"kind": <the kind that MayAnswer names, "" when it names none>}.
+///   6. the account and role check (Story 25.5, DW-1482): Live.Payload.Approval Answerable asks, for the IRIS user of the session's row (never a caller's), that the account is usable now (Core.Access
+///      AccountUsable: Enabled and not past its ExpirationDate; no chat role is required) and then the approval API's MayAnswer for the request's Ref. A refusal is not_allowed and Refusal is
+///      {"kind": <the kind that MayAnswer names, "" when it names none>}, with "account": true when the account was the reason. Web, phone and Telegram answers all pass this one rule; the account of the job's own user ($Username, a web request's user, not readable by a web job) is not read.
 /// A refusal at 5 or 6 sends nothing to AnswerOps and leaves the row as it was. After the send, a not_allowed answer to an approve of an email request
 /// (a fix request of the kind email, or since DW-1415 a partner warning to Settings contacts; Fix.Kind.Email AdminRuled) that passed rule 6 is Story 22.7's admin rule, refused in AnswerOps: Refusal is then {"kind": "email", "admin": true},
 /// the same refusal and sentence for both.
@@ -65,7 +66,8 @@ ClassMethod FromPage(ref As %String, action As %String, channel As %String, Outp
 ///     and {} otherwise;
 ///   - already_answered {"action", "channel", "time"} of the answer that won, and expired {"time"} of the request's ExpiresAt;
 ///   - not_paired {}: the chat has no live pairing;
-///   - not_allowed {"kind"}: the session may not answer, with the approver kind that the role check names ("" when it names none), and {"kind": "email", "admin": true}
+///   - not_allowed {"kind"}: the session may not answer, with the approver kind that the role check names ("" when it names none), {"kind": "", "account": true} when the IRIS user's account is not
+///     usable (DW-1482), and {"kind": "email", "admin": true}
 ///     for an approve that Story 22.7's email rule refused; or {} when the chat's row holds a session value that is no Ref, in which case
 ///     nothing is sent (a chat row without a session value is not_paired);
 ///   - not_visible {}: the request exists but is not the session's to see; unknown {}: it does not, or the Ref or the action is not one.
@@ -166,8 +168,9 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	If '$ListFind($ListFromString("approve,reject"), pInput.Action) || '$ListFind($ListFromString(..#CHANNELS), pInput.Channel) Quit ..Refuse("bad_answer", .pOutput)
 	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(pInput.SessionRef)
 	If '$IsObject(session) Quit ..Refuse("not_found", .pOutput)
-	If '##class(OcuTalon.Live.Payload.Approval).Answerable(row.Ref, pInput.SessionRef, .kind, ..#APPROVALAPI) {
+	If '##class(OcuTalon.Live.Payload.Approval).Answerable(row.Ref, pInput.SessionRef, .kind, ..#APPROVALAPI, .unusable) {
 		Set ..Refusal = {"kind": (kind)}
+		If unusable Do ..Refusal.%Set("account", 1, "boolean")
 		Quit ..Refuse("not_allowed", .pOutput)
 	}
 	Set pInput.Ref = row.Ref

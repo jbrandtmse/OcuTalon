@@ -41,7 +41,7 @@ const GROUPS = [
  * (Nobody, each OcuTalon user, "Someone else, by email"), the "Email address for pages" field and the "Page by" boxes (the last two hidden for Nobody); then
  * the minutes before the backup is paged, and **Save changes**. The Telegram box is disabled, with its text beside it, for a user the list shows without a paired
  * chat and for a person by email. While the on-call person is by email, the line `byEmailHelp` shows under their Person select. While OcuTalon.Data.Page is not
- * compiled, the `notYet` line says that no page is sent yet; once it is, the `telegramOnly` line says that a page goes to the paired Telegram chat only. A press posts the form's body to POST /v1/settings/on-call through the busy pattern
+ * compiled, the `notYet` line says that no page is sent yet; once it is, the `pages` line says who is paged, on which channels, and that the backup is paged when nobody presses Got it in time. A press posts the form's body to POST /v1/settings/on-call through the busy pattern
  * (ServerButton), which the server validates:
  *   - 200: the section shows "Saved. Applies within a minute. Recorded in the audit log." and the announcer reads it once; the saved values are the form's new
  *     baseline and the page is told (`saved`); a field edited while the save was pending keeps its value and the form stays dirty with no saved text;
@@ -64,7 +64,7 @@ const GROUPS = [
       @if (!pagesBuilt()) {
         <p class="help" id="oncall-not-yet">{{ texts.notYet }}</p>
       } @else {
-        <p class="help" id="oncall-telegram-only">{{ texts.telegramOnly }}</p>
+        <p class="help" id="oncall-pages">{{ texts.pages }}</p>
       }
       @for (group of groups; track group.role) {
         <fieldset class="group">

@@ -28,6 +28,10 @@
 ///   - ListPinnedMemories (Story 41.13; a read, from origin web_user): the command's own SessionRef's pinned memories (OcuTalon.Memory.Pinned), newest pin first, as the same items as a search, and
 ///     used, the tokens of the core-memory block: ceil($Length of OcuTalon.Memory.CoreBlock / OcuTalon.Memory CHARSPERTOKEN), the cap's own computation, 0 with no pin. Data is {items, used}. It changes
 ///     no row and takes no lock; a failure answers failed.
+///   - Used (Story 28.2; not a command: a OcuTalon.Memory.Msg.Used that Agent.Content sends through MemoryIn, asynchronously, after Decide accepts a usable turn reply): under the session's
+///     lock, each Ref of MemoryRefs that is a memory of the message's own SessionRef gets LastUsedAt = UsedAt, unless it already has a LastUsedAt that is the same or later (it never
+///     moves back); a Ref that no row has and a Ref of another session's memory are ignored and change nothing. There is no answer. A lock that cannot be taken, a UsedAt that is not a
+///     UTC time and any failure are one warning with no memory text, and the Refs after a failing one are not marked.
 ///   - Who may ask (DW-1029): SaveMemory comes from origin tool, or photo (Story 26.3: Agent.Content saves the caption of a photo); ForgetMemory from tool or web_user; PinMemory, UnpinMemory, SearchMemory and ListPinnedMemories from web_user only (CommandsIn).
 ///   - A lock on the session that cannot be taken within 5 seconds, a save or delete that fails and any exception answer failed.
 ///   - After a new row is saved, Tuned is called with its id, which has the SQL statistics of the table gathered at every STATSEVERY-th id
@@ -57,6 +61,8 @@ Parameter MESSAGEFAILED = "The memory could not be saved or forgotten just now, 
 
 Parameter LOGFAILED = "MemoryOps could not carry out a command: ";
 
+Parameter LOGUSEDFAILED = "MemoryOps could not record the use of memories: ";
+
 XData MessageMap
 {
 <MapItems>
@@ -77,6 +83,9 @@ XData MessageMap
 </MapItem>
 <MapItem MessageType="OcuTalon.Msg.Command.UnpinMemory">
 <Method>OnUnpin</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Memory.Msg.Used">
+<Method>OnUsed</Method>
 </MapItem>
 </MapItems>
 }
@@ -264,6 +273,34 @@ Method OnUnpin(request As OcuTalon.Msg.Command.UnpinMemory, Output response As O
 	Quit sc
 }
 
+/// Sets LastUsedAt of the owner's memories that the message names (see the class description). Never answers an error status: a failure is one warning, so that the
+/// message is not retried and nothing else is affected.
+Method OnUsed(request As OcuTalon.Memory.Msg.Used, Output response As Ens.Response) As %Status
+{
+	Set response = ""
+	If request.SessionRef = "" Quit $$$OK
+	If ##class(OcuTalon.Data.Time).Seconds(request.UsedAt) = "" Quit ..UsedFailed("the time of the use is not a UTC time")
+	Set lock = ..Lock(request.SessionRef)
+	If 'lock Quit ..UsedFailed("the memories of the session are busy")
+	Try {
+		Set refs = {}.%FromJSON(request.MemoryRefs)
+		If '$IsObject(refs) || 'refs.%IsA("%Library.DynamicArray") $$$ThrowStatus($SYSTEM.Status.Error(5001, "MemoryRefs is not a JSON array"))
+		Set iterator = refs.%GetIterator()
+		While iterator.%GetNext(.key, .ref) {
+			If (refs.%GetTypeOf(key) '= "string") || (ref = "") Continue
+			Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(ref)
+			If '$IsObject(row) || (row.SessionRef '= request.SessionRef) Continue
+			If (row.LastUsedAt '= "") && '(request.UsedAt ] row.LastUsedAt) Continue
+			Set row.LastUsedAt = request.UsedAt
+			$$$ThrowOnError(row.%Save())
+		}
+	} Catch exception {
+		Do ..UsedFailed(##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(exception.AsStatus())))
+	}
+	Lock -^OcuTalon.Memory(request.SessionRef)
+	Quit $$$OK
+}
+
 /// Searches the command's session's memories for its query and answers the items in Data (see the class description).
 Method OnSearch(request As OcuTalon.Msg.Command.SearchMemory, Output response As OcuTalon.Msg.CommandResult) As %Status
 {
@@ -339,6 +376,13 @@ ClassMethod Failed(ByRef response As OcuTalon.Msg.CommandResult, cause As %Statu
 {
 	$$$LOGWARNING(..#LOGFAILED_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cause)))
 	Quit ..Answer(.response, 0, "failed", ..#MESSAGEFAILED)
+}
+
+/// Writes the one warning of a use that could not be recorded, with the reason (never a memory's text), and returns OK.
+ClassMethod UsedFailed(reason As %String) As %Status [ Private ]
+{
+	$$$LOGWARNING(..#LOGUSEDFAILED_reason)
+	Quit $$$OK
 }
 
 /// The Ref of the session's memory with the ItemId and exactly the text (its natural key), or "" when it has none.

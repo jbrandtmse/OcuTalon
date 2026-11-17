@@ -36,6 +36,16 @@ Property IdempotencyKey As %String(MAXLEN = 128);
 /// The IdempotencyKey of the CancelReminder that cancelled the row, or empty (AD-1). A repeat of that command is answered from this row.
 Property CancelKey As %String(MAXLEN = 128);
 
+/// "" or reminder is a reminder; escalation is an escalation timer of the paging owner (AD-18). An escalation row is owned by instance and
+/// names no session.
+Property Kind As %String(MAXLEN = 32);
+
+/// For an escalation: the incident that was paged.
+Property IncidentRef As %String(MAXLEN = 22);
+
+/// For an escalation: the Ref of the page that was not yet acknowledged. A page has at most one escalation row.
+Property PageRef As %String(MAXLEN = 22);
+
 Index RefIndex On Ref [ Unique ];
 
 Index SessionRefIndex On SessionRef;
@@ -75,6 +85,15 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>CancelKey</Value>
+</Value>
+<Value name="12">
+<Value>Kind</Value>
+</Value>
+<Value name="13">
+<Value>IncidentRef</Value>
+</Value>
+<Value name="14">
+<Value>PageRef</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.ReminderD</DataLocation>

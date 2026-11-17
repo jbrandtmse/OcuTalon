@@ -29,7 +29,7 @@
 /// text binding. A slot that the entry does not declare is ignored. The inputs type is the exception: its names and values are
 /// not cleaned, so their spaces stay, and each goes through Visible alone, which writes every control, format and line-separator
 /// character as a \uXXXX escape (a person sees what an input holds and no input can hide text or start a line of its own).
-/// The channels are web, phone, mailbox, telegram and email (plain text under the phone rules); the others of Msg.Enum CHANNEL are refused until their step adds them.
+/// The channels are web, phone, mailbox, telegram, email and, from Story 27.2, slack (plain text under the phone rules; slack's text is telegram's); the others of Msg.Enum CHANNEL are refused until their step adds them.
 /// The web channel uses the entry's web text where it has one. When a dated time follows "at " in a text, that "at" becomes "on".
 /// An entry with a one form uses it, in place of its text (its web text, from the form's web), when the form's count slot is 1.
 /// The form's text holds every declared slot but its own, and its web exists exactly where the entry's web does. The form's
@@ -43,7 +43,7 @@ Class OcuTalon.Msg.Catalog
 Parameter CLASSES = "OcuTalon.Msg.Catalog.Core,OcuTalon.Msg.Catalog.Watch";
 
 /// The channels that Render serves.
-Parameter CHANNELS = "web,phone,mailbox,telegram,email";
+Parameter CHANNELS = "web,phone,mailbox,telegram,email,slack";
 
 /// How a channel slot reads in message text (Voice and Tone, Formats).
 Parameter CHANNELNAMES = "web=the web chat,phone=the simulated phone,telegram=Telegram";

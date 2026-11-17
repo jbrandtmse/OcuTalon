@@ -67,6 +67,7 @@ const IMPORTED = [
   ['guide/more-to-try-view.ts', ['MORE_TO_TRY_TEXTS', 'MORE_TO_TRY_GROUPS']],
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['settings/roles-view.ts', ['ROLES_TEXTS']],
+  ['settings/slack-view.ts', ['SLACK_TEXTS']],
   ['shared/viewer-view.ts', ['VIEWER_TEXTS']],
   ['settings/email-view.ts', ['EMAIL_TEXTS']],
   ['settings/mcp-view.ts', ['MCP_TEXTS']],
@@ -772,6 +773,27 @@ const SOURCES = {
     'Polled every {duration}',
     '{h} hours',
     '1 day',
+    // Story 27.3 (the Slack group of Settings > Channels and the chat caption; EXPERIENCE.md Message Catalog > Slack (step 7)). 'How to set it up' is held above; 'Slack' is also the Usage page's channel name.
+    'Slack',
+    'via Slack',
+    'Slack not set up. Add SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET to .env and restart OcuTalon.',
+    'Slack on',
+    "Subscribe your Slack app's events to {address}.",
+    'Slack is off on the online demo, so it has no public Slack address. It works on your own install.',
+    'Linked Slack members',
+    'Only direct messages to the bot from a linked member become chat turns. Everything else from Slack is recorded in Visual Trace and goes no further.',
+    'Slack member ID',
+    'OcuTalon user',
+    'Link member',
+    'Unlink',
+    'No Slack members are linked yet.',
+    'Enter a Slack member ID such as U012AB3CDE: a U or W followed by letters and digits. Nothing was changed.',
+    'That Slack member is already linked to another user. Nothing was changed.',
+    '{user} already has a linked Slack member. Unlink it first. Nothing was changed.',
+    'Linked. Their direct messages to the bot now reach OcuTalon. Recorded in the audit log.',
+    'Unlinked. Their messages no longer reach OcuTalon. Recorded in the audit log.',
+    "OcuTalon hasn't had an event from your Slack workspace yet. Ask the person to send the bot a direct message, then link them. Nothing was changed.",
+    'Choose an OcuTalon user from the list. Nothing was changed.',
   ],
   design: [
     'Unread',
@@ -895,7 +917,6 @@ const SOURCES = {
       "Couldn't load your usage.",
       'Chat summaries',
       'Web chat',
-      'Slack',
       'includes estimates',
     ],
     'Story 23.2 ruling (the Contest Planner under the owner\'s delegation, 2026-11-09, relayed by the orchestrator: Public Text, Web (Lane B): the titles of the suspend, resume and reroute requests, the incident card\'s fix and fixing sentences for them, the dry run rows of the approval card, and the refusal text of an item kind)': [
@@ -1141,8 +1162,8 @@ Then ask the partner to go back to YYYY-MM-DD, so that the next batch does not f
 The Results partner gives notice before the TLS certificate on its results endpoint changes. Load the new certificate before the change, so that results keep flowing.
 `,
     ],
-    'Story 23.4 ruling (the Contest Planner under the owner\'s delegation, 2026-11-15, prompts/story-234-rulings-20261115.md, deviation 2 changed: the On call section\'s line once pages are sent; its watched-productions clause added by DW-1400, prompts/story-238-rulings-20261115.md)': [
-      "OcuTalon pages the on-call person in their paired Telegram chat only, and only for failures in the productions it watches, not for a practice Break the feed. It doesn't page by email or escalate to the backup.",
+    'Story 24.3 rulings (the Contest Planner under the owner\'s delegation, 2026-11-16, prompts/story-243-rulings-20261116.md, new text 1: the On call section\'s line once pages are sent, Option A; it replaces the line of DW-1400)': [
+      "OcuTalon pages the on-call person for failures it finds in the productions it watches: in their OcuTalon chat if they're an OcuTalon user, and by Telegram or email as chosen below. Email pages go out from the mailbox set up under Channels. If nobody presses Got it within the minutes below, OcuTalon pages the backup. A practice Break the feed pages nobody while its user stays signed in.",
     ],
   },
   calendar: [

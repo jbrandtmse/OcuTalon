@@ -10,7 +10,11 @@
 ///     reciprocal-rank fusion: a memory scores the sum of 1 / (RRFK + its rank) over the lists that hold it, ties go to the newer SavedAt and then
 ///     to the higher row id, and the best limit memories (1 to 5) come back in order as {memoryRef, text, savedAt, origin, source, pinned} (source is told or learned, and a row with no Source is told; pinned is 1 or 0). An empty query or a
 ///     failed embedding is an error status. A keyword query that iFind refuses leaves the nearest list alone, and writes one Type 3 warning (redacted).
-///   - Fuse: the fusion of the two lists, on their own, so that the order, the ties and the cut are tested without a model.
+///   - Fading (Story 28.2): a memory that has not been used for a while ranks below an equally matching one that has. Memory.Ops writes LastUsedAt when a usable turn reply that
+///     named the memory is accepted; Fuse multiplies the fused score of an unpinned memory whose LastUsedAt (else SavedAt, when it was never used) is before fadeBefore by
+///     FADEWEIGHT. It never removes a memory from a result it would otherwise be in, a pinned memory never fades, and a memory inside the period keeps exactly the score it had
+///     before fading existed. Search passes now minus FadeDays() days, FadeDays() being the product setting memory.fadeDays (a whole number of days, 1 or more, else FADEDAYS).
+///   - Fuse: the fusion of the two lists, on their own, so that the order, the ties, the fading and the cut are tested without a model.
 ///   - List: the owner's newest 20 memories (by SavedAt, then row id), newest first, in the same form, and the owner's count.
 ///   - Pinned (Story 41.12): the owner's pinned memories (COALESCE(Pinned, 0) = 1, so a row saved before Story 41.8 is not pinned), newest pin first (PinnedAt, then row id), in the
 ///     same form; an empty session is an error status.
@@ -51,15 +55,24 @@ Parameter CHARSPERTOKEN = 4;
 /// The most characters the rendered core-memory block holds, the heading, the quotes and the closing blank line included.
 Parameter COREMAX = {..#PINCAPTOKENS * ..#CHARSPERTOKEN};
 
+/// The product setting that holds the number of days after which an unused memory fades (AD-19).
+Parameter FADEKEY = "memory.fadeDays";
+
+/// The days of the fading period when the setting is absent, empty or not a whole number of 1 or more.
+Parameter FADEDAYS = 90;
+
+/// The factor that Fuse applies to the fused score of a memory that has faded.
+Parameter FADEWEIGHT = 0.5;
+
 /// The SQL name of the table.
 Parameter TABLE = "OcuTalon_Data.Memory";
 
 /// The query of the nearest memories of one owner: parameters are the SessionRef and the query's vector as text. With the table's statistics gathered (Tune)
 /// the planner reads EmbeddingIdx and applies the owner while it walks the index (Story 19.3, Task 0); Test.Memory.Volume explains this very text.
-Parameter NEARESTSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, Source, Pinned FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC"};
+Parameter NEARESTSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, Source, Pinned, LastUsedAt FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC"};
 
 /// The query of the best keyword hits of one owner: parameters are the rank argument (the keyword query), the SessionRef and the keyword query.
-Parameter KEYWORDSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, Source, Pinned, "_..#TABLE_"_TextIdxRank(%ID, ?) AS Hit FROM "_..#TABLE_" WHERE SessionRef = ? AND %ID %FIND search_index(TextIdx, ?, 0) ORDER BY Hit DESC"};
+Parameter KEYWORDSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, Source, Pinned, LastUsedAt, "_..#TABLE_"_TextIdxRank(%ID, ?) AS Hit FROM "_..#TABLE_" WHERE SessionRef = ? AND %ID %FIND search_index(TextIdx, ?, 0) ORDER BY Hit DESC"};
 
 /// The memories of the session that answer the query, best first: rows(n) is {"memoryRef", "text", "savedAt", "origin", "source", "pinned"} and rows is a %DynamicArray
 /// of at most limit of them (limit is clamped to 1 to MAXLIMIT). See the class description for the ranking. An error status for an empty query, an
@@ -84,7 +97,7 @@ ClassMethod Search(sessionRef As %String, query As %String, limit As %Integer = 
 				Do ##class(Ens.Util.Log).LogWarning($ClassName(), "Search", "The keyword search of the memories failed, so only the nearest memories were used: "_##class(OcuTalon.Bridge.Redact).Text(keywordFailure.DisplayString()))
 			}
 		}
-		Set rows = ..Fuse(nearest, keyword, limit)
+		Set rows = ..Fuse(nearest, keyword, limit, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -..FadeDays() * 86400))
 	} Catch exception {
 		Set rows = []
 		Set sc = exception.AsStatus()
@@ -92,10 +105,21 @@ ClassMethod Search(sessionRef As %String, query As %String, limit As %Integer = 
 	Quit sc
 }
 
-/// The reciprocal-rank fusion of two ranked lists of hits, best first: each hit is {"id", "memoryRef", "text", "savedAt", "origin", "source", "pinned"} with the row id.
+/// The number of days after which an unused memory fades: the product setting memory.fadeDays when it is a whole number of 1 or more, else FADEDAYS.
+ClassMethod FadeDays() As %Integer
+{
+	Set days = $ZStrip(##class(OcuTalon.Data.Setting).Get(..#FADEKEY), "<>W")
+	If (days '? 1.N) || (+days < 1) Quit ..#FADEDAYS
+	Quit +days
+}
+
+/// The reciprocal-rank fusion of two ranked lists of hits, best first: each hit is {"id", "memoryRef", "text", "savedAt", "origin", "source", "pinned"} with the row id, and
+/// optionally "lastUsedAt" (a hit with none, or an empty one, counts as last used at its savedAt).
 /// A memory scores the sum of 1 / (RRFK + its rank, from 1) over the lists that hold it (a memory is the same in both lists when it has the same id).
+/// When fadeBefore (a UTC time) is given, the score of an unpinned memory last used before it is multiplied by FADEWEIGHT; no memory is dropped by it, and with
+/// fadeBefore empty, or when no memory is before it, the result is the one without fading.
 /// The result is the best limit (clamped to 1 to MAXLIMIT) as {"memoryRef", "text", "savedAt", "origin", "source", "pinned"}, by score, then newer savedAt, then higher id.
-ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %Integer = 5) As %DynamicArray
+ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %Integer = 5, fadeBefore As %String = "") As %DynamicArray
 {
 	Set limit = $Select(+limit < 1: 1, +limit > ..#MAXLIMIT: ..#MAXLIMIT, 1: +limit \ 1)
 	Kill score, info, order
@@ -113,7 +137,9 @@ ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %I
 	For {
 		Set id = $Order(score(id))
 		Quit:id=""
-		Set order(+$FNumber(score(id), "", 12), info(id).savedAt, id) = ""
+		Set total = score(id)
+		If ..Faded(info(id), fadeBefore) Set total = total * ..#FADEWEIGHT
+		Set order(+$FNumber(total, "", 12), info(id).savedAt, id) = ""
 	}
 	Set rows = []
 	Set total = ""
@@ -136,6 +162,16 @@ ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %I
 		}
 	}
 	Quit rows
+}
+
+/// 1 when the hit is an unpinned memory whose last use (lastUsedAt, else savedAt) is before fadeBefore; 0 when fadeBefore is empty.
+ClassMethod Faded(hit As %DynamicObject, fadeBefore As %String) As %Boolean [ Private ]
+{
+	If fadeBefore = "" Quit 0
+	If +hit.pinned = 1 Quit 0
+	Set used = hit.lastUsedAt
+	If used = "" Set used = hit.savedAt
+	Quit (used '= "") && (fadeBefore ] used)
 }
 
 /// The owner's newest memories (at most LISTLIMIT), newest first, as {memoryRef, text, savedAt, origin, source, pinned} in the %DynamicArray rows, and the number of
@@ -230,25 +266,29 @@ ClassMethod DropSession(sessionRef As %String) As %Status
 	Quit sc
 }
 
-/// The rows of the SELECT as an array of {"id", "memoryRef", "text", "savedAt", "origin", "source", "pinned"} in the order of the result (its columns are ID, Ref, Text,
-/// SavedAt, Origin, Source and Pinned first); throws when the statement fails.
-ClassMethod Hits(sql As %String, args... As %String) As %DynamicArray [ Private ]
+/// The rows of the SELECT as an array of {"id", "lastUsedAt", "memoryRef", "text", "savedAt", "origin", "source", "pinned"} in the order of the result (its columns are ID, Ref, Text,
+/// SavedAt, Origin, Source, Pinned and LastUsedAt first); throws when the statement fails. Public, with Words and ToText, so that a test reads the two lists that Search fuses.
+ClassMethod Hits(sql As %String, args... As %String) As %DynamicArray
 {
 	Set hits = []
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, sql, args...)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be read: "_rs.%Message))
 	While rs.%Next() {
-		Do hits.%Push(..Row(rs.%Get("Ref"), rs.%Get("Text"), rs.%Get("SavedAt"), rs.%Get("Origin"), rs.%Get("Source"), rs.%Get("Pinned"), rs.%Get("ID")))
+		Do hits.%Push(..Row(rs.%Get("Ref"), rs.%Get("Text"), rs.%Get("SavedAt"), rs.%Get("Origin"), rs.%Get("Source"), rs.%Get("Pinned"), rs.%Get("ID"), rs.%Get("LastUsedAt")))
 	}
 	Quit hits
 }
 
 /// One memory as the callers read it: {"memoryRef", "text", "savedAt", "origin", "source", "pinned"}, preceded by {"id"} when id is given. source is learned
-/// when the row says so and told otherwise, so a row saved before Story 41.8 (empty Source) is told; pinned is 1 or 0 (empty is 0).
-ClassMethod Row(memoryRef As %String, text As %String, savedAt As %String, origin As %String, source As %String, pinned As %String, id As %String = "") As %DynamicObject [ Private ]
+/// when the row says so and told otherwise, so a row saved before Story 41.8 (empty Source) is told; pinned is 1 or 0 (empty is 0). The hits that feed the fusion (id given)
+/// also carry lastUsedAt, which the fusion reads and never returns.
+ClassMethod Row(memoryRef As %String, text As %String, savedAt As %String, origin As %String, source As %String, pinned As %String, id As %String = "", lastUsedAt As %String = "") As %DynamicObject [ Private ]
 {
 	Set row = {}
-	If id '= "" Set row.id = id
+	If id '= "" {
+		Set row.id = id
+		Set row.lastUsedAt = lastUsedAt
+	}
 	Set row.memoryRef = memoryRef
 	Set row.text = text
 	Set row.savedAt = savedAt
@@ -262,7 +302,7 @@ ClassMethod Row(memoryRef As %String, text As %String, savedAt As %String, origi
 /// the word or (in any case), which is written with a backslash: on build 154 iFind refuses a quoted or with a syntax error, and a word with a backslash is
 /// that word (measured in Story 19.3). "" when the text holds none. The words hold nothing but letters and digits, so no iFind operator or punctuation of
 /// the text reaches the search.
-ClassMethod Words(text As %String) As %String [ Private ]
+ClassMethod Words(text As %String) As %String
 {
 	Set words = ""
 	Set count = 0
@@ -279,7 +319,7 @@ ClassMethod Words(text As %String) As %String [ Private ]
 }
 
 /// The values of a vector as comma-separated text, which TO_VECTOR(text, DOUBLE, 384) reads.
-ClassMethod ToText(vector As %Vector) As %String [ Private ]
+ClassMethod ToText(vector As %Vector) As %String
 {
 	Set text = ""
 	For i = 1:1:$VOP("length", vector) {

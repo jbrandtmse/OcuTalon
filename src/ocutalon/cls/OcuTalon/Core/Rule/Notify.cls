@@ -2,7 +2,8 @@
 /// routes on the message class, Kind, OriginChannel, ChatRef and the session's channels (Functions.DemoOn, TelegramOn and
 /// TelegramPaired); within a rule the first condition that holds wins:
 ///   - OcuTalon.Msg.Outbound (a reply): WebChatOut, and TelegramOut as well when OriginChannel is telegram and the session
-///     is paired;
+///     is paired, or SlackOut as well when OriginChannel is slack and Slack is on and the session has a link (Functions.SlackLinked; Story 27.2). A
+///     Notification never goes to SlackOut;
 ///   - OcuTalon.Msg.Notification of Kind pairing: TelegramOut alone when ChatRef is set and Telegram is included, otherwise
 ///     nothing;
 ///   - Kind allowance: WebChatOut, and TelegramOut as well when the session is paired;
@@ -12,6 +13,11 @@
 ///   - Kind digest, in the rule DigestEmail beside the one above: EmailOut as well when Functions.DigestEmail holds for the session (digest.channels
 ///     names email, the session owns the mailbox, email.address is an address, EmailOut has an alive job, not the online demo; Story 21.7). Its
 ///     send adds to the targets of the rule above, so EmailOut is the one channel that never needs the combinations of the rule above;
+///   - Kind page (Story 24.3a; AD-14), routed by the Data.Page row that DecisionRef names (Functions.PageWeb, PageChannel): nothing when the row is not there, when
+///     SessionRef is not a session (a person given only as an address) and on the online demo; otherwise WebChatOut always (the card is not a channel) and TelegramOut as
+///     well when Telegram is included and the row's Channels names telegram, with no fallback either way. The simulated phone never gets a page;
+///   - Kind page, in the rule PageEmail beside the one above: EmailOut as well when Functions.PageEmail holds (the row's Channels names email, EmailOut has an alive job, not the
+///     online demo). Only a page goes there: a handled Notification for a page takes the generic route below, so an email copy is never marked handled;
 ///   - any other Kind: WebChatOut, SimPhoneOut as well when demo mode is on, and TelegramOut as well when the session is paired.
 /// A session is paired only while Telegram is included, so a release without Telegram never sends to TelegramOut.
 Class OcuTalon.Core.Rule.Notify Extends Ens.Rule.Definition [ CompileAfter = OcuTalon.Core.Rule.Functions ]
@@ -25,6 +31,9 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 <ruleSet name="" effectiveBegin="" effectiveEnd="">
 <rule name="Outbound">
 <constraint name="msgClass" value="OcuTalon.Msg.Outbound"></constraint>
+<when condition="Document.OriginChannel=&quot;slack&quot; &amp;&amp; SlackLinked(Document.SessionRef)">
+<send transform="" target="WebChatOut,SlackOut"></send>
+</when>
 <when condition="Document.OriginChannel=&quot;telegram&quot; &amp;&amp; TelegramPaired(Document.SessionRef)">
 <send transform="" target="WebChatOut,TelegramOut"></send>
 </when>
@@ -68,6 +77,14 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 </when>
 <when condition="Document.Kind=&quot;digest&quot;">
 </when>
+<when condition="Document.Kind=&quot;page&quot; &amp;&amp; PageWeb(Document.DecisionRef,Document.SessionRef)=0">
+</when>
+<when condition="Document.Kind=&quot;page&quot; &amp;&amp; TelegramOn() &amp;&amp; PageChannel(Document.DecisionRef,&quot;telegram&quot;)">
+<send transform="" target="WebChatOut,TelegramOut"></send>
+</when>
+<when condition="Document.Kind=&quot;page&quot;">
+<send transform="" target="WebChatOut"></send>
+</when>
 <when condition="DemoOn() &amp;&amp; TelegramPaired(Document.SessionRef)">
 <send transform="" target="WebChatOut,SimPhoneOut,TelegramOut"></send>
 </when>
@@ -84,6 +101,12 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 <rule name="DigestEmail">
 <constraint name="msgClass" value="OcuTalon.Msg.Notification"></constraint>
 <when condition="Document.Kind=&quot;digest&quot; &amp;&amp; DigestEmail(Document.SessionRef)">
+<send transform="" target="EmailOut"></send>
+</when>
+</rule>
+<rule name="PageEmail">
+<constraint name="msgClass" value="OcuTalon.Msg.Notification"></constraint>
+<when condition="Document.Kind=&quot;page&quot; &amp;&amp; PageEmail(Document.DecisionRef)">
 <send transform="" target="EmailOut"></send>
 </when>
 </rule>

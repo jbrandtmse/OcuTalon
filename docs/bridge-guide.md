@@ -234,7 +234,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `DecisionRef` | The reference of the decision's record. |
 | `Outcome` | One of the outcomes below. |
 | `Reasons` | The reasons, one per line. |
-| `Confidence` | The model-reported confidence, 0 to 1. |
+| `Confidence` | The model-reported confidence, 0 to 1. A diagnosis, or a decision to tell now or act, may have none: it is then empty, never 0, and its card or strip shows none. |
 | `Fallback` | 1 when the fallback route was taken. |
 | `FallbackReason` | One of the fallback reasons below, empty when `Fallback` is 0. |
 | `InputTokens` | Input tokens of the turn: prompt, cache-read and cache-write together. |
@@ -259,7 +259,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `Status` | `ok`, `denied` or `error`. |
 | `EstimatedTokens` | An estimate, from AI Hub's callback data, of the size of the step's model request in tokens. It is not the tokens used, which are counted per turn. |
 
-**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field, a field of the wrong type or a missing confidence is `invalid`.
+**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field or a field of the wrong type is `invalid`, and so is a reply without a confidence when its class requires one. The class parameter `CONFIDENCEREQUIRED` says whether it does: it is 1 on `OcuTalon.Bridge.Msg.DecisionPayload` and 0 on `OcuTalon.Watch.Msg.DiagnosisPayload`, so a diagnosis without a confidence is accepted and has none, and so is a decision whose outcome is tellnow or act (the class parameter `CONFIDENCEOPTIONAL`); a decision that would ignore or digest an item without a confidence is still `invalid`, and a confidence that is given must still be from 0 to 1.
 
 The enumerations (`OcuTalon.Bridge.Msg.Enum`):
 
@@ -287,7 +287,7 @@ When the model cannot give a usable answer, `Decide` does not guess. When a seco
 - `refusal`: the model refused.
 - `cut_off`: the reply was cut off before it ended.
 - `empty`: the reply had no text.
-- `invalid`: the reply did not pass the `ReplyClass` check.
+- `invalid`: the reply did not pass the `ReplyClass` check. The warning that `Decide` logs for it names each refused rule by a fixed tag that the reply class lists, such as `<field>-too-long` or `confidence-out-of-range`, and carries no value of the reply.
 - `unusable`: the agent used up its iterations or its loop stalled, or the provider gave no finish reason.
 
 The example routes a fallback to `ExampleFallbackOut`, and it is in the decision's record and in Visual Trace with its reason.
@@ -316,7 +316,7 @@ The bridge reaches your code only through six classes, each with a do-nothing de
 - `OcuTalon.Bridge.Ext.Classification` (`ClassificationClass`): `Classify(source, name, arguments)` returns `safe` or `risky`, or empty for none; the gate calls it with the source and the name. It returns empty by default.
 - `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default. Classify each tool it returns safe (a `ToolClassification` row): a call held for approval runs later on the agent's own tool manager, which does not hold these tools.
 - `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached, the `refused` ones (a name that one of the agent's own tools, or the proxy `call_mcp_tool`, already has) and, for an attached server, their `fingerprints`. `Probe(server, config)` says whether a server answers before its tools are offered, and must return within a few seconds; `ProxyToolSet()` names the toolset of the one governed tool, `call_mcp_tool`, through which every MCP call runs; `ServerOf(toolref)` names the server of a toolref; and `ToolsReadOnly(server)` says whether every tool of a server is classified read-only. The agent's own tool manager holds no MCP server: each request gets a manager of its own with the proxy and the servers whose probe answered, an agent that declares skills gets no MCP tools, and an unavailable server never fails the build. It attaches nothing by default.
-- `OcuTalon.Bridge.Ext.Content` (`ContentClass`): `Part(request, mediaType, data)` returns one image, a JPEG or PNG stream and its media type, to send with an untrusted chat turn; the runner sends the turn's text and the image together in that turn's throwaway session, and the image never enters a message body, an agent step or the event log. `Accepted(request, text, hostData)` is called once after `Decide` accepts a usable chat reply, with the filtered reply text, and the members it returns in `hostData` are added to the reply's `HostData`. Both do nothing by default.
+- `OcuTalon.Bridge.Ext.Content` (`ContentClass`): `Part(request, mediaType, data)` returns one image, a JPEG or PNG stream and its media type, to send with an untrusted chat turn; the runner sends the turn's text and the image together in that turn's throwaway session, and the image never enters a message body, an agent step or the event log. `Accepted(request, text, hostData, replyHostData)` is called once after `Decide` accepts a usable chat reply, with the filtered reply text and the reply's `HostData` as JSON text, and the members it returns in `hostData` are added to the reply's `HostData`. Both do nothing by default.
 
 ### Rules for your own tools
 

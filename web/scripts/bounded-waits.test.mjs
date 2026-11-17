@@ -211,10 +211,21 @@ describe('by source', () => {
     assert.match(fixtures, /testInfo\.setTimeout = /);
   });
 
-  it('loadedAfter bounds the sign-in and the snapshot GET, each by name', () => {
+  it('loadedAfter bounds the sign-in and the snapshot GET, each by name, through the wait that reloadSettled shares', () => {
     const floor = read('e2e/support/floor.ts');
-    assert.match(floor, /boundedStep\(signInAction\(\), waits\.navigation, 'loadedAfter the sign-in'\)/);
-    assert.match(floor, /boundedStep\(state, waits\.action, `loadedAfter the snapshot GET \$\{STATE\}`\)/);
+    assert.match(floor, /const LOADED_STEPS = \{ action: 'loadedAfter the sign-in', snapshot: `loadedAfter the snapshot GET \$\{STATE\}` \};/);
+    assert.match(floor, /await snapshotAfter\(page, signInAction, LOADED_STEPS\);/);
+    assert.match(floor, /boundedStep\(action\(\), waits\.navigation, steps\.action\)/);
+    assert.match(floor, /boundedStep\(state, waits\.action, steps\.snapshot\)/);
+  });
+
+  it('reloadSettled bounds the reload and the snapshot GET, each by name, with no look at main.main', () => {
+    const floor = read('e2e/support/floor.ts');
+    assert.match(floor, /const RELOADED_STEPS = \{ action: 'reloadSettled the reload', snapshot: `reloadSettled the snapshot GET \$\{STATE\}` \};/);
+    const start = floor.indexOf('export async function reloadSettled(');
+    const body = floor.slice(start, floor.indexOf('\n}\n', start));
+    assert.match(body, /await snapshotAfter\(page, \(\) => page\.reload\(\), RELOADED_STEPS\);/);
+    assert.doesNotMatch(body, /mainOf/);
   });
 
   it('the online sign-in helpers bound their waits by name', () => {

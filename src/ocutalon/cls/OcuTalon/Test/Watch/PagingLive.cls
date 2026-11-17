@@ -5,7 +5,7 @@ Include Ensemble
 ///   - TestManagedAlerts (Task 0 a): an Ens.Alert item (Ens.Alerting.AlertManager) and AlertOnError 1 on OrdersFromPartner, added to the saved Orders definition and applied; three orders
 ///     are broken; the Ens_Alerting.ManagedAlert rows and their timing are printed; removing both leaves the definition and the job list as they were;
 ///   - TestPageReachesTelegram (Task 0 b): a real incident's notice, through IncidentManager, Notify and TelegramOut, reaches the mock for the paired session's chat;
-///   - TestEscalationAsk (Task 0 c): Core.Commands.Submit of a SetReminder of Kind escalation, origin system, answers not_built, and how long it takes;
+///   - TestEscalationAsk (Task 0 c; Story 24.3b, DW-1384): Core.Commands.Submit of a SetReminder of Kind escalation, origin system, answers Ok 1 set with a Ref and a DueAt, makes one pending instance row of Kind escalation with the two Refs and one live waiter, and how long it takes;
 ///   - TestHandledCopies (Task 0 d): the log lines that WebChatOut and SimPhoneOut write for a page copy that has a bare Delivery row, when a handled notification follows;
 ///   - TestRealBreakPagesTelegram (AC6, AC12, AC13): a real break of OCUORDERS pages the on-call user's paired Telegram chat through the real IncidentManager,
 ///     Notify and TelegramOut; a fixture Escalation pages the backup once; Got it pressed from another chat, then from the paired chat (the page is acknowledged on telegram and the message is
@@ -323,7 +323,8 @@ Method TestPageReachesTelegram()
 	If texts.%Size() Do ..Timing("Task 0 (b): the chat's first text: "_$Extract(texts.%Get(texts.%Size() - 1), 1, 80))
 }
 
-/// Task 0 (c): Commands.Submit of an escalation SetReminder from origin system answers not_built, with no deadlock. The in-job ask is made by TestRealBreakPagesTelegram in the real run.
+/// Task 0 (c): Commands.Submit of an escalation SetReminder from origin system answers Ok 1 set with a Ref and a DueAt, with no deadlock (Story 24.3b, DW-1384): one pending Reminder row owned by instance, of Kind escalation, with the two
+/// Refs, and one live ReminderTimer waiter. The row is removed through ReminderFixture.Remove, which cancels it from system. The in-job ask is made by TestRealBreakPagesTelegram in the real run.
 Method TestEscalationAsk()
 {
 	If '..Ready() Quit
@@ -339,26 +340,44 @@ Method TestEscalationAsk()
 	Do $$$AssertStatusOK(sc, "the command reached CommandsIn")
 	If $$$ISERR(sc) || '$IsObject(result) Quit
 	Do ..Timing("Task 0 (c): Ok "_result.Ok_", outcome "_result.Outcome_", ref '"_result.Ref_"'")
-	Do $$$AssertEquals(result.Outcome, "not_built", "the escalation kind is not built in ReminderOps")
-	Do $$$AssertEquals(result.Ok, 0, "and it answers Ok 0")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|set", "the escalation is set")
+	Do $$$AssertTrue((result.Ref '= "") && (result.DueAt '= ""), "and the answer carries its Ref and DueAt")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(result.Ref)
+	Do $$$AssertTrue($IsObject(row), "the row exists")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.SessionRef_"|"_row.Kind_"|"_row.IncidentRef_"|"_row.PageRef_"|"_row.State, "instance|escalation|zzpagelive-incident|zzpagelive-page|pending", "one pending instance row of Kind escalation with the two Refs")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Schedule.ReminderFixture).WaitingCount(result.Ref), 1, "and one live waiter")
+	}
+	Set row = ""
+	Do ##class(OcuTalon.Test.Schedule.ReminderFixture).Remove(result.Ref)
 }
 
-/// Task 0 (d): what WebChatOut and SimPhoneOut log for a page copy with a bare Delivery row, when a handled notification for its Ref follows.
+/// Task 0 (d): what WebChatOut and SimPhoneOut log for a page copy, when a handled notification for its Ref follows. Since Story 24.3a a user's page (a Data.Page row, which Notify routes by) is the web card
+/// alone: the simulated phone never gets a page, so the handled notification finds no phone copy of it.
 Method TestHandledCopies()
 {
 	If '..Ready() Quit
 	Set a = ..Session("hc")
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
 	Set floor = ..Top("Ens_Util.Log", $Namespace)
-	Set page = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row = ##class(OcuTalon.Data.Page).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.IncidentRef = "zzpagelivehc"_..Number
+	Set row.Role = "oncall"
+	Set row.Person = ##class(OcuTalon.Data.Session).RefIndexOpen(a).IrisUser
+	Set row.Channels = "email"
+	Set row.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(row.%Save(), "a page row exists, as Notify routes a page by it")
+	Set page = row.Ref
 	Set one = ##class(OcuTalon.Msg.Notification).%New()
 	Set one.SessionRef = a
 	Set one.Kind = "page"
-	Set one.CatalogKey = "page.onCall"
+	Set one.CatalogKey = "page.onCallAlone"
 	Set one.DecisionRef = page
-	Set one.Slots = {"count": 3}.%ToJSON()
+	Set one.IncidentRef = row.IncidentRef
+	Set one.Slots = {"count": 3, "itemNoun": {"one": "message", "other": "messages"}, "production": "Orders", "time": "2030-01-01T02:10:00Z", "minutes": 15, "cause": "The partner sent a bad date"}.%ToJSON()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Channel.LiveCase).SendToNotify(one, trace), "a page Notification goes to Notify")
-	Do ..WaitDeliveries(a, page, "page", 2)
+	Do ..WaitDeliveries(a, page, "page", 1)
 	Set two = ##class(OcuTalon.Msg.Notification).%New()
 	Set two.SessionRef = a
 	Set two.Kind = "handled"
@@ -371,7 +390,11 @@ Method TestHandledCopies()
 		Set lines = lines_$Select(lines = "": "", 1: " / ")_"type "_rs.%GetData(1)_" "_rs.%GetData(2)_": "_$Extract(rs.%GetData(3), 1, 160)
 	}
 	Do ..Timing("Task 0 (d): warnings and errors of WebChatOut, SimPhoneOut and Notify: "_$Select(lines = "": "none", 1: lines))
-	Do $$$AssertEquals(lines, "", "the page copies and their handled notification log no warning")
+	Do $$$AssertEquals(lines, "", "the page copy and its handled notification log no warning")
+	Set count = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = 'phone' AND Kind = 'page'", page)
+	Do count.%Next()
+	Do $$$AssertEquals(+count.%GetData(1), 0, "the simulated phone has no copy of the page")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Page WHERE Ref = ?", page)
 }
 
 /// Waits up to WAITCOPY seconds for count Delivery rows of the kind with the Ref, in the session's channels (web and phone).
@@ -385,15 +408,17 @@ Method WaitDeliveries(session As %String, ref As %String, kind As %String, count
 		If (found '< count) || ($ZHorolog > end) Quit
 		Hang 0.5
 	}
-	Do $$$AssertEquals(found, count, count_" "_kind_" Delivery row(s) of the Ref, one for each of the web and phone channels")
+	Do $$$AssertEquals(found, count, count_" "_kind_" Delivery row(s) of the Ref")
 	Quit found
 }
 
-/// A fixture session, paired with the chat of PairChat through the real /start path when one is set.
+/// A fixture session, paired with the chat of PairChat through the real /start path when one is set: that session is of a real account that holds OcuTalonUser and is named as Session names its
+/// user, since Pair refuses a session whose user may not chat.
 Method Session(name As %String) As %String [ Private ]
 {
-	Set ref = ##super(name)
-	If ..PairChat '= "" Do ..Pair(ref, ..PairChat, "Zz Pager")
+	If ..PairChat = "" Quit ##super(name)
+	Set ref = ..ChatSession(name, "OcuTalonUser", , 1)
+	Do ..Pair(ref, ..PairChat, "Zz Pager")
 	Quit ref
 }
 

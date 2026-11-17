@@ -38,6 +38,13 @@
 ///     email.address and the Ref was not taken before; it takes the Ref's one use and logs the Ref and nothing of the email; the first email with the Ref and
 ///     a From that is not email.address does not use it up; the claim row of an email that was not sent, a row of another channel, an unknown or forged Ref,
 ///     an empty one and a second use each leave an Item as before.
+///   - The not_user tests (Story 0.38; AD-14, DW-1284, DW-1465), over real IRIS accounts that hold real roles and a real account state (Test.Data.Fixture ChatSession and SetAccount):
+///     TestNotUserOwnerRefused (E1): an email whose mailbox owner's account is a viewer's makes no Item and one Channel.Refused {email, not_user} for Intake (in the owner's TraceRef
+///     SuperSession), with an OK status; TestNotUserRoleRemovedAfterSave (E2): the owner's first email is an Item, and after OcuTalonUser is removed the next one is refused with one record
+///     and no second Item; TestNotUserAdminWithUserAllowed (E3): OcuTalonAdmin with OcuTalonUser gets an Item as before and no record; TestNotUserAdminOnlyFollowsWebChat (E4): OcuTalonAdmin alone
+///     (and an admin viewer) is refused, with web chat's own check on the same roles as the control; TestNotUserDisabledOrExpired (E5): a disabled owner account and one past its expiry are
+///     refused, one record each; TestNotUserMailIsSeen (E6): through the adapter, a refused email is recorded seen and the next poll hands on nothing more; TestNotUserRecordFailureIsOneWarning (E7):
+///     when the send of the record fails the status is still OK, nothing is made an Item and one fixed warning is logged that names no address, user, Ref or mail text.
 /// The run's number is n from ^OcuTalonTest("EmailIn","n") (never reset).
 Class OcuTalon.Test.Channel.EmailIn Extends %UnitTest.TestCase
 {
@@ -581,6 +588,150 @@ Method TestServiceRefusals()
 	Do $$$AssertEquals($Get(^OcuTalonTest("EmailInServiceProbe", ..Number), 0), 1, "after one send")
 }
 
+/// E1: the owner of the mailbox is a viewer: an email makes no Item, one Channel.Refused {email, not_user} goes to Intake in the owner's TraceRef SuperSession and the status is OK.
+Method TestNotUserOwnerRefused()
+{
+	Set owner = ..Session("viewer", "OcuTalonViewer")
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+	Set service = ..Service()
+	Set mark = ..LastLog()
+	Do ..Take(service, "u1", "dana@example.com", "")
+	Do ..AssertRefusedOnce(owner, "a viewer owner's email", 1)
+	Do $$$AssertEquals(..Warned(mark), 0, "and nothing is logged")
+}
+
+/// E2: the owner held OcuTalonUser when the mailbox was saved (the first email is an Item); once the role is removed the next email is refused with one record and no second Item.
+Method TestNotUserRoleRemovedAfterSave()
+{
+	Set owner = ..Session("removed", "OcuTalonUser", .user)
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+	Set service = ..Service()
+	Do ..Take(service, "u1", "dana@example.com", "")
+	Do $$$AssertEquals(..Sends()_"|"_..SendClass(1), "1|OcuTalon.Msg.Item", "the first email is an Item while the owner holds OcuTalonUser")
+	Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(user, "OcuTalonUser")
+	Do ..Take(service, "u2", "dana@example.com", "")
+	Do $$$AssertEquals(..Sends()_"|"_..SendClass(2), "2|OcuTalon.Channel.Refused", "once the role is removed the next email is one record and no second Item")
+	Do $$$AssertEquals(..Call(2, "refusedChannel")_"|"_..Call(2, "refusedReason")_"|"_..Call(2, "target"), "email|not_user|Intake", "an email record for Intake with the reason not_user")
+}
+
+/// E3: an owner with OcuTalonAdmin and OcuTalonUser (and one with OcuTalonUser and OcuTalonViewer) gets an Item, as before, and no record.
+Method TestNotUserAdminWithUserAllowed()
+{
+	For roles = "OcuTalonAdmin,OcuTalonUser", "OcuTalonUser,OcuTalonViewer" {
+		Kill ^OcuTalonTest("EmailInServiceProbe", ..Number)
+		Set owner = ..Session("allowed"_$Translate(roles, ",", ""), roles)
+		Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+		Do ..Take(..Service(), "u1", "dana@example.com", "")
+		Do $$$AssertEquals(..Sends()_"|"_..SendClass(1)_"|"_..Call(1, "sessionRef"), "1|OcuTalon.Msg.Item|"_owner, roles_": one Item of the owner, and no record")
+	}
+}
+
+/// E4: an owner with OcuTalonAdmin alone, and an admin viewer, follow web chat's rule: refused. The control is the same roles through RolesMayChat, which is web chat's rule.
+Method TestNotUserAdminOnlyFollowsWebChat()
+{
+	For roles = "OcuTalonAdmin", "OcuTalonAdmin,OcuTalonViewer" {
+		Kill ^OcuTalonTest("EmailInServiceProbe", ..Number)
+		Set owner = ..Session("adminonly"_$Translate(roles, ",", ""), roles, .user)
+		Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(user, .read), roles_": the owner's roles are read")
+		Do $$$AssertEquals(##class(OcuTalon.Core.Access).RolesMayChat(read), 0, roles_": control: RolesMayChat, web chat's rule, is 0 for them")
+		Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+		Do ..Take(..Service(), "u1", "dana@example.com", "")
+		Do ..AssertRefusedOnce(owner, roles_" owner's email", 1)
+	}
+}
+
+/// E5: an owner whose OcuTalonUser account is disabled, and another whose account is past its ExpirationDate, are refused, one record each; each holds the role.
+Method TestNotUserDisabledOrExpired()
+{
+	For state = "disabled", "expired" {
+		Kill ^OcuTalonTest("EmailInServiceProbe", ..Number)
+		Set owner = ..Session(state, "OcuTalonUser", .user)
+		Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+		Do ..Take(..Service(), "u1", "dana@example.com", "")
+		Do $$$AssertEquals(..Sends()_"|"_..SendClass(1), "1|OcuTalon.Msg.Item", state_": control: the usable account's email is an Item")
+		Kill ^OcuTalonTest("EmailInServiceProbe", ..Number)
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(user, $Select(state = "disabled": 0, 1: 1), $Select(state = "expired": -2, 1: "")), state_": the account is "_state)
+		Do $$$AssertTrue(##class(OcuTalon.Bridge.Approval).RolesOf(user, .read) && (read = "OcuTalonUser"), state_": the account still holds OcuTalonUser")
+		Do ..Take(..Service(), "u2", "dana@example.com", "")
+		Do ..AssertRefusedOnce(owner, state_" owner's email", 1)
+	}
+}
+
+/// E6: through the adapter and the service, a refused email's UIDL is recorded seen (the status was OK) and the next poll hands on nothing more.
+Method TestNotUserMailIsSeen()
+{
+	Set owner = ..Session("seen", "OcuTalonViewer")
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+	Set adapter = ..Adapter("notuser")
+	Set adapter.Service = ..Service()
+	Do ..Mail("u1")
+	Do adapter.OnTask()
+	Do ..Mail("u2", "Dana <dana@example.com>", "zz Invoice", "zz body")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Sends()_"|"_..SendClass(1), "1|OcuTalon.Channel.Refused", "the new email is one record for Intake and no Item")
+	Do $$$AssertEquals(..SeenRows(adapter), "u1=1,baseline marker=1,u2=0", "its UIDL is recorded seen, not as the baseline")
+	Do $$$AssertEquals(..Mark().ok, 1, "and the poll is ok")
+	Do adapter.OnTask()
+	Do $$$AssertEquals(..Sends(), 1, "the next poll hands on nothing more, so no second record is made")
+	Do $$$AssertEquals(..Count("Fetch"), 1, "and the email was read once")
+}
+
+/// E7: the send of the record fails: the status is still OK (the email is not retried), no Item is made, and one warning is logged whose text is the fixed one: it names no address, user, Ref or mail text.
+Method TestNotUserRecordFailureIsOneWarning()
+{
+	Set owner = ..Session("fails", "OcuTalonViewer", .user)
+	Do ##class(OcuTalon.Data.Setting).Set("email.owner", owner)
+	Do ##class(OcuTalon.Data.Setting).Set("email.address", "zzown@example.com")
+	Set service = ..Service()
+	Set service.FailSend = 1
+	Set mail = ##class(OcuTalon.Channel.Email.Mail).%New()
+	Set mail.Uidl = "u1"
+	Set mail.Sender = "Dana <zzdana@example.com>"
+	Set mail.Subject = "zz Subject"
+	Set mail.Text = "zz mail text"
+	Set mark = ..LastLog()
+	Do $$$AssertStatusOK(service.OnProcessInput(mail, .output), "the status is OK, so the adapter records the email seen")
+	Do $$$AssertEquals(..Sends()_"|"_..SendClass(1), "1|OcuTalon.Channel.Refused", "the only send was the record: no Item")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 ORDER BY ID", mark)
+	Set texts = ""
+	While result.%Next() {
+		Set texts = texts_$ListBuild(result.%GetData(1))
+	}
+	Do $$$AssertEquals($ListLength(texts), 1, "one warning is logged")
+	Set text = $ListGet(texts, 1)
+	Do $$$AssertEquals(text, ##class(OcuTalon.Channel.Email.In).#LOGNOTUSER, "its text is the fixed one")
+	Do $$$AssertTrue((text '[ "zzdana") && (text '[ "zzown") && (text '[ user) && (text '[ owner) && (text '[ "zz Subject") && (text '[ "zz mail text") && (text '[ "u1"), "and it names no address, user, Ref, subject or mail text")
+}
+
+/// The one record of a refused email, and nothing else: n sends in all (the one record), a Channel.Refused of channel email with the reason not_user, for Intake, in the owner's TraceRef SuperSession.
+Method AssertRefusedOnce(owner As %String, what As %String, n As %Integer) [ Private ]
+{
+	Do $$$AssertEquals(..Sends(), n, what_" makes exactly one send")
+	Do $$$AssertEquals(..SendClass(1), "OcuTalon.Channel.Refused", what_" makes no Item: the one send is a Channel.Refused")
+	Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "refusedChannel")_"|"_..Call(1, "refusedReason"), "Intake|email|not_user", what_": for Intake, channel email, reason not_user")
+	Do $$$AssertEquals(..Call(1, "superSession"), ##class(OcuTalon.Data.Session).RefIndexOpen(owner).TraceRef, what_": in the owner's TraceRef SuperSession")
+}
+
+/// A field of the nth send of the service probe.
+Method Call(n As %Integer, field As %String) As %String [ Private ]
+{
+	Quit $Get(^OcuTalonTest("EmailInServiceProbe", ..Number, n, field))
+}
+
+/// The class of the nth send of the service probe.
+Method SendClass(n As %Integer) As %String [ Private ]
+{
+	Quit ..Call(n, "class")
+}
+
+/// The number of warnings logged after the row mark.
+ClassMethod Warned(mark As %Integer) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 3", mark)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
 /// The adapter reads the header of the email.
 Method TestAdapterCarriesSentRef()
 {
@@ -773,10 +924,11 @@ ClassMethod Mark() As %DynamicObject [ Private ]
 	Quit {}.%FromJSON(##class(OcuTalon.Data.StatusMark).Get("emailPoll"))
 }
 
-/// A fixture session; its Ref is kept for the clean-up.
-Method Session(name As %String) As %String [ Private ]
+/// A fixture session of a real IRIS account that holds the roles (OcuTalonUser by default; Fixture.ChatSession, whose accounts Fixture.Clean drops with the rows); its Ref is kept for the
+/// clean-up, and user is the account's name.
+Method Session(name As %String, roles As %String = "OcuTalonUser", Output user As %String) As %String [ Private ]
 {
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzemailin"_..Number_name)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzemailin"_..Number_name, roles, .user)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
 }

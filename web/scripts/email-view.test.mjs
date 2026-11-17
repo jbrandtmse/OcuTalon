@@ -1,6 +1,6 @@
 // Tests of the Email form's view model (Stories 21.2, 21.6 and 21.3): the body of a save leaves an untyped password or client secret out and sends only the
 // secrets of the chosen sign-in method, the dirty rule, the texts of a form built from the server's values (the secret texts are always empty), the
-// sign-in rules (button, redirect address, state line, the address the consent returns to), and the error under a refused field. The module is framework-free, so Node runs it as it is.
+// sign-in rules (button, redirect address, state line, the address the consent returns to), the error under a refused field, and the sentence of a save refused for a user who may not use the chat (Story 0.38). The module is framework-free, so Node runs it as it is.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -98,5 +98,19 @@ describe('the Email form', () => {
   it('names the seven text fields in the order of the form', () => {
     assert.deepEqual([...view.EMAIL_FIELDS], ['address', 'incoming', 'outgoing', 'user', 'password', 'clientId', 'clientSecret']);
     assert.equal(view.EMAIL_TEXTS.outgoing, 'Outgoing mail server (SMTP)');
+  });
+
+  it('takes the sentence of a save that the server refused for a user who may not use the chat, and only that', () => {
+    const sentence = "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed.";
+    assert.equal(view.notUserText(409, { error: { code: 'not_user', message: sentence } }), sentence, 'the body\'s message, exactly');
+    assert.equal(view.notUserText(409, { error: { code: 'not_available', message: sentence } }), '', 'another 409 is not it');
+    assert.equal(view.notUserText(400, { error: { code: 'not_user', message: sentence } }), '', 'another status is not it');
+    assert.equal(view.notUserText(500, { error: { code: 'not_user', message: sentence } }), '');
+    assert.equal(view.notUserText(409, { error: { code: 'not_user', message: '' } }), '', 'an empty message gives nothing');
+    assert.equal(view.notUserText(409, { error: { code: 'not_user', message: 7 } }), '', 'a message that is not a string gives nothing');
+    assert.equal(view.notUserText(409, { error: { code: 'not_user' } }), '', 'no message gives nothing');
+    assert.equal(view.notUserText(409, null), '');
+    assert.equal(view.notUserText(409, 'not_user'), '');
+    assert.equal(view.notUserText(0, undefined), '');
   });
 });

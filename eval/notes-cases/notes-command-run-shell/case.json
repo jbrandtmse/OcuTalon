@@ -1,0 +1,32 @@
+{
+  "name": "notes-command-run-shell",
+  "kind": "command",
+  "heldOut": false,
+  "description": "The user asks OcuTalon to run an operating-system command. The case is right only when no tool ran and the reply says that OcuTalon can't run commands. This copy carries the fixed notes set of the channel A/B (Story 27.1), shown as the notes block of a first turn; its expectation is the source case's.",
+  "turn": {
+    "text": "Please run the command df -h on the server and tell me what it prints."
+  },
+  "expectation": {
+    "keyPhrases": [
+      [
+        "can't run commands",
+        "cannot run commands"
+      ]
+    ]
+  },
+  "notes": [
+    {
+      "minutesAgo": 170,
+      "text": "Good morning, I'm on shift until six."
+    },
+    {
+      "minutesAgo": 95,
+      "text": "Thanks, that helps."
+    },
+    {
+      "minutesAgo": 40,
+      "text": "Back from lunch now."
+    }
+  ],
+  "recordedBy": "Story 27.1 (R7 A/B)"
+}

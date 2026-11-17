@@ -89,6 +89,14 @@
 ///     (OcuTalon.Memory.DropSession, the sign-out's own drop), the conversation links of its turns (Bridge.Purge.DropLinks) and then its row (Data.Session.DropEval); BridgeSink
 ///     publishes and notifies nothing for such a session (Data.Session.IsEval, AD-22); a row whose memories could not be dropped stays, so that the next
 ///     start's sweep drops both. Start drops, after SweepPrecedents, every Session row with no IrisUser and its memories (SweepSessions); a failure is one warning.
+///   - A turn case of the kind all-clear or command may carry notes (Story 27.1, the R7 channel A/B; AD-22): an array of 1 to NOTESMAX objects {minutesAgo, text}, minutesAgo a whole
+///     number of 1 to NOTESMINUTES and text 1 to NOTESTEXTMAX characters. It is used ONLY when Start is given a notesChannel, which is for the notes-cases folder of eval/ and the
+///     run.sh mode --notes; with none (the default) the member is ignored and every case sends exactly what it sends without it. With a notesChannel (a value of Msg.Enum CHANNEL;
+///     any other value skips every case that carries notes with REASONNOTES) such a case gets an eval-only session (SessionUp, the Session row of ForEval) and, for each note, one Data.Turn
+///     row of that session through Data.Turn.ForEval, in the channel notesChannel, minutesAgo minutes before now. The case's request is rendered as the first turn of that session
+///     (TurnRequest: the Item's SessionRef is the session and the context is sessionStart), so that Agent.Input renders the product's own notes block, whose lines read
+///     "message (<notesChannel>): ...". The request's OwnerRef stays eval. Finish drops the session and its turns (SessionDown, DropEval). A case with notes and a session is
+///     skipped with REASONNOTES. Nothing on a product request path reaches any of it.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -150,6 +158,13 @@ Parameter MEMORYWAIT = 30;
 Parameter SESSIONFORGOTTENMAX = 3;
 
 Parameter SESSIONTEXTMAX = 2000;
+
+/// The most notes a case carries, the most minutes ago a note may be, and the most characters of a note's text (Story 27.1).
+Parameter NOTESMAX = 4;
+
+Parameter NOTESMINUTES = 600;
+
+Parameter NOTESTEXTMAX = 200;
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
 Parameter INCIDENTKIND = "incident";
@@ -221,6 +236,9 @@ Parameter REASONPRECEDENTS = "its precedents could not be seeded: {why}";
 /// {why} says what is wrong with the session the case declares or what went wrong setting it up (Story 41.14).
 Parameter REASONSESSION = "its session could not be set up: {why}";
 
+/// {why} says what is wrong with the notes the case declares or what went wrong setting them up (Story 27.1).
+Parameter REASONNOTES = "its notes could not be set up: {why}";
+
 Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
 
 /// {why} is the text of the status that EvidencePack.Load returned, or says that the name is not a plain file name.
@@ -263,6 +281,9 @@ Property Preset As %String(MAXLEN = 32);
 
 Property PersonaLanguage As %String(MAXLEN = 40);
 
+/// The channel that the notes of a notes case are written in (Story 27.1); "" for none, which ignores every notes member. Start sets it.
+Property NotesChannel As %String(MAXLEN = 32);
+
 /// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
 Property Watches As %DynamicArray;
 
@@ -290,9 +311,10 @@ Property PaceStalled As %Boolean [ InitialExpression = 0 ];
 ///     did not start). The run's end passes it to Finish.
 ///   - preset and language are the persona of the whole run ("" for none): a case that names its own preset overrides them. A pair that
 ///     EvalPresetOk refuses is not checked here: each case is skipped with REASONPERSONA.
+///   - notesChannel ("" for none, the default) is the channel of the notes of the cases that carry notes (see the class description); with none, those members are ignored.
 ///   - The status is the director's error when EvalIn cannot be created, which a disabled EvalIn is (the text says disabled); then
 ///     nothing was sent and there is no run Ref. Otherwise OK.
-ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray, preset As %String = "", language As %String = "") As %Status
+ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray, preset As %String = "", language As %String = "", notesChannel As %String = "") As %Status
 {
 	Set runRef = "", sent = 0, skipped = [], watches = []
 	Do ..SweepDocuments()
@@ -304,6 +326,7 @@ ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output
 	Set service.RunRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set service.Watches = watches
 	Set service.Preset = preset, service.PersonaLanguage = language
+	Set service.NotesChannel = notesChannel
 	Set runRef = service.RunRef
 	Do service.SweepPrecedents()
 	Do service.SweepSessions()
@@ -461,15 +484,24 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	If reason '= "" Quit reason
 	If $ListFind($ListFromString(..#TURNKINDS), kind) {
 		Set session = ""
-		If case.%IsDefined("session") {
+		Set notesSession = ""
+		If (..NotesChannel '= "") && case.%IsDefined("notes") {
+			Set reason = ..NotesShape(case, kind, .notes)
+			If reason '= "" Quit $Replace(..#REASONNOTES, "{why}", reason)
+			Set reason = ..NotesUp(name, notes, .session)
+			If reason '= "" Quit $Replace(..#REASONNOTES, "{why}", reason)
+			Set notesSession = session.%Get("ref")
+			Set session = ""
+		} ElseIf case.%IsDefined("session") {
 			Set reason = ..SessionShape(case.%Get("session"), kind, .texts)
 			If reason '= "" Quit $Replace(..#REASONSESSION, "{why}", reason)
 			Set reason = ..SessionUp(name, texts, .session)
 			If reason '= "" Quit $Replace(..#REASONSESSION, "{why}", reason)
 		}
 		If kind '= ..#DOCUMENTSKIND {
-			Set reason = ..SendTurn(case, kind, name, preset, language, $Select($IsObject(session): session.ref, 1: ""))
+			Set reason = ..SendTurn(case, kind, name, preset, language, $Select($IsObject(session): session.ref, 1: ""), notesSession)
 			If (reason '= "") && $IsObject(session) Do ..SessionDrop(session)
+			If (reason '= "") && (notesSession '= "") Do ..SessionDrop({"ref": (notesSession)})
 			Quit reason
 		}
 		Set reason = ..DocumentsUp(case, folder, .documents)
@@ -740,6 +772,53 @@ Method SweepPrecedents()
 	}
 }
 
+/// The shape of the notes a case carries (Story 27.1), checked before anything is saved: the notes channel must be a value of Msg.Enum CHANNEL, the kind all-clear or command, the
+/// case must declare no session, and notes an array of 1 to NOTESMAX objects {minutesAgo, text}. Returns the reason it is not, or "" with notes the array.
+Method NotesShape(case As %DynamicObject, kind As %String, Output notes As %DynamicArray) As %String [ Private ]
+{
+	Set notes = []
+	If '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#CHANNEL), ..NotesChannel) Quit "the notes channel is not a channel"
+	If (kind '= ..#ALLCLEARKIND) && (kind '= "command") Quit "only an all-clear or command case has notes"
+	If case.%IsDefined("session") Quit "a case has a session or notes, not both"
+	Set declared = case.%Get("notes")
+	If '$IsObject(declared) || 'declared.%IsA("%Library.DynamicArray") || (declared.%Size() < 1) || (declared.%Size() > ..#NOTESMAX) Quit "notes is not an array of 1 to "_..#NOTESMAX_" notes"
+	Set usable = 1
+	For i = 0:1:declared.%Size() - 1 {
+		Set note = declared.%Get(i)
+		If '$IsObject(note) || 'note.%IsA("%Library.DynamicObject") {
+			Set usable = 0
+			Quit
+		}
+		Set minutes = note.%Get("minutesAgo"), text = note.%Get("text")
+		If (note.%GetTypeOf("minutesAgo") '= "number") || (minutes '= (minutes \ 1)) || (minutes < 1) || (minutes > ..#NOTESMINUTES) Set usable = 0
+		If (note.%GetTypeOf("text") '= "string") || ($ZStrip(text, "<>WC") = "") || ($Length(text) > ..#NOTESTEXTMAX) Set usable = 0
+	}
+	If 'usable Quit "a note is not {minutesAgo: a whole number of 1 to "_..#NOTESMINUTES_", text: 1 to "_..#NOTESTEXTMAX_" characters}"
+	Set notes = declared
+	Quit ""
+}
+
+/// Makes the eval-only session of a notes case (SessionUp, with nothing to seed) and one Turn row for each note (Data.Turn ForEval), in the notes channel and minutesAgo minutes
+/// before now. Returns the reason they could not be made, or "" with session the record {ref}; on a reason the session is already dropped.
+Method NotesUp(name As %String, notes As %DynamicArray, Output session As %DynamicObject) As %String [ Private ]
+{
+	Set reason = ..SessionUp(name, [], .session)
+	If reason '= "" Quit reason
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set iterator = notes.%GetIterator()
+	While iterator.%GetNext(, .note) {
+		Set created = ##class(OcuTalon.Data.Time).AddSeconds(now, -60 * note.%Get("minutesAgo"))
+		Set ref = ##class(OcuTalon.Data.Turn).ForEval(session.%Get("ref"), ..NotesChannel, created, note.%Get("text"), .sc)
+		If (ref = "") || $$$ISERR(sc) {
+			Set reason = "a note could not be saved: "_$SYSTEM.Status.GetOneStatusText(sc)
+			Do ..SessionDrop(session)
+			Set session = ""
+			Quit
+		}
+	}
+	Quit reason
+}
+
 /// Checks the session member of a command case (Story 41.14): the reason it is not usable, or "" with texts set to the array of the forgotten texts (empty when the session
 /// declares none). Only a command case has a session; the session is an object; forgotten, when present, is an array of 1 to SESSIONFORGOTTENMAX strings that are not blank
 /// and have at most SESSIONTEXTMAX characters. Nothing is saved or sent.
@@ -941,8 +1020,8 @@ Method DispatchDigest(digest As OcuTalon.Eval.Msg.DigestCase) As %Status [ Priva
 /// or an all-clear case whose checks is not an array, is refused before anything is saved. Otherwise the case's TurnResult and row are
 /// saved, and a case that gets no Reply from Decide (or whose send throws) loses both again. A row that cannot be opened (the run already
 /// has a row of that case) is refused with the error text, and only the case's own TurnResult is deleted: the row that is there stays. owner is the Ref of the case's
-/// session (Story 41.14), "" for the owner eval.
-Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset As %String = "", language As %String = "", owner As %String = "") As %String [ Private ]
+/// session (Story 41.14), "" for the owner eval. notesSession (Story 27.1) is the Ref of the eval session that holds a notes case's notes, "" for none.
+Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset As %String = "", language As %String = "", owner As %String = "", notesSession As %String = "") As %String [ Private ]
 {
 	Set turn = case.turn
 	Set text = $Select($IsObject(turn) && turn.%IsA("%Library.DynamicObject"): ..Scalar(turn, "text"), 1: "")
@@ -973,7 +1052,7 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset
 	}
 	Set reason = ""
 	Try {
-		Set reason = ..Converse(result, text, name, kind, linked, owner)
+		Set reason = ..Converse(result, text, name, kind, linked, owner, notesSession)
 	} Catch exception {
 		Set reason = exception.DisplayString()
 	}
@@ -984,11 +1063,11 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset
 /// Asks Decide for the turn, again after a Busy reply, then keeps the Reply in the TurnResult and sends the TurnResult to EvalSink. The
 /// reason there was no Reply to keep, or "". The turn is asked at most BUSYMAX + 1 times, BUSYWAIT seconds apart; a Decide that is busy
 /// every time ends the case as a fallback with the reason rate_limited, with no DecisionRef.
-Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "", linked As %Boolean = 0, owner As %String = "") As %String [ Private ]
+Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "", linked As %Boolean = 0, owner As %String = "", notesSession As %String = "") As %String [ Private ]
 {
 	Set userTurn = (kind = ..#USERTURNKIND)
 	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
-	Set sc = ..AskTurn(result.ItemId, text, userTurn, linked, .reply, owner)
+	Set sc = ..AskTurn(result.ItemId, text, userTurn, linked, .reply, owner, notesSession)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
 	If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit ..#REASONNOREPLY
 	If userTurn {
@@ -1015,13 +1094,13 @@ Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As
 
 /// Asks Decide for a turn, again after a Busy reply: at most BUSYMAX + 1 times, BUSYWAIT seconds apart. reply is the last answer. A user turn is
 /// asked once, because its answer has no Busy.
-Method AskTurn(itemId As %String, text As %String, userTurn As %Boolean, linked As %Boolean, Output reply, owner As %String = "") As %Status [ Private ]
+Method AskTurn(itemId As %String, text As %String, userTurn As %Boolean, linked As %Boolean, Output reply, owner As %String = "", notesSession As %String = "") As %Status [ Private ]
 {
 	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
 	Set reply = "", sc = $$$OK
 	For asks = 1:1:..#BUSYMAX + 1 {
 		Kill reply
-		Set sc = ..Ask(..TurnRequest(itemId, text, userTurn, linked, owner), .reply)
+		Set sc = ..Ask(..TurnRequest(itemId, text, userTurn, linked, owner, notesSession), .reply)
 		If $$$ISERR(sc) Quit
 		If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit
 		If userTurn || 'reply.Busy Quit
@@ -1083,19 +1162,21 @@ Method Before(before As %DynamicObject, kind As %String, name As %String) As %St
 /// Agent.Input renders from an Item of the same fields as a user's turn in the chat, so the model sees the turn as the product sends it.
 /// With userTurn the request is the decide request of a user's chat turn (Kind decide, no SessionMode) instead of the turn request. With linked the
 /// turn has no SessionMode, so that it opens the session that the case's before turn saved (AD-6) instead of a fresh one. With an owner (the Ref of a session case's
-/// session, Story 41.14) only the request's OwnerRef is that session, so that the tools act as it; the Item, and so the Input, stays owner eval.
-Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0, linked As %Boolean = 0, owner As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
+/// session, Story 41.14) only the request's OwnerRef is that session, so that the tools act as it; the Item, and so the Input, stays owner eval. With a notesSession (Story 27.1,
+/// the eval session of a notes case) the Item's SessionRef is that session and the Input is rendered as the first turn of a session (context sessionStart), so that it carries the
+/// notes block; the request's OwnerRef stays eval. With none the Input is Render(item), as before.
+Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0, linked As %Boolean = 0, owner As %String = "", notesSession As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.ItemId = itemId
-	Set item.SessionRef = ##class(OcuTalon.Data.Ownership).#EVAL
+	Set item.SessionRef = $Select(notesSession '= "": notesSession, 1: ##class(OcuTalon.Data.Ownership).#EVAL)
 	Set item.Channel = ..#TURNCHANNEL
 	Set item.Provenance = "user"
 	Set item.Text = text
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = $Select(userTurn: "decide", 1: "turn")
 	Set request.Provenance = "user"
-	Set request.Input = ##class(OcuTalon.Agent.Input).Render(item)
+	Set request.Input = $Select(notesSession '= "": ##class(OcuTalon.Agent.Input).Render(item, "", {"sessionStart": 1}), 1: ##class(OcuTalon.Agent.Input).Render(item))
 	Set request.ItemId = itemId
 	Set request.Summary = ..FirstLine(text)
 	Set request.OwnerRef = $Select(owner '= "": owner, 1: ##class(OcuTalon.Data.Ownership).#EVAL)

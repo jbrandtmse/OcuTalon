@@ -16,6 +16,7 @@ Each item says where to try it. Visual Trace on the online demo is shared, so sa
 - **Your own mailbox.** On your own install, an admin connects a POP3 mailbox in Settings > Channels > Email, with a password or by signing in with Google or Microsoft 365 (see [Gmail and Microsoft 365](#gmail-and-microsoft-365)). OcuTalon makes an attention decision on each email that arrives after that, sends the email to the model for it, and leaves your mail on the server. Email is read as untrusted content: nothing in an email can approve, change or run anything. With an outgoing mail server saved, Settings > Daily digest can also send your digest to that address. The online demo keeps its simulated mailbox.
 - **MCP servers in Settings.** On your own install, an admin adds an MCP server in Settings > Tools and MCP servers, with an optional secret kept in the IRIS Wallet, and classifies each of its tools as Read-only or Risky; until then a tool counts as risky. MCP servers are off on the online demo.
 - **MCP tools as sources.** On your own install, an admin sets a Read-only MCP tool up as a source in Settings > Tools and MCP servers, with its arguments and how often to check it. OcuTalon calls it on that schedule and makes an attention decision on each new result, and the source joins the digest's coverage list. Sources are off on the online demo.
+- **On-call pages.** On your own install, choose an on-call person and a backup in Settings > On call. When OcuTalon finds failures in a production it watches, it pages the on-call person in their OcuTalon chat and by Telegram or email, and pages the backup if nobody presses Got it in time. The online demo never pages anyone.
 - **A History page.** Open History in the header to look back at the decisions OcuTalon made on your messages, filtered by outcome, channel, date and fallback, each with its reasons and a link to its trace, and at your incidents with their state and, once closed, their summary. On the online demo you see only your own session's decisions and incidents. Try it: More to try, *Look back at past decisions*.
 - **A Usage page.** Open Usage in the header to see your tokens and cost by day, agent, channel or model, counted per turn and per decision, with each day's largest model request (an estimate) against the 100,000-token limit. On the online demo you see only your own session's use. Try it: More to try, *See tokens and cost*.
 
@@ -252,6 +253,13 @@ Signing in with Google or Microsoft 365 is optional, and these steps are for you
 If the sign-in is withdrawn at the provider, the next check of the mailbox fails with "The mail sign-in is no longer valid." and Settings offers the sign-in again. Saving the Password method removes the sign-in from IRIS. The online demo has no real mailbox and no sign-in.
 
 All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
+
+## Slack
+
+1. Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history and chat:write scopes, and install it to the workspace.
+2. Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon.
+3. Under Event Subscriptions, set the request URL to `https://<your public address>/ocutalon/hook/slack/events` and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once.
+4. As an admin, open Settings › Channels › Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.
 
 ## Stop, start and update
 

@@ -66,6 +66,7 @@ XData ProductionDefinition
     <Setting Target="Adapter" Name="CallInterval">5</Setting>
   </Item>
   <Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="true"/>
+  <Item Name="MemoryIn" ClassName="OcuTalon.Memory.In" PoolSize="0" Enabled="true"/>
   <Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="true"/>
   <Item Name="McpOps" ClassName="OcuTalon.Mcp.Ops" PoolSize="1" Enabled="true"/>
   <!-- lane A: end -->
@@ -103,6 +104,8 @@ XData ProductionDefinition
   <Item Name="PartnerTrigger" ClassName="OcuTalon.Demo.PartnerTrigger" PoolSize="1" Enabled="true"/>
   <Item Name="PrecedentOps" ClassName="OcuTalon.Core.PrecedentOps" PoolSize="1" Enabled="true"/>
   <Item Name="WebhookIn" ClassName="OcuTalon.Channel.Webhook.In" PoolSize="0" Enabled="true"/>
+  <Item Name="SlackIn" ClassName="OcuTalon.Channel.Slack.In" PoolSize="0" Enabled="true"/>
+  <Item Name="SlackOut" ClassName="OcuTalon.Channel.Slack.Out" PoolSize="1" Enabled="true"/>
   <!-- lane B: end -->
 </Production>
 }

@@ -205,13 +205,20 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	If request.Kind = "handled" Quit ..EditHandled(request)
 	If '$ListFind($ListFromString(..#KINDS), request.Kind) Quit $$$OK
 	Set sc = ..Target(request.ChatRef, request.SessionRef, .chatRef, .chatId)
-	If (chatId = "") || $SYSTEM.Status.IsError(sc) Quit sc
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If chatId = "" {
+		// The undelivered report of a page of a session (Story 24.3a, AD-14): one Delivery row, no text and no message id, which the paging owner reads with Ownership.DeliveryByRef.
+		If (request.Kind = ##class(OcuTalon.Watch.Paging).#KIND) && ..IsSession(request.SessionRef) {
+			If $SYSTEM.Status.IsError(##class(OcuTalon.Data.Delivery).Record(request.SessionRef, "telegram", "", "", request.Kind, "", request.DecisionRef, "", "not_paired")) $$$LOGWARNING("TelegramOut could not record that a page found no chat.")
+		}
+		Quit sc
+	}
 	If request.Kind = "digest" {
 		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = "summary" {
 		Set text = ##class(OcuTalon.Watch.Summary).Text(request.IncidentRef, ..#TEXTCHANNEL, .sc)
 	} ElseIf request.Kind = ##class(OcuTalon.Watch.Paging).#KIND {
-		Set text = ##class(OcuTalon.Watch.Paging).Text(request, ..#TEXTCHANNEL, .sc)
+		Set text = ##class(OcuTalon.Channel.PageText).Text(request, ..#TEXTCHANNEL, .sc)
 	} ElseIf (request.Kind = "approval") && $ListFind($ListFromString(..#STOREDKEYS), request.CatalogKey) {
 		Set text = ##class(OcuTalon.Core.BridgeSink).RequestText(request, ..#TEXTCHANNEL, .sc)
 	} Else {

@@ -5,18 +5,19 @@
 ///     OcuTalon.Agent. and the toolsets of OcuTalon.Tools., the scope of Install.Step.Tools.Toolsets; each toolset is expanded with
 ///     %Discover, because the catalog cannot expand toolsets, plus one row for each entry of the product's classification (Install.Step.Production ClassificationEntries) that names AI Hub's knowledge base, RagRows),
 ///     the fix kinds, the roles as Install.Step.Roles.Compose composes them
-///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
-///     privileges of the trace role, the service user and the application roles of the web applications;
+///     from the Grants() of the areas and, off the online demo, the application role that the Mcp step makes itself (Install.Step.Mcp APPROLE), the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
+///     privileges of the trace role, the service user and the application roles of the Web step's web applications and, off the online demo, of the MCP server's application;
 ///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
 ///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4), the fix-kinds section with the sentence ONLINESTATEMENT about the online demo's service role (Story 23.2) and, after it, PRODUCTIONCONFIGSTATEMENT about the local install's one %Ens_ProductionConfig grant (Story 23.3),
 ///     and the privileges section has the sentence MCPSTATEMENT after the Roles table, about the resource that each MCP server has (Story 22.6), built from the installer's own names
-///     (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE), so that it cannot drift from the grant;
+///     (Install.Step.Mcp RESOURCEPREFIX and PERMISSION, Install.Step.Users SERVICEROLE), so that it cannot drift from the grant, and, after it, the MCP server section (Story 28.3): the table of the
+///     tools of OcuTalon.Mcp.Service's specification and the sentence MCPSERVERSTATEMENT, built from the installer's names (Install.Step.Mcp SERVICEAPP, SERVICERESOURCE, CLIENTROLE and APPROLE);
 ///   - Splice replaces the text between the markers of each key in a document and nothing else; Regenerate does that for a file.
 /// A tool value is read only through the readers that the gate and the installer use (StepBuffer.ToolParameter and LabelFor,
 /// Gate.HookFor and Resources). A tool that classifies by its arguments (it has a Classify or Classify<NAME> method) shows the text of its
 /// CLASSIFYRULE<NAME> or CLASSIFYRULE parameter, and generation fails naming the tool when that text is missing. Every method that reads
 /// the product throws a status when it cannot, and Regenerate and Splice return it. Run in the namespace OCUTALON.
-Class OcuTalon.Install.SecurityOverview [ DependsOn = (OcuTalon.Install.Step.Mcp, OcuTalon.Install.Step.Users) ]
+Class OcuTalon.Install.SecurityOverview [ DependsOn = (OcuTalon.Install.Step.Mcp, OcuTalon.Install.Step.Users, OcuTalon.Mcp.Service) ]
 {
 
 /// The keys of the generated sections, in the order of the document.
@@ -43,6 +44,10 @@ Parameter PRODUCTIONCONFIGSTATEMENT = "On your own install, OcuTalonServiceRole 
 /// grants them, and the demo, where no server can be added. Its names come from the installer, so the sentence follows the grant.
 Parameter MCPSTATEMENT = {"Each MCP server that an admin adds has its own resource, `"_##class(OcuTalon.Install.Step.Mcp).#RESOURCEPREFIX_"<server>`, with no public permission, and `"_##class(OcuTalon.Install.Step.Users).#SERVICEROLE_"` holds "_##class(OcuTalon.Install.Step.Mcp).#PERMISSION_" on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none."};
 
+/// The sentence after the MCP server table (Story 28.3, the Contest Planner's PUBLIC TEXT ruling of 2026-11-16), word for word: what OcuTalon's own MCP server offers, who may use it and which roles
+/// serve a call, with the names of the installer's application, resource and roles, so that the sentence follows what the Mcp step creates.
+Parameter MCPSERVERSTATEMENT = {"OcuTalon's MCP server, `OcuTalon.Mcp.Service` at `"_##class(OcuTalon.Install.Step.Mcp).#SERVICEAPP_"` (password sign-in), offers only the read-only tools above. A user needs the role `"_##class(OcuTalon.Install.Step.Mcp).#CLIENTROLE_"`, which holds only U on `"_##class(OcuTalon.Install.Step.Mcp).#SERVICERESOURCE_"`. While a request runs in `"_##class(OcuTalon.Install.Step.Mcp).#SERVICEAPP_"`, IRIS adds the application role `"_##class(OcuTalon.Install.Step.Mcp).#APPROLE_"`, which no user holds and which gives R on OcuTalon's code, data and private databases, with no write and no SQL privilege. Outside that application, `"_##class(OcuTalon.Install.Step.Mcp).#CLIENTROLE_"` reads none of OcuTalon's databases. Each tool runs as that user, reads only that user's own OcuTalon session and writes an `MCP` audit entry. On the online demo the application, the resource and the roles don't exist."};
+
 /// The class of the product's classification entries that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
 Parameter RAGCLASS = "%AI.RAG.KnowledgeBase";
 
@@ -68,22 +73,25 @@ Parameter HOMENAMESPACE = "OCUTALON";
 /// The SQL object that the trace role may read.
 Parameter SQLOBJECT = "Ens.MessageHeader";
 
-/// The facts of the document as {"tools","fixKinds","roles","demoOnly","sql","serviceUser","applications"}:
+/// The facts of the document as {"tools","mcpServer","fixKinds","roles","demoOnly","sql","serviceUser","applications"}:
 ///   - tools: one {"name","source","toolset","agents","label","classification","readOnly","trustedOutput","resources"} per tool, sorted by name;
 ///     agents is the array of the agent classes that hold the tool's toolset, resources the array of {"resource","permission"};
+///   - mcpServer: one tool row (the same members as a tools row, with the toolset and an empty agents array) for each tool of the toolsets of OcuTalon.Mcp.Service's specification, sorted by name;
 ///   - fixKinds: one {"class","name","classification","resources"} per kind of Fix.Kind.Classes, sorted by class; every fix kind is risky (FIXCLASSIFICATION): it waits for an approval with a dry run;
 ///   - roles: one {"role","declaredBy","grants"} per role, sorted by role, where grants is the array of {"resource","permission","declaredBy"}
-///     sorted by resource and declaredBy the short names of the areas whose Grants() declare it;
+///     sorted by resource and declaredBy the short names of the areas whose Grants() declare it; off the online demo the list also holds the application role of OcuTalon's own MCP server
+///     (Install.Step.Mcp APPROLE) with the grants of APPROLERESOURCES, declared by Mcp, which makes that role itself and so declares no grant for the Roles step;
 ///   - demoOnly: the {"role","resource","permission"} that demo mode adds to the service role and the trace role;
 ///   - sql: the {"role","privilege","object","namespace","when"} of the trace role, when being always or demo mode on;
 ///   - serviceUser: {"user","roles","login"};
-///   - applications: one {"name","signIn","roles"} per web application of Install.Step.Web.Definitions whose MatchRoles adds roles to its requests,
-///     sorted by name, where signIn is "password" or "none (unauthenticated)" (its AutheEnabled, 32 or 64) and roles is the array of those roles.
+///   - applications: one {"name","signIn","roles"} per web application of Install.Step.Web.Definitions, and off the online demo the MCP server's application (Install.Step.Mcp ServiceApp),
+///     whose MatchRoles adds roles to its requests, sorted by name, where signIn is "password" or "none (unauthenticated)" (its AutheEnabled, 32 or 64) and roles is the array of those roles.
 /// Throws a status when a fact cannot be read.
 ClassMethod Model() As %DynamicObject
 {
 	Quit {
 		"tools": (..ToolRows()),
+		"mcpServer": (..McpServerRows()),
 		"fixKinds": (..FixKindRows()),
 		"roles": (..RoleRows()),
 		"demoOnly": (..DemoOnlyRows()),
@@ -123,6 +131,29 @@ ClassMethod ToolRows() As %DynamicArray
 		}
 	}
 	Merge rows = ragRows
+	Set result = []
+	Set key = ""
+	For {
+		Set key = $Order(rows(key))
+		Quit:key=""
+		Do result.%Push(rows(key))
+	}
+	Quit result
+}
+
+/// The tool rows of the MCP server section: one for each tool of each toolset of OcuTalon.Mcp.Service's specification, read as ToolRows reads a toolset, sorted by name.
+ClassMethod McpServerRows() As %DynamicArray
+{
+	Set specification = ##class(OcuTalon.Mcp.Service).GetSpecification()
+	For i = 1:1:$Length(specification, ",") {
+		Set toolset = $ZStrip($Piece(specification, ",", i), "<>W")
+		If toolset = "" Continue
+		Set tools = $ClassMethod(toolset, "%New").%Discover().tools
+		Set iterator = tools.%GetIterator()
+		While iterator.%GetNext(, .tool) {
+			Set rows(tool.name _ $Char(1) _ toolset) = ..ToolRow(tool.provider, tool.name, toolset, [])
+		}
+	}
 	Set result = []
 	Set key = ""
 	For {
@@ -232,7 +263,7 @@ ClassMethod FixKindRows() As %DynamicArray
 	Quit result
 }
 
-/// The role rows of Model, from the composed grants and the areas that declare them.
+/// The role rows of Model, from the composed grants and the areas that declare them, and, off the online demo, the Mcp step's application role (AppRoleGrants).
 ClassMethod RoleRows() As %DynamicArray
 {
 	$$$ThrowOnError(##class(OcuTalon.Install.Step.Roles).Compose(.composed))
@@ -246,6 +277,7 @@ ClassMethod RoleRows() As %DynamicArray
 		If area = "" Set area = entries(n, "area")
 		Set declared(grant.role, ..ResourceKey(grant.resource), area) = ""
 	}
+	Do ..AppRoleGrants(.composed, .declared)
 	Set result = []
 	Set role = ""
 	For {
@@ -261,6 +293,24 @@ ClassMethod RoleRows() As %DynamicArray
 		Do result.%Push({"role": (role), "declaredBy": (..Keys(.declared, role, ..ResourceKey(""))), "grants": (grants)})
 	}
 	Quit result
+}
+
+/// Adds to composed and declared the application role of OcuTalon's own MCP server and its grants (Install.Step.Mcp APPROLE and APPROLERESOURCES), declared by the Mcp area: its step makes
+/// the role, so no area declares it through Grants(). Adds nothing on an online-demo install, where the role does not exist.
+ClassMethod AppRoleGrants(ByRef composed, ByRef declared) [ Private ]
+{
+	Set mcp = "OcuTalon.Install.Step.Mcp"
+	If $ClassMethod(mcp, "OnlineDemo") Quit
+	Set role = $Parameter(mcp, "APPROLE")
+	Set area = $Piece(mcp, ..#AREAPREFIX, 2)
+	Set composed(role) = ""
+	Set pairs = $Parameter(mcp, "APPROLERESOURCES")
+	For i = 1:1:$Length(pairs, ",") {
+		Set resource = $Piece($Piece(pairs, ",", i), ":", 1)
+		If resource = "" Continue
+		Set composed(role, resource) = $Piece($Piece(pairs, ",", i), ":", 2)
+		Set declared(role, ..ResourceKey(resource), area) = ""
+	}
 }
 
 /// The subscript under which the declaration of a resource is kept: the resource, or a character that no resource holds for the declaration of a
@@ -320,12 +370,16 @@ ClassMethod ServiceUser() As %DynamicObject
 	Quit {"user": (##class(OcuTalon.Install.Step.Users).#SERVICEUSER), "roles": [(##class(OcuTalon.Install.Step.Users).#SERVICEROLE)], "login": "disabled"}
 }
 
-/// The web applications of the Web step (Install.Step.Web.Definitions) that add roles to their requests, how each signs its users in, and those roles: an
-/// application whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
+/// The web applications of the Web step (Install.Step.Web.Definitions), and off the online demo the MCP server's application (Install.Step.Mcp ServiceApp), that add roles to their requests, how each signs
+/// its users in, and those roles: an application whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
 /// adds the roles to every request of the application; a match role would make that claim untrue.
 ClassMethod Applications() As %DynamicArray
 {
 	$$$ThrowOnError(##class(OcuTalon.Install.Step.Web).Definitions(.apps))
+	If '##class(OcuTalon.Install.Step.Mcp).OnlineDemo() {
+		Do ##class(OcuTalon.Install.Step.Mcp).ServiceApp(.service)
+		Merge apps(##class(OcuTalon.Install.Step.Mcp).#SERVICEAPP) = service
+	}
 	Set result = []
 	Set name = ""
 	For {
@@ -419,7 +473,12 @@ ClassMethod PrivilegesText(model As %DynamicObject) As %String
 			Set text = text_"| "_..Code(role.role)_" | "_..Code(grant.resource)_" | "_grant.permission_" | "_..CodeList(grant.declaredBy)_" |"_lf
 		}
 	}
-	Set text = text_lf_..#MCPSTATEMENT_lf_lf_"### With demo mode on"_lf_lf_"| Role | Resource | Permission |"_lf_"| --- | --- | --- |"_lf
+	Set text = text_lf_..#MCPSTATEMENT_lf_lf_"### MCP server"_lf_lf_"| Tool | Class | Classification | Read-only |"_lf_"| --- | --- | --- | --- |"_lf
+	Set iterator = model.mcpServer.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		Set text = text_"| "_..Code(tool.name)_" | "_..Code(tool.source)_" | "_..Cell(tool.classification)_" | "_..YesNo(tool.readOnly)_" |"_lf
+	}
+	Set text = text_lf_..#MCPSERVERSTATEMENT_lf_lf_"### With demo mode on"_lf_lf_"| Role | Resource | Permission |"_lf_"| --- | --- | --- |"_lf
 	Set iterator = model.demoOnly.%GetIterator()
 	While iterator.%GetNext(, .grant) {
 		Set text = text_"| "_..Code(grant.role)_" | "_..Code(grant.resource)_" | "_grant.permission_" |"_lf

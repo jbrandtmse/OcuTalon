@@ -33,6 +33,8 @@
 ///     Story 21.14: an address or user name that is a number, an object or 257 characters is 400 naming it with nothing offered or submitted, and a body refused after the take (an incoming
 ///     with @{) leaves a SaveSettings message whose address and user are hand-off references and whose incoming is plain, with neither value in any trace global or log row and the references taken back;
 ///     the stored message of a provider body holds signIn, clientId, incoming and the route's origin plain and only the address, user and client secret as references, and a user name of exactly 256 characters passes the route;
+///   - TestChannelsNotUser (Story 0.38, M1): the same route with the CSP session of the process's own user, which holds %All only and so may not chat, answers 409 not_user with the approved sentence
+///     VERBATIM before anything is read or written (no email key, no credential, the offered hand-off references withdrawn), and with a session that may chat (control) the save goes on;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
 ///   - TestStateHasAdmin: the snapshot's admin follows the role.
 Class OcuTalon.Test.Web.SettingsApi Extends %UnitTest.TestCase
@@ -81,6 +83,7 @@ Method OnBeforeAllTests() As %Status
 Method OnBeforeOneTest() As %Status
 {
 	Kill ^OcuTalonTest("ApiProbe", "roles")
+	Kill ^OcuTalonTest("ApiProbe", "owner")
 	Do ..Clear()
 	Quit $SYSTEM.Status.OK()
 }
@@ -555,6 +558,8 @@ Method TestChannelsRoute()
 	Set was = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Set before = ..Handoffs()
 	Set rows = ..SaveSettingsRows()
+	// The save is the CSP session's of the process's own user, which may not chat; the production sees the mailbox owner as the session of a fixture account that may (ApiProbe SubmitChannels).
+	Set ^OcuTalonTest("ApiProbe", "owner") = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsetapi"_..Number_"owner")
 	Set secret = "zzchannelspw"_$Job_$Random(100000)
 	Set address = "zzchan"_..Number_"x"_$Random(1000000)_"@example.com", user = "zzchanuser"_..Number_"x"_$Random(1000000)
 	Set ok = {"address": (address), "incoming": "pop.example.com", "outgoing": "smtp.example.com", "user": (user), "password": (secret)}
@@ -684,6 +689,40 @@ Method TestChannelsRoute()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
+	Kill ^OcuTalonTest("ApiProbe", "owner")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", was)
+}
+
+/// M1 through the route and the real production: the save of a session whose user may not chat is 409 not_user with the approved sentence, and nothing is written, taken or left offered.
+Method TestChannelsNotUser()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Do $$$AssertEquals(##class(OcuTalon.Core.Access).MayChat($Username), 0, "precondition: the user of the test's own session may not chat, so its save is the refused one")
+	Set was = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set before = ..Handoffs()
+	Set keys = ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address")_"|"_##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner")
+	Set secret = "zznotuserpw"_$Job_$Random(100000)
+	Set ok = {"address": "zznotuser@example.com", "incoming": "pop.example.com", "user": "zznotuser", "password": (secret)}
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+		Set body = ..Call("SaveChannels", ok.%ToJSON(), session, .response)
+		Set sentence = "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed."
+		Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|{""error"":{""code"":""not_user"",""message"":"""_sentence_"""}}", "409 not_user with the approved sentence, verbatim")
+		Do $$$AssertEquals(..Handoffs(), before, "the offered references were withdrawn, none left")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists("email.address")_"|"_##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), keys, "no email key was written")
+		Do $$$AssertEquals(body [ secret, 0, "and the answer does not hold the password")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.SecretHandoff).TraceLeaks("zznotuser@example.com"), "", "no trace global holds the address")
+		Set ^OcuTalonTest("ApiProbe", "owner") = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsetapi"_..Number_"may")
+		Set bad = {}.%FromJSON(ok.%ToJSON())
+		Do bad.%Set("incoming", "x@{y", "string")
+		Set body = ..Call("SaveChannels", bad.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""incoming""]}", "control: a session that may chat goes on to the save, which refuses the bad incoming server")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Kill ^OcuTalonTest("ApiProbe", "owner")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", was)
 }
 

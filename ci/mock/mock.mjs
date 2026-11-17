@@ -25,6 +25,18 @@
 // 401 and any other method a 404, all as Bot API errors {"ok":false,"error_code","description"}. The token is
 // never logged: the path is /bot[redacted]/<method> and the entry holds tokenLength; a Bot API call logs its method and parameter names
 // (never their values) as the file line's request. A telegram scenario is never selected by a model request.
+// It also serves the Slack Web API the way SlackOut calls it (Story 27.2; AD-22), before the model API's key check:
+//   POST /api/chat.postMessage         with an Authorization: Bearer <token> header (a missing or empty token is 200 {"ok":false,"error":"not_authed"});
+//                                      the parameters come from the query, a JSON object body or a form body (a body that is JSON-typed or starts with { and is no JSON object, or a multipart
+//                                      body, is 200 {"ok":false,"error":"invalid_json"}); any other method is 200 {"ok":false,"error":"unknown_method"},
+//                                      so apps.connections.open is never served
+//   POST /_mock/slack/replies          {"scenario":"<slack scenario>"} or {"method":"chat.postMessage","replies":[<slack reply>,...]}:
+//                                      the replies answer that method's next calls in order
+//   GET  /_mock/slack/calls            {"calls":[{seq, ts, method, params}, ...]}, every Web API call with a token, in order
+//   POST /_mock/slack/reset            clears the queued replies, the calls and the counter
+// A call is answered by the first queued reply of its method, else chat.postMessage by {"ok":true,"channel":"D0MOCK<seq>","ts":"<epoch>.<6-digit seq>"}.
+// The token is never logged: the entry holds tokenLength; a call logs its method and parameter names (never their values, so no member id and no text)
+// as the file line's request. A slack scenario is never selected by a model request.
 // The checks of POST /v1/messages run in this order: the key; a JSON object body; no stream:true; messages a non-empty list;
 // no temperature, top_p or top_k (NFR-1); max_tokens an integer of at least 4000 (NFR-2). Then the scenario is selected:
 //   1. a summarizer request (the system text starts with OCUTALON-COMPACTION-V1) reads only the last summary-* marker of its
@@ -33,7 +45,9 @@
 //      markers skipped; a [[mock: that does not parse, or names no marker scenario, is a 500;
 //   3. else the one guide prompt scenario whose exact prompt text the same message contains and whose mock key is either absent
 //      or equal to the request header x-ocutalon-mockkey (two matches are a 500; a prompt scenario that names another key, or any
-//      key when the request has no header, is not a match and selection goes on);
+//      key when the request has no header, is not a match and selection goes on). When two or more match, the text is matched
+//      again with every line that starts with "> " (quoted context, such as the session-start notes) removed: exactly one hit
+//      then selects it, anything else stays a 500;
 //   4. else the scenario whose mock key is in the request header x-ocutalon-mockkey;
 //   5. else a 500: there is no default reply.
 // The reply index (replies[i]) follows the reply rule. k is the number of assistant messages after the newest user message
@@ -54,7 +68,7 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { BOT_METHODS, checkTelegramReplies, findMarkers, isObject, isSummaryVariant, parseLabel } from './scenarios.mjs';
+import { BOT_METHODS, checkSlackReplies, checkTelegramReplies, findMarkers, isObject, isSummaryVariant, parseLabel, SLACK_METHODS } from './scenarios.mjs';
 
 export const SUMMARIZER_PREFIX = 'OCUTALON-COMPACTION-V1';
 export const MOCKKEY_HEADER = 'x-ocutalon-mockkey';
@@ -67,6 +81,8 @@ export const BOT_PATH = /^\/bot([^/]*)\/([^/]*)$/;
 // A fixture file's id, and its path: relative, in letters, digits and a few marks.
 const FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const FILE_PATH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
+// A Slack Web API path: /api/<method>.
+export const SLACK_PATH = /^\/api\/([A-Za-z.]+)$/;
 // A file download path: /file/bot<token>/<file_path>. The token may be empty (a 401).
 export const FILE_PATH = /^\/file\/bot([^/]*)\/(.+)$/;
 // The longest that getUpdates waits for an update, in seconds.
@@ -245,6 +261,9 @@ export function createMock({ scenarios, logDir, out }) {
   // The Bot API side: the queued updates, the queued replies by method, the calls, the counters, and the long polls that wait.
   const tg = { updates: [], replies: new Map(), calls: [], files: new Map(), nextUpdateId: 1, nextMessageId: 1, waiters: new Set() };
 
+  // The Web API side: the queued replies by method, the calls, and the counter of the calls.
+  const sl = { replies: new Map(), calls: [] };
+
   function emit(entry, body, summary = summarizeRequest(body)) {
     const line = redact(JSON.stringify(entry));
     out.write(`${line}\n`);
@@ -320,6 +339,10 @@ export function createMock({ scenarios, logDir, out }) {
     }
     if (pathname.startsWith('/_mock/telegram/')) {
       telegramControl(req, res, pathname, raw);
+      return;
+    }
+    if (pathname.startsWith('/_mock/slack/')) {
+      slackControl(req, res, pathname, raw);
       return;
     }
     sendJson(res, 404, errorBody(404, `CI mock: no route for ${req.method} ${shortPath(pathname)}`));
@@ -441,6 +464,61 @@ export function createMock({ scenarios, logDir, out }) {
     sendJson(res, 404, errorBody(404, `CI mock: no route for ${req.method} ${shortPath(pathname)}`));
   }
 
+  // The control routes of the Web API side.
+  function slackControl(req, res, pathname, raw) {
+    const route = pathname.slice('/_mock/slack/'.length);
+    if (route === 'calls' && req.method === 'GET') {
+      sendJson(res, 200, { calls: sl.calls });
+      return;
+    }
+    if (route === 'reset' && req.method === 'POST') {
+      sl.replies = new Map();
+      sl.calls = [];
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+    if (route === 'replies' && req.method === 'POST') {
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = null;
+      }
+      if (!isObject(data)) {
+        sendJson(res, 400, errorBody(400, 'CI mock: the replies body is not a JSON object'));
+        return;
+      }
+      let method = data.method;
+      let replies = data.replies;
+      let name = null;
+      if (data.scenario !== undefined) {
+        const scenario = typeof data.scenario === 'string' ? scenarios.byName.get(data.scenario) : undefined;
+        if (data.method !== undefined || data.replies !== undefined || !scenario || !Object.hasOwn(scenario.match, 'slack')) {
+          sendJson(res, 400, errorBody(400, 'CI mock: give {"scenario": "<name of a slack scenario>"} alone, or {"method", "replies"}'));
+          return;
+        }
+        method = scenario.match.slack;
+        replies = scenario.replies;
+        name = scenario.name;
+      } else {
+        if (typeof method !== 'string' || !SLACK_METHODS.includes(method)) {
+          sendJson(res, 400, errorBody(400, `CI mock: the method must be one of ${SLACK_METHODS.join(', ')}`));
+          return;
+        }
+        const problems = checkSlackReplies(replies, 'replies');
+        if (problems.length > 0) {
+          sendJson(res, 400, errorBody(400, `CI mock: ${problems.join('; ')}`));
+          return;
+        }
+      }
+      if (!sl.replies.has(method)) sl.replies.set(method, []);
+      for (const reply of replies) sl.replies.get(method).push({ reply, scenario: name });
+      sendJson(res, 200, { ok: true, method, queued: replies.length, pending: sl.replies.get(method).length });
+      return;
+    }
+    sendJson(res, 404, errorBody(404, `CI mock: no route for ${req.method} ${shortPath(pathname)}`));
+  }
+
   // The updates that getUpdates answers: those below the offset are confirmed and dropped, then at most limit are listed.
   function pendingUpdates(offset, limit) {
     if (offset !== null) tg.updates = tg.updates.filter((u) => u.update_id >= offset);
@@ -489,7 +567,12 @@ export function createMock({ scenarios, logDir, out }) {
       return { scenario, selectedBy: 'marker', label: m.label, k };
     }
     const key = headers[MOCKKEY_HEADER];
-    const hits = scenarios.prompts.filter((p) => text.includes(p.prompt) && (p.mockkey === undefined || p.mockkey === key));
+    const promptHits = (haystack) => scenarios.prompts.filter((p) => haystack.includes(p.prompt) && (p.mockkey === undefined || p.mockkey === key));
+    let hits = promptHits(text);
+    if (hits.length > 1) {
+      const unquoted = promptHits(text.split('\n').filter((line) => !line.startsWith('> ')).join('\n'));
+      if (unquoted.length === 1) hits = unquoted;
+    }
     if (hits.length > 1) {
       return { fail: { message: `CI mock: two guide prompts match: ${hits[0].scenario.name} and ${hits[1].scenario.name}`, rejected: 'ambiguous-prompt' } };
     }
@@ -673,6 +756,74 @@ export function createMock({ scenarios, logDir, out }) {
     }
   }
 
+  // One Web API call (Story 27.2): /api/<method>. The log entry has the shape of a Bot API call's, with tokenLength and no parameter values.
+  function handleSlack(req, res, match, query, raw, headers, n, pathname) {
+    const method = match[1];
+    const bearer = /^Bearer (.+)$/.exec(typeof headers.authorization === 'string' ? headers.authorization : '');
+    const token = bearer === null ? '' : bearer[1];
+    const entry = {
+      ts: new Date().toISOString(),
+      id: n,
+      method: req.method,
+      path: shortPath(pathname),
+      status: 200,
+      scenario: null,
+      selectedBy: 'slack',
+      marker: null,
+      step: null,
+      countdown: null,
+      headerNames: Object.keys(headers).map((h) => h.toLowerCase()),
+      keyLength: typeof headers['x-api-key'] === 'string' ? headers['x-api-key'].length : 0,
+      tokenLength: token.length,
+      rejected: null,
+      model: null,
+      maxTokens: null,
+    };
+    let summary = { slackMethod: method, paramNames: [] };
+    const answer = (status, headersOut, payload, delayMs = 0) => {
+      emit(entry, null, summary);
+      const out = { 'content-type': 'application/json; charset=utf-8', 'request-id': `req_mock_${n}`, ...headersOut };
+      if (delayMs > 0) {
+        const timer = setTimeout(() => send(res, status, out, payload), delayMs);
+        res.once('close', () => clearTimeout(timer));
+      } else {
+        send(res, status, out, payload);
+      }
+    };
+    const refuse = (rejected, error) => {
+      entry.rejected = rejected;
+      answer(200, {}, { ok: false, error });
+    };
+    if (token === '') {
+      refuse('no-token', 'not_authed');
+      return;
+    }
+    const { params, multipart, error } = botParams(req, query, raw);
+    summary = { slackMethod: method, paramNames: Object.keys(params) };
+    sl.calls.push({ seq: sl.calls.length + 1, ts: entry.ts, method, params });
+    if (multipart || error !== null) {
+      refuse(multipart ? 'multipart' : 'bad-body', 'invalid_json');
+      return;
+    }
+    if (!SLACK_METHODS.includes(method)) {
+      refuse('unknown-method', 'unknown_method');
+      return;
+    }
+    const queue = sl.replies.get(method);
+    if (queue !== undefined && queue.length > 0) {
+      const queued = queue.shift();
+      entry.scenario = queued.scenario;
+      entry.selectedBy = 'queued';
+      const built = build(queued.reply, n, null, raw.length);
+      entry.status = built.status;
+      answer(built.status, built.headers, built.payload, queued.reply.delayMs);
+      return;
+    }
+    entry.selectedBy = 'default';
+    const seq = sl.calls.length;
+    answer(200, {}, { ok: true, channel: `D0MOCK${seq}`, ts: `${Math.floor(Date.now() / 1000)}.${String(seq).padStart(6, '0')}` });
+  }
+
   // One file download (Story 25.3): GET /file/bot<token>/<file_path>. The log entry has the shape of a Bot API call's, with tokenLength; the call is
   // recorded as {method: "download", params: {file_path}}.
   function handleDownload(req, res, match, headers, n, pathname) {
@@ -740,6 +891,11 @@ export function createMock({ scenarios, logDir, out }) {
       const fileMatch = FILE_PATH.exec(pathname);
       if (fileMatch !== null) {
         handleDownload(req, res, fileMatch, headers, n, pathname);
+        return;
+      }
+      const slackMatch = SLACK_PATH.exec(pathname);
+      if (slackMatch !== null) {
+        handleSlack(req, res, slackMatch, query, raw, headers, n, pathname);
         return;
       }
       const botMatch = BOT_PATH.exec(pathname);

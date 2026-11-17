@@ -85,7 +85,8 @@ Method TestEntries()
 		// Story 23.3 (Contest Planner ruling 2026-11-15, Public Text): press.approvedRollback and press.approvedUndoRollback take the Core count to 157 on their own.
 	// Story 21.11 (Contest Planner ruling 2026-11-15, PUBLIC TEXT N1 to N3): fix.emailRequest, fix.emailSent and fix.emailNotSent take it to 160 with 23.3's two.
 	// Story 23.13 (Contest Planner ruling 2026-11-15, 23.13 GATE): press.approvedPartnerKept takes the Core count to 161.
-	Do $$$AssertEquals(keys.core.%Size(), 161, "the expected Core list has 161 keys")
+	// Story 27.3 (Contest Planner rulings 2026-11-16, R12 and the 27.3 gate): the 18 settings.slack* keys and chat.viaSlack of R12 and the two gated keys settings.slackNoWorkspace and settings.slackUnknownUser take the Core count to 182.
+	Do $$$AssertEquals(keys.core.%Size(), 182, "the expected Core list has 182 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	// Story 23.2 (Contest Planner ruling 2026-11-09): the 15 keys of the suspend, resume and reroute fixes (incident.suspendRequest, resumeRequest, rerouteRequest, goodChanged; result.itemSuspended, itemResumed, itemSkipped, itemNotChanged, rerouted; six summary.* keys) take the Watch count to 105, and the three press.approved* keys take the Core count to 138.
@@ -101,7 +102,7 @@ Method TestEntries()
 	// DW-1376 (Contest Planner ruling 2026-11-15, "23.3 follow-ups"): summary.settingSavedNotApplied takes the Watch count to 147.
 	// Story 23.15 (Contest Planner ruling 2026-11-16, 23.15 text rulings): result.partnerMaySent takes the Watch count to 148 (with DW-1376's summary.settingSavedNotApplied, plain union at the merge).
 	Do $$$AssertEquals(keys.watch.%Size(), 148, "the expected Watch list has 148 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 161 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 182 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 148 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -134,19 +135,19 @@ Method TestEntries()
 	Do $$$AssertEquals(actual, wanted, "0 keys carry a gap")
 }
 
-/// Rows 1, 2 and 10's channels: the fixtures cover exactly the catalog, every key renders on the four channels with the
-/// fixture's text, the message channels agree, the web channel uses its own wording, and the other channels are refused.
+/// Rows 1, 2 and 10's channels: the fixtures cover exactly the catalog, every key renders on the six channels with the
+/// fixture's text (slack's and telegram's are the same fixture text), the message channels agree, the web channel uses its own wording, and the other channels are refused.
 Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 254 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 330 keys of the catalog")
 	Set refused = ..RefusedChannels()
-	Do $$$AssertEquals(refused, "webhook,slack,system,heartbeat", "four Msg.Enum channels are refused")
+	Do $$$AssertEquals(refused, "webhook,system,heartbeat", "three Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
 	While iterator.%GetNext(.key, .fixture) {
 		Set expectedWeb = $Select(fixture.%IsDefined("web"): fixture.web, 1: fixture.text)
-		For channel = "phone", "mailbox", "telegram", "email", "web" {
+		For channel = "phone", "mailbox", "telegram", "email", "slack", "web" {
 			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, channel, ..#NOW, 1, .sc)
 			Do $$$AssertStatusOK(sc, key_" renders on "_channel)
 			Do $$$AssertEquals(text, $Select(channel = "web": expectedWeb, 1: fixture.text), key_" on "_channel_" is the fixture's text")
@@ -364,7 +365,7 @@ Method TestErrors()
 	Set key = "incident.withFix"
 	Do ..AssertRefused("an unknown key", "incident.nope", good, "telegram", "incident.nope")
 	Do ..AssertRefused("an empty key", "", good, "telegram", "key")
-	For channel = "webhook", "slack", "system", "" {
+	For channel = "webhook", "system", "" {
 		Do ..AssertRefused("the channel '"_channel_"'", key, good, channel, "channel '"_channel_"'", key)
 	}
 	For slots = "[1,2]", """text""", "5", "{", "null", "true" {
@@ -700,14 +701,14 @@ Method AssertOneProblem(entries As %DynamicObject, key As %String, label As %Str
 	Do $$$AssertTrue(problems [ fragment, label_" is a problem that Problems names: "_problems)
 }
 
-/// Row 10's channels: only the exact names web, phone, mailbox, telegram and email render; any other spelling is refused with an error
+/// Row 10's channels: only the exact names web, phone, mailbox, telegram, email and slack render; any other spelling is refused with an error
 /// that names it, even when the key and the slots are good.
 Method TestChannelNames()
 {
-	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram", "Email", "EMAIL", "email " {
+	For channel = "WEB", "Web", "web ", " web", "web,phone", "telegram,", "w", "phone"_$Char(10), "Telegram", "MAILBOX", "web phone", "phone/telegram", "Email", "EMAIL", "email ", "Slack", "SLACK", "slack " {
 		Do ..AssertRefused("the channel '"_channel_"'", "press.rejected", {}, channel, "channel '"_channel_"'", "press.rejected")
 	}
-	For channel = "web", "phone", "mailbox", "telegram", "email" {
+	For channel = "web", "phone", "mailbox", "telegram", "email", "slack" {
 		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("press.rejected", {}, channel, ..#NOW, 1, .sc)
 		Do $$$AssertEquals(text, "Rejected. Nothing was changed.", "the channel "_channel_" renders")
 	}
@@ -1139,6 +1140,27 @@ XData Keys [ MimeType = application/json ]
   "press.approvedRollback",
   "press.approvedUndoRollback",
   "email.digestSubject",
+  "settings.slackHeading",
+  "settings.slackNotSetUp",
+  "settings.slackHowTo",
+  "settings.slackOn",
+  "settings.slackAddress",
+  "settings.slackOffOnDemo",
+  "settings.slackMembersHeading",
+  "settings.slackMembersHelp",
+  "settings.slackMemberId",
+  "settings.slackMemberUser",
+  "settings.slackLink",
+  "settings.slackUnlink",
+  "settings.slackNoMembers",
+  "settings.slackBadMemberId",
+  "settings.slackMemberTaken",
+  "settings.slackUserTaken",
+  "settings.slackLinked",
+  "settings.slackUnlinked",
+  "chat.viaSlack",
+  "settings.slackNoWorkspace",
+  "settings.slackUnknownUser",
   "answered.approved",
   "answered.approvedBy",
   "answered.rejected",
@@ -1685,6 +1707,27 @@ XData Fixtures [ MimeType = application/json ]
  "press.approvedRollback": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "Approved. Putting TargetConfigName on OrdersFromPartner back."},
  "press.approvedUndoRollback": {"slots": {"setting": "TargetConfigName", "target": "OrdersFromPartner"}, "text": "Approved. Undoing the rollback of TargetConfigName on OrdersFromPartner."},
  "email.digestSubject": {"slots": {}, "text": "Your OcuTalon digest"},
+ "settings.slackHeading": {"slots": {}, "text": "Slack"},
+ "settings.slackNotSetUp": {"slots": {}, "text": "Slack not set up. Add SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET to .env and restart OcuTalon."},
+ "settings.slackHowTo": {"slots": {}, "text": "How to set it up"},
+ "settings.slackOn": {"slots": {}, "text": "Slack on"},
+ "settings.slackAddress": {"slots": {"address": "https://example.com/ocutalon/hook/slack/events"}, "text": "Subscribe your Slack app's events to https://example.com/ocutalon/hook/slack/events."},
+ "settings.slackOffOnDemo": {"slots": {}, "text": "Slack is off on the online demo, so it has no public Slack address. It works on your own install."},
+ "settings.slackMembersHeading": {"slots": {}, "text": "Linked Slack members"},
+ "settings.slackMembersHelp": {"slots": {}, "text": "Only direct messages to the bot from a linked member become chat turns. Everything else from Slack is recorded in Visual Trace and goes no further."},
+ "settings.slackMemberId": {"slots": {}, "text": "Slack member ID"},
+ "settings.slackMemberUser": {"slots": {}, "text": "OcuTalon user"},
+ "settings.slackLink": {"slots": {}, "text": "Link member"},
+ "settings.slackUnlink": {"slots": {}, "text": "Unlink"},
+ "settings.slackNoMembers": {"slots": {}, "text": "No Slack members are linked yet."},
+ "settings.slackBadMemberId": {"slots": {}, "text": "Enter a Slack member ID such as U012AB3CDE: a U or W followed by letters and digits. Nothing was changed."},
+ "settings.slackMemberTaken": {"slots": {}, "text": "That Slack member is already linked to another user. Nothing was changed."},
+ "settings.slackUserTaken": {"slots": {"user": "sam"}, "text": "sam already has a linked Slack member. Unlink it first. Nothing was changed."},
+ "settings.slackLinked": {"slots": {}, "text": "Linked. Their direct messages to the bot now reach OcuTalon. Recorded in the audit log."},
+ "settings.slackUnlinked": {"slots": {}, "text": "Unlinked. Their messages no longer reach OcuTalon. Recorded in the audit log."},
+ "chat.viaSlack": {"slots": {}, "text": "via Slack"},
+ "settings.slackNoWorkspace": {"slots": {}, "text": "OcuTalon hasn't had an event from your Slack workspace yet. Ask the person to send the bot a direct message, then link them. Nothing was changed."},
+ "settings.slackUnknownUser": {"slots": {}, "text": "Choose an OcuTalon user from the list. Nothing was changed."},
  "answered.approved": {"slots": {"channel": "telegram", "time": "2026-10-16T18:15:00Z"}, "text": "Approved from Telegram at 14:15 ET.", "web": "Approved from Telegram at 14:15 ET"},
  "answered.approvedBy": {"slots": {"user": "sam", "channel": "web", "time": "2026-10-16T18:15:00Z"}, "text": "Approved by sam from the web chat at 14:15 ET.", "web": "Approved by sam from the web chat at 14:15 ET"},
  "answered.rejected": {"slots": {"channel": "phone", "time": "2026-10-16T18:15:00Z"}, "text": "Rejected from the simulated phone at 14:15 ET. Nothing was changed."},

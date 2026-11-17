@@ -42,6 +42,9 @@ Property Reminders As %String(MAXLEN = "");
 /// The count of chats made, for their chat ids.
 Property Chats As %Integer [ InitialExpression = 0 ];
 
+/// The account of each fixture session that Session made, by the name it was made with.
+Property Accounts As %String [ MultiDimensional ];
+
 /// The value of ^OcuTalonTest("TelegramIncluded") before the run, "" when it was absent.
 Property SavedIncluded As %String;
 
@@ -485,10 +488,18 @@ Method StoppedChanges(trace As %String) As %Integer [ Private ]
 	Quit stopped
 }
 
-/// The IRIS user of the fixture session of the name (InProduction.Session builds it from the prefix, the run's number and the name).
+/// The IRIS user of the fixture session of the name (Session makes its account).
 Method User(name As %String) As %String [ Private ]
 {
-	Quit ..#SESSIONPREFIX_..Number_name
+	Quit $Get(..Accounts(name))
+}
+
+/// A fixture session of a real IRIS account that holds OcuTalonUser, since Pair refuses a session whose user may not chat (InProduction.ChatSession); its account is kept for User.
+Method Session(name As %String) As %String [ Private ]
+{
+	Set ref = ..ChatSession(name, "OcuTalonUser", .user)
+	Set ..Accounts(name) = user
+	Quit ref
 }
 
 /// The next chat id of the run.

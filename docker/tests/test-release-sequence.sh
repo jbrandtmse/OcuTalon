@@ -2187,9 +2187,9 @@ OVW_MCP_LIMITS="OcuTalon's time limits for MCP servers are not hard deadlines. A
 OVW_MCP_EXAMPLE=docs/mcp-jira-example.md
 OVW_MCP_DEMOOFF="MCP servers are off on the online demo: nobody can add one there, and OcuTalon reaches none."
 OVW_MCP_DATA="- In calls to the MCP servers an admin has added, never on the online demo: a check that the server answers, the list of its tools, and each tool call with its arguments, which can hold content that OcuTalon read. The results come back as untrusted content."
-OVW_MCP_AUDIT='- `MCP`: a server added or removed, or a tool called or refused;'
+OVW_MCP_AUDIT="- \`MCP\`: a server added or removed, a tool called or refused, or a tool that OcuTalon's own MCP server served;"
 OVW_MCP_OPENING="On a local or IPM install, an admin can add MCP servers, and their tools become OcuTalon's tools under the same gate, approval and audit as the built-in ones."
-OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them."
+OVW_MCP_PAIRING="Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them."
 # The overview's bullet about sources, a whole line of its MCP tools section (Story 22.12), without its "- ".
 OVW_MCP_SOURCE="An admin can make a Read-only tool a source, which OcuTalon calls on a schedule through the same gate, audit entry and agent step. Its new results reach OcuTalon's attention decisions only as untrusted items. A source whose tool is no longer Read-only makes no call, and a source that wasn't checked never counts as passed in the digest."
 
@@ -2353,8 +2353,11 @@ ovw_doc_problems() {
   # (U-224).
   n=$(grep -nxE '## (Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo)' "$f" | sed 's/^[0-9]*:## //' | tr '\n' '|')
   [ "$n" = 'Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo|' ] || echo "the five hand-written headings are not there once each, in order"
-  ovw_section "$f" 'Data' | grep -qF -e 'no scheduled purge removes them' || echo "the Data section lacks the no-scheduled-purge sentence"
+  # Story 0.40 (DW-1449; the Contest Planner's approved text, Nov 17): the purge sentences in AD-27's terms
+  ovw_section "$f" 'Data' | grep -qF -e 'Chat turns and the record of each notice sent are removed after 90 days. A session record, with its guide progress, simulated messages and finished reminders, is removed only once it is over 90 days old and nothing keeps it: no turn, notice or decision in the last 90 days, no saved memory or document, and no watch, Telegram pairing, webhook, pending approval or reminder, or live sign-in.' || echo "the Data section lacks the purge sentences"
   ovw_section "$f" 'Online demo' | grep -qxF -e 'Each protection listed here is checked against the running demo before every release.' || echo "the Online demo section lacks the checked-before-every-release sentence"
+  # Story 27.2 (DW-1476; the Contest Planner's worded line, Nov 17): Slack among the ways data leaves the instance
+  ovw_section "$f" 'Data' | grep -qxF -e "- Slack: when Slack is set up, OcuTalon's replies to a linked member's direct message are posted to slack.com (chat.postMessage) with the bot token." || echo "the Data section lacks the Slack line"
   return 0
 }
 
@@ -2696,7 +2699,7 @@ the Data section lacks the MCP bullet word for word"
   eq "control: the demo sentence changed in the overview" "$(ovw_doc_problems "$d/demooff.md")" "the MCP tools section lacks the sentence that says MCP is off on the online demo"
   sed 's/^- In calls to the MCP servers an admin has added, never on the online demo: /- In calls to the MCP servers an admin has added: /' "$doc" > "$d/mcpdata.md"
   eq "control: the Data bullet changed" "$(ovw_doc_problems "$d/mcpdata.md")" "the Data section lacks the MCP bullet word for word"
-  sed 's/^- `MCP`: a server added or removed, or a tool called or refused;$/- `MCP`: a server added or removed;/' "$doc" > "$d/mcpaudit.md"
+  sed 's/^- `MCP`: a server added or removed, a tool called or refused, or a tool that OcuTalon'"'"'s own MCP server served;$/- `MCP`: a server added or removed;/' "$doc" > "$d/mcpaudit.md"
   eq "control: the MCP audit line changed" "$(ovw_doc_problems "$d/mcpaudit.md")" "the Approval and audit section lacks the MCP audit line word for word"
   sed 's/ or classify an MCP tool, so a release without those features writes none of them\./, so a release without those features writes none of them./' "$doc" > "$d/pairing.md"
   eq "control: the Pairing, MCP and Tool sentence changed" "$(ovw_doc_problems "$d/pairing.md")" "the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"
@@ -2712,12 +2715,15 @@ the Data section lacks the MCP bullet word for word"
   eq "control: another message allowance" "$(ovw_doc_problems "$d/messages.md")" "the Online demo section lacks '50 messages'"
   sed 's/^- 20 simulated incoming emails/- 30 simulated incoming emails/' "$doc" > "$d/emails.md"
   eq "control: another email allowance" "$(ovw_doc_problems "$d/emails.md")" "the Online demo section lacks '20 simulated incoming emails'"
-  sed 's/ after 90 days;/ after 60 days;/' "$doc" > "$d/days90.md"
-  eq "control: another long retention" "$(ovw_doc_problems "$d/days90.md")" "the Data section lacks '90 days'"
-  sed 's/ and no scheduled purge removes them\./ and a scheduled purge removes them./' "$doc" > "$d/purge.md"
-  eq "control: the no-scheduled-purge sentence changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the no-scheduled-purge sentence"
+  sed 's/ 90 days/ 60 days/g' "$doc" > "$d/days90.md"
+  # Story 0.40: the purge sentences name 90 days too, so a change of every 90 days is both problems
+  eq "control: another long retention" "$(ovw_doc_problems "$d/days90.md")" "$(printf '%s\n%s' "the Data section lacks '90 days'" "the Data section lacks the purge sentences")"
+  sed 's/ is removed only once it is over 90 days old and nothing keeps it:/ is removed once it is over 90 days old:/' "$doc" > "$d/purge.md"
+  eq "control: the purge sentences changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the purge sentences"
   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
+  sed 's/ are posted to slack.com (chat.postMessage) with the bot token\.$/ are posted to Slack./' "$doc" > "$d/slack.md"
+  eq "control: the Slack line changed" "$(ovw_doc_problems "$d/slack.md")" "the Data section lacks the Slack line"
   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
   eq "control: a hand-written heading twice" "$(ovw_doc_problems "$d/heading.md")" "the five hand-written headings are not there once each, in order"
   sed 's/^- 5 new sessions/- 6 new sessions/' "$doc" > "$d/sessions.md"

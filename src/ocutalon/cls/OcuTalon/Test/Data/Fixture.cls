@@ -11,18 +11,86 @@
 /// SessionHeaders and Between read them. Header makes a synthetic message header in a SuperSession of the test, which is not
 /// recorded for Clean: RemoveMessages removes it with that SuperSession. AdoptTurns records the turns that Conversation made
 /// for fixture sessions, with the Decision rows that the real Decide wrote for them, and States lists the states of a stream's
-/// chat.message events.
+/// chat.message events. ChatSession makes a session row of a REAL IRIS account that holds the roles given (Core.Access MayChat reads it), SetAccount changes that account's
+/// state (disabled, expired), and Clean drops every account it made together with the rows: the accounts are recorded under ^OcuTalonTest("Fixture", "users", <name>) BEFORE they are
+/// made, so that a test that fails or throws, or a run that dies, leaves nothing behind that the next Clean does not remove. No role is ever granted to the instance's own accounts.
 Class OcuTalon.Test.Data.Fixture
 {
 
 /// How many seconds ahead of now a fixture check row is first due (Check).
 Parameter CHECKAHEAD = 3600;
 
-/// A session row of the IRIS user, with its own Ref, TraceRef and Epoch.
-ClassMethod Session(user As %String) As %String
+/// The name that ChatSession makes its account's name from when it is given none.
+Parameter CHATUSER = "ZzChat";
+
+/// A session row of a real IRIS account that holds the roles (a comma list, OcuTalonUser by default) and is enabled and unexpired; returns the session's Ref, with user the account's name,
+/// which is the letters and digits of name (CHATUSER when it is empty) and a number, so that the prefix of a test's sessions (zztg...) is the prefix of its accounts; ref, when given, is the new row's Ref; with exact the account's name is name as it is (for a test that names its user). The account is recorded for Clean before it is made, and so is any role of the list that the instance does not have
+/// (made with no resources, and removed with the last account). Throws when the account cannot be made.
+ClassMethod ChatSession(name As %String = "", roles As %String = "OcuTalonUser", Output user As %String, ref As %String = "", exact As %Boolean = 0) As %String
+{
+	Set user = $Select(exact: name, 1: $Select(name = "": ..#CHATUSER, 1: $ZStrip(name, "*P"))_$Increment(^OcuTalonTest("Fixture", "userSeq")))
+	Set ^OcuTalonTest("Fixture", "users", user) = ""
+	Set made = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles(roles)
+	For i = 1:1:$Length(made, ",") {
+		If $Piece(made, ",", i) '= "" Set ^OcuTalonTest("Fixture", "roles", $Piece(made, ",", i)) = ""
+	}
+	Set sc = ##class(OcuTalon.Test.Install.RolesAssign).CreateUser(user, roles)
+	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Set ref = ..Session(user, ref)
+	Set ^OcuTalonTest("Fixture", "users", user) = ref
+	Quit ref
+}
+
+/// Sets the state of a fixture account (Security.Users.Modify, in %SYS): enabled is 1 or 0, and days is the ExpirationDate as a number of days from today (-2 is two days ago, 30 is a
+/// month ahead) or "" for no expiry; never, when it is 0 or 1, sets AccountNeverExpires too (IRIS clears the ExpirationDate of an account that never expires); with a date and no never, the account is set to expire
+/// (AccountNeverExpires 0). Returns the status of the change.
+ClassMethod SetAccount(user As %String, enabled As %Boolean = 1, days As %String = "", never As %String = "") As %Status
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Kill properties
+	If never '= "" Set properties("AccountNeverExpires") = never
+	If (never = "") && (days '= "") Set properties("AccountNeverExpires") = 0
+	Set properties("Enabled") = enabled
+	Set properties("ExpirationDate") = $Select(days = "": "", 1: $ZDate(+$Horolog + days, 3))
+	Quit ##class(Security.Users).Modify(user, .properties)
+}
+
+/// Gives a fixture account the role (Security.Users.AddRoles, in %SYS); returns the status. Never call it with an account that the fixture did not make.
+ClassMethod GiveRole(user As %String, role As %String) As %Status
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Set roles = role
+	Quit ##class(Security.Users).AddRoles(user, .roles)
+}
+
+/// 1 when the IRIS account exists.
+ClassMethod AccountExists(user As %String) As %Boolean
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	Quit ''##class(Security.Users).Exists(user)
+}
+
+/// The fixture accounts that are still recorded, as a comma list.
+ClassMethod Accounts() As %String
+{
+	Set list = ""
+	Set name = ""
+	For {
+		Set name = $Order(^OcuTalonTest("Fixture", "users", name))
+		Quit:name=""
+		Set list = list_$Select(list = "": "", 1: ",")_name
+	}
+	Quit list
+}
+
+/// A session row of the IRIS user, with its own Ref (or the Ref given, which must be a Ref that no row has), TraceRef and Epoch.
+ClassMethod Session(user As %String, ref As %String = "") As %String
 {
 	Set row = ##class(OcuTalon.Data.Session).%New()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Ref = $Select(ref '= "": ref, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
 	Set row.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set row.Epoch = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set row.IrisUser = user
@@ -414,10 +482,12 @@ ClassMethod Clean(refs As %String = "")
 		Set one = $Piece(refs, ",", i)
 		If one '= "" Set only(one) = ""
 	}
+	Do ..DropAccounts(.only, refs)
 	Set class = ""
 	For {
 		Set class = $Order(^OcuTalonTest("Fixture", class))
 		Quit:class=""
+		If ..Registry(class) Continue
 		Set id = ""
 		For {
 			Set id = $Order(^OcuTalonTest("Fixture", class, id), 1, ref)
@@ -433,7 +503,53 @@ ClassMethod Clean(refs As %String = "")
 			Kill ^OcuTalonTest("Fixture", class, id)
 		}
 	}
-	If refs = "" Kill ^OcuTalonTest("Fixture")
+	If refs = "" {
+		Set class = ""
+		For {
+			Set class = $Order(^OcuTalonTest("Fixture", class))
+			Quit:class=""
+			If '..Registry(class) Kill ^OcuTalonTest("Fixture", class)
+		}
+	}
+}
+
+/// 1 for a first subscript of ^OcuTalonTest("Fixture") that is not a class of recorded rows: the accounts, the roles and the account counter.
+ClassMethod Registry(key As %String) As %Boolean [ Private ]
+{
+	Quit (key = "users") || (key = "roles") || (key = "userSeq")
+}
+
+/// Deletes the IRIS account when it exists; 1 when it no longer exists.
+ClassMethod DropAccount(user As %String) As %Boolean
+{
+	New $Namespace
+	Set $Namespace = "%SYS"
+	If ##class(Security.Users).Exists(user) Do ##class(Security.Users).Delete(user)
+	Quit '##class(Security.Users).Exists(user)
+}
+
+/// Drops the recorded accounts: every one, or with refs the accounts of those sessions (and any account that has no session yet, which a failed ChatSession leaves), each in a Try of its
+/// own so that one that cannot be dropped does not keep the others; an account stays recorded until it no longer exists. When no account is left it removes the roles that ChatSession made.
+ClassMethod DropAccounts(ByRef only, refs As %String) [ Private ]
+{
+	Set name = ""
+	For {
+		Set name = $Order(^OcuTalonTest("Fixture", "users", name), 1, ref)
+		Quit:name=""
+		If (refs '= "") && (ref '= "") && '$Data(only(ref)) Continue
+		Try {
+			If ..DropAccount(name) Kill ^OcuTalonTest("Fixture", "users", name)
+		} Catch exception {
+		}
+	}
+	If $Data(^OcuTalonTest("Fixture", "users")) Quit
+	Set role = ""
+	For {
+		Set role = $Order(^OcuTalonTest("Fixture", "roles", role))
+		Quit:role=""
+		Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(role)
+		Kill ^OcuTalonTest("Fixture", "roles", role)
+	}
 }
 
 /// Deletes the sessions whose messages carry one of the SuperSessions (a dynamic array of strings), in the namespace (the

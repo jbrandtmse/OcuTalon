@@ -201,6 +201,7 @@ STEP Python replaced urllib3 2.6.3 with 2.8.0
 [OCUTALON|ocutalon]	Configure START
 STEP Bridge.Installer OK 0.2s
 STEP Public OK 0.0s
+STEP Mcp OK 0.0s
 STEP Roles OK 0.0s
 STEP Users OK 0.1s
 STEP Web OK 0.1s
@@ -312,6 +313,7 @@ STEP Python replaced urllib3 2.6.3 with 2.8.0
 [OCUTALON|ocutalon]	Configure START
 STEP Bridge.Installer OK 0.1s
 STEP Public OK 0.0s
+STEP Mcp OK 0.0s
 STEP Roles OK 0.0s
 STEP Users OK 0.0s
 STEP Web OK 0.0s

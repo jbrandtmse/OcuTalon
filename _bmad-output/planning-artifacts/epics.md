@@ -1995,6 +1995,90 @@ So that a fault gets a check and a choice gets a notice.
 **Then** every workflow is green
 - DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
+### Story 0.38: Telegram and email turns check the person's role at use time, as web chat does
+
+[ADDED 2026-11-17, Contest Planner, DW-1284 raised after 27.3's viewer finding] (story-273-rulings-20261116.md, the 26.4 / DW-1284 section and the 27.3 Task 0 ruling (a); merges after the Triage confidence A/B). The release note states it plainly as a fix: a viewer, or a person whose OcuTalonUser role was removed, could start turns through a paired Telegram chat or the connected mailbox that web chat refuses.
+
+**RELEASE BLOCKER** [AMENDED 2026-11-17, Contest Planner, additions from the 27.3 rework ~02:05Z]: Story 0.38 blocks the next release that contains ANY Epic 27 story; no release ships Slack without it. Its scope also takes DW-1465 (MayChat refuses a disabled account and one past its expiry, read in the production job, pinned per channel including live:slack-hook), DW-1466 (the predicate moves into Core, for example Core.Access MayChat(roles) and MayChat(irisUser), and Web.Public.Shell calls Core; the 10-role-set agreement test against Web/Api stays) and the move of Slack's not_user onto Channel.Refused. Release note: "a disabled or expired IRIS account, or a user without the chat role, could still start conversations through Telegram or email; now refused."
+
+As an admin who assigns roles,
+I want a message that arrives on Telegram or by email to start a turn only when its sender may chat by web chat's rule at that moment,
+So that removing a role, or making someone a viewer, closes every channel at once.
+
+**Acceptance Criteria:**
+
+**Given** a message of channel telegram or email in the production job: Telegram turns are checked where they reach Core.Conversation; email is checked in EmailIn before an Item is made [AMENDED 2026-11-17 — see the story change log]
+**When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate, Core.Access MayChat (DW-1466), reading roles the way Bridge/Approval.cls HoldsRole does) [AMENDED 2026-11-17 — see the story change log]
+**Then** no turn, no reply, no tool call and no model call happens, no Conversation or turn row is written, no reply is sent, and one content-free record with the reason `not_user` is kept; the inbound text goes no further than its message body and follows normal retention
+
+**Given** each of Telegram and email
+**When** automated tests run against the CI mocks
+**Then** they pin: a viewer's message refused; a role removed after pairing (Telegram) or after the mailbox was linked (email) refused on the next message; an admin who is also a user allowed; an admin-only user following web chat's rule; no reply sent and no Conversation or turn row written; and, where a pairing or linking step exists, a viewer refused at pair or link time with existing texts only (any new text goes to the Contest Planner first)
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1284: Telegram and email take a message in on the strength of the pairing or the saved mailbox, not of the person's role at use time (ledger; raised in priority by the Contest Planner 2026-11-16)
+
+### Story 0.39: Browser-timing flakes wait for the page's real readiness, and a turn at the UTC day rollover does not error
+
+[ADDED 2026-11-17, Contest Planner, browser-timing flake burndown] (dispatch ~01:30Z Nov 17, lane A; flake tally of 2026-11-16). Test only and bounded, except DW-1464, a product-bug candidate whose fix is a Planner gate item. Branch `OCT-epic0-flakes` from feature 1f8733c0e. Binding conditions: fix the CAUSE of each flake and wait on the real readiness signal, never a sleep; no blanket timeout raises, no added retries that hide a failure, no weakened assertions; a timeout raise only where it is truly the only fix, justified per test; a product-code change (for example a readiness marker the page exposes) goes to the Planner first; each fix is proved by a loop of the affected spec under load (at least 10 iterations beside a busy stack, with before and after counts).
+
+As the person who merges OcuTalon's work,
+I want each browser-timing flake of the 2026-11-16 tally fixed at its cause,
+So that a red CI run means a real defect, not a race in a test.
+
+**Acceptance Criteria:**
+
+**Given** each flake below
+**When** this story changes its test (or, with the Planner's approval, the page)
+**Then** the test waits for the real readiness signal the failure lacked, with no sleep, no added retry, no weakened assertion and no blanket timeout raise
+**And** the spec names each flake's cause, its fix, and its host and runner from the tally
+
+**Given** the affected specs
+**When** each runs at least 10 times in a loop beside a busy stack, before and after the fix
+**Then** the before and after counts are recorded, and the after loop is green
+
+**Given** a conversation turn at the UTC day rollover (DW-1464)
+**When** a deterministic test sets the clock to 23:59:59 and then 00:00:01 UTC
+**Then** the turn does not error before its first agent step, and the day-keyed read on the turn path that caused it is named
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1448: telegram-page.spec.ts:196 T2, main.main missing after a reload (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1458: history.spec.ts:316 H7, no Decisions tab after a reload, the same pattern as DW-1448 (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-349: live:floor focus.spec.ts:145 P4, page.goto interrupted by a chrome-error navigation (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-555: Usage U12, page.goto interrupted by a chrome-error navigation (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1450: live:online-demo row 6, the proxied sign-in at the cap gave 'other' (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1451: memory-card.spec.ts:219 MC3, a fulfilled-500 route never finished (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1452: guide.spec.ts:486 Q7, the page clock line not found (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1457: heartbeat-card.spec.ts:369 HC8, the 'Today:' line missing (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0); product-bug candidate (ledger; added by the Contest Planner 2026-11-17)
+
+### Story 0.40: The purge test's sessions are kept out of the daily digest, and the purge text says what is removed
+
+[ADDED 2026-11-17, Contest Planner, DW-1449 classified as test isolation] (dw-1449-rulings-20261117.md, the CLASSIFIED and GO sections; a release gate next to Story 0.38). Purge.Keeps is unchanged (AD-27's documented rule).
+
+As a maintainer relying on the purge test,
+I want its fixture sessions isolated from the running production's daily digest, and the security overview to say what the purge removes,
+So that the test fails only for a real fault, and the documentation matches AD-27.
+
+**Acceptance Criteria:**
+
+**Given** Test.Data.Purge on a running production whose Digest ticks
+**When** a tick lands during a test
+**Then** no fixture session gets a digest, a Delivery or a SimMessage, because each has a Digest.Data.Sent row of Kind scheduled with a far-future DueAt (removed after the test); the idle-session and kept-session messages carry the row counts before and after the purge; and the test passes in a loop under load
+
+**Given** AD-27's documented rule
+**When** Retention.Purge(90) runs
+**Then** a session 91 days old with no activity of any kind is purged, and one with a Delivery recorded now is kept
+
+**Given** docs/security-overview.md's Data section
+**When** test-release-sequence reads it
+**Then** it holds the Contest Planner's approved purge sentences verbatim (turns and notice records after 90 days; a session only when nothing current or recent keeps it), with a control that fails on a change
+- DW-1449: Test.Data.Purge TestCurrentSessionLosesNoRows failed three times in CI; classified as test isolation (the daily digest fan-out reached the fixture sessions)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -8454,6 +8538,8 @@ So that a stuck queue doesn't wait for the next digest (Could).
 
 ### Story 23.8: Watch a saved SQL query as a read-only SQL user
 
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
+
 As an admin,
 I want a saved SQL query to run on a schedule as a user that can only read, and to hear when its result changes,
 So that I can watch a data condition without giving OcuTalon any way to change data (Could).
@@ -8705,11 +8791,15 @@ So that partner warnings can go only to people I chose, and data conditions are 
 **Then** the submitted commands' fields, the audit entries and the stored contacts match, and both sections work by keyboard with every control labelled (NFR-25, UX-DR130)
 - DW-1254: partner contacts' names and addresses go through the same SecretHandoff as 36.4's on-call section (in memory only), never in a traced SaveSettings.Changes; the traced message holds only the handoff uri, the values reach only the IRIS audit entry, and a leak-scan test pins it (ledger; routed by merge_gate 2026-11-13, Contest Planner 36.4 ruling S1)
 
-### Story 24.3: Deliver pages on the on-call channel and stop escalation on acknowledgement
+**Story 24.3 was split into Stories 24.3a and 24.3b** [AMENDED 2026-11-16, Contest Planner split (24.3 rulings ~08:30Z Nov 16, P5); 24.3a (delivery and the web acknowledgement) merges after the 1.0.12 cut; 24.3b (the escalation timer, the On call line, DW-1384 and the GUIDE bullet) follows; every acceptance criterion of the old Story 24.3 is carried word for word by one of them; P1 Option A settles DW-1251 (a page always gets a web chat card, not counted as a channel; Telegram and email follow the chosen channels exactly; an email copy is never marked handled); P2: the undelivered report is a `not_paired` delivery row that Paging reads]
+
+### Story 24.3a: Deliver pages on the on-call channels and take the web acknowledgement
+
+[ADDED 2026-11-16, Contest Planner split of 24.3; merges after the 1.0.12 cut]
 
 As an admin,
-I want each page to reach the on-call person on their configured channel, and an acknowledgement from any channel it reached to stop escalation,
-So that the backup is woken only when the on-call person really didn't answer.
+I want each page to reach the on-call person on their configured channels, and an acknowledgement from the web page to reach the paging owner,
+So that a page is seen and handled wherever the person is.
 
 **Acceptance Criteria:**
 
@@ -8723,6 +8813,25 @@ So that the backup is woken only when the on-call person really didn't answer.
 **Then** the acknowledgement reaches the paging owner once through `CommandsIn` with the command verb Story 36.2 (was 24.1) fixes, every copy of the page shows "Marked as handled at {time}", and a second acknowledgement changes nothing (FR-28, AD-1, UX-DR143)
 **And** **Got it** on Telegram, which submits the same command and edits the Telegram copy in place, is Lane A's Story 23.4 (FR-20, AD-29)
 
+**Given** automated tests in `OcuTalon.Test.Channel`, with a mock mail server, against the paging owner
+**When** pages and acknowledgements run
+**Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+
+### Story 24.3b: Escalate unanswered pages to the backup, and say so in Settings
+
+[ADDED 2026-11-16, Contest Planner split of 24.3]
+
+**Lane:** B. **Depends on:** Story 24.3a (story-level).
+
+As an admin,
+I want an unanswered page to escalate to the backup after the minutes I chose, and Settings to say plainly how paging works,
+So that the backup is woken only when the on-call person really didn't answer.
+
+**Acceptance Criteria:**
+
 **Given** the paging owner (Lane A's Story 23.4) asks `ReminderOps` for an escalation timer with origin `system`
 **When** it is created
 **Then** a `Reminder` row of the escalation kind and its `ReminderTimer` waiter exist; at the due time the waiter sends the escalation message to the paging owner instead of a notification, a cancellation from the paging owner removes it, and neither shows in any session's reminder list (FR-28, AD-5, AD-18)
@@ -8732,8 +8841,8 @@ So that the backup is woken only when the on-call person really didn't answer.
 **When** pages, acknowledgements and escalations run, with a restart in between
 **Then** each page reaches its route (a Telegram copy reaches `TelegramOut`, whose delivery Story 23.4 tests), each acknowledgement path this story builds reaches the owner once, escalation timers survive the restart, and no Telegram chat id or display name appears in any message, log or audit entry (FR-28, AD-4, NFR-11)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
-- DW-1251: settle AD-14's page route, which contradicts itself (a page goes to the user's web chat, yet a person with no paired chat gets email only; the web chat is called a chosen channel though the on-call channels setting lists Telegram and email) (ledger; routed by merge_gate 2026-11-13, from 36.2's review)
+**And** the Settings On call line reads the Contest Planner's approved text (Option A, 2026-11-16), replacing DW-1400's line, pinned in `ux-strings`, `on-call-view` and the on-call spec; GUIDE.md gains the approved On-call pages bullet with its existing Settings separator; DW-1384's escalation-ask test lands (Contest Planner 24.3 rulings, P4 and new text 1)
+
 
 **Story 24.4 was split into Stories 24.4a and 24.4b** [AMENDED 2026-11-15, Contest Planner split (re-plan rulings ~22:00Z Nov 15, "SPLIT: YES"); 24.4a (redaction on every display path, the trace fix V5 and the evidence-panel rows) goes first and blocks 1.0.12; 24.4b (the closed-card undo and the cross-surface pins) follows; every acceptance criterion of the old Story 24.4 is carried word for word by one of them]
 
@@ -8794,6 +8903,8 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
 
 ### Story 24.5: Set saved SQL query watches in Settings
+
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
 
 [ADDED 2026-11-15, Contest Planner split of 24.2]
 
@@ -9057,6 +9168,34 @@ So that I never hear a stale error and never press a control that can only fail.
 - DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line (ledger; Contest Planner A2, 2026-11-15)
 - DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (ledger; Contest Planner A2, 2026-11-15)
 
+### Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction
+
+[ADDED 2026-11-15, Contest Planner, DW-1392] (targets 1.0.12 if ready in time; the AD-19 amendment and the DW-1395 AD-13 clarification below are written into the spine verbatim)
+
+As an admin,
+I want every audited Settings save to leave an audit entry only for a change that happened, and never a change without its audit entry,
+So that the audit log stays a true record of what changed.
+
+**Acceptance Criteria:**
+
+**Given** every audited Settings save (Story 24.2's partner contact save, `SaveProduct` from Stories 33.2 and 36.4, and every other audited write of the same audit-then-row pattern that a grep finds, each listed in the spec)
+**When** it saves
+**Then** inside one transaction it writes the row FIRST, then the audit entry; if the audit write fails it rolls the row back (TROLLBACK) and reports the failure; only then does it commit (TCOMMIT)
+
+**Given** a test that forces the row write to fail
+**When** the save runs
+**Then** no audit entry is written, and the failure is reported
+
+**Given** a test that forces the audit write to fail
+**When** the save runs
+**Then** the row is unchanged and the failure is reported (each test fails when the ordering or the rollback is removed: a demonstrated mutation)
+
+**And** the spine's AD-19 gains, verbatim: "An audited save writes its row and then its audit entry inside one transaction, and rolls the row back if the audit write fails; IRIS writes audit records outside the transaction, so a commit that fails after the audit write is the one case that can leave an entry for a change that didn't happen. [ADDED 2026-11-15, DW-1392, Contest Planner ruling]"
+**And** the spine's AD-13 gains, verbatim: "The web process may read Settings tables directly, as SettingsOps.Values reads Data.Setting; every write goes through the production. [ADDED 2026-11-15, DW-1395, Contest Planner ruling]"
+**And** no new public text, and no change to any route, role or reply shape
+- DW-1392: Settings audit-first transactions cannot roll back the IRIS audit entry: a row write that fails after the audit leaves an entry for a change that never happened (ledger; Contest Planner ruling 2026-11-15)
+- DW-1395: AD-13 L484 is ambiguous for unowned config tables (ledger; Contest Planner ruling 2026-11-15: the AD-13 clarification above)
+
 ## Epic 26: Approver roles and reading files (step 6)
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.
@@ -9166,7 +9305,7 @@ So that only the right people can approve each kind of change.
 
 Slack works as a channel through its webhook route, with replies as Slack messages and no socket mode.
 
-**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
+**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] [AMENDED 2026-11-16, owner decision relayed by the Contest Planner (standing rulings, "OWNER DECISION ~14:30Z Nov 16"): Epics 27 and 28 start now, Epic 27 first, in Lane B; each story's spec gate goes to the Planner before it is built, Slack is off on the online demo, and until the 1.0.12 merge-back the stories build and run CI on their own branch]
 
 ### Story 27.1: Receive Slack events by webhook
 
@@ -9178,10 +9317,10 @@ So that I can use it where my team already talks (step 7, Could).
 
 **Given** step 7 starts in Lane B
 **When** this story begins
-**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**Then** the spine is updated in the same change with `SlackIn` and `SlackOut` in the production-item table (Lane B), the Slack route under the `/ocutalon/hook` application, the Slack setting keys, the Slack API endpoint override for CI, and the stored link of a Slack member to an OcuTalon user that `SlackIn` reads (AD-14, AD-19, AD-29, AD-33) [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): "how an admin links a Slack member to an OcuTalon user" moved verbatim to Story 27.3; this story reads the link, Story 27.3 writes it]
 **And** as the first story of Lane B's step 7 epic, it creates the `DraftTransform` command verb in `OcuTalon.Msg` with its `CommandsIn` routing to Lane A's `IncidentManager`, under the name Lane A's Story 28.1 fixes, accepted from origin `tool` only for one of the session's own incidents (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: Story 28.1's chat path submits it]
 **And** the Slack signing secret and bot token come only from environment variables that `.env.example` lists by name, and never appear in IRIS, a setting, a log, a message, an agent step or an audit entry (NFR-11, AD-19)
-**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+**And** this story ships no user-facing text: it proposes the step 7 texts at its spec gate, and Story 27.3 ships them once the author accepts them [AMENDED 2026-11-16, split by an unattended ruling (doctrine U5, split 1 of 6): the texts criterion moved verbatim to Story 27.3]
 
 **Given** a request from Slack's Events API to the Slack route
 **When** it arrives
@@ -9225,17 +9364,35 @@ So that the conversation stays where I started it (step 7, Could).
 **When** CI runs
 **Then** no Slack code opens a WebSocket or uses socket mode, and the Slack tests run against a Slack API mock in CI's mock service, with scenarios under `ci/mock/scenarios/B/`, never against Slack itself (FR-46, AD-22, REL-4)
 
-**Given** the README
+**Given** `GUIDE.md` › Slack, linked from the README
 **When** Slack ships
-**Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24)
+**Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24) [AMENDED 2026-11-17, Contest Planner ruling (story-272 gate (4)): it read "**Given** the README"; the README is capped and links `GUIDE.md#slack`, and no README sentence is added]
+
+### Story 27.3: Link Slack members in Settings
+
+As an admin,
+I want to see in Settings whether Slack is on and to link each person's Slack member to their OcuTalon user,
+So that only the people I choose can message OcuTalon from Slack (step 7, Could).
+
+[AMENDED 2026-11-16, split from Story 27.1 by an unattended ruling (doctrine U5, split 1 of 6; product default 6): the criteria below moved verbatim from Story 27.1. Order: 27.1, then 27.3, then 27.2, so that 27.2's README section on linking a member describes shipped behaviour. Scope named at the split: an admin-only link and unlink through SettingsOps with an audit entry, an admin REST route, retention of links with their session, Settings > Channels' Slack state and linking (a lazy chunk), the catalog keys, and the "via Slack" marker on web-chat turns.]
+
+**Acceptance Criteria:**
+
+**Given** Story 27.1's Slack route, `SlackIn` and its stored member link
+**When** this story begins
+**Then** the spine is updated in the same change with how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
+**And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+- DW-1442: Spine ADs AD-13, AD-14, AD-17 and AD-22 still state wording that Story 27.1's shipped behaviour contradicts; carry the wording fix in this story's spine gate (ledger; routed by merge_gate 2026-11-16, Contest Planner)
 
 ## Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 
 OcuTalon drafts a transform change as a proposal it never applies, fades and consolidates old memories, and offers its read-only tools to MCP clients under IRIS authentication.
 
-**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics]
+**After the contest.** Out of the contest plan: not in the lane or pool orders or the milestones; the stories below stay for after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "so we can ship them as soon as possible": step 7 moves to after the contest, to make room for the personality epics] [AMENDED 2026-11-16, owner decision ~14:30Z relayed by the Contest Planner: "Epics 27 and 28 START NOW"; the scope hold of 2026-11-15 is lifted; 28.2 and 28.3 run in parallel with Epic 27 and 28.1 waits for it; order 28.2, 28.3, 28.1]
 
 ### Story 28.1: Draft a transform change as a proposal that is never applied
+
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
 
 As a production developer,
 I want OcuTalon to draft the transform change that would stop a data-format failure,
@@ -9245,7 +9402,7 @@ So that I can review a starting point for the real fix (step 7, Could).
 
 **Given** step 7 starts in Lane A
 **When** this story begins
-**Then** the spine is updated in the same change with Lane A's step-7 additions: where a transform draft is stored with its incident, the memory-fading setting and the merge record, the nightly consolidation task, and `OcuTalon.Mcp.Service` with its web application, resource, role and installer step (AD-16, AD-21, AD-24, AD-29, AD-33)
+**Then** the spine is updated in the same change with Lane A's step-7 additions: where a transform draft is stored with its incident, the memory-fading setting and the merge record, the nightly consolidation task, and `OcuTalon.Mcp.Service` with its web application, resource, role and installer step (AD-16, AD-21, AD-24, AD-29, AD-33) [AMENDED 2026-11-16, run order 28.2, 28.3, 28.1 (owner decision ~14:30Z): Stories 28.2 and 28.3, built first, each record their own share of these additions in their own change (28.2: the memory-fading setting, the merge record and the nightly consolidation task; 28.3: `OcuTalon.Mcp.Service` with its web application, resource, role and installer step); this story records the transform draft's storage and the verb]
 **And** the update names the command verb by which a chat request asks for a draft: `DraftTransform`, carrying the incident's `IncidentRef`, which `CommandsIn` accepts from origin `tool` only for one of the session's own incidents (AD-1's list of commands accepted from origin `tool` gains it) and routes to `IncidentManager`, which writes the draft; Lane B's Story 27.1 creates the verb under that name, and this story's chat path waits for Epic 27 (AD-1, AD-29) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review L3: a tool that changes state does so only through a command verb]
 **And** the step 7 texts the UX doesn't give (the transform draft's presentation and its never-applied note, and a memory merge as the user sees it) are proposed to the author as additions to `EXPERIENCE.md` › Message Catalog, with their catalog keys in `OcuTalon.Msg.Catalog.Watch`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
 
@@ -9277,14 +9434,11 @@ So that recall stays relevant as memory grows (step 7, Could).
 **When** recall ranks its results
 **Then** they rank below equally matching memories used more recently, and still come back when nothing else matches; a forgotten memory never comes back (FR-43, FR-41)
 
-**Given** the nightly consolidation task
-**When** it runs
-**Then** it enters through the production, finds duplicate memories within each owner by vector similarity and keyword match above a set threshold, keeps one memory per duplicate set carrying every source of the set, marks it as from untrusted content if any merged memory was, records each merge (the kept memory, the merged ones with their texts and sources, and the time) where Visual Trace shows it, and calls no model (FR-43, AD-1, AD-10, NFR-20)
-**And** memories of different sessions are never merged (AD-4)
+- The nightly merge of duplicate memories moved to Story 28.4. [SPLIT 2026-11-16 to Story 28.4, under the Contest Planner's pre-approved split (story-282 gate rulings, R-28.2-3): Task 0 found no cosine and keyword threshold with zero false merges and a useful true-merge rate (3 of 30 true, 0 of 42 false; evidence/28-2-task0-duplicate-thresholds.md)]
 
 **Given** automated tests in `OcuTalon.Test.Memory`
-**When** duplicate and distinct memories are stored and the task runs twice
-**Then** only the duplicates merge, every source is kept, the second run merges nothing new, and a faded memory ranks below a recent one with the same match (FR-43)
+**When** recent and faded memories with the same match are stored
+**Then** a faded memory ranks below a recent one with the same match (FR-43) [AMENDED 2026-11-16: the merge clauses ("only the duplicates merge, every source is kept, the second run merges nothing new") moved to Story 28.4 with the merge; it read "**When** duplicate and distinct memories are stored and the task runs twice **Then** only the duplicates merge, every source is kept, the second run merges nothing new, and a faded memory ranks below a recent one with the same match"]
 
 ### Story 28.3: Offer OcuTalon's read-only tools to MCP clients
 
@@ -9296,15 +9450,13 @@ So that I can check status and history from my own tools without opening a new w
 
 **Given** the Mcp area's installer step
 **When** it runs
-**Then** `OcuTalon.Mcp.Service`, a `%AI.MCP.Service` subclass with `Parameter RESOURCE = "OcuTalon_MCPServer"`, offers only OcuTalon's read-only toolsets; the web application `/mcp/ocutalon` has password authentication only, namespace OCUTALON and no application roles; and the role `OcuTalonMCPClient` holds Use on `OcuTalon_MCPServer`, read access to the databases its tools read, and SQL `SELECT` on exactly the tables they query (FR-51, AD-21, AD-24)
+**Then** `OcuTalon.Mcp.Service`, a `%AI.MCP.Service` subclass with `Parameter RESOURCE = "OcuTalon_MCPServer"`, offers only OcuTalon's read-only toolsets; the web application `/mcp/ocutalon` has password authentication only, namespace OCUTALON and no application roles; and the role `OcuTalonMCPClient` holds Use on `OcuTalon_MCPServer`, read access to the databases its tools read, and SQL `SELECT` on exactly the tables they query (FR-51, AD-21, AD-24) [AMENDED 2026-11-16, Contest Planner ruling G3: Task 0 first tries application roles on `/mcp/ocutalon` holding the database reads OcuTalon needs, so that `OcuTalonMCPClient` holds only Use on `OcuTalon_MCPServer`; if that cannot work, the measured reason is recorded in the spec and the role keeps the read grants; either way no SQL privilege, no write, and the installer grants the role to no one]
 
-**Given** `iris-mcp-server` in front of the service
-**When** it is configured
-**Then** it has no endpoint credentials, `allow_anonymous = false` (never copied from AI Hub's development template) and its status tool off, and its own login is a role-less user whose password comes from the environment (FR-51, AD-21, NFR-11)
+- The `iris-mcp-server` configuration moved to Story 28.5. [SPLIT 2026-11-16 to Story 28.5, Contest Planner spec-gate ruling G7/G8 (prompts/story-283-rulings-20261116.md): Task 0 measured that iris-mcp-server 2.0.0 on build 154 lists and calls no tool of any %AI.MCP.Service subclass ("failed identity checking"), so the configuration and the end-to-end client list and call move to 28.5]
 
 **Given** an MCP client
 **When** it connects anonymously, with a wrong password, or as a user without `OcuTalonMCPClient`
-**Then** it is refused; a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records (FR-51, AD-4, AD-24)
+**Then** it is refused; a user with the role passes IRIS sign-in and the resource check, and the tools, run as that IRIS user, return only that user's session's records (FR-51, AD-4, AD-24) [AMENDED 2026-11-16, Planner ruling G8: listing and calling the tools end to end through an MCP client moved to Story 28.5; it read "a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records"]
 
 **Given** a client that asks through the service for anything risky (a resend, any other fix, a settings change)
 **When** it calls
@@ -9318,6 +9470,55 @@ So that I can check status and history from my own tools without opening a new w
 **Then** the results match, and the security overview lists the service's tools from its specification and the `OcuTalonMCPClient` role (FR-51, FR-61)
 
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** the step 7 stories that were built have merged **When** step 7's release is prepared **Then** a hands-on pass with real keys exercises each step 7 feature that ships, and its findings are fixed before the release (REL-7)"]
+
+### Story 28.4: Merge duplicate memories nightly
+
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
+
+As a user,
+I want duplicate memories merged without losing where they came from,
+So that recall stays relevant as memory grows (step 7, Could).
+
+[SPLIT 2026-11-16 to Story 28.4, under the Contest Planner's pre-approved split (story-282 gate rulings, R-28.2-3): Task 0 found no cosine and keyword threshold with zero false merges and a useful true-merge rate (3 of 30 true, 0 of 42 false; evidence/28-2-task0-duplicate-thresholds.md)] The merge rule must first meet R-28.2-3 (zero merges on a labelled set of distinct-but-similar pairs, with a useful true-merge rate); the Contest Planner decides the rule at this story's spec gate (Task 0's proposal: merge only when the in-order, lower-cased word lists match, ignoring punctuation: 9 of 30 true, 0 of 42 false).
+
+**Acceptance Criteria:**
+
+**Given** the nightly consolidation task
+**When** it runs
+**Then** it enters through the production, finds duplicate memories within each owner by the rule the Contest Planner approved under R-28.2-3, keeps one memory per duplicate set carrying every source of the set, marks it as from untrusted content if any merged memory was, records each merge (the kept memory, the merged ones with their texts and sources, and the time) in an owned merge record, with Visual Trace showing refs, sources, counts and time only, and calls no model (FR-43, AD-1, AD-10, NFR-20)
+**And** memories of different sessions are never merged (AD-4)
+**And** pinned memories are never merged, a set holding a `told` memory keeps a `told` one, and every merged memory's text and source are kept in the merge record (R-28.2-1, R-28.2-2)
+**And** the user and session data purge (sign-out, the eval drop, forgetting the kept memory) deletes its merge records
+
+**Given** automated tests in `OcuTalon.Test.Memory`
+**When** duplicate and distinct memories are stored and the task runs twice
+**Then** only the duplicates merge, every source is kept, the second run merges nothing new, no distinct pair of Story 28.2's Task 0 set merges, and the task is off on the online demo (FR-43)
+
+### Story 28.5: Connect an MCP client through iris-mcp-server
+
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
+
+As a production developer,
+I want to connect my own MCP client to OcuTalon's read-only tools through `iris-mcp-server`,
+So that I can check status and history from my own tools (step 7, Could).
+
+[SPLIT 2026-11-16 to Story 28.5, Contest Planner spec-gate ruling G7/G8 (prompts/story-283-rulings-20261116.md): Task 0 measured that iris-mcp-server 2.0.0 on build 154 lists and calls no tool of any %AI.MCP.Service subclass ("failed identity checking"), so the configuration and the end-to-end client list and call move to 28.5] Not dispatched: the Contest Planner takes the platform identity-check failure to the owner first.
+
+**Acceptance Criteria:**
+
+**Given** a fresh measurement on the current build
+**When** `iris-mcp-server` lists and calls the tools of `OcuTalon.Mcp.Service`
+**Then** the identity check passes, or the story stops with the measured failure for the owner
+
+**Given** `iris-mcp-server` in front of the service
+**When** it is configured
+**Then** it has no endpoint credentials, `allow_anonymous = false` (never copied from AI Hub's development template) and its status tool off, and its own login is a role-less user whose password comes from the environment (FR-51, AD-21, NFR-11)
+
+**Given** automated tests with a minimal MCP client over real HTTP
+**When** they connect anonymously, with a wrong password, as a user without `OcuTalonMCPClient`, and as a user with it
+**Then** the first three are refused, and a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records, never a second user's (FR-51, AD-4, AD-24)
+**And** a guide says how to connect, and the server stays off on the online demo
+- DW-1459: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role through the dispatcher or iris-mcp-server (ledger; routed by harvest 2026-11-16)
 
 ## Epic 29: The online demo's platform side
 

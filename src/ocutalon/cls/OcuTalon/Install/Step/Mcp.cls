@@ -1,11 +1,16 @@
-/// The Mcp area (AD-3, AD-21, AD-23, AD-24): the IRIS resource of each registered MCP server, OcuTalon_MCP_<server>, and the service role's
-/// Use permission on it. It runs no step. It is the only code that reaches %SYS for an MCP server.
-///   - Grant(server) and Revoke(server) are the one fixed entry point of OcuTalon.Mcp.Ops. Each takes a server name and nothing else, builds the
-///     resource name itself, and refuses (an error, nothing changed) a name that does not match OcuTalon.Mcp.Server NAMEPATTERN. Grant creates the
-///     resource, with no public permission, and adds OcuTalon_MCP_<server>:U to the role OcuTalonServiceRole; Revoke removes that pair and deletes
-///     that resource. Both touch no other resource and no other pair of the role, and neither grants a security-administration privilege.
-///   - Grants() declares, at every start, the pair of each Mcp.Server row whose resource exists, because the Roles step rewrites the role. A row whose
-///     resource is missing is skipped with a warning, so a start never fails. On an online-demo install it declares none.
+/// The Mcp area (AD-3, AD-21, AD-23, AD-24): everything that OcuTalon's MCP surfaces need in %SYS. It is the only code that reaches %SYS for an MCP server.
+///   - The MCP servers that an admin registers each have the resource OcuTalon_MCP_<server>, and the service role holds Use on it. Grant(server) and Revoke(server) are the
+///     one fixed entry point of OcuTalon.Mcp.Ops. Each takes a server name and nothing else, builds the resource name itself, and refuses (an error, nothing changed) a name that does not
+///     match OcuTalon.Mcp.Server NAMEPATTERN. Grant creates the resource, with no public permission, and adds OcuTalon_MCP_<server>:U to the role OcuTalonServiceRole; Revoke removes that
+///     pair and deletes that resource. Both touch no other resource and no other pair of the role, and neither grants a security-administration privilege.
+///   - OcuTalon's own MCP server (Story 28.3; OcuTalon.Mcp.Service): Run, off the online demo, first takes any public permission away from SERVICERESOURCE when it exists (before any
+///     part that can fail), then makes the application role APPROLE (R on the code, data and private databases, no write, no SQL privilege, granted to no user), then the web application SERVICEAPP, then the resource SERVICERESOURCE with no public permission. The application is rewritten at every start to
+///     exactly ServiceApp's properties: password sign-in only, namespace OCUTALON, outside the sign-in group, dispatch class OcuTalon.Mcp.Service, and MatchRoles that adds APPROLE to a
+///     request while it runs in that application and nowhere else. The role comes before the application because IRIS refuses an application whose MatchRoles names a missing role. On an
+///     online-demo install Run makes none of them and deletes the application, the resource and the roles APPROLE and CLIENTROLE where they exist.
+///   - Grants() declares, at every start, CLIENTROLE with the one permission SERVICERESOURCE:U (off the online demo), which the Roles step composes (the installer grants it to no user), and
+///     the pair of each Mcp.Server row whose resource exists, because the Roles step rewrites the role. A row whose resource is missing is skipped with a warning, so a start never fails.
+///     On an online-demo install it declares none.
 Class OcuTalon.Install.Step.Mcp Extends OcuTalon.Install.Step
 {
 
@@ -15,10 +20,100 @@ Parameter RESOURCEPREFIX = "OcuTalon_MCP_";
 /// The permission the service role holds on the resource.
 Parameter PERMISSION = "U";
 
+/// The resource that a user needs Use on to reach OcuTalon's own MCP server (OcuTalon.Mcp.Service RESOURCE, pinned by a test).
+Parameter SERVICERESOURCE = "OcuTalon_MCPServer";
+
+/// The web application of OcuTalon's own MCP server.
+Parameter SERVICEAPP = "/mcp/ocutalon";
+
+/// The role that a user needs to reach the server: Use on SERVICERESOURCE and nothing else. The installer grants it to no one.
+Parameter CLIENTROLE = "OcuTalonMCPClient";
+
+/// The application role: held only while a request runs in SERVICEAPP, never by a user. It gives the tools the read permission that serving a call needs.
+Parameter APPROLE = "OcuTalonMCPApp";
+
+/// The resources of APPROLE, as the role has them (resource:permission pairs): read on the code, data and private databases, never write.
+Parameter APPROLERESOURCES = "%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%DB_OCUTALON_PRIVATE:R";
+
+/// The CSP session timeout of SERVICEAPP in seconds (a gateway call is stateless).
+Parameter SERVICETIMEOUT = 900;
+
+/// The step: off the online demo, the application role, the application and the resource exist as the class description says; on it, none of them and none of the two roles does.
+ClassMethod Run() As %Status
+{
+	If ..OnlineDemo() Quit ..RemoveService()
+	Quit ..ApplyService()
+}
+
+/// 1 on an online-demo install (the public setting onlineDemo).
+ClassMethod OnlineDemo() As %Boolean
+{
+	Quit +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = 1
+}
+
+/// Takes the public permission away from the resource when it exists, before any other part, so a later part that fails never leaves one open. Then makes the application role, then the
+/// application, then the resource (in that order, see the class description), each created or rewritten to exactly its definition, and closes the resource's public permission once more
+/// at the end (a resource this call creates is created with none). The first failure stops the step and is returned.
+ClassMethod ApplyService(application As %String = {..#SERVICEAPP}, resource As %String = {..#SERVICERESOURCE}, appRole As %String = {..#APPROLE}) As %Status
+{
+	If ..ResourceExists(resource) {
+		Set sc = ..ClosePublicPermission(resource)
+		If $$$ISERR(sc) Quit sc
+	}
+	Set sc = ..ApplyAppRole(appRole)
+	If $$$ISERR(sc) Quit sc
+	Do ..ServiceApp(.props, appRole, application)
+	Set sc = ..ApplyApplication(application, .props)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..MakeResource(resource, , "OcuTalon MCP server access")
+	If $$$ISERR(sc) Quit sc
+	Quit ..ClosePublicPermission(resource)
+}
+
+/// Deletes the application, the two roles and the resource of OcuTalon's own MCP server, each only when it exists, the application first (it names the application role) and the
+/// resource last (the client role holds it). The first failure stops the step and is returned.
+ClassMethod RemoveService(application As %String = {..#SERVICEAPP}, resource As %String = {..#SERVICERESOURCE}, appRole As %String = {..#APPROLE}, clientRole As %String = {..#CLIENTROLE}) As %Status
+{
+	Set sc = ..DropApplication(application)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..DropRole(clientRole)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..DropRole(appRole)
+	If $$$ISERR(sc) Quit sc
+	Quit ..DropResource(resource)
+}
+
+/// props = the properties of the application (SERVICEAPP by default), every one that Security.Applications is given (Modify keeps a key that is not passed): password sign-in only, namespace OCUTALON,
+/// outside the sign-in group, no path or files, dispatch class OcuTalon.Mcp.Service and MatchRoles :<appRole>, which adds that one role to every request of the application.
+ClassMethod ServiceApp(Output props, appRole As %String = {..#APPROLE}, application As %String = {..#SERVICEAPP})
+{
+	Kill props
+	Set props("NameSpace") = "OCUTALON"
+	Set props("Enabled") = 1
+	Set props("AutheEnabled") = 32
+	Set props("GroupById") = ""
+	Set props("SessionScope") = 2
+	Set props("Timeout") = ..#SERVICETIMEOUT
+	Set props("CookiePath") = application_"/"
+	Set props("LoginPage") = ""
+	Set props("InbndWebServicesEnabled") = 0
+	Set props("IsNameSpaceDefault") = 0
+	Set props("AutoCompile") = 0
+	Set props("CorsAllowlist") = ""
+	Set props("EventClass") = ""
+	Set props("DispatchClass") = "OcuTalon.Mcp.Service"
+	Set props("Path") = ""
+	Set props("ServeFiles") = 0
+	Set props("MatchRoles") = ":"_appRole
+	Set props("PermittedClasses") = ""
+	Set props("CSPZENEnabled") = 1
+}
+
 ClassMethod Grants() As %DynamicArray
 {
 	Set grants = []
-	If +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = 1 Quit grants
+	If ..OnlineDemo() Quit grants
+	Do grants.%Push({"role": (..#CLIENTROLE), "resource": (..#SERVICERESOURCE), "permission": (..#PERMISSION)})
 	Set role = ##class(OcuTalon.Install.Step.Users).#SERVICEROLE
 	Try {
 		Set statement = ##class(%SQL.Statement).%New()
@@ -28,7 +123,7 @@ ClassMethod Grants() As %DynamicArray
 			If result.%SQLCODE < 0 Set sc = $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
 		}
 		If $$$ISERR(sc) {
-			Do ..Warn("The Mcp area could not read the MCP servers, so it declares no grant: " _ $SYSTEM.Status.GetOneStatusText(sc))
+			Do ..Warn("The Mcp area could not read the MCP servers, so it declares no MCP server grant: " _ $SYSTEM.Status.GetOneStatusText(sc))
 			Quit
 		}
 		While result.%Next() {
@@ -142,15 +237,27 @@ ClassMethod SetPair(role As %String, resource As %String, on As %Boolean) As %St
 
 /// The %SYS calls below switch to %SYS, make one Security call and return; none uses a method of this class there.
 /// Creates the resource with no public permission when it does not exist; made is 1 when this call created it.
-ClassMethod MakeResource(resource As %String, Output made As %Boolean) As %Status [ Private ]
+ClassMethod MakeResource(resource As %String, Output made As %Boolean, description As %String = "OcuTalon MCP server tool access") As %Status [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = "%SYS"
 	Set made = 0
 	If ##class(Security.Resources).Exists(resource) Quit $SYSTEM.Status.OK()
-	Set sc = ##class(Security.Resources).Create(resource, "OcuTalon MCP server tool access", "")
+	Set sc = ##class(Security.Resources).Create(resource, description, "")
 	Set made = $$$ISOK(sc)
 	Quit sc
+}
+
+/// Takes the public permission away from the resource, when it has one: nobody may reach the service by the public permission.
+ClassMethod ClosePublicPermission(resource As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	Set sc = ##class(Security.Resources).Get(resource, .properties)
+	If $$$ISERR(sc) || ($Get(properties("PublicPermission")) = "") Quit sc
+	Kill properties
+	Set properties("PublicPermission") = ""
+	Quit ##class(Security.Resources).Modify(resource, .properties)
 }
 
 /// Deletes the resource when it exists.
@@ -160,6 +267,47 @@ ClassMethod DropResource(resource As %String) As %Status [ Private ]
 	Set $NAMESPACE = "%SYS"
 	If '##class(Security.Resources).Exists(resource) Quit $SYSTEM.Status.OK()
 	Quit ##class(Security.Resources).Delete(resource)
+}
+
+/// Creates the role, or modifies it to hold exactly APPROLERESOURCES and no granted roles.
+ClassMethod ApplyAppRole(role As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If ##class(Security.Roles).Exists(role) {
+		Kill properties
+		Set properties("Resources") = ..#APPROLERESOURCES
+		Set properties("GrantedRoles") = ""
+		Quit ##class(Security.Roles).Modify(role, .properties)
+	}
+	Quit ##class(Security.Roles).Create(role, "OcuTalon MCP server application role", ..#APPROLERESOURCES, "")
+}
+
+/// Creates the web application, or modifies the one that exists, to hold props.
+ClassMethod ApplyApplication(name As %String, ByRef props) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If ##class(Security.Applications).Exists(name) Quit ##class(Security.Applications).Modify(name, .props)
+	Quit ##class(Security.Applications).Create(name, .props)
+}
+
+/// Deletes the web application when it exists.
+ClassMethod DropApplication(name As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If '##class(Security.Applications).Exists(name) Quit $SYSTEM.Status.OK()
+	Quit ##class(Security.Applications).Delete(name)
+}
+
+/// Deletes the role when it exists.
+ClassMethod DropRole(role As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = "%SYS"
+	If '##class(Security.Roles).Exists(role) Quit $SYSTEM.Status.OK()
+	Quit ##class(Security.Roles).Delete(role)
 }
 
 /// The Resources property of the role (resource:permission pairs, comma-separated) and whether the role exists.

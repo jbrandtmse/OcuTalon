@@ -8,7 +8,7 @@
 ///     checkRows, citations and memories; for a RunTurns sessionRef. Every call also records the state of the instance's Turn at that moment (turnState)
 ///     and how many done chat.message events of that Turn the session's stream already holds (doneEvents), which tell the order
 ///     of saving, publishing and sending. A request to Decide goes to a shadow instance of Test.Core.DecideDouble and its answer
-///     is kept; a send to Conversation or Notify is recorded only. FailTarget names a target whose send fails;
+///     is kept; a send to Conversation, Notify or Intake is recorded only (an Intake send of a Channel.Slack.Ignored also records kind, reason and eventId, and one of a Channel.Refused records channel and reason). FailTarget names a target whose send fails;
 ///   - SetTimer, which Conversation's own Wait calls, records a call with target wait, key and seconds, and keeps the end of the
 ///     wait instead of asking Ens.Alarm for it, so that Deliver hands the end of the wait to OnResponse as an Ens.AlarmResponse;
 ///   - RenderChecks, the seam of Checks.Render: when ^OcuTalonTest("ConversationProbe", RunNumber, "render") holds
@@ -18,7 +18,7 @@
 ///   - Reader, the seam of Core.Files.Readable: when ^OcuTalonTest("ConversationProbe", RunNumber, "reader") is set it returns that value as a boolean, otherwise it calls the
 ///     class it extends, the real probe of the code (Story 25.3);
 ///   - ReadFile, the seam of Agent.Input.ReadFile: when ^OcuTalonTest("ConversationProbe", RunNumber, "readfile") is "error" it answers an error status, when it is "nonobject" an OK status
-///     and a result that is not an object, and when it is "notext" an OK status and a read 0 result with a reason and no text member (Story 25.6); otherwise it calls the class it extends, the real reader. Every call also records the turn's FileRead as it was saved at that moment;
+///     and a result that is not an object, and when it is "notext" an OK status and a read 0 result with a reason and no text member (Story 25.6); otherwise it calls the class it extends, the real reader. Every call also counts itself under "readcalls" and records the turn's FileRead as it was saved at that moment;
 ///   - ItemFor and FreshAfter expose the private ItemOf and AfterTaint to the tests.
 Class OcuTalon.Test.Core.ConversationProbe Extends (OcuTalon.Core.Conversation, OcuTalon.Test.Core.ProbeSeam)
 {
@@ -48,6 +48,13 @@ Method Send(target As %String, request As %Library.Persistent, responseRequired 
 		Set @call@("learned") = request.Learned
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
+	} ElseIf request.%Extends("OcuTalon.Channel.Slack.Ignored") {
+		Set @call@("kind") = request.Kind
+		Set @call@("reason") = request.Reason
+		Set @call@("eventId") = request.EventId
+	} ElseIf request.%Extends("OcuTalon.Channel.Refused") {
+		Set @call@("channel") = request.Channel
+		Set @call@("reason") = request.Reason
 	}
 	If (..FailTarget '= "") && (target = ..FailTarget) Quit $SYSTEM.Status.Error(5001, "zz send to "_target_" failed")
 	If target '= ..#DECIDE Quit $SYSTEM.Status.OK()
@@ -62,6 +69,13 @@ Method SetTimer(pTimeout As %String, pCompletionKey As %String = "", pControlled
 	Set n = $Increment(..Pending)
 	Set ..Pending(n) = $ListBuild(pCompletionKey, $SYSTEM.Status.OK(), 1)
 	Quit $SYSTEM.Status.OK()
+}
+
+/// With ^OcuTalonTest("ConversationProbeMayChat") set to "throw" the role check throws, which the Item's check must read as a refusal; otherwise it is the real check.
+ClassMethod MayChat(irisUser As %String) As %Boolean [ Private ]
+{
+	If $Get(^OcuTalonTest("ConversationProbeMayChat")) = "throw" Throw ##class(%Exception.General).%New("zz maychat threw", 5001, , "zz maychat threw")
+	Quit ##super($Get(irisUser))
 }
 
 Method Join(turn As OcuTalon.Data.Turn) [ Private ]
@@ -96,6 +110,7 @@ Method Reader() As %Boolean [ Private ]
 
 Method ReadFile(item As OcuTalon.Msg.Item, Output result As %DynamicObject) As %Status [ Private ]
 {
+	Set readcalls = $Increment(^OcuTalonTest("ConversationProbe", ..RunNumber, "readcalls"))
 	Set mode = $Get(^OcuTalonTest("ConversationProbe", ..RunNumber, "readfile"))
 	If mode = "error" Set result = {} Quit $SYSTEM.Status.Error(5001, "zz read failed")
 	If mode = "nonobject" Set result = "" Quit $SYSTEM.Status.OK()

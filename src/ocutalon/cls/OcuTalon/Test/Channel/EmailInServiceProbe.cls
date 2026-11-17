@@ -1,6 +1,6 @@
 /// A subclass of OcuTalon.Channel.Email.In for the tests (Story 21.2), which overrides its private Send so that the unit tests run on a slot with no
 /// production. Send records each call under ^OcuTalonTest("EmailInServiceProbe", RunNumber, n): the target, the request's class, the service's
-/// %SuperSession and, for an Item, every property; it answers an error status when FailSend is 1. The product never refers to it.
+/// %SuperSession and, for an Item, every property and, for a Channel.Refused, its Channel and Reason; it answers an error status when FailSend is 1. The product never refers to it.
 Class OcuTalon.Test.Channel.EmailInServiceProbe Extends OcuTalon.Channel.Email.In
 {
 
@@ -21,6 +21,10 @@ Method Send(target As %String, request As %Library.Persistent) As %Status [ Priv
 		For name = "ItemId", "SourceItemId", "SessionRef", "Channel", "Provenance", "Text", "Sender", "Subject", "FromGuide", "CatalogKey", "Slots", "ClientId" {
 			Set @call@($ZConvert($Extract(name, 1), "L")_$Extract(name, 2, *)) = $Property(request, name)
 		}
+	}
+	If request.%Extends("OcuTalon.Channel.Refused") {
+		Set @call@("refusedChannel") = request.Channel
+		Set @call@("refusedReason") = request.Reason
 	}
 	If ..FailSend Quit $SYSTEM.Status.Error(5001, "zz the send failed")
 	Quit $SYSTEM.Status.OK()

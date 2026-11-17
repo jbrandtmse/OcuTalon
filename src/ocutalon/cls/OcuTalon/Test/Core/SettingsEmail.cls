@@ -12,6 +12,9 @@
 ///     credential, row, update or audit entry is written; TestRefusedBodies: a body that is not an object, an array or an unknown field is refused;
 ///   - TestOnlineDemo (row 5): on the online demo the save answers not_available with the accepted sentence, takes nothing from the hand-off and writes
 ///     nothing, and the page's values have no channels;
+///   - TestSaveRefusesWhoMayNotChat (Story 0.38, M1): a save by a session whose IRIS user may not chat (an admin-only account, a viewer's, a disabled one, one past its expiry, a session with
+///     no row and a session whose row names no user) answers not_user with Ok 0 and the approved sentence VERBATIM, before anything is read or written: no key, credential, settings row,
+///     update, OAuth client or audit entry, and the hand-off's references are not taken; the same save by a session that may chat (control) is done;
 ///   - TestOtherAdminSaves (row 6): a second admin's save moves email.owner to that session and audits the two Refs;
 ///   - TestHandOffLost (row 7): a reference that names no secret is refused naming password and nothing is written;
 ///   - TestNothingChanged (DW-1139): the same save again writes no audit entry, no row and no credential and still updates the production, so that an item
@@ -20,8 +23,15 @@
 ///     default, Credentials, SSLConfig OcuTalonClient on port 465 and OcuTalonClient* on any other, SSLCheckServerIdentity 1, Enabled 1), the rows of
 ///     EmailIn untouched by an outgoing change, a cleared or absent outgoing server (Enabled 0, the server rows deleted, nothing written when none was saved),
 ///     and the email.outgoing audit entry in the form host or host:port off 587;
-///   - TestAllOrNothing: a failed audit write at each position or a failed key write changes nothing; a failed credential write, a failed settings row
-///     write and a failed update put back the keys (with an audit entry of each), the credential and the rows, also over an earlier mailbox;
+///   - TestAllOrNothing: the keys are written and then audited in one transaction, so a refused audit entry of a key, or a failed key write (which writes no
+///     entry, in the probe or in the real audit log), changes nothing; a failed credential write, a failed settings row write and a failed update put back the
+///     keys (with an audit entry of each), the credential and the rows, also over an earlier mailbox, and write no entry for a value outside the keys; a
+///     refused audit entry of a value outside the keys (the servers, the user name, the credential), which is written after the values, puts everything back
+///     too (not_audited);
+///   - TestOAuthOwnedRowFailureWritesNoEntry, TestForgetClientRowFailureWritesNoEntry: the keys email.oauthOwned (RecordOAuth) and email.clientId (ForgetClient) are
+///     written before their entries, so a failed key write leaves no entry for it in the real audit log (a control save writes it);
+///   - TestOAuthOwnedAuditFails, TestForgetClientAuditFails: a refused entry of either key rolls its key back (the save is failed, the owned list is empty, and the client
+///     ID that the put-back restored is not cleared), where a control save keeps the key;
 ///   - TestValues: the page's channels hold address, incoming, outgoing, user, passwordSet, signIn, clientId, clientSecretSet and signedIn, never a secret;
 ///   - TestNoSecretAnywhere: after a save the password is in no audit entry, no ^OcuTalon* global, no trace global and no Ens.Util.Log row;
 ///   - Story 21.3: TestProviderFirstSave (row 1: keys, credential without a password, the register call, the audits, the mark), TestProviderClearsPassword (an earlier
@@ -42,7 +52,7 @@ Class OcuTalon.Test.Core.SettingsEmail Extends %UnitTest.TestCase
 /// The probe under test.
 Parameter PROBE = "OcuTalon.Test.Core.SettingsEmailProbe";
 
-/// The Refs of the sessions of the saves.
+/// The Refs of the sessions of the saves: fixture sessions of real accounts that hold OcuTalonUser (Fixture.ChatSession), since a save by a session whose user may not chat is refused.
 Parameter REF = "zzsession0123456789abc";
 
 Parameter OTHERREF = "zzsession9876543210cba";
@@ -69,8 +79,13 @@ Parameter UNAVAILABLE = "Email can't be connected on the online demo. Nothing wa
 /// The references offered since the last Reset, as a list; Reset discards them.
 Property Uris As %List [ Private ];
 
+/// The Refs of the fixture sessions of the saves, comma-separated.
+Property Refs As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemail", "OcuTalonUser", , ..#REF)_","_##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemailother", "OcuTalonUser", , ..#OTHERREF)
 	Kill ^OcuTalonTest("SettingsEmail")
 	For i = 1:1:$Length(..#KEYS, ",") {
 		Set key = $Piece(..#KEYS, ",", i)
@@ -103,6 +118,7 @@ Method OnAfterAllTests() As %Status
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Kill ^OcuTalonTest("SettingsEmailProbe")
 	Kill ^||OcuTalonSettingsEmailProbe
+	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Quit $$$OK
 }
 
@@ -310,6 +326,61 @@ Method TestOnlineDemo()
 	Do $$$AssertEquals(..Values().sections.%IsDefined("channels"), 1, "and have one on a local install")
 }
 
+/// M1: a mailbox save by a session whose user may not chat is refused with not_user and the approved sentence, and writes nothing (see the class comment). The sentence is written out here.
+Method TestSaveRefusesWhoMayNotChat()
+{
+	Set sentence = "This mailbox would be yours, but you can't use the chat, so its email would never be read. An admin who can use the chat must connect it. Nothing was changed."
+	Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).#MESSAGEEMAILNOTUSER, sentence, "the constant is the approved sentence")
+	Set cases = $ListBuild($ListBuild("adminonly", "OcuTalonAdmin", 1, ""), $ListBuild("viewer", "OcuTalonViewer", 1, ""), $ListBuild("disabled", "OcuTalonAdmin,OcuTalonUser", 0, ""), $ListBuild("expired", "OcuTalonAdmin,OcuTalonUser", 1, -2))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ..Reset()
+		Set name = $List(case, 1)
+		Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemail"_name, $List(case, 2), .user)
+		Set ..Refs = ..Refs_","_ref
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Data.Fixture).SetAccount(user, $List(case, 3), $List(case, 4)), name_": the account state is set")
+		Do ..AssertNotUser(ref, name)
+	}
+	Do ..Reset()
+	Do ..AssertNotUser("zzsession0000000000none", "a session with no row")
+	Do ..Reset()
+	Set none = ##class(OcuTalon.Test.Data.Fixture).Session("")
+	Set ..Refs = ..Refs_","_none
+	Do ..AssertNotUser(none, "a session whose row names no user")
+	Do ..Reset()
+	Set secret = ..Secret("control")
+	Set uri = ..Offer(secret)
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, uri))
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "control: the same save by a session that may chat is done")
+	Do $$$AssertEquals(..Row("email.owner"), ..#REF, "and the mailbox is its")
+}
+
+/// A new fixture session of a real account that holds OcuTalonUser (Fixture.ChatSession), recorded for the clean-up; its Ref, for a save whose audit entries are read by session.
+Method NewSession() As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzsettingsemailn")
+	Set ..Refs = ..Refs_","_ref
+	Quit ref
+}
+
+/// One refused save by the session ref: the answer, and nothing read from the hand-off, nothing written.
+Method AssertNotUser(ref As %String, what As %String) [ Private ]
+{
+	Set sentence = ##class(OcuTalon.Core.SettingsOps).#MESSAGEEMAILNOTUSER
+	Set offered = ..Offered("zznotuser@example.com", "zznotuseruser")
+	Set result = ..SaveText(offered.%ToJSON(), ref)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome_"|"_result.Message, "0|not_user|"_sentence, what_": not_user, with the approved sentence")
+	Do $$$AssertEquals(result.Data, "", what_": and no data")
+	Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner")_"|"_..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), "||||", what_": no email key is written")
+	Do $$$AssertEquals($Data(^||OcuTalonSettingsEmailProbe("cred"))_"|"_$Data(^||OcuTalonSettingsEmailProbe("sds"))_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "0|0|0", what_": no credential, row or update")
+	Do $$$AssertEquals(..Audits().%Size(), 0, what_": nothing is audited")
+	For name = "address", "user", "password" {
+		Set sc = ##class(OcuTalon.Core.SecretHandoff).Take(offered.%Get(name), .left, 0)
+		Do $$$AssertEquals($$$ISOK(sc)_"|"_(left '= ""), "1|1", what_": the hand-off was not touched: the "_name_" reference is still there")
+		Kill left
+	}
+}
+
 /// Matrix row 6: a second admin's save moves the mailbox to that session.
 Method TestOtherAdminSaves()
 {
@@ -432,22 +503,40 @@ Method TestOutgoingAudit()
 	Do $$$AssertEquals(audits.%Get(0).from_"|"_audits.%Get(0).to, "mail.example.org:465|mail.example.org", "back on port 587 the entry shows the host alone")
 }
 
-/// A failed audit write or key write changes nothing; a failure after the keys puts everything back.
+/// A refused audit entry or a failed key write changes nothing; a failure after the keys puts everything back, and no entry is written for an outside
+/// value that was not kept; a refused audit entry of an outside value puts everything back too.
 Method TestAllOrNothing()
 {
 	For at = 1:1:5 {
 		Do ..Reset()
+		Set was = ..State()
 		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = at
 		Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("audit"))))
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "audit write "_at_" fails: not_audited")
-		Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner"), "|", "audit write "_at_": the keys are rolled back")
-		Do $$$AssertEquals($Data(^||OcuTalonSettingsEmailProbe("cred"))_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "0|0", "audit write "_at_": no credential, row or update")
+		Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner"), "|", "audit write "_at_": the keys are rolled back or put back")
+		Do $$$AssertEquals(..State(), was, "audit write "_at_": the keys, the credential and the rows are as they were")
+		Do $$$AssertEquals($TLevel, 0, "audit write "_at_": no transaction is left open")
+		If at <= 2 {
+			Do $$$AssertEquals($Data(^||OcuTalonSettingsEmailProbe("cred"))_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "0|0", "audit write "_at_": no credential, row or update")
+		} Else {
+			Do $$$AssertTrue(..Forms() [ "email.address|set|", "audit write "_at_": the address put back is audited")
+		}
 	}
 	Do ..Reset()
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "error"
-	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("apply"))))
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ref = ..NewSession()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("apply"))), ref)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed key write is failed")
 	Do $$$AssertEquals(..Row("email.address")_"|"_..Row("email.owner")_"|"_$Get(^||OcuTalonSettingsEmailProbe("calls"), 0), "||0", "and changes nothing")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "and no audit write was attempted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 0, "and the real audit log has no entry for the session")
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("control"))), ref)
+	Do $$$AssertEquals(result.Outcome, "done", "the control save is done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 5, "and the same query finds its five entries")
 	Set stages = $ListBuild("credential|credential|error", "row|sds|error", "third row|sdsAt|3", "outgoing row|sdsAt|6", "update|start|error")
 	Set position = 0
 	While $ListNext(stages, position, stage) {
@@ -455,12 +544,122 @@ Method TestAllOrNothing()
 			Do ..Reset()
 			If earlier Do ..SeedEarlier()
 			Set ^OcuTalonTest("SettingsEmailProbe", "answer", $Piece(stage, "|", 2)) = $Piece(stage, "|", 3)
+			Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 			Set was = ..State()
-			Set result = ..Save(..Body("zznew@example.com", "new.example.com:110", "zznewuser", ..Offer(..Secret("fail")), "new.smtp.example.com:465"))
+			Set ref = ..NewSession()
+			Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+			Set result = ..Save(..Body("zznew@example.com", "new.example.com:110", "zznewuser", ..Offer(..Secret("fail")), "new.smtp.example.com:465"), ref)
 			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_") is failed")
 			Kill ^OcuTalonTest("SettingsEmailProbe", "answer")
 			Do $$$AssertEquals(..State(), was, "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_"): keys, credential and rows are as they were")
 			Do $$$AssertTrue(..Forms() [ ("email.address|"_$Select(earlier: "changed|set", 1: "set|")), "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_"): the address put back is audited too")
+			Do $$$AssertEquals(..OutsideEntries(since, ref), 0, "a failed "_$Piece(stage, "|", 1)_" (earlier mailbox "_earlier_"): no entry for a value outside the keys is in the real audit log")
+		}
+	}
+}
+
+/// A save that changes a value outside the keys (the servers, the user name, the credential) writes its entries after the values and the production update;
+/// the entries of a value that a failed save put back are never written, and the entries of the keys are.
+Method TestOutsideEntriesFollowTheValues()
+{
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ref = ..NewSession()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save(..Body(..#ADDRESS, ..#HOST, ..#USER, ..Offer(..Secret("order")), ..#SMTPHOST), ref)
+	Do $$$AssertEquals(result.Outcome, "done", "a save with an outgoing server is done")
+	Do $$$AssertEquals(..OutsideEntries(since, ref), 4, "the real audit log has the entries of the two servers, the user name and the credential")
+	Do $$$AssertEquals(..Forms(), "email.address||set;email.owner||"_ref_";email.incoming||"_..#HOST_";email.outgoing||"_..#SMTPHOST_";email.user||set;email.credential||set", "after the entries of the keys")
+}
+
+/// RecordOAuth writes email.oauthOwned before its entry: a key write that fails leaves no entry for it in the real audit log, and the save is failed with everything
+/// put back; a control save writes the entry once.
+Method TestOAuthOwnedRowFailureWritesNoEntry()
+{
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt") = 5
+	Set was = ..State()
+	Set ref = ..NewSession()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("owned"))), ref)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the fifth key write, email.oauthOwned, fails: failed")
+	Do $$$AssertEquals(..State()_"|"_..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), was_"|||", "everything is put back")
+	Do $$$AssertEquals(..RealEntries(since, ref, "email.oauthOwned"), 0, "and the real audit log has no email.oauthOwned entry for the session")
+	Do $$$AssertEquals(..RealEntries(since, ref, "email.oauthApp"), 2, "(the entries of the web application enabled and disabled again are there)")
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("ownedcontrol"))), ref)
+	Do $$$AssertEquals(result.Outcome, "done", "the control save is done")
+	Do $$$AssertEquals(..RealEntries(since, ref, "email.oauthOwned"), 1, "and the same query finds its one email.oauthOwned entry")
+}
+
+/// ForgetClient writes email.clientId before its entry: a key write that fails leaves no entry of the client ID removed again in the real audit log (a save that
+/// failed over a provider and removed its client leaves the removal of the first attempt and its put-back); a control save writes it once more. The ninth key
+/// write of the save is ForgetClient's: the owner, the sign-in method, the client ID and the owned list, their four put-backs, and then the client ID.
+Method TestForgetClientRowFailureWritesNoEntry()
+{
+	For control = 0, 1 {
+		Do ..Reset()
+		Do ..SeedProvider("google", "client,server,app")
+		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+		Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+		If 'control Set ^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt") = 9
+		Set ref = ..NewSession()
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set result = ..Save(..PasswordBody(..Offer(..Secret("forget"))), ref)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a removal whose update fails is failed (control "_control_")")
+		Do $$$AssertEquals(..RealEntries(since, ref, "email.clientId", "set", "removed"), 1 + control, "the real audit log has "_(1 + control)_" removal entries of the client ID (control "_control_")")
+	}
+}
+
+/// RecordOAuth's refused email.oauthOwned entry rolls its key back: the save is failed, everything is put back, the key is empty and the real audit log has no
+/// email.oauthOwned entry. The turn of the entry is read from a control save of the same shape.
+Method TestOAuthOwnedAuditFails()
+{
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ref = ..NewSession()
+	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("ownedaudit"))), ref)
+	Do $$$AssertEquals(result.Outcome, "done", "the control save is done")
+	Set at = 0, turn = 0
+	For n = 1:1:+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")) {
+		If $Get(^OcuTalonTest("SettingsOpsProbe", "calls", n)) '= "audit" Continue
+		Set turn = turn + 1
+		If {}.%FromJSON(^OcuTalonTest("SettingsOpsProbe", "calls", n, "data")).setting = "email.oauthOwned" Set at = turn Quit
+	}
+	Do $$$AssertTrue(at > 0, "the control save wrote an email.oauthOwned entry, at audit write "_at)
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = at
+	Set was = ..State()
+	Set ref = ..NewSession()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save(..ProviderBody("google", ..Offer(..Secret("ownedaudit2"))), ref)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the refused email.oauthOwned entry fails the save")
+	Do $$$AssertEquals(..State()_"|"_..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), was_"|||", "everything is put back, the owned list included")
+	Do $$$AssertEquals(..RealEntries(since, ref, "email.oauthOwned"), 0, "and the real audit log has no email.oauthOwned entry for the session")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
+}
+
+/// ForgetClient's refused removal entry rolls the removal back: after a save over a provider whose update fails, the client ID that the put-back restored stays, where
+/// a control save clears it. The turn of the entry is the last audit write of a control save.
+Method TestForgetClientAuditFails()
+{
+	For control = 1, 0 {
+		Do ..Reset()
+		Do ..SeedProvider("google", "client,server,app")
+		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+		Set ^OcuTalonTest("SettingsEmailProbe", "answer", "start") = "error"
+		If 'control Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = at
+		Set result = ..Save(..PasswordBody(..Offer(..Secret("forgetaudit"))), ..NewSession())
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a removal whose update fails is failed (control "_control_")")
+		If control {
+			Set at = +$Get(^||OcuTalonSettingsOpsProbe("n", "audit"))
+			Do $$$AssertEquals(..Row("email.clientId"), "", "the control save clears the client ID")
+		} Else {
+			Do $$$AssertEquals(..Row("email.clientId"), ..#CLIENTID, "the refused removal entry leaves the client ID that the put-back restored")
+			Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 		}
 	}
 }
@@ -510,7 +709,7 @@ Method TestProviderFirstSave()
 	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("oauthSecret"), secret, "the seam received the client secret")
 	Do $$$AssertEquals(..Count("start"), 1, "the production is updated once")
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("google", 0), "the mark says google, not signed in")
-	Do $$$AssertEquals(..Forms(), "email.address||set;email.owner||"_..#REF_";email.incoming||pop.example.com;email.user||set;email.signIn|password|google;email.clientId||set;email.clientSecret||set;email.oauthApp|disabled|enabled;email.oauthOwned||client,server,app", "one audit entry per change, with no secret")
+	Do $$$AssertEquals(..Forms(), "email.address||set;email.owner||"_..#REF_";email.signIn|password|google;email.clientId||set;email.oauthApp|disabled|enabled;email.oauthOwned||client,server,app;email.incoming||pop.example.com;email.user||set;email.clientSecret||set", "one audit entry per change, with no secret: the keys, then the web application and the owned list, then the values outside the keys")
 	Do $$$AssertEquals(..AuditText() [ secret, 0, "no audit entry holds the client secret")
 	Do $$$AssertEquals(..AuditText() [ ..#CLIENTID, 0, "or the client ID")
 	Set values = ..Values().sections.channels
@@ -625,7 +824,7 @@ Method TestProviderClearsPassword()
 	Set result = ..Save(..ProviderBody("microsoft", ..Offer(..Secret("clears")), , "zzearlier@example.com"))
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "a save with a provider over a password mailbox is done")
 	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, ""), "the stored password is gone and the user name is kept")
-	Do $$$AssertEquals(..Forms() [ ";email.credential|set|removed;", 1, "the removal of the password is audited")
+	Do $$$AssertEquals(..Forms() [ ";email.credential|set|removed", 1, "the removal of the password is audited")
 	Do $$$AssertEquals(..Count("oauthRegister")_"|"_..Count("oauthRemove"), "1|0", "the client is registered, not removed")
 	Set result = ..Save(..ProviderBody("microsoft", "", , , {"password": "zz-typed-password"}))
 	Do $$$AssertEquals(result.Outcome_"|"_result.Data, "refused|{""fields"":[""password""]}", "a password member with a provider is refused naming password")
@@ -689,7 +888,7 @@ Method TestRemove()
 	Do $$$AssertEquals(..Count("oauthRemove")_"|"_^||OcuTalonSettingsEmailProbe("calls", ..CallAt("oauthRemove")), "1|oauthRemove|client,server,app", "the client is removed, with what OcuTalon owns")
 	Do $$$AssertEquals(..Row("email.signIn")_"|"_..Row("email.clientId")_"|"_..Row("email.oauthOwned"), "||", "the three keys are cleared")
 	Do $$$AssertEquals(^||OcuTalonSettingsEmailProbe("cred"), $ListBuild(..#USER, secret), "the credential holds the typed password")
-	Do $$$AssertEquals(..Forms(), "email.signIn|google|password;email.clientId|set|removed;email.clientSecret|set|removed;email.credential||set;email.oauthApp|enabled|disabled;email.oauthOwned|client,server,app|", "audited without any secret")
+	Do $$$AssertEquals(..Forms(), "email.signIn|google|password;email.clientId|set|removed;email.oauthApp|enabled|disabled;email.oauthOwned|client,server,app|;email.clientSecret|set|removed;email.credential||set", "audited without any secret")
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsEmailProbe("mark")), $ListBuild("password", 0), "the mark says not signed in")
 	Do ..Reset()
 	Do ..SeedProvider("google", "client,server,app")
@@ -1254,6 +1453,28 @@ ClassMethod Audits() As %DynamicArray [ Private ]
 		If ^OcuTalonTest("SettingsOpsProbe", "calls", n) = "audit" Do audits.%Push({}.%FromJSON(^OcuTalonTest("SettingsOpsProbe", "calls", n, "data")))
 	}
 	Quit audits
+}
+
+/// The number of entries in the real audit log since the mark for the session whose setting is the given one and, when from and to are not "*", whose from and to are the given ones.
+ClassMethod RealEntries(since As %String, ref As %String, setting As %String, from As %String = "*", to As %String = "*") As %Integer [ Private ]
+{
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref)
+	Set count = 0
+	For i = 0:1:entries.%Size() - 1 {
+		Set data = entries.%Get(i).data
+		If (data.setting = setting) && ((from = "*") || (data.from = from)) && ((to = "*") || (data.to = to)) Set count = count + 1
+	}
+	Quit count
+}
+
+/// The number of entries in the real audit log since the mark for the session about a value outside the keys: the servers, the user name, the credential and the client secret.
+ClassMethod OutsideEntries(since As %String, ref As %String) As %Integer [ Private ]
+{
+	Set count = 0
+	For setting = "email.incoming", "email.outgoing", "email.user", "email.credential", "email.clientSecret" {
+		Set count = count + ..RealEntries(since, ref, setting)
+	}
+	Quit count
 }
 
 /// All the audit data as one text.

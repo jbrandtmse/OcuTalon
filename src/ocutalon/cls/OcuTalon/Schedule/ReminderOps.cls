@@ -2,9 +2,20 @@ Include Ensemble
 
 /// ReminderOps, the business operation that carries out the three reminder commands, SetReminder, ListReminders and CancelReminder
 /// (AD-1, AD-4, AD-5, AD-18). The Reminder row is the truth. Every verb first checks the command's session (an empty SessionRef, or
-/// one that names no Session row, is refused no_session), except that a SetReminder whose Kind is neither "" nor reminder (an escalation
-/// timer, Story 24.3) is answered before that check: Ok 0, outcome not_built, with CommandsIn's MESSAGENOTBUILT, and nothing is stored.
-/// Then:
+/// one that names no Session row, is refused no_session), except for the two escalation paths of the paging owner below, which are
+/// answered before that check, and a SetReminder whose Kind is neither "", reminder nor escalation, which is answered Ok 0, outcome
+/// not_built, with CommandsIn's MESSAGENOTBUILT, and stores nothing.
+/// The escalation timer (AD-18) is a SetReminder of Kind escalation, which only the paging owner (origin system) may send, and never on
+/// the online demo; any other origin, and the demo, are answered Ok 0, outcome not_allowed, with CommandsIn's MESSAGENOTALLOWED, and
+/// nothing is read or written. It needs an IncidentRef, a PageRef and a whole DelaySeconds above 0, and no DueAt or LocalDueAt (else
+/// refused bad_time, and nothing is stored). A page has at most one escalation: when a row of Kind escalation already names the PageRef,
+/// in any state, the answer is that row's set with its Ref and DueAt and nothing is added. Otherwise it saves one pending row owned by
+/// instance (never a session, whatever SessionRef the command names; no Text), starts one ReminderTimer waiter with no SuperSession
+/// (there is no session TraceRef), publishes nothing, and answers Ok 1, outcome set. A failed start deletes the row and answers failed.
+/// A CancelReminder from system whose ReminderRef names an escalation row cancels it without a session check (a row that is not pending
+/// is refused no_reminder): under the row's exclusive lock, with the command's key as CancelKey, then the waiter is ended at once and
+/// nothing is published. Every other CancelReminder takes the session path, so a session's cancel of an escalation Ref is no_reminder.
+/// Then, for a reminder:
 ///   - SetReminder applies the repeat rule for a non-empty IdempotencyKey, resolves the one due form to a UTC DueAt (Reminder.Resolve:
 ///     a refusal creates nothing), then
 ///     - saves the Reminder row (pending) with the command's key;
@@ -100,6 +111,7 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 /// Sets the reminder of the command and returns the CommandResult to answer.
 Method Set(command As OcuTalon.Msg.Command.SetReminder, now As %String) As OcuTalon.Msg.CommandResult [ Private ]
 {
+	If command.Kind = ##class(OcuTalon.Schedule.Reminder).#ESCALATION Quit ..Escalate(command, now)
 	If (command.Kind '= "") && (command.Kind '= "reminder") Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
 	If '..SessionExists(command.SessionRef) Quit ..Refuse("no_session")
 	If command.IdempotencyKey '= "" {
@@ -133,6 +145,44 @@ Method Set(command As OcuTalon.Msg.Command.SetReminder, now As %String) As OcuTa
 		If $$$ISERR(published) {
 			$$$LOGWARNING("OcuTalon.Schedule.ReminderOps: the reminder event (created) of " _ ref _ " was not published: " _ $SYSTEM.Status.GetErrorText(published))
 		}
+	}
+	Quit ..Done("set", ..#MESSAGESET, ref, dueAt)
+}
+
+/// Sets the escalation timer of the command (AD-18): the class doc's escalation path, before any session check and before any read or
+/// write of the table. Only origin system, and never on the online demo (not_allowed). The row, the waiter and the failure steps are
+/// those of a reminder, with SessionRef instance, no Text and no event.
+Method Escalate(command As OcuTalon.Msg.Command.SetReminder, now As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	If (command.Origin '= "system") || (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1) Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
+	Set delay = command.DelaySeconds
+	If (command.IncidentRef = "") || (command.PageRef = "") || (command.DueAt '= "") || (command.LocalDueAt '= "") || (delay '? 1.N) || (+delay < 1) Quit ..Refuse("bad_time")
+	Set dueAt = ##class(OcuTalon.Data.Time).AddSeconds(now, +delay)
+	If ##class(OcuTalon.Data.Time).Seconds(dueAt) = "" Quit ..Refuse("bad_time")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, DueAt FROM OcuTalon_Data.Reminder WHERE Kind = ? AND %EXACT(PageRef) = ? ORDER BY ID", ##class(OcuTalon.Schedule.Reminder).#ESCALATION, command.PageRef)
+	If result.%SQLCODE < 0 Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	If result.%Next() Quit ..Done("set", ..#MESSAGESET, result.%Get("Ref"), result.%Get("DueAt"))
+	Set result = ""
+	Set row = ##class(OcuTalon.Data.Reminder).%New()
+	Set row.Ref = ..NewRef()
+	Set row.SessionRef = ##class(OcuTalon.Schedule.Reminder).#OWNER
+	Set row.Kind = ##class(OcuTalon.Schedule.Reminder).#ESCALATION
+	Set row.IncidentRef = command.IncidentRef
+	Set row.PageRef = command.PageRef
+	Set row.Text = ""
+	Set row.DueAt = dueAt
+	Set row.State = "pending"
+	Set row.Late = 0
+	Set row.CreatedAt = now
+	Set sc = row.%Save()
+	If $$$ISERR(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Set ref = row.Ref, id = row.%Id()
+	Set sc = ..StartWaiter(row)
+	Set row = ""
+	If $$$ISERR(sc) {
+		$$$LOGERROR("OcuTalon.Schedule.ReminderOps: the waiter of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(sc))
+		Do ##class(OcuTalon.Data.Reminder).%DeleteId(id)
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
 	Quit ..Done("set", ..#MESSAGESET, ref, dueAt)
 }
@@ -174,6 +224,7 @@ Method List(command As OcuTalon.Msg.Command.ListReminders) As OcuTalon.Msg.Comma
 /// Cancels the session's pending reminder that the command names.
 Method Cancel(command As OcuTalon.Msg.Command.CancelReminder) As OcuTalon.Msg.CommandResult [ Private ]
 {
+	If (command.Origin = "system") && ..IsEscalation(command.ReminderRef) Quit ..CancelEscalation(command.ReminderRef, command.IdempotencyKey)
 	If '..SessionExists(command.SessionRef) Quit ..Refuse("no_session")
 	Set ref = command.ReminderRef
 	If command.IdempotencyKey '= "" {
@@ -211,6 +262,42 @@ Method Cancel(command As OcuTalon.Msg.Command.CancelReminder) As OcuTalon.Msg.Co
 	Quit ..Done("cancelled", ..#MESSAGECANCELLED, ref, dueAt)
 }
 
+/// 1 when the Ref names an escalation row (owned by instance, Kind escalation), whatever its state. The row is read without a lock and
+/// let go before it returns.
+ClassMethod IsEscalation(ref As %String) As %Boolean [ Private ]
+{
+	If ref = "" Quit 0
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	If '$IsObject(row) Quit 0
+	Quit (row.Kind = ##class(OcuTalon.Schedule.Reminder).#ESCALATION) && (row.SessionRef = ##class(OcuTalon.Schedule.Reminder).#OWNER)
+}
+
+/// Cancels the pending escalation row with the Ref for the paging owner (AD-18): under the row's exclusive lock it re-checks that the row
+/// is pending, marks it cancelled with the key as CancelKey and saves it. After it has let go it ends the waiter at once. Nothing is
+/// published. A row that is not pending is refused no_reminder. A lock that cannot be taken answers failed and changes nothing.
+Method CancelEscalation(ref As %String, key As %String) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref, 4, .sc)
+	If '$IsObject(row) {
+		If $ListFind($ListFromString($SYSTEM.Status.GetErrorCodes($Get(sc))), $$$LockFailedToAcquireExclusive) {
+			$$$LOGWARNING("OcuTalon.Schedule.ReminderOps: the row of " _ ref _ " is locked, so it was not cancelled")
+			Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+		}
+		Quit ..Refuse("no_reminder")
+	}
+	If row.State '= "pending" Quit ..Refuse("no_reminder")
+	Set row.State = "cancelled"
+	Set row.CancelKey = key
+	Set sc = row.%Save()
+	If $$$ISERR(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Set dueAt = row.DueAt
+	Set row = ""
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(ref)
+	If $IsObject(row) Do ..EndWaiter(row)
+	Set row = ""
+	Quit ..Done("cancelled", ..#MESSAGECANCELLED, ref, dueAt)
+}
+
 /// 1 when the Ref is one of the session's pending reminders (Data.Ownership, AD-4). The rows it opened are let go before it returns.
 Method IsPending(sessionRef As %String, ref As %String) As %Boolean [ Private ]
 {
@@ -240,7 +327,8 @@ ClassMethod KeyedRow(property As %String, sessionRef As %String, key As %String)
 }
 
 /// Ends the waiter of the row at once (AD-5, AD-26): sends an Ens.AlarmTriggerRequest to Ens.Alarm for each alarm that the waiter's
-/// ReminderTimer has not completed, in the waiter's own trace session (the row's TraceHeaderId) under the session's TraceRef. The
+/// ReminderTimer has not completed, in the waiter's own trace session (the row's TraceHeaderId) under the session's TraceRef (none for an
+/// instance row). The
 /// alarm's handle is the id of its Ens.AlarmRequest body. A row with no waiter yet, a session that has gone, or a failed send is
 /// a warning at most: the waiter then ends at its due time and sends nothing, because the row is no longer pending.
 Method EndWaiter(row As OcuTalon.Data.Reminder) [ Private ]
@@ -248,9 +336,7 @@ Method EndWaiter(row As OcuTalon.Data.Reminder) [ Private ]
 	Set traceId = row.TraceHeaderId
 	If traceId = "" Quit
 	Set ref = row.Ref
-	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(row.SessionRef)
-	If '$IsObject(session) Quit
-	Set superSession = session.TraceRef
+	If '##class(OcuTalon.Schedule.Reminder).SuperSessionOf(row.SessionRef, .superSession) Quit
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = ? AND TargetConfigName = ? AND MessageBodyClassName = 'Ens.AlarmRequest' AND Status <> 9 ORDER BY ID", traceId, ..#TIMERITEM, ..#ALARMITEM)
 	While result.%Next() {
 		Set handles($Increment(handles)) = result.%Get("MessageBodyId")
@@ -271,15 +357,14 @@ Method NewRef() As %String [ Private ]
 }
 
 /// Starts the row's waiter and waits for its answer (AD-26): the waiter's session begins at its start header and its SuperSession is
-/// the TraceRef of the row's Session. This operation's own session id and SuperSession are put back after the start, also when it
+/// the TraceRef of the row's Session (empty for an instance row). This operation's own session id and SuperSession are put back after the start, also when it
 /// throws. An error status when the start fails or gets no answer in STARTSECONDS. A test subclass overrides it.
 Method StartWaiter(row As OcuTalon.Data.Reminder) As %Status [ Private ]
 {
-	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(row.SessionRef)
-	If '$IsObject(session) Quit $SYSTEM.Status.Error(5001, "There is no session " _ row.SessionRef)
+	If '##class(OcuTalon.Schedule.Reminder).SuperSessionOf(row.SessionRef, .superSession) Quit $SYSTEM.Status.Error(5001, "There is no session " _ row.SessionRef)
 	Set start = ##class(OcuTalon.Schedule.ReminderStart).%New()
 	Set start.Ref = row.Ref
-	Set sc = ..SendIn(..#TIMERITEM, start, "", session.TraceRef, 0, .response)
+	Set sc = ..SendIn(..#TIMERITEM, start, "", superSession, 0, .response)
 	If $$$ISOK(sc) && '$IsObject($Get(response)) {
 		Set sc = $SYSTEM.Status.Error(5001, "ReminderTimer did not answer the start of " _ row.Ref _ " within " _ ..#STARTSECONDS _ " seconds")
 	}

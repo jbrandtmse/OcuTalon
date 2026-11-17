@@ -50,9 +50,14 @@ Property Found As %List;
 /// AI.MCP.OcuTalon_<server>, approval rows), "" when none is left.
 Property StubServer As %String;
 
+/// The Refs of the fixture sessions zzsessA and zzsessB, comma-separated: sessions of real accounts that hold OcuTalonUser, since the mailbox save of a session whose user may not chat is refused.
+Property Refs As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).ChatSession("zzstep4a", "OcuTalonUser", , "zzsessA")_","_##class(OcuTalon.Test.Data.Fixture).ChatSession("zzstep4b", "OcuTalonUser", , "zzsessB")
 	Set ..Run = "step4"_$Increment(^OcuTalonTest("CommandsStep4", "n"))
 	Set ..Found = $ListBuild(##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), ##class(OcuTalon.Data.Setting).Get("email.owner"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address"), ##class(OcuTalon.Data.Setting).Get("email.address"))
 	Quit $$$OK
@@ -67,6 +72,7 @@ Method OnAfterAllTests() As %Status
 	Do ..PutBack("email.address", $List(..Found, 3), $List(..Found, 4))
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Kill ^||OcuTalonSettingsEmailProbe
+	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Quit $$$OK
 }
 

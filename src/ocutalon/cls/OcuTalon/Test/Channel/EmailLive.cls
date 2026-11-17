@@ -268,7 +268,7 @@ ClassMethod Mail(uidl As %String, subject As %String = "zz subject", text As %St
 /// with origin web_admin and takes back what is left. Answers the CommandResult.
 Method Connect(address As %String = "zzlive@example.com", user As %String = "zzlive", outgoing As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Set ..Owner = ..Session("owner")
+	Set ..Owner = ..ChatSession("owner")
 	Set ..Dummy = "Zz-live-"_..Number_"-"_$Random(1000000)
 	Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address"), ##class(OcuTalon.Data.Setting).Get("email.address"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), ##class(OcuTalon.Data.Setting).Get("email.owner"))
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(..Dummy, .uri)
@@ -810,7 +810,7 @@ Method TestCappedDayGivesDailyCapForAnEmailItem()
 	Set saved = ""
 	Set run = ..Number_"cap"
 	Try {
-		Set ..Owner = ..Session("owner")
+		Set ..Owner = ..ChatSession("owner")
 		Set ..Found = $ListBuild(##class(OcuTalon.Data.StatusMark).Get("emailPoll"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.address"), ##class(OcuTalon.Data.Setting).Get("email.address"), ##class(OcuTalon.Data.Setting).KeyIndexExists("email.owner"), ##class(OcuTalon.Data.Setting).Get("email.owner"))
 		Do ##class(OcuTalon.Data.Setting).Set("email.owner", ..Owner)
 		Kill ^OcuTalonTest("EmailInServiceProbe", run)
@@ -989,7 +989,7 @@ Method TestToolSendReachesTheStub()
 	Try {
 		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected")
-		Set other = ..Session("other")
+		Set other = ..ChatSession("other")
 		Set subject = "Gr"_$Char(252, 223)_"e "_$Char(8364)_" zz tool"
 		Set text = "line one"_$Char(10)_"Zeile zwei "_$Char(228, 246, 252)_" "_$Char(8364)_" end"
 		Set sent = ..ToolSend(..Owner, "zzlive@example.com", subject, text)
@@ -1126,7 +1126,7 @@ Method TestDigestReachesTheStub()
 		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected by the owner session")
 		Do ..MockServer()
-		Set other = ..Session("digestother")
+		Set other = ..ChatSession("digestother")
 		Do ##class(OcuTalon.Test.Demo.Step).Remove()
 		// The owner's digest goes to the web chat and by email.
 		Do ..UseChannels("web,email")
@@ -1211,7 +1211,7 @@ Method TestNotifyRoutesDigestToEmailOut()
 	Try {
 		Set result = ..Connect("zzlive@example.com", "zzlive", ..#STUBHOST_":"_..#SMTPPORT)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the mailbox and the SMTP server are connected")
-		Set other = ..Session("routeother")
+		Set other = ..ChatSession("routeother")
 		Do ##class(OcuTalon.Test.Demo.Step).Remove()
 		Do ##class(OcuTalon.Data.Setting).Set("digest.channels", "web,email")
 		Set both = "send:WebChatOut:;send:EmailOut:"
@@ -1705,7 +1705,7 @@ ClassMethod ProviderBody(provider As %String, uri As %String, outgoing As %Strin
 /// to the hand-off, and the SaveSettings is submitted with origin web_admin. Answers the CommandResult.
 Method ConnectOAuth(provider As %String = "google", outgoing As %String = "") As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Set ..Owner = ..Session("owner")
+	Set ..Owner = ..ChatSession("owner")
 	Set ..Dummy = "Zz-live-secret-"_..Number_"-"_$Random(1000000)
 	Do $$$AssertTrue(..OAuthControl("client", {"clientId": (..#OAUTHCLIENT), "clientSecret": (..Dummy)}), "the fake server knows the dummy client")
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(..Dummy, .uri)
@@ -2028,7 +2028,7 @@ Method TestOAuthOnlineDemo()
 	If '..Guard() Quit
 	Try {
 		Do ..OAuthBegin()
-		Set ..Owner = ..Session("owner")
+		Set ..Owner = ..ChatSession("owner")
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 		Set before = ##class(OcuTalon.Test.Channel.EmailOAuth).Snapshot()
 		Set sc = ##class(OcuTalon.Core.SecretHandoff).Put("zz-demo-secret", .uri)
