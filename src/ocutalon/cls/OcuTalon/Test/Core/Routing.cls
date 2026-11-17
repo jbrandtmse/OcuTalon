@@ -571,13 +571,16 @@ Method TestNotifySlackTargets()
 						Do $$$AssertEquals(..Route(..#NOTIFYRULE, outbound), expected, "a reply from "_origin_", "_where_": ["_expected_"]")
 					}
 					Set position = 0
+					Set routedKinds = 0
 					While $ListNext(kinds, position, kind) {
 						Set notification = ##class(OcuTalon.Msg.Notification).%New()
 						Set notification.SessionRef = session
 						Set notification.Kind = kind
 						Set routed = ..Route(..#NOTIFYRULE, notification)
 						Do $$$AssertTrue(routed '[ "SlackOut", "a Notification of kind "_kind_" never goes to SlackOut, "_where_": ["_routed_"]")
+						If routed [ "WebChatOut" Set routedKinds = routedKinds + 1
 					}
+					Do $$$AssertTrue(routedKinds > 0, "and the Notifications are routed at all (some kind goes to WebChatOut), "_where_)
 				}
 			}
 		}

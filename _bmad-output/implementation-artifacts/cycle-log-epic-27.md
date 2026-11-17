@@ -99,3 +99,7 @@
 2026-11-17T03:42:43Z	Epic 27	runner_resumed	via=orchestrator note=hold_rule_corrected(usage_93pct);27.3_merged_81265443f;build_27.2;new_hold_protocol(WIP:_hold_[skip_ci]_commit+push_unless_self-hosted_jobs_started)
 2026-11-17T03:42:43Z	Epic 27	integrated_forward	feature=81265443f head=6c994c031 conflicts_resolved=sprint-status.yaml(feature_side+regenerate+re-set) note=before_27.2_build
 2026-11-17T03:42:48Z	Story 27.2	stage_spawned	stage=implement spawn_at=2026-11-17T03:42:48Z model=sonnet agent_name=27-2-reply-as-slack-messages-with-no-socket-mode-implement-1 cycle_iteration=1 effort=high story_base=5a7a7ba44
+2026-11-17T05:05:05Z	Epic 27	hold_ordered	reason=QUOTA_HOLD_NOW(orchestrator_relay;owner_account_switch)
+2026-11-17T05:05:05Z	Story 27.2	hold_saved	story=27.2 stage=implement patch=none(WIP_commits_on_branch_per_new_hold_protocol) tree=clean note=stage_agent_could_not_be_stopped_by_runner(owner-scoped);stopped_by_main_session;quiescence_3_samples_unchanged;WIP_1=ac2b64c08(snapshot_while_live);WIP_2=this(the_stage_s_last_writes:review-patch_phase,last_action_Apply_patch_1_decoded-blank_guard_and_test)
+2026-11-17T05:05:05Z	Story 27.2	stage_dead	story=27.2 stage=implement evidence=WIP_commits(ac2b64c08+next) rerun_from=implement(re-dispatch_build-auto_on_spec_path_status_in-progress;review_patch_1_may_be_partial)
+2026-11-17T05:05:05Z	Epic 27	hold_complete	shas=origin:WIP_commits(skip_ci) throwaways=none(e27s2iw_down) locks=see_lane-b

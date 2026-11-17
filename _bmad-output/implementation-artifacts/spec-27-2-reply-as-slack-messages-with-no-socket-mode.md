@@ -2,14 +2,21 @@
 title: 'Story 27.2: Reply as Slack messages, with no socket mode'
 type: 'feature'
 created: '2026-11-17'
-status: 'in-progress'
+status: 'in-review'
 baseline_revision: 'af5d40d6c7383b351d45bc2a35e662a10d136699'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-27-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      Channel.ReplyText holds a copy of Telegram's private CheckSentence, WhatFailed and Field (about 70 lines), so a change to the check sentence must be made in two places until TelegramOut calls ReplyText.
+    evidence: |-
+      Forced by U-177 (Telegram/Out.cls is Lane A's and its methods are private), decided in Design Notes Decided 7. Test.Channel.ReplyText TestSameAsTelegram pins every check-sentence case of Test.Channel.TelegramOut TestCheckSentence against the copy, so a drift in either shows only when both tests run. Routed to the next Lane A story that touches Telegram/Out.cls (TelegramOut OnOutbound calls ReplyText.Text for the channel telegram and its private CheckSentence, WhatFailed, Field and Joined go), else burndown.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Channel/ReplyText.cls; src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls
+    severity: low
 ---
 
 <intent-contract>
@@ -158,6 +165,12 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B unless marked.
 13. Size: one cohesive reply path (operation, routing, renderer, mock, check, docs), the shape of 27.1/27.3; nothing separable without leaving the reply untested (the mock) or the setup text wrong (step 1 ships with the code). No split proposed.
 14. CI: no new unit or group. `live:slack-hook` grows by about 30-60 s (inference; `shards-3` ≈ 29.5 min ≤ 32); `Test.Channel.SlackOut`/`ReplyText`/`SlackMarkup` join `shard:lane-a@Channel` (`production` group, a few seconds plus ≤ 3 s of rate-limit waits).
 
+**Decided at implement:**
+15. The fixed texts' slots hold only a status, a whole number of seconds, Slack's error code or a fixed reason word. `LOGRECORD`'s `{reason}` is "the row was not saved" and `LOGCHECK`'s is "the sentence could not be built" (the check warning that `ReplyText` returns is not copied into the log), so no error text of a save or a render, which could name a value, reaches the event log. The error code is shown only when it is 1 to 64 letters, digits and `_`, else `none`, and every refusal text goes through `Safe` (the exact token is stripped first), so a token that Slack echoed as its code is `[redacted]`.
+16. `Markup.Plain` reads a token as the text between the last `<` before the first `>` and that `>`, so an unescaped `<` before a mention cannot keep the mention's id; a token of no known form, a `<` that no `>` closes and a `>` with no `<` stay as written. A message whose whole text is a `<!...>` with no fallback decodes to an empty text (`SlackIn` Classify checks blankness before the decode; the Item then carries an empty text). Pinned by `SlackMarkup.TestStray` and `SlackIn.TestMarkupDecoded`.
+17. The tests that need a server that does not answer use `Test.Channel.SlackOutProbe`, a subclass of `SlackOut` with a read timeout of 1 s (a base that points at nothing costs the full 15 s in IRIS); the rate-limit tests really wait (Retry-After 1, none, 2, and four waits of 1 s for the five tries), about 8 s in all. `TestEveryKeyOnEveryChannel` now renders two more channels per key (about 148 s on the warm stack).
+18. `live:slack-hook` changes beyond Planner gate (b): the first direct message carries Slack markup, so the Turn's text pins `Markup` end to end; the mock's Slack side is reset at the start of phase 3b and of phase 7; each accepted turn's reply is one call (phase 7 pins 4, then 1 more), and a refused turn adds none. Phase 5 also scans the mock's output and request log for the dummy values and the fixture ids.
+
 **Integration ACs / Consumed-by / Consumes:**
 - Consumes: `Notify` (routes the Outbound), `Data.SlackLink` (`MemberFor`, extended), `Channel.Slack.In.On`, `Msg.Catalog`, `Memory.Learned`, `Telegram.Api.Split`/`Endpoint`, `Bridge.Redact`, `Data.Delivery`, CI's mock.
 - Integration AC: Notify (the producer side) sends a real `Conversation` reply to `SlackOut`, and the mock (the consumer of the post) records the `chat.postMessage` with the Delivery row (AC 1, `live:slack-hook`, real production).
@@ -207,9 +220,28 @@ Run from the worktree root. Every `ci/iris.sh`/`ci/warm.sh` call sets `OCUTALON_
 
 **Mutations (Rule 19; the implement stage records each as `mutation: <change> → <red test>`):** Notify's slack `when` removed; `SlackLinked` without the `On()` check; escaping dropped; `Retry-After` ignored (fixed 1 s); token appended to `ERRORREFUSED`; Delivery recorded after a partial failure; `slack` removed from `CHANNELS`; `Markup.Plain` keeps `<@U…>`; the socket-mode rule's scanner returns nothing; step 1 without `chat:write`.
 
+**Implement stage record (2026-11-17):**
+
+Commands run, with results (the parent re-runs them): `bash docker/tests/test-mock.sh` 209 pass 0 fail (slack.test.mjs, scenarios.test.mjs rows included); `node --test web/scripts/slack-setup-steps.test.mjs` 9 pass; `bash docker/tests/test-boundaries.sh` all rules passed (`slack-no-socket-mode` twice); `bash docker/tests/test-readme.sh` and `bash docker/tests/test-ci-config.sh` all rules passed; `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-storage.sh` all rules passed; warm `ci/iris.sh class` (tag `e27s2iw`, one per call) passed for `Test.Channel.SlackOut` (about 9 s), `.ReplyText`, `.SlackMarkup`, `.SlackIn`, `Test.Core.Routing`, `Test.Msg.Catalog` (148 s), `Test.Data.SlackLink`, `Test.Install.Production`, `Test.Contract.Mock`; fresh `OCUTALON_RUN_TAG=e27s2i ci/iris.sh live slack-hook` passed (127 PASS, 0 FAIL, after one fix of the first run's own count query), then `ci/iris.sh teardown` and `ci/warm.sh down`; `lint_spine.py` reports `"ok": false` with 13 low `placeholder` findings, the same 13 as the spine at HEAD (no new one), so `"ok": true` is not reachable from this change.
+
+Mutations (Rule 19; each applied, red observed, reverted byte-identical with `cmp`):
+- mutation: Notify's slack `when` removed -> Test.Core.Routing TestNotifySlackTargets (and TestRuleTargetsAreProductionItems)
+- mutation: `SlackLinked` without the `On()` check -> Test.Core.Routing TestNotifySlackTargets and TestFunctions
+- mutation: escaping dropped (`Post(member, part, .ts)`) -> Test.Channel.SlackOut TestEscaped
+- mutation: `Retry-After` ignored (fixed 1 s) -> Test.Channel.SlackOut TestRateLimited (Retry-After 2) and TestWaitTooLong
+- mutation: token appended to the refusal text (`ERRORREFUSED`) and, separately, `Safe` removed from it -> Test.Channel.SlackOut TestTokenNeverLogged (both red)
+- mutation: Delivery recorded after a partial failure (`If 'sent Quit sc`, then `Recorded`, then `Quit sc`) -> Test.Channel.SlackOut TestNoResendAfterFailure
+- mutation: `slack` removed from `Msg.Catalog` `CHANNELS` -> Test.Channel.ReplyText TestSameAsTelegram, TestLearnedLines and TestFallbackKey (Test.Msg.Catalog TestEveryKeyOnEveryChannel is the slow pin, 148 s, not run for the mutation)
+- mutation: `Markup.Plain` keeps `<@U...>` (a mention is written back as `<` inner `>`) -> Test.Channel.SlackMarkup TestMentions, TestStray and TestNoIdLeft
+- mutation: `Markup.Plain` not called by `Slack.In` Turn (`Set item.Text = text`) -> Test.Channel.SlackIn TestMarkupDecoded
+- mutation: the socket-mode rule's scanner matches nothing (`/zzneverzz/`) -> docker/tests/test-boundaries.sh (`the scanner does not flag sample 1` to `7`, 7 rules failed)
+- mutation: step 1 without `chat:write` (GUIDE.md) -> web/scripts/slack-setup-steps.test.mjs (2 failed: the four steps word for word, step 1 names chat:write)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: implemented (implement stage; review and merge are the parent's)
 Blocking condition: none
 
-Planned 2026-11-17 (plan stage only; halt after planning). The build waits on the Contest Planner's ruling of `### Planner gate items` (a)-(f): the step-1 sentence and SlackOut's trace texts (a), the chat.postMessage send (b), the veto items (c), the inbound-markup decode as a model-facing change (d), the contended spine/Production lines (e) and the spine edits (f). For the lead: a Rule 5 apply-and-report amendment of AC 4 ("the README" → "`GUIDE.md`, linked from the README", Decided 11), and one routed ledger entry for the forced Rule 2 copy in `Channel/ReplyText.cls` (Decided 7). No split proposed (Decided 13).
+Implemented 2026-11-17 in the worktree of `OCT-epic27`, nothing committed by this stage. Built: the mock's Slack Web API side with `B/` scenarios and tests; `Channel.Slack.Out` (`SlackOut`), `Channel.ReplyText`, `Channel.Slack.Markup` (called from `Slack.In` Turn); `SlackLink.MemberFor`; `Functions.SlackLinked` and Notify's `Outbound` `when`; `SlackOut` in `Production.cls` and `Test.Core.ProductionItems`; `slack` in `Msg.Catalog` `CHANNELS`; the `slack-no-socket-mode` rule in `test-boundaries.sh`; step 1 with `chat:write` in `GUIDE.md`, `EXPERIENCE.md` and `slack-setup-steps.test.mjs`; `live:slack-hook` extended; the spine edits of gate item (f) with a memlog entry. Tests added: `Test.Channel.SlackOut` (and its probe `SlackOutProbe`), `.ReplyText`, `.SlackMarkup`, `SlackIn.TestMarkupDecoded`, `Test.Data.SlackLink.TestMemberFor`, `Routing.TestNotifySlackTargets` and the `SlackLinked` cases of `TestFunctions`. One routed deferred entry (the Rule 2 copy in `ReplyText`).
+
+Open for the parent: (1) `lint_spine.py` is `"ok": false` only through the 13 placeholder findings of HEAD. (2) A Slack message whose whole text decodes to nothing (a lone `<!...>` with no fallback) reaches `Conversation` as an empty text (Decided 16); the spec's one-line change to `Turn` does not guard it. (3) `Test.Msg.Catalog` grew to about 148 s on the warm stack because two more renders per key run in `TestEveryKeyOnEveryChannel`; the unit's shard budget was not re-measured. (4) The `EXPERIENCE.md` edit stales `epic-27-context.md`, which the lead re-warms.

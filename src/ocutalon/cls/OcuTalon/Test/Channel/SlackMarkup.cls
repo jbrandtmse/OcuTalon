@@ -1,6 +1,6 @@
 /// Tests of Markup (Story 27.2; Contest Planner ruling 3: the decode table is pinned): the plain text of a Slack message text. They need nothing else.
 ///   - TestEntities: &lt; &gt; &amp; are < > &, & last, so that a typed entity stays as typed, and a text with no markup is unchanged;
-///   - TestMentions: <@U..> and <@W..> are @someone, with a label @label, and a label that is an id counts as none;
+///   - TestMentions: <@U..> and <@W..> are @someone, with a label @label, and a label that is the token's own id or is written like an id counts as none;
 ///   - TestChannels: <#C..> is #channel, with a name #name;
 ///   - TestSpecial: <!here>, <!channel> and <!everyone>, a subteam with its handle, a date with its fallback, and any other <!...> with none;
 ///   - TestLinks: <url> is the url, <url|label> is "label (url)", the url alone when the label is the url, and a mail link has no mailto:;
@@ -33,6 +33,8 @@ Method TestMentions()
 	Do $$$AssertEquals(..Plain("hi <@W0ABC123>"), "hi @someone", "an enterprise member (W) too")
 	Do $$$AssertEquals(..Plain("<@U0ABC123|jo> hi"), "@jo hi", "with a label it is @label")
 	Do $$$AssertEquals(..Plain("<@U0ABC123|U0ABC123>"), "@someone", "a label that is the id is none")
+	Do $$$AssertEquals(..Plain("<@U0ABC123|U0DEF45678>"), "@someone", "a label written like another id is none")
+	Do $$$AssertEquals(..Plain("<@U0ABC123|BOB> <@U0ABC123|JD>"), "@BOB @JD", "an upper-case name that is not written like an id is kept")
 	Do $$$AssertEquals(..Plain("<@U0ABC123|jo &amp; co>"), "@jo & co", "a label's entities are decoded")
 }
 
@@ -41,6 +43,7 @@ Method TestChannels()
 	Do $$$AssertEquals(..Plain("see <#C0ABC123>"), "see #channel", "a channel is #channel")
 	Do $$$AssertEquals(..Plain("see <#C0ABC123|general>"), "see #general", "with a name it is #name")
 	Do $$$AssertEquals(..Plain("<#C0ABC123|C0ABC123>"), "#channel", "a name that is the id is none")
+	Do $$$AssertEquals(..Plain("<#C0ABC123|QA>"), "#QA", "an upper-case name that is not written like an id is kept")
 }
 
 Method TestSpecial()
@@ -49,6 +52,8 @@ Method TestSpecial()
 	Do $$$AssertEquals(..Plain("<!here|here>"), "@here", "with their label too")
 	Do $$$AssertEquals(..Plain("ping <!subteam^S0ABC123|@oncall>"), "ping @oncall", "a subteam is its handle")
 	Do $$$AssertEquals(..Plain("ping <!subteam^S0ABC123>"), "ping ", "a subteam with no handle is nothing")
+	Do $$$AssertEquals(..Plain("ping <!subteam^S0ABC123|S0ABC123>"), "ping ", "a subteam whose handle is its id is nothing")
+	Do $$$AssertEquals(..Plain("ping <!subteam^S0ABC123|S0DEF45678>"), "ping ", "and so is one whose handle is written like an id")
 	Do $$$AssertEquals(..Plain("at <!date^1392734382^{date_num} {time}|Feb 18 2014>"), "at Feb 18 2014", "another special is its fallback")
 	Do $$$AssertEquals(..Plain("x<!unknown>y"), "xy", "and with no fallback nothing")
 }

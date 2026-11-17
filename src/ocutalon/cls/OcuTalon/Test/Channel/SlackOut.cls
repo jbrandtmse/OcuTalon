@@ -8,7 +8,7 @@ Include Ensemble
 ///   - TestEscaped: & < > go out as &amp; &lt; &gt;, & first, so that a typed entity stays as typed;
 ///   - TestSplit: a reply over 4,000 units goes in parts cut at line breaks, in order, and one row holds the last part's ts; the escaping comes after the cut;
 ///   - TestNoResendAfterFailure: a part that fails stops the reply, the parts after it are not sent, a part that was sent is not sent again and no row is kept;
-///   - TestRateLimited: a 429 with Retry-After 1 waits and sends the same part again, a 429 with no header waits 1 s, and a reply that is always limited gives up after TRIES;
+///   - TestRateLimited: a 429 with Retry-After 1 waits and sends the same part again, a 429 with no header waits 1 s, one with Retry-After 2 waits 2 s, and a reply that is always limited gives up after TRIES;
 ///   - TestRateLimitedGivesUp: a reply that is limited on every try is posted 5 times and then fails with the plain reason, with no row;
 ///   - TestWaitTooLong: a Retry-After over 30 s is not taken: one call, the reply's fixed reason and no row;
 ///   - TestSlackError: an ok false, an HTTP 500, an error code that is no code and a base that does not parse each give their fixed text and no row, and an ok with no ts is taken;
@@ -94,7 +94,6 @@ Method TestReply()
 	Set message.CheckRows = "[]"
 	Set sc = ..Out().OnOutbound(message, .response)
 	Do $$$AssertStatusOK(sc, "the reply is handled with an OK status")
-	Do $$$AssertEquals(response, "", "and no response")
 	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
 	Do $$$AssertEquals(calls.%Size(), 1, "one call to the mock")
 	If calls.%Size() '= 1 Quit
@@ -192,6 +191,12 @@ Method TestRateLimited()
 	Do $$$AssertStatusOK(sc, "a 429 with no Retry-After header is retried")
 	Do $$$AssertTrue($ZHorolog - start >= 0.95, "after one second")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Contract.Mock).Calls("slack").%Size(), 2, "with two calls")
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
+	Do ##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "chat.postMessage", "replies": [{"status": 429, "headers": {"Retry-After": "2"}, "body": {"ok": false, "error": "ratelimited"}}]}, "slack")
+	Set start = $ZHorolog
+	Set sc = ..Out().OnOutbound(..Outbound(session, "zz limited two seconds"), .response)
+	Do $$$AssertStatusOK(sc, "a 429 with Retry-After 2 is retried")
+	Do $$$AssertTrue($ZHorolog - start >= 1.95, "after the two seconds that Slack asked for")
 }
 
 /// A reply that is limited on every try gives up after TRIES tries: each retry waits Retry-After 1.

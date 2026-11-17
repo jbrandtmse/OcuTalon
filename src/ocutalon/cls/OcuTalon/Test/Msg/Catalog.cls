@@ -136,7 +136,7 @@ Method TestEntries()
 }
 
 /// Rows 1, 2 and 10's channels: the fixtures cover exactly the catalog, every key renders on the six channels with the
-/// fixture's text, the message channels agree, the web channel uses its own wording, and the other channels are refused.
+/// fixture's text (slack's and telegram's are the same fixture text), the message channels agree, the web channel uses its own wording, and the other channels are refused.
 Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
@@ -155,9 +155,6 @@ Method TestEveryKeyOnEveryChannel()
 		Set email = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, "email", ..#NOW, 1, .sc)
 		Set phone = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, "phone", ..#NOW, 1, .sc)
 		Do $$$AssertEquals(email, phone, key_" on email is the text on phone")
-		Set slack = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, "slack", ..#NOW, 1, .sc)
-		Set telegram = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots, "telegram", ..#NOW, 1, .sc)
-		Do $$$AssertEquals(slack, telegram, key_" on slack is the text on telegram")
 		Set json = ##class(OcuTalon.Msg.Catalog).RenderAt(key, fixture.slots.%ToJSON(), "telegram", ..#NOW, 1, .sc)
 		Do $$$AssertEquals(json, fixture.text, key_" renders the same from JSON text slots")
 		For i = 1:1:$Length(refused, ",") + 1 {

@@ -1,5 +1,5 @@
-/// The text of a reply for a channel that sends plain text (Story 27.2; AD-14, AD-28, AD-32, UX-DR108). It is the shared rendering code of the *Out operations that
-/// send an OcuTalon.Msg.Outbound as text (OcuTalon.Channel.Slack.Out), and only they call it: producers never render. Text(request, channel) is what the Telegram channel
+/// The text of a reply for a channel that sends plain text (Story 27.2; AD-14, AD-28, AD-32, UX-DR108). It is the rendering code of the *Out operations that
+/// send an OcuTalon.Msg.Outbound as text; OcuTalon.Channel.Slack.Out is its only caller: producers never render. Text(request, channel) is what the Telegram channel
 /// sends for the same reply (OcuTalon.Channel.Telegram.Out OnOutbound), for the channel:
 ///   - the reply's Text, else the rendering of its CatalogKey through OcuTalon.Msg.Catalog.Render for the channel; a render error is an error status and the text "";
 ///   - when the reply has a CheckKey whose sentence is not "", a blank line and the check sentence: checks.allPassed, checks.everythingElsePassed and checks.nothingWatched
