@@ -4616,3 +4616,6 @@
 2026-11-17T01:15:22Z	Epic 25	merge_enqueued	25.9 head=7a346a994
 2026-11-17T01:17:24Z	Epic 25	merged	25.9 merge=05915a781
 2026-11-17T01:17:41Z	Epic 28	runner_reported	PUBLIC_TEXT 28.3(DW-1462_items1-4,DW-1461_overview_rows) built+gated,not_pushed relayed=contest_planner
+2026-11-17T01:17:59Z	Epic 28	owner_decision	via=contest_planner 28.3_text:keep_1-2,fix_3-4_verbatim DW-1461=add_rows public-permission_close=invariant_pinned footprint=approved
+2026-11-17T01:19:17Z	Epic 0	runner_reported	PLANNER_REPORT 0.39_flake_gate: DW-1464=CI_mock_tie_at_midnight(not_product) causes_per_DW; gates=reload_retry,scope_45_sites,traces_ssh,AD-22_lane_crossing relayed
+2026-11-17T01:19:37Z	Epic 0	owner_decision	via=contest_planner 0.39_gate=APPROVED(reload_one_logged_counted_retry_pinned;follow-on_45_sites;no_traces;lane_crossing_this_spec;AD-22_sentence) DW-1464->LOW_on_fix
