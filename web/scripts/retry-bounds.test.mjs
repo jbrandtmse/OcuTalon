@@ -6,10 +6,12 @@
 // The modules are imported as they are, as state-wait.test.mjs does: erasable TypeScript with no relative import.
 // Run with: node --test web/scripts/retry-bounds.test.mjs
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { registerHooks } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
-import { after, afterEach, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, beforeEach, describe, it, mock } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +20,18 @@ const repoRoot = join(webRoot, '..');
 const support = (name) => pathToFileURL(join(webRoot, 'e2e', 'support', name)).href;
 const { test } = await import('@playwright/test');
 const bounds = await import(support('bounds.ts'));
+
+// floor.ts imports its siblings with no extension, as the bundler resolves them: this hook gives a relative import of a .ts file its .ts.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith('.') && context.parentURL?.endsWith('.ts') && !/\.\w+$/.test(specifier)) {
+      const base = fileURLToPath(new URL(specifier, context.parentURL));
+      for (const found of [`${base}.ts`, join(base, 'index.ts')]) if (existsSync(found)) return nextResolve(pathToFileURL(found).href, context);
+    }
+    return nextResolve(specifier, context);
+  },
+});
+const floor = await import(support('floor.ts'));
 
 const STEP = 'loadedAfter the snapshot GET /ocutalon/api/v1/state';
 const RELOAD_STEP = 'reloadSettled the snapshot GET /ocutalon/api/v1/state';
@@ -201,6 +215,123 @@ describe('a site retries once per run (Story 0.39, AC2b)', () => {
     const script = readFileSync(join(repoRoot, 'ci', 'iris.sh'), 'utf8');
     const shape = /^\s*LC_ALL=C grep -E '(\^RETRY [^']+\$)' "\$\(retry_log_of/m.exec(script)?.[1];
     assert.match(bounds.retryLine(here_(111), RELOAD_STEP), new RegExp(shape));
+  });
+});
+
+describe('withOneReload fails a second retry at one site (Story 0.39, AC2b, through reloadSettled)', () => {
+  const original = test.info;
+  const logVariable = bounds.RETRY_LOG_VARIABLE;
+  const savedLog = process.env[logVariable];
+  const savedConsole = console.log;
+  const work = mkdtempSync(join(tmpdir(), 'retry-reload-'));
+  const STATE_URL = 'http://stand-in.invalid/ocutalon/api/v1/state';
+  const ACTION_MS = 20_000;
+  let printed = [];
+  let counter = 0;
+
+  /** The running test sits at this line of a spec of web/e2e, in a project whose action and navigation waits are ACTION_MS. */
+  const at = (line) => {
+    test.info = () => ({
+      file: join(webRoot, 'e2e', 'history', 'history.spec.ts'),
+      line,
+      timeout: 120_000,
+      project: { use: { actionTimeout: ACTION_MS, navigationTimeout: ACTION_MS } },
+      config: { configFile: join(webRoot, 'playwright.config.ts') },
+    });
+  };
+  const site = (line) => `e2e/history/history.spec.ts:${line}`;
+
+  /**
+   * A page whose first document never starts its app: a plain reload issues no GET of /state, and a reload that waits for the commit (the
+   * one retry of withOneReload) makes the reloaded page issue its GET, answered 200. `reloads` holds the options of every reload.
+   */
+  function stalledPage() {
+    const events = new EventEmitter();
+    const reloads = [];
+    const request = { method: () => 'GET', url: () => STATE_URL, resourceType: () => 'fetch', failure: () => null };
+    const response = { request: () => request, url: () => STATE_URL, status: () => 200 };
+    return {
+      reloads,
+      on: (name, handler) => void events.on(name, handler),
+      off: (name, handler) => void events.off(name, handler),
+      isClosed: () => false,
+      evaluate: async () => 'complete',
+      context: () => ({ browser: () => null }),
+      waitForResponse: (matches) =>
+        new Promise((resolve) => {
+          const seen = (answer) => {
+            if (!matches(answer)) return;
+            events.off('response', seen);
+            resolve(answer);
+          };
+          events.on('response', seen);
+        }),
+      reload: async (options) => {
+        reloads.push(options);
+        if (options?.waitUntil !== 'commit') return;
+        setImmediate(() => {
+          events.emit('request', request);
+          events.emit('response', response);
+        });
+      },
+    };
+  }
+
+  /** Runs reloadSettled on a stalled page, lets half of the bound pass, and returns the outcome of the call. */
+  async function stalled(page) {
+    const outcome = floor.reloadSettled(page).then(
+      () => ({ failed: undefined }),
+      (error) => ({ failed: error }),
+    );
+    // The call arms its half-bound timer once the reload has returned: let the promises run, then let the half pass.
+    for (let turn = 0; turn < 5; turn += 1) await new Promise((resolve) => setImmediate(resolve));
+    mock.timers.tick(ACTION_MS / 2);
+    return outcome;
+  }
+
+  beforeEach(() => {
+    printed = [];
+    console.log = (...args) => printed.push(args.join(' '));
+    mock.timers.enable({ apis: ['setTimeout'] });
+  });
+  afterEach(() => {
+    mock.timers.reset();
+    console.log = savedConsole;
+    test.info = original;
+    if (savedLog === undefined) delete process.env[logVariable];
+    else process.env[logVariable] = savedLog;
+  });
+  after(() => rmSync(work, { recursive: true, force: true }));
+
+  it('retries a reload once at a site, and fails the second call at that site with the named error, without a second reload and with its RETRY line and DIAG lines kept', async () => {
+    const file = join(work, `retries-${(counter += 1)}.txt`);
+    process.env[logVariable] = file;
+    at(711);
+    const page = stalledPage();
+
+    const first = await stalled(page);
+    assert.equal(first.failed, undefined, 'the first retry at the site reloads once and the reloaded page answers');
+    assert.deepEqual(page.reloads.map((options) => options?.waitUntil), [undefined, 'commit'], 'the call reloaded, and the retry reloaded once');
+
+    const second = await stalled(page);
+    assert.ok(second.failed instanceof Error, 'the second retry at the site fails');
+    assert.equal(second.failed.message, `${site(711)} needed its one logged retry a second time in this run; a second retry is a failure (Story 0.39)`);
+    assert.deepEqual(page.reloads.map((options) => options?.waitUntil), [undefined, 'commit', undefined], 'the second call made no retry reload');
+
+    const held = readFileSync(file, 'utf8').split('\n');
+    assert.equal(held.filter((line) => line === `RETRY ${site(711)} ${RELOAD_STEP}`).length, 2, 'both retries are in the unit\'s retry file, which ci/iris.sh counts');
+    assert.ok(held.some((line) => line.startsWith('DIAG /state ')), 'the DIAG lines are kept');
+    assert.equal(printed.filter((line) => line === `RETRY ${site(711)} ${RELOAD_STEP}`).length, 2);
+  });
+
+  it('retries a reload at another site, whatever the first site used', async () => {
+    process.env[logVariable] = join(work, `retries-${(counter += 1)}.txt`);
+    const page = stalledPage();
+    at(712);
+    assert.equal((await stalled(page)).failed, undefined);
+    at(713);
+    assert.equal((await stalled(page)).failed, undefined, 'a retry at another site is its own first');
+    assert.deepEqual(page.reloads.map((options) => options?.waitUntil), [undefined, 'commit', undefined, 'commit']);
   });
 });
 

@@ -3,7 +3,7 @@ title: 'Story 0.39: Browser-timing flakes wait for the page''s real readiness, a
 type: 'bugfix'
 created: '2026-11-16'
 status: 'in-progress'
-baseline_revision: '5c4f696180422939b27d92dcf4605b9be2581e94'
+baseline_revision: '1c030299bbefdb42ab9b57f447b6522b808b502b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -232,6 +232,8 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
 
 ## Spec Change Log
 
+- 2026-11-17, lead, PASS B2 handoff scope (binding for the implementation subagent; the intent block is unchanged): edit files only, node-level, and start NO IRIS stack, docker container or `ci/iris.sh` unit (the lead runs the stack units afterwards). Implement exactly two items: (1) Task 9, `docker/tests/test-online-demo.sh` row 6 (read `conn_before_s5` before `set_cap "$cap_free"`, `status_free`, `wait_until 30 status_free`, the named failure line, one sign-in, the fail line's S5 POST status and `busy_page`; `page_outcome` and every pass condition unchanged; no loop or hold switch committed); (2) DW-1471: a node row in `web/scripts/retry-bounds.test.mjs` (or the helper's own node test) that drives two retries at one site through `withOneReload` itself (via `loadedAfter` or `reloadSettled` on a fake page), so removing `if (usedUp) throw usedUp` in `web/e2e/support/floor.ts` goes red, with its `mutation:` line recorded in `## Verification` (apply, observe red, revert byte for byte). Then run `npm --prefix web run lint` and `npm --prefix web test`. DW-1472, the loops and the live runs are the lead's.
+
 - 2026-11-17 ~02:58Z, lead (orchestrator GO B2): pass B1 finalized at 83d8b53f6. Re-opened (`in-progress`) for pass B2 = Task 9 (DW-1450 row 6) and AC5; DW-1472 (T1/T4/T5 pairing-code counts across the one logged reload retry: confirm or fix); DW-1471 (a node row that drives two retries at one site through withOneReload itself, so removing `if (usedUp) throw usedUp` goes red); AC7 (the owed 10-iteration before/after counts: sign-in H2/H3/H7/U12, sign-in-3 Q7/HC8/MC3, demo-path T2, floor P4); and full live runs of the touched units (demo-path, sign-in parts holding history/usage, sign-in-3, floor, online-demo).
 
 - 2026-11-17 ~02:29Z, lead: pass A finalized at 8cc7a897f (groups 1-2 and the Task 3b pin). Spec re-opened (`in-progress`) for pass B1 = Task 0 (c) for group 5 (READ THE EXACT MOCK ERROR TEXT first), Tasks 10, 11, 12 (DW-1464), Task 8 (DW-1451) and AC4, AC6, plus the DW-1471 row if time allows. Pass B2 (after the quota hold) = Task 9 (DW-1450, row 6), AC5, DW-1472 (T1/T4/T5 counts), the 10-iteration counts still owed (AC7), P4 and T2 before-loops, and the full live units.
@@ -445,6 +447,11 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 - Not run in pass B1 (time box 02:55Z): the live MC3 loop of the `sign-in-3` unit (the repeat under the `npm` shim); the Task 8 counts above are of the scratch repro, not of the unit. DW-1471's row: not done (the spec defines no such row). Task 9, DW-1472, AC5, AC7 counts, P4 and the full live units remain pass B2.
 - Node: `npm --prefix web run lint` exit 0; `npm --prefix web test` 2214 passed, 0 failed.
 - Review patches (pass B1): `handled` now includes the answered response's request, stops its tracker in a `finally` and throws if the answer was not made by `answerOf`. Re-run of the scratch AC4 repro on the patched `memory-card.spec.ts` text: new `handled` green 3 of 3 (and 1 of 1); old `handled` hung 1 of 1. mutation (AC4): `tracker.ended()` replaced by a resolved promise -> repro red 3 of 3 (`RETURNED BEFORE TODAY ENDED`); reverted. Lint exit 0; `npm --prefix web test` 2214 of 2214 passed; `bash docker/tests/test-mock.sh` 193 of 193 passed.
+
+**Pass B2 results (node-level handoff, no stack):**
+- DW-1471 (`web/scripts/retry-bounds.test.mjs`, describe `withOneReload fails a second retry at one site`): `reloadSettled` is driven on a fake page whose first document never starts its app (a resolve hook gives floor.ts its extensionless imports, as `answer-press.test.mjs` does; `setTimeout` is mocked and the half bound ticked). Row 1: the first call at a site retries once (one `commit` reload) and passes; the second call at that site rejects with `<spec>:<line> needed its one logged retry a second time in this run; a second retry is a failure (Story 0.39)`, makes no second reload, and the unit's retry file holds both RETRY lines and DIAG lines. Row 2: a retry at another site is its own first. mutation: `if (usedUp) throw usedUp;` deleted from `withOneReload` in `web/e2e/support/floor.ts` -> row 1 red (`the second retry at the site fails`), row 2 and the rest green; reverted, `cmp` identical.
+- Task 9 (`docker/tests/test-online-demo.sh` row 6): `conn_before_s5` is read before `set_cap "$cap_free"`; `status_free` (`status_read` = `false none 200`) is waited on with `wait_until 30`; not free in 30 s fails with `row 6: the status did not read free within 30 s after the cap was set to <cap> (last '<reading>')` and skips the sign-in; free, it signs in once; the fail line adds the POST status and `busy_page`. `page_outcome` and every pass condition are unchanged. `bash -n` ok; no stack run (AC5's hold repro and the loops are the lead's).
+- Node: `npm --prefix web run lint` exit 0; `npm --prefix web test` 2216 passed, 0 failed.
 
 **Shared surfaces:**
 - `web/e2e/support/navigate.ts` `gotoSettled`: every sign-in and trace site, and the NAV line format.
