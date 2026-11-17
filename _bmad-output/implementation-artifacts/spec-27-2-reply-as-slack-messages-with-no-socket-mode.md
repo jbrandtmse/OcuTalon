@@ -2,10 +2,10 @@
 title: 'Story 27.2: Reply as Slack messages, with no socket mode'
 type: 'feature'
 created: '2026-11-17'
-status: 'in-review'
+status: 'done'
 baseline_revision: 'af5d40d6c7383b351d45bc2a35e662a10d136699'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-27-context.md'
 warnings: [oversized]
@@ -16,6 +16,27 @@ deferred:
       Forced by U-177 (Telegram/Out.cls is Lane A's and its methods are private), decided in Design Notes Decided 7. Test.Channel.ReplyText TestSameAsTelegram pins every check-sentence case of Test.Channel.TelegramOut TestCheckSentence against the copy, so a drift in either shows only when both tests run. Routed to the next Lane A story that touches Telegram/Out.cls (TelegramOut OnOutbound calls ReplyText.Text for the channel telegram and its private CheckSentence, WhatFailed, Field and Joined go), else burndown.
     location: >-
       src/ocutalon/cls/OcuTalon/Channel/ReplyText.cls; src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls
+    severity: low
+  - summary: >-
+      docs/security-overview.md lists where data leaves the instance ("Data leaves the instance only") and names Telegram but not Slack, so on an install with Slack on a reply now leaves for slack.com and the list does not say so.
+    evidence: |-
+      Blind Hunter finding, verified: docs/security-overview.md line 193 (messages on configured channels) and the outbound-traffic note name the web page and Telegram only; 27.1 added the inbound route and 27.2 adds the outbound reply. The fix is public text, and gate ruling (1)/(a) allows no Slack sentence beyond the ruled ones, so it needs the Contest Planner's wording (one bullet: on an install with the two Slack variables, replies to a Slack turn go to the member through chat.postMessage; Slack is off on the online demo). test-security-overview and test-readme pin the file's ruled sentences, so the edit also touches those pins.
+    location: >-
+      docs/security-overview.md:193
+    severity: medium
+  - summary: >-
+      Test.Msg.Catalog TestEveryKeyOnEveryChannel renders two more channels per key (measured 65 s on a loaded warm stack here, 148 s in the first pass), and the shards-3 budget (about 29.5 min planned, 32 ceiling) was not re-measured.
+    evidence: |-
+      Verification-gap finding, unverified: the planned shards-3 total leaves about 2.5 min of room; the Catalog unit grew by 1 to 2.5 min. It would be settled by the feature CI run's shards-3 job time after this story's push (compare with the 27.3 run, 31 min total). If shards-3 exceeds 32 min, split the Catalog loop across two units.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls (TestEveryKeyOnEveryChannel); ci/units.sh shards-3
+    severity: medium (unverified)
+  - summary: >-
+      lint_spine.py reports "ok": false only through 13 low placeholder findings that the spine already had (slot examples such as {time} and {reason}); the spec's "ok": true cannot be reached from this change.
+    evidence: |-
+      Measured at the review: 13 findings, all category placeholder, severity low, at lines 459, 531, 609, 1215, 1307, 1320, 1331, 1397 and 1409, none in a line this story added (its edits are at 532, 559, 716, 957, 966, 983, 1322 and the Deferred row). Clearing them edits AD text outside the approved edits (Rule 6), so it is not this story's change; the lint rule could instead skip documented slot examples.
+    location: >-
+      _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md
     severity: low
 ---
 
@@ -147,6 +168,51 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B unless marked.
 
 ## Review Triage Log
 
+### 2026-11-17 - Review pass 1 (re-dispatch after the quota hold; baseline af5d40d6c)
+- verdicts: 36 findings - high 1, medium 3, low 28, false 3, maybe-false 1 (most lows are by-design or descriptive and rejected on the spec)
+- first, before the layers: the decoded-blank guard of patch 1 was complete in the WIP code (`Slack/In.cls` Classify runs `Markup.Plain` before the blank test) and pinned by `SlackIn.TestBlankAndNoSender`; the WIP had one compile error that stopped the stack (`Test/Core/Routing.cls` TestNotifySlackTargets, a stray `_` after `where`), fixed
+- findings (Blind Hunter, 11):
+  - `[low]` `[reject]` ReplyText copies Telegram's private code - the copy is spec-forced (U-177, Decided 7), already in `deferred:` (entry 1); the class doc no longer claims to be the *Out operations' shared code
+  - `[false]` `[reject]` a part could be re-posted after a partial failure because the item sets no FailureTimeout - `Ens.BusinessOperation` retries only when the code sets `Retry` (default reply action E=F, `irislib/Ens/BusinessOperation.cls` 36-37), and SlackOut never does
+  - `[low]` `[reject]` a failed reply is invisible to the Slack user and the admin - the spec's contract is the operation's error status in Visual Trace; no Slack text beyond the ruled sentences (gate (1))
+  - `[low]` `[reject]` no upgrade note for installs set up from the old step 1 - the same gate ruling: step 1 is the only approved sentence
+  - `[medium]` `[defer]` docs/security-overview.md does not list Slack among where data leaves - real (line 193 names Telegram only); the fix is public text the gate rulings exclude, so it needs the Planner's wording (deferred entry 2)
+  - `[false]` `[reject]` amendment dates are in the future - the tags carry the UTC date of the edit (2026-11-17), as the spec's gate item (f) ruled
+  - `[low]` `[reject]` the 4,000 limit is measured before escaping - by design (Decided 5, I/O matrix; `TestSplit` pins it; Slack's 40,000 truncation is never reached)
+  - `[low]` `[reject]` SlackOut is Enabled where TelegramOut is not - by design (Decided 4, SlackIn's precedent); an error status is not retried, so the refusal on the demo causes nothing
+  - `[low]` `[reject]` a pending approval is not announced in Slack - by design (R6, AD-11, "no Slack approval surface", Never list)
+  - `[low]` `[reject]` the catalog's `channel` slot cannot name slack - by design (Decided 8: nothing typed in Slack answers an approval)
+  - `[low]` `[reject]` the socket-mode scan does not cover web/ and skips trailing comments - the rule is scoped on purpose (Decided 9; `web/` WebSocket users are the live events); a trailing comment cannot open a socket
+- findings (Edge Case Hunter, 6):
+  - `[high]` `[patch]` `Out.cls` Call sent `charset=utf-8` and also converted the body to UTF-8 bytes, so `%Net.HttpRequest` encoded each byte again and any non-ASCII reply (accents, an ellipsis, an emoji) reached Slack garbled - confirmed red by the new `SlackOut.TestNonAscii` against the mock; fixed with `request.WriteRawMode = 1` (the header stays as specified); mutation recorded
+  - `[low]` `[reject]` a label of 9 or more capitals and digits with a digit is read as an id - documented in `IDPATTERN`; Slack writes names in lower case, and a fix adds a branch for a case nobody met
+  - `[low]` `[reject]` an empty reply posts nothing with no warning - a reply with no text and no catalog key does not occur (`Conversation` always sets one); theoretical
+  - `[low]` `[reject]` the mock answers ok to a JSON array with no JSON content type - the mock serves only SlackOut, which always sends an object; the comment, not the code, was wrong
+  - `[low]` `[patch]` the mock's header comment promised invalid_json for any non-object body - comment corrected to name the JSON-typed or `{`-led body (ci/mock/mock.mjs)
+  - `[low]` `[reject]` the boundaries scanner skips trailing comments - same as the Blind Hunter row
+- findings (Verification Gap, 10):
+  - `[medium]` `[patch]` no test pinned the Authorization header's value, so SlackOut could send the signing secret and CI stay green - `SlackOut.TestReply` and live phase 3b now compare the mock's logged token length with the bot token's; mutation recorded (both red)
+  - `[low]` `[reject]` the live text check recomputes `ReplyText.Text` - the unit literals (`TestReply`, `ReplyText.TestSameAsTelegram`) are the pin; the live row proves the post, as its label says
+  - `[low]` `[reject]` `TestSameAsTelegram` restates Telegram's expected sentences instead of running `TelegramOut` - the copy's drift is the deferred entry 1; Telegram/Out.cls is Lane A's and its methods are private
+  - `[low]` `[reject]` zero-call asserts use `Calls`, which answers `[]` on an HTTP error - every test opens with `MockReady` (a reset that must answer 200), and `TestOffAndOnlineDemo` ends with a one-call control
+  - `[low]` `[reject]` live phase 7 compares two readings that could both be "none" - the count wait before it (`slack_calls_are 4`) already fails when the mock does not answer
+  - `[medium]` `[patch]` Rule 19: several ACs had no recorded mutation (AC 1 flags, channel and row; AC 2's opposite direction; AC 3 bounds; AC 4's second scanner and file list; AC 5; AC 6's own refusal; `MemberFor`; the mock; patch 1's guard) - each applied, red observed, restored byte-identical; recorded under `## Verification`
+  - `[low]` `[defer]` AC 9 `"ok": true` is unreachable: 13 low placeholder findings already in the spine, none in a line this story added (deferred entry 4)
+  - `[low]` `[reject]` the spec text was stale after patch 1 (Decided 16 and Open (2)) - the finding's fix edits this spec; the two statements were corrected anyway as part of the record
+  - `[medium]` `[defer]` (maybe-false, unverified) the shards-3 budget was not re-measured after the Catalog loop grew - settled by the feature CI run's shards-3 time (deferred entry 3)
+  - `[false]` `[reject]` tests depend on the committed scenarios and on a mock built from this tree - that is the hermetic setup (the stack builds the mock from the tree; the spec's warm-stack note covers a stale one)
+- findings (Intent Alignment, 9 descriptive divergences):
+  - `[low]` `[reject]` unit tests call `OnOutbound` on a shadow instance, not through Notify - the real production path is `live:slack-hook` 3b (127 checks pass), and routing is pinned by `Routing.TestNotifySlackTargets`
+  - `[low]` `[reject]` routing is tested at rule level, not through the Notify item - `live:slack-hook` 3b counts Notify's sends to WebChatOut and SlackOut
+  - `[low]` `[reject]` long reply, 429, ok:false and no-link rows have no end-to-end test - they are unit rows against the real operation and the mock, as the spec's Tests list names them
+  - `[low]` `[reject]` the parity with Telegram is not run against Telegram - same as Verification Gap row 3
+  - `[low]` `[reject]` the limit applies before escaping - same as Blind Hunter row 7
+  - `[low]` `[reject]` the origin-channel rule is enforced only at routing - the spec's defence in depth is Slack on and a link; a Notification is unreachable because the map names Outbound only
+  - `[low]` `[reject]` the socket-mode check is textual - the spec asks for a hermetic check of the code, and it is one
+  - `[low]` `[reject]` docs and spine edits are text pinned by the existing node test and the lint - as specified
+  - `[low]` `[reject]` SlackOut is enabled on the demo too - Decided 4 and the matrix row (it refuses there)
+- patches applied: the Routing compile error, `WriteRawMode`, the token-length pin (unit and live), the mock comment, the ReplyText doc, `SlackOut.TestNonAscii`, and the recorded mutations below; no loopback (no bad_spec, no intent_gap)
+
 ## Design Notes
 
 **Governing ADs:** AD-1 (no command change), AD-4 (identity only in its own row), AD-13 (our replies come back as bot messages, Ignored), AD-14 (channel pair; Notify routing: amended), AD-19 (env-only token; `OCUTALON_SLACK_API_BASE`), AD-22 (the mock's Slack side: amended), AD-24/R8 (no ids in records), AD-25 (online demo), AD-26 (trace), AD-27 (Delivery retention unchanged), AD-29/AD-33 (Lane B files; production-item row already lists `SlackOut`), AD-32 (renderer channels: amended). No AC contradicts an AD Rule; the three amendments extend lists the ADs say steps extend.
@@ -169,7 +235,7 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B unless marked.
 
 **Decided at implement:**
 15. The fixed texts' slots hold only a status, a whole number of seconds, Slack's error code or a fixed reason word. `LOGRECORD`'s `{reason}` is "the row was not saved" and `LOGCHECK`'s is "the sentence could not be built" (the check warning that `ReplyText` returns is not copied into the log), so no error text of a save or a render, which could name a value, reaches the event log. The error code is shown only when it is 1 to 64 letters, digits and `_`, else `none`, and every refusal text goes through `Safe` (the exact token is stripped first), so a token that Slack echoed as its code is `[redacted]`.
-16. `Markup.Plain` reads a token as the text between the last `<` before the first `>` and that `>`, so an unescaped `<` before a mention cannot keep the mention's id; a token of no known form, a `<` that no `>` closes and a `>` with no `<` stay as written. A message whose whole text is a `<!...>` with no fallback decodes to an empty text (`SlackIn` Classify checks blankness before the decode; the Item then carries an empty text). Pinned by `SlackMarkup.TestStray` and `SlackIn.TestMarkupDecoded`.
+16. `Markup.Plain` reads a token as the text between the last `<` before the first `>` and that `>`, so an unescaped `<` before a mention cannot keep the mention's id; a token of no known form, a `<` that no `>` closes and a `>` with no `<` stay as written. `SlackIn` Classify checks blankness on the decoded text, so a message whose whole text decodes to nothing (a lone `<!...>` with no fallback) is Ignored with the reason `blank` and becomes no turn. Pinned by `SlackMarkup.TestStray`, `SlackIn.TestMarkupDecoded` and `SlackIn.TestBlankAndNoSender`.
 17. The tests that need a server that does not answer use `Test.Channel.SlackOutProbe`, a subclass of `SlackOut` with a read timeout of 1 s (a base that points at nothing costs the full 15 s in IRIS); the rate-limit tests really wait (Retry-After 1, none, 2, and four waits of 1 s for the five tries), about 8 s in all. `TestEveryKeyOnEveryChannel` now renders two more channels per key (about 148 s on the warm stack).
 18. `live:slack-hook` changes beyond Planner gate (b): the first direct message carries Slack markup, so the Turn's text pins `Markup` end to end; the mock's Slack side is reset at the start of phase 3b and of phase 7; each accepted turn's reply is one call (phase 7 pins 4, then 1 more), and a refused turn adds none. Phase 5 also scans the mock's output and request log for the dummy values and the fixture ids.
 
@@ -239,11 +305,36 @@ Mutations (Rule 19; each applied, red observed, reverted byte-identical with `cm
 - mutation: the socket-mode rule's scanner matches nothing (`/zzneverzz/`) -> docker/tests/test-boundaries.sh (`the scanner does not flag sample 1` to `7`, 7 rules failed)
 - mutation: step 1 without `chat:write` (GUIDE.md) -> web/scripts/slack-setup-steps.test.mjs (2 failed: the four steps word for word, step 1 names chat:write)
 
+**Review stage (2026-11-17; each mutation applied, red observed, restored byte-identical with `cmp`; unit runs on the warm stack, live and node runs as named):**
+- mutation: `Slack/In.cls` Classify tests blankness on the raw text (no `Markup.Plain`) -> Test.Channel.SlackIn TestBlankAndNoSender ("text that decodes to nothing is recorded as blank, and no Item is sent")
+- mutation: `request.WriteRawMode = 1` removed from `Out.cls` Call -> Test.Channel.SlackOut TestNonAscii
+- mutation: the Authorization header holds `SLACK_SIGNING_SECRET` instead of the bot token -> Test.Channel.SlackOut TestReply (token length) and, in a fresh `live:slack-hook` run, phase 3b "the Authorization header held the bot token"
+- mutation: `mrkdwn` true, and separately `unfurl_media` true, and separately `channel` not the member -> Test.Channel.SlackOut TestReply (each its own assertion)
+- mutation: `Do ..Recorded(...)` removed (no Delivery row) -> Test.Channel.SlackOut TestReply, TestSplit, TestRateLimited, TestSlackError, TestRecordHoldsNoIds
+- mutation: the `'On()` refusal removed from `OnOutbound` -> Test.Channel.SlackOut TestOffAndOnlineDemo
+- mutation: `TRIES` 6 -> TestRateLimitedGivesUp; `MAXWAIT` 200 -> TestWaitTooLong; the error-code pattern removed -> TestSlackError; an HTTP 500 retried -> TestSlackError
+- mutation: a `Msg.Notification` map item added to SlackOut -> Test.Channel.SlackOut TestOnlyOutboundMapped
+- mutation: Notify's `allowance` Notification target `WebChatOut,SlackOut` -> Test.Core.Routing TestNotifySlackTargets (all eight on/demo/link cases)
+- mutation: `SlackLink.MemberFor` returns the link's Ref -> Test.Data.SlackLink TestMemberFor
+- mutation: `ReplyText` drops the learned lines -> Test.Channel.ReplyText TestLearnedLines; drops the check sentence -> TestSameAsTelegram and TestLearnedLines
+- mutation: `net_socket` scanner matches nothing -> docker/tests/test-boundaries.sh (the `%Net.WebSocket` scanner does not flag samples 1 and 2); the Slack files regex off by one folder name -> test-boundaries.sh (`Channel/Slack/In.cls` and `Out.cls` are not scanned)
+- mutation: `SLACK_METHODS` gains `apps.connections.open` -> `node --test ci/mock/test/slack.test.mjs ci/mock/test/scenarios.test.mjs` (6 red); the token check off -> slack.test.mjs "mock refusals" red; `Retry-After` renamed in `scenarios/B/slack-rate-limited.json` -> "the committed slack scenarios load and answer through the queue" red
+- mutation: `Core/Conversation.cls` MayChat answers 1 (a refused account becomes a turn) with the bad Authorization header, one fresh `live:slack-hook` run -> 25 FAIL lines, among them phase 7 "the mock lists 5 chat.postMessage call(s) after a refused message, wanted 4" (AC 5) and phase 3b's token pin; `Conversation.cls` restored byte-identical, `git status` shows it untouched
+
+**Commands of the review stage:** `bash docker/tests/test-mock.sh` 209 pass; `node --test web/scripts/slack-setup-steps.test.mjs` 9 pass; `bash docker/tests/test-boundaries.sh`, `test-readme.sh`, `test-ci-config.sh` all rules passed; warm `ci/iris.sh class` (tag e27s2jw, run on the tree before the last two doc edits and again for SlackOut and ReplyText after them) passed for SlackOut (with TestNonAscii and the token pin), ReplyText, SlackMarkup, SlackIn, Routing, Msg.Catalog (65 s), Data.SlackLink, Install.Production, Contract.Mock; fresh `OCUTALON_RUN_TAG=e27s2i ci/iris.sh live slack-hook` on the final tree: 127 PASS, 0 FAIL, then `ci/iris.sh teardown`; `ci/warm.sh down`; `lint_spine.py` `"ok": false` with the same 13 placeholder findings (none in a line this story added).
+
 ## Auto Run Result
 
-Status: implemented (implement stage; review and merge are the parent's)
+Status: done
 Blocking condition: none
 
 Implemented 2026-11-17 in the worktree of `OCT-epic27`, nothing committed by this stage. Built: the mock's Slack Web API side with `B/` scenarios and tests; `Channel.Slack.Out` (`SlackOut`), `Channel.ReplyText`, `Channel.Slack.Markup` (called from `Slack.In` Turn); `SlackLink.MemberFor`; `Functions.SlackLinked` and Notify's `Outbound` `when`; `SlackOut` in `Production.cls` and `Test.Core.ProductionItems`; `slack` in `Msg.Catalog` `CHANNELS`; the `slack-no-socket-mode` rule in `test-boundaries.sh`; step 1 with `chat:write` in `GUIDE.md`, `EXPERIENCE.md` and `slack-setup-steps.test.mjs`; `live:slack-hook` extended; the spine edits of gate item (f) with a memlog entry. Tests added: `Test.Channel.SlackOut` (and its probe `SlackOutProbe`), `.ReplyText`, `.SlackMarkup`, `SlackIn.TestMarkupDecoded`, `Test.Data.SlackLink.TestMemberFor`, `Routing.TestNotifySlackTargets` and the `SlackLinked` cases of `TestFunctions`. One routed deferred entry (the Rule 2 copy in `ReplyText`).
 
-Open for the parent: (1) `lint_spine.py` is `"ok": false` only through the 13 placeholder findings of HEAD. (2) A Slack message whose whole text decodes to nothing (a lone `<!...>` with no fallback) reaches `Conversation` as an empty text (Decided 16); the spec's one-line change to `Turn` does not guard it. (3) `Test.Msg.Catalog` grew to about 148 s on the warm stack because two more renders per key run in `TestEveryKeyOnEveryChannel`; the unit's shard budget was not re-measured. (4) The `EXPERIENCE.md` edit stales `epic-27-context.md`, which the lead re-warms.
+Open for the parent: (1) `lint_spine.py` is `"ok": false` only through the 13 placeholder findings of HEAD. (2) A Slack message whose whole text decodes to nothing is Ignored as blank by `Classify` (Decided 16), so no empty turn reaches `Conversation`. (3) `Test.Msg.Catalog` grew to about 148 s on the warm stack because two more renders per key run in `TestEveryKeyOnEveryChannel`; the unit's shard budget was not re-measured. (4) The `EXPERIENCE.md` edit stales `epic-27-context.md`, which the lead re-warms.
+
+Review stage (2026-11-17, re-dispatch after the quota hold): the WIP's decoded-blank guard was already complete and pinned; the WIP did not compile (`Test/Core/Routing.cls` had a stray `_`), which is fixed. Four layers ran over the whole story diff (36 findings, triage above). Patches applied: SlackOut posted non-ASCII text double-encoded (high; `WriteRawMode`, `SlackOut.TestNonAscii`); the Authorization header's value had no test (medium; unit and live pins); the missing Rule 19 mutations (medium; recorded under Verification); a mock comment; the ReplyText class doc. Deferred: docs/security-overview.md does not list Slack among where data leaves (medium, needs the Planner's wording); the shards-3 budget after the Catalog loop grew (medium, unverified); lint's 13 pre-existing placeholders (low); plus the earlier Rule 2 copy entry. Rejected: 28 lows and 3 false findings with their reasons in the triage log.
+
+Follow-up review recommended: true. Unverified risk: the encoding fix and the Bearer pin are proved against CI's mock and the request log only; no real slack.com post has happened (the Planner's hands-on pass), so a charset or header difference on the real API would show only there. One high patch this pass.
+
+Residual risks: (1) `live:slack-hook` grew a few seconds; shards-3 timing is for the feature CI run to settle. (2) `epic-27-context.md` is stale after the EXPERIENCE.md edit (the lead re-warms it). (3) The security overview sentence waits on the Planner.
+

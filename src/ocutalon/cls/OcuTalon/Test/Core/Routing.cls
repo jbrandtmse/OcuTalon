@@ -580,7 +580,7 @@ Method TestNotifySlackTargets()
 						Do $$$AssertTrue(routed '[ "SlackOut", "a Notification of kind "_kind_" never goes to SlackOut, "_where_": ["_routed_"]")
 						If routed [ "WebChatOut" Set routedKinds = routedKinds + 1
 					}
-					Do $$$AssertTrue(routedKinds > 0, "and the Notifications are routed at all (some kind goes to WebChatOut), "_where_)
+					Do $$$AssertTrue(routedKinds > 0, "and the Notifications are routed at all (some kind goes to WebChatOut), "_where)
 				}
 			}
 		}

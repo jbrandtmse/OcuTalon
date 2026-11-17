@@ -27,7 +27,7 @@
 // (never their values) as the file line's request. A telegram scenario is never selected by a model request.
 // It also serves the Slack Web API the way SlackOut calls it (Story 27.2; AD-22), before the model API's key check:
 //   POST /api/chat.postMessage         with an Authorization: Bearer <token> header (a missing or empty token is 200 {"ok":false,"error":"not_authed"});
-//                                      the parameters come from the query, a JSON object body or a form body (a body that is no JSON object, or a multipart
+//                                      the parameters come from the query, a JSON object body or a form body (a body that is JSON-typed or starts with { and is no JSON object, or a multipart
 //                                      body, is 200 {"ok":false,"error":"invalid_json"}); any other method is 200 {"ok":false,"error":"unknown_method"},
 //                                      so apps.connections.open is never served
 //   POST /_mock/slack/replies          {"scenario":"<slack scenario>"} or {"method":"chat.postMessage","replies":[<slack reply>,...]}:

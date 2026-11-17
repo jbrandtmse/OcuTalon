@@ -1,6 +1,6 @@
-/// The text of a reply for a channel that sends plain text (Story 27.2; AD-14, AD-28, AD-32, UX-DR108). It is the rendering code of the *Out operations that
-/// send an OcuTalon.Msg.Outbound as text; OcuTalon.Channel.Slack.Out is its only caller: producers never render. Text(request, channel) is what the Telegram channel
-/// sends for the same reply (OcuTalon.Channel.Telegram.Out OnOutbound), for the channel:
+/// The text of a reply for a channel that sends plain text (Story 27.2; AD-14, AD-28, AD-32, UX-DR108). OcuTalon.Channel.Slack.Out is its only caller: producers never
+/// render. Text(request, channel) is the text that the Telegram channel sends for the same reply (OcuTalon.Channel.Telegram.Out OnOutbound renders it with its own private
+/// code, and Test.Channel.ReplyText holds the two equal for the check-sentence cases), for the channel:
 ///   - the reply's Text, else the rendering of its CatalogKey through OcuTalon.Msg.Catalog.Render for the channel; a render error is an error status and the text "";
 ///   - when the reply has a CheckKey whose sentence is not "", a blank line and the check sentence: checks.allPassed, checks.everythingElsePassed and checks.nothingWatched
 ///     give the catalog text, and checks.notEverything and checks.notEverythingRestPassed are rendered with whatFailed, built from the CheckRows (result, entry, finding,

@@ -6,6 +6,7 @@ Include Ensemble
 ///   - TestReply: a reply to a linked member is one chat.postMessage to the member, with Telegram's text (the check sentence included), mrkdwn and both unfurls false, and one
 ///     Delivery row "<link Ref>:<ts>" with no text;
 ///   - TestEscaped: & < > go out as &amp; &lt; &gt;, & first, so that a typed entity stays as typed;
+///   - TestNonAscii: accents, an ellipsis, CJK letters and an emoji reach the mock as the same characters, each encoded once;
 ///   - TestSplit: a reply over 4,000 units goes in parts cut at line breaks, in order, and one row holds the last part's ts; the escaping comes after the cut;
 ///   - TestNoResendAfterFailure: a part that fails stops the reply, the parts after it are not sent, a part that was sent is not sent again and no row is kept;
 ///   - TestRateLimited: a 429 with Retry-After 1 waits and sends the same part again, a 429 with no header waits 1 s, one with Retry-After 2 waits 2 s, and a reply that is always limited gives up after TRIES;
@@ -27,6 +28,9 @@ Parameter TEAM = "T0SLACKOUT";
 Parameter MEMBER = "U0SLACKOUT";
 
 Parameter BASE = "http://mock:8080/api";
+
+/// The mock's request log, which the iris container reads from the mock-log volume.
+Parameter MOCKLOG = "/opt/ocutalon/mock-log/requests.jsonl";
 
 Parameter SECRET = "zz-slackout-secret";
 
@@ -106,6 +110,7 @@ Method TestReply()
 	Do $$$AssertEquals(params.%GetTypeOf("unfurl_links")_"|"_params."unfurl_links", "boolean|0", "unfurl_links is false")
 	Do $$$AssertEquals(params.%GetTypeOf("unfurl_media")_"|"_params."unfurl_media", "boolean|0", "unfurl_media is false")
 	Do $$$AssertEquals(..Keys(params), "channel,mrkdwn,text,unfurl_links,unfurl_media", "and the body holds nothing else")
+	Do $$$AssertEquals(..LastPostTokenLength(), $Length(..#TOKEN), "the Authorization header held the bot token (its length, as the mock logs it), not the signing secret")
 	Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
 	Do $$$AssertEquals(rows.Count(), 1, "one Delivery row")
 	If rows.Count() '= 1 Quit
@@ -125,6 +130,18 @@ Method TestEscaped()
 	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
 	Do $$$AssertEquals(calls.%Size(), 1, "one call")
 	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).params.text, "a &amp; b &lt; c &gt; d &amp;amp; &amp;lt; &lt;@U0X&gt; *bold*", "& < > are written as entities, & first, and nothing else changes")
+}
+
+Method TestNonAscii()
+{
+	Set session = ..LinkedSession("nonascii")
+	If '..MockReady() Quit
+	Set text = "caf"_$Char(233)_" "_$Char(8230)_" "_$Char(26085, 26412)_" "_$Char(55357, 56832)
+	Set sc = ..Out().OnOutbound(..Outbound(session, text), .response)
+	Do $$$AssertStatusOK(sc, "a reply with accents, an ellipsis, CJK letters and an emoji is handled")
+	Set calls = ##class(OcuTalon.Test.Contract.Mock).Calls("slack")
+	Do $$$AssertEquals(calls.%Size(), 1, "one call")
+	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).params.text, text, "the mock reads the characters that were sent, each encoded once")
 }
 
 Method TestSplit()
@@ -405,6 +422,25 @@ Method MockReady() As %Boolean [ Private ]
 	Set ready = ##class(OcuTalon.Test.Contract.Mock).Control("reset", "", "slack")
 	If 'ready Do $$$AssertTrue(0, "the CI mock's Slack side is not reachable at "_..#BASE_": this test needs the throwaway stack's mock")
 	Quit ready
+}
+
+/// The length of the bearer token of the last chat.postMessage in the mock's request log (the mock logs the length and never the token), -1 when the log has none.
+ClassMethod LastPostTokenLength() As %Integer [ Private ]
+{
+	Set length = -1
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Set sc = stream.LinkToFile(..#MOCKLOG)
+	If $SYSTEM.Status.IsError(sc) Quit length
+	While 'stream.AtEnd {
+		Set line = stream.ReadLine()
+		If line '[ """slackMethod"":""chat.postMessage""" Continue
+		Try {
+			Set entry = {}.%FromJSON(line)
+			If entry.%GetTypeOf("tokenLength") = "number" Set length = entry.tokenLength
+		} Catch {
+		}
+	}
+	Quit length
 }
 
 /// The environment of the process: the signing secret, the bot token and the base of the Web API.

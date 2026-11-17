@@ -326,16 +326,18 @@ CHK|thread|1" \
 # The reply (Story 27.2, AC 1): one chat.postMessage to the linked member, with the text that Telegram would get, escaped, and no formatting; one Delivery row; Notify sent the reply to both.
 if wait_until 120 slack_calls_are 1; then pass "phase 3b (Story 27.2): the reply to the Slack turn is one chat.postMessage at the mock"; else fail "phase 3b: the mock lists $(slack_calls) chat.postMessage call(s), wanted 1"; fi
 if ! wait_until 60 slack_deliveries_are 1; then fail "phase 3b: the Delivery row of the reply was not written within 60 s"; fi
-check_session "phase 3b (Story 27.2): still one call; its channel is the linked member (1 or 0 only), its text is the reply's text escaped, mrkdwn and both unfurls are false; one Delivery row <link Ref>:<ts> of that call with no text; Notify sent the reply to WebChatOut and to SlackOut once each" OCUTALON \
+check_session "phase 3b (Story 27.2): still one call; its channel is the linked member (1 or 0 only), the Authorization header held the bot token (its length in the mock's request log, never the value), its text is the reply's text escaped, mrkdwn and both unfurls are false; one Delivery row <link Ref>:<ts> of that call with no text; Notify sent the reply to WebChatOut and to SlackOut once each" OCUTALON \
   "CHK|calls|1
 CHK|channel|1
 CHK|flags|1
+CHK|tokenlen|1
 CHK|text|1
 CHK|delivery|1|1|1|1
 CHK|routes|1|1" \
   'Set rq=##class(%Net.HttpRequest).%New(),rq.Server="mock",rq.Port=8080,rq.Timeout=10 Set sc=rq.Get("/_mock/slack/calls") Set calls={}.%FromJSON(rq.HttpResponse.Data).calls Write !,"CHK|calls|",calls.%Size()' \
   'Set p=calls.%Get(0).params Write !,"CHK|channel|",(p.channel="'"$MEMBER"'")' \
   'Write !,"CHK|flags|",(p.%GetTypeOf("mrkdwn")="boolean")&&(p.mrkdwn=0)&&(p."unfurl_links"=0)&&(p."unfurl_media"=0)' \
+  'Set st=##class(%Stream.FileCharacter).%New(),sc=st.LinkToFile("/opt/ocutalon/mock-log/requests.jsonl"),tl=-1 While '"'"'st.AtEnd { Set ln=st.ReadLine() If ln["""slackMethod"":""chat.postMessage""" { Set tl={}.%FromJSON(ln).tokenLength } } Write !,"CHK|tokenlen|",(tl='"${#token}"')' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 MessageBodyId FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND SourceConfigName = ? AND TargetConfigName = ? ORDER BY ID","OcuTalon.Msg.Outbound","Notify","SlackOut") Do rs.%Next() Set ob=##class(OcuTalon.Msg.Outbound).%OpenId(rs.%GetData(1))' \
   'Set t=##class(OcuTalon.Channel.ReplyText).Text(ob,"slack",.tsc) Set t=$Replace($Replace($Replace(t,"&","&amp;"),"<","&lt;"),">","&gt;") Write !,"CHK|text|",(t'"'"'="")&&(p.text=t)' \
   "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ChannelMessageId, Text FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = ?\",\"$session\",\"slack\") Set n=0,id=\"\",tx=\"x\" While rs.%Next() { Set n=n+1,id=rs.%Get(\"ChannelMessageId\"),tx=rs.%Get(\"Text\") }" \

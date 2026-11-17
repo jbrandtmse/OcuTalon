@@ -170,7 +170,8 @@ ClassMethod Refused(httpStatus As %Integer, answer As %DynamicObject) As %String
 	Quit $Replace($Replace(..#ERRORREFUSED, "{status}", +$Get(httpStatus)), "{code}", code)
 }
 
-/// One call of chat.postMessage, with a new request, no redirect and the token in the Authorization header only. The answer is the parsed JSON body, "" when it is not a
+/// One call of chat.postMessage, with a new request, no redirect and the token in the Authorization header only. The JSON body is written as UTF-8 bytes in raw mode, so that
+/// the request's charset table does not encode it a second time. The answer is the parsed JSON body, "" when it is not a
 /// JSON object; httpStatus is the HTTP status of the answer and retryAfter the text of its Retry-After header. sc is an error status, with a fixed text, when the
 /// base is not valid, no token is set, or no answer came.
 Method Call(member As %String, text As %String, Output httpStatus As %Integer, Output retryAfter As %String, Output sc As %Status) As %DynamicObject [ Private ]
@@ -199,6 +200,7 @@ Method Call(member As %String, text As %String, Output httpStatus As %Integer, O
 			Set request.SSLConfiguration = ##class(OcuTalon.Channel.Telegram.Api).#SSLCONFIG
 		}
 		Set request.ContentType = "application/json; charset=utf-8"
+		Set request.WriteRawMode = 1
 		Do request.SetHeader("Authorization", "Bearer "_token)
 		Set body = {}
 		Do body.%Set("channel", member, "string")
