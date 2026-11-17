@@ -4681,3 +4681,7 @@
 2026-11-17T08:12:12Z	Epic 28	epic_complete_partial	Epic 28 closed for shipped stories (28.2 1f8733c0e, 28.3 103a6ac7a); 28.1/28.4/28.5 deferred (owner wrap-up); lane C idle; ledger drain 0.89; model-tier hold (recorded)
 2026-11-17T09:44:22Z	Epic 0	ci_green_verified	0.39 3bd28945c runs=44052546169,44052545992 (first attempt, no ci-d)
 2026-11-17T09:44:22Z	Epic 0	merge_enqueued	0.39 head=3bd28945c (push after 103a6ac7a clean)
+2026-11-17T09:48:37Z	Run	ci_red	feature 103a6ac7a shards-4 ci-25 DW-415(ERR_NETWORK_CHANGED) rerun; 0.39_push_waits
+2026-11-17T09:52:39Z	Epic 27	epic_complete	PART_READY 27.2 + Epic 27 close head=f16c1e9e8 runs=44054557745,44054557729; decisions DW-1476(overview_Slack_line),DW-1477(shards-3_37.8min); lane_B idle
+2026-11-17T09:53:24Z	Run	owner_decision	via=contest_planner DW-1480=wontfix-accepted DW-1476=add_Slack_line(before_REQUIRED_GREEN) DW-1477=accepted(timeout=unexplained_red) 27.2_gap_in_release_notes; Slack_OFF_on_demo_in_gate
+2026-11-17T10:20:07Z	Run	ci_green	feature 103a6ac7a ci=44044363400 att2 green (DW-415, ci-9)

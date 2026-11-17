@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
-import { loadedAfter } from '../support/floor';
+import { loadedAfter, reloadSettled } from '../support/floor';
 import { NAV_LINKS_USER } from '../support/header-nav';
 import { localDate, seedHistoryDecisions, type HistoryDecisionSeed } from '../support/history';
 import { cleanFixtureRows, fixtureUser, seedIncident } from '../support/iris';
@@ -171,7 +171,7 @@ test('H2: every filter changes the address, the list follows, and a reload and a
   expect(hashOf(page)).toContain('channel=mailbox');
   expect(hashOf(page)).toContain(`day=${d45}`);
 
-  await page.reload();
+  await reloadSettled(page);
   await expect(control(page, 'Outcome')).toHaveValue('act');
   await expect(control(page, 'Channel')).toHaveValue('mailbox');
   await expect(control(page, 'Date')).toHaveValue(d45);
@@ -215,7 +215,7 @@ test('H3: 26 decisions page 25 and 1, with Previous and Next, a page past the la
   await expect(rowsOf(page).first()).toContainText(`${tag} P01`);
   await expect(page.locator('main.history'), 'a page turn keeps keyboard focus on the page').toBeFocused();
   await expect(next).toHaveAttribute('aria-disabled', 'true');
-  await page.reload();
+  await reloadSettled(page);
   await expect(page.getByText('Page 2 of 2', { exact: true })).toBeVisible();
   await previous.click();
   await expect(page).not.toHaveURL(/page=/);
@@ -358,7 +358,7 @@ test('H7: the tabs use aria-selected and keys, switch only when pressed, and the
   await tabOf(page, 'Decisions').focus();
   await page.keyboard.press('Enter');
   await expect(tabOf(page, 'Decisions')).toHaveAttribute('aria-selected', 'true');
-  await page.reload();
+  await reloadSettled(page);
   await expect(tabOf(page, 'Decisions')).toHaveAttribute('aria-selected', 'true');
 });
 

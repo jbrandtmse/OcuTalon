@@ -33,7 +33,9 @@
 //      markers skipped; a [[mock: that does not parse, or names no marker scenario, is a 500;
 //   3. else the one guide prompt scenario whose exact prompt text the same message contains and whose mock key is either absent
 //      or equal to the request header x-ocutalon-mockkey (two matches are a 500; a prompt scenario that names another key, or any
-//      key when the request has no header, is not a match and selection goes on);
+//      key when the request has no header, is not a match and selection goes on). When two or more match, the text is matched
+//      again with every line that starts with "> " (quoted context, such as the session-start notes) removed: exactly one hit
+//      then selects it, anything else stays a 500;
 //   4. else the scenario whose mock key is in the request header x-ocutalon-mockkey;
 //   5. else a 500: there is no default reply.
 // The reply index (replies[i]) follows the reply rule. k is the number of assistant messages after the newest user message
@@ -489,7 +491,12 @@ export function createMock({ scenarios, logDir, out }) {
       return { scenario, selectedBy: 'marker', label: m.label, k };
     }
     const key = headers[MOCKKEY_HEADER];
-    const hits = scenarios.prompts.filter((p) => text.includes(p.prompt) && (p.mockkey === undefined || p.mockkey === key));
+    const promptHits = (haystack) => scenarios.prompts.filter((p) => haystack.includes(p.prompt) && (p.mockkey === undefined || p.mockkey === key));
+    let hits = promptHits(text);
+    if (hits.length > 1) {
+      const unquoted = promptHits(text.split('\n').filter((line) => !line.startsWith('> ')).join('\n'));
+      if (unquoted.length === 1) hits = unquoted;
+    }
     if (hits.length > 1) {
       return { fail: { message: `CI mock: two guide prompts match: ${hits[0].scenario.name} and ${hits[1].scenario.name}`, rejected: 'ambiguous-prompt' } };
     }

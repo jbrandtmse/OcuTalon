@@ -14,6 +14,9 @@
 ///   - TestDefaultScriptByMockKey: a provider with the Triage agent's MOCKKEY in x-ocutalon-mockkey and a chat with no marker
 ///     get Triage's default script, and the mock logged the model lookup and the request without the key;
 ///   - TestMarker: a [[mock:refusal:<key>]] marker picks the refusal scenario, whatever the mock key;
+///   - TestMidnightReminderPicksItsPrompt (Story 0.39; DW-1464): the first turn of a new local day after a watch turn at 23:59:59 renders the session-start
+///     notes with that turn quoted (`> `). Rendered at 23:59:59 (note under today) and at 00:00:01 of the next day (note under yesterday), the reminder
+///     prompt reaches the mock through %AI.Agent on the chat mock key and selects guide-reminder by prompt with 200, not "two guide prompts match";
 ///   - TestSamplingAndCapRefused: a sampling parameter in extra_params and a max_tokens of 3999 are refused as "Invalid input";
 ///   - TestCountdownAndRetryAfterCap: an armed countdown makes the first request a 429 with Retry-After 30, and the retry block's
 ///     max_backoff_ms caps the wait (S18);
@@ -183,6 +186,64 @@ Method TestDefaultScriptByMockKey()
 		Do $$$AssertTrue(..Has(post.headerNames, ..#MOCKKEYHEADER), "the mock key traveled in "_..#MOCKKEYHEADER)
 	}
 	Do $$$AssertTrue('..LogHolds(..#DUMMYKEY), "the log file never holds the key")
+}
+
+/// DW-1464 at the outermost deterministic surface: the notes of the first turn of a new local day quote the earlier watch turn, and the CI mock must still
+/// pick the reminder prompt. The times are the local 23:59:59 of the day and the local 00:00:01 of the next one, so the test reads the same in any zone.
+Method TestMidnightReminderPicksItsPrompt()
+{
+	If '..Guard() Quit
+	Set lf = $Char(10)
+	Set watch = "Watch the Orders production and only tell me if something needs me."
+	Set reminder = "Remind me in 1 minute to stretch."
+	Set day = "2030-06-15"
+	Set next = $ZDate($ZDateH(day, 3) + 1, 3)
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzmidnight"_$Piece(ref, "-", 1))
+	Set refs = session
+	Try {
+		Set before = ##class(OcuTalon.Data.Time).FromLocal(day_"T23:59:59")
+		Set after = ##class(OcuTalon.Data.Time).FromLocal(next_"T00:00:01")
+		Set refs = refs_","_##class(OcuTalon.Test.Data.Fixture).Turn(session, before, "done", watch)
+		Set quoted = "> 23:59 message (web): "_watch
+		For case = 1:1:2 {
+			Set now = $Select(case = 1: before, 1: after)
+			Set label = $Select(case = 1: "at 23:59:59 (the note is under today)", 1: "at 00:00:01 of the next day (the note is under yesterday)")
+			Set item = ##class(OcuTalon.Msg.Item).%New()
+			Set item.SessionRef = session
+			Set item.Provenance = "user"
+			Set item.Channel = "web"
+			Set item.Text = "Test "_ref_lf_reminder
+			Set text = ##class(OcuTalon.Agent.Input).Render(item, now, {"sessionStart": 1})
+			Do $$$AssertTrue($Find(text, "> "_day_lf_quoted), "the notes quote the watch turn under "_day_", "_label)
+			Set bare = 0
+			For i = 1:1:$Length(text, lf) {
+				Set line = $Piece(text, lf, i)
+				If ($Find(line, watch) > 0) && ($Extract(line, 1, 2) '= "> ") Set bare = bare + 1
+			}
+			Do $$$AssertEquals(bare, 0, "the watch prompt appears only on quoted lines, "_label)
+			Do $$$AssertEquals($Piece(text, lf, $Length(text, lf)), reminder, "the text ends with the reminder prompt, unquoted, "_label)
+
+			Set mark = ..LogMark()
+			Set agent = ##class(%AI.Agent).%New(..Provider("chat"))
+			Set agent.Model = $Parameter("OcuTalon.Agent.Chat", "MODEL")
+			Set status = agent.%Init()
+			Do $$$AssertStatusOK(status, "the agent initializes, "_label)
+			Set chatError = ..ChatError(agent, {"max_tokens": 8000}, text)
+			Do $$$AssertStatusOK(..LogSince(mark, .entries), "the log is read, "_label)
+			Set post = ..Find(entries, "POST", "/v1/messages", ref)
+			Do $$$AssertTrue($IsObject(post), "the log holds the request, "_label)
+			If $IsObject(post) {
+				Do $$$AssertEquals(post.scenario, "guide-reminder", "the request ran the scenario guide-reminder, "_label)
+				Do $$$AssertEquals(post.selectedBy, "prompt", "picked by the prompt, "_label)
+				Do $$$AssertEquals(post.status, 200, "and was answered with 200, "_label)
+			}
+			Do $$$AssertTrue('$Find(chatError, "two guide prompts match"), "no tie error reached the agent, "_label_": "_chatError)
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the midnight test threw: "_ex.DisplayString())
+	}
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
 }
 
 /// Row 20: a marker picks its scenario, with a test key that no other test shares.

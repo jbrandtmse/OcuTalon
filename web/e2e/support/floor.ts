@@ -2,7 +2,7 @@ import { expect, type Locator, type Page, type Request, type Response } from '@p
 
 import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
-import { WAIT_SLACK_MS, asCleanup, boundedStep, capToDeadline, diagnosedAtBound, firstAttemptMs, reportRetry, waitsFor } from './bounds';
+import { WAIT_SLACK_MS, asCleanup, boundedStep, capToDeadline, diagnosedAtBound, firstAttemptMs, reportRetryOnce, waitsFor } from './bounds';
 import { PROBE_BOUND_MS, errorClass, pageSideLines, printDiagnosis, probePage, redactLine, stateDiagnosis, watchRequests, type RequestWatch } from './diagnose';
 import {
   cleanFixtureRows,
@@ -135,8 +135,17 @@ export function settled(page: Page): Promise<void> {
   return page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))));
 }
 
+/** The step of an action, and of a snapshot GET, that loadedAfter names in its bounds and in its RETRY line. */
+const LOADED_STEPS = { action: 'loadedAfter the sign-in', snapshot: `loadedAfter the snapshot GET ${STATE}` };
+
+/** The same for reloadSettled. */
+const RELOADED_STEPS = { action: 'reloadSettled the reload', snapshot: `reloadSettled the snapshot GET ${STATE}` };
+
+/** The RETRY steps of one site: a site that logged either of them has used its one retry of the run. */
+const SNAPSHOT_STEPS: readonly string[] = [LOADED_STEPS.snapshot, RELOADED_STEPS.snapshot];
+
 /**
- * The snapshot wait of loadedAfter, with at most one reload (Story 32.6, DW-550, DW-774). `asked` is the page's wait for the snapshot GET,
+ * The snapshot wait of loadedAfter and reloadSettled, with at most one reload (Story 32.6, DW-550, DW-774). `asked` is the page's wait for the snapshot GET,
  * armed before the sign-in. The wait that this returns starts when begin() is called, once the sign-in has ended, and settles like `asked`
  * unless the bound whole (the snapshot bound that boundedStep computes at that moment) is at least twice RETRY_MIN_ATTEMPT_MS and `asked`
  * has not settled by half of it. Then, unless `asked` settles, the call ends or the page closes before the page-side probe is done, it prints
@@ -144,7 +153,9 @@ export function settled(page: Page): Promise<void> {
  * (`waitUntil: 'commit'`, so that the reloaded document's own GET of /state is the one waited for; an answer to the first document's GET is
  * not) and settles with the new wait, which has the rest of the bound (a late outcome of `asked` is then ignored). A reload that fails prints
  * `DIAG /state reload failed: <class>` and the bound decides.
- * cancel() stops a retry that has not reloaded yet. Nothing here changes the bound or the error: the outer boundedStep owns both.
+ * A site that already logged a retry in this run (a RETRY line at the same `<spec>:<line>` with one of SNAPSHOT_STEPS, bounds.ts retriedBefore)
+ * is not retried: its RETRY and page-side lines are still reported, and the wait fails with the site's secondRetryError (Story 0.39).
+ * cancel() stops a retry that has not reloaded yet. Nothing here changes the bound or the error of a first retry: the outer boundedStep owns both.
  */
 function withOneReload(
   page: Page,
@@ -153,6 +164,7 @@ function withOneReload(
   actionMs: number,
   watch: RequestWatch,
   began: number,
+  step: string,
 ): { wait: Promise<Response>; begin: () => void; cancel: () => void } {
   let begin: () => void = () => undefined;
   let cancelled = false;
@@ -173,8 +185,9 @@ function withOneReload(
         if (settled || cancelled || page.isClosed()) return asked;
         retried = true;
         const retryLines = pageSideLines(watch, began, probe);
-        reportRetry(`loadedAfter the snapshot GET ${STATE}`, retryLines.map(redactLine));
+        const usedUp = reportRetryOnce(step, retryLines.map(redactLine), SNAPSHOT_STEPS);
         printDiagnosis(retryLines, 'state-diagnosis');
+        if (usedUp) throw usedUp;
         // Only a GET that the reloaded page issues counts: the first document's GET can still be answered before the reload commits.
         const issued = new WeakSet<Request>();
         const mark = (request: Request): void => void issued.add(request);
@@ -223,25 +236,44 @@ function withOneReload(
  * test's output folder, attached as `state-diagnosis`, so that the failure artifact holds them (DW-756).
  */
 export async function loadedAfter(page: Page, signInAction: () => Promise<unknown>): Promise<void> {
+  await snapshotAfter(page, signInAction, LOADED_STEPS);
+  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+}
+
+/**
+ * Reloads the page and waits until the reloaded page has answered its own GET of /state with 200, within the same bounds and with the same one
+ * logged retry as loadedAfter (Story 0.39, DW-1458), for a page that is not the main page: it does not look for `main.main`. The app loads the
+ * snapshot on every route (LiveState.load), so every route issues the GET. Its steps are named `reloadSettled the reload` and
+ * `reloadSettled the snapshot GET /ocutalon/api/v1/state`.
+ */
+export async function reloadSettled(page: Page): Promise<void> {
+  await snapshotAfter(page, () => page.reload(), RELOADED_STEPS);
+}
+
+/**
+ * What loadedAfter and reloadSettled share: runs the action (bounded by the navigation wait in force, named steps.action), and waits for the
+ * snapshot GET that it armed before the action (bounded by the action wait in force, named steps.snapshot, with the one logged retry of
+ * withOneReload and the diagnosis at the bound), and asserts that the GET answered 200.
+ */
+async function snapshotAfter(page: Page, action: () => Promise<unknown>, steps: { action: string; snapshot: string }): Promise<void> {
   const began = Date.now();
   const watch = watchRequests(page);
   const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout, navigation: waitsFor(0).navigationTimeout };
   const answers = (response: Response): boolean => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE;
   const asked = page.waitForResponse(answers, { timeout: waits.navigation + waits.action + WAIT_SLACK_MS });
-  // The wait is awaited below; a sign-in that fails first must not leave its timeout unhandled.
+  // The wait is awaited below; an action that fails first must not leave its timeout unhandled.
   asked.catch(() => undefined);
-  const retrying = withOneReload(page, asked, answers, waits.action, watch, began);
+  const retrying = withOneReload(page, asked, answers, waits.action, watch, began, steps.snapshot);
   const state = retrying.wait;
   try {
-    await boundedStep(signInAction(), waits.navigation, 'loadedAfter the sign-in');
+    await boundedStep(action(), waits.navigation, steps.action);
     retrying.begin();
-    const answered = await diagnosedAtBound(boundedStep(state, waits.action, `loadedAfter the snapshot GET ${STATE}`), `loadedAfter the snapshot GET ${STATE}`, async () => {
+    const answered = await diagnosedAtBound(boundedStep(state, waits.action, steps.snapshot), steps.snapshot, async () => {
       // A GET that passed its bound: read what could hold it (diagnose.ts) while it still waits, then fail as before.
       const [, probe] = await Promise.all([stateDiagnosis(), asCleanup(() => probePage(page, PROBE_BOUND_MS))]);
       printDiagnosis(pageSideLines(watch, began, probe), 'state-diagnosis');
     });
     expect(answered.status(), 'the snapshot is served').toBe(200);
-    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   } finally {
     retrying.cancel();
     watch.stop();

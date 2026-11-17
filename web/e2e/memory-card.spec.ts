@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Request, type Response } from './support/fixtures';
 
 import { README_ACCOUNT, envelope, signIn } from './sign-in/helpers';
+import { boundedStep, waitsFor } from './support/bounds';
 import { dropPhone, pointKeys, restoreKeys } from './support/devices';
 import { loadedAfter, railOf, signInReadmeLoaded, unique } from './support/floor';
 import { cleanFixtureRows, fixtureUser, sendItem, seedOtherSession } from './support/iris';
@@ -22,6 +23,7 @@ import {
   triageRequests,
   waitDecideRef,
 } from './support/memory';
+import { currentWaits } from './support/navigate';
 import { announcements, recordAnnouncements } from './support/page';
 import { sessionRef } from './support/persona';
 import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './support/runners';
@@ -106,17 +108,86 @@ async function showAnswers(page: Page): Promise<void> {
   await expect(tabOf(page, 'Your answers')).toHaveAttribute('aria-selected', 'true');
 }
 
-/** The next answer of a memory route that the page receives, with the method and status given. */
-function answerOf(page: Page, route: RegExp, status: number, method = 'GET'): Promise<Response> {
-  return page.waitForResponse((response) => route.test(response.url()) && response.request().method() === method && response.status() === status);
+/** The requests of one answerOf call: those of its route and method issued since it was called, and the ones among them still open. */
+interface EndTracker {
+  readonly route: RegExp;
+  readonly method: string;
+  readonly open: Set<Request>;
+  /** Tracks a request issued before the tracker was armed (the answered one), unless it has already ended. */
+  include(request: Request): void;
+  /** Resolves once every tracked request has ended (finished or failed), immediately when none is open. */
+  ended(): Promise<void>;
+  stop(): void;
+}
+
+/** The tracker of each answer that answerOf returned. */
+const TRACKERS = new WeakMap<Promise<Response>, EndTracker>();
+
+/** Tracks the requests of the route and method from now on, each until `requestfinished` or `requestfailed`. */
+function trackEnds(page: Page, route: RegExp, method: string): EndTracker {
+  const open = new Set<Request>();
+  const done = new WeakSet<Request>();
+  const waiting: Array<() => void> = [];
+  const matches = (request: Request): boolean => route.test(request.url()) && request.method() === method;
+  const onRequest = (request: Request): void => {
+    if (matches(request)) open.add(request);
+  };
+  const onEnd = (request: Request): void => {
+    done.add(request);
+    if (open.delete(request) && open.size === 0) for (const resolve of waiting.splice(0)) resolve();
+  };
+  page.on('request', onRequest);
+  page.on('requestfinished', onEnd);
+  page.on('requestfailed', onEnd);
+  return {
+    route,
+    method,
+    open,
+    include: (request) => {
+      if (!done.has(request)) open.add(request);
+    },
+    ended: () => (open.size === 0 ? Promise.resolve() : new Promise<void>((resolve) => waiting.push(resolve))),
+    stop: () => {
+      page.off('request', onRequest);
+      page.off('requestfinished', onEnd);
+      page.off('requestfailed', onEnd);
+    },
+  };
 }
 
 /**
- * Waits until the page has read the whole answer and has drawn what follows it (two frames), so that a check that something is absent runs
- * after the card handled the answer, not while the read was still out (a pending read and a failed one draw the same panel).
+ * The next answer of a memory route that the page receives, with the method and status given. Call it before the action. It also arms the end
+ * tracker that `handled` waits on: every request of the route and method issued from this call on, each ended by `requestfinished` or
+ * `requestfailed` (a request that the card aborts after its headers arrived ends as failed, and its Response.finished() never settles).
+ */
+function answerOf(page: Page, route: RegExp, status: number, method = 'GET'): Promise<Response> {
+  const tracker = trackEnds(page, route, method);
+  const answer = page.waitForResponse((response) => route.test(response.url()) && response.request().method() === method && response.status() === status);
+  TRACKERS.set(answer, tracker);
+  return answer;
+}
+
+/**
+ * Waits until the page has read the answer and every request of its route and method issued since answerOf has ended (finished or failed),
+ * and has drawn what follows (two frames), so that a check that something is absent runs after the card handled the answer, not while a
+ * read was still out (a pending read and a failed one draw the same panel). The wait for the ends is bounded by the action wait in force and
+ * names the route and the number of requests still open.
  */
 async function handled(page: Page, answer: Promise<Response>): Promise<void> {
-  await (await answer).finished();
+  const tracker = TRACKERS.get(answer);
+  if (tracker === undefined) throw new Error('handled: the answer was not made by answerOf');
+  try {
+    const response = await answer;
+    tracker.include(response.request());
+    const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout };
+    try {
+      await boundedStep(tracker.ended(), waits.action, `handled the end of every ${tracker.method} ${String(tracker.route)} request`);
+    } catch (error) {
+      throw new Error(`${(error as Error).message}; ${tracker.open.size} request(s) still open`, { cause: error });
+    }
+  } finally {
+    tracker.stop();
+  }
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))));
 }
 

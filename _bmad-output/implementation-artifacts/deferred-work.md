@@ -2333,6 +2333,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T08:19:41Z occurrence=feature-97e062daf by=orchestrator note=run 43690544372 att1 iris(shards-6) Test.Web.GuideApi TestOnlyTheMarkerChanges (trace_opened and run_again): the after fingerprint gained the session's event rows 4-9 watch.progress (a real tick between the two fingerprints); one rerun of failed jobs when the run completes
 - 2026-11-15T08:57:34Z occurrence=feature-97e062daf by=orchestrator note=rerun of failed jobs, attempt 2 of 43690544372: shards-6 green
 - 2026-11-15T18:58:28Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-6) on ocutalon-ci-29: GuideApi TestOnlyTheMarkerChanges (trace_opened, run_again) and TestRunAgain (DW-453 sibling); superseded by 8c71bef6e, not rerun
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=gotoSettled_waits_for_the_late_chrome-error_commit_before_its_one_retry(navigate.ts;goto-settled.test.mjs_N1-N3);P4_10x_after_green
 - 2026-11-16T23:08:52Z occurrence=1f8733c0e by=merge_gate note=feature ci 43970555894 iris (shards-3) live:floor on ocutalon-ci-19: focus.spec.ts:145 P4, this time page.goto interrupted by a chrome-error navigation (infrastructure-shaped); the merged 28.2 diff touches no web, floor or heartbeat code; one rerun of the failed job
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
@@ -2552,6 +2554,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-01T03:59:33Z status=resolved-by:11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=adjudication note=2da3f0ba: web/e2e/support/navigate.ts gotoSettled retries a page.goto that hits net::ERR_NETWORK_CHANGED, used by fillSignIn (sign-in/helpers.ts:44, the site that fired), openTrace and the online helpers (AC11; goto-settled.test.mjs; QA mutation red); the other direct page.goto calls stay as declined at the spec gate; reopen_if=net::ERR_NETWORK_CHANGED fails a run at a direct page.goto call
 - 2026-11-02T00:28:56Z occurrence=11-4-the-release-gets-draft-notes-and-a-checklist note=reopen_if fired in another message shape: CI run 41364655268 (dea3f6dd) live:demo-path sign-in goto interrupted by chrome-error://chromewebdata/; the gap is filed as DW-555
 - 2026-10-31T20:23:20Z occurrence=16-11-the-splash-promises-telegram-only-when-the-release-includes note=CI run 41236053364 attempt 1 (OCT-epic16 29835de9, iris shards, live:online-session): e2e-online/session/leave.spec.ts:104 L2 page.goto net::ERR_NETWORK_CHANGED; rerun of the failed job requested
+- 2026-11-17T09:48:37Z occurrence=103a6ac7a by=merge_gate note=feature ci 44044363400 iris (shards-4) on ocutalon-ci-25: live:sign-in-2 helper-waits.spec.ts:204 page.goto net::ERR_NETWORK_CHANGED (host network change); the 28.3 merge touches no web test; one rerun of the failed job
 
 ### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
 - source: spec-16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi.md | severity: med | fix-risk: low | footprint: in-footprint
@@ -3440,6 +3443,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
 - 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
 - 2026-11-15T17:53:35Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-5) on ocutalon-ci-48 (new runner): heartbeat-card.spec.ts:677 HC4 page.goto to 127.0.0.1:52803 interrupted by chrome-error; superseded by df475cc64/9b9898a53 runs
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=same_fix_as_DW-349;U12_10x_after_green;the_?signedOut=1_variant_split_to_DW-1467
 - 2026-11-17T00:46:18Z occurrence=7a346a994 by=merge_gate note=OCT-epic25-s259 ci 43978832236 attempt 1 iris (shards-10) on ocutalon-ci-18: Usage U12 page.goto interrupted by a chrome-error navigation; green on rerun (ci-15)
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
@@ -8848,6 +8853,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: loaded() at telegram-page.spec.ts:107 (called from :220 after page.reload()) timed out: 'element(s) not found' for main.main; the test routes the snapshot itself (changeSnapshot) and reloads four times; a SLOW irisScript of 14 s came just before it; 27 other demo-path tests and the floor's other 14 passed; Epic 24 changes no demo-path, Telegram card or rail code
 - 2026-11-16T19:52:47Z status=open owner=burndown by=epic-runner note=one rerun
 - 2026-11-16T20:37:03Z occurrence=OCT-epic24-c321d4680 by=epic-runner note=rerun_green_on_ocutalon-ci-5
+- 2026-11-17T01:02:08Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=telegram-page_reloads_through_loadedAfter(one_logged_CI-counted_retry);main-bundle-abort_repro_old_red/fixed_green;T2_10x_after_green
+- 2026-11-17T10:20:07Z note=DW-1458 (history H7, the same reload pattern; its ledger entry lives only on the parked OCT-epic0-triage-conf branch, which never merges) is RESOLVED by Story 0.39 (reloadSettled at H2, H3, H7), recorded here because the entry is not on feature
 
 ### DW-1449: flake (cause not found): Test.Data.Purge TestCurrentSessionLosesNoRows: the three kept sessions' row counts differed from 1|1|2(3)|1|1 after Retention.Purge(90), in CI shard lane-b@Contract,Core,Data,Live
 - source: epic-runner; OCT-epic24 c321d4680 ci 43934206289 attempt 1 job 133534373343 iris (image) on ocutalon-ci-20 | severity: med | fix-risk: low | footprint: in-epic
@@ -8896,6 +8904,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43939939727 (d996ffcde) iris (browser) on ocutalon-ci-31 | severity: low | fix-risk: low | footprint: docker/tests/test-online-demo.sh
 - evidence: the head's diff from its green parent dddd24dfc is ci/units.sh and test-demo-path-gate.sh only; live:online-demo ran before live:production-restart in the job (units run in sequence), so the rebalance did not touch it; row 6 depends on a connection count read before S3 and S5
 - 2026-11-16T21:10:54Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:59Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=row_6_waits_for_the_status_to_read_free_then_signs_in_once;hold_repro_old_red_10/10_fixed_green_10/10;stop_condition_not_fired
 ### DW-1436: 28.2: Test.Memory.Volume explains NEARESTSQL, which now also selects LastUsedAt; not run in the implement stage (memory-offline live unit only)
 - source: spec-28-2-fade-unused-memories-and-merge-duplicates-nightly.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: docker/tests/test-memory-offline.sh runs Test.Memory.Volume; settle by running that unit on a lane-C throwaway
@@ -8906,10 +8916,52 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 43943159296 job iris (shards-5) 133565710915 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: runner ocutalon-ci-27; the hung response is route.fulfill (no server code serves it); fresh lane-C repro of sign-in-3 part 4/4 at the same code passed 34/34 (memory-card 26 tests, 57 s)
 - 2026-11-16T21:18:50Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second hit on any head makes it a cause-and-fix story
+- 2026-11-17T09:06:29Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=memory-card_handled_waits_until_every_matching_request_finished_or_failed(no_Response.finished);scratch_repro_old_hang/fixed_green;MC3_10x_live_green
 ### DW-1452: flake candidate: live:sign-in-3 e2e/guide/guide.spec.ts:486 Q7 (the sent line gives way to the 90 s and 3 min lines by the page's clock) toHaveAttribute failed, element(s) not found
 - source: feature ci 43957453035 (854346fa1, the 27.1 merge) iris (shards-5) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: web/e2e/guide/guide.spec.ts
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+- 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:59Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=guide_reopen()_through_loadedAfter;repro_old_red/fixed_green;Q7_10x_after_green
+
+### DW-1467: flake: the app's own sign-out redirect (?signedOut=1, session-gate.ts:98) can interrupt a sign-in page.goto at gotoSettled's first attempt (navigate.ts:58), then a demo-path cascade; a different cause from the chrome-error interruption (Story 0.39)
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42406393504 (OCT-epic11 882b6d4b) live:demo-path 07-failure-paths:60 interrupted by navigation to ?signedOut=1, then 08 cascaded; local e03ca809 07 the same; split out of DW-555 by the 0.39 plan
+- 2026-11-17T01:17:55Z status=open owner=burndown by=lead note=one rerun per the flake rule; a repeat makes it a cause-and-fix item
+
+### DW-1468: follow-on: about 45 more bare page.reload() sites (chat 5, notice 5, answers 3, floor/keyboard 4, rail 2, phone 2, demo-switch 4, sources 2, and more) follow the reload with a plain 10 s wait instead of loadedAfter/reloadSettled; convert them once Story 0.39 proves out
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 0.39 gate 2; the same blank-page-after-reload cause as DW-1448/1458/1452/1457
+- 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (prompts/story-039-flakes-rulings-20261117.md item 2): a follow-on story, LOW, after 0.39 proves out
+
+### DW-1469: follow-on: run Chromium in its own network namespace in CI, so the CI host's interface changes (sibling jobs' compose networks) never reach the browser (the net::ERR_NETWORK_CHANGED root of DW-415, DW-555 and the reload blank pages)
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Story 0.39 investigation: 7 of 7 chrome-error sightings and the reload blank pages trace to a network change seen by Chromium on the CI host (inference, unmeasured)
+- 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (rulings item 1): ledgered LOW, a CI infrastructure follow-on, not Story 0.39
+
+### DW-1471: 0.39 pass A: the second-retry failure in withOneReload (if (usedUp) throw usedUp) is pinned only through reportRetryOnce and a source pin; no row or live repro drives two retries at one site through loadedAfter or reloadSettled
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: verification-gap: removing the throw leaves retry-bounds.test.mjs green; web/e2e/support/floor.ts:189
+- 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B adds a row or live repro (AC2b)
+- 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:row_through_reloadSettled/withOneReload,deleting_the_throw_turns_row_1_red
+
+### DW-1472: 0.39 pass A: T1, T4 and T5 count pairing-code requests across a reload; the one logged retry asks for the code again, so a healed flake could fail as a count of 2
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: blind-hunter; Task 4 asks to confirm the counts; only T2 ran on the fixed tree in pass A
+- 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B checks T1/T4/T5 under the repro and with a full live demo-path run
+- 2026-11-17T08:40:28Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=pass_B2_c54bdf0c2:main-bundle-abort_repro:T1,T5,T4-refused_pass_with_one_RETRY
+- 2026-11-17T08:40:37Z occurrence=0.39-pass-B2 by=adjudication note=the_pairing-code_counts_are_unchanged_under_the_one_retry;no_test_change_needed
+
+### DW-1479: flake candidate: web/e2e-online/busy.spec.ts:135 B1 reads the busy splash's focus once (document.activeElement?.id) right after the page's load, so the splash's autofocus may not have applied yet ('the error has the focus': expected ocu-error, received '')
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: one red in a local live:online-demo run in 0.39 pass B2 (lane A), green in the re-run and in a run before it; not this story's file
+- 2026-11-17T08:40:28Z status=open owner=burndown by=harvest note=flake rule: a repeat makes it a cause-and-fix item; DEFERRED under the 1.0.13 wrap-up unless needed for CI green
+
+### DW-1480: flake candidate: a reload whose load event never fires (Q7 reopen, page.reload: Timeout 30000ms exceeded, local sign-in-3 before-loop) is not covered by loadedAfter's /state retry; the reload is the bounded action and fails by name with no retry
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Story 0.39 pass A before-loop: 1 of 10 Q7 runs red at the bare reopen() reload with a reload timeout, not DW-1452's CI signature (element not found). loadedAfter(page, () => page.reload()) bounds that reload by the navigation wait before withOneReload begins, so the same hang still fails (named). Unverified whether it recurs: 15 after-iterations green.
+- 2026-11-17T08:59:27Z status=escalated owner=burndown by=cr note=fix would reload with waitUntil commit at the 27 prescribed sites; changes the ruled call shape in a frozen release
+- 2026-11-17T10:19:59Z status=wontfix-accepted by=orchestrator note=Contest Planner ruling ~10:00Z Nov 17: test-only, the named error is enough for 1.0.13; reopen if it shows up in CI
 
 ### DW-1465: A linked chat user whose IRIS account is disabled or expired may still get Slack turns: Core.Conversation.MayChat reads only the recursed role set (web chat's role rule), not the account state, while web chat refuses such a sign-in
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
@@ -8964,12 +9016,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43970555894 (1f8733c0e, the 28.2 merge) iris (shards-5) on ocutalon-ci-17 | severity: low | fix-risk: low | footprint: web/e2e/heartbeat-card.spec.ts
 - evidence: the merged 28.2 diff touches no web or heartbeat code; the line was absent, not wrong; 22:47Z is outside DW-800's midnight window and DW-845's 00-09 UTC window
 - 2026-11-16T23:08:52Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+- 2026-11-17T09:06:30Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=HC8_reloads_through_loadedAfter_with_the_heartbeat_GET_armed_and_named;repros_old_red/fixed_green;HC8_10x_green
 
 ### DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0): the turn decision falls back with reason error within 258 ms, before any agent step
 - source: feature ci 43982398541 (b2768afeb) iris (browser) on ocutalon-ci-25, live:demo-path 03-reminder; the Planner read the trace on the host | severity: med | fix-risk: med | footprint: the turn path's day-keyed reads (daily cost or allowance row, usage cap, day-keyed counter)
 - evidence: the reminder TURN decision: fallback=true, fallbackReason error, agentStepCount 0, durationMs 258, recordedAt 2026-11-17T00:00:06Z; every later step and Telegram T7/T8 failed after it; not reproducible off midnight (local demo-path at b2768afeb passed); a real user chatting at midnight UTC could get a reasonless fallback too
 - 2026-11-17T00:48:03Z status=routed owner=burndown by=orchestrator note=Planner ruling ~01:05Z: PRODUCT bug candidate on the flake-burndown lane (lane A); find the day-keyed read on the turn path; deterministic test with the clock at 23:59:59, then 00:00:01; related family DW-800
 - 2026-11-16T21:32:25Z occurrence=2 by=lead note=occurrence 2 in the Planner's round-3 re-capture r4, shipments-day-first-date; fixed in DW-1421 round 4 (CLOCKTIME allows an h:mm directly after a date or followed by :ss)
+- 2026-11-17T09:06:30Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=not_a_product_bug:CI_mock_tie(exact_text_'CI_mock:_two_guide_prompts_match:_guide-reminder_and_guide-watch');mock_tie-break_ignoring_quoted_lines(AD-22);K1-K3_node_rows+Test.Contract.Mock_TestMidnightReminderPicksItsPrompt_at_23:59:59_and_00:00:01;severity_LOW_once_fixed(Planner)
 
 ### DW-1453: #9404 seen once in the Planner's control on diagnose claims-archive-internal-error; reconsider on repeats (C2)
 - source: Contest Planner control verdict ~22:05Z Nov 16 (DW-1421 round 4 additions) | severity: low | fix-risk: low | footprint: in-epic

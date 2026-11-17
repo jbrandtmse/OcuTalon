@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
-import { signInReadmeLoaded } from '../support/floor';
+import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { changeSnapshot, MESSAGES } from '../support/api';
 import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
 
@@ -111,8 +111,7 @@ async function open(page: Page): Promise<void> {
 
 /** Reloads the page with the guide that the holder names now. */
 async function reopen(page: Page): Promise<void> {
-  await page.reload();
-  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => page.reload());
 }
 
 /** The page's clock now (ms). */

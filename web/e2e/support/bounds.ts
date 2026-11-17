@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, relative, sep } from 'node:path';
 
 import { test } from '@playwright/test';
@@ -182,6 +182,7 @@ const RETRY_DIAG_LINE = /^DIAG [ -~]{1,300}$/;
 export function reportRetry(step: string, lines: readonly string[] = []): void {
   const line = retryLine(retryLocation(), step);
   console.log(line);
+  retriedLines.add(line);
   try {
     const file = process.env[RETRY_LOG_VARIABLE];
     if (file) {
@@ -192,6 +193,46 @@ export function reportRetry(step: string, lines: readonly string[] = []): void {
   } catch {
     // Best effort: the printed line stays; only the count of ci/iris.sh misses it.
   }
+}
+
+/** The RETRY lines (location and step) that this process printed; the record of retriedBefore when no retry file is named. */
+const retriedLines = new Set<string>();
+
+/**
+ * True when a RETRY line for this location with one of these steps was already reported in this run: found in the file that
+ * RETRY_LOG_VARIABLE names (the unit's record, which ci/iris.sh counts), else in this process's own record when no file is named.
+ * It never throws; a file that cannot be read counts as no earlier retry.
+ */
+export function retriedBefore(location: string, steps: readonly string[]): boolean {
+  const wanted = steps.map((step) => retryLine(location, step));
+  const file = process.env[RETRY_LOG_VARIABLE];
+  if (!file) return wanted.some((line) => retriedLines.has(line));
+  try {
+    if (!existsSync(file)) return false;
+    const held = new Set(readFileSync(file, 'utf8').split('\n'));
+    return wanted.some((line) => held.has(line));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The error of a site that needs its one logged retry a second time in a run (Story 0.39): a second retry is a failure, not another reload.
+ */
+export function secondRetryError(location: string): Error {
+  return new Error(`${location} needed its one logged retry a second time in this run; a second retry is a failure (Story 0.39)`);
+}
+
+/**
+ * reportRetry for a step that a site may retry once per run: reports the RETRY line and the DIAG lines as reportRetry does, and returns the
+ * secondRetryError of the site when `sameSite` (the steps that count as this site's retry) already has a RETRY line at this location in
+ * the run's record, else undefined. The caller throws the error instead of retrying. The record is read before the line is reported.
+ */
+export function reportRetryOnce(step: string, lines: readonly string[], sameSite: readonly string[]): Error | undefined {
+  const location = retryLocation();
+  const again = retriedBefore(location, sameSite);
+  reportRetry(step, lines);
+  return again ? secondRetryError(location) : undefined;
 }
 
 /** The least a snapshot wait gives each of its two attempts, in ms: a bound shorter than twice this stays one wait. */

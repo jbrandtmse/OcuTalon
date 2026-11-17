@@ -1995,6 +1995,42 @@ So that a fault gets a check and a choice gets a notice.
 **Then** every workflow is green
 - DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
+### Story 0.39: Browser-timing flakes wait for the page's real readiness, and a turn at the UTC day rollover does not error
+
+[ADDED 2026-11-17, Contest Planner, browser-timing flake burndown] (dispatch ~01:30Z Nov 17, lane A; flake tally of 2026-11-16). Test only and bounded, except DW-1464, a product-bug candidate whose fix is a Planner gate item. Branch `OCT-epic0-flakes` from feature 1f8733c0e. Binding conditions: fix the CAUSE of each flake and wait on the real readiness signal, never a sleep; no blanket timeout raises, no added retries that hide a failure, no weakened assertions; a timeout raise only where it is truly the only fix, justified per test; a product-code change (for example a readiness marker the page exposes) goes to the Planner first; each fix is proved by a loop of the affected spec under load (at least 10 iterations beside a busy stack, with before and after counts).
+
+As the person who merges OcuTalon's work,
+I want each browser-timing flake of the 2026-11-16 tally fixed at its cause,
+So that a red CI run means a real defect, not a race in a test.
+
+**Acceptance Criteria:**
+
+**Given** each flake below
+**When** this story changes its test (or, with the Planner's approval, the page)
+**Then** the test waits for the real readiness signal the failure lacked, with no sleep, no added retry, no weakened assertion and no blanket timeout raise
+**And** the spec names each flake's cause, its fix, and its host and runner from the tally
+
+**Given** the affected specs
+**When** each runs at least 10 times in a loop beside a busy stack, before and after the fix
+**Then** the before and after counts are recorded, and the after loop is green
+
+**Given** a conversation turn at the UTC day rollover (DW-1464)
+**When** a deterministic test sets the clock to 23:59:59 and then 00:00:01 UTC
+**Then** the turn does not error before its first agent step, and the day-keyed read on the turn path that caused it is named
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1448: telegram-page.spec.ts:196 T2, main.main missing after a reload (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1458: history.spec.ts:316 H7, no Decisions tab after a reload, the same pattern as DW-1448 (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-349: live:floor focus.spec.ts:145 P4, page.goto interrupted by a chrome-error navigation (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-555: Usage U12, page.goto interrupted by a chrome-error navigation (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1450: live:online-demo row 6, the proxied sign-in at the cap gave 'other' (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1451: memory-card.spec.ts:219 MC3, a fulfilled-500 route never finished (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1452: guide.spec.ts:486 Q7, the page clock line not found (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1457: heartbeat-card.spec.ts:369 HC8, the 'Today:' line missing (ledger; chartered by the Contest Planner 2026-11-17)
+- DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0); product-bug candidate (ledger; added by the Contest Planner 2026-11-17)
+
 ### Story 0.40: The purge test's sessions are kept out of the daily digest, and the purge text says what is removed
 
 [ADDED 2026-11-17, Contest Planner, DW-1449 classified as test isolation] (dw-1449-rulings-20261117.md, the CLASSIFIED and GO sections; a release gate next to Story 0.38). Purge.Keeps is unchanged (AD-27's documented rule).
