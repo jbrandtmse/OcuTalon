@@ -70,8 +70,10 @@ describe('DW-774: leave.spec closes a page that has left', () => {
 describe('DW-911: the retry-time page lines are redacted before they reach the retries file', () => {
   it('passes the lines of the retry through redactLine to reportRetry', () => {
     const source = read('web/e2e/support/floor.ts');
-    assert.match(source, /reportRetry\(`loadedAfter the snapshot GET \$\{STATE\}`, retryLines\.map\(redactLine\)\);/);
+    assert.match(source, /reportRetryOnce\(step, retryLines\.map\(redactLine\), SNAPSHOT_STEPS\);/);
+    assert.match(source, /const LOADED_STEPS = \{ action: 'loadedAfter the sign-in', snapshot: `loadedAfter the snapshot GET \$\{STATE\}` \};/);
     assert.match(source, /printDiagnosis\(retryLines, 'state-diagnosis'\);/);
+    assert.match(source, /if \(usedUp\) throw usedUp;/);
   });
 });
 

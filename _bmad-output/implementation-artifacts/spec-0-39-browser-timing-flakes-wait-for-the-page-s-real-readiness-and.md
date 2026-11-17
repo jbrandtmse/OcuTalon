@@ -2,12 +2,27 @@
 title: 'Story 0.39: Browser-timing flakes wait for the page''s real readiness, and a turn at the UTC day rollover does not error'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0c09f1e5a52cff6722cc9f4151f070b0b556570b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: [multiple-goals, oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A second retry at one site is made a failure in withOneReload (`if (usedUp) throw usedUp`), but only the helper (`reportRetryOnce`) and a source pin are tested; no row or live repro drives two retries at one site through loadedAfter or reloadSettled.
+    evidence: |-
+      verification-gap: removing the throw leaves retry-bounds.test.mjs green (rows call reportRetryOnce with their own site list); the AC2b mutation was applied inside reportRetryOnce. Pass B owns the live two-retries repro (Verification, pass A results).
+    location: >-
+      web/e2e/support/floor.ts:189
+    severity: medium
+  - summary: >-
+      T1, T4 and T5 count code requests across a reload; a retried reload (the one logged retry) asks for the pairing code again, so a healed flake could fail as a count of 2 instead of 1.
+    evidence: |-
+      blind-hunter; the spec's own Task 4 asks to confirm T1's and T5's counts. Only T2 ran on the fixed tree in pass A; the full live demo-path run is owed. Not verified either way.
+    location: >-
+      web/e2e/demo-path/telegram-page.spec.ts:577-640
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -219,7 +234,26 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
 
 - 2026-11-17, lead, Planner spec-gate ruling (`prompts/story-039-flakes-rulings-20261117.md`, APPROVED): gate 1 adopted (one logged, CI-counted retry plus the named-diagnosis wait) with a NEW pin, Task 3b / AC2b (a second retry at one site in one run is a failure); gate 2 follow-on ledgered LOW (DW-1468), and Chromium's own network namespace ledgered LOW (DW-1469); gate 3 no traces; gate 4 lane crossing approved for this spec's files only (mock.mjs, history.spec.ts, test-online-demo.sh, Test.Contract.Mock) and the AD-22 sentence written verbatim into the spine; Task 0 (c) for group 5 must READ THE EXACT MOCK ERROR TEXT from the repro before the mock fix lands. DW-1450's stop condition stands. DW-1464 drops to LOW once fixed. Implement runs in two saveable passes: pass A = Tasks 0 (a) and the group 1-2 parts of 0 (b)/(c), 1, 2, 3, 3b, 4, 5, 6, 7; pass B = Tasks 8-12 and their Task 0 parts.
 
+- 2026-11-17, lead, PASS A scope (binding for this implement pass; the intent block is unchanged): implement Tasks 1, 2, 3, 3b, 4, 5, 6, 7 only (AC1, AC2, AC2b, AC3, AC7 for those tests). Tasks 8-12 (MC3, row 6, the DW-1464 mock and `Test.Contract.Mock`) and AC4-AC6 are PASS B: leave their checkboxes and files untouched; an unchecked pass-B task is not a finding. Task 0 (a), the before-loops and the old-red repros for groups 1-2 were run by the lead on the unchanged tree before this handoff (see `## Verification`). The implement handoff is node-level only: edit the files, run `npm --prefix web run lint`, `npm --prefix web test` and the node rows, and do NOT start any IRIS stack, docker or `ci/iris.sh` unit; the lead runs the stack units (repros, after-loops) after the handoff.
+
 ## Review Triage Log
+
+### 2026-11-17 - Review pass (pass A)
+- verdicts: 23 findings reported by the layers, one row per claim (same claim from several layers shares a row) - high 0, medium 2, low 7, false 3, maybe-false 1
+- findings:
+  - `[low]` `reject` Retry budget is per test line, not per reload (blind-hunter, edge-case, verification-gap 'other') - the ruling and Task 3b define the site as `<spec>:<line>`, the RETRY line's own key; spec-bound, closed by-design. Consequence recorded: a repeat-each loop or two independent flakes in one test fail by the named error.
+  - `[medium]` `defer` T1/T4/T5 counted-request checks across a retried reload (blind-hunter) - deferred, unverified; full live demo-path owed.
+  - `[low]` `patch` reloadWithHeartbeat arms its wait with the action bound only (blind-hunter, edge-case) - now navigation + action + slack, like loadedAfter's own wait.
+  - `[low]` `reject` heartbeat matcher accepts a GET of the old document (blind-hunter, edge-case) - the 200 and the line assertions that follow still run; not worth added guard code.
+  - `[low]` `reject` errorPageShown trusts a stale chrome-error URL (blind-hunter) - Task 1 says the current URL is checked first; the page starts at about:blank in every caller.
+  - `[medium]` `patch` The time-left arithmetic of the error-page wait was not pinned (blind-hunter, verification-gap) - row 'gives the error page only the time left in the bound after the failed goto' added; mutation: drop `- (Date.now() - beganAt)` -> that row red; reverted.
+  - `[medium]` `defer` The wiring `if (usedUp) throw usedUp` is not tested (verification-gap, edge-case) - a source pin was added in flake-fixes-sources.test.mjs (patch); the behavioural row/live repro stays deferred (see deferred list).
+  - `[false]` `reject` No source pins for the call-site migrations - a bare reload at a migrated site would still be caught by the live repros; closed wontfix-accepted, low.
+  - `[false]` `reject` reloadSettled assumes /state on every route (blind-hunter, edge-case) - AD-12 and App.LiveState.load (web/src/app/app.ts) issue it on every route; H7 passed with the repro.
+  - `[false]` `reject` Non-Chromium browsers (edge-case) - ERR_NETWORK_CHANGED is Chromium's text and the `chrome-error://` URL is Chromium's; the other browsers never match RETRYABLE this way.
+  - `[low]` `reject` Process-level `retriedLines` leaks between rows (verification-gap) - rows use distinct locations; test-only, no harm named.
+  - `[low]` `reject` 1 ms clamp when the budget is spent reads 'within 0 s' (edge-case); retry-file append failure falls back to no record (edge-case); wait-defaults duplicated in the spec (verification-gap); grace period after a used-up retry (edge-case) - each is cosmetic or outside the ruled behaviour.
+  - Intent-alignment layer: descriptive; it reports readings 1-5, the diff implements reading 1 with the per-test-line site; its divergences are the pass-B items and the 3-5 iteration loop counts recorded in `## Verification`.
 
 ## Design Notes
 
@@ -362,6 +396,21 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 - (once) `git diff --name-only 37b55fb8fbbca21a0709feadfbff4207bfb628e3`: only the files of the Tasks, plus this spec and bookkeeping.
 - (once, at the end, also after a failure) `$LANE OCUTALON_RUN_TAG=e0fli ci/iris.sh teardown`, and `ci/warm.sh down` if warm was used. Then remove `<scratchpad>/e0fl/bin/npm`, and confirm that no burner process or container is left.
 
+**Pass A results (2026-11-17, lane A throwaways, tag `e0fli`; 16 host burners = `hw.ncpu` beside each unit's stack; counts only):**
+- Task 0 (a), Chromium headless shell 1248, no stack, every request aborted with `internetdisconnected`: `goto` rejected with `net::ERR_INTERNET_DISCONNECTED` while `page.url()` read `about:blank`; `waitForURL('chrome-error://chromewebdata/', {waitUntil:'commit'})` then resolved and the URL read `chrome-error://chromewebdata/`. An immediate second `goto` threw `interrupted by another navigation` 0 of 50 times (as expected on this host, which never sees an interface change), so the premise of N1 (the error page commits after the rejection) holds and there is no clarification.
+- Before loops, unchanged tree: `sign-in` (H2, H3, H7, U12 together) 5 iterations, 20 passed, 0 failed; `sign-in-3` (Q7, HC8) 5 iterations, 9 passed, 1 failed (Q7, `page.reload: Timeout 30000ms exceeded` at the bare `reopen()` reload, the DW-1452 signature). T2 (`demo-path`) and P4 (`floor`) before loops: not run (pass B).
+- Old-red repros (main bundle aborted once, `connectionreset`, just before the reload under test), unchanged tree: T2 red (`main.main` not found after the reload), H7 red (element not found after the reload), Q7 (second reopen) red, HC8 (reload at the `nextDueAt` step) red (`element(s) not found`).
+- After, fixed tree: `sign-in` loop 3 iterations of H2, H3, H7, U12: 12 passed, 0 failed, 0 RETRY lines; `sign-in-3` loop 5 iterations of Q7, HC8: 10 passed, 0 failed; T2 loop 3 iterations: 3 passed, 0 failed. P4 after loop: not run (pass B). Loop iterations still owed to AC7 (10 each, before and after): all of them; pass A ran 3-5.
+- Fixed-green repros: H7 green with one `RETRY e2e/history/history.spec.ts:316 reloadSettled ...` (unit RETRIES 1); Q7 and HC8 green with one RETRY each (`guide.spec.ts:487`, `heartbeat-card.spec.ts:390`; unit RETRIES 2); T2 green with one RETRY (`telegram-page.spec.ts:190`; unit RETRIES 1; the repro aborts the bundle once, in the first case only).
+- mutation (AC1): `gotoSettled`'s error-page wait disabled (`false && NETWORK_CHANGED...`) -> `goto-settled.test.mjs` N1 row and N2 row red; reverted, tree byte-identical.
+- mutation (AC2): the bundle abort on the old sites -> T2, H7, Q7, HC8 red (above); `withOneReload`'s retry disabled (`return asked` at the top of `retry`) with the H7 repro -> H7 red (`:316`, 32.9 s), reverted.
+- mutation (AC2b): `reportRetryOnce` never returns the second-retry error -> four `retry-bounds.test.mjs` AC2b rows red (first retry proceeds and second fails, same site across `loadedAfter` and `reloadSettled`, the unit's retry file, the per-process record); reverted, tree byte-identical. The live two-retries-at-one-site repro is not run (pass B).
+- mutation (AC3): the heartbeat GET answers 500 once at HC8's third reload -> HC8 red with `the heartbeat GET answered 500`; reverted.
+- A first T2 repro run that aborted the bundle in all four cases failed with `loadedAfter the snapshot GET ... no answer within 17.9 s (capped by the test timeout)`: the second case had no time left for a retry. That is the scratch injection, not the fix; the single-case injection above is the repro.
+- Scratch only, reverted byte for byte (`git diff` before and after the injections `cmp` identical): the injections, the `npm` shim with its phases, the measure script.
+- Node: `npm --prefix web run lint` exit 0; `npm --prefix web test` 2213 passed, 0 failed.
+- Pass B owes: Task 0 parts and the repros/loops for Tasks 8-12, the T2 and P4 before/after loops, the 10-iteration counts for every pass-A test, the live 3b repro, and the full-unit `live` runs.
+
 **Shared surfaces:**
 - `web/e2e/support/navigate.ts` `gotoSettled`: every sign-in and trace site, and the NAV line format.
 - `web/e2e/support/floor.ts` `loadedAfter` / `reloadSettled`: every `loadedAfter` caller, and the RETRY step labels counted by `ci/iris.sh`.
@@ -376,5 +425,17 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Pass A of 2. Pass B tasks (Tasks 8-12: MC3, row 6, the DW-1464 mock, `Test.Contract.Mock`; AC4-AC6; their Task 0 parts) are NOT started.
+
+Implemented (Tasks 1-7 and 3b): `gotoSettled` waits for the failed navigation's committed `chrome-error://chromewebdata/` after `ERR_NETWORK_CHANGED` and names the first error in its NAV line; `floor.ts` has one shared `/state` wait for `loadedAfter` and the new `reloadSettled`; a second logged retry at one `<spec>:<line>` site in a run fails with a named error (RETRY and DIAG lines still written); T1-T5, H2/H3/H7, Q7's `reopen()` and HC8's five reloads use the helpers, and HC8 asserts the heartbeat GET is 200 by name.
+
+Files: `web/e2e/support/navigate.ts`, `floor.ts`, `bounds.ts`; `web/e2e/demo-path/telegram-page.spec.ts`, `history/history.spec.ts`, `guide/guide.spec.ts`, `heartbeat-card.spec.ts`; `web/e2e/live/deadline-cap.spec.ts` (stubs of the widened `Navigable`); `web/scripts/goto-settled.test.mjs`, `retry-bounds.test.mjs`, `bounded-waits.test.mjs`, `flake-fixes-sources.test.mjs`.
+
+Review: 4 layers; patches applied 2 (the heartbeat wait bound, the error-page time-left row) plus a source pin for the 3b wiring; deferred 2 (see frontmatter); the rest rejected with the reasons in the triage log. No high findings.
+
+Verification: lint exit 0; `npm --prefix web test` 2214 passed; live repros old-red and fixed-green for T2, H7, Q7, HC8 (RETRY counts 1 each) and R2 red by name; mutations AC1, AC2, AC2b, AC3 as recorded under `## Verification` (pass A results). Loops ran 3-5 iterations, not 10 (counts recorded there); T2/P4 before loops, P4 after loop, full live units and the live 3b repro are owed to pass B.
+
+Residual risks: the per-test-line retry site means two independent flakes in one test, or a retry in a second repeat-each iteration, fail by design; T1/T4/T5 request counts across a retried reload are unverified.

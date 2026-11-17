@@ -6,9 +6,10 @@
 // The modules are imported as they are, as state-wait.test.mjs does: erasable TypeScript with no relative import.
 // Run with: node --test web/scripts/retry-bounds.test.mjs
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
-import { describe, it } from 'node:test';
+import { after, afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,7 @@ const { test } = await import('@playwright/test');
 const bounds = await import(support('bounds.ts'));
 
 const STEP = 'loadedAfter the snapshot GET /ocutalon/api/v1/state';
+const RELOAD_STEP = 'reloadSettled the snapshot GET /ocutalon/api/v1/state';
 
 describe('retryLocation inside a test', () => {
   const original = test.info;
@@ -110,6 +112,95 @@ describe('the RETRY line and the line that ci/iris.sh counts', () => {
   it('does not count a line that carries a query, a quote or a shell expansion (a path is kept out by retryLocation, above)', () => {
     const pattern = new RegExp(shape);
     for (const step of [`${STEP}?sid=abc`, `${STEP} "x"`, `${STEP} \${HOME}`]) assert.doesNotMatch(bounds.retryLine('e2e/live/socket.spec.ts:1', step), pattern, step);
+  });
+});
+
+describe('a site retries once per run (Story 0.39, AC2b)', () => {
+  const original = test.info;
+  const logVariable = bounds.RETRY_LOG_VARIABLE;
+  const savedLog = process.env[logVariable];
+  const savedConsole = console.log;
+  const work = mkdtempSync(join(tmpdir(), 'retry-bounds-'));
+  const SAME_SITE = [STEP, RELOAD_STEP];
+  let printed = [];
+  let counter = 0;
+
+  /** The running test sits at this line of a spec of web/e2e. */
+  const at = (line) => {
+    test.info = () => ({ file: join(webRoot, 'e2e', 'history', 'history.spec.ts'), line, config: { configFile: join(webRoot, 'playwright.config.ts') } });
+  };
+  const here_ = (line) => `e2e/history/history.spec.ts:${line}`;
+  const logFile = () => join(work, `retries-${(counter += 1)}.txt`);
+
+  beforeEach(() => {
+    printed = [];
+    console.log = (...args) => printed.push(args.join(' '));
+  });
+  afterEach(() => {
+    console.log = savedConsole;
+    test.info = original;
+    if (savedLog === undefined) delete process.env[logVariable];
+    else process.env[logVariable] = savedLog;
+  });
+  after(() => rmSync(work, { recursive: true, force: true }));
+
+  it('lets the first retry at a site proceed, and fails the second at the same site with the named error, after still reporting its RETRY and DIAG lines', () => {
+    const file = logFile();
+    process.env[logVariable] = file;
+    at(111);
+    assert.equal(bounds.reportRetryOnce(STEP, ['DIAG first'], SAME_SITE), undefined);
+    const second = bounds.reportRetryOnce(STEP, ['DIAG second'], SAME_SITE);
+    assert.ok(second instanceof Error);
+    assert.equal(second.message, `${here_(111)} needed its one logged retry a second time in this run; a second retry is a failure (Story 0.39)`);
+    assert.equal(readFileSync(file, 'utf8'), `RETRY ${here_(111)} ${STEP}\nDIAG first\nRETRY ${here_(111)} ${STEP}\nDIAG second\n`);
+    assert.deepEqual(printed, [`RETRY ${here_(111)} ${STEP}`, `RETRY ${here_(111)} ${STEP}`]);
+  });
+
+  it('lets a retry at another site proceed', () => {
+    process.env[logVariable] = logFile();
+    at(111);
+    assert.equal(bounds.reportRetryOnce(STEP, [], SAME_SITE), undefined);
+    at(222);
+    assert.equal(bounds.reportRetryOnce(STEP, [], SAME_SITE), undefined);
+  });
+
+  it('counts a loadedAfter retry and a reloadSettled retry at one site as the same site, and not another step such as page.close', () => {
+    process.env[logVariable] = logFile();
+    at(333);
+    assert.equal(bounds.reportRetryOnce('page.close', [], SAME_SITE), undefined);
+    assert.equal(bounds.reportRetryOnce(RELOAD_STEP, [], SAME_SITE), undefined, 'a page.close retry is no snapshot retry');
+    assert.ok(bounds.reportRetryOnce(STEP, [], SAME_SITE) instanceof Error, 'the reloadSettled retry already used the site');
+  });
+
+  it('reads the unit\'s retry file, so that another process\'s line counts', () => {
+    const file = logFile();
+    process.env[logVariable] = file;
+    writeFileSync(file, `RETRY ${here_(444)} ${STEP}\nDIAG /state page: 2 requests\n`);
+    at(444);
+    assert.ok(bounds.reportRetryOnce(STEP, [], SAME_SITE) instanceof Error);
+  });
+
+  it('keeps a record of its own when no retry file is named', () => {
+    delete process.env[logVariable];
+    at(555);
+    assert.equal(bounds.reportRetryOnce(STEP, [], SAME_SITE), undefined);
+    assert.ok(bounds.reportRetryOnce(STEP, [], SAME_SITE) instanceof Error);
+    at(556);
+    assert.equal(bounds.reportRetryOnce(STEP, [], SAME_SITE), undefined);
+  });
+
+  it('counts the lines of another test\'s file no more: a fresh file is a fresh run', () => {
+    process.env[logVariable] = logFile();
+    at(111);
+    assert.equal(bounds.reportRetryOnce(STEP, [], SAME_SITE), undefined);
+    process.env[logVariable] = logFile();
+    assert.equal(bounds.reportRetryOnce(STEP, [], SAME_SITE), undefined);
+  });
+
+  it('writes a RETRY line for the reload step that ci/iris.sh counts', () => {
+    const script = readFileSync(join(repoRoot, 'ci', 'iris.sh'), 'utf8');
+    const shape = /^\s*LC_ALL=C grep -E '(\^RETRY [^']+\$)' "\$\(retry_log_of/m.exec(script)?.[1];
+    assert.match(bounds.retryLine(here_(111), RELOAD_STEP), new RegExp(shape));
   });
 });
 
