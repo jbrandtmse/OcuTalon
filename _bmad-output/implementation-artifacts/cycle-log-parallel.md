@@ -4653,3 +4653,18 @@
 2026-11-17T05:05:36Z	Epic 0	hold	lane_A ended head=86ad7569b pushed clean
 2026-11-17T05:06:12Z	Epic 27	hold	lane_B ended head=f430a1c20 pushed clean (second WIP)
 2026-11-17T05:06:12Z	Run	hold_complete	all lanes ended: A 86ad7569b, B f430a1c20, C a640fd7eb, D 2bdbb9f88 (+0.40 9c97ad90f local, 0.38 0b90e038e local)
+2026-11-17T06:06:15Z	Run	resume	via=contest_planner HOLD_LIFTED(account_switched) resume_all_lanes; merge_queue=0.40,triage-accept(re-verify),28.3,0.39
+2026-11-17T06:06:32Z	Run	hold_kept	via=contest_planner session_still_on_OLD_account(97%) -> no lane resumed until /login confirmed; found feature 81265443f ci red: image ci-32 PersonaAnswers:TestTelegramFirstApproves (unclassified)
+2026-11-17T06:06:43Z	Run	note	via=contest_planner 81265443f_red_lead=Approval.RolesOf/HoldsRole_refactor; reproduce_first; lane_B_first_on_resume
+2026-11-17T06:11:56Z	Run	resume	via=contest_planner new_account_confirmed; resumed A(0.39_B2),B(classify_81265443f_red_then_27.2),C(28.3_iter3),D(triage-accept_text,0.40_push,0.38); feature_merges_held_until_81265443f_red_classified
+2026-11-17T06:13:59Z	Epic 0	runner_reported	PUBLIC_TEXT triage-accept_floor_guide(b+L237) relayed; 0.40_proof_pushed=9c97ad90f(CI_registered)
+2026-11-17T06:14:09Z	Epic 0	owner_decision	via=contest_planner triage-accept_floor_guide_text=APPROVED_verbatim; push_then_5-run_re-verify
+2026-11-17T06:24:21Z	Run	ci_red_classified	feature 81265443f PersonaAnswers=flake_DW-1474(not_reproducible_alone+shard;HoldsRole_RolesOf_equivalent;role_check_passed_in_run) rerun_failed_job
+2026-11-17T06:35:16Z	Run	owner_decision	via=contest_planner WRAP_UP final_release_1.0.13 scope_frozen(finish:27.2,28.3,0.38,0.40,triage-accept,0.39; deferred:28.1,28.4,28.5,23.8,24.5,post-cut_A/Bs,DW-1468/1469,LOW)
+2026-11-17T06:39:28Z	Epic 28	runner_reported	28.3_final_head=f58e19991(iter3_of_3;re-review_no_high_med;fresh_Mcp_20/20) CI_queued
+2026-11-17T06:42:13Z	Run	owner_decision	via=contest_planner ci-d_removed(24_runners) ci-e/f_until_1.0.13; ALL_CI_hosts_torn_down_after_1.0.13; 1.0.13_merge_delegated_to_Planner; demo_updated_in_phase2
+2026-11-17T06:48:03Z	Epic 0	runner_reported	PART_READY 0.40 9c97ad90f(green); triage-accept pushed 9be936fe0(CI_running,awaiting_re-verify); PLANNER_REPORT 0.38_re-plan(Core.Access,%SYS_read,AD-33_Telegram/In,~25_tests_ChatSession)
+2026-11-17T06:48:20Z	Epic 0	owner_decision	via=contest_planner 0.40=ACCEPTED(merge_first) triage-accept_re-verify_running 0.38_rulings_i-iv=APPROVED(start_now;%SYS_read_finally+fail_closed;fixture_cleanup_on_failure_pinned)
+2026-11-17T06:55:17Z	Run	ci_green	feature 81265443f ci=44007120511 att2 green (DW-1474 flake, ci-25)
+2026-11-17T06:55:17Z	Epic 0	ci_green_verified	0.40 9c97ad90f runs=44029459969,44029459957
+2026-11-17T06:55:17Z	Epic 0	merge_enqueued	0.40 head=9c97ad90f
