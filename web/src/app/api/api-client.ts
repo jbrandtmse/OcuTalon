@@ -35,6 +35,9 @@ import type {
   RolesList,
   SettingsBody,
   SettingsSaved,
+  SlackLinked,
+  SlackList,
+  SlackUnlinked,
   StateSnapshot,
   UnpairDone,
   WebhookCreated,
@@ -102,6 +105,24 @@ export class ApiClient {
   /** Replaces a webhook's secret: a POST of `{secret}` that answers 200 `{result, message}`. A 404 for a webhook that is not the admin's fails as an HttpErrorResponse, as the others do. */
   setWebhookSecret(ref: string, secret: string): Observable<WebhookSecretSaved> {
     return this.http.post<WebhookSecretSaved>(`${BASE}/settings/channels/webhooks/${encodeURIComponent(ref)}/secret`, { secret });
+  }
+
+  /**
+   * Slack's state, the linked members and the users who can be linked (Story 27.3): a GET that answers 200 `{state, path, links, users}`. A 403 (not an admin) and
+   * a 409 `not_available` (the online demo) fail as an HttpErrorResponse whose `error` is the body.
+   */
+  slack(): Observable<SlackList> {
+    return this.http.get<SlackList>(`${BASE}/settings/channels/slack`);
+  }
+
+  /** Links a Slack member to an OcuTalon user: a POST of `{user, member}` that answers 200 with the link. A 400 `bad_slack_link` (with `fields` and `reason`), a 403, a 409 and a 500 fail as an HttpErrorResponse. */
+  linkSlack(body: { user: string; member: string }): Observable<SlackLinked> {
+    return this.http.post<SlackLinked>(`${BASE}/settings/channels/slack`, body);
+  }
+
+  /** Removes a link by its Ref: a DELETE that answers 200 `{result, message}`. A 404 for a Ref that names no link fails as an HttpErrorResponse, as the others do. */
+  unlinkSlack(ref: string): Observable<SlackUnlinked> {
+    return this.http.delete<SlackUnlinked>(`${BASE}/settings/channels/slack/${encodeURIComponent(ref)}`, { body: {} });
   }
 
   /**

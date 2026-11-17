@@ -8,9 +8,9 @@
 ///   - TestTypedForm (AC 2): "Remember that the Orders partner contact is Kim." is decided tellnow, with no fallback and a confidence from 0 to 1,
 ///     in the Decision row and in the decision that the done chat.message shows, and no refusal warning names the decision;
 ///   - TestPanelForm (AC 2): the same for the text of the guide's Ask it to remember control, as the panel sends it;
-///   - TestProbeShapeIsTheDemoWarning (AC 3): a decide reply with no confidence is refused by the reply check and falls back (tellnow, invalid, no
-///     confidence), the strip's decision is that fallback, the turn is still done with Chat's reply, and exactly one warning names the decision,
-///     with the words that the demo logged;
+///   - TestProbeShapeIsUsed (AC 3, as changed by the Contest Planner's triage-accept ruling, Nov 17): a decide reply with no confidence is accepted
+///     with the model's outcome (tellnow, no fallback) and stored with no confidence (never 0); the strip's decision is that decision and shows no
+///     confidence; the turn is done with Chat's reply, and no refusal warning names the decision;
 ///   - TestEvalCase (AC 4): eval/user-turn-remember/case.json is the user-turn case of the remember request, with the panel's exact text.
 Class OcuTalon.Test.Agent.RememberDecision Extends OcuTalon.Test.Watch.Case
 {
@@ -28,8 +28,6 @@ Parameter PANEL = "Remember that the Results partner's contact is Lee.";
 /// The scenario whose decide reply has no confidence.
 Parameter SCENARIO = "remember-no-confidence";
 
-/// The warning that the demo logged for the decision, after the decision's Ref.
-Parameter DEMOTAIL = ": The reply check failed: the reply is not one JSON object that OcuTalon.Bridge.Msg.DecisionPayload accepts: ERROR #5001 rule confidence-missing";
 
 /// The markers whose countdown a test armed, comma-separated; OnAfterOneTest clears them.
 Property Armed As %String(MAXLEN = "");
@@ -82,15 +80,15 @@ Method TestPanelForm()
 	Do ..AssertUsable("panel form", row, done)
 }
 
-/// AC 3: a decide reply with a valid outcome, two reasons and no confidence is refused, with the demo's warning.
-Method TestProbeShapeIsTheDemoWarning()
+/// AC 3 (the triage-accept ruling): a decide reply with a valid outcome, two reasons and no confidence is used, with no confidence.
+Method TestProbeShapeIsUsed()
 {
 	If '..Ready() Quit
 	If '..PointKeys() Quit
 	Set session = ..Session("probe")
 	Set row = ..Ask(session, ..#TYPED, ..#SCENARIO, "probe", .done)
 	If '$IsObject(row) Quit
-	Do ..AssertDemoFallback("reply without a confidence", row, done)
+	Do ..AssertUsedWithoutConfidence("reply without a confidence", row, done)
 }
 
 /// AC 4: the evaluation case of the remember request.
@@ -183,30 +181,29 @@ Method AssertUsable(label As %String, row As OcuTalon.Data.Turn, done As %Dynami
 	Do $$$AssertEquals(count, 0, label_": no refusal warning names the decision: "_text)
 }
 
-/// The decide decision of the turn is the fallback of a refused reply, the strip shows it, and exactly one warning names it, with the demo's words.
-Method AssertDemoFallback(label As %String, row As OcuTalon.Data.Turn, done As %DynamicObject) [ Private ]
+/// The decide decision of the turn is the reply's own (tellnow, no fallback) with no confidence, never 0; the strip shows it with no confidence; no refusal warning names it.
+Method AssertUsedWithoutConfidence(label As %String, row As OcuTalon.Data.Turn, done As %DynamicObject) [ Private ]
 {
 	Set decision = ##class(OcuTalon.Test.Agent.RunnerFixture).DecisionOf(row.ItemId, "decide")
 	Do $$$AssertTrue($IsObject(decision), label_": the decide decision is recorded")
 	If $IsObject(decision) {
 		Do $$$AssertEquals(decision.Ref, row.TriageDecisionRef, label_": it is the decision that the turn names")
-		Do $$$AssertEquals(decision.Outcome_"|"_decision.Fallback_"|"_decision.FallbackReason, "tellnow|1|invalid", label_": the Decision row is the tellnow fallback, invalid")
-		Do $$$AssertEquals(decision.Confidence, "", label_": it has no confidence")
+		Do $$$AssertEquals(decision.Outcome_"|"_(+decision.Fallback)_"|"_decision.FallbackReason, "tellnow|0|", label_": the Decision row is the reply's tellnow, with no fallback")
+		Do $$$AssertEquals(decision.Confidence, "", label_": it has no confidence, never 0")
 	}
 	If $IsObject(done) {
 		Set shown = done.decision
 		Do $$$AssertTrue($IsObject(shown), label_": the done chat.message shows a decision")
 		If $IsObject(shown) {
 			Do $$$AssertEquals(shown.ref, row.TriageDecisionRef, label_": the strip shows the decide decision")
-			Do $$$AssertEquals(shown.outcome_"|"_(+shown.fallback)_"|"_shown.fallbackReason, "tellnow|1|invalid", label_": the strip shows the fallback")
+			Do $$$AssertEquals(shown.outcome_"|"_(+shown.fallback)_"|"_shown.fallbackReason, "tellnow|0|", label_": the strip shows tellnow, with no fallback")
 			Do $$$AssertTrue(shown.%GetTypeOf("confidence") '= "number", label_": and no confidence")
 		}
 	}
 	Set start = ##class(OcuTalon.Test.Bridge.ReplyCheck).#REFUSED
 	Set start = start_row.TriageDecisionRef
 	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Conclude", start)
-	Do $$$AssertEquals(count, 1, label_": exactly one warning names the decision")
-	Do $$$AssertEquals(text, start_..#DEMOTAIL, label_": and its text is the demo's")
+	Do $$$AssertEquals(count, 0, label_": no refusal warning names the decision: "_text)
 }
 
 }

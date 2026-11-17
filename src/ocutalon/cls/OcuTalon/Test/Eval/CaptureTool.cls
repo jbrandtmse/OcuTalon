@@ -36,7 +36,7 @@ Parameter NOCHECK = "no check";
 /// an earlier capture in it (this class's own file names) are deleted first. An empty folder is an error, never the process's own directory.
 ClassMethod Run(folder As %String, refs As %String = "", Output summary As %DynamicObject) As %Status
 {
-	Set summary = {"decisions": 0, "decide": 0, "diagnose": 0, "replies": 0, "files": 0, "noReply": 0, "reasons": {}, "rules": [], "cases": [], "names": []}
+	Set summary = {"decisions": 0, "decide": 0, "diagnose": 0, "replies": 0, "files": 0, "noReply": 0, "reasons": {}, "rules": [], "cases": [], "names": [], "accepted": {}}
 	Try {
 		If $ZStrip(folder, "<>W") = "" {
 			Set sc = $$$ERROR($$$GeneralError, "The capture folder is empty")
@@ -88,6 +88,13 @@ ClassMethod Run(folder As %String, refs As %String = "", Output summary As %Dyna
 				}
 			}
 		}
+		// The attention floor (the triage-accept ruling): the decide decisions that were accepted without a confidence, by outcome; counts only
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Outcome FROM OcuTalon_Bridge_Data.Decision WHERE Fallback = 0 AND Kind = 'decide' AND Confidence IS NULL ORDER BY ID")
+		While rows.%Next() {
+			If (refs '= "") && '$ListFind(wanted, rows.%Get("Ref")) Continue
+			Set outcome = rows.%Get("Outcome")
+			Do summary.accepted.%Set(outcome, +summary.accepted.%Get(outcome) + 1)
+		}
 		Do ..Tally(summary, .rules, .cases)
 		Set sc = $$$OK
 		If summary.decisions {
@@ -102,7 +109,8 @@ ClassMethod Run(folder As %String, refs As %String = "", Output summary As %Dyna
 }
 
 /// The CHK lines of the summary, one per line:
-///   CHK|decisions|<n>|<decide>|<diagnose>|<replies>|<files>, CHK|reason|<reason>|<n>, CHK|rule|<rule>|<field or ->|<n>, CHK|case|<case>|<rule>|<n> and CHK|file|<name>.
+///   CHK|decisions|<n>|<decide>|<diagnose>|<replies>|<files>, CHK|reason|<reason>|<n>, CHK|rule|<rule>|<field or ->|<n>, CHK|case|<case>|<rule>|<n>, CHK|file|<name> and
+///   CHK|accepted|<outcome>|<n> (a decide decision accepted without a confidence, the attention floor of the triage-accept ruling).
 /// A value holds no bar and no line end. Nothing of a reply's text is in a line.
 ClassMethod Lines(summary As %DynamicObject) As %String
 {
@@ -122,6 +130,12 @@ ClassMethod Lines(summary As %DynamicObject) As %String
 	Set iterator = summary.names.%GetIterator()
 	While iterator.%GetNext(, .name) {
 		Set lines = lines_$Char(10)_"CHK|file|"_..Plain(name)
+	}
+	If $IsObject(summary.%Get("accepted")) {
+		Set iterator = summary.accepted.%GetIterator()
+		While iterator.%GetNext(.outcome, .count) {
+			Set lines = lines_$Char(10)_"CHK|accepted|"_..Plain(outcome)_"|"_count
+		}
 	}
 	Quit lines
 }

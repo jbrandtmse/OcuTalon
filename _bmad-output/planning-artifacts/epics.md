@@ -1995,6 +1995,29 @@ So that a fault gets a check and a choice gets a notice.
 **Then** every workflow is green
 - DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
+### Story 0.40: The purge test's sessions are kept out of the daily digest, and the purge text says what is removed
+
+[ADDED 2026-11-17, Contest Planner, DW-1449 classified as test isolation] (dw-1449-rulings-20261117.md, the CLASSIFIED and GO sections; a release gate next to Story 0.38). Purge.Keeps is unchanged (AD-27's documented rule).
+
+As a maintainer relying on the purge test,
+I want its fixture sessions isolated from the running production's daily digest, and the security overview to say what the purge removes,
+So that the test fails only for a real fault, and the documentation matches AD-27.
+
+**Acceptance Criteria:**
+
+**Given** Test.Data.Purge on a running production whose Digest ticks
+**When** a tick lands during a test
+**Then** no fixture session gets a digest, a Delivery or a SimMessage, because each has a Digest.Data.Sent row of Kind scheduled with a far-future DueAt (removed after the test); the idle-session and kept-session messages carry the row counts before and after the purge; and the test passes in a loop under load
+
+**Given** AD-27's documented rule
+**When** Retention.Purge(90) runs
+**Then** a session 91 days old with no activity of any kind is purged, and one with a Delivery recorded now is kept
+
+**Given** docs/security-overview.md's Data section
+**When** test-release-sequence reads it
+**Then** it holds the Contest Planner's approved purge sentences verbatim (turns and notice records after 90 days; a session only when nothing current or recent keeps it), with a control that fails on a change
+- DW-1449: Test.Data.Purge TestCurrentSessionLosesNoRows failed three times in CI; classified as test isolation (the daily digest fan-out reached the fixture sessions)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -9294,6 +9317,7 @@ So that only the people I choose can message OcuTalon from Slack (step 7, Could)
 **When** this story begins
 **Then** the spine is updated in the same change with how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
 **And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+- DW-1442: Spine ADs AD-13, AD-14, AD-17 and AD-22 still state wording that Story 27.1's shipped behaviour contradicts; carry the wording fix in this story's spine gate (ledger; routed by merge_gate 2026-11-16, Contest Planner)
 
 ## Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 

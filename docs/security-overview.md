@@ -223,7 +223,7 @@ Retention, by three daily tasks at 03:00 instance time:
 - live events after 24 hours;
 - AI sessions that no conversation points to after a day.
 
-The 7-day and 90-day counts are task settings, which an admin can change in the Task Manager. The chat history and the session records stay in the private database, and no scheduled purge removes them. Audit entries follow the instance's own audit retention. OcuTalon never changes the instance's auditing, and warns at start when auditing is off.
+The 7-day and 90-day counts are task settings, which an admin can change in the Task Manager. Chat turns and the record of each notice sent are removed after 90 days. A session record, with its guide progress, simulated messages and finished reminders, is removed only once it is over 90 days old and nothing keeps it: no turn, notice or decision in the last 90 days, no saved memory or document, and no watch, Telegram pairing, webhook, pending approval or reminder, or live sign-in. Audit entries follow the instance's own audit retention. OcuTalon never changes the instance's auditing, and warns at start when auditing is off.
 
 ## MCP tools
 

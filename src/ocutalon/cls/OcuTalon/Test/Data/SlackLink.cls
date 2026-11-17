@@ -9,6 +9,11 @@
 ///     each deletes its link row, and SessionFor is empty afterwards;
 ///   - TestLinkWithoutSessionIsNoLink: (QA) a link row whose session row is gone (made with a %NOCHECK delete) gives no session, so the member is unlinked;
 ///   - TestLinkedInAnotherTeam: the member id of a row in a workspace other than the one asked is found, the row's own workspace and an unknown id are not;
+///   - TestLinkReasons: (Story 27.3) Link names why it refused in reason (bad_id, no_session, member_taken, user_taken), is OK with the existing Ref for the same member and session
+///     and with "" as the reason for a new link, takes the Ref that the caller made, and no status text holds an id;
+///   - TestTaken: Taken answers "", same, member_taken or user_taken from the two unique indexes, the member first, and changes nothing;
+///   - TestList: List answers [{ref, sessionRef, member}] in the order of the rows' ids, with no team id;
+///   - TestWorkspace: NoteWorkspace holds a valid team id, ignores an invalid or empty one, writes only when the value differs, and Workspace answers it (the value held before the test is put back);
 ///   - TestClaimEvent: the first claim of an event id wins and a repeat does not, in the same hour and across an hour boundary; a claim is kept for 2 hours and its bucket is
 ///     deleted at the first claim after that; UnclaimEvent gives one back; an empty or over-long id is never claimed.
 Class OcuTalon.Test.Data.SlackLink Extends %UnitTest.TestCase
@@ -105,6 +110,104 @@ Method TestLinkRules()
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.SlackLink).Unlink(session), "and Unlink with no link is OK")
 	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor("T0FIXTURE2", "U0FIXTURE1"), other, "the other team's link is untouched")
 	Do $$$AssertNotEquals(first, "", "the first link had a Ref")
+}
+
+Method TestLinkReasons()
+{
+	Set session = ..Session("reasons")
+	Set other = ..Session("reasons2")
+	Set ref = ##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON1", session, .sc, .reason)
+	Do $$$AssertStatusOK(sc, "a new link is OK")
+	Do $$$AssertEquals(reason, "", "with no reason")
+	Do $$$AssertTrue(ref '= "", "and its Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON1", session, .sc, .reason), ref, "the same member and session again answers the existing Ref")
+	Do $$$AssertStatusOK(sc, "with an OK status")
+	Do $$$AssertEquals(reason, "", "and no reason")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON1", other, .sc, .reason), "", "the member linked to another session is refused")
+	Do $$$AssertStatusNotOK(sc, "with an error status")
+	Do $$$AssertEquals(reason, "member_taken", "member_taken")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON2", session, .sc, .reason), "", "a session that has another member is refused")
+	Do $$$AssertEquals(reason, "user_taken", "user_taken")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON1", session, .sc, .reason, "zzSomeoneElsesRef"), ref, "the same pair keeps its Ref, whatever Ref the caller offers")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U-0 1", other, .sc, .reason), "", "an id that is not letters and digits is refused")
+	Do $$$AssertEquals(reason, "bad_id", "bad_id")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link("", "U0REASON3", other, .sc, .reason), "", "an empty team id is refused")
+	Do $$$AssertEquals(reason, "bad_id", "bad_id again")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON3", "zzNoSuchSession00000001", .sc, .reason), "", "a session with no row is refused")
+	Do $$$AssertEquals(reason, "no_session", "no_session")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON3", "", .sc, .reason), "", "an empty session is refused")
+	Do $$$AssertEquals(reason, "no_session", "no_session again")
+	Do $$$AssertTrue(($SYSTEM.Status.GetErrorText(sc) '[ "U0REASON3") && ($SYSTEM.Status.GetErrorText(sc) '[ ..#TEAM), "and no status text holds an id")
+	Set made = "AAAAAAAAAAAAAAAAAAAAAA"
+	Do ##class(OcuTalon.Data.SlackLink).Unlink(session)
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0REASON4", other, .sc, .reason, made), made, "the Ref that the caller made is the link's Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionRefIndexOpen(other).Ref, made, "and it is the row's")
+}
+
+Method TestTaken()
+{
+	Set session = ..Session("taken")
+	Set other = ..Session("taken2")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken(..#TEAM, "U0TAKEN1", session), "", "nothing stands in the way of a free pair")
+	Set ref = ##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0TAKEN1", session, .sc)
+	Do $$$AssertStatusOK(sc, "a pair is linked")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken(..#TEAM, "U0TAKEN1", session), "same", "the same pair is same")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken(..#TEAM, "U0TAKEN1", other), "member_taken", "the member with another session is member_taken")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken(..#TEAM, "U0TAKEN2", session), "user_taken", "the session with another member is user_taken")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken("T0FIXTURE2", "U0TAKEN1", other), "", "the same member id in another team is free")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken(..#TEAM, "U0TAKEN1", ""), "member_taken", "the member is checked first")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Taken("", "", ""), "", "empty ids stand in the way of nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionRefIndexOpen(session).Ref, ref, "and Taken changed nothing")
+}
+
+Method TestList()
+{
+	Set first = ..Session("listA")
+	Set second = ..Session("listB")
+	Set one = ##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0LISTB01", first, .sc)
+	Set two = ##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0LISTA01", second, .sc)
+	Set list = ##class(OcuTalon.Data.SlackLink).List()
+	Do $$$AssertTrue($IsObject(list) && list.%IsA("%Library.DynamicArray"), "List is a dynamic array")
+	Set at = 0, position = ""
+	Set iterator = list.%GetIterator()
+	While iterator.%GetNext(.index, .row) {
+		If row.ref = one Set at(1) = index, found(1) = row
+		If row.ref = two Set at(2) = index, found(2) = row
+		Do $$$AssertEquals(row.%Size(), 3, "a row has exactly ref, sessionRef and member")
+	}
+	Do $$$AssertTrue($Data(at(1)) && $Data(at(2)), "both links are listed")
+	Do $$$AssertTrue(at(1) < at(2), "in the order of their ids, not of their member ids")
+	Do $$$AssertEquals(found(1).sessionRef_"|"_found(1).member, first_"|U0LISTB01", "the first row names its session and member")
+	Do $$$AssertEquals(found(2).sessionRef_"|"_found(2).member, second_"|U0LISTA01", "the second row names its")
+	Do $$$AssertEquals(list.%ToJSON() [ ..#TEAM, 0, "and no team id is in the list")
+}
+
+Method TestWorkspace()
+{
+	Set held = $Data(^OcuTalonP.SlackW)
+	If held Set value = ^OcuTalonP.SlackW
+	Try {
+		Kill ^OcuTalonP.SlackW
+		Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "", "no workspace is noted at first")
+		Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace("T0FIXTURE1")
+		Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "T0FIXTURE1", "a valid team id is noted")
+		Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace("")
+		Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace("T0-FIX 1")
+		Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace($Translate($Justify("", 33), " ", "T"))
+		Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "T0FIXTURE1", "an empty, a malformed and an over-long team id are ignored")
+		Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace("T0FIXTURE1")
+		Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "T0FIXTURE1", "the same value again is the same")
+		Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace("T0FIXTURE2")
+		Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), "T0FIXTURE2", "a different valid team id overwrites it")
+		Do $$$AssertEquals($Order(^OcuTalonP.SlackW("")), "", "and the global holds one value and no subscript")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the workspace case threw: "_exception.DisplayString())
+	}
+	If held {
+		Set ^OcuTalonP.SlackW = value
+	} Else {
+		Kill ^OcuTalonP.SlackW
+	}
 }
 
 Method TestLinkGoesWithSession()

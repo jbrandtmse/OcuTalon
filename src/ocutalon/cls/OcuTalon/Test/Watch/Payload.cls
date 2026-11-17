@@ -27,7 +27,7 @@
 ///     top-level field with a numeric MAXLEN has one; each -out-of-range pair names a top-level field with a numeric MINVAL or MAXVAL, is written in no %OnValidateObject, and each class has exactly one, for confidence;
 ///   - TestLengthTags (DW-1421 round 3, AC 2 and 3): a text over the limit of any of the eight limited fields is "ERROR #7201 rule <field>-too-long" with no digit after the code, for the diagnosis class, for the triage class and after the reply filter;
 ///   - TestRangeTag (Option R): a confidence over 1 or under 0 is "ERROR #7203 rule confidence-out-of-range" or "ERROR #7204 rule ..." for both reply classes;
-///   - TestConfidenceAbsent (DW-1421 C5, AC 6 and 7): a diagnosis with no confidence (or a null one) is accepted and stored with none, never 0, with no confidence key in its payload or its live payload; a confidence of 0 is kept as 0; the triage class still refuses a reply with none;
+///   - TestConfidenceAbsent (DW-1421 C5, AC 6 and 7): a diagnosis with no confidence (or a null one) is accepted and stored with none, never 0, with no confidence key in its payload or its live payload; a confidence of 0 is kept as 0; a triage reply with none is accepted only to tell now or act (the attention floor), and refused to ignore or digest;
 ///   - TestEvidenceCut (DW-1421 C2' and round 3): an evidence reference over 128 characters is cut (at most 128 characters, ending in U+2026, at the last word boundary when that keeps at least EVIDENCEFLOOR = 64 characters, else mid-word), never refused, and a reference of 128 or fewer is
 ///     unchanged; each row of the cut (the limit, a space at 128, no boundary, a blank head, a surrogate pair, several, the count cap, a reference that is not a string, a reply that names evidenceCut, a dynamic
 ///     object as input, text that is not JSON, and the floor: an early space, a head of 64, of 63, and of 63 once two spaces are removed) is pinned, and no other field is cut;
@@ -162,6 +162,10 @@ Method TestPayloadAccepted()
 	Set long = ..Usable()
 	Do long.evidence.%Push($Translate($Justify("", 128), " ", "e"))
 	Do $$$AssertStatusOK(..Check(long), "an evidence reference of 128 characters is accepted")
+	// DW-1438: the time of a date-time value that the cause quotes is no time of day
+	Set dated = ..Usable()
+	Set dated.cause = "The ShippedAt field holds 16/10/2026 09:30:00, a day-first date that the target reads month first."
+	Do $$$AssertStatusOK(..Check(dated), "a cause that quotes the date-time value 16/10/2026 09:30:00 is accepted")
 }
 
 Method TestPayloadRefused()
@@ -234,6 +238,9 @@ Method TestPayloadRefused()
 	Set reply = ..Usable()
 	Set reply.cause = "The orders failed since 14:12."
 	Do ..AssertRefused(reply, "a cause that holds a time")
+	Set reply = ..Usable()
+	Set reply.cause = "The orders failed at 09:30."
+	Do ..AssertRefused(reply, "a cause that holds a bare time of day, at 09:30 (DW-1438)")
 	Set reply = ..Usable()
 	Set reply.fixSummary = "resend them at 9:05"
 	Do ..AssertRefused(reply, "a fixSummary that holds a time")
@@ -709,9 +716,9 @@ Method TestEvidenceCut()
 	// row 13, the model sends the count
 	Set reply = ..Outage()
 	Set reply.evidenceCut = 3
-	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut")
+	Do ..AssertRefusal(reply, "ERROR #9404 rule unexpected-field", "row 13, a reply that names evidenceCut")
 	Do reply.%Set("evidenceCut", "", "null")
-	Do ..AssertRefusal(reply, "ERROR #9404: an unexpected property", "row 13, a reply that names evidenceCut with null")
+	Do ..AssertRefusal(reply, "ERROR #9404 rule unexpected-field", "row 13, a reply that names evidenceCut with null")
 	// row 14, a dynamic object as input is not changed
 	Set reply = ..EvidenceReply([(e300)])
 	Set object = $ClassMethod(..#CLASS, "%New")
@@ -932,7 +939,7 @@ Method AssertStored(label As %String, reply As %DynamicObject, confidence As %St
 Method TestConfidenceAbsent()
 {
 	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
-	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Msg.DecisionPayload", "CONFIDENCEREQUIRED"), 1, "DecisionPayload requires a confidence")
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Msg.DecisionPayload", "CONFIDENCEREQUIRED")_"|"_$Parameter("OcuTalon.Bridge.Msg.DecisionPayload", "CONFIDENCEOPTIONAL"), "1|tellnow,act", "DecisionPayload requires a confidence except for the outcomes tellnow and act (the attention floor)")
 	Do $$$AssertEquals($Parameter(..#CLASS, "CONFIDENCEREQUIRED"), 0, "DiagnosisPayload does not")
 	Do $$$AssertEquals($Parameter("OcuTalon.Test.Bridge.ProbeReplyCheck", "CONFIDENCEREQUIRED"), 1, "and the test probe does")
 	// C1
@@ -950,7 +957,11 @@ Method TestConfidenceAbsent()
 	Do $$$AssertStatusOK(..Check(nulled, .payload), "C3: a null confidence is accepted")
 	If $IsObject(payload) Do $$$AssertEquals($Length(payload.Confidence), 0, "C3: and it is absent")
 	// C6 (a check too)
-	Do ..AssertTag("OcuTalon.Bridge.Msg.DecisionPayload", {"outcome": "ignore", "reasons": ["r"]}.%ToJSON(), "confidence-missing", "confidence", "C6, a decide reply with no confidence", 5001)
+	// C6 and the attention floor (the triage-accept ruling): a decide reply to ignore with no confidence is refused; one to tell now is accepted, with none
+	Do ..AssertTag("OcuTalon.Bridge.Msg.DecisionPayload", {"outcome": "ignore", "reasons": ["r"]}.%ToJSON(), "confidence-missing", "confidence", "C6, a decide reply to ignore with no confidence", 5001)
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).CheckReply({"outcome": "tellnow", "reasons": ["r"]}.%ToJSON(), "OcuTalon.Bridge.Msg.DecisionPayload", .decided)
+	Do $$$AssertStatusOK(sc, "C6: a decide reply to tell now with no confidence is accepted")
+	If $IsObject(decided) Do $$$AssertEquals(decided.Outcome_"|"_$Length(decided.Confidence), "tellnow|0", "C6: with its outcome and no confidence")
 	// C2
 	Do ..AssertStored("C2, a usable diagnosis", usable, "")
 	Do ..AssertStored("C2, an outage", outage, "")

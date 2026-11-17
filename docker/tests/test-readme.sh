@@ -280,6 +280,7 @@ Set a model key
 Sign in
 Telegram
 Gmail and Microsoft 365
+Slack
 Stop, start and update
 Troubleshooting
 For admins and developers'
@@ -295,7 +296,7 @@ Credits and licences'
 # paragraph of "More".
 POINTER="The guide lists what is new since release 1.0.0 for your integrations, your documents and memory, and personas, the heartbeat checklist and the digest: [New since 1.0.0]($GUIDE_URL#new-since-100)."
 MORE_HEAD='## More'
-MORE="[The OcuTalon guide]($GUIDE_URL) has the rest: [New since 1.0.0]($GUIDE_URL#new-since-100), [What you can use it for]($GUIDE_URL#what-you-can-use-it-for), [How you talk to it]($GUIDE_URL#how-you-talk-to-it), [What OcuTalon does]($GUIDE_URL#what-ocutalon-does), [Install it yourself]($GUIDE_URL#install-it-yourself), [Set a model key]($GUIDE_URL#set-a-model-key), [Sign in]($GUIDE_URL#sign-in), [Telegram on your own install]($GUIDE_URL#telegram), [Gmail and Microsoft 365]($GUIDE_URL#gmail-and-microsoft-365), [Stop, start and update]($GUIDE_URL#stop-start-and-update), [Troubleshooting]($GUIDE_URL#troubleshooting) and [For admins and developers]($GUIDE_URL#for-admins-and-developers)."
+MORE="[The OcuTalon guide]($GUIDE_URL) has the rest: [New since 1.0.0]($GUIDE_URL#new-since-100), [What you can use it for]($GUIDE_URL#what-you-can-use-it-for), [How you talk to it]($GUIDE_URL#how-you-talk-to-it), [What OcuTalon does]($GUIDE_URL#what-ocutalon-does), [Install it yourself]($GUIDE_URL#install-it-yourself), [Set a model key]($GUIDE_URL#set-a-model-key), [Sign in]($GUIDE_URL#sign-in), [Telegram on your own install]($GUIDE_URL#telegram), [Gmail and Microsoft 365]($GUIDE_URL#gmail-and-microsoft-365), [Slack on your own install]($GUIDE_URL#slack), [Stop, start and update]($GUIDE_URL#stop-start-and-update), [Troubleshooting]($GUIDE_URL#troubleshooting) and [For admins and developers]($GUIDE_URL#for-admins-and-developers)."
 # The ruled line of the guide's "Tests and CI" section that names the README check (Planner Edit 2).
 GUIDE_CI_LINE='`bash ci/checks.sh` runs the checks that need no container, among them the check of the README. The GitHub Actions workflow in `.github/workflows/ci.yml` runs them and the web build on pushes and pull requests, and the browser tests and the IRIS tests on pushes and on pull requests from this repository'"'"'s own branches.'
 # The README's word cap, by wc -w (Story 0.30).

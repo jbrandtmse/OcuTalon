@@ -1,6 +1,7 @@
-/// A Slack member linked to a session (AD-4, AD-14, AD-27; Story 27.1). Lane B. A row says that direct messages from the member (TeamId and MemberId together:
+/// A Slack member linked to a session (AD-4, AD-14, AD-27; Stories 27.1 and 27.3). Lane B. A row says that direct messages from the member (TeamId and MemberId together:
 /// the same member id in another workspace is another person) are the turns of the session. SlackIn reads it with object access only, because it runs in the
-/// hook's process; the writers are Link and Unlink, which Story 27.3's SettingsOps command calls, and nothing in this story's product code calls them.
+/// hook's process; the writers are Link and Unlink, which SettingsOps (LinkSlackMember, UnlinkSlackMember) calls, after Taken has named a clash, and List is the
+/// read behind its ListSlackLinks.
 ///   - A member is linked to one session and a session has one member (both indexes are unique);
 ///   - the row is deleted with its session by the cascading foreign key SessionFK, so the AD-27 purge's %DeleteId, an eval session's DropEval and any SQL DELETE of
 ///     the session remove the link with no code of the purge's own (R8). A link to a session that has no row cannot be saved;
@@ -8,6 +9,8 @@
 ///     texts never hold them.
 /// EVENTGLOBAL holds the claims of event ids (ClaimEvent), written only by ClaimEvent: ("e", UTC hour, event id) is the count of claims, and a bucket older than
 /// CLAIMSECONDS is deleted at the next claim. It holds no text and no Slack id but the event id.
+/// WORKSPACEGLOBAL holds the one workspace team id that SlackIn has seen on a signed event (NoteWorkspace, Workspace): a link is made in that workspace, and an
+/// install has one workspace, so a changed value stops every earlier link from matching (R2). It is read by SettingsOps only and never sent anywhere.
 Class OcuTalon.Data.SlackLink Extends %Persistent
 {
 
@@ -16,6 +19,9 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.SlackLink";
 
 /// The global of the event-id claims.
 Parameter EVENTGLOBAL = "^OcuTalonP.SlackE";
+
+/// The global of the workspace team id: one value.
+Parameter WORKSPACEGLOBAL = "^OcuTalonP.SlackW";
 
 /// The seconds that a claimed event id is kept at least (claims are kept by whole UTC hours, so for two to three hours); a retry after that is processed again.
 Parameter CLAIMSECONDS = 7200;
@@ -62,39 +68,106 @@ ClassMethod SessionFor(teamId As %String, memberId As %String) As %String
 	Quit $Select(##class(OcuTalon.Data.Session).RefIndexExists(sessionRef): sessionRef, 1: "")
 }
 
-/// Links the member to the session and answers the link's Ref. The answer is "" with an error status when an id is empty, longer than IDMAX or not letters and
-/// digits, when the session has no row, or when the member or the session is already linked. The status never holds an id.
-ClassMethod Link(teamId As %String, memberId As %String, sessionRef As %String, Output sc As %Status) As %String
+/// Links the member to the session and answers the link's Ref, with reason one of "" (linked, or already linked to this same session: the existing Ref), bad_id (an id
+/// is empty, longer than IDMAX or not letters and digits), no_session (the session has no row), member_taken (the member is linked to another session), user_taken
+/// (the session has another member) and failed. Every reason but "" comes with an error status and the answer "". ref is the Ref that the caller made with
+/// Bridge.Ids.NewRef (a new one is made when it is empty). A failed save looks at the two unique indexes again to name the clash. No status text holds an id.
+ClassMethod Link(teamId As %String, memberId As %String, sessionRef As %String, Output sc As %Status, Output reason As %String, ref As %String = "") As %String
 {
-	Set sc = $SYSTEM.Status.OK()
-	Set teamId = $Get(teamId), memberId = $Get(memberId), sessionRef = $Get(sessionRef)
+	Set sc = $SYSTEM.Status.OK(), reason = ""
+	Set teamId = $Get(teamId), memberId = $Get(memberId), sessionRef = $Get(sessionRef), ref = $Get(ref)
 	If '..IsId(teamId) || '..IsId(memberId) {
+		Set reason = "bad_id"
 		Set sc = $SYSTEM.Status.Error(5001, "A Slack team id and member id are letters and digits, at most "_..#IDMAX_" characters")
 		Quit ""
 	}
 	If (sessionRef = "") || '##class(OcuTalon.Data.Session).RefIndexExists(sessionRef) {
+		Set reason = "no_session"
 		Set sc = $SYSTEM.Status.Error(5001, "The session has no session row")
 		Quit ""
 	}
-	Set ref = ""
+	Set taken = ..Taken(teamId, memberId, sessionRef)
+	If taken = "same" Quit ..MemberIndexOpen(teamId, memberId, 0).Ref
+	If taken '= "" {
+		Set reason = taken
+		Set sc = $SYSTEM.Status.Error(5001, "The Slack member or the session is already linked")
+		Quit ""
+	}
+	Set result = ""
 	Try {
 		Set row = ..%New()
-		Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set row.Ref = $Select(ref '= "": ref, 1: ##class(OcuTalon.Bridge.Ids).NewRef())
 		Set row.TeamId = teamId
 		Set row.MemberId = memberId
 		Set row.SessionRef = sessionRef
 		Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 		Set saved = row.%Save()
 		If $SYSTEM.Status.IsOK(saved) {
-			Set ref = row.Ref
+			Set result = row.Ref
 		} Else {
-			Set sc = $SYSTEM.Status.Error(5001, "The Slack member or the session is already linked")
+			Set again = ..Taken(teamId, memberId, sessionRef)
+			If again = "same" {
+				Set result = ..MemberIndexOpen(teamId, memberId, 0).Ref
+			} Else {
+				Set reason = $Select(again '= "": again, 1: "failed")
+				Set sc = $SYSTEM.Status.Error(5001, "The Slack member or the session is already linked")
+			}
 		}
 	} Catch {
+		Set reason = "failed"
 		Set sc = $SYSTEM.Status.Error(5001, "The link could not be saved")
-		Set ref = ""
+		Set result = ""
 	}
-	Quit ref
+	Quit result
+}
+
+/// What stands in the way of linking the member of the workspace to the session, read from the two unique indexes: "" (nothing), same (the member is already linked
+/// to this session), member_taken (the member is linked to another session) or user_taken (the session has another member). The member is checked first.
+ClassMethod Taken(teamId As %String, memberId As %String, sessionRef As %String) As %String
+{
+	Set teamId = $Get(teamId), memberId = $Get(memberId), sessionRef = $Get(sessionRef)
+	Set result = ""
+	Try {
+		Set row = ..MemberIndexOpen(teamId, memberId, 0)
+		If $IsObject(row) {
+			Set result = $Select(row.SessionRef = sessionRef: "same", 1: "member_taken")
+		} ElseIf ..SessionRefIndexExists(sessionRef) {
+			Set result = "user_taken"
+		}
+	} Catch {
+		Set result = ""
+	}
+	Quit result
+}
+
+/// Every link as [{ref, sessionRef, member}] in the order of the rows' ids, read by object access. The team id is not in it.
+ClassMethod List() As %DynamicArray
+{
+	Set list = []
+	Set id = ""
+	For {
+		Set id = $Order(^OcuTalonP.SlackLinkD(id))
+		Quit:id=""
+		Set row = ..%OpenId(id, 0)
+		If $IsObject(row) Do list.%Push({"ref": (row.Ref), "sessionRef": (row.SessionRef), "member": (row.MemberId)})
+	}
+	Quit list
+}
+
+/// Notes the workspace of a signed event: sets WORKSPACEGLOBAL to the team id when it is a Slack id (IsId) that differs from the value held, and does nothing else.
+ClassMethod NoteWorkspace(teamId As %String)
+{
+	Set teamId = $Get(teamId)
+	If '..IsId(teamId) Quit
+	Set global = ..#WORKSPACEGLOBAL
+	If $Get(@global) '= teamId Set @global = teamId
+}
+
+/// The workspace team id that NoteWorkspace holds, or "" when no signed event has been noted.
+ClassMethod Workspace() As %String
+{
+	Set global = ..#WORKSPACEGLOBAL
+	Quit $Get(@global)
 }
 
 /// Removes the session's link. Answers OK when there was one and when there was none; an error status only when the row could not be deleted.
