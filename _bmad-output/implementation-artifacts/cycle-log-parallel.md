@@ -4641,3 +4641,4 @@
 2026-11-17T02:59:03Z	Epic 0	runner_reported	PART_READY triage-accept 7afb58563 (awaiting_planner_5-run_verify); DW-1449_writer=daily_digest_tick(Digest.Process.Ticked) isolation_plan; PUBLIC_TEXT security-overview:212 relayed
 2026-11-17T02:59:21Z	Epic 0	owner_decision	via=contest_planner triage-accept=ACCEPTED_pending_5-run_verify(running) 0.40=GO(isolation_plan,overview_212_text_approved)
 2026-11-17T03:00:55Z	Run	ci_green	feature 5f1996ed6 ci=43998846310 att2 green (DW-1449 rerun)
+2026-11-17T03:00:58Z	Epic 27	merged	27.3 merge=81265443f
