@@ -1,13 +1,17 @@
 /// Tests of the CreateWebhook and SetWebhookSecret commands in OcuTalon.Core.SettingsOps (Story 35.3; AD-1, AD-13, AD-19), called on a shadow instance of
 /// OcuTalon.Test.Core.SettingsOpsProbe, whose audit write is a recording seam, with the secret in a real SecretHandoff. Safe on a slot: no production runs.
 /// These tests pin the operation's own guards, which the REST route's checks would otherwise hide.
-///   - TestCreateAuditsFirst: a create whose audit write fails answers not_audited and stores no row, and a create that succeeds records one entry naming
-///     webhook.<Ref> and the name, with the salted hash in the row and the secret in no entry;
+///   - TestCreateAuditsAfterTheRow: a create whose audit write fails answers not_audited and the row it saved is rolled back, and a create that succeeds records
+///     one entry naming webhook.<Ref> and the name, with the salted hash in the row and the secret in no entry;
+///   - TestCreateRowFailureWritesNoEntry: a create whose row save fails answers failed, stores no row and writes no audit entry (none in the real audit log, which
+///     a control create of the same session then shows is read);
 ///   - TestRotateOfAnotherSession: a rotation of a Ref that another session owns, and of an unknown Ref, answers not_found and leaves the hash and the audit alone;
+///   - TestRotateAuditFails, TestRotateRowFailureWritesNoEntry: a rotation whose audit write fails answers not_audited with the hash as before, and one whose row
+///     save fails answers failed with the hash as before and no entry in the real audit log;
 ///   - TestOnlineDemo: with the online-demo flag set both commands answer not_available, store nothing and audit nothing;
 ///   - TestNoSecret: a command whose handoff uri has no secret behind it answers failed and stores nothing;
-///   - TestNameTakenAtSave: a create whose name is taken between its check and its save (another row stored at its audit write) answers name_taken with the
-///     name's field text, writes a second audit entry that undoes the first (from the name to ""), and stores no row of its own.
+///   - TestNameTakenAtSave: a create whose name is taken between its check and its save (another row stored just before its save) answers name_taken with the
+///     name's field text, writes no audit entry at all (no entry that undoes another) and stores no row of its own.
 Class OcuTalon.Test.Core.SettingsWebhooks Extends %UnitTest.TestCase
 {
 
@@ -45,14 +49,15 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-Method TestCreateAuditsFirst()
+Method TestCreateAuditsAfterTheRow()
 {
 	Set name = "zz ops "_$Random(1000000)
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "error"
 	Set result = ..Create(name, ..A)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "a create whose audit write fails is not_audited")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).NameTaken(name), 0, "and stores no row")
-	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 1, "after one audit attempt")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).NameTaken(name), 0, "and the row it saved is rolled back")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 1, "after one audit attempt")
+	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Set result = ..Create(name, ..A)
@@ -66,6 +71,26 @@ Method TestCreateAuditsFirst()
 	Do $$$AssertEquals(entry.setting, "webhook."_data.ref, "which names the webhook")
 	Do $$$AssertEquals(entry.to, name, "and its name")
 	Do $$$AssertTrue(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data") '[ ..#SECRET, "and holds no secret")
+}
+
+/// A create whose row save fails: failed, no row, no audit write was attempted and the real audit log has no entry for the session; a control create of the
+/// same session writes its one entry, so the query does find an entry when there is one.
+Method TestCreateRowFailureWritesNoEntry()
+{
+	Set name = "zz ops row "_$Random(1000000)
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "saveRow") = "error"
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Create(name, ..A)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a create whose row save fails is failed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).NameTaken(name), 0, "and stores no row")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "and no audit write was attempted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ..A).%Size(), 0, "and the real audit log has no entry for the session")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "saveRow")
+	Set result = ..Create(name, ..A)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the control create is done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ..A).%Size(), 1, "and the same query finds its one entry")
 }
 
 Method TestRotateOfAnotherSession()
@@ -99,23 +124,57 @@ Method TestOnlineDemo()
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 0, "neither writes an audit entry")
 }
 
+/// A rotation whose audit write fails: not_audited, and the hash is as before, read from storage.
+Method TestRotateAuditFails()
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Webhook(..A, "zz ops rotate audit "_$Random(1000000), "zz-ops-original-0123456789")
+	Set hash = ##class(OcuTalon.Data.Webhook).Lookup(ref).SecretHash
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "error"
+	Set result = ..Rotate(ref, ..A)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "a rotation whose audit write fails is not_audited")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Lookup(ref).SecretHash, hash, "and the hash is as before")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 1, "after one audit attempt")
+	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
+}
+
+/// A rotation whose row save fails: failed, the hash is as before, no audit write was attempted and the real audit log has no entry for the session; a control
+/// rotation writes its one entry, so the query does find an entry when there is one.
+Method TestRotateRowFailureWritesNoEntry()
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Webhook(..A, "zz ops rotate row "_$Random(1000000), "zz-ops-original-0123456789")
+	Set hash = ##class(OcuTalon.Data.Webhook).Lookup(ref).SecretHash
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "saveRow") = "error"
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Rotate(ref, ..A)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "a rotation whose row save fails is failed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Webhook).Lookup(ref).SecretHash, hash, "and the hash is as before")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "and no audit write was attempted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ..A).%Size(), 0, "and the real audit log has no entry for the session")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "saveRow")
+	Set result = ..Rotate(ref, ..A)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "the control rotation is done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ..A).%Size(), 1, "and the same query finds its one entry")
+}
+
 Method TestNameTakenAtSave()
 {
 	Set name = "zz ops clash "_$Random(1000000)
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Set ^OcuTalonTest("SettingsOpsProbe", "clash") = name
 	Set ^OcuTalonTest("SettingsOpsProbe", "clashSession") = ..B
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Create(name, ..A)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|name_taken", "a create whose name is taken at its save is name_taken")
 	Set data = {}.%FromJSON(result.Data)
 	Do $$$AssertEquals(data.fields.name, ##class(OcuTalon.Core.SettingsOps).WebhookFieldText("settings.webhookNameTaken", name), "with the name's field text")
-	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 2, "after two audit entries")
-	Set first = {}.%FromJSON(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data"))
-	Set undone = {}.%FromJSON(^OcuTalonTest("SettingsOpsProbe", "calls", 2, "data"))
-	Do $$$AssertEquals(undone.setting, first.setting, "the second names the same webhook")
-	Do $$$AssertEquals(undone.from_"|"_undone.to, name_"|", "and undoes the first, from the name to nothing")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "and no audit write was attempted, so no entry is undone either")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ..A).%Size(), 0, "and the real audit log has no entry for the session")
 	Set rows = 0, result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Webhook WHERE SessionRef = ?", ..A)
 	While result.%Next() { Set rows = rows + 1 }
 	Do $$$AssertEquals(rows, 0, "and session A has no row")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
 }
 
 Method TestNoSecret()

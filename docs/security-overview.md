@@ -64,6 +64,10 @@ On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only beca
 | Role | Resource | Permission | Declared by |
 | --- | --- | --- | --- |
 | `OcuTalonAdmin` | none | - | `Users` |
+| `OcuTalonMCPApp` | `%DB_OCUTALON_CODE` | R | `Mcp` |
+| `OcuTalonMCPApp` | `%DB_OCUTALON_DATA` | R | `Mcp` |
+| `OcuTalonMCPApp` | `%DB_OCUTALON_PRIVATE` | R | `Mcp` |
+| `OcuTalonMCPClient` | `OcuTalon_MCPServer` | U | `Mcp` |
 | `OcuTalonServiceRole` | `%Ens_ConfigItemRun` | U | `Fix` |
 | `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |
 | `OcuTalonServiceRole` | `%Ens_ProductionConfig` | W | `Fix` |
@@ -79,6 +83,15 @@ On your own install, OcuTalonServiceRole holds %Ens_ProductionConfig:W only beca
 | `OcuTalonWebhook` | `%DB_OCUTALON_PRIVATE` | RW | `Web` |
 
 Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`, with no public permission, and `OcuTalonServiceRole` holds U on it until the server is removed. The gate checks it before every call of that server's tools. On the online demo there is none.
+
+### MCP server
+
+| Tool | Class | Classification | Read-only |
+| --- | --- | --- | --- |
+| `check_status` | `OcuTalon.Mcp.ServiceRead` | safe | yes |
+| `recent_activity` | `OcuTalon.Mcp.ServiceRead` | safe | yes |
+
+OcuTalon's MCP server, `OcuTalon.Mcp.Service` at `/mcp/ocutalon` (password sign-in), offers only the read-only tools above. A user needs the role `OcuTalonMCPClient`, which holds only U on `OcuTalon_MCPServer`. While a request runs in `/mcp/ocutalon`, IRIS adds the application role `OcuTalonMCPApp`, which no user holds and which gives R on OcuTalon's code, data and private databases, with no write and no SQL privilege. Outside that application, `OcuTalonMCPClient` reads none of OcuTalon's databases. Each tool runs as that user, reads only that user's own OcuTalon session and writes an `MCP` audit entry. On the online demo the application, the resource and the roles don't exist.
 
 ### With demo mode on
 
@@ -105,6 +118,7 @@ Each MCP server that an admin adds has its own resource, `OcuTalon_MCP_<server>`
 
 | Web application | Sign-in | Roles added to its requests |
 | --- | --- | --- |
+| `/mcp/ocutalon` | password | `OcuTalonMCPApp` |
 | `/ocutalon` | password | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
 | `/ocutalon/api` | password | `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` |
 | `/ocutalon/hook` | none (unauthenticated) | `OcuTalonWebhook` |
@@ -161,10 +175,10 @@ The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types a
 - `Approval`: answered, expired, cancelled, started or finished;
 - `Pairing`: a chat paired, unpaired or refused;
 - `Settings`: setting, from, to;
-- `MCP`: a server added or removed, or a tool called or refused;
+- `MCP`: a server added or removed, a tool called or refused, or a tool that OcuTalon's own MCP server served;
 - `Tool`: a tool's classification.
 
-Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, or classify an MCP tool, so a release without those features writes none of them.
+Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, call an MCP tool, serve a call of OcuTalon's own MCP server, or classify an MCP tool, so a release without those features writes none of them.
 
 Roles and accounts:
 
@@ -209,7 +223,7 @@ Retention, by three daily tasks at 03:00 instance time:
 - live events after 24 hours;
 - AI sessions that no conversation points to after a day.
 
-The 7-day and 90-day counts are task settings, which an admin can change in the Task Manager. The chat history and the session records stay in the private database, and no scheduled purge removes them. Audit entries follow the instance's own audit retention. OcuTalon never changes the instance's auditing, and warns at start when auditing is off.
+The 7-day and 90-day counts are task settings, which an admin can change in the Task Manager. Chat turns and the record of each notice sent are removed after 90 days. A session record, with its guide progress, simulated messages and finished reminders, is removed only once it is over 90 days old and nothing keeps it: no turn, notice or decision in the last 90 days, no saved memory or document, and no watch, Telegram pairing, webhook, pending approval or reminder, or live sign-in. Audit entries follow the instance's own audit retention. OcuTalon never changes the instance's auditing, and warns at start when auditing is off.
 
 ## MCP tools
 

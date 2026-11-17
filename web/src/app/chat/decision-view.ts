@@ -8,10 +8,12 @@
  *   have en-US thousands separators, a confidence has two decimals, and a duration has one decimal under a minute and whole
  *   minutes and seconds from a minute on.
  * - reasonLines puts a fallback's sentence first and then the decision's reasons, one line each, up to a maximum.
+ * - stripMeta gives the strip's line 1 after the chip: no confidence on a fallback or when the decision has none.
  * - outcomeOf names the chip of a decision: a fallback is always Tell now, and an outcome the page does not know has no chip.
  * - checkRowView says which result, word and icon a check row shows; only "passed" is Passed and only "failed" is Failed.
  */
 import type { IconName } from '../icon/icon';
+import type { DecisionPayload } from '../live/payloads';
 import type { Outcome } from './outcome-chip';
 
 /** Every fixed string of the strip, the details and the check rows. The middle dot is U+00B7. */
@@ -113,6 +115,19 @@ export function formatDuration(ms: number | undefined): string {
 /** "Confidence 0.92". */
 export function confidenceText(confidence: number | undefined): string {
   return DECISION_TEXTS.confidence.replace('{n}', () => formatConfidence(confidence));
+}
+
+/** The items of a strip's line 1 after the chip and the flag: the confidence, unless it is a fallback or the decision has none (absent is not 0), then the cost when given. */
+export function stripMeta(decision: DecisionPayload | undefined, fallback: boolean, cost: number | undefined): string[] {
+  const items: string[] = [];
+  const confidence = decision?.confidence;
+  if (!fallback && confidence !== undefined) {
+    items.push(confidenceText(confidence));
+  }
+  if (cost !== undefined) {
+    items.push(formatCost(cost));
+  }
+  return items;
 }
 
 /** The four token kinds with their counts, joined by the separator: Input 1,084, Output (includes thinking) 312, Cache read 0, Cache write 0. */

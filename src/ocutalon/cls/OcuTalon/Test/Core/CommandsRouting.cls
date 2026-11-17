@@ -13,6 +13,7 @@
 ///   - TestListOnCallUsersRouting (Story 36.4, DW-1278): the read verb ListOnCallUsers from web_admin reaches SettingsOps, and only SettingsOps, with the same object; from
 ///     every other origin, "zz" and "" included, it is not_allowed with the existing text and sends nothing; it is no tool verb, and it waits SEARCHTIMEOUT seconds
 ///     and answers Ok 0 busy when nothing answers, as the other read verbs do;
+///   - TestSlackVerbsWebAdminOnly (Story 27.3): the Slack verbs are sent from web_admin only, to SettingsOps, and are no tool verbs;
 ///   - TestListProductionsRouting (Story 24.2): the read verb ListProductions from web_admin reaches SettingsOps, and only SettingsOps, with the same object; from every other
 ///     origin, "zz" and "" included, it is not_allowed with the existing text and sends nothing; inside a bridge context a command that says web_admin is refused as from the chat;
 ///     it is no tool verb, and it waits SEARCHTIMEOUT seconds and answers Ok 0 busy when nothing answers;
@@ -211,6 +212,41 @@ Method TestListProductionsRouting()
 		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// The Slack verbs (Story 27.3; AD-1, AD-24): ListSlackLinks, LinkSlackMember and UnlinkSlackMember reach SettingsOps from web_admin only, each once, as the command object itself
+/// with its origin and session; from web_user, telegram, tool, timer, system, "zz" and "" they are not_allowed with nothing sent (a tool gets the text of the chat, every other
+/// origin the admin-only text); and none is a tool verb.
+Method TestSlackVerbsWebAdminOnly()
+{
+	Set session = ..Session("slackverbs")
+	Set tool = "That can't be done from the chat. Nothing was changed."
+	Set admin = "Only an OcuTalon admin can change settings. Nothing was changed."
+	Set verbs = $ListBuild("ListSlackLinks", "LinkSlackMember", "UnlinkSlackMember")
+	Set position = 0
+	While $ListNext(verbs, position, verb) {
+		Set probe = ..NewProbe("ok")
+		Set command = ..NewCommand(verb, "web_admin", session, "zzkey"_..Number)
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(..Calls(), 1, "a "_verb_" from web_admin is sent once")
+		Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "class"), "SettingsOps|OcuTalon.Msg.Command."_verb, "to SettingsOps, as its own class")
+		Do $$$AssertEquals(..Call(1, "origin")_"|"_..Call(1, "sessionRef"), "web_admin|"_session, "with its origin and session unchanged")
+		Set same = (probe.LastRequest = command)
+		Do $$$AssertEquals(same, 1, "the owner gets the command object itself")
+		Set origins = $ListBuild("web_user", "tool", "telegram", "timer", "system", "zz", "")
+		For i = 1:1:$ListLength(origins) {
+			Set origin = $List(origins, i)
+			Set label = verb_" from '"_origin_"'"
+			Set probe = ..NewProbe("ok")
+			Set command = ..NewCommand(verb, origin, session, "zzkey"_..Number_i)
+			Set sc = probe.OnProcessInput(command, .output)
+			Do $$$AssertStatusOK(sc, label_" is answered with a status that is OK")
+			Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed")
+			Do $$$AssertEquals(output.Message, $Select(origin = "tool": tool, 1: admin), label_" says why")
+			Do $$$AssertEquals(..Calls(), 0, label_" sends nothing")
+		}
+		Do $$$AssertEquals($ListFind($ListFromString($Parameter("OcuTalon.Core.CommandsIn", "TOOLVERBS")), verb), 0, verb_" is no tool verb")
+	}
 }
 
 /// The routing of a web_admin read verb of SettingsOps (verb is its class name in OcuTalon.Msg.Command): from web_admin it is sent once, to SettingsOps, as the command

@@ -36,6 +36,8 @@
 ///   - step 4 webhooks (Story 35.3, AD-1, AD-19): CreateWebhook and SetWebhookSecret go to SettingsOps from web_admin only; neither is a tool verb, and the
 ///     secret is never in the command, only the uri of its SecretHandoff;
 ///   - step 6 (Story 25.4, AD-1, AD-24): ListRoles goes to SettingsOps from web_admin only; it is no tool verb, and its answer carries only a SecretHandoff uri;
+///   - step 7 (Story 27.3, AD-1, AD-24): ListSlackLinks, LinkSlackMember and UnlinkSlackMember go to SettingsOps from web_admin only; none is a tool verb or a verb of a
+///     Slack sender, and the user name and member id travel only in a SecretHandoff;
 ///   - ListMcpServers (Story 21.4, AD-1, AD-21) is the read behind Settings > Tools and MCP servers: it goes to SettingsOps from web_admin only, is no tool verb, and
 ///     changes nothing; AddMcpServer carries only the uri of its credential's SecretHandoff;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
@@ -385,7 +387,10 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SaveSqlWatch", "owner": "WatchOps", "origins": "web_admin"},
  {"verb": "ListRoles", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "ListOnCallUsers", "owner": "SettingsOps", "origins": "web_admin"},
- {"verb": "ListProductions", "owner": "SettingsOps", "origins": "web_admin"}
+ {"verb": "ListProductions", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "ListSlackLinks", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "LinkSlackMember", "owner": "SettingsOps", "origins": "web_admin"},
+ {"verb": "UnlinkSlackMember", "owner": "SettingsOps", "origins": "web_admin"}
 ]
 }
 

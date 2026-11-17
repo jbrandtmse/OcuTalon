@@ -2031,6 +2031,29 @@ So that a red CI run means a real defect, not a race in a test.
 - DW-1457: heartbeat-card.spec.ts:369 HC8, the 'Today:' line missing (ledger; chartered by the Contest Planner 2026-11-17)
 - DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0); product-bug candidate (ledger; added by the Contest Planner 2026-11-17)
 
+### Story 0.40: The purge test's sessions are kept out of the daily digest, and the purge text says what is removed
+
+[ADDED 2026-11-17, Contest Planner, DW-1449 classified as test isolation] (dw-1449-rulings-20261117.md, the CLASSIFIED and GO sections; a release gate next to Story 0.38). Purge.Keeps is unchanged (AD-27's documented rule).
+
+As a maintainer relying on the purge test,
+I want its fixture sessions isolated from the running production's daily digest, and the security overview to say what the purge removes,
+So that the test fails only for a real fault, and the documentation matches AD-27.
+
+**Acceptance Criteria:**
+
+**Given** Test.Data.Purge on a running production whose Digest ticks
+**When** a tick lands during a test
+**Then** no fixture session gets a digest, a Delivery or a SimMessage, because each has a Digest.Data.Sent row of Kind scheduled with a far-future DueAt (removed after the test); the idle-session and kept-session messages carry the row counts before and after the purge; and the test passes in a loop under load
+
+**Given** AD-27's documented rule
+**When** Retention.Purge(90) runs
+**Then** a session 91 days old with no activity of any kind is purged, and one with a Delivery recorded now is kept
+
+**Given** docs/security-overview.md's Data section
+**When** test-release-sequence reads it
+**Then** it holds the Contest Planner's approved purge sentences verbatim (turns and notice records after 90 days; a session only when nothing current or recent keeps it), with a control that fails on a change
+- DW-1449: Test.Data.Purge TestCurrentSessionLosesNoRows failed three times in CI; classified as test isolation (the daily digest fan-out reached the fixture sessions)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -9116,6 +9139,34 @@ So that I never hear a stale error and never press a control that can only fail.
 - DW-1386: A viewer sees the Add to documents button on an older file reply; the server refuses (403 read_only) but the page shows the generic add-failed line (ledger; Contest Planner A2, 2026-11-15)
 - DW-1387: On the Documents page a viewer still gets the drag outline and a dropped file is swallowed with no message (ledger; Contest Planner A2, 2026-11-15)
 
+### Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction
+
+[ADDED 2026-11-15, Contest Planner, DW-1392] (targets 1.0.12 if ready in time; the AD-19 amendment and the DW-1395 AD-13 clarification below are written into the spine verbatim)
+
+As an admin,
+I want every audited Settings save to leave an audit entry only for a change that happened, and never a change without its audit entry,
+So that the audit log stays a true record of what changed.
+
+**Acceptance Criteria:**
+
+**Given** every audited Settings save (Story 24.2's partner contact save, `SaveProduct` from Stories 33.2 and 36.4, and every other audited write of the same audit-then-row pattern that a grep finds, each listed in the spec)
+**When** it saves
+**Then** inside one transaction it writes the row FIRST, then the audit entry; if the audit write fails it rolls the row back (TROLLBACK) and reports the failure; only then does it commit (TCOMMIT)
+
+**Given** a test that forces the row write to fail
+**When** the save runs
+**Then** no audit entry is written, and the failure is reported
+
+**Given** a test that forces the audit write to fail
+**When** the save runs
+**Then** the row is unchanged and the failure is reported (each test fails when the ordering or the rollback is removed: a demonstrated mutation)
+
+**And** the spine's AD-19 gains, verbatim: "An audited save writes its row and then its audit entry inside one transaction, and rolls the row back if the audit write fails; IRIS writes audit records outside the transaction, so a commit that fails after the audit write is the one case that can leave an entry for a change that didn't happen. [ADDED 2026-11-15, DW-1392, Contest Planner ruling]"
+**And** the spine's AD-13 gains, verbatim: "The web process may read Settings tables directly, as SettingsOps.Values reads Data.Setting; every write goes through the production. [ADDED 2026-11-15, DW-1395, Contest Planner ruling]"
+**And** no new public text, and no change to any route, role or reply shape
+- DW-1392: Settings audit-first transactions cannot roll back the IRIS audit entry: a row write that fails after the audit leaves an entry for a change that never happened (ledger; Contest Planner ruling 2026-11-15)
+- DW-1395: AD-13 L484 is ambiguous for unowned config tables (ledger; Contest Planner ruling 2026-11-15: the AD-13 clarification above)
+
 ## Epic 26: Approver roles and reading files (step 6)
 
 An admin assigns approver roles (for all risky actions or one kind) and a viewer role; a PDF or Word file sent from the chat or Telegram becomes an item, and OcuTalon captions photos as memories.
@@ -9302,6 +9353,7 @@ So that only the people I choose can message OcuTalon from Slack (step 7, Could)
 **When** this story begins
 **Then** the spine is updated in the same change with how an admin links a Slack member to an OcuTalon user (AD-14, AD-19, AD-29, AD-33)
 **And** the step 7 texts the UX doesn't give (the Slack channel's state and member-linking in Settings, and its setup steps) are proposed to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, and no story of this epic ships a text the author hasn't accepted (UX-DR117)
+- DW-1442: Spine ADs AD-13, AD-14, AD-17 and AD-22 still state wording that Story 27.1's shipped behaviour contradicts; carry the wording fix in this story's spine gate (ledger; routed by merge_gate 2026-11-16, Contest Planner)
 
 ## Epic 28: Transform drafts, memory fading and OcuTalon as an MCP server (step 7, Could)
 
@@ -9431,6 +9483,7 @@ So that I can check status and history from my own tools (step 7, Could).
 **When** they connect anonymously, with a wrong password, as a user without `OcuTalonMCPClient`, and as a user with it
 **Then** the first three are refused, and a user with the role can list and call the tools, which run as that IRIS user and return only that user's session's records, never a second user's (FR-51, AD-4, AD-24)
 **And** a guide says how to connect, and the server stays off on the online demo
+- DW-1459: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role through the dispatcher or iris-mcp-server (ledger; routed by harvest 2026-11-16)
 
 ## Epic 29: The online demo's platform side
 

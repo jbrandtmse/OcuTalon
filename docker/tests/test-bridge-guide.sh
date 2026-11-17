@@ -28,6 +28,8 @@
 #                runs later on the agent's own tool manager, which does not hold the tools) and its McpServers bullet (the report's refused names, the probe, the proxy)
 #   - contenttext the two lines that Story 26.3 rules are, each as a whole line compared as a fixed string, in the guide: the Settings table's
 #                ContentClass row and the ContentClass bullet of "The extension classes"
+#   - confidencetext the three lines that DW-1421 round 3 rules are, each as a whole line compared as a fixed string, in the guide: the
+#                Confidence row of DecisionResponse, the DecisionPayload paragraph (CONFIDENCEREQUIRED) and the invalid bullet (fixed refusal tags)
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
 #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
@@ -750,6 +752,62 @@ if [ "$content_ok" -eq 1 ]; then
     fails=$((fails + 1))
   else
     echo "PASS contenttext: the guide's ContentClass wording is the ruled text"
+  fi
+fi
+
+# --- confidencetext ---
+
+# confidence_lines: the lines of the guide that DW-1421 round 3 ruled (Contest Planner, Nov 16): the Confidence row of DecisionResponse (a diagnosis,
+# or a decision to tell now or act, may have none; the triage-accept ruling and its attention floor, Contest Planner, Nov 17), the DecisionPayload paragraph (CONFIDENCEREQUIRED) and the invalid bullet (the fixed refusal tags), one per line.
+confidence_lines() {
+  cat << 'EOF'
+| `Confidence` | The model-reported confidence, 0 to 1. A diagnosis, or a decision to tell now or act, may have none: it is then empty, never 0, and its card or strip shows none. |
+**`OcuTalon.Bridge.Msg.DecisionPayload`** is what the agent answers with, one JSON object with three fields: `outcome` (one of the outcomes below), `reasons` (a list of short sentences, at least one that is not blank) and `confidence` (a number from 0 to 1). A reply with another field or a field of the wrong type is `invalid`, and so is a reply without a confidence when its class requires one. The class parameter `CONFIDENCEREQUIRED` says whether it does: it is 1 on `OcuTalon.Bridge.Msg.DecisionPayload` and 0 on `OcuTalon.Watch.Msg.DiagnosisPayload`, so a diagnosis without a confidence is accepted and has none, and so is a decision whose outcome is tellnow or act (the class parameter `CONFIDENCEOPTIONAL`); a decision that would ignore or digest an item without a confidence is still `invalid`, and a confidence that is given must still be from 0 to 1.
+- `invalid`: the reply did not pass the `ReplyClass` check. The warning that `Decide` logs for it names each refused rule by a fixed tag that the reply class lists, such as `<field>-too-long` or `confidence-out-of-range`, and carries no value of the reply.
+EOF
+}
+
+# confidence_problems <guide>: one line per ruled line that the guide lacks as a whole line.
+confidence_problems() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    grep -qxF -- "$line" "$1" || echo "the guide lacks ruled line $n of the confidence and refusal-tag wording (starting '$(printf '%s' "$line" | cut -c1-40)')"
+  done < <(confidence_lines)
+}
+mkdir -p "$tmp/f"
+confidence_ok=1
+confidence_lines > "$tmp/f/keep.md"
+if [ "$(wc -l < "$tmp/f/keep.md" | tr -d ' ')" -ne 3 ]; then
+  echo "FAIL confidencetext: the ruled text is not three lines"
+  fails=$((fails + 1)); confidence_ok=0
+fi
+if [ "$confidence_ok" -eq 1 ] && [ -n "$(confidence_problems "$tmp/f/keep.md")" ]; then
+  echo "FAIL confidencetext: the rule flags a guide that holds the ruled text"
+  confidence_problems "$tmp/f/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); confidence_ok=0
+fi
+# One character of each ruled line changed, one line at a time: the rule must flag that line.
+if [ "$confidence_ok" -eq 1 ]; then
+  for i in 1 2 3; do
+    awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/f/keep.md" > "$tmp/f/g.md"
+    if cmp -s "$tmp/f/keep.md" "$tmp/f/g.md"; then
+      echo "FAIL confidencetext: the break sample for ruled line $i changed nothing"
+      fails=$((fails + 1)); confidence_ok=0
+    elif ! confidence_problems "$tmp/f/g.md" | grep -qF -- "ruled line $i "; then
+      echo "FAIL confidencetext: the rule does not flag a changed character in ruled line $i"
+      fails=$((fails + 1)); confidence_ok=0
+    fi
+  done
+fi
+if [ "$confidence_ok" -eq 1 ]; then
+  hits=$(confidence_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL confidencetext: the guide's confidence and refusal-tag wording is the ruled text"
+    fails=$((fails + 1))
+  else
+    echo "PASS confidencetext: the guide's confidence and refusal-tag wording is the ruled text"
   fi
 fi
 

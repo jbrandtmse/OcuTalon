@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-17-2026 09:01
+last_updated: 11-17-2026 09:08
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -74,6 +74,7 @@ development_status:
   0-36-the-judges-table-names-the-platform-parts-ocutalon-is-built: done
   0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi: done
   0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and: done
+  0-40-the-purge-test-s-sessions-are-kept-out-of-the-daily-digest-a: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -391,6 +392,7 @@ development_status:
   25-6-reply-to-a-sent-file-add-to-documents-saved-to-memory-and-th: done
   25-7-epic-25-burn-down-a-cancelled-ci-job-s-stack-no-longer-block: done
   25-8-epic-25-burn-down-the-web-gap-fill-usage-withdraws-its-stale: done
+  25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi: done
   epic-25-retrospective: done
 
   epic-26: in-progress
@@ -401,14 +403,14 @@ development_status:
 
   epic-27: in-progress
   27-1-receive-slack-events-by-webhook: done
-  27-2-reply-as-slack-messages-with-no-socket-mode: backlog
-  27-3-link-slack-members-in-settings: backlog
+  27-2-reply-as-slack-messages-with-no-socket-mode: ready-for-dev
+  27-3-link-slack-members-in-settings: done
   epic-27-retrospective: optional
 
   epic-28: in-progress
   28-1-draft-a-transform-change-as-a-proposal-that-is-never-applied: backlog
   28-2-fade-unused-memories-and-merge-duplicates-nightly: done
-  28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: ready-for-dev
+  28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: done
   28-4-merge-duplicate-memories-nightly: backlog
   28-5-connect-an-mcp-client-through-iris-mcp-server: backlog
   epic-28-retrospective: optional

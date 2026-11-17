@@ -1,5 +1,5 @@
 /// The checked payload that the Diagnosis agent answers with (AD-6, AD-7, AD-8, AD-31). It extends OcuTalon.Bridge.Msg.DecisionPayload, so Decide
-/// checks a diagnose reply with it as the ReplyClass of DiagnosisAgent: outcome, reasons and confidence are the parent's, and the JSON adds
+/// checks a diagnose reply with it as the ReplyClass of DiagnosisAgent: outcome, reasons and confidence are the parent's (the confidence may be left out, CONFIDENCEREQUIRED is 0, and the decision then has none), and the JSON adds
 ///   - causeCategory, one of CAUSECATEGORIES, and elementAtFault;
 ///   - evidence, a list of at most MAXEVIDENCE references, each at most 128 characters: %JSONImport cuts a longer one (Cut) and counts the cuts in evidenceCut;
 ///   - fixKind, repair_resend or empty, and fixParameters {field, sourceFormat, targetFormat};
@@ -10,14 +10,17 @@
 /// fixKind, no fixParameters and no fixSummary), except that a data_format_change may carry no fix at all, when fixKind, fixParameters and fixSummary are all
 /// absent or blank (a diagnosis that cannot tell which way a date reads, DW-644): it then still names its elementAtFault, and any one of the three alone is
 /// refused. It also requires an itemNoun, when given, with neither form blank, and no clock time (h:mm, an hour of 0 to 23 and
-/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary (two rules, one for each). The fix kind is one that OcuTalon.Fix.Kind
+/// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972, and not the time of a date-time value: one directly after a date (d/m/y or y-m-d, then a space
+/// or T) or followed by :ss, such as 16/10/2026 09:30:00, DW-1438) in cause or fixSummary (two rules, one for each). The fix kind is one that OcuTalon.Fix.Kind
 /// names (AD-16), and its check of the fix parameters is the last: the fields it is given are the keys of the sample body of the evidence pack that the
 /// request carried, read through OcuTalon.Bridge.ReplyCheck, which Decide begins before it checks a reply. With no check begun, or an input that is not a
 /// pack with a sample body, no fix is accepted (fail closed); the check's refusal is wrapped in the rule fix-parameters-check, with its own reason embedded. A setting_change may name the kind that Fix.Kind DiagnosedFor lists for it (rollback_setting): with no
 /// fixParameters and no fixSummary, and an elementAtFault that names a setting in the pack's settingChanges (Listed); the kind's own check is then its dry run's.
-/// Each rule of %OnValidateObject, the parent's three and this class's nineteen, has a fixed tag as the second parameter of its error and the tag and its field are listed in
+/// Each rule of %OnValidateObject, the parent's three (a diagnosis never meets confidence-missing) and this class's nineteen, has a fixed tag as the second parameter of its error and the tag and its field are listed in
 /// REFUSALRULES: Decide's RefusalText shows "ERROR #5001 rule <tag>" for a listed tag and never a value of the reply (DW-1421). The tags are internal names, in no text a user reads.
-/// A tag that ends in -too-long is a length tag: Decide's RefusalText shows "ERROR #7201 rule <tag>" for a text over the limit of that field, with no position, length or limit. evidence-too-long is the one
+/// A tag that ends in -too-long is a length tag, one for each limited field: the parent's outcome-too-long and reasons-too-long, and this class's evidence-too-long, cause-category-too-long, element-at-fault-too-long,
+/// fix-kind-too-long, cause-too-long and fix-summary-too-long. Decide's RefusalText shows "ERROR #7201 rule <tag>" for a text over the limit of that field, with no position, length or limit. The parent's
+/// confidence-out-of-range is the range tag of the confidence. No tag holds a digit. evidence-too-long is the one
 /// for an Evidence reference over 128 characters that the check still meets: after a reply filter that lengthens a text, a number element of more than 128 digits (the cut leaves an element
 /// that is not a string), and a long reference of the reply as it came when the import refuses the list for another element. A reply that carries evidenceCut is refused, as an
 /// unexpected property. Lane A.
@@ -34,12 +37,19 @@ Parameter FIXCATEGORY = "data_format_change";
 /// list is filtered item by item): every text of the model that the payload holds.
 Parameter FILTERED = "Cause,FixSummary,ElementAtFault,Evidence,ItemNoun.One,ItemNoun.Other,FixParameters.Field,FixParameters.SourceFormat,FixParameters.TargetFormat";
 
-/// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit.
-Parameter CLOCKTIME = "(?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])";
+/// A clock time (h:mm) in a text, as a regular expression: not preceded by a digit, a dot or a colon, and not followed by a digit; and not the time of a date-time value (DW-1438):
+/// not directly after a date (d/m/y with a year of 2 to 4 digits, or y-m-d, then a space or a T) and not followed by :ss.
+Parameter CLOCKTIME = "(?<![0-9.:])(?<![0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}[ T])(?<![0-9]{4}-[0-9]{1,2}-[0-9]{1,2}[ T])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9])(?!:[0-5][0-9])";
 
-/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated: the parent's, then this class's own, in rule order,
-/// then the length tags, which no %OnValidateObject rule raises (see the class description).
-Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-not-act:outcome,cause-category-unlisted:causeCategory,evidence-over-max:evidence,cause-blank:cause,format-no-fix-element-blank:elementAtFault,format-fix-kind-unlisted:fixKind,format-fix-element-blank:elementAtFault,format-fix-summary-blank:fixSummary,format-fix-field-blank:fixParameters.field,rollback-fix-parameters:fixParameters,rollback-fix-summary:fixSummary,rollback-element-unlisted:elementAtFault,fix-kind-not-for-category:fixKind,fix-parameters-not-for-category:fixParameters,fix-summary-not-for-category:fixSummary,item-noun-blank:itemNoun,time-of-day-in-cause:cause,time-of-day-in-fix-summary:fixSummary,fix-parameters-check:fixParameters,evidence-too-long:evidence";
+/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated: the parent's list (its rules, its length tags and its range tag), then this class's own rules in rule order,
+/// then this class's length tags, which no %OnValidateObject rule raises (see the class description).
+Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-too-long:outcome,reasons-too-long:reasons,confidence-out-of-range:confidence,outcome-not-act:outcome,cause-category-unlisted:causeCategory,evidence-over-max:evidence,cause-blank:cause,format-no-fix-element-blank:elementAtFault,format-fix-kind-unlisted:fixKind,format-fix-element-blank:elementAtFault,format-fix-summary-blank:fixSummary,format-fix-field-blank:fixParameters.field,rollback-fix-parameters:fixParameters,rollback-fix-summary:fixSummary,rollback-element-unlisted:elementAtFault,fix-kind-not-for-category:fixKind,fix-parameters-not-for-category:fixParameters,fix-summary-not-for-category:fixSummary,item-noun-blank:itemNoun,time-of-day-in-cause:cause,time-of-day-in-fix-summary:fixSummary,fix-parameters-check:fixParameters,evidence-too-long:evidence,cause-category-too-long:causeCategory,element-at-fault-too-long:elementAtFault,fix-kind-too-long:fixKind,cause-too-long:cause,fix-summary-too-long:fixSummary";
+
+/// A diagnosis may leave out its confidence: it is only shown, so a reply without one is accepted, its decision stores none and nothing is shown, never 0 (DW-1421 C5).
+Parameter CONFIDENCEREQUIRED = 0;
+
+/// The fewest characters that a cut at a word boundary keeps: when the text before the last space at or before EVIDENCEMAX is shorter, once its trailing white space is removed, Cut cuts mid-word (DW-1421 round 3).
+Parameter EVIDENCEFLOOR = 64;
 
 /// The most references in the evidence list.
 Parameter MAXEVIDENCE = 20;
@@ -107,7 +117,7 @@ Method %JSONImport(input, %mappingName As %String = "") As %Status [ ServerOnly 
 }
 
 /// The text of an evidence reference over EVIDENCEMAX characters, cut: at most EVIDENCEMAX characters, ending in U+2026. The head is the text before the last space at a position of 2 to EVIDENCEMAX, with
-/// trailing white space removed; with no such space, or a blank head, it is the first EVIDENCEMAX - 1 characters (less one, when the cut would end on the first half of a surrogate pair).
+/// trailing white space removed, when it keeps at least EVIDENCEFLOOR characters; otherwise (no such space, a shorter head, or a blank one) it is the first EVIDENCEMAX - 1 characters (less one, when the cut would end on the first half of a surrogate pair).
 ClassMethod Cut(text As %String) As %String [ Private ]
 {
 	Set head = ""
@@ -117,7 +127,7 @@ ClassMethod Cut(text As %String) As %String [ Private ]
 			Quit
 		}
 	}
-	If $ZStrip(head, "*W") = "" {
+	If $Length(head) < ..#EVIDENCEFLOOR {
 		Set head = $Extract(text, 1, ..#EVIDENCEMAX - 1)
 		Set last = $Ascii(head, ..#EVIDENCEMAX - 1)
 		If (last >= 55296) && (last <= 56319) Set head = $Extract(head, 1, ..#EVIDENCEMAX - 2)

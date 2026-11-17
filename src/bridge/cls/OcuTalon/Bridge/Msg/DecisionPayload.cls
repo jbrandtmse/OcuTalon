@@ -1,14 +1,25 @@
 /// The checked decision payload that the triage and diagnosis agents answer with (AD-6, AD-8). Lane A.
 /// Import refuses a field of the wrong type, a confidence outside 0 to 1 and a field that is not declared here;
 /// %OnValidateObject adds what import does not check: an outcome of Msg.Enum OUTCOME, at least one reason that is
-/// not blank, and a confidence that is present. Decide judges a reply by %JSONImport followed by %ValidateObject.
+/// not blank, and a confidence that is present unless CONFIDENCEREQUIRED is 0 or the outcome is one that CONFIDENCEOPTIONAL lists. Decide judges a reply by %JSONImport followed by %ValidateObject.
 /// Each rule of %OnValidateObject has a fixed tag, the second parameter of its error and the name that RefusalText of Decide shows for it when REFUSALRULES lists it (DW-1421).
+/// Each limited field has a length tag, field-too-long, that Decide shows for a text over its limit (DW-1421).
 Class OcuTalon.Bridge.Msg.DecisionPayload Extends (%RegisteredObject, %JSON.Adaptor)
 {
 
-/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated; a subclass lists these first, then its own. A tag is
-/// lower-case letters, digits and hyphens. Decide shows a tag in a refusal only when the reply class lists it here, and never a value of the reply.
-Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence";
+/// 1 when a reply must carry a confidence (the rule confidence-missing), unless its outcome is one that CONFIDENCEOPTIONAL lists; 0 on DiagnosisPayload (DW-1421 C5), whose
+/// reply may always leave it out. A reply without one is accepted and has none, never 0; a confidence that is given must still be from 0 to 1 (confidence-out-of-range).
+Parameter CONFIDENCEREQUIRED = 1;
+
+/// The outcomes (comma-separated) whose reply may leave out its confidence even when CONFIDENCEREQUIRED is 1: the attention floor of the Contest Planner's triage-accept
+/// ruling (Nov 17). A triage reply to tell now or act without a confidence is used, so that attention is never lowered by a fallback, while an ignore or a digest without
+/// one is refused as before (confidence-missing, the Tell now fallback).
+Parameter CONFIDENCEOPTIONAL = "tellnow,act";
+
+/// The fixed name of each rule of %OnValidateObject and the JSON field it reads, as tag:field, comma-separated, then the length tag of each limited field (field-too-long) and the range tag
+/// (confidence-out-of-range), which no rule raises; a subclass lists these first, then its own. A tag that ends in -out-of-range is the range tag of a field with a MINVAL or MAXVAL, which no rule raises.
+/// A tag is lower-case letters and hyphens, with no digit. Decide shows a tag in a refusal only when the reply class lists it here, and never a value of the reply.
+Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence,outcome-too-long:outcome,reasons-too-long:reasons,confidence-out-of-range:confidence";
 
 /// One of Msg.Enum OUTCOME.
 Property Outcome As %String(%JSONFIELDNAME = "outcome", MAXLEN = 32);
@@ -32,7 +43,7 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 		If $ZStrip(..Reasons.GetAt(i), "*WC") '= "" Set reasons = reasons + 1
 	}
 	If 'reasons Quit $$$ERROR($$$GeneralError, "The reasons hold no reason that is not blank", "reasons-blank")
-	If ..Confidence = "" Quit $$$ERROR($$$GeneralError, "The confidence is missing", "confidence-missing")
+	If (..Confidence = "") && $Parameter($this, "CONFIDENCEREQUIRED") && '$ListFind($ListFromString($Parameter($this, "CONFIDENCEOPTIONAL")), ..Outcome) Quit $$$ERROR($$$GeneralError, "The confidence is missing", "confidence-missing")
 	Quit $$$OK
 }
 

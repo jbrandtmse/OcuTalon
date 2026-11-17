@@ -9,9 +9,11 @@
 /// at its second call since ^OcuTalonTest("SettingsOpsProbe", "applies") was last killed, and is the real one otherwise.
 /// The answers "auditAt" and "applyAt" (a number n) make the nth audit write, or the nth guarded write, since the counters were killed
 /// (^||OcuTalonSettingsOpsProbe("n", seam), a process-private global, which a TROLLBACK does not undo) answer an error status, for the
-/// all-or-nothing tests of a section's save (Story 33.2).
-/// With ^OcuTalonTest("SettingsOpsProbe", "clash") set to a name (and "clashSession" to a session Ref), the next audit write first stores a webhook row of that
-/// name and clears the answer, so that a CreateWebhook's save after its audit entry meets a taken name (Story 35.3 review).
+/// all-or-nothing tests of a section's save (Story 33.2). The audit write runs inside the save's transaction, so a rolled-back save undoes the "calls" records
+/// above (ordinary globals): a test of such a save reads the ^|| counters or the real audit log, never "calls".
+/// The row seam SaveRow, which the webhook saves use, answers an error status when the "saveRow" answer is "error" and is the real save otherwise. With
+/// ^OcuTalonTest("SettingsOpsProbe", "clash") set to a name (and "clashSession" to a session Ref), the next row save first stores a webhook row of that
+/// name and clears the answer, so that a CreateWebhook's save meets a taken name (Story 35.3 review).
 /// The bridge seams BridgeCurrent, BridgeCheck and BridgeSet stand in for Bridge.Settings: each call is recorded under
 /// ^OcuTalonTest("SettingsOpsProbe", "bridge", n) as "check" or "set" with the name and value ("what"); the answer "check" is "" for OK, "stub" for
 /// "not implemented" (code 5003), "error" for an error status and "error:<name>" for an error status for that name only; the answer "set" is "" for
@@ -115,11 +117,17 @@ Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n) = "audit"
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n, "data") = data.%ToJSON()
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n, "seen") = ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY)
-	If $Get(^OcuTalonTest("SettingsOpsProbe", "clash")) '= "" Do ##class(OcuTalon.Test.Data.Fixture).Webhook($Get(^OcuTalonTest("SettingsOpsProbe", "clashSession")), ^OcuTalonTest("SettingsOpsProbe", "clash"), "zz-ops-clash-0123456789") Kill ^OcuTalonTest("SettingsOpsProbe", "clash")
 	If $Increment(^||OcuTalonSettingsOpsProbe("n", "audit")) = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt")) Quit $SYSTEM.Status.Error(5001, "zz audit failed at its turn")
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "record" Quit ##class(OcuTalon.Bridge.Audit).Record("Settings", data)
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz audit threw"))
 	Quit $Select($Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "error": $SYSTEM.Status.Error(5001, "zz audit failed"), 1: $$$OK)
+}
+
+Method SaveRow(row As %Persistent) As %Status [ Private ]
+{
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "clash")) '= "" Do ##class(OcuTalon.Test.Data.Fixture).Webhook($Get(^OcuTalonTest("SettingsOpsProbe", "clashSession")), ^OcuTalonTest("SettingsOpsProbe", "clash"), "zz-ops-clash-0123456789") Kill ^OcuTalonTest("SettingsOpsProbe", "clash")
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "saveRow")) = "error" Quit $SYSTEM.Status.Error(5001, "zz save row failed")
+	Quit ##super(row)
 }
 
 Method RaiseRequest(row As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %String) As %Status [ Private ]

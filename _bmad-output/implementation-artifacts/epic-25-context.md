@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 25 is Lane B's half of step 6. It added the History page, sending a file from the web app or Telegram, approver and viewer roles in Settings with enforcement, and OcuTalon's reply to a sent file, which turned file reading on. All of that is merged. The epic's retrospective found five small web gaps where these stories meet, and Story 25.8 closes them together. The Usage page must withdraw its failed-read announcement once a later read answers, as History already does. The Announcer's retract guard and History's double-Retry test need behavioural pins. A viewer must not be offered file controls that the server would refuse: the **Add to documents** button on an older file reply, and the drop target on the Documents page. The work is web and test only. It closes ledger items DW-1120, DW-1121, DW-1122, DW-1386 and DW-1387.
+Epic 25 is Lane B's half of step 6: the History page, sending a file from the web app or Telegram, approver and viewer roles in Settings with enforcement, and OcuTalon's reply to a sent file. All of that is merged, as are the burn-down stories 25.7 (CI port release) and 25.8 (the web gap-fill). The open work is Story 25.9, a server-side burn-down that keeps the audit log a true record of Settings changes: every audited Settings save writes its row first and its audit entry last, inside one transaction, and rolls the row back when the audit write fails. Today the order is reversed, and because IRIS writes audit records outside the transaction, a row write that fails after the audit leaves an entry for a change that never happened. The story closes ledger items DW-1392 and DW-1395 and targets release 1.0.12 if it is ready in time.
 
 ## Stories
 
@@ -14,39 +14,41 @@ Epic 25 is Lane B's half of step 6. It added the History page, sending a file fr
 - Story 25.5: Answer only with the right approver role, and say why otherwise (done)
 - Story 25.6: Reply to a sent file: Add to documents, Saved to memory and the read failure (done)
 - Story 25.7: Epic 25 burn-down: a cancelled CI job's stack no longer blocks its runner's web port (done)
-- Story 25.8: Epic 25 burn-down: the web gap-fill (Usage withdraws its stale error, and a viewer gets no file-reply add or Documents drop) (ready-for-dev)
+- Story 25.8: Epic 25 burn-down: the web gap-fill (done)
+- Story 25.9: Epic 25 burn-down: an audited Settings save writes its row first and its audit entry last, in one transaction (ready for dev)
 
 ## Requirements & Constraints
 
-- **Hard scope limits.** No new user-visible string. No change to any route, IRIS class or role, and no widening of the user role. The ownership tables don't change. Nothing may depend on Story 26.4's new approver roles.
-- **Bundle cap.** The initial web bundle stays at or under 921 kB (921,000 bytes, checked by `initial-bundle.test.mjs`). The `web/angular.json` budget stays at `maximumError` 1MB and is never raised. New web code goes into lazy chunks where it can. Settings, History and Usage are already lazy chunks.
-- **Mutation-proof tests.** Each new or changed test must fail when the behaviour it pins is removed, and the story records that failure (a demonstrated mutation, one per acceptance criterion). Pins must be behavioural, not source-regex checks. Every test creates and removes its own state and passes in either order.
-- **Stale error.** After Usage announces its failed read (`USAGE_TEXTS.error`), a later successful read withdraws that announcement through `Announcer.retract`. The browser test runs on a frozen page clock and covers the queued case: a second failure waiting in the queue must not be spoken after the answer.
-- **Retract guard.** `Announcer.retract` leaves the live region alone when a different text was spoken last. Test it by speaking one text and retracting another; the region must keep the spoken text.
-- **History H15.** H15 presses Retry a second time. Before it asserts, it waits on a page-side signal that the refused second read was handled, so the queued case is really exercised. Any such signal is a test anchor (an attribute), never rendered text.
-- **Viewer and file reply.** On a viewer's page, an older file reply whose read is `addable` shows no **Add to documents** button. The Saved to memory chip stays. `chat/file-reply.ts` joins the `GUARDED` list in `web/scripts/viewer-sources.test.mjs`. The server already refuses a viewer's add with 403 `read_only`; today the page shows the generic add-failed line and keeps the button.
-- **Viewer and Documents drop.** On the Documents page, a viewer gets no drag outline and no drop. The shared `FileDrop` gets `[active]` false for a viewer. Today `active` defaults to true, and only `addFiles` returns early. A test pins this, and a non-viewer user's drop works as before.
-- **No substitutes.** A hidden button or inactive drop gets no message or replacement control. A viewer's drop is left to the browser's own handling, as the chat already does.
+- **The order, inside one transaction:** (1) write the row(s); (2) write the audit entries; (3) if an audit write fails, `TROLLBACK` and report it; (4) only then `TCOMMIT`. A row write that fails rolls back and writes no audit entry. Reasoning: an entry for a change that never happened is a false record, and an unaudited change is worse.
+- **Scope is every audited Settings save of the audit-then-row pattern**, found by grep and listed in the spec: in practice the audited saves in `OcuTalon.Core.SettingsOps` (demo mode, persona and heartbeat keys, `SaveProduct` for the step 2 and on-call sections, the email section and its OAuth/client writes, webhook create and secret change, and Story 24.2's partner contacts). Saves that already write before they audit (the bridge-value saves and their put-backs, role assignment, the MCP saves) stay unchanged.
+- **Failure reports reuse what exists.** Each save keeps its current outcomes (`failed`, `not_audited`, `name_taken`, `refused`) and messages, and its log lines. A failed webhook save no longer writes a compensating "undone" entry; it writes nothing.
+- **Hard scope limits.** No new user-visible text, `MESSAGE*` parameter, outcome, route, role, reply shape, Data class or index. Existing Web API and Settings browser specs must pass unchanged.
+- **Audit content is unchanged.** From and to values appear only in the IRIS audit log. A partner contact's entry names only `partnerContact.<Ref>` and which fields changed. No setting value in a result, log line or test output; the leak scans from Stories 24.2 and 36.4 still cover the audit rows.
+- **Tests, each mutation-proof:**
+  - Force the row write to fail: the outcome is reported and the real IRIS audit log has no entry for the test's session (checked against a control save whose entry is found).
+  - Force the audit write to fail: `not_audited`, and every row is as before, read fresh from storage.
+  - Each test must go red when the ordering or the rollback is removed, and the story records the demonstrated mutation.
+  - After a rolled-back save, don't assert probe call records kept in ordinary globals (a rollback now undoes them); use process-private counters or the real log.
+  - Every test creates and removes its own state, uses its own session Ref, and passes in either order. Extend each site's existing test class rather than copying tests.
+- **Comments state the contract, not the history.** Every "audit entry first" doc comment is corrected in place.
 
 ## Technical Decisions
 
-- **One announcer.** The page speaks only through `Announcer`, a single polite live region. One update's messages are announced as one text, at least 1 s apart, at most three in 2 s, and two or more waiting become "{n} new updates". Each event is announced from one place, and the first snapshot is silent. This speaking path does not change. `retract` withdraws a text only if it was the last one spoken, on its own and not joined with others, so it never empties another page's announcement.
-- **Viewer model.** A viewer holds `OcuTalonViewer` and not `OcuTalonUser`. `/v1/state` carries `viewer`, and `admin` is false for a viewer. The server refuses every non-`GET` request from a viewer with 403 `read_only` before reading the body (except `POST /v1/session/end`). The page hides every control that would only fail: the composer, Approve, Reject, Dismiss, Break the feed, the chat paperclip and the chat drop. The page tests for a viewer with the existing snapshot helper (`isViewer`), never a new role check. `GUARDED` is the hand-kept list of web sources that must check `viewer`.
-- **Lane exception.** Lane A runs Story 25.8 under an AD-33 exception and may change only the Lane B web files that exception names. Source: `shared/announce-queue.ts`, `shared/announcer.ts`, `usage/usage-page.ts`, `history/history-page.ts`, `chat/file-reply.ts`, `chat/file-reply-view.ts` and `documents/documents-page.ts`. Unit tests: `announce-queue.test.mjs`, `announce-focus-sources.test.mjs`, `viewer-sources.test.mjs` and `file-reply-view.test.mjs`. Browser specs: `usage/usage.spec.ts`, `history/history.spec.ts`, `sign-in/viewer.spec.ts`, `files/files.spec.ts`, `support/clock.ts` and a new `support/files.ts`. File ownership stays as it is, and the final diff must show only these files.
-- **Runtime.** Tests run on real runtimes (Lane A throwaway stacks), with no shared slot or MCP target.
-
-## UX & Interaction Patterns
-
-- A viewer can open OcuTalon but can't chat, answer or change anything.
-- A failed read's announcement must not be spoken after a successful Retry.
-- Drag-and-drop is never the only way to add a file. When dropping isn't allowed, the target shows no drag affordance.
+- **Why rollback cannot undo an audit entry.** `Bridge.Audit.Record` (the one audit writer) goes through `$SYSTEM.Security.Audit`, and IRIS suspends the open transaction while writing the record, so `TROLLBACK` never removes it. Writing the row first leaves only one way to get a false entry: a commit that fails after the audit write, which the ruling accepts.
+- **The spine already carries the rulings** (written during planning; the implementation only verifies them by grep):
+  - The audited-save rule: an audited save writes its row and then its audit entry inside one transaction and rolls the row back if the audit write fails.
+  - The Settings save order for product keys now reads row, then audit entry, with an amendment marker; no text saying "audit entry and then its row" may remain.
+  - Reads of Settings tables: the web process may read them directly (as `SettingsOps.Values` reads `Data.Setting`); every write goes through the production. Reads of other product storage keep the existing rule: only the owning class's methods or `Ownership.Rows`.
+  - An ownership-exception bullet for Story 25.9 naming the files it may change.
+- **The single writer.** `SettingsOps` is the only Settings writer at run time, in the production job; a save reaches it as a `SaveSettings` command through `Commands.Submit`. It validates every field before writing and drops unchanged values; a refused or unchanged save opens no transaction and writes no entry.
+- **One shared audit-and-commit helper, plus a row seam.** The audit-and-commit step, today copied across every site, becomes one private helper called inside the caller's open transaction after the rows; a private row-save seam (like the existing audit seam) lets the test probe force webhook row failures and stage a name clash just before the save.
+- **Writes that cannot sit in the transaction** (the email section's credential, item rows and OAuth client, which the production update runs after) follow the bridge-value rule: write, then audit, then put everything back on a failed audit. Their entries come after the item restart, so a failed start never leaves an entry for a value that was put back.
+- **Ownership.** `SettingsOps`, its probe and the Settings test classes belong to Lane B; Story 25.9 runs in Lane A and changes only the files its ownership-exception bullet names. The ownership tables don't change. Don't touch `Watch/*`, `Fix/*` or `Live/Payload/*` (held by Stories 23.13 and 24.4a).
+- **Runtime.** Tests run on Lane A throwaway stacks, never a shared slot, MCP target or another lane's stacks.
 
 ## Cross-Story Dependencies
 
-- Story 25.8 builds on merged work:
-  - 25.2 rework 2: History's `Announcer.retract` use and test H15.
-  - 25.3: the shared `FileDrop`, which the Documents page and the chat drop use.
-  - 25.4: the viewer snapshot and the `GUARDED` list. Story 26.4 keeps the viewer model.
-  - 25.6: `chat/file-reply.ts` and its `addable` read result.
-  - Story 2.12: the Announcer and its queue.
-- **Shared controls.** The story changes the Announcer and the drop control. Before pushing, grep `web/e2e` for every spec that pins them and run those parts with `node web/scripts/e2e-part.mjs`. The new tests shift the browser part cut, so recompute the parts first. Three of the epic's four reworks were failures of this kind.
+- The reordered saves come from Story 24.2 (partner contacts), Story 33.2 (`SaveProduct` and the step 2 keys), Story 36.4 (on-call keys via `SecretHandoff`), Story 39.2 (heartbeat keys), and the email and webhook settings stories; their existing tests and leak scans must stay green, with only the pins on the old order updated.
+- The test probe's seams and the email save's entry order are shared surfaces: every user of the Settings probe and the email form tests read them.
+- Role assignments (Stories 25.4 and 26.4) already write before auditing and are out of scope.
+- DW-1393 and DW-1394 (partner contact duplicates and the `TABLE` switch) belong to Story 23.13, not to this story.

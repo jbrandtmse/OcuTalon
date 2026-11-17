@@ -18,6 +18,7 @@
 #   CAPTURE reason <reason>: <n>
 #   CAPTURE rule <rule> field <field or ->: <n>
 #   CAPTURE case <case> rule <rule>: <n>
+#   CAPTURE accepted-without-confidence outcome <outcome>: <n> (a decide decision accepted without a confidence: the attention floor of the triage-accept ruling)
 #   CAPTURE copy failed: <n> file(s) were not copied (only when a named file was not copied or came out empty; a count, before the folder line)
 #   CAPTURE folder <the folder given>
 # Run directly, it prints a usage line and exits 2.
@@ -95,6 +96,7 @@ capture_fallbacks() {
         echo "CAPTURE rule $(capture_value "$a") field $field: $(capture_value "$c")"
         ;;
       case) echo "CAPTURE case $(capture_value "$a") rule $(capture_value "$b"): $(capture_value "$c")" ;;
+      accepted) echo "CAPTURE accepted-without-confidence outcome $(capture_value "$a"): $(capture_value "$b")" ;;
       file)
         name=$a
         case $name in

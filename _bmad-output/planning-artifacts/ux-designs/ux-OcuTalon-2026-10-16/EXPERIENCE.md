@@ -1102,6 +1102,34 @@ Banners stack in this table's order.
 | `settings.sqlBadName`, Settings > SQL query watches, field error | "Enter a name of 1 to 128 characters. Nothing was changed." |
 | `settings.sqlOffOnDemo`, Settings > SQL query watches, the 409 `not_available` body | "SQL query watches are off on the online demo. They work on your own install." |
 
+### Slack (step 7)
+
+[ADDED 2026-11-16, Story 27.3] The texts of the Slack group of Settings > Channels and of the chat's "via Slack" caption. The nineteen rows tagged approved R12 are the texts that the Contest Planner approved in Story 27.1's gate (R12), verbatim; the two rows tagged Contest Planner ruling were proposed in Story 27.3's gate and ruled on 2026-11-16. The group's setup steps are in Later Steps › Step 7: Slack.
+
+| Case | Text |
+| --- | --- |
+| Heading (`settings.slackHeading`, Settings > Channels > Slack, heading) [ADDED 2026-11-16, Story 27.3, approved R12] | "Slack" |
+| Not set up (`settings.slackNotSetUp`, Settings > Channels > Slack, not set up) [ADDED 2026-11-16, Story 27.3, approved R12] | "Slack not set up. Add SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET to .env and restart OcuTalon." |
+| How to set it up link (`settings.slackHowTo`, Settings > Channels > Slack, how to set it up link) [ADDED 2026-11-16, Story 27.3, approved R12] | "How to set it up" |
+| On (`settings.slackOn`, Settings > Channels > Slack, on) [ADDED 2026-11-16, Story 27.3, approved R12] | "Slack on" |
+| Address (`settings.slackAddress`, Settings > Channels > Slack, address) [ADDED 2026-11-16, Story 27.3, approved R12] | "Subscribe your Slack app's events to {address}." |
+| Off on the online demo (`settings.slackOffOnDemo`, Settings > Channels > Slack, off on the online demo) [ADDED 2026-11-16, Story 27.3, approved R12] | "Slack is off on the online demo, so it has no public Slack address. It works on your own install." |
+| Members heading (`settings.slackMembersHeading`, Settings > Channels > Slack, members heading) [ADDED 2026-11-16, Story 27.3, approved R12] | "Linked Slack members" |
+| Members help (`settings.slackMembersHelp`, Settings > Channels > Slack, members help) [ADDED 2026-11-16, Story 27.3, approved R12] | "Only direct messages to the bot from a linked member become chat turns. Everything else from Slack is recorded in Visual Trace and goes no further." |
+| Member ID label (`settings.slackMemberId`, Settings > Channels > Slack, member ID label) [ADDED 2026-11-16, Story 27.3, approved R12] | "Slack member ID" |
+| User label (`settings.slackMemberUser`, Settings > Channels > Slack, user label) [ADDED 2026-11-16, Story 27.3, approved R12] | "OcuTalon user" |
+| Link button (`settings.slackLink`, Settings > Channels > Slack, link button) [ADDED 2026-11-16, Story 27.3, approved R12] | "Link member" |
+| Unlink button (`settings.slackUnlink`, Settings > Channels > Slack, unlink button) [ADDED 2026-11-16, Story 27.3, approved R12] | "Unlink" |
+| No members (`settings.slackNoMembers`, Settings > Channels > Slack, no members) [ADDED 2026-11-16, Story 27.3, approved R12] | "No Slack members are linked yet." |
+| Member ID refused (`settings.slackBadMemberId`, Settings > Channels > Slack, member ID refused) [ADDED 2026-11-16, Story 27.3, approved R12] | "Enter a Slack member ID such as U012AB3CDE: a U or W followed by letters and digits. Nothing was changed." |
+| Member taken (`settings.slackMemberTaken`, Settings > Channels > Slack, member taken) [ADDED 2026-11-16, Story 27.3, approved R12] | "That Slack member is already linked to another user. Nothing was changed." |
+| User taken (`settings.slackUserTaken`, Settings > Channels > Slack, user taken) [ADDED 2026-11-16, Story 27.3, approved R12] | "{user} already has a linked Slack member. Unlink it first. Nothing was changed." |
+| Linked (`settings.slackLinked`, Settings > Channels > Slack, linked) [ADDED 2026-11-16, Story 27.3, approved R12] | "Linked. Their direct messages to the bot now reach OcuTalon. Recorded in the audit log." |
+| Unlinked (`settings.slackUnlinked`, Settings > Channels > Slack, unlinked) [ADDED 2026-11-16, Story 27.3, approved R12] | "Unlinked. Their messages no longer reach OcuTalon. Recorded in the audit log." |
+| Via Slack caption (`chat.viaSlack`, the chat, caption of a turn that came from Slack) [ADDED 2026-11-16, Story 27.3, approved R12] | "via Slack" |
+| No workspace yet (`settings.slackNoWorkspace`, Settings > Channels > Slack, no workspace yet) [ADDED 2026-11-16, Story 27.3, Contest Planner ruling] | "OcuTalon hasn't had an event from your Slack workspace yet. Ask the person to send the bot a direct message, then link them. Nothing was changed." |
+| Unknown user (`settings.slackUnknownUser`, Settings > Channels > Slack, unknown user) [ADDED 2026-11-16, Story 27.3, Contest Planner ruling] | "Choose an OcuTalon user from the list. Nothing was changed." |
+
 ## Visual Trace Links
 
 | Link | Opens |
@@ -1172,6 +1200,18 @@ Reroute, suspend and resume, and roll back each use the approval request card wi
   - A file's reply offers **Add to documents**.
   - A photo's reply shows a "Saved to memory" chip.
 - **Roles** (FR-11): Settings gains a Roles section for approver roles (all risky actions, or one kind) and the viewer role. Viewers can open OcuTalon but can't chat, answer or change anything. [AMENDED 2026-11-13, Story 25.4, Contest Planner ruling (row 2, Q8); it read "Viewers see everything read-only, with no composer."]
+
+### Step 7: Slack
+
+[ADDED 2026-11-16, Story 27.3, approved R12] Slack is optional, and these are the setup steps (as approved and reordered by the Contest Planner):
+
+1. Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history scope, and install it to the workspace.
+2. Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon.
+3. Under Event Subscriptions, set the request URL to https://<your public address>/ocutalon/hook/slack/events and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once.
+4. As an admin, open Settings › Channels › Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.
+
+- **Settings › Channels › Slack** (admins): shows whether Slack is on, the address to subscribe the Slack app's events to, and the linked members with a form that links one; its texts are in Message Catalog › Slack (step 7). On the online demo it shows only the text that says Slack is off there.
+- **"via Slack":** the web chat marks a turn that came from a linked member's direct message to the bot with "via Slack", as it marks Telegram's with "via Telegram".
 
 ### Personality: the heartbeat, the persona and memory (after 1.0.0)
 

@@ -4,10 +4,10 @@ Include Ensemble
 /// run leaves them (a Decision row, the Request that carries its Ref, the Reply, and the request header and its response header, which are linked by CorrespondingMessageId), run the tool over
 /// them only (its refs), and remove every row, header, file and folder they made (OnAfterOneTest). They need the production's runner items and their ReplyClass settings, so they run on a stack, a
 /// warm one included, and no model is called.
-///   - TestOneReplyPerRule (AC 5): one diagnose reply for each of the 22 rules of the reply class and its parent, a triage reply with no confidence, a reply that passes, a reply that holds no text, a
-///     reply with an unknown field, a reply that is not JSON, an over-long elementAtFault and a mistyped reasons (import refusals, whose field is the JSON name of the compiled property), a reply with an
+///   - TestOneReplyPerRule (AC 5): one diagnose reply for each of the 21 rules that a diagnosis can meet, a diagnose reply with no confidence (it passes, DW-1421 C5), a triage reply with no confidence, a reply that passes, a reply that holds no text, a
+///     reply with an unknown field, a reply that is not JSON, an over-long elementAtFault (its own length tag) and a mistyped reasons (import refusals, whose field is the JSON name of the compiled property), a reply with an
 ///     over-long evidence element (cut by the import, so it passes the check),
-///     a reply that is valid until the filter blanks its cause, one with no reason left after the filter, a cut_off fallback whose reply would fail the check, a decision with no reply and a second attempt on DiagnosisAgentRetry give the summary's counts (each rule once, confidence-missing and cause-blank twice, "passes the check" three times) with the field of each rule,
+///     a reply that is valid until the filter blanks its cause, one with no reason left after the filter, a cut_off fallback whose reply would fail the check, a decision with no reply and a second attempt on DiagnosisAgentRetry give the summary's counts (each rule once, cause-blank twice, "passes the check" four times) with the field of each rule,
 ///     one file for each reply (and summary.json), and each file holds its text, attempt, runner, stage, rule and field;
 ///   - TestLinesHoldNoReplyText (AC 6): each seeded reply carries a distinct marker, and the CHK lines hold no marker and no 10-character part of one, while the files hold each;
 ///   - TestRecordsAndLogsNothing (AC 7): Run leaves the event log rows of its job, the Decision and Usage rows and the bridge's Ens message headers as they were, and the source of the tool names no logging, no AI call, no send, no
@@ -125,6 +125,25 @@ Method SeedDecision(kind As %String, reason As %String = "invalid") As %String [
 	Quit ref
 }
 
+/// Seeds a decide decision that was accepted (no fallback) with the outcome and no confidence, the attention floor of the triage-accept ruling; its Ref joins Refs.
+Method SeedAccepted(outcome As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row = ##class(OcuTalon.Bridge.Data.Decision).%New()
+	Set row.Ref = ref
+	Set row.Kind = "decide"
+	Set row.ItemId = ref
+	Set row.OwnerRef = "eval"
+	Set row.Outcome = outcome
+	Set row.Fallback = 0
+	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set sc = row.%Save()
+	Do $$$AssertStatusOK(sc, "an accepted decision without a confidence is seeded")
+	Set ..Made = ..Made _ $ListBuild("decision|"_row.%Id())
+	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ ref
+	Quit ref
+}
+
 /// Seeds the request of one attempt of the decision: the Request body and its header (to the runner). Gives the header's id, which the answer links to.
 Method SeedRequest(ref As %String, kind As %String, runner As %String, retryOf As %String = "") As %String
 {
@@ -182,7 +201,7 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	While $ListNext(pairs, position, pair) {
 		Set tag = $Piece(pair, ":", 1)
 		Set field = $Piece(pair, ":", 2)
-		If (tag = "cause-blank") || (tag = "outcome-not-act") Continue
+		If (tag = "cause-blank") || (tag = "outcome-not-act") || (tag = "confidence-missing") Continue
 		Set marker = ..Marker()
 		Set reply = $ClassMethod(..#PAYLOAD, "RuleReply", tag)
 		Do reply.evidence.%Push(marker)
@@ -212,9 +231,9 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set case.State = "decided"
 	$$$ThrowOnError(case.%Save())
 	Set ..Made = ..Made _ $ListBuild("case|"_case.%Id())
-	// A triage reply with no confidence: the parent's rule, against the triage runner's own reply class.
+	// A triage reply to ignore with no confidence: the parent's rule, against the triage runner's own reply class (below the attention floor, so still refused).
 	Set marker = ..Marker()
-	Set triage = {"outcome": "act", "reasons": [("Checked "_marker)]}
+	Set triage = {"outcome": "ignore", "reasons": [("Checked "_marker)]}
 	Set ref = ..SeedDecision("decide")
 	Do ..SeedReply(ref, "decide", ..#TRIAGE, triage.%ToJSON())
 	Set expected(ref, 1) = $ListBuild(triage.%ToJSON(), marker, ..#TRIAGE, "confidence-missing", "confidence", "check")
@@ -227,6 +246,14 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, usable.%ToJSON())
 	Set expected(ref, 1) = $ListBuild(usable.%ToJSON(), marker, ..#DIAGNOSIS, "passes the check", "", "")
 	Set count("passes the check") = 1
+	// A diagnose reply with no confidence: the parent's rule that a diagnosis never meets (DW-1421 C5), so it passes the check.
+	Set marker = ..Marker()
+	Set absent = $ClassMethod(..#PAYLOAD, "RuleReply", "confidence-missing")
+	Do absent.evidence.%Push(marker)
+	Set ref = ..SeedDecision("diagnose")
+	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, absent.%ToJSON())
+	Set expected(ref, 1) = $ListBuild(absent.%ToJSON(), marker, ..#DIAGNOSIS, "passes the check", "", "")
+	Set count("passes the check") = $Get(count("passes the check")) + 1
 	// A failure reply: no text, a failure text.
 	Set marker = ..Marker()
 	Set ref = ..SeedDecision("diagnose")
@@ -239,14 +266,14 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Do odd.%Set(marker, 1)
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, odd.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(odd.%ToJSON(), marker, ..#DIAGNOSIS, "ERROR #9404: an unexpected property", "", "check")
-	Set count("ERROR #9404: an unexpected property") = 1
+	Set expected(ref, 1) = $ListBuild(odd.%ToJSON(), marker, ..#DIAGNOSIS, "unexpected-field", "", "check")
+	Set count("unexpected-field") = 1
 	// A reply that is not JSON, and begins with its marker (the first characters of a file's text).
 	Set marker = ..Marker()
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, marker_" is not JSON")
-	Set expected(ref, 1) = $ListBuild(marker_" is not JSON", marker, ..#DIAGNOSIS, "ERROR #5035", "", "check")
-	Set count("ERROR #5035") = 1
+	Set expected(ref, 1) = $ListBuild(marker_" is not JSON", marker, ..#DIAGNOSIS, "reply-unreadable", "", "check")
+	Set count("reply-unreadable") = 1
 	// A decision that has no reply in the store.
 	Set ref = ..SeedDecision("diagnose", "timer")
 	Set expected(ref, 0) = ""
@@ -257,8 +284,8 @@ Method SeedAll(Output expected, Output count) [ Private ]
 	Set long.elementAtFault = $Extract(marker_$Translate($Justify("", 129), " ", "e"), 1, 129)
 	Set ref = ..SeedDecision("diagnose")
 	Do ..SeedReply(ref, "diagnose", ..#DIAGNOSIS, long.%ToJSON())
-	Set expected(ref, 1) = $ListBuild(long.%ToJSON(), marker, ..#DIAGNOSIS, "ElementAtFault: 129 > 128", "elementAtFault", "check")
-	Set count("ElementAtFault: 129 > 128") = 1
+	Set expected(ref, 1) = $ListBuild(long.%ToJSON(), marker, ..#DIAGNOSIS, "element-at-fault-too-long", "elementAtFault", "check")
+	Set count("element-at-fault-too-long") = 1
 	// An evidence element over the limit: cut by the import, so the reply passes the check now (element 2, after the pack's own).
 	Set marker = ..Marker()
 	Set cutReply = $ClassMethod(..#PAYLOAD, "Usable")
@@ -327,8 +354,14 @@ ClassMethod Files(folder As %String) As %List [ Private ]
 Method TestOneReplyPerRule()
 {
 	Do ..SeedAll(.expected, .count)
+	// the attention floor (the triage-accept ruling): two accepted decide decisions without a confidence, tellnow and act, are counted by outcome and never as fallbacks
+	Do ..SeedAccepted("tellnow")
+	Do ..SeedAccepted("act")
 	Set sc = $ClassMethod(..#TOOL, "Run", ..Folder, ..Refs, .summary)
 	Do $$$AssertStatusOK(sc, "the capture runs")
+	Do $$$AssertEquals(summary.accepted.%Get("tellnow")_"|"_summary.accepted.%Get("act")_"|"_summary.accepted.%Size(), "1|1|2", "the accepted decisions without a confidence are counted by outcome")
+	Set lines = $ClassMethod(..#TOOL, "Lines", summary)
+	Do $$$AssertTrue((lines [ ("CHK|accepted|tellnow|1")) && (lines [ ("CHK|accepted|act|1")), "and their CHK lines name the outcome and the count only")
 	Do $$$AssertEquals(summary.decisions_"|"_summary.decide_"|"_summary.diagnose_"|"_summary.replies_"|"_summary.noReply, "33|1|32|33|1", "33 decisions (1 decide, 32 diagnose), 33 replies and one decision with no reply")
 	Do $$$AssertEquals(summary.reasons.%Get("invalid")_"|"_summary.reasons.%Get("timer")_"|"_summary.reasons.%Get("cut_off"), "31|1|1", "the fallback reasons are counted")
 	Set found = ""
@@ -396,9 +429,9 @@ Method TestOneReplyPerRule()
 /// DW-1421 C1 (AC 8): RuleOf and FieldOf of the parts that a refusal gives.
 Method TestRuleNames()
 {
-	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2")
-	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2")
-	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "")
+	Set parts = $ListBuild("ERROR #7201 rule evidence-too-long", "ERROR #5001 rule cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "ERROR #7201 rule element-at-fault-too-long", "ERROR #9404 rule unexpected-field", "ERROR #5035 rule reply-unreadable")
+	Set rules = $ListBuild("evidence-too-long", "cause-blank", "ElementAtFault: 129 > 128", "ERROR #9404: an unexpected property", "ERROR #7201 rule Evidence 2", "element-at-fault-too-long", "unexpected-field", "reply-unreadable")
+	Set fields = $ListBuild("evidence", "cause", "elementAtFault", "", "", "elementAtFault", "", "")
 	For i = 1:1:$ListLength(parts) {
 		Set rule = $ClassMethod(..#TOOL, "RuleOf", $List(parts, i))
 		Do $$$AssertEquals(rule, $List(rules, i), "the rule of "_$List(parts, i))
@@ -467,7 +500,7 @@ Method TestUncheckableReplyIsCounted()
 		Set found(entry.rule) = entry.count
 	}
 	Do $$$AssertEquals($Get(found("no check")), 1, "the reply of a runner with no reply class is counted under no check")
-	Do $$$AssertEquals($Get(found("ERROR #5035")), 1, "and the other reply of the run is judged")
+	Do $$$AssertEquals($Get(found("reply-unreadable")), 1, "and the other reply of the run is judged")
 	Do $$$AssertEquals(summary.replies_"|"_summary.files, "2|3", "each reply has its file, and summary.json is written")
 }
 
@@ -737,7 +770,7 @@ Method TestHostileRepliesStayOffStdout()
 	Set triage = {"outcome": (short), "reasons": [(hostile)], "confidence": 0.5}
 	Set texts = ""
 	Set expected = ""
-	For one = $ListBuild(whole, "ERROR #5035", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "ERROR #9404: an unexpected property", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "ERROR #5035", ..#DIAGNOSIS, "diagnose") {
+	For one = $ListBuild(whole, "reply-unreadable", ..#DIAGNOSIS, "diagnose"), $ListBuild(keyed.%ToJSON(), "unexpected-field", ..#DIAGNOSIS, "diagnose"), $ListBuild(categorised.%ToJSON(), "cause-category-unlisted", ..#DIAGNOSIS, "diagnose"), $ListBuild(reasoned.%ToJSON(), "passes the check", ..#DIAGNOSIS, "diagnose"), $ListBuild(fixed.%ToJSON(), "fix-parameters-check", ..#DIAGNOSIS, "diagnose"), $ListBuild(triage.%ToJSON(), "outcome-unlisted", ..#TRIAGE, "decide"), $ListBuild("cause-blank", "reply-unreadable", ..#DIAGNOSIS, "diagnose") {
 		Set ref = ..SeedDecision($List(one, 4))
 		Do ..SeedReply(ref, $List(one, 4), $List(one, 3), $List(one, 1))
 		Set texts = texts _ $ListBuild($List(one, 1))

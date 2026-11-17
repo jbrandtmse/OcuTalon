@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const source = join(here, '..', 'src', 'app', 'incidents', 'incident-view.ts');
 const { AFTER_CLOSE_KINDS, INCIDENT_TEXTS, announcementOf, bandTexts, categoryText, drawnOnClosed, incidentView, stateText } = await import(pathToFileURL(source).href);
+const { stripMeta } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'decision-view.ts')).href);
 const { resultView } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'approvals', 'approval-view.ts')).href);
 const { PAGE_TEXTS, REASON_KEYS, renderPageText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'msg', 'catalog.ts')).href);
 const { messageTime, pageWhen, pageWhenBeside } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'page-time.ts')).href);
@@ -103,6 +104,18 @@ describe('a new incident (the matrix\'s first row)', () => {
     assert.equal(card.strip.cost, 0.0006);
     assert.equal(card.strip.fallbackReason, undefined);
     assert.equal(card.diagnosisUrl, '/trace/diagnosis');
+  });
+
+  it('shows no Confidence item in the strip of a diagnosis that has no confidence, and one for a decision that has it (DW-1421 C5)', () => {
+    const { confidence, ...bare } = { ...DECISION, kind: 'diagnose' };
+    const absent = view(full(), { decisions: [bare] });
+    assert.ok(!('confidence' in absent.strip.decision), 'the strip\'s decision has no confidence property');
+    const items = stripMeta(absent.strip.decision, absent.strip.fallbackReason !== undefined, absent.strip.cost);
+    assert.ok(!items.some((item) => item.startsWith('Confidence')), 'no item starts with Confidence: ' + items.join(' | '));
+    assert.deepEqual(items, ['$0.0006']);
+    const given = view(full());
+    assert.ok(stripMeta(given.strip.decision, given.strip.fallbackReason !== undefined, given.strip.cost).includes('Confidence 0.94'));
+    assert.equal(confidence, 0.94);
   });
 
   it('writes the headline\'s time as a message time and with " ET" on the online demo', () => {

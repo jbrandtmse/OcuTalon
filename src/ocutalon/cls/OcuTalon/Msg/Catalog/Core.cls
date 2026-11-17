@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane B produces (AD-29, AD-32): the pairing replies and
 /// press alerts of Telegram, the answered statuses, the conversation and allowance texts, the fallback reasons, tell now and
-/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; the webhook field texts (settings.webhookBadName, settings.webhookBadSecret, settings.webhookNameTaken, settings.refusedExpansion and settings.webhooksOffOnDemo, Story 35.3) are rendered by SettingsOps for the webhook routes, and no other code sends them yet. The MCP settings text settings.mcpOffOnDemo (Story 21.4) is rendered by SettingsOps for the MCP routes, ListMcpServers and the MCP section. The XData block Entries holds
+/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The step 4 settings and request texts (settings.* and answered.canceled, Story 35.2) are shown on the settings page and on every channel; the webhook field texts (settings.webhookBadName, settings.webhookBadSecret, settings.webhookNameTaken, settings.refusedExpansion and settings.webhooksOffOnDemo, Story 35.3) are rendered by SettingsOps for the webhook routes, and no other code sends them yet. The MCP settings text settings.mcpOffOnDemo (Story 21.4) is rendered by SettingsOps for the MCP routes, ListMcpServers and the MCP section. The Slack texts (settings.slack* and chat.viaSlack, Story 27.3; the two gated ones are settings.slackNoWorkspace and settings.slackUnknownUser) are shown by the Slack group of Settings > Channels and rendered by Web.SlackSettings, and the page's own copies are pinned to them by web/scripts/slack-view.test.mjs. The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
 ///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
@@ -934,6 +934,115 @@ XData Entries [ MimeType = application/json ]
   "text": "Your OcuTalon digest",
   "slots": {},
   "source": "Story 21.7 Send the daily digest by email, Public Text E1 approved by the Contest Planner 2026-11-12"
+ },
+ "settings.slackHeading": {
+  "text": "Slack",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Heading"
+ },
+ "settings.slackNotSetUp": {
+  "text": "Slack not set up. Add SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET to .env and restart OcuTalon.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Not set up"
+ },
+ "settings.slackHowTo": {
+  "text": "How to set it up",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / How to set it up link"
+ },
+ "settings.slackOn": {
+  "text": "Slack on",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / On"
+ },
+ "settings.slackAddress": {
+  "text": "Subscribe your Slack app's events to {address}.",
+  "slots": {
+   "address": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Address"
+ },
+ "settings.slackOffOnDemo": {
+  "text": "Slack is off on the online demo, so it has no public Slack address. It works on your own install.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Off on the online demo"
+ },
+ "settings.slackMembersHeading": {
+  "text": "Linked Slack members",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Members heading"
+ },
+ "settings.slackMembersHelp": {
+  "text": "Only direct messages to the bot from a linked member become chat turns. Everything else from Slack is recorded in Visual Trace and goes no further.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Members help"
+ },
+ "settings.slackMemberId": {
+  "text": "Slack member ID",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Member ID label"
+ },
+ "settings.slackMemberUser": {
+  "text": "OcuTalon user",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / User label"
+ },
+ "settings.slackLink": {
+  "text": "Link member",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Link button"
+ },
+ "settings.slackUnlink": {
+  "text": "Unlink",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Unlink button"
+ },
+ "settings.slackNoMembers": {
+  "text": "No Slack members are linked yet.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / No members"
+ },
+ "settings.slackBadMemberId": {
+  "text": "Enter a Slack member ID such as U012AB3CDE: a U or W followed by letters and digits. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Member ID refused"
+ },
+ "settings.slackMemberTaken": {
+  "text": "That Slack member is already linked to another user. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Member taken"
+ },
+ "settings.slackUserTaken": {
+  "text": "{user} already has a linked Slack member. Unlink it first. Nothing was changed.",
+  "slots": {
+   "user": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / User taken"
+ },
+ "settings.slackLinked": {
+  "text": "Linked. Their direct messages to the bot now reach OcuTalon. Recorded in the audit log.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Linked"
+ },
+ "settings.slackUnlinked": {
+  "text": "Unlinked. Their messages no longer reach OcuTalon. Recorded in the audit log.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Unlinked"
+ },
+ "chat.viaSlack": {
+  "text": "via Slack",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Via Slack caption"
+ },
+ "settings.slackNoWorkspace": {
+  "text": "OcuTalon hasn't had an event from your Slack workspace yet. Ask the person to send the bot a direct message, then link them. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / No workspace yet"
+ },
+ "settings.slackUnknownUser": {
+  "text": "Choose an OcuTalon user from the list. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Slack (step 7) / Unknown user"
  }
 }
 }

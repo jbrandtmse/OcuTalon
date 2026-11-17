@@ -17,6 +17,11 @@
 ///     text, the key phrase "user", the absent phrases of a reason that describes production state or tool limits, its own recordedBy, and the fields of its kind and nothing else;
 ///   - (QA) TestCommandPhrasesAreSentence (Story 9.7): each key phrase of the command case (one of its alternatives) is part of the catalog sentence
 ///     agent.noCommands, which the INSTRUCTIONS of the Chat agent hold (Test.Agent.Instructions), so the case cannot expect words that the product never says;
+///   - TestRepliesWithoutConfidence (the Contest Planner's triage-accept ruling and its attention floor, Nov 17): the recorded triage replies that leave out their confidence,
+///     eval/<case>/reply-without-confidence.json: the four above the floor (three captured from the real model on the main-set cases mail-endpoint-move-tomorrow,
+///     mail-date-format-monday and mail-partner-notice, all tellnow, and one act written by hand for mail-orders-not-arriving) each pass Decide's reply check against the
+///     triage reply class with the reply's own outcome and no confidence (never 0); the two below it, written by hand (ignore for mail-newsletter, digest for
+///     mail-docs-updated), are refused with confidence-missing; no held-out case has one;
 ///   - TestNewsletterCase: eval/mail-newsletter is the item case of Task 5: kind item, not held out, recorded id mail-newsletter,
 ///     provenance untrusted, channel mailbox, the exact sender, subject and body of the simulated mailbox's newsletter (UX-DR86), and the
 ///     expectation {"outcome": "ignore"}, an outcome of the product's Msg.Enum;
@@ -377,6 +382,52 @@ Method AssertTurnShape(name As %String, case As %DynamicObject) [ Private ]
 }
 
 /// The newsletter case is the one Task 5 sets out.
+/// The triage-accept ruling: each recorded triage reply without a confidence is accepted by Decide's reply check with its own outcome and no confidence.
+Method TestRepliesWithoutConfidence()
+{
+	Set folder = ..Folder()
+	If folder = "" Quit
+	Set expected = $ListBuild("mail-date-format-monday:tellnow", "mail-endpoint-move-tomorrow:tellnow", "mail-orders-not-arriving:act", "mail-partner-notice:tellnow", "mail-newsletter:ignore:refused", "mail-docs-updated:digest:refused")
+	Set found = ""
+	Set position = 0
+	While $ListNext(expected, position, pair) {
+		Set name = $Piece(pair, ":", 1)
+		Set file = ##class(%File).NormalizeFilename("reply-without-confidence.json", ##class(%File).SubDirectoryName(folder, name))
+		Do $$$AssertTrue(##class(%File).Exists(file), name_": the reply without a confidence is recorded")
+		If '##class(%File).Exists(file) Continue
+		Set stream = ##class(%Stream.FileCharacter).%New()
+		Do stream.LinkToFile(file)
+		Set text = ""
+		While 'stream.AtEnd { Set text = text_stream.Read(32000) }
+		Set reply = {}.%FromJSON(text)
+		Do $$$AssertEquals(reply.%IsDefined("confidence"), 0, name_": the recorded reply has no confidence")
+		Do $$$AssertEquals(reply.outcome, $Piece(pair, ":", 2), name_": the recorded reply's outcome is "_$Piece(pair, ":", 2))
+		Set sc = ##class(OcuTalon.Bridge.Process.Decide).CheckReply(text, "OcuTalon.Bridge.Msg.DecisionPayload", .payload, .cause)
+		If $Piece(pair, ":", 3) = "refused" {
+			Do $$$AssertStatusNotOK(sc, name_": Decide's reply check refuses it (below the attention floor)")
+			Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).RefusalText(cause, "OcuTalon.Bridge.Msg.DecisionPayload", text), "ERROR #5001 rule confidence-missing", name_": as confidence-missing")
+			Set found = found_$ListBuild(name)
+			Continue
+		}
+		Do $$$AssertStatusOK(sc, name_": Decide's reply check accepts it")
+		If $IsObject(payload) {
+			Do $$$AssertEquals(payload.Outcome, $Piece(pair, ":", 2), name_": with the reply's own outcome")
+			Do $$$AssertEquals($Length(payload.Confidence), 0, name_": and no confidence, never 0")
+		}
+		Set found = found_$ListBuild(name)
+	}
+	Do $$$AssertEquals($ListLength(found), 6, "the six replies are recorded and checked")
+	Set held = ##class(%File).SubDirectoryName(folder, "held-out")
+	Set rs = ##class(%ResultSet).%New("%File:FileSet")
+	Do rs.Execute(held, "*", "", 1)
+	Set leaked = 0
+	While rs.Next() {
+		If rs.Get("Type") '= "D" Continue
+		If ##class(%File).Exists(##class(%File).NormalizeFilename("reply-without-confidence.json", rs.Get("Name"))) Set leaked = leaked + 1
+	}
+	Do $$$AssertEquals(leaked, 0, "no held-out case holds a recorded reply")
+}
+
 Method TestNewsletterCase()
 {
 	Set folder = ..Folder()

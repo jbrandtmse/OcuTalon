@@ -1037,6 +1037,7 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 /// made only of fixed words, an error code, the name of a compiled property of replyClass, an element position, a numeric limit and a computed length: never a
 /// value of the reply, an IRIS message text or a field name taken from the reply. The parts, in DecomposeStatus order and without repeats:
 ///   - a #7201 on a property whose JSON field REFUSALRULES of replyClass lists with a tag that ends in -too-long (LengthTag) is "ERROR #7201 rule <tag>", with no position, length or limit;
+///   - a #7203 or #7204 on a property whose JSON field REFUSALRULES of replyClass lists with a tag that ends in -out-of-range (LengthTag) is "ERROR #<code> rule <tag>", with no value or limit;
 ///   - a text over or under its limit (#7201, #7202) and a value outside its limits (#7203, #7204), with a property and a numeric limit, give
 ///     "<Property>[ element <n>]: <length> > <limit>" (the length of the value, never the value) and "<Property>[ element <n>]: value > <limit>"; the property and
 ///     the position come from the embedded #5802 (or a #5659) as "<class>:<Property>[(<n>)]", and only a name that replyClass compiles is used;
@@ -1044,7 +1045,9 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 ///     checked the way the property would be: every element of a list, or the value, by the property's own <Property>IsValid check, which gives the forms above;
 ///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
 ///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
-///   - a field that replyClass does not have (#9404) is "ERROR #9404: an unexpected property": the field's name came from the reply, so it is never given;
+///   - a field that replyClass does not have (#9404) is "ERROR #9404 rule unexpected-field" (UNEXPECTEDTAG, DW-1421 round 4): the field's name came from the reply, so it is never given;
+///   - a #5035 (a general exception: the import of a reply that is not JSON, or a check that throws) is "ERROR #5035 rule reply-unreadable" (UNREADABLETAG), with no
+///     exception Name, Code or Data: the Data can carry text of the reply (DW-1421 round 4);
 ///   - a #5001 whose second parameter is a tag that REFUSALRULES of replyClass lists (the fixed name of a rule of the class's %OnValidateObject, DW-1421) is
 ///     "ERROR #5001 rule <tag>"; with no second parameter, or one that the class does not list (a value of the reply included), it is the bare "ERROR #5001";
 ///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code of the form "<Domain>Name", else "ERROR"), and " on <Property>[ element <n>]" when a
@@ -1097,6 +1100,12 @@ ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String
 /// The words that begin the message of a failed reply check, before the reply class: CheckReply's error and Judge's problem share them.
 Parameter CHECKFAILED = "The reply check failed: the reply is not one JSON object that ";
 
+/// The fixed tag of a #5035 (a general exception) in RefusalText: a reply that could not be read, whatever the exception said.
+Parameter UNREADABLETAG = "reply-unreadable";
+
+/// The fixed tag of a #9404 (a field that the reply class does not have) in RefusalText: the field's name came from the reply, so it is never given.
+Parameter UNEXPECTEDTAG = "unexpected-field";
+
 /// The most parts that RefusalText names before "and <k> more".
 Parameter MAXREFUSALPARTS = 5;
 
@@ -1144,8 +1153,8 @@ ClassMethod RefusalNumber(value As %String) As %Boolean [ Private ]
 	Quit value ? .1"-"1.N.1(1".".N)
 }
 
-/// The length tag of the property: a tag that REFUSALRULES of replyClass lists for the property's JSON field and that ends in -too-long; never a value of the reply. "" when there is none.
-ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ Private ]
+/// The tag of the property: a tag that REFUSALRULES of replyClass lists for the property's JSON field and that ends in the suffix (-too-long for a length tag, -out-of-range for a range tag); never a value of the reply. "" when there is none.
+ClassMethod LengthTag(replyClass As %String, property As %String, suffix As %String = "-too-long") As %String [ Private ]
 {
 	If '##class(%Dictionary.CompiledProperty).%ExistsId(replyClass_"||"_property) Quit ""
 	Set compiled = ##class(%Dictionary.CompiledProperty).%OpenId(replyClass_"||"_property)
@@ -1157,7 +1166,7 @@ ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ P
 	Set position = 0
 	While $ListNext(pairs, position, pair) {
 		Set candidate = $Piece(pair, ":", 1)
-		If ($Piece(pair, ":", 2) = field) && ($Length(candidate) > 9) && ($Extract(candidate, *-8, *) = "-too-long") && (candidate ? 1L.(1L,1N,1"-")) {
+		If ($Piece(pair, ":", 2) = field) && ($Length(candidate) > $Length(suffix)) && ($Extract(candidate, *-($Length(suffix) - 1), *) = suffix) && (candidate ? 1L.(1L,1N,1"-")) {
 			Set tag = candidate
 			Quit
 		}
@@ -1168,9 +1177,14 @@ ClassMethod LengthTag(replyClass As %String, property As %String) As %String [ P
 /// The words of one error: see RefusalText.
 ClassMethod RefusalPart(code As %String, value As %String, limit As %String, property As %String, position As %String, replyClass As %String = "") As %String [ Private ]
 {
+	If code = 5035 Quit "ERROR #5035 rule "_..#UNREADABLETAG
 	If (code = 7201) && (property '= "") {
 		Set tag = ..LengthTag(replyClass, property)
 		If tag '= "" Quit "ERROR #7201 rule "_tag
+	}
+	If ((code = 7203) || (code = 7204)) && (property '= "") {
+		Set tag = ..LengthTag(replyClass, property, "-out-of-range")
+		If tag '= "" Quit "ERROR #"_code_" rule "_tag
 	}
 	Set label = property
 	If (label '= "") && (position '= "") Set label = label_" element "_position
@@ -1181,7 +1195,7 @@ ClassMethod RefusalPart(code As %String, value As %String, limit As %String, pro
 	Set text = "ERROR"
 	If code ? 1.N {
 		Set text = text_" #"_code
-		If code = 9404 Quit text_": an unexpected property"
+		If code = 9404 Quit text_" rule "_..#UNEXPECTEDTAG
 	} ElseIf code ? 1"<"1.AN1">"1.AN {
 		Set text = text_" "_code
 	}
