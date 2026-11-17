@@ -4642,3 +4642,9 @@
 2026-11-17T02:59:21Z	Epic 0	owner_decision	via=contest_planner triage-accept=ACCEPTED_pending_5-run_verify(running) 0.40=GO(isolation_plan,overview_212_text_approved)
 2026-11-17T03:00:55Z	Run	ci_green	feature 5f1996ed6 ci=43998846310 att2 green (DW-1449 rerun)
 2026-11-17T03:00:58Z	Epic 27	merged	27.3 merge=81265443f
+2026-11-17T03:13:37Z	Epic 0	runner_reported	0.40_pushed=65bb5317b(CI_queued) isolation(Sent_row_per_fixture)+counts+product_pin+overview_212; runner_ended_for_hold
+2026-11-17T03:13:54Z	Epic 0	owner_decision	via=contest_planner 0.40=ACCEPTED(merge_on_green)+deterministic_tick_proof_after_switch
+2026-11-17T03:26:04Z	Epic 28	runner_reported	28.3_DW-1470_fixed_locally(8e00eff8b;close_public_first+pin) unpushed(no_push_over_running_CI) CI_96cc877a6_queued DW-1473_evidence_supports_25.9_lead
+2026-11-17T03:36:42Z	Epic 0	owner_decision	via=contest_planner triage-accept_verify=target_met_but_new_needed-now_miss -> NOT_merged; rework=attention_floor(accept_no-confidence_only_tellnow/act)+capture_count+2_refused_fixtures+guide_text_first; re-verify_5_runs
+2026-11-17T03:42:11Z	Run	owner_decision	via=contest_planner(owner_question) RESUME_ALL_LANES; hold=WIP_commit_and_push_own_branch_at_next_boundary(+[skip_ci];no_push_over_started_CI)
+2026-11-17T04:16:13Z	Run	quota_hold	via=contest_planner QUOTA_HOLD_NOW(95%_at_04:15Z,account_switch) all_lanes_told:WIP_commit+push_own_branch,no_new_stage,no_feature_merge
