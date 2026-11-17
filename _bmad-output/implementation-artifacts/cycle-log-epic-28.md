@@ -101,3 +101,5 @@
 2026-11-17T06:12:06Z	Epic 28	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_quota_hold_20261117(new_account) lane=C hold=absent inbox_verify=ok head=a640fd7eb
 2026-11-17T06:12:06Z	Epic 28	hold_restored	story=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients note=nothing_to_restore(tree_clean,all_committed)
 2026-11-17T06:12:06Z	Story 28.3	stage_spawned	stage=code-review spawn_at=2026-11-17T06:12:06Z model=opus agent_name=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients-code-review-4 cycle_iteration=5 effort=high scope=37ac53505..HEAD
+2026-11-17T06:22:18Z	Story 28.3	cr_complete	spawn_at=2026-11-17T06:12:06Z model=opus effort=high cycle_iteration=5 scope=37ac53505..HEAD resolved=1 fixed_at_source=1 dismissed=3 high=0 med=0 low=1 rows=5 unresolved_high_med=0 checklist=1-4_confirmed(no_other_absolute_step_index_or_Activity_pin) status=done
+2026-11-17T06:22:18Z	Story 28.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=slice_empty
