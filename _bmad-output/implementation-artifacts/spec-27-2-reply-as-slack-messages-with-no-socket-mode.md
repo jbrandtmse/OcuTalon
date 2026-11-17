@@ -32,6 +32,13 @@ deferred: []
 - The online demo: Slack is off there, `Notify` never routes to `SlackOut`, and `SlackOut` refuses (error, nothing sent). Pinned.
 - Every test added or changed passes on a fresh environment, in either order.
 
+**Contest Planner gate rulings for 27.2 (2026-11-17 ~03:00Z, BINDING; prompts/story-272-rulings-20261117.md outside the repo):**
+- (1) Setup step 1 (im:history and chat:write) APPROVED verbatim in GUIDE.md, EXPERIENCE.md Later Steps and its pin; the 8 Visual Trace texts APPROVED verbatim on ONE CONDITION: every {reason}, {status} and {code} slot holds ONLY a fixed reason word or Slack's own error code, NEVER a member, team or channel id, message text or a token — pinned by the token-strip test.
+- (2) Outward post and veto items APPROVED exactly as specified (only chat.postMessage to the linked member whose DM started an ACCEPTED turn, once per part; mrkdwn/unfurls off; &,<,> escaped; parts <= 4,000 chars; Retry-After up to 30 s and 5 tries; a sent part never resent; token read at use, header only, stripped from errors, never stored/logged; Delivery holds Ref:ts only; notifications and approvals NEVER go to Slack; on the demo BOTH Notify and SlackOut refuse — pinned; the no-socket-mode boundary rule; the mock's Slack side and scenarios; live:slack-hook pins zero posts for a refused turn).
+- (3) Inbound decode: NO A/B; PIN the decode table with tests (entities, mentions, links, channel references).
+- (4) AC 4 becomes "`GUIDE.md` › Slack, linked from the README" (epics.md amended); no new README sentence.
+- (5) Spine edits APPROVED (AD-14, AD-19, AD-22, AD-32, Deferred row out); on the AD-22 overlap with Story 0.39, whichever lands second rebases.
+
 **Never:**
 - No edit to a Lane A file (Telegram's `Out`/`Api`/`In`, `Agent/*`, `Eval/*`, `ci/mock/scenarios/A/**`), to `Core/Conversation.cls` (Story 0.38's), to `ci/compose.ci.yml`, `.github/workflows`, `release/**` or `README.md`.
 - No new role, grant, resource, `Data.Setting` key, install step, table or third-party dependency; no Slack text other than the gate-ruled sentences.
@@ -125,6 +132,8 @@ All classes under `src/ocutalon/cls/OcuTalon/`. Lane B unless marked.
 - Given the change, when it lands, then the spine carries gate item (f) and `lint_spine.py` reports `"ok": true`.
 
 ## Spec Change Log
+
+- 2026-11-17 ~03:05Z, lead: Contest Planner gate rulings (1)-(5) applied (binding block in Boundaries & Constraints); epics.md AC 4 amended per ruling (4). Build after the account switch if the quota hold comes first.
 
 ## Review Triage Log
 

@@ -9276,9 +9276,9 @@ So that the conversation stays where I started it (step 7, Could).
 **When** CI runs
 **Then** no Slack code opens a WebSocket or uses socket mode, and the Slack tests run against a Slack API mock in CI's mock service, with scenarios under `ci/mock/scenarios/B/`, never against Slack itself (FR-46, AD-22, REL-4)
 
-**Given** the README
+**Given** `GUIDE.md` › Slack, linked from the README
 **When** Slack ships
-**Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24)
+**Then** a developer section explains in plain English creating the Slack app, subscribing its events to the Slack route on a public HTTPS address, setting the environment variables and linking a member, and claims nothing the release doesn't ship (FR-46, FR-58, NFR-24) [AMENDED 2026-11-17, Contest Planner ruling (story-272 gate (4)): it read "**Given** the README"; the README is capped and links `GUIDE.md#slack`, and no README sentence is added]
 
 ### Story 27.3: Link Slack members in Settings
 
