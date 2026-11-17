@@ -2353,7 +2353,8 @@ ovw_doc_problems() {
   # (U-224).
   n=$(grep -nxE '## (Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo)' "$f" | sed 's/^[0-9]*:## //' | tr '\n' '|')
   [ "$n" = 'Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo|' ] || echo "the five hand-written headings are not there once each, in order"
-  ovw_section "$f" 'Data' | grep -qF -e 'no scheduled purge removes them' || echo "the Data section lacks the no-scheduled-purge sentence"
+  # Story 0.40 (DW-1449; the Contest Planner's approved text, Nov 17): the purge sentences in AD-27's terms
+  ovw_section "$f" 'Data' | grep -qF -e 'Chat turns and the record of each notice sent are removed after 90 days. A session record, with its guide progress, simulated messages and finished reminders, is removed only once it is over 90 days old and nothing keeps it: no turn, notice or decision in the last 90 days, no saved memory or document, and no watch, Telegram pairing, webhook, pending approval or reminder, or live sign-in.' || echo "the Data section lacks the purge sentences"
   ovw_section "$f" 'Online demo' | grep -qxF -e 'Each protection listed here is checked against the running demo before every release.' || echo "the Online demo section lacks the checked-before-every-release sentence"
   return 0
 }
@@ -2714,8 +2715,8 @@ the Data section lacks the MCP bullet word for word"
   eq "control: another email allowance" "$(ovw_doc_problems "$d/emails.md")" "the Online demo section lacks '20 simulated incoming emails'"
   sed 's/ after 90 days;/ after 60 days;/' "$doc" > "$d/days90.md"
   eq "control: another long retention" "$(ovw_doc_problems "$d/days90.md")" "the Data section lacks '90 days'"
-  sed 's/ and no scheduled purge removes them\./ and a scheduled purge removes them./' "$doc" > "$d/purge.md"
-  eq "control: the no-scheduled-purge sentence changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the no-scheduled-purge sentence"
+  sed 's/ is removed only once it is over 90 days old and nothing keeps it:/ is removed once it is over 90 days old:/' "$doc" > "$d/purge.md"
+  eq "control: the purge sentences changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the purge sentences"
   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
