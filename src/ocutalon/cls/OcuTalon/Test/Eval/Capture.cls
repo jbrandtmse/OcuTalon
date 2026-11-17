@@ -354,6 +354,8 @@ Method TestOneReplyPerRule()
 	Set pairs = $ListFromString($ClassMethod(..#PAYLOAD, "RuleTags"), ",")
 	Set position = 0
 	While $ListNext(pairs, position, pair) {
+		// confidence-missing is met by neither reply class since the triage-accept ruling (CONFIDENCEREQUIRED 0 on both), so no reply gives it
+		If $Piece(pair, ":", 1) = "confidence-missing" Continue
 		Do $$$AssertEquals($Piece($Get(found($Piece(pair, ":", 1))), "|", 2), $Piece(pair, ":", 2), $Piece(pair, ":", 1)_": the field is "_$Piece(pair, ":", 2))
 	}
 	Set cases = ""

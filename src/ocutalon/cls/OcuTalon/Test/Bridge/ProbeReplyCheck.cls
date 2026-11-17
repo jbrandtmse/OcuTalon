@@ -8,6 +8,10 @@ Class OcuTalon.Test.Bridge.ProbeReplyCheck Extends OcuTalon.Bridge.Msg.DecisionP
 /// The parent's rules without its length and range tags: the probe is the reply class that lists none, so the tests of OcuTalon.Bridge.ReplyCheck pin Decide's generic forms ("<Property>[ element <n>]: <length> > <limit>" and "<Property>: value > <limit>").
 Parameter REFUSALRULES = "outcome-unlisted:outcome,reasons-blank:reasons,confidence-missing:confidence";
 
+/// The probe still requires a confidence (the rule confidence-missing), so that the tests of Decide's refusal words keep a class that meets it; DecisionPayload
+/// itself no longer does (the Contest Planner's triage-accept ruling, Nov 17).
+Parameter CONFIDENCEREQUIRED = 1;
+
 /// The properties that Decide filters.
 Parameter FILTERED = "Note";
 
