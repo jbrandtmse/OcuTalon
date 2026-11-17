@@ -3,18 +3,18 @@
 /// must be on, as a clean install leaves them. The tests drive a shadow instance of OcuTalon.Test.Core.SettingsOpsProbe, which stands in
 /// for the Demo step and, except in TestAuditAccepted, for the audit write, so that no namespace is created or removed. The real switch is
 /// the job of docker/tests/test-demo-switch.sh. Every text is written out here, never read from SettingsOps.
-///   - TestSwitch: a SetDemoMode of 0 or 1 audits first, writes the value, and runs the step after the write; the answer is
-///     on or off with its text, and the audit data has exactly the members of the Settings shape: setting, from (the row's value before the
-///     write), to, irisUser, sessionRef and channel;
+///   - TestSwitch: a SetDemoMode of 0 or 1 writes the value, then audits it (the audit seam sees the new value), and runs the step after
+///     the commit; the answer is on or off with its text, and the audit data has exactly the members of the Settings shape: setting,
+///     from (the row's value before the write), to, irisUser, sessionRef and channel;
 ///   - TestFromAbsentRow: with no demo.mode row the entry's from is an empty string (still a member of the entry);
 ///   - TestFromIgnoresCache: from is the stored value even when this process holds an older value in its Setting cache;
 ///   - TestKept: a step that kept a foreign OCUORDERS answers off_kept with the note's how sentence;
 ///   - TestStepFails: a failed step answers step_failed with the error sentence, the value stays written, and the failure is
 ///     logged as an error;
-///   - TestAuditFails: a failed audit answers not_audited, writes nothing, runs no step, and is logged as an error;
+///   - TestAuditFails: a failed audit answers not_audited, the row is rolled back to what storage held, no step runs, and it is logged as an error;
 ///   - TestSameMode: the mode the row already has is audited (from and to both that mode), written and the step rerun all the same;
-///   - TestApplyFails: a value that cannot be saved answers failed after the audit, the step does not run, and the failure is
-///     logged as an error;
+///   - TestApplyFails: a value that cannot be saved answers failed with no audit write and no entry in the real audit log (a control save
+///     with the same session Ref does write one), the step does not run, and the failure is logged as an error;
 ///   - TestKeptOnlyForOff: a demoKept mark does not turn an on switch into off_kept;
 ///   - TestWarningsTaken: the step's warnings are taken, so none is left for the next step, and are logged;
 ///   - TestAuditAccepted: with the real Bridge.Audit.Record behind the seam (it writes a real Settings entry, so it needs the audit events
@@ -69,7 +69,8 @@ Method OnAfterAllTests() As %Status
 }
 
 /// A SetDemoMode of 0 and of 1, from the system and from web_admin: Ok 1, off or on with its text, the row written with the new
-/// value and the time, the audit call first and the step call second, the step seeing the new value, and the audit data.
+/// value and the time, the audit call first among the seams and the step call second, the audit seam and the step both seeing the new
+/// value (the row is written before its entry), and the audit data.
 Method TestSwitch()
 {
 	Set on = "Demo mode is on. The Orders production runs in namespace OCUORDERS. Reload the OcuTalon page in a minute to see the change."
@@ -88,9 +89,9 @@ Method TestSwitch()
 		Do $$$AssertEquals(written.Value, mode, label_": the row holds the new value")
 		Do $$$AssertTrue($Match(written.UpdatedAt, "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$") && (written.UpdatedAt '= "2000-01-01T00:00:00Z"), label_": UpdatedAt is the time of the write")
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 2, label_": two seams were called")
-		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1)), "audit", label_": the audit came first")
+		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1)), "audit", label_": the audit seam was called before the step")
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 2)), "step", label_": the step came second")
-		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "seen")), 'mode, label_": the audit saw the old value, so the write came after it")
+		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "seen")), mode, label_": the audit saw the new value, so the write came before it")
 		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 2, "seen")), mode, label_": the step saw the new value")
 		Set data = {}.%FromJSON($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1, "data")))
 		Do $$$AssertEquals(data.irisUser, "zzadmin", label_": the audit names the acting user")
@@ -189,22 +190,33 @@ Method TestSameMode()
 	}
 }
 
-/// A value that cannot be saved: Ok 0, failed with CommandsIn's text; the audit was written first and the step did not run, and the
-/// row is as it was.
+/// A value that cannot be saved: Ok 0, failed with CommandsIn's text; no audit write was attempted, no entry for the session is in the real audit
+/// log (a control save with the same Ref writes one, so the query does find an entry when there is one), the step did not run, and the row is as
+/// it was.
 Method TestApplyFails()
 {
 	Do ..Reset()
 	Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "error"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set logged0 = ..Logged("zz apply failed", 2)
-	Set result = ..Send(0, "system", "zzadmin", "")
+	Set result = ..Send(0, "system", "zzadmin", ref)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the write fails: failed")
 	Do $$$AssertEquals(..Logged("zz apply failed", 2), logged0 + 1, "the failed write is in the Event Log as an error")
 	Do $$$AssertEquals(result.Message, "Something went wrong inside OcuTalon, so the command may not have finished.", "the text")
-	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 1, "only the audit was called")
-	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls", 1)), "audit", "the audit came first")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "no audit write was attempted")
+	Do $$$AssertEquals(..StepRan(), 0, "the step did not run")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
 	Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", "the row is as it was")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 0, "and the real audit log has no entry for the session")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "apply")
+	Set result = ..Send(0, "system", "zzadmin", ref)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|off", "the control save is carried out")
+	Do $$$AssertEquals(..StepRan(), 1, "and its step ran")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 1, "and the same query finds its one entry")
 }
 
 /// A demoKept mark that is set (the Demo step keeps a foreign OCUORDERS only when it removes) does not change an on switch.
@@ -248,6 +260,7 @@ Method TestAuditAccepted()
 	Set result = ..Send(1, "system", "zzadmin", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|on", "with no row Record accepts the entry too (from is an empty string)")
 	For case = "no user|system|", "no channel|nowhere|zzadmin" {
+		Kill row
 		Do ..Reset()
 		Do ##class(OcuTalon.Test.Demo.Step).Put("1", "2000-01-01T00:00:00Z")
 		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
@@ -255,11 +268,11 @@ Method TestAuditAccepted()
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", $Piece(case, "|", 1)_": Record refuses the entry, so not_audited")
 		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
 		Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", $Piece(case, "|", 1)_": the row is as it was")
-		Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 1, $Piece(case, "|", 1)_": the step did not run")
+		Do $$$AssertEquals(..StepRan(), 0, $Piece(case, "|", 1)_": the step did not run")
 	}
 }
 
-/// An audit that fails: Ok 0, not_audited, the row is as it was and the step did not run.
+/// An audit that fails: Ok 0, not_audited, the row, written before the audit, is rolled back to what storage holds and the step did not run.
 Method TestAuditFails()
 {
 	Do ..Reset()
@@ -272,7 +285,9 @@ Method TestAuditFails()
 	Do $$$AssertEquals(result.Message, "OcuTalon couldn't write the audit entry, so demo mode was not changed.", "the text says nothing was changed")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
 	Do $$$AssertEquals(row.Value_"|"_row.UpdatedAt, "1|2000-01-01T00:00:00Z", "the row is as it was")
-	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 1, "only the audit was called")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 1, "the audit write was attempted once")
+	Do $$$AssertEquals(..StepRan(), 0, "the step did not run")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
 }
 
 /// A command that is not SetDemoMode: Ok 0, unknown_command with CommandsIn's text, and no write and no seam call.
@@ -316,6 +331,7 @@ Method TestThrown()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "failed")
 	Do $$$AssertEquals(result.Message, "Something went wrong inside OcuTalon, so the command may not have finished.", "the text")
 	Do $$$AssertEquals(..Logged("zz audit threw", 2), logged0 + 1, "the thrown error is in the Event Log once, as an error")
+	Do $$$AssertEquals($TLevel, 0, "no transaction is left open")
 }
 
 /// The allow-list is exactly demo.mode; the guarded write refuses another key with an error status and writes no row.
@@ -415,10 +431,22 @@ ClassMethod Logged(text As %String, type As %Integer = 3) As %Integer [ Private 
 	Quit +rs.%GetData(1)
 }
 
-/// Clears the probe's global and the demoKept mark.
+/// 1 when the probe recorded a call of the Demo step, else 0 (the audit records of a rolled-back save are undone with it, so the calls are scanned).
+ClassMethod StepRan() As %Boolean [ Private ]
+{
+	Set n = ""
+	For {
+		Set n = $Order(^OcuTalonTest("SettingsOpsProbe", "calls", n), 1, kind)
+		If n = "" Quit
+		If kind = "step" Quit
+	}
+	Quit (n '= "")
+}
+
+/// Clears the probe's globals, its process-private counters and the demoKept mark.
 Method Reset() [ Private ]
 {
-	Kill ^OcuTalonTest("SettingsOpsProbe")
+	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe
 	Do ##class(OcuTalon.Data.StatusMark).Record($Parameter(..#STEP, "KEPTMARK"), "")
 }
 

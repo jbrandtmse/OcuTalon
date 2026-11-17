@@ -14,7 +14,8 @@
 ///     section are refused with nothing written;
 ///   - TestDigestSection: the digest time and channels are validated, and channels are stored in their fixed order;
 ///   - TestAllOrNothingAudit and TestAllOrNothingApply: a failed audit write or a failed row write at each of the five positions rolls every
-///     value back and writes no row, and answers not_audited or failed;
+///     value back (to what storage held) and writes no row, and answers not_audited or failed; a failed row write also attempts no audit write
+///     and leaves no entry for its session in the real audit log, which a control save with another session shows is read;
 ///   - TestBridgeSaved: the bridge double sees every Check before the first Set, and each Set has its audit entry with the replaced value;
 ///   - TestBridgeRefused, TestBridgeStub: a Check that refuses a value refuses the section and sets nothing; a Check that answers "not
 ///     implemented" gives not_built and sets and audits nothing on the double; on the real instance (U-177 exception, Contest Planner, 2026-11-05) the built bridge
@@ -227,7 +228,8 @@ Method TestDigestSection()
 	Do $$$AssertEquals(result.Outcome_"|"_..Row("digest.channels"), "done|email", "email alone is a valid value")
 }
 
-/// A failed audit write at each of the five positions: not_audited, no row is left, and the audit was asked for up to that position only.
+/// A failed audit write at each of the five positions: not_audited, no row is left, and the audit was asked for up to that position only; with a
+/// stored value under a changed one, the audit's failure puts that value back, read from storage.
 Method TestAllOrNothingAudit()
 {
 	For at = 1:1:5 {
@@ -240,21 +242,44 @@ Method TestAllOrNothingAudit()
 		Do $$$AssertEquals(..Audits(), at, "audit failed at "_at_": the entries stop there")
 		Do $$$AssertEquals($TLEVEL, 0, "no transaction is left open")
 	}
+	Do ..Reset()
+	Do ..Clear()
+	Do ..Save("check-thresholds", {"diskFreePercent": 12, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 100, "queueWaitMinutes": 10})
+	Do ..Reset()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = 2
+	Set result = ..Save("check-thresholds", {"diskFreePercent": 13, "journalFreePercent": 13, "licenseUsePercent": 90, "queueMessages": 100, "queueWaitMinutes": 10})
+	Do $$$AssertEquals(result.Outcome, "not_audited", "a refused entry on a save over a stored value is not_audited")
+	Do $$$AssertEquals(..Row("checks.thresholds.diskFreePercent"), "12", "the stored value is back, read from storage")
+	Do $$$AssertEquals(..Rows(), 1, "and the other value has no row")
 }
 
-/// A failed row write at each of the five positions: failed, no row is left, and no later value was tried.
+/// A failed row write at each of the five positions: failed, no row is left, no later value was tried, no audit write was attempted and the real audit log
+/// has no entry for the save's own session. A control save of the same five values with another session writes its five entries, which the same query finds.
 Method TestAllOrNothingApply()
 {
 	For at = 1:1:5 {
 		Do ..Reset()
 		Do ..Clear()
 		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt") = at
-		Set result = ..Save("check-thresholds", {"diskFreePercent": 11, "journalFreePercent": 11, "licenseUsePercent": 91, "queueMessages": 101, "queueWaitMinutes": 11})
+		Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+		Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set result = ..Save("check-thresholds", {"diskFreePercent": 11, "journalFreePercent": 11, "licenseUsePercent": 91, "queueMessages": 101, "queueWaitMinutes": 11}, ref)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "the write at "_at_" fails: failed")
 		Do $$$AssertEquals(..Rows(), 0, "write failed at "_at_": every value is rolled back")
 		Do $$$AssertEquals($Get(^||OcuTalonSettingsOpsProbe("n", "apply")), at, "write failed at "_at_": no later value was tried")
+		Do $$$AssertEquals(..Audits(), 0, "write failed at "_at_": no audit write was attempted")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 0, "write failed at "_at_": the real audit log has no entry for the session")
 		Do $$$AssertEquals($TLEVEL, 0, "no transaction is left open")
 	}
+	Do ..Reset()
+	Do ..Clear()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ..Save("check-thresholds", {"diskFreePercent": 11, "journalFreePercent": 11, "licenseUsePercent": 91, "queueMessages": 101, "queueWaitMinutes": 11}, ref)
+	Do $$$AssertEquals(result.Outcome, "done", "the control save is done")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", ref).%Size(), 5, "and the same query finds its five entries")
 	Do ..Reset()
 	Do ..Clear()
 	Do ..Save("check-thresholds", {"diskFreePercent": 12, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 100, "queueWaitMinutes": 10})
@@ -534,20 +559,20 @@ Method AuditData(nth As %Integer) As %DynamicObject [ Private ]
 	Quit {}.%FromJSON($Get(^OcuTalonTest("SettingsOpsProbe", "calls", n, "data"), "{}"))
 }
 
-/// A SaveSettings of the section with the changes (a dynamic object), from web_admin for zzadmin, sent to the probe.
-Method Save(slug As %String, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+/// A SaveSettings of the section with the changes (a dynamic object), from web_admin for zzadmin and the session Ref (REF by default), sent to the probe.
+Method Save(slug As %String, changes As %DynamicObject, ref As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
-	Quit ..SaveText(slug, changes.%ToJSON())
+	Quit ..SaveText(slug, changes.%ToJSON(), ref)
 }
 
 /// A SaveSettings of the section with the text as its changes.
-Method SaveText(slug As %String, text As %String) As OcuTalon.Msg.CommandResult [ Private ]
+Method SaveText(slug As %String, text As %String, ref As %String = {..#REF}) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
 	Set command.Slug = slug
 	Set command.Changes = text
 	Set command.ActingUser = "zzadmin"
-	Set command.SessionRef = ..#REF
+	Set command.SessionRef = ref
 	Set command.Origin = "web_admin"
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
 	Do $$$AssertStatusOK(sc, "the probe is made")

@@ -8514,6 +8514,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Bridge.Audit.Record writes through $SYSTEM.Security.Audit, and %SYS.Audit suspends transactions for the record ($zu(139,2), irissys/%SYS/Audit.cls:1585), so TROLLBACK in SettingsOps.WritePartner (24.2) and SaveProduct (33.2, 36.4) keeps the entry. AD-19 L759 says the entry and the row are one transaction with a rollback; TestRowWriteFailureRollsBack proves it for the probe's global only.
 - 2026-11-15T17:44:12Z status=escalated owner=burndown by=cr note=AD-19 call: write row first and audit last in the transaction (audit failure rolls row back), or a compensating entry
 - 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ruling ~20:00Z: burndown story MED, row first then audit inside one transaction, TROLLBACK on audit failure; covers 24.2 contact save, SaveProduct and every audited Settings save; AD-19 amendment verbatim in prompts/dw-1392-rulings-20261115.md; owner lane A after 25.8 or first free lane; 1.0.12 if ready
+- 2026-11-16T00:53:59Z status=routed owner=25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi by=merge_gate note=Contest_Planner_ruling_2026-11-15(prompts/dw-1392-rulings-20261115.md);Story_25.9_chartered
 
 ### DW-1393: Partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -8534,6 +8535,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-13 L484 sends 'a read beyond the caller's own rows' through a read verb to the owning Ops class; 24.2 (Decided in-stage 8, gated) reads all contacts via the owning class's List() in the web process, as SettingsOps.Values already reads Data.Setting rows (Stored, KeyIndexOpen).
 - 2026-11-15T17:44:12Z status=decision-pending owner=burndown by=cr note=AD-13 call: amend for config tables listed via their owning class, or a ListPartnerContacts verb through SecretHandoff
 - 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ACCEPTED with an AD-13 clarification (verbatim in prompts/dw-1392-rulings-20261115.md), written into the spine by the DW-1392 story
+- 2026-11-16T00:53:59Z status=routed owner=25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi by=merge_gate note=Contest_Planner_ruling_2026-11-15(prompts/dw-1392-rulings-20261115.md);Story_25.9_chartered
 ### DW-1396: 23.4 pages the on-call person, and escalates to the backup, for a session-owned incident (failures tagged with a user's TraceRef), which only that session may see (AD-4)
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch/Paging.cls Notice excludes only OwnerRef eval; FailurePoller scopes tagged failures to the session; PagingLive's real break is session-owned and pages another user as backup

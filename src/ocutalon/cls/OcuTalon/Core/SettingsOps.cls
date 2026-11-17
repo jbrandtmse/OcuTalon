@@ -1,21 +1,21 @@
 /// SettingsOps, the business operation that carries out the settings commands SetDemoMode, SaveSettings (from step 2, below), SetPersona,
 /// ProposePersona and SetHeartbeat (AD-1, AD-19). It is the only run-time writer of OcuTalon.Data.Setting: it writes only the keys of ALLOWLIST and the
 /// per-person keys of PERSONKEYS, and at sign-out deletes every per-person key of the ended session. For every accepted SetDemoMode it:
-///   - writes the Settings audit entry first (AD-17), through Bridge.Audit.Record, so that no change is unaudited and the entry has the
-///     one shape of its type;
-///   - then writes the value of demo.mode, "1" or "0";
+///   - writes the value of demo.mode, "1" or "0", in one transaction;
+///   - then writes the Settings audit entry (AD-17), through Bridge.Audit.Record, so that no change is unaudited and the entry has the
+///     one shape of its type, and commits (AuditCommit); a refused entry rolls the value back;
 ///   - then runs OcuTalon.Install.Step.Demo.Run() (AD-23), which creates or removes the demo namespace, and takes the step's
 ///     warnings.
 /// For every accepted SetPersona (origin web_user, the session's own persona) it checks that the session has a row, validates the
-/// values (PersonaProblem), writes the Settings audit entry first (setting persona, from and to in the form of AuditForm: the preset id
-/// or the language name, never the custom text), then writes person.<SessionRef>.persona.preset, .language and .custom in one
-/// transaction (WritePersona). A value that the chosen preset does not use is neither validated nor stored: its key is written empty.
+/// values (PersonaProblem), writes person.<SessionRef>.persona.preset, .language and .custom in one transaction and then the Settings audit
+/// entry (setting persona, from and to in the form of AuditForm: the preset id or the language name, never the custom text) before it commits
+/// (WritePersona). A value that the chosen preset does not use is neither validated nor stored: its key is written empty.
 /// For every accepted SetHeartbeat (origin web_user, the session's own heartbeat settings) it checks that the session has a row, validates
 /// the values (HeartbeatProblem: on is 0 or 1; the interval is one of Checks.Beat INTERVALS; the hours are both empty, for all day, or both HH:MM
 /// with the minutes 00, 15, 30 or 45; the checklist has at most Checks.Beat CHECKLISTMAX characters, no {{, no @{ and no control character other
-/// than a line feed or carriage return), writes the Settings audit entry first (setting heartbeat, from and to in the form of HeartbeatAuditForm:
-/// only the changed keys, the checklist as its length, never its text), then writes person.<SessionRef>.heartbeat.on, .interval, .from, .to and
-/// .checklist in one transaction (WriteKeys, which WritePersona shares). Heartbeat(sessionRef) reads a person's values and their HeartbeatBeat
+/// than a line feed or carriage return), writes person.<SessionRef>.heartbeat.on, .interval, .from, .to and .checklist in one transaction and then
+/// the Settings audit entry (setting heartbeat, from and to in the form of HeartbeatAuditForm: only the changed keys, the checklist as its length,
+/// never its text) before it commits (WriteKeys, which WritePersona shares). Heartbeat(sessionRef) reads a person's values and their HeartbeatBeat
 /// row's public view; SampleChecklist is the online demo's unsaved checklist.
 /// ProposePersona (origin tool, Story 40.6) checks the session, the online-demo flag and the values like SetPersona, writes and audits no
 /// persona key, and raises a request of kind setting (Bridge.Approval.Raise, ResultTarget SettingsOps, the DryRun {key, ownerRef, old, new}
@@ -34,8 +34,8 @@
 ///     refused and nothing was written (Ok 0);
 ///   - bad_on, bad_interval, bad_hours, bad_checklist: the heartbeat values are refused and nothing was written (Ok 0);
 ///   - no_session: the command's session has no row (Ok 0);
-///   - not_audited: the audit entry could not be written (Record refuses it, for example when the command has no ActingUser), so nothing
-///     was written (Ok 0);
+///   - not_audited: the audit entry could not be written (Record refuses it, for example when the command has no ActingUser), so the
+///     rows were rolled back and nothing was changed (Ok 0);
 ///   - proposed: ProposePersona raised the request (Ok 1; Ref is its Ref and the Message the pending note); not_available: ProposePersona
 ///     on the online demo (Ok 0);
 ///   - unknown_command: a command class that this operation does not carry out (Ok 0);
@@ -56,7 +56,8 @@
 /// the bridge side is still a stub), not_audited, failed and unknown_command. A section's save is all or nothing:
 ///   - every value is validated first, and a refused value, which includes any value that holds "@{", changes nothing and writes no audit entry;
 ///   - the values that differ from the stored ones are the changes; no change writes nothing;
-///   - product keys: in one transaction, for each change its audit entry (WriteAudit), then its row (Apply); a failure rolls the transaction back;
+///   - product keys: in one transaction, each change's row (Apply), then each change's audit entry (AuditCommit, which commits); a failed row
+///     write rolls the transaction back and writes no entry, and a refused entry rolls the rows back;
 ///   - bridge values: every Check first; then, for each change, Bridge.Settings.Set and its audit entry (the old value comes from Set); a failure
 ///     Sets the earlier values back and audits that.
 /// Each changed value has its own Settings audit entry. Values answers the settings page's GET body, read from the rows and never from the cache.
@@ -101,9 +102,9 @@
 /// read the servers' tools, their entries or the pending requests of other owners; it also lists the session's own source polls (Story 21.5). It writes nothing. Each tool row carries Tools' changed member (Story 21.9). McpOps, not this class, writes an MCP server's row, entry and wallet secret.
 /// CreateWebhook and SetWebhookSecret (Story 35.3, origin web_admin) take the secret from the command's Handoff uri through SecretHandoff.Take, never from a
 /// property, a message or a log. On the online demo both answer not_available and write nothing. CreateWebhook validates the name and the secret (Data.Webhook
-/// NameProblem, SecretProblem, NameTaken), writes the Settings audit entry first (setting webhook.<Ref>, from empty, to the name), then saves the Webhook row
-/// with the salted hash for the session's own Ref. SetWebhookSecret needs a row of the command's own session (else not_found), validates the secret, audits
-/// webhook.<Ref>.secret, then replaces the hash. The outcomes: done (Ok 1; Data {ref, name, createdAt} for a create); refused and name_taken (Ok 0; Data
+/// NameProblem, SecretProblem, NameTaken), saves the Webhook row with the salted hash for the session's own Ref and then writes the Settings audit entry
+/// (setting webhook.<Ref>, from empty, to the name) before it commits. SetWebhookSecret needs a row of the command's own session (else not_found), validates
+/// the secret, replaces the hash and then audits webhook.<Ref>.secret. The outcomes: done (Ok 1; Data {ref, name, createdAt} for a create); refused and name_taken (Ok 0; Data
 /// {"fields": {name, secret}} with each refused field's catalog text); not_found, no_session, not_available, not_audited and failed (Ok 0). The secret and its hash
 /// are in no result, audit entry or log line.
 /// The on-call section (Story 36.4; kind oncall, slug on-call) chooses who is paged: its body is held by SecretHandoff and never by the command, whose Changes
@@ -113,7 +114,7 @@
 /// IsAddress; the channels are a non-empty list of telegram and email without a repeat, stored in that order, each reachable (telegram only for a user who has a
 /// session with a paired chat, email only with an address); the minutes are a whole number from 1 to 1440 (Field). A refusal names the fields (primaryUser,
 /// primaryEmail, primaryChannels, the backup ones, escalationMinutes) and never a value. The seven oncall.* keys are written by SaveProduct, each change with
-/// its Settings audit entry (from, to, the admin's user and session) and then its row, in one transaction. On the online demo it answers not_available and
+/// its row and then its Settings audit entry (from, to, the admin's user and session), in one transaction. On the online demo it answers not_available and
 /// Values has no on-call member. Values adds on-call {the seven values, users [{user, paired}], pagesBuilt}, never on the online demo. No on-call value is in
 /// a log line, a result or a message. The users of the section come from the production job: Values (the web process) sends a ListOnCallUsers (origin web_admin, a
 /// read) and takes the list [{user, paired}] from the handoff that the answer names in Data {"handoff": uri}, never from the sessions' or pairings' storage, and
@@ -121,8 +122,8 @@
 /// The partner-contacts section (Story 24.2; kind contacts, slug partner-contacts) is the only writer of OcuTalon.Data.PartnerContact. Its body is held by SecretHandoff, as
 /// the on-call body is (HandoffBody), and is {action, ref, name, email, productions} for a save (action save; ref "" for a new contact) or {action, ref} for a remove; productions is
 /// [{namespace, production}], each an entry of Watch.Reader Productions read in this job. SavePartner validates the whole body before it writes anything (PartnerProblems: a refusal
-/// names name, email or productions and never a value, and a body of the wrong shape is refused with no field), and WritePartner writes the one Settings audit entry, then inserts,
-/// updates or deletes the row, in one transaction that a failure rolls back. The entry's setting is partnerContact.<Ref>, and its from and to name WHICH fields changed (name, email,
+/// names name, email or productions and never a value, and a body of the wrong shape is refused with no field), and WritePartner inserts, updates or deletes the row and then writes
+/// the one Settings audit entry, in one transaction that a failure rolls back. The entry's setting is partnerContact.<Ref>, and its from and to name WHICH fields changed (name, email,
 /// productions: PartnerAuditForm), never a value, so a contact's name and address are in no audit entry, command, result or log line, and deleting the row deletes them. A save that changes
 /// nothing writes nothing. On the online demo it answers not_available and Values has no partner-contacts member. Values adds partner-contacts {contacts, productions} only while
 /// PartnersShown is 1 (the class OcuTalon.Fix.PartnerContacts declares TABLE = 1), the contacts from PartnerContact List and the productions from ProductionsRoster. ListProductions
@@ -233,17 +234,8 @@ Method SwitchDemo(command As OcuTalon.Msg.Command.SetDemoMode) As OcuTalon.Msg.C
 	Set key = ##class(OcuTalon.Install.Step.Demo).#MODEKEY
 	Set value = $Select(command.DemoMode: "1", 1: "0")
 	Set word = $Select(command.DemoMode: "on", 1: "off")
-	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, key, ..Stored(key), value))
-	If $$$ISERR(sc) {
-		Set text = $SYSTEM.Status.GetErrorText(sc)
-		$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
-		Quit ..Result(0, "not_audited", ..#MESSAGENOTAUDITED)
-	}
-	Set sc = ..Apply(key, value)
-	If $$$ISERR(sc) {
-		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
-		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
-	}
+	Set sc = ..WriteKeys(command.ActingUser, command.SessionRef, "", command.Origin, key, ..Stored(key), value, $ListBuild(key), $ListBuild(value), .outcome)
+	If $$$ISERR(sc) Quit $Select(outcome = "not_audited": ..Result(0, "not_audited", ..#MESSAGENOTAUDITED), 1: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED))
 	Set sc = ..RunStep(.kept, .warnings)
 	If $$$ISERR(sc) {
 		Set text = ##class(OcuTalon.Core.Admin).ErrorText(sc)
@@ -282,6 +274,45 @@ ClassMethod Stored(key As %String) As %String [ Private ]
 Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Bridge.Audit).Record("Settings", data)
+}
+
+/// The one save of a persistent row of the class, for the webhook saves: the row's %Save(). A test subclass overrides it.
+Method SaveRow(row As %Persistent) As %Status [ Private ]
+{
+	Quit row.%Save()
+}
+
+/// Writes each entry of audits (the AuditData objects) through WriteAudit, in order, and stops at the first failure: its status. OK when every entry is
+/// written. An error that WriteAudit throws is not caught here.
+Method AuditAll(audits As %DynamicArray) As %Status [ Private ]
+{
+	Set sc = $$$OK
+	Set iterator = audits.%GetIterator()
+	While iterator.%GetNext(.index, .data) {
+		Set sc = ..WriteAudit(data)
+		If $$$ISERR(sc) Quit
+	}
+	Quit sc
+}
+
+/// The audit step that ends every audited save (AD-19): called inside the caller's open transaction, after the rows are written, it writes the
+/// entries of audits through AuditAll and then commits. IRIS writes an audit record outside the transaction, so the entries come after the rows,
+/// and a refused entry rolls the transaction back to level (the $TLevel before the caller's TSTART) and returns its status, so that no row stays
+/// for a change that is not audited. An entry that throws rolls the transaction back as well, and the error is thrown again.
+Method AuditCommit(level As %Integer, audits As %DynamicArray) As %Status [ Private ]
+{
+	Try {
+		Set sc = ..AuditAll(audits)
+	} Catch exception {
+		While $TLevel > level { TROLLBACK 1 }
+		Throw exception
+	}
+	If $$$ISERR(sc) {
+		While $TLevel > level { TROLLBACK 1 }
+		Quit sc
+	}
+	While $TLevel > level { TCOMMIT }
+	Quit $$$OK
 }
 
 /// The guarded write: the value of the key, only when the key is on ALLOWLIST or is person.<Ref>.<one of PERSONKEYS>; any other
@@ -325,8 +356,8 @@ ClassMethod Kept() As %String [ Private ]
 	Quit {}.%FromJSON(note).how
 }
 
-/// Carries out a SetPersona and returns the CommandResult to answer (see the class description). The audit entry is written before
-/// the keys, and the three keys are written in one transaction: a failed write rolls all of them back.
+/// Carries out a SetPersona and returns the CommandResult to answer (see the class description). The three keys are written in one
+/// transaction and the audit entry after them: a failed write or a refused entry rolls all of them back.
 Method SavePersona(command As OcuTalon.Msg.Command.SetPersona) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set sessionRef = command.SessionRef
@@ -345,9 +376,9 @@ Method SavePersona(command As OcuTalon.Msg.Command.SetPersona) As OcuTalon.Msg.C
 	Quit ..Result(1, "saved", ..#MESSAGESAVED, data.%ToJSON())
 }
 
-/// The persona write of SavePersona and of an approved proposal: the Settings audit entry first (setting persona, from the stored form and
-/// to the new form of AuditForm, never the custom text; channel overrides the origin's when given), then the three keys in one
-/// transaction. Returns an error status for a refused audit entry (outcome not_audited, logged) or a failed write (outcome failed, logged,
+/// The persona write of SavePersona and of an approved proposal: the three keys in one transaction, then the Settings audit entry (setting
+/// persona, from the stored form and to the new form of AuditForm, never the custom text; channel overrides the origin's when given). Returns
+/// an error status for a failed write (outcome failed, logged, every key as it was) or a refused audit entry (outcome not_audited, logged,
 /// every key as it was); outcome is "" when it succeeds.
 Method WritePersona(irisUser As %String, sessionRef As %String, channel As %String, origin As %String, preset As %String, language As %String, custom As %String, Output outcome As %String) As %Status [ Private ]
 {
@@ -356,18 +387,15 @@ Method WritePersona(irisUser As %String, sessionRef As %String, channel As %Stri
 	Quit ..WriteKeys(irisUser, sessionRef, channel, origin, "persona", from, ..AuditForm(preset, language), keys, $ListBuild(preset, language, custom), .outcome)
 }
 
-/// The write that WritePersona and SaveHeartbeat share: the Settings audit entry first (the setting, from and to as given), then each key
-/// of keys with the value at the same place of values, through Apply, in one transaction. Returns an error status for a refused audit entry
-/// (outcome not_audited, logged) or a failed write (outcome failed, logged, every key as it was); outcome is "" when it succeeds.
+/// The write that WritePersona and SaveHeartbeat share: each key of keys with the value at the same place of values, through Apply, in one
+/// transaction, and then the Settings audit entry (the setting, from and to as given) through AuditCommit, which commits. Returns an error
+/// status for a failed write (outcome failed, logged, every key as it was, no audit entry) or a refused audit entry (outcome not_audited, logged,
+/// every key as it was); outcome is "" when it succeeds.
 Method WriteKeys(irisUser As %String, sessionRef As %String, channel As %String, origin As %String, setting As %String, from As %String, to As %String, keys As %List, values As %List, Output outcome As %String) As %Status [ Private ]
 {
 	Set outcome = ""
-	Set sc = ..WriteAudit(..AuditData(origin, irisUser, sessionRef, setting, from, to, channel))
-	If $$$ISERR(sc) {
-		$$$LOGERROR("The Settings audit entry could not be written"_$Select($SYSTEM.Status.GetErrorText(sc) = "": "", 1: ": "_$SYSTEM.Status.GetErrorText(sc)))
-		Set outcome = "not_audited"
-		Quit sc
-	}
+	Set audits = []
+	Do audits.%Push(..AuditData(origin, irisUser, sessionRef, setting, from, to, channel))
 	Set level = $TLevel
 	TSTART
 	Try {
@@ -379,17 +407,22 @@ Method WriteKeys(irisUser As %String, sessionRef As %String, channel As %String,
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
-		If $TLevel > level TROLLBACK 1
+		While $TLevel > level { TROLLBACK 1 }
 		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
 		Set outcome = "failed"
 		Quit sc
 	}
-	TCOMMIT
+	Set sc = ..AuditCommit(level, audits)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Settings audit entry could not be written"_$Select($SYSTEM.Status.GetErrorText(sc) = "": "", 1: ": "_$SYSTEM.Status.GetErrorText(sc)))
+		Set outcome = "not_audited"
+		Quit sc
+	}
 	Quit $$$OK
 }
 
-/// Carries out a SetHeartbeat and returns the CommandResult to answer (see the class description). The audit entry is written before the
-/// keys, and the five keys are written in one transaction: a failed write rolls all of them back. A refused value writes and audits nothing.
+/// Carries out a SetHeartbeat and returns the CommandResult to answer (see the class description). The five keys are written in one
+/// transaction and the audit entry after them: a failed write or a refused entry rolls all of them back. A refused value writes and audits nothing.
 Method SaveHeartbeat(command As OcuTalon.Msg.Command.SetHeartbeat) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set sessionRef = command.SessionRef
@@ -1137,8 +1170,9 @@ ClassMethod Field(field As %DynamicObject, changes As %DynamicObject, Output can
 	Quit 0
 }
 
-/// The values of a product section that differ from the stored ones (an absent row reads as the field's default) are written, each with its
-/// audit entry first, in one transaction. A failure rolls the transaction back.
+/// The values of a product section that differ from the stored ones (an absent row reads as the field's default) are written, each as a row and
+/// then its audit entry, in one transaction (AuditCommit commits). A failed row write rolls the transaction back with no entry, and a refused
+/// entry rolls every row back.
 Method SaveProduct(command As OcuTalon.Msg.Command.SaveSettings, section As %DynamicObject, ByRef to) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set changed = []
@@ -1152,25 +1186,27 @@ Method SaveProduct(command As OcuTalon.Msg.Command.SaveSettings, section As %Dyn
 	Set level = $TLEVEL
 	TSTART
 	Try {
+		Set sc = $$$OK
+		Set audits = []
 		Set iterator = changed.%GetIterator()
 		While iterator.%GetNext(, .change) {
-			Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, change.key, change.from, change.to))
-			If $$$ISERR(sc) {
-				TROLLBACK 1
-				Set text = $SYSTEM.Status.GetErrorText(sc)
-				$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
-				Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
-			}
 			Set sc = ..Apply(change.key, change.to)
-			If $$$ISERR(sc) {
-				TROLLBACK 1
-				$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
-				Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
-			}
+			If $$$ISERR(sc) Quit
+			Do audits.%Push(..AuditData(command.Origin, command.ActingUser, command.SessionRef, change.key, change.from, change.to))
 		}
-		TCOMMIT
+		If $$$ISERR(sc) {
+			While $TLEVEL > level { TROLLBACK 1 }
+			$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+			Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+		}
+		Set sc = ..AuditCommit(level, audits)
+		If $$$ISERR(sc) {
+			Set text = $SYSTEM.Status.GetErrorText(sc)
+			$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+			Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+		}
 	} Catch exception {
-		If $TLEVEL > level TROLLBACK 1
+		While $TLEVEL > level { TROLLBACK 1 }
 		$$$LOGERROR(exception.DisplayString())
 		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
@@ -1506,14 +1542,16 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 /// In order: the online demo refuses (not_available, nothing offered or read); the address and the user name are taken from the hand-off (TakeMailbox: a plain value, or
 /// a reference that names nothing, is refused naming the field); every field is validated (EmailShape: address, incoming server
 /// as host or host:port, user name, the sign-in method with its client ID and origin, and the secrets' hand-off references or nothing) and the secrets taken
-/// from the hand-off, so that a refusal names every refused field and changes nothing; then the changes against the stored values, each with its Settings audit entry
-/// written first (address and user as "set" or "changed", the server as host:port, the credential as "set" or "removed", the sign-in method as the two names,
-/// the client ID as "set", "changed" or "removed", the client secret as "set" or "removed", the owner as the two Refs) and the product keys
-/// email.address, email.owner, email.signIn and email.clientId written in one transaction; then the credential OcuTalonMail, the System Default Settings rows
+/// from the hand-off, so that a refusal names every refused field and changes nothing; then the changes against the stored values, each with a Settings audit entry
+/// (address and user as "set" or "changed", the server as host:port, the credential as "set" or "removed", the sign-in method as the two names,
+/// the client ID as "set", "changed" or "removed", the client secret as "set" or "removed", the owner as the two Refs). The product keys
+/// email.address, email.owner, email.signIn and email.clientId are written in one transaction and then their entries (AuditCommit, which commits; a refused entry rolls the keys back and
+/// answers not_audited); then the credential OcuTalonMail, the System Default Settings rows
 /// of EmailIn and of EmailOut (the outgoing server is audited as email.outgoing, host or host:port off DEFAULTSMTPPORT; a cleared one writes Enabled 0 and
 /// deletes the server rows, and with none saved before changes nothing), IRIS's OAuth2 client (RegisterOAuth with a provider, RemoveOAuth when a provider is
-/// left; email.oauthOwned and the audit of an enabled or disabled web application follow), the production update that starts or restarts the items and the
-/// mark emailSignIn. A failure after the transaction puts the product keys, the credential and the settings rows back as they were (PutBackEmail) and audits
+/// left; the audit of an enabled or disabled web application and email.oauthOwned, which is written as a row and then its entry, follow), the production update that starts or restarts the items, the entries of the
+/// values that are not product keys (the servers, the user name, the credential and the client secret: written after the values and the update, so that a value that a failed write or update puts back has no entry; entries written before a refused one stand) and the
+/// mark emailSignIn. A failure after the transaction, or a refused entry of an outside value (not_audited), puts the product keys, the credential and the settings rows back as they were (PutBackEmail) and audits
 /// the keys put back; a client first registered by this save (from Password) is removed again, and a client that this save replaced, changed or removed in IRIS is not restored: the old provider's client ID is removed and its mark says not signed in (ForgetClient). A save that changes nothing writes the settings rows that differ and nothing else, but still runs the update
 /// (StartItem). The secrets are held in local variables only, and killed on every path.
 Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
@@ -1575,34 +1613,43 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 	If secret '= "" Do todo.%Push({"setting": "email.credential", "from": ($Select(passwordWas: "set", 1: "")), "to": "set", "key": "", "value": "", "old": ""})
 	If provider && passwordWas Do todo.%Push({"setting": "email.credential", "from": "set", "to": "removed", "key": "", "value": "", "old": ""})
 	Set level = $TLevel
-	TSTART
-	Try {
-		Set iterator = todo.%GetIterator()
-		While iterator.%GetNext(, .one) {
-			Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, one.setting, one.from, one.to))
+	Set keyed = []
+	Set iterator = todo.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If one.key '= "" Do keyed.%Push(one)
+	}
+	If keyed.%Size() {
+		TSTART
+		Try {
+			Set sc = $$$OK
+			Set audits = []
+			Set iterator = keyed.%GetIterator()
+			While iterator.%GetNext(, .one) {
+				Set sc = ..Apply(one.key, one.value)
+				If $$$ISERR(sc) Quit
+				Do audits.%Push(..AuditData(command.Origin, command.ActingUser, command.SessionRef, one.setting, one.from, one.to))
+			}
 			If $$$ISERR(sc) {
-				TROLLBACK 1
+				While $TLevel > level { TROLLBACK 1 }
+				$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+				Kill secret, clientSecret, oldPassword
+				Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+			}
+			Set sc = ..AuditCommit(level, audits)
+			If $$$ISERR(sc) {
 				Set text = $SYSTEM.Status.GetErrorText(sc)
 				$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
 				Kill secret, clientSecret, oldPassword
 				Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
 			}
-			If one.key '= "" Set sc = ..Apply(one.key, one.value)
-			If $$$ISERR(sc) {
-				TROLLBACK 1
-				$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
-				Kill secret, clientSecret, oldPassword
-				Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
-			}
+		} Catch exception {
+			While $TLevel > level { TROLLBACK 1 }
+			$$$LOGERROR(exception.DisplayString())
+			Kill secret, clientSecret, oldPassword
+			Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 		}
-		TCOMMIT
-	} Catch exception {
-		If $TLevel > level TROLLBACK 1
-		$$$LOGERROR(exception.DisplayString())
-		Kill secret, clientSecret, oldPassword
-		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
-	Set written = "", newOwned = oldOwned, changed = 0, app = "", didRegister = 0, didRemove = 0
+	Set written = "", newOwned = oldOwned, changed = 0, app = "", didRegister = 0, didRemove = 0, outcome = "failed"
 	Set sc = $$$OK
 	Kill rows
 	Try {
@@ -1627,11 +1674,21 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 			If $$$ISOK(sc) Set sc = ..RecordOAuth(command, todo, oldOwned, newOwned, app)
 		}
 		If $$$ISOK(sc) Set sc = ..StartItem()
+		If $$$ISOK(sc) {
+			Set outcome = "not_audited"
+			Set outside = []
+			Set iterator = todo.%GetIterator()
+			While iterator.%GetNext(, .one) {
+				If one.key = "" Do outside.%Push(..AuditData(command.Origin, command.ActingUser, command.SessionRef, one.setting, one.from, one.to))
+			}
+			Set sc = ..AuditAll(outside)
+		}
 	} Catch exception {
-		Set sc = exception.AsStatus()
+		Set sc = exception.AsStatus(), outcome = "failed"
 	}
 	If $$$ISERR(sc) {
-		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		$$$LOGERROR($Select(outcome = "not_audited": "The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text), 1: text))
 		If didRegister && (oldSignIn = "password") {
 			Set undone = ..RemoveOAuth(newOwned, .ignored, .undoApp)
 			If $$$ISERR(undone) {
@@ -1644,7 +1701,7 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 		Do ..PutBackEmail(command, todo, $ListFind(written, "credential"), exists, oldUser, oldPassword, .rows)
 		If (oldSignIn '= "password") && (didRemove || (didRegister && changed)) Do ..ForgetClient(command, oldSignIn, oldClientId)
 		Kill secret, clientSecret, oldPassword
-		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+		Quit $Select(outcome = "not_audited": ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED), 1: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED))
 	}
 	If provider {
 		Do ..RecordSignIn(signIn, $Select(changed || (signIn '= oldSignIn): 0, 1: ..SignedInMark(signIn)))
@@ -1656,13 +1713,12 @@ Method SaveEmail(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dynam
 }
 
 /// After a failed save that already replaced, changed or removed IRIS's client of the old provider, which PutBackEmail cannot restore: the old
-/// provider's client ID is removed (audited as email.clientId set to removed; not written when that audit fails) and the mark emailSignIn says not
+/// provider's client ID is removed (audited as email.clientId set to removed; rolled back when that audit fails) and the mark emailSignIn says not
 /// signed in, so that Settings never shows the old provider as registered and signed in over a client that is no longer there (DW-1181).
 Method ForgetClient(command As OcuTalon.Msg.Command.SaveSettings, provider As %String, clientId As %String) [ Private ]
 {
 	If clientId '= "" {
-		Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "email.clientId", "set", "removed"))
-		If $$$ISOK(sc) Set sc = ..Apply("email.clientId", "")
+		Set sc = ..WriteKeys(command.ActingUser, command.SessionRef, "", command.Origin, "email.clientId", "set", "removed", $ListBuild("email.clientId"), $ListBuild(""), .outcome)
 		If $$$ISERR(sc) $$$LOGERROR("The client ID of the mail OAuth2 client replaced by a failed save could not be removed: "_$SYSTEM.Status.GetErrorText(sc))
 	}
 	Do ..RecordSignIn(provider, 0)
@@ -1685,8 +1741,8 @@ ClassMethod PasswordStored() As %Boolean [ Private ]
 }
 
 /// The audit entries and the key write that follow a call to IRIS's OAuth2 client: email.oauthApp when the call enabled or disabled the web application
-/// (app is "enabled" or "disabled"), then email.oauthOwned when the list changed (the key is written after its audit entry, and added to todo so that a later
-/// failure puts it back). An error status is the first failure; the call itself is not undone here.
+/// (app is "enabled" or "disabled"), then email.oauthOwned when the list changed (the key is written first, then its audit entry, in one transaction, and the
+/// value is added to todo after the commit so that a later failure puts it back). An error status is the first failure; the call itself is not undone here.
 Method RecordOAuth(command As %RegisteredObject, todo As %DynamicArray, oldOwned As %String, newOwned As %String, app As %String) As %Status [ Private ]
 {
 	If app '= "" {
@@ -1694,10 +1750,10 @@ Method RecordOAuth(command As %RegisteredObject, todo As %DynamicArray, oldOwned
 		If $$$ISERR(sc) Quit sc
 	}
 	If newOwned = oldOwned Quit $$$OK
-	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "email.oauthOwned", oldOwned, newOwned))
+	Set sc = ..WriteKeys(command.ActingUser, command.SessionRef, "", command.Origin, "email.oauthOwned", oldOwned, newOwned, $ListBuild("email.oauthOwned"), $ListBuild(newOwned), .outcome)
 	If $$$ISERR(sc) Quit sc
 	Do todo.%Push({"setting": "email.oauthOwned", "from": (oldOwned), "to": (newOwned), "key": "email.oauthOwned", "value": (newOwned), "old": (oldOwned)})
-	Quit ..Apply("email.oauthOwned", newOwned)
+	Quit $$$OK
 }
 
 /// Registers IRIS's OAuth2 client for the provider (OcuTalon.Channel.Email.OAuth.Register); the one call. A test subclass overrides it.
@@ -2315,27 +2371,36 @@ Method CreateWebhook(command As OcuTalon.Msg.Command.CreateWebhook) As OcuTalon.
 	If fields.%Size() Quit ..WebhookResult("refused", fields)
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set setting = "webhook."_ref
-	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, "", name))
-	If $$$ISERR(sc) {
-		$$$LOGERROR("The Settings audit entry of a webhook could not be written")
-		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
-	}
 	Set row = ##class(OcuTalon.Data.Webhook).%New()
 	Set row.Ref = ref
 	Set row.Name = name
 	Set row.SessionRef = command.SessionRef
 	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
 	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	Set sc = row.%Save()
+	Set audits = []
+	Do audits.%Push(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, "", name))
+	Set level = $TLevel
+	TSTART
+	Try {
+		Set sc = ..SaveRow(row)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
 	If $$$ISERR(sc) {
-		Set undone = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, name, ""))
-		If ##class(OcuTalon.Data.Webhook).NameTaken(name) {
+		Set taken = ##class(OcuTalon.Data.Webhook).NameTaken(name)
+		While $TLevel > level { TROLLBACK 1 }
+		If taken {
 			Set fields = {}
 			Do fields.%Set("name", ..WebhookFieldText("settings.webhookNameTaken", name))
 			Quit ..WebhookResult("name_taken", fields)
 		}
 		$$$LOGERROR("A webhook could not be saved")
 		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set sc = ..AuditCommit(level, audits)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The Settings audit entry of a webhook could not be written")
+		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
 	}
 	Set data = {"ref": (ref), "name": (name), "createdAt": (row.CreatedAt)}
 	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED, data.%ToJSON())
@@ -2357,16 +2422,25 @@ Method SetWebhookSecret(command As OcuTalon.Msg.Command.SetWebhookSecret) As Ocu
 		Do fields.%Set("secret", ..WebhookFieldText(problem, "@{"))
 		Quit ..WebhookResult("refused", fields)
 	}
-	Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "webhook."_row.Ref_".secret", "", ""))
+	Set audits = []
+	Do audits.%Push(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "webhook."_row.Ref_".secret", "", ""))
+	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
+	Set level = $TLevel
+	TSTART
+	Try {
+		Set sc = ..SaveRow(row)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		While $TLevel > level { TROLLBACK 1 }
+		$$$LOGERROR("A webhook secret could not be saved")
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set sc = ..AuditCommit(level, audits)
 	If $$$ISERR(sc) {
 		$$$LOGERROR("The Settings audit entry of a webhook secret could not be written")
 		Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
-	}
-	Set row.SecretHash = ##class(OcuTalon.Data.Webhook).HashSecret(secret)
-	Set sc = row.%Save()
-	If $$$ISERR(sc) {
-		$$$LOGERROR("A webhook secret could not be saved")
-		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
 	Quit ..Result(1, "done", ..#MESSAGEWEBHOOKSAVED)
 }
@@ -2548,7 +2622,7 @@ Parameter ONCALLUSERMAX = 128;
 /// Saves the on-call section of a SaveSettings command (see the class description). changes is the parsed Changes, which holds exactly {"handoff": uri}: the
 /// body of the section is behind the uri (SecretHandoff), so that no on-call value is in the command or in the trace. In order: HandoffBody (the online demo is
 /// not_available, any other Changes is refused, a handoff with nothing behind it is failed, a body that is not a JSON object is refused); every value is
-/// validated (OnCallProblems) and a refusal names fields only; then SaveProduct writes the changes, each after its audit entry.
+/// validated (OnCallProblems) and a refusal names fields only; then SaveProduct writes the changes, each as a row and then its audit entry.
 Method SaveOnCall(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set refusal = ..HandoffBody(changes, ..#MESSAGEONCALLOFF, .body)
@@ -3022,8 +3096,8 @@ ClassMethod PartnerAuditForm(changed As %List, held As %Boolean) As %String [ Pr
 }
 
 /// Writes a validated partner-contacts change (row, from PartnerProblems): an add (ref ""), an edit, or a removal. A save that changes nothing writes nothing and is done. Otherwise the
-/// one Settings audit entry (setting partnerContact.<Ref>, from and to as PartnerAuditForm gives them, with the admin's user, the session and the channel) is written first and then the row is
-/// inserted, updated or deleted, in one transaction: a failed audit rolls it back as not_audited, and a failed write as failed.
+/// row is inserted, updated or deleted and then the one Settings audit entry (setting partnerContact.<Ref>, from and to as PartnerAuditForm gives them, with the admin's user, the session and the
+/// channel) is written, in one transaction: a failed write rolls it back as failed with no entry, and a failed audit rolls it back as not_audited.
 Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set all = $ListBuild("name", "email", "productions")
@@ -3041,16 +3115,11 @@ Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As 
 	} Else {
 		Set changed = all, ref = ##class(OcuTalon.Bridge.Ids).NewRef(), fromHeld = 0, toHeld = 1
 	}
+	Set audits = []
+	Do audits.%Push(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "partnerContact."_ref, ..PartnerAuditForm(changed, fromHeld), ..PartnerAuditForm(changed, toHeld)))
 	Set level = $TLEVEL
 	TSTART
 	Try {
-		Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "partnerContact."_ref, ..PartnerAuditForm(changed, fromHeld), ..PartnerAuditForm(changed, toHeld)))
-		If $$$ISERR(sc) {
-			TROLLBACK 1
-			Set text = $SYSTEM.Status.GetErrorText(sc)
-			$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
-			Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
-		}
 		If row("action") = "remove" {
 			Set sc = ##class(OcuTalon.Data.PartnerContact).%DeleteId(existing.%Id())
 		} Else {
@@ -3061,13 +3130,18 @@ Method WritePartner(command As OcuTalon.Msg.Command.SaveSettings, ByRef row) As 
 			Set sc = contact.%Save()
 		}
 		If $$$ISERR(sc) {
-			TROLLBACK 1
+			While $TLEVEL > level { TROLLBACK 1 }
 			$$$LOGERROR("A partner contact could not be written: error "_$SYSTEM.Status.GetErrorCodes(sc))
 			Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 		}
-		TCOMMIT
+		Set sc = ..AuditCommit(level, audits)
+		If $$$ISERR(sc) {
+			Set text = $SYSTEM.Status.GetErrorText(sc)
+			$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+			Return ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+		}
 	} Catch exception {
-		If $TLEVEL > level TROLLBACK 1
+		While $TLEVEL > level { TROLLBACK 1 }
 		$$$LOGERROR(exception.DisplayString())
 		Return ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
