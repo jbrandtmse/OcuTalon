@@ -1084,3 +1084,5 @@
 2026-11-16T18:27:19Z	DW-1421	pushed	round=3 runners=8_free main_ci=none_queued release_pr=none
 2026-11-17T00:30:50Z	Story 0.38	chartered	by=lead(Planner_dispatch_~00:30Z_Nov_17;DW-1284) branch=OCT-epic0-dw1284(from_b2768afeb)
 2026-11-17T00:30:50Z	Story 0.38	stage_spawned	stage=plan spawn_at=2026-11-17T00:30:50Z model=opus effort=high
+2026-11-17T00:40:12Z	Story 0.38	story_created	spawn_at=2026-11-17T00:32:00Z model=opus build_status=ready-for-dev warnings=oversized,depends-on-27.3
+2026-11-17T00:40:12Z	Story 0.38	spec_validated	gate=planner_pending(email_check_in_Channel.Email.In_not_Conversation(AC1_wording);not_user_record_reuses_Channel.Slack.Ignored;pair-time_not_user_outcome_answers_existing_pairing.badCode;email_has_no_per-person_link;depends_on_27.3_MayChat)
