@@ -602,7 +602,7 @@ done
 # Use time: the accounts are cut down after they were linked, and each next message is refused.
 if ! wait_until 120 idle; then fail "phase 7: the turns did not settle within 120 s"; fi
 if ! wait_until 60 settled; then fail "phase 7: the sends of the earlier turns did not settle within 60 s"; fi
-if wait_until 120 slack_calls_are 4; then pass "phase 7 (Story 27.2): each of the four accepted turns had one reply, one chat.postMessage each"; else fail "phase 7 (Story 27.2): $(slack_calls) chat.postMessage call(s) for the four accepted turns, wanted 4"; fi
+if wait_until 120 slack_calls_are 6; then pass "phase 7 (Story 27.2): each of the six accepted turns (Story 0.38 adds the disabled and the expired account) had one reply, one chat.postMessage each"; else fail "phase 7 (Story 27.2): $(slack_calls) chat.postMessage call(s) for the six accepted turns, wanted 6"; fi
 posts_before=$(slack_calls)
 set_roles zzslkvl "OcuTalonViewer"
 set_roles zzslkao "OcuTalonAdmin"
