@@ -4626,3 +4626,9 @@
 2026-11-17T01:52:34Z	Run	ci_green	feature 05915a781 (25.9 merge) ci+lane-a green
 2026-11-17T01:52:34Z	Epic 21	merge_enqueued	DW-1421_r4 head=f70f5fa56
 2026-11-17T01:52:36Z	Epic 21	merged	DW-1421_r4 merge=5f1996ed6
+2026-11-17T02:02:03Z	Epic 27	runner_reported	PLANNER_REPORT 27.2_gate(SlackOut_chat.postMessage_outward,8_trace_texts,step1_chat:write,decode_A/B_question,AC4->GUIDE) relayed
+2026-11-17T02:02:26Z	Epic 27	owner_decision	via=contest_planner 27.2_gate=APPROVED(texts_with_slot_condition,outward_post,no_A/B_decode_pinned,AC4->GUIDE,spine)
+2026-11-17T02:15:38Z	Epic 27	ci_red	27.3@14940d399 image ci-25 DW-1449_OCCURRENCE_2(gone_session_kept_rows,L248) -> cause-and-fix; relayed
+2026-11-17T02:16:07Z	Run	owner_decision	via=contest_planner DW-1449:27.3_rerun_then_merge; cause-and-fix_story_lane_D_after_triage-accept; RELEASE_GATE(classify_test_vs_product)
+2026-11-17T02:33:19Z	Run	ci_red	feature 5f1996ed6 image ci-10 DW-1449_OCCURRENCE_3(SimMessage_1->2_concurrent_writer;idle_not_purged) rerun; relayed
+2026-11-17T02:34:22Z	Run	owner_decision	via=contest_planner merges_continue_on_rerun-green; DW-1449_PRODUCT_SCOPE(orchestrator: Purge.Keeps L143 Delivery + L144 Decision count outbound as activity -> idle users with watches never purged) -> lane_D_story_gate_first
