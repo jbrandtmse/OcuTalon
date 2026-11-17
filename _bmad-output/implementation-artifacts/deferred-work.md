@@ -8949,3 +8949,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature-81265443f-red-20261117 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: not reproduced: fresh class alone pass (e27fxc, 21.1s) and fresh shard part 2/4 with its 10 predecessors pass (e27fxs, 26 classes); earlier assertions of the same test (request done, approved from telegram by the user) passed in CI, so the role check (HoldsRole via the 27.3 RolesOf) answered 1; RolesOf diff is behaviour-neutral (same call, same ISOK and ListFind, same 0 on error/empty)
 - 2026-11-17T06:24:00Z status=routed owner=burndown by=runner note=flake_candidate;one_rerun_rule;a_second_red_on_any_head_makes_it_a_story
+
+### DW-1475: Channel/ReplyText.cls copies Telegram/Out.cls private CheckSentence/WhatFailed (~70 lines) for Slack replies
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spec-forced by U-177 (a Lane B story may not edit or extract from Lane A's Telegram/Out.cls); Decided 7
+- 2026-11-17T07:39:18Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=harvest note=reopen_if=a_Lane_A_story_touches_Telegram/Out.cls_CheckSentence_(then_make_both_call_ReplyText)
+
+### DW-1476: docs/security-overview.md lists where data leaves the instance and does not name Slack (chat.postMessage to the linked member)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: docs/** is Epic 28's path and the sentence is public text the Planner has not worded; scope frozen for 1.0.13
+- 2026-11-17T07:39:18Z status=escalated owner=burndown by=harvest note=for_the_Planner:word_one_security-overview_line_for_Slack_or_accept_the_gap_for_1.0.13
+
+### DW-1477: shards-3 CI group time after Test.Msg.Catalog TestEveryKeyOnEveryChannel grew with slack (unverified against the 32-minute line)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: settle from the feature CI run's shards-3 time after the 27.2 merge
+- 2026-11-17T07:39:18Z status=routed owner=burndown by=harvest note=check_shards-3_duration_on_the_27.2_branch_CI_and_feature_merge_run
+
+### DW-1478: lint_spine.py reports ok:false from 13 pre-existing LOW placeholder findings (none in lines Epic 27 added)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: same 13 findings on feature before Epic 27; AC1 of 27.1/27.3/27.2 says ok:true
+- 2026-11-17T07:39:18Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=harvest note=reopen_if=a_spine_cleanup_story_or_a_new_non-placeholder_lint_finding
