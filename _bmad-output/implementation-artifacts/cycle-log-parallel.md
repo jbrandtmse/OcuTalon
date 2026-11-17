@@ -4701,3 +4701,6 @@
 2026-11-17T17:35:34Z	Epic 0	merge_enqueued	0.38 f0c59e91f OCT-epic0-dw1284 (6th of 6 for 1.0.13)
 2026-11-17T17:36:39Z	Epic 0	owner_decision	via=contest_planner 0.38 f0c59e91f MERGE APPROVED under macOS allowance; DW-1485, DW-1486 LOW deferred; final 0.38+DW-1482 release-note bullet worded (story-038-dw1482-rulings-20261117.md)
 2026-11-17T17:51:20Z	Epic 0	merged	0.38 f0c59e91f (DW-1284, DW-1465, DW-1466, DW-1482); 6 of 6 for 1.0.13 merged; pins 11/11, web 2266/0, lint PASS
+2026-11-17T18:03:26Z	Epic 0	ci_progress	feature 5addf1a37 ci=44141552298 install-macos success 17:51-17:52Z (Planner allowance condition met)
+2026-11-17T18:35:47Z	Epic 0	ci_green_verified	feature 5addf1a37 ci=44141552298 19/19 success att1 (install-macos success; shards-3 38m on ci-4, under its 50m limit), lane-a=44141552469 success att1
+2026-11-17T18:35:47Z	run	records	DEFERRED owner wrap-up 2026-11-17 markers on 23.8, 24.5, 28.1, 28.4, 28.5 (tracker stays backlog); epics hash re-recorded; pins readme/release-sequence/class-rules PASS

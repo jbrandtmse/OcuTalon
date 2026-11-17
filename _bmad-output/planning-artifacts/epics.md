@@ -8538,6 +8538,8 @@ So that a stuck queue doesn't wait for the next digest (Could).
 
 ### Story 23.8: Watch a saved SQL query as a read-only SQL user
 
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
+
 As an admin,
 I want a saved SQL query to run on a schedule as a user that can only read, and to hear when its result changes,
 So that I can watch a data condition without giving OcuTalon any way to change data (Could).
@@ -8901,6 +8903,8 @@ So that I know exactly what I'm approving, whichever fix is proposed.
 **Release check:** verified at this step's release by the Contest Planner's hands-on pass (REL-7, Story 11.5's gate) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved to the Epic List's step release checks, so this story never parks on the owner; it read "**Given** step 5's stories in both lanes have merged **When** step 5's release is prepared **Then** a hands-on pass with real keys exercises each new fix, paging with escalation and a partner warning, including on Telegram, and its findings are fixed before the release (REL-7)"]
 
 ### Story 24.5: Set saved SQL query watches in Settings
+
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
 
 [ADDED 2026-11-15, Contest Planner split of 24.2]
 
@@ -9388,6 +9392,8 @@ OcuTalon drafts a transform change as a proposal it never applies, fades and con
 
 ### Story 28.1: Draft a transform change as a proposal that is never applied
 
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
+
 As a production developer,
 I want OcuTalon to draft the transform change that would stop a data-format failure,
 So that I can review a starting point for the real fix (step 7, Could).
@@ -9467,6 +9473,8 @@ So that I can check status and history from my own tools without opening a new w
 
 ### Story 28.4: Merge duplicate memories nightly
 
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
+
 As a user,
 I want duplicate memories merged without losing where they came from,
 So that recall stays relevant as memory grows (step 7, Could).
@@ -9487,6 +9495,8 @@ So that recall stays relevant as memory grows (step 7, Could).
 **Then** only the duplicates merge, every source is kept, the second run merges nothing new, no distinct pair of Story 28.2's Task 0 set merges, and the task is off on the online demo (FR-43)
 
 ### Story 28.5: Connect an MCP client through iris-mcp-server
+
+[DEFERRED owner wrap-up 2026-11-17, relayed by the Contest Planner ("The contest is over, finish up any unfinished features"): 1.0.13 is the final release and its scope is frozen; this story is not built. It re-opens only if the project is re-initiated]
 
 As a production developer,
 I want to connect my own MCP client to OcuTalon's read-only tools through `iris-mcp-server`,
