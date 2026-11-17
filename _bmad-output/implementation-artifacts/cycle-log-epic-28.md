@@ -103,3 +103,6 @@
 2026-11-17T06:12:06Z	Story 28.3	stage_spawned	stage=code-review spawn_at=2026-11-17T06:12:06Z model=opus agent_name=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients-code-review-4 cycle_iteration=5 effort=high scope=37ac53505..HEAD
 2026-11-17T06:22:18Z	Story 28.3	cr_complete	spawn_at=2026-11-17T06:12:06Z model=opus effort=high cycle_iteration=5 scope=37ac53505..HEAD resolved=1 fixed_at_source=1 dismissed=3 high=0 med=0 low=1 rows=5 unresolved_high_med=0 checklist=1-4_confirmed(no_other_absolute_step_index_or_Activity_pin) status=done
 2026-11-17T06:22:18Z	Story 28.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=slice_empty
+2026-11-17T06:38:18Z	Story 28.3	fresh_check	env=recipe(fresh_lane-C:shard_lane-a@Mcp_e28s3f5,class_Test.Digest.Store_e28s3f6,class_Test.Bridge.CodeRules_e28s3f7) tests=22_classes result=pass order=forward note=Mcp_20/20(SourceRunProduction_47.67s);Store_0.91s;CodeRules_8.81s
+2026-11-17T06:38:18Z	Epic 28	ruling	question=owner_wrap-up_2026-11-17(scope_frozen,1.0.13) choice=finish_28.3_only;28.1,28.4,28.5_DEFERRED(owner_wrap-up_2026-11-17,stay_backlog);after_28.3_merges:epic_close_for_shipped_stories_only,then_idle category=decide source=prompts/wrap-up-1.0.13-scope-20261117.md policy=5086036
+2026-11-17T06:38:18Z	Story 28.3	committed	sha=pending_push note=rework_3_reviewed;pushing_once_HEAD_without_skip_token
