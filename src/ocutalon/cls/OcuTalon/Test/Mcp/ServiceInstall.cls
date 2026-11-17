@@ -2,9 +2,10 @@
 /// client role that it declares, the order of the step and the online demo, where none of them exists. THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), through Test.Mcp.ServiceCase.
 /// The scratch names ZzMcp... stand for the installed objects wherever a test must create, change or delete them; TestDemoRemoves is the one test that runs the real step with the online
 /// demo on and puts the installed objects back (OnAfterOneTest); it never runs the Roles step.
-///   - TestInstalledObjects (AC 1): the resource has no public permission; /mcp/ocutalon has exactly ServiceApp's properties (password only, namespace OCUTALON, outside the sign-in group, dispatch
-///     OcuTalon.Mcp.Service, MatchRoles :OcuTalonMCPApp); OcuTalonMCPApp holds exactly the three database read grants, no granted role, no SQL privilege and is held by no user or role;
-///     OcuTalonMCPClient holds exactly OcuTalon_MCPServer:U and nothing else; OcuTalonUser holds none of them;
+///   - TestInstalledObjects (AC 1), on the objects as the start left them (read by OnBeforeAllTests, before any test of the class changes them): the resource has no public permission;
+///     /mcp/ocutalon has exactly ServiceApp's properties (password only, namespace OCUTALON, outside the sign-in group, dispatch OcuTalon.Mcp.Service, MatchRoles :OcuTalonMCPApp);
+///     OcuTalonMCPApp holds exactly the three database read grants, no granted role, no SQL privilege and is held by no user or role; OcuTalonMCPClient holds exactly OcuTalon_MCPServer:U
+///     and nothing else; OcuTalonUser holds none of them;
 ///   - TestStepOrder and TestFreshInstallRefusesNoStep: the Mcp step runs before Roles; the start's log shows STEP Mcp OK before STEP Roles OK, and the step makes the application role, the
 ///     application and the resource from nothing in that order (IRIS refuses an application whose MatchRoles names a missing role);
 ///   - TestStepRewritesDrift: a changed application, role or resource is put back to its definition by the next run, with no new object;
@@ -20,6 +21,34 @@ Parameter LOG = "/durable/ocutalon-after-start.log";
 Property OnlineBefore As %String;
 
 Property OnlineSaved As %Boolean [ InitialExpression = 0 ];
+
+/// The objects as the start left them: Installed(kind) is "exists" or "<none>" and Installed(kind, "p", key) their properties, for the kinds app, resource, appRole and client.
+Property Installed As %String [ MultiDimensional ];
+
+/// Reads the application, the resource and both roles before any test of the class changes them.
+Method OnBeforeAllTests() As %Status
+{
+	Set sc = ##super()
+	If $$$ISERR(sc) Quit sc
+	Set step = ..#STEP
+	Set ..Installed("app") = ..Application($Parameter(step, "SERVICEAPP"), .props)
+	Merge ..Installed("app", "p") = props
+	Set ..Installed("resource") = ..ResourceOf($Parameter(step, "SERVICERESOURCE"), .props)
+	Merge ..Installed("resource", "p") = props
+	Set ..Installed("appRole") = ..RoleOf($Parameter(step, "APPROLE"), .props)
+	Merge ..Installed("appRole", "p") = props
+	Set ..Installed("client") = ..RoleOf($Parameter(step, "CLIENTROLE"), .props)
+	Merge ..Installed("client", "p") = props
+	Quit $$$OK
+}
+
+/// What OnBeforeAllTests read for the kind: "exists" or "<none>" (or "" when it read nothing), and the properties in props.
+Method AsInstalled(kind As %String, Output props) As %String [ Private ]
+{
+	Kill props
+	Merge props = ..Installed(kind, "p")
+	Quit $Get(..Installed(kind))
+}
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
@@ -145,9 +174,9 @@ Method TestInstalledObjects()
 	Set app = $Parameter(step, "SERVICEAPP")
 	Set appRole = $Parameter(step, "APPROLE")
 	Set client = $Parameter(step, "CLIENTROLE")
-	Do $$$AssertEquals(..ResourceOf(resource, .res), "exists", "the resource " _ resource _ " exists")
+	Do $$$AssertEquals(..AsInstalled("resource", .res), "exists", "the resource " _ resource _ " exists")
 	Do $$$AssertEquals($Get(res("PublicPermission")), "", "and has no public permission")
-	Do $$$AssertEquals(..Application(app, .props), "exists", "the application " _ app _ " exists")
+	Do $$$AssertEquals(..AsInstalled("app", .props), "exists", "the application " _ app _ " exists")
 	Do $ClassMethod(step, "ServiceApp", .expected)
 	Set bad = ""
 	Set key = ""
@@ -162,12 +191,12 @@ Method TestInstalledObjects()
 	Do $$$AssertEquals($Get(props("GroupById")), "", "it is outside the sign-in group")
 	Do $$$AssertEquals($Get(props("DispatchClass")), "OcuTalon.Mcp.Service", "it dispatches to OcuTalon.Mcp.Service")
 	Do $$$AssertEquals($Get(props("Resource")), "", "and it needs no resource of its own")
-	Do $$$AssertEquals(..RoleOf(appRole, .role), "exists", "the application role " _ appRole _ " exists")
+	Do $$$AssertEquals(..AsInstalled("appRole", .role), "exists", "the application role " _ appRole _ " exists")
 	Do $$$AssertEquals(..Sorted($Get(role("Resources"))), "%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:R,%DB_OCUTALON_PRIVATE:R", "it holds exactly the three database read grants")
 	Do $$$AssertEquals($Get(role("GrantedRoles")), "", "it is granted no role")
 	Do $$$AssertEquals(..SqlPrivileges(appRole), "", "it holds no SQL privilege")
 	Do $$$AssertEquals(..Holders(appRole), "", "and no user or role holds it")
-	Do $$$AssertEquals(..RoleOf(client, .role), "exists", "the client role " _ client _ " exists")
+	Do $$$AssertEquals(..AsInstalled("client", .role), "exists", "the client role " _ client _ " exists")
 	Do $$$AssertEquals($Get(role("Resources")), resource _ ":U", "it holds exactly Use on the resource")
 	Do $$$AssertEquals($Get(role("GrantedRoles")), "", "it is granted no role")
 	Do $$$AssertEquals(..SqlPrivileges(client), "", "it holds no SQL privilege")
@@ -243,6 +272,7 @@ Method TestStepRewritesDrift()
 		Do $$$AssertEquals($Get(props("MatchRoles")) _ "|" _ $Get(props("AutheEnabled")) _ "|" _ $Get(props("GroupById")), ":%DB_OCUTALON_DATA|64|OcuTalon", "control: it was changed to the RW database role, no sign-in and the sign-in group")
 		Do $$$AssertEquals(..RoleOf(appRole, .role), "exists", "control: the role exists")
 		Do $$$AssertTrue($Get(role("Resources")) [ "%DB_OCUTALON_DATA:RW", "control: and holds write on the data database")
+		Do $$$AssertEquals($Get(role("GrantedRoles")), "%DB_OCUTALON_DATA", "control: and is granted the RW database role")
 		Do $$$AssertStatusOK($ClassMethod(..#STEP, "ApplyService", application, resource, appRole), "the step runs again")
 		Do ..Application(application, .props)
 		Do $ClassMethod(..#STEP, "ServiceApp", .expected, appRole, application)
@@ -265,7 +295,8 @@ Method TestStepRewritesDrift()
 	Do ..Scratch(application, resource, appRole)
 }
 
-/// Changes the scratch application to unauthenticated sign-in in the sign-in group with the RW database role, the role to write on the data database and the resource to a public permission.
+/// Changes the scratch application to unauthenticated sign-in in the sign-in group with the RW database role, the role to write on the data database and to be granted the RW database role,
+/// and the resource to a public permission.
 ClassMethod Drift(application As %String, appRole As %String, resource As %String) [ Private ]
 {
 	New $Namespace
@@ -276,6 +307,7 @@ ClassMethod Drift(application As %String, appRole As %String, resource As %Strin
 	Do ##class(Security.Applications).Modify(application, .properties)
 	Kill properties
 	Set properties("Resources") = "%DB_OCUTALON_CODE:R,%DB_OCUTALON_DATA:RW"
+	Set properties("GrantedRoles") = "%DB_OCUTALON_DATA"
 	Do ##class(Security.Roles).Modify(appRole, .properties)
 	Kill properties
 	Set properties("PublicPermission") = "R"

@@ -8890,3 +8890,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestDemoRemoves flips the flag on an ordinary stack; a row in docker/tests/test-online-demo.sh run on an online-demo stack settles it
 - 2026-11-16T23:51:34Z status=open owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=harvest note=QA adds the row
+- 2026-11-17T00:33:46Z status=resolved-by:28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=QA row 11 of test-online-demo.sh passes on a fresh lane-C online-demo stack; mutation red observed
+
+### DW-1461: 28.3: the security overview's Application roles and Roles tables omit /mcp/ocutalon and OcuTalonMCPApp (R on the private database); only P8's prose names them
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: SecurityOverview.Applications reads only Web.Definitions and RoleRows only Grants(), so the one application role with R on OCUTALON_PRIVATE is in neither table (OcuTalonWebhook, also an application role with no members, is in both) and TestPrivilegesMatchSecurityRecords never checks it.
+- 2026-11-17T00:33:45Z status=decision-pending owner=burndown by=cr note=Planner: add the generated rows (Applications from Mcp.ServiceApp, role rows for APPROLE) or keep prose-only (in-stage choice)
+
+### DW-1462: 28.3: user-facing texts not yet ruled: ReadOnlyProblem refusal sentences, the IRIS descriptions of OcuTalon_MCPServer and OcuTalonMCPApp, and two sentences 28.3 made stale
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: The implement stage added refusal sentences (sent as OnAuthenticate's 401 error) and two Portal descriptions; Mcp.Grants' warning 'so it declares no grant' and docs/security-overview.md's 'written only by the features ...' sentence no longer describe 28.3's behaviour.
+- 2026-11-17T00:33:45Z status=decision-pending owner=burndown by=cr note=human=Planner text ruling; exact texts and proposals in the 28.3 spec's Review Findings
+
+### DW-1463: 28.3: Mcp.Service.OwnerOf copies Data.Session.ForUser's lookup SQL (Lane B), so the served tools and the chat could resolve a different session if ForUser's lookup changes
+- source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spec-named copy (Lane B file, ForUser creates a row); no test asserts the two lookups agree; unifying needs a no-create lookup on Data.Session in a Lane B story.
+- 2026-11-17T00:33:45Z status=wontfix-accepted owner=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients by=cr note=reopen_if=Data.Session.ForUser's SELECT differs from Mcp.Service.OwnerOf's (filter, order or column)

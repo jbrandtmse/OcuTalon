@@ -8,7 +8,7 @@
 ///   - Every call writes exactly one audit entry through OcuTalon.Mcp.Service Served (outcome ok, demo, nosession or notread; a read that throws is outcome notread). When that fails the call answers NOTAUDITED and no data.
 ///   - On the online demo each tool answers DEMOOFF and reads nothing. A caller with no session answers NOSESSION, and rows that cannot be read answer the tool's own not-read text.
 ///   - The answers are built in code from the caller's own rows, so they are trusted output; a tool never logs a warning, because the role that serves a call cannot write the event log.
-/// The only public methods are the two tools. The description of a tool is its method's doc comment: text for the developer's model, never shown to a user as written.
+/// The only public methods it defines are the two tools (the public methods it inherits are offered only if the toolset names them). The description of a tool is its method's doc comment: text for the developer's model, never shown to a user as written.
 Class OcuTalon.Mcp.ServiceRead Extends OcuTalon.Tools.RecentActivity [ DependsOn = OcuTalon.Tools.WatchTools ]
 {
 

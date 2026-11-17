@@ -5,7 +5,7 @@
 ///   - TestOutsideTheApplication (the Planner's pin 1): a user who holds only OcuTalonMCPClient, signed in outside /mcp/ocutalon (the terminal's path), gets <PROTECT> on each of the code, data and
 ///     private databases, one assertion each; a control user who holds the three read grants reads all three;
 ///   - TestInsideTheRoles (R-28.3-1 (c)): a user who holds OcuTalonMCPClient and the grants of the application role (the role ROLEINSIDE, a copy) reads the three databases, gets <PROTECT> on a write
-///     to each, runs OnAuthenticate, ReadOnlyProblem and both tools of OcuTalon.Mcp.ServiceRead with its own records and no others, and writes its audit entry.
+///     to each, runs OnAuthenticate, ReadOnlyProblem and both tools of OcuTalon.Mcp.ServiceRead with its own records (a check and an incident) and no others, and writes its audit entry.
 Class OcuTalon.Test.Mcp.ServiceRoles Extends OcuTalon.Test.Mcp.ServiceCase
 {
 
@@ -123,6 +123,11 @@ Method TestInsideTheRoles()
 	Set refs = session _ "," _ otherSession
 	Set refs = refs _ "," _ ##class(OcuTalon.Test.Data.Fixture).Check(session, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "ZzMcpMine", "Result": "failed", "Finding": "zz finding", "LastRunAt": (##class(OcuTalon.Data.Time).NowUtc())})
 	Set refs = refs _ "," _ ##class(OcuTalon.Test.Data.Fixture).Check(otherSession, ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"DisplayName": "ZzMcpTheirs", "Result": "passed", "Finding": "zz finding", "LastRunAt": (##class(OcuTalon.Data.Time).NowUtc())})
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	For owner = session, otherSession {
+		Set count = $Select(owner = session: 3, 1: 8)
+		Set refs = refs _ "," _ ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ##class(OcuTalon.Data.Time).AddSeconds(now, -600), ##class(OcuTalon.Install.Step.Demo).#NAMESPACE, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, {"State": "open", "Count": (count), "NoticeCount": (count), "FirstAt": (##class(OcuTalon.Data.Time).AddSeconds(now, -840)), "LastAt": (##class(OcuTalon.Data.Time).AddSeconds(now, -660))})
+	}
 	Set saved = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
@@ -140,6 +145,9 @@ Method TestInsideTheRoles()
 		Do $$$AssertTrue(($Get(@run@("checks")) [ "ZzMcpMine") && ($Get(@run@("checks")) '[ "ZzMcpTheirs"), "check_status holds the caller's check and not another user's: " _ $Extract($Get(@run@("checks")), 1, 200))
 		Set activity = {}.%FromJSON($Get(@run@("activity"), "{}"))
 		Do $$$AssertEquals(activity.ok, 1, "recent_activity answers ok under the roles")
+		Set size = $Select($IsObject(activity.incidents): activity.incidents.%Size(), 1: -1)
+		Do $$$AssertEquals(size, 1, "recent_activity holds one incident under the roles: " _ $Extract($Get(@run@("activity")), 1, 200))
+		If size = 1 Do $$$AssertEquals(activity.incidents.%Get(0).count, 3, "the caller's own (count 3), and not the other user's (count 8)")
 		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "MCP", "MCP", user, , 2)
 		Do $$$AssertEquals(entries.%Size(), 2, "and each of the two calls wrote its audit entry as the caller")
 		If entries.%Size() = 2 Do $$$AssertEquals(entries.%Get(0).username, user, "the entries are written by the caller")

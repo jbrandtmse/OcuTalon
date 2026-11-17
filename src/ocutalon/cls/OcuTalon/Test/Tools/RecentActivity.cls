@@ -466,14 +466,15 @@ Method TestNoSession()
 }
 
 /// Unreadable: a session's turn cannot make Ownership fail (the owner is a session Ref, which every read accepts), so the answer for an error status of
-/// RecentIncidents is pinned in the tool's code: the read's status is checked before any incident is built, and the answer is the tool's NOTREAD constant,
+/// RecentIncidents is pinned in the code of Activity: the read's status is checked before any incident is built, and the answer is its notRead text (the tool's NOTREAD constant by default),
 /// which is a refusal that claims nothing about health and holds no text of the instance.
 Method TestUnreadable()
 {
 	Set notRead = $Parameter(..#TOOL, "NOTREAD")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#TOOL, .code), "the tool's source is read")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(code, "RecentIncidents\(owner, \.\.#READMAX, \.sc\)"), "the tool reads the incidents through the ownership API")
-	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(code, "\$\$\$ISERR\(sc\)[^\n]*Quit \.\.Return\(\{""ok"": false, ""message"": \(\.\.#NOTREAD\)\}\)"), "and answers NOTREAD, as a refusal, when the status is an error")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(code, "\$\$\$ISERR\(sc\)[^\n]*Quit \{""ok"": false, ""message"": \(notRead\)\}"), "and Activity answers notRead, as a refusal, when the status is an error")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(code, "notRead As %String = \{\.\.#NOTREAD\}"), "and notRead is NOTREAD unless the caller gives another text")
 	Do $$$AssertTrue(notRead '= "", "NOTREAD is a sentence")
 	Set lower = $ZConvert(notRead, "L")
 	Set phrases = $ListFromString($Parameter("OcuTalon.Checks.ReplyGuard", "RESERVED")_","_$Parameter("OcuTalon.Checks.ReplyGuard", "BANNED"))
