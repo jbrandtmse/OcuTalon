@@ -1,5 +1,5 @@
 /// The trace record of a Slack event that is not a turn (AD-26, NFR-14; Story 27.1): SlackIn sends it to Intake, asynchronously, in a trace session of its own,
-/// and Intake drops it silently. It exists so that Visual Trace shows that an event arrived and went no further. It holds ONLY a fixed Kind, a fixed Reason
+/// and Intake drops it silently. Conversation sends the one with the reason not_user (Story 27.3) for a Slack Item whose session's user may not chat, in the Item's own trace session. It exists so that Visual Trace shows that an event arrived and went no further. It holds ONLY a fixed Kind, a fixed Reason
 /// and the event's id: no text, no Slack member, team or channel id, no name and no email. It is not an Item, so it has no owner, no provenance and no
 /// session, and nothing decides on it.
 Class OcuTalon.Channel.Slack.Ignored Extends Ens.Request
@@ -8,8 +8,8 @@ Class OcuTalon.Channel.Slack.Ignored Extends Ens.Request
 /// The kinds of event that SlackIn records, as a comma-separated list.
 Parameter KINDS = "message.im,message.channel,message.other,app_mention,other";
 
-/// The reasons that SlackIn records, as a comma-separated list.
-Parameter REASONS = "unlinked,other_team,bot,subtype,not_im,blank,no_sender,unhandled_type";
+/// The reasons that SlackIn and Conversation record, as a comma-separated list.
+Parameter REASONS = "unlinked,other_team,bot,subtype,not_im,blank,no_sender,unhandled_type,not_user";
 
 /// What kind of event it was: one of KINDS.
 Property Kind As %String(MAXLEN = 32);

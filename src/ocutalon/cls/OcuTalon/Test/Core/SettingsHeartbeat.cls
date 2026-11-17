@@ -5,9 +5,10 @@
 /// sessions, so that no Tick makes one again) are removed in OnAfterAllTests.
 ///   - TestSaveAccepted, TestAllDay, TestAcceptedChecklists: an accepted SetHeartbeat answers saved, writes one audit entry and the five keys;
 ///   - TestBadOn, TestBadInterval, TestBadHours, TestBadChecklist: the refusals write and audit nothing;
-///   - TestAuditNamesChangedKeysOnly, TestAuditFirstAndWithoutText, TestFixedStrings: the audit entry names only the changed keys, comes before
-///     the keys, and never holds the checklist's text; every new string of the story is compared whole;
-///   - TestNoSession, TestKeyWriteFails: no session and a failed key write change no key;
+///   - TestAuditNamesChangedKeysOnly, TestAuditFailsAndWithoutText, TestFixedStrings: the audit entry names only the changed keys, a refused entry
+///     rolls the keys written before it back, and the entry never holds the checklist's text; every new string of the story is compared whole;
+///   - TestNoSession, TestKeyWriteFails: no session and a failed key write change no key (a failed key write writes no audit entry, in the probe or
+///     in the real audit log);
 ///   - TestHeartbeatRead: the read, with defaults, the online demo's sample, saved values, the row's view, another session's row and a row of a
 ///     Ref that differs only in case, and the cache;
 ///   - TestHeartbeatToday: today holds the session's heartbeat check-ins (distinct Items) and their cost in the cap's day, and nothing of yesterday, of
@@ -218,31 +219,38 @@ Method TestAuditNamesChangedKeysOnly()
 	Do $$$AssertEquals(..AuditData(1).from_"|"_..AuditData(1).to, "on=0|on=1", "its old form is off")
 }
 
-/// The audit entry is written before the keys: when it can't be written no key is written, the answer is not_audited with the generic text and an
-/// error is logged; a thrown audit write is an error answer. The entry's JSON never holds the checklist's text.
-Method TestAuditFirstAndWithoutText()
+/// When the audit entry can't be written the keys written before it are rolled back to what storage held, the answer is not_audited with the generic text
+/// and an error is logged; a thrown audit write is an error answer with the keys rolled back too. The committed entry's JSON never holds the checklist's text.
+Method TestAuditFailsAndWithoutText()
 {
 	Do ..Reset()
-	Set session = ..Session("auditfirst")
+	Set session = ..Session("auditfails")
 	Set text = "zzsecretchecklist {nothing}"
+	Set result = ..Send(session, "0", "30", "07:00", "19:00", "zz before")
+	Do $$$AssertEquals(result.Outcome, "saved", "a heartbeat is saved first, off so that no Tick runs it")
+	Set before = ..Keys(session)
+	Kill ^||OcuTalonSettingsOpsProbe, ^OcuTalonTest("SettingsOpsProbe", "calls")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "error"
 	Set logged = ..Logged("The Settings audit entry could not be written", 2)
 	Set result = ..Send(session, "0", "60", "09:00", "17:00", text)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "Ok 0, not_audited")
 	Do $$$AssertEquals(result.Message, "Couldn't save. Nothing was changed.", "with the generic text")
-	Do $$$AssertEquals(..KeyCount(session), 0, "no key is written")
+	Do $$$AssertEquals(..Keys(session), before, "the keys are as they were, read from storage")
+	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 	Do $$$AssertEquals(..Logged("The Settings audit entry could not be written", 2), logged + 1, "and one error is logged")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "throw"
 	Set result = ..Send(session, "0", "60", "09:00", "17:00", text)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an audit write that throws: Ok 0, failed")
-	Do $$$AssertEquals(..KeyCount(session), 0, "and no key is written")
+	Do $$$AssertEquals(..Keys(session), before, "and the keys are as they were")
+	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "audit")
 	Set result = ..Send(session, "0", "60", "09:00", "17:00", text)
 	Do $$$AssertEquals(result.Outcome, "saved", "an accepted save is saved")
-	Do $$$AssertEquals(..Audits(), 3, "the probe took the three attempts' entries")
-	Set data = ..AuditData(3)
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 3, "the probe took the three attempts' entries")
+	Do $$$AssertEquals(..Audits(), 1, "and only the accepted save's entry is left, the others rolled back with their keys")
+	Set data = ..AuditData(1)
 	Do $$$AssertEquals(data.%ToJSON() [ "zzsecretchecklist", 0, "the accepted entry holds no part of the checklist's text")
-	Do $$$AssertEquals(data.to, "on=0; interval=60; from=09:00; to=17:00; checklist=27 characters", "it holds the checklist's length")
+	Do $$$AssertEquals(data.to, "interval=60; from=09:00; to=17:00; checklist=27 characters", "it holds the checklist's length")
 	Do $$$AssertEquals(..Key(session, "checklist"), text, "and the key holds the text")
 }
 
@@ -274,24 +282,33 @@ Method TestNoSession()
 }
 
 /// When the write of the second key fails the transaction is rolled back: the answer is failed with the generic text, an error is logged, and the keys
-/// hold the values from before. The audit entry is written first, so the failed save leaves its entry.
+/// hold the values from before. No audit write is attempted and the real audit log has no entry for the session; a control save with the same session
+/// writes one, so the query does find an entry when there is one.
 Method TestKeyWriteFails()
 {
 	Do ..Reset()
 	Set session = ..Session("keyfail")
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Set result = ..Send(session, "0", "60", "07:15", "21:45", "zz first")
 	Do $$$AssertEquals(result.Outcome, "saved", "a heartbeat is saved first, off so that no Tick runs it")
 	Set before = ..Keys(session)
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "second"
-	Kill ^OcuTalonTest("SettingsOpsProbe", "applies")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "applies"), ^||OcuTalonSettingsOpsProbe
 	Set logged = ..Logged("zz apply failed", 2)
+	Hang 0.02
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Send(session, "0", "120", "", "", "zz second")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "Ok 0, failed")
 	Do $$$AssertEquals(result.Message, "Couldn't save. Nothing was changed.", "with the generic text")
 	Do $$$AssertEquals(..Keys(session), before, "the first key was rolled back: the keys are as they were")
 	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 	Do $$$AssertEquals(..Logged("zz apply failed", 2), logged + 1, "and one error is logged")
-	Do $$$AssertEquals(..Audits(), 2, "and the audit entry of the failed save was written before the keys")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "and no audit write was attempted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 0, "so the real audit log has no entry for the session")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "apply")
+	Set result = ..Send(session, "0", "120", "", "", "zz second")
+	Do $$$AssertEquals(result.Outcome, "saved", "the control save is saved")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 1, "and the same query finds its one entry")
 }
 
 /// The read: the install's defaults for a session with no keys (on, 30, 08:00 to 20:00, no checklist, no sample); the online demo's off, 30 and the
@@ -515,10 +532,10 @@ Method TestPersonKeysAreGuarded()
 }
 
 /// --- helpers ---
-/// Clears the probe's global.
+/// Clears the probe's global and its process-private counters.
 Method Reset() [ Private ]
 {
-	Kill ^OcuTalonTest("SettingsOpsProbe")
+	Kill ^OcuTalonTest("SettingsOpsProbe"), ^||OcuTalonSettingsOpsProbe
 }
 
 /// A shadow instance of the probe.

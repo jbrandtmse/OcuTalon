@@ -9,6 +9,7 @@ Include Ensemble
 ///   - an input that is not an Event answers an error status and sends nothing;
 ///   - the event id is claimed (Data.SlackLink ClaimEvent): the first claim within two hours is processed and a repeat (Slack's retry) answers OK and does nothing;
 ///     a claim is given back when the hand-over fails, so that Slack's retry is processed;
+///   - the event's team id is noted as the install's workspace (Data.SlackLink NoteWorkspace), for the link that an admin makes in Settings (Story 27.3);
 ///   - the event is classified, in this order. A turn is a plain direct message: event type message, channel_type im, no subtype and no bot_id, a sender,
 ///     text that is not blank, and a member whose Data.SlackLink row matches both the team and the member id and whose session has a row. It becomes one
 ///     OcuTalon.Msg.Item with channel slack, provenance user, FromGuide 0 and only the text (no sender, no member id, no team id), sent asynchronously to
@@ -66,6 +67,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	If event.EventId = "" Quit ..Ignore("other", "unhandled_type", "")
 	If '##class(OcuTalon.Data.SlackLink).ClaimEvent(event.EventId, now) Quit $SYSTEM.Status.OK()
+	Do ##class(OcuTalon.Data.SlackLink).NoteWorkspace(event.TeamId)
 	Set sc = $SYSTEM.Status.OK()
 	Try {
 		Set reason = ..Classify(event, .kind, .sessionRef)
