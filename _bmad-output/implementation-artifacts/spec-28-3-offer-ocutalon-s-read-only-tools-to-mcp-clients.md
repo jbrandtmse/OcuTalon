@@ -2,7 +2,7 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '37ac5350525e8f99a0449c70b1e06559bc5c70ff'
 baseline_commit: '1946cceac4479eee849cdc62b98996d3ab7923dd'
 review_loop_iteration: 0
@@ -123,6 +123,10 @@ deferred:
 **Rework iteration 3 (2026-11-17, trigger ci: run 44006481188, job iris (shards) on runner ocutalon-ci-31, unit shard:lane-a@Install,Digest,Eval; work ONLY this item):**
 - [x] [CI] `OcuTalon.Test.Digest.Store.TestPurgeByTheTask` (`src/ocutalon/cls/OcuTalon/Test/Digest/Store.cls:398`) pins the Digest step at position 9 of `Install.Registry.Order()` ("and the order of the steps names it after Demo, for the thresholds it seeds"); 28.3's new `Mcp` step (before `Roles`) moved it to 10. Make the assertion state its intent instead of an absolute index: Digest comes right after Demo (`$ListFind(order, "Digest") = $ListFind(order, "Demo") + 1`, with Demo found), keeping the assertion's message text. Check the other `Registry).Order()` users (`Test.Install.RetentionRules`, `Test.Digest.Thresholds`, `Test.Mcp.ServiceInstall`) for any other absolute position this order change breaks (they passed in CI; change them only if they pin an absolute index). Demonstrate the mutation (put Digest anywhere but right after Demo → red) and write the `mutation:` line. This was a missed shared surface (the installer step order) — note it under Code Map drift.
 
+
+**Rework iteration 3, second CI red of the same run (2026-11-17; run 44006481188, job iris (shards-9) on runner ocutalon-ci-15, unit shard:lane-a@Bridge; work ONLY this item):**
+- [ ] [CI] `OcuTalon.Test.Bridge.CodeRules.TestToolsReturnThroughResult` ("every one extends OcuTalon.Tools.Result and returns only through ..Return(") is red: 28.3 extracted `ClassMethod Activity(...) [ Private ]` into `src/ocutalon/cls/OcuTalon/Tools/RecentActivity.cls`, and it quits plain `%DynamicObject` values (`Quit {"ok": false, ...}`, `Quit answer`), which the Tools-package code rule forbids. Make the code comply WITHOUT weakening the rule or its scanner: preferred, move the shared read helper out of the `OcuTalon.Tools` package into a Lane A class that both callers use (for example `OcuTalon.Mcp.ServiceRead` keeps calling it, and the chat tool `Tools.RecentActivity` calls it and returns through `..Return(...)`), keeping the chat `recent_activity` description, answers and classification BYTE-IDENTICAL and R-28.3-1 intact (the service's tools still classified safe and read-only by the gate's readers). Run `OcuTalon.Test.Bridge.CodeRules`, `OcuTalon.Test.Tools.RecentActivity`, `OcuTalon.Test.Tools.RecentActivityTurn`, `OcuTalon.Test.Mcp.ServiceReadOnly` and `OcuTalon.Test.Mcp.ServiceTools` (one class per call). Demonstrate the code-rule mutation (reintroduce a plain `Quit {...}` in a Tools class → CodeRules red) and write the `mutation:` line. Note under Code Map drift that the Tools-package code rule was a missed shared surface.
+
 **Acceptance Criteria:**
 - Given an install with `onlineDemo` 0, when the installer steps run, then the `Mcp` step runs before `Roles`, `OcuTalon_MCPServer` exists with no public permission, `/mcp/ocutalon` has exactly `ServiceApp()`'s properties (password only, namespace OCUTALON, no application roles, outside the sign-in group, dispatch `OcuTalon.Mcp.Service`), `OcuTalonMCPClient` holds exactly `OcuTalon_MCPServer:U`, `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:R` and `%DB_OCUTALON_PRIVATE:R` and no SQL privilege, and `OcuTalonUser` is unchanged (`Test.Mcp.ServiceInstall`, fresh stack).
 - Given `onlineDemo` 1, when the Mcp step runs and `Grants()` is read, then no application, resource or `OcuTalonMCPClient` grant exists or is declared (a present application and resource are deleted), `Service.OnAuthenticate` returns an error whose text is P1, and each tool answers `{"ok": false, "message": P1}` and reads nothing (`Test.Mcp.ServiceInstall`, `Test.Mcp.ServiceTools`).
@@ -203,6 +207,8 @@ Rejected:
 - `MakeResource` failing is not tested; the test resets to "" rather than the prior value; no new Commands line (Auditor) -- false/informational: a failed `MakeResource` leaves no open permission (the resource was closed first or does not exist); "" is the installed state and `Restore` re-runs the step; the Commands section is tracking text.
 
 ## Spec Change Log
+
+- 2026-11-17 (lead, rework iteration 3 continued): the same CI run (44006481188) also failed Test.Bridge.CodeRules (Tools-package return rule); second [CI] item added to iteration 3 (one iteration per CI run, lead ruling).
 
 - 2026-11-17 (lead, rework iteration 3, trigger ci): CI story red in Test.Digest.Store (absolute step-order index); [CI] item added; status re-opened.
 
