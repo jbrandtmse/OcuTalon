@@ -8,7 +8,7 @@
 ///     checkRows, citations and memories; for a RunTurns sessionRef. Every call also records the state of the instance's Turn at that moment (turnState)
 ///     and how many done chat.message events of that Turn the session's stream already holds (doneEvents), which tell the order
 ///     of saving, publishing and sending. A request to Decide goes to a shadow instance of Test.Core.DecideDouble and its answer
-///     is kept; a send to Conversation or Notify is recorded only. FailTarget names a target whose send fails;
+///     is kept; a send to Conversation, Notify or Intake is recorded only (an Intake send of a Channel.Slack.Ignored also records kind, reason and eventId). FailTarget names a target whose send fails;
 ///   - SetTimer, which Conversation's own Wait calls, records a call with target wait, key and seconds, and keeps the end of the
 ///     wait instead of asking Ens.Alarm for it, so that Deliver hands the end of the wait to OnResponse as an Ens.AlarmResponse;
 ///   - RenderChecks, the seam of Checks.Render: when ^OcuTalonTest("ConversationProbe", RunNumber, "render") holds
@@ -48,6 +48,10 @@ Method Send(target As %String, request As %Library.Persistent, responseRequired 
 		Set @call@("learned") = request.Learned
 	} ElseIf request.%Extends("OcuTalon.Core.Msg.RunTurns") {
 		Set @call@("sessionRef") = request.SessionRef
+	} ElseIf request.%Extends("OcuTalon.Channel.Slack.Ignored") {
+		Set @call@("kind") = request.Kind
+		Set @call@("reason") = request.Reason
+		Set @call@("eventId") = request.EventId
 	}
 	If (..FailTarget '= "") && (target = ..FailTarget) Quit $SYSTEM.Status.Error(5001, "zz send to "_target_" failed")
 	If target '= ..#DECIDE Quit $SYSTEM.Status.OK()
@@ -62,6 +66,13 @@ Method SetTimer(pTimeout As %String, pCompletionKey As %String = "", pControlled
 	Set n = $Increment(..Pending)
 	Set ..Pending(n) = $ListBuild(pCompletionKey, $SYSTEM.Status.OK(), 1)
 	Quit $SYSTEM.Status.OK()
+}
+
+/// With ^OcuTalonTest("ConversationProbeMayChat") set to "throw" the role check throws, which the Item's check must read as a refusal; otherwise it is the real check.
+ClassMethod MayChat(irisUser As %String) As %Boolean
+{
+	If $Get(^OcuTalonTest("ConversationProbeMayChat")) = "throw" Throw ##class(%Exception.General).%New("zz maychat threw", 5001, , "zz maychat threw")
+	Quit ##super($Get(irisUser))
 }
 
 Method Join(turn As OcuTalon.Data.Turn) [ Private ]

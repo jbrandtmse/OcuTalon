@@ -254,6 +254,13 @@ If the sign-in is withdrawn at the provider, the next check of the mailbox fails
 
 All email OcuTalon sends goes out from the one mailbox connected in Settings > Channels > Email. Only an OcuTalon admin can have OcuTalon email another address: without the admin role, OcuTalon tells you so and sends nothing. The admin who connected the mailbox can have OcuTalon email the mailbox's own address without an approval.
 
+## Slack
+
+1. Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history scope, and install it to the workspace.
+2. Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon.
+3. Under Event Subscriptions, set the request URL to `https://<your public address>/ocutalon/hook/slack/events` and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once.
+4. As an admin, open Settings › Channels › Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.
+
 ## Stop, start and update
 
 - Stop: `docker compose down`. Your data stays on a Docker volume. Do not add `-v`: that deletes the volume.

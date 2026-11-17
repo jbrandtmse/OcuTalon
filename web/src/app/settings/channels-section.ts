@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ViewContainerRef, computed, effect, inject, input, output, untracked, viewChild } from '@angular/core';
 
 import type { EmailValues } from '../api/api-types';
 import { CHAT_TEXTS } from '../chat/chat-view';
@@ -20,7 +20,8 @@ import { WebhooksSection } from './webhooks-section';
  *   - paused: "Telegram paused" and "Trying again at {time}", the time in the browser's zone;
  *   - otherwise (on): "Telegram on";
  *   - a release that does not include Telegram: no Telegram block.
- * The state follows the live updates, as the rail's card does. The Webhooks group (Story 35.3) follows the Email group: app-webhooks-section.
+ * The state follows the live updates, as the rail's card does. The Webhooks group (Story 35.3) follows the Email group: app-webhooks-section. The Slack group (Story 27.3) follows
+ * it, made once from its own lazy chunk (slack-section) after the section first renders, so the initial bundle never holds it.
  */
 @Component({
   selector: 'app-channels-section',
@@ -50,6 +51,7 @@ import { WebhooksSection } from './webhooks-section';
     }
     <app-email-section [values]="email()" (saved)="emailSaved.emit($event)" (dirtyChange)="dirtyChange.emit($event)" />
     <app-webhooks-section />
+    <ng-container #slackHost />
   `,
   styles: `
     :host {
@@ -94,6 +96,22 @@ export class ChannelsSection {
   protected readonly card = TELEGRAM_CARD_TEXTS;
   protected readonly opensInNewTab = CHAT_TEXTS.opensInNewTab;
   protected readonly href = readmeSection(GUIDE_URL, TELEGRAM_ANCHOR);
+
+  /** The place of the Slack group, which is made from its own chunk (a dynamic import) the first time the host exists. */
+  private readonly slackHost = viewChild('slackHost', { read: ViewContainerRef });
+
+  constructor() {
+    effect(() => {
+      const host = this.slackHost();
+      if (host !== undefined) {
+        void import('./slack-section').then((loaded) => {
+          if (untracked(this.slackHost) === host && host.length === 0) {
+            host.createComponent(loaded.SlackSection);
+          }
+        });
+      }
+    });
+  }
 
   /** Which view shows: from the store's Telegram block and status conditions, through the Telegram card's own view. */
   protected readonly view = computed(() => {

@@ -6835,6 +6835,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625167 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (pending reminder, watch, open approval) (ci-8); OCT-epic25 4af29b25; rerun of failed jobs
 - 2026-11-14T05:27:52Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=CI run 43555521311 attempt 1 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (with its five kinds of rows; loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link); OCT-epic36 4a74d329; one rerun of the failed job
+- 2026-11-17T03:00:55Z note=the same assertion and cause as DW-1449 (Test.Data.Purge TestCurrentSessionLosesNoRows; the daily digest's tick writes into the fixture sessions); closed together by Story 0.40
 
 ### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
 - source: Contest Planner ruling on DW-1090 (Story 37.2), 2026-11-10 | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -7923,6 +7924,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Telegram/In.cls:184,204,256 and Channel/Email/In.cls:37 never read OcuTalonUser/$Roles/GetUserRecursedRoleSet; Bridge/Approval.cls:325,412 does at answer time (measured by 25.4 Task 0, C3)
 - 2026-11-13T19:31:44Z status=routed owner=burndown by=spec_gate note=Planner ruling C3 (story-254-rulings-20261113.md): report only, does not block 25.4
 - 2026-11-15T16:32:37Z status=routed owner=26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe by=burndown note=overflow:26.4_enforces_roles_wherever_an_answer_arrives;the_same_use-time_check_belongs_at_the_Telegram_and_email_turn_entries(Telegram/In.cls,Email/In.cls);Planner_C3_report-only_in_25.4;DW-n_bullet_for_the_orchestrator_post-merge
+- 2026-11-16T22:31:45Z occurrence=27-3-link-slack-members-in-settings by=cr note=SlackIn_turns_also_skip_the_use-time_OcuTalonUser_check;27.3_lets_an_admin_link_any_user_with_a_session_row_(a_viewer_too),_whose_Slack_DMs_then_become_turns
 
 ### DW-1289: Roles audit entry is redacted (from/to blanked) for a user whose name ends in a sensitive suffix (token, secret, password, apikey, ...), because Assign's setting is roles.<userName> and Bridge.Audit.Record redacts by setting name
 - source: spec-25-4-assign-approver-and-viewer-roles-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
@@ -8795,16 +8797,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: Eval.In.NotesUp writes the notes 170, 95 and 40 minutes before now and Agent.Input.NotesPart groups notes by local day (yesterday, today); fix-risk high: a code fix alters the Planner-pinned notes set or makes the knob's CI tests depend on the time of day
 - 2026-11-16T18:25:33Z status=decision-pending owner=burndown by=cr note=human=Planner runs the R7 A/B outside 00:00-02:50 container-local time, or accepts split day headings
+- 2026-11-16T19:33:49Z status=dropped owner=burndown by=merge_gate note=Contest_Planner_2026-11-16:R7_A/B_already_running_from_d57a6d753,window_moot(prompts/story-271-rulings-20261116.md)
 
 ### DW-1441: The Slack route answers a form body 400 before the signature check, and the spine's AD-13 amendment states that order, while the Planner-approved order (gate f, R11) puts 401 before 400
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Web/Hook.cls Slack() runs IsForm before Signature.Check (implement decision 18: a form leaves no raw bytes to sign); R3 and R5 still hold
 - 2026-11-16T18:25:33Z status=decision-pending owner=burndown by=cr note=human=Planner ratifies the form-400-before-401 refinement of the approved AD-13 order, or restores 401 first
+- 2026-11-16T19:33:49Z status=by-design owner=27-1-receive-slack-events-by-webhook by=merge_gate note=Contest_Planner_RATIFIED_form_400_before_401;reopen_if=interactivity_or_slash_commands_added
 
 ### DW-1442: Spine ADs AD-13, AD-14, AD-17 and AD-22 still state wording that Story 27.1's shipped behaviour contradicts
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: AD-17: rejected-request audit target is the webhook Ref, Slack writes target slack; AD-13 hook bullet hands events only to WebhookIn, AD-24 now adds SlackIn; AD-14: every inbound message becomes an Item, Slack's others become Ignored; AD-22 silent on eval-session Turn rows
 - 2026-11-16T18:25:33Z status=escalated owner=burndown by=cr note=AD Rule wording edits are a Planner veto item; 27.3's spine gate can carry them
+- 2026-11-16T19:33:49Z status=routed owner=27-3-link-slack-members-in-settings by=merge_gate note=Contest_Planner:carry_AD-13/14/17/22_wording_in_27.3_spine_gate
+- 2026-11-16T22:33:08Z status=resolved-by:27-3-link-slack-members-in-settings owner=27-3-link-slack-members-in-settings by=adjudication note=spine_AD-13/14/17/22+AD-33_wording_fixed_in_49b6fd728(6_AMENDED_Story_27.3_DW-1442_tags);reviewed_by_cr_word_for_word_vs_gate_f
 
 ### DW-1443: SlackIn.Turn copies Channel.Telegram.In Turn (itself in the steps of WebChatIn.Accept): a third copy of the open-session, Trace.Join, Item, SendTurn, Trace.Started, clear-ids recipe
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -8857,6 +8863,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-dw-1421-c2p-an-over-long-evidence-element-is-cut-not-refused.md (code review round 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: No shell file changed since 08f55bc99; the same tree passed the rule on the rerun (234 s). Unverified cause: the compared out.log, calls or reports of two stub runs of eval/run.sh differed once, possibly a time-dependent line under load.
 - 2026-11-16T16:37:43Z status=routed owner=burndown by=cr note=unverified; settle by printing the diff of cap-a and cap-e when the comparison fails
+
+### DW-1454: A signed event from a second Slack workspace overwrites the noted workspace, so the admin's next link is saved under that team (one workspace per install)
+- source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Data.SlackLink NoteWorkspace; ruled by the Contest Planner (one workspace per install); pinned by TestNotesWorkspace and the second-team criterion
+- 2026-11-16T22:08:03Z status=by-design owner=27-3-link-slack-members-in-settings by=harvest note=Contest_Planner_ruling_2026-11-16_one_workspace_per_install
+- 2026-11-16T22:31:45Z occurrence=27-3-link-slack-members-in-settings by=cr note=re-raised_by_cr_edge_layer;still_the_ruled_one-workspace_limit
+
+### DW-1455: The reversing audit entry of an unlink whose row removal fails is untested
+- source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SettingsOps UnlinkSlack; no probe seam can make %DeleteId fail; link side covered by TestFailedAfterAudit
+- 2026-11-16T22:08:03Z status=wontfix-accepted owner=27-3-link-slack-members-in-settings by=harvest note=reopen_if=an_Unlink_%DeleteId_failure_is_observed_or_a_seam_for_it_is_added
+
+### DW-1456: Web.SlackSettings List near-copies Web.RoleSettings List (submit a list verb, take its SecretHandoff once, discard on every path); the spec's reason (a forward target cannot share routes) covers the routes, not the method body
+- source: spec-27-3-link-slack-members-in-settings.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Web/SlackSettings.cls List and Web/RoleSettings.cls List share about 25 of 30 lines; a shared helper would live in the contended Web/Api.cls
+- 2026-11-16T22:31:45Z status=wontfix-accepted owner=27-3-link-slack-members-in-settings by=cr note=reopen_if=a_third_Web_settings_class_copies_the_take-once-and-discard_list_block
 - 2026-11-16T14:24:08Z status=routed owner=burndown by=lead note=Planner_after-cut_ruling:verbatim:'The mail server couldn't be reached or didn't answer in time, so the email wasn't sent.'(EmailOut_only;Adapter_REASONUNREACHABLE_unchanged);MODEL-FACING(send_email tool answer.message);NOT_LANDED;joins_post-cut_bundled_A/B_with_DW-1389
 
 ### DW-1432: MESSAGEMAYHAVESENT ('The mail server stopped answering while the email was being sent, so it may have gone out. OcuTalon won't send it again.') is also answered for an internal exception after the hand-over and for a MESSAGEFAILED the executor wrappers turn because the claim shows the send began, where the server did not stop answering
@@ -8884,6 +8906,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
 
+### DW-1465: A linked chat user whose IRIS account is disabled or expired may still get Slack turns: Core.Conversation.MayChat reads only the recursed role set (web chat's role rule), not the account state, while web chat refuses such a sign-in
+- source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: rework-1 edge review, unverified; settle with a fixture user Enabled=0 and a Slack Item for its session; the same gap applies to every channel that later calls MayChat (Story 0.38, DW-1284)
+- 2026-11-17T00:56:23Z status=escalated owner=burndown by=harvest note=for_the_Planner:extend_MayChat(irisUser)_with_account_state_(Enabled,expiry)_in_27.3_or_in_0.38?
+- 2026-11-17T01:12:02Z occurrence=27-3-link-slack-members-in-settings note=measured(throwaway):role_set_reads_OK_with_OcuTalonUser_for_a_disabled_and_an_expired_account;so_MayChat_answers_1
+
+### DW-1466: The spine's dependency direction lists no Core-to-Web reference, yet Core.Conversation.MayChat calls OcuTalon.Web.Public.Shell.MayChat (ruled in amended AD-14), so the diagram and AD-14 disagree
+- source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/Conversation.cls MayChat references Web.Public.Shell; ARCHITECTURE-SPINE Dependency direction (mermaid + prose) has no Core->Web arrow and says the rest is checked in review; precedent Core.Files->Web.Documents is also unlisted
+- 2026-11-17T01:12:02Z status=escalated owner=burndown by=cr note=for_the_Planner:record_the_ruled_Core->Web.Public.Shell.MayChat_edge_in_the_dependency_diagram(or_move_the_predicate)
 ### DW-1437: No eval case covers self-watch (OcuTalon watching its own production), the one path by which a refusal tag can reach the diagnosis model (read_event_log of a failure that shares a session with a Decide refusal warning)
 - source: spec-0-dw-1421-r3-cut-floor-length-tags-and-an-absent-diagnosis-confidence.md; Contest Planner ruling ~18:45Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Decide.cls Conclude logs the refusal (LOGWARNING) in the decision session; Watch/Reader.cls reads every event-log row of a failed session (bySession); EvidencePack.EventLog is the read_event_log answer (Tools/Watch.cls); Reader.Productions leaves OcuTalon own production out only on the online demo
