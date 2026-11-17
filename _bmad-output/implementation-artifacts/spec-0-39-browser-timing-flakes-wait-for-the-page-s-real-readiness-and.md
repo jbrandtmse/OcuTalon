@@ -2,8 +2,8 @@
 title: 'Story 0.39: Browser-timing flakes wait for the page''s real readiness, and a turn at the UTC day rollover does not error'
 type: 'bugfix'
 created: '2026-11-16'
-status: 'in-progress'
-baseline_revision: '0c09f1e5a52cff6722cc9f4151f070b0b556570b'
+status: 'done'
+baseline_revision: '5c4f696180422939b27d92dcf4605b9be2581e94'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -257,6 +257,25 @@ Everything below was verified at `37b55fb8fbbca21a0709feadfbff4207bfb628e3` (fea
   - `[low]` `reject` 1 ms clamp when the budget is spent reads 'within 0 s' (edge-case); retry-file append failure falls back to no record (edge-case); wait-defaults duplicated in the spec (verification-gap); grace period after a used-up retry (edge-case) - each is cosmetic or outside the ruled behaviour.
   - Intent-alignment layer: descriptive; it reports readings 1-5, the diff implements reading 1 with the per-test-line site; its divergences are the pass-B items and the 3-5 iteration loop counts recorded in `## Verification`.
 
+### 2026-11-16 - Review pass (pass B1)
+- verdicts: 20 findings reported by the layers, one row per claim (same claim from several layers shares a row) - high 0, medium 3, low 5, false 0, maybe-false 0 (the rest rejected below as low or theoretical)
+- findings:
+  - `[medium]` `patch` `handled` skips the body wait for a request issued before `answerOf` (the held PRECEDENTS read at the reload site) (blind-hunter, edge-case, verification-gap) - `trackEnds` gained `include(request)`: `handled` adds the answered response's own request unless it already ended, so the old `finished()` guarantee holds there too.
+  - `[medium]` `patch` The AC4 repro only showed that `handled` returns, not that every tracked request had ended (verification-gap) - the scratch repro now fails with `RETURNED BEFORE TODAY ENDED` if today's 500 has not been sent when `handled` returns; mutation: `tracker.ended()` replaced by an immediately resolved promise -> repro red 3 of 3; real `handled` green 3 of 3; old `handled` hung (8 s race). Reverted.
+  - `[low]` `patch` Listeners leak when `await answer` rejects (blind-hunter, edge-case, verification-gap) - `await answer` now sits inside the `try`/`finally` that stops the tracker.
+  - `[low]` `patch` The `still open` suffix labelled any error (blind-hunter) - it now wraps only the bounded wait for the ends.
+  - `[low]` `patch` A promise not made by `answerOf` skipped the wait silently (edge-case) - `handled` now throws `the answer was not made by answerOf`.
+  - `[low]` `reject` Orphan trackers when `handled` is never reached (edge-case, verification-gap) - every caller in the spec passes its answer to `handled` in the same block; a test-lifetime page only.
+  - `[low]` `reject` Later same-route requests with other statuses keep `handled` open (edge-case, verification-gap) - the contract says every matching request issued since arming; no listed caller issues one.
+  - `[low]` `reject` The strip does not handle `\r` line ends or a `>` with no space (blind-hunter, edge-case) - `Agent.Input.Quoted` normalizes line ends to LF and the spec's rule is lines that start with `> `; no listed input reaches it.
+  - `[low]` `reject` Three or more hits, or a multi-line prompt with a `> ` line, names a quoted hit in the 500 (edge-case) - the 500 stays a 500; the text only names two scenarios.
+  - `[low]` `reject` The two guards "strip only for 2 or more" and "an empty unquoted set keeps the tie" have no recorded mutation (verification-gap) - K2 (two quoted) and K3 pin them; the AC6 mutation is the recorded one.
+  - `[low]` `reject` K1's mock-key header is a no-op in the node row (verification-gap) - the IRIS test covers the `chat` key through `Provider("chat")`.
+  - `[low]` `reject` The Task 8 evidence is a scratch repro, not committed (blind-hunter, intent-alignment, verification-gap) - Decision 5 of the spec keeps repros scratch; the live MC3 loop is owed to pass B2.
+  - `[low]` `reject` The Pass B1 heading date (blind-hunter) - the run's clock reads 2026-11-17; the heading follows it.
+  - `[low]` `reject` `TestMidnightReminderPicksItsPrompt` uses local times, so it equals the UTC rollover only under UTC (edge-case, intent-alignment) - decided in-stage and recorded in the pass B1 results; the CI hosts run UTC.
+  - Intent-alignment layer: descriptive; the diff implements the mock-rule reading at the mock's HTTP surface and the IRIS test at `Agent.Input.Render` plus `%AI.Agent`; the browser-surface evidence for MC3 is the owed live loop (pass B2).
+
 ## Design Notes
 
 **The tally** (runs, runners and hosts from the 2026-11-16/17 tally; heads from `gh run view`):
@@ -413,6 +432,18 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 - Node: `npm --prefix web run lint` exit 0; `npm --prefix web test` 2213 passed, 0 failed.
 - Pass B owes: Task 0 parts and the repros/loops for Tasks 8-12, the T2 and P4 before/after loops, the 10-iteration counts for every pass-A test, the live 3b repro, and the full-unit `live` runs.
 
+**Pass B1 results (2026-11-17, lane A):**
+- Task 0 (c), group 5, on the UNCHANGED mock (node request through `ci/mock/test/helpers.mjs` `withServer` with the committed scenarios, mock key `chat`, one user message holding the quoted notes `> 2030-06-15` and `> 23:59 message (web): <watch prompt>`, a blank line, then the unquoted reminder prompt): HTTP 500 with the body, verbatim, `{"type":"error","error":{"type":"api_error","message":"CI mock: two guide prompts match: guide-reminder and guide-watch"}}`. The CI error text is therefore a fact: the mock's `ambiguous-prompt` refusal, not an inference.
+- Tasks 10 and 11 (DW-1464, mock): `select()` rule 3 matches again on the text without its `> ` lines when two or more prompts match, and selects exactly one hit (`selectedBy: prompt`); the rule-3 header comment says so. Row `row 7 (K1-K3)` in `ci/mock/test/server.test.mjs`: K1 (quoted GUIDE_ONE under the notes opening, unquoted GUIDE_TWO, mock key `chat`) answers guide-two with 200; K2 (two unquoted, and two quoted) stays a 500 `two guide prompts match` with `rejected: ambiguous-prompt`; K3 (one prompt inside a quoted line) still selects it. Decided in-stage: two quoted prompts are a tie too (nothing is left after the strip), pinned in K2.
+- K1 loop: old mock (`git show HEAD:ci/mock/mock.mjs`) with the new row: red 10 of 10; new mock: green 10 of 10; `bash docker/tests/test-mock.sh` all pass. mutation: tie-break removed (old `select()` restored) -> K1-K3 row red 10/10; reverted, `cmp` identical to the edited file, `git status --short` and `git diff --stat` as before.
+- Task 12 (`Test.Contract.Mock.TestMidnightReminderPicksItsPrompt`): own session and one done web turn (watch prompt, as `Test.Data.Fixture.Turn`, removed with `Fixture.Clean`), rendered through `Agent.Input.Render` with `{"sessionStart":1}` at the local 23:59:59 of 2030-06-15 and the local 00:00:01 of the next day (via `Data.Time.FromLocal`, so the test reads the same in any zone; under UTC these are the spec's `<DAY>T23:59:59Z` and `<DAY+1>T00:00:01Z`). Decided in-stage: the item text is `Test <ref>` then the reminder prompt on its own line, so the request is found in the mock log by its ref (the note's `Summary` cuts the watch text, so the ref cannot ride on the turn) and the text still ends with the reminder prompt; RenderMemory's fixtures are private, so the shared public `Test.Data.Fixture` is used instead. Asserts at both times: the quoted watch line under the day, no unquoted line holding the watch prompt, the last line the reminder prompt, then through `%AI.Agent` on `Provider("chat")` the mock log reads scenario `guide-reminder`, `selectedBy` `prompt`, status 200, and the agent raised no `two guide prompts match`.
+- IRIS class run, fresh throwaway lane A (`ci/iris.sh class OcuTalon.Test.Contract.Mock`, tag `e0fli`): first run red on a wrong fixture (the ref inside the turn text, cut by `Summary`); fixed run `CLASS OcuTalon.Test.Contract.Mock passed`, `RUN ... passed (1 classes)`. mutation: tie-break removed (old `mock.mjs`) -> `CLASS ... failed`, `TestMidnightReminderPicksItsPrompt` red at both times with `no tie error reached the agent ... CI mock: two guide prompts match: guide-reminder and guide-watch`, and the scenario/selectedBy/status asserts red; `mock.mjs` restored and `cmp` identical. Teardown: `0 project(s) removed, 0 leftover container(s), 0 leftover volume(s)`.
+- Task 8 (DW-1451, `memory-card.spec.ts`): `answerOf` arms an end tracker (route, method, requests issued since the call, each ended by `requestfinished` or `requestfailed`) kept per answer in a `WeakMap`; `handled` awaits the answer, then `boundedStep` on every tracked request ended (the action wait in force from `currentWaits()`, default `waitsFor(0).actionTimeout`), naming the route and the number still open on a bound pass, stops the listeners, then the two frames. Every caller keeps its signature. Lint exit 0.
+- AC4 deterministic repro (scratch `<scratchpad>/e0fl-implB/repro.mts`, not the live unit: a local http server, the page's `fetch` through `page.route(..., route.continue())`, yesterday answers 500 headers with a held body and is aborted by the page after its headers, today answers 500 150 ms later; the real `answerOf`/`handled` text is extracted from the spec into `block.mts`, the old `handled` is `finished()` plus two frames): old `handled` HUNG (hit the script's 8 s race; in the spec it is the 45 s test timeout) 1 of 1 and 3 of 3 under load; new `handled` green 1 of 1 in 0.3 s and 20 of 20 under 16 CPU burners (`hw.ncpu`) in 6.4 s. mutation: the repro on the old `handled` -> red; the spec file is the only changed file of Task 8, nothing was injected into it.
+- Not run in pass B1 (time box 02:55Z): the live MC3 loop of the `sign-in-3` unit (the repeat under the `npm` shim); the Task 8 counts above are of the scratch repro, not of the unit. DW-1471's row: not done (the spec defines no such row). Task 9, DW-1472, AC5, AC7 counts, P4 and the full live units remain pass B2.
+- Node: `npm --prefix web run lint` exit 0; `npm --prefix web test` 2214 passed, 0 failed.
+- Review patches (pass B1): `handled` now includes the answered response's request, stops its tracker in a `finally` and throws if the answer was not made by `answerOf`. Re-run of the scratch AC4 repro on the patched `memory-card.spec.ts` text: new `handled` green 3 of 3 (and 1 of 1); old `handled` hung 1 of 1. mutation (AC4): `tracker.ended()` replaced by a resolved promise -> repro red 3 of 3 (`RETURNED BEFORE TODAY ENDED`); reverted. Lint exit 0; `npm --prefix web test` 2214 of 2214 passed; `bash docker/tests/test-mock.sh` 193 of 193 passed.
+
 **Shared surfaces:**
 - `web/e2e/support/navigate.ts` `gotoSettled`: every sign-in and trace site, and the NAV line format.
 - `web/e2e/support/floor.ts` `loadedAfter` / `reloadSettled`: every `loadedAfter` caller, and the RETRY step labels counted by `ci/iris.sh`.
@@ -430,14 +461,14 @@ i=0; while [ "$i" -lt "${E0FL_BURN:-0}" ]; do i=$((i+1)); sh -c 'while :; do :; 
 Status: done
 Blocking condition: none
 
-Pass A of 2. Pass B tasks (Tasks 8-12: MC3, row 6, the DW-1464 mock, `Test.Contract.Mock`; AC4-AC6; their Task 0 parts) are NOT started.
+Pass B1 (this pass). Pass B2 is NOT started: Task 9 (row 6, `docker/tests/test-online-demo.sh`), AC5, DW-1472 (T1/T4/T5 counts), the owed AC7 10-iteration counts, P4 and T2 before/after loops, the live MC3 `sign-in-3` loop, the live 3b two-retries repro and the full live units. DW-1471's row was not done (time box).
 
-Implemented (Tasks 1-7 and 3b): `gotoSettled` waits for the failed navigation's committed `chrome-error://chromewebdata/` after `ERR_NETWORK_CHANGED` and names the first error in its NAV line; `floor.ts` has one shared `/state` wait for `loadedAfter` and the new `reloadSettled`; a second logged retry at one `<spec>:<line>` site in a run fails with a named error (RETRY and DIAG lines still written); T1-T5, H2/H3/H7, Q7's `reopen()` and HC8's five reloads use the helpers, and HC8 asserts the heartbeat GET is 200 by name.
+Implemented: the CI mock breaks a guide-prompt tie by ignoring `> ` lines (exactly one remaining match selects it, else 500; the exact error before the fix was `CI mock: two guide prompts match: guide-reminder and guide-watch`); node rows K1-K3; `Test.Contract.Mock.TestMidnightReminderPicksItsPrompt` (23:59:59 and 00:00:01, through `%AI.Agent` on the `chat` key); MC3's `answerOf`/`handled` end tracker (finished or failed, bounded by the action wait, the answered request included).
 
-Files: `web/e2e/support/navigate.ts`, `floor.ts`, `bounds.ts`; `web/e2e/demo-path/telegram-page.spec.ts`, `history/history.spec.ts`, `guide/guide.spec.ts`, `heartbeat-card.spec.ts`; `web/e2e/live/deadline-cap.spec.ts` (stubs of the widened `Navigable`); `web/scripts/goto-settled.test.mjs`, `retry-bounds.test.mjs`, `bounded-waits.test.mjs`, `flake-fixes-sources.test.mjs`.
+Files: `ci/mock/mock.mjs`, `ci/mock/test/server.test.mjs`, `src/ocutalon/cls/OcuTalon/Test/Contract/Mock.cls`, `web/e2e/memory-card.spec.ts`.
 
-Review: 4 layers; patches applied 2 (the heartbeat wait bound, the error-page time-left row) plus a source pin for the 3b wiring; deferred 2 (see frontmatter); the rest rejected with the reasons in the triage log. No high findings.
+Review: 4 layers; patches applied 5 (two medium: the held-request body wait and the AC4 end assertion; three low); no high; the rest rejected with reasons in the triage log; nothing deferred. followup_review_recommended false (no high patched).
 
-Verification: lint exit 0; `npm --prefix web test` 2214 passed; live repros old-red and fixed-green for T2, H7, Q7, HC8 (RETRY counts 1 each) and R2 red by name; mutations AC1, AC2, AC2b, AC3 as recorded under `## Verification` (pass A results). Loops ran 3-5 iterations, not 10 (counts recorded there); T2/P4 before loops, P4 after loop, full live units and the live 3b repro are owed to pass B.
+Verification: K1 old mock red 10 of 10, new green 10 of 10; the IRIS class run `OcuTalon.Test.Contract.Mock` passed, and red with the tie-break removed; AC4 scratch repro old hung, new green, mutation red; lint exit 0; node tests 2214 passed; mock tests 193 passed.
 
-Residual risks: the per-test-line retry site means two independent flakes in one test, or a retry in a second repeat-each iteration, fail by design; T1/T4/T5 request counts across a retried reload are unverified.
+Residual risks: the live MC3 loop is owed; the Task 8 counts are of a scratch repro; the Contract.Mock test uses local-zone times (equal to the spec's UTC times under UTC).

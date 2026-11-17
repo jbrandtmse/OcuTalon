@@ -302,6 +302,36 @@ test('row 7: a guide prompt is its exact text inside the newest user message, af
   });
 });
 
+test('row 7 (K1-K3): two guide prompts are told apart by ignoring quoted "> " lines; a real tie stays a 500; one match is never stripped', async () => {
+  await withServer({ files: { 'B/guide-one.json': GUIDE_ONE, 'B/guide-two.json': GUIDE_TWO } }, async ({ base, readLog }) => {
+    const one = GUIDE_ONE.match.prompt;
+    const two = GUIDE_TWO.match.prompt;
+    const preamble = 'Agent.Input preamble: item 7 from the Orders production.';
+    // K1: the notes quote the earlier prompt; the unquoted one is the turn's own.
+    const notes = `${preamble}\n\nSession notes:\n> 2030-06-15\n> 23:59 message (web): ${one}\n\n${two}`;
+    const k1 = await post(base, request([user(notes)]), { 'x-ocutalon-mockkey': 'chat' });
+    assert.equal(k1.status, 200);
+    assert.equal(k1.json.content[0].text, 'Guide two answer.');
+    const line = readLog().pop();
+    assert.equal(line.scenario, 'guide-two');
+    assert.equal(line.selectedBy, 'prompt');
+
+    // K2: two unquoted prompts are still a tie; so are two quoted ones (nothing is left after the strip).
+    for (const text of [`${preamble}\n${one}\n${two}`, `${preamble}\n> ${one}\n> ${two}`]) {
+      const r = await post(base, request([user(text)]));
+      assert.equal(r.status, 500, text);
+      assert.equal(r.json.error.message, 'CI mock: two guide prompts match: guide-one and guide-two');
+      assert.equal(readLog().pop().rejected, 'ambiguous-prompt');
+    }
+
+    // K3: one match inside a quoted line is a match as before (the strip applies only to two or more).
+    const quotedOnly = await post(base, request([user(`${preamble}\n> Mail body: ${one}`)]));
+    assert.equal(quotedOnly.status, 200);
+    assert.equal(quotedOnly.json.content[0].text, 'Guide one answer.');
+    assert.equal(readLog().pop().scenario, 'guide-one');
+  });
+});
+
 test('row 7: a keyed guide prompt answers only the agent it names; another key falls through to its default script, no key to a 500, and a marker still wins', async () => {
   const prompt = 'Keyed guide prompt: report the watched productions.';
   const keyed = (name, mockkey, text) => [`B/${name}.json`, { name, match: { prompt, mockkey }, replies: [{ status: 200, text }] }];
