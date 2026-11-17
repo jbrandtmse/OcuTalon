@@ -138,8 +138,6 @@ describe('a site retries once per run (Story 0.39, AC2b)', () => {
   const SAME_SITE = [STEP, RELOAD_STEP];
   let printed = [];
   let counter = 0;
-  /** The delays of the timers that the calls under test armed since the last tick. */
-  const armed = [];
 
   /** The running test sits at this line of a spec of web/e2e. */
   const at = (line) => {
@@ -216,6 +214,7 @@ describe('a site retries once per run (Story 0.39, AC2b)', () => {
   it('writes a RETRY line for the reload step that ci/iris.sh counts', () => {
     const script = readFileSync(join(repoRoot, 'ci', 'iris.sh'), 'utf8');
     const shape = /^\s*LC_ALL=C grep -E '(\^RETRY [^']+\$)' "\$\(retry_log_of/m.exec(script)?.[1];
+    assert.ok(shape, 'ci/iris.sh has the grep of retry_lines');
     assert.match(bounds.retryLine(here_(111), RELOAD_STEP), new RegExp(shape));
   });
 });

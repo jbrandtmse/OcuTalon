@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-17-2026 08:41
+last_updated: 11-17-2026 09:01
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -73,7 +73,7 @@ development_status:
   0-35-routine-attention-decisions-meet-their-target: done
   0-36-the-judges-table-names-the-platform-parts-ocutalon-is-built: done
   0-37-a-production-that-stopped-is-a-fault-to-look-into-not-a-choi: done
-  0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and: review
+  0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and: done
   epic-0-retrospective: optional
 
   epic-1: done

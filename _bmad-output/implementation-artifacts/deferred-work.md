@@ -2333,6 +2333,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T08:57:34Z occurrence=feature-97e062daf by=orchestrator note=rerun of failed jobs, attempt 2 of 43690544372: shards-6 green
 - 2026-11-15T18:58:28Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-6) on ocutalon-ci-29: GuideApi TestOnlyTheMarkerChanges (trace_opened, run_again) and TestRunAgain (DW-453 sibling); superseded by 8c71bef6e, not rerun
 - 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=gotoSettled_waits_for_the_late_chrome-error_commit_before_its_one_retry(navigate.ts;goto-settled.test.mjs_N1-N3);P4_10x_after_green
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3440,6 +3441,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
 - 2026-11-15T17:53:35Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-5) on ocutalon-ci-48 (new runner): heartbeat-card.spec.ts:677 HC4 page.goto to 127.0.0.1:52803 interrupted by chrome-error; superseded by df475cc64/9b9898a53 runs
 - 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=same_fix_as_DW-349;U12_10x_after_green;the_?signedOut=1_variant_split_to_DW-1467
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -8840,6 +8842,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-16T19:52:47Z status=open owner=burndown by=epic-runner note=one rerun
 - 2026-11-16T20:37:03Z occurrence=OCT-epic24-c321d4680 by=epic-runner note=rerun_green_on_ocutalon-ci-5
 - 2026-11-17T01:02:08Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:58Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=telegram-page_reloads_through_loadedAfter(one_logged_CI-counted_retry);main-bundle-abort_repro_old_red/fixed_green;T2_10x_after_green
 
 ### DW-1449: flake (cause not found): Test.Data.Purge TestCurrentSessionLosesNoRows: the three kept sessions' row counts differed from 1|1|2(3)|1|1 after Retention.Purge(90), in CI shard lane-b@Contract,Core,Data,Live
 - source: epic-runner; OCT-epic24 c321d4680 ci 43934206289 attempt 1 job 133534373343 iris (image) on ocutalon-ci-20 | severity: med | fix-risk: low | footprint: in-epic
@@ -8870,6 +8873,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the head's diff from its green parent dddd24dfc is ci/units.sh and test-demo-path-gate.sh only; live:online-demo ran before live:production-restart in the job (units run in sequence), so the rebalance did not touch it; row 6 depends on a connection count read before S3 and S5
 - 2026-11-16T21:10:54Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1
 - 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:59Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=row_6_waits_for_the_status_to_read_free_then_signs_in_once;hold_repro_old_red_10/10_fixed_green_10/10;stop_condition_not_fired
 ### DW-1436: 28.2: Test.Memory.Volume explains NEARESTSQL, which now also selects LastUsedAt; not run in the implement stage (memory-offline live unit only)
 - source: spec-28-2-fade-unused-memories-and-merge-duplicates-nightly.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: docker/tests/test-memory-offline.sh runs Test.Memory.Volume; settle by running that unit on a lane-C throwaway
@@ -8881,6 +8885,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
 - 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+- 2026-11-17T09:03:59Z status=resolved-by:0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=adjudication note=guide_reopen()_through_loadedAfter;repro_old_red/fixed_green;Q7_10x_after_green
 
 ### DW-1467: flake: the app's own sign-out redirect (?signedOut=1, session-gate.ts:98) can interrupt a sign-in page.goto at gotoSettled's first attempt (navigate.ts:58), then a demo-path cascade; a different cause from the chrome-error interruption (Story 0.39)
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8914,3 +8919,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: one red in a local live:online-demo run in 0.39 pass B2 (lane A), green in the re-run and in a run before it; not this story's file
 - 2026-11-17T08:40:28Z status=open owner=burndown by=harvest note=flake rule: a repeat makes it a cause-and-fix item; DEFERRED under the 1.0.13 wrap-up unless needed for CI green
+
+### DW-1480: flake candidate: a reload whose load event never fires (Q7 reopen, page.reload: Timeout 30000ms exceeded, local sign-in-3 before-loop) is not covered by loadedAfter's /state retry; the reload is the bounded action and fails by name with no retry
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Story 0.39 pass A before-loop: 1 of 10 Q7 runs red at the bare reopen() reload with a reload timeout, not DW-1452's CI signature (element not found). loadedAfter(page, () => page.reload()) bounds that reload by the navigation wait before withOneReload begins, so the same hang still fails (named). Unverified whether it recurs: 15 after-iterations green.
+- 2026-11-17T08:59:27Z status=escalated owner=burndown by=cr note=fix would reload with waitUntil commit at the 27 prescribed sites; changes the ruled call shape in a frozen release

@@ -229,12 +229,7 @@ Method TestMidnightReminderPicksItsPrompt()
 			Set agent.Model = $Parameter("OcuTalon.Agent.Chat", "MODEL")
 			Set status = agent.%Init()
 			Do $$$AssertStatusOK(status, "the agent initializes, "_label)
-			Set chatError = ""
-			Try {
-				Do agent.Chat(agent.CreateSession({"max_tokens": 8000}), text)
-			} Catch ex {
-				Set chatError = $Translate(ex.DisplayString(), $Char(13, 10), "  ")
-			}
+			Set chatError = ..ChatError(agent, {"max_tokens": 8000}, text)
 			Do $$$AssertStatusOK(..LogSince(mark, .entries), "the log is read, "_label)
 			Set post = ..Find(entries, "POST", "/v1/messages", ref)
 			Do $$$AssertTrue($IsObject(post), "the log holds the request, "_label)
