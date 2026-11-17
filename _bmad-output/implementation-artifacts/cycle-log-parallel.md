@@ -4632,3 +4632,6 @@
 2026-11-17T02:16:07Z	Run	owner_decision	via=contest_planner DW-1449:27.3_rerun_then_merge; cause-and-fix_story_lane_D_after_triage-accept; RELEASE_GATE(classify_test_vs_product)
 2026-11-17T02:33:19Z	Run	ci_red	feature 5f1996ed6 image ci-10 DW-1449_OCCURRENCE_3(SimMessage_1->2_concurrent_writer;idle_not_purged) rerun; relayed
 2026-11-17T02:34:22Z	Run	owner_decision	via=contest_planner merges_continue_on_rerun-green; DW-1449_PRODUCT_SCOPE(orchestrator: Purge.Keeps L143 Delivery + L144 Decision count outbound as activity -> idle users with watches never purged) -> lane_D_story_gate_first
+2026-11-17T02:34:52Z	Run	owner_decision	via=contest_planner DW-1449=TEST_ISOLATION(Keeps_is_AD-27_by_design;orchestrator_product_reading_overruled) story=isolation+L248+loop+product_pin; doc_mismatch_security-overview:212->corrected_sentence_to_Planner
+2026-11-17T02:47:22Z	Epic 27	ci_green_verified	27.3 14940d399 runs=43996613147(att2;DW-1095=DW-1449_ci-25),43996613140
+2026-11-17T02:47:22Z	Epic 27	merge_enqueued	27.3 head=14940d399 (push after 5f1996ed6 rerun green)
