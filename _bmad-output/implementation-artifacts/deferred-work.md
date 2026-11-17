@@ -2332,6 +2332,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-15T08:19:41Z occurrence=feature-97e062daf by=orchestrator note=run 43690544372 att1 iris(shards-6) Test.Web.GuideApi TestOnlyTheMarkerChanges (trace_opened and run_again): the after fingerprint gained the session's event rows 4-9 watch.progress (a real tick between the two fingerprints); one rerun of failed jobs when the run completes
 - 2026-11-15T08:57:34Z occurrence=feature-97e062daf by=orchestrator note=rerun of failed jobs, attempt 2 of 43690544372: shards-6 green
 - 2026-11-15T18:58:28Z occurrence=feature-16cdbf568 by=orchestrator note=run 43746506248 att1 iris(shards-6) on ocutalon-ci-29: GuideApi TestOnlyTheMarkerChanges (trace_opened, run_again) and TestRunAgain (DW-453 sibling); superseded by 8c71bef6e, not rerun
+- 2026-11-16T23:08:52Z occurrence=1f8733c0e by=merge_gate note=feature ci 43970555894 iris (shards-3) live:floor on ocutalon-ci-19: focus.spec.ts:145 P4, this time page.goto interrupted by a chrome-error navigation (infrastructure-shaped); the merged 28.2 diff touches no web, floor or heartbeat code; one rerun of the failed job
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3438,6 +3439,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
 - 2026-11-13T06:13:39Z occurrence=22-3-call-mcp-tools-only-through-the-governed-proxy note=a758d17a_ci_43370177969_shards-10_live:sign-in_decision.spec_D8_chrome-error_navigation
 - 2026-11-15T17:53:35Z occurrence=feature-b337f61d9 by=orchestrator note=run 43738026674 att1 iris(shards-5) on ocutalon-ci-48 (new runner): heartbeat-card.spec.ts:677 HC4 page.goto to 127.0.0.1:52803 interrupted by chrome-error; superseded by df475cc64/9b9898a53 runs
+- 2026-11-17T00:46:18Z occurrence=7a346a994 by=merge_gate note=OCT-epic25-s259 ci 43978832236 attempt 1 iris (shards-10) on ocutalon-ci-18: Usage U12 page.goto interrupted by a chrome-error navigation; green on rerun (ci-15)
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -8513,6 +8515,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Bridge.Audit.Record writes through $SYSTEM.Security.Audit, and %SYS.Audit suspends transactions for the record ($zu(139,2), irissys/%SYS/Audit.cls:1585), so TROLLBACK in SettingsOps.WritePartner (24.2) and SaveProduct (33.2, 36.4) keeps the entry. AD-19 L759 says the entry and the row are one transaction with a rollback; TestRowWriteFailureRollsBack proves it for the probe's global only.
 - 2026-11-15T17:44:12Z status=escalated owner=burndown by=cr note=AD-19 call: write row first and audit last in the transaction (audit failure rolls row back), or a compensating entry
 - 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ruling ~20:00Z: burndown story MED, row first then audit inside one transaction, TROLLBACK on audit failure; covers 24.2 contact save, SaveProduct and every audited Settings save; AD-19 amendment verbatim in prompts/dw-1392-rulings-20261115.md; owner lane A after 25.8 or first free lane; 1.0.12 if ready
+- 2026-11-16T00:53:59Z status=routed owner=25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi by=merge_gate note=Contest_Planner_ruling_2026-11-15(prompts/dw-1392-rulings-20261115.md);Story_25.9_chartered
 
 ### DW-1393: Partner contacts accept duplicate names and addresses, so ForProduction can give one address twice to the partner-warning reader
 - source: spec-24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings.md (code review) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -8533,6 +8536,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-13 L484 sends 'a read beyond the caller's own rows' through a read verb to the owning Ops class; 24.2 (Decided in-stage 8, gated) reads all contacts via the owning class's List() in the web process, as SettingsOps.Values already reads Data.Setting rows (Stored, KeyIndexOpen).
 - 2026-11-15T17:44:12Z status=decision-pending owner=burndown by=cr note=AD-13 call: amend for config tables listed via their owning class, or a ListPartnerContacts verb through SecretHandoff
 - 2026-11-15T19:30:43Z status=routed owner=burndown by=orchestrator note=Contest Planner ACCEPTED with an AD-13 clarification (verbatim in prompts/dw-1392-rulings-20261115.md), written into the spine by the DW-1392 story
+- 2026-11-16T00:53:59Z status=routed owner=25-9-epic-25-burn-down-an-audited-settings-save-writes-its-row-fi by=merge_gate note=Contest_Planner_ruling_2026-11-15(prompts/dw-1392-rulings-20261115.md);Story_25.9_chartered
 ### DW-1396: 23.4 pages the on-call person, and escalates to the backup, for a session-owned incident (failures tagged with a user's TraceRef), which only that session may see (AD-4)
 - source: spec-23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Watch/Paging.cls Notice excludes only OwnerRef eval; FailurePoller scopes tagged failures to the session; PagingLive's real break is session-owned and pages another user as backup
@@ -8908,3 +8912,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/Conversation.cls MayChat references Web.Public.Shell; ARCHITECTURE-SPINE Dependency direction (mermaid + prose) has no Core->Web arrow and says the rest is checked in review; precedent Core.Files->Web.Documents is also unlisted
 - 2026-11-17T01:12:02Z status=escalated owner=burndown by=cr note=for_the_Planner:record_the_ruled_Core->Web.Public.Shell.MayChat_edge_in_the_dependency_diagram(or_move_the_predicate)
+### DW-1437: No eval case covers self-watch (OcuTalon watching its own production), the one path by which a refusal tag can reach the diagnosis model (read_event_log of a failure that shares a session with a Decide refusal warning)
+- source: spec-0-dw-1421-r3-cut-floor-length-tags-and-an-absent-diagnosis-confidence.md; Contest Planner ruling ~18:45Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Decide.cls Conclude logs the refusal (LOGWARNING) in the decision session; Watch/Reader.cls reads every event-log row of a failed session (bySession); EvidencePack.EventLog is the read_event_log answer (Tools/Watch.cls); Reader.Productions leaves OcuTalon own production out only on the online demo
+- 2026-11-16T18:16:29Z status=wontfix-accepted owner=burndown by=orchestrator note=reopen_if=self-watch eval cases are ever added (then add one that pins what read_event_log gives after a refused reply); Planner ruling: accepted, no A/B
+
+### DW-1438: CLOCKTIME refuses a cause that quotes a field's own date-time value
+- source: DW-1421 round 3 report-only check (eval held-out case shipments-day-first-date, rule time-of-day-in-cause, the Planner verification capture at c573a86d0); Contest Planner ruling ~19:00Z Nov 16 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: DiagnosisPayload.cls CLOCKTIME (?<![0-9.:])([01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9]) checked on cause and fixSummary; the case field ShippedAt holds 16/10/2026 09:30:00, so a cause that quotes the failed value matches at 09:30 and the diagnosis falls back invalid; reasoned from the case fixture and the rule, the reply text not read
+- 2026-11-16T18:18:51Z status=routed owner=burndown by=orchestrator note=narrowing: allow an h:mm directly after a date (d/m/y or y-m-d, then a space or T) or followed by :ss; fix only after a second occurrence, or in a burndown, with a test that 16/10/2026 09:30:00 in a cause is accepted and that a bare at 09:30 is still refused
+
+### DW-1457: flake candidate: live:sign-in-3 heartbeat-card.spec.ts:369 HC8, the heartbeat card's 'Today:' line was not found within 10 s ('three check-ins read in the plural')
+- source: feature ci 43970555894 (1f8733c0e, the 28.2 merge) iris (shards-5) on ocutalon-ci-17 | severity: low | fix-risk: low | footprint: web/e2e/heartbeat-card.spec.ts
+- evidence: the merged 28.2 diff touches no web or heartbeat code; the line was absent, not wrong; 22:47Z is outside DW-800's midnight window and DW-845's 00-09 UTC window
+- 2026-11-16T23:08:52Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+
+### DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0): the turn decision falls back with reason error within 258 ms, before any agent step
+- source: feature ci 43982398541 (b2768afeb) iris (browser) on ocutalon-ci-25, live:demo-path 03-reminder; the Planner read the trace on the host | severity: med | fix-risk: med | footprint: the turn path's day-keyed reads (daily cost or allowance row, usage cap, day-keyed counter)
+- evidence: the reminder TURN decision: fallback=true, fallbackReason error, agentStepCount 0, durationMs 258, recordedAt 2026-11-17T00:00:06Z; every later step and Telegram T7/T8 failed after it; not reproducible off midnight (local demo-path at b2768afeb passed); a real user chatting at midnight UTC could get a reasonless fallback too
+- 2026-11-17T00:48:03Z status=routed owner=burndown by=orchestrator note=Planner ruling ~01:05Z: PRODUCT bug candidate on the flake-burndown lane (lane A); find the day-keyed read on the turn path; deterministic test with the clock at 23:59:59, then 00:00:01; related family DW-800

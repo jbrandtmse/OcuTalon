@@ -6,7 +6,7 @@ import { PAGE_TEXTS, REASON_KEYS } from '../msg/catalog';
 import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionDetails } from './decision-details';
-import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines, sentenceOf } from './decision-view';
+import { DECISION_TEXTS, outcomeOf, reasonLines, sentenceOf, stripMeta } from './decision-view';
 import { FallbackFlag } from './fallback-flag';
 import { meaningOf, OutcomeChip } from './outcome-chip';
 
@@ -36,7 +36,8 @@ export function fallbackSentence(reason: string | undefined): string | undefined
 /**
  * The decision strip (UX-DR61, UX-DR62, UX-DR64, FR-1, FR-2, FR-4) under a reply: why OcuTalon answered as it did, what it cost.
  * - Line 1: the outcome chip (Tell now on a fallback, no chip for an outcome the page does not know), the Fallback flag on a
- *   fallback, then "Confidence 0.92" and the cost, joined by a decorative middle dot. A fallback omits the confidence, and the cost
+ *   fallback, then "Confidence 0.92" and the cost (stripMeta), joined by a decorative middle dot. A fallback, and a decision with no
+ *   confidence, omit the confidence (absent is never shown as 0), and the cost
  *   is the one given (the turn's, for a reply). When there is a traceUrl, the trace link comes last, after a middle dot.
  * - Line 2: the reason lines, a fallback's reason as a sentence first and in the warning colour, then the decision's reasons: three
  *   lines on the newest strip, the first line only, on one line with an ellipsis, on the others.
@@ -230,19 +231,8 @@ export class DecisionStrip {
 
   protected readonly lines = computed(() => reasonLines(this.decision()?.reasons, this.sentence(), this.newest() ? NEWEST_LINES : 1));
 
-  /** The items after the chip and the flag: the confidence (not on a fallback) and the cost. */
-  protected readonly meta = computed(() => {
-    const items: string[] = [];
-    const confidence = this.decision()?.confidence;
-    if (!this.fallback() && confidence !== undefined) {
-      items.push(confidenceText(confidence));
-    }
-    const cost = this.cost();
-    if (cost !== undefined) {
-      items.push(formatCost(cost));
-    }
-    return items;
-  });
+  /** The items after the chip and the flag (stripMeta): the confidence (not on a fallback, none for a decision without one) and the cost. */
+  protected readonly meta = computed(() => stripMeta(this.decision(), this.fallback(), this.cost()));
 
   /** Esc on the strip collapses the details when they are open and no popover is, and stops the event then; focus stays where it is. */
   protected collapse(event: Event): void {

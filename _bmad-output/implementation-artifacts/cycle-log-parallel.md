@@ -4581,3 +4581,36 @@
 2026-11-16T22:01:58Z	Epic 21	owner_decision	via=contest_planner control@c573a86d0=9/5_confidence-missing(model_behaviour) round3=CLEARED_TO_MERGE triage_confidence_fix=priority(report_text_first,A/B_N=5) round4+=#9404->unexpected-field
 2026-11-16T22:01:58Z	Run	ci_red	feature 854346fa1(27.1_merge) ci=43957453035: production=DW-306(ci-29) shards-5=guide_Q7_new_flake_DW-1452(ci-18) rerun_failed; 28.2_merge_held_until_green
 2026-11-16T22:29:27Z	Run	ci_green	feature 82d76911f ci+lane-a green (contains 854346fa1 code; DW-306/DW-1452 explained) via=contest_planner
+2026-11-16T22:29:29Z	Epic 28	merged	28.2 merge=1f8733c0e
+2026-11-16T22:40:04Z	Epic 21	ci_green_verified	DW-1421_r3 3e3627c5f runs=43928987062(att2;DW-306),43928987136 planner_control=cleared
+2026-11-16T22:40:04Z	Epic 21	merge_enqueued	DW-1421_r3 head=3e3627c5f (push after 1f8733c0e CI clean)
+2026-11-16T22:50:57Z	Epic 21	runner_reported	PART_READY DW-1421_r4 head=f70f5fa56 runs=43967104230,43967104199 (reply-unreadable,unexpected-field,CLOCKTIME) RULE_BREACH=lane_D_cancelled_started_self-hosted_runs(43965489398,43965489389) reported_to_planner; triage_confidence_report(no_default_retry->tellnow_fallback) relayed
+2026-11-16T22:51:13Z	Run	rule_breach	lane_D_2nd_DW-1335_breach: run 43919911468 cancelled ~18:53Z with shards-2 rerun live on ocutalon-ci-15; reported_to_planner
+2026-11-16T22:51:51Z	Epic 21	owner_decision	via=contest_planner DW-1335_hosts_clean round4=APPROVED triage_conf_L29_variant=APPROVED_for_A/B(branch_OCT-epic0-triage-conf,pin_test) A/B_rules=N5_alt,PASS=rule(i)+no_worse+missing<=half
+2026-11-16T23:08:52Z	Run	ci_red	feature 1f8733c0e(28.2_merge) ci=43970555894: shards-3=floor_P4_DW-349(ci-19,goto_interrupted) shards-5=heartbeat_HC8_new_DW-1457(ci-17) rerun_failed; round3_held
+2026-11-16T23:10:11Z	Epic 27	runner_reported	27.3 pushed=7d9df6092 checks_red=test-readme_guide(Slack_H2_not_linked) PUBLIC_TEXT=README_Slack_link catalog+21_listed viewer-link=DW-1284 relayed=contest_planner
+2026-11-16T23:10:25Z	Run	note	via=contest_planner runner-host_map(ci-b:3-8,ci-c:9-14,ci-d:15-20,ci-e:21-26,ci-f:27-32) ci-d_not_overcommitted; at~25_rows_if_ci-d>40%_drop_to_4 tally=.coordination/flake-tally-20261116.md
+2026-11-16T23:10:32Z	Epic 27	owner_decision	via=contest_planner 27.3:README_Slack_link=APPROVED catalog+21=confirmed viewer-link=DW-1284_same_as_Telegram(condition:viewer_Slack_turn=viewer_web_rights,pinned;else_blocker)
+2026-11-16T23:11:58Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_BLOCKER viewer_via_Slack_can_chat(SlackIn_no_role_check) fix_proposed=use-time_role_check(not_user_Ignored)+link-time_refusal+pins relayed=contest_planner
+2026-11-16T23:12:14Z	Epic 27	owner_decision	via=contest_planner 27.3_viewer_fix=APPROVED(+admin_pin,shared_predicate_with_Web/Api) DW-1284=Telegram+email_use-time_check_RAISED(after_triage_A/B,small_story)
+2026-11-16T23:20:41Z	Epic 27	runner_reported	PLANNER_REPORT 27.3_Task0_STOP(GetUserRecursedRoleSet_needs_%Admin_Secure:USE_in_hook) options=a_production_job_check(rec),b_role_copy,c_grant(not_rec) relayed=contest_planner
+2026-11-16T23:20:55Z	Epic 27	owner_decision	via=contest_planner 27.3_viewer_fix=option_a(Conversation_production_job_check,slack_only;c_refused_forever) pins+README_same_push
+2026-11-16T23:48:10Z	Run	ci_green	feature 1f8733c0e ci=43970555894 att2 green (DW-349 ci-9, DW-1457 ci-4 reruns)
+2026-11-16T23:48:13Z	Epic 21	merged	DW-1421_r3 merge=b2768afeb
+2026-11-16T23:48:22Z	Epic 21	ci_green_verified	DW-1421_r4 f70f5fa56 runs=43967104230,43967104199
+2026-11-16T23:48:22Z	Epic 21	merge_enqueued	DW-1421_r4 head=f70f5fa56 (push after b2768afeb CI clean)
+2026-11-17T00:30:20Z	Epic 0	note	via=contest_planner triage-conf_A/B_RUNNING(OLD_1f8733c0e,NEW_948e17b5b,10_runs) verdict_ETA_02:15-02:30Z triage-conf_held
+2026-11-17T00:37:05Z	Run	ci_red	REAL_REGRESSION feature b2768afeb(DW-1421_r3_merge) ci=43982398541 browser ci-25 demo-path 7_failed(chat_reply_Fallback_flag) interaction_r3_x_(27.1,24.3b,28.2) -> ALL_MERGES_HELD; diagnosis=a782ad9(DW-1421_runner); planner_asked(fix_forward_vs_revert)
+2026-11-17T00:37:35Z	Run	owner_decision	via=contest_planner b2768afeb_regression: fix_forward_until_01:45Z else git_revert_-m_1_b2768afeb; merges_held
+2026-11-17T00:37:54Z	Epic 21	note	DW-1421_r4 local merge aborted (held for the b2768afeb regression; re-merge after feature green)
+2026-11-17T00:40:45Z	Epic 0	runner_reported	PART_READY triage-conf 948e17b5b (A/B_running) flakes=DW-1458(ci-19),DW-415(ci-29); PLANNER_REPORT 0.38_DW-1284_gate(MayChat_shared,email_check_in_EmailIn,Slack.Ignored_reuse,pairing_not_user) relayed
+2026-11-17T00:41:09Z	Epic 0	owner_decision	via=contest_planner 0.38_gate=APPROVED(email_in_EmailIn,Channel.Refused_neutral_class,badCode_ok,mailbox_save_refusal_needs_text,Telegram_file_check_before_download)
+2026-11-17T00:42:00Z	Epic 0	owner_decision	via=contest_planner 0.38_item4_text=APPROVED(Option2+who_can_connect)
+2026-11-17T00:46:18Z	Epic 25	runner_reported	PART_READY 25.9 head=7a346a994 runs=43978832236(att2;DW-555_ci-18),43978832285 fresh_fwd=919s,rev=967s state=held(feature_regression) review=implement-stage_4-layer
+2026-11-17T00:46:49Z	Epic 25	owner_decision	via=contest_planner 25.9=ACCEPTED(implement_review) merges_after_feature_green_ahead_of_r4
+2026-11-17T00:46:49Z	Epic 0	dispatched	lane_A flake_burndown(browser-timing_family) branch=OCT-epic0-flakes_from_1f8733c0e conditions=cause_fixes,no_blanket_timeouts,10x_under_load,spec_gate_first
+2026-11-17T00:47:09Z	Run	note	b2768afeb_diagnosis: local demo-path at b2768afeb PASSED step3 (decision act/0.9, no fallback); code analysis finds no path; rerun of browser job 43982398541 started (ci-25 suspect)
+2026-11-17T00:47:53Z	Run	owner_decision	via=contest_planner b2768afeb_root=UTC_day_rollover(turn_error_00:00:06Z) NO_REVERT DW-1464=MED_product_bug_candidate->flake_burndown_lane
+2026-11-17T01:15:22Z	Run	ci_green	feature b2768afeb ci=43982398541 att2 green (browser ci-20; DW-1464 day-rollover) hold_lifted
+2026-11-17T01:15:22Z	Epic 25	ci_green_verified	25.9 7a346a994 runs=43978832236,43978832285
+2026-11-17T01:15:22Z	Epic 25	merge_enqueued	25.9 head=7a346a994

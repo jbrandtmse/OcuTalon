@@ -7,7 +7,8 @@
 ///     or the language name, never the custom text) and the three keys, and the entry's from is the form before the write;
 ///   - TestBadLanguage, TestBadCustom, TestCustomOnTheOnlineDemo, TestUnknownPreset: the refusals write and audit nothing;
 ///   - TestUnusedFields: a value that the preset does not use is neither validated nor stored;
-///   - TestNoSession, TestAuditFails, TestKeyWriteFails: no session, a failed audit entry and a failed key write change no key;
+///   - TestNoSession, TestAuditFails, TestKeyWriteFails: no session, a failed audit entry (the keys, written before it, are rolled back) and a
+///     failed key write (no audit write, and no entry in the real audit log, which a control save then shows is read) change no key;
 ///   - TestAppliesWithinSixtySeconds: Setting.Get reads the new value at once in the writing process and after the cache window in another;
 ///   - TestPersonaRead: the persona read, with defaults, saved values, a pending setting request and the online-demo flag;
 ///   - TestProposeRaises (Story 40.6): ProposePersona raises one setting request with the DryRun of old and new objects and sends one
@@ -218,37 +219,55 @@ Method TestNoSession()
 	Do $$$AssertEquals(..Audits(), 0, "and nothing is audited")
 }
 
-/// When the audit entry can't be written, no key is written, the answer is not_audited with the generic text, and an error is logged.
+/// When the audit entry can't be written, the keys written before it are rolled back to what storage held, the answer is not_audited with
+/// the generic text, and an error is logged.
 Method TestAuditFails()
 {
 	Do ..Reset()
 	Set session = ..Session("auditfail")
+	Set none = ..Session("auditnone")
+	Set result = ..Send("SetPersona", "web_user", session, "pirate", "", "")
+	Do $$$AssertEquals(result.Outcome, "saved", "a persona is saved first")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "error"
 	Set logged = ..Logged("The Settings audit entry could not be written", 2)
-	Set result = ..Send("SetPersona", "web_user", session, "pirate", "", "")
+	Set result = ..Send("SetPersona", "web_user", session, "language", "Spanish", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "Ok 0, not_audited")
 	Do $$$AssertEquals(result.Message, "Couldn't save. Nothing was changed.", "with the generic text")
-	Do $$$AssertEquals(..KeyCount(session), 0, "no key is written")
-	Do $$$AssertEquals(..Logged("The Settings audit entry could not be written", 2), logged + 1, "and one error is logged")
+	Do $$$AssertEquals(..Keys(session), "pirate||", "the keys are as they were, read from storage")
+	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
+	Set result = ..Send("SetPersona", "web_user", none, "pirate", "", "")
+	Do $$$AssertEquals(result.Outcome, "not_audited", "a session with no keys: not_audited")
+	Do $$$AssertEquals(..KeyCount(none), 0, "and no key exists")
+	Do $$$AssertEquals(..Logged("The Settings audit entry could not be written", 2), logged + 2, "and one error is logged for each")
 }
 
 /// When the write of the second key fails the transaction is rolled back: the answer is failed with the generic text, an error is
-/// logged, and the keys hold the values from before.
+/// logged, the keys hold the values from before, no audit write is attempted, and the real audit log has no entry for the session (a control
+/// save with the same session writes one, so the query does find an entry when there is one).
 Method TestKeyWriteFails()
 {
 	Do ..Reset()
 	Set session = ..Session("keyfail")
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Set result = ..Send("SetPersona", "web_user", session, "pirate", "", "")
 	Do $$$AssertEquals(result.Outcome, "saved", "a persona is saved first")
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "second"
-	Kill ^OcuTalonTest("SettingsOpsProbe", "applies")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "applies"), ^||OcuTalonSettingsOpsProbe
 	Set logged = ..Logged("zz apply failed", 2)
+	Hang 0.02
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set result = ..Send("SetPersona", "web_user", session, "language", "Spanish", "")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "Ok 0, failed")
 	Do $$$AssertEquals(result.Message, "Couldn't save. Nothing was changed.", "with the generic text")
 	Do $$$AssertEquals(..Keys(session), "pirate||", "the first key was rolled back: the keys are as they were")
 	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 	Do $$$AssertEquals(..Logged("zz apply failed", 2), logged + 1, "and one error is logged")
+	Do $$$AssertEquals(+$Get(^||OcuTalonSettingsOpsProbe("n", "audit")), 0, "no audit write was attempted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 0, "and the real audit log has no entry for the session")
+	Kill ^OcuTalonTest("SettingsOpsProbe", "answer", "apply")
+	Set result = ..Send("SetPersona", "web_user", session, "language", "Spanish", "")
+	Do $$$AssertEquals(result.Outcome, "saved", "the control save is saved")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 1, "and the same query finds its one entry")
 }
 
 /// The saved value applies within 60 seconds: CACHESECONDS is 60, the writing process reads the new value at once, and a cache entry
@@ -488,12 +507,22 @@ Method TestOutcomeWriteFails()
 	Do ..Reset()
 	Set ref = ..Request(session, "approved", old, new)
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "second"
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
 	Kill ^OcuTalonTest("SettingsOpsProbe", "applies")
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Do ..Outcome(ref, "approved")
 	Do $$$AssertEquals(..KeyCount(session), 0, "a failed key write is rolled back: no key exists")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", session).%Size(), 0, "and the real audit log has no entry for the session")
 	Do $$$AssertEquals($TLevel, 0, "and no transaction is left open")
 	Do $$$AssertEquals(..State(ref), "failed", "the request is failed")
 	Do $$$AssertEquals(..Notices(), ..AnsweredNotice("approved", session, ref), "only the answered notice is sent")
+	// A control approval of another session, with the same real audit behind the seam, does write its one entry.
+	Do ..Reset()
+	Set control = ..Session("nowritecontrol")
+	Set ref = ..Request(control, "approved", old, new)
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "audit") = "record"
+	Do ..Outcome(ref, "approved")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(since, "OcuTalon", "Settings", "Settings", control).%Size(), 1, "a control approval writes one real entry, so the query does find an entry when there is one")
 	// A write that throws closes the request failed too: it is not left executing.
 	Do ..Reset()
 	Set ref = ..Request(session, "approved", old, new)
