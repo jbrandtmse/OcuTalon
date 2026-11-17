@@ -8,6 +8,9 @@
 ///     and the same pair again is done with the existing Ref and audited as a link;
 ///   - TestLinkReasons: a malformed member (bad_member), a user with no session (user_unknown), no noted workspace (no_workspace), a member linked to another user (member_taken) and a user
 ///     with another member (user_taken) are refused with their reason and field, with no audit entry and no new row;
+///   - TestLinkRefusesUsersWhoMayNotChat, TestListOffersOnlyUsersWhoMayChat (Contest Planner ruling (a)): a user with a session who may not chat by web chat's rule (a viewer, a user with OcuTalonAdmin and neither chat role,
+///     a viewer who is also an admin, an account that does not exist) is refused user_unknown with no audit entry and no row, an admin who also holds OcuTalonUser is linked, and the
+///     users that the list offers are only those who may chat, read from their live roles;
 ///   - TestFailedAfterAudit: a link that loses its member or its user to another link after its audit entry is refused with the reason, writes the reversing entry (from the user to
 ///     "") and makes no row of its own;
 ///   - TestLinkGuards: an admin session with no row (no_session) and a handoff that is gone, not JSON or not {user, member} (failed) change nothing and write no audit entry;
@@ -51,6 +54,11 @@ Property Refs As %String(MAXLEN = "");
 
 Property Admin As %String;
 
+/// The IRIS accounts that the test made for its fixture sessions, comma-separated, and the roles that this run made.
+Property Users As %String(MAXLEN = "");
+
+Property MadeRoles As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..HadWorkspace = ($Data(^OcuTalonP.SlackW) > 0)
@@ -59,6 +67,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..HadToken = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("SLACK_BOT_TOKEN")
 	Set ..SavedSecret = $SYSTEM.Util.GetEnviron("SLACK_SIGNING_SECRET")
 	Set ..SavedToken = $SYSTEM.Util.GetEnviron("SLACK_BOT_TOKEN")
+	Set ..MadeRoles = ##class(OcuTalon.Test.Install.RolesAssign).EnsureRoles("OcuTalonUser,OcuTalonAdmin,OcuTalonViewer")
 	Quit $$$OK
 }
 
@@ -72,7 +81,8 @@ Method OnBeforeOneTest() As %Status
 	Set ^OcuTalonP.SlackW = ..#TEAM
 	Do ..DropLinks()
 	Set ..Refs = ""
-	Set ..Admin = ..Session("zzslkadmin")
+	Set ..Users = ""
+	Set ..Admin = ..Session("zzslkadmin", "OcuTalonAdmin")
 	Quit $$$OK
 }
 
@@ -83,11 +93,16 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..DropLinks()
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
+	For i = 1:1:$Length(..Users, ",") {
+		If $Piece(..Users, ",", i) '= "" Do ##class(OcuTalon.Test.Core.ConversationNotUser).DropUser($Piece(..Users, ",", i))
+	}
+	Set ..Users = ""
 	Quit $$$OK
 }
 
 Method OnAfterAllTests() As %Status
 {
+	If ..MadeRoles '= "" Do ##class(OcuTalon.Test.Install.RolesAssign).DropRoles(..MadeRoles)
 	If ..HadWorkspace {
 		Set ^OcuTalonP.SlackW = ..SavedWorkspace
 	} Else {
@@ -206,6 +221,45 @@ Method TestLinkReasons()
 	Do $$$AssertEquals(..RowCount(), 1, "nor made a row")
 	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).SessionFor(..#TEAM, ..#MEMBER), one, "and the first link is as it was")
 	Do $$$AssertEquals(two '= "", 1, "the second session exists")
+}
+
+Method TestLinkRefusesUsersWhoMayNotChat()
+{
+	Do ..Session("zzslkviewer", "OcuTalonViewer")
+	Set adminonly = ..Session("zzslkadminonly", "OcuTalonAdmin")
+	Set adminviewer = ..Session("zzslkadminviewer", "OcuTalonAdmin,OcuTalonViewer")
+	Set nobody = ##class(OcuTalon.Test.Data.Fixture).Session("zzslknoaccount")
+	Set ..Refs = ..Refs_","_nobody
+	Do ..AssertRefused(..Link("zzslkviewer", ..#MEMBER), "user_unknown", "user", "a viewer-only user")
+	Do ..AssertRefused(..Link("zzslkadminonly", ..#MEMBER), "user_unknown", "user", "a user with OcuTalonAdmin and neither chat role, as web chat refuses that user")
+	Do ..AssertRefused(..Link("zzslkadminviewer", ..#MEMBER), "user_unknown", "user", "a viewer who also holds OcuTalonAdmin")
+	Do ..AssertRefused(..Link("zzslknoaccount", ..#MEMBER), "user_unknown", "user", "a session whose IRIS user has no account (its roles cannot be read)")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("SettingsOpsProbe", "calls")), 0, "no refusal wrote an audit entry")
+	Do $$$AssertEquals(..RowCount(), 0, "and none made a row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).Workspace(), ..#TEAM, "the workspace is untouched")
+	Do ..Session("zzslkadminuser", "OcuTalonAdmin,OcuTalonUser")
+	Set result = ..Link("zzslkadminuser", ..#MEMBER)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "an admin who also holds OcuTalonUser is linked")
+}
+
+Method TestListOffersOnlyUsersWhoMayChat()
+{
+	Do ..Session("zzslkviewer", "OcuTalonViewer")
+	Do ..Session("zzslkadminonly", "OcuTalonAdmin")
+	Do ..Session(..#USERONE, "OcuTalonUser")
+	Do ..Session("zzslkadminuser", "OcuTalonAdmin,OcuTalonUser")
+	Set body = ..ListBody()
+	Set users = ""
+	Set iterator = body.users.%GetIterator()
+	While iterator.%GetNext(, .name) { Set users = users_","_name }
+	Do $$$AssertTrue((users [ (","_..#USERONE)) && (users [ ",zzslkadminuser"), "the users offered include the user and the admin who holds the user role")
+	Do $$$AssertTrue((users '[ ",zzslkviewer") && (users '[ ",zzslkadminonly"), "and neither the viewer-only user nor the admin-only user")
+	Do ##class(OcuTalon.Test.Install.RolesAssign).RemoveRole(..#USERONE, "OcuTalonUser")
+	Set body = ..ListBody()
+	Set users = ""
+	Set iterator = body.users.%GetIterator()
+	While iterator.%GetNext(, .name) { Set users = users_","_name }
+	Do $$$AssertTrue(users '[ (","_..#USERONE), "a user whose user role was removed is offered no more")
 }
 
 Method TestFailedAfterAudit()
@@ -407,12 +461,23 @@ Method TestWebAdminOnly()
 }
 
 /// --- helpers ---
-/// A fixture session of the IRIS user; its Ref. The Refs are kept for the cleanup.
-Method Session(user As %String) As %String [ Private ]
+/// A fixture session of the IRIS user, who has a real account holding the roles (a comma list, the user role by default) unless the test made it already; its Ref. The Refs and the
+/// accounts are kept for the cleanup.
+Method Session(user As %String, roles As %String = "OcuTalonUser") As %String [ Private ]
 {
+	If '..Account(user) {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Install.RolesAssign).CreateUser(user, roles), "the account "_user_" is made with "_roles)
+		Set ..Users = ..Users_$Select(..Users = "": "", 1: ",")_user
+	}
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(user)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// 1 when the test has made the account already.
+Method Account(user As %String) As %Boolean [ Private ]
+{
+	Quit (","_..Users_",") [ (","_user_",")
 }
 
 /// A handoff of {user, member}; its uri.

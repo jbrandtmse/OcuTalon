@@ -26,6 +26,11 @@
 #      the link's entry);
 #   6. (Story 27.3) the README admin DELETEs the link (200, the row gone, one more Settings entry, from the user to nothing, with no id in either entry), and a further signed direct message from the
 #      member is Ignored (unlinked), makes no Turn and leaves the open approval request pending.
+#   7. (Contest Planner ruling (a)) the use-time role check, in the production job (Core.Conversation, channel slack only): fixture IRIS accounts that hold OcuTalonUser are linked through the real route and
+#      get a Turn each; a viewer-only account, an admin-only account and an account with OcuTalonAdmin and no chat role are refused at link time (400 user_unknown, no audit entry) and are not in the list's
+#      users; an admin who also holds OcuTalonUser keeps getting turns; an account that is cut down after it was linked (to the viewer role alone, to OcuTalonAdmin alone, to no role) gets no Turn from its next
+#      direct message, no Decide request, no Notify (no reply is sent), no Delivery row and exactly one content-free Ignored with the reason not_user for each, and no marker of a refused message is in the event
+#      log, the live events, the audit log or the container's logs.
 # The project is unique and publishes its web port on 127.0.0.1 only (OCUTALON_TEST_WEB_PORT or the first free of 52800 to 52819). An EXIT trap removes the project with its volume
 # and images. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), node and curl.
@@ -418,6 +423,150 @@ expect_post "phase 6: a signed direct message from the member after the unlink" 
 if wait_until 90 ignored_are "$((before + 1))"; then pass "phase 6: it is Ignored (one more Ignored header), as an unlinked member's"; else fail "phase 6: $(($(ignored_headers) - before)) new Ignored header(s), wanted 1"; fi
 sleep 5
 if [ "$(turns)" = 2 ]; then pass "phase 6: and it makes no new Turn (still 2)"; else fail "phase 6: $(turns) Turn(s) after the unlink, wanted 2"; fi
+
+# --- 7 (Contest Planner ruling (a)): the use-time role check in the production job ---
+
+# fixture_account <name> <roles>: an IRIS account holding the roles, with a random password that is never printed.
+fixture_account() {
+  local out
+  out=$(live_fixture_user "$1" "Zq9-$(openssl rand -hex 10)" "$2" "slack role fixture")
+  if [ "$out" = "CHK|fixture-user|1" ]; then pass "phase 7: the fixture account $1 is made with ${2:-no role}"; else fail "phase 7: the fixture account $1 was not made ('$out')"; fi
+}
+
+# set_roles <name> <roles>: the account's roles are replaced (an empty list removes every role).
+set_roles() {
+  local out
+  out=$(scalar %SYS roles "Set p(\"Roles\")=\"$2\" Set sc=##class(Security.Users).Modify(\"$1\",.p) Write !,\"CHK|roles|\",\$SYSTEM.Status.IsOK(sc)")
+  if [ "$out" = 1 ]; then pass "phase 7: the roles of $1 are now ${2:-none}"; else fail "phase 7: the roles of $1 were not changed ('$out')"; fi
+}
+
+# session_of <name>: the Ref of the account's one durable session (made when it has none).
+session_of() { scalar OCUTALON s "Write !,\"CHK|s|\",##class(OcuTalon.Data.Session).ForUser(\"$1\").Ref"; }
+
+turns_of() {
+  scalar OCUTALON t "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ?\",\"$1\") Do rs.%Next() Write !,\"CHK|t|\",+rs.%GetData(1)"
+}
+turns_of_are() { [ "$(turns_of "$1")" = "$2" ]; }
+
+# idle: no Turn is queued or running, so that the sends counted next are the ones of the message under test.
+idle() { [ "$(scalar OCUTALON q 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE State IN (?, ?)","queued","running") Do rs.%Next() Write !,"CHK|q|",+rs.%GetData(1)')" = 0 ]; }
+
+not_user_count() { scalar OCUTALON n 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Channel_Slack.Ignored WHERE Reason = ?","not_user") Do rs.%Next() Write !,"CHK|n|",+rs.%GetData(1)'; }
+not_user_are() { [ "$(not_user_count)" = "$1" ]; }
+
+# sends_to_model_and_notify: the headers whose target is Decide or Notify, and the Delivery rows, as one number each.
+sends() {
+  scalar OCUTALON x 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE TargetConfigName IN (?, ?)","Decide","Notify") Do rs.%Next() Set a=+rs.%GetData(1) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Delivery") Do rs.%Next() Write !,"CHK|x|",a,"/",+rs.%GetData(1)'
+}
+
+# settled: the sends counted by sends() did not change over three seconds, so that the replies of the turns before are all counted.
+settled() { local a b; a=$(sends); sleep 3; b=$(sends); [ "$a" = "$b" ]; }
+
+# link_member <user> <member>: the README admin links the member to the user through the real route; the status is printed.
+link_member() {
+  printf '{"user":"%s","member":"%s"}' "$1" "$2" > "$tmp/link7.json"
+  api_send POST settings/channels/slack "$tmp/link7.json"
+}
+
+# dm <label> <event id> <member> <text>: a signed direct message from the member.
+dm() {
+  mkevent "$tmp/dm7.json" "$2" "$TEAM" "$3" "$4"
+  expect_post "phase 7: $1" 200 "$tmp/dm7.json"
+}
+
+REFUSEDTEXT=zzslackrefused
+live_fixture_role OcuTalonViewer > /dev/null
+fixture_account zzslkau "OcuTalonAdmin,OcuTalonUser"
+fixture_account zzslkvl "OcuTalonUser"
+fixture_account zzslkrm "OcuTalonUser"
+fixture_account zzslkao "OcuTalonUser"
+fixture_account zzslkviewer "OcuTalonViewer"
+fixture_account zzslkadminonly "OcuTalonAdmin"
+fixture_account zzslkadminviewer "OcuTalonAdmin,OcuTalonViewer"
+sess_au=$(session_of zzslkau)
+sess_vl=$(session_of zzslkvl)
+sess_rm=$(session_of zzslkrm)
+sess_ao=$(session_of zzslkao)
+for name in zzslkviewer zzslkadminonly zzslkadminviewer; do session_of "$name" > /dev/null; done
+
+# Link time: a viewer, an admin who holds neither chat role and a viewer who is an admin are refused with settings.slackUnknownUser (reason user_unknown), and the list offers only users who may chat.
+audit_mark7=$(scalar OCUTALON mark 'Write !,"CHK|mark|",##class(OcuTalon.Test.Bridge.AuditLog).Now()')
+for name in zzslkviewer zzslkadminonly zzslkadminviewer; do
+  code=$(link_member "$name" U0FIXTURE7)
+  if [ "$code" = 400 ] && grep -q '"reason":"user_unknown"' "$tmp/api.body"; then pass "phase 7: linking $name (who may not chat) is refused as user_unknown"; else fail "phase 7: linking $name answered '$code'"; fi
+done
+code=$(api_send GET settings/channels/slack)
+if [ "$code" = 200 ] && grep -q '"zzslkau"' "$tmp/api.body" && grep -q '"zzslkvl"' "$tmp/api.body" && ! grep -q -e '"zzslkviewer"' -e '"zzslkadminonly"' -e '"zzslkadminviewer"' "$tmp/api.body"; then
+  pass "phase 7: the list offers the users who may chat and none of the three who may not"
+else
+  fail "phase 7: the list '$code' does not offer exactly the users who may chat"
+fi
+check_session "phase 7: the three refusals wrote no audit entry and made no link row" OCUTALON \
+  "CHK|entries|0
+CHK|rows|0" \
+  "Set e=##class(OcuTalon.Test.Bridge.AuditLog).Wait(\"$audit_mark7\",\"OcuTalon\",\"Settings\",\"\",\"slackLink.\",\"\",0,3)" \
+  'Write !,"CHK|entries|",e.%Size()' \
+  'Set n=0,id="" For { Set id=$Order(^OcuTalonP.SlackLinkD(id)) Quit:id=""  Set n=n+1 } Write !,"CHK|rows|",n' \
+  'Halt'
+
+# Qualifying users are linked and get a Turn each (pin 4: an admin who also holds OcuTalonUser; the read of their roles ran in the production job).
+member_au=U0FIXTURE4; member_vl=U0FIXTURE5; member_rm=U0FIXTURE6; member_ao=U0FIXTURE8
+for pair in "zzslkau:$member_au" "zzslkvl:$member_vl" "zzslkrm:$member_rm" "zzslkao:$member_ao"; do
+  code=$(link_member "${pair%%:*}" "${pair#*:}")
+  if [ "$code" = 200 ]; then pass "phase 7: ${pair%%:*} is linked"; else fail "phase 7: linking ${pair%%:*} answered '$code'"; fi
+done
+n=0
+for pair in "$sess_au:$member_au" "$sess_vl:$member_vl" "$sess_rm:$member_rm" "$sess_ao:$member_ao"; do
+  n=$((n + 1))
+  dm "a linked user's direct message (before any change of roles)" "Ev0ROLE$n" "${pair#*:}" "$LINKEDTEXT role $n"
+  if wait_until 90 turns_of_are "${pair%%:*}" 1; then pass "phase 7: it makes one Turn (the roles were read in the production job and allow it)"; else fail "phase 7: $(turns_of "${pair%%:*}") Turn(s), wanted 1"; fi
+done
+
+# Use time: the accounts are cut down after they were linked, and each next message is refused.
+if ! wait_until 120 idle; then fail "phase 7: the turns did not settle within 120 s"; fi
+if ! wait_until 60 settled; then fail "phase 7: the sends of the earlier turns did not settle within 60 s"; fi
+set_roles zzslkvl "OcuTalonViewer"
+set_roles zzslkao "OcuTalonAdmin"
+set_roles zzslkrm ""
+n=0
+refused=0
+for pair in "$sess_vl:$member_vl:viewer role alone" "$sess_ao:$member_ao:OcuTalonAdmin alone" "$sess_rm:$member_rm:no role"; do
+  n=$((n + 1))
+  rest=${pair#*:}
+  before_sends=$(sends)
+  refused=$((refused + 1))
+  dm "a linked user cut down to the ${pair##*:} (pins 1, 3 and 5)" "Ev0CUT$n" "${rest%%:*}" "$REFUSEDTEXT $n"
+  if wait_until 90 not_user_are "$refused"; then pass "phase 7: it leaves one Ignored with the reason not_user"; else fail "phase 7: $(not_user_count) not_user record(s), wanted $refused"; fi
+  sleep 4
+  if [ "$(not_user_count)" = "$refused" ]; then pass "phase 7: and no second record"; else fail "phase 7: $(not_user_count) not_user record(s) after the wait, wanted $refused"; fi
+  if turns_of_are "${pair%%:*}" 1; then pass "phase 7: it makes no Turn (the session still has its one)"; else fail "phase 7: $(turns_of "${pair%%:*}") Turn(s), wanted 1"; fi
+  if [ "$(sends)" = "$before_sends" ]; then pass "phase 7: nothing goes to Decide (no model call, no tool call) or Notify (no reply is sent), and no Delivery row is written"; else fail "phase 7: the sends to Decide and Notify and the Delivery rows changed ($before_sends, now $(sends))"; fi
+done
+check_session "phase 7: each not_user record has the fixed kind and no event id, and no Turn row exists for the refused messages" OCUTALON \
+  "CHK|route|3
+CHK|fixed|3
+CHK|marker|0" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE MessageBodyClassName = ? AND SourceConfigName = ? AND TargetConfigName = ?","OcuTalon.Channel.Slack.Ignored","Conversation","Intake") Do rs.%Next() Write !,"CHK|route|",rs.%GetData(1)' \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Channel_Slack.Ignored WHERE Reason = ? AND Kind = ? AND (EventId IS NULL OR EventId = ?)","not_user","message.im","") Do rs.%Next() Write !,"CHK|fixed|",rs.%GetData(1)' \
+  "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE Text [ ?\",\"$REFUSEDTEXT\") Do rs.%Next() Write !,\"CHK|marker|\",rs.%GetData(1)" \
+  'Halt'
+dm "an admin who also holds OcuTalonUser, once more" Ev0ROLEAU2 "$member_au" "$LINKEDTEXT role au again"
+if wait_until 90 turns_of_are "$sess_au" 2; then pass "phase 7 (pin 4): an admin who also holds OcuTalonUser still gets turns"; else fail "phase 7: $(turns_of "$sess_au") Turn(s) for the admin who holds OcuTalonUser, wanted 2"; fi
+zero7="\"$REFUSEDTEXT\",\"zzslk\",\"0FIXTURE\""
+check_session "phase 7: no event-log row or live event holds the text of a refused message, a fixture account's name or a fixture id" OCUTALON \
+  "CHK|log|0
+CHK|live|0" \
+  "Set bad=0 For v=$zero7 { Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM Ens_Util.Log WHERE Text [ ?\",v) Do rs.%Next() Set bad=bad+rs.%GetData(1) } Write !,\"CHK|log|\",bad" \
+  "Set bad=0 For v=$zero7 { Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Payload [ ?\",v) Do rs.%Next() Set bad=bad+rs.%GetData(1) } Write !,\"CHK|live|\",bad" \
+  'Halt'
+for pair in "the text of a refused message:$REFUSEDTEXT" "a fixture member id:0FIXTURE"; do
+  n=$(log_hits "${pair#*:}")
+  if [ "$n" = 0 ]; then pass "phase 7: no line of the container's output, messages.log or the after-start log holds ${pair%%:*}"; else fail "phase 7: $n line(s) of the container's logs hold ${pair%%:*}"; fi
+done
+check_session "phase 7: no audit entry holds the text of a refused message or a fixture member id (the entries of the links name the users, which Settings audit entries may)" %SYS \
+  "CHK|audit|0" \
+  "Set bad=0 For v=\"$REFUSEDTEXT\",\"0FIXTURE\" { Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ? OR Description [ ?\",v,v) Do rs.%Next() Set bad=bad+rs.%GetData(1) } Write !,\"CHK|audit|\",bad" \
+  'Halt'
 
 if [ "$fails" -ne 0 ]; then
   echo "test-slack-hook: $fails check(s) failed (project $P)"

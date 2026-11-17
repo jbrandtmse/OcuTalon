@@ -156,6 +156,15 @@ ClassMethod ViewerOnly(roles As %String = {$Roles}) As %Boolean
 	Quit ((","_roles_",") [ (","_..#VIEWERROLE_",")) && '((","_roles_",") [ (","_..#ROLE_","))
 }
 
+/// 1 when the roles (the signed-in user's by default, a comma list) let the user chat, by web chat's own rule: they hold a role that opens the application (HasRole) and are not
+/// a viewer (ViewerOnly), so they hold the OcuTalon user role. A user with neither role is signed out at the page (norole) and refused by the API (403 no_role, 401 signed_out), a
+/// viewer's every message is 403 read_only, and OcuTalonAdmin adds nothing, so an admin with neither role cannot chat. Core.Conversation MayChat applies it to a user's recursed role
+/// set for a channel that has no web session (Slack now; Telegram and email later) and Core.SettingsOps applies the same call when a Slack member is linked.
+ClassMethod MayChat(roles As %String = {$Roles}) As %Boolean
+{
+	Quit ..HasRole(roles) && '..ViewerOnly(roles)
+}
+
 /// The path of the request below the application, "" for the application itself.
 ClassMethod RelativePath() As %String [ Private ]
 {

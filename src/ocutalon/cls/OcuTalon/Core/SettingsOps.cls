@@ -3083,7 +3083,7 @@ Parameter SLACKPATH = "/ocutalon/hook/slack/events";
 /// Carries out a ListSlackLinks (Story 27.3; origin web_admin, a read) in the production job: not_allowed for another origin, not_available (the text settings.slackOffOnDemo)
 /// on the online demo, otherwise the body {state, path, links, users} is offered to SecretHandoff and the answer is Ok 1, Outcome listed and Data {"handoff": uri}. state is
 /// "on" or "off" as Channel.Slack.In On answers it, never derived here; links is [{ref, user, member}] with the IRIS user of each link's session; users are the names that
-/// OnCallUsers gives, once each, in the order of their upper-cased names. No user name or member id is in the command, the result, a log line or a message of the trace.
+/// OnCallUsers gives, once each, in the order of their upper-cased names, and only those who may chat by web chat's rule (Core.Conversation MayChat). No user name or member id is in the command, the result, a log line or a message of the trace.
 Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	If command.Origin '= "web_admin" Quit ..Result(0, "not_allowed", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
@@ -3102,7 +3102,7 @@ Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg
 	For {
 		Set key = $Order(names(key), 1, name)
 		Quit:key=""
-		Do users.%Push(name)
+		If ##class(OcuTalon.Core.Conversation).MayChat(name) Do users.%Push(name)
 	}
 	Set body = {"state": ($Select(##class(OcuTalon.Channel.Slack.In).On(): "on", 1: "off")), "path": (..#SLACKPATH), "links": (links), "users": (users)}
 	Set sc = ##class(OcuTalon.Core.SecretHandoff).Put(body.%ToJSON(), .uri)
@@ -3115,11 +3115,11 @@ Method ListSlack(command As OcuTalon.Msg.Command.ListSlackLinks) As OcuTalon.Msg
 
 /// Carries out a LinkSlackMember (Story 27.3; origin web_admin): the handoff is taken first, on every path, and holds {user, member}. In order: another origin is not_allowed;
 /// the online demo is not_available (the text settings.slackOffOnDemo); a handoff that cannot be taken or read is failed; an admin session without a row is no_session; the member (trimmed
-/// and upper-cased) that is not U or W and 2 to 31 letters or digits is refused with Data {"reason": "bad_member", "field": "member"}; a user who has no session row (OnCallUsers) is
-/// refused user_unknown (field user); no noted workspace (Data.SlackLink Workspace) is refused no_workspace (no field); a member linked to another user is refused member_taken (field
+/// and upper-cased) that is not U or W and 2 to 31 letters or digits is refused with Data {"reason": "bad_member", "field": "member"}; a user who has no session row (OnCallUsers) or may not chat by web chat's rule (Core.Conversation MayChat, read in this job)
+/// is refused user_unknown (field user); no noted workspace (Data.SlackLink Workspace) is refused no_workspace (no field); a member linked to another user is refused member_taken (field
 /// member) and a user whose session has another member user_taken (field user). The link goes to Data.Session ForUser, the user's oldest session row. The Settings audit entry
 /// (setting slackLink.<Ref>, from empty, to the user's name, never an id) is written before the row, and a failed write is not_audited and changes nothing; a link that then fails
-/// writes the reversing entry. The same pair again answers done with the existing link's Ref and is audited as a link. Done is Ok 1 with Data {"ref": ref}; the Message of every
+/// writes the reversing entry. The same pair again answers done with the existing link's Ref and is audited as a link, unless the user may no longer chat (refused user_unknown first). Done is Ok 1 with Data {"ref": ref}; the Message of every
 /// answer holds no name and no id.
 Method LinkSlack(command As OcuTalon.Msg.Command.LinkSlackMember) As OcuTalon.Msg.CommandResult [ Private ]
 {
@@ -3142,7 +3142,7 @@ Method LinkSlack(command As OcuTalon.Msg.Command.LinkSlackMember) As OcuTalon.Ms
 	If '$Match(member, "^[UW][A-Z0-9]{2,31}\z") Quit ..SlackRefusal("bad_member", "member")
 	Do ..OnCallUsers(.names)
 	Set key = $ZConvert($ZStrip(user, "<>W"), "U")
-	If (key = "") || '$Data(names(key), name) Quit ..SlackRefusal("user_unknown", "user")
+	If (key = "") || '$Data(names(key), name) || '##class(OcuTalon.Core.Conversation).MayChat(name) Quit ..SlackRefusal("user_unknown", "user")
 	Set team = ##class(OcuTalon.Data.SlackLink).Workspace()
 	If team = "" Quit ..SlackRefusal("no_workspace", "")
 	Set session = ##class(OcuTalon.Data.Session).ForUser(name, .sc)
