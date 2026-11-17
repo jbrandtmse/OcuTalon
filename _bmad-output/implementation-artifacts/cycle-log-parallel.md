@@ -4673,3 +4673,4 @@
 2026-11-17T07:35:20Z	Run	ci_green	feature 886f05ed3 (0.40 merge) ci+lane-a green
 2026-11-17T07:35:20Z	Epic 0	ci_green_verified	triage-accept 9be936fe0 runs=44030657829,44030657653 planner_re-verify=PASS
 2026-11-17T07:35:20Z	Epic 0	merge_enqueued	triage-accept head=9be936fe0
+2026-11-17T07:35:22Z	Epic 0	merged	triage-accept merge=dba56cf55
