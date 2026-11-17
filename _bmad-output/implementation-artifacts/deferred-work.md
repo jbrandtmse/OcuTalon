@@ -9100,3 +9100,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-38b-dw-1482 (code-review) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: relies on the production job privilege that 0.38's MayChat already uses and pins live (slack-hook phase 7)
 - 2026-11-17T16:59:13Z status=open owner=burndown by=lead note=deferred at 1.0.13 wrap-up
+### DW-1484: flake: frame.spec.ts:455 'a failed snapshot' main.main not found within 10 s after signInReadme (feature cbdf9217b, shards-10 live:sign-in, ci-29/ci-e)
+- source: orchestrator CI classification feature cbdf9217b run 44072151150 job 134000786400 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 27.2 changed no web e2e/app code (only web/scripts/slack-setup-steps.test.mjs); same test green on 588ba262d and on 0.38 head 041ccf71a (contains cbdf9217b) shards-10 ci-32; signInReadme waits only for title+load, not the shell
+- 2026-11-17T16:15:28Z status=open owner=burndown by=orchestrator note=deferred_owner_wrap-up_2026-11-17;classified_flake_not_a_merge_blocker

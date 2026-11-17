@@ -4689,3 +4689,9 @@
 2026-11-17T11:07:15Z	Epic 27	ci_green_verified	27.2 9c0122462 runs=44060568380(att2;DW-1119_ci-5,DW-1481_ci-14),44060568242 DW-1476_line_pinned
 2026-11-17T11:07:15Z	Epic 27	merge_enqueued	27.2 head=9c0122462 (push after 588ba262d clean)
 2026-11-17T11:13:58Z	Run	ci_green	feature 588ba262d (0.39 merge) ci+lane-a green
+2026-11-17T11:14:01Z	Epic 27	merged	27.2 merge=cbdf9217b (Epic 27 complete)
+2026-11-17T11:14:31Z	Run	note	via=contest_planner REQUIRED_GREEN_names_the_CI-green_sha(+records_sha_on_top_if_any)
+2026-11-17T16:15:35Z	Epic 27	ci_red_classified	feature cbdf9217b ci=44072151150 shards-10(ci-29,ci-e) frame.spec.ts:455 flake DW-1484 (27.2 no web change; green on 0.38 head 041ccf71a ci-32); lane-a 44072151029 green
+2026-11-17T16:15:35Z	Epic 0	part_ready	0.38 041ccf71a OCT-epic0-dw1284 lane-a=44113263369 green; ci=44113263311 18/18 self-hosted green, install-macos (GitHub macos-15) queue-cancelled 15:35Z, rerun queued 16:00Z
+2026-11-17T16:16:19Z	Epic 0	ci_red_classified	0.38 041ccf71a ci=44113263311 install-macos not acquired by hosted runner (GitHub annotation: macOS arm64 capacity constraints) att1+att2; self-hosted 18/18 green; rerun att3 started
+2026-11-17T16:16:57Z	Epic 0	owner_decision	via=contest_planner DW-1482 fix in 1.0.13 before 0.38 merge (account state on Telegram approval answers); DW-1484 accepted flake no rerun; install-macos waiver at ~17:00Z only with DW-1482 in, all self-hosted+lane-a green, macOS green on feature merge run before REQUIRED GREEN; DW-1483 deferred LOW. prompts/story-038-dw1482-rulings-20261117.md
