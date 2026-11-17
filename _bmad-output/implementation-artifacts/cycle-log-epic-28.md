@@ -98,3 +98,6 @@
 2026-11-17T04:26:35Z	Epic 28	hold_ordered	reason=QUOTA_HOLD_NOW(orchestrator,~04:16Z) note=implement_stage_in_flight_was_allowed_to_finish(a_hold_never_interrupts_a_stage);no_new_stage_started
 2026-11-17T04:26:35Z	Story 28.3	hold_saved	story=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients stage=implement(rework_3_done;scoped_code-review_of_37ac53505..HEAD_NOT_started) patch=none tree=clean note=all_work_committed;resume:_scoped_CR_then_fresh_check,push,CI
 2026-11-17T04:26:35Z	Epic 28	hold_complete	shas=88b11e645(code),WIP_record_commit_follows note=96cc877a6_CI_complete(ci_failure:Digest.Store+CodeRules,both_fixed_locally;lane-a_success);no_CI_running_on_branch
+2026-11-17T06:12:06Z	Epic 28	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_quota_hold_20261117(new_account) lane=C hold=absent inbox_verify=ok head=a640fd7eb
+2026-11-17T06:12:06Z	Epic 28	hold_restored	story=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients note=nothing_to_restore(tree_clean,all_committed)
+2026-11-17T06:12:06Z	Story 28.3	stage_spawned	stage=code-review spawn_at=2026-11-17T06:12:06Z model=opus agent_name=28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients-code-review-4 cycle_iteration=5 effort=high scope=37ac53505..HEAD
