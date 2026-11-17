@@ -4611,3 +4611,6 @@
 2026-11-17T00:46:49Z	Epic 0	dispatched	lane_A flake_burndown(browser-timing_family) branch=OCT-epic0-flakes_from_1f8733c0e conditions=cause_fixes,no_blanket_timeouts,10x_under_load,spec_gate_first
 2026-11-17T00:47:09Z	Run	note	b2768afeb_diagnosis: local demo-path at b2768afeb PASSED step3 (decision act/0.9, no fallback); code analysis finds no path; rerun of browser job 43982398541 started (ci-25 suspect)
 2026-11-17T00:47:53Z	Run	owner_decision	via=contest_planner b2768afeb_root=UTC_day_rollover(turn_error_00:00:06Z) NO_REVERT DW-1464=MED_product_bug_candidate->flake_burndown_lane
+2026-11-17T01:15:22Z	Run	ci_green	feature b2768afeb ci=43982398541 att2 green (browser ci-20; DW-1464 day-rollover) hold_lifted
+2026-11-17T01:15:22Z	Epic 25	ci_green_verified	25.9 7a346a994 runs=43978832236,43978832285
+2026-11-17T01:15:22Z	Epic 25	merge_enqueued	25.9 head=7a346a994
