@@ -2,8 +2,8 @@
 title: "Story 28.3: Offer OcuTalon's read-only tools to MCP clients"
 type: 'feature'
 created: '2026-11-16'
-status: 'in-progress'
-baseline_revision: '97afccbd1f904a223431ae616639679c94973ca3'
+status: 'done'
+baseline_revision: '1946cceac4479eee849cdc62b98996d3ab7923dd'
 baseline_commit: '97afccbd1f904a223431ae616639679c94973ca3'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -117,7 +117,7 @@ deferred:
 
 
 **Rework iteration 2 (2026-11-17, Contest Planner ruling on DW-1470, `prompts/story-283-rulings-20261116.md` last section; work ONLY this item):**
-- [ ] [Review] DW-1470 / S-28.3-4 hardening: `Install.Step.Mcp.ApplyService` closes `OcuTalon_MCPServer`'s public permission FIRST, UNCONDITIONALLY, before anything that can fail, on every start (when the resource exists; keep the close after `MakeResource` too, for a resource the step just created). A failure of any later part (`ApplyAppRole`, `ApplyApplication`, `MakeResource`) must never leave a public permission open. Add a test: an earlier part fails (a probe seam or subclass that makes `ApplyAppRole` or `ApplyApplication` return an error), with a public permission set beforehand; the step returns the error AND the public permission ends up closed. Demonstrate its mutation (move the first close back after the failing part → red) and write the `mutation:` line. Online demo behaviour unchanged. No user-facing text changes.
+- [x] [Review] DW-1470 / S-28.3-4 hardening: `Install.Step.Mcp.ApplyService` closes `OcuTalon_MCPServer`'s public permission FIRST, UNCONDITIONALLY, before anything that can fail, on every start (when the resource exists; keep the close after `MakeResource` too, for a resource the step just created). A failure of any later part (`ApplyAppRole`, `ApplyApplication`, `MakeResource`) must never leave a public permission open. Add a test: an earlier part fails (a probe seam or subclass that makes `ApplyAppRole` or `ApplyApplication` return an error), with a public permission set beforehand; the step returns the error AND the public permission ends up closed. Demonstrate its mutation (move the first close back after the failing part → red) and write the `mutation:` line. Online demo behaviour unchanged. No user-facing text changes.
 
 **Acceptance Criteria:**
 - Given an install with `onlineDemo` 0, when the installer steps run, then the `Mcp` step runs before `Roles`, `OcuTalon_MCPServer` exists with no public permission, `/mcp/ocutalon` has exactly `ServiceApp()`'s properties (password only, namespace OCUTALON, no application roles, outside the sign-in group, dispatch `OcuTalon.Mcp.Service`), `OcuTalonMCPClient` holds exactly `OcuTalon_MCPServer:U`, `%DB_OCUTALON_CODE:R`, `%DB_OCUTALON_DATA:R` and `%DB_OCUTALON_PRIVATE:R` and no SQL privilege, and `OcuTalonUser` is unchanged (`Test.Mcp.ServiceInstall`, fresh stack).
@@ -248,6 +248,23 @@ Rejected:
   - `[low]` `reject` (verification-gap hermeticity) `TestMcpServerSection`, `TestRoleRowsDeclaredBy` and `TestPrivilegesMatchSecurityRecords` need `onlineDemo` 0 and the Mcp step run - same as edge 4.
   - `[low]` `reject` (verification-gap sed) the `sed` control for the pairing sentence removes a little more than the new words - it still detects a changed sentence.
 
+### 2026-11-16 - Review pass (rework iteration 2, DW-1470)
+- verdicts: 13 findings - high 0, medium 0, low 9, false 4, maybe-false 0
+- findings:
+  - `[low]` `patch` (blind 1) the class description of `Install.Step.Mcp` still said the step makes the role, application and resource first - patched: it now names the early close before any part that can fail.
+  - `[low]` `reject` (blind 2, verification-gap 1) the close after `MakeResource` is now a repeat for a resource the step made (created with no public permission), so no test pins it - the item says to keep it; an equivalent mutant, harmless; the older `mutation:` lines for that final close no longer reproduce (recorded under the pass's residual risks).
+  - `[low]` `reject` (blind 3, edge 3, edge 6) the failing parts are produced by an empty role or application name, with no probe seam - the item's seam or subclass is an example of how to make a part fail; `ApplyService`'s arguments do it with no new surface, the error assertion is loud if Security ever accepts the name, and the mutation run showed both cases red (decided in-stage).
+  - `[low]` `reject` (blind 4, verification-gap 2) a failing early close is untested - needs a seam into a `Private` Security call, more complexity than the risk; the failure returns the step's error and the installer stops on it.
+  - `[false]` `reject` (edge 1) `ResourceExists` can throw before the close - the same Security calls throw in every later part and in the old order; no state exists where only this call throws.
+  - `[false]` `reject` (edge 2) a failed early close is logged nowhere - the step returns the error and the Registry logs the failing step and stops the run.
+  - `[low]` `reject` (edge 4) no `MakeResource` failure case - the early close precedes every part, so the role and application cases cover the ordering; the item names `ApplyAppRole` or `ApplyApplication` only.
+  - `[false]` `reject` (edge 5) "unconditionally" while the close needs `ResourceExists` - the item's own parenthetical says "when the resource exists".
+  - `[false]` `reject` (edge 6 claim) no seam used - same as blind 3.
+  - `[low]` `reject` (verification-gap 3) the test cannot say which part failed - the mutation run shows both cases fail in the intended part.
+  - `[low]` `reject` (verification-gap 4) an abort outside the `Try` leaves the scratch role - the next run's opening `Scratch` removes it.
+  - `[low]` `reject` (intent-alignment) the test calls `ApplyService`, not `Run` - `Run` only delegates to it, and `TestClosesPublicPermission` runs through `Run`.
+  - `[low]` `reject` (intent-alignment) the mutation is `If 0 {` rather than moving the close - the same behaviour (close only after the failing parts), red observed.
+
 ## Design Notes
 
 **Planner gate rulings (2026-11-16, `prompts/story-283-rulings-20261116.md`, binding):** G7 split APPROVED (Story 28.5 "Connect an MCP client through iris-mcp-server" inserted in epics.md, backlog, not dispatched); G8 follows. G3 NOT approved as is: Task 0b (above, under Execution) first tries application roles so `OcuTalonMCPClient` holds only U on the resource; use them if they work on the testable path (and rewrite P8 as PUBLIC TEXT), otherwise record the measured reason and keep G3/P8 as written; either way no SQL privilege, no write, granted to no one. G1 (changes only if application roles are used), G2, G4, G5 (fails closed), G6, G9 APPROVED. R-28.3-1/2/3 APPROVED, including the `ZzWideService` refusal pin and the demo-removal pin. PUBLIC TEXT P1, P2, P3, P4, P5a, P5c, P6, P7, P9, P10 APPROVED verbatim; P5b APPROVED as described (its verbatim text below); P8 approved only if G3 stays as proposed. No README line. Model-facing: NO A/B (chat `recent_activity` byte-identical; P5a-P5c read only by a developer's own client's model).
@@ -363,6 +380,7 @@ Lane-C throwaways only (slot C busy). Fresh tag `e28s3i`, warm tag `e28s3iw`. Pr
 - (rework iteration 1) mutation: `docs/security-overview.md` without the words "serve a call of OcuTalon's own MCP server," -> `bash docker/tests/test-release-sequence.sh overviewdoc` red ("the Approval and audit section lacks the Pairing, MCP and Tool sentence word for word"); file restored byte-identical. The warning text of `Install.Step.Mcp` is static message text that no test reaches and is not pinned.
 
 - (code review of rework iteration 1, 2026-11-17, lane-C warm `e28s3dw`; each applied, red observed, restored byte-identical) mutation: `Install.Step.Mcp.ApplyService` ends `Quit sc` instead of `Quit ..ClosePublicPermission(resource)` -> `Test.Mcp.ServiceInstall` red (`TestClosesPublicPermission`: RW and U not gone; `TestStepRewritesDrift`: "with no public permission"), with the test's own closing assertion added; mutation: `Install.SecurityOverview.Applications` online-demo check replaced by `If 1` -> `Test.Install.SecurityOverview` red (`TestDemoOnlyGrantsListed`: online demo applications and sign-ins); mutation: `docs/security-overview.md`'s `MCP` audit line reverted to "a server added or removed, or a tool called or refused;" -> `bash docker/tests/test-release-sequence.sh overviewdoc` red ("the Approval and audit section lacks the MCP audit line word for word").
+- (rework iteration 2, DW-1470, lane-C warm `e28s3uw`; applied, red observed, file restored byte-identical) mutation: `Install.Step.Mcp.ApplyService` with its first close skipped (`If 0 {` in place of `If ..ResourceExists(resource) {`, so the close happens only after the failing parts) -> `Test.Mcp.ServiceInstall` red (`TestClosesPublicPermissionWhenAPartFails`: the public permission is not gone after the failing role, nor after the failing application).
 
 **QA stage (2026-11-16, lane-C fresh tag `e28s3q`):**
 - (QA) `docker/tests/test-online-demo.sh`: new row 11 (Story 28.3, DW-1460) after the OcuTalonWebhook role check: on the online-demo install `/mcp/ocutalon`, `OcuTalon_MCPServer`, `OcuTalonMCPApp` and `OcuTalonMCPClient` do not exist (read from the security tables). `ci/iris.sh live online-demo` on a fresh throwaway: the row PASSES; the unit as a whole ends red locally only because of its own 540 s local deadline (it runs about 740 s; the browser and later rows report "only N s are left of the deadline"), which is CI's 1200 s group budget (`browser`) territory, not the row.
@@ -392,3 +410,13 @@ Blocking condition: none
 - Items done: the Mcp warning text (verbatim); the audit and pairing sentences of `docs/security-overview.md` with their pins in `docker/tests/test-release-sequence.sh`; the generated Application roles row for `/mcp/ocutalon` and the three Roles rows of `OcuTalonMCPApp` (`Install.SecurityOverview` `AppRoleGrants` and `Applications`, regenerated document); `Test.Mcp.ServiceInstall.TestClosesPublicPermission` (S-28.3-4). Review patches: 1 medium root cause (the Roles half of the online-demo guard, two rows) and 3 low (a stale comment, a narrow control, the recorded mutation); 10 rows rejected with reasons in the triage log.
 - Follow-up review recommended: false (no high patched).
 - Verification: fresh `e28s3r`: `Test.Install.SecurityOverview`, `Test.Mcp.ServiceInstall`, `test-security-overview.sh --write`, `live security-overview` pass; warm `e28s3rw`: `Test.Install.SecurityOverview` passes after the review patches; `test-release-sequence.sh overviewdoc`, `test-cpf`, `test-class-rules`, `test-ci-config` pass. No stack of mine is left up.
+
+### Rework iteration 2 (2026-11-16)
+
+Status: done
+Blocking condition: none
+
+- Items done: DW-1470 / S-28.3-4: `Install.Step.Mcp.ApplyService` closes the resource's public permission first when the resource exists (a failed close returns its error), keeps the close after `MakeResource`; `Test.Mcp.ServiceInstall.TestClosesPublicPermissionWhenAPartFails` (a failing application role, then a failing application, with RW set on the real resource: the step returns the error and the permission ends ""); mutation line under Verification. Review: 13 findings, 1 low patched (the class description), 12 rejected with reasons in the triage log.
+- Follow-up review recommended: false (no high patched).
+- Verification: lane-C warm `e28s3uw` (torn down): `Test.Mcp.ServiceInstall` passes (also after the review patch), `Test.Install.SecurityOverview` and `Test.Mcp.ServiceRoles` pass (implement subagent); mutation red observed and restored; `test-class-rules.sh` passes. No stack of mine is left up.
+- Residual risks: the final close after `MakeResource` is a repeat that no test pins (a resource the step makes has no public permission), so the earlier `mutation:` lines for it no longer reproduce.

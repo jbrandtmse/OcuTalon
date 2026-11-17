@@ -3,7 +3,7 @@
 ///     one fixed entry point of OcuTalon.Mcp.Ops. Each takes a server name and nothing else, builds the resource name itself, and refuses (an error, nothing changed) a name that does not
 ///     match OcuTalon.Mcp.Server NAMEPATTERN. Grant creates the resource, with no public permission, and adds OcuTalon_MCP_<server>:U to the role OcuTalonServiceRole; Revoke removes that
 ///     pair and deletes that resource. Both touch no other resource and no other pair of the role, and neither grants a security-administration privilege.
-///   - OcuTalon's own MCP server (Story 28.3; OcuTalon.Mcp.Service): Run, off the online demo, makes the application role APPROLE (R on the code, data and private databases, no write, no
+///   - OcuTalon's own MCP server (Story 28.3; OcuTalon.Mcp.Service): Run, off the online demo, first takes any public permission away from SERVICERESOURCE when it exists (before any part that can fail), then makes the application role APPROLE (R on the code, data and private databases, no write, no
 ///     SQL privilege, granted to no user), then the web application SERVICEAPP, then the resource SERVICERESOURCE with no public permission. The application is rewritten at every start to
 ///     exactly ServiceApp's properties: password sign-in only, namespace OCUTALON, outside the sign-in group, dispatch class OcuTalon.Mcp.Service, and MatchRoles that adds APPROLE to a
 ///     request while it runs in that application and nowhere else. The role comes before the application because IRIS refuses an application whose MatchRoles names a missing role. On an
@@ -51,11 +51,15 @@ ClassMethod OnlineDemo() As %Boolean
 	Quit +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = 1
 }
 
-/// Makes the application role, then the application, then the resource (in that order, see the class description), each created or rewritten to exactly its definition (the resource's
-/// public permission is taken away when it has one). The
-/// first failure stops the step and is returned.
+/// Takes the public permission away from the resource when it exists, before any other part, so a later part that fails never leaves one open. Then makes the application role, then the
+/// application, then the resource (in that order, see the class description), each created or rewritten to exactly its definition; a resource made by this call has its public permission
+/// closed again. The first failure stops the step and is returned.
 ClassMethod ApplyService(application As %String = {..#SERVICEAPP}, resource As %String = {..#SERVICERESOURCE}, appRole As %String = {..#APPROLE}) As %Status
 {
+	If ..ResourceExists(resource) {
+		Set sc = ..ClosePublicPermission(resource)
+		If $$$ISERR(sc) Quit sc
+	}
 	Set sc = ..ApplyAppRole(appRole)
 	If $$$ISERR(sc) Quit sc
 	Do ..ServiceApp(.props, appRole, application)

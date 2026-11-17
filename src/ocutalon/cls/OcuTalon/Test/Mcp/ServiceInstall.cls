@@ -11,6 +11,8 @@
 ///   - TestStepRewritesDrift: a changed application, role or resource is put back to its definition by the next run, with no new object;
 ///   - TestClosesPublicPermission (S-28.3-4): the step takes a public permission (RW or U) away from the resource on every start, so no signed-in user without OcuTalonMCPClient passes the
 ///     resource check and receives the application role;
+///   - TestClosesPublicPermissionWhenAPartFails (S-28.3-4): a failing application role or application part returns its error and leaves no public permission on the real resource, because the
+///     step closes it before any other part;
 ///   - TestGrants (AC 2): off the online demo Grants declares OcuTalonMCPClient with OcuTalon_MCPServer:U and the per-server pairs; on it, none;
 ///   - TestDemoRemoves (AC 2): on the online demo the step deletes the application, the resource and both roles where they exist, and makes none.
 Class OcuTalon.Test.Mcp.ServiceInstall Extends OcuTalon.Test.Mcp.ServiceCase
@@ -336,6 +338,40 @@ Method TestClosesPublicPermission()
 		Do $$$AssertEquals($Get(res("PublicPermission")), "", "and the public permission " _ permission _ " is gone")
 	}
 	Do $$$AssertStatusOK(..SetPublicPermission(resource, ""), "the resource holds no public permission after the test, also when the step left one")
+}
+
+/// S-28.3-4: a part of the step that fails after the resource exists leaves no public permission open. The real resource has a public permission, and the step is called with an application
+/// role name, then an application name, that Security refuses: it returns the error and the real resource's public permission is "" afterwards. The test closes it itself at its end, whatever
+/// the step did, and removes its scratch role; OnAfterOneTest puts the installed objects back.
+Method TestClosesPublicPermissionWhenAPartFails()
+{
+	If '..Guard() Quit
+	Set step = ..#STEP
+	Set resource = $Parameter(step, "SERVICERESOURCE")
+	Set scratchApp = "/mcp/zzmcpearly"
+	Set scratchRole = "ZzMcpEarlyApp"
+	Do ..SetOnlineDemo(0)
+	Do $$$AssertStatusOK($ClassMethod(step, "Run"), "control: the step runs off the online demo")
+	Do ..Scratch(scratchApp, "ZzMcpEarly_Resource", scratchRole)
+	Try {
+		For failing = "role", "application" {
+			Do $$$AssertStatusOK(..SetPublicPermission(resource, "RW"), "the real resource is given the public permission RW")
+			Do ..ResourceOf(resource, .res)
+			Do $$$AssertEquals($Get(res("PublicPermission")), "RW", "control: it holds RW for the public")
+			If failing = "role" {
+				Set sc = $ClassMethod(step, "ApplyService", scratchApp, resource, "")
+			} Else {
+				Set sc = $ClassMethod(step, "ApplyService", "", resource, scratchRole)
+			}
+			Do $$$AssertTrue($$$ISERR(sc), "the step returns the error of the failing " _ failing)
+			Do ..ResourceOf(resource, .res)
+			Do $$$AssertEquals($Get(res("PublicPermission")), "", "and the public permission is gone, the resource being the real one, also after the failing " _ failing)
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the failing parts return an error without an exception")
+	}
+	Do $$$AssertStatusOK(..SetPublicPermission(resource, ""), "the resource holds no public permission after the test, also when the step left one")
+	Do ..Scratch(scratchApp, "ZzMcpEarly_Resource", scratchRole)
 }
 
 /// Sets the public permission of the resource. Runs in %SYS.
