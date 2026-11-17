@@ -1100,3 +1100,5 @@
 2026-11-17T03:01:08Z	Story 0.40	chartered	by=lead(Planner_GO;DW-1449_test_isolation) branch=OCT-epic0-dw1449(from_5f1996ed6) edits=Purge_test_isolation+counts+product_pin,security-overview+release-sequence_pin
 2026-11-17T03:11:15Z	Story 0.40	verified	Purge_green;Data_shard_5/5(3_under_load_30);test-release-sequence_27/27;class-rules
 2026-11-17T04:13:20Z	Story 0.40	proof_added	TestDigestTickInsideThePurge green(e040p) mutation(no_Sent_row)->red(e040n)
+2026-11-17T16:19:03Z	Story 0.38	dw1482_chartered	Planner_ruling_~16:20Z(fix_before_merge) spec=spec-0-38b-dw-1482-telegram-answers-check-account-state.md
+2026-11-17T16:19:03Z	Story 0.38	stage_spawned	stage=implement(DW-1482) spawn_at=2026-11-17T16:19:03Z model=sonnet effort=high
