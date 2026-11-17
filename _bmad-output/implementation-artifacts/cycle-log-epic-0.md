@@ -1082,3 +1082,5 @@
 2026-11-16T18:18:59Z	DW-1421	public_text_approved	bridge-guide (a),(c) verbatim; (b) replaced by the Planner text; test-bridge-guide rule confidencetext pins the three lines (mutation red); ledger=DW-1438(LOW CLOCKTIME quotes a date-time)
 2026-11-16T18:27:19Z	DW-1421	fresh_check	round=3 env=bb8e4da08(+docs/records/guide-test) shard_lane-a@Eval_fwd=24/24(413s) rev=24/24(312s) test-bridge-guide=all_pass boundaries=pass torn_down
 2026-11-16T18:27:19Z	DW-1421	pushed	round=3 runners=8_free main_ci=none_queued release_pr=none
+2026-11-17T00:30:50Z	Story 0.38	chartered	by=lead(Planner_dispatch_~00:30Z_Nov_17;DW-1284) branch=OCT-epic0-dw1284(from_b2768afeb)
+2026-11-17T00:30:50Z	Story 0.38	stage_spawned	stage=plan spawn_at=2026-11-17T00:30:50Z model=opus effort=high

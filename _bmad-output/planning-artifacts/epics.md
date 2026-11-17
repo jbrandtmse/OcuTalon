@@ -1995,6 +1995,29 @@ So that a fault gets a check and a choice gets a notice.
 **Then** every workflow is green
 - DW-1273: Story 0.35's known regression: the stopped findings went to tellnow in 3 of 5 NEW A/B attempts (ledger; routed by the Contest Planner 2026-11-13)
 
+### Story 0.38: Telegram and email turns check the person's role at use time, as web chat does
+
+[ADDED 2026-11-17, Contest Planner, DW-1284 raised after 27.3's viewer finding] (story-273-rulings-20261116.md, the 26.4 / DW-1284 section and the 27.3 Task 0 ruling (a); merges after the Triage confidence A/B). The release note states it plainly as a fix: a viewer, or a person whose OcuTalonUser role was removed, could start turns through a paired Telegram chat or the connected mailbox that web chat refuses.
+
+As an admin who assigns roles,
+I want a message that arrives on Telegram or by email to start a turn only when its sender may chat by web chat's rule at that moment,
+So that removing a role, or making someone a viewer, closes every channel at once.
+
+**Acceptance Criteria:**
+
+**Given** a turn Item of channel telegram or email reaching `OcuTalon.Core.Conversation` in the production job
+**When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate that Story 27.3 introduces in Core.Conversation, reading roles the way Bridge/Approval.cls HoldsRole does)
+**Then** no turn, no reply, no tool call and no model call happens, no Conversation or turn row is written, no reply is sent, and one content-free record with the reason `not_user` is kept; the inbound text goes no further than its message body and follows normal retention
+
+**Given** each of Telegram and email
+**When** automated tests run against the CI mocks
+**Then** they pin: a viewer's message refused; a role removed after pairing (Telegram) or after the mailbox was linked (email) refused on the next message; an admin who is also a user allowed; an admin-only user following web chat's rule; no reply sent and no Conversation or turn row written; and, where a pairing or linking step exists, a viewer refused at pair or link time with existing texts only (any new text goes to the Contest Planner first)
+
+**Given** CI on this story's head
+**When** it finishes
+**Then** every workflow is green
+- DW-1284: Telegram and email take a message in on the strength of the pairing or the saved mailbox, not of the person's role at use time (ledger; raised in priority by the Contest Planner 2026-11-16)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
