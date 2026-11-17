@@ -8881,3 +8881,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
 - 2026-11-16T22:01:47Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
 - 2026-11-17T01:02:09Z status=routed owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=lead note=chartered_into_Story_0.39_(Planner_flake_burndown_dispatch_2026-11-17)
+
+### DW-1467: flake: the app's own sign-out redirect (?signedOut=1, session-gate.ts:98) can interrupt a sign-in page.goto at gotoSettled's first attempt (navigate.ts:58), then a demo-path cascade; a different cause from the chrome-error interruption (Story 0.39)
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42406393504 (OCT-epic11 882b6d4b) live:demo-path 07-failure-paths:60 interrupted by navigation to ?signedOut=1, then 08 cascaded; local e03ca809 07 the same; split out of DW-555 by the 0.39 plan
+- 2026-11-17T01:17:55Z status=open owner=burndown by=lead note=one rerun per the flake rule; a repeat makes it a cause-and-fix item
