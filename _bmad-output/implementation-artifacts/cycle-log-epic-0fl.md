@@ -25,3 +25,5 @@
 2026-11-17T05:05:15Z	Story 0.39	hold_complete	shas=4aaa4bb5e(WIP_pushed) spec_status=in-progress next=re-run_pass_B2(keep_WIP_retry-bounds_row_DW-1471,review_it)
 2026-11-17T05:05:15Z	Story 0.39	stage_dead	story=0.39 stage=implement(pass_B2) evidence=<state>/evidence/epic-0-flakes/(old-code_swap_for_before-loops+scratch_row6;never_applied) rerun_from=implement(pass_B2) cause=hold(main_session_stopped_the_stage) cleanup=runner_killed_its_shim,loops.sh,unitrun.sh,16_burners,orphan_test-sign-in.sh(sign-in-3);no_e0fl_container_left;no_lane-a_lock tree=restored_to_4aaa4bb5e
 	Story 0.39	hold_complete	shas=4aaa4bb5e(WIP_pushed) spec_status=in-progress next=re-run_pass_B2(keep_WIP_retry-bounds_row_DW-1471,review_it)
+2026-11-17T06:12:03Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=508603671b9598f59d04750db6b6cdad2d396167 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 note=resume_after_hold(new_account;orchestrator_HOLD_LIFTED)
+2026-11-17T06:12:03Z	Story 0.39	stage_spawned	stage=implement(pass_B2,rerun) spawn_at=2026-11-17T06:12:03Z model=sonnet effort=high agent_name=0-39-implement-B2r cycle_iteration=3 rerun_from=stage_dead(hold)
