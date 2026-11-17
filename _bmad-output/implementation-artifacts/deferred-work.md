@@ -8997,12 +8997,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docs/** is Epic 28's path and the sentence is public text the Planner has not worded; scope frozen for 1.0.13
 - 2026-11-17T07:39:18Z status=escalated owner=burndown by=harvest note=for_the_Planner:word_one_security-overview_line_for_Slack_or_accept_the_gap_for_1.0.13
 - 2026-11-17T08:11:25Z occurrence=27-2-reply-as-slack-messages-with-no-socket-mode
+- 2026-11-17T09:58:45Z status=resolved-by:27-2-reply-as-slack-messages-with-no-socket-mode owner=27-2-reply-as-slack-messages-with-no-socket-mode by=merge_gate note=Contest_Planner_worded_the_line(Nov_17);added_to_docs/security-overview.md_Data_section_in_9801ed84d;pinned_in_test-release-sequence_overviewdoc_with_a_control
 
 ### DW-1477: shards-3 CI group time after Test.Msg.Catalog TestEveryKeyOnEveryChannel grew with slack (unverified against the 32-minute line)
 - source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: settle from the feature CI run's shards-3 time after the 27.2 merge
 - 2026-11-17T07:39:18Z status=routed owner=burndown by=harvest note=check_shards-3_duration_on_the_27.2_branch_CI_and_feature_merge_run
 - 2026-11-17T09:19:12Z status=escalated owner=burndown by=burndown note=MEASURED_shards-3_job:37.8min_on_27.2_head_ea0736ead(ci_44047367644);prior_heads_33.7(81265443f),34.9(05915a781),38.8(1f8733c0e),40.2(14940d399):already_over_the_32-min_line_since_27.1's_live:slack-hook;for_the_Planner's_CI-budget_audit
+- 2026-11-17T09:58:45Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=merge_gate note=Contest_Planner_accepted;reopen_if=a_shards-3_job_comes_within_5_min_of_its_timeout_or_times_out(report_before_any_rerun)
 
 ### DW-1478: lint_spine.py reports ok:false from 13 pre-existing LOW placeholder findings (none in lines Epic 27 added)
 - source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
