@@ -4599,3 +4599,7 @@
 2026-11-16T23:48:13Z	Epic 21	merged	DW-1421_r3 merge=b2768afeb
 2026-11-16T23:48:22Z	Epic 21	ci_green_verified	DW-1421_r4 f70f5fa56 runs=43967104230,43967104199
 2026-11-16T23:48:22Z	Epic 21	merge_enqueued	DW-1421_r4 head=f70f5fa56 (push after b2768afeb CI clean)
+2026-11-17T00:30:20Z	Epic 0	note	via=contest_planner triage-conf_A/B_RUNNING(OLD_1f8733c0e,NEW_948e17b5b,10_runs) verdict_ETA_02:15-02:30Z triage-conf_held
+2026-11-17T00:37:05Z	Run	ci_red	REAL_REGRESSION feature b2768afeb(DW-1421_r3_merge) ci=43982398541 browser ci-25 demo-path 7_failed(chat_reply_Fallback_flag) interaction_r3_x_(27.1,24.3b,28.2) -> ALL_MERGES_HELD; diagnosis=a782ad9(DW-1421_runner); planner_asked(fix_forward_vs_revert)
+2026-11-17T00:37:35Z	Run	owner_decision	via=contest_planner b2768afeb_regression: fix_forward_until_01:45Z else git_revert_-m_1_b2768afeb; merges_held
+2026-11-17T00:37:54Z	Epic 21	note	DW-1421_r4 local merge aborted (held for the b2768afeb regression; re-merge after feature green)
