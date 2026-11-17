@@ -4619,3 +4619,9 @@
 2026-11-17T01:17:59Z	Epic 28	owner_decision	via=contest_planner 28.3_text:keep_1-2,fix_3-4_verbatim DW-1461=add_rows public-permission_close=invariant_pinned footprint=approved
 2026-11-17T01:19:17Z	Epic 0	runner_reported	PLANNER_REPORT 0.39_flake_gate: DW-1464=CI_mock_tie_at_midnight(not_product) causes_per_DW; gates=reload_retry,scope_45_sites,traces_ssh,AD-22_lane_crossing relayed
 2026-11-17T01:19:37Z	Epic 0	owner_decision	via=contest_planner 0.39_gate=APPROVED(reload_one_logged_counted_retry_pinned;follow-on_45_sites;no_traces;lane_crossing_this_spec;AD-22_sentence) DW-1464->LOW_on_fix
+2026-11-17T01:35:36Z	Epic 27	runner_reported	27.3_rework_pushed=14940d399(CI_pending) DW-1465_disabled/expired_account_gap(possible_blocker) DW-1466_Core->Web_edge Channel.Refused_deferred_to_0.38 relayed
+2026-11-17T01:35:54Z	Epic 27	owner_decision	via=contest_planner 27.3_rework=ACCEPTED(merge_on_green) DW-1465->0.38(RELEASE_BLOCKER_for_any_Epic27_release) DW-1466->predicate_into_Core(0.38) footprint=approved
+2026-11-17T01:41:50Z	Epic 0	owner_decision	via=contest_planner triage-conf_L29_A/B=FAIL(rule_i:mail-partner-notice_3->0,+3_cases_-1) branch_parked; RULING=server-side_accept_missing_confidence(CONFIDENCEREQUIRED=0),replay_6_captures,verify_5-run,bridge-guide_text_first
+2026-11-17T01:44:05Z	Epic 0	owner_decision	via=contest_planner triage-accept: guide_b+L237_APPROVED; fixtures=3_non-held-out+1_synthetic_act(no_held-out); build_approved
+2026-11-17T01:52:34Z	Run	ci_green	feature 05915a781 (25.9 merge) ci+lane-a green
+2026-11-17T01:52:34Z	Epic 21	merge_enqueued	DW-1421_r4 head=f70f5fa56

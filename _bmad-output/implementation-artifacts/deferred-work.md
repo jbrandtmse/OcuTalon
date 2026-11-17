@@ -2097,6 +2097,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-16T11:53:12Z status=open by=epic-runner note=occurrence:OCT-epic24_a92d5426_ci_43856258908_attempt1_job_133261171232_on_ocutalon-ci-20(row_21_got_'');one_rerun
 - 2026-11-16T13:27:46Z occurrence=feature-625900415 by=orchestrator note=run 43870851457 att1 iris(production) on ocutalon-ci-22: row 21 wanted CHK|start-fails|1|1 got empty; one rerun of failed jobs (1.0.12 REQUIRED GREEN candidate)
 - 2026-11-16T22:01:47Z occurrence=854346fa1 by=merge_gate note=feature ci 43957453035 iris (production) on ocutalon-ci-29: row 21 wanted CHK|start-fails|1|1, got ''; one rerun of the failed job
+- 2026-11-16T19:14:41Z occurrence=OCT-epic0-dw1421-3e3627c5f by=epic-runner note=run 43928987062 att1 iris(production) on ocutalon-ci-3: row 21 wanted CHK|start-fails|1|1 got empty; one rerun of the failed job
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -8900,3 +8901,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43982398541 (b2768afeb) iris (browser) on ocutalon-ci-25, live:demo-path 03-reminder; the Planner read the trace on the host | severity: med | fix-risk: med | footprint: the turn path's day-keyed reads (daily cost or allowance row, usage cap, day-keyed counter)
 - evidence: the reminder TURN decision: fallback=true, fallbackReason error, agentStepCount 0, durationMs 258, recordedAt 2026-11-17T00:00:06Z; every later step and Telegram T7/T8 failed after it; not reproducible off midnight (local demo-path at b2768afeb passed); a real user chatting at midnight UTC could get a reasonless fallback too
 - 2026-11-17T00:48:03Z status=routed owner=burndown by=orchestrator note=Planner ruling ~01:05Z: PRODUCT bug candidate on the flake-burndown lane (lane A); find the day-keyed read on the turn path; deterministic test with the clock at 23:59:59, then 00:00:01; related family DW-800
+- 2026-11-16T21:32:25Z occurrence=2 by=lead note=occurrence 2 in the Planner's round-3 re-capture r4, shipments-day-first-date; fixed in DW-1421 round 4 (CLOCKTIME allows an h:mm directly after a date or followed by :ss)
+
+### DW-1453: #9404 seen once in the Planner's control on diagnose claims-archive-internal-error; reconsider on repeats (C2)
+- source: Contest Planner control verdict ~22:05Z Nov 16 (DW-1421 round 4 additions) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: the control run at c573a86d0 gave one diagnose fallback on claims-archive-internal-error with ERROR #9404 (a field the reply class does not have), the case DW-1421 C2 targeted, at its 1st occurrence; round 4 maps #9404 to the fixed tag unexpected-field so the capture names it
+- 2026-11-16T22:02:44Z status=open owner=burndown by=lead note=against C2; reconsider on repeats
