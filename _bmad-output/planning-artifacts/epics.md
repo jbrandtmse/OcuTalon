@@ -2007,8 +2007,8 @@ So that removing a role, or making someone a viewer, closes every channel at onc
 
 **Acceptance Criteria:**
 
-**Given** a turn Item of channel telegram or email reaching `OcuTalon.Core.Conversation` in the production job
-**When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate that Story 27.3 introduces in Core.Conversation, reading roles the way Bridge/Approval.cls HoldsRole does)
+**Given** a message of channel telegram or email in the production job: Telegram turns are checked where they reach Core.Conversation; email is checked in EmailIn before an Item is made [AMENDED 2026-11-17 — see the story change log]
+**When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate, Core.Access MayChat (DW-1466), reading roles the way Bridge/Approval.cls HoldsRole does) [AMENDED 2026-11-17 — see the story change log]
 **Then** no turn, no reply, no tool call and no model call happens, no Conversation or turn row is written, no reply is sent, and one content-free record with the reason `not_user` is kept; the inbound text goes no further than its message body and follows normal retention
 
 **Given** each of Telegram and email
