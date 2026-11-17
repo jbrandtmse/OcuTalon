@@ -4603,3 +4603,7 @@
 2026-11-17T00:37:05Z	Run	ci_red	REAL_REGRESSION feature b2768afeb(DW-1421_r3_merge) ci=43982398541 browser ci-25 demo-path 7_failed(chat_reply_Fallback_flag) interaction_r3_x_(27.1,24.3b,28.2) -> ALL_MERGES_HELD; diagnosis=a782ad9(DW-1421_runner); planner_asked(fix_forward_vs_revert)
 2026-11-17T00:37:35Z	Run	owner_decision	via=contest_planner b2768afeb_regression: fix_forward_until_01:45Z else git_revert_-m_1_b2768afeb; merges_held
 2026-11-17T00:37:54Z	Epic 21	note	DW-1421_r4 local merge aborted (held for the b2768afeb regression; re-merge after feature green)
+2026-11-17T00:40:45Z	Epic 0	runner_reported	PART_READY triage-conf 948e17b5b (A/B_running) flakes=DW-1458(ci-19),DW-415(ci-29); PLANNER_REPORT 0.38_DW-1284_gate(MayChat_shared,email_check_in_EmailIn,Slack.Ignored_reuse,pairing_not_user) relayed
+2026-11-17T00:41:09Z	Epic 0	owner_decision	via=contest_planner 0.38_gate=APPROVED(email_in_EmailIn,Channel.Refused_neutral_class,badCode_ok,mailbox_save_refusal_needs_text,Telegram_file_check_before_download)
+2026-11-17T00:42:00Z	Epic 0	owner_decision	via=contest_planner 0.38_item4_text=APPROVED(Option2+who_can_connect)
+2026-11-17T00:46:18Z	Epic 25	runner_reported	PART_READY 25.9 head=7a346a994 runs=43978832236(att2;DW-555_ci-18),43978832285 fresh_fwd=919s,rev=967s state=held(feature_regression) review=implement-stage_4-layer
