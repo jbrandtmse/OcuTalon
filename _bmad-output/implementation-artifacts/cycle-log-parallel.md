@@ -4625,3 +4625,19 @@
 2026-11-17T01:44:05Z	Epic 0	owner_decision	via=contest_planner triage-accept: guide_b+L237_APPROVED; fixtures=3_non-held-out+1_synthetic_act(no_held-out); build_approved
 2026-11-17T01:52:34Z	Run	ci_green	feature 05915a781 (25.9 merge) ci+lane-a green
 2026-11-17T01:52:34Z	Epic 21	merge_enqueued	DW-1421_r4 head=f70f5fa56
+2026-11-17T01:52:36Z	Epic 21	merged	DW-1421_r4 merge=5f1996ed6
+2026-11-17T02:02:03Z	Epic 27	runner_reported	PLANNER_REPORT 27.2_gate(SlackOut_chat.postMessage_outward,8_trace_texts,step1_chat:write,decode_A/B_question,AC4->GUIDE) relayed
+2026-11-17T02:02:26Z	Epic 27	owner_decision	via=contest_planner 27.2_gate=APPROVED(texts_with_slot_condition,outward_post,no_A/B_decode_pinned,AC4->GUIDE,spine)
+2026-11-17T02:15:38Z	Epic 27	ci_red	27.3@14940d399 image ci-25 DW-1449_OCCURRENCE_2(gone_session_kept_rows,L248) -> cause-and-fix; relayed
+2026-11-17T02:16:07Z	Run	owner_decision	via=contest_planner DW-1449:27.3_rerun_then_merge; cause-and-fix_story_lane_D_after_triage-accept; RELEASE_GATE(classify_test_vs_product)
+2026-11-17T02:33:19Z	Run	ci_red	feature 5f1996ed6 image ci-10 DW-1449_OCCURRENCE_3(SimMessage_1->2_concurrent_writer;idle_not_purged) rerun; relayed
+2026-11-17T02:34:22Z	Run	owner_decision	via=contest_planner merges_continue_on_rerun-green; DW-1449_PRODUCT_SCOPE(orchestrator: Purge.Keeps L143 Delivery + L144 Decision count outbound as activity -> idle users with watches never purged) -> lane_D_story_gate_first
+2026-11-17T02:34:52Z	Run	owner_decision	via=contest_planner DW-1449=TEST_ISOLATION(Keeps_is_AD-27_by_design;orchestrator_product_reading_overruled) story=isolation+L248+loop+product_pin; doc_mismatch_security-overview:212->corrected_sentence_to_Planner
+2026-11-17T02:47:22Z	Epic 27	ci_green_verified	27.3 14940d399 runs=43996613147(att2;DW-1095=DW-1449_ci-25),43996613140
+2026-11-17T02:47:22Z	Epic 27	merge_enqueued	27.3 head=14940d399 (push after 5f1996ed6 rerun green)
+2026-11-17T02:52:59Z	Epic 0	runner_reported	0.39_passA+B1_pushed(7811de9ae,[skip_ci]) DW-1464_mock_text_confirmed passB2_after_hold
+2026-11-17T02:56:34Z	Epic 28	runner_reported	28.3_pushed=96cc877a6(CI_running) DW-1473_SourceRunProduction_40s_poll_red_in_shard_after_integrate(CI_decides) skip-token_side_effect_noted
+2026-11-17T02:56:54Z	Epic 28	owner_decision	via=contest_planner 28.3:DW-1473_lead(25.9_transaction),CI_decides; DW-1470_fix_in_28.3(close_public_first,unconditional,test); skip-token_rule_for_runners
+2026-11-17T02:59:03Z	Epic 0	runner_reported	PART_READY triage-accept 7afb58563 (awaiting_planner_5-run_verify); DW-1449_writer=daily_digest_tick(Digest.Process.Ticked) isolation_plan; PUBLIC_TEXT security-overview:212 relayed
+2026-11-17T02:59:21Z	Epic 0	owner_decision	via=contest_planner triage-accept=ACCEPTED_pending_5-run_verify(running) 0.40=GO(isolation_plan,overview_212_text_approved)
+2026-11-17T03:00:55Z	Run	ci_green	feature 5f1996ed6 ci=43998846310 att2 green (DW-1449 rerun)
