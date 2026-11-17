@@ -9077,3 +9077,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-17T02:41:59Z status=wontfix-accepted owner=burndown by=cr note=reopen_if=a second red of TestStopThenResume on any head, local or CI
 - 2026-11-17T02:54:45Z status=escalated owner=burndown by=lead note=second local red in the reversed lane-a Mcp shard (TestNoSecretLeaksOnFailure, same 40 s poll assertion, class 89 s); alone passes in 46 s; both orders passed at 28.3 head d10945ef5 before integrating feature 05915a781 (25.9 SettingsOps, DW-1421 round 3 Decide); feature itself is green in CI; cause unknown - CI on the pushed head decides; a CI red on it is a cause-and-fix item
 - 2026-11-17T03:51:21Z status=wontfix-accepted by=lead note=CI on the 28.3 head 96cc877a6 (run 44006481188, iris shards-2 green): SourceRunProduction passed in 49.81 s; the local reds were host-load timing; reopen_if=a red of its 40 s poll assertion in CI on any head
+
+### DW-1484: flake: frame.spec.ts:455 'a failed snapshot' main.main not found within 10 s after signInReadme (feature cbdf9217b, shards-10 live:sign-in, ci-29/ci-e)
+- source: orchestrator CI classification feature cbdf9217b run 44072151150 job 134000786400 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 27.2 changed no web e2e/app code (only web/scripts/slack-setup-steps.test.mjs); same test green on 588ba262d and on 0.38 head 041ccf71a (contains cbdf9217b) shards-10 ci-32; signInReadme waits only for title+load, not the shell
+- 2026-11-17T16:15:28Z status=open owner=burndown by=orchestrator note=deferred_owner_wrap-up_2026-11-17;classified_flake_not_a_merge_blocker
