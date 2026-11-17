@@ -1094,3 +1094,5 @@
 2026-11-16T21:58:50Z	DW-1421	round4_done	by=lane-D(lead) commit=c726d5fd4 tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4,green) eval-set=28/28_rules(capture_rerun_green_after_a_contended_run) mutations=Data_logged->ReplyCheck_red;old_CLOCKTIME->Payload_red;bare_time_missed->Payload_red model_facing=none
 2026-11-16T22:08:22Z	DW-1421	round4_addition	#9404->unexpected-field(ReplyCheck_row_8b;Payload_row_13;Capture) ledger=LOW_C2_item tests=ReplyCheck,Payload,Capture,Decide(warm_e0r4b,green) mutation=old_9404_words->ReplyCheck_rows_8,8b_red superseded_ci=43965489398,43965489389(cancelled)
 2026-11-17T06:41:34Z	Story 0.38	re-planned	on_720467ed5(27.3) build_status=ready-for-dev gate=planner(Shell_cannot_call_Core:AD-3_public_package;RolesMayChat+MayChat_names;Security.Users_read_needs_%SYS_switch(AD-3_amend);Lane_A_Telegram/In.cls_for_file_check(AD-33))
+2026-11-17T06:48:34Z	Story 0.38	spec_validated	gate=approved(4_points;conditions_i-iv;ChatSession_cleanup_on_failure_pinned) 
+2026-11-17T06:48:34Z	Story 0.38	stage_spawned	stage=implement spawn_at=2026-11-17T06:48:34Z model=sonnet effort=high

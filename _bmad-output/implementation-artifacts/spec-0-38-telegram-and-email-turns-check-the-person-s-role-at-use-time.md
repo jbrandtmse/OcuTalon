@@ -114,6 +114,47 @@ Base: `OCT-epic0-dw1284` at `be0aa2133be8eeda7f951af4c357f87d14f1baf3` (feature 
 
 ## Spec Change Log
 
+- 2026-11-17 (lead). **Re-plan gate: all four points APPROVED (Contest Planner, BINDING)**, quoted in full; the build applies them:
+
+  > ## 0.38 re-plan rulings (Contest Planner, ~07:20Z Nov 17). BINDING. All APPROVED. Start NOW.
+  > 
+  > ### (i) Where the rule lives
+  > - The rule lives ONLY in OcuTalon.Core.Access. Shell.MayChat is deleted.
+  > - Web.Api.OnPreDispatch stays unchanged.
+  > - The agreement test compares Core.Access with it over 10 role sets. The sets INCLUDE a %All-only set and an admin-only set, and both must give the SAME answer as the web check.
+  > 
+  > ### (ii) Method names
+  > RolesMayChat(roles) and MayChat(irisUser).
+  > 
+  > ### (iii) AD-3 amendment, with conditions
+  > - ONE read-only method in Core.Access switches to %SYS and reads only Security.Users' Enabled and expiry, for one user.
+  > - It switches back, restored in a FINALLY block, even on error.
+  > - It returns booleans only. It returns no other user data and writes nothing.
+  > - Any error is "may not chat" (fail closed). No new grant.
+  > - Pins:
+  >   - the namespace is restored after the call, including on the error path;
+  >   - a disabled user is refused;
+  >   - an expired user is refused;
+  >   - an enabled, unexpired user with OcuTalonUser is allowed.
+  > 
+  > ### (iv) AD-33 exception
+  > Approved for Channel/Telegram/In.cls (the check before download) and its 3 lane-A tests only. The Approval.cls comment is fine.
+  > 
+  > ### Test fixture
+  > - Test.Data.Fixture.ChatSession creates a real OcuTalonUser account and cleans it up afterwards.
+  > - LiveCase gives each live Telegram test one.
+  > - NO role is granted to irisowner.
+  > - The cleanup runs EVEN WHEN A TEST FAILS. Pin this: an orphaned IRIS user left behind by a test is a security smell.
+  > 
+  > ### Task 0
+  > Approved: measure whether a disabled or expired admin's open browser session can still reach Save. Drop that browser test ONLY if the measurement shows it can't be reached.
+  > 
+  > ### Spine
+  > AD-14, AD-26, AD-3, AD-33 and the dependency diagram are approved, and written at the merge.
+  > 
+  > ### Release note (verbatim)
+  > "A user without the chat role, or whose IRIS account is disabled or expired, could still start conversations through Telegram or email; that is now refused, as it is in the web chat."
+
 - 2026-11-17 (plan stage, re-plan on `be0aa2133be8eeda7f951af4c357f87d14f1baf3`, Story 27.3 merged in). The plan is re-derived on the current code and applies every BINDING ruling below. **Rule 5 amendment (apply and report), done:** `_bmad-output/planning-artifacts/epics.md` Story 0.38 AC1. Original: "**Given** a turn Item of channel telegram or email reaching `OcuTalon.Core.Conversation` in the production job / **When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate that Story 27.3 introduces in Core.Conversation, reading roles the way Bridge/Approval.cls HoldsRole does)". Amended: "**Given** a message of channel telegram or email in the production job: Telegram turns are checked where they reach Core.Conversation; email is checked in EmailIn before an Item is made / **When** its session's IRIS user may not chat by web chat's exact rule (the ONE shared predicate, Core.Access MayChat (DW-1466), reading roles the way Bridge/Approval.cls HoldsRole does)", each line marked `[AMENDED 2026-11-17 — see the story change log]`. Rationale: the 01:10Z ruling, item 1 (no email Item reaches Conversation), and the 02:05Z ruling, item 2 (the predicate moves into Core). Four deviations for the lead and the Planner are under `## Design Notes` (Shell cannot call Core under AD-3; two method names; an AD-3 `%SYS` switch; Lane A's TelegramIn). KEEP: the matrix's pin names and the one-record shape of a refusal.
 
 - 2026-11-17 (lead). **RELEASE BLOCKER and scope additions, Contest Planner ~02:05Z Nov 17 (BINDING)**, quoted in full; applied at the re-plan after 27.3 merges (27.3 is accepted with MayChat in Core.Conversation and Web.Public.Shell, and Bridge.Approval.RolesOf new):
