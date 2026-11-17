@@ -8893,3 +8893,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature ci 43970555894 (1f8733c0e, the 28.2 merge) iris (shards-5) on ocutalon-ci-17 | severity: low | fix-risk: low | footprint: web/e2e/heartbeat-card.spec.ts
 - evidence: the merged 28.2 diff touches no web or heartbeat code; the line was absent, not wrong; 22:47Z is outside DW-800's midnight window and DW-845's 00-09 UTC window
 - 2026-11-16T23:08:52Z status=open owner=burndown by=orchestrator note=flake rule: one rerun of the failed job; occurrence 1; a repeat makes it a cause-and-fix item
+
+### DW-1464: a turn errors at the UTC day rollover (00:00:06Z, agentStepCount 0): the turn decision falls back with reason error within 258 ms, before any agent step
+- source: feature ci 43982398541 (b2768afeb) iris (browser) on ocutalon-ci-25, live:demo-path 03-reminder; the Planner read the trace on the host | severity: med | fix-risk: med | footprint: the turn path's day-keyed reads (daily cost or allowance row, usage cap, day-keyed counter)
+- evidence: the reminder TURN decision: fallback=true, fallbackReason error, agentStepCount 0, durationMs 258, recordedAt 2026-11-17T00:00:06Z; every later step and Telegram T7/T8 failed after it; not reproducible off midnight (local demo-path at b2768afeb passed); a real user chatting at midnight UTC could get a reasonless fallback too
+- 2026-11-17T00:48:03Z status=routed owner=burndown by=orchestrator note=Planner ruling ~01:05Z: PRODUCT bug candidate on the flake-burndown lane (lane A); find the day-keyed read on the turn path; deterministic test with the clock at 23:59:59, then 00:00:01; related family DW-800
