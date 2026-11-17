@@ -9043,6 +9043,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time.md (code-review) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: AnswersIn.FromTelegram and Bridge.Approval HoldsRole read roles, not the account state (Enabled, expiry) that Core.Access MayChat now reads; pre-existing; 0.38's Design Notes list it as known, not changed
 - 2026-11-17T14:51:23Z status=open owner=burndown by=lead note=candidate: answers call Core.Access MayChat(irisUser) as well
+- 2026-11-17T16:59:13Z status=resolved-by:0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time by=lead note=f4549a262:Core.Access.AccountUsable_in_Live.Payload.Approval.Answerable(AnswersIn_rule_6:web,phone,telegram)+Telegram_GotIt/AckPage_gate;Channel.Refused_telegram_not_user;no_new_chat-role_for_approvers
 
 ### DW-1483: flake: Test.Schedule.Heartbeat TestStubSkipped fails in reverse shard order (lane-b part 2/6 --reverse): an Ens.Alarm timer warning left by earlier Schedule classes counts as an error row
 - source: spec-0-38 (implement verification, lane D e038i reverse shards) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -9089,3 +9090,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-17T02:41:59Z status=wontfix-accepted owner=burndown by=cr note=reopen_if=a second red of TestStopThenResume on any head, local or CI
 - 2026-11-17T02:54:45Z status=escalated owner=burndown by=lead note=second local red in the reversed lane-a Mcp shard (TestNoSecretLeaksOnFailure, same 40 s poll assertion, class 89 s); alone passes in 46 s; both orders passed at 28.3 head d10945ef5 before integrating feature 05915a781 (25.9 SettingsOps, DW-1421 round 3 Decide); feature itself is green in CI; cause unknown - CI on the pushed head decides; a CI red on it is a cause-and-fix item
 - 2026-11-17T03:51:21Z status=wontfix-accepted by=lead note=CI on the 28.3 head 96cc877a6 (run 44006481188, iris shards-2 green): SourceRunProduction passed in 49.81 s; the local reds were host-load timing; reopen_if=a red of its 40 s poll assertion in CI on any head
+
+### DW-1485: Web and phone approval answers skip the account-state read for the job's own user (a web job cannot read Security.Users), so a disabled or expired user with a still-live web session is not refused by DW-1482's check
+- source: spec-0-38b-dw-1482 (code-review) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Live.Payload.Approval.Answerable exempts session.IrisUser = $Username; without it every web approval was refused (AnswersInWebRoles red); ruling scope was Telegram; a live web session of a disabled account also relates to DW-1290
+- 2026-11-17T16:59:13Z status=open owner=burndown by=lead note=deferred at 1.0.13 wrap-up
+
+### DW-1486: No test runs the real approval API through the Telegram production job with a session user other than $Username for DW-1482's account check (shadow instances and the approval double only)
+- source: spec-0-38b-dw-1482 (code-review) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: relies on the production job privilege that 0.38's MayChat already uses and pins live (slack-hook phase 7)
+- 2026-11-17T16:59:13Z status=open owner=burndown by=lead note=deferred at 1.0.13 wrap-up

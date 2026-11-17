@@ -1102,3 +1102,4 @@
 2026-11-17T04:13:20Z	Story 0.40	proof_added	TestDigestTickInsideThePurge green(e040p) mutation(no_Sent_row)->red(e040n)
 2026-11-17T16:19:03Z	Story 0.38	dw1482_chartered	Planner_ruling_~16:20Z(fix_before_merge) spec=spec-0-38b-dw-1482-telegram-answers-check-account-state.md
 2026-11-17T16:19:03Z	Story 0.38	stage_spawned	stage=implement(DW-1482) spawn_at=2026-11-17T16:19:03Z model=sonnet effort=high
+2026-11-17T16:59:13Z	Story 0.38	dw1482_done	commit=f4549a262 tests=targeted_14_classes_green mutations=6_red review=31(4_patched,2_deferred)
