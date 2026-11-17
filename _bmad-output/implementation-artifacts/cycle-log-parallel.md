@@ -4648,3 +4648,8 @@
 2026-11-17T03:36:42Z	Epic 0	owner_decision	via=contest_planner triage-accept_verify=target_met_but_new_needed-now_miss -> NOT_merged; rework=attention_floor(accept_no-confidence_only_tellnow/act)+capture_count+2_refused_fixtures+guide_text_first; re-verify_5_runs
 2026-11-17T03:42:11Z	Run	owner_decision	via=contest_planner(owner_question) RESUME_ALL_LANES; hold=WIP_commit_and_push_own_branch_at_next_boundary(+[skip_ci];no_push_over_started_CI)
 2026-11-17T04:16:13Z	Run	quota_hold	via=contest_planner QUOTA_HOLD_NOW(95%_at_04:15Z,account_switch) all_lanes_told:WIP_commit+push_own_branch,no_new_stage,no_feature_merge
+2026-11-17T05:05:20Z	Run	hold_gap	A/B stage agents (Implement 0.39 B2, Implement 27.2 + reviews) kept running after runner WIP commits until ~05:03Z; orchestrator TaskStopped them + stale 28.2 review; orphaned live sign-in-3 TERMed; runners A/B to make second WIP
+2026-11-17T05:05:36Z	Run	owner_decision	via=contest_planner hold_reaches_stage_agents; 28.3_rework=iteration_3_of_3(confirmed) DW-1473_closed_host_load
+2026-11-17T05:05:36Z	Epic 0	hold	lane_A ended head=86ad7569b pushed clean
+2026-11-17T05:06:12Z	Epic 27	hold	lane_B ended head=f430a1c20 pushed clean (second WIP)
+2026-11-17T05:06:12Z	Run	hold_complete	all lanes ended: A 86ad7569b, B f430a1c20, C a640fd7eb, D 2bdbb9f88 (+0.40 9c97ad90f local, 0.38 0b90e038e local)
