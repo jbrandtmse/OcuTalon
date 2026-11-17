@@ -2356,6 +2356,8 @@ ovw_doc_problems() {
   # Story 0.40 (DW-1449; the Contest Planner's approved text, Nov 17): the purge sentences in AD-27's terms
   ovw_section "$f" 'Data' | grep -qF -e 'Chat turns and the record of each notice sent are removed after 90 days. A session record, with its guide progress, simulated messages and finished reminders, is removed only once it is over 90 days old and nothing keeps it: no turn, notice or decision in the last 90 days, no saved memory or document, and no watch, Telegram pairing, webhook, pending approval or reminder, or live sign-in.' || echo "the Data section lacks the purge sentences"
   ovw_section "$f" 'Online demo' | grep -qxF -e 'Each protection listed here is checked against the running demo before every release.' || echo "the Online demo section lacks the checked-before-every-release sentence"
+  # Story 27.2 (DW-1476; the Contest Planner's worded line, Nov 17): Slack among the ways data leaves the instance
+  ovw_section "$f" 'Data' | grep -qxF -e "- Slack: when Slack is set up, OcuTalon's replies to a linked member's direct message are posted to slack.com (chat.postMessage) with the bot token." || echo "the Data section lacks the Slack line"
   return 0
 }
 
@@ -2720,6 +2722,8 @@ the Data section lacks the MCP bullet word for word"
   eq "control: the purge sentences changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the purge sentences"
   sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
   eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
+  sed 's/ are posted to slack.com (chat.postMessage) with the bot token\.$/ are posted to Slack./' "$doc" > "$d/slack.md"
+  eq "control: the Slack line changed" "$(ovw_doc_problems "$d/slack.md")" "the Data section lacks the Slack line"
   { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
   eq "control: a hand-written heading twice" "$(ovw_doc_problems "$d/heading.md")" "the five hand-written headings are not there once each, in order"
   sed 's/^- 5 new sessions/- 6 new sessions/' "$doc" > "$d/sessions.md"
