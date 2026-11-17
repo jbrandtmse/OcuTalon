@@ -46,6 +46,20 @@ ClassMethod TelegramPaired(sessionRef As %String) As %Boolean
 	Quit paired
 }
 
+/// 1 when Slack is on (Channel.Slack.In.On) and the session has a Data.SlackLink row, read by the session's Ref. Any error gives 0.
+ClassMethod SlackLinked(sessionRef As %String) As %Boolean
+{
+	Try {
+		Set linked = 0
+		If ($Get(sessionRef) '= "") && ##class(OcuTalon.Channel.Slack.In).On() {
+			Set linked = ''##class(OcuTalon.Data.SlackLink).SessionRefIndexExists(sessionRef)
+		}
+	} Catch exception {
+		Set linked = 0
+	}
+	Quit linked
+}
+
 /// 1 when digest.channels names the channel (web, phone, telegram or email): the setting's comma-separated names, each trimmed and lowercased,
 /// or SettingsOps' declared default when the setting has no row. A name that is not one of the four never counts, and neither does an
 /// empty channel. Any error gives 0.

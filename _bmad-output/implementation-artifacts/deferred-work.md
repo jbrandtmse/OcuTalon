@@ -6840,6 +6840,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-10T19:46:28Z note=see also DW-1094 (possible shared cause)
 - 2026-11-11T10:15:04Z occurrence=25-2 by=orchestrator note=run 42995845667 job 130439625167 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (pending reminder, watch, open approval) (ci-8); OCT-epic25 4af29b25; rerun of failed jobs
 - 2026-11-14T05:27:52Z occurrence=36-4-set-the-on-call-person-and-backup-in-settings by=runner note=CI run 43555521311 attempt 1 iris(image) lane-b@Contract,Core,Data,Live Test.Data.Purge TestCurrentSessionLosesNoRows (with its five kinds of rows; loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link); OCT-epic36 4a74d329; one rerun of the failed job
+- 2026-11-17T02:15:46Z occurrence=27-3-link-slack-members-in-settings by=runner note=CI_run_43996613147_attempt_1_iris(image)_job_133750121043_runner_ocutalon-ci-25_lane-b@Contract,Core,Data,Live_Test.Data.Purge_TestCurrentSessionLosesNoRows('with_its_five_kinds_of_rows');OCT-epic27_14940d399;rerun_of_failed_jobs
 - 2026-11-17T03:00:55Z note=the same assertion and cause as DW-1449 (Test.Data.Purge TestCurrentSessionLosesNoRows; the daily digest's tick writes into the fixture sessions); closed together by Story 0.40
 
 ### DW-1098: post-contest idea: admins see instance-owned incident usage on the Usage page (today a local install counts only the session's own rows, by design)
@@ -8821,6 +8822,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Channel/Slack/In.cls Turn repeats Channel/Telegram/In.cls Turn step for step minus allowance and file; spec decision 9 forces the copy (U-177: a Lane B story may not edit or extract from a Lane A class)
 - 2026-11-16T18:25:34Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify in one shared turn helper in a story allowed to edit Lane A and Lane B channel services
+- 2026-11-17T09:19:12Z status=wontfix-accepted owner=27-1-receive-slack-events-by-webhook by=burndown note=scope_frozen_1.0.13(owner);reopen_if=a_Lane_A_story_touches_Channel/Telegram/In.cls_Turn_or_WebChatIn.Accept(then_extract_one_shared_turn_helper)
 
 ### DW-1444: A Slack event over Data.Webhook BODYMAX (65,536 bytes) is answered 413 and dropped, so a very long direct message (Slack allows 40,000 characters and repeats the text in blocks) never becomes a turn
 - source: spec-27-1-receive-slack-events-by-webhook.md | severity: med | fix-risk: med | footprint: in-story
@@ -8968,11 +8970,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rework-1 edge review, unverified; settle with a fixture user Enabled=0 and a Slack Item for its session; the same gap applies to every channel that later calls MayChat (Story 0.38, DW-1284)
 - 2026-11-17T00:56:23Z status=escalated owner=burndown by=harvest note=for_the_Planner:extend_MayChat(irisUser)_with_account_state_(Enabled,expiry)_in_27.3_or_in_0.38?
 - 2026-11-17T01:12:02Z occurrence=27-3-link-slack-members-in-settings note=measured(throwaway):role_set_reads_OK_with_OcuTalonUser_for_a_disabled_and_an_expired_account;so_MayChat_answers_1
+- 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38(DW-1284)_extend_MayChat(irisUser)_with_account_state;key_not_yet_in_tracker
+- 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 
 ### DW-1466: The spine's dependency direction lists no Core-to-Web reference, yet Core.Conversation.MayChat calls OcuTalon.Web.Public.Shell.MayChat (ruled in amended AD-14), so the diagram and AD-14 disagree
 - source: spec-27-3-link-slack-members-in-settings.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/Conversation.cls MayChat references Web.Public.Shell; ARCHITECTURE-SPINE Dependency direction (mermaid + prose) has no Core->Web arrow and says the rest is checked in review; precedent Core.Files->Web.Documents is also unlisted
 - 2026-11-17T01:12:02Z status=escalated owner=burndown by=cr note=for_the_Planner:record_the_ruled_Core->Web.Public.Shell.MayChat_edge_in_the_dependency_diagram(or_move_the_predicate)
+- 2026-11-17T01:36:09Z status=routed owner=burndown by=merge_gate note=Contest_Planner_2026-11-17:to_lane_D_Story_0.38_move_the_predicate_into_Core;key_not_yet_in_tracker
+- 2026-11-17T09:19:13Z note=overflow:owned_by_lane_D_Story_0.38(Planner_ruling;key_not_in_tracker) by=burndown
 ### DW-1459: 28.3: OnAuthenticate's refusals (online demo, widened specification) and the real $Username and application role are not exercised through the dispatcher or iris-mcp-server
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: direct web path answers 502 GATEWAY_REQUIRED before OnAuthenticate; iris-mcp-server 2.0.0 lists no tool on build 154 (Task 0)
@@ -9030,6 +9036,34 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the control run at c573a86d0 gave one diagnose fallback on claims-archive-internal-error with ERROR #9404 (a field the reply class does not have), the case DW-1421 C2 targeted, at its 1st occurrence; round 4 maps #9404 to the fixed tag unexpected-field so the capture names it
 - 2026-11-16T22:02:44Z status=open owner=burndown by=lead note=against C2; reconsider on repeats
 
+### DW-1474: flake: Test.Core.PersonaAnswers TestTelegramFirstApproves 'the phone copy's Answer is the approval' red once in CI iris(image) lane-b@Contract,Core,Data,Live on feature 81265443f (ci 44007120511, ocutalon-ci-32); WaitAnswer returns the first non-empty Answer or empty at SECONDS, so a slow or differently-timed phone copy fails it
+- source: feature-81265443f-red-20261117 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: not reproduced: fresh class alone pass (e27fxc, 21.1s) and fresh shard part 2/4 with its 10 predecessors pass (e27fxs, 26 classes); earlier assertions of the same test (request done, approved from telegram by the user) passed in CI, so the role check (HoldsRole via the 27.3 RolesOf) answered 1; RolesOf diff is behaviour-neutral (same call, same ISOK and ListFind, same 0 on error/empty)
+- 2026-11-17T06:24:00Z status=routed owner=burndown by=runner note=flake_candidate;one_rerun_rule;a_second_red_on_any_head_makes_it_a_story
+
+### DW-1475: Channel/ReplyText.cls copies Telegram/Out.cls private CheckSentence/WhatFailed (~70 lines) for Slack replies
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spec-forced by U-177 (a Lane B story may not edit or extract from Lane A's Telegram/Out.cls); Decided 7
+- 2026-11-17T07:39:18Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=harvest note=reopen_if=a_Lane_A_story_touches_Telegram/Out.cls_CheckSentence_(then_make_both_call_ReplyText)
+
+### DW-1476: docs/security-overview.md lists where data leaves the instance and does not name Slack (chat.postMessage to the linked member)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: docs/** is Epic 28's path and the sentence is public text the Planner has not worded; scope frozen for 1.0.13
+- 2026-11-17T07:39:18Z status=escalated owner=burndown by=harvest note=for_the_Planner:word_one_security-overview_line_for_Slack_or_accept_the_gap_for_1.0.13
+- 2026-11-17T08:11:25Z occurrence=27-2-reply-as-slack-messages-with-no-socket-mode
+- 2026-11-17T09:58:45Z status=resolved-by:27-2-reply-as-slack-messages-with-no-socket-mode owner=27-2-reply-as-slack-messages-with-no-socket-mode by=merge_gate note=Contest_Planner_worded_the_line(Nov_17);added_to_docs/security-overview.md_Data_section_in_9801ed84d;pinned_in_test-release-sequence_overviewdoc_with_a_control
+
+### DW-1477: shards-3 CI group time after Test.Msg.Catalog TestEveryKeyOnEveryChannel grew with slack (unverified against the 32-minute line)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: settle from the feature CI run's shards-3 time after the 27.2 merge
+- 2026-11-17T07:39:18Z status=routed owner=burndown by=harvest note=check_shards-3_duration_on_the_27.2_branch_CI_and_feature_merge_run
+- 2026-11-17T09:19:12Z status=escalated owner=burndown by=burndown note=MEASURED_shards-3_job:37.8min_on_27.2_head_ea0736ead(ci_44047367644);prior_heads_33.7(81265443f),34.9(05915a781),38.8(1f8733c0e),40.2(14940d399):already_over_the_32-min_line_since_27.1's_live:slack-hook;for_the_Planner's_CI-budget_audit
+- 2026-11-17T09:58:45Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=merge_gate note=Contest_Planner_accepted;reopen_if=a_shards-3_job_comes_within_5_min_of_its_timeout_or_times_out(report_before_any_rerun)
+
+### DW-1478: lint_spine.py reports ok:false from 13 pre-existing LOW placeholder findings (none in lines Epic 27 added)
+- source: spec-27-2-reply-as-slack-messages-with-no-socket-mode.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: same 13 findings on feature before Epic 27; AC1 of 27.1/27.3/27.2 says ok:true
+- 2026-11-17T07:39:18Z status=wontfix-accepted owner=27-2-reply-as-slack-messages-with-no-socket-mode by=harvest note=reopen_if=a_spine_cleanup_story_or_a_new_non-placeholder_lint_finding
 ### DW-1470: 28.3: Mcp.ApplyService closes OcuTalon_MCPServer's public permission only when the application role, application and resource steps succeed first
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: ApplyService quits on a failed ApplyAppRole/ApplyApplication/MakeResource before ClosePublicPermission, so on such a failed start an admin-set public permission stays open while an existing /mcp/ocutalon still adds OcuTalonMCPApp (S-28.3-4 says every start). Fix: close whenever the resource exists, even after an earlier failure, plus a failure-seam test.

@@ -12,6 +12,7 @@
 ///   - TestLinkReasons: (Story 27.3) Link names why it refused in reason (bad_id, no_session, member_taken, user_taken), is OK with the existing Ref for the same member and session
 ///     and with "" as the reason for a new link, takes the Ref that the caller made, and no status text holds an id;
 ///   - TestTaken: Taken answers "", same, member_taken or user_taken from the two unique indexes, the member first, and changes nothing;
+///   - TestMemberFor: (Story 27.2) MemberFor answers the member id of the session's link and the link's Ref, and "" with an empty Ref for a session with no link, an empty or an unknown Ref, and after Unlink;
 ///   - TestList: List answers [{ref, sessionRef, member}] in the order of the rows' ids, with no team id;
 ///   - TestWorkspace: NoteWorkspace holds a valid team id, ignores an invalid or empty one, writes only when the value differs, and Workspace answers it (the value held before the test is put back);
 ///   - TestClaimEvent: the first claim of an event id wins and a repeat does not, in the same hour and across an hour boundary; a claim is kept for 2 hours and its bucket is
@@ -242,6 +243,21 @@ Method TestLinkGoesWithSession()
 		Do $$$AssertTrue(0, "the evaluation case threw: "_exception.DisplayString())
 	}
 	Do ##class(OcuTalon.Test.Data.Fixture).SetEval(previous)
+}
+
+Method TestMemberFor()
+{
+	Set session = ..Session("memberfor")
+	Set other = ..Session("memberforother")
+	Set ref = ##class(OcuTalon.Data.SlackLink).Link(..#TEAM, "U0MEMBERFOR", session, .sc)
+	Do $$$AssertStatusOK(sc, "the member is linked")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).MemberFor(session, .linkRef), "U0MEMBERFOR", "the session's member id is answered")
+	Do $$$AssertEquals(linkRef, ref, "with the link's Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).MemberFor(other, .linkRef)_"|"_linkRef, "|", "a session with no link gives none, and no Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).MemberFor("", .linkRef)_"|"_linkRef, "|", "an empty Ref gives none")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).MemberFor("zzunknown", .linkRef)_"|"_linkRef, "|", "an unknown Ref gives none")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.SlackLink).Unlink(session), "the link is removed")
+	Do $$$AssertEquals(##class(OcuTalon.Data.SlackLink).MemberFor(session, .linkRef)_"|"_linkRef, "|", "after Unlink the session has none")
 }
 
 Method TestLinkedInAnotherTeam()

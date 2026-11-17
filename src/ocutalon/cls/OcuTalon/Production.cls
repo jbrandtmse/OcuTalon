@@ -105,6 +105,7 @@ XData ProductionDefinition
   <Item Name="PrecedentOps" ClassName="OcuTalon.Core.PrecedentOps" PoolSize="1" Enabled="true"/>
   <Item Name="WebhookIn" ClassName="OcuTalon.Channel.Webhook.In" PoolSize="0" Enabled="true"/>
   <Item Name="SlackIn" ClassName="OcuTalon.Channel.Slack.In" PoolSize="0" Enabled="true"/>
+  <Item Name="SlackOut" ClassName="OcuTalon.Channel.Slack.Out" PoolSize="1" Enabled="true"/>
   <!-- lane B: end -->
 </Production>
 }

@@ -1203,9 +1203,9 @@ Reroute, suspend and resume, and roll back each use the approval request card wi
 
 ### Step 7: Slack
 
-[ADDED 2026-11-16, Story 27.3, approved R12] Slack is optional, and these are the setup steps (as approved and reordered by the Contest Planner):
+[ADDED 2026-11-16, Story 27.3, approved R12] Slack is optional, and these are the setup steps (as approved and reordered by the Contest Planner): [AMENDED 2026-11-17, Story 27.2, Contest Planner ruling] Step 1 gains the chat:write scope, which a reply needs.
 
-1. Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history scope, and install it to the workspace.
+1. Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history and chat:write scopes, and install it to the workspace.
 2. Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon.
 3. Under Event Subscriptions, set the request URL to https://<your public address>/ocutalon/hook/slack/events and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once.
 4. As an admin, open Settings › Channels › Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.

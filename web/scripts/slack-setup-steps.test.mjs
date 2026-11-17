@@ -1,5 +1,5 @@
 // Pins the four approved Slack setup steps (Story 27.3 QA; UX-DR117, the Contest Planner's R12 ruling): they are in GUIDE.md under "## Slack" (the anchor the Settings page's "How to set
-// it up" link opens) and in EXPERIENCE.md under "### Step 7: Slack", word for word, with nothing else in the GUIDE section, no chat:write scope (Story 27.2 adds it), and the same
+// it up" link opens) and in EXPERIENCE.md under "### Step 7: Slack", word for word, with nothing else in the GUIDE section, a step 1 that names the im:history and chat:write scopes (Story 27.2), and the same
 // events path that Settings shows (SettingsOps SLACKPATH). The oracle is written out here; the GUIDE section differs from it only by the backticks around the URL.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ const experience = readFileSync(join(root, '_bmad-output', 'planning-artifacts',
 const settingsOps = readFileSync(join(root, 'src', 'ocutalon', 'cls', 'OcuTalon', 'Core', 'SettingsOps.cls'), 'utf8');
 
 const STEPS = [
-  'Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history scope, and install it to the workspace.',
+  'Create a Slack app for your workspace at api.slack.com/apps. In App Home, turn on the Messages Tab and allow users to send messages from it. Give its bot the im:history and chat:write scopes, and install it to the workspace.',
   'Copy the bot token and the signing secret into .env as SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET, then restart OcuTalon.',
   "Under Event Subscriptions, set the request URL to https://<your public address>/ocutalon/hook/slack/events and subscribe the bot to the message.im event. OcuTalon answers Slack's check at once.",
   "As an admin, open Settings \u203A Channels \u203A Slack and link each person's Slack member ID to their OcuTalon user. Only linked members' direct messages to the bot reach OcuTalon.",
@@ -62,8 +62,8 @@ describe('GUIDE.md > Slack', () => {
     assert.match(section.join('\n'), /request URL to `https:\/\/<your public address>\/ocutalon\/hook\/slack\/events` and/);
   });
 
-  it('names no chat:write scope (Story 27.2 adds it)', () => {
-    assert.doesNotMatch(section.join('\n'), /chat:write/);
+  it('step 1 names the chat:write scope that a reply needs (Story 27.2), with im:history', () => {
+    assert.match(numbered(section)[0][1], /Give its bot the im:history and chat:write scopes, and install it to the workspace\./);
   });
 });
 
@@ -86,8 +86,8 @@ describe('EXPERIENCE.md > Later Steps > Step 7: Slack', () => {
     );
   });
 
-  it('names no chat:write scope in its steps', () => {
-    assert.doesNotMatch(numbered(section).map(([, text]) => text).join('\n'), /chat:write/);
+  it('step 1 names the chat:write scope that a reply needs (Story 27.2), with im:history', () => {
+    assert.match(numbered(section)[0][1], /Give its bot the im:history and chat:write scopes, and install it to the workspace\./);
   });
 });
 
