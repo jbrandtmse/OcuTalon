@@ -4685,3 +4685,4 @@
 2026-11-17T09:52:39Z	Epic 27	epic_complete	PART_READY 27.2 + Epic 27 close head=f16c1e9e8 runs=44054557745,44054557729; decisions DW-1476(overview_Slack_line),DW-1477(shards-3_37.8min); lane_B idle
 2026-11-17T09:53:24Z	Run	owner_decision	via=contest_planner DW-1480=wontfix-accepted DW-1476=add_Slack_line(before_REQUIRED_GREEN) DW-1477=accepted(timeout=unexplained_red) 27.2_gap_in_release_notes; Slack_OFF_on_demo_in_gate
 2026-11-17T10:20:07Z	Run	ci_green	feature 103a6ac7a ci=44044363400 att2 green (DW-415, ci-9)
+2026-11-17T10:20:25Z	Epic 0	merged	0.39 merge=588ba262d (note: merge was briefly concluded locally by a records commit; amended before push)
