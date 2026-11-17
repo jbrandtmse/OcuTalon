@@ -66,7 +66,7 @@ ClassMethod RecentActivity() As %DynamicObject
 	Set owner = ..Owner(..#NOTREAD, .answer, .outcome)
 	If owner '= "" {
 		Try {
-			Set answer = ..Activity(owner, ..#NONE, ..#NOTREAD)
+			Do ..Activity(owner, .answer, ..#NONE, ..#NOTREAD)
 			Set outcome = $Select(answer.ok: "ok", 1: "notread")
 		} Catch {
 			Set answer = {"ok": false, "message": (..#NOTREAD)}

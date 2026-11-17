@@ -19,7 +19,7 @@
 /// stored summary of the session's newest closed incident that has one (OcuTalon.Watch.Summary Text, rendered through the catalog for the web), or {"outcome": "none"}.
 /// Its text holds the cause, the evidence and the sample error, which are model-written or come from arriving messages, so its output is NOT trusted (TRUSTEDOUTPUT 0)
 /// and a turn that calls it is tainted. It reads only the incidents that Ownership.RecentIncidents gives the session.
-/// Activity is the answer of recent_activity for a given owner, shared with the served tool of the same name (OcuTalon.Mcp.ServiceRead).
+/// Activity is the answer of recent_activity for a given owner, handed back in an Output argument and shared with the served tool of the same name (OcuTalon.Mcp.ServiceRead).
 /// It extends OcuTalon.Tools.Result and returns only through Return. A tool method runs inside AI Hub's callback, so this class makes no AI Hub call and no
 /// Python call (AD-6). The description of the tool is its method's doc comment: text for the model, never shown to the user as written.
 Class OcuTalon.Tools.RecentActivity Extends OcuTalon.Tools.Result
@@ -73,15 +73,16 @@ ClassMethod RecentActivity() As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
 	If $IsObject(refusal) Quit ..Return(refusal)
-	Quit ..Return(..Activity(context.OwnerRef))
+	Do ..Activity(context.OwnerRef, .answer)
+	Quit ..Return(answer)
 }
 
-/// The answer of recent_activity for the session owner (see the class description), with none as the message of an empty list and notRead as the message of an
-/// unreadable one. It reads only through the ownership API and returns nothing through Return, so the caller (this class's tool, or OcuTalon.Mcp.ServiceRead) does.
-ClassMethod Activity(owner As %String, none As %String = {..#NONE}, notRead As %String = {..#NOTREAD}) As %DynamicObject [ Private ]
+/// The answer of recent_activity for the session owner in answer (see the class description), with none as the message of an empty list and notRead as the message
+/// of an unreadable one. It reads only through the ownership API and returns no value, so the caller (this class's tool, or OcuTalon.Mcp.ServiceRead) hands answer on.
+ClassMethod Activity(owner As %String, Output answer As %DynamicObject, none As %String = {..#NONE}, notRead As %String = {..#NOTREAD}) [ Private ]
 {
 	Do ..ReadIncidents(owner, .rows, .sc)
-	If $$$ISERR(sc) || '$IsObject(rows) Quit {"ok": false, "message": (notRead)}
+	If $$$ISERR(sc) || '$IsObject(rows) { Set answer = {"ok": false, "message": (notRead)} Quit }
 	Set cutoff = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -(..#HOURS * 3600))
 	Do ##class(OcuTalon.Tools.WatchAnswers).WatchNames(owner, .names)
 	Set online = ##class(OcuTalon.Watch.Reader).OnlineDemo()
@@ -100,10 +101,9 @@ ClassMethod Activity(owner As %String, none As %String = {..#NONE}, notRead As %
 		}
 		Do incidents.%Push(entry)
 	}
-	If unread Quit {"ok": false, "message": (notRead)}
+	If unread { Set answer = {"ok": false, "message": (notRead)} Quit }
 	Set answer = {"ok": true, "hours": (..#HOURS), "incidents": (incidents)}
 	If incidents.%Size() = 0 Set answer.message = none
-	Quit answer
 }
 
 /// Gives the summary of the user's latest closed incident: what happened, when, the cause and the evidence, each approval, the messages affected and the model cost.
