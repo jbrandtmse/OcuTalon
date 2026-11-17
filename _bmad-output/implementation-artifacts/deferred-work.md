@@ -8906,6 +8906,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 43943159296 job iris (shards-5) 133565710915 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: runner ocutalon-ci-27; the hung response is route.fulfill (no server code serves it); fresh lane-C repro of sign-in-3 part 4/4 at the same code passed 34/34 (memory-card 26 tests, 57 s)
 - 2026-11-16T21:18:50Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second hit on any head makes it a cause-and-fix story
+- 2026-11-17T08:10:27Z status=wontfix-accepted owner=28-2-fade-unused-memories-and-merge-duplicates-nightly by=burndown note=one hit, the rerun was green, the hung response was a Playwright-fulfilled 500 (no server code); owner wrap-up 2026-11-17 freezes scope; reopen_if=a second hit of memory-card MC3 on any head
 ### DW-1452: flake candidate: live:sign-in-3 e2e/guide/guide.spec.ts:486 Q7 (the sent line gives way to the 90 s and 3 min lines by the page's clock) toHaveAttribute failed, element(s) not found
 - source: feature ci 43957453035 (854346fa1, the 27.1 merge) iris (shards-5) on ocutalon-ci-18 | severity: low | fix-risk: low | footprint: web/e2e/guide/guide.spec.ts
 - evidence: the same group passed on 27.1's branch run 43938844259; 27.1 touches Web/Hook.cls, not the guide's page or spec; Q7 depends on the page's clock
@@ -8925,6 +8926,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: direct web path answers 502 GATEWAY_REQUIRED before OnAuthenticate; iris-mcp-server 2.0.0 lists no tool on build 154 (Task 0)
 - 2026-11-16T23:51:34Z status=routed owner=28-5-connect-an-mcp-client-through-iris-mcp-server by=harvest note=settled by Story 28.5's gateway tests
+- 2026-11-17T08:10:27Z by=burndown note=stays with Story 28.5, deferred (owner wrap-up 2026-11-17); its DW bullet is in 28.5's epics.md block; no 1.0.13 work
 
 ### DW-1460: 28.3: no test inspects an online-demo install for the absence of /mcp/ocutalon, OcuTalon_MCPServer, OcuTalonMCPApp and OcuTalonMCPClient
 - source: spec-28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients.md | severity: low | fix-risk: low | footprint: in-story
