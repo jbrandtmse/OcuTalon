@@ -8944,3 +8944,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner control verdict ~22:05Z Nov 16 (DW-1421 round 4 additions) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: the control run at c573a86d0 gave one diagnose fallback on claims-archive-internal-error with ERROR #9404 (a field the reply class does not have), the case DW-1421 C2 targeted, at its 1st occurrence; round 4 maps #9404 to the fixed tag unexpected-field so the capture names it
 - 2026-11-16T22:02:44Z status=open owner=burndown by=lead note=against C2; reconsider on repeats
+
+### DW-1482: Telegram approval answers (Got it and the approval buttons) check roles only, so a disabled or expired user whose chat is still paired can answer them
+- source: spec-0-38-telegram-and-email-turns-check-the-person-s-role-at-use-time.md (code-review) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AnswersIn.FromTelegram and Bridge.Approval HoldsRole read roles, not the account state (Enabled, expiry) that Core.Access MayChat now reads; pre-existing; 0.38's Design Notes list it as known, not changed
+- 2026-11-17T14:51:23Z status=open owner=burndown by=lead note=candidate: answers call Core.Access MayChat(irisUser) as well
+
+### DW-1483: flake: Test.Schedule.Heartbeat TestStubSkipped fails in reverse shard order (lane-b part 2/6 --reverse): an Ens.Alarm timer warning left by earlier Schedule classes counts as an error row
+- source: spec-0-38 (implement verification, lane D e038i reverse shards) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: FAIL TestStubSkipped: no error or alert row was written: Ens.Alarm Message can not be found, timer event ignored; order dependent; no Schedule file in 0.38's diff
+- 2026-11-17T14:51:23Z status=open owner=burndown by=lead note=test isolation

@@ -1096,3 +1096,4 @@
 2026-11-17T06:41:34Z	Story 0.38	re-planned	on_720467ed5(27.3) build_status=ready-for-dev gate=planner(Shell_cannot_call_Core:AD-3_public_package;RolesMayChat+MayChat_names;Security.Users_read_needs_%SYS_switch(AD-3_amend);Lane_A_Telegram/In.cls_for_file_check(AD-33))
 2026-11-17T06:48:34Z	Story 0.38	spec_validated	gate=approved(4_points;conditions_i-iv;ChatSession_cleanup_on_failure_pinned) 
 2026-11-17T06:48:34Z	Story 0.38	stage_spawned	stage=implement spawn_at=2026-11-17T06:48:34Z model=sonnet effort=high
+2026-11-17T14:56:26Z	Story 0.38	implement_done	commit=ca3a34e5a build_status=done review=31(3_MED_patched,5_LOW,2_deferred:DW-1482,DW-1483) followup_review_recommended=true lead_check=live:slack-hook_re-run_green_after_patches(e038l)
