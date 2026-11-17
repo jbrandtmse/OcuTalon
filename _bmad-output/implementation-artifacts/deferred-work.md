@@ -8896,3 +8896,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 0.39 investigation: 7 of 7 chrome-error sightings and the reload blank pages trace to a network change seen by Chromium on the CI host (inference, unmeasured)
 - 2026-11-17T01:20:17Z status=routed owner=burndown by=lead note=Contest Planner ruling 2026-11-17 (rulings item 1): ledgered LOW, a CI infrastructure follow-on, not Story 0.39
+
+### DW-1471: 0.39 pass A: the second-retry failure in withOneReload (if (usedUp) throw usedUp) is pinned only through reportRetryOnce and a source pin; no row or live repro drives two retries at one site through loadedAfter or reloadSettled
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: verification-gap: removing the throw leaves retry-bounds.test.mjs green; web/e2e/support/floor.ts:189
+- 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B adds a row or live repro (AC2b)
+
+### DW-1472: 0.39 pass A: T1, T4 and T5 count pairing-code requests across a reload; the one logged retry asks for the code again, so a healed flake could fail as a count of 2
+- source: spec-0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: blind-hunter; Task 4 asks to confirm the counts; only T2 ran on the fixed tree in pass A
+- 2026-11-17T02:27:14Z status=open owner=0-39-browser-timing-flakes-wait-for-the-page-s-real-readiness-and by=harvest note=pass B checks T1/T4/T5 under the repro and with a full live demo-path run
